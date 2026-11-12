@@ -106,12 +106,13 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
     area = m.area.nome if m.area_id else ""
     filtri = {
         "reparto": sezioni_c.tag_slug(r["reparto"] or ""), "area": sezioni_c.tag_slug(area),
+        "centro": sezioni_c.tag_slug(m.area.centro_di_costo.nome if m.area_id and m.area.centro_di_costo_id else ""),
         "persone": " " + " ".join(str(i) for i in r["persone_ids"]) + " ",
         "classi": " " + " ".join(r.get("classi", [])) + " ",
     }
     q = " ".join([r["nome"], r["reparto"] or "", area, rischi, *(x.nome for x in r["ruoli"]), *nomi]).casefold()
     if m.is_responsabilita:
-        flag = ["responsabilita"] + ([] if nomi else ["senza-titolare", "scoperta"])
+        flag = ["responsabilita"] + ([] if nomi else ["senza-titolare"])
         dove = f"dell'area {area}" if m.responsabilita_area_id else f"del reparto {r['reparto']}"
         s = sezioni_c.scheda(
             titolo=r["nome"],
@@ -139,6 +140,10 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
         flag.append("senza-rischio")
     if r["uomo_solo"] and r["operativi"]:
         flag.append("uomo-solo")
+    if r.get("concentrato"):
+        flag.append("concentrato")
+    if r.get("fuori_forza"):
+        flag.append("fuori-forza")
     s = sezioni_c.scheda(
         titolo=r["nome"],
         href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
@@ -150,8 +155,10 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
         principale=str(r["operativi"]), principale_label="operativ" + ("o" if r["operativi"] == 1 else "i"),
         principale_sub=f"su {r['in_lista']} in lista",
         pillole=[
-            sezioni_c.pillola("fmd-c-ko", "nessun operativo") if not r["operativi"] else
+            sezioni_c.pillola("fmd-c-ko", "scoperta") if not r["operativi"] else
             (sezioni_c.pillola("fmd-c-s30", "uomo solo") if r["uomo_solo"] else None),
+            sezioni_c.pillola("fmd-c-s30", f"carico {r['concentrazione']}%") if r.get("concentrato") else None,
+            sezioni_c.pillola("fmd-c-mai", f"{r['fuori_forza']} non più in forza") if r.get("fuori_forza") else None,
             sezioni_c.pillola("fmd-c-mai", "senza mansione di rischio") if not r["rischi"] else None,
         ],
         piede=f"Rischio: {rischi}" if rischi else "Mansione di rischio da indicare",
@@ -225,7 +232,7 @@ def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None)
         return {
             "nome": nome, "ruolo": ruolo, "da_collegare": da_collegare,
             "schede": [_scheda(x, ruolo_gruppo=ruolo, persone=persone) for x in righe_g],
-            "scoperte": sum(1 for x in righe_g if not x["operativi"]),
+            "scoperte": sum(1 for x in righe_g if not x["operativi"] and not x["mansione"].is_responsabilita),
             "in_lista": sum(x["in_lista"] for x in righe_g),
             "chi": chi,
             "persone_ids": " " + " ".join(str(i) for i in sorted(ids)) + " ",
@@ -242,9 +249,9 @@ def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None)
 def mansionario(request):
     if not _puo_vedere(request):
         return _nega(request)
-    from .services import sezioni_c
+    from .services import carico_mansioni, sezioni_c
 
-    righe = svc.riepilogo()
+    righe = carico_mansioni.su_riepilogo(svc.riepilogo(), carico_mansioni.oggi())
     aree = sezioni_c.aree_visibili(request, [
         sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
@@ -266,6 +273,8 @@ def mansionario(request):
     kpi["uomo_solo"] = sum(1 for r in righe if r["uomo_solo"] and r["operativi"]
                            and not r["mansione"].is_responsabilita)
     kpi["ruolo_senza_mansione"] = sum(g["chi"]["senza_mansione"] for g in gruppi if g["chi"])
+    kpi["concentrate"] = sum(1 for r in righe if r["concentrato"])
+    kpi["fuori_forza"] = sum(1 for r in righe if r["fuori_forza"])
     from .services.mansioni_coefficienti import CLASSIFICAZIONI
     from .services.sezioni_c import tag_slug
 
@@ -273,6 +282,9 @@ def mansionario(request):
         "reparti": [(tag_slug(n), n) for n in sorted({r["reparto"] for r in righe if r["reparto"]}, key=str.casefold)],
         "aree": [(tag_slug(n), n) for n in sorted({r["mansione"].area.nome for r in righe if r["mansione"].area_id},
                                                   key=str.casefold)],
+        "centri": [(tag_slug(n), n) for n in sorted({r["mansione"].area.centro_di_costo.nome for r in righe
+                                                     if r["mansione"].area_id and r["mansione"].area.centro_di_costo_id},
+                                                    key=str.casefold)],
         "persone": sorted(persone.values(), key=lambda p: p["nome"].casefold()),
         "classi": [*CLASSIFICAZIONI.items(), ("-", "Non classificata")],
     }
@@ -326,10 +338,14 @@ def mansionario_mansione(request, mansione_id: int):
             f" Prima si chiamava «{nome_prima}»: persone, competenze e rischi restano collegati." if nome_prima else ""))
         return _alla_scheda(mansione.pk, "impostazioni")
 
-    from .services import mansionario_competenze as comp_svc
+    from .services import carico_mansioni, mansionario_competenze as comp_svc
 
     competenze = list(comp_svc.competenze(mansione))
     persone = svc.persone(mansione)
+    carico = carico_mansioni.oggi()
+    carico_mansione = carico.per_mansione.get(mansione.pk) if carico else None
+    for p in persone:
+        p["fuori_forza"] = bool(carico) and carico.alias.get(p["legacy_id"], p["legacy_id"]) not in carico.in_forza
     requisiti = comp_svc.Requisiti([p["legacy_id"] for p in persone], competenze)
     for p in persone:
         val = comp_svc.valuta(p["abilitazione"], voci=competenze, requisiti=requisiti)
@@ -362,12 +378,18 @@ def mansionario_mansione(request, mansione_id: int):
         candidati = sorted((p for lid, p in _persone_in_forza().items()
                             if lid not in in_lista and p["ruoli"] & ruoli_mansione),
                            key=lambda c: c["nome"].casefold())
+    formazione = _formazione_mansione(request, mansione, competenze, persone)
+    for p in persone:
+        p["corsi_mancanti"] = [r["corso"] for r in formazione["corsi_mansione"]
+                               if r["regola"] and r["obbligatorio"] and p["legacy_id"] in r["mancanti"]]
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
         "competenze": competenze,
         "persone": persone,
         "stato": stato,
+        "carico_mansione": carico_mansione,
+        "n_fuori_forza": sum(1 for p in persone if p["fuori_forza"]),
         "candidati": candidati,
         **(_opzioni_requisiti() if is_admin else {}),
         "livelli": svc.LIVELLI,
@@ -382,13 +404,135 @@ def mansionario_mansione(request, mansione_id: int):
         "regole": svc.regole_correnti(),
         "catalogo_nomi": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome")
                               .values_list("nome", flat=True)) if is_admin else [],
-        "regole_formazione": list(
-            mansione.regole_formazione.filter(is_active=True, is_mandatory=True)
-            .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")
-        ),
+        **formazione,
         "is_admin": is_admin,
         "puo_valutare": puo_valutare,
     })
+
+
+def _puo_collegare_corsi(request) -> bool:
+    """Collegare corsi alla mansione: chi gestisce il Mansionario o la formazione."""
+    from .views import _helpers
+
+    return _puo_gestire(request) or _helpers._can_edit_formazione(request)
+
+
+def _formazione_mansione(request, mansione, competenze, persone) -> dict:
+    """Corsi della mansione, ciascuno con chi in lista è in regola e chi no.
+
+    Due origini, mostrate insieme perché sono lo stesso filo:
+    - collegati alla mansione (``TrainingRequirementRule.competenza``), ognuno
+      **obbligatorio** (entra in scadenzario, copertura, onboarding) o
+      **consigliato** (resta visibile e proponibile, senza scadenze);
+    - richiesti da una competenza (``VoceMacchinaCatalogo.corso``): senza il corso
+      la persona non supera «I» su quella competenza.
+    """
+    from .models_formazione import TrainingCourse, TrainingDeadline
+    from .services.skillmatrix_qualifica import _STATI_VALIDI
+    from .views import _helpers
+
+    ids = [p["legacy_id"] for p in persone]
+    nomi = {p["legacy_id"]: p["nome"] for p in persone}
+    righe: dict[int, dict] = {}
+    piani = []
+    for r in (mansione.regole_formazione.filter(is_active=True)
+              .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")):
+        if r.corso_id:
+            righe[r.corso_id] = {"corso": r.corso, "regola": r, "obbligatorio": r.is_mandatory, "da_competenze": []}
+        elif r.piano_id:
+            piani.append(r)
+    for v in competenze:
+        if getattr(v, "corso_id", None):
+            riga = righe.setdefault(v.corso_id, {"corso": v.corso, "regola": None, "obbligatorio": False, "da_competenze": []})
+            riga["da_competenze"].append(v.nome)
+    stato: dict[tuple[int, int], str] = {}
+    if ids and righe:
+        for lid, cid, st in (TrainingDeadline.objects.filter(legacy_anagrafica_id__in=ids, corso_id__in=list(righe))
+                             .values_list("legacy_anagrafica_id", "corso_id", "stato_scadenza")):
+            stato[(lid, cid)] = st
+    for cid, riga in righe.items():
+        in_regola = [lid for lid in ids if stato.get((lid, cid)) in _STATI_VALIDI]
+        mancanti = [lid for lid in ids if lid not in in_regola]
+        riga["n_in_regola"] = len(in_regola)
+        riga["mancanti"] = mancanti
+        riga["nomi_mancanti"] = [nomi.get(lid, f"#{lid}") for lid in mancanti]
+    ordinate = sorted(righe.values(), key=lambda r: (not r["obbligatorio"], not r["regola"], r["corso"].titolo.casefold()))
+    gia = set(righe)
+    return {
+        "corsi_mansione": ordinate,
+        "piani_mansione": piani,
+        "n_persone_lista": len(ids),
+        "puo_collegare_corsi": _puo_collegare_corsi(request),
+        "puo_iscrivere": _helpers._can_edit_formazione(request),
+        "corsi_opzioni": list(TrainingCourse.objects.filter(is_active=True).exclude(pk__in=gia)
+                              .order_by("titolo").only("pk", "codice", "titolo")),
+    }
+
+
+@login_required
+@require_POST
+def mansionario_corso_collega(request, mansione_id: int):
+    """Collega un corso alla mansione: obbligatorio o consigliato (scelta di chi collega)."""
+    from .models_formazione import TrainingCourse, TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per collegare corsi alla mansione.")
+    mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id, tipo__in=svc.TIPI_MANSIONE)
+    corso = TrainingCourse.objects.filter(pk=_int_o_none(request.POST.get("corso")), is_active=True).first()
+    if corso is None:
+        messages.error(request, "Scegli il corso da collegare.")
+        return _alla_scheda(mansione.pk, "formazione")
+    obbligatorio = request.POST.get("tipo") != "consigliato"
+    regola = TrainingRequirementRule.objects.filter(corso=corso, competenza=mansione).first()
+    if regola is None:
+        regola = TrainingRequirementRule.objects.create(
+            corso=corso, competenza=mansione, is_mandatory=obbligatorio, is_active=True, created_by=request.user,
+        )
+    else:
+        regola.is_mandatory, regola.is_active = obbligatorio, True
+        regola.save(update_fields=["is_mandatory", "is_active"])
+    log_action(request, "mansionario_corso_collegato", MODULE, {
+        "mansione": mansione.pk, "corso": corso.pk, "obbligatorio": obbligatorio,
+    }, oggetto=mansione)
+    messages.success(request, f"«{corso.titolo}» collegato alla mansione come "
+                              + ("obbligatorio: entra nello scadenzario di chi è in lista." if obbligatorio
+                                 else "consigliato: visibile e proponibile, senza scadenze."))
+    return _alla_scheda(mansione.pk, "formazione")
+
+
+@login_required
+@require_POST
+def mansionario_corso_tipo(request, mansione_id: int, regola_id: int):
+    """Passa un corso collegato da obbligatorio a consigliato e viceversa."""
+    from .models_formazione import TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per modificare i corsi della mansione.")
+    regola = get_object_or_404(TrainingRequirementRule.objects.select_related("corso"),
+                               pk=regola_id, competenza_id=mansione_id)
+    regola.is_mandatory = request.POST.get("tipo") != "consigliato"
+    regola.save(update_fields=["is_mandatory"])
+    log_action(request, "mansionario_corso_tipo", MODULE, {
+        "mansione": mansione_id, "corso": regola.corso_id, "obbligatorio": regola.is_mandatory,
+    })
+    messages.success(request, f"«{regola.corso}» ora è {'obbligatorio' if regola.is_mandatory else 'consigliato'} per la mansione.")
+    return _alla_scheda(mansione_id, "formazione")
+
+
+@login_required
+@require_POST
+def mansionario_corso_scollega(request, mansione_id: int, regola_id: int):
+    from .models_formazione import TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per modificare i corsi della mansione.")
+    regola = get_object_or_404(TrainingRequirementRule.objects.select_related("corso"),
+                               pk=regola_id, competenza_id=mansione_id)
+    titolo, corso_id = str(regola.corso or regola.piano), regola.corso_id
+    regola.delete()
+    log_action(request, "mansionario_corso_scollegato", MODULE, {"mansione": mansione_id, "corso": corso_id})
+    messages.success(request, f"«{titolo}» scollegato dalla mansione. I completamenti già registrati restano.")
+    return _alla_scheda(mansione_id, "formazione")
 
 
 @login_required
@@ -692,12 +836,16 @@ def mansionario_persona(request, legacy_id: int):
         ruoli_persona = [f"«{a.ruolo.nome}»" for a in ruoli_in_essere([legacy_id]).get(legacy_id, [])]
         assegnabili = [{"id": m.pk, "nome": m.nome, "reparto": m.reparto_effettivo,
                         "ruoli": ", ".join(r.nome for r in m.ruoli.all())} for m in mansioni_assegnabili(legacy_id)]
+    scheda = comp_svc.scheda_persona(legacy_id)
+    _corsi_da_fare_persona(legacy_id, scheda)
+    from .views import _helpers as _h
     return render(request, "anagrafica/pages/mansionario_persona.html", {
         "page_title": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
+        "puo_iscrivere": _h._can_edit_formazione(request),
         "legacy_id": legacy_id,
         "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
-        "scheda": comp_svc.scheda_persona(legacy_id),
+        "scheda": scheda,
         "storico": storico_persona(legacy_id),
         "storico_mansioni": svc.storico_mansioni_persona(legacy_id),
         "puo_valutare": puo_valutare,
@@ -706,6 +854,32 @@ def mansionario_persona(request, legacy_id: int):
         "livelli_label": list(LIVELLO_LABEL.items()),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
+
+
+def _corsi_da_fare_persona(legacy_id: int, scheda) -> None:
+    """Su ogni riga della scheda persona: i corsi della mansione che la persona
+    non ha validi, divisi in obbligatori (mancanza) e consigliati (proposta)."""
+    from .models_formazione import TrainingDeadline, TrainingRequirementRule
+    from .services.skillmatrix_qualifica import _STATI_VALIDI
+
+    righe = list(getattr(scheda, "righe", None) or (scheda.get("righe", []) if isinstance(scheda, dict) else []))
+    ids_mansioni = [r["mansione"].pk if isinstance(r, dict) else r.mansione.pk for r in righe]
+    if not ids_mansioni:
+        return
+    regole = list(TrainingRequirementRule.objects.filter(competenza_id__in=ids_mansioni, is_active=True,
+                                                         corso__isnull=False, corso__is_active=True)
+                  .select_related("corso").order_by("corso__titolo"))
+    validi = set(TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, stato_scadenza__in=_STATI_VALIDI,
+                                                 corso_id__in={r.corso_id for r in regole})
+                 .values_list("corso_id", flat=True))
+    for riga in righe:
+        mid = riga["mansione"].pk if isinstance(riga, dict) else riga.mansione.pk
+        obbl = [r.corso for r in regole if r.competenza_id == mid and r.is_mandatory and r.corso_id not in validi]
+        cons = [r.corso for r in regole if r.competenza_id == mid and not r.is_mandatory and r.corso_id not in validi]
+        if isinstance(riga, dict):
+            riga["corsi_obbligatori"], riga["corsi_consigliati"] = obbl, cons
+        else:
+            riga.corsi_obbligatori, riga.corsi_consigliati = obbl, cons
 
 
 @login_required
@@ -766,9 +940,21 @@ def mansionario_lacune(request):
             v = r["valutazione"]
             w.writerow([r["nome"], r["mansione"].nome, r["reparto"], v.esito_label, v.livello, "; ".join(v.mancanze)])
         return resp
+    # Il corso mancante (requisito formale) si sistema iscrivendo la persona.
+    for r in lacune:
+        corsi = []
+        for c in r["valutazione"].voci:
+            v = c["voce"]
+            if c["requisito"].startswith("corso") and v.corso_id and v.corso not in corsi:
+                corsi.append(v.corso)
+        r["corsi_mancanti"] = corsi
+    from .views import _helpers as _h
+
     return render(request, "anagrafica/pages/mansionario_lacune.html", {
         "page_title": "Lacune di competenza",
         "lacune": lacune, "esito": esito, "esiti": comp_svc.ESITI_LABEL,
+        "puo_valutare": _puo_valutare(request),
+        "puo_iscrivere": _h._can_edit_formazione(request),
     })
 
 
@@ -810,6 +996,30 @@ def mansionario_catalogo(request):
         "page_title": "Catalogo competenze",
         "righe": righe, "q": q, "is_admin": is_admin,
         "tutte": [r["catalogo"] for r in cat_svc.elenco()] if is_admin else [],
+    })
+
+
+@login_required
+def mansionario_competenza(request, catalogo_id: int):
+    """Scheda della competenza: ruoli e mansioni che la chiedono, chi la sa fare,
+    requisiti formali e storico. Le azioni portano alla mansione giusta."""
+    puo_valutare = _puo_valutare(request)
+    if not (_puo_vedere(request) or puo_valutare):
+        return _nega(request)
+    from .models import CompetenzaCatalogo
+    from .services import competenze_catalogo as cat_svc
+    from .views import _helpers as _h
+
+    cat = get_object_or_404(CompetenzaCatalogo, pk=catalogo_id)
+    dati = cat_svc.scheda(cat)
+    return render(request, "anagrafica/pages/mansionario_competenza.html", {
+        "page_title": cat.nome,
+        "cat": cat,
+        **dati,
+        "stati": cat_svc.STATI_SCHEDA,
+        "is_admin": _puo_gestire(request),
+        "puo_valutare": puo_valutare,
+        "puo_iscrivere": _h._can_edit_formazione(request),
     })
 
 

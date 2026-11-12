@@ -140,11 +140,14 @@ def carica_righe(ids: list[int]) -> dict[int, dict]:
     if not ids:
         return {}
     placeholders = ",".join(["%s"] * len(ids))
+    from core.legacy_utils import legacy_table_columns
+
+    autore = ", created_by_user_id" if "created_by_user_id" in (legacy_table_columns("anomalie") or set()) else ""
     try:
         with connections["default"].cursor() as cur:
             cur.execute(
                 "SELECT id, ex_op_nominativo, seriale, descrizione, note_capocommessa, avanzamento,"
-                " aprire_rdc, segnalare_cliente, chiudere"
+                f" aprire_rdc, segnalare_cliente, chiudere{autore}"
                 f" FROM anomalie WHERE id IN ({placeholders})",
                 ids,
             )
@@ -176,6 +179,14 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         .order_by("blocco_id", "ordine_nel_blocco", "id")
     )
     righe = carica_righe([m.anomalia_id for m in metas])
+    from .quality_models import AnomaliaSchedaQualita
+
+    schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(
+        anomalia_id__in=[m.anomalia_id for m in metas],
+    ).values("anomalia_id", "dettaglio_controllo", "tipo_difetto_id", "dove_pezzi")} if metas else {}
+    from .elimina_sposta import ids_con_avanzamenti
+
+    con_avanzamenti = ids_con_avanzamenti([m.anomalia_id for m in metas]) if metas else set()
     per_blocco: dict[int, list] = {}
     for meta in metas:
         row = righe.get(meta.anomalia_id)
@@ -191,6 +202,12 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "segnalare": bool(row.get("segnalare_cliente")),
             "note_capocommessa": str(row.get("note_capocommessa") or ""),
             "gestita": riga_gestita(row),
+            # «Elimina» (solo chi l'ha inserita) e «Taglia»: finché non ci sono avanzamenti.
+            "autore_id": row.get("created_by_user_id"),
+            "modificabile": not riga_gestita(row) and meta.anomalia_id not in con_avanzamenti,
+            "dettaglio": (schede.get(meta.anomalia_id) or {}).get("dettaglio_controllo") or {},
+            "tipo_difetto_id": (schede.get(meta.anomalia_id) or {}).get("tipo_difetto_id"),
+            "dove_pezzi": (schede.get(meta.anomalia_id) or {}).get("dove_pezzi") or "",
             "allegati": _allegati(meta.anomalia_id) if con_allegati else [],
             "_seriale": str(row.get("seriale") or ""),
         })
@@ -209,6 +226,7 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "seriale_label": blocco.seriale_label,
             "stato_superficie": blocco.stato_superficie if isinstance(blocco.stato_superficie, list) else [],
             "anomalie": anomalie,
+            "dove_pezzi": next((a["dove_pezzi"] for a in anomalie if a.get("dove_pezzi")), ""),
             # S/N del blocco senza nessuna anomalia (salvati con conferma dell'operatore).
             "seriali_scoperti": scoperti,
             "bloccato": any(a["gestita"] for a in anomalie),
@@ -220,12 +238,15 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "fase": controllo.fase,
         "mail_mode": controllo.mail_mode,
         "operatore": controllo.operatore_display,
+        "passaggi": controllo.passaggi if isinstance(controllo.passaggi, list) else [],
         "created_at": controllo.created_at.isoformat() if controllo.created_at else "",
         "terminato": controllo.terminato_at is not None,
         "da_notificare": len(controllo.da_notificare or []),
         "ultima_mail_at": controllo.ultima_mail_at.isoformat() if controllo.ultima_mail_at else "",
         "mail_errore": controllo.mail_errore,
         "bozza": controllo.bozza if isinstance(controllo.bozza, dict) else {},
+        # OP nuovo non ancora creato (si crea al primo «Salva blocco»).
+        "op_nuovo": controllo.op_nuovo if isinstance(controllo.op_nuovo, dict) else {},
         "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else "",
         "destinatari_extra": [
             {"email": d.get("email", ""), "nome": d.get("nome", "")}
@@ -233,6 +254,128 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         ],
         "blocchi": blocchi,
     }
+
+
+# ─── Gruppo qualità: controlli condivisi fra colleghi ────────────────────────
+# Chi ha uno di questi ruoli (preset di «Ruoli e permessi») vede i controlli
+# aperti dei colleghi dello stesso gruppo e può prenderli in carico: una
+# segnalazione corposa iniziata a fine turno la finisce il collega dopo.
+PRESET_GRUPPO_QUALITA = frozenset({"controllo-qualita", "qualita"})
+GIORNI_CONTROLLI_SOSPESI = 14
+
+
+def _legacy_id_utente(user) -> int | None:
+    try:
+        return int(user.profile.legacy_user_id)
+    except Exception:
+        return None
+
+
+def nel_gruppo_qualita(user, _memo: dict | None = None) -> bool:
+    """True se l'utente ha il ruolo Controllo qualità o Qualità (anche da organigramma)."""
+    if user is None or not getattr(user, "pk", None):
+        return False
+    if _memo is not None and user.pk in _memo:
+        return _memo[user.pk]
+    esito = False
+    legacy_id = _legacy_id_utente(user)
+    if legacy_id:
+        try:
+            from core.permessi.motore import ruoli_della_persona
+
+            esito = any(
+                getattr(g, "preset", "") in PRESET_GRUPPO_QUALITA
+                for g in ruoli_della_persona(legacy_id, includi_base=False)
+            )
+        except Exception:
+            logger.warning("gruppo qualita': ruoli non leggibili per %s", user.pk, exc_info=True)
+    if _memo is not None:
+        _memo[user.pk] = esito
+    return esito
+
+
+def colleghi_del_gruppo(user, controllo, _memo: dict | None = None) -> bool:
+    """Il controllo è di un collega del gruppo qualità dell'utente (e non dell'utente)."""
+    if controllo.operatore_id == getattr(user, "pk", None) or controllo.operatore is None:
+        return False
+    return nel_gruppo_qualita(user, _memo) and nel_gruppo_qualita(controllo.operatore, _memo)
+
+
+def in_sospeso(controllo) -> bool:
+    """Qualcosa da finire: blocco scritto e non salvato, blocchi copiati da caricare
+    o anomalie salvate non ancora comunicate al capocommessa."""
+    return bool(bozza_piena(controllo.bozza) or controllo.da_notificare)
+
+
+def riassunto_sospeso(controllo, user) -> dict:
+    """Riga per l'elenco dei controlli in sospeso (pagina «Apertura segnalazione»)."""
+    bozza = controllo.bozza if isinstance(controllo.bozza, dict) else {}
+    in_bozza = len([a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)])
+    coda = [b for b in (bozza.get("coda") or []) if isinstance(b, dict)]
+    ultimo = max([d for d in (controllo.bozza_at, controllo.ultimo_salvataggio_at, controllo.created_at) if d])
+    return {
+        "id": controllo.pk,
+        "op_id": controllo.op_id,
+        "op_nuovo": bool(controllo.op_nuovo),
+        "fase": controllo.fase,
+        "operatore": controllo.operatore_display,
+        "mio": controllo.operatore_id == getattr(user, "pk", None),
+        "anomalie_in_bozza": in_bozza,
+        "blocchi_da_copiare": len(coda),
+        "da_notificare": len(controllo.da_notificare or []),
+        "ultimo_at": ultimo.isoformat() if ultimo else "",
+        "passaggi": controllo.passaggi if isinstance(controllo.passaggi, list) else [],
+    }
+
+
+def controlli_sospesi(user, *, op_id: str = "", limite: int = 30) -> list:
+    """Controlli aperti con qualcosa in sospeso visibili all'utente: i suoi e, se è
+    nel gruppo qualità, quelli dei colleghi del gruppo. Dal più recente."""
+    from .quality_models import AnomaliaControllo
+
+    qs = AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True,
+        created_at__gte=timezone.now() - timedelta(days=GIORNI_CONTROLLI_SOSPESI),
+    ).select_related("operatore")
+    if op_id:
+        qs = qs.filter(op_id__iexact=op_id)
+    memo: dict = {}
+    gruppo = nel_gruppo_qualita(user, memo)
+    out = []
+    for c in qs.order_by("-id")[:300]:
+        if c.operatore_id != user.pk and not (gruppo and colleghi_del_gruppo(user, c, memo)):
+            continue
+        out.append(c)
+    return out[:limite]
+
+
+def prendi_in_carico(controllo, user, nome: str) -> dict:
+    """Passa il controllo al collega: da qui in avanti bozza, blocchi, promemoria e
+    «Termina» sono suoi. Il passaggio resta in ``passaggi``; chi lo aveva viene avvisato."""
+    da_nome = controllo.operatore_display or ""
+    da_user = controllo.operatore
+    passaggio = {"da": da_nome, "a": nome, "at": timezone.now().isoformat()}
+    controllo.passaggi = [*(controllo.passaggi if isinstance(controllo.passaggi, list) else []), passaggio]
+    controllo.operatore = user
+    controllo.operatore_display = nome[:200]
+    # Il promemoria della bozza riparte per il nuovo titolare.
+    controllo.promemoria_bozza_at = None
+    controllo.save(update_fields=["passaggi", "operatore", "operatore_display", "promemoria_bozza_at", "updated_at"])
+    legacy_da = _legacy_id_utente(da_user) if da_user is not None else None
+    if legacy_da:
+        try:
+            from core.models import Notifica
+
+            Notifica.objects.create(
+                legacy_user_id=legacy_da,
+                tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"{nome} ha preso in carico il tuo controllo su OP {controllo.op_id} "
+                           f"(fase {controllo.fase}) e lo prosegue.")[:500],
+                url_azione=url_controllo(controllo),
+            )
+        except Exception:
+            logger.warning("controllo %s: notifica passaggio non creata", controllo.pk, exc_info=True)
+    return passaggio
 
 
 def seriali_anomalia(seriale_riga: str, blocco) -> dict:
@@ -286,6 +429,15 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
         m.anomalia_id: m
         for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=ids).select_related("blocco", "controllo")
     }
+    from .dettaglio_controllo import frasi
+    from .quality_models import AnomaliaSchedaQualita
+
+    try:
+        schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
+            "anomalia_id", "dove_pezzi", "dettaglio_controllo")}
+    except Exception:
+        logger.warning("controllo: schede qualita' non lette per le mail", exc_info=True)
+        schede = {}
     gruppi: list[dict] = []
     per_chiave: dict[str, dict] = {}
     for row in anomalie_rows:
@@ -311,6 +463,12 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
             titolo = row.get("seriale") or ""
             sottotitolo = f"Fase {row['fase']}" if row.get("fase") else ""
         row["blocco_id"] = meta.blocco_id if meta else None
+        try:
+            scheda = schede.get(int(row.get("id"))) or {}
+        except (TypeError, ValueError):
+            scheda = {}
+        row["dove_pezzi"] = scheda.get("dove_pezzi") or ""
+        row["dettaglio_righe"] = frasi(scheda.get("dettaglio_controllo") or {})
         # Anomalia presente solo su una parte dei seriali del blocco.
         row["seriali_parziali"] = ""
         if meta and meta.blocco_id:
@@ -319,10 +477,12 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
                 row["seriali_parziali"] = info["seriale_label"]
         gruppo = per_chiave.get(chiave)
         if gruppo is None:
-            gruppo = {"chiave": chiave, "titolo": titolo, "sottotitolo": sottotitolo, "righe": []}
+            gruppo = {"chiave": chiave, "titolo": titolo, "sottotitolo": sottotitolo, "righe": [], "dove_pezzi": ""}
             per_chiave[chiave] = gruppo
             gruppi.append(gruppo)
         gruppo["righe"].append(row)
+        if row["dove_pezzi"] and not gruppo["dove_pezzi"]:
+            gruppo["dove_pezzi"] = row["dove_pezzi"]
     return gruppi
 
 
@@ -344,6 +504,12 @@ def _destinatari(op_id: str) -> tuple[dict | None, dict | None]:
     for rec in (cc_rec, car_rec):
         if rec and rec is not primary and (not primary or rec["email"].lower() != primary["email"].lower()):
             secondary = rec
+    # Chi deve decidere riceve sempre la mail; la copia no, se ha silenziato l'OP.
+    if secondary:
+        from .silenzia_op import email_silenziate
+
+        if secondary["email"].strip().lower() in email_silenziate(op_id):
+            secondary = None
     return primary, secondary
 
 
@@ -372,8 +538,12 @@ def destinatari_display(op_id: str, extra: list | None = None) -> dict:
     fisse di Configurazione → Notifiche che ricevono il riepilogo senza link
     (sempre «Riepilogo modifiche»; «RDC / segnalazione cliente» solo se serve)."""
     extra_out = [{"email": d.get("email", ""), "nome": d.get("nome", "")} for d in (extra or []) if isinstance(d, dict)]
+    from .silenzia_op import email_silenziate
+
+    silenziate = email_silenziate(op_id)
     liste = {
-        "riepilogo": _lista_config_persone("conferma_aggiornamenti"),
+        "riepilogo": [p for p in _lista_config_persone("conferma_aggiornamenti")
+                      if p["email"].strip().lower() not in silenziate],
         "riepilogo_rdc": _lista_config_persone("rdc_segnalazione"),
     }
     try:
@@ -570,6 +740,9 @@ def invia_mail_controllo(controllo) -> dict:
     primary, secondary = _destinatari(controllo.op_id)
     cc = [secondary["email"]] if secondary else []
     gia = {e.lower() for e in cc} | ({primary["email"].lower()} if primary else set())
+    from .silenzia_op import email_silenziate
+
+    gia |= email_silenziate(controllo.op_id)
     extra = []
     for d in controllo.destinatari_extra or []:
         email = str((d or {}).get("email") or "").strip() if isinstance(d, dict) else ""
@@ -691,7 +864,226 @@ def flush_controlli() -> dict:
             and invia_promemoria_controllore(controllo, invio_auto_minuti=tempi["invio_auto"])
         ):
             promemoria += 1
-    return {"controlli_inviati": inviati, "controlli_promemoria": promemoria}
+    return {"controlli_inviati": inviati, "controlli_promemoria": promemoria,
+            "bozze_promemoria": promemoria_bozze(now, tempi["promemoria"]),
+            "controlli_vuoti_chiusi": chiudi_controlli_vuoti(now)}
+
+
+ORE_CHIUSURA_CONTROLLI_VUOTI = 24
+
+
+def chiudi_controlli_vuoti(now=None) -> int:
+    """Termina i controlli rimasti vuoti (nessun blocco, nessuna bozza, niente da
+    comunicare) da più di 24 ore: non restano a proporsi come «da riprendere»."""
+    from .quality_models import AnomaliaControllo
+
+    now = now or timezone.now()
+    soglia = now - timedelta(hours=ORE_CHIUSURA_CONTROLLI_VUOTI)
+    chiusi = 0
+    for controllo in AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True, created_at__lte=soglia, created_at__gte=now - timedelta(days=60),
+    ):
+        ultimo = max(d for d in (controllo.created_at, controllo.bozza_at, controllo.ultimo_salvataggio_at) if d)
+        if ultimo > soglia or controllo.da_notificare or bozza_piena(controllo.bozza) or controllo.blocchi.exists():
+            continue
+        controllo.terminato_at = now
+        controllo.save(update_fields=["terminato_at", "updated_at"])
+        logger.info("controllo %s vuoto chiuso in automatico (op=%s)", controllo.pk, controllo.op_id)
+        chiusi += 1
+    return chiusi
+
+
+def promemoria_bozze(now, minuti: int) -> int:
+    """Bozze ferme da ``minuti`` (blocco scritto e mai salvato, anche su un OP nuovo
+    non ancora creato) senza anomalie salvate da inviare: promemoria al controllore,
+    uno per pausa. Con anomalie da inviare ci pensa il promemoria del controllo."""
+    from .quality_models import AnomaliaControllo
+
+    inviati = 0
+    for controllo in AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True, bozza_at__isnull=False,
+        bozza_at__gte=now - timedelta(days=14), bozza_at__lte=now - timedelta(minutes=minuti),
+    ):
+        if controllo.da_notificare or not bozza_piena(controllo.bozza):
+            continue
+        if controllo.promemoria_bozza_at and controllo.promemoria_bozza_at >= controllo.bozza_at:
+            continue
+        if invia_promemoria_bozza(controllo):
+            inviati += 1
+    return inviati
+
+
+def bozza_piena(bozza) -> bool:
+    """Stessa regola della pagina: seriali, stati, anomalie o blocchi copiati da caricare."""
+    if not isinstance(bozza, dict):
+        return False
+    return bool(bozza.get("voci") or bozza.get("stati") or bozza.get("anomalie") or bozza.get("coda"))
+
+
+def righe_bozza(bozza) -> list[str]:
+    """Testo leggibile della bozza per la mail: seriali, anomalie, blocchi copiati in coda."""
+    out: list[str] = []
+    voci = [str(v) for v in (bozza.get("voci") or []) if str(v).strip()]
+    anomalie = [a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)]
+    if voci or anomalie:
+        out.append(f"  S/N {', '.join(voci) or '—'}")
+        for a in anomalie:
+            testo = str(a.get("testo") or "").strip() or "(senza descrizione)"
+            allegati = int(a.get("allegati") or 0)
+            out.append(f"    • {testo}" + (f" (+{allegati} allegati da ricaricare)" if allegati else ""))
+    coda = [b for b in (bozza.get("coda") or []) if isinstance(b, dict)]
+    if coda:
+        n = sum(len(b.get("anomalie") or []) for b in coda)
+        out.append(f"  Da copiare ancora: {len(coda)} blocc{'o' if len(coda) == 1 else 'hi'} con {n} anomali{'a' if n == 1 else 'e'}")
+        for b in coda:
+            out.append(f"    S/N {', '.join(str(v) for v in (b.get('seriali') or [])) or '—'}")
+    return out
+
+
+def html_bozza(controllo, *, op_txt: str, link: str, nuovo: bool) -> str:
+    """Corpo HTML della mail promemoria bozza nel layout NOVICROM HUB.
+
+    Stessi contenuti del testo semplice: dati del controllo, una card per blocco
+    di seriali con le anomalie scritte, blocchi copiati ancora da caricare e il
+    pulsante che riapre il controllo. I testi della bozza sono sempre escapati.
+    """
+    import html as _html
+
+    from core.email_utils import email_badge, email_cta, email_facts_table, render_hub_email_html
+
+    bozza = controllo.bozza if isinstance(controllo.bozza, dict) else {}
+
+    def _p(testo_html: str, *, colore: str = "#475569", margine: str = "0 0 16px") -> str:
+        return (f'<p style="margin:{margine};color:{colore};font-size:15px;line-height:1.6;">'
+                f"{testo_html}</p>")
+
+    def _card(seriali, anomalie, *, accento: str, etichetta: str, tono: str) -> str:
+        titolo = "S/N " + (", ".join(str(v) for v in seriali if str(v).strip()) or "—")
+        righe = []
+        for a in anomalie:
+            testo = str(a.get("testo") or "").strip() or "(senza descrizione)"
+            allegati = int(a.get("allegati") or 0)
+            extra = (f' <span style="color:#92400e;">(+{allegati} allegati da ricaricare)</span>'
+                     if allegati else "")
+            righe.append(
+                '<div style="margin-top:6px;font-size:14px;color:#334155;line-height:1.5;">'
+                f"&bull; {_html.escape(testo)}{extra}</div>"
+            )
+        return (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="width:100%;border-collapse:collapse;margin:0 0 10px;background:#f8fafc;'
+            'border:1px solid #e2e8f0;border-radius:10px;">'
+            f'<tr><td style="width:6px;background:{accento};border-radius:10px 0 0 10px;">&nbsp;</td>'
+            '<td style="padding:14px 16px;">'
+            f'<div style="font-size:15px;color:#182232;font-weight:700;">{_html.escape(titolo)} '
+            f"{email_badge(etichetta, tono)}</div>"
+            + "".join(righe)
+            + "</td></tr></table>"
+        )
+
+    card = []
+    voci = [str(v) for v in (bozza.get("voci") or []) if str(v).strip()]
+    anomalie = [a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)]
+    if voci or anomalie:
+        card.append(_card(voci, anomalie, accento="#d97706", etichetta="Da salvare", tono="warning"))
+    for b in bozza.get("coda") or []:
+        if isinstance(b, dict):
+            card.append(_card(
+                b.get("seriali") or [], [a for a in (b.get("anomalie") or []) if isinstance(a, dict)],
+                accento="#64748b", etichetta="Da copiare ancora", tono="neutral",
+            ))
+
+    conseguenza = " e l'OP non viene creato" if nuovo else ""
+    corpo = "".join([
+        _p("Nel controllo ci sono anomalie <strong>scritte ma non ancora salvate</strong>: finché non premi "
+           f"«Salva blocco» non arrivano al capocommessa{conseguenza}."),
+        email_facts_table([
+            ("OP", str(controllo.op_id) + (" (nuovo, non ancora creato)" if nuovo else "")),
+            ("Fase", str(controllo.fase or "—")),
+        ]),
+        _p("Quello che hai scritto (salvato in automatico):", colore="#182232", margine="22px 0 10px"),
+        "".join(card) or _p("—"),
+        _p("Gli allegati non si salvano in bozza: vanno ricaricati.", colore="#64748b", margine="6px 0 0"),
+    ])
+    return render_hub_email_html(
+        corpo,
+        title="Anomalie non ancora salvate",
+        email_type="Anomalie · Promemoria",
+        badge=str(controllo.op_id or ""),
+        section_label=f"Controllo · fase {controllo.fase}" if controllo.fase else "Controllo",
+        cta_buttons=email_cta("Riprendi il controllo", link,
+                              note="Poi premi «Salva blocco» e «Termina controllo». Link diretto: " + link),
+        footer_note="Messaggio automatico generato da NOVICROM HUB. Non rispondere a questa email.",
+        preheader=f"{op_txt}: anomalie scritte ma non salvate. Riprendi il controllo e premi «Salva blocco».",
+    )
+
+
+def invia_promemoria_bozza(controllo) -> bool:
+    """Notifica nel portale e mail al controllore con il contenuto della bozza e il
+    link che riapre il controllo. ``promemoria_bozza_at`` evita di ripeterlo finché
+    la bozza non cambia."""
+    controllo.promemoria_bozza_at = timezone.now()
+    controllo.save(update_fields=["promemoria_bozza_at", "updated_at"])
+
+    from core.accounts.portal_links import portal_link
+
+    url = url_controllo(controllo)
+    link = portal_link(url) or url
+    nuovo = bool(controllo.op_nuovo)
+    op_txt = f"OP {controllo.op_id}" + (" (nuovo, non ancora creato)" if nuovo else "")
+    legacy_id, email = _contatti_operatore(controllo)
+    fatto = False
+    if legacy_id:
+        try:
+            from core.models import Notifica
+
+            Notifica.objects.filter(
+                legacy_user_id=legacy_id, tipo=TIPO_NOTIFICA_PROMEMORIA, url_azione=url, letta=False,
+            ).update(letta=True)
+            Notifica.objects.create(
+                legacy_user_id=legacy_id,
+                tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"{op_txt} · fase {controllo.fase}: hai anomalie scritte ma non salvate. Riprendi il "
+                           "controllo e premi «Salva blocco».")[:500],
+                url_azione=url,
+            )
+            fatto = True
+        except Exception:
+            logger.warning("controllo %s: notifica bozza non creata", controllo.pk, exc_info=True)
+    if email:
+        try:
+            from .mail_action_service import send_and_log_email
+
+            body = "\n".join([
+                f"Nel controllo su {op_txt} (fase {controllo.fase}) ci sono anomalie scritte ma non ancora "
+                "salvate: finché non premi «Salva blocco» non arrivano al capocommessa"
+                + (" e l'OP non viene creato." if nuovo else "."),
+                "",
+                "Quello che hai scritto (salvato in automatico):",
+                *righe_bozza(controllo.bozza),
+                "",
+                f"Riprendi da qui e premi «Salva blocco», poi «Termina controllo»: {link}",
+                "Gli allegati non si salvano in bozza: vanno ricaricati.",
+            ])
+            try:
+                body_html = html_bozza(controllo, op_txt=op_txt, link=link, nuovo=nuovo)
+            except Exception:
+                logger.warning("controllo %s: HTML promemoria bozza non generato", controllo.pk, exc_info=True)
+                body_html = ""
+            ok, _log = send_and_log_email(
+                kind="promemoria_bozza_controllo",
+                subject=f"[Novicrom Hub] {op_txt}: anomalie non ancora salvate",
+                body_text=body,
+                body_html=body_html,
+                to=[email],
+                op_id=controllo.op_id,
+                context={"controllo_id": controllo.pk, "op_nuovo": nuovo},
+                fail_silently=True,
+            )
+            fatto = fatto or bool(ok)
+        except Exception:
+            logger.warning("controllo %s: mail bozza non inviata", controllo.pk, exc_info=True)
+    return fatto
 
 
 def url_controllo(controllo) -> str:
@@ -700,7 +1092,10 @@ def url_controllo(controllo) -> str:
 
     from django.urls import reverse
 
-    return f"{reverse('apertura_segnalazione')}?op_id={quote(str(controllo.op_id or ''), safe='/')}"
+    # ``controllo`` riapre direttamente questo controllo (serve anche per un OP nuovo
+    # non ancora creato, che nell'elenco degli OP non c'e').
+    return (f"{reverse('apertura_segnalazione')}?op_id={quote(str(controllo.op_id or ''), safe='/')}"
+            f"&controllo={controllo.pk}")
 
 
 def _contatti_operatore(controllo) -> tuple[int | None, str]:
@@ -739,12 +1134,12 @@ def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = N
     if not rows:
         return False
 
-    from django.conf import settings
+    from core.accounts.portal_links import portal_link
 
     n = len(rows)
     cosa = f"{n} anomali{'a' if n == 1 else 'e'}"
     url = url_controllo(controllo)
-    link = f"{str(getattr(settings, 'SITE_URL', '') or '').rstrip('/')}{url}"
+    link = portal_link(url) or url
     legacy_id, email = _contatti_operatore(controllo)
     fatto = False
 

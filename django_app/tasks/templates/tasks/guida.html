@@ -1,10 +1,14 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Guida</span>{% endblock %}
-{% block tasks_shell_title %}Guida KICK-OFF{% endblock %}
-{% block tasks_shell_subtitle %}Come si gestiscono commesse, incontri, azioni e attività nel modulo KICK-OFF.{% endblock %}
+{% block tasks_shell_title %}{{ doc_titolo }}{% endblock %}
+{% block tasks_shell_subtitle %}{% if guida_per %}Guida rapida: i compiti di tutti i giorni, passo per passo. Le immagini mostrano dati di esempio.{% else %}Tutto il modulo, passo per passo: commesse, scheda VRF, piano, incontri, azioni e impostazioni. Le immagini mostrano dati di esempio.{% endif %}{% endblock %}
 
 {% block tasks_shell_actions %}
+  {% if guida_per %}<a class="ts-hero-action" href="{% url 'tasks:guida' %}">Guida completa</a>{% endif %}
+  {% for g in guide_ruoli %}{% if g.chiave != guida_per %}<a class="ts-hero-action" href="{% url 'tasks:guida' %}?per={{ g.chiave }}">{{ g.etichetta }}</a>{% endif %}{% endfor %}
+  <a class="ts-hero-action primary" href="{% url 'tasks:guida' %}?pdf=1{% if guida_per %}&amp;per={{ guida_per }}{% endif %}">Scarica PDF</a>
   <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna al KICK-OFF</a>
 {% endblock %}
 
@@ -23,6 +27,10 @@
         {% for kind, contenuto in sez.blocchi %}
           {% if kind == "p" %}
             <p>{{ contenuto }}</p>
+          {% elif kind == "passi" %}
+            <ol class="ts-guide-passi">{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ol>
+          {% elif kind == "img" %}
+            <figure class="ts-guide-fig"><a href="{% static contenuto.0 %}" target="_blank" rel="noopener"><img src="{% static contenuto.0 %}" alt="{{ contenuto.1 }}" loading="lazy"></a><figcaption>{{ contenuto.1 }}</figcaption></figure>
           {% elif kind == "ul" %}
             <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
           {% elif kind == "def" %}

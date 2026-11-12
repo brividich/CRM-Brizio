@@ -23,6 +23,9 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 
 from .models import (
     AssignmentStatus,
+    q_in_attesa,
+    q_scadute,
+    scaduta_ora,
     CampaignStatus,
     ChangeRequestStatus,
     ProcedureAssignment,
@@ -79,6 +82,26 @@ def _can_manage(request) -> bool:
         )
     except Exception:
         return False
+
+
+def _modifiche_da_fare(request, gestore: bool) -> list:
+    try:
+        from .modifiche import da_fare
+
+        return da_fare(request.user, gestore)
+    except Exception:
+        logger.exception("CN-SGI: modifiche da fare non lette")
+        return []
+
+
+def _stato_sync() -> dict:
+    try:
+        from .tasks import stato_sincronizzazione
+
+        return stato_sincronizzazione()
+    except Exception:
+        logger.exception("CN-SGI: stato della sincronizzazione non leggibile")
+        return {"controlli": [], "tutto_ok": False, "esclusi": []}
 
 
 def _client_ip(request) -> str:
@@ -267,10 +290,10 @@ def my_assignments(request):
         "total": len(all_assignments),
         "filtered": 0,
         "pending": sum(1 for a in all_assignments if a.status in pending_statuses),
-        "assigned": sum(1 for a in all_assignments if a.status == AssignmentStatus.ASSIGNED),
-        "opened": sum(1 for a in all_assignments if a.status == AssignmentStatus.OPENED),
+        "assigned": sum(1 for a in all_assignments if a.status == AssignmentStatus.ASSIGNED and not scaduta_ora(a, today)),
+        "opened": sum(1 for a in all_assignments if a.status == AssignmentStatus.OPENED and not scaduta_ora(a, today)),
         "confirmed": sum(1 for a in all_assignments if a.status == AssignmentStatus.READ_CONFIRMED),
-        "overdue": sum(1 for a in all_assignments if a.status == AssignmentStatus.OVERDUE),
+        "overdue": sum(1 for a in all_assignments if scaduta_ora(a, today)),
         "cancelled": sum(1 for a in all_assignments if a.status == AssignmentStatus.CANCELLED),
         "due_soon": sum(
             1
@@ -280,11 +303,18 @@ def my_assignments(request):
     }
 
     assignments = all_assignments
-    if status_filter:
+    if status_filter == AssignmentStatus.OVERDUE:
+        # Il filtro segue il contatore: anche le scadute non ancora marcate dal job.
+        assignments = [a for a in assignments if scaduta_ora(a, today)]
+    elif status_filter in (AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED):
+        assignments = [a for a in assignments if a.status == status_filter and not scaduta_ora(a, today)]
+    elif status_filter:
         assignments = [a for a in assignments if a.status == status_filter]
     pr_stats["filtered"] = len(assignments)
 
     is_manager = _is_manager(request)
+
+    from .segnalazioni import mie as segnalazioni_mie
 
     return render(request, "procedure_refresh/pages/my_assignments.html", {
         "assignments": assignments,
@@ -292,6 +322,8 @@ def my_assignments(request):
         "status_filter": status_filter,
         "AssignmentStatus": AssignmentStatus,
         "is_manager": is_manager,
+        "mie_segnalazioni": segnalazioni_mie(request.user),
+        "modifiche_da_fare": _modifiche_da_fare(request, is_manager),
     })
 
 
@@ -311,13 +343,16 @@ def assignment_detail(request, pk: int):
             if not testo:
                 messages.error(request, "Inserisci il testo della segnalazione.")
                 return redirect("procedure_refresh:assignment_detail", pk=pk)
-            ProcedureChangeRequest.objects.create(
+            cr = ProcedureChangeRequest.objects.create(
                 document=assignment.revision.document,
                 revision=assignment.revision,
                 assignment=assignment,
                 created_by=request.user,
                 testo=testo,
             )
+            from .segnalazioni import avvisa_nuova
+
+            avvisa_nuova(cr, escludi_user_id=request.user.pk)
             log_action(
                 request,
                 "segnalazione_modifica",
@@ -539,10 +574,11 @@ def admin_dashboard(request):
     n_confirmed = ProcedureAssignment.objects.filter(
         status=AssignmentStatus.READ_CONFIRMED
     ).count()
-    n_pending = ProcedureAssignment.objects.filter(
-        status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
-    ).count()
-    n_overdue = ProcedureAssignment.objects.filter(status=AssignmentStatus.OVERDUE).count()
+    # Scadute dal vivo: lo stato OVERDUE lo scrive il job delle 06:45, ma una
+    # scadenza passata ieri sera è già scaduta adesso.
+    oggi = timezone.localdate()
+    n_pending = ProcedureAssignment.objects.filter(q_in_attesa(oggi)).count()
+    n_overdue = ProcedureAssignment.objects.filter(q_scadute(oggi)).count()
     n_change_requests_open = ProcedureChangeRequest.objects.filter(
         status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO]
     ).count()
@@ -571,6 +607,7 @@ def admin_dashboard(request):
         "reminder_giorni_validi": GIORNI_VALIDI,
         "sgi_auto_on": sgi_auto_on,
         "sgi_last_sync": sgi_last_sync,
+        "stato_sync": _stato_sync(),
         "n_change_requests_open": n_change_requests_open,
         "n_documents": n_documents,
         "n_campaigns": n_campaigns,
@@ -1367,7 +1404,7 @@ def assign_users(request, pk: int):
                     f"{doc_count} documenti della sessione «{campaign.name}» "
                     f"da prendere in visione (scadenza {scad_str})."
                 ),
-                url_azione="/procedure-refresh/",
+                url_azione="/procedure-refresh/letture/",
             )
 
     log_action(
@@ -1427,6 +1464,7 @@ def change_request_list(request):
         ProcedureChangeRequest.objects.select_related(
             "document", "revision", "created_by", "gestita_da", "recepita_in_revisione"
         )
+        .prefetch_related("modifiche__documento")
         .order_by("-created_at")
     )
     if doc_filter:
@@ -1484,10 +1522,15 @@ def change_request_set_status(request, pk: int):
             except (ProcedureRevision.DoesNotExist, ValueError):
                 cr.recepita_in_revisione = None
 
+    stato_prima = ProcedureChangeRequest.objects.filter(pk=cr.pk).values_list("status", flat=True).first()
     cr.save(update_fields=[
         "status", "risposta_gestore", "gestita_da", "gestita_il",
         "recepita_in_revisione", "updated_at",
     ])
+    if stato_prima != new_status or cr.risposta_gestore:
+        from .segnalazioni import avvisa_autore
+
+        avvisa_autore(cr)
     log_action(
         request, "segnalazione_stato", "procedure_refresh",
         _audit_detail(
@@ -1543,6 +1586,10 @@ def document_open(request, rev_pk: int):
     )
     doc = rev.document
     if not doc.is_active or documento_e_sensibile(doc):
+        raise Http404("Documento non disponibile.")
+    from .libreria import Visibilita
+
+    if not Visibilita(request).puo_vedere(doc):
         raise Http404("Documento non disponibile.")
 
     log_action(
@@ -1678,10 +1725,8 @@ def report_campaign(request):
             report_stats = {
                 "total": assignments.count(),
                 "confirmed": assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
-                "pending": assignments.filter(
-                    status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
-                ).count(),
-                "overdue": assignments.filter(status=AssignmentStatus.OVERDUE).count(),
+                "pending": assignments.filter(q_in_attesa(timezone.localdate())).count(),
+                "overdue": assignments.filter(q_scadute(timezone.localdate())).count(),
             }
         except (ProcedureCampaign.DoesNotExist, ValueError):
             pass

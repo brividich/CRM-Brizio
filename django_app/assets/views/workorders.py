@@ -6,6 +6,7 @@ Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di compo
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -14,7 +15,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, F, IntegerField, Q, When
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from .. import registra_insieme
 from ..registro_permessi import MODULO_ODL
 from ..services.visibilita import filtra as filtra_visibili
 from ..services.visibilita import filtra_odl
@@ -73,6 +75,9 @@ from ._helpers_c import (  # noqa: F401
     _workorder_attachment_accept_attr,
     _workorder_list_page_url,
 )
+
+logger = logging.getLogger(__name__)
+
 
 def _workorder_status_payload(status: str) -> dict[str, str]:
     if status == WorkOrder.STATUS_DONE:
@@ -175,6 +180,99 @@ def _create_sibling_workorders_from_request(*, request: HttpRequest, source: Wor
     if created:
         WorkOrder.mark_batch([source, *created])
     return created
+
+
+def _same_work_other_assets(request: HttpRequest, workorder: WorkOrder) -> list[WorkOrder]:
+    """Lo stesso intervento ancora aperto su altri asset visibili, da chiudere insieme
+    quando il giro e' stato uno solo: creati insieme (stesso lotto), stessa regola di
+    manutenzione, stesso piano di verifica, oppure stesso titolo e tipo. Uno per asset
+    (il primo in scadenza), gia' scaduti o entro ``registra_insieme.WINDOW_MAX_DAYS``
+    dalla scadenza di questo (senza scadenza: sempre). Su ognuno:
+    ``insieme_days`` = giorni di distanza, ``insieme_blocked`` = perche' va chiuso a parte
+    (checklist obbligatoria aperta o manutenzioni raccolte non registrate), vuoto se no."""
+    from ..models import MaintenanceOccurrence
+
+    twins = Q(title__iexact=workorder.title, kind=workorder.kind) if (workorder.title or "").strip() else Q(pk__in=[])
+    if workorder.reference_batch:
+        twins |= Q(reference_batch=workorder.reference_batch)
+    if workorder.maintenance_rule_id:
+        twins |= Q(maintenance_rule_id=workorder.maintenance_rule_id)
+    if workorder.periodic_verification_id:
+        twins |= Q(periodic_verification_id=workorder.periodic_verification_id)
+    reference = timezone.localdate(workorder.due_at) if workorder.due_at else None
+    candidates = (
+        filtra_odl(request, WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN))
+        .filter(twins)
+        .exclude(asset_id=workorder.asset_id)
+        .select_related("asset")
+        .prefetch_related("checklist_items")
+        .order_by(F("due_at").asc(nulls_last=True), "id")
+    )
+    seen: set[int] = set()
+    others: list[WorkOrder] = []
+    for other in candidates:
+        if other.asset_id in seen:
+            continue
+        other_due = timezone.localdate(other.due_at) if other.due_at else None
+        if other_due is not None and not registra_insieme.within_window(reference, other_due):
+            continue
+        seen.add(other.asset_id)
+        other.insieme_days = registra_insieme.days_between(reference, other_due) or 0
+        other.insieme_blocked = ""
+        others.append(other)
+    if others:
+        with_pending = set(
+            MaintenanceOccurrence.objects.filter(
+                work_order_id__in=[other.pk for other in others], status=MaintenanceOccurrence.STATUS_OPEN
+            ).values_list("work_order_id", flat=True)
+        )
+        for other in others:
+            if any(item.blocks_closure for item in other.checklist_items.all()):
+                other.insieme_blocked = "checklist da completare"
+            elif other.pk in with_pending:
+                other.insieme_blocked = "manutenzioni da registrare"
+    return others
+
+
+def _close_same_work_others(request: HttpRequest, workorder: WorkOrder, close_data, others: list[WorkOrder]) -> None:
+    """Chiude con gli stessi dati gli interventi gemelli spuntati, uno per volta (ognuno
+    nella sua transazione): stesso esito, data, esecutore, descrizione e codici guasto.
+    Tempo, fermo, costi e allegati restano solo sul principale, per non contarli due
+    volte; il contratto resta quello di ciascuno; la segnalazione collegata non si tocca."""
+    from dataclasses import replace
+
+    from ..services.workorder_close import RequestIdentity, WorkOrderCloseError, close_workorder
+
+    note = f"Chiuso insieme all'intervento #{workorder.display_number} ({workorder.asset.asset_tag or workorder.asset.name})."
+    done, failed = [], []
+    for other in others:
+        data = replace(
+            close_data,
+            intervention_duration=None, downtime=None, labor_cost=None, materials_cost=None, cost=None,
+            covered_by_contract=other.covered_by_contract, assistance_contract=other.assistance_contract,
+            resolved_supplier=None, uploads=(), resolve_ticket=False,
+            pending_occurrences_count=0, pending_reason="",
+            log_note=f"{close_data.log_note} {note}".strip(),
+        )
+        label = other.asset.asset_tag or other.asset.name
+        try:
+            close_workorder(other.pk, data=data, user=request.user, request_identity=RequestIdentity())
+        except (WorkOrderCloseError, ValidationError) as exc:
+            failed.append(f"#{other.display_number} {label}: {'; '.join(getattr(exc, 'messages', None) or [str(exc)])}")
+            continue
+        done.append(f"#{other.display_number} {label}")
+        log_action(
+            request,
+            "ASSET_ODL_CHIUSO_INSIEME",
+            "assets",
+            {"odl": other.pk, "asset": other.asset.asset_tag, "insieme_a_odl": workorder.pk,
+             "insieme_a_asset": workorder.asset.asset_tag, "esito": close_data.esito},
+            oggetto=other,
+        )
+    if done:
+        messages.success(request, f"Chius{'o' if len(done) == 1 else 'i'} insieme anche: " + ", ".join(done) + ".")
+    for text in failed:
+        messages.warning(request, f"Non chiuso — {text}")
 
 
 def _prepopulate_workorder_checklist_from_template(workorder: WorkOrder) -> int:
@@ -690,6 +788,9 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                 _add_form_validation_errors(form, exc)
             else:
                 with transaction.atomic():
+                    new_supplier = form.create_pending_supplier()
+                    if new_supplier is not None:
+                        workorder.supplier = new_supplier
                     workorder.save()
                     _prepopulate_workorder_checklist_from_template(workorder)
                     created_attachments = _save_workorder_attachments(
@@ -698,6 +799,8 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                         user=request.user,
                     )
                     log_note = "Intervento creato."
+                    if new_supplier is not None:
+                        log_note = f"{log_note} Ditta esterna aggiunta all'anagrafica fornitori: {new_supplier.ragione_sociale}."
                     if created_attachments:
                         log_note = f"{log_note} Allegati caricati: {len(created_attachments)}."
                     WorkOrderLog.objects.create(
@@ -735,6 +838,28 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
         if kind_param in {c[0] for c in WorkOrder.KIND_CHOICES}:
             initial["kind"] = kind_param
         form = WorkOrderForm(initial=initial, **form_kwargs)
+    return _render_workorder_form(
+        request,
+        asset=asset,
+        form=form,
+        workorder_back_url=workorder_back_url,
+        workorder_back_label=workorder_back_label,
+        selected_rule_id=selected_rule_id,
+        prefill_payload=prefill_payload,
+    )
+
+
+def _render_workorder_form(
+    request: HttpRequest,
+    *,
+    asset: Asset,
+    form: WorkOrderForm,
+    workorder_back_url: str,
+    workorder_back_label: str,
+    selected_rule_id: int = 0,
+    prefill_payload: dict | None = None,
+    workorder: WorkOrder | None = None,
+) -> HttpResponse:
     periodic_verification_supplier_map = {
         str(verification.id): {
             "supplier_id": str(verification.supplier_id or ""),
@@ -769,15 +894,24 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
         request,
         "assets/pages/workorder_form.html",
         {
-            "page_title": f"Nuovo intervento - {asset.asset_tag}",
+            "page_title": (
+                f"Modifica intervento {workorder.display_number} - {asset.asset_tag}"
+                if workorder is not None
+                else f"Nuovo intervento - {asset.asset_tag}"
+            ),
             "asset": asset,
             "form": form,
+            "workorder": workorder,
+            "is_edit": workorder is not None,
+            "is_closed_edit": workorder is not None and workorder.status != WorkOrder.STATUS_OPEN,
+            "supplier_name_options": form.supplier_name_options,
+            "default_assignee": form.default_assignee,
             "workorder_back_url": workorder_back_url,
             "workorder_back_label": workorder_back_label,
             "selected_rule_id": selected_rule_id,
             "initial_rule": initial_rule,
             "initial_contract": initial_contract,
-            "workorder_prefill": prefill_payload,
+            "workorder_prefill": prefill_payload or {},
             "available_contract_count": form.fields["assistance_contract"].queryset.count(),
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
@@ -790,6 +924,104 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             # duplicate mentre l'utente sta compilando l'intervento.
             "assets_section_nav": None,
         },
+    )
+
+
+# Campi che la modifica confronta per il registro dell'intervento.
+_WORKORDER_EDIT_TRACKED = (
+    ("execution_mode", "Chi lo esegue"),
+    ("kind", "Tipo"),
+    ("priority", "Priorità"),
+    ("due_at", "Scadenza"),
+    ("title", "Titolo"),
+    ("description", "Descrizione"),
+    ("downtime_minutes", "Fermo impianto"),
+    ("assigned_to_id", "Assegnato a"),
+    ("supplier_id", "Ditta esterna"),
+    ("periodic_verification_id", "Manutenzione periodica"),
+    ("maintenance_rule_id", "Regola"),
+    ("assistance_contract_id", "Contratto"),
+    ("covered_by_contract", "Copertura contratto"),
+    ("resolution", "Cosa è stato fatto"),
+)
+
+
+@login_required
+def workorder_edit(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Modifica di un intervento con lo stesso form della creazione.
+
+    Vale anche per gli interventi chiusi o annullati: le straordinarie si aprono e
+    chiudono di solito in un colpo, e i dati vanno corretti dopo. Stato ed esito
+    restano fuori (li gestiscono presa in carico e «Registra intervento»); su un
+    intervento chiuso si corregge anche «Cosa è stato fatto». Ogni modifica lascia
+    una riga nel registro dell'OdL.
+    """
+    workorder = get_object_or_404(WorkOrder.objects.select_related("asset", "supplier", "assigned_to"), pk=workorder_id)
+    detail_url = reverse("assets:wo_view", kwargs={"id": workorder.id})
+    is_closed = workorder.status != WorkOrder.STATUS_OPEN
+    asset = workorder.asset
+    form_kwargs = {"asset": asset, "instance": workorder, "is_edit": True}
+    if request.method == "POST":
+        before = {field: getattr(workorder, field) for field, _label in _WORKORDER_EDIT_TRACKED}
+        previous_assignee_id = workorder.assigned_to_id
+        form = WorkOrderForm(request.POST, **form_kwargs)
+        uploads, upload_errors = _validate_workorder_attachment_uploads(request)
+        form_is_valid = form.is_valid()
+        for error in upload_errors:
+            form.add_error(None, error)
+        if form_is_valid and not upload_errors:
+            updated = form.save(commit=False)
+            if "resolution" in form.cleaned_data:
+                updated.resolution = form.cleaned_data["resolution"] or ""
+            try:
+                updated.full_clean()
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc)
+            else:
+                with transaction.atomic():
+                    new_supplier = form.create_pending_supplier()
+                    if new_supplier is not None:
+                        updated.supplier = new_supplier
+                    updated.save()
+                    created_attachments = _save_workorder_attachments(
+                        workorder=updated,
+                        uploads=uploads,
+                        user=request.user,
+                    )
+                    changed = [
+                        label for field, label in _WORKORDER_EDIT_TRACKED if getattr(updated, field) != before[field]
+                    ]
+                    parts = []
+                    if changed:
+                        parts.append("Intervento modificato: " + ", ".join(changed) + ".")
+                    if new_supplier is not None:
+                        parts.append(f"Ditta esterna aggiunta all'anagrafica fornitori: {new_supplier.ragione_sociale}.")
+                    if created_attachments:
+                        parts.append(f"Allegati caricati: {len(created_attachments)}.")
+                    if parts:
+                        WorkOrderLog.objects.create(
+                            work_order=updated,
+                            note=" ".join(parts),
+                            author=request.user if request.user.is_authenticated else None,
+                        )
+                if not is_closed and updated.assigned_to_id and updated.assigned_to_id != previous_assignee_id:
+                    notify_workorder_assigned(
+                        updated,
+                        actor=request.user if request.user.is_authenticated else None,
+                    )
+                messages.success(request, "Intervento aggiornato.")
+                return redirect(detail_url)
+    else:
+        form = WorkOrderForm(**form_kwargs)
+    return _render_workorder_form(
+        request,
+        asset=asset,
+        form=form,
+        workorder_back_url=detail_url,
+        workorder_back_label="Torna all'intervento",
+        selected_rule_id=workorder.maintenance_rule_id or 0,
+        prefill_payload={"source_label": "Modifica"},
+        workorder=workorder,
     )
 
 
@@ -993,10 +1225,12 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
         {
             "page_title": f"Intervento #{workorder.display_number}",
             "workorder": workorder,
+            "workorder_map_url": _workorder_map_url(workorder),
             "batch_rows": _workorder_batch_rows(workorder),
             **_workorder_suggestions(request, workorder),
             "logs": logs,
             "attachments": attachments,
+            "workorder_foto": _workorder_foto(workorder),
             "checklist_items": checklist_items,
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
@@ -1407,6 +1641,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     pending_reason_required = False
     pending_reason_value = ""
     can_force_close = can_plan_maintenance(request)
+    same_work_others = _same_work_other_assets(request, workorder)
 
     if request.method == "POST":
         form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder, **form_ticket_kwargs)
@@ -1470,7 +1705,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 pending_occurrences_count=len(pending_occurrences),
                 pending_reason=pending_reason_value if pending_occurrences else "",
                 uploads=tuple(uploads),
-                resolve_ticket=bool(cleaned.get("resolve_ticket")),
+                resolve_ticket=True,
                 failure_problem=cleaned.get("failure_problem"),
                 failure_cause_code=cleaned.get("failure_cause_code"),
                 failure_remedy=cleaned.get("failure_remedy"),
@@ -1497,6 +1732,11 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     messages.success(request, text)
                 for text in result.warnings:
                     messages.warning(request, text)
+                # Stesso intervento su altri asset: solo quelli che la pagina proporrebbe.
+                also_ids = registra_insieme.ids_from_post(request, "also_close", exclude=workorder.pk)
+                chosen = [o for o in same_work_others if o.pk in also_ids and not o.insieme_blocked]
+                if chosen:
+                    _close_same_work_others(request, workorder, close_data, chosen)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         # Fermo: se l'OdL non lo dice ma la segnalazione si', si parte da quello
@@ -1566,7 +1806,62 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 and getattr(workorder.ticket, "ore_fermo_macchina", None)
             ),
             "occurrences_anchor": f"{reverse('assets:wo_view', kwargs={'id': workorder.id})}#manutenzioni-raccolte",
+            "same_work_others": same_work_others,
+            "workorder_foto": _workorder_foto(workorder),
+            # Straordinaria: chiusura essenziale, senza «Rapporto / documento» e
+            # «Altri dettagli» (i valori gia' presenti sull'OdL restano invariati).
+            "chiusura_essenziale": workorder.kind == WorkOrder.KIND_CORRECTIVE,
+            "today": timezone.localdate(),
+            **registra_insieme.window_context(),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },
     )
+
+
+_FOTO_ESTENSIONI = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+
+def _workorder_foto(workorder: WorkOrder) -> list[dict[str, str]]:
+    """Le foto dell'intervento (e della segnalazione da cui nasce) per l'anteprima.
+
+    Solo immagini che il browser mostra; gli allegati del ticket rifiutati dal
+    team non compaiono. Ogni immagine passa dalla sua vista di download, con gli
+    stessi controlli di accesso dei link «Allegati».
+    """
+    foto: list[dict[str, str]] = []
+    for allegato in workorder.attachments.order_by("created_at", "id"):
+        nome = allegato.original_name or (allegato.file.name if allegato.file else "")
+        if nome.lower().endswith(_FOTO_ESTENSIONI):
+            foto.append({
+                "url": reverse("assets:workorder_attachment_download", args=[allegato.id]),
+                "nome": nome.rsplit("/", 1)[-1],
+                "fonte": "Intervento",
+            })
+    if workorder.ticket_id:
+        try:
+            from tickets.models import StatoValidazioneAllegato
+
+            allegati = workorder.ticket.allegati.exclude(stato_validazione=StatoValidazioneAllegato.RIFIUTATO)
+            for allegato in allegati:
+                nome = allegato.nome_originale or ""
+                if (allegato.tipo_mime or "").startswith("image/") or nome.lower().endswith(_FOTO_ESTENSIONI):
+                    foto.append({
+                        "url": reverse("tickets:download_allegato", args=[allegato.id]) + "?inline=1",
+                        "nome": nome,
+                        "fonte": f"Segnalazione {workorder.ticket.numero_ticket}",
+                    })
+        except Exception:
+            logger.warning("Foto della segnalazione dell'OdL %s non lette", workorder.pk, exc_info=True)
+    return foto
+
+
+def _workorder_map_url(workorder) -> str:
+    """«Dov'è?» dalla scheda intervento: la macchina sulla planimetria, se è collocata."""
+    from ..services.planimetria_livelli import url_mappa_asset
+
+    try:
+        return url_mappa_asset(workorder.asset)
+    except Exception:  # la mappa è un di più: la scheda dell'intervento si apre comunque
+        return ""
+

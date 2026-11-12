@@ -134,12 +134,49 @@ def _vapid_header(endpoint: str) -> str:
     return f"vapid t={token}, k={chiave_pubblica()}"
 
 
+# 429 del servizio push: si aspetta quanto chiede (Retry-After), entro questi limiti.
+ATTESA_429_DI_SERIE = 60
+ATTESA_429_MASSIMA = 3600
+
+
+def _chiave_attesa(iscrizione) -> str:
+    return f"core:push:attesa:{iscrizione.pk}"
+
+
+def _secondi_retry_after(valore) -> int:
+    """``Retry-After`` in secondi (numero o data HTTP), dentro i limiti."""
+    from email.utils import parsedate_to_datetime
+
+    testo = str(valore or "").strip()
+    secondi = None
+    if testo.isdigit():
+        secondi = int(testo)
+    elif testo:
+        try:
+            quando = parsedate_to_datetime(testo)
+            secondi = int((quando - timezone.now()).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            secondi = None
+    if secondi is None:
+        secondi = ATTESA_429_DI_SERIE
+    return max(1, min(ATTESA_429_MASSIMA, secondi))
+
+
 def invia_segnale(iscrizione) -> bool:
-    """Manda il segnale a un'iscrizione. Aggiorna stato ed errori. Non solleva."""
+    """Manda il segnale a un'iscrizione. Aggiorna stato ed errori. Non solleva.
+
+    Contano come errori dell'iscrizione solo i rifiuti permanenti (4xx): rete giù, 5xx e
+    429 sono problemi del servizio push, non del dispositivo, e non la disattivano.
+    """
     import requests
+    from django.core.cache import cache
 
     if not iscrizione.attiva or not push_configurato() or not endpoint_ammesso(iscrizione.endpoint):
         return False
+    if cache.get(_chiave_attesa(iscrizione)):
+        logger.info("Push: iscrizione %s in attesa (429 del servizio push), invio rimandato", iscrizione.pk)
+        return False
+    resp = None
     try:
         resp = requests.post(
             iscrizione.endpoint,
@@ -168,6 +205,18 @@ def invia_segnale(iscrizione) -> bool:
         iscrizione.attiva = False
         iscrizione.save(update_fields=["attiva"])
         logger.info("Push: iscrizione %s scaduta (HTTP %s), disattivata", iscrizione.pk, status)
+        return False
+    if status == 429:
+        attesa = _secondi_retry_after((getattr(resp, "headers", None) or {}).get("Retry-After"))
+        cache.set(_chiave_attesa(iscrizione), True, timeout=attesa)
+        logger.warning("Push: servizio push %s satura (429), iscrizione %s riprova tra %s s",
+                       urlsplit(iscrizione.endpoint).hostname, iscrizione.pk, attesa)
+        return False
+    if status is None or status >= 500 or status < 400:
+        # Rete, proxy o servizio push in difficoltà: il dispositivo non c'entra, l'iscrizione resta com'è.
+        logger.warning("Push: invio non riuscito per iscrizione %s verso %s (%s): non conta come errore dell'iscrizione",
+                       iscrizione.pk, urlsplit(iscrizione.endpoint).hostname,
+                       "servizio non raggiungibile" if status is None else f"HTTP {status}")
         return False
     iscrizione.errori_consecutivi = min(iscrizione.errori_consecutivi + 1, 32767)
     fields = ["errori_consecutivi"]

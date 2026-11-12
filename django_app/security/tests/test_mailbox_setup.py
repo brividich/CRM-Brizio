@@ -118,9 +118,10 @@ class CycleScheduleDiagnosticsTest(TestCase):
     def test_cycle_isolates_failing_step(self):
         from security.tasks import run_security_cycle_task
 
-        with mock.patch("security.tasks.ingest_security_mailboxes_task", side_effect=RuntimeError("graph giù")):
+        # Le caselle hanno il loro lavoro (security_caselle): qui fallisce un passo interno del ciclo.
+        with mock.patch("security.services.parser_engine.run_pending_parsers", side_effect=RuntimeError("parser giù")):
             result = run_security_cycle_task()
-        self.assertTrue(str(result["mailboxes"]).startswith("errore"))
+        self.assertTrue(str(result["parsers"]).startswith("errore"))
         self.assertIn("kpis", result)
         self.assertNotIn("errore", str(result["rules"]))
 

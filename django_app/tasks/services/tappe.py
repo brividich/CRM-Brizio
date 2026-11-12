@@ -1,0 +1,507 @@
+"""Percorso del kickoff: le attività base che ogni commessa deve avere a posto.
+
+Arrivo materiali, programma CAM, programma CMM, macchina, terzista, processi
+speciali e FAI. Ogni tappa è un tipo attività (``TaskCategory.tappa``): assegnarla
+crea un'attività normale (Gantt, «Le mie azioni», mail), quindi non c'è un secondo
+registro da tenere allineato. Una tappa che non serve si segna in
+``Project.tappe_escluse``.
+
+Per la macchina il percorso legge quello che il portale sa già: abilitati dalla
+skill matrix, loro assenze nel periodo, manutenzioni e verifiche dell'asset.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import date, timedelta
+
+from django.db import transaction
+from django.urls import reverse
+from django.utils import timezone
+
+from automazioni.managed_flows import event_flow, flusso_attivo
+
+from ..models import Task, TaskCategory, TaskExtraRef, TaskPriority, TaskStatus, TappaKickoff
+
+logger = logging.getLogger(__name__)
+
+AIUTO = {
+    TappaKickoff.MATERIALI: "Chi si occupa del materiale e quando deve essere in casa.",
+    TappaKickoff.CAM: "Chi scrive il programma CAM e per quando.",
+    TappaKickoff.CMM: "Chi scrive il programma di misura e per quando.",
+    TappaKickoff.MACCHINA: "Su quale macchina gira: il portale controlla abilitati, assenze e manutenzione.",
+    TappaKickoff.ATTREZZATURA: "Attrezzature del P/N: collega quelle che ci sono o chiedine una nuova.",
+    TappaKickoff.UTENSILI: "Utensili che servono: disponibili a magazzino o da ordinare, entro quando.",
+    TappaKickoff.TERZISTA: "Lavorazione esterna: fornitore e data di rientro.",
+    TappaKickoff.PROCESSI: "Processo speciale qualificato: quale e per quando.",
+    TappaKickoff.FAI: "Chi esegue il FAI e per quando.",
+}
+# Una sola attività per tappa, tranne dove ha senso averne più di una.
+MULTIPLE = {TappaKickoff.MACCHINA, TappaKickoff.ATTREZZATURA, TappaKickoff.TERZISTA, TappaKickoff.PROCESSI}
+CAMPO_TESTO = {TappaKickoff.TERZISTA: "fornitore", TappaKickoff.PROCESSI: "processo"}
+CAMPO_MACCHINA = "macchina"
+TIPI_MACCHINA = ("CNC", "WORK_MACHINE")
+
+
+class TappaNonValida(ValueError):
+    pass
+
+
+def tipi_per_tappa() -> dict[str, TaskCategory]:
+    tipi: dict[str, TaskCategory] = {}
+    for cat in TaskCategory.objects.filter(is_active=True).exclude(tappa="").order_by("order_index", "id"):
+        tipi.setdefault(cat.tappa, cat)
+    return tipi
+
+
+def _escluse(project) -> set[str]:
+    return {str(v) for v in (project.tappe_escluse or []) if v in TappaKickoff.values}
+
+
+# --- Macchina ---------------------------------------------------------------
+
+def macchine_disponibili():
+    from assets.models import Asset
+
+    return (
+        Asset.objects.filter(asset_type__in=TIPI_MACCHINA)
+        .exclude(status="RETIRED")
+        .order_by("asset_tag", "name")
+        .only("id", "asset_tag", "name")
+    )
+
+
+def _asset_del_task(task):
+    ref = next((r for r in task.extra_refs.all() if r.asset_id and r.field_code == CAMPO_MACCHINA), None)
+    return ref.asset if ref else None
+
+
+def _finestra(task) -> tuple[date, date]:
+    oggi = timezone.localdate()
+    inizio = task.next_step_due or oggi
+    fine = task.due_date or inizio + timedelta(days=14)
+    if fine < inizio:
+        inizio, fine = fine, inizio
+    return inizio, fine
+
+
+def dettaglio_macchina(task, *, con_nomi: bool) -> dict | None:
+    asset = _asset_del_task(task)
+    if asset is None:
+        return None
+    inizio, fine = _finestra(task)
+    return disponibilita_macchina(asset, inizio, fine, con_nomi=con_nomi, escludi_task_id=task.pk)
+
+
+def periodo(inizio: date | None, fine: date | None) -> tuple[date, date]:
+    """Periodo da controllare: senza date, da oggi per due settimane."""
+    inizio = inizio or timezone.localdate()
+    fine = fine or inizio + timedelta(days=14)
+    return (fine, inizio) if fine < inizio else (inizio, fine)
+
+
+def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, escludi_task_id=None) -> dict:
+    """Abilitati, assenze nel periodo e impegni dell'asset. Mai un errore a video."""
+    task_pk = escludi_task_id
+    esito = {"asset": asset, "inizio": inizio, "fine": fine, "abilitati": None, "assenti": [], "impegni": []}
+    try:
+        from anagrafica.services.skillmatrix_resolver import pool_abilitati
+
+        ids = pool_abilitati(asset)
+        esito["abilitati"] = len(ids)
+        if ids:
+            from assenze.availability import disponibilita_per_anagrafica
+
+            assenze = disponibilita_per_anagrafica(ids, inizio, fine)
+            nomi = {}
+            if con_nomi and assenze:
+                from core import naming
+                from core.legacy_anagrafica import fetch_anagrafica_rows
+
+                nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
+                        for r in fetch_anagrafica_rows(ids=list(assenze))}
+            for aid, righe in assenze.items():
+                if not righe:
+                    continue
+                # Niente tipo di assenza: al kickoff basta sapere che manca.
+                esito["assenti"].append({
+                    "nome": nomi.get(int(aid), ""),
+                    "periodi": [(r.get("data_inizio"), r.get("data_fine")) for r in righe[:3]],
+                })
+            esito["disponibili"] = len(ids) - len(esito["assenti"])
+    except Exception:
+        logger.exception("Percorso kickoff: abilitati/assenze non letti (asset=%s)", asset.pk)
+    try:
+        from .asset_conflicts import _asset_availability_report
+
+        report = _asset_availability_report(asset, inizio, fine, exclude_task_id=task_pk)
+        esito["impegni"] = [
+            {"titolo": c.get("title", ""), "quando": c.get("when", ""), "grave": c.get("severity") == "block",
+             "url": c.get("url", "")}
+            for c in (report.get("conflicts") or [])[:4]
+        ]
+    except Exception:
+        logger.exception("Percorso kickoff: disponibilità asset non letta (asset=%s)", asset.pk)
+    return esito
+
+
+# --- Lettura ----------------------------------------------------------------
+
+def _stato_tappa(attivita: list, esclusa: bool) -> tuple[str, str, str]:
+    """(codice, etichetta, classe chip)."""
+    if esclusa:
+        return "esclusa", "Non serve", ""
+    if not attivita:
+        return "vuota", "Da assegnare", "warn"
+    oggi = timezone.localdate()
+    aperte = [t for t in attivita if t.status != TaskStatus.DONE]
+    if not aperte:
+        return "fatta", "Fatto", ""
+    if any(t.due_date and t.due_date < oggi for t in aperte):
+        return "ritardo", "In ritardo", "danger"
+    if any(t.status == TaskStatus.IN_PROGRESS for t in aperte):
+        return "corso", "In corso", "info"
+    return "fare", "Da fare", "ok"
+
+
+def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
+    tipi = tipi_per_tappa()
+    escluse = _escluse(project)
+    attivita: dict[str, list] = {}
+    if tipi:
+        qs = (
+            Task.objects.filter(project=project, category__in=tipi.values())
+            .exclude(status=TaskStatus.CANCELED)
+            .select_related("assigned_to", "category")
+            .prefetch_related("extra_refs__asset")
+            .order_by("id")
+        )
+        per_cat = {c.pk: k for k, c in tipi.items()}
+        for t in qs:
+            attivita.setdefault(per_cat[t.category_id], []).append(t)
+
+    try:
+        baseline = project.gantt_baseline
+    except Exception:
+        baseline = None
+    righe = []
+    for key, label in TappaKickoff.choices:
+        tipo = tipi.get(key)
+        if tipo is None:
+            continue
+        elenco = attivita.get(key, [])
+        stato, stato_label, chip = _stato_tappa(elenco, key in escluse)
+        extra = {}
+        if key == TappaKickoff.ATTREZZATURA:
+            extra["attrezzature"] = attrezzature_commessa(project)
+        elif key == TappaKickoff.UTENSILI:
+            utensili = list(project.utensili.select_related("utensile"))
+            mancano = sum(1 for u in utensili if not u.pronto)
+            extra.update(utensili=utensili, utensili_mancano=mancano)
+            # Utensili tutti pronti e nessuna attività aperta: la tappa è a posto.
+            if utensili and not mancano and stato in ("vuota", "fatta"):
+                stato, stato_label, chip = "fatta", "Fatto", ""
+            elif mancano and stato == "vuota":
+                stato_label = f"{mancano} da ordinare"
+        voci = []
+        for t in elenco:
+            # Il nome del tipo è già il titolo della riga: si mostra solo quello che aggiunge.
+            breve = t.title[len(tipo.name):].lstrip(" -") if t.title.startswith(tipo.name) else t.title
+            voce = {"task": t, "url": reverse("tasks:detail", args=[t.pk]), "dettaglio": "", "titolo_breve": breve or t.title}
+            # Rispetto al piano fissato (baseline del Gantt): +N giorni sulla fine.
+            voce["delta_piano"] = baseline.get_task_delta_days(t)["end"] if baseline is not None else None
+            if key in CAMPO_TESTO:
+                voce["dettaglio"] = str((t.extra_data or {}).get(CAMPO_TESTO[key]) or "")
+            elif key in (TappaKickoff.CAM, TappaKickoff.CMM, TappaKickoff.FAI):
+                ref = getattr(t, "tech_ref", None)
+                if ref is not None and ref.is_programma:
+                    # «O1234 rev. B · Validato · CNC-901»: il programma si legge nella riga della tappa.
+                    pezzi = [ref.etichetta_breve if ref.code else "", ref.get_fase_display(), ref.macchina.asset_tag if ref.macchina_id else ""]
+                    voce["dettaglio"] = " · ".join(p for p in pezzi if p)
+                else:
+                    voce["dettaglio"] = ref.code if ref is not None else ""
+            elif key == TappaKickoff.MACCHINA:
+                voce["macchina"] = dettaglio_macchina(t, con_nomi=con_nomi)
+            voci.append(voce)
+        entro_proposto = None
+        if project.data_consegna and project.modello_id:
+            giorni = project.modello.giorni_per(key)
+            if giorni is not None:
+                entro_proposto = project.data_consegna - timedelta(days=int(giorni))
+        ritardi = [v["delta_piano"] for v in voci if v.get("delta_piano")]
+        righe.append({
+            "key": key, "label": label, "aiuto": AIUTO.get(key, ""), "tipo": tipo, "voci": voci, "entro_proposto": entro_proposto,
+            "delta_piano": max(ritardi) if ritardi else None,
+            "mie": any(v["task"].assigned_to_id == getattr(utente, "pk", None) for v in voci) if utente is not None else False,
+            "stato": stato, "stato_label": stato_label, "chip": chip,
+            "puo_aggiungere": key not in escluse and (not elenco or key in MULTIPLE),
+            "puo_escludere": not elenco and key not in escluse,
+            **extra,
+        })
+    a_posto = sum(1 for r in righe if r["stato"] in ("fatta", "esclusa"))
+    assegnate = sum(1 for r in righe if r["stato"] != "vuota")
+    delta = [r["delta_piano"] for r in righe if r.get("delta_piano") is not None]
+    return {
+        "righe": righe, "totale": len(righe), "a_posto": a_posto, "assegnate": assegnate,
+        "ha_piano": baseline is not None, "piano_fissato": baseline.fixed_at if baseline is not None else None,
+        "ritardo_piano": max(delta) if delta else 0,
+    }
+
+
+# --- Scrittura --------------------------------------------------------------
+
+def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "", attrezzatura=None) -> str:
+    if key == TappaKickoff.ATTREZZATURA and attrezzatura and attrezzatura != "nuova":
+        from attrezzature.models import Attrezzatura
+
+        a = Attrezzatura.objects.filter(pk=int(attrezzatura)).first() if str(attrezzatura).isdigit() else None
+        if a is not None:
+            return f"{tipo.name} {a.codice}".strip()
+    if key == TappaKickoff.ATTREZZATURA and attrezzatura == "nuova":
+        return f"{tipo.name} nuova" + (f" - {testo}" if testo else "")
+    if key == TappaKickoff.MACCHINA and asset is not None:
+        return f"Macchina {asset.asset_tag} {asset.name}".strip()
+    if key in CAMPO_TESTO and testo:
+        return f"{tipo.name} - {testo}"
+    return tipo.name
+
+
+@transaction.atomic
+def assegna(
+    project, key: str, user, *, assigned_to=None, due_date=None, start_date=None, asset=None, testo: str = "",
+    meeting=None, outlook: bool = False, request=None, attrezzatura=None,
+) -> Task:
+    from .meeting_tasks import (
+        KickoffBloccatoVRF,
+        kickoff_bloccato_vrf,
+        meeting_task_marker,
+        notify_task_assignment,
+        titolo_attivita,
+    )
+
+    tipo = tipi_per_tappa().get(key)
+    if tipo is None:
+        raise TappaNonValida("Tappa non configurata: controlla i tipi attività in Impostazioni.")
+    if key == TappaKickoff.MACCHINA and asset is None:
+        raise TappaNonValida("Scegli la macchina.")
+    if key == TappaKickoff.ATTREZZATURA and not attrezzatura:
+        raise TappaNonValida("Scegli l'attrezzatura o «Nuova da chiedere».")
+    if key in CAMPO_TESTO and not testo:
+        raise TappaNonValida("Scegli il fornitore." if key == TappaKickoff.TERZISTA else "Scegli il processo.")
+    if key not in MULTIPLE and Task.objects.filter(project=project, category=tipo).exclude(status=TaskStatus.CANCELED).exists():
+        raise TappaNonValida("Questa tappa ha già la sua attività.")
+    if start_date and due_date and due_date < start_date:
+        raise TappaNonValida("«Entro il» non può venire prima dell'inizio.")
+    if kickoff_bloccato_vrf(project):
+        raise KickoffBloccatoVRF()
+
+    oggi = timezone.localdate()
+    if meeting is not None:
+        data = f"{meeting.data:%d-%m-%Y}" if hasattr(meeting.data, "strftime") else str(meeting.data or "")
+        descrizione = f"{meeting_task_marker(meeting)}{data}). Percorso del kickoff."
+    else:
+        descrizione = "Percorso del kickoff."
+    extra = {}
+    if asset is not None:
+        extra[CAMPO_MACCHINA] = asset.pk
+    if key in CAMPO_TESTO:
+        extra[CAMPO_TESTO[key]] = testo[:200]
+    task = Task.objects.create(
+        title=titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
+        project=project,
+        assigned_to=assigned_to,
+        category=tipo,
+        next_step_due=start_date or (min(oggi, due_date) if due_date else oggi),
+        due_date=due_date,
+        priority=TaskPriority.MEDIUM,
+        status=TaskStatus.TODO,
+        created_by=user,
+        description=descrizione,
+        extra_data=extra,
+    )
+    if asset is not None:
+        TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset)
+    if key in _escluse(project):
+        project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
+        project.save(update_fields=["tappe_escluse"])
+    if key == TappaKickoff.ATTREZZATURA:
+        collega_attrezzatura(task, attrezzatura, user, descrizione=testo)
+    notify_task_assignment(task, actor=user)
+    dopo_assegnazione(task, outlook=outlook, request=request)
+    return task
+
+
+# --- Flussi (automazioni → eventi applicativi, spenti di default) ---------------
+
+@event_flow("kickoff_promemoria_scadenza", skipped_result=False)
+def promemoria_scadenza(task) -> bool:
+    from ..outlook_reminder import sync_task_portal_reminder
+
+    sync_task_portal_reminder(task=task)
+    return True
+
+
+@event_flow("kickoff_evento_outlook", skipped_result="")
+def evento_outlook(task, request=None) -> str:
+    from ..outlook_reminder import sync_task_outlook_event
+
+    _livello, messaggio = sync_task_outlook_event(request=request, task=task, requested=True, explicit_email="")
+    return messaggio
+
+
+def outlook_disponibile() -> bool:
+    return flusso_attivo("kickoff_evento_outlook")
+
+
+def dopo_assegnazione(task, *, outlook: bool = False, request=None) -> None:
+    """Dopo il salvataggio: promemoria ed evento Outlook, se i flussi sono accesi. Mai bloccante."""
+    def esegui():
+        try:
+            promemoria_scadenza(task)
+        except Exception:
+            logger.exception("Promemoria tappa non preparato (task=%s)", task.pk)
+        if outlook and task.due_date:
+            try:
+                evento_outlook(task, request)
+            except Exception:
+                logger.exception("Evento Outlook tappa non creato (task=%s)", task.pk)
+
+    transaction.on_commit(esegui)
+
+
+def escludi(project, key: str, *, valore: bool) -> None:
+    if key not in TappaKickoff.values:
+        raise TappaNonValida("Tappa non valida.")
+    escluse = _escluse(project)
+    if valore:
+        tipo = tipi_per_tappa().get(key)
+        if tipo and Task.objects.filter(project=project, category=tipo).exclude(status=TaskStatus.CANCELED).exists():
+            raise TappaNonValida("La tappa ha già un'attività: annullala prima di dire che non serve.")
+        escluse.add(key)
+    else:
+        escluse.discard(key)
+    project.tappe_escluse = [k for k in TappaKickoff.values if k in escluse]
+    project.save(update_fields=["tappe_escluse"])
+
+
+def assenze_persona(user, inizio: date, fine: date) -> list[tuple[date, date]]:
+    """Periodi di assenza del responsabile nel periodo, senza il motivo."""
+    if user is None:
+        return []
+    try:
+        from .absences import _load_user_absences
+
+        return [(r["start_date"], r["end_date"]) for r in _load_user_absences(user, date_start=inizio, date_end=fine)][:4]
+    except Exception:
+        logger.exception("Percorso kickoff: assenze del responsabile non lette (user=%s)", getattr(user, "pk", None))
+        return []
+
+
+def agenda_items(project) -> list[dict]:
+    """Tappe da discutere: da assegnare, in ritardo o aperte. Entrano nell'ordine del giorno.
+
+    ``source`` = ``tappa:<KEY>``: in riunione il punto ha «Assegna» o «Fatto» e
+    porta alla tappa giusta.
+    """
+    voci = []
+    for r in percorso(project)["righe"]:
+        if r["stato"] in ("fatta", "esclusa"):
+            continue
+        aperte = [v["task"] for v in r["voci"] if v["task"].status != TaskStatus.DONE]
+        campi = [{"label": "Stato", "value": r["stato_label"]}]
+        primo = aperte[0] if aperte else None
+        if primo is not None:
+            if primo.assigned_to_id:
+                campi.append({"label": "Responsabile", "value": primo.assigned_to.get_full_name() or primo.assigned_to.username})
+            if primo.due_date:
+                campi.append({"label": "Entro il", "value": primo.due_date.strftime("%d-%m-%Y")})
+        titolo = f"{r['label']}: da assegnare" if r["stato"] == "vuota" else f"{r['label']}: {r['stato_label'].lower()}"
+        voci.append({
+            "id": f"tappa-{r['key'].lower()}",
+            "titolo": titolo,
+            "nota": r["aiuto"] if r["stato"] == "vuota" else "",
+            "task_id": primo.pk if primo else None,
+            "task_label": primo.title if primo else "",
+            "issue_id": None,
+            "action_id": None,
+            "source": f"tappa:{r['key']}",
+            "locked": False,
+            "custom_fields": campi,
+            "done": False,
+        })
+    return voci
+
+
+
+def attrezzature_commessa(project) -> list[dict]:
+    """Attrezzature collegate alla commessa o allo stesso P/N, con stato, disponibilità e consegna."""
+    try:
+        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
+        from attrezzature.services.kickoff_integration import get_attrezzature_for_part_number
+    except Exception:
+        return []
+    collegate = set(AttrezzaturaKickoffLink.objects.filter(project=project).values_list("attrezzatura_id", flat=True))
+    strumenti = {a.pk: a for a in Attrezzatura.objects.filter(pk__in=collegate)}
+    for a in get_attrezzature_for_part_number(project.part_number or "")[:30]:
+        strumenti.setdefault(a.pk, a)
+    return [
+        {
+            "obj": a, "collegata": a.pk in collegate,
+            "stato": a.get_stato_display(), "disponibilita": a.get_disponibilita_stato_display(),
+            "pronta": a.disponibilita_stato == "disponibile" or a.stato in ("available", "ready_for_production"),
+            "consegna": a.data_consegna_prevista,
+        }
+        for a in sorted(strumenti.values(), key=lambda x: (x.codice or "", x.pk))
+    ]
+
+
+def collega_attrezzatura(task, scelta, user, *, descrizione: str = ""):
+    """Dopo l'assegnazione della tappa: collega un'attrezzatura esistente o ne chiede una nuova (bozza)."""
+    from attrezzature.models import Attrezzatura, AttrezzaturaKickoffRelationType
+    from attrezzature.services import kickoff_integration as ki
+
+    project = task.project
+    if scelta == "nuova":
+        return ki.create_draft_attrezzatura_from_kickoff(
+            part_number=project.part_number or "", description=descrizione or task.title,
+            kickoff_ref=project.pk, kickoff_activity_ref=task.pk, user=user,
+        )
+    attrezzatura = Attrezzatura.objects.filter(pk=int(scelta)).first() if str(scelta).isdigit() else None
+    if attrezzatura is not None:
+        ki.upsert_kickoff_link(
+            attrezzatura=attrezzatura, kickoff_ref=project.pk, kickoff_activity_ref=task.pk,
+            relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING, user=user,
+        )
+    return attrezzatura
+
+
+def aggiungi_utensile(project, user, testo: str, *, quantita: int = 1, entro=None):
+    """«codice descrizione» scritto o scelto: se il codice non c'è nel catalogo, nasce."""
+    from ..models import ProjectUtensile, Utensile
+
+    testo = (testo or "").strip()
+    if not testo:
+        raise TappaNonValida("Scrivi il codice dell'utensile.")
+    codice, _, descrizione = testo.partition(" ")
+    codice = codice.strip()[:80]
+    utensile = Utensile.objects.filter(codice__iexact=codice).first()
+    if utensile is None:
+        utensile = Utensile.objects.create(codice=codice, descrizione=descrizione.strip()[:255])
+    return ProjectUtensile.objects.create(
+        project=project, utensile=utensile, quantita=max(1, min(int(quantita or 1), 999)), entro=entro, created_by=user,
+    )
+
+
+
+def carico(user_ids, inizio: date, fine: date) -> dict[int, int]:
+    """Attività aperte di ogni persona che si sovrappongono al periodo, su tutte le commesse."""
+    from django.db.models import Count, Q
+
+    if not user_ids:
+        return {}
+    qs = (
+        Task.objects.filter(assigned_to_id__in=list(user_ids), status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS])
+        .filter(Q(due_date__gte=inizio) | Q(due_date__isnull=True))
+        .filter(Q(next_step_due__lte=fine) | Q(next_step_due__isnull=True))
+        .values("assigned_to_id").annotate(n=Count("id"))
+    )
+    return {r["assigned_to_id"]: r["n"] for r in qs}

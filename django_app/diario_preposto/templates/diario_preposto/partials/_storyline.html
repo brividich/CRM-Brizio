@@ -1,0 +1,121 @@
+{% comment %}
+Uso: include con parte="sintesi" (riquadri) o parte="storia" (linea del tempo); senza parte, entrambe.
+Storyline della segnalazione (diario_preposto/storyline.py): riepilogo in cima
+e linea del tempo dal fatto a oggi. Stati con icona + testo, mai solo colore.
+{% endcomment %}
+{% if parte != "storia" %}
+{% with r=storyline.riepilogo %}
+<div class="dps-sintesi">
+  <div class="dps-chip">
+    <span class="dps-chip-val">{{ r.giorni_dal_fatto|default_if_none:"-" }}</span>
+    <span class="dps-chip-lbl">{% if r.giorni_dal_fatto == 1 %}giorno{% else %}giorni{% endif %} dal fatto</span>
+  </div>
+  <div class="dps-chip{% if r.ritardo_avviso %} is-avviso{% endif %}">
+    <span class="dps-chip-val">{% if r.ritardo_avviso %}! {% endif %}{{ r.ritardo_giorni|default_if_none:"-" }}</span>
+    <span class="dps-chip-lbl">giorni per registrarla</span>
+  </div>
+  <div class="dps-chip{% if not r.allegati %} is-avviso{% endif %}">
+    <span class="dps-chip-val">{% if not r.allegati %}! {% endif %}{{ r.allegati }}</span>
+    <span class="dps-chip-lbl">allegat{% if r.allegati == 1 %}o{% else %}i{% endif %}{% if r.allegati_rimossi %} · {{ r.allegati_rimossi }} rimoss{% if r.allegati_rimossi == 1 %}o{% else %}i{% endif %}{% endif %}</span>
+  </div>
+  <div class="dps-chip">
+    <span class="dps-chip-val">{{ r.modifiche }}</span>
+    <span class="dps-chip-lbl">modific{% if r.modifiche == 1 %}a{% else %}he{% endif %}</span>
+  </div>
+  <div class="dps-chip{% if r.mail_ko %} is-critico{% endif %}">
+    <span class="dps-chip-val">{% if r.mail_ko %}✕ {{ r.mail_ko }}{% elif r.mail_ok %}✓ {{ r.mail_ok }}{% else %}–{% endif %}</span>
+    <span class="dps-chip-lbl">{% if r.mail_ko %}notifiche non partite{% elif r.mail_ok %}notific{% if r.mail_ok == 1 %}a inviata{% else %}he inviate{% endif %}{% else %}nessuna notifica registrata{% endif %}</span>
+  </div>
+  {% if r.ultima_attivita %}
+  <div class="dps-chip">
+    <span class="dps-chip-val dps-chip-val-small">{{ r.ultima_attivita|date:"d/m/Y H:i" }}</span>
+    <span class="dps-chip-lbl">ultima attività{% if r.ultima_attivita_chi %} · {{ r.ultima_attivita_chi }}{% endif %}</span>
+  </div>
+  {% endif %}
+</div>
+{% endwith %}
+{% endif %}
+
+{% if parte != "sintesi" %}
+<section class="dps" aria-label="Storia della segnalazione">
+  <div class="dps-head">
+    <div class="dps-title">Storia della segnalazione</div>
+    <div class="dps-meta">{{ storyline.eventi|length }} event{{ storyline.eventi|length|pluralize:"o,i" }}, dal fatto a oggi</div>
+  </div>
+  <ol class="dps-list">
+    {% for e in storyline.eventi %}
+    <li class="dps-ev dps-ev-{{ e.tipo }}{% if e.stato %} is-{{ e.stato }}{% endif %}">
+      <span class="dps-dot" aria-hidden="true"></span>
+      <div class="dps-body">
+        <div class="dps-riga">
+          <span class="dps-ev-title">{% if e.stato == "critico" %}✕ {% elif e.stato == "avviso" %}! {% endif %}{{ e.titolo }}</span>
+          <span class="dps-quando">{{ e.quando|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% if e.chi %}<div class="dps-chi">{{ e.chi }}</div>{% endif %}
+        {% for n in e.note %}<div class="dps-nota">{{ n }}</div>{% endfor %}
+        {% if e.righe %}
+        <ul class="dps-righe">
+          {% for riga in e.righe %}
+          <li><span class="dps-campo">{{ riga.campo }}</span>{% if riga.prima != "—" %} <span class="dps-prima">{{ riga.prima|truncatechars:90 }}</span> →{% endif %} <span class="dps-dopo">{{ riga.dopo|truncatechars:90 }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<style>
+.dps-sintesi { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.dps-chip { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+.dps-chip-val { font-size:20px; font-weight:900; color:#0f172a; line-height:1.1; font-variant-numeric:tabular-nums; }
+.dps-chip-val-small { font-size:14px; }
+.dps-chip-lbl { font-size:11px; color:#475569; font-weight:600; }
+.dps-chip.is-avviso { background:#fffbeb; border-color:#fcd34d; }
+.dps-chip.is-avviso .dps-chip-val, .dps-chip.is-avviso .dps-chip-lbl { color:#b45309; }
+.dps-chip.is-critico { background:#fef2f2; border-color:#fecaca; }
+.dps-chip.is-critico .dps-chip-val, .dps-chip.is-critico .dps-chip-lbl { color:#b91c1c; }
+
+.dps { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.dps-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.dps-title { font-size:15px; font-weight:800; color:#0f172a; }
+.dps-meta { font-size:12px; color:#64748b; }
+.dps-list { list-style:none; margin:0; padding:0; position:relative; }
+.dps-list::before { content:""; position:absolute; left:6px; top:6px; bottom:6px; width:2px; background:#e2e8f0; }
+.dps-ev { position:relative; padding:0 0 16px 26px; }
+.dps-ev:last-child { padding-bottom:0; }
+.dps-dot { position:absolute; left:0; top:3px; width:14px; height:14px; border-radius:50%; background:#fff; border:3px solid #94a3b8; box-sizing:border-box; }
+.dps-ev-fatto .dps-dot { border-color:#0d9488; background:#0d9488; }
+.dps-ev-registrata .dps-dot, .dps-ev-ripristinata .dps-dot { border-color:#0d9488; }
+.dps-ev-mail .dps-dot { border-color:#2563eb; }
+.dps-ev.is-avviso .dps-dot { border-color:#d97706; }
+.dps-ev.is-critico .dps-dot { border-color:#dc2626; background:#dc2626; }
+.dps-riga { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.dps-ev-title { font-size:13px; font-weight:700; color:#0f172a; }
+.dps-ev.is-avviso .dps-ev-title { color:#b45309; }
+.dps-ev.is-critico .dps-ev-title { color:#b91c1c; }
+.dps-quando { font-size:12px; color:#64748b; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.dps-chi { font-size:12px; color:#475569; margin-top:1px; }
+.dps-nota { font-size:12px; color:#64748b; margin-top:2px; word-break:break-word; }
+.dps-righe { list-style:none; margin:6px 0 0; padding:8px 10px; background:#f8fafc; border-radius:8px; font-size:12px; display:flex; flex-direction:column; gap:3px; }
+.dps-campo { color:#475569; font-weight:700; }
+.dps-campo::after { content:":"; }
+.dps-prima { color:#94a3b8; text-decoration:line-through; }
+.dps-dopo { color:#0f172a; font-weight:600; }
+
+body.theme-dark .dps-chip, body.theme-dark .dps-righe { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .dps { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dps-chip-val, body.theme-dark .dps-title, body.theme-dark .dps-ev-title, body.theme-dark .dps-dopo { color:var(--text); }
+body.theme-dark .dps-chip-lbl, body.theme-dark .dps-chi, body.theme-dark .dps-campo { color:var(--text-mid); }
+body.theme-dark .dps-meta, body.theme-dark .dps-quando, body.theme-dark .dps-nota { color:var(--text-light); }
+body.theme-dark .dps-list::before { background:var(--border); }
+body.theme-dark .dps-dot { background:var(--surface); }
+body.theme-dark .dps-ev-fatto .dps-dot { background:#0fa596; border-color:#0fa596; }
+body.theme-dark .dps-chip.is-avviso { background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.35); }
+body.theme-dark .dps-chip.is-avviso .dps-chip-val, body.theme-dark .dps-chip.is-avviso .dps-chip-lbl, body.theme-dark .dps-ev.is-avviso .dps-ev-title { color:#fbbf24; }
+body.theme-dark .dps-chip.is-critico { background:rgba(229,62,62,.16); border-color:rgba(252,165,165,.35); }
+body.theme-dark .dps-chip.is-critico .dps-chip-val, body.theme-dark .dps-chip.is-critico .dps-chip-lbl, body.theme-dark .dps-ev.is-critico .dps-ev-title { color:#fca5a5; }
+body.theme-dark .dps-prima { color:var(--text-light); }
+</style>

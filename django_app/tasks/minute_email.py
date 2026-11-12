@@ -69,7 +69,18 @@ def _sections_html_text(meeting, sections: list[tuple[str, str]]) -> tuple[list[
 
 
 def _cta(meeting, label: str) -> str:
-    url = meeting_url(meeting) or "#"
+    from django.urls import reverse
+
+    from core.accounts.portal_links import portal_link
+
+    try:
+        path = reverse(
+            "tasks:project_meeting_detail",
+            kwargs={"project_id": meeting.project_id, "meeting_id": meeting.pk},
+        )
+    except Exception:
+        path = ""
+    url = (portal_link(path) if path else "") or "#"
     return email_cta(label, url, note="Accedi al portale per i dettagli.")
 
 
@@ -295,11 +306,11 @@ def _invite_sections(meeting) -> list[tuple[str, str]]:
     ]
 
 
-def build_minute_email(meeting) -> tuple[str, str, str]:
+def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, str, str]:
     """Compone (subject, body_text, body_html_fragment) della minuta incontro."""
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
     titolo = (meeting.titolo or "").strip()
-    subject = f"Minuta incontro — KICK-OFF {kickoff}"
+    subject = f"{'Aggiornamento minuta' if aggiornamento else 'Minuta'} incontro — KICK-OFF {kickoff}"
     if titolo:
         subject += f": {titolo}"
 
@@ -347,6 +358,8 @@ def build_invite_email(meeting, *, aggiornamento: bool = False) -> tuple[str, st
         if aggiornamento
         else "Sei convocato/a al seguente incontro di avvio commessa."
     )
+    if getattr(meeting, "outlook_event_id", ""):
+        apertura += " L'invito Outlook da accettare ti è arrivato a parte: qui trovi l'ordine del giorno."
     html_parts = [f"<p>{apertura}</p>", email_facts_table(facts)]
     text_parts = [apertura] + [f"{k}: {v}" for k, v in facts]
     sec_html, sec_text = _sections_html_text(meeting, sections)
@@ -441,30 +454,96 @@ def build_cancel_email(meeting) -> tuple[str, str, str]:
     return subject, "\n".join(text_parts), "".join(html_parts)
 
 
+# Fuso dell'azienda, con le regole dell'ora legale europea: un orario senza
+# TZID e' «ora locale del lettore» e un client in un altro fuso lo sposta.
+_ICS_TZID = "Europe/Rome"
+_ICS_VTIMEZONE = [
+    "BEGIN:VTIMEZONE",
+    f"TZID:{_ICS_TZID}",
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:+0100",
+    "TZOFFSETTO:+0200",
+    "TZNAME:CEST",
+    "DTSTART:19700329T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0200",
+    "TZOFFSETTO:+0100",
+    "TZNAME:CET",
+    "DTSTART:19701025T030000",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+]
+
+
+def _ics_text(value) -> str:
+    """Valore TEXT iCalendar (RFC 5545 §3.3.11): barre, ; , e a capo protetti."""
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+    return (
+        text.replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def _ics_fold(line: str) -> list[str]:
+    """Spezza una riga oltre i 75 byte (RFC 5545 §3.1) senza tagliare un carattere UTF-8."""
+    out: list[str] = []
+    current = ""
+    size = 0
+    limit = 75
+    for char in line:
+        char_size = len(char.encode("utf-8"))
+        if size + char_size > limit:
+            out.append(current)
+            current = " "
+            size = 1
+            limit = 75
+        current += char
+        size += char_size
+    out.append(current)
+    return out
+
+
+def _ics_organizer(meeting) -> str:
+    """Email dell'organizzatore: la stessa logica dell'evento Outlook, poi il mittente del portale."""
+    from django.conf import settings
+
+    from tasks.meeting_outlook import _resolve_organizer_email
+
+    return (_resolve_organizer_email(meeting, None) or getattr(settings, "DEFAULT_FROM_EMAIL", "") or "").strip()
+
+
 def build_meeting_ics(meeting, *, cancel: bool = False) -> bytes:
     """Genera un invito calendario .ics (VEVENT) per l'incontro.
 
     Stesso UID a ogni invio: il calendario aggiorna l'evento invece di
-    duplicarlo. Con ``cancel`` l'evento esce come annullato.
+    duplicarlo. Con ``cancel`` l'evento esce come annullato: RFC 5546 vuole
+    organizzatore e invitati, senza i quali Outlook non toglie l'evento.
+    La durata e' la somma dei punti all'ordine del giorno (un'ora se mancano).
     """
     from datetime import datetime, timedelta
 
     from django.utils import timezone
 
-    def _dt(value) -> datetime | None:
-        if isinstance(value, datetime):
-            return value
-        return None
+    from tasks.meeting_outlook import meeting_duration_minutes
 
-    # DTSTART/DTEND: se c'è l'ora → evento a orario, altrimenti giornata intera (VALUE=DATE)
     data = meeting.data
     ora = meeting.ora
+    a_orario = ora is not None and hasattr(data, "strftime")
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//NOVICROM HUB//KICK-OFF//IT",
         "CALSCALE:GREGORIAN",
         "METHOD:CANCEL" if cancel else "METHOD:PUBLISH",
+    ]
+    if a_orario:
+        lines += _ICS_VTIMEZONE
+    lines += [
         "BEGIN:VEVENT",
         f"UID:kickoff-meeting-{meeting.pk}@novicrom-hub",
         f"DTSTAMP:{timezone.now().strftime('%Y%m%dT%H%M%SZ')}",
@@ -473,31 +552,39 @@ def build_meeting_ics(meeting, *, cancel: bool = False) -> bytes:
     ]
     if cancel:
         lines.append("STATUS:CANCELLED")
-    if ora is not None and hasattr(data, "strftime"):
-        start = f"{data.strftime('%Y%m%d')}T{ora.strftime('%H%M%S')}"
-        try:
-            end_dt = datetime.combine(data, ora) + timedelta(hours=1)
-            end = end_dt.strftime("%Y%m%dT%H%M%S")
-        except Exception:
-            end = start
-        lines += [f"DTSTART:{start}", f"DTEND:{end}"]
+    if a_orario:
+        start_dt = datetime.combine(data, ora)
+        end_dt = start_dt + timedelta(minutes=meeting_duration_minutes(meeting))
+        lines += [
+            f"DTSTART;TZID={_ICS_TZID}:{start_dt.strftime('%Y%m%dT%H%M%S')}",
+            f"DTEND;TZID={_ICS_TZID}:{end_dt.strftime('%Y%m%dT%H%M%S')}",
+        ]
     elif hasattr(data, "strftime"):
         lines += [f"DTSTART;VALUE=DATE:{data.strftime('%Y%m%d')}"]
     else:
         lines += [f"DTSTART;VALUE=DATE:{str(data).replace('-', '')}"]
+
+    organizer = _ics_organizer(meeting)
+    if organizer:
+        lines.append(f"ORGANIZER:mailto:{organizer}")
+    # In PUBLISH gli invitati non vanno elencati (RFC 5546 §3.2.1); in CANCEL si'.
+    if cancel:
+        for email in meeting.get_all_attendee_emails():
+            lines.append(f"ATTENDEE;ROLE=REQ-PARTICIPANT:mailto:{email}")
 
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
     summary = f"KICK-OFF {kickoff} — Incontro {meeting.numero}"
     if (meeting.titolo or "").strip():
         summary += f": {meeting.titolo.strip()}"
     lines += [
-        f"SUMMARY:{summary}",
-        f"LOCATION:{(meeting.luogo or '').strip()}",
-        f"DESCRIPTION:{(_agenda_text(meeting) or meeting.ordine_del_giorno or '').strip().replace(chr(10), ' ')}",
+        f"SUMMARY:{_ics_text(summary)}",
+        f"LOCATION:{_ics_text((meeting.luogo or '').strip())}",
+        f"DESCRIPTION:{_ics_text((_agenda_text(meeting) or meeting.ordine_del_giorno or '').strip())}",
         "END:VEVENT",
         "END:VCALENDAR",
     ]
-    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+    folded = [part for line in lines for part in _ics_fold(line)]
+    return ("\r\n".join(folded) + "\r\n").encode("utf-8")
 
 
 def _cc_management(meeting, exclude: list[str]) -> list[str]:
@@ -565,7 +652,8 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
 
     from core.email_utils import send_hub_mail
 
-    subject, body_text, body_html = build_minute_email(meeting)
+    aggiornamento = bool(getattr(meeting, "minuta_inviata_at", None))
+    subject, body_text, body_html = build_minute_email(meeting, aggiornamento=aggiornamento)
     # Chi non c'era resta in copia: la minuta lo riguarda comunque.
     cc = assenti + _cc_management(meeting, exclude=recipients + assenti)
     attachments = None
@@ -590,7 +678,17 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
     )
     if not sent_count:
         return {"sent": False, "recipients": recipients, "cc": cc, "reason": "send_error"}
-    return {"sent": True, "recipients": recipients, "cc": cc, "reason": ""}
+    if getattr(meeting, "pk", None):
+        from django.utils import timezone
+
+        from tasks.models import KickoffMeeting
+
+        meeting.minuta_inviata_at = timezone.now()
+        meeting.minuta_firma = meeting.firma_minuta()
+        KickoffMeeting.objects.filter(pk=meeting.pk).update(
+            minuta_inviata_at=meeting.minuta_inviata_at, minuta_firma=meeting.minuta_firma,
+        )
+    return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 
 
 def send_meeting_invite(meeting, *, sent_by=None) -> dict:
@@ -612,11 +710,13 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
     subject, body_text, body_html = build_invite_email(meeting, aggiornamento=aggiornamento)
     cc = _cc_management(meeting, exclude=recipients)
     attachments = None
-    try:
-        ics = build_meeting_ics(meeting)
-        attachments = [("convocazione-incontro.ics", ics, "text/calendar")]
-    except Exception:
-        attachments = None  # .ics opzionale: un errore non blocca l'invio
+    # Con l'invito Outlook già partito il file .ics farebbe un secondo appuntamento: si allega solo senza Outlook.
+    if not getattr(meeting, "outlook_event_id", ""):
+        try:
+            ics = build_meeting_ics(meeting)
+            attachments = [("convocazione-incontro.ics", ics, "text/calendar")]
+        except Exception:
+            attachments = None  # .ics opzionale: un errore non blocca l'invio
     sent_count = send_hub_mail(
         subject,
         body_text,
@@ -634,10 +734,10 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
         from tasks.models import KickoffMeeting
 
         meeting.convocazione_inviata_at = timezone.now()
-        meeting.convocazione_firma = meeting.firma_convocazione()
+        campi = meeting.registra_convocazione_inviata()
         KickoffMeeting.objects.filter(pk=meeting.pk).update(
             convocazione_inviata_at=meeting.convocazione_inviata_at,
-            convocazione_firma=meeting.convocazione_firma,
+            **{campo: getattr(meeting, campo) for campo in campi},
         )
     return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 

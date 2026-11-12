@@ -39,7 +39,10 @@ def pc_overview(name, days=90):
     signals = SecurityAssetSignal.objects.filter(asset__in=assets).exclude(kind=SecurityAssetSignal.KIND_BACKUP).select_related("source")
     events = SecurityEventRecord.objects.filter(asset__in=assets, suppressed=False).select_related("source")
     open_alerts = list(alerts.order_by("-created_at")[:10])
-    open_vulns = list(vulns.order_by("-cvss", "-last_seen_at")[:10])
+    # Le CVE già elencate dall'inventario non si ripetono tra quelle di Defender.
+    gia_viste = {i.cve.cve_id.upper() for i in cve_impacts}
+    open_vulns = [v for v in vulns.order_by("-cvss", "-last_seen_at")[:10 + len(gia_viste)] if (v.cve or "").upper() not in gia_viste][:10]
+    uniche = cve_uniche(name).get(_norm(name), {"cves": 0, "kev": 0, "gravi": 0})
     endpoint = list(signals.order_by("-occurred_at")[:8])
     status = _overall(backup, open_alerts, open_vulns + [i for i in cve_impacts if i.grave])
     return {
@@ -56,12 +59,63 @@ def pc_overview(name, days=90):
         "vuln_count": vulns.count(),
         "cve_impacts": cve_impacts[:10],
         "cve_count": len(cve_impacts),
-        "cve_gravi": sum(1 for i in cve_impacts if i.grave),
+        # Il numero delle vulnerabilità del PC, uguale in scheda, pannello ed elenco Dispositivi.
+        "cve_uniche": uniche["cves"],
+        "cve_gravi": uniche["gravi"],
         "endpoint": [{"signal": s, "label": SIGNAL_LABELS.get(s.kind, s.kind)} for s in endpoint],
         "events": list(events.order_by("-occurred_at")[:8]),
         "days": days,
         "rete": _rete(name, hub_asset),
     }
+
+
+def _norm(name):
+    from security.services.pc_copertura import norm
+
+    return norm(name)
+
+
+def cve_uniche(name=None):
+    """CVE uniche per PC: {nome normalizzato: {"cves", "kev", "gravi"}}. Unica definizione del numero.
+
+    Una CVE conta una volta per PC anche se la segnalano sia l'inventario software
+    (``SecurityCveImpact`` che colpisce) sia Microsoft Defender (vulnerabilità aperta sul
+    dispositivo SOC con lo stesso nome). Grave = in CISA KEV o CVSS ≥ 9. Con ``name`` si
+    calcola solo quel PC.
+    """
+    from security.models import SecurityCveImpact, SecurityCveRecord
+
+    key = _norm(name) if name is not None else None
+    if name is not None and not key:
+        return {}
+    impacts = SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS)
+    findings = SecurityVulnerabilityFinding.objects.filter(status__in=ACTIVE_ALERT_STATUSES, asset__isnull=False).exclude(cve="")
+    if key:
+        impacts = impacts.filter(host__istartswith=key)
+        findings = findings.filter(asset__hostname__istartswith=key)
+    per_pc = {}  # host -> {cve: grave}
+    kev_ids = set()
+    for host, cve_id, kev, cvss in impacts.values_list("host", "cve__cve_id", "cve__kev", "cve__cvss").iterator():
+        k = _norm(host)
+        if k and (key is None or k == key):
+            cve_id = (cve_id or "").upper()
+            per_pc.setdefault(k, {})[cve_id] = per_pc.get(k, {}).get(cve_id, False) or bool(kev or (cvss or 0) >= 9)
+            if kev:
+                kev_ids.add(cve_id)
+    da_defender = []
+    for host, cve_id, cvss in findings.values_list("asset__hostname", "cve", "cvss").iterator():
+        k = _norm(host)
+        if k and (key is None or k == key):
+            da_defender.append((k, (cve_id or "").upper(), cvss))
+    # KEV delle CVE viste solo da Defender: dal catalogo CVE, una query.
+    solo_defender = {c for _k, c, _s in da_defender} - kev_ids
+    if solo_defender:
+        kev_ids |= {c.upper() for c in SecurityCveRecord.objects.filter(cve_id__in=solo_defender, kev=True).values_list("cve_id", flat=True)}
+    for k, cve_id, cvss in da_defender:
+        cves = per_pc.setdefault(k, {})
+        cves[cve_id] = cves.get(cve_id, False) or cve_id in kev_ids or (cvss or 0) >= 9
+    return {k: {"cves": len(cves), "kev": sum(1 for c in cves if c in kev_ids), "gravi": sum(1 for g in cves.values() if g)}
+            for k, cves in per_pc.items()}
 
 
 def _rete(name, hub_asset):

@@ -32,6 +32,41 @@ def stato_scorta(qta: int, minima: int) -> str:
     return STATO_OK
 
 
+def modelli_di_magazzino():
+    """Modelli attivi gestiti a scorta: le scarpe ordinate al negozio si comprano per la persona."""
+    return ModelloDPI.objects.filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True)
+
+
+def ultimi_fornitori() -> dict[int, str]:
+    """Per modello, il fornitore dell'ultimo carico che ne indica uno."""
+    fornitori: dict[int, str] = {}
+    righe = MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.CARICO).exclude(fornitore="").order_by("-data", "-id")
+    for modello_id, fornitore in righe.values_list("modello_id", "fornitore"):
+        fornitori.setdefault(modello_id, fornitore.strip())
+    return fornitori
+
+
+def bozza_ordine(giorni: int, oggi: date | None = None) -> list[dict]:
+    """L'elenco «da riordinare» del report, diviso per ultimo fornitore."""
+    fornitori = ultimi_fornitori()
+    gruppi: dict[str, list[dict]] = {}
+    for riga in report(giorni, oggi)["riordino"]:
+        gruppi.setdefault(fornitori.get(riga["modello"].pk, ""), []).append(riga)
+    return [{"nome": nome, "righe": gruppi[nome]} for nome in sorted(gruppi, key=lambda n: (not n, n.casefold()))]
+
+
+def da_riordinare() -> int:
+    """Modelli attivi esauriti o sotto scorta (stessi numeri della pagina Magazzino).
+    Zero se il magazzino non e' in uso, cioe' senza alcun movimento registrato."""
+    giac = giacenze()
+    if not giac:
+        return 0
+    return sum(
+        1 for m in modelli_di_magazzino()
+        if stato_scorta(giac.get(m.pk, 0), m.scorta_minima) != STATO_OK
+    )
+
+
 def carica_ddt(modello: ModelloDPI, quantita: int, *, ddt_numero: str = "", data: date | None = None,
                fornitore: str = "", note: str = "", user=None) -> MovimentoMagazzinoDPI:
     if quantita <= 0:
@@ -57,7 +92,27 @@ def imposta_giacenza(modello: ModelloDPI, nuova: int, *, note: str = "", user=No
     )
 
 
-def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None) -> tuple[MovimentoMagazzinoDPI | None, int | None]:
+def mancanze(richieste) -> list[dict]:
+    """Modelli la cui giacenza non copre i pezzi delle richieste, sommati per modello.
+    Vuoto se il magazzino non e' in uso (nessun movimento registrato), come ``da_riordinare``."""
+    giac = giacenze()
+    if not giac:
+        return []
+    pezzi: dict[int, dict] = {}
+    for r in richieste:
+        if r.modello_dpi_id and not r.modalita_negozio:
+            riga = pezzi.setdefault(r.modello_dpi_id, {
+                "modello_id": r.modello_dpi_id, "codice": r.modello_dpi.codice,
+                "pezzi": 0, "giacenza": giac.get(r.modello_dpi_id, 0),
+            })
+            riga["pezzi"] += int(r.quantita or 1)
+    return [riga for riga in pezzi.values() if riga["giacenza"] < riga["pezzi"]]
+
+
+SEGNO_SENZA_GIACENZA = " · senza giacenza: "
+
+
+def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None, motivo: str = "") -> tuple[MovimentoMagazzinoDPI | None, int | None]:
     """Scarica dal magazzino la quantita' consegnata. Idempotente per richiesta.
 
     Ritorna (movimento, giacenza_residua); (None, None) se la richiesta non ha un
@@ -69,11 +124,17 @@ def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None) -> t
         richiesta=richiesta, tipo=Tipo.SCARICO,
         defaults={
             "modello_id": richiesta.modello_dpi_id, "quantita": -int(richiesta.quantita or 1), "data": data,
-            "note": f"Consegna {richiesta.numero} - {richiesta.richiedente_nome}"[:300],
+            "note": (f"Consegna {richiesta.numero} - {richiesta.richiedente_nome}"
+                     + (f"{SEGNO_SENZA_GIACENZA}{motivo}" if motivo else ""))[:300],
             "created_by": user if getattr(user, "is_authenticated", False) else None,
         },
     )
     return movimento, giacenza(richiesta.modello_dpi_id)
+
+
+def annulla_scarico(richiesta: RichiestaDPI) -> int:
+    """Consegna annullata subito: lo scarico sparisce, altrimenti conterebbe nei consumi."""
+    return MovimentoMagazzinoDPI.objects.filter(richiesta=richiesta, tipo=Tipo.SCARICO).delete()[0]
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +186,7 @@ def report(giorni: int, oggi: date | None = None) -> dict:
         nome = (r["richiesta__richiedente_reparto"] or "").strip() or "Non indicato"
         per_reparto[nome] = per_reparto.get(nome, 0) - int(r["t"] or 0)
 
-    modelli = list(ModelloDPI.objects.filter(is_active=True).select_related("tipo", "tipo__categoria"))
+    modelli = list(modelli_di_magazzino().select_related("tipo", "tipo__categoria"))
     giac = giacenze()
     righe = []
     for m in modelli:
@@ -145,7 +206,13 @@ def report(giorni: int, oggi: date | None = None) -> dict:
         (r for r in righe if r["stato"] != STATO_OK or (r["copertura"] is not None and r["copertura"] < 30 and r["suggerito"] > 0)),
         key=lambda r: (r["stato"] != STATO_ESAURITO, r["copertura"] if r["copertura"] is not None else 10**6),
     )
+    senza_giacenza = [
+        {"movimento": m, "pezzi": -m.quantita, "motivo": m.note.split(SEGNO_SENZA_GIACENZA, 1)[1]}
+        for m in scarichi.filter(note__contains=SEGNO_SENZA_GIACENZA)
+        .select_related("modello", "richiesta").order_by("-data", "-id")
+    ]
     return {
+        "senza_giacenza": senza_giacenza,
         "giorni": giorni, "da": da, "consumati": consumati, "caricati": caricati,
         "serie": serie, "serie_max": max([s["pezzi"] for s in serie] + [1]),
         "top": top, "top_max": max([r["consumo"] for r in top] + [1]),

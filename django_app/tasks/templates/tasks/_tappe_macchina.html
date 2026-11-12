@@ -1,0 +1,8 @@
+        <div class="tp-macchina">
+          <span>Dal {{ m.inizio|date:"d/m" }} al {{ m.fine|date:"d/m" }}:</span>
+          {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
+          {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
+          {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
+          {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
+          {% for i in m.impegni %}<span class="ts-chip {% if i.grave %}danger{% else %}warn{% endif %}">{% if i.url %}<a href="{{ i.url }}">{{ i.titolo }}</a>{% else %}{{ i.titolo }}{% endif %}{% if i.quando %} · {{ i.quando }}{% endif %}</span>{% empty %}<span class="ts-chip ok">Nessuna manutenzione o impegno</span>{% endfor %}
+        </div>

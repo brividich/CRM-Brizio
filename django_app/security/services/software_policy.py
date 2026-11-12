@@ -112,8 +112,21 @@ def record_events(now=None):
 
 
 def run():
-    """Eventi + valutazione: da chiamare dopo un import dell'inventario o un cambio nel catalogo."""
+    """Eventi + valutazione: da chiamare dopo un import dell'inventario o un cambio nel catalogo.
+
+    Fa anche il giro dei programmi mai visti prima (``software_nuovo``): l'evento per i nuovi e la chiusura
+    degli alert dei programmi che intanto hanno una decisione.
+    """
+    from security.services import software_nuovo
+
     events = record_events()
+    try:
+        events += software_nuovo.record_events()
+        software_nuovo.chiudi_decisi()
+    except Exception:  # noqa: BLE001 - il controllo dei programmi nuovi non ferma quello di conformità
+        import logging
+
+        logging.getLogger(__name__).exception("Controllo dei programmi nuovi non riuscito")
     if events:
         from security.services.rule_engine import evaluate_security_rules
 

@@ -1163,12 +1163,13 @@ def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, 
 
 @login_required
 def maintenance_history(request: HttpRequest) -> HttpResponse:
-    """Storico aziendale unico: OdL conclusi e ticket MAN, senza alterarne i flussi."""
+    """Storico aziendale unico: OdL conclusi, manutenzioni registrate, scadenze
+    amministrative svolte e ticket MAN, senza alterarne i flussi."""
     from tickets.models import StatoTicket, Ticket, TipoTicket
 
     q = _clean_string(request.GET.get("q"))
     source = _clean_string(request.GET.get("source")).lower() or "all"
-    if source not in {"all", "workorders", "maintenance", "tickets"}:
+    if source not in {"all", "workorders", "maintenance", "deadlines", "tickets"}:
         source = "all"
 
     def parsed_date(name: str) -> date | None:
@@ -1258,6 +1259,53 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
                 }
             )
 
+    if source in {"all", "deadlines"}:
+        # Scadenze amministrative svolte (revisioni, controlli periodici, certificati):
+        # registrandole la scadenza si rinnova o si chiude, quindi dall'elenco delle
+        # scadenze l'esecuzione sparisce. Qui resta come lavoro fatto.
+        from ..models import AssetAdministrativeDeadline, AssetAdministrativeDeadlineCompletion
+
+        completions = AssetAdministrativeDeadlineCompletion.objects.filter(
+            deadline__in=filtra_per_asset(
+                request, AssetAdministrativeDeadline.objects.all(), MODULO_VERIFICHE
+            ).values("id")
+        ).select_related("deadline__asset", "completed_by")
+        if q:
+            completions = completions.filter(
+                Q(deadline__title__icontains=q)
+                | Q(deadline__reference_code__icontains=q)
+                | Q(deadline__issuer__icontains=q)
+                | Q(notes__icontains=q)
+                | Q(deadline__asset__asset_tag__icontains=q)
+                | Q(deadline__asset__name__icontains=q)
+            )
+        if date_from:
+            completions = completions.filter(completed_on__gte=date_from)
+        if date_to:
+            completions = completions.filter(completed_on__lte=date_to)
+        deadlines_url = reverse("assets:asset_administrative_deadline_list")
+        for completion in completions.order_by("-completed_on", "-id")[:500]:
+            deadline = completion.deadline
+            rows.append(
+                {
+                    "source": "deadline",
+                    "source_label": "Scadenza amministrativa",
+                    "date": timezone.make_aware(datetime.combine(completion.completed_on, datetime.min.time())),
+                    "title": deadline.title,
+                    "asset": deadline.asset,
+                    "type_label": deadline.get_deadline_type_display(),
+                    "status_label": (
+                        f"Svolta · prossima {completion.next_due_date:%d/%m/%Y}"
+                        if completion.next_due_date else "Svolta"
+                    ),
+                    "technician": (completion.completed_by.get_full_name() or completion.completed_by.username)
+                    if completion.completed_by_id else "-",
+                    "duration_minutes": completion.duration_minutes,
+                    "cost": completion.cost_eur,
+                    "url": f"{deadlines_url}?status=all&q={quote(deadline.asset.asset_tag or deadline.title)}",
+                }
+            )
+
     if source in {"all", "tickets"}:
         tickets = Ticket.objects.filter(
             tipo=TipoTicket.MAN,
@@ -1320,6 +1368,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
             "history_occurrence_count": sum(1 for row in rows if row["source"] == "occurrence"),
+            "history_deadline_count": sum(1 for row in rows if row["source"] == "deadline"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
             "history_duration_coverage": copertura_durata["label"],
@@ -1470,32 +1519,16 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
     today = timezone.localdate()
     now = timezone.now()
 
-    contracts = list(
-        AssistanceContract.objects.filter(supplier=supplier)
-        .select_related("asset", "asset_category", "document")
-        .order_by("-is_active", "-start_date", "id")
-    )
-    rules = list(
-        MaintenanceRule.objects.filter(supplier=supplier)
-        .select_related("intervention_template", "asset_category")
-        .prefetch_related("assets")
-        .order_by("-is_active", "asset_category__label", "sort_order", "id")
-    )
-    verifications = list(
-        PeriodicVerification.objects.filter(supplier=supplier)
-        .prefetch_related("assets")
-        .order_by("-is_active", "next_verification_date", "id")
-    )
-    workorders = list(
-        WorkOrder.objects.filter(supplier=supplier)
-        .select_related("asset", "assigned_to")
-        .order_by("-opened_at", "-id")
-    )
+    from ..services.fornitore_manutenzione import rapporto_ditta
 
-    open_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_OPEN]
-    closed_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_DONE]
-    ultimo_anno = today.replace(year=today.year - 1)
-    closed_12m = [wo for wo in closed_wos if wo.closed_at and wo.closed_at.date() >= ultimo_anno]
+    rapporto = rapporto_ditta(supplier, today)
+    contracts = rapporto.contracts
+    rules = rapporto.rules
+    verifications = rapporto.verifications
+    workorders = rapporto.workorders
+    open_wos = rapporto.open_wos
+    closed_wos = rapporto.closed_wos
+    closed_12m = rapporto.closed_12m
 
     # Asset toccati dal fornitore: quelli citati direttamente (OdL, contratto su
     # singolo asset, verifiche, piani su asset scelti) piu' quelli che ricadono
@@ -1547,10 +1580,8 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
             ),
         },
     ]
-    costo_totale = sum((wo.resolved_total_cost_eur or Decimal("0")) for wo in closed_12m)
-    costo_coverage = _copertura_dato(
-        sum(1 for wo in closed_12m if (wo.resolved_total_cost_eur or Decimal("0")) > 0), len(closed_12m)
-    )
+    costo_totale = rapporto.costo_12m
+    costo_coverage = rapporto.costo_12m_coverage
 
     contract_rows = [
         {

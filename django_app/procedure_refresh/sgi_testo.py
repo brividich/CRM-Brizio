@@ -36,6 +36,49 @@ FASCIA_BORDO = 0.15
 SOGLIA_CORNICE = 0.7
 
 METODO_PDF = "pymupdf_layout"
+# Separatore invisibile (U+2063) che segna l'inizio delle pagine durante l'estrazione.
+_SEGNO_PAGINA = "⁣"
+_SEGNO_RE = re.compile(r"\s*⁣(\d+)⁣\s*")
+
+
+def separa_segni_pagina(testo: str, n_pagine: int) -> tuple[str, list[int]]:
+    """Toglie i segnaposto di pagina e ritorna ``(testo, offset)``: ``offset[i]`` = inizio della pagina i+1.
+
+    Fra due pagine resta una riga vuota. Le pagine senza testo prendono la posizione
+    della pagina dopo, così la lista ha sempre ``n_pagine`` elementi crescenti.
+    """
+    inizi: dict[int, int] = {}
+    pezzi: list[str] = []
+    lunghezza = 0
+    ultimo = 0
+    for m in _SEGNO_RE.finditer(testo):
+        pezzo = testo[ultimo:m.start()]
+        if pezzo:
+            if lunghezza:
+                pezzi.append("\n\n")
+                lunghezza += 2
+            pezzi.append(pezzo)
+            lunghezza += len(pezzo)
+        inizi[int(m.group(1))] = lunghezza + (2 if lunghezza else 0)
+        ultimo = m.end()
+    coda = testo[ultimo:]
+    if coda:
+        if lunghezza:
+            pezzi.append("\n\n")
+        pezzi.append(coda)
+    pulito = "".join(pezzi)
+    offset: list[int] = []
+    prossimo = len(pulito)
+    for i in range(n_pagine - 1, -1, -1):
+        if i in inizi:
+            prossimo = min(len(pulito), inizi[i])
+        offset.append(prossimo)
+    offset.reverse()
+    if offset:
+        offset[0] = 0
+    for i in range(1, len(offset)):
+        offset[i] = max(offset[i], offset[i - 1])
+    return pulito, offset
 
 
 @dataclass
@@ -49,6 +92,7 @@ class EstrazioneResult:
     ha_testo_nativo: bool = True
     ocr_usato: bool = False
     avvisi: list[str] = field(default_factory=list)
+    offset_pagine: list[int] = field(default_factory=list)
 
 
 def normalizza(testo: str) -> str:
@@ -182,7 +226,10 @@ def _estrai_pdf(path: Path) -> EstrazioneResult:
     gia_visti: set[str] = set()
     rimosse = 0
     parti: list[str] = []
-    for unita in pagine:
+    for n_pag, unita in enumerate(pagine):
+        # Segnaposto invisibile all'inizio della pagina: dopo la normalizzazione dà la
+        # posizione in cui comincia la pagina (ricerca della libreria → PDF alla pagina giusta).
+        parti.append(f"{_SEGNO_PAGINA}{n_pag}{_SEGNO_PAGINA}")
         for u in unita:
             if u["tipo"] == "tabella":
                 k = _chiave_ripetizione(u["testo"])
@@ -207,7 +254,8 @@ def _estrai_pdf(path: Path) -> EstrazioneResult:
     if rimosse:
         res.avvisi.append(f"{rimosse} righe di intestazione/piè di pagina ripetute rimosse")
 
-    res.testo = normalizza("\n\n".join(p for p in parti if p.strip())) if parti else ""
+    testo = normalizza("\n\n".join(p for p in parti if p.strip())) if parti else ""
+    res.testo, res.offset_pagine = separa_segni_pagina(testo, n)
     res.n_caratteri = len(res.testo)
     res.n_sezioni = conta_sezioni(res.testo)
     if not res.ha_testo_nativo:
@@ -312,6 +360,7 @@ def persisti_estrazione(rev, *, forza: bool = False) -> str:
             "ha_testo_nativo": res.ha_testo_nativo,
             "ocr_usato": res.ocr_usato,
             "avvisi": "\n".join(res.avvisi),
+            "offset_pagine": res.offset_pagine,
         },
     )
     # A2: il grafo dei riferimenti segue il testo (ricostruito per revisione, fail-safe).

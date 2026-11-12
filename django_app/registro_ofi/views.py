@@ -60,7 +60,7 @@ def _ctx(request, **extra) -> dict:
 
 
 def _aperte(qs):
-    return qs.exclude(fase=RegistroOFI.FASE_CHIUSO).filter(data_chiusura__isnull=True)
+    return qs.filter(RegistroOFI.q_aperte())
 
 
 _FILTRO_ORIGINE = {
@@ -203,7 +203,7 @@ def lista(request):
         fase=f["fase"], priorita=f["priorita"], solo_scaduti=f["solo_scaduti"],
         solo_mie=f["solo_mie"], solo_aperte=f["solo_aperte"],
         in_scadenza=f["in_scadenza"], senza_responsabile=f["senza_responsabile"],
-        n_mie=RegistroOFI.objects.filter(responsabile=request.user).exclude(fase=RegistroOFI.FASE_CHIUSO).count(),
+        n_mie=_aperte(RegistroOFI.objects.filter(responsabile=request.user)).count(),
         tipo=f["tipo"], q=f["q"], TIPO_CHOICES=RegistroOFI.TIPO_CHOICES,
         filtri_query=request.GET.urlencode(),
         modulo=modulo, modulo_label=reg.modulo_label(modulo) if modulo else "",

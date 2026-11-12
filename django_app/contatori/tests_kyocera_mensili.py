@@ -82,5 +82,5 @@ class RecuperoMensileTests(TestCase):
     def test_centrale_in_attesa_poi_saltata(self):
         def titoli(oggi):
             return [t["titolo"] for t in services.cruscotto_operativo(oggi=oggi)["da_fare"]]
-        self.assertIn("1 letture mensili in attesa", titoli(date(2026, 11, 3)))
-        self.assertIn("1 letture mensili saltate", titoli(date(2026, 11, 8)))
+        self.assertIn("1 lettura mensile in attesa", titoli(date(2026, 11, 3)))
+        self.assertIn("1 lettura mensile saltata", titoli(date(2026, 11, 8)))

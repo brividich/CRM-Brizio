@@ -50,6 +50,8 @@ KEY_OP_COMPLETATO_ATTIVO = "anomalie_auto_op_completato_attivo"
 # Eccezione: accesa di default. Non gira nel task orario ma quando il capocommessa
 # decide (pagina della mail o Gestione anomalie): riporta la decisione all'operatore.
 KEY_DECISIONI_OPERATORE_ATTIVO = "anomalie_auto_decisioni_operatore_attivo"
+# Accesa di default: mail ai CAR scelti con «Segnala a CAR» nella decisione.
+KEY_SEGNALA_CAR_ATTIVO = "anomalie_auto_segnala_car_attivo"
 
 DEFAULT_RICORRENZA_N = 3
 RICORRENZA_N_MIN, RICORRENZA_N_MAX = 2, 50
@@ -66,6 +68,30 @@ DEFAULT_CTRL_PROMEMORIA_MIN = 15
 CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX = 5, 240
 DEFAULT_CTRL_INVIO_AUTO_MIN = 60
 CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX = 15, 1440
+
+# Riepilogo delle decisioni salvate dal portale: parte quando l'OP resta fermo da
+# questi minuti (ogni salvataggio fa ripartire l'attesa). «Invia ora» lo anticipa.
+KEY_RIEPILOGO_MINUTI = "anomalie_riepilogo_decisioni_minuti"
+DEFAULT_RIEPILOGO_MINUTI = 5
+RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX = 1, 120
+
+# Obiettivi dei tempi delle anomalie (anomalie/tempi_service.py), in giorni lavorativi:
+# servono alle statistiche («entro l'obiettivo», «aperte oltre l'obiettivo»).
+KEY_TEMPI_RISPOSTA_GG = "anomalie_tempi_risposta_gg"
+KEY_TEMPI_RISOLUZIONE_GG = "anomalie_tempi_risoluzione_gg"
+DEFAULT_TEMPI_RISPOSTA_GG = 2
+TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX = 1, 60
+DEFAULT_TEMPI_RISOLUZIONE_GG = 10
+TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX = 1, 250
+
+# Orario di lavoro con cui si contano le ore dei tempi (solo giorni lavorativi):
+# un giorno lavorativo vale (fine - inizio) ore, quindi gli obiettivi in giorni restano validi.
+KEY_TEMPI_ORA_INIZIO = "anomalie_tempi_ora_inizio"
+KEY_TEMPI_ORA_FINE = "anomalie_tempi_ora_fine"
+DEFAULT_TEMPI_ORA_INIZIO = 8
+DEFAULT_TEMPI_ORA_FINE = 18
+TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX = 0, 23
+TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX = 1, 24
 
 
 def _parse_bool(raw: str, default: bool) -> bool:
@@ -119,6 +145,7 @@ def get_escalation_config() -> dict:
         "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
         "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
         "decisioni_operatore_attivo": _parse_bool(SiteConfig.get(KEY_DECISIONI_OPERATORE_ATTIVO, ""), default=True),
+        "segnala_car_attivo": _parse_bool(SiteConfig.get(KEY_SEGNALA_CAR_ATTIVO, ""), default=True),
         "controllo_promemoria_minuti": _clamp_int(
             SiteConfig.get(KEY_CTRL_PROMEMORIA_MIN, "") or DEFAULT_CTRL_PROMEMORIA_MIN,
             DEFAULT_CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX,
@@ -127,7 +154,39 @@ def get_escalation_config() -> dict:
             SiteConfig.get(KEY_CTRL_INVIO_AUTO_MIN, "") or DEFAULT_CTRL_INVIO_AUTO_MIN,
             DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
         ),
+        "riepilogo_decisioni_minuti": _clamp_int(
+            SiteConfig.get(KEY_RIEPILOGO_MINUTI, "") or DEFAULT_RIEPILOGO_MINUTI,
+            DEFAULT_RIEPILOGO_MINUTI, RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX,
+        ),
+        "tempi_risposta_gg": _clamp_int(
+            SiteConfig.get(KEY_TEMPI_RISPOSTA_GG, "") or DEFAULT_TEMPI_RISPOSTA_GG,
+            DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
+        ),
+        "tempi_risoluzione_gg": _clamp_int(
+            SiteConfig.get(KEY_TEMPI_RISOLUZIONE_GG, "") or DEFAULT_TEMPI_RISOLUZIONE_GG,
+            DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
+        ),
+        **orario_tempi(SiteConfig.get(KEY_TEMPI_ORA_INIZIO, ""), SiteConfig.get(KEY_TEMPI_ORA_FINE, "")),
     }
+
+
+def orario_tempi(raw_inizio, raw_fine) -> dict:
+    """Ore di inizio e fine dell'orario di lavoro dei tempi; fine sempre dopo l'inizio."""
+    inizio = _clamp_int(raw_inizio if raw_inizio not in (None, "") else DEFAULT_TEMPI_ORA_INIZIO,
+                        DEFAULT_TEMPI_ORA_INIZIO, TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX)
+    fine = _clamp_int(raw_fine if raw_fine not in (None, "") else DEFAULT_TEMPI_ORA_FINE,
+                      DEFAULT_TEMPI_ORA_FINE, TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX)
+    if fine <= inizio:
+        inizio, fine = DEFAULT_TEMPI_ORA_INIZIO, DEFAULT_TEMPI_ORA_FINE
+    return {"tempi_ora_inizio": inizio, "tempi_ora_fine": fine}
+
+
+def riepilogo_decisioni_minuti() -> int:
+    """Minuti di pausa sull'OP prima del riepilogo delle decisioni (di serie 5)."""
+    try:
+        return int(get_escalation_config()["riepilogo_decisioni_minuti"])
+    except Exception:
+        return DEFAULT_RIEPILOGO_MINUTI
 
 
 def tempi_controllo() -> dict:
@@ -165,6 +224,8 @@ def save_automazioni_config(payload: dict) -> bool:
         "op_completato_attivo": (KEY_OP_COMPLETATO_ATTIVO, "Anomalie: mail a CC/CAR quando un OP ha tutte le anomalie chiuse."),
         "decisioni_operatore_attivo": (KEY_DECISIONI_OPERATORE_ATTIVO,
                                        "Anomalie: mail e notifica all'operatore con le decisioni del capocommessa."),
+        "segnala_car_attivo": (KEY_SEGNALA_CAR_ATTIVO,
+                               "Anomalie: mail ai CAR scelti con «Segnala a CAR» nella decisione del capocommessa."),
     }
     for field, (key, desc) in flags.items():
         if field in payload:
@@ -182,6 +243,21 @@ def save_automazioni_config(payload: dict) -> bool:
         "controllo_invio_auto_minuti": (
             KEY_CTRL_INVIO_AUTO_MIN, DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
             "Anomalie: minuti dall'ultimo blocco salvato dopo cui la mail del controllo parte da sola."),
+        "riepilogo_decisioni_minuti": (
+            KEY_RIEPILOGO_MINUTI, DEFAULT_RIEPILOGO_MINUTI, RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX,
+            "Anomalie: minuti di pausa sull'OP dopo cui parte il riepilogo delle decisioni salvate dal portale."),
+        "tempi_risposta_gg": (
+            KEY_TEMPI_RISPOSTA_GG, DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
+            "Anomalie: obiettivo in giorni lavorativi per la prima decisione del capocommessa."),
+        "tempi_risoluzione_gg": (
+            KEY_TEMPI_RISOLUZIONE_GG, DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
+            "Anomalie: obiettivo in giorni lavorativi per la chiusura dell'anomalia."),
+        "tempi_ora_inizio": (
+            KEY_TEMPI_ORA_INIZIO, DEFAULT_TEMPI_ORA_INIZIO, TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX,
+            "Anomalie: ora di inizio dell'orario di lavoro con cui si contano le ore dei tempi."),
+        "tempi_ora_fine": (
+            KEY_TEMPI_ORA_FINE, DEFAULT_TEMPI_ORA_FINE, TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX,
+            "Anomalie: ora di fine dell'orario di lavoro con cui si contano le ore dei tempi."),
     }
     for field, (key, default, lo, hi, desc) in numbers.items():
         if field in payload:

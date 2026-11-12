@@ -14,14 +14,24 @@ class WizardStepByStepTests(TestCase):
         self.client.force_login(self.user)
 
     def test_pages_render(self):
-        for url in [
-            "/rentri/carico/",
-            "/rentri/scarico-originale/",
-            "/rentri/scarico-effettivo/",
-            "/rentri/rettifica-scarico/",
+        for url, tipo in [
+            ("/rentri/carico/", "C"),
+            ("/rentri/scarico-originale/", "O"),
+            ("/rentri/scarico-effettivo/", "M"),
+            ("/rentri/rettifica-scarico/", "R"),
         ]:
             r = self.client.get(url)
             assert r.status_code == 200, (url, r.status_code)
+            # Form unico a pagina singola: niente piu' passi «Avanti».
+            self.assertContains(r, 'id="rnf-form"')
+            self.assertContains(r, f'data-tipo="{tipo}"')
+            self.assertContains(r, 'id="f-unita"')
+            self.assertNotContains(r, "Avanti")
+            self.assertNotContains(r, "{#")
+            if tipo == "C":
+                self.assertNotContains(r, 'id="rifop-list"')
+            else:
+                self.assertContains(r, 'id="rifop-list"')
 
     def test_api_codici(self):
         RegistroRifiuti.objects.create(tipo="C", data=datetime.date(2026, 1, 1), codice="150101", quantita=1)
@@ -35,13 +45,16 @@ class WizardStepByStepTests(TestCase):
         candidati = r.json()["candidati"]
         assert len(candidati) == 1 and candidati[0]["id_registrazione"] == c.id_registrazione, candidati
 
-        o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="XX", rif_op=c.id_registrazione, quantita=5)
+        o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="XX", rif_op=c.id_registrazione, quantita=10)
+        # Scaricato per intero: non è più tra i carichi da scaricare.
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=O&codice=XX")
         assert r.json()["candidati"] == [], r.json()
 
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=M&codice=XX")
         candidati = r.json()["candidati"]
-        assert len(candidati) == 1 and candidati[0]["rif_op"] == c.id_registrazione, candidati
+        # Lo scarico effettivo si collega alla O, con il carico in vista.
+        assert len(candidati) == 1 and candidati[0]["id_registrazione"] == o.id_registrazione, candidati
+        assert candidati[0]["carichi"] == [c.id_registrazione], candidati
 
         m = RegistroRifiuti.objects.create(tipo="M", data=datetime.date(2026, 1, 3), codice="XX", rif_op=o.rif_op, quantita=5)
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=M&codice=XX")
@@ -49,7 +62,7 @@ class WizardStepByStepTests(TestCase):
 
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=R&codice=XX")
         candidati = r.json()["candidati"]
-        assert len(candidati) == 1 and candidati[0]["rif_op"] == o.rif_op, candidati
+        assert len(candidati) == 1 and candidati[0]["id_registrazione"] == m.id_registrazione, candidati
 
     def test_carico_multipart_allegato(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -69,3 +82,6 @@ class WizardStepByStepTests(TestCase):
         o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="YY", rif_op=c.id_registrazione, quantita=5)
         r = self.client.get(f"/rentri/{o.pk}/modifica/")
         assert r.status_code == 200, r.content
+        self.assertContains(r, 'data-tipo="O"')
+        self.assertContains(r, c.id_registrazione)
+        self.assertContains(r, "Aggiorna registrazione")

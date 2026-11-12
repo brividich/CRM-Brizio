@@ -20,6 +20,10 @@
       allegati_upload: "/api/anomalie/allegati/upload",
       allegati_delete: "/api/anomalie/allegati/delete",
       allegati_file: "/api/anomalie/allegati/file",
+      segnalato: "/api/anomalie/segnalato",
+      elimina: "/api/anomalie/elimina",
+      sposta: "/api/anomalie/sposta",
+      seriali_op: "/api/anomalie/seriali-op",
     };
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
@@ -67,7 +71,8 @@
     };
     const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
     const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
-    const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+    // Di default solo gli OP con anomalie aperte: le chiuse restano sotto «Tutti».
+    const ACTIVE_FILTER = ["tutti", "aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "aperte";
     // ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
     const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 
@@ -92,25 +97,39 @@
       return false;
     };
 
-    // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?"
-    const buildAvanzamentoOptions = (isAprireRdc) => {
+    // «Segnalare al cliente» porta l'anomalia in attesa della risposta del cliente
+    // (resta aperta; il capocommessa cambia stato quando il cliente risponde).
+    const AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
+
+    // Risposta del referente RDC: rimanda l'anomalia al capocommessa con le spunte aperte.
+    const AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni";
+    const STATI_ATTESA = [AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase(), AVANZAMENTO_INFO_RICHIESTE.toLowerCase()];
+
+    // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?". Con RDC o
+    // cliente spuntati c'è anche «In attesa di ulteriori informazioni».
+    const buildAvanzamentoOptions = (isAprireRdc, conRdcOCliente = false) => {
       const dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
       const dynamicAlt = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
       const sanitizedBase = BASE_AVANZAMENTO_OPTIONS.filter(
         (opt) => normalizeChoice(opt).toLowerCase() !== dynamicAlt.toLowerCase()
       );
-      return dedupeChoices([dynamicFirst, ...sanitizedBase]);
+      return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE,
+        ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
     };
 
-    // Regola PowerApps: chiusura automatica in base ad avanzamento/apertura RDC.
-    const shouldAutoClose = (isAprireRdc, avanzamentoValue) => {
+    // Chiusura automatica al salvataggio, stessa regola del server
+    // (views.chiusura_automatica): «Aprire RDC» chiude solo con il numero RDC,
+    // «Segnalare al cliente» solo con «Segnalato al cliente» registrato; gli stati
+    // d'attesa tengono aperta l'anomalia.
+    const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false) => {
       const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
-      return Boolean(
-        isAprireRdc ||
-        avanz === "accetto lo stato" ||
-        avanz === "apertura ore/ripi"
-      );
+      if (STATI_ATTESA.includes(avanz)) return false;
+      if (segnalare && !segnalatoFatto) return false;
+      if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
+      return avanz === "accetto lo stato" || avanz === "apertura ore/ripi";
     };
+
+    const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
 
     // --- CSRF helper ---
     const getCsrfToken = () =>
@@ -154,6 +173,8 @@
       if (avanz === "Accetto lo stato") return "#10b981";
       if (avanz === "In attesa")        return "#f59e0b";
       if (avanz === "Finito trattato")  return "#6366f1";
+      if (avanz === "In attesa risposta cliente") return "#0ea5e9";
+      if (avanz === AVANZAMENTO_INFO_RICHIESTE) return "#f97316";
       return "#94a3b8";
     };
 
@@ -198,56 +219,227 @@
       </label>
     );
 
-    // â"€â"€â"€ Stepper stati anomalia (#4) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    // Mostra l'avanzamento dei 3 stati fissi + lo stato "Chiusa". L'indice corrente
-    // deriva da `avanzamento`; se `chiuso` è true tutti gli step risultano completati.
-    const StatoStepper = ({ avanzamento, chiuso }) => {
-      const steps = BASE_AVANZAMENTO_OPTIONS;
-      const norm = String(avanzamento || "").trim().toLowerCase();
-      let currentIdx = steps.findIndex((s) => String(s).trim().toLowerCase() === norm);
-      if (chiuso) currentIdx = steps.length;  // tutti completati
+    // ─── Percorso dell'anomalia: eventi veri con le date (api/anomalie/esiti) ───
+    // Segnalata → Decisa → (cliente) → (azione effettuata) → Chiusa; i passi che non
+    // riguardano l'anomalia non compaiono. Il primo passo senza data è quello in corso.
+    const PercorsoAnomalia = ({ passi }) => {
+      if (!Array.isArray(passi) || !passi.length) return null;
+      const quando = (iso) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "wrap" }}>
-          {steps.map((label, i) => {
-            const done = i < currentIdx;
-            const active = i === currentIdx && !chiuso;
-            const col = snColor(label);
-            const dotBg = active ? col : (done ? col : "#e2e8f0");
-            const dotColor = (active || done) ? "#fff" : "#94a3b8";
-            return (
-              <React.Fragment key={label}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 70 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: "50%", background: dotBg, color: dotColor,
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700,
-                    boxShadow: active ? `0 0 0 4px ${col}33` : "none",
-                  }}>{done ? "✓" : i + 1}</div>
-                  <span className="text-2xs" style={{
-                    marginTop: 4, textAlign: "center", lineHeight: 1.15,
-                    color: (active || done) ? "var(--text)" : "#94a3b8",
-                    fontWeight: active ? 700 : 500,
-                  }}>{label}</span>
-                </div>
-                {i < steps.length - 1 && (
-                  <div style={{ flex: 1, minWidth: 16, height: 2, background: i < currentIdx ? snColor(steps[i]) : "#e2e8f0", marginTop: -16 }} />
-                )}
-              </React.Fragment>
-            );
-          })}
-          {chiuso && (
-            <span className="text-2xs font-semibold" style={{
-              marginLeft: 10, padding: "2px 8px", borderRadius: 4,
-              background: "var(--success-bg)", color: "var(--success)",
-              border: "1px solid #c6f6d5", fontWeight: 600,
-            }}>CHIUSA</span>
-          )}
-        </div>
+        <ol className="ga-percorso" aria-label="Percorso dell'anomalia">
+          {passi.map((p, i) => (
+            <li key={p.chiave} className={`ga-percorso__passo is-${p.stato}`}>
+              <span className="ga-percorso__dot">{p.stato === "fatto" ? Ico.check : i + 1}</span>
+              <span className="ga-percorso__label">{p.label}</span>
+              {p.dettaglio ? <span className="ga-percorso__det">{p.dettaglio}</span> : null}
+              <span className="ga-percorso__data">{p.data ? quando(p.data) : (p.stato === "attuale" ? "in corso" : "")}</span>
+            </li>
+          ))}
+        </ol>
       );
     };
 
     // â"€â"€â"€ Pannello timeline azioni OP (#2) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     // Consuma /api/anomalie/timeline (aggregata per OP). Lazy: carica al cambio OP.
+    // ─── Tempi ed esiti dell'anomalia: risposta del cliente, azione effettuata ───
+    // Tempi in giorni lavorativi (anomalie/tempi_service.py); gli allegati degli esiti
+    // finiscono nella cartella dell'anomalia, insieme agli altri.
+    const AZIONI_EFFETTUATE = Array.isArray(CONFIG_LISTS.azioni_effettuate) && CONFIG_LISTS.azioni_effettuate.length
+      ? CONFIG_LISTS.azioni_effettuate
+      : ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"];
+    const ESITI_ACCEPT = ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.msg,.eml,.txt";
+    const chiedeRiverifica = (azione) => /rilavor|ripar/i.test(String(azione || ""));
+
+    const FileEsito = ({ files, setFiles, disabled }) => {
+      const ref = useRef(null);
+      const [over, setOver] = useState(false);
+      const aggiungi = (lista) => setFiles((prev) => {
+        const next = [...prev];
+        lista.forEach((f) => { if (!next.some((x) => x.name === f.name && x.size === f.size)) next.push(f); });
+        return next;
+      });
+      return (
+        <div className={`ga-att ga-att--esito${over ? " is-over" : ""}`} tabIndex={disabled ? -1 : 0}
+          onDragOver={(e) => { if (disabled) return; e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); if (!disabled) aggiungi(Array.from(e.dataTransfer.files || [])); }}
+          onPaste={(e) => {
+            const fs = Array.from((e.clipboardData && e.clipboardData.items) || []).filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter(Boolean);
+            if (fs.length && !disabled) { e.preventDefault(); aggiungi(nomeAppunti(fs)); }
+          }}>
+          <input ref={ref} type="file" multiple hidden accept={ESITI_ACCEPT}
+            onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; aggiungi(f); }} />
+          <div className="ga-att__head">
+            <span className="ga-card__sub">{Ico.clip} Allegati {files.length ? `(${files.length})` : ""}</span>
+            <span className="ga-hint">Mail (.msg, .eml), foto, PDF: trascina, <button type="button" className="ga-link" disabled={disabled} onClick={() => ref.current && ref.current.click()}>sfoglia</button> o clicca e premi Ctrl+V</span>
+          </div>
+          {files.length > 0 && (
+            <div className="ga-esito__files">
+              {files.map((f, i) => (
+                <span key={f.name + i} className="ga-esito__file">
+                  {f.name} <span className="ga-hint">{formatBytes(f.size)}</span>
+                  <button type="button" aria-label={`Togli ${f.name}`} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const EsitiAnomalia = ({ localId, avanzamento, chiusa, segnalare, onSaved, onInfo, flash }) => {
+      const [data, setData] = useState(null);
+      const [saving, setSaving] = useState(false);
+      const [risposta, setRisposta] = useState("");
+      const [filesRisposta, setFilesRisposta] = useState([]);
+      const [azioneAperta, setAzioneAperta] = useState(false);
+      const [azione, setAzione] = useState("");
+      const [notaAzione, setNotaAzione] = useState("");
+      const [filesAzione, setFilesAzione] = useState([]);
+      const [riverificato, setRiverificato] = useState(false);
+      const [chiudi, setChiudi] = useState(true);
+
+      const carica = () => {
+        if (!localId || !API.esiti) { setData(null); if (onInfo) onInfo(null); return; }
+        fetch(`${API.esiti}?local_id=${encodeURIComponent(localId)}`, { credentials: "same-origin" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => { setData(d && d.success ? d : null); if (onInfo) onInfo(d && d.success ? d : null); })
+          .catch(() => setData(null));
+      };
+      useEffect(() => {
+        setRisposta(""); setFilesRisposta([]); setAzione(""); setNotaAzione(""); setFilesAzione([]);
+        setRiverificato(false); setChiudi(true); setAzioneAperta(false);
+        carica();
+      }, [localId, avanzamento, chiusa, segnalare]);
+
+      if (!data) return null;
+      const urlFile = (fileId) => `${API.allegati_file}?local_id=${encodeURIComponent(localId)}&file_id=${encodeURIComponent(fileId)}`;
+      const soglia = (k) => (data.soglie || {})[k];
+      const oltre = (t) => t.in_corso && soglia(t.chiave) && t.giorni > soglia(t.chiave);
+      const puoi = data.can_registrare && !data.chiusa;
+      const mostraRisposta = puoi && (data.in_attesa_cliente || data.segnalata_cliente);
+      const mostraAzione = puoi && (data.recupero || azioneAperta);
+      const serveRiverifica = chiudi && chiedeRiverifica(azione) && !riverificato;
+
+      const invia = async (tipo) => {
+        const form = new FormData();
+        form.append("local_id", String(localId));
+        form.append("tipo", tipo);
+        if (tipo === "RISPOSTA_CLIENTE") {
+          form.append("testo", risposta);
+          filesRisposta.forEach((f) => form.append("files", f));
+        } else {
+          form.append("azione", azione);
+          form.append("testo", notaAzione);
+          form.append("riverificato", riverificato ? "1" : "");
+          form.append("chiudi", chiudi ? "1" : "");
+          filesAzione.forEach((f) => form.append("files", f));
+        }
+        setSaving(true);
+        try {
+          const r = await fetch(API.esito, { method: "POST", headers: { "X-CSRFToken": getCsrfToken() }, body: form, credentials: "same-origin" });
+          const d = await readJsonOrThrow(r, "Registrazione esito");
+          if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+          const avvisi = (d.errors || []).length ? ` · file non salvati: ${d.errors.join("; ")}` : "";
+          flash({ ok: !avvisi, text: (tipo === "RISPOSTA_CLIENTE" ? "Risposta del cliente registrata: ora scegli lo stato definitivo" : (d.chiusa ? "Azione effettuata registrata · anomalia chiusa" : "Azione effettuata registrata")) + avvisi }, avvisi ? 8000 : 4500);
+          if (onSaved) onSaved({ chiusa: !!d.chiusa });
+          carica();
+          if (tipo === "RISPOSTA_CLIENTE") { setRisposta(""); setFilesRisposta([]); }
+          else { setAzione(""); setNotaAzione(""); setFilesAzione([]); setRiverificato(false); setAzioneAperta(false); }
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setSaving(false);
+      };
+
+      return (
+        <div className="ga-card ga-card--esiti">
+          <div className="ga-card__head">
+            <span className="ga-card__title">Tempi ed esiti</span>
+            <span className="ga-hint">{data.unita || "ore lavorate, giorni lavorativi"}</span>
+          </div>
+          {data.tempi && data.tempi.length > 0 && (
+            <div className="ga-tempi">
+              {data.tempi.map((t) => (
+                <span key={t.chiave} className={`ga-tempo${t.in_corso ? " is-corso" : ""}${oltre(t) ? " is-oltre" : ""}`}
+                  title={oltre(t) ? `Oltre l'obiettivo di ${soglia(t.chiave)} giorni lavorativi` : ""}>
+                  <span className="ga-tempo__l">{t.label}</span>
+                  <b>{t.testo}</b>{t.in_corso ? <span className="ga-tempo__c">in corso</span> : null}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {data.esiti && data.esiti.length > 0 && (
+            <ol className="ga-esiti">
+              {data.esiti.map((e) => (
+                <li key={e.id} className="ga-esito">
+                  <div className="ga-esito__head">
+                    <b>{e.tipo === "AZIONE" ? `Azione effettuata: ${e.azione}` : "Risposta del cliente"}</b>
+                    {e.riverificato && <span className="ga-pill ga-pill--chiuso">Riverificato conforme</span>}
+                    {e.chiusa && <span className="ga-pill ga-pill--muted">Ha chiuso l'anomalia</span>}
+                    <span className="ga-hint ga-esito__chi">{e.utente} · {e.data ? new Date(e.data).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                  </div>
+                  {e.testo && <div className="ga-esito__testo">{e.testo}</div>}
+                  {e.allegati.length > 0 && (
+                    <div className="ga-esito__files">
+                      {e.allegati.map((f) => <a key={f.file_id} className="ga-esito__file" href={urlFile(f.file_id)} target="_blank" rel="noopener">{Ico.clip} {f.name}</a>)}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {mostraRisposta && (
+            <div className="ga-esito-form">
+              <FieldLabel>Risposta del cliente</FieldLabel>
+              <textarea className="ga-input" rows={2} value={risposta} onChange={(e) => setRisposta(e.target.value)} disabled={saving}
+                placeholder="Cosa ha risposto il cliente (riferimento della mail, decisione…)" />
+              <FileEsito files={filesRisposta} setFiles={setFilesRisposta} disabled={saving} />
+              <div className="ga-esito-form__acts">
+                <button type="button" className="ga-btn ga-btn--outline" disabled={saving || (!risposta.trim() && !filesRisposta.length)} onClick={() => invia("RISPOSTA_CLIENTE")}>
+                  {saving ? "Salvataggio…" : "Registra risposta"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {puoi && !mostraAzione && (
+            <button type="button" className="ga-link ga-esito-apri" onClick={() => setAzioneAperta(true)}>+ Registra un'azione effettuata</button>
+          )}
+          {mostraAzione && (
+            <div className="ga-esito-form">
+              {data.serve_azione && <div className="ga-note ga-note--info">Decisione «Azione di recupero»: l'anomalia si chiude registrando qui l'azione effettuata.</div>}
+              <div className="ga-grid2">
+                <div>
+                  <FieldLabel required>Azione effettuata</FieldLabel>
+                  <select className="ga-input" value={azione} onChange={(e) => setAzione(e.target.value)} disabled={saving}>
+                    <option value="">Scegli…</option>
+                    {AZIONI_EFFETTUATE.map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div className="ga-esito-form__flags">
+                  <FlagToggle label="Pezzo riverificato conforme" checked={riverificato} disabled={saving} onChange={() => setRiverificato(!riverificato)} />
+                  <FlagToggle label="Chiudi l'anomalia" checked={chiudi} disabled={saving} onChange={() => setChiudi(!chiudi)} />
+                </div>
+              </div>
+              <textarea className="ga-input" rows={2} value={notaAzione} onChange={(e) => setNotaAzione(e.target.value)} disabled={saving}
+                placeholder="Note: cosa è stato fatto, da chi, riferimenti…" />
+              <FileEsito files={filesAzione} setFiles={setFilesAzione} disabled={saving} />
+              {serveRiverifica && <div className="ga-note ga-note--warn">Dopo una rilavorazione o riparazione, per chiudere spunta «Pezzo riverificato conforme».</div>}
+              <div className="ga-esito-form__acts">
+                {!data.recupero && <button type="button" className="ga-btn ga-btn--ghost" disabled={saving} onClick={() => setAzioneAperta(false)}>Annulla</button>}
+                <button type="button" className="ga-btn ga-btn--outline" disabled={saving || !azione || serveRiverifica} onClick={() => invia("AZIONE")}>
+                  {saving ? "Salvataggio…" : (chiudi ? "Registra e chiudi" : "Registra azione")}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
     const TimelineOp = ({ opId, opItemId }) => {
       const [items, setItems] = useState([]);
       const [loading, setLoading] = useState(false);
@@ -625,6 +817,46 @@
       if (isDaDecidere(a)) return { text: "Da decidere", variant: "attesa" };
       return { text: a.avanzamento || "In lavorazione", variant: "aperto" };
     };
+    // Preferenze della pagina nel browser (raggruppamento, gruppi chiusi): se lo
+    // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
+    const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
+    const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
+    const leggiPref = (k, def) => {
+      try { const v = window.localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (_) { return def; }
+    };
+    const scriviPref = (k, v) => { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* niente storage */ } };
+    // Gruppi dell'elenco anomalie. «sn»: un gruppo per blocco di seriali (o S/N
+    // senza blocco), le chiuse in fondo. «stato»: «Da decidere», poi un gruppo per
+    // avanzamento delle aperte, le chiuse in fondo. Le chiuse partono chiuse.
+    const raggruppaAnomalie = (list, modo) => {
+      const gruppi = [];
+      const perKey = new Map();
+      const add = (key, def, a) => {
+        let g = perKey.get(key);
+        if (!g) { g = { key, items: [], ...def }; perKey.set(key, g); gruppi.push(g); }
+        g.items.push(a);
+      };
+      const aperte = list.filter((a) => !a.chiudere);
+      const chiuse = list.filter((a) => a.chiudere);
+      if (modo === "stato") {
+        const daDec = aperte.filter(isDaDecidere);
+        if (daDec.length) daDec.forEach((a) => add("stato:da_decidere", { label: "Da decidere", tone: "attesa" }, a));
+        aperte.filter((a) => !isDaDecidere(a)).forEach((a) => {
+          const av = String(a.avanzamento || "").trim() || "In lavorazione";
+          add(`stato:${av.toLowerCase()}`, { label: av, tone: "aperto" }, a);
+        });
+        chiuse.forEach((a) => add("stato:chiuse", { label: "Chiuse", tone: "chiuso", chiusoDiSerie: true }, a));
+      } else {
+        aperte.forEach((a) => {
+          const etichetta = a.blocco_label || a.sn || "Senza S/N";
+          add(`sn:${a.blocco_id ? `b${a.blocco_id}` : `s${etichetta}`}`, {
+            label: etichetta, tone: "blocco", blocco: a.blocco_id ? a : null,
+          }, a);
+        });
+        chiuse.forEach((a) => add("sn:chiuse", { label: "Chiuse", tone: "chiuso", chiusoDiSerie: true }, a));
+      }
+      return gruppi;
+    };
     const fmtData = (iso) => {
       if (!iso) return "";
       const d = new Date(iso);
@@ -654,6 +886,7 @@
       check: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>,
       list: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>,
       rows: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>,
+      copy: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
       edit: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
     };
 
@@ -719,6 +952,7 @@
       const [loadingAttachments, setLoadingAttachments] = useState(false);
       const [uploadingAttachments, setUploadingAttachments] = useState(false);
       const fileInputRef = useRef(null);
+      const fileInputDecRef = useRef(null);
 
       // ── Selezione, ricerca, filtri ──
       const [selectedOpKey, setSelectedOpKey] = useState("");
@@ -727,7 +961,22 @@
       const [searchSn, setSearchSn] = useState("");
       const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
       const [snFilter, setSnFilter] = useState("tutte");   // "tutte" | "da_decidere"
-      const [closedCollapsed, setClosedCollapsed] = useState(true);
+      // Raggruppamento delle anomalie («sn» per blocco di seriali, «stato») e gruppi
+      // chiusi: restano nel browser finché la persona non li cambia, per tutti gli OP.
+      const [raggruppa, setRaggruppaState] = useState(() => leggiPref(PREF_RAGGRUPPA, "sn") === "stato" ? "stato" : "sn");
+      const [gruppiChiusi, setGruppiChiusi] = useState(() => {
+        const v = leggiPref(PREF_GRUPPI_CHIUSI, null);
+        return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+      });
+      const setRaggruppa = (v) => { setRaggruppaState(v); scriviPref(PREF_RAGGRUPPA, v); };
+      const gruppoChiuso = (g) => (g.key in gruppiChiusi ? Boolean(gruppiChiusi[g.key]) : Boolean(g.chiusoDiSerie));
+      const toggleGruppo = (g) => setGruppiChiusi((prev) => {
+        const next = { ...prev, [g.key]: !gruppoChiuso(g) };
+        scriviPref(PREF_GRUPPI_CHIUSI, next);
+        return next;
+      });
+      // Clonazione dell'OP: anomalie scelte da copiare su un nuovo OP ({ opKey, ids }).
+      const [clona, setClona] = useState(null);
       const [pendingNav, setPendingNav] = useState(null);  // azione rinviata per modifiche non salvate
       const [menuOpen, setMenuOpen] = useState(false);
       const [editDesc, setEditDesc] = useState(false);
@@ -755,12 +1004,74 @@
       const [pezziPrec, setPezziPrec] = useState(false);
       const [aprireRdc, setAprireRdc] = useState(false);
       const [segnalare, setSegnalare] = useState(false);
+      const [terzista, setTerzista] = useState(false);
+      const [segnalaCar, setSegnalaCar] = useState(false);
+      const [carScelti, setCarScelti] = useState([]);
+      const [dovePezzi, setDovePezzi] = useState("");
       const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
       const [rdcNum, setRdcNum] = useState("");
-      const [applicaBlocco, setApplicaBlocco] = useState(false);
+      // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
+      // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
+      // in un popup prima di salvare.
+      const [ambito, setAmbito] = useState("solo");
+      const [scelteMano, setScelteMano] = useState([]);
+      const [includiDecise, setIncludiDecise] = useState(false);
+      const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
+      // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
+      const [azAnom, setAzAnom] = useState(null);
+      // «Modifica OP»: popup del controllore che ha creato l'OP dal portale.
+      const [modOp, setModOp] = useState(null);  // null | { titolo, dati, iniz, motivo, busy, err }
+      // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
+      // la pausa configurata; «Invia ora» lo anticipa).
+      const [coda, setCoda] = useState(null);  // null | { n, partenza }
+      const [adesso, setAdesso] = useState(Date.now());
+      const [inviando, setInviando] = useState(false);
+      const caricaCoda = () => {
+        if (!op.id || op.id === "—" || !API.decisioni_coda || !canEditCurrentOp) { setCoda(null); return; }
+        fetch(`${API.decisioni_coda}?op_id=${encodeURIComponent(op.id)}`, { credentials: "same-origin" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => setCoda(d && d.success && d.coda ? d.coda : null))
+          .catch(() => {});
+      };
+      const inviaOra = async () => {
+        setInviando(true);
+        try {
+          const r = await fetch(API.decisioni_coda, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ op_id: op.id }),
+          });
+          const d = await readJsonOrThrow(r, "Invio riepilogo");
+          if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+          setCoda(null);
+          flash({ ok: true, text: d.inviate ? `Riepilogo inviato: ${d.inviate} decision${d.inviate === 1 ? "e" : "i"}` : "Nessuna decisione da inviare" });
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+          caricaCoda();
+        }
+        setInviando(false);
+      };
+      const resetAmbito = () => { setAmbito("solo"); setScelteMano([]); setIncludiDecise(false); };
 
-      const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
-      const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+      const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc, aprireRdc || segnalare), [aprireRdc, segnalare]);
+      // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
+      const [esitiInfo, setEsitiInfo] = useState(null);
+      // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
+      const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
+
+      // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»
+      // e spunta anche «Aprire RDC» (si può togliere); togliere la spunta riporta lo
+      // stato di partenza e lascia «Aprire RDC» com'è. Con «Aprire RDC» la segnalazione
+      // al cliente resta facoltativa.
+      const toggleSegnalare = () => {
+        const on = !segnalare;
+        setSegnalare(on);
+        if (on) { setAvanzamento(AVANZAMENTO_RISPOSTA_CLIENTE); setAprireRdc(true); }
+        else if (avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE) {
+          const base = baseline.avanzamento;  // dichiarato più sotto: letto solo al clic
+          setAvanzamento(base && base !== AVANZAMENTO_RISPOSTA_CLIENTE ? base : "In attesa");
+        }
+      };
 
       const flash = (msg, ms = 4500) => {
         setSaveMsg(msg);
@@ -771,12 +1082,13 @@
         setDesc(""); setNote("");
         setDescrizioneAnswers({});
         setPezziPrec(false); setAprireRdc(false);
-        setSegnalare(false);
+        setSegnalare(false); setTerzista(false); setDovePezzi("");
+        setSegnalaCar(false); setCarScelti([]);
         setAvanzamento(DEFAULT_AVANZAMENTO); setRdcNum("");
         setCurrentItemId(null);
         setCurrentLocalId(null);
         setAttachments([]);
-        setApplicaBlocco(false);
+        resetAmbito();
         setEditDesc(false);
       };
 
@@ -798,7 +1110,7 @@
 
       useEffect(() => {
         const nextUrl = new URL(window.location.href);
-        if (pageFilter) nextUrl.searchParams.set("filter", pageFilter);
+        if (pageFilter && pageFilter !== "aperte") nextUrl.searchParams.set("filter", pageFilter);
         else nextUrl.searchParams.delete("filter");
         window.history.replaceState({}, "", nextUrl.toString());
       }, [pageFilter]);
@@ -807,7 +1119,11 @@
       const daDecidereDi = (o) => Number(o?.anomalie_da_decidere_count ?? 0);
       const orderMatches = (o, filtro) => {
         if (filtro === "aperte") return apertiDi(o) > 0;
-        if (filtro === "in_carico") return apertiDi(o) > 0 && canUserEditOp(o?.capo, o?.car);
+        // «In carico a me» = sono capocommessa o CAR dell'OP, oppure referente RDC e
+        // l'OP ha anomalie aperte RDC / da segnalare al cliente (lo dice il server);
+        // poter modificare l'OP non basta.
+        if (filtro === "in_carico") return apertiDi(o) > 0 && (o?.in_carico !== undefined
+          ? Boolean(o.in_carico) : (peopleMatchCurrentUser(o?.capo) || peopleMatchCurrentUser(o?.car)));
         return true;
       };
       const ordiniCercati = useMemo(() => {
@@ -816,14 +1132,14 @@
         return ordini.filter((o) => [o.id, o.pn, o.capo, o.car].some((v) => String(v || "").toLowerCase().includes(q)));
       }, [ordini, searchOp]);
       const contatoriFiltro = useMemo(() => ({
-        "": ordiniCercati.length,
+        tutti: ordiniCercati.length,
         aperte: ordiniCercati.filter((o) => orderMatches(o, "aperte")).length,
         in_carico: ordiniCercati.filter((o) => orderMatches(o, "in_carico")).length,
       }), [ordiniCercati]);
       const filteredOrdini = useMemo(() => {
         const list = ordiniCercati.filter((o) => orderMatches(o, pageFilter));
         // Nei filtri operativi prima gli OP con decisioni in sospeso.
-        if (pageFilter) return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
+        if (pageFilter !== "tutti") return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
         return list;
       }, [ordiniCercati, pageFilter]);
 
@@ -831,10 +1147,42 @@
       const op = useMemo(() => (
         ordini.find((o) => opKey(o) === selectedOpKey) || filteredOrdini[0] || {}
       ), [ordini, filteredOrdini, selectedOpKey]);
-      const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
+      // Con il sistema dei ruoli il server dice OP per OP se si può modificare.
+      const canEditCurrentOp = useMemo(() => (
+        op.can_edit !== undefined ? Boolean(op.can_edit) : canUserEditOp(op.capo, op.car)
+      ), [op.can_edit, op.capo, op.car]);
+      useEffect(() => { caricaCoda(); }, [op.id, canEditCurrentOp]);
+      useEffect(() => {
+        const t = setInterval(() => setAdesso(Date.now()), 20000);
+        return () => clearInterval(t);
+      }, []);
+      // Passata l'ora prevista, si ricontrolla: il riepilogo sarà partito (o in partenza).
+      useEffect(() => {
+        if (coda && new Date(coda.partenza).getTime() + 70000 < adesso) caricaCoda();
+      }, [adesso]);
       const nuovaAnomaliaUrl = (op.id && op.id !== "—")
         ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}`
         : "/gestione-anomalie/nuova-segnalazione";
+      // «Segnala a CAR»: si sceglie fra il CAR dell'OP e i capi reparto di Configurazione.
+      const carDellOp = splitPeopleTokens(op.car === "—" ? "" : op.car);
+      const carOpzioni = useMemo(() => {
+        const visti = new Set();
+        const out = [];
+        [...carDellOp,
+         ...(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []),
+         ...carScelti].forEach((n) => {
+          const nome = String(n || "").trim();
+          if (nome && !visti.has(nome.toLowerCase())) { visti.add(nome.toLowerCase()); out.push(nome); }
+        });
+        return out;
+      }, [op.car, carScelti]);
+      // Nessun CAR scelto di serie: il CAR dell'OP riceve già il riepilogo delle modifiche,
+      // la mail «Segnala a CAR» va solo a chi scegli tu.
+      const toggleSegnalaCar = () => setSegnalaCar(!segnalaCar);
+      const isCarDellOp = (nome) => carDellOp.some((n) => n.toLowerCase() === String(nome).toLowerCase());
+      const toggleCarScelto = (nome) => setCarScelti((prev) => (
+        prev.some((n) => n.toLowerCase() === nome.toLowerCase())
+          ? prev.filter((n) => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]));
 
       // Preselezione da ?op= (promemoria in dashboard, mail).
       const initialOpApplied = useRef(false);
@@ -851,19 +1199,21 @@
       const filteredSeriali = useMemo(() => {
         const q = searchSn.trim().toLowerCase();
         return anomalie.filter((a) => {
-          if (snFilter === "da_decidere" && !isDaDecidere(a)) return false;
+          // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
+          if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
           if (!q) return true;
-          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.local_id && `#${a.local_id}`]
+          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`]
             .some((v) => String(v || "").toLowerCase().includes(q));
         });
-      }, [anomalie, searchSn, snFilter]);
-      const openSeriali = useMemo(() => filteredSeriali.filter((a) => !a.chiudere), [filteredSeriali]);
-      const closedSeriali = useMemo(() => filteredSeriali.filter((a) => a.chiudere), [filteredSeriali]);
-      const ordineVisibile = useMemo(() => [...openSeriali, ...closedSeriali], [openSeriali, closedSeriali]);
+      }, [anomalie, searchSn, snFilter, raggruppa]);
+      const gruppiAnomalie = useMemo(() => raggruppaAnomalie(filteredSeriali, raggruppa), [filteredSeriali, raggruppa]);
+      // Ordine di «precedente/successiva»: quello dei gruppi a video.
+      const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap((g) => g.items), [gruppiAnomalie]);
       const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
-      const nAperte = useMemo(() => anomalie.filter((a) => !a.chiudere).length, [anomalie]);
 
       const sn = useMemo(() => anomalie.find((a) => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
+      // Dopo «sn» (TDZ): la chiusura con «Segnalare al cliente» dipende da «Segnalato al cliente».
+      const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!sn.segnalato_cliente);
       const posizione = ordineVisibile.findIndex((a) => a.item_id === sn.item_id);
       const isSelectedClosed = Boolean(sn.chiudere);
       const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -885,7 +1235,7 @@
             const list = Array.isArray(data) ? data : [];
             setAnomalie(list);
             // Si apre la prima anomalia che aspetta una decisione.
-            const first = list.find(isDaDecidere) || list.find((a) => !a.chiudere) || list[0];
+            const first = list.find(isDaDecidere) || list.find((a) => !a.chiudere);
             setSelectedSnId(first ? first.item_id : "");
             setLoadingAnom(false);
           })
@@ -895,15 +1245,17 @@
 
       // Valori «di partenza» della decisione: servono a capire se ci sono modifiche.
       const baseline = useMemo(() => {
-        const opts = buildAvanzamentoOptions(!!sn.aprire_rdc);
+        const opts = buildAvanzamentoOptions(!!sn.aprire_rdc, !!sn.aprire_rdc || !!sn.segnalare);
         const av = sn.avanzamento || DEFAULT_AVANZAMENTO;
         return {
           desc: sn.desc || "", note: sn.note || "", pezziPrec: !!sn.pezzi_prec, aprireRdc: !!sn.aprire_rdc,
           rdcNum: sn.numero_rdc || "", segnalare: !!sn.segnalare,
+          terzista: !!sn.segnala_terzista, dovePezzi: sn.dove_pezzi || "",
+          segnalaCar: !!sn.segnala_car, carScelti: Array.isArray(sn.car_segnalati) ? sn.car_segnalati : [],
           avanzamento: opts.some((o) => o.toLowerCase() === av.toLowerCase()) ? av : (opts[0] || DEFAULT_AVANZAMENTO),
           risposte: Object.fromEntries((sn.descrizioni || []).map((d) => [String(d.id), d.risposta || ""])),
         };
-      }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.avanzamento, sn.descrizioni]);
+      }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.segnala_terzista, sn.dove_pezzi, sn.segnala_car, sn.car_segnalati, sn.avanzamento, sn.descrizioni]);
 
       useEffect(() => {
         if (!sn.item_id) { clearForm(); return; }
@@ -916,14 +1268,21 @@
         setAprireRdc(baseline.aprireRdc);
         setRdcNum(baseline.rdcNum);
         setSegnalare(baseline.segnalare);
+        setTerzista(baseline.terzista);
+        setDovePezzi(baseline.dovePezzi);
+        setSegnalaCar(baseline.segnalaCar);
+        setCarScelti(baseline.carScelti);
         setAvanzamento(baseline.avanzamento);
-        setApplicaBlocco(false);
+        resetAmbito();
         setEditDesc(false);
       }, [sn.item_id]);
 
       const dirty = !!sn.item_id && canEditSelected && (
         desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec
         || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare
+        || terzista !== baseline.terzista
+        || segnalaCar !== baseline.segnalaCar
+        || (segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|"))
         || (aprireRdc && rdcNum !== baseline.rdcNum)
         || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase()
         || Object.keys(descrizioneAnswers).some((k) => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || ""))
@@ -936,6 +1295,23 @@
       };
       const selectSn = (a) => guard(() => { setSelectedSnId(a.item_id); if (isMobile) setMobilePanel("dettaglio"); });
       const selectOp = (o) => guard(() => { setSelectedOpKey(opKey(o)); if (isMobile) setMobilePanel("serie"); });
+      const avviaClona = (o) => guard(() => {
+        setSelectedOpKey(opKey(o));
+        setClona({ opKey: opKey(o), ids: [] });
+        if (isMobile) setMobilePanel("serie");
+      });
+      const clonaIds = clona && clona.opKey === opKey(op) ? clona.ids : null;
+      const toggleClona = (ids, on) => setClona((prev) => {
+        if (!prev) return prev;
+        const resto = prev.ids.filter((x) => !ids.includes(x));
+        return { ...prev, ids: on ? [...resto, ...ids] : resto };
+      });
+      const continuaClona = () => {
+        if (!clonaIds || !clonaIds.length) return;
+        // Stesso ordine dell'elenco, così i blocchi arrivano come li vedi qui.
+        const ordinati = anomalie.map((a) => a.local_id).filter((x) => clonaIds.includes(x));
+        window.location.href = `/gestione-anomalie/nuova-segnalazione?clona_da=${encodeURIComponent(op.id)}&anomalie=${ordinati.join(",")}`;
+      };
       const vaiA = (delta) => {
         if (posizione < 0) return;
         const target = ordineVisibile[posizione + delta];
@@ -943,11 +1319,36 @@
       };
 
       // Altre anomalie aperte dello stesso blocco di seriali.
-      const fratelliBlocco = useMemo(() => (
-        sn && sn.blocco_id
-          ? anomalie.filter((x) => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere)
-          : []
-      ), [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
+      // Altre anomalie aperte dell'OP; con «includi già decise» spento, solo quelle da decidere.
+      const altreAperte = useMemo(() => (
+        anomalie.filter((x) => x.item_id !== sn.item_id && !x.chiudere && (includiDecise || isDaDecidere(x)))
+      ), [anomalie, sn && sn.item_id, includiDecise]);
+      const stessoBlocco = useMemo(() => (
+        sn && sn.blocco_id ? altreAperte.filter((x) => x.blocco_id === sn.blocco_id) : []
+      ), [altreAperte, sn && sn.blocco_id]);
+      const giaDecise = useMemo(() => (
+        anomalie.filter((x) => x.item_id !== sn.item_id && !x.chiudere && !isDaDecidere(x)).length
+      ), [anomalie, sn && sn.item_id]);
+      const bersagli = useMemo(() => {
+        if (ambito === "blocco") return stessoBlocco;
+        if (ambito === "op") return altreAperte;
+        if (ambito === "mano") return altreAperte.filter((x) => scelteMano.includes(x.item_id));
+        return [];
+      }, [ambito, stessoBlocco, altreAperte, scelteMano]);
+      // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
+      // la decisione si applica, l'anomalia resta aperta.
+      const chiudeBersaglio = (x) => shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!x.segnalato_cliente)
+        && !(x.serve_azione && !aprireRdc);
+      const gruppiPerSn = (lista) => {
+        const out = [];
+        lista.forEach((x) => {
+          const chiave = x.blocco_id ? `b${x.blocco_id}` : `s${x.sn}`;
+          let g = out.find((y) => y.chiave === chiave);
+          if (!g) { g = { chiave, titolo: x.blocco_label || x.sn || "—", righe: [] }; out.push(g); }
+          g.righe.push(x);
+        });
+        return out;
+      };
 
       // ── Allegati ──
       const attachmentsFor = useRef(null);
@@ -970,7 +1371,7 @@
       };
       useEffect(() => { loadAttachments(currentLocalId); }, [currentLocalId]);
 
-      const uploadFiles = async (files) => {
+      const uploadFiles = async (files, ambito = "") => {
         if (!files.length) return;
         if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati su questo OP" }); return; }
         if (!currentLocalId) { flash({ ok: false, text: "Seleziona un'anomalia salvata per caricare allegati." }); return; }
@@ -979,6 +1380,7 @@
           const form = new FormData();
           form.append("local_id", String(currentLocalId));
           files.forEach((f) => form.append("files", f));
+          if (ambito) form.append("ambito", ambito);
           const r = await fetch(API.allegati_upload, { method: "POST", headers: { "X-CSRFToken": getCsrfToken() }, body: form, credentials: "same-origin" });
           const d = await readJsonOrThrow(r, "Upload allegati");
           if (Array.isArray(d.attachments)) setAttachments(d.attachments);
@@ -1012,14 +1414,44 @@
       const getAttachmentUrl = (fileId, forceDownload = false) =>
         `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
       const immagini = attachments.filter((f) => f.is_image);
+      // Gli allegati della decisione del capocommessa stanno nel suo riquadro.
+      const attAnomalia = attachments.filter((f) => !f.decisione);
+      const attDecisione = attachments.filter((f) => f.decisione);
+      const renderAttGrid = (list) => (
+        <div className="ga-att__grid">
+          {list.map((file) => (
+                                <div key={file.file_id} className="ga-att__item" title={`${file.name} · ${formatBytes(file.size)}`}>
+                                  {file.is_image ? (
+                                    <button type="button" className="ga-att__thumb" onClick={() => setLightbox(file.file_id)}>
+                                      <img src={getAttachmentUrl(file.file_id)} alt={file.name} loading="lazy" />
+                                    </button>
+                                  ) : (
+                                    <a className="ga-att__thumb ga-att__thumb--file" href={getAttachmentUrl(file.file_id)} target="_blank" rel="noopener">
+                                      {(fileExt(file.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
+                                    </a>
+                                  )}
+                                  <div className="ga-att__name">{file.name}</div>
+                                  <div className="ga-att__acts">
+                                    <a href={getAttachmentUrl(file.file_id, true)} title="Scarica">Scarica</a>
+                                    {canEditCurrentOp && (confirmDelete === file.file_id
+                                      ? <button type="button" className="is-danger" onClick={() => handleDeleteAttachment(file.file_id)}>Conferma</button>
+                                      : <button type="button" onClick={() => setConfirmDelete(file.file_id)}>Elimina</button>)}
+                                  </div>
+                                </div>
+                              ))}
+        </div>
+      );
       const lightboxIdx = immagini.findIndex((f) => f.file_id === lightbox);
 
       // ── Salvataggio ──
-      const handleSave = async () => {
+      const handleSave = async (confermato = false, prossima = false) => {
         if (!op.id || op.id === "—") { flash({ ok: false, text: "Seleziona un ordine prima di salvare" }); return false; }
         if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi modificare questo OP" }); return false; }
         if (isSelectedClosed) { flash({ ok: false, text: "Anomalia chiusa: in sola lettura" }); return false; }
         if (!currentItemId) { flash({ ok: false, text: "Seleziona un'anomalia" }); return false; }
+        if (notaSenzaStato) { flash({ ok: false, text: NOTA_STATO_MSG }, 7000); return false; }
+        if (ambito === "mano" && !bersagli.length) { flash({ ok: false, text: "Scegli almeno un'altra anomalia, oppure «Solo questa»." }, 6000); return false; }
+        if (bersagli.length && !confermato) { setRiepilogo({ prossima }); return false; }
         setSaving(true);
         let ok = false;
         try {
@@ -1030,6 +1462,8 @@
               item_id: currentItemId, op_id: op.id, sn: sn.sn || "", desc,
               descrizioni_risposte: descrizioneAnswers, note, pezzi_prec: pezziPrec,
               aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+              segnala_terzista: terzista,
+              segnala_car: segnalaCar, car_segnalati: segnalaCar ? carScelti : [],
               chiudere: chiudereAuto, avanzamento,
             }),
             credentials: "same-origin",
@@ -1039,15 +1473,18 @@
           ok = true;
           const aggiornato = {
             desc, note, pezzi_prec: pezziPrec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-            segnalare, chiudere: chiudereAuto, avanzamento,
+            segnalare, segnala_terzista: terzista,
+            segnala_car: segnalaCar && carScelti.length > 0, car_segnalati: segnalaCar ? carScelti : [],
+            chiudere: chiudereAuto, avanzamento,
             descrizioni: (sn.descrizioni || []).map((d) => ({ ...d, risposta: descrizioneAnswers[String(d.id)] || "" })),
           };
           setAnomalie((prev) => prev.map((a) => (a.item_id === currentItemId ? { ...a, ...aggiornato } : a)));
           let testo = chiudereAuto ? "Decisione salvata · anomalia chiusa" : "Decisione salvata";
-          if (applicaBlocco && fratelliBlocco.length) {
+          if (bersagli.length) {
             let n = 0;
             const errori = [];
-            for (const f of fratelliBlocco) {
+            for (const f of bersagli) {
+              const chiudeF = chiudeBersaglio(f);
               try {
                 const rf = await fetch(API.salva, {
                   method: "POST",
@@ -1055,30 +1492,32 @@
                   body: JSON.stringify({
                     item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
                     note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-                    segnalare, chiudere: chiudereAuto, avanzamento,
+                    segnalare, segnala_terzista: terzista, chiudere: chiudeF, avanzamento,
                   }),
                   credentials: "same-origin",
                 });
-                const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
+                const df = await readJsonOrThrow(rf, "Salvataggio anomalia");
                 if (!df.success) throw new Error(df.error || "errore");
                 n += 1;
                 setAnomalie((prev) => prev.map((a) => (a.item_id === f.item_id ? {
-                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare, chiudere: chiudereAuto, avanzamento,
+                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+                  segnala_terzista: terzista, chiudere: chiudeF, avanzamento,
                 } : a)));
               } catch (err) {
                 errori.push(`#${f.local_id}: ${err.message}`);
               }
             }
-            setApplicaBlocco(false);
+            resetAmbito();
             if (errori.length) {
-              flash({ ok: false, text: `Salvata; sul blocco ${n} aggiornate e ${errori.length} no (${errori.join("; ")})` }, 8000);
+              flash({ ok: false, text: `Salvata; delle altre ${n} aggiornate e ${errori.length} no (${errori.join("; ")})` }, 8000);
               testo = "";
             } else {
-              testo += ` · applicata anche ad altre ${n}`;
+              testo += ` · applicata anche ad altr${n === 1 ? "a" : "e"} ${n}`;
             }
           }
           if (testo) flash({ ok: true, text: data.protocollo ? `${testo} · ${data.protocollo}` : testo });
           loadOrdini();
+          caricaCoda();
         } catch (e) {
           flash({ ok: false, text: "Errore: " + e.message }, 7000);
         }
@@ -1086,13 +1525,20 @@
         return ok;
       };
 
-      const salvaEProssima = async () => {
-        // La prossima è la successiva in elenco ancora da decidere (o la successiva aperta).
+      // La prossima è la successiva in elenco ancora da decidere (o la successiva aperta).
+      const trovaProssima = (escluse = []) => {
+        const via = new Set([sn.item_id, ...escluse]);
         const dopo = ordineVisibile.slice(posizione + 1);
-        const prossima = dopo.find((a) => isDaDecidere(a) && a.item_id !== sn.item_id)
-          || ordineVisibile.find((a) => isDaDecidere(a) && a.item_id !== sn.item_id)
-          || dopo.find((a) => !a.chiudere);
-        if (!(await handleSave())) return;
+        return dopo.find((a) => isDaDecidere(a) && !via.has(a.item_id))
+          || ordineVisibile.find((a) => isDaDecidere(a) && !via.has(a.item_id))
+          || dopo.find((a) => !a.chiudere && !via.has(a.item_id));
+      };
+      const salvaEProssima = async () => {
+        const prossima = trovaProssima(bersagli.map((x) => x.item_id));
+        if (!(await handleSave(false, true))) return;
+        vaiAllaProssima(prossima);
+      };
+      const vaiAllaProssima = (prossima) => {
         if (prossima) setSelectedSnId(prossima.item_id);
         else flash({ ok: true, text: "Decisione salvata · nessun'altra anomalia da decidere su questo OP" });
       };
@@ -1100,7 +1546,173 @@
       const annullaModifiche = () => {
         setDesc(baseline.desc); setNote(baseline.note); setPezziPrec(baseline.pezziPrec);
         setAprireRdc(baseline.aprireRdc); setRdcNum(baseline.rdcNum); setSegnalare(baseline.segnalare);
+        setTerzista(baseline.terzista); setDovePezzi(baseline.dovePezzi);
+        setSegnalaCar(baseline.segnalaCar); setCarScelti(baseline.carScelti);
         setAvanzamento(baseline.avanzamento); setDescrizioneAnswers(baseline.risposte); setEditDesc(false);
+      };
+
+      // «Segnalato» (cliente/terzista): si registra subito, senza mail di aggiornamento.
+      const [segnalatoInCorso, setSegnalatoInCorso] = useState("");
+      const toggleSegnalato = async (chi) => {
+        if (!sn.local_id || !API.segnalato || segnalatoInCorso) return;
+        const campo = `segnalato_${chi}`;
+        const acceso = !sn[campo];
+        setSegnalatoInCorso(chi);
+        try {
+          const r = await fetch(API.segnalato, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: sn.local_id, chi, segnalato: acceso }),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Segnalato");
+          if (!data.success) throw new Error(data.error || "risposta non valida");
+          setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id ? { ...a, [campo]: data.segnalato || null } : a)));
+          flash({ ok: true, text: acceso ? `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"} · registrato, nessuna mail inviata` : "Spunta «Segnalato» tolta" });
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setSegnalatoInCorso("");
+      };
+      const rigaSegnalato = (chi, richiesto, salvato) => {
+        if (!richiesto) return null;
+        const campo = `segnalato_${chi}`;
+        const fatto = sn[campo];
+        const label = `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"}`;
+        if (!salvato) {
+          return <div key={chi} className="ga-hint">Salva la decisione per poter spuntare «{label}».</div>;
+        }
+        return (
+          <div key={chi} className="ga-segnalato">
+            <FlagToggle label={segnalatoInCorso === chi ? "Salvataggio…" : label}
+              hint="Registra che l'hai già avvisato: non parte nessuna mail"
+              checked={!!fatto} disabled={!canEditCurrentOp || !!segnalatoInCorso} onChange={() => toggleSegnalato(chi)} />
+            <span className="ga-hint">{fatto ? `il ${fatto.il}${fatto.da ? ` da ${fatto.da}` : ""} · nessuna mail inviata` : "Si registra subito, senza mail."}</span>
+          </div>
+        );
+      };
+
+      // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
+      const riapri = async () => {
+        if (!sn.local_id || !API.riapri) return;
+        setSaving(true);
+        try {
+          const r = await fetch(API.riapri, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: sn.local_id }),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Riapertura anomalia");
+          if (!data.success) throw new Error(data.error || "risposta non valida");
+          setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id
+            ? { ...a, chiudere: false, avanzamento: "In attesa", can_riaprire: false } : a)));
+          setAvanzamento("In attesa");
+          flash({ ok: true, text: `Anomalia #${sn.local_id} riaperta · in attesa di decisione` });
+          loadOrdini();
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setSaving(false);
+      };
+
+      const ricaricaAnomalie = async () => {
+        if (!op || !op.item_id) return;
+        const r = await fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, { credentials: "same-origin" });
+        const list = await readJsonOrThrow(r, "Caricamento anomalie");
+        setAnomalie(Array.isArray(list) ? list : []);
+        return Array.isArray(list) ? list : [];
+      };
+      const postAzione = async (url, body, contesto) => {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+          body: JSON.stringify(body),
+          credentials: "same-origin",
+        });
+        const data = await readJsonOrThrow(r, contesto);
+        if (!data.success) throw new Error(data.error || "risposta non valida");
+        return data;
+      };
+      const apriTaglia = () => {
+        setAzAnom({ tipo: "taglia", op: op.id || "", sn: "", seriali: [], busy: false, err: "" });
+      };
+      // S/N noti dell'OP di destinazione, come suggerimenti.
+      useEffect(() => {
+        if (!azAnom || azAnom.tipo !== "taglia" || !API.seriali_op) return undefined;
+        const opDest = String(azAnom.op || "").trim();
+        if (!opDest) return undefined;
+        let alive = true;
+        const t = setTimeout(() => {
+          fetch(`${API.seriali_op}?op_id=${encodeURIComponent(opDest)}`, { credentials: "same-origin" })
+            .then((r) => (r.ok ? r.json() : { seriali: [] }))
+            .then((d) => { if (alive) setAzAnom((p) => (p ? { ...p, seriali: Array.isArray(d.seriali) ? d.seriali : [] } : p)); })
+            .catch(() => {});
+        }, 300);
+        return () => { alive = false; clearTimeout(t); };
+      }, [azAnom && azAnom.tipo, azAnom && azAnom.op]);
+      const confermaAzione = async () => {
+        if (!azAnom || !sn.local_id) return;
+        const id = sn.local_id;
+        if (azAnom.tipo === "taglia") {
+          if (!String(azAnom.op || "").trim()) { setAzAnom({ ...azAnom, err: "Indica l'OP." }); return; }
+          if (!String(azAnom.sn || "").trim()) { setAzAnom({ ...azAnom, err: "Indica il S/N di destinazione." }); return; }
+        }
+        setAzAnom({ ...azAnom, busy: true, err: "" });
+        try {
+          if (azAnom.tipo === "elimina") {
+            await postAzione(API.elimina, { local_id: id }, "Elimina anomalia");
+            flash({ ok: true, text: `Anomalia #${id} eliminata` });
+          } else {
+            const dest = ordini.find((o) => String(o.id || "").toLowerCase() === String(azAnom.op).trim().toLowerCase());
+            const seriali = String(azAnom.sn).split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+            const data = await postAzione(API.sposta, {
+              local_id: id, op_id: String(azAnom.op).trim(), op_item_id: dest ? dest.item_id : null, seriali,
+            }, "Taglia");
+            flash({ ok: true, text: `Anomalia #${id}: ${data.nota || "spostata"}` }, 6000);
+          }
+          setAzAnom(null);
+          setCurrentItemId(null);
+          const list = await ricaricaAnomalie();
+          const ancora = (list || []).find((a) => a.local_id === id);
+          const first = ancora || (list || []).find(isDaDecidere) || (list || []).find((a) => !a.chiudere);
+          setSelectedSnId(first ? first.item_id : "");
+          loadOrdini();
+        } catch (e) {
+          setAzAnom((p) => (p ? { ...p, busy: false, err: e.message } : p));
+        }
+      };
+
+      const apriModificaOp = async (o) => {
+        if (!API.op_modifica) return;
+        setModOp({ titolo: o.id, dati: null, iniz: null, motivo: "", busy: true, err: "" });
+        try {
+          const r = await fetch(`${API.op_modifica}?item_id=${encodeURIComponent(o.item_id)}`, { credentials: "same-origin" });
+          const d = await readJsonOrThrow(r, "Modifica OP");
+          setModOp({ titolo: o.id, dati: { ...d.op }, iniz: { ...d.op }, motivo: "", busy: false, err: "" });
+        } catch (e) {
+          setModOp({ titolo: o.id, dati: null, iniz: null, motivo: "", busy: false, err: e.message });
+        }
+      };
+      const campoModOp = (campo, valore) => setModOp((p) => (p ? { ...p, dati: { ...p.dati, [campo]: valore }, err: "" } : p));
+      const modOpCambiato = !!(modOp && modOp.dati && modOp.iniz
+        && ["pn", "capocommessa", "car", "fase", "note", "benestare"].some((k) => String(modOp.dati[k] ?? "").trim() !== String(modOp.iniz[k] ?? "").trim()));
+      const salvaModificaOp = async () => {
+        if (!modOp || !modOp.dati) return;
+        if (!modOpCambiato) { setModOp({ ...modOp, err: "Non hai cambiato nessun dato." }); return; }
+        if (String(modOp.motivo || "").trim().length < 5) { setModOp({ ...modOp, err: "Scrivi il motivo della modifica." }); return; }
+        setModOp({ ...modOp, busy: true, err: "" });
+        try {
+          const { item_id, pn, capocommessa, car, fase, note: noteOp, benestare } = modOp.dati;
+          const data = await postAzione(API.op_modifica, {
+            item_id, pn, capocommessa, car, fase, note: noteOp, benestare, motivazione: modOp.motivo,
+          }, "Modifica OP");
+          setModOp(null);
+          flash({ ok: true, text: `${modOp.titolo}: ${(data.modifiche || []).map((m) => m.etichetta).join(", ") || "dati"} modificati` }, 5000);
+          loadOrdini();
+        } catch (e) {
+          setModOp((p) => (p ? { ...p, busy: false, err: e.message } : p));
+        }
       };
 
       const duplica = () => {
@@ -1151,15 +1763,21 @@
       const renderAnomalia = (a) => {
         const st = statoAnomalia(a);
         const selected = a.item_id === sn.item_id;
+        const inClona = clonaIds && clonaIds.includes(a.local_id);
         return (
-          <button type="button" key={a.item_id} className={`ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}`} onClick={() => selectSn(a)}>
-            <span className={`ga-an__dot ga-an__dot--${st.variant}`} />
+          <button type="button" key={a.item_id} className={`ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}${inClona ? " is-clona" : ""}`}
+            onClick={() => { if (clonaIds) toggleClona([a.local_id], !inClona); selectSn(a); }}>
+            {clonaIds
+              ? <span className={`ga-an__check${inClona ? " is-on" : ""}`} aria-hidden="true">{inClona ? Ico.check : null}</span>
+              : <span className={`ga-an__dot ga-an__dot--${st.variant}`} />}
             <span className="ga-an__main">
               <span className="ga-an__txt">{a.blocco_id ? (a.testo || a.desc || "(nessuna descrizione)") : (a.sn ? `S/N ${a.sn}` : (a.testo || a.desc || "—"))}</span>
               <span className="ga-an__meta">
-                <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
-                {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">RDC{a.numero_rdc ? ` ${a.numero_rdc}` : ""}</span>}
-                {a.segnalare && <span className="ga-pill ga-pill--cli">Cliente</span>}
+                {/* «Per stato» lo dice già il titolo del gruppo */}
+                {raggruppa !== "stato" && <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>}
+                {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">{a.numero_rdc ? `RDC ${a.numero_rdc}` : (a.chiudere ? "RDC" : "RDC · manca N°")}</span>}
+                {a.segnalare && <span className="ga-pill ga-pill--cli">{a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"}</span>}
+                {a.segnala_terzista && <span className="ga-pill ga-pill--ter">Terzista</span>}
                 {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
                 <span className="ga-an__id">#{a.local_id}</span>
@@ -1168,24 +1786,40 @@
           </button>
         );
       };
-      const renderGrouped = (list) => list.map((a, idx) => {
-        const prev = idx > 0 ? list[idx - 1] : null;
-        if (!a.blocco_id || (prev && prev.blocco_id === a.blocco_id)) return renderAnomalia(a);
-        const delBlocco = list.filter((y) => y.blocco_id === a.blocco_id);
-        const daDec = delBlocco.filter(isDaDecidere).length;
+      // Un gruppo: intestazione cliccabile (apre/chiude, scelta ricordata) e righe.
+      // Chiuso, mostra comunque l'anomalia aperta a destra se è sua. Durante «Clona»
+      // i gruppi sono tutti aperti per poter spuntare anche le chiuse.
+      const renderGruppo = (g) => {
+        const chiuso = !clonaIds && gruppoChiuso(g);
+        const daDec = g.items.filter(isDaDecidere).length;
+        const ids = g.items.map((y) => y.local_id);
+        const tutto = Boolean(clonaIds) && ids.every((x) => clonaIds.includes(x));
+        const b = g.blocco;
+        const meta = b ? [b.fase ? `Fase ${b.fase}` : "", b.controllo_operatore, fmtData(b.controllo_data)].filter(Boolean).join(" · ") : "";
+        const visibili = chiuso ? g.items.filter((a) => a.item_id === sn.item_id) : g.items;
         return (
-          <React.Fragment key={`blk-${a.blocco_id}-${a.item_id}`}>
-            <div className="ga-blk">
-              <div className="ga-blk__sn">{a.blocco_label || a.sn || "—"}</div>
-              <div className="ga-blk__meta">
-                {[a.fase ? `Fase ${a.fase}` : "", a.controllo_operatore, fmtData(a.controllo_data)].filter(Boolean).join(" · ")}
-                {daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}
-              </div>
+          <div key={g.key} className={`ga-grp ga-grp--${g.tone}${chiuso ? " is-chiuso" : ""}`}>
+            <div className="ga-grp__head">
+              {clonaIds && (
+                <label className="ga-blk__clona" title="Copia tutte le anomalie del gruppo">
+                  <input type="checkbox" checked={tutto} onChange={(e) => toggleClona(ids, e.target.checked)} />
+                </label>
+              )}
+              <button type="button" className="ga-grp__toggle" aria-expanded={!chiuso} onClick={() => toggleGruppo(g)}
+                title={chiuso ? "Apri il gruppo" : "Chiudi il gruppo"}>
+                <span className="ga-grp__line">
+                  <span className="ga-grp__caret" aria-hidden="true">▾</span>
+                  <span className={`ga-grp__label${g.tone === "blocco" ? " ga-grp__label--sn" : ""}`}>{g.label}</span>
+                  <span className="ga-grp__n">{g.items.length}</span>
+                  {g.tone === "blocco" && daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}
+                </span>
+                {meta && !chiuso && <span className="ga-grp__meta">{meta}</span>}
+              </button>
             </div>
-            {renderAnomalia(a)}
-          </React.Fragment>
+            {visibili.length > 0 && <div className="ga-grp__body">{visibili.map(renderAnomalia)}</div>}
+          </div>
         );
-      });
+      };
 
       return (
         <div className={`ga${isMobile ? " ga--mobile" : ""}`}>
@@ -1226,8 +1860,8 @@
               <div className="ga-col__head">
                 <div className="ga-col__title">Ordini di produzione</div>
                 <div className="ga-chips">
-                  {[["", "Tutti"], ["aperte", "Con aperte"], ["in_carico", "In carico a me"]].map(([v, l]) => (
-                    <Chip key={v || "all"} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
+                  {[["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => (
+                    <Chip key={v} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
                       onClick={() => setPageFilter(v)}>{l}</Chip>
                   ))}
                 </div>
@@ -1244,26 +1878,26 @@
                         : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato."}
                     </div>
                   ) : filteredOrdini.map((o) => {
+                    // Riga compatta: numero, P/N e contatori; il resto è nella scheda
+                    // dell'OP in cima alla colonna Anomalie.
                     const sel = opKey(o) === opKey(op);
                     const tot = Number(o.anomalie_count || 0);
                     const aperte = apertiDi(o);
                     const daDec = daDecidereDi(o);
-                    const chiuse = Math.max(0, tot - aperte);
+                    const inCorso = Math.max(0, aperte - daDec);
                     return (
-                      <button type="button" key={opKey(o)} className={`ga-op${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}>
-                        <span className="ga-op__row">
-                          <span className="ga-op__id">{o.id}</span>
+                      <button type="button" key={opKey(o)} className={`ga-opr${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}
+                        title={`Capocommessa ${o.capo || "—"} · CAR ${o.car || "—"}`}>
+                        <span className="ga-opr__id">
+                          {o.id}
                           {String(o.stato || "").toLowerCase() === "benestare" && <span className="ga-pill ga-pill--ben">Benestare</span>}
-                          {daDec > 0 && <span className="ga-op__todo" title="Anomalie in attesa di decisione">{daDec}</span>}
                         </span>
-                        <span className="ga-op__pn">P/N {o.pn}</span>
-                        <span className="ga-op__people">{Ico.user}{o.capo}{o.car && o.car !== "—" ? ` · CAR ${o.car}` : ""}</span>
-                        {tot > 0 ? (
-                          <span className="ga-op__bar" title={`${chiuse} chiuse su ${tot}`}>
-                            <span className="ga-op__bar-fill" style={{ width: `${Math.round((chiuse / tot) * 100)}%` }} />
-                            <span className="ga-op__bar-txt">{aperte} apert{aperte === 1 ? "a" : "e"} · {tot} total{tot === 1 ? "e" : "i"}</span>
-                          </span>
-                        ) : <span className="ga-op__none">Nessuna anomalia</span>}
+                        <span className="ga-opr__cnt">
+                          {daDec > 0 && <span className="ga-cnt ga-cnt--dec" title="Da decidere">{daDec}</span>}
+                          {inCorso > 0 && <span className="ga-cnt ga-cnt--corso" title="Aperte con una decisione, in corso">{inCorso}</span>}
+                          {tot > 0 && aperte === 0 && <span className="ga-cnt ga-cnt--ok" title="Tutte chiuse">✓</span>}
+                        </span>
+                        <span className="ga-opr__pn">{o.pn && o.pn !== "—" ? o.pn : "—"}</span>
                       </button>
                     );
                   })}
@@ -1272,13 +1906,73 @@
 
             {/* ── 2. Anomalie dell'OP ── */}
             <section className="ga-col ga-col--sn" style={{ display: showCol("serie") ? undefined : "none" }}>
+              {op.id && (() => {
+                // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
+                // contatori della riga a sinistra (apertiDi / daDecidereDi).
+                const tot = Number(op.anomalie_count || 0);
+                const aperte = apertiDi(op);
+                const daDec = daDecidereDi(op);
+                const inCorso = Math.max(0, aperte - daDec);
+                const chiuse = Math.max(0, tot - aperte);
+                const perc = (n) => `${tot ? (n / tot) * 100 : 0}%`;
+                return (
+                  <div className="ga-opsheet">
+                    <div className="ga-opsheet__row">
+                      <span className="ga-opsheet__id">{op.id}</span>
+                      {op.pn && op.pn !== "—" && <span className="ga-opsheet__pn">{op.pn}</span>}
+                      <span className="ga-opsheet__acts">
+                        {op.can_modifica_op && (
+                          <button type="button" className="ga-op__clona" title="Correggi i dati dell'OP che hai inserito tu" onClick={() => apriModificaOp(op)}>
+                            {Ico.edit}<span>Modifica OP</span>
+                          </button>
+                        )}
+                        {tot > 0 && (
+                          <button type="button" className={`ga-op__clona${clonaIds ? " is-on" : ""}`}
+                            title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(op)}>
+                            {Ico.copy}<span>Clona</span>
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <div className="ga-opsheet__people">
+                      <span><b>Capocommessa</b> {op.capo || "—"}</span>
+                      <span><b>CAR</b> {op.car || "—"}</span>
+                    </div>
+                    {tot > 0 ? (
+                      <>
+                        <div className="ga-seg" role="img" aria-label={`${daDec} da decidere, ${inCorso} in corso, ${chiuse} chiuse`}>
+                          <i className="ga-seg--dec" style={{ width: perc(daDec) }} />
+                          <i className="ga-seg--corso" style={{ width: perc(inCorso) }} />
+                          <i className="ga-seg--ok" style={{ width: perc(chiuse) }} />
+                        </div>
+                        <div className="ga-opsheet__leg">
+                          <span><i className="ga-seg--dec" />{daDec} da decidere</span>
+                          <span><i className="ga-seg--corso" />{inCorso} in corso</span>
+                          <span><i className="ga-seg--ok" />{chiuse} chius{chiuse === 1 ? "a" : "e"}</span>
+                        </div>
+                      </>
+                    ) : <div className="ga-opsheet__leg">Nessuna anomalia</div>}
+                  </div>
+                );
+              })()}
               <div className="ga-col__head">
-                <div className="ga-col__title">
-                  Anomalie {op.id ? <span className="ga-col__sub">{nAperte} apert{nAperte === 1 ? "a" : "e"} su {anomalie.length}</span> : null}
-                </div>
-                <div className="ga-chips">
-                  <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
-                  <Chip active={snFilter === "da_decidere"} onClick={() => setSnFilter("da_decidere")} count={nDaDecidere} tone="warn">Da decidere</Chip>
+                {!op.id && <div className="ga-col__title">Anomalie</div>}
+                {clonaIds && (
+                  <div className="ga-note ga-note--info">
+                    <b>Clona {op.id}</b>: spunta le anomalie da copiare sul nuovo OP (anche le chiuse), poi «Continua».
+                  </div>
+                )}
+                <div className="ga-raggr">
+                  <div className="ga-seg-ctl" role="group" aria-label="Raggruppa le anomalie">
+                    <button type="button" className={raggruppa === "sn" ? "is-on" : ""} aria-pressed={raggruppa === "sn"} onClick={() => setRaggruppa("sn")}>Per S/N</button>
+                    <button type="button" className={raggruppa === "stato" ? "is-on" : ""} aria-pressed={raggruppa === "stato"} onClick={() => setRaggruppa("stato")}>Per stato</button>
+                  </div>
+                  {raggruppa === "sn" && (
+                    <div className="ga-chips">
+                      <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
+                      <Chip active={snFilter === "da_decidere"} onClick={() => setSnFilter("da_decidere")} count={nDaDecidere} tone="warn">Da decidere</Chip>
+                    </div>
+                  )}
                 </div>
                 <div className="ga-search">
                   {Ico.search}
@@ -1290,27 +1984,44 @@
                   : !op.id ? <div className="ga-empty">Seleziona un ordine.</div>
                   : filteredSeriali.length === 0 ? (
                     <div className="ga-empty">
-                      {snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
+                      {raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ?"Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
                       {canEditCurrentOp && !anomalie.length && <a className="ga-btn ga-btn--accent ga-btn--sm" href={nuovaAnomaliaUrl}>{Ico.plus}Nuova segnalazione</a>}
                     </div>
                   ) : (
-                    <>
-                      {renderGrouped(openSeriali)}
-                      {closedSeriali.length > 0 && (
-                        <div className="ga-closed">
-                          <button type="button" className="ga-closed__toggle" onClick={() => setClosedCollapsed((v) => !v)}>
-                            <span style={{ transform: closedCollapsed ? "rotate(-90deg)" : "none" }}>▾</span> Chiuse ({closedSeriali.length})
-                          </button>
-                          {!closedCollapsed && renderGrouped(closedSeriali)}
-                        </div>
-                      )}
-                    </>
+                    <div className="ga-grps">{gruppiAnomalie.map(renderGruppo)}</div>
                   )}
               </div>
+              {clonaIds && (
+                <div className="ga-clona">
+                  <div className="ga-clona__top">
+                    <span><b>{clonaIds.length}</b> da copiare</span>
+                    <button type="button" className="ga-link" onClick={() => toggleClona(anomalie.map((a) => a.local_id), true)}>Tutte</button>
+                    <button type="button" className="ga-link" onClick={() => toggleClona(anomalie.filter((a) => !a.chiudere).map((a) => a.local_id), true)}>Aperte</button>
+                    <button type="button" className="ga-link" onClick={() => setClona((p) => (p ? { ...p, ids: [] } : p))}>Nessuna</button>
+                  </div>
+                  <div className="ga-clona__acts">
+                    <button type="button" className="ga-btn ga-btn--ghost-dark ga-btn--xs" onClick={() => setClona(null)}>Annulla</button>
+                    <button type="button" className="ga-btn ga-btn--accent ga-btn--xs" disabled={!clonaIds.length} onClick={continuaClona}>Continua {Ico.next}</button>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* ── 3. Dettaglio ── */}
             <section className="ga-col ga-col--det" style={{ display: showCol("dettaglio") ? undefined : "none" }}>
+              {/* Decisioni salvate sull'OP e non ancora partite nel riepilogo: sempre in vista,
+                  anche quando l'anomalia aperta è ormai chiusa. */}
+              {coda && coda.n > 0 && (() => {
+                const min = Math.max(0, Math.ceil((new Date(coda.partenza).getTime() - Date.now()) / 60000));
+                return (
+                  <div className="ga-coda" role="status"
+                    title="Il riepilogo a capocommessa, CAR e segnalanti parte dopo una pausa sull'OP; ogni salvataggio fa ripartire l'attesa">
+                    <span className="ga-coda__dot" />
+                    <span className="ga-coda__txt"><b>{coda.n}</b> decision{coda.n === 1 ? "e" : "i"} in attesa di invio · {min > 0 ? `il riepilogo parte fra ${min} min` : "in partenza"}</span>
+                    <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" disabled={inviando} onClick={inviaOra}>{inviando ? "Invio…" : "Invia ora"}</button>
+                  </div>
+                );
+              })()}
               {!sn.item_id ? (
                 <div className="ga-empty ga-empty--big">
                   {op.id ? "Seleziona un'anomalia dall'elenco." : "Seleziona un ordine di produzione."}
@@ -1320,7 +2031,8 @@
                   <div className="ga-det__head">
                     <div className="ga-det__crumb">
                       <span>{op.id}</span>
-                      {sn.fase && <><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
+                      {op.pn && op.pn !== "—" && <><span className="ga-det__sep">·</span><span>P/N <b className="ga-det__pn">{op.pn}</b></span></>}
+                      {sn.fase &&<><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
                       <span className={`ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`}>{isBenestare ? "Collaudo di benestare" : "Altro controllo"}</span>
                     </div>
                     <div className="ga-det__titlerow">
@@ -1334,15 +2046,21 @@
                     </div>
                     <PezziInteressati sn={sn} />
                     <div className="ga-det__people">
-                      <span><b>Capocommessa</b> {op.capo || "—"}</span>
-                      <span><b>CAR</b> {op.car || "—"}</span>
+                      {/* Su schermo largo capocommessa e CAR sono nella scheda dell'OP accanto. */}
+                      {isMobile && <span><b>Capocommessa</b> {op.capo || "—"}</span>}
+                      {isMobile && <span><b>CAR</b> {op.car || "—"}</span>}
                       {sn.controllo_operatore && <span><b>Segnalata da</b> {sn.controllo_operatore}{sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""}</span>}
                     </div>
                   </div>
 
                   <div className="ga-det__body">
                     {!canEditCurrentOp && <div className="ga-note ga-note--warn">Sola lettura: puoi consultare ma non decidere su questo OP.</div>}
-                    {canEditCurrentOp && isSelectedClosed && <div className="ga-note ga-note--ok">Anomalia chiusa: i dati restano consultabili ma non modificabili.</div>}
+                    {isSelectedClosed && (canEditCurrentOp || sn.can_riaprire) && (
+                      <div className="ga-note ga-note--ok ga-note--row">
+                        <span>Anomalia chiusa: i dati restano consultabili ma non modificabili.</span>
+                        {sn.can_riaprire && <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={riapri} disabled={saving}>{saving ? "Riapertura…" : "Riapri anomalia"}</button>}
+                      </div>
+                    )}
 
                     {/* Segnalazione */}
                     <div className="ga-card">
@@ -1350,6 +2068,8 @@
                         <span className="ga-card__title">Segnalazione</span>
                         {sn.stato_superficie && <span className="ga-pill ga-pill--sup">{sn.stato_superficie}</span>}
                         {canEditSelected && !editDesc && <button type="button" className="ga-link" onClick={() => setEditDesc(true)}>Modifica testo</button>}
+                        {sn.can_sposta && <button type="button" className="ga-link" title="Sposta su un altro S/N dello stesso OP o di un altro OP" onClick={apriTaglia}>✂ Taglia</button>}
+                        {sn.can_elimina && <button type="button" className="ga-link ga-link--danger" title="Solo chi l'ha inserita, finché nessuno ci ha lavorato" onClick={() => setAzAnom({ tipo: "elimina", busy: false, err: "" })}>Elimina</button>}
                       </div>
                       {editDesc ? (
                         <textarea className="ga-input" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} autoFocus />
@@ -1387,7 +2107,7 @@
                         <input ref={fileInputRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
                           onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f); }} />
                         <div className="ga-att__head">
-                          <span className="ga-card__sub">{Ico.clip} Allegati {attachments.length ? `(${attachments.length})` : ""}</span>
+                          <span className="ga-card__sub">{Ico.clip} Allegati {attAnomalia.length ? `(${attAnomalia.length})` : ""}</span>
                           {canEditCurrentOp && (
                             <span className="ga-hint">
                               {uploadingAttachments ? "Caricamento…" : <>Trascina qui, <button type="button" className="ga-link" onClick={() => fileInputRef.current && fileInputRef.current.click()}>sfoglia</button> o clicca e premi Ctrl+V</>}
@@ -1395,31 +2115,8 @@
                           )}
                         </div>
                         {loadingAttachments ? <div className="ga-hint">Caricamento allegati…</div>
-                          : attachments.length === 0 ? <div className="ga-hint">Nessun allegato.</div>
-                          : (
-                            <div className="ga-att__grid">
-                              {attachments.map((file) => (
-                                <div key={file.file_id} className="ga-att__item" title={`${file.name} · ${formatBytes(file.size)}`}>
-                                  {file.is_image ? (
-                                    <button type="button" className="ga-att__thumb" onClick={() => setLightbox(file.file_id)}>
-                                      <img src={getAttachmentUrl(file.file_id)} alt={file.name} loading="lazy" />
-                                    </button>
-                                  ) : (
-                                    <a className="ga-att__thumb ga-att__thumb--file" href={getAttachmentUrl(file.file_id)} target="_blank" rel="noopener">
-                                      {(fileExt(file.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
-                                    </a>
-                                  )}
-                                  <div className="ga-att__name">{file.name}</div>
-                                  <div className="ga-att__acts">
-                                    <a href={getAttachmentUrl(file.file_id, true)} title="Scarica">Scarica</a>
-                                    {canEditCurrentOp && (confirmDelete === file.file_id
-                                      ? <button type="button" className="is-danger" onClick={() => handleDeleteAttachment(file.file_id)}>Conferma</button>
-                                      : <button type="button" onClick={() => setConfirmDelete(file.file_id)}>Elimina</button>)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          : attAnomalia.length === 0 ? <div className="ga-hint">Nessun allegato.</div>
+                          : renderAttGrid(attAnomalia)}
                       </div>
                     </div>
 
@@ -1428,24 +2125,110 @@
                       <div className="ga-card__head">
                         <span className="ga-card__title">Decisione del capocommessa</span>
                       </div>
-                      <StatoStepper avanzamento={sn.avanzamento} chiuso={Boolean(sn.chiudere)} />
+                      <PercorsoAnomalia passi={esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null} />
                       <div className="ga-flags">
                         <FlagToggle label="Aprire RDC" checked={aprireRdc} disabled={!canEditSelected} onChange={() => setAprireRdc(!aprireRdc)} />
-                        <FlagToggle label="Segnalare al cliente" checked={segnalare} disabled={!canEditSelected} onChange={() => setSegnalare(!segnalare)} />
+                        <FlagToggle label="Segnalare al cliente" checked={segnalare} disabled={!canEditSelected} onChange={toggleSegnalare} />
+                        <FlagToggle label="Segnala a terzista" checked={terzista} disabled={!canEditSelected} onChange={() => setTerzista(!terzista)} />
+                        <FlagToggle label="Segnala a CAR" hint="I CAR scelti ricevono una mail con questa anomalia" checked={segnalaCar} disabled={!canEditSelected} onChange={toggleSegnalaCar} />
                         <FlagToggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
+                      </div>
+                      {(aprireRdc || segnalare) && !sn.chiudere && (() => {
+                        const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
+                        const num = String(rdcNum || "").trim();
+                        const voci = [
+                          ...(aprireRdc ? [{ k: "rdc", fatto: !!num, testo: "Numero RDC", det: num || "da inserire nel campo «Numero RDC»" }] : []),
+                          ...(segnalare ? [{ k: "cli", fatto: !!sn.segnalato_cliente, testo: "Segnalato al cliente",
+                            det: sn.segnalato_cliente ? `il ${sn.segnalato_cliente.il}${sn.segnalato_cliente.da ? ` da ${sn.segnalato_cliente.da}` : ""}`
+                              : (baseline.segnalare ? "da spuntare qui sotto quando il cliente è avvisato" : "si spunta dopo aver salvato") }] : []),
+                          ...(normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE
+                            ? [{ k: "risp", fatto: false, testo: "Risposta del cliente", det: "poi scegli lo stato definitivo" }] : []),
+                        ];
+                        const variante = info ? "info" : (chiudereAuto ? "ok" : "aperta");
+                        return (
+                          <div className={`ga-chiusura ga-chiusura--${variante}`} role="status">
+                            <div className="ga-chiusura__t">
+                              {info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa"
+                                : chiudereAuto ? "✓ Tutto pronto: si chiude al salvataggio"
+                                : "⚠ Resta aperta · in carico al referente RDC"}
+                            </div>
+                            {info
+                              ? <div className="ga-chiusura__d">Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.</div>
+                              : (
+                                <ul className="ga-chiusura__l">
+                                  <li className="ga-chiusura__h">Si chiude solo con:</li>
+                                  {voci.map((v) => (
+                                    <li key={v.k} className={v.fatto ? "is-fatto" : ""}>
+                                      <span className="ga-chiusura__i" aria-hidden="true">{v.fatto ? "✓" : "○"}</span>
+                                      <b>{v.testo}</b> <span className="ga-chiusura__det">{v.det}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                          </div>
+                        );
+                      })()}
+                      {(segnalare || terzista) && (
+                        <div className="ga-segnalati">
+                          {rigaSegnalato("cliente", segnalare, baseline.segnalare)}
+                          {rigaSegnalato("terzista", terzista, baseline.terzista)}
+                        </div>
+                      )}
+                      {segnalaCar && (
+                        <div>
+                          <FieldLabel>A quale CAR?</FieldLabel>
+                          {carOpzioni.length === 0
+                            ? <div className="ga-hint">Nessun CAR sull'OP e nessun capo reparto in Configurazione.</div>
+                            : (
+                              <div className="ga-chips">
+                                {carOpzioni.map((nome) => (
+                                  <Chip key={nome} active={carScelti.some((n) => n.toLowerCase() === nome.toLowerCase())}
+                                    onClick={() => canEditSelected && toggleCarScelto(nome)}>{nome}{isCarDellOp(nome) ? " · CAR dell'OP" : ""}</Chip>
+                                ))}
+                              </div>
+                            )}
+                          <div className="ga-hint">{carScelti.length
+                            ? `Al salvataggio la mail «Segnala a CAR» va solo a: ${carScelti.join(", ")} (chi l'ha già ricevuta non la riceve di nuovo).`
+                            : "Scegli almeno un CAR: senza scelta la segnalazione non parte."}
+                            {" "}Il CAR dell'OP riceve comunque il riepilogo delle modifiche, come sempre.</div>
+                        </div>
+                      )}
+                      {(sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && (
+                        <div className="ga-ctrl">
+                          <div className="ga-ctrl__t">Dal controllore</div>
+                          {sn.dove_pezzi && <div>📦 Dove sono i pezzi: <b>{sn.dove_pezzi}</b></div>}
+                          {(sn.dettaglio_righe || []).map((r, ri) => <div key={ri} className="ga-ctrl__r">{r}</div>)}
+                          {sn.tipo_difetto && <div className="ga-hint">Tipo di difetto: {sn.tipo_difetto}</div>}
+                        </div>
+                      )}
+                      <div className="ga-att ga-att--dec"
+                        onDragOver={(e) => { if (canEditCurrentOp && sn.local_id) e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); if (canEditCurrentOp && sn.local_id) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione"); }}>
+                        <input ref={fileInputDecRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
+                          onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f, "decisione"); }} />
+                        <div className="ga-att__head">
+                          <span className="ga-card__sub">{Ico.clip} Allegati della decisione {attDecisione.length ? `(${attDecisione.length})` : ""}</span>
+                          {canEditCurrentOp && sn.local_id && (
+                            <span className="ga-hint">
+                              {uploadingAttachments ? "Caricamento…" : <>Trascina qui o <button type="button" className="ga-link" onClick={() => fileInputDecRef.current && fileInputDecRef.current.click()}>sfoglia</button></>}
+                            </span>
+                          )}
+                        </div>
+                        {attDecisione.length === 0
+                          ? <div className="ga-hint">Nessun allegato alla decisione.</div>
+                          : renderAttGrid(attDecisione)}
                       </div>
                       <div className="ga-grid2">
                         <div>
                           <FieldLabel>Avanzamento</FieldLabel>
-                          <select className="ga-input" value={avanzamento} onChange={(e) => setAvanzamento(e.target.value)} disabled={segnalare || !canEditSelected}>
+                          <select className={`ga-input${canEditSelected && notaSenzaStato ? " is-invalid" : ""}`} value={avanzamento} onChange={(e) => setAvanzamento(e.target.value)} disabled={!canEditSelected}>
                             {avanzamentoOptions.map((opt) => <option key={opt}>{opt}</option>)}
                           </select>
-                          {segnalare && <div className="ga-hint">Con «Segnalare al cliente» l'avanzamento resta quello attuale.</div>}
                         </div>
                         {aprireRdc && (
                           <div>
                             <FieldLabel>Numero RDC</FieldLabel>
-                            <input className="ga-input" placeholder="Es. RDC-2026-014" value={rdcNum} onChange={(e) => setRdcNum(e.target.value)} disabled={!canEditSelected} />
+                            <input className={`ga-input${!String(rdcNum || "").trim() && !sn.chiudere ? " is-invalid" : ""}`} placeholder="Es. RDC-2026-014" value={rdcNum} onChange={(e) => setRdcNum(e.target.value)} disabled={!canEditSelected} />
                           </div>
                         )}
                       </div>
@@ -1454,19 +2237,75 @@
                         <textarea className="ga-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} disabled={!canEditSelected}
                           placeholder="Decisione, istruzioni di rilavorazione, riferimenti…" />
                       </div>
-                      {canEditSelected && chiudereAuto && !sn.chiudere && (
+                      {canEditSelected && notaSenzaStato && (
+                        <div className="ga-note ga-note--warn">{NOTA_STATO_MSG}</div>
+                      )}
+                      {canEditSelected && chiudereAuto && !sn.chiudere && !aprireRdc && esitiInfo && esitiInfo.serve_azione ? (
+                        <div className="ga-note ga-note--warn">La prima decisione è stata «Azione di recupero»: per chiudere registra l'azione effettuata in «Tempi ed esiti».</div>
+                      ) : canEditSelected && chiudereAuto && !sn.chiudere && (
                         <div className="ga-note ga-note--ok">Con questa decisione l'anomalia verrà <b>chiusa</b> al salvataggio.</div>
                       )}
-                      {canEditSelected && fratelliBlocco.length > 0 && (
-                        <label className="ga-apply">
-                          <input type="checkbox" checked={applicaBlocco} onChange={(e) => setApplicaBlocco(e.target.checked)} />
-                          <span>
-                            Applica la stessa decisione anche alle altre <b>{fratelliBlocco.length}</b> anomali{fratelliBlocco.length === 1 ? "a" : "e"} aperte di questi seriali
-                            <PezziInteressati sn={sn} compact />
-                          </span>
-                        </label>
+                      {canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && (
+                        <div className="ga-apply ga-apply--ambito">
+                          <div className="ga-apply__t">Applica la stessa decisione anche a</div>
+                          <div className="ga-apply__opts" role="radiogroup" aria-label="Applica la stessa decisione anche a">
+                            {[
+                              ["solo", "Solo questa", null],
+                              ...(sn.blocco_id ? [["blocco", "Stesso blocco di seriali", stessoBlocco.length]] : []),
+                              ["op", "Tutte le aperte dell'OP", altreAperte.length],
+                              ["mano", "Scelte a mano", null],
+                            ].map(([k, label, n]) => (
+                              <button key={k} type="button" role="radio" aria-checked={ambito === k}
+                                className={`ga-chip-opt${ambito === k ? " is-on" : ""}`}
+                                disabled={n === 0} onClick={() => setAmbito(k)}>
+                                {label}{n != null ? <span className="ga-chip-opt__n">{n}</span> : null}
+                              </button>
+                            ))}
+                          </div>
+                          {ambito === "blocco" && <PezziInteressati sn={sn} compact />}
+                          {ambito === "mano" && (
+                            <div className="ga-apply__mano">
+                              <div className="ga-apply__mano-acts">
+                                <span className="ga-hint">{scelteMano.filter((id) => altreAperte.some((x) => x.item_id === id)).length} scelte su {altreAperte.length}</span>
+                                <button type="button" className="ga-link" onClick={() => setScelteMano(altreAperte.map((x) => x.item_id))}>Tutte</button>
+                                <button type="button" className="ga-link" onClick={() => setScelteMano([])}>Nessuna</button>
+                              </div>
+                              {altreAperte.length === 0 ? <div className="ga-hint">Nessun'altra anomalia {includiDecise ? "aperta" : "da decidere"}.</div> : gruppiPerSn(altreAperte).map((g) => (
+                                <div key={g.chiave} className="ga-apply__grp">
+                                  <div className="ga-apply__grp-t">S/N {g.titolo}</div>
+                                  {g.righe.map((x) => (
+                                    <label key={x.item_id} className="ga-apply__row">
+                                      <input type="checkbox" checked={scelteMano.includes(x.item_id)}
+                                        onChange={(e) => setScelteMano((prev) => (e.target.checked ? [...prev, x.item_id] : prev.filter((id) => id !== x.item_id)))} />
+                                      <span className="ga-apply__txt">{x.testo || x.desc || "—"}</span>
+                                      <span className="ga-hint">#{x.local_id}{isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {giaDecise > 0 && ambito !== "solo" && (
+                            <label className="ga-apply__decise">
+                              <input type="checkbox" checked={includiDecise} onChange={(e) => setIncludiDecise(e.target.checked)} />
+                              <span>Includi anche le {giaDecise} già decise (la loro decisione viene sostituita)</span>
+                            </label>
+                          )}
+                        </div>
                       )}
                     </div>
+
+                    {sn.local_id && (
+                      <EsitiAnomalia localId={sn.local_id} avanzamento={sn.avanzamento} chiusa={Boolean(sn.chiudere)} segnalare={Boolean(sn.segnalare)}
+                        flash={flash} onInfo={setEsitiInfo}
+                        onSaved={({ chiusa }) => {
+                          if (chiusa) {
+                            setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id ? { ...a, chiudere: true, can_riaprire: true } : a)));
+                            loadOrdini();
+                          }
+                          loadAttachments(sn.local_id);
+                        }} />
+                    )}
 
                     {op.id && op.id !== "—" && <TimelineOp opId={op.id} opItemId={op.item_id} />}
                   </div>
@@ -1475,7 +2314,7 @@
                     <div className="ga-det__foot">
                       <span className={`ga-det__state${dirty ? " is-dirty" : ""}`}>{dirty ? "● Modifiche non salvate" : "Nessuna modifica"}</span>
                       {dirty && <button type="button" className="ga-btn ga-btn--ghost-dark" onClick={annullaModifiche} disabled={saving}>Annulla</button>}
-                      <button type="button" className="ga-btn ga-btn--outline" onClick={handleSave} disabled={saving} title="Ctrl+S">{saving ? "Salvataggio…" : "Salva"}</button>
+                      <button type="button" className="ga-btn ga-btn--outline" onClick={() => handleSave()} disabled={saving} title="Ctrl+S">{saving ? "Salvataggio…" : "Salva"}</button>
                       <button type="button" className="ga-btn ga-btn--accent" onClick={salvaEProssima} disabled={saving}>Salva e prossima {Ico.next}</button>
                     </div>
                   )}
@@ -1483,6 +2322,151 @@
               )}
             </section>
           </div>
+
+          {azAnom && sn.local_id && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-az-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-az-t">{azAnom.tipo === "elimina" ? `Eliminare l'anomalia #${sn.local_id}?` : `✂ Taglia l'anomalia #${sn.local_id}`}</div>
+                <div className="ga-hint ga-az__ctx">S/N {sn.sn || "—"} · {sn.testo || sn.desc || "(nessuna descrizione)"}</div>
+                {azAnom.tipo === "elimina" ? (
+                  <div className="ga-note ga-note--warn">Sparisce dall'OP con i suoi dati; gli allegati restano recuperabili dall'amministratore. Non si può annullare.</div>
+                ) : (
+                  <>
+                    <label className="ga-field"><span>OP di destinazione</span>
+                      <input className="ga-input" list="ga-taglia-op" value={azAnom.op} disabled={azAnom.busy}
+                        onChange={(e) => setAzAnom({ ...azAnom, op: e.target.value, err: "" })} />
+                      <datalist id="ga-taglia-op">{ordini.slice(0, 500).map((o) => <option key={opKey(o)} value={o.id} />)}</datalist>
+                    </label>
+                    <label className="ga-field"><span>S/N di destinazione</span>
+                      <input className="ga-input" list="ga-taglia-sn" value={azAnom.sn} disabled={azAnom.busy} autoFocus
+                        placeholder="Es. LCN00012 o LCN00012-LCN00015"
+                        onChange={(e) => setAzAnom({ ...azAnom, sn: e.target.value, err: "" })}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confermaAzione(); } }} />
+                      <datalist id="ga-taglia-sn">{(azAnom.seriali || []).slice(0, 500).map((s) => <option key={s} value={s} />)}</datalist>
+                    </label>
+                    <div className="ga-hint">{String(azAnom.op || "").trim().toLowerCase() === String(op.id || "").toLowerCase()
+                      ? "Stesso OP: cambia solo il S/N (nel controllo va nel blocco che ha già quel S/N)."
+                      : "Altro OP: passa alla NC di quell'OP e il suo capocommessa la trova nel riepilogo delle modifiche."}</div>
+                  </>
+                )}
+                {azAnom.err && <div className="ga-note ga-note--warn">{azAnom.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={azAnom.busy} onClick={() => setAzAnom(null)}>Annulla</button>
+                  <button type="button" className={`ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`} disabled={azAnom.busy} onClick={confermaAzione}>
+                    {azAnom.busy ? "Attendere…" : (azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modifica OP: solo chi l'ha inserito dal portale, con motivazione */}
+          {modOp && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-modop-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-modop-t">Modifica OP {modOp.titolo}</div>
+                {!modOp.dati ? (
+                  <div className="ga-hint">{modOp.busy ? "Caricamento…" : ""}</div>
+                ) : (
+                  <>
+                    <div className="ga-modop__grid">
+                      <label className="ga-field"><span>P/N *</span>
+                        <input className="ga-input" value={modOp.dati.pn} disabled={modOp.busy} autoFocus
+                          onChange={(e) => campoModOp("pn", e.target.value)} />
+                      </label>
+                      <label className="ga-field"><span>Fase</span>
+                        <input className="ga-input" value={modOp.dati.fase} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("fase", e.target.value)} />
+                      </label>
+                      <label className="ga-field"><span>Capocommessa *</span>
+                        <input className="ga-input" list="ga-modop-capi" value={modOp.dati.capocommessa} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("capocommessa", e.target.value)} />
+                        <datalist id="ga-modop-capi">{(Array.isArray(CONFIG_LISTS.capi_commessa) ? CONFIG_LISTS.capi_commessa : []).map((n) => <option key={n} value={n} />)}</datalist>
+                      </label>
+                      <label className="ga-field"><span>CAR *</span>
+                        <input className="ga-input" list="ga-modop-car" value={modOp.dati.car} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("car", e.target.value)} />
+                        <datalist id="ga-modop-car">{(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []).map((n) => <option key={n} value={n} />)}</datalist>
+                      </label>
+                    </div>
+                    <label className="ga-field"><span>Note</span>
+                      <input className="ga-input" value={modOp.dati.note} maxLength={180} disabled={modOp.busy}
+                        onChange={(e) => campoModOp("note", e.target.value)} />
+                    </label>
+                    {modOp.dati.benestare_modificabile && (
+                      <label className="ga-modop__check">
+                        <input type="checkbox" checked={!!modOp.dati.benestare} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("benestare", e.target.checked)} />
+                        Collaudo di benestare
+                      </label>
+                    )}
+                    <label className="ga-field"><span>Motivo della modifica *</span>
+                      <textarea className="ga-input" rows={2} value={modOp.motivo} maxLength={500} disabled={modOp.busy}
+                        placeholder="Es. P/N scritto male in apertura"
+                        onChange={(e) => setModOp({ ...modOp, motivo: e.target.value, err: "" })} />
+                    </label>
+                    <div className="ga-hint">Il numero dell'OP non si cambia: per un OP sbagliato usa «Taglia». La modifica resta nella cronologia dell'OP.</div>
+                  </>
+                )}
+                {modOp.err && <div className="ga-note ga-note--warn">{modOp.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={modOp.busy && !!modOp.dati} onClick={() => setModOp(null)}>Annulla</button>
+                  {modOp.dati && (
+                    <button type="button" className="ga-btn ga-btn--accent" disabled={modOp.busy || !modOpCambiato} onClick={salvaModificaOp}>
+                      {modOp.busy ? "Salvataggio…" : "Salva modifica"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Riepilogo prima di applicare la decisione ad altre anomalie */}
+          {riepilogo && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-riep-t">
+              <div className="ga-modal__box ga-modal__box--wide">
+                <div className="ga-modal__title" id="ga-riep-t">Applica la decisione a {bersagli.length + 1} anomalie</div>
+                <div className="ga-riep__dec">
+                  <span><b>Avanzamento</b> {avanzamento}</span>
+                  {aprireRdc && <span><b>RDC</b> {rdcNum || "da aprire"}</span>}
+                  {segnalare && <span><b>Segnalata al cliente</b></span>}
+                  {terzista && <span><b>Segnalata al terzista</b></span>}
+                  {segnalaCar && carScelti.length > 0 && <span><b>Segnalata al CAR</b> {carScelti.join(", ")}</span>}
+                  {note.trim() && <span className="ga-riep__nota"><b>Note</b> {note.trim()}</span>}
+                </div>
+                <div className="ga-riep__list">
+                  {gruppiPerSn([sn, ...bersagli]).map((g) => (
+                    <div key={g.chiave} className="ga-riep__grp">
+                      <div className="ga-apply__grp-t">S/N {g.titolo}</div>
+                      {g.righe.map((x) => {
+                        const chiude = x.item_id === sn.item_id ? chiudereAuto : chiudeBersaglio(x);
+                        return (
+                          <div key={x.item_id} className="ga-riep__row">
+                            <span className="ga-apply__txt">#{x.local_id} {x.testo || x.desc || "—"}{x.item_id === sn.item_id ? " (questa)" : ""}</span>
+                            <span className="ga-riep__stato">{x.avanzamento || "In attesa"} → {avanzamento}</span>
+                            {chiude ? <span className="ga-pill ga-pill--chiuso">Si chiude</span>
+                              : (chiudereAuto && x.serve_azione ? <span className="ga-pill ga-pill--attesa" title="Prima decisione «Azione di recupero»: serve l'azione effettuata">Resta aperta</span> : null)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                {chiudereAuto && bersagli.some((x) => x.serve_azione) && !aprireRdc && (
+                  <div className="ga-note ga-note--warn">Le anomalie in «Azione di recupero» ricevono la decisione ma restano aperte finché non si registra l'azione effettuata.</div>
+                )}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" onClick={() => setRiepilogo(null)}>Annulla</button>
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={saving} onClick={async () => {
+                    const prossima = riepilogo.prossima ? trovaProssima(bersagli.map((x) => x.item_id)) : null;
+                    const vaiAvanti = riepilogo.prossima;
+                    setRiepilogo(null);
+                    if (await handleSave(true) && vaiAvanti) vaiAllaProssima(prossima);
+                  }}>Conferma e salva {bersagli.length + 1} anomalie</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Modifiche non salvate prima di cambiare anomalia/OP */}
           {pendingNav && (

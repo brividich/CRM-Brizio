@@ -42,6 +42,7 @@ from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 
 from ..forms import (
+    AZIENDALE_SCHEDE,
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
     FiglioACaricoFormSet,
@@ -51,6 +52,7 @@ from ..forms import (
 from ..models import (
     AnagraficaStatPermission,
     AreaAziendale,
+    CentroDiCosto,
     Reparto,
     CartellaDocumentoDipendente,
     DipendenteAnagraficaAziendale,
@@ -391,7 +393,9 @@ def index(request):
     # Esclude gli ex dipendenti (rapporto cessato) dai KPI "in organico":
     # restano a sistema solo per storico ma non concorrono al conteggio attivi.
     cessati_ids = _helpers._cessati_legacy_ids()
-    rows_attivi = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
+    from ..services.conteggi_organico import righe_in_organico
+    # Senza le persone escluse dai conteggi dell'organico (CEO, RSPP esterno...).
+    rows_attivi = righe_in_organico([row for row in rows if int(row.get("id") or 0) not in cessati_ids])
     n_dipendenti = len(rows_attivi)
     n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows_attivi if str(row.get("reparto") or "").strip()})
 
@@ -431,14 +435,33 @@ def index(request):
     cruscotto = None
     try:
         from ..services.cruscotto_hr import calcola as calcola_cruscotto
-        cruscotto = calcola_cruscotto(include_visite=can_view_visite)
+        # Stesso ambito dell'elenco dipendenti (propri/team/tutti) e niente
+        # formazione a chi non ha il permesso: prima contava tutta l'azienda.
+        cruscotto = calcola_cruscotto(
+            include_visite=can_view_visite,
+            include_formazione=_helpers._can_view_formazione(request),
+            visibili=_schede_visibili(request) if _helpers._ruoli_attivi() else None,
+        )
         n_dipendenti = cruscotto.persone
         n_qualifiche_scadute = cruscotto.n_qualifiche_scadute
         n_qualifiche_scadenza = cruscotto.n_qualifiche_in_scadenza
     except Exception:
         logger.exception("Cruscotto HR non calcolabile")
 
+    # Mansioni da guardare: stessa regola di Prospetto e Centri di costo. La scheda porta a una
+    # pagina di struttura, quindi solo a chi lavora sui dati HR.
+    carico_home = None
+    can_admin = _helpers._is_anagrafica_admin(request)
+    if can_admin or _helpers._check_hr_permission(request):
+        from ..models import CentroDiCosto
+        from ..services import carico_mansioni
+
+        carico = carico_mansioni.oggi()
+        if carico is not None:
+            carico_home = {**carico.conteggi(), "centri": CentroDiCosto.objects.filter(is_active=True).count()}
+
     return render(request, "anagrafica/pages/index.html", {
+        "carico_home": carico_home,
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
         "n_mansioni": n_mansioni,
@@ -455,8 +478,8 @@ def index(request):
         "cose_da_gestire": cose_da_gestire,
         "cruscotto": cruscotto,
         "cruscotto_coperture": (
-            [("Formazione obbligatoria", cruscotto.formazione)]
-            + ([("Sorveglianza sanitaria", cruscotto.visite)] if cruscotto.visite else [])
+            ([("Formazione obbligatoria", cruscotto.formazione, "corsi")] if cruscotto.formazione else [])
+            + ([("Sorveglianza sanitaria", cruscotto.visite, "visite")] if cruscotto.visite else [])
         ) if cruscotto else [],
         "can_admin": _helpers._is_anagrafica_admin(request),
         # Fascia «Vai a»: i sottomoduli gated non compaiono a chi vedrebbe solo un
@@ -512,9 +535,10 @@ def _dipendenti_base_rows() -> list[dict]:
 
 
 def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
-    """Filtri della lista dipendenti (q / reparto / area / tipologia_contratto)."""
+    """Filtri della lista dipendenti (q / reparto / area / centro di costo / tipologia_contratto)."""
     q = request.GET.get("q", "").strip()
     reparto = request.GET.get("reparto", "").strip()
+    centro = request.GET.get("centro_costo", "").strip()
     area_filter = request.GET.get("area", "").strip()
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
@@ -536,6 +560,8 @@ def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
         ]
     if reparto:
         rows = [row for row in rows if str(row.get("reparto") or "").strip().casefold() == reparto.casefold()]
+    if centro:
+        rows = [row for row in rows if str(row.get("centro_di_costo_nome") or "").strip().casefold() == centro.casefold()]
 
     # Filtri su campi Django (area, tipologia_contratto)
     if area_filter or contratto_filter:
@@ -627,7 +653,7 @@ def dipendenti_list(request):
     # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
     vista = viste_elenco.vista_corrente(request)
     if (vista and vista.filtri and request.GET.get("vf") != "0"
-            and not any(k in request.GET for k in ("q", "reparto", "area", "tipologia_contratto"))):
+            and not any(k in request.GET for k in ("q", "reparto", "area", "centro_costo", "tipologia_contratto"))):
         filtri = request.GET.copy()
         for chiave, valore in vista.filtri.items():
             if chiave in ("reparto", "area", "tipologia_contratto") and valore:
@@ -640,9 +666,12 @@ def dipendenti_list(request):
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
     rows_all = _dipendenti_base_rows()
-    # NB: `reparti_list` e `n_totale` sono calcolati sulle righe PRE-filtro.
-    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_all if str(row.get("reparto") or "").strip()})
-    n_totale = len(rows_all)
+    # `reparti_list` e `n_totale` sulle righe PRE-filtri di ricerca ma GIA'
+    # ristrette all'ambito del ruolo: un capo con ambito team non deve leggere
+    # «In elenco 180» sopra le sue 12 righe, né i reparti altrui.
+    rows_ambito = build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False)
+    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_ambito if str(row.get("reparto") or "").strip()})
+    n_totale = len(rows_ambito)
     cessati_ids = _helpers._cessati_legacy_ids()
 
     # Stessa costruzione righe dell'export (`anagrafica.exports._dipendenti_rows`
@@ -650,7 +679,10 @@ def dipendenti_list(request):
     # fetch legacy pur restando sull'unica fonte condivisa filtro/ordina.
     rows = build_dipendenti_rows(request, base_rows=rows_all)
 
-    _helpers.aree_list = sorted(
+    # Variabile locale: prima si scriveva su ``_helpers.aree_list``, cioè si
+    # sostituiva la view «Reparti» del modulo con una lista condivisa fra le
+    # richieste (Waitress è multithread), sovrascritta anche dal report.
+    aree_opts = sorted(
         DipendenteAnagraficaAziendale.objects.exclude(area="")
         .values_list("area", flat=True)
         .distinct()
@@ -743,6 +775,15 @@ def dipendenti_list(request):
     colonne_elenco.arricchisci(list(page.object_list), [c["colonna"] for c in colonne])
 
     status_stats = count_anagrafica_statuses()
+    # «Attivi» e organico per reparto non contano chi e' escluso dai conteggi
+    # dell'organico (CEO, RSPP esterno...): resta comunque in elenco.
+    from ..services.conteggi_organico import esclusi_dai_conteggi_ids, righe_in_organico
+    esclusi_ids = esclusi_dai_conteggi_ids()
+    righe_organico = righe_in_organico(rows_all, esclusi_ids)
+    n_esclusi_conteggi = sum(
+        1 for r in rows_all
+        if r not in righe_organico and r.get("attivo") not in {None, 0, False, "0"}
+    ) if esclusi_ids else 0
     tipologie_contratto_list = list(
         TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")
     )
@@ -750,7 +791,9 @@ def dipendenti_list(request):
     # Stile C: una scheda per reparto con l'organico per tipo di contratto, sullo
     # stesso perimetro visibile dell'elenco (senza i filtri della barra).
     from ..services import sezioni_c
-    visibili = build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False)
+    visibili = righe_in_organico(
+        build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False), esclusi_ids,
+    )
     tipologia_per_id = dict(
         DipendenteAnagraficaAziendale.objects
         .filter(legacy_anagrafica_id__in=[int(r.get("id") or 0) for r in visibili])
@@ -789,11 +832,14 @@ def dipendenti_list(request):
         "area": area_filter,
         "tipologia_contratto": contratto_filter,
         "reparti": reparti_list,
-        "aree": _helpers.aree_list,
+        "aree": aree_opts,
+        "centro_costo": request.GET.get("centro_costo", "").strip(),
+        "centri_costo": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)),
         "tipologie_contratto": tipologie_contratto_list,
         "n_totale": n_totale,
         "n_reparti": len(reparti_list),
-        "n_attivi": status_stats["active"],
+        "n_attivi": max(status_stats["active"] - n_esclusi_conteggi, 0),
+        "n_esclusi_conteggi": n_esclusi_conteggi,
         "n_non_attivi": status_stats["inactive"],
         "n_ex": len(cessati_ids),
         "vista": vista,
@@ -1091,6 +1137,8 @@ def dipendente_create(request):
                             )
 
                 # Onboarding strutturato: avvio opzionale della pratica + checklist
+                pratica_onb = None
+                onboarding_fallito = False
                 if new_id and request.POST.get("avvia_onboarding"):
                     try:
                         nome_onb = naming.nome_completo(data.get("nome"), data.get("cognome"))
@@ -1107,7 +1155,7 @@ def dipendente_create(request):
                                 data_ass = _date2.fromisoformat(_ass_raw)
                             except ValueError:
                                 data_ass = None
-                        onboarding_service.avvia_onboarding(
+                        pratica_onb = onboarding_service.avvia_onboarding(
                             legacy_id=new_id,
                             dipendente_nome=nome_onb or f"#{new_id}",
                             reparto=(data.get("reparto") or "").strip(),
@@ -1117,6 +1165,7 @@ def dipendente_create(request):
                             ruolo_ids=ruoli_onb,
                         )
                     except Exception:
+                        onboarding_fallito = True
                         logger.warning("Avvio onboarding automatico fallito per dipendente %s", new_id, exc_info=True)
 
                 # Formazione sicurezza pregressa dichiarata in preinserimento
@@ -1151,6 +1200,13 @@ def dipendente_create(request):
                 views_account.completa_creazione(request, creazione_token, new_id)
                 nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
+                if onboarding_fallito:
+                    messages.warning(request, "La pratica di onboarding non è partita: avviala dalla scheda, "
+                                              "riquadro «Onboarding».")
+                if pratica_onb is not None and getattr(pratica_onb, "pk", None):
+                    # Il passo dopo è l'inserimento: visite, corsi, DPI, account.
+                    messages.info(request, "Pratica di onboarding avviata: da qui segui visite, corsi, DPI e account.")
+                    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_onb.pk)
                 if new_id:
                     return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
                 return redirect("anagrafica:dipendenti_list")
@@ -1339,7 +1395,7 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
     # Diario preposto
     try:
         from diario_preposto.models import SegnalazionePreposto
-        counts["diario_preposto"] = SegnalazionePreposto.objects.filter(
+        counts["diario_preposto"] = SegnalazionePreposto.objects.attive().filter(
             Q(chi_segnala__icontains=nome_completo) | Q(preposto__icontains=nome_completo)
         ).count()
     except Exception:
@@ -1596,6 +1652,11 @@ def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
         from ..services.struttura_persona import posizione
 
         ctx = {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
+        from ..views_centri_costo import carico_oggi
+
+        carico = carico_oggi()
+        if carico is not None:
+            ctx["carico_persona"] = carico.persona(legacy_id)
         if is_admin:
             from core.permessi.variazioni import ultime_variazioni
 
@@ -1646,6 +1707,12 @@ def dipendente_detail(request, legacy_id: int):
     civile_foto_url = _foto_dipendente_url(civile, legacy_id)
     form_civile = AnagraficaCivileForm(instance=civile) if is_admin else None
     form_aziendale = AnagraficaAziendaleForm(instance=aziendale) if is_admin else None
+    # Pannello «Modifica» della card «Anagrafica aziendale»: campi divisi in schede.
+    schede_az = (
+        [(chiave, titolo, [form_aziendale[campo] for campo in campi])
+         for chiave, (titolo, campi) in AZIENDALE_SCHEDE.items()]
+        if form_aziendale else []
+    )
     formset_figli = FiglioACaricoFormSet(instance=civile, prefix="figli") if is_admin else None
     figli_list = list(civile.figli.all()) if civile else []
 
@@ -1778,6 +1845,14 @@ def dipendente_detail(request, legacy_id: int):
         ]
     except Exception:
         logger.exception("Errore caricamento DPI per dipendente %s", legacy_id)
+
+    # Chi gestisce i DPI apre le richieste «Inviate» direttamente nella gestione.
+    dpi_is_gestore = False
+    try:
+        from dpi.views import _is_gestore as _dpi_is_gestore
+        dpi_is_gestore = bool(_dpi_is_gestore(request))
+    except Exception:
+        logger.exception("Errore verifica gestore DPI per dipendente %s", legacy_id)
 
     # PDF consegne DPI archiviati: mappa consegna_id -> documento per linkare dal tab
     dpi_consegna_doc_map: dict[int, int] = {}
@@ -2073,6 +2148,7 @@ def dipendente_detail(request, legacy_id: int):
 
     # Storico contrattuale
     storico_contratti: list = []
+    contratto_rinnovo: dict | None = None
     tipologie_contratto: list = []
     livelli_catalogo: list = []
     livelli_json: str = "{}"
@@ -2092,6 +2168,23 @@ def dipendente_detail(request, legacy_id: int):
         livelli_catalogo = list(LivelloContrattuale.objects.filter(is_active=True))
         livelli_json = json.dumps({l.codice: l.descrizione for l in livelli_catalogo})
         tipi_qualifica_prof = [q for q in tipi_qualifica if q.categoria == TipoQualifica.CAT_PROFESSIONALE]
+        # Ultimo contratto con fine entro 60 giorni (o già passata): la riga si
+        # evidenzia e il pulsante «Rinnova» precompila la riga manuale (stessi
+        # valori del «Rinnova» dello scadenzario: parte il giorno dopo la fine).
+        if storico_contratti and storico_contratti[0].data_fine:
+            _ult = storico_contratti[0]
+            _giorni = (_ult.data_fine - oggi).days
+            if _giorni <= 60:
+                contratto_rinnovo = {
+                    "pk": _ult.pk,
+                    "giorni": _giorni,
+                    "scaduto": _giorni < 0,
+                    "data_inizio": _ult.data_fine + _timedelta(days=1),
+                    "tipologia": _ult.tipologia_contratto or "",
+                    "codice_livello": _ult.codice_livello or "",
+                    "descrizione_livello": _ult.descrizione_livello or "",
+                    "qualifica_nome": _ult.qualifica_nome or "",
+                }
 
     # Formazione dipendente (gating su _can_view_formazione — accesso controllato)
     can_view_formazione_tab = _helpers._can_view_formazione(request)
@@ -2307,8 +2400,10 @@ def dipendente_detail(request, legacy_id: int):
         "civile": civile,
         "civile_foto_url": civile_foto_url,
         "aziendale": aziendale,
+        "puo_esplorare": _helpers._is_anagrafica_admin(request) or _helpers._check_hr_permission(request),
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
+        "schede_az": schede_az,
         "formset_figli": formset_figli,
         "figli_list": figli_list,
         "reparti_catalog": reparti_catalog,
@@ -2341,6 +2436,11 @@ def dipendente_detail(request, legacy_id: int):
         "dpi_richieste": dpi_richieste,
         "dpi_consegnati": dpi_consegnati,
         "dpi_consegna_doc_map": dpi_consegna_doc_map,
+        "dpi_is_gestore": dpi_is_gestore,
+        # Rinnovo qualifica aperto da un'altra pagina: dopo il salvataggio si torna lì.
+        "rinnova_back": _helpers.back_da_richiesta(request) if request.GET.get("rinnova") else "",
+        # Le azioni del piano di adeguamento riportano qui, sul piano.
+        "piano_back": f"{request.path}#spostamenti-organizzativi",
         "can_view_visite": can_view_visite,
         "can_edit_visite": can_view_visite and _helpers._can_edit_visite_mediche(request),
         "can_delete_visite": can_view_visite and _helpers._has_canonical_grant(request, PERM_VISITE_DELETE),
@@ -2366,6 +2466,7 @@ def dipendente_detail(request, legacy_id: int):
         "retribuzioni_has_changes": retribuzioni_has_changes,
         "storico_cambiamenti": storico_cambiamenti,
         "storico_contratti": storico_contratti,
+        "contratto_rinnovo": contratto_rinnovo,
         "tipologie_contratto": tipologie_contratto,
         "livelli_catalogo": livelli_catalogo,
         "livelli_json": livelli_json,
@@ -2379,6 +2480,7 @@ def dipendente_detail(request, legacy_id: int):
         "assenze_no_link": assenze_no_link,
         # Formazione
         "can_view_formazione_tab": can_view_formazione_tab,
+        "can_edit_formazione": can_view_formazione_tab and _helpers._can_edit_formazione(request),
         "fm_storico": fm_storico,
         "fm_scadenze_urgenti": fm_scadenze_urgenti,
         "fm_n_completati": fm_n_completati,
@@ -2440,6 +2542,7 @@ def dipendente_print(request, legacy_id: int):
         "dip": dip,
         "civile": civile,
         "aziendale": aziendale,
+        "puo_esplorare": _helpers._is_anagrafica_admin(request) or _helpers._check_hr_permission(request),
         "civile_foto_url": civile_foto_url,
         "can_hr": can_hr,
         "legacy_id": legacy_id,
@@ -2858,7 +2961,19 @@ def dipendente_assegnazione_create(request, legacy_id: int):
     if mansione_nome and assegnazione.idoneita_gap:
         _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
 
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    # Il passo dopo: il piano di adeguamento, con un pulsante per voce.
+    if getattr(assegnazione, "piano_generato", True) is False:
+        messages.warning(request, "Il piano di adeguamento non è stato generato: controlla corsi, visite e DPI "
+                                  "della nuova mansione dalla scheda, oppure riprova più tardi.")
+    else:
+        from ..models import AdempimentoCambioMansione
+
+        n_piano = AdempimentoCambioMansione.objects.filter(
+            assegnazione=assegnazione, stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True).count()
+        if n_piano:
+            messages.info(request, f"Piano di adeguamento: {n_piano} cos{'a' if n_piano == 1 else 'e'} da fare. "
+                                   "Le trovi qui sotto, ognuna con il suo pulsante.")
+    return redirect(f"{reverse('anagrafica:dipendente_detail', args=[legacy_id])}#spostamenti-organizzativi")
 
 
 @login_required
@@ -3022,29 +3137,134 @@ def dipendente_matricola_set(request, legacy_id: int):
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
+def _salva_dati_base(request, legacy_id: int, dip: dict, post) -> bool | None:
+    """Nome, cognome, matricola ed email per le notifiche dalla scheda legacy.
+
+    Si aggiornano solo i campi presenti in ``post``; nome e cognome non possono
+    restare vuoti. Il nome passa dalla normalizzazione unica di
+    ``upsert_anagrafica_dipendente`` e viene riportato sull'account portale
+    collegato. Ogni modifica finisce nel registro attività. Ritorna True se ha
+    salvato, None se non c'era niente da cambiare, False se ha rifiutato
+    (l'errore è già nei messaggi).
+    """
+    nuovi = {
+        campo: (post.get(campo) or "").strip()[:limite]
+        for campo, limite in (("nome", 100), ("cognome", 100), ("matricola", 100), ("email_notifica", 200))
+        if campo in post
+    }
+    if not nuovi:
+        return None
+    for campo in ("nome", "cognome"):
+        if campo in nuovi and not nuovi[campo]:
+            messages.error(request, f"Il {campo} non può essere vuoto.")
+            return False
+    if nuovi.get("email_notifica"):
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
+        try:
+            validate_email(nuovi["email_notifica"])
+        except ValidationError:
+            messages.error(request, "L'email per le notifiche non è un indirizzo valido.")
+            return False
+
+    precedenti = {campo: str(dip.get(campo) or "").strip() for campo in nuovi}
+    try:
+        aggiornato = upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=nuovi.get("nome", dip.get("nome") or ""),
+            cognome=nuovi.get("cognome", dip.get("cognome") or ""),
+            reparto=dip.get("reparto") or "",
+            mansione=dip.get("mansione") or "",
+            ruolo=dip.get("ruolo") or "",
+            matricola=nuovi.get("matricola", dip.get("matricola") or ""),
+            email=dip.get("email") or "",
+            email_notifica=nuovi.get("email_notifica", dip.get("email_notifica") or ""),
+            attivo=bool(dip.get("attivo", True)),
+        ) or {}
+    except Exception:
+        logger.exception("Errore aggiornamento dati anagrafici dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento dei dati anagrafici.")
+        return False
+
+    cambiati = {
+        campo: {"prima": precedenti[campo], "dopo": str(aggiornato.get(campo) or "").strip()}
+        for campo in nuovi
+        if precedenti[campo] != str(aggiornato.get(campo) or "").strip()
+    }
+    if not cambiati:
+        return None
+
+    if "matricola" in cambiati:
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA,
+            cambiati["matricola"]["prima"], cambiati["matricola"]["dopo"],
+            request.user,
+        )
+
+    # Account portale collegato: nome e cognome restano allineati alla scheda.
+    if {"nome", "cognome"} & set(cambiati) and int(dip.get("utente_id") or 0) > 0:
+        try:
+            from core.models import Profile
+
+            profilo = Profile.objects.select_related("user").filter(
+                legacy_user_id=int(dip["utente_id"])
+            ).first()
+            if profilo and profilo.user_id:
+                profilo.user.first_name = str(aggiornato.get("nome") or "")[:150]
+                profilo.user.last_name = str(aggiornato.get("cognome") or "")[:150]
+                profilo.user.save(update_fields=["first_name", "last_name"])
+        except Exception:
+            logger.warning("Nome non riportato sull'account portale del dipendente %s", legacy_id, exc_info=True)
+
+    from core.audit import log_action
+    log_action(request, "DIPENDENTE_DATI_ANAGRAFICI_MODIFICATI", "anagrafica",
+               {"dipendente_id": legacy_id, "modifiche": cambiati},
+               oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
+    return True
+
+
 @login_required
 @require_POST
-def dipendente_username_set(request, legacy_id: int):
-    legacy_user = get_legacy_user(request.user)
+def dipendente_dati_base_set(request, legacy_id: int):
+    """Modifica nome, cognome, matricola ed email per le notifiche (vedi ``_salva_dati_base``)."""
     if not _helpers._is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare lo username.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        messages.error(request, "Non hai i permessi per modificare i dati anagrafici.")
+        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    esito = _salva_dati_base(request, legacy_id, rows[0], request.POST)
+    if esito:
+        messages.success(request, "Dati anagrafici aggiornati.")
+    elif esito is None:
+        messages.info(request, "Nessuna modifica ai dati anagrafici.")
+    return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
-    new_alias = (request.POST.get("aliasusername") or "").strip()[:150]
+
+def _salva_username(request, legacy_id: int, dip: dict, new_alias: str) -> bool | None:
+    """Username dell'anagrafica, tenuto allineato all'account portale collegato.
+
+    Ritorna True se ha salvato, None se era già quello, False se ha rifiutato
+    (l'errore è già nei messaggi).
+    """
+    new_alias = (new_alias or "").strip()[:150]
 
     if not new_alias:
         messages.error(request, "Lo username non può essere vuoto.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False
     if " " in new_alias:
         messages.error(request, "Lo username non può contenere spazi.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False
 
     # Normalizza con la stessa regola di upsert_anagrafica_dipendente, così
     # anagrafica e account portale restano allineati sullo stesso valore.
     new_alias = normalize_legacy_alias(new_alias)
     if not new_alias:
         messages.error(request, "Lo username non è valido.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False
 
     # Unicità: nessun altro dipendente deve avere lo stesso alias
     conflict = AnagraficaDipendente.objects.filter(
@@ -3052,14 +3272,11 @@ def dipendente_username_set(request, legacy_id: int):
     ).exclude(id=legacy_id).first()
     if conflict:
         messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro dipendente.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False
 
-    rows = fetch_anagrafica_rows(ids=[legacy_id])
-    if not rows:
-        messages.error(request, "Dipendente non trovato.")
-        return redirect("anagrafica:dipendenti_list")
-    dip = rows[0]
     old_alias = (dip.get("aliasusername") or "").strip()
+    if old_alias == new_alias:
+        return None
 
     # Account portale Django collegato: anagrafica.utente_id -> Profile.legacy_user_id -> User.
     # aliasusername è la fonte di verità: lo username Django viene tenuto allineato.
@@ -3086,7 +3303,7 @@ def dipendente_username_set(request, legacy_id: int):
         )
         if username_conflict:
             messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro account portale.")
-            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+            return False
 
     try:
         with transaction.atomic():
@@ -3111,14 +3328,26 @@ def dipendente_username_set(request, legacy_id: int):
                 django_profile.user.username = new_alias
                 django_profile.user.save(update_fields=["username"])
         _registra_cambiamento(legacy_id, "USERNAME", old_alias, new_alias, request.user)
-        if django_profile and django_profile.user_id:
-            messages.success(request, f"Username aggiornato a '{new_alias}' (anagrafica + account portale).")
-        else:
-            messages.success(request, f"Username aggiornato a '{new_alias}'.")
+        return True
     except Exception:
         logger.exception("Errore aggiornamento username dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento dello username.")
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    return False
+
+
+@login_required
+@require_POST
+def dipendente_username_set(request, legacy_id: int):
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare lo username.")
+        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    if _salva_username(request, legacy_id, rows[0], request.POST.get("aliasusername")):
+        messages.success(request, "Username aggiornato (anagrafica e account portale collegato).")
+    return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
 
 @login_required
@@ -3586,7 +3815,11 @@ def dipendente_qualifica_add(request, legacy_id: int):
         request,
         f'Qualifica "{tipo.nome}" {"aggiunta" if created else "aggiornata (rinnovo)"}.',
     )
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    # Rinnovo partito da scadenzario, matrice, libretto, cruscotto: si torna lì.
+    back = _helpers.back_sicuro(request, request.POST.get("back"))
+    if back:
+        return redirect(back)
+    return redirect(f"{reverse('anagrafica:dipendente_detail', args=[legacy_id])}#qualifiche")
 
 
 @login_required
@@ -3747,18 +3980,53 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     # Reparto, area aziendale e ruolo aziendale non passano più da qui: li governa
     # lo spostamento organizzativo (DipendenteAssegnazione), che li assegna insieme
     # con una sola decorrenza. Questo form copre il resto dei dati aziendali.
+    # Il pannello «Modifica» della scheda manda insieme ai dati aziendali anche
+    # nome, cognome, matricola, email per le notifiche e username: si convalida
+    # tutto prima e si scrive solo se il form aziendale è valido.
     form = AnagraficaAziendaleForm(request.POST, instance=instance)
-    if form.is_valid():
-        obj = form.save(commit=False)
-        obj.legacy_anagrafica_id = legacy_id
-        obj.updated_by = request.user
-        obj.save()
+    if not form.is_valid():
+        for field, errs in form.errors.items():
+            etichetta = form.fields[field].label if field in form.fields else field
+            for err in errs:
+                messages.error(request, f"{etichetta}: {err}")
+        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+
+    salvati = False
+    if {"nome", "cognome", "matricola", "email_notifica", "aliasusername"} & set(request.POST):
+        rows = fetch_anagrafica_rows(ids=[legacy_id])
+        if not rows:
+            messages.error(request, "Dipendente non trovato.")
+            return redirect("anagrafica:dipendenti_list")
+        esito = _salva_dati_base(request, legacy_id, rows[0], request.POST)
+        if esito is False:
+            return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        salvati = salvati or bool(esito)
+        if "aliasusername" in request.POST:
+            # Riletto: ogni salvataggio legacy riscrive tutta la riga.
+            esito = _salva_username(request, legacy_id, fetch_anagrafica_rows(ids=[legacy_id])[0],
+                                    request.POST.get("aliasusername"))
+            if esito is False:
+                return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+            salvati = salvati or bool(esito)
+
+    modifiche = {
+        campo: {"prima": str(form.initial.get(campo) or ""), "dopo": str(form.cleaned_data.get(campo) or "")}
+        for campo in form.changed_data
+    }
+    obj = form.save(commit=False)
+    obj.legacy_anagrafica_id = legacy_id
+    obj.updated_by = request.user
+    obj.save()
+    if modifiche:
+        from core.audit import log_action
+        log_action(request, "DIPENDENTE_ANAGRAFICA_AZIENDALE_MODIFICATA", "anagrafica",
+                   {"dipendente_id": legacy_id, "modifiche": modifiche},
+                   oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
+    if modifiche or salvati:
         messages.success(request, "Anagrafica aziendale salvata.")
     else:
-        for field, errs in form.errors.items():
-            for err in errs:
-                messages.error(request, f"{field}: {err}")
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        messages.info(request, "Nessuna modifica all'anagrafica aziendale.")
+    return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
 
 @login_required
@@ -4252,23 +4520,24 @@ def dipendente_retribuzione_voce_delete(request, legacy_id: int, voce_id: int):
     return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
 
 
-@login_required
-@require_POST
-def dipendente_contratto_add(request, legacy_id: int):
-    """Aggiunge manualmente un record storico contrattuale."""
-    can_hr = _helpers._check_hr_permission(request)
-    if not can_hr:
-        messages.error(request, "Accesso riservato agli utenti HR.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+def _salva_contratto_da_post(request, legacy_id: int) -> tuple[bool, str]:
+    """Crea un record di storico contrattuale dai campi POST (data_inizio,
+    data_fine, tipologia_contratto, codice_livello, descrizione_livello,
+    qualifica_nome). Chiude il contratto «in corso» se il nuovo inizia dopo.
 
+    Unica strada per «Aggiungi riga» della scheda e «Rinnova» dello scadenzario:
+    due scritture separate finirebbero per divergere (es. chiusura del
+    precedente) e lo storico racconterebbe due storie.
+    """
     di_raw = request.POST.get("data_inizio", "").strip()
     df_raw = request.POST.get("data_fine", "").strip()
     try:
         data_inizio = datetime.strptime(di_raw, "%Y-%m-%d").date()
         data_fine = datetime.strptime(df_raw, "%Y-%m-%d").date() if df_raw else None
     except ValueError:
-        messages.error(request, "Formato data non valido.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False, "Formato data non valido."
+    if data_fine and data_fine < data_inizio:
+        return False, "La data di fine precede la data di inizio."
 
     civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
     tax_code = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
@@ -4305,8 +4574,38 @@ def dipendente_contratto_add(request, legacy_id: int):
         qualifica_nome=request.POST.get("qualifica_nome", "").strip(),
         importato_da=request.user,
     )
-    messages.success(request, "Record contrattuale aggiunto.")
+    return True, "Record contrattuale aggiunto."
+
+
+@login_required
+@require_POST
+def dipendente_contratto_add(request, legacy_id: int):
+    """Aggiunge manualmente un record storico contrattuale (dalla scheda)."""
+    if not _helpers._check_hr_permission(request):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    ok, msg = _salva_contratto_da_post(request, legacy_id)
+    (messages.success if ok else messages.error)(request, msg)
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def scadenzario_contratto_rinnova(request, legacy_id: int):
+    """«Rinnova» di una scadenza contratto dallo scadenzario: stesso salvataggio
+    della scheda, ma si resta sullo scadenzario (``back``), dove la riga
+    sparisce o si sposta alla nuova scadenza."""
+    from core.redirects import safe_next
+
+    destinazione = safe_next(request, request.POST.get("back"), reverse("anagrafica:scadenzario"))
+    if not _helpers._check_hr_permission(request):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect(destinazione)
+    ok, msg = _salva_contratto_da_post(request, legacy_id)
+    if ok:
+        msg = "Contratto rinnovato: la nuova scadenza è nello storico della scheda."
+    (messages.success if ok else messages.error)(request, msg)
+    return redirect(destinazione)
 
 
 @login_required
@@ -4390,6 +4689,7 @@ def dipendenti_report(request):
     q = request.GET.get("q", "").strip()
     reparto_filter = request.GET.get("reparto", "").strip()
     area_filter = request.GET.get("area", "").strip()
+    centro_filter = request.GET.get("centro_costo", "").strip()
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
     consenso_filter = request.GET.get("consenso_privacy", "").strip()
     cat_protetta_filter = request.GET.get("categoria_protetta", "").strip()
@@ -4419,6 +4719,13 @@ def dipendenti_report(request):
         all_rows = [
             row for row in all_rows
             if str(row.get("reparto") or "").strip().casefold() == reparto_filter.casefold()
+        ]
+
+    # Filtro per centro di costo (dell'area canonica)
+    if centro_filter:
+        all_rows = [
+            row for row in all_rows
+            if str(row.get("centro_di_costo_nome") or "").strip().casefold() == centro_filter.casefold()
         ]
 
     # Filtri su campi Django: area aziendale canonica e tipologia_contratto
@@ -4479,7 +4786,7 @@ def dipendenti_report(request):
         writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
-            "Area aziendale", "Ruolo aziendale", "Tipologia contratto",
+            "Area aziendale", "Centro di costo", "Ruolo aziendale", "Tipologia contratto",
             "Livello inquadramento", "Data prima assunzione",
             "Consenso privacy", "Email aziendale", "Telefono aziendale",
         ])
@@ -4492,6 +4799,7 @@ def dipendenti_report(request):
                 row.get("matricola", ""),
                 row.get("reparto", ""),
                 row.get("area_aziendale_nome", "") or "",
+                row.get("centro_di_costo_nome", "") or "",
                 getattr(az, "ruolo_aziendale", "") or "",
                 getattr(az, "get_tipologia_contratto_display", lambda: "")() if az else "",
                 getattr(az, "livello_inquadramento", "") or "",
@@ -4506,7 +4814,7 @@ def dipendenti_report(request):
     reparti_list = list(
         Reparto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
-    _helpers.aree_list = list(
+    aree_opts = list(
         AreaAziendale.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
 
@@ -4518,11 +4826,13 @@ def dipendenti_report(request):
         "q": q,
         "reparto": reparto_filter,
         "area": area_filter,
+        "centro_costo": centro_filter,
         "tipologia_contratto": contratto_filter,
         "consenso_privacy": consenso_filter,
         "categoria_protetta": cat_protetta_filter,
         "reparti": reparti_list,
-        "aree": _helpers.aree_list,
+        "aree": aree_opts,
+        "centri_costo": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)),
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "n_totale": len(all_rows),
     })
@@ -5372,6 +5682,10 @@ def organigramma_persona_popup(request, legacy_id: int):
         "mansione": dip.get("mansione") or "",
         "reparto": (aziendale.area if aziendale and aziendale.area else dip.get("reparto")) or "",
         "area_aziendale": str(aziendale.area_aziendale) if aziendale and aziendale.area_aziendale_id else "",
+        "centro_costo": (
+            aziendale.area_aziendale.centro_di_costo.nome
+            if aziendale and aziendale.area_aziendale_id and aziendale.area_aziendale.centro_di_costo_id else ""
+        ),
         "ruolo_principale": (aziendale.ruolo_aziendale if aziendale else "") or dip.get("ruolo") or "",
         "data_assunzione": (
             (aziendale.data_assunzione_ultima or aziendale.data_prima_assunzione) if aziendale else None
@@ -5606,6 +5920,7 @@ def onboarding_list(request):
     filtro_stato = (request.GET.get("stato") or "").strip()
     filtro_resp = (request.GET.get("responsabile") or "").strip()
     solo_ritardo = (request.GET.get("ritardo") or "").strip() == "1"
+    filtro_vista = (request.GET.get("vista") or "").strip()
     categorie = dict(OnboardingTask.CATEGORIA_CHOICES)
 
     qs = OnboardingPratica.objects.prefetch_related("tasks").all()
@@ -5614,6 +5929,16 @@ def onboarding_list(request):
         qs = qs.filter(stato=filtro_stato)
     elif filtro_stato != "tutte":
         qs = qs.filter(stato__in=OnboardingPratica.STATI_APERTI)
+    # Stesse regole dei riquadri «Ingressi a 30 giorni», «Fine prova a 30 giorni», «Pre-ingresso».
+    _entro_30 = oggi + _timedelta(days=30)
+    if filtro_vista == "ingressi":
+        qs = qs.filter(data_assunzione__gte=oggi, data_assunzione__lte=_entro_30)
+    elif filtro_vista == "prova":
+        qs = qs.filter(fine_prova__gte=oggi, fine_prova__lte=_entro_30)
+    elif filtro_vista == "pre":
+        qs = qs.filter(legacy_anagrafica_id__isnull=True)
+    else:
+        filtro_vista = ""
 
     pratiche = []
     for pratica in qs.order_by("data_assunzione", "-created_at"):
@@ -5669,6 +5994,7 @@ def onboarding_list(request):
         "totale": len(pratiche),
         "filtro_stato": filtro_stato,
         "filtro_resp": filtro_resp,
+        "filtro_vista": filtro_vista,
         "solo_ritardo": solo_ritardo,
         "stato_choices": OnboardingPratica.STATO_CHOICES,
         "responsabili": [

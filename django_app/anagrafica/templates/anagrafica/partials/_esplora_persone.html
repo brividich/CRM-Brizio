@@ -1,0 +1,37 @@
+{# Le persone del punto scelto: le colonne cambiano col livello (vedi esplora_struttura._arricchisci_persone). #}
+{% with col=dettaglio.colonne_persone %}
+<div class="es-p-tools">
+  {% if dettaglio.persone|length > 5 %}<input type="search" data-es-p-q placeholder="Filtra le persone…" aria-label="Filtra le persone" autocomplete="off">{% endif %}
+  {% if dettaglio.n_con_segnali %}<label><input type="checkbox" data-es-p-seg> Solo con segnali di carico ({{ dettaglio.n_con_segnali }})</label>{% endif %}
+  {% if col.riservati and dettaglio.mese_costi %}<span class="es-posto">Costi del mese {{ dettaglio.mese_costi|date:"m/Y" }}</span>{% endif %}
+</div>
+<div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab" data-es-p-tab>
+  <thead><tr>
+    <th>Persona</th>
+    {% if col.reparto %}<th class="es-c-sec">Reparto</th>{% endif %}
+    {% if col.ruolo %}<th class="es-c-sec">Ruolo</th>{% endif %}
+    {% if col.nota %}<th>Livello</th>{% endif %}
+    <th>Mansioni e carico</th>
+    <th>Conformità</th>
+    {% if col.riservati %}<th class="es-c-sec">Contratto</th><th class="es-num es-c-sec">€/ora</th>{% endif %}
+  </tr></thead>
+  <tbody>
+    {% for p in dettaglio.persone %}
+    <tr data-q="{{ p.cerca }}"{% if p.segnali %} data-seg="1"{% endif %}>
+      <td><a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a>
+        {% if p.matricola %}<small>Matricola {{ p.matricola }}</small>{% endif %}
+        {% if p.capo %}<small>Capo: {{ p.capo }}</small>{% endif %}</td>
+      {% if col.reparto %}<td class="es-c-sec">{{ p.area|default:"—" }}</td>{% endif %}
+      {% if col.ruolo %}<td class="es-c-sec">{% for r in p.ruoli %}{{ r }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td>{% endif %}
+      {% if col.nota %}<td>{{ p.nota|default:"—" }}</td>{% endif %}
+      <td>
+        {% if p.mansioni %}<details><summary>{{ p.mansioni|length }} mansion{{ p.mansioni|length|pluralize:"e,i" }}</summary><ul>{% for m in p.mansioni %}<li><a href="{{ m.url }}">{{ m.nome }}</a></li>{% endfor %}</ul></details>{% else %}<span class="es-posto">Nessuna mansione</span>{% endif %}
+        {% for s in p.segnali %}<small class="es-seg">{{ s }}</small>{% endfor %}
+      </td>
+      <td><span class="es-esito es-esito-{{ p.tono|default:'neutral' }}">{{ p.esito|default:"—" }}</span></td>
+      {% if col.riservati %}<td class="es-c-sec">{{ p.contratto|default:"—" }}{% if p.dal %}<small>dal {{ p.dal|date:"d-m-Y" }}</small>{% endif %}</td><td class="es-num es-c-sec">{{ p.costo|default:"—" }}</td>{% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table></div>
+{% endwith %}

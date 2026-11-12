@@ -1,0 +1,44 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Impostazioni</h1>
+      <p>Pubblicazione del PDF dei presenti su SharePoint e avvisi delle uscite non timbrate.</p>
+    </div>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if solari_ok %}
+  <div class="pres-avviso is-ok">Database timbrature Solari configurato nel file .env del server.</div>
+  {% else %}
+  <div class="pres-avviso is-err">Database timbrature Solari non configurato: compila le chiavi SOLARI_DB_* nel file .env del server (vedi la guida, sezione amministratore).</div>
+  {% endif %}
+
+  <form method="post" class="pres-card pres-form">
+    {% csrf_token %}
+    <h2 style="margin:0; font-size:16px;">Pubblicazione PDF su SharePoint</h2>
+    <label class="pres-check-row"><input type="checkbox" name="presenti_sp_attivo" value="1"{% if valori.presenti_sp_attivo == "1" %} checked{% endif %}> Pubblica il PDF ogni 30 minuti (sostituisce lo script ReportPresenze)</label>
+    <label>Hostname SharePoint<input type="text" name="presenti_sp_hostname" value="{{ valori.presenti_sp_hostname }}"></label>
+    <label>Percorso del sito <small>(es. /sites/Nome; vuoto = sito radice)</small><input type="text" name="presenti_sp_sito" value="{{ valori.presenti_sp_sito }}"></label>
+    <label>Raccolta documenti<input type="text" name="presenti_sp_raccolta" value="{{ valori.presenti_sp_raccolta }}"></label>
+    <label>Cartella <small>(vuoto = radice della raccolta)</small><input type="text" name="presenti_sp_cartella" value="{{ valori.presenti_sp_cartella }}"></label>
+    <label>Nome del file<input type="text" name="presenti_sp_nome_file" value="{{ valori.presenti_sp_nome_file }}"></label>
+    {% if valori.presenti_sp_ultimo_esito %}<p style="margin:0; font-size:13px; color:var(--text-mid);">Ultima pubblicazione: {{ valori.presenti_sp_ultimo_esito }}</p>{% endif %}
+
+    <h2 style="margin:8px 0 0; font-size:16px;">Uscite non timbrate</h2>
+    <label class="pres-check-row"><input type="checkbox" name="presenti_avviso_uscite_attivo" value="1"{% if valori.presenti_avviso_uscite_attivo == "1" %} checked{% endif %}> Ogni mattina avvisa il capo (notifica e mail) delle uscite non timbrate della sua squadra</label>
+
+    <div class="pres-azioni">
+      <button class="pres-btn pres-btn-primary" type="submit" name="azione" value="salva">Salva</button>
+      <button class="pres-btn" type="submit" name="azione" value="pubblica">Pubblica il PDF adesso</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

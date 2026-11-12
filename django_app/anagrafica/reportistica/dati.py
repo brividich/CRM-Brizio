@@ -1,6 +1,6 @@
 """Contesto di generazione: periodo, perimetro di persone e dati condivisi.
 
-Il perimetro (reparti, aree, mansioni, persone scelte, inclusione dei cessati)
+Il perimetro (reparti, aree, centri di costo, mansioni, persone scelte, inclusione dei cessati)
 vale per tutte le sezioni del documento: le persone si leggono una volta sola e
 ogni sezione lavora sulla stessa lista, cosi' i totali non divergono fra una
 sezione e l'altra.
@@ -18,6 +18,8 @@ from core import naming
 
 logger = logging.getLogger(__name__)
 
+SENZA_CENTRO = "Senza centro di costo"
+
 
 @dataclass
 class Dipendente:
@@ -26,6 +28,8 @@ class Dipendente:
     matricola: str = ""
     reparto: str = ""
     area: str = ""
+    # Centro di costo dell'area (catena canonica): quello di oggi, non ha uno storico.
+    centro_costo: str = ""
     mansione: str = ""
     ruolo_aziendale: str = ""
     contratto: str = ""
@@ -43,6 +47,9 @@ class Dipendente:
     ids: tuple[int, ...] = ()
     # Area aziendale (FK) della scheda: requisiti di area e simulazione del cambio mansione.
     area_aziendale_id: int | None = None
+    # Scheda con «Escludi dai conteggi dell'organico» (CEO, RSPP esterno...):
+    # la persona resta negli elenchi ma non entra in organico, turnover e indici.
+    escluso_conteggi: bool = False
 
     @property
     def tutti_gli_id(self) -> tuple[int, ...]:
@@ -158,6 +165,7 @@ def _data(raw) -> date | None:
 class Perimetro:
     reparti: list[str] = field(default_factory=list)
     aree: list[str] = field(default_factory=list)
+    centri_costo: list[str] = field(default_factory=list)
     mansioni: list[str] = field(default_factory=list)
     contratti: list[str] = field(default_factory=list)
     livelli: list[str] = field(default_factory=list)
@@ -178,7 +186,8 @@ class Perimetro:
             return [str(x).strip() for x in raw if str(x).strip()] if isinstance(raw, list) else []
 
         return cls(
-            reparti=_lista("reparti"), aree=_lista("aree"), mansioni=_lista("mansioni"),
+            reparti=_lista("reparti"), aree=_lista("aree"), centri_costo=_lista("centri_costo"),
+            mansioni=_lista("mansioni"),
             contratti=_lista("contratti"), livelli=_lista("livelli"),
             persone=_interi(data.get("persone")), escludi=_interi(data.get("escludi")),
             qualifiche=_interi(data.get("qualifiche")),
@@ -188,7 +197,7 @@ class Perimetro:
 
     def as_dict(self) -> dict:
         return {
-            "reparti": self.reparti, "aree": self.aree, "mansioni": self.mansioni,
+            "reparti": self.reparti, "aree": self.aree, "centri_costo": self.centri_costo, "mansioni": self.mansioni,
             "contratti": self.contratti, "livelli": self.livelli,
             "persone": self.persone, "escludi": self.escludi, "qualifiche": self.qualifiche,
             "assunti_dal": self.assunti_dal.isoformat() if self.assunti_dal else "",
@@ -199,7 +208,8 @@ class Perimetro:
     def label(self, nomi_persone: dict[int, str] | None = None) -> str:
         nomi_persone = nomi_persone or {}
         parti = []
-        for etichetta, valori in (("Reparti", self.reparti), ("Aree", self.aree), ("Mansioni", self.mansioni),
+        for etichetta, valori in (("Reparti", self.reparti), ("Aree", self.aree), ("Centri di costo", self.centri_costo),
+                                  ("Mansioni", self.mansioni),
                                   ("Contratti", self.contratti), ("Livelli", self.livelli)):
             if valori:
                 parti.append(f"{etichetta}: " + ", ".join(valori))
@@ -264,6 +274,7 @@ def carica_dipendenti() -> list[Dipendente]:
             matricola=matricola_fmt(row.get("matricola")),
             reparto=str(row.get("reparto") or "").strip(),
             area=str(row.get("area_aziendale_nome") or "").strip(),
+            centro_costo=str(row.get("centro_di_costo_nome") or "").strip(),
             mansione=str(row.get("mansione") or "").strip(),
             ruolo_aziendale=(az.ruolo_aziendale if az else "") or "",
             contratto=(az.tipologia_contratto if az else "") or "",
@@ -277,6 +288,7 @@ def carica_dipendenti() -> list[Dipendente]:
             attivo_legacy=bool(row.get("attivo", True)),
             ids=fusi,
             area_aziendale_id=az.area_aziendale_id if az else None,
+            escluso_conteggi=any(az_map[i].escluso_dai_conteggi for i in fusi if i in az_map),
         ))
     out.sort(key=lambda d: d.nominativo.casefold())
     return out
@@ -310,6 +322,7 @@ class Contesto:
             p = self.perimetro
             reparti = {x.casefold() for x in p.reparti}
             aree = {x.casefold() for x in p.aree}
+            centri = {x.casefold() for x in p.centri_costo}
             mansioni = {x.casefold() for x in p.mansioni}
             livelli = {x.casefold() for x in p.livelli}
             contratti = set(p.contratti)
@@ -323,6 +336,8 @@ class Contesto:
                 if reparti and dip.reparto.casefold() not in reparti:
                     continue
                 if aree and dip.area.casefold() not in aree:
+                    continue
+                if centri and dip.centro_costo.casefold() not in centri:
                     continue
                 if mansioni and dip.mansione.casefold() not in mansioni:
                     continue
@@ -351,6 +366,13 @@ class Contesto:
             .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=self.today))
             .values_list("legacy_anagrafica_id", flat=True)
         }
+
+    def in_organico(self) -> list[Dipendente]:
+        """Perimetro senza le persone escluse dai conteggi dell'organico.
+
+        Base unica di persone in forza, organico medio, movimenti e turnover.
+        """
+        return [d for d in self.dipendenti_perimetro() if not d.escluso_conteggi]
 
     def dipendenti(self) -> list[Dipendente]:
         """Persone da elencare: in forza oggi, oppure tutte se richiesto."""

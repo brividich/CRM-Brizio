@@ -32,7 +32,7 @@
     {% endif %}
   </div>
 
-  {% if previous or same_asset_open or contract %}
+  {% if previous or same_asset_open or same_plan_other_assets or contract %}
     {% comment %}Il sistema propone cosa sapere e cosa aggiungere: nulla cambia da solo.{% endcomment %}
     <aside class="md-suggest" aria-label="Suggerimenti">
       <h2>&#128161; Utile per questa registrazione</h2>
@@ -60,6 +60,28 @@
             {% endfor %}
           </ul>
           <button type="button" class="btn btn-sm btn-secondary" data-md-also-all>Spunta tutte</button>
+        </div>
+      {% endif %}
+      {% if same_plan_other_assets %}
+        <div class="md-suggest-row is-list" data-insieme>
+          <div class="md-insieme-head">
+            <strong>Stesso piano su altre macchine</strong>
+            {% include "assets/components/_insieme_window_select.html" %}
+          </div>
+          <span>Se le hai fatte nello stesso giro, spuntale: si registrano insieme a questa, con la stessa data, le stesse note e lo stesso rapporto (il fermo macchina resta solo su questa). Le manutenzioni a contatore non compaiono: vogliono la lettura di ogni macchina.</span>
+          <ul class="md-also-list">
+            {% for other in same_plan_other_assets %}
+              <li data-insieme-days="{{ other.insieme_days }}">
+                <label class="md-also">
+                  <input type="checkbox" name="also_complete_assets" value="{{ other.pk }}" data-md-also>
+                  <span>{{ other.due_date|date:"d/m/Y" }}{% if other.due_date < today %} <em>(scaduta)</em>{% endif %} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %}{% if other.attachment_required %} · <em>rapporto obbligatorio</em>{% endif %}</span>
+                </label>
+                <a class="md-sub" href="{{ other.register_url }}">apri a parte</a>
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="md-hint" data-insieme-empty hidden>Nessun'altra macchina in questo periodo: allarga il filtro.</p>
+          <button type="button" class="btn btn-sm btn-secondary" data-insieme-all>Spunta tutte</button>
         </div>
       {% endif %}
     </aside>
@@ -96,6 +118,21 @@
     <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
+<div hx-get="{% url 'fornitori:presenze_intervento' 'ordinaria' occurrence.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-note">Caricamento presenze in azienda della ditta…</p></div>
+<script>
+/* «Usa nel rapportino» del riquadro Presenze: data e note, a salvare resta la persona. */
+document.body.classList.add('pz-con-rapportino');
+document.addEventListener('click', function (event) {
+  var b = event.target.closest('[data-pz-usa]');
+  if (!b) { return; }
+  var data = document.getElementById('{{ form.completed_on.id_for_label }}');
+  var note = document.getElementById('{{ form.notes.id_for_label }}');
+  if (data) { data.value = b.dataset.giorno; }
+  if (note && note.value.indexOf(b.dataset.nota) === -1) { note.value = (note.value ? note.value + '\n' : '') + b.dataset.nota; }
+  b.textContent = 'Inserito: controlla e salva';
+  if (data) { data.scrollIntoView({block: 'center'}); }
+});
+</script>
 <script>
 document.addEventListener('click', function (event) {
   var button = event.target.closest('[data-md-copy-downtime]');
@@ -111,9 +148,10 @@ document.addEventListener('click', function (event) {
     if (submit) { submit.textContent = extra ? 'Registra ' + (extra + 1) + ' manutenzioni' : 'Registra esecuzione'; }
   }
   document.addEventListener('change', function (event) { if (event.target.matches('[data-md-also]')) { refresh(); } });
+  document.addEventListener('insieme:change', refresh);
   document.addEventListener('click', function (event) {
     if (!event.target.closest('[data-md-also-all]')) { return; }
-    var boxes = document.querySelectorAll('[data-md-also]');
+    var boxes = document.querySelectorAll('[name="also_complete"][data-md-also]');
     var all = Array.prototype.every.call(boxes, function (b) { return b.checked; });
     boxes.forEach(function (b) { b.checked = !all; });
     refresh();
@@ -121,4 +159,6 @@ document.addEventListener('click', function (event) {
   refresh();
 })();
 </script>
+<style>.md-insieme-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}</style>
+{% include "assets/components/_insieme_script.html" %}
 {% endblock %}

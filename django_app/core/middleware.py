@@ -16,6 +16,12 @@ from core.legacy_utils import get_legacy_user, legacy_auth_enabled
 
 API_ACL_GATE_PATHS = {
     "/api/anomalie/": "/gestione-anomalie",
+    # Ricerche live del pannello Reception (ospiti già venuti, dipendenti dell'anagrafica):
+    # stesso permesso del pannello (Presenti, binding copiato da Accessi esterni).
+    # Disponibilità delle sale: la usa chi annuncia un ospite (dotazione base), non solo la reception.
+    # Prima della voce generica: vince il primo prefisso che combacia.
+    "/reception/api/sale/": "/reception/annuncia/",
+    "/reception/api/": "/reception/",
     # Copilota AI incidenti: gate come il modulo Rilevazione Incidenti (rilev_inc_lista);
     # il gate fine preposti/RSPP resta dentro la view (_can_create / _can_manage_rspp).
     "/rilevazione-incidenti/api/": "/rilevazione-incidenti/",
@@ -39,14 +45,21 @@ API_ACL_GATE_PATHS = {
     # per ogni record; senza mappatura, con ACL_STRICT_CANONICAL una route nuova
     # e senza binding canonico verrebbe negata.
     "/assenze/api/admin/bulk-consenso": "/assenze/gestione-admin/",
+    # «Certificato arrivato» in blocco (senza mail): stesso gate, stessa pagina.
+    "/assenze/api/admin/bulk-certificato": "/assenze/gestione-admin/",
     # Area HR delle assenze (saldi, calendario aziendale, contatori, copertura):
     # stesso gate delle Impostazioni; la view verifica comunque «admin_assenze».
     "/assenze/hr/": "/assenze/gestione-admin/",
     # Storico di una richiesta: gate come «Le mie richieste» (tutti gli utenti del
     # modulo); la view lo mostra solo a chi gestisce la richiesta o la possiede.
     "/assenze/api/storico/": "/assenze/le-mie-richieste/",
+    # «Sollecita» di una propria richiesta: gate come «Le mie richieste»; la view
+    # accetta solo le richieste intestate a chi chiama.
+    "/assenze/api/sollecita/": "/assenze/le-mie-richieste/",
     # Controllo live della richiesta (saldo, contatori, chiusure): gate come il form.
     "/assenze/api/verifica-richiesta": "/assenze/richiesta_assenze",
+    # Pezzi HTMX del form di richiesta (campo capo, controlli): gate come il form.
+    "/assenze/richiesta/": "/assenze/richiesta_assenze",
     # API glossario tecnico: gate di consultazione come la lista. La gestione
     # (cambio stato) e' verificata nella view con il permesso dedicato, in JSON.
     "/glossario/api/": "/glossario/",
@@ -111,6 +124,17 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "ai_assistant:guida",
     # Guida della home: aperta a chiunque vede la home, nessun dato personale.
     "home_portale:guida",
+    # Apertura del GuestPortal con accesso automatico: emette solo un token col nome
+    # dell'utente collegato; chi entra nel pannello lo decide il GuestPortal
+    # (tabella AdminUsers). Prima il link puntava direttamente al GuestPortal,
+    # visibile a tutti: stesso perimetro.
+    "fornitori:guestportal_apri",
+    # Riquadro «Presenze in azienda» dentro ticket e OdL: la view applica la regola
+    # della pagina che lo ospita (gestore del ticket / chi apre e chi esegue l'OdL).
+    "fornitori:presenze_intervento",
+    "fornitori:presenze_collega",
+    "fornitori:presenze_scollega",
+    "fornitori:presenze_imposta_ditta",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",
@@ -125,6 +149,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # collegato, come le preferenze interfaccia. Il permesso «api» era solo per
     # amministratori e bloccava tutti gli altri.
     "/api/table-prefs/",
+    # «Non voglio più aggiornamenti su questo OP»: ci arriva chiunque riceva la mail, anche
+    # senza permessi sul modulo; agisce solo sugli indirizzi dell'utente collegato.
+    "/anomalie-op-silenzia",
     "/api/onboarding/",
     "/api/gestione-reparto/",
     "/api/employee-board/widget/",
@@ -135,6 +162,15 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # CAPA: gating fail-closed dentro le view (gestore vs responsabile),
     # la middleware non deve bloccare per no_pulsante_match.
     "/capa/",
+    # Riquadri «Presenze in azienda» (ticket, OdL, sessioni formative): permesso
+    # deciso nella view (gestore del ticket, chi apre l'OdL, formazione). I nomi in
+    # _ACL_SHARED_ROUTE_NAMES non bastano: le rotte hanno parametri e reverse() fallisce.
+    "/fornitori/presenze/",
+    # Scadenzario generale (pannello e scadenze generiche): permesso deciso nelle
+    # view dalle regole del pannello (scadenzario/permessi.py).
+    "/scadenze/gestione/",
+    "/scadenze/generiche/",
+    "/scadenze/azioni/",
     # Formazione e-learning — area discente (micro-corsi: catalogo, player, quiz):
     # accessibile a tutti i dipendenti autenticati; il gating reale è dentro le view
     # (@login_required + dati del solo dipendente collegato). Stesso schema di /capa/.
@@ -145,6 +181,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # «La mia scheda»: solo i dati del dipendente collegato all'utente (nessun id
     # nell'URL sceglie la persona; l'attestato di un altro risponde 404).
     "/anagrafica/la-mia-scheda/",
+    # Stanza «Sapere» (cataloghi, pagina catalogo, copertine): aperta a chi ha fatto
+    # l'accesso; cataloghi, voci e copertine sono filtrati per ruolo in-view (core.sapere).
+    "/sapere/",
     # Centro guide: aperto a chi ha fatto l'accesso, nessun dato personale; le
     # parti per amministratori sono verificate nella view (403).
     "/guide/",

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -64,18 +64,18 @@
         <div class="fmd-mtr-lbl">Processi attivi</div>
         <div class="fmd-mtr-sub">{{ n_sospesi }} sospesi · {{ n_dismessi }} dismessi/non rinnovati</div>
       </div>
-      <div class="fmd-mtr fmd-t-yellow">
+      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-yellow">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
         <div class="fmd-mtr-lbl">Processi in scadenza ≤60gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
-      </div>
-      <div class="fmd-mtr fmd-t-amber">
+      </a>
+      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-amber">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Processi scaduti</div>
         <div class="fmd-mtr-sub">Da rinnovare/revocare con priorità</div>
-      </div>
+      </a>
       <div class="fmd-mtr fmd-t-cyan">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span><span class="fmd-mtr-val">{{ n_abilitazioni }}</span></div>
@@ -90,7 +90,7 @@
       </div>
     </section>
 
-    <div class="fmd-grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+    <div class="fmd-grid2">
 
       {# ── Distribuzione per regime ─────────────────────────────────────── #}
       <section class="fmd-panel fmd-block">
@@ -120,9 +120,9 @@
         <div class="fmd-block-head">
           <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Scadenze processo prossimi 12 mesi</div>
         </div>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding:8px 2px 0;">
+        <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding:8px 2px 0;overflow-x:auto;">
           {% for t in timeline %}
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
+          <div style="flex:1 0 28px;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
             <span class="fmd-num" style="font-size:11px;color:#64748b;">{{ t.n }}</span>
             <div style="width:100%;background:{% if t.n %}#f59e0b{% else %}#eef3f8{% endif %};border-radius:5px 5px 0 0;height:{% if t.pct %}{{ t.pct }}{% else %}3{% endif %}%;min-height:3px;"></div>
             <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">{{ t.label }}</span>
@@ -134,7 +134,7 @@
     </div>
 
     {# ── Scadenze urgenti ───────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="scadenze-urgenti" style="scroll-margin-top:90px;">
       <div class="fmd-block-head">
         <div class="fmd-block-title">
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Processi in scadenza

@@ -11,7 +11,17 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `vede_tutto` (vede ed esporta ogni modulo, anche futuro, senza modificare: Direzione),
   `preset` (da quale preset nasce).
 - **Persona → ruoli**: `AccessGroupMembership` (N ruoli per persona), assegnati **a mano**
-  dalla scheda «Persone». Il ruolo base `dipendente` vale per tutti senza iscrizione.
+  dalla scheda «Persone». Il ruolo base `dipendente` («Operatore») vale senza iscrizione **solo per chi
+  non ha altri ruoli attivi** (a mano o dall'organigramma; 30/10/2026, core 0105): chi ha un ruolo
+  prende solo la sua colonna (`motore.ruoli_della_persona`, `acl_resolver.user_group_ids`,
+  `simulatore.effetto_modifica`, `organigramma.ruoli_spiegati`). Le caselle «sì» di Operatore sono
+  copiate nelle caselle vuote degli altri ruoli da `core/permessi/ruolo_base.completa_dal_ruolo_base`
+  (nota `dal ruolo base`, più i grant di pagina concessi a Operatore e non decisi dal ruolo; mai i «no»,
+  mai le letture ai ruoli «vede tutto», mai agli amministratori): una volta nella migrazione 0105, poi
+  su ogni ruolo nuovo (vista «nuovo ruolo», `applica_preset` per ruoli creati o ripristinati). Nel
+  motore una casella con quella nota conta con l'ordine di Operatore (`ContestoPermessi.celle_dal_base`):
+  non restringe un altro ruolo della persona; cambiata a mano dalla matrice prende l'ordine del ruolo.
+  Una casella aggiunta dopo a Operatore NON si propaga agli altri ruoli.
 - **Scadenza**: `AccessGroupMembership.scade_il` (core 0082), vale fino al giorno compreso.
   Ogni lettura delle appartenenze usa `core.permessi.scadenze.q_appartenenze_valide` (motore,
   `acl_resolver.user_group_ids` / `describe_user_groups`, `utenti_amministratori_da_ruolo`).
@@ -29,6 +39,16 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
 - **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
   la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
   scheda e coda referti (`views_sorveglianza._puo`).
+- **Eccezioni sulla persona** (`core.EccezionePermessoPersona`, core 0104, 29/10/2026): per
+  persona × modulo × azione, `ambito_massimo` vuoto = negato, `propri`/`team` = tetto. Il motore
+  (`_decidi`) decide prima dai ruoli (`_decidi_dai_ruoli`), poi applica l'eccezione: solo in meno,
+  mai su superuser/amministratori; `Decisione.fonte = "eccezione"`. Il contesto le carica una volta
+  (`eccezioni_della_persona`); il simulatore le conserva in «Prova un ruolo». Pagine:
+  `core/permessi/eccezioni.sincronizza_pagine_persona` scrive `UserPermissionGrant(enabled=False,
+  note="eccezione sulla persona")` sulle pagine aperte **solo** dall'azione negata (non da un'altra
+  azione ancora concessa); crea/cancella solo righe con quella nota. Si richiama a ogni modifica
+  dell'eccezione, al cambio dei ruoli a mano e da `sync.sincronizza_tutti`. Un cambio d'organigramma
+  non la richiama: lo riallinea il «Sincronizza» successivo (il motore invece è sempre aggiornato).
 - **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
   `AccessGroup`, migrazione anagrafica 0177). Chi ricopre oggi un ruolo d'organigramma collegato
   (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,
@@ -77,7 +97,7 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
 - **Interruttore** (`SiteConfig permessi.sistema_ruoli_attivo`, scheda «Sistema»):
   - spento → valgono le regole storiche dei moduli (liste di utenti, ruolo legacy);
     la matrice si prepara senza effetti, salvo i ruoli già assegnati che concedono pagine;
-  - acceso → ruolo base implicito per tutti, `RolePermissionGrant`/tabella `permessi`
+  - acceso → ruolo base implicito per chi non ha altri ruoli, `RolePermissionGrant`/tabella `permessi`
     e fallback legacy **ignorati**, pagine senza binding **negate**, i moduli collegati
     usano `puo_fare`.
 
@@ -167,6 +187,14 @@ quelle aggiunte a mano restano.
 dalla matrice: il JS della matrice ripete lo stesso calcolo per mostrare i badge «→ X/M · da
 salvare» prima del salvataggio. Se cambia la logica di `codici_desiderati`/`sincronizza_ruolo`,
 aggiornare anche lo script in `ruoli_portale.html` (test `test_anteprima_prevede_il_risultato_del_salvataggio`).
+
+**Pagina per pagina (29/10/2026)**: la granularità del vecchio ACL canonico dentro la matrice. Sotto ogni
+modulo la riga «↳ Pagina per pagina» elenca i code di `codici_per_modulo` (`pagine_modulo_ruolo`) con una
+tendina `p__<code>`: «Segue la matrice» / «Sì, sempre» / «No, mai». `imposta_eccezioni_pagina` scrive un
+`GroupPermissionGrant` con `NOTA_ECCEZIONE` (`enabled` True/False) o lo cancella; la sincronizzazione
+non tocca i grant con nota diversa da `NOTA_MATRICE`, quindi l'eccezione resta. «No, mai» è un diniego
+del ruolo al suo ordine (resolver: decide il gruppo con priority più alta che ha una riga). Un grant messo
+da Accessi compare come eccezione. Test `core/tests_permessi_pagina_per_pagina.py`.
 
 ## Comandi
 

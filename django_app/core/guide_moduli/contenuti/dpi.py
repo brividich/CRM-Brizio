@@ -14,9 +14,13 @@ GUIDA = {
                 ("passi", [
                     "Apri DPI e clicca «+ Nuova richiesta».",
                     "In «Richiesta per» lascia «Me stesso». Se sei un responsabile puoi scegliere un tuo dipendente.",
-                    "Clicca sulla scheda della categoria (per esempio scarpe, guanti, occhiali).",
-                    "Se lo sai, scegli «Tipo DPI», «Modello DPI» e «Taglia DPI». Se non lo sai lascia «Solo categoria»: ci pensa il magazzino.",
-                    "Indica la «Quantità» e, se serve, il motivo in «Motivazione / Note».",
+                    "Clicca sulla scheda del DPI (per esempio scarpe, guanti, occhiali). Puoi anche scrivere il nome o il codice del modello in «Cerca». "
+                    "Sulla scheda vedi se è «In dotazione», «In scadenza», «Scaduto» o «Già richiesto».",
+                    "Compaiono solo le domande che servono. Se c'è una scelta sola è già compilata. Se non sai il tipo o il modello lascia "
+                    "«Non lo so, decide il magazzino»; la «Taglia» si chiede dopo il modello, altrimenti «Da scegliere al ritiro».",
+                    "Se hai già ricevuto quel DPI, «Uguale all'ultima volta» riprende tipo, modello e taglia.",
+                    "Indica la «Quantità» e il «Motivo»: clicca Usura, Rotto, Perso, Prima dotazione o Cambio taglia, oppure scrivilo. "
+                    "Per un DPI fuori dal profilo della tua mansione il motivo è obbligatorio.",
                     "Clicca «Invia richiesta». Il numero della richiesta ha la forma DPI-anno-numero.",
                 ]),
                 ("p", "La richiesta passa per questi stati: inviata → approvata → pronta al ritiro → consegnata "
@@ -31,6 +35,9 @@ GUIDA = {
             "id": "storico",
             "titolo": "Vedere i DPI che hai in carico",
             "blocchi": [
+                ("p", "«La mia dotazione», nella Dashboard DPI, mette in cima quello che richiede attenzione: i DPI previsti dalla tua mansione "
+                      "e non ancora consegnati («Richiedi»), le richieste in corso con il passo a cui sono, i DPI scaduti o che scadono entro 30 giorni "
+                      "(«Richiedi il ricambio» apre la richiesta già compilata). Per un DPI ancora valido usa «Rotto o perso?»."),
                 ("p", "«Il mio storico» elenca le consegne fatte a te, con la data di scadenza di ogni DPI."),
                 ("ul", [
                     "Il pallino colorato dice se il DPI è in regola, in scadenza o scaduto.",
@@ -43,16 +50,113 @@ GUIDA = {
             "titolo": "Approvare e consegnare (responsabili e magazzino)",
             "blocchi": [
                 ("passi", [
-                    "Apri «Gestione richieste» dalla Dashboard DPI e clicca la richiesta.",
+                    "Nella Dashboard DPI il riquadro «Da fare» mostra «In attesa di approvazione», «Da consegnare», «Da riordinare», «DPI scaduti» e "
+                    "«In scadenza (30 gg)»: ogni numero apre la lista corrispondente. Clicca «In attesa di approvazione» e poi la richiesta.",
                     "Nel riquadro «Prima di decidere» guarda le consegne precedenti della persona e la media del reparto. "
                     "«Proponi con l'AI» suggerisce una decisione: è solo un consiglio.",
                     "Clicca «Approva» oppure «Rifiuta» (scrivi il motivo). Con «Aggiungi nota» lasci un commento.",
                     "Il magazzino riceve la mail «Da consegnare», prepara il DPI e clicca «Pronto per il ritiro»: il dipendente "
-                    "riceve mail e notifica. «Avvisa di nuovo» ripete l'avviso.",
+                    "riceve mail e notifica. «Avvisa di nuovo» ripete l'avviso. Più veloce: dal «Banco consegne» (vedi sotto).",
                     "Quando il DPI viene consegnato, il magazzino clicca «Registra consegna», fa firmare il dipendente "
                     "nel riquadro firma e salva. «Cancella firma» ripulisce il riquadro se serve rifarla.",
                 ]),
                 ("nota", "Nessuno può approvare la propria richiesta. Il responsabile vede solo le richieste dei suoi dipendenti."),
+            ],
+        },
+        {
+            "id": "scarpe",
+            "titolo": "Scarpe: in convenzione o fuori convenzione",
+            "blocchi": [
+                ("p", "Chiedendo le scarpe scegli dove ritirarle. «In convenzione»: entrano nell'ordine al negozio, che parte ogni 15 giorni "
+                      "(si cambia in Impostazioni), e le ritiri in ufficio amministrativo quando ti avvisiamo. «Fuori convenzione»: le ritiri al negozio."),
+                ("p", "Dopo l'approvazione la mail va all'operatore incaricato, non al magazzino. L'operatore lavora in DPI → «Scarpe»:"),
+                ("passi", [
+                    "«Convenzione: da ordinare»: controlla le righe e clicca «Invia l'ordine». Se scrivi tu al negozio usa «Copia il testo» e poi "
+                    "«Ho già scritto io al negozio». Se sono passati i giorni del riepilogo arriva un promemoria.",
+                    "«Convenzione: ordinate, da consegnare»: quando arrivano spunta e clicca «Arrivate: avvisa di passare in ufficio». "
+                    "La consegna si chiude come per gli altri DPI, con «Registra la consegna».",
+                    "«Fuori convenzione: ritiro al negozio»: avvisa il negozio, spunta e clicca «Negozio avvisato: avvisa i dipendenti».",
+                    "Quando arriva la fattura: spunta gli ordini che copre, carica il file con «Numero» e «Data» e clicca «Carica e chiudi gli ordini spuntati». "
+                    "La data della fattura diventa la data di consegna, da cui parte la scadenza.",
+                ]),
+                ("nota", "Le scarpe ordinate al negozio non scaricano il magazzino. La fattura la vede solo chi gestisce i DPI."),
+            ],
+        },
+        {
+            "id": "banco",
+            "titolo": "Banco consegne (magazzino)",
+            "blocchi": [
+                ("p", "DPI → «Banco consegne» è la pagina di lavoro del magazzino: tutte le richieste approvate da "
+                      "preparare e consegnare, raggruppate per persona, e sotto di esse anche le richieste che il responsabile "
+                      "non ha ancora approvato. In alto i numeri: «Persone in attesa», «Da preparare», "
+                      "«Pronti al ritiro», «Giacenza insufficiente» e «In attesa di approvazione»."),
+                ("passi", [
+                    "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello; il badge si passa solo sul lettore). "
+                    "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
+                    "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
+                    "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano). Se non bastano registra il carico, oppure scrivi "
+                    "il «Motivo della consegna senza giacenza»: senza non si consegna, e il motivo resta nella richiesta e nel movimento di magazzino.",
+                    "Se manca quel modello o quella taglia clicca «Cambia» (o «Scegli modello») accanto al DPI: la modifica resta scritta nella richiesta.",
+                    "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. Il cursore torna sulla ricerca, pronto per la persona dopo. "
+                    "La consegna è registrata subito. In basso una barra conta 6 secondi prima di mail e PDF: «Annulla» (o Esc) riporta i DPI da consegnare "
+                    "e rimette i pezzi a magazzino, «Invia ora» non aspetta. Se chiudi la pagina la consegna resta salva e gli avvisi partono comunque. "
+                    "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
+                    "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
+                    "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
+                ]),
+                ("ul", [
+                    "Da tastiera: / va alla ricerca, frecce su e giù scelgono la persona, Invio porta sul pulsante di consegna e un secondo Invio registra, Esc pulisce la ricerca.",
+                    "I riquadri in alto («Da preparare», «Pronti al ritiro», «Giacenza insufficiente») filtrano l'elenco: un secondo clic toglie il filtro.",
+                    "L'elenco si aggiorna da solo ogni minuto se non stai lavorando su una persona.",
+                    "Con un lettore di badge (o di un QR che contiene il codice del badge) leggi il badge nella ricerca: il codice è quello della scheda in Anagrafica. "
+                    "Se la persona non ha DPI da ritirare lo dice e offre «Consegna senza richiesta».",
+                    "«Lista di prelievo» raccoglie tutto ciò che è da preparare, sommato per modello e taglia con le persone: si stampa e con «Pronti: avvisa gli spuntati» manda l'avviso di ritiro in blocco.",
+                ]),
+                ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
+                      "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
+                      "in Impostazioni, «Domini della mail aziendale»), altrimenti al suo caporeparto/responsabile; se non c'è "
+                      "nessuno dei due, ai referenti DPI. Il link si apre anche dal telefono, senza entrare nel portale, e vale una volta."),
+                ("ul", [
+                    "«Non li ho ricevuti» (con una nota facoltativa) manda la mail «Consegna contestata» al Magazzino.",
+                    "Senza risposta dopo 3 giorni parte un solo promemoria con un link nuovo (il vecchio non vale più).",
+                    "In fondo al banco il riquadro «Conferme di ricevuta» elenca quelle da confermare e le contestate degli ultimi 30 giorni.",
+                    "La consegna vale subito per magazzino e scadenze; l'esito della conferma compare nella scheda della richiesta e nel PDF del modulo di consegna.",
+                ]),
+                ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
+                      "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
+                ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
+                      "collega da solo). Il permesso vale per quell'indirizzo del portale: se apri il portale da un altro indirizzo va dato di nuovo. Con più schede aperte il lettore passa da solo alla scheda che stai usando. Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
+                      "«Consegna con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
+                      "«Consegna con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
+                      "Il numero del badge non si può scrivere a mano e la ricerca non lo cerca: funziona solo la lettura dal lettore. "
+                      "Nel Registro consegne la ricevuta risulta «Confermata con badge». Se la persona non ha DPI da ritirare lo dice; «Badge non riconosciuto» vuol dire "
+                      "che il numero non è nell'Anagrafica, è su due persone o la persona è fuori dal tuo perimetro: cerca per nome. Dopo 20 badge non riconosciuti in 10 minuti la lettura si sospende per qualche minuto. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
+                ("p", "Ogni consegna fatta dal banco vale come quella dalla scheda richiesta: PDF nei documenti del dipendente, "
+                      "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
+                ("p", "Richieste in attesa di approvazione: nella scheda della persona, sotto i DPI da consegnare, compaiono "
+                      "tratteggiate le richieste ancora da approvare, con scritto chi deve approvarle (il responsabile o il preposto "
+                      "della persona). Non si spuntano e non si consegnano. Se chi è al banco può approvarle (responsabile della persona, "
+                      "oppure gestore DPI di ripiego) ha il pulsante «Approva»: la richiesta passa tra quelle da consegnare, con un "
+                      "commento «Approvata al Banco consegne», e si consegna subito. Il riquadro «In attesa di approvazione» in alto le filtra."),
+                ("p", "«Consegna senza richiesta»: la persona è al banco e chiede un DPI che nessuno ha richiesto. Nella sua scheda "
+                      "«+ DPI senza richiesta» (o il pulsante «Consegna senza richiesta» quando la ricerca non trova nessuno) apre il "
+                      "riquadro con la persona già scelta: scegli DPI, taglia e quantità. «Aggiungi e consegna con badge» crea la richiesta già approvata, apre la "
+                      "scheda con il DPI spuntato e aspetta subito il badge della persona (serve il lettore collegato e il badge in "
+                      "Anagrafica, altrimenti la scheda resta aperta e confermi con mail); «Aggiungi al banco» apre solo la scheda, "
+                      "per confermare con mail o firma come le altre. Vale per "
+                      "tutto il catalogo tranne le scarpe che si ordinano al negozio. Le categorie segnate «senza approvazione» sono i "
+                      "consumabili (spunta «Consegna diretta dal banco» in Impostazioni); per le altre nella richiesta resta scritto che di "
+                      "norma passano dal responsabile, e il report di consegna gli arriva come sempre."),
+                ("p", "In home, stanza «Oggi», chi gestisce le consegne trova il riquadro «Banco consegne DPI»: i numeri del banco "
+                      "(persone in attesa, da preparare, pronti al ritiro, giacenza insufficiente, conferme in attesa e contestate), "
+                      "le prime 6 persone con il pulsante «Consegna» che apre direttamente la loro consegna, la casella «Chi è al banco?» "
+                      "(se il nome trova una sola persona si apre subito la sua consegna) e «Consegna senza richiesta». "
+                      "Si nasconde da «⚙ Personalizza» togliendo la spunta «Banco consegne DPI»."),
+                ("p", "Il PDF del modulo di consegna riporta numero della richiesta, DPI, modello con codice, taglia, quantità e "
+                      "scadenza; nel riquadro «Ricevuta» la firma del banco, oppure l'esito della conferma via mail (chi ha "
+                      "confermato e quando). La riga per la firma su carta compare solo se non c'è né firma né conferma."),
+                ("nota", "Il banco mostra solo le categorie con «La consegna la fa il magazzino». Le altre (per esempio le scarpe) "
+                         "si vedono con «Mostra anche gli altri DPI»."),
             ],
         },
         {
@@ -71,8 +175,10 @@ GUIDA = {
             "blocchi": [
                 ("p", "DPI → «Impostazioni». Il catalogo ha quattro livelli, dal generale al particolare:"),
                 ("def", [
-                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi, il flag «obbligatorio da mansionario» e "
-                                  "«Alla consegna avvisa l'Amministrazione». «+ Nuova categoria»."),
+                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi, il flag «obbligatorio da mansionario», "
+                                  "«Alla consegna avvisa l'Amministrazione», «La consegna la fa il magazzino» (togli la spunta per le "
+                                  "scarpe: escono dal Banco consegne e la mail «Da consegnare» va ai referenti DPI) e «Consegna diretta "
+                                  "dal banco, senza approvazione» (consumabili come guanti e tappi). «+ Nuova categoria»."),
                     ("Tipo", "sottocategoria, per esempio «Scarpe S3». «+ Nuovo tipo»."),
                     ("Modello", "prodotto preciso con codice, produttore e foto. Se ha una vita utile propria vince su quella della categoria. «+ Nuovo modello»."),
                     ("Taglia", "valore della taglia. «+ Nuova taglia»."),
@@ -91,11 +197,20 @@ GUIDA = {
                     "Con la spunta «Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta» la mail va "
                     "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
                     "Richiesta di un CAR o di un preposto (per sé o per un suo dipendente): approvata da sola, nessuna mail «da approvare».",
-                    "Richiesta approvata: mail «Da consegnare» al Magazzino.",
+                    "Richiesta approvata: mail «Da consegnare» al Magazzino; per le categorie senza «La consegna la fa il "
+                    "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»). "
+                    "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "
+                    "Windows attivo, dai PC del dominio si entra senza password).",
+                    "Consegna senza richiesta dal banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
+                    "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
+                    "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
+                    "senza risposta un promemoria (task delle 07:10). Le due mail sono le regole «DPI consegnato - conferma "
+                    "della ricevuta via mail» e «DPI - consegna contestata» in Automazioni: spegnendo la prima la mail non "
+                    "parte e il banco lo segnala.",
                     "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
                     "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
                     "magazzino non serve.",
-                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» al Magazzino, così non consegna.",
+                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» a chi consegna (Magazzino o referenti), così non consegna.",
                     "Consegna registrata: report con il PDF del modulo di consegna al responsabile/preposto del dipendente e, "
                     "solo per le categorie con la spunta «Alla consegna avvisa l'Amministrazione», all'Amministrazione.",
                     "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto, ritiro e consegna.",
@@ -106,6 +221,14 @@ GUIDA = {
                 ]),
                 ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni». "
                       "L'intero ciclo è l'automazione AU14 del modulo Automazioni (flussi «managed-dpi_…»)."),
+            ],
+        },
+        {
+            "id": "bozza-ordine",
+            "titolo": "Bozza d'ordine ai fornitori",
+            "blocchi": [
+                ("p", "Da DPI → «Magazzino» → report, «Bozza d'ordine» propone cosa riordinare, diviso per il fornitore dell'ultimo carico, con le quantità suggerite dai consumi "
+                      "del periodo scelto. Correggi le quantità (zero esclude la riga), poi «Copia il testo» o «Apri nella posta». Il portale non invia nulla."),
             ],
         },
         {
@@ -120,7 +243,27 @@ GUIDA = {
                     "(«da controllare» se non l'ha letta con sicurezza). Spunta le righe giuste, correggi le quantità e premi "
                     "«Carica le righe spuntate». I codici che non sono nel catalogo non vengono proposti: caricali a mano.",
                     "Con la scorta minima il modello diventa «Da riordinare» o «Esaurito».",
-                    "«Report e consumi» mostra i consumi per mese, reparto e modello e la quantità suggerita da riordinare; «Esporta movimenti (CSV)».",
+                    "«Report e consumi» mostra i consumi per mese, reparto e modello, la quantità suggerita da riordinare e le «Consegne senza giacenza» con il motivo; «Esporta movimenti (CSV)». "
+                    "Clicca un reparto per vedere le sue consegne nel Registro.",
+                ]),
+            ],
+        },
+        {
+            "id": "report",
+            "titolo": "Report: conformità, consegne e consumi",
+            "blocchi": [
+                ("p", "DPI → «Report» ha tre schede. Lo vede chi ha il permesso di gestire i DPI, sulle persone del proprio perimetro."),
+                ("ul", [
+                    "«Conformità»: tutti i dipendenti attivi con l'esito «Mancante», «Scaduto», «In scadenza» (entro 30 giorni), «In regola» o «Nessun DPI dovuto». "
+                    "Una persona conta in ogni stato che ha: con un DPI scaduto e uno mancante è in entrambi i numeri, e l'esito mostra il più grave. Clicca un numero in alto per filtrare, un nome per aprire il dettaglio. «Da sistemare» dice cosa manca e se c'è già una richiesta in corso.",
+                    "Un DPI è dovuto se la categoria ha «Obbligatoria nel report conformità» oppure se lo prevede la mansione di rischio della persona. "
+                    "Nel dettaglio, la colonna «Perché» dice quale delle due: «Per tutti» o «Dalla mansione».",
+                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata con badge», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
+                    "Senza date scelte mostra gli ultimi 90 giorni.",
+                    "Conformità, Registro consegne e Gestione richieste si filtrano anche per centro di costo; negli export di Conformità e Registro c'è la colonna.",
+                    "«Consumi e magazzino»: consumi, coperture, cosa riordinare e consegne senza giacenza.",
+                    "«Esporta Excel» ed «Esporta PDF» scaricano tutte le righe filtrate, non solo la pagina a video. Ogni scaricamento resta registrato.",
+                    "Gli amministratori possono farli inviare da soli: Centro report → Pianificazioni, «Persone da sistemare» e «Ultimi 90 giorni».",
                 ]),
             ],
         },
@@ -129,7 +272,8 @@ GUIDA = {
             "titolo": "Permessi",
             "blocchi": [
                 ("ul", [
-                    "Gestire (consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
+                    "Gestire (consegne, Banco consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
+                    "Il link della mail di conferma della ricevuta non chiede il login: vale solo per chi l'ha ricevuto e una volta.",
                     "Approvare: caporeparto e preposti, solo per i loro dipendenti (team dell'organigramma).",
                     "Si assegnano in Amministrazione → «Accessi» o in «Ruoli e permessi».",
                 ]),
@@ -151,11 +295,25 @@ GUIDA = {
                     "giorno dopo e poi ogni 7 giorni finché non viene sostituito.",
                 ]),
                 ("p", "A mano: comando send_dpi_expiry_reminders, prima con --dry-run."),
-                ("p", "«Report conformità» mostra per ogni dipendente se ha i DPI obbligatori: OK, scaduto o mancante, con «Esporta Excel»."),
+                ("p", "DPI → «Report» → «Conformità» mostra chi deve sistemare qualcosa."),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": '«DPI scaduti» e «In scadenza» della dashboard non tornano con le richieste',
+            "fare": [
+                'Contano le consegne attive delle richieste della tua coda in «Gestione richieste»: clicca il numero e vedi la stessa lista '
+                '(filtro «Scadenza»). Le consegne già sostituite non contano.',
+            ],
+        },
+        {
+            "sintomo": "Le scarpe non compaiono nel Banco consegne",
+            "perche": "quelle fuori convenzione si chiudono con la fattura, quelle in convenzione entrano nel banco solo dopo l'ordine al negozio.",
+            "fare": [
+                "Apri DPI → «Scarpe»: la riga è in una delle tre sezioni.",
+            ],
+        },
         {
             "sintomo": "Il responsabile non vede la richiesta da approvare",
             "perche": "l'approvazione segue il team dell'organigramma (o il preposto del reparto).",
@@ -181,6 +339,19 @@ GUIDA = {
                 "Controlla l'email di notifica nella scheda anagrafica del responsabile.",
                 "Prova il comando send_dpi_expiry_reminders --dry-run: elenca i responsabili che riceverebbero la mail.",
             ],
+        },
+        {
+            "sintomo": "La conferma di ricevuta va al caporeparto anche se il dipendente ha la mail",
+            "perche": "la mail di notifica del dipendente non è di un dominio aziendale.",
+            "fare": [
+                "DPI → Impostazioni: controlla «Domini della mail aziendale» (es. azienda.it).",
+                "Controlla la mail di notifica nella scheda anagrafica del dipendente.",
+            ],
+        },
+        {
+            "sintomo": "Il link della mail di conferma dice «Link non valido»",
+            "perche": "dopo il promemoria vale solo l'ultimo link, oppure il link è stato copiato a metà.",
+            "fare": ["Usa il link dell'ultima mail ricevuta («Promemoria: conferma la ricevuta dei DPI»)."],
         },
         {
             "sintomo": "Il magazzino non riceve la mail di consegna",

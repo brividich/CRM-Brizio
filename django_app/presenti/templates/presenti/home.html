@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+
+{% block title %}Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Presenti in azienda</h1>
+      <p>Chi è in azienda adesso secondo le timbrature: l'ultima timbratura di oggi è un'entrata.</p>
+    </div>
+    <div class="pres-azioni">
+      <a class="pres-btn" href="{% url 'presenti:pdf' %}" target="_blank" rel="noopener">PDF</a>
+      {% if pres_puo_appello %}<a class="pres-btn pres-btn-danger" href="{% url 'presenti:appello' %}">{% if appello_aperto %}Appello in corso{% else %}Avvia appello di evacuazione{% endif %}</a>{% endif %}
+    </div>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if appello_aperto and pres_puo_appello %}
+  <div class="pres-avviso is-err">È in corso un appello di evacuazione. <a href="{% url 'presenti:appello' %}">Apri l'appello</a></div>
+  {% endif %}
+
+  <form class="pres-filtri" hx-get="{% url 'presenti:lista_parziale' %}" hx-target="#pres-lista" hx-trigger="input changed delay:300ms from:input, change from:select" onsubmit="return false">
+    <input type="search" name="q" value="{{ filtri.q }}" placeholder="Cerca nome, matricola, reparto…" aria-label="Cerca">
+    <select name="reparto" aria-label="Reparto">
+      <option value="">Tutti i reparti</option>
+      {% for r in reparti %}<option value="{{ r }}"{% if r == filtri.reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    <select name="incarico" aria-label="Incarico di sicurezza">
+      <option value="">Tutti gli incarichi</option>
+      {% for i in incarichi %}<option value="{{ i }}"{% if i == filtri.incarico %} selected{% endif %}>{{ i }}</option>{% endfor %}
+    </select>
+  </form>
+
+  {# La lista si ricarica da sola: i filtri della form viaggiano con ogni aggiornamento. #}
+  <div id="pres-lista" hx-get="{% url 'presenti:lista_parziale' %}" hx-trigger="every {{ aggiorna_ogni }}s" hx-include=".pres-filtri" hx-swap="innerHTML">
+    {% include "presenti/_lista.html" %}
+  </div>
+</div>
+{% endblock %}

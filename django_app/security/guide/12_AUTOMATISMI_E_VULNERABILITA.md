@@ -57,7 +57,11 @@ La regola si spegne e il conteggio riparte da zero quando:
 
 ### La pagina Soppressioni
 
-Elenca le soppressioni manuali e quelle apprese. Per ognuna mostra ambito, motivo, quante volte ha fermato un evento (hit), ultima volta e scadenza. I filtri «Apprese / Manuali» e «Attive / In scadenza / Scadute o revocate» aiutano la revisione periodica: conviene guardare almeno una volta al mese le regole **in scadenza entro 14 giorni** e quelle con molti hit. In fondo alla pagina ci sono le ultime disattivazioni registrate.
+Elenca le soppressioni manuali e quelle apprese. Per ognuna mostra ambito, motivo, quante volte ha fermato un evento (**Volte applicata**), **Ultima volta** e scadenza. I filtri «Apprese / Manuali» e «Attive / In scadenza / Scadute o revocate» aiutano la revisione periodica: conviene guardare almeno una volta al mese le regole **in scadenza** e quelle applicate molte volte. In fondo alla pagina ci sono le ultime disattivazioni registrate.
+
+### Soppressioni in scadenza
+
+**14 giorni** prima della scadenza di una soppressione attiva (manuale o appresa) nasce un alert di attenzione «Soppressione manuale (o appresa) in scadenza fra N giorni: nome della regola», uno per regola e scadenza, che arriva sui canali come ogni alert nuovo: si decide se prolungarla o lasciarla scadere. Se la scadenza viene spostata in avanti, il promemoria riparte per la nuova data. I giorni si cambiano in Impostazioni › **Soppressioni in scadenza** («Promemoria prima della scadenza») e valgono anche per il filtro **In scadenza** e il numero «in scadenza entro N giorni» della pagina Soppressioni; l'interruttore «Alert quando una soppressione sta per scadere» arriva acceso (spento, il numero resta e accanto compare «senza alert»). Sulla data in giallo, il passaggio del mouse dice quando è partito il promemoria. Il controllo gira con il ciclo del SOC ogni 15 minuti, insieme alle accettazioni del rischio, e resta nell'audit del portale.
 
 ## Automatismi di rientro
 
@@ -114,9 +118,17 @@ NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Co
 
 Il file caricato resta in un'area privata e cifrata solo fino all'import e non è mai scaricabile dal browser. Se abbandoni un'importazione a metà, **Annulla e elimina il file**; in ogni caso le anteprime non confermate vengono cancellate dopo 2 giorni.
 
+### Dalla CVE al lavoro di correzione
+
+Nella scheda di una CVE con PC colpiti, **Apri il lavoro di correzione** crea un caso a tuo nome con un'attività per PC e la versione a cui arrivare, se NVD la indica. A ogni ricalcolo degli impatti l'attività di un PC non più esposto si spunta da sola, quella di un PC di nuovo esposto si riapre e un PC nuovo aggiunge un'attività. Con l'ultimo PC il caso si chiude da solo, salvo attività aggiunte a mano ancora da fare. La scheda della CVE dice «N PC su M corretti».
+
 ### Collegare i software alle CVE (CPE)
 
 NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**.
+
+**Una volta per programma.** Software e CPE ha una riga per programma, non per nome: la decisione vale per tutti i nomi e le release del programma, e una release nuova prende da sola il CPE già confermato. Con due CPE diversi nello stesso programma non si estende nulla. Le unioni fatte a mano nel Catalogo software non estendono il CPE.
+
+**Non controllato.** Un programma senza CPE né «non applicabile» compare come «non controllato» nel Catalogo software, nella scheda del PC e nel cruscotto. Il SOC confronta i programmi collegati con le CVE che ha già scaricato, non con tutte quelle esistenti.
 
 **Collegamento automatico.** Dopo ogni giro dell'arricchimento CVE e dopo ogni import dell'inventario il sistema collega **da solo** i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate:
 
@@ -217,9 +229,9 @@ Ogni proposta ha una **motivazione** di una frase e una **confidenza** (0-100). 
 
 ### Dove si vede
 
-- **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati, con gravità, programmi coinvolti, «esposta dal», termine di correzione e PC corretti negli ultimi 90 giorni. Filtri: testo (CVE, descrizione, programma o PC), gravità, esito (impatta / solo da verificare), termine (oltre il termine, in scadenza entro 7 giorni, con rischio accettato) e «Solo sfruttate (KEV)». Clic sulla riga: il pannello della CVE. In più i PC più esposti e i software ancora da collegare.
+- **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati, con gravità, programmi coinvolti, «esposta dal», termine di correzione e PC corretti negli ultimi 90 giorni. Filtri: testo (CVE, descrizione, programma o PC), gravità, esito (impatta / solo da verificare), termine (oltre il termine, in scadenza entro 7 giorni, con rischio accettato) e «Solo sfruttate (KEV)». Clic sulla riga: il pannello della CVE. In più gli **Asset più esposti** (i 20 con più CVE, con «tutti» verso Dispositivi › Con CVE; clic sulla riga: pannello del PC; selezionali per aprire un ticket) e i software ancora da collegare. «PC oltre il termine» dice il totale vero; il riquadro ne elenca i primi 15, con il link a tutte le CVE oltre il termine. La tabella delle CVE mostra le prime 500; **Scarica CSV** accanto ai filtri dà l'elenco completo del filtro (CVE, gravità, CVSS, EPSS, KEV, programmi, PC impattati e da verificare, esposta dal, termine, PC oltre il termine, in scadenza e con rischio accettato, corretti in 90 giorni).
 - **Correzioni CVE** (Dispositivi › Correzioni CVE): le CVE chiuse dagli aggiornamenti, vedi «Correzioni CVE» qui sotto.
-- **Scheda CVE**: l'esito PC per PC con la spiegazione.
+- **Scheda CVE**: l'esito PC per PC con la spiegazione. Clic sulla riga: il pannello del PC; il nome apre la scheda PC. Seleziona più PC per **Apri un ticket per questi PC**, **Accetta il rischio** (stessi campi e permesso dell'accettazione singola: un'accettazione per PC) o **Conferma le proposte dell'AI** (solo i PC con una proposta da applicare).
 - **Scheda alert e ticket** di una CVE: il riquadro «Impatto sugli asset» e, se non ci sono PC impattati, la proposta di chiusura. La proposta **non compare mai** per CVE sfruttate (KEV) o critiche.
 - **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC e la scheda **Software** con tutti i programmi installati, le versioni precedenti, la licenza collegata e le CVE per programma.
 - **Pannello laterale delle CVE**: nel Catalogo software (colonna CVE e scheda del programma) e nella scheda asset (riquadro «Vulnerabilità» e colonna CVE della scheda Software) il numero di CVE è un bottone che apre un pannello a destra, senza lasciare la pagina. Vedi «Il pannello delle CVE» qui sotto.
@@ -243,6 +255,8 @@ Il pannello si apre dal bottone rosso «N CVE» (arancione per «da verificare»
 KEV ed EPSS si leggono con «Arricchisci le CVE da NVD e CISA KEV» e «Leggi anche il punteggio EPSS» (Impostazioni › Avvisi e automatismi › Impatto CVE sugli asset): senza, la priorità usa solo il CVSS.
 
 **Patch WatchGuard.** Con la lettura delle patch accesa (vedi «Patch e protezione (WatchGuard)»), la riga della CVE dice «patch WatchGuard pronta su N PC», «Cosa fare» lo ripete e ogni PC ha l'etichetta della patch con il suo stato (da installare, attende il riavvio, errore di installazione…).
+
+**Calcolo ibrido con Defender.** Con «Confronta le CVE con Defender» e «Usa le CVE di Defender nel calcolo» accese, le CVE critiche e alte che Defender vede entrano nell'elenco del SOC. Su un PC che Defender vede, la sua segnalazione vale «impatta» anche senza CPE collegato; se il calcolo sulle versioni dice che il PC è a posto, l'esito è «da verificare». NVD aggiunge i range di versione, così il SOC controlla la stessa CVE anche sui PC che Defender non vede. I programmi letti da Defender risultano «controllati». Se Defender nomina un programma che sul PC non si riconosce, resta nel confronto come «solo Defender». Le CVE medie e basse restano solo nel confronto.
 
 **Confronto con Defender.** Con «Confronta le CVE con Defender» acceso (riquadro Microsoft Defender), ogni PC della scheda breve dice «Defender conferma» o «Defender non la vede»; un gruppo chiuso elenca i PC su cui Defender la vede e il SOC no. Il pannello di un PC ha «Confronto con Defender»: in comune, solo SOC, solo Defender. Dove i due non coincidono la CVE va guardata: di solito è un programma fuori dall'inventario WatchGuard, un CPE sbagliato o una versione letta male. Il confronto vale solo per i PC che Defender conosce.
 
@@ -297,11 +311,19 @@ Pagina **Dispositivi › Patch e protezione**. Legge l'API di WatchGuard Cloud (
 
 1. In WatchGuard Cloud › Amministrazione › **Managed Access** abilitare l'accesso API; copiare URL API (dipende dalla regione, per esempio `https://api.deu.cloud.watchguard.com`), **Access ID** e **password** (meglio quelli di sola lettura) e l'**API Key**. L'ID account (ACC-… o WGC-…) è in **My Account**.
 2. Incollarli nel riquadro **Credenziali API WatchGuard** e **Salva le credenziali** (password e API Key restano cifrate e non si rivedono), poi **Prova la connessione**: dice quanti PC vede l'account.
-3. Accendere le letture nel riquadro **WatchGuard Endpoint Security (API)**: PC e protezione, software dei PC, patch mancanti. Girano alle 06:10 e alle 13:10.
+3. Accendere le letture nel riquadro **WatchGuard Endpoint Security (API)**: PC e protezione, software dei PC, patch mancanti e, se serve, «Cerca le patch comprese in una più recente (Microsoft)». Girano alle 06:10 e alle 13:10. La lettura Microsoft scarica un documento al mese dall'API pubblica `api.msrc.microsoft.com` (decine di MB ciascuno) solo quando Microsoft lo aggiorna, al massimo una volta al giorno: il server del portale deve poter uscire su HTTPS verso quell'indirizzo.
 
 Cosa c'è nella pagina:
 
 - **Patch mancanti**: una riga per patch con i PC che ne hanno bisogno. In cima le patch che correggono una CVE sfruttata (CISA KEV), poi per criticità WatchGuard (Critica, Importante…) e per numero di PC. Aprendo la riga: le CVE che corregge (clic = scheda breve) e i PC con lo stato. Una patch esce dall'elenco quando WatchGuard non la segnala più: installata o non più necessaria; il ricalcolo CVE poi registra la risoluzione con la versione nuova.
+- **Cerca**: per KB (es. KB5134133), CVE, nome della patch, programma o PC. Cercando una CVE escono la patch che la corregge e quella più recente che la comprende.
+- **KB e download**: accanto al nome c'è la KB Microsoft (presa dal nome o dal file della patch); aprendo la riga, «Scarica a mano» porta al file della patch quando WatchGuard lo dà, e «può riavviare il PC da sola» avvisa delle patch con riavvio automatico.
+- **Patch comprese in una più recente**: WatchGuard elenca le patch Microsoft una per una, anche quando un aggiornamento cumulativo comprende quelli prima. Il SOC lo riconosce in due modi:
+  - **dal build di Windows nel nome**: «KB5134133 (OS Builds 26200.9725 and 26100.9725)» comprende «KB5127648 (OS Builds 26200.9711 and 26100.9711)», perché stesso ramo (26100) e revisione più alta (9725 > 9711). Vale anche per i fuori ciclo; le anteprime («Preview», facoltative) non vengono mai proposte al posto di un'altra patch;
+  - **dal Security Update Guide di Microsoft**, con l'interruttore «Cerca le patch comprese in una più recente (Microsoft)»: Microsoft dice quale KB sostituisce quale, anche a catena; serve per .NET, SQL Server e Office, dove il nome non porta il build. Contiene solo gli aggiornamenti di sicurezza.
+
+  Una patch è «compresa» solo se quella più recente manca **sullo stesso PC**. La patch compresa ha l'etichetta «Compresa in KB…» e va in fondo all'elenco; quella più recente dice «Comprende anche: KB… (N PC)» e «+N CVE delle precedenti», e prende la priorità delle CVE che chiude (una CVE sfruttata della vecchia la porta in cima). Lo stesso si vede nel riquadro «Patch» della scheda asset e nel pannello CVE («si chiude con KB…»).
+- **Spiega con l'AI**: aprendo una patch, l'AI locale dice cosa corregge, quanto è urgente, cosa sapere prima di installare (riavvio, installazioni già fallite) e come procedere (se è compresa in una più recente, installare quella). Con **Cerca anche sul web** legge l'articolo Microsoft della KB e riporta i **problemi noti**. Lo stesso pulsante c'è nel pannello di ogni CVE: cos'è, se ci riguarda, come si corregge e cosa fare se non si può correggere subito.
 - **Installazioni non riuscite**: l'esito dei task di installazione WatchGuard degli ultimi 14 giorni (errore di download, di installazione…).
 - **Protezione da sistemare**: PC con l'agente ma protezione spenta, in errore, non aggiornata, con riavvio richiesto o non connessi da più di 7 giorni.
 - **In rete senza agente**: dispositivi che le sonde WatchGuard hanno trovato in rete senza agente. Stampanti e apparati sono normali; un PC qui non è protetto.
@@ -309,6 +331,83 @@ Cosa c'è nella pagina:
 La lettura del **software** sostituisce l'export WatchGuard caricato a mano: entra nell'inventario come fonte WatchGuard, con la stessa procedura. Le patch **si installano dalla console WatchGuard**: l'API non permette di comandarle dal portale.
 
 Nella scheda asset la riga **Visto da** usa questi dati: «WatchGuard · protezione attiva · 3 patch mancanti», rosso se la protezione non va o se il PC è in rete senza agente.
+
+### Patch installate
+
+Pagina **Dispositivi › Patch installate** (anche dal riquadro «patch chiuse» di Patch e protezione): lo storico delle patch WatchGuard che non sono più mancanti, la più recente in cima. Per ogni riga: quando si è chiusa, PC, patch e programma, criticità, le **CVE che ha corretto** (con «CVE sfruttata» se è nel catalogo CISA KEV) e il **motivo**:
+
+- **Installata (esito del task WatchGuard)**: un task di installazione di Patch Management ha registrato «Installata» o «Era già installata». È la prova più forte.
+- **Non più segnalata da WatchGuard**: il PC c'è ancora ma WatchGuard non segnala più la patch, senza un esito di installazione: installata da Windows Update o dall'utente, oppure sostituita da una patch più recente.
+- **PC non più in WatchGuard**: il PC è uscito dai dispositivi WatchGuard; la patch è sparita con lui. Non dice che sia stata installata.
+
+Filtri: periodo (30, 90 giorni, un anno, tutto), motivo, ricerca per PC, patch, programma o CVE. In cima: patch chiuse, PC, CVE corrette, quante sfruttate (KEV), quante critiche e il conteggio per motivo. La tabella mostra le prime 500 righe e lo dice; **Scarica CSV** contiene tutte le righe del filtro ed è registrato nell'audit. Lo storico parte dalla prima lettura delle patch: una patch che ricompare (per esempio dopo una disinstallazione) torna fra le mancanti ed esce dallo storico.
+
+Per sapere se la CVE è davvero chiusa sul PC conta la pagina **Correzioni CVE**, che guarda la versione del programma nell'inventario: la patch chiusa è il «perché», la correzione CVE è la verifica.
+
+### Installazioni da console
+
+Pagina **Dispositivi › Installazioni da console**: i task di installazione patch lanciati dalla console WatchGuard (Endpoints › Tasks, quelli come «Install Firefox patch on 37 computers»), l'ultima esecuzione in cima. Il SOC li conserva anche dopo che vengono cancellati dalla console.
+
+- **Quando si legge**: ogni ora dalle 07:40 alle 19:40, dal lunedì al venerdì, e insieme alla lettura completa delle 06:10 e 13:10. Serve l'interruttore «Patch» della sezione «WatchGuard Endpoint Security (API)». Si leggono i task con un'esecuzione negli ultimi 30 giorni, fino a 300 per giro, le ultime 10 esecuzioni di ciascuno. Se WatchGuard non risponde su un task (es. «Risposta 502»), si riprova una volta; poi quel task si salta e resta com'era fino al giro dopo, gli altri si leggono lo stesso: in **Letture** il giro risulta «parziale» con il nome del task. Se i primi 5 task sono tutti in errore il giro si ferma: è WatchGuard a non rispondere.
+- **Per ogni task**: PC coinvolti, **Riuscite**, **Errori** (errore di download, di installazione, di disinstallazione) e **In attesa** (il PC non ha ancora risposto: il task in WatchGuard è «In progress»). Un PC riprovato in un'esecuzione successiva conta una volta, con l'ultimo esito.
+- **Aprendo un task**: l'esito per PC e patch, prima gli errori, poi i PC in attesa.
+- Un task con tutti gli esiti e l'ultima esecuzione più vecchia di 24 ore non si rilegge più: resta com'è nello storico.
+
+**Verifica dopo l'installazione.** Quando un task finisce (nessun PC in attesa e almeno un'installazione riuscita, ultima esecuzione negli ultimi 2 giorni), la lettura successiva rilegge subito da WatchGuard le **patch mancanti** e il **software dei PC**, senza aspettare le 06:10 o le 13:10. La lettura del software fa ripartire il ricalcolo delle CVE e la **chiusura con prove** degli alert «PC con versione vulnerabile»: le regole restano quelle (2 prove concordi per le CVE critiche o sfruttate, nel dubbio l'alert resta aperto). Una sola lettura per giro anche se finiscono più task; se il software è stato letto da meno di 50 minuti si usa quello. Con l'interruttore «Software dei PC» spento la verifica è «saltata» e lo dice. La colonna **Verifica** della tabella mostra cosa è stato fatto e quando.
+
+**Evidenza.** Aprendo un task, sopra la tabella ci sono i conteggi delle CVE corrette dalle sue patch e, per ogni PC, la colonna **CVE della patch** con lo stato di ognuna nel calcolo del SOC:
+
+- **Corretta**: l'inventario ha visto il programma aggiornato o disinstallato dopo l'inizio del task;
+- **Ancora vulnerabile** / **Da verificare**: il PC risulta ancora esposto (di solito l'inventario WatchGuard non si è ancora aggiornato: si ricontrolla alla lettura dopo);
+- **Non nel calcolo del SOC**: la CVE non risultava sul PC (programma non collegato al catalogo CVE o versione mai vista vulnerabile).
+
+Nella timeline dell'alert della CVE e nel suo pannello, la prova della patch dice anche quale task l'ha installata: «patch WatchGuard «…» installata il 12/11 dal task «Install … patch on 37 computers» della console».
+
+L'esito arriva anche sulla patch mancante («Errore di installazione il 12/11» in Patch e protezione). La patch esce dalle mancanti quando WatchGuard non la segnala più: con la verifica, già alla lettura oraria dopo la fine del task.
+
+### Tempi delle patch
+
+Pagina **Dispositivi › Tempi delle patch** (anche dall'avviso «patch ferme» di Patch e protezione): quanto ci mettiamo a installare le patch e quali sono ferme. È la prova che chiede l'audit ISO 27001 8.8 (e NIS2) per le patch, accanto ai tempi di correzione delle CVE.
+
+Ogni patch mancante su un PC ha un **termine** che parte da **«pubblicata il»** (la data del produttore che dà WatchGuard) e dipende dalla **classe** della patch:
+
+| Classe | Quando | Termine (predefinito) |
+| --- | --- | --- |
+| Corregge una CVE sfruttata (KEV) | almeno una delle sue CVE è nel catalogo CISA KEV | 7 giorni |
+| Critica | criticità «Critica» di WatchGuard | 14 giorni |
+| Importante | criticità «Importante» | 30 giorni |
+| Moderata e altre | moderata, bassa, service pack, non specificata | 90 giorni |
+
+I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Patch: tempi di installazione (ISO 27001 8.8)**. Una patch senza data di pubblicazione non ha termine.
+
+La pagina ha quattro parti:
+
+- **In cima**: patch installate nel periodo scelto (30, 90 giorni, un anno, tutto), **tempo medio di installazione** in giorni, quante **entro il termine**, e adesso: patch mancanti (una per patch e PC), oltre il termine (quante KEV o critiche), con l'installazione fallita.
+- **Per classe**: termine, installate, giorni medi e mediana, entro il termine e in ritardo, mancanti e oltre il termine adesso. Il numero «oltre il termine» porta all'elenco delle patch ferme di quella classe.
+- **Andamento**: due grafici delle ultime 26 settimane. «Patch installate per settimana» viene dalle date di chiusura; «Patch mancanti a fine settimana» viene da una fotografia scritta a ogni lettura WatchGuard (06:10 e 13:10), quindi parte dal giorno in cui la funzione è stata installata.
+- **Patch ferme**: patch mancanti **oltre il termine** o con l'**ultima installazione fallita** (errore di download o di installazione nel task WatchGuard), una riga per patch con i PC, il ritardo e le CVE. Seleziona le patch e **Apri un ticket per questi PC**: un'attività per ogni PC delle patch scelte. Il nome del PC apre il suo pannello. Filtri per classe, cosa (oltre il termine, installazione fallita o tutte e due) e testo. **Scarica CSV** ha una riga per patch e PC ed è registrato nell'audit (`soc_patch_ferme_export`).
+
+Il **tempo di installazione** è da «pubblicata il» al giorno in cui WatchGuard non segnala più la patch. Le patch sparite perché il PC è uscito da WatchGuard non contano: non sono installazioni.
+
+**Alert**: con l'interruttore «Segnala le patch oltre il termine» acceso, a ogni ciclo del SOC nasce un alert per ogni patch oltre il termine (uno per patch e termine, con i PC nel dettaglio): severità alta per KEV e critiche, media per le altre. Si chiude da solo quando la patch non manca più oltre il termine su nessun PC. Ogni apertura e chiusura va nell'audit sigillato. L'interruttore è **spento di default**: alla prima accensione ogni patch vecchia apre subito il suo alert, quindi conviene guardare prima la pagina.
+
+Gli stessi numeri sono nel **report periodico** (sezione «Patch (WatchGuard)», anche nel PDF), nel controllo **8.8** della pagina Conformità ISO 27001 e nel **pacchetto mensile** di evidenze, e nel riquadro **Patch** della scheda asset.
+
+### Librerie del portale
+
+Pagina **Dispositivi › Librerie del portale**: le vulnerabilità note nelle librerie Python installate nel portale stesso (il server di NOVICROM HUB). Ogni mattina alle **06:50** le librerie dell'ambiente Python del portale si confrontano con il database pubblico **OSV** (osv.dev), lo stesso che usa pip-audit nel controllo prima del pacchetto. Così una vulnerabilità pubblicata dopo il deploy si vede il giorno dopo, non al pacchetto successivo.
+
+- **Da aggiornare**: una riga per libreria con la versione installata, la gravità più alta, le vulnerabilità (link al bollettino OSV) e **«Aggiornare almeno a»**, la versione più bassa che le corregge tutte. Le voci che OSV dà con più codici (PYSEC, GHSA, CVE dello stesso problema) contano una volta.
+- **Gravità**: quella del bollettino GitHub (GHSA) se c'è, altrimenti il CVSS della CVE già letta da NVD; senza nessuna delle due è «Media» con la nota «gravità non classificata».
+- **Risolte negli ultimi 90 giorni**: si chiudono da sole quando la libreria è aggiornata **nell'ambiente del portale** (`pip install -r requirements.txt` e riavvio). Cambiare solo `requirements.txt` non basta: il controllo guarda quello che è installato.
+- **Alert**: uno per libreria e versione installata, con la severità della vulnerabilità più grave; si chiude da solo dopo l'aggiornamento. Apertura e chiusura vanno nell'audit sigillato.
+- **Se OSV non risponde** (server senza accesso a Internet verso api.osv.dev) la lettura va in **errore** in Impostazioni › Letture automatiche e la pagina lo dice: l'elenco resta quello del controllo precedente, non vuol dire «nessuna vulnerabilità».
+
+Interruttori in **Impostazioni › Avvisi e automatismi › Librerie del portale (ISO 27001 8.8)**: «Controlla le librerie del portale ogni mattina» e «Alert per le librerie vulnerabili», tutti e due accesi di default. «Esegui ora» è in Letture automatiche. Le vulnerabilità aperte contano nella Panoramica e nel report periodico come le altre (un dispositivo esposto: il server del portale); nel controllo **8.8** della Conformità ISO 27001 una libreria con gravità alta o critica porta l'esito da «ok» ad «attenzione».
+
+### Patch nella scheda asset
+
+Nella scheda di un PC che WatchGuard conosce c'è il riquadro **Patch** (accanto a «Vulnerabilità»; solo per chi vede il Security Center): patch mancanti, oltre il termine, con l'installazione fallita e chiuse nell'ultimo anno con le CVE corrette. La tabella elenca le prime 10 patch mancanti con classe, data di pubblicazione e termine («entro il …» o «scaduto da N gg»); sotto, le patch chiuse nell'ultimo anno con i giorni dalla pubblicazione, le CVE e il motivo. «Storico completo di questo PC» apre Patch installate già filtrata sul PC.
 
 ### Alert e ticket automatici
 
@@ -371,19 +470,21 @@ Ogni PC esposto (esito **Impatta**) ha un **termine di correzione** che parte da
 
 I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Vulnerabilità: tempi di correzione (ISO 27001 8.8)**. Gli esiti «da verificare» non hanno termine: prima si decide se impattano (a mano o accettando una proposta dell'AI).
 
+**Stiamo migliorando?** Il riquadro «Tempi di correzione» della pagina Vulnerabilità si apre con tre tessere: **PC corretti nel termine** (percentuale, verde da 80%, rosso sotto 50%), **giorni mediani** da «esposto dal» alla correzione (metà dei PC corretti ci ha messo meno di così: la mediana non si sposta per un solo PC dimenticato per mesi, la media sì) e **PC oltre il termine** sulle esposizioni aperte. Sotto il numero, la variazione rispetto ai 90 giorni precedenti (▲ ▼, verde = meglio, giallo = peggio; «senza confronto» se in uno dei due periodi non ci sono correzioni; il periodo esatto compare passando il mouse) e una linea delle ultime 8 settimane. Nella tabella per classe la colonna **Nel termine** è una barra verde/rossa con «nel termine / corrette» e la colonna **Mediana** dà lo stesso numero per classe.
+
 Dove si vede:
 
 - **Scheda CVE**: il riquadro «Tempi di correzione e accettazione del rischio» dice la classe e i giorni; la colonna **Termine** della tabella degli host dice per ogni PC «entro il …» con i giorni che restano, **«Oltre il termine di N giorni»** o «Rischio accettato fino al …».
 - **Pannello laterale della CVE** (catalogo software, scheda asset): in «Cosa fare» la classe e il termine, con quanti PC sono oltre; per ogni PC la riga «Da correggere entro il …» o «Oltre il termine di N giorni».
 - **Vulnerabilità**: il riquadro **Tempi di correzione** con, per classe, i PC corretti negli ultimi 90 giorni divisi tra **nel termine** e **in ritardo**, le esposizioni aperte e quelle oltre il termine, più la percentuale complessiva di correzioni nel termine e l'elenco dei PC oltre il termine. Una correzione è «nel termine» se la data della risoluzione (programma aggiornato o disinstallato, vedi «Quando un PC viene aggiornato») non supera il termine calcolato da «esposto dal».
 
-**Cosa succede da solo.** Nel ciclo del SOC (ogni 15 minuti), per ogni PC oltre il termine senza accettazione del rischio attiva nasce l'evento «CVE oltre il termine di correzione» e un alert — **uno per CVE, PC e termine**: lo stesso ritardo non lo ripete, un termine nuovo (per esempio dopo una recidiva) sì. Severità **alta** per le CVE sfruttate o critiche, **media** per le altre. L'alert si chiude da solo quando il ricalcolo degli impatti non vede più il PC esposto oppure quando qualcuno accetta il rischio, con il motivo scritto. L'interruttore «Segnala le esposizioni oltre il termine di correzione» arriva **acceso**; la regola facoltativa `cve_sla_scaduta` in Configurazione › Regole alert permette di cambiarne la severità.
+**Cosa succede da solo.** Nel ciclo del SOC (ogni 15 minuti), per ogni PC oltre il termine senza accettazione del rischio attiva nasce l'evento «CVE oltre il termine di correzione» (**uno per CVE, PC e termine**: lo stesso ritardo non lo ripete, un termine nuovo, per esempio dopo una recidiva, sì) e un alert **per CVE**: se la CVE ha già l'alert «PC con versione vulnerabile» il PC oltre il termine si scrive nella sua timeline, altrimenti nell'alert «Oltre il termine di correzione: CVE, N PC», dove ogni PC corretto lascia la riga «PC rientrato nel termine» (vedi Impostazioni e AI › Meno rumore; con «Meno rumore» spento, un alert per CVE, PC e termine come prima). Severità **alta** per le CVE sfruttate o critiche, **media** per le altre. L'alert si chiude da solo quando il ricalcolo degli impatti non vede più esposto nessuno dei suoi PC oppure quando qualcuno accetta il rischio, con il motivo scritto. L'interruttore «Segnala le esposizioni oltre il termine di correzione» arriva **acceso**; la regola facoltativa `cve_sla_scaduta` in Configurazione › Regole alert permette di cambiarne la severità.
 
 ### Accettazione del rischio
 
 Quando la correzione non si può fare nel termine (il produttore non ha una patch, la macchina comanda un impianto e non si può toccare, il programma gira isolato) la norma chiede un'**eccezione formale**: chi decide, perché, con quali misure compensative e fino a quando. Nel SOC è l'**accettazione del rischio**.
 
-- Si crea dalla **scheda CVE**, riquadro «Tempi di correzione e accettazione del rischio», pulsante **Accetta il rischio**: solo chi ha il **permesso di configurazione** del SOC. Si sceglie il PC (o **tutti i PC**), si scrive il **motivo** (almeno 20 caratteri, obbligatorio), le **misure compensative** (facoltative ma consigliate: rete isolata, funzione disattivata, monitoraggio rafforzato) e la **scadenza**, al massimo **12 mesi**: dopo va riesaminata, non si rinnova da sola.
+- Si crea dalla **scheda CVE**, riquadro «Tempi di correzione e accettazione del rischio», pulsante **Accetta il rischio** (o per più PC insieme, selezionandoli nella tabella «Esito per host»): solo chi ha il **permesso di configurazione** del SOC. Si sceglie il PC (o **tutti i PC**), si scrive il **motivo** (almeno 20 caratteri, obbligatorio), le **misure compensative** (facoltative ma consigliate: rete isolata, funzione disattivata, monitoraggio rafforzato) e la **scadenza**, al massimo **12 mesi**: dopo va riesaminata, non si rinnova da sola.
 - Finché è **attiva**, il PC non fa scattare l'alert «oltre il termine»; se l'alert era già aperto si chiude da solo con il riferimento all'accettazione. Nelle pagine il PC compare come «Rischio accettato fino al …» e nel riquadro Tempi di correzione conta tra le esposizioni «con rischio accettato».
 - **30 giorni prima** della scadenza (si cambia in Impostazioni) nasce un alert di attenzione «Accettazione del rischio in scadenza fra N giorni». Alla **scadenza** l'accettazione finisce da sola: alert «Accettazione del rischio scaduta: … torna da correggere» e, se il PC è ancora esposto oltre il termine, l'alert «oltre il termine» riparte. L'interruttore «Alert quando un'accettazione del rischio sta per scadere o è scaduta» arriva acceso.
 - La pagina **Dispositivi › Rischi accettati** elenca tutte le accettazioni con lo stato (**attiva**, **scaduta**, **revocata**), la scadenza (evidenziata se entro 30 giorni), chi ha approvato, motivo e misure. **Revoca** (con motivo) la chiude prima: l'esposizione torna a contare subito.
@@ -402,6 +503,8 @@ Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su
 - Riepilogo nella pagina **Vulnerabilità**, riquadro **Software non conforme**, con il link al catalogo già filtrato.
 
 Si accendono e si spengono in **Configurazione › Avvisi e automatismi › Software non conforme** (tre interruttori, accesi di default). Senza software classificati nel catalogo non nasce nessun alert.
+
+**Programma mai visto prima.** Un programma che compare per la prima volta su un PC dell'azienda e che non ha una decisione nel catalogo (né sul programma né da una regola per produttore) è un possibile caso di shadow IT: dopo ogni import nasce **un alert per programma**, severità avviso, una volta sola («Programma nuovo: X su N PC»), raggruppato in Proposte AI come gli altri. Si chiude da solo quando il programma riceve una decisione nel catalogo o sparisce da tutti i PC. Un programma è «nuovo» per 14 giorni dalla prima comparsa (**Un programma è «nuovo» per**, stessa sezione delle impostazioni); una versione nuova di un programma già visto non conta. Nel Catalogo software gli stessi programmi hanno l'etichetta «nuovo dal gg/mm» e il filtro **Nuovi**.
 
 ## Domande frequenti
 

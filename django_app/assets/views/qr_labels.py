@@ -762,6 +762,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         "qr_landing_url": request.path,
         "qr_meters": [] if public else list(AssetMeter.objects.filter(asset=asset).order_by("meter_type")),
         "qr_can_record_meter": False if public else _qr_can_record_meter(request),
+        "qr_map_url": "" if public else _qr_map_url(asset),
     }
     if public:
         # Nessuna shell applicativa (sidebar/nav/ACL) per i visitatori non autenticati.
@@ -775,6 +776,15 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         # Origin: null e il CSRF lo rifiuta. same-origin non fa uscire il token.
         response["Referrer-Policy"] = "same-origin"
     return response
+
+
+def _qr_map_url(asset) -> str:
+    from ..services.planimetria_livelli import url_mappa_asset
+
+    try:
+        return url_mappa_asset(asset)
+    except Exception:  # la mappa è un di più: la pagina del QR deve aprirsi comunque
+        return ""
 
 
 @login_required

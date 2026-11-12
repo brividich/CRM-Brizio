@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+import math
 import re
 import uuid
 from datetime import timedelta
@@ -102,6 +103,7 @@ class Asset(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_IN_USE)
     purchase_date = models.DateField(null=True, blank=True)
     production_date = models.DateField(null=True, blank=True)
+    warranty_end = models.DateField(null=True, blank=True, verbose_name="Fine garanzia")
     notes = models.TextField(blank=True, default="")
     foto_targhetta = models.ImageField(
         upload_to="assets/targhette/",
@@ -419,6 +421,9 @@ class AssetCategory(models.Model):
     )
     base_asset_type = models.CharField(max_length=20, choices=Asset.TYPE_CHOICES, default=Asset.TYPE_OTHER, db_index=True)
     description = models.TextField(blank=True, default="")
+    # Parole comuni con cui la gente cerca gli asset della categoria (es. «Chiller»
+    # → «condizionatore, clima»): le usa la ricerca asset del ticket.
+    sinonimi = models.CharField(max_length=255, blank=True, default="")
     detail_specs_title = models.CharField(max_length=120, blank=True, default="")
     detail_profile_title = models.CharField(max_length=120, blank=True, default="")
     detail_assignment_title = models.CharField(max_length=120, blank=True, default="")
@@ -1757,6 +1762,98 @@ class SoftwareCatalogEntry(models.Model):
         return self.display_name or self.inventory_key
 
 
+class AssetSenzaInventario(models.Model):
+    """Perché un PC o un server non ha l'inventario software: non è un buco da sistemare, lo si è deciso."""
+
+    MOTIVO_DISMESSO = "dismesso"
+    MOTIVO_FUORI_DOMINIO = "fuori_dominio"
+    MOTIVO_NON_GESTITO = "non_gestito"
+    MOTIVO_SPENTO = "spento"
+    MOTIVO_ALTRO = "altro"
+    MOTIVO_CHOICES = [
+        (MOTIVO_DISMESSO, "Dismesso"),
+        (MOTIVO_FUORI_DOMINIO, "Fuori dominio"),
+        (MOTIVO_NON_GESTITO, "Macchina senza agente (CNC, strumento)"),
+        (MOTIVO_SPENTO, "Spento o di scorta"),
+        (MOTIVO_ALTRO, "Altro"),
+    ]
+
+    asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="senza_inventario")
+    motivo = models.CharField(max_length=20, choices=MOTIVO_CHOICES)
+    nota = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asset senza inventario software"
+        verbose_name_plural = "Asset senza inventario software"
+
+    def __str__(self) -> str:
+        return f"{self.asset} · {self.get_motivo_display()}"
+
+
+class SoftwareProduttoreConsentito(models.Model):
+    """«Di questo produttore è tutto consentito»: vale anche per i programmi nuovi.
+
+    Solo «consentito»: una regola non può vietare, perché vietare fa scattare gli alert del SOC e va deciso
+    programma per programma. Una decisione sul singolo programma vince sempre sulla regola.
+    """
+
+    produttore = models.CharField(max_length=120, unique=True)  # prima parola del produttore, minuscola
+    etichetta = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["produttore"]
+        verbose_name = "Produttore di software consentito"
+        verbose_name_plural = "Produttori di software consentiti"
+
+    def __str__(self) -> str:
+        return self.etichetta or self.produttore
+
+
+class SoftwareDotazioneAttesa(models.Model):
+    """«Questi PC devono avere questo programma»: la dotazione attesa, da confrontare con l'inventario.
+
+    ``programma`` è la chiave canonica del Catalogo software (``vendor|product``): vale per tutti i nomi e le
+    release dello stesso programma. L'ambito è il tipo di asset (PC e notebook, server, tutti) con un reparto
+    opzionale. I PC senza inventario non contano: non si sa cosa hanno (stanno in «PC e server senza inventario»).
+    """
+
+    AMBITO_PC = "pc"
+    AMBITO_SERVER = "server"
+    AMBITO_TUTTI = "tutti"
+    AMBITO_CHOICES = [(AMBITO_PC, "PC e notebook"), (AMBITO_SERVER, "Server"), (AMBITO_TUTTI, "PC, notebook e server")]
+    TIPI_PER_AMBITO = {
+        AMBITO_PC: (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK),
+        AMBITO_SERVER: (Asset.TYPE_SERVER,),
+        AMBITO_TUTTI: (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER),
+    }
+
+    programma = models.CharField(max_length=300)
+    etichetta = models.CharField(max_length=255, blank=True, default="")
+    ambito = models.CharField(max_length=10, choices=AMBITO_CHOICES, default=AMBITO_PC)
+    reparto = models.CharField(max_length=120, blank=True, default="", help_text="Vuoto = tutti i reparti.")
+    nota = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["etichetta", "programma", "ambito", "reparto"]
+        constraints = [models.UniqueConstraint(fields=["programma", "ambito", "reparto"], name="uniq_software_dotazione_attesa")]
+        verbose_name = "Dotazione software attesa"
+        verbose_name_plural = "Dotazioni software attese"
+
+    def __str__(self) -> str:
+        dove = self.get_ambito_display() + (f" del reparto {self.reparto}" if self.reparto else "")
+        return f"{self.etichetta or self.programma} su {dove}"
+
+    @property
+    def tipi(self):
+        return self.TIPI_PER_AMBITO.get(self.ambito, self.TIPI_PER_AMBITO[self.AMBITO_PC])
+
+
 class WorkMachine(models.Model):
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="work_machine")
     source_key = models.CharField(max_length=64, unique=True, db_index=True)
@@ -1857,6 +1954,25 @@ class PlantLayout(models.Model):
     description = models.CharField(max_length=255, blank=True, default="")
     image = models.ImageField(upload_to=_plant_layout_image_upload_to)
     is_active = models.BooleanField(default=False, db_index=True)
+    # Pianta base + livelli: un servizio (condizionatori, differenziali...) disegnato sullo
+    # stesso edificio è un livello della pianta base, allineato con due punti.
+    base = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="livelli",
+        verbose_name="Pianta base",
+    )
+    # {"matrice": [a, b, c, d, e, f], "punti": [[x, y, xb, yb], ...], "base_immagine": "...", "da_verificare": bool}
+    # x_base = a*x + b*y + c ; y_base = d*x + e*y + f (tutto in % delle immagini)
+    allineamento = models.JSONField(default=dict, blank=True)
+    colore = models.CharField(max_length=7, blank=True, default="")
+    asset_categories = models.ManyToManyField(
+        "AssetCategory", blank=True, related_name="plant_layouts", verbose_name="Categorie su questa planimetria",
+    )
+    # {"punti": [[x1, y1], [x2, y2]], "metri": 12.5, "rapporto": altezza/larghezza dell'immagine}
+    scala = models.JSONField(default=dict, blank=True)
+    # «Importa planimetrie»: il PDF da cui è nata la pianta (la lettura degli asset lo rilegge)
+    # e lo stato: {"file", "il", "da", "punteggio", "validata", "validata_il", "validata_da"}
+    sorgente_pdf = models.FileField(upload_to="planimetrie_sorgenti/", max_length=200, blank=True, default="")
+    importazione = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1865,6 +1981,65 @@ class PlantLayout(models.Model):
 
     def __str__(self) -> str:
         return f"{self.category} - {self.name}"
+
+    # --- livelli -----------------------------------------------------------
+    @property
+    def matrice(self) -> list[float] | None:
+        m = (self.allineamento or {}).get("matrice")
+        if isinstance(m, list) and len(m) == 6:
+            try:
+                return [float(v) for v in m]
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    @property
+    def e_livello(self) -> bool:
+        return bool(self.base_id)
+
+    @property
+    def allineato(self) -> bool:
+        return bool(self.base_id and self.matrice)
+
+    def su_base(self, x, y) -> tuple[float, float] | None:
+        """Punto di questo livello (in %) sulla pianta base (in %)."""
+        m = self.matrice
+        if not m:
+            return None
+        x, y = float(x), float(y)
+        return round(m[0] * x + m[1] * y + m[2], 2), round(m[3] * x + m[4] * y + m[5], 2)
+
+    # --- scala reale ---------------------------------------------------------
+    @property
+    def ha_scala(self) -> bool:
+        s = self.scala or {}
+        return bool(s.get("punti") and s.get("metri") and s.get("rapporto"))
+
+    def _unita(self, x1, y1, x2, y2) -> float:
+        rapporto = float((self.scala or {}).get("rapporto") or 1)
+        return math.hypot(float(x2) - float(x1), (float(y2) - float(y1)) * rapporto)
+
+    def metri_tra(self, x1, y1, x2, y2) -> float | None:
+        """Distanza reale fra due punti (in %) secondo la quota tarata."""
+        if not self.ha_scala:
+            return None
+        (a, b), (c, d) = self.scala["punti"][:2]
+        rif = self._unita(a, b, c, d)
+        if rif <= 0:
+            return None
+        return self._unita(x1, y1, x2, y2) / rif * float(self.scala["metri"])
+
+    def metri_quadri(self, superficie_percentuale: float) -> float | None:
+        """Superficie reale di un'area espressa in «% × %» della pianta."""
+        if not self.ha_scala:
+            return None
+        (a, b), (c, d) = self.scala["punti"][:2]
+        rif = self._unita(a, b, c, d)
+        if rif <= 0:
+            return None
+        metri_per_unita = float(self.scala["metri"]) / rif  # unità = 1% della larghezza
+        rapporto = float(self.scala.get("rapporto") or 1)
+        return float(superficie_percentuale) * rapporto * metri_per_unita ** 2
 
     def save(self, *args, **kwargs):
         previous_name = ""
@@ -1877,16 +2052,31 @@ class PlantLayout(models.Model):
                 previous_storage = previous.image.storage
         super().save(*args, **kwargs)
         if self.is_active:
+            vecchie = list(
+                PlantLayout.objects.exclude(pk=self.pk).filter(is_active=True, category__iexact=self.category)
+            )
             PlantLayout.objects.exclude(pk=self.pk).filter(is_active=True, category__iexact=self.category).update(is_active=False)
+            # i livelli della versione precedente passano a questa: l'allineamento resta, ma va controllato
+            for livello in PlantLayout.objects.filter(base__in=vecchie).exclude(pk=self.pk):
+                livello.base = self
+                dati = dict(livello.allineamento or {})
+                if dati.get("matrice"):
+                    dati["da_verificare"] = dati.get("base_immagine") != (self.image.name if self.image else "")
+                livello.allineamento = dati
+                livello.save(update_fields=["base", "allineamento", "updated_at"])
         if previous_storage and previous_name and previous_storage.exists(previous_name):
             previous_storage.delete(previous_name)
 
     def delete(self, *args, **kwargs):
         storage = self.image.storage if self.image else None
         file_name = self.image.name if self.image else ""
+        sorgente = self.sorgente_pdf.name if self.sorgente_pdf else ""
+        sorgente_storage = self.sorgente_pdf.storage if self.sorgente_pdf else None
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+        if sorgente_storage and sorgente and sorgente_storage.exists(sorgente):
+            sorgente_storage.delete(sorgente)
 
 
 class PlantLayoutArea(models.Model):
@@ -1899,15 +2089,127 @@ class PlantLayoutArea(models.Model):
     y_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     width_percent = models.DecimalField(max_digits=6, decimal_places=2, default=10)
     height_percent = models.DecimalField(max_digits=6, decimal_places=2, default=10)
+    # Forma libera (reparto a «L» o irregolare): vertici [[x, y], ...] in % della pianta.
+    # Vuoto = rettangolo. Con i punti, x/y/larghezza/altezza restano il riquadro che li
+    # contiene, così chi legge solo il rettangolo (centro, ordinamento) continua a funzionare.
+    punti = models.JSONField(default=list, blank=True)
     sort_order = models.PositiveIntegerField(default=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    MIN_PUNTI = 3
+    MAX_PUNTI = 80
 
     class Meta:
         ordering = ["sort_order", "name", "id"]
 
     def __str__(self) -> str:
         return f"{self.layout.name} - {self.name}"
+
+    @property
+    def e_poligono(self) -> bool:
+        return len(self.punti or []) >= self.MIN_PUNTI
+
+    def poligono(self) -> list[tuple[float, float]]:
+        """I vertici della forma: quelli disegnati o gli angoli del rettangolo."""
+        if self.e_poligono:
+            return [(float(x), float(y)) for x, y in self.punti]
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = float(self.width_percent), float(self.height_percent)
+        return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+
+    def contiene(self, x, y) -> bool:
+        """Il punto (in %) sta dentro la forma? Bordo compreso."""
+        x, y = float(x), float(y)
+        pts = self.poligono()
+        dentro = False
+        j = len(pts) - 1
+        for i, (xi, yi) in enumerate(pts):
+            xj, yj = pts[j]
+            if min(xi, xj) <= x <= max(xi, xj) and min(yi, yj) <= y <= max(yi, yj):
+                # sul lato
+                if abs((xj - xi) * (y - yi) - (yj - yi) * (x - xi)) < 1e-9:
+                    return True
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                dentro = not dentro
+            j = i
+        return dentro
+
+    def superficie(self) -> float:
+        pts = self.poligono()
+        return abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
+
+    def centro(self) -> tuple[float, float]:
+        """Baricentro della forma (per una «L» può cadere nell'angolo vuoto: è un'etichetta, non un test)."""
+        pts = self.poligono()
+        a = cx = cy = 0.0
+        for i in range(len(pts)):
+            x0, y0 = pts[i - 1]
+            x1, y1 = pts[i]
+            f = x0 * y1 - x1 * y0
+            a += f
+            cx += (x0 + x1) * f
+            cy += (y0 + y1) * f
+        if abs(a) < 1e-9:
+            return (float(self.x_percent) + float(self.width_percent) / 2,
+                    float(self.y_percent) + float(self.height_percent) / 2)
+        return (cx / (3 * a), cy / (3 * a))
+
+    def punto_interno(self) -> tuple[float, float]:
+        """Un punto sicuramente dentro la forma, vicino al baricentro (per una «L» il baricentro può stare fuori)."""
+        cx, cy = self.centro()
+        if self.contiene(cx, cy):
+            return (cx, cy)
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = float(self.width_percent), float(self.height_percent)
+        migliore = None
+        for i in range(1, 20):
+            for j in range(1, 20):
+                px, py = x + w * i / 20, y + h * j / 20
+                if self.contiene(px, py):
+                    d = (px - cx) ** 2 + (py - cy) ** 2
+                    if migliore is None or d < migliore[0]:
+                        migliore = (d, px, py)
+        return (migliore[1], migliore[2]) if migliore else (cx, cy)
+
+    def imposta_punti(self, punti) -> None:
+        """Salva i vertici (arrotondati, dentro la pianta) e riallinea il riquadro che li contiene."""
+        from decimal import Decimal
+
+        def _d(v):
+            return Decimal(str(round(min(100.0, max(0.0, float(v))), 2)))
+
+        pts = [(_d(x), _d(y)) for x, y in (punti or [])]
+        if len(pts) < self.MIN_PUNTI:
+            self.punti = []
+            return
+        self.punti = [[float(x), float(y)] for x, y in pts]
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        self.x_percent, self.y_percent = min(xs), min(ys)
+        self.width_percent = max(max(xs) - min(xs), Decimal("0.5"))
+        self.height_percent = max(max(ys) - min(ys), Decimal("0.5"))
+
+    def clip_path(self) -> str:
+        """``clip-path: polygon(...)`` in % del riquadro: il pulsante del reparto si clicca solo dentro la forma."""
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return "polygon(" + ", ".join(
+            f"{(px - x) / w * 100:.2f}% {(py - y) / h * 100:.2f}%" for px, py in self.poligono()
+        ) + ")"
+
+    def etichetta_relativa(self) -> tuple[float, float]:
+        """Dove mettere il nome del reparto, in % del riquadro: un punto dentro la forma."""
+        px, py = self.punto_interno()
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return (round((px - x) / w * 100, 2), round((py - y) / h * 100, 2))
+
+    def punti_relativi(self) -> str:
+        """I vertici in % del riquadro, per ``clip-path``/SVG nelle pagine («x,y x,y …»)."""
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return " ".join(f"{(px - x) / w * 100:.2f},{(py - y) / h * 100:.2f}" for px, py in self.poligono())
 
 
 class PlantLayoutMarker(models.Model):
@@ -2594,6 +2896,22 @@ class WorkOrder(models.Model):
         blank=True,
         related_name="asset_workorders",
     )
+    # Chi esegue: personale interno (squadra manutenzione) o ditta esterna.
+    # Vuoto = intervento registrato prima della scelta esplicita: si deduce
+    # dalla ditta (vedi ``effective_execution_mode``).
+    EXECUTION_INTERNAL = "INTERNAL"
+    EXECUTION_EXTERNAL = "EXTERNAL"
+    EXECUTION_MODE_CHOICES = [
+        (EXECUTION_INTERNAL, "Interna"),
+        (EXECUTION_EXTERNAL, "Esterna (ditta terza)"),
+    ]
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        blank=True,
+        default="",
+        help_text="Interna (squadra manutenzione) o esterna (ditta terza).",
+    )
     maintenance_rule = models.ForeignKey(
         "MaintenanceRule",
         on_delete=models.SET_NULL,
@@ -2968,6 +3286,17 @@ class WorkOrder(models.Model):
         cls.objects.filter(pk__in=[wo.pk for wo in workorders]).update(reference_batch=reference_batch)
         for wo in workorders:
             wo.reference_batch = reference_batch
+
+    @property
+    def effective_execution_mode(self) -> str:
+        """Modalita' dichiarata, oppure dedotta dalla ditta per gli interventi storici."""
+        if self.execution_mode:
+            return self.execution_mode
+        return self.EXECUTION_EXTERNAL if self.supplier_id else self.EXECUTION_INTERNAL
+
+    @property
+    def effective_execution_label(self) -> str:
+        return dict(self.EXECUTION_MODE_CHOICES).get(self.effective_execution_mode, "")
 
     @property
     def display_number(self) -> str:
@@ -5541,6 +5870,7 @@ class CollegamentoMTConnect(models.Model):
     STATO_EMERGENZA = "emergenza"
     STATO_SPENTA = "spenta"
     STATO_NON_RAGGIUNGIBILE = "non_raggiungibile"
+    STATO_NON_LEGGIBILE = "non_leggibile"
     STATO_MAI = "mai"
     STATO_CHOICES = [
         (STATO_IN_LAVORO, "In lavoro"),
@@ -5551,6 +5881,7 @@ class CollegamentoMTConnect(models.Model):
         (STATO_EMERGENZA, "Emergenza"),
         (STATO_SPENTA, "Offline"),
         (STATO_NON_RAGGIUNGIBILE, "Non raggiungibile"),
+        (STATO_NON_LEGGIBILE, "Non leggibile"),
         (STATO_MAI, "Mai letta"),
     ]
     FONTE_MTCONNECT = "mtconnect"
@@ -5597,6 +5928,8 @@ class CollegamentoMTConnect(models.Model):
     letto_il = models.DateTimeField(null=True, blank=True)
     controllato_il = models.DateTimeField(null=True, blank=True)
     errore = models.CharField(max_length=300, blank=True, default="")
+    # Collector: chiave dell'ultimo evento di stato applicato («istanza:progressivo»), per scartare i reinvii.
+    ultimo_evento = models.CharField(max_length=60, blank=True, default="")
     creato_il = models.DateTimeField(auto_now_add=True)
     aggiornato_il = models.DateTimeField(auto_now=True)
 

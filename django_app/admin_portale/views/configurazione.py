@@ -1756,10 +1756,13 @@ def api_twofa_policy_save(request: HttpRequest):
     except (ValueError, TypeError):
         policy.required_role_ids = []
 
-    # Reti interne: una per riga
-    raw_nets = (request.POST.get("internal_networks") or "").strip()
-    nets = [n.strip() for n in raw_nets.splitlines() if n.strip()]
+    # Reti interne: una per riga; accetta anche virgole, spazi e il "\n" letterale
+    # che la vecchia pagina scriveva nel campo (join:"\n" nei template non va a capo)
     import ipaddress
+    import re
+
+    raw_nets = (request.POST.get("internal_networks") or "").replace("\\n", "\n")
+    nets = list(dict.fromkeys(n for n in re.split(r"[\s,;]+", raw_nets) if n))
     valid_nets = []
     invalid_nets = []
     for n in nets:

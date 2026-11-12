@@ -1,0 +1,39 @@
+{% extends "core/base.html" %}
+{% block title %}Riesame della direzione{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <div class="page-header">
+    <div class="page-header-main"><div class="page-h">Riesame della direzione</div><div class="page-sub">Verbali MOD.062 e obiettivi fissati (MT CN 19). Il riesame si fa almeno una volta all'anno.</div></div>
+    <div class="sg-actions">{% if puo_dati %}<a class="btn btn-secondary" href="{% url 'report_conformita:riesame' %}">Dati di ingresso</a>{% endif %}{% if puo_modificare %}<a class="btn" href="{% url 'sistema_gestione:riesame_nuovo' %}">Nuovo verbale</a>{% endif %}</div>
+  </div>
+
+  <div class="sg-kpis">
+    <div class="sg-kpi{% if not prossimo %} is-warn{% elif prossimo < oggi %} is-danger{% endif %}"><span>Prossimo riesame entro</span><strong>{% if prossimo %}{{ prossimo|date:"d/m/Y" }}{% else %}Nessuno approvato{% endif %}</strong></div>
+    <div class="sg-kpi"><span>Obiettivi in corso</span><strong>{{ obiettivi|length }}</strong></div>
+  </div>
+
+  <section class="rc-card sg-section">
+    <h2>Verbali</h2>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Anno</th><th>Data</th><th>Stato</th><th>Approvato</th></tr></thead><tbody>
+      {% for v in verbali %}<tr>
+        <td><a href="{% url 'sistema_gestione:riesame_dettaglio' v.pk %}">{{ v.anno }}</a></td><td>{{ v.data|date:"d/m/Y" }}</td>
+        <td><span class="sg-state is-{{ v.stato }}">{{ v.get_stato_display }}</span></td>
+        <td>{% if v.approvato_il %}{{ v.approvato_il|date:"d/m/Y" }}{% if v.approvato_da %} · {{ v.approvato_da.get_full_name|default:v.approvato_da.username }}{% endif %}{% else %}—{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="4">Nessun verbale registrato.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="rc-card sg-section">
+    <h2>Obiettivi in corso</h2>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Risultato atteso</th><th>Responsabile</th><th>Scadenza</th><th>Verbale</th></tr></thead><tbody>
+      {% for o in obiettivi %}<tr>
+        <td><strong>{{ o.descrizione }}</strong></td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
+        <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}—{% endif %}</td>
+        <td>{% if o.scadenza and o.scadenza < oggi %}<span class="sg-badge danger">{{ o.scadenza|date:"d/m/Y" }}</span>{% else %}{{ o.scadenza|date:"d/m/Y"|default:"—" }}{% endif %}</td>
+        <td><a href="{% url 'sistema_gestione:riesame_dettaglio' o.riesame_id %}#obiettivi">{{ o.riesame.anno }}</a></td>
+      </tr>{% empty %}<tr><td colspan="6">Nessun obiettivo in corso.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+{% endblock %}

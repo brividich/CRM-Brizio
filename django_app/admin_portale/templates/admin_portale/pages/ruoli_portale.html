@@ -78,7 +78,7 @@
     <div class="card"><div class="card-body">
       {% if selezionata %}
         <div class="card-title">{{ selezionata.nome }}</div>
-        <div class="acl-muted">{{ selezionata.email|default:"" }} · tutti hanno il ruolo base «Operatore», non serve spuntarlo.</div>
+        <div class="acl-muted">{{ selezionata.email|default:"" }} · il ruolo base «Operatore» vale solo per chi non ha altri ruoli, non serve spuntarlo.</div>
         <div class="rp-org-box">
           <div class="rp-org-title">Dall'organigramma</div>
           {% if organigramma_selezionata %}
@@ -113,6 +113,59 @@
             <a class="btn btn-secondary" href="?tab=anteprima&persona={{ selezionata.id }}">Cosa vede</a>
           </div>
         </form>
+
+        <div class="rp-org-box rp-eccezioni" id="eccezioni">
+          <div class="rp-org-title">Eccezioni sulla persona</div>
+          <div class="acl-muted">Per togliere a questa persona una cosa che i suoi ruoli le danno (anche quelli dall'organigramma), senza toccare i colleghi con lo stesso ruolo. Solo in meno: per dare qualcosa in più si usa un ruolo.</div>
+          {% if eccezioni_selezionata %}
+          <div class="acl-table-wrap" data-fm-table-skip="1">
+            <table class="acl-table">
+              <thead><tr><th>Modulo</th><th>Azione</th><th>Esito</th><th>Motivo</th><th></th></tr></thead>
+              <tbody>
+              {% for e in eccezioni_selezionata %}
+                <tr>
+                  <td>{{ e.modulo }}</td>
+                  <td>{{ e.azione }}</td>
+                  <td><span class="acl-chip deny">{{ e.esito }}</span></td>
+                  <td>{{ e.eccezione.motivo }}<div class="acl-muted">{{ e.eccezione.creata_da }} · {{ e.eccezione.updated_at|date:"d/m/Y" }}</div></td>
+                  <td>
+                    <form method="post" action="{% url 'admin_portale:ruoli_portale_eccezione' selezionata.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="q" value="{{ q }}">
+                      <button class="btn btn-secondary btn-sm" type="submit" name="togli" value="{{ e.eccezione.id }}" data-hub-confirm="Togliere l'eccezione? La persona torna ad avere quello che le dà il ruolo.">Togli</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+          <form method="post" action="{% url 'admin_portale:ruoli_portale_eccezione' selezionata.id %}" class="rp-eccezione-form">
+            {% csrf_token %}
+            <input type="hidden" name="q" value="{{ q }}">
+            <label class="acl-muted" for="rp-ecc-voce">Modulo e azione</label>
+            <select id="rp-ecc-voce" class="input" name="voce" required>
+              <option value="">— scegli —</option>
+              {% for v in voci_eccezione %}
+                <optgroup label="{{ v.modulo.nome }}">
+                  {% for chiave, label in v.azioni %}<option value="{{ v.modulo.chiave }}::{{ chiave }}">{{ v.modulo.nome }} · {{ label }}</option>{% endfor %}
+                </optgroup>
+              {% endfor %}
+            </select>
+            <label class="acl-muted" for="rp-ecc-limite">Esito</label>
+            <select id="rp-ecc-limite" class="input" name="limite">
+              <option value="">Negato</option>
+              <option value="team">Al massimo propri e del team</option>
+              <option value="propri">Al massimo i propri</option>
+            </select>
+            <label class="acl-muted" for="rp-ecc-motivo">Motivo (obbligatorio, resta nel registro)</label>
+            <input id="rp-ecc-motivo" class="input" type="text" name="motivo" maxlength="255" required placeholder="es. conflitto d'interessi sui dati del reparto">
+            <div class="acl-actions" style="margin-top:10px;">
+              <button class="btn" type="submit">Aggiungi eccezione</button>
+            </div>
+          </form>
+        </div>
       {% else %}
         <div class="acl-empty">Scegli una persona dall'elenco per assegnare i ruoli.</div>
       {% endif %}
@@ -134,7 +187,7 @@
       <details class="acl-tech" style="margin-bottom:12px;" open>
         <summary>Chi ha il ruolo «{{ ruolo.label }}» oggi · {{ membri_ruolo|length }} {{ membri_ruolo|length|pluralize:"persona,persone" }}</summary>
         {% if ruolo.preset == "dipendente" %}
-          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per tutti gli utenti attivi del portale: qui sotto solo chi lo ha anche a mano o dall'organigramma.</div>
+          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per chi non ha altri ruoli: qui sotto solo chi lo ha anche a mano o dall'organigramma.</div>
         {% endif %}
         {% if membri_ruolo %}
           <div class="acl-table-wrap rp-scroll-x" style="margin-top:10px;max-height:calc(40 * var(--vh, 1vh));overflow-y:auto;">
@@ -198,7 +251,7 @@
         {% if ruolo.amministratore %}
           <div class="acl-flash warning" style="margin-top:10px;">Un ruolo amministratore si assegna solo a mano dalla scheda «Persone»: non arriva mai dall'organigramma.</div>
         {% elif ruolo.preset == "dipendente" %}
-          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per tutti: non serve collegarlo.</div>
+          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per chi non ha altri ruoli: non serve collegarlo.</div>
         {% else %}
           <p class="acl-muted" style="margin-top:10px;">Chi ricopre in Anagrafica uno dei ruoli spuntati riceve «{{ ruolo.label }}» in automatico, finché lo ricopre. Si somma ai ruoli assegnati a mano.</p>
           <form method="post" action="{% url 'admin_portale:ruoli_portale_organigramma' ruolo.id %}">
@@ -244,13 +297,23 @@
         <span><span class="rp-pag rp-pag-pieno">pagine 3/3</span> tutte</span>
         <span><span class="rp-pag rp-pag-parziale">pagine 1/3</span> solo alcune</span>
         <span><span class="rp-pag rp-pag-vuoto">pagine 0/3</span> nessuna</span>
-        <span><span class="rp-pag rp-pag-vuoto rp-pag-ecc">· a mano</span> modificate dalla pagina Accessi: al prossimo salvataggio della matrice le pagine tolte a mano tornano, quelle aggiunte a mano restano</span>
+        <span><span class="rp-pag rp-pag-vuoto rp-pag-ecc">· a mano</span> eccezioni pagina per pagina</span>
+      </div>
+      <div class="rp-legend">
+        <span>Sotto ogni modulo, <strong>↳ Pagina per pagina</strong>: ogni permesso di pagina del modulo, come nel vecchio elenco dei permessi. <strong>Segue la matrice</strong> = la decide la colonna indicata; <strong>Sì, sempre</strong> la apre anche se la colonna è vuota; <strong>No, mai</strong> la chiude anche se la colonna la concede. Le eccezioni restano anche dopo i salvataggi successivi.</span>
       </div>
 
-      <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}">
+      <div class="rp-cerca" id="rp-cerca" data-url="{% url 'admin_portale:ruoli_portale_percorso' %}" data-amministratore="{{ ruolo.amministratore|yesno:'1,0' }}">
+        <label for="rp-cerca-testo">Cerca un modulo, una pagina o il suo percorso</label>
+        <input type="search" id="rp-cerca-testo" autocomplete="off" placeholder="es. assenze/calendario oppure Calendario">
+        <div class="rp-cerca-esito" id="rp-cerca-esito" role="status"></div>
+      </div>
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}" id="rp-matrice-form">
         {% csrf_token %}
+        {% comment %}Le tendine viaggiano in un solo campo: una per cella e una per pagina supererebbero DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
+        <input type="hidden" name="matrice_json" value="">
         <div class="rp-matrix-wrap">
-          <table class="rp-matrix">
+          <table class="rp-matrix" data-fm-hide-search="1">
             <thead>
               <tr>
                 <th>Modulo</th>
@@ -260,7 +323,7 @@
             <tbody>
             {% for r in righe %}
               {% ifchanged r.spec.area %}<tr class="rp-area"><td colspan="8">{{ r.spec.area|default:"Altro" }}</td></tr>{% endifchanged %}
-              <tr>
+              <tr data-mod="{{ r.spec.chiave }}" data-mod-testa="1">
                 <td class="rp-mod">
                   <div class="acl-text">{{ r.spec.nome }}{% if r.spec.solo_amministratore %} <span class="acl-chip unset">solo amministratori</span>{% endif %}</div>
                   <div class="acl-muted">{{ r.spec.descrizione }}</div>
@@ -289,7 +352,7 @@
                 {% endfor %}
               </tr>
               {% for c in r.extra %}
-                <tr class="rp-extra">
+                <tr class="rp-extra" data-mod="{{ r.spec.chiave }}">
                   <td class="rp-mod"><span class="acl-muted">↳ {{ c.label }}</span></td>
                   <td class="rp-cell">
                     <select name="c__{{ r.spec.chiave }}__{{ c.azione }}" data-v="{{ c.valore }}" aria-label="{{ r.spec.nome }}: {{ c.label }}" onchange="this.dataset.v=this.value">
@@ -306,6 +369,34 @@
                   <td colspan="6"></td>
                 </tr>
               {% endfor %}
+              {% if r.pagine_dettaglio and not ruolo.amministratore %}
+                <tr class="rp-pagine-riga" data-mod="{{ r.spec.chiave }}">
+                  <td colspan="8">
+                    <details class="rp-pagine"{% if r.eccezioni %} open{% endif %}>
+                      <summary>↳ Pagina per pagina ({{ r.pagine_dettaglio|length }}){% if r.eccezioni %} · <strong>{{ r.eccezioni }} eccezion{{ r.eccezioni|pluralize:"e,i" }}</strong>{% endif %}</summary>
+                      <table class="rp-pagine-tab">
+                        <thead><tr><th>Pagina</th><th>La apre la colonna</th><th>Adesso</th><th>Per questo ruolo</th></tr></thead>
+                        <tbody>
+                        {% for p in r.pagine_dettaglio %}
+                          <tr data-code="{{ p.code }}">
+                            <td><div class="acl-text">{{ p.label }}</div><div class="acl-muted"><code>{{ p.code }}</code></div></td>
+                            <td class="acl-muted">{{ p.colonna }}</td>
+                            <td>{% if p.aperta %}<span class="acl-chip">aperta</span>{% else %}<span class="acl-chip unset">chiusa</span>{% endif %}</td>
+                            <td>
+                              <select class="rp-pg" name="p__{{ p.code }}" data-modulo="{{ r.spec.chiave }}" data-code="{{ p.code }}" aria-label="{{ r.spec.nome }}: {{ p.label }}"{% if p.origine %} title="Impostata da: {{ p.origine }}"{% endif %}>
+                                <option value=""{% if not p.eccezione %} selected{% endif %}>Segue la matrice</option>
+                                <option value="si"{% if p.eccezione == "si" %} selected{% endif %}>Sì, sempre</option>
+                                <option value="no"{% if p.eccezione == "no" %} selected{% endif %}>No, mai</option>
+                              </select>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                        </tbody>
+                      </table>
+                    </details>
+                  </td>
+                </tr>
+              {% endif %}
             {% endfor %}
             </tbody>
           </table>
@@ -340,6 +431,11 @@
             if (!dati || !dati.moduli[modulo]) return;
             var info = dati.moduli[modulo];
             var cambiata = false;
+            var eccezioni = {};  // code -> «si» / «no» / «» dalle tendine pagina per pagina
+            document.querySelectorAll('select.rp-pg[data-modulo="' + modulo + '"]').forEach(function (sel) {
+              eccezioni[sel.dataset.code] = sel.value;
+              if (sel.value !== valoreIniziale(sel)) cambiata = true;
+            });
             var voluti = {};  // capacita' accese dalla riga dopo il salvataggio
             Object.keys(dati.azioni).forEach(function (azione) {
               var sel = cella(modulo, azione);
@@ -353,6 +449,7 @@
               info.pagine.forEach(function (p) {
                 var code = p[0], cap = p[1], aMano = p[2], negata = p[3];
                 if (caps.indexOf(cap) < 0) return;
+                if (code in eccezioni) { aMano = eccezioni[code] === "si"; negata = eccezioni[code] === "no"; }
                 var lettura = dati.vede_tutto && !info.solo_admin && cap === dati.lettura;
                 if (aMano || (!negata && (voluti[cap] || lettura))) dopo += 1;
               });
@@ -367,7 +464,8 @@
               }
             });
             var avviso = document.getElementById("rp-da-salvare");
-            if (avviso) avviso.hidden = !document.querySelector(".rp-pag-dasalvare");
+            // Il banner ha la stessa classe dei badge: non deve trovare se stesso.
+            if (avviso) avviso.hidden = !document.querySelector(".rp-pag-dasalvare:not(#rp-da-salvare)");
           }
 
           document.querySelectorAll("select.rp-riga-tutta").forEach(function (sel) {
@@ -387,6 +485,144 @@
           document.querySelectorAll("td.rp-cell select").forEach(function (sel) {
             sel.addEventListener("change", function () { aggiornaRiga(sel.name.split("__")[1]); });
           });
+          document.querySelectorAll("select.rp-pg").forEach(function (sel) {
+            sel.addEventListener("change", function () {
+              aggiornaRiga(sel.dataset.modulo);
+              var avviso = document.getElementById("rp-da-salvare");
+              if (avviso && sel.value !== valoreIniziale(sel)) avviso.hidden = false;
+            });
+          });
+          // Ricerca nella matrice. Con una «/» il testo e' un percorso: lo risolve il
+          // server con le stesse funzioni del controllo accessi. Filtra soltanto:
+          // le righe nascoste restano nel form e vengono salvate come le altre.
+          var cerca = document.getElementById("rp-cerca");
+          var campo = document.getElementById("rp-cerca-testo");
+          var esito = document.getElementById("rp-cerca-esito");
+          var tabella = document.querySelector("table.rp-matrix");
+          if (cerca && campo && tabella) {
+            var righeMatrice = Array.prototype.slice.call(tabella.tBodies[0].rows);
+            var pannelli = Array.prototype.slice.call(tabella.querySelectorAll("details.rp-pagine"));
+            pannelli.forEach(function (d) { d.dataset.apertoPrima = d.open ? "1" : ""; });
+            var attesa = null, giro = 0;
+
+            // moduli: chiave -> null (tutte le pagine) oppure insieme dei code da mostrare.
+            // Senza argomento la matrice torna com'era.
+            function applica(moduli) {
+              var attivo = !!moduli;
+              righeMatrice.forEach(function (tr) {
+                if (tr.dataset.mod) tr.classList.toggle("rp-cerca-via", attivo && !(tr.dataset.mod in moduli));
+              });
+              righeMatrice.forEach(function (tr, i) {
+                if (!tr.classList.contains("rp-area")) return;
+                var vuota = attivo;
+                for (var j = i + 1; vuota && j < righeMatrice.length && !righeMatrice[j].classList.contains("rp-area"); j++) {
+                  if (righeMatrice[j].dataset.mod && !righeMatrice[j].classList.contains("rp-cerca-via")) vuota = false;
+                }
+                tr.classList.toggle("rp-cerca-via", vuota);
+              });
+              pannelli.forEach(function (d) {
+                var codici = attivo ? moduli[d.closest("tr").dataset.mod] : null;
+                d.open = codici ? true : d.dataset.apertoPrima === "1";
+                d.querySelectorAll("tr[data-code]").forEach(function (tr) {
+                  tr.classList.toggle("rp-cerca-via", !!codici && !codici[tr.dataset.code]);
+                  tr.classList.toggle("rp-cerca-trovata", !!codici && !!codici[tr.dataset.code]);
+                });
+              });
+              var contatore = tabella._fmTblCountEl;
+              if (contatore) contatore.style.visibility = attivo ? "hidden" : "";
+            }
+            function cercaTesto(testo) {
+              var moduli = {}, n = 0;
+              righeMatrice.forEach(function (tr) {
+                if (!tr.dataset.modTesta) return;
+                var chiave = tr.dataset.mod;
+                if (tr.querySelector(".rp-mod").textContent.toLowerCase().indexOf(testo) >= 0) {
+                  moduli[chiave] = null; n += 1; return;
+                }
+                var codici = null;
+                tabella.querySelectorAll('tr.rp-pagine-riga[data-mod="' + chiave + '"] tr[data-code]').forEach(function (p) {
+                  if (p.cells[0].textContent.toLowerCase().indexOf(testo) >= 0) {
+                    codici = codici || {};
+                    codici[p.dataset.code] = 1;
+                  }
+                });
+                if (codici) { moduli[chiave] = codici; n += 1; }
+              });
+              applica(moduli);
+              esito.textContent = n ? n + (n === 1 ? " modulo trovato." : " moduli trovati.") : "Nessun modulo o pagina con questo testo.";
+            }
+            function mostraPercorso(righe) {
+              var moduli = {};
+              esito.textContent = "";
+              if (!righe.length) {
+                applica(moduli);
+                esito.textContent = "Nessuna pagina con questo percorso.";
+                return;
+              }
+              var elenco = document.createElement("ul");
+              righe.forEach(function (r) {
+                if (r.modulo) {
+                  moduli[r.modulo] = moduli[r.modulo] || {};
+                  moduli[r.modulo][r.code] = 1;
+                }
+                var li = document.createElement("li");
+                var via = document.createElement("code");
+                via.textContent = r.percorso;
+                li.appendChild(via);
+                var dove;
+                if (!r.code) dove = "nessun permesso di pagina collegato";
+                else if (r.modulo) dove = r.modulo_nome + " · " + r.label + " (" + r.code + ")";
+                else dove = r.label + " (" + r.code + "): non è in nessun modulo della matrice, si gestisce da Accessi";
+                li.appendChild(document.createTextNode(" → " + dove + (r.comune ? " · pagina comune, senza controllo di ruolo" : "")));
+                elenco.appendChild(li);
+              });
+              esito.appendChild(elenco);
+              if (cerca.dataset.amministratore === "1") {
+                var nota = document.createElement("div");
+                nota.className = "acl-muted";
+                nota.textContent = "Questo ruolo è amministratore: apre tutte le pagine, senza righe pagina per pagina.";
+                esito.appendChild(nota);
+              }
+              applica(moduli);
+            }
+            function cercaPercorso(testo) {
+              var questo = ++giro;
+              fetch(cerca.dataset.url + "?q=" + encodeURIComponent(testo), { headers: { Accept: "application/json" } })
+                .then(function (r) {
+                  if (!r.ok) throw new Error(String(r.status));
+                  return r.json();
+                })
+                .then(function (d) { if (questo === giro) mostraPercorso(d.righe || []); })
+                .catch(function (e) { if (questo === giro) esito.textContent = "Ricerca non riuscita (" + e.message + "): riprova."; });
+            }
+            campo.addEventListener("input", function () {
+              clearTimeout(attesa);
+              giro += 1;
+              var testo = campo.value.trim();
+              if (!testo) { applica(null); esito.textContent = ""; return; }
+              if (testo.indexOf("/") >= 0) attesa = setTimeout(function () { cercaPercorso(testo); }, 250);
+              else cercaTesto(testo.toLowerCase());
+            });
+          }
+          var form = document.getElementById("rp-matrice-form");
+          if (form) {
+            form.addEventListener("submit", function () {
+              var valori = {};
+              form.querySelectorAll('select[name^="c__"], select[name^="p__"]').forEach(function (sel) {
+                valori[sel.name] = sel.value;
+                sel.dataset.nome = sel.name;
+                sel.removeAttribute("name");
+              });
+              form.querySelector('input[name="matrice_json"]').value = JSON.stringify(valori);
+            });
+            // Torna indietro dal browser: le tendine riprendono il nome.
+            window.addEventListener("pageshow", function () {
+              form.querySelectorAll("select[data-nome]").forEach(function (sel) {
+                sel.name = sel.dataset.nome;
+                sel.removeAttribute("data-nome");
+              });
+            });
+          }
         })();
       </script>
     {% endif %}
@@ -479,10 +715,12 @@
             <span class="acl-text"><strong>{{ r.modulo.nome }}</strong></span>
             {% if not r.qualcosa %}<span class="acl-muted">non vede il modulo</span>{% endif %}
           </div>
-          {% if r.qualcosa %}
+          {% if r.qualcosa or r.eccezioni %}
           <div class="rp-preview-actions">
             {% for a in r.azioni %}{% if a.esito.consentito %}
-              <span class="acl-chip allow" title="{{ a.esito.motivo }}">{{ a.label }}: {{ a.esito.ambito_label }}{% if a.esito.ruolo %} · {{ a.esito.ruolo }}{% endif %}</span>
+              <span class="acl-chip allow" title="{{ a.esito.motivo }}">{{ a.label }}: {{ a.esito.ambito_label }}{% if a.esito.ruolo %} · {{ a.esito.ruolo }}{% endif %}{% if a.esito.fonte == "eccezione" %} · limitato da eccezione{% endif %}</span>
+            {% elif a.esito.fonte == "eccezione" %}
+              <span class="acl-chip deny" title="{{ a.esito.motivo }}">{{ a.label }}: no · eccezione sulla persona</span>
             {% endif %}{% endfor %}
           </div>
           {% endif %}
@@ -649,7 +887,7 @@
       <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">
         {% csrf_token %}
         <input type="hidden" name="azione" value="attiva">
-        <p class="acl-why">Da quel momento <strong>decidono solo i ruoli</strong>: chi non ha ruoli ha solo il ruolo base «Operatore», le liste di utenti nelle impostazioni dei moduli e il ruolo legacy non concedono più nulla. Prima di attivare: assegna i ruoli alle persone, controlla qualche persona in «Cosa vede questa persona» e verifica che l'organigramma abbia i ruoli collegati (serve al «team»).</p>
+        <p class="acl-why">Da quel momento <strong>decidono solo i ruoli</strong>: chi non ha ruoli ha il ruolo base «Operatore», chi ne ha uno prende solo la colonna del suo ruolo, le liste di utenti nelle impostazioni dei moduli e il ruolo legacy non concedono più nulla. Prima di attivare: assegna i ruoli alle persone, controlla qualche persona in «Cosa vede questa persona» e verifica che l'organigramma abbia i ruoli collegati (serve al «team»).</p>
         <label class="rp-check" style="margin-bottom:10px;"><input type="checkbox" name="conferma" value="1"> Ho assegnato i ruoli e controllato l'anteprima</label>
         <button class="btn" type="submit">Attiva il sistema dei ruoli</button>
       </form>
@@ -737,7 +975,7 @@
         </tbody>
       </table>
     </div>
-    <p class="acl-muted">● amministratore · ✓ concesso dalla matrice · ✓ a mano = grant manuale dalla pagina Accessi · ✗ negato · — il ruolo non si esprime. Le righe evidenziate non sono aperte a nessun ruolo. Sola lettura: per cambiare usa «Matrice dei ruoli».</p>
+    <p class="acl-muted">● amministratore · ✓ concesso dalla matrice · ✓ a mano = eccezione «Sì, sempre» (matrice pagina per pagina o pagina Accessi) · ✗ negato · — il ruolo non si esprime. Le righe evidenziate non sono aperte a nessun ruolo. Sola lettura: per cambiare usa «Matrice dei ruoli» › «↳ Pagina per pagina».</p>
     {% endif %}
   </div></div>
   {% endif %}

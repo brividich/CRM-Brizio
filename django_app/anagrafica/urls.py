@@ -13,6 +13,9 @@ from . import views_struttura
 from . import views_struttura_org
 from . import views_coerenza_capi
 from . import views_capi_reparti
+from . import views_centri_costo
+from . import views_esplora
+from . import views_prospetto
 from . import views_mio_team
 from . import views_mia_scheda
 from . import views_retention
@@ -72,6 +75,7 @@ urlpatterns = [
     path("formazione/attestato-report-export/", views.attestato_report_export, name="attestato_report_export"),
     # Genera e archivia in blocco gli attestati di tutti i completati di una sessione
     path("formazione/sessioni/<int:sessione_id>/attestati/", views.formazione_sessione_attestati, name="formazione_sessione_attestati"),
+    path("formazione/sessioni/<int:sessione_id>/iscrivi-preselezione/", views.formazione_rinnovo_in_sessione, name="formazione_rinnovo_in_sessione"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     # Popup dell'organigramma: sta sotto `dipendenti/` di proposito, cosi' l'ACL
@@ -132,6 +136,8 @@ urlpatterns = [
     # ── fine mansioni di rischio ─────────────────────────────────────────────
     # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
     path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
+    # Nome, cognome ed email per le notifiche (campi legacy della scheda)
+    path("dipendenti/<int:legacy_id>/dati-base/set", views.dipendente_dati_base_set, name="dipendente_dati_base_set"),
     # Username dipendente (aliasusername)
     path("dipendenti/<int:legacy_id>/username/set", views.dipendente_username_set, name="dipendente_username_set"),
     # Attiva/disattiva dipendente (campo attivo)
@@ -256,6 +262,11 @@ urlpatterns = [
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),
+    path("aree/centri-di-costo/", views_centri_costo.centri_costo, name="centri_costo"),
+    path("aree/centri-di-costo/nuovo", views_centri_costo.centro_costo_crea, name="centro_costo_crea"),
+    path("aree/centri-di-costo/<int:centro_id>/modifica", views_centri_costo.centro_costo_modifica, name="centro_costo_modifica"),
+    path("aree/centri-di-costo/<int:centro_id>/elimina", views_centri_costo.centro_costo_elimina, name="centro_costo_elimina"),
+    path("aree/centri-di-costo/reparto/<int:area_id>", views_centri_costo.centro_costo_reparto_salva, name="centro_costo_reparto_salva"),
     path("aree/capi/passaggio", views_capi_reparti.capi_passaggio, name="capi_passaggio"),
     path("aree/capi/ruolo-aree", views_capi_reparti.capi_ruolo_aree, name="capi_ruolo_aree"),
     path("aree/capi/<int:mansione_id>/assegna", views_capi_reparti.capo_assegna, name="capo_assegna"),
@@ -351,6 +362,7 @@ urlpatterns = [
 
     # Scadenzario unificato qualifiche + visite + formazione + contratti
     path("scadenzario/", views.scadenzario, name="scadenzario"),
+    path("scadenzario/contratti/<int:legacy_id>/rinnova", views.scadenzario_contratto_rinnova, name="scadenzario_contratto_rinnova"),
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
@@ -393,6 +405,12 @@ urlpatterns = [
          name="mansionario_competenza_salva"),
     path("mansionario/<int:mansione_id>/competenze/<int:voce_id>/togli/", views_mansionario.mansionario_competenza_disattiva,
          name="mansionario_competenza_disattiva"),
+    path("mansionario/<int:mansione_id>/corsi/collega/", views_mansionario.mansionario_corso_collega,
+         name="mansionario_corso_collega"),
+    path("mansionario/<int:mansione_id>/corsi/<int:regola_id>/tipo/", views_mansionario.mansionario_corso_tipo,
+         name="mansionario_corso_tipo"),
+    path("mansionario/<int:mansione_id>/corsi/<int:regola_id>/scollega/", views_mansionario.mansionario_corso_scollega,
+         name="mansionario_corso_scollega"),
     path("mansionario/<int:mansione_id>/valuta/<int:abilitazione_id>/", views_mansionario.mansionario_valuta,
          name="mansionario_valuta"),
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
@@ -403,6 +421,8 @@ urlpatterns = [
     path("mansionario/lacune/", views_mansionario.mansionario_lacune, name="mansionario_lacune"),
     path("mansionario/regole/", views_mansionario.mansionario_regole, name="mansionario_regole"),
     path("mansionario/competenze/", views_mansionario.mansionario_catalogo, name="mansionario_catalogo"),
+    path("mansionario/competenze/<int:catalogo_id>/", views_mansionario.mansionario_competenza,
+         name="mansionario_competenza"),
     path("mansionario/matrice-competenze/", views_mansionario.mansionario_matrice_competenze,
          name="mansionario_matrice_competenze"),
     # Struttura ruolo → mansione → competenze: editor unico, export/import Excel
@@ -419,6 +439,14 @@ urlpatterns = [
          name="assegnazioni_import"),
     # Struttura organizzativa (struttura della Qualità): pagina dedicata, revisioni, conferme HSE
     path("struttura/", views_struttura_org.struttura_org, name="struttura_org"),
+    path("struttura/esplora/", views_esplora.esplora_struttura, name="esplora_struttura"),
+    path("struttura/prospetto/", views_prospetto.prospetti, name="prospetti"),
+    path("struttura/prospetto/nuovo", views_prospetto.prospetto_crea, name="prospetto_crea"),
+    path("struttura/prospetto/<int:pk>/", views_prospetto.prospetto, name="prospetto"),
+    path("struttura/prospetto/<int:pk>/aggiungi", views_prospetto.prospetto_aggiungi, name="prospetto_aggiungi"),
+    path("struttura/prospetto/<int:pk>/togli/<int:riga_id>", views_prospetto.prospetto_togli, name="prospetto_togli"),
+    path("struttura/prospetto/<int:pk>/applica", views_prospetto.prospetto_applica, name="prospetto_applica"),
+    path("struttura/prospetto/<int:pk>/annulla", views_prospetto.prospetto_annulla, name="prospetto_annulla"),
     path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,
          name="struttura_reparto_salva"),
     path("struttura/area/<int:area_id>/", views_struttura_org.struttura_area_salva, name="struttura_area_salva"),
@@ -527,6 +555,7 @@ urlpatterns = [
     # Regole obbligatorietà
     path("formazione/corsi/<int:corso_id>/regole-obbligo/add", views.formazione_corso_req_rule_add, name="formazione_corso_req_rule_add"),
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
+    path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/tipo", views.formazione_corso_req_rule_tipo, name="formazione_corso_req_rule_tipo"),
     # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
     path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
     # Completamento registrato senza sessione (corso frequentato altrove / storico)

@@ -16,19 +16,43 @@
     <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="nome PC, utente o IP"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:pc_copertura' %}">Reimposta</a>
+    <a class="sec-button" href="?f={{ codice }}&amp;q={{ q|urlencode }}&amp;formato=csv">Scarica CSV</a>
   </form>
   {% if can_manage and n_proposte %}
     <form method="post" style="margin-top:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" data-hub-confirm="Collegare all’asset proposto tutti i {{ n_proposte }} dispositivi con proposta univoca (IP o nome)?">Conferma le {{ n_proposte }} proposte di collegamento all'asset</button></form>
   {% endif %}
-  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, {{ collegati }} collegati a un asset del registro. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
+  {% if windows_lavoro %}
+    <div class="sec-strip{% if windows_lavoro.fatti == windows_lavoro.totale %} is-done{% endif %}" id="piano-windows">
+      <div class="sec-strip-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 11 4.4v7.1H3zm9-1.3L21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zm9 0h9V21l-9-1.3z"/></svg></div>
+      <div class="sec-strip-body"><strong>Piano di aggiornamento Windows · {{ windows_lavoro.fatti }} su {{ windows_lavoro.totale }} PC aggiornati</strong><span class="sec-small sec-muted">Le attività si spuntano da sole con l'inventario · caso aperto il {{ windows_lavoro.caso.created_at|date:"d/m/Y" }}</span><span class="sec-bar" role="progressbar" aria-valuenow="{{ windows_lavoro.percento }}" aria-valuemin="0" aria-valuemax="100" aria-label="PC aggiornati"><i style="width:{{ windows_lavoro.percento }}%"></i></span></div>
+      <div class="sec-strip-side">{% if windows_fuori %}<a class="sec-badge high" href="?f=sistema_fuori">{{ windows_fuori }} fuori supporto</a>{% endif %}{% if windows_in_scadenza %}<a class="sec-badge warning" href="?f=sistema_in_scadenza">{{ windows_in_scadenza }} in scadenza</a>{% endif %}<a class="sec-button-primary" href="{% url 'security:case_detail' windows_lavoro.caso.pk %}">Vai al caso</a></div>
+    </div>
+  {% elif windows_da_aggiornare %}
+    <div class="sec-strip" id="piano-windows">
+      <div class="sec-strip-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 11 4.4v7.1H3zm9-1.3L21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zm9 0h9V21l-9-1.3z"/></svg></div>
+      <div class="sec-strip-body"><strong>{{ windows_da_aggiornare }} PC con Windows da aggiornare</strong><span class="sec-small sec-muted">Un caso del SOC con un'attività per PC: si spuntano da sole quando l'inventario vede la versione nuova.</span></div>
+      <div class="sec-strip-side">{% if windows_fuori %}<a class="sec-badge high" href="?f=sistema_fuori">{{ windows_fuori }} fuori supporto</a>{% endif %}{% if windows_in_scadenza %}<a class="sec-badge warning" href="?f=sistema_in_scadenza">{{ windows_in_scadenza }} in scadenza</a>{% endif %}{% if can_manage %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="windows_lavoro"><button class="sec-button-primary" type="submit" data-hub-confirm="Aprire un caso del SOC con un'attività per ciascuno dei {{ windows_da_aggiornare }} PC con Windows fuori supporto o in scadenza?">Apri il piano</button></form>{% endif %}</div>
+    </div>
+  {% endif %}
+  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, <a href="?f=collegati">{{ collegati }} collegati a un asset del registro</a>. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
-    <table class="sec-table pcc-table" data-fm-table-skip="1">
+<form method="post" action="{% url 'security:pc_bulk' %}" id="pc-bulk" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
+    <button type="submit" name="action" value="case" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+    {% if can_manage and n_proposte %}<button type="submit" name="action" value="confirm_selected" formaction="{{ request.get_full_path }}" class="sec-button" title="Solo i selezionati con un asset proposto (IP o nome)">Collega gli asset proposti</button>{% endif %}
+  </div>
+</form>
+    <table class="sec-table pcc-table">
       <thead>
         <tr>
-          <th>Dispositivo</th><th>Utente</th>
+          <th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="pc-bulk" aria-label="Seleziona tutti"></th><th>Dispositivo</th><th>Utente</th><th class="pcc-sys" title="Sistema operativo dall'inventario e fine degli aggiornamenti">Sistema</th>
           <th class="pcc-src" title="Gestito da Microsoft Intune">Intune</th>
           <th class="pcc-src" title="Antivirus WatchGuard EPDR: compare nell'inventario software">WatchGuard</th>
           <th class="pcc-src" title="Microsoft Defender for Endpoint: compare nell'inventario software">Defender</th>
@@ -40,8 +64,10 @@
       <tbody>
       {% for r in rows %}
         <tr data-preview="{% url 'security:preview_pc' %}?nome={{ r.nome|urlencode }}" class="{% if r.problemi or r.backup_ko %}pcc-warn{% endif %}">
+          <td class="sec-check-col"><input type="checkbox" name="devices" value="{{ r.nome }}" form="pc-bulk" class="sec-bulk-item" aria-label="Seleziona {{ r.nome }}"></td>
           <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% elif r.soc %}<small>{% if r.soc.0.asset_type %}{{ r.soc.0.asset_type }}{% endif %}{% if r.soc.0.ip_address and not r.rete %} · {{ r.soc.0.ip_address }}{% endif %}</small>{% endif %}{% if r.rete %}<small><a href="{% url 'security:rete_indirizzi' %}?q={{ r.rete.mac|default:r.rete.ip|urlencode }}" title="Indirizzo letto dal {% if r.rete.nel_dhcp %}DHCP{% else %}DNS{% endif %}">{{ r.rete.ip }}</a>{% if r.rete.switch %} · {{ r.rete.switch.dispositivo.nome }} porta {{ r.rete.switch.porta }}{% endif %}</small>{% endif %}</td>
           <td>{% if r.intune.utente_nome %}{{ r.intune.utente_nome }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+          <td class="pcc-sys">{% if r.sistema.fuori %}<span class="sec-badge high" title="Fine degli aggiornamenti: {{ r.sistema.fine|date:'d/m/Y' }}">{{ r.sistema.nome }} · fuori supporto</span>{% elif r.sistema.in_scadenza %}<span class="sec-badge warning" title="Fine degli aggiornamenti: {{ r.sistema.fine|date:'d/m/Y' }}">{{ r.sistema.nome }} · fino al {{ r.sistema.fine|date:'d/m/y' }}</span>{% elif r.sistema %}<span class="sec-badge ok" title="{% if r.sistema.fine %}Aggiornamenti fino al {{ r.sistema.fine|date:'d/m/Y' }}{% else %}Supportato{% endif %}">{{ r.sistema.nome }}</span>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td class="pcc-src">{% if r.intune %}<span class="pcc-yes" title="Ultima sincronizzazione {{ r.intune.ultima_sync|date:'d/m/Y H:i'|default:'mai' }}">✓</span>{% else %}<span class="pcc-no" title="Non gestito da Intune">✕</span>{% endif %}</td>
           <td class="pcc-src">{% if r.watchguard %}<span class="pcc-yes">✓</span>{% else %}<span class="pcc-no" title="Non compare nell'inventario WatchGuard">✕</span>{% endif %}</td>
           <td class="pcc-src">{% if r.defender %}<span class="pcc-yes">✓</span>{% else %}<span class="pcc-no" title="Non compare nell'inventario Defender">✕</span>{% endif %}</td>
@@ -64,11 +90,30 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="9" class="sec-empty">{% if q or codice != "tutti" %}Nessun dispositivo corrisponde ai filtri.{% else %}Nessun dispositivo: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup, report SOC).{% endif %}</td></tr>
+        <tr><td colspan="11" class="sec-empty">{% if q or codice != "tutti" %}Nessun dispositivo corrisponde ai filtri.{% else %}Nessun dispositivo: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup, report SOC).{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
   <p class="sec-muted sec-small" style="margin-top:10px">✓ la fonte vede il dispositivo · ✕ non lo vede. Backup «ko»: ultimo backup fallito o nessun riuscito da troppi giorni. CVE «gravi»: già sfruttate (KEV) o CVSS 9 e oltre. Asset «Proposto»: stesso IP o stesso nome di un asset del registro, lo confermi tu; i PC di Intune si collegano dalla <a href="{% url 'assets:it_reconciliation' %}">riconciliazione dispositivi</a>.</p>
+</section>
+
+<section class="sec-panel" id="dispositivi-bloccati" style="margin-top:12px">
+  <details{% if bloccati_aperto %} open{% endif %}>
+    <summary><strong>Dispositivi bloccati dalla policy</strong> <span class="sec-muted sec-small">· ultimi 30 giorni · {{ bloccati|length }} PC{% if bloccati %}, {{ bloccati_totale }} blocchi{% endif %}</span></summary>
+    <p class="sec-muted sec-small" style="margin:8px 0">Chiavette USB e altri dispositivi fermati da Endpoint Security: la protezione ha funzionato, quindi non aprono un alert (salvo la soglia in Impostazioni › «Meno rumore»). Il conteggio viene da tutte le notifiche; «Computer non indicato» sono le notifiche di riepilogo che non dicono il PC.</p>
+    {% if bloccati %}
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>PC</th><th>Dispositivi bloccati</th><th>Notifiche</th><th>Giorni con blocchi</th><th>Ultima</th></tr></thead>
+        <tbody>
+        {% for b in bloccati %}
+          <tr><td>{{ b.pc }}</td><td>{{ b.blocchi }}</td><td>{{ b.notifiche }}</td><td>{{ b.giorni }}</td><td>{{ b.ultima|date:"d/m/Y H:i"|default:"—" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="sec-empty">Nessun dispositivo bloccato negli ultimi 30 giorni.</p>{% endif %}
+  </details>
 </section>
 {% endblock %}

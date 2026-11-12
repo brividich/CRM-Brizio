@@ -1,0 +1,212 @@
+{% extends "core/base.html" %}
+
+{% block title %}Scarpe | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+#dpi-root [hidden] { display:none !important; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+.dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.dpi-hero { background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%); border-radius:16px; padding:24px 28px; color:#fff; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.dpi-hero-title { font-size:24px; font-weight:900; letter-spacing:-.03em; }
+.dpi-hero-sub { font-size:13px; opacity:.8; margin-top:3px; }
+.dpi-hero a { color:#fff; font-size:13px; font-weight:700; }
+.neg-avviso { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:10px 14px; font-size:13px; }
+.neg-avviso a { color:inherit; font-weight:700; }
+.neg-box { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; scroll-margin-top:80px; }
+.neg-testa { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.neg-titolo { font-size:15px; font-weight:800; color:#0f172a; }
+.neg-conta { display:inline-block; min-width:22px; padding:1px 7px; margin-left:6px; border-radius:99px; background:#e2e8f0; color:#334155; font-size:12px; font-weight:800; text-align:center; }
+.neg-sub { font-size:12px; color:#64748b; }
+.neg-riga { display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid #e2e8f0; border-radius:10px; flex-wrap:wrap; cursor:pointer; }
+.neg-riga:hover { background:#f8fafc; }
+.neg-riga input[type=checkbox] { width:16px; height:16px; flex-shrink:0; }
+.neg-riga-testo { flex:1 1 240px; min-width:0; }
+.neg-nome { font-size:13px; font-weight:700; color:#0f172a; }
+.neg-dett { font-size:12px; color:#64748b; overflow-wrap:anywhere; }
+.neg-dett a { color:#0369a1; font-weight:600; }
+.neg-tag { font-size:11px; font-weight:700; padding:2px 9px; border-radius:99px; background:#f1f5f9; color:#475569; white-space:nowrap; }
+.neg-tag-ok { background:#dcfce7; color:#166534; }
+.neg-tag-warn { background:#fef3c7; color:#92400e; }
+.neg-azioni { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.neg-btn { padding:9px 16px; border-radius:9px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; }
+.neg-btn:hover { background:#f1f5f9; }
+.neg-btn:disabled { opacity:.45; cursor:not-allowed; }
+.neg-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+.neg-btn-forte:hover { background:#166534; }
+.neg-campo { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; color:#374151; }
+.neg-campo input, .neg-campo textarea { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; font-weight:400; background:#fff; color:#0f172a; font-family:inherit; }
+.neg-fattura { border-top:1px dashed #cbd5e1; padding-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end; }
+.neg-vuoto { font-size:13px; color:#94a3b8; padding:6px 0; }
+.neg-storico summary { cursor:pointer; font-size:13px; font-weight:700; color:#0f172a; }
+.neg-storico ul { margin:8px 0 0; padding-left:18px; font-size:12px; color:#64748b; }
+.neg-storico a { color:#0369a1; font-weight:600; }
+
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .neg-avviso { background:rgba(146,64,14,.2); border-color:rgba(251,191,36,.35); color:#fcd34d; }
+body.theme-dark .neg-box { background:var(--surface); border-color:var(--border); }
+body.theme-dark .neg-titolo, body.theme-dark .neg-nome, body.theme-dark .neg-storico summary { color:var(--text); }
+body.theme-dark .neg-conta { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .neg-sub, body.theme-dark .neg-dett, body.theme-dark .neg-storico ul { color:var(--text-light); }
+body.theme-dark .neg-dett a, body.theme-dark .neg-storico a { color:#60a5fa; }
+body.theme-dark .neg-riga { border-color:var(--border); }
+body.theme-dark .neg-riga:hover { background:var(--tbody-hover); }
+body.theme-dark .neg-tag { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .neg-tag-ok { background:rgba(21,128,61,.25); color:#86efac; }
+body.theme-dark .neg-tag-warn { background:rgba(146,64,14,.3); color:#fcd34d; }
+body.theme-dark .neg-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .neg-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+body.theme-dark .neg-campo { color:var(--text-mid); }
+body.theme-dark .neg-campo input, body.theme-dark .neg-campo textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .neg-fattura { border-top-color:var(--border); }
+@media (max-width:720px) { .dpi-hero { padding:18px; } .dpi-hero-title { font-size:20px; } .neg-box { padding:14px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Scarpe — ordini a {{ impost.negozio_nome }}</div>
+      <div class="dpi-hero-sub">
+        {% if ultimo_ordine %}Ultimo ordine il {{ ultimo_ordine.created_at|date:"d-m-Y" }}.{% else %}Nessun ordine ancora.{% endif %}
+        {% if prossimo_riepilogo %}Prossimo riepilogo entro il {{ prossimo_riepilogo|date:"d-m-Y" }}.{% endif %}
+      </div>
+    </div>
+    <a href="{% url 'guida_modulo' 'dpi' %}#scarpe">? Guida</a>
+  </div>
+
+  {% if not impost.negozio_email %}
+  <div class="neg-avviso">Manca la mail del negozio: si imposta in <a href="{% url 'dpi:impostazioni' %}">Impostazioni DPI</a>. Intanto puoi copiare il testo dell'ordine e spedirlo tu.</div>
+  {% endif %}
+
+  <form method="post" class="neg-box" id="da-ordinare">
+    {% csrf_token %}
+    <div class="neg-testa">
+      <div class="neg-titolo">Convenzione: da ordinare<span class="neg-conta">{{ da_ordinare|length }}</span></div>
+      <div class="neg-sub">Ritiro in ufficio amministrativo. Riepilogo ogni {{ impost.negozio_giorni_riepilogo }} giorni.</div>
+    </div>
+    {% for r in da_ordinare %}
+    <label class="neg-riga">
+      <input type="checkbox" name="ids" value="{{ r.pk }}" checked data-riga="{{ r.riga_testo }}" data-paia="{{ r.quantita }}">
+      <span class="neg-riga-testo">
+        <span class="neg-nome">{{ r.richiedente_nome }}</span>
+        <span class="neg-dett">{{ r.dettaglio }}</span>
+      </span>
+      {% if not r.taglia_dpi %}<span class="neg-tag neg-tag-warn">Manca la taglia</span>{% endif %}
+    </label>
+    {% empty %}
+    <div class="neg-vuoto">Niente da ordinare.</div>
+    {% endfor %}
+    {% if da_ordinare %}
+    <label class="neg-campo">Note per il negozio (facoltative)
+      <textarea name="note" id="neg-note" rows="2"></textarea>
+    </label>
+    <div class="neg-azioni">
+      <button type="submit" name="azione" value="invia_ordine" class="neg-btn neg-btn-forte"{% if not impost.negozio_email %} disabled{% endif %}>Invia l'ordine a {{ impost.negozio_nome }}</button>
+      <button type="button" class="neg-btn" id="neg-copia" data-apertura="{{ testo_apertura }}">Copia il testo</button>
+      <button type="submit" name="azione" value="segna_ordinato" class="neg-btn">Ho già scritto io al negozio</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <form method="post" class="neg-box" id="ordinate">
+    {% csrf_token %}
+    <div class="neg-testa">
+      <div class="neg-titolo">Convenzione: ordinate, da consegnare<span class="neg-conta">{{ ordinate|length }}</span></div>
+      <div class="neg-sub">Quando arrivano avvisa il dipendente, poi chiudi la consegna come per gli altri DPI.</div>
+    </div>
+    {% for r in ordinate %}
+    <label class="neg-riga">
+      <input type="checkbox" name="ids" value="{{ r.pk }}">
+      <span class="neg-riga-testo">
+        <span class="neg-nome">{{ r.richiedente_nome }}</span>
+        <span class="neg-dett">{{ r.numero }}{% if r.tipo_dpi %} · {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} · {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %} · ordinate il {{ r.ordine_negozio.created_at|date:"d-m-Y" }} · <a href="{% url 'dpi:banco' %}?tutte=1#apri-{{ r.chiave_banco }}">Registra la consegna</a></span>
+      </span>
+      {% if r.pronta_ritiro_il %}<span class="neg-tag neg-tag-ok">Avvisato il {{ r.pronta_ritiro_il|date:"d-m-Y" }}</span>{% else %}<span class="neg-tag">In arrivo</span>{% endif %}
+    </label>
+    {% empty %}
+    <div class="neg-vuoto">Nessuna scarpa in arrivo.</div>
+    {% endfor %}
+    {% if ordinate %}
+    <div class="neg-azioni">
+      <button type="submit" name="azione" value="pronte" class="neg-btn neg-btn-forte">Arrivate: avvisa di passare in ufficio</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <form method="post" enctype="multipart/form-data" class="neg-box" id="fuori">
+    {% csrf_token %}
+    <div class="neg-testa">
+      <div class="neg-titolo">Fuori convenzione: ritiro al negozio<span class="neg-conta">{{ fuori|length }}</span></div>
+      <div class="neg-sub">{% if n_fuori_da_avvisare %}{{ n_fuori_da_avvisare }} da avvisare. {% endif %}Avvisa il negozio; si chiudono con la fattura.</div>
+    </div>
+    {% for r in fuori %}
+    <label class="neg-riga">
+      <input type="checkbox" name="ids" value="{{ r.pk }}">
+      <span class="neg-riga-testo">
+        <span class="neg-nome">{{ r.richiedente_nome }}</span>
+        <span class="neg-dett">{{ r.numero }}{% if r.tipo_dpi %} · {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} · {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %}</span>
+      </span>
+      {% if r.pronta_ritiro_il %}<span class="neg-tag neg-tag-ok">Negozio avvisato il {{ r.pronta_ritiro_il|date:"d-m-Y" }}</span>{% else %}<span class="neg-tag neg-tag-warn">Da avvisare</span>{% endif %}
+    </label>
+    {% empty %}
+    <div class="neg-vuoto">Nessun ordine fuori convenzione aperto.</div>
+    {% endfor %}
+    {% if fuori %}
+    <div class="neg-azioni">
+      <button type="submit" name="azione" value="negozio_avvisato" class="neg-btn">Negozio avvisato: avvisa i dipendenti</button>
+    </div>
+    <div class="neg-fattura">
+      <label class="neg-campo">Fattura (PDF o foto)<input type="file" name="fattura" accept=".pdf,.jpg,.jpeg,.png"></label>
+      <label class="neg-campo">Numero<input type="text" name="fattura_numero" maxlength="60"></label>
+      <label class="neg-campo">Data<input type="date" name="fattura_data"></label>
+      <button type="submit" name="azione" value="fattura" class="neg-btn neg-btn-forte">Carica e chiudi gli ordini spuntati</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <div class="neg-box neg-storico">
+    <details>
+      <summary>Ordini inviati e fatture</summary>
+      <ul>
+        {% for o in ordini %}
+        <li>Ordine del {{ o.created_at|date:"d-m-Y" }}{% if o.creato_da_nome %} di {{ o.creato_da_nome }}{% endif %}{% if o.inviato_a %}, inviato a {{ o.inviato_a }}{% else %}, scritto a parte{% endif %}: {% for r in o.richieste.all %}{{ r.numero }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+        {% empty %}<li>Nessun ordine.</li>
+        {% endfor %}
+      </ul>
+      <ul>
+        {% for f in fatture %}
+        <li><a href="{% url 'dpi:fattura_download' f.pk %}" target="_blank" rel="noopener">Fattura {{ f.numero }}</a> del {{ f.data|date:"d-m-Y" }}: {% for r in f.richieste.all %}{{ r.numero }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+        {% empty %}<li>Nessuna fattura.</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+</div>
+
+<script>
+(function () {
+  const bottone = document.getElementById('neg-copia');
+  if (!bottone) return;
+  bottone.addEventListener('click', function () {
+    const spuntate = Array.from(document.querySelectorAll('#da-ordinare input[name=ids]:checked'));
+    const paia = spuntate.reduce(function (t, c) { return t + Number(c.dataset.paia || 0); }, 0);
+    const righe = spuntate.map(function (c) { return '- ' + c.dataset.riga; }).join('\n');
+    const note = document.getElementById('neg-note').value.trim();
+    const testo = bottone.dataset.apertura + '\n\n' + righe + '\n\nTotale: ' + paia + ' paia.' + (note ? '\n\n' + note : '');
+    navigator.clipboard.writeText(testo).then(function () {
+      bottone.textContent = 'Copiato';
+      setTimeout(function () { bottone.textContent = 'Copia il testo'; }, 2000);
+    });
+  });
+})();
+</script>
+{% endblock %}

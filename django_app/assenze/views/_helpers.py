@@ -35,7 +35,6 @@ from ..constants import (
     SHORTCUT_PRESETS,
     SHORTCUT_CUSTOM,
     PERMESSO_MIN_MINUTES,
-    PERMESSO_MAX_HOURS,
 )
 from core import naming
 from django.http import StreamingHttpResponse
@@ -378,10 +377,37 @@ def _has_assenze_column(column_name: str) -> bool:
     return legacy_table_has_column("assenze", column_name)
 
 
-def _certificato_medico_for_tipo(tipo: str, value) -> str:
+# Malattia: si registra solo se il certificato e' arrivato (spunta), non il suo
+# numero. La colonna legacy `certificato_medico` vale «Arrivato» o resta vuota;
+# un numero salvato in passato conta come certificato arrivato.
+CERTIFICATO_ARRIVATO = "Arrivato"
+_CERTIFICATO_NO = {"", "0", "false", "off", "no", "none", "null"}
+
+
+def _certificato_medico_for_tipo(tipo: str, value, current=None) -> str:
     if _norm_tipo(tipo) != "Malattia":
         return ""
-    return str(value or "").strip()
+    if str(value if value is not True else "1").strip().lower() in _CERTIFICATO_NO or value is False:
+        return ""
+    # Gia' arrivato: si tiene il valore salvato (anche un vecchio numero), cosi'
+    # lo storico e la mail di modifica non segnalano un cambio che non c'e'.
+    current_txt = str(current or "").strip()
+    return current_txt or CERTIFICATO_ARRIVATO
+
+
+CERTIFICATO_ARRIVATO_MOTIVO = "Certificato medico arrivato"
+
+
+def _solo_certificato_arrivato(current: dict, modifiche: list[dict]) -> bool:
+    """True se l'unico cambio e' la spunta «Certificato arrivato» appena messa.
+
+    In quel caso la modifica di una richiesta approvata non chiede il motivo:
+    l'arrivo del certificato e' il motivo.
+    """
+    if str((current or {}).get("certificato_medico") or "").strip():
+        return False
+    campi = {m.get("campo") for m in modifiche or []}
+    return campi == {"Certificato arrivato"}
 
 
 def _status_from_moderation(value, *, default_pending: bool = False) -> tuple[int | None, str]:
@@ -673,10 +699,8 @@ def _manager_assignment_where_clause_base(
         from core.permessi.team import team_di
 
         team = sorted(team_di(legacy_user_id)) if legacy_user_id else []
-        if not team or not _has_assenze_column("utente_id"):
-            return "", [], False
-        placeholders = ", ".join(["%s"] * len(team))
-        return f"{assenze_alias}.utente_id IN ({placeholders})", list(team), False
+        where, params = _where_utenti(team, assenze_alias)
+        return where, params, False
 
     clauses: list[str] = []
     params: list = []
@@ -816,10 +840,10 @@ def _assenze_permissions(request) -> dict:
     can_view_calendar = view_scope in {"all", "reparto"}
     can_delete_any = group == "AMMINISTRAZIONE"
     can_skip_approval = group in {"CAR", "AMMINISTRAZIONE"}
-    # Scelta del capo a cui inviare la richiesta: tutti possono cambiarlo. Il
-    # capo proposto resta quello dell'organigramma; se ne sceglie un altro, solo
-    # quello vede e approva la richiesta (``AssenzaCapoScelto``).
-    can_choose_capo = True
+    # Scelta del capo a cui inviare la richiesta: chi è nell'elenco di Impostazioni,
+    # tutti se l'elenco è vuoto. Il capo proposto resta quello dell'organigramma; se
+    # ne sceglie un altro, solo quello vede e approva la richiesta (``AssenzaCapoScelto``).
+    can_choose_capo = _puo_cambiare_capo(request)
     manager_name = ""
     manager_email = ""
     if legacy_user:
@@ -947,7 +971,7 @@ def _can_manage_record(request, row: dict, *, require_delete: bool = False) -> b
 
     if perms.get("view_scope_source") == "ruoli":
         # Ruoli del portale: si approva chi sta nel proprio team d'organigramma.
-        utente_id = _as_int(row.get("utente_id") or row.get("legacy_user_id"))
+        utente_id = _utente_della_riga(row)
         return utente_id is not None and utente_id in set(perms.get("team_utenti_ids") or ())
 
     lookup_id = _as_int(row.get("capo_reparto_lookup_id"))
@@ -1053,6 +1077,89 @@ def _flessibilita_abilitata_per(anagrafica_id: int | None) -> bool:
     return int(anagrafica_id) in _flessibilita_abilitati_ids()
 
 
+def _cambio_capo_abilitati_ids() -> set[int]:
+    from ..models import CambioCapoAbilitato
+
+    try:
+        return {
+            int(v)
+            for v in CambioCapoAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        }
+    except Exception:
+        logger.warning("[assenze] elenco abilitati al cambio capo non leggibile", exc_info=True)
+        return set()
+
+
+def _puo_cambiare_capo(request) -> bool:
+    """Può cambiare il capo proposto? Elenco vuoto = tutti.
+
+    Fail-closed con elenco attivo: senza un id anagrafica risolvibile non può.
+    """
+    cached = getattr(request, "_assenze_cambio_capo_cache", None)
+    if isinstance(cached, bool):
+        return cached
+    abilitati = _cambio_capo_abilitati_ids()
+    if not abilitati:
+        esito = True
+    else:
+        name, email, legacy_id = _legacy_identity(request)
+        mio_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id,
+            email=email,
+            username=request.user.get_username(),
+            name=name,
+        )
+        esito = mio_id is not None and int(mio_id) in abilitati
+    setattr(request, "_assenze_cambio_capo_cache", esito)
+    return esito
+
+
+def _malattia_abilitati_ids() -> set[int]:
+    from ..models import MalattiaAbilitato
+
+    try:
+        return {
+            int(v)
+            for v in MalattiaAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        }
+    except Exception:
+        logger.warning("[assenze] elenco abilitati malattia non leggibile", exc_info=True)
+        return set()
+
+
+def _malattia_permessi(request) -> dict:
+    """Chi vede il pulsante «Malattia» e per chi puo' inserirla.
+
+    - ``elenco_attivo``: in Impostazioni c'e' almeno un abilitato;
+    - ``visibile``: il pulsante compare (elenco vuoto = tutti, regola storica);
+    - ``per_tutti``: puo' inserirla per qualunque dipendente attivo (solo gli
+      abilitati in elenco; senza elenco vale l'inserimento per altri del ruolo).
+
+    Fail-closed con elenco attivo: senza un id anagrafica risolvibile il pulsante
+    non compare.
+    """
+    cached = getattr(request, "_assenze_malattia_cache", None)
+    if isinstance(cached, dict):
+        return cached
+    abilitati = _malattia_abilitati_ids()
+    if not abilitati:
+        esito = {"elenco_attivo": False, "visibile": True, "per_tutti": False}
+    else:
+        name, email, legacy_id = _legacy_identity(request)
+        mio_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id,
+            email=email,
+            username=request.user.get_username(),
+            name=name,
+        )
+        abilitato = mio_id is not None and int(mio_id) in abilitati
+        esito = {"elenco_attivo": True, "visibile": abilitato, "per_tutti": abilitato}
+    setattr(request, "_assenze_malattia_cache", esito)
+    return esito
+
+
 def _autocorreggi_fine(dt_start: datetime | None, dt_end: datetime | None) -> tuple[datetime | None, str]:
     """Riallinea la fine quando non e' successiva all'inizio.
 
@@ -1107,8 +1214,8 @@ def _validate_business_rules(
         if dt_start.date() != dt_end.date():
             return "Il permesso deve iniziare e finire nello stesso giorno.", ""
         minutes = (dt_end - dt_start).total_seconds() / 60.0
-        if minutes < PERMESSO_MIN_MINUTES or minutes > PERMESSO_MAX_HOURS * 60:
-            return "Il permesso deve durare tra 30 minuti e 8 ore.", ""
+        if minutes < PERMESSO_MIN_MINUTES:
+            return "Il permesso deve durare almeno 30 minuti.", ""
     if tipo_ui == "Ferie":
         if dt_end.date() <= dt_start.date():
             return "Le ferie devono coprire più di un giorno.", ""
@@ -1342,6 +1449,7 @@ def _get_assenza(item_id: int) -> dict | None:
         "moderation_status",
         _APPROVAZIONE_DATETIME_COL,
         "note_gestione",
+        "created_datetime",
     ]
     selected = [col for col in wanted if col in cols]
     if "id" not in selected:
@@ -2219,9 +2327,10 @@ def _load_pending_for_manager(
     if not manager_where_sql:
         return []
     join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
+    coda_sql, coda_params = _sql_coda_attiva("a")
 
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
-    _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
+    _utente_col = _col_utente_id("a")
     _creata_col = ", a.created_datetime" if _has_assenze_column("created_datetime") else ""
     _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _has_assenze_column(col))
     base_sql = f"""
@@ -2237,10 +2346,10 @@ def _load_pending_for_manager(
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
-          AND COALESCE(a.moderation_status, 2) = 2
+          AND {coda_sql}
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _applica_nominativo(_fetch_all_dict(sql, manager_where_params))
+    rows = _applica_nominativo(_fetch_all_dict(sql, [*manager_where_params, *coda_params]))
     out = []
     for row in rows:
         moderation_status, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -2296,14 +2405,15 @@ def count_pending_for_manager(
     if not manager_where_sql:
         return 0
     join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
+    coda_sql, coda_params = _sql_coda_attiva("a")
     sql = (
         "SELECT COUNT(*) FROM assenze a "
         + join_sql
-        + f"WHERE {manager_where_sql} AND COALESCE(a.moderation_status, 2) = 2"
+        + f"WHERE {manager_where_sql} AND {coda_sql}"
     )
     try:
         with connections["default"].cursor() as cursor:
-            cursor.execute(sql, manager_where_params)
+            cursor.execute(sql, [*manager_where_params, *coda_params])
             row = cursor.fetchone()
             return int(row[0]) if row else 0
     except Exception:
@@ -2619,6 +2729,7 @@ def _count_pending_for_car(
         return 0
     try:
         join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
+        coda_sql, coda_params = _sql_coda_attiva("a")
         with connections["default"].cursor() as cursor:
             cursor.execute(
                 f"""
@@ -2626,9 +2737,9 @@ def _count_pending_for_car(
                 FROM assenze a
                 {join_sql}
                 WHERE {manager_where_sql}
-                  AND COALESCE(a.moderation_status, 2) = 2
+                  AND {coda_sql}
                 """,
-                manager_where_params,
+                [*manager_where_params, *coda_params],
             )
             row = cursor.fetchone()
             return int(row[0]) if row else 0
@@ -2641,10 +2752,191 @@ def _norm_text_key(value: str | None) -> str:
 
 
 def _col_utente_id(alias: str = "a") -> str:
-    """``, a.utente_id`` da aggiungere a una SELECT su assenze, se la colonna esiste."""
-    if not _has_assenze_column("utente_id"):
+    """``, <persona> AS utente_id`` da aggiungere a una SELECT su assenze.
+
+    La colonna ``assenze.utente_id`` non c'è in tutti gli ambienti (in produzione
+    la tabella viene da SharePoint e non ce l'ha): la persona si ricava allora da
+    nome ed email della richiesta (:func:`_sql_utente_della_riga`). Senza, coda,
+    storico e approvazioni del team restavano vuoti per ogni capo.
+    """
+    expr = _sql_utente_della_riga(alias or "assenze")
+    return f", {expr} AS utente_id" if expr else ""
+
+
+def _sql_testo(col: str) -> str:
+    return f"UPPER(LTRIM(RTRIM(COALESCE({col}, ''))))"
+
+
+def _sql_concat(*parti: str) -> str:
+    op = " + " if connections["default"].vendor == "microsoft" else " || "
+    return op.join(parti)
+
+
+def _sql_utente_della_riga(alias: str = "a") -> str:
+    """Espressione SQL con l'``utenti.id`` della persona assente.
+
+    In ordine: ``assenze.utente_id`` se la colonna esiste ed è valorizzata; poi
+    l'anagrafica collegata a un account (email esatta, oppure «NOME COGNOME» o
+    «COGNOME NOME» uguale a ``copia_nome``); poi l'utente del portale con lo
+    stesso nome o la stessa email. Stringa vuota se mancano le colonne per
+    ricavarla. ``MIN`` e non ``TOP``/``LIMIT``: vale su SQL Server e SQLite, e
+    in produzione nessuna richiesta corrisponde a due persone diverse.
+    """
+    cols = legacy_table_columns("assenze")
+    candidati: list[str] = []
+    if "utente_id" in cols:
+        candidati.append(f"{alias}.utente_id")
+    nome_ok = "copia_nome" in cols
+    email_ok = "email_esterna" in cols
+    email_riga = f"LOWER(LTRIM(RTRIM({alias}.email_esterna)))" if email_ok else ""
+    email_piena = f"NULLIF(LTRIM(RTRIM({alias}.email_esterna)), '') IS NOT NULL" if email_ok else ""
+    nome_riga = _sql_testo(f"{alias}.copia_nome") if nome_ok else ""
+    nome_pieno = f"NULLIF(LTRIM(RTRIM({alias}.copia_nome)), '') IS NOT NULL" if nome_ok else ""
+
+    dip_cols = legacy_table_columns("anagrafica_dipendenti") if _table_exists("anagrafica_dipendenti") else set()
+    if "utente_id" in dip_cols:
+        cond: list[str] = []
+        if email_ok and "email" in dip_cols:
+            cond.append(f"({email_piena} AND LOWER(LTRIM(RTRIM(d.email))) = {email_riga})")
+        if nome_ok and {"nome", "cognome"}.issubset(dip_cols):
+            n, c, spazio = _sql_testo("d.nome"), _sql_testo("d.cognome"), "' '"
+            nome_cognome, cognome_nome = _sql_concat(n, spazio, c), _sql_concat(c, spazio, n)
+            cond.append(f"({nome_pieno} AND {nome_riga} IN ({nome_cognome}, {cognome_nome}))")
+        if cond:
+            candidati.append(
+                "(SELECT MIN(d.utente_id) FROM anagrafica_dipendenti d "
+                f"WHERE d.utente_id IS NOT NULL AND ({' OR '.join(cond)}))"
+            )
+    ute_cols = legacy_table_columns("utenti") if _table_exists("utenti") else set()
+    if "id" in ute_cols:
+        cond = []
+        if email_ok and "email" in ute_cols:
+            cond.append(f"({email_piena} AND LOWER(LTRIM(RTRIM(u.email))) = {email_riga})")
+        if nome_ok and "nome" in ute_cols:
+            cond.append(f"({nome_pieno} AND {_sql_testo('u.nome')} = {nome_riga})")
+        if cond:
+            candidati.append(f"(SELECT MIN(u.id) FROM utenti u WHERE {' OR '.join(cond)})")
+    if not candidati:
         return ""
-    return f", {alias}.utente_id" if alias else ", utente_id"
+    return candidati[0] if len(candidati) == 1 else f"COALESCE({', '.join(candidati)})"
+
+
+_MAX_CHIAVI_TEAM = 1800  # sotto il limite di 2100 parametri di SQL Server
+
+
+def _chiavi_persone(ids: list[int]) -> tuple[set[str], set[str]]:
+    """Nomi (MAIUSCOLO, nei due ordini) ed email (minuscolo) delle persone ``ids``.
+
+    Sono le stesse chiavi di :func:`_sql_utente_della_riga`, calcolate una volta
+    sola: filtrare con ``IN`` sulle colonne della richiesta evita una sottoquery
+    per ogni riga di ``assenze`` (secondi per pagina in produzione)."""
+    nomi: set[str] = set()
+    email: set[str] = set()
+
+    def _n(v) -> str:
+        return str(v or "").strip().upper()
+
+    placeholders = ", ".join(["%s"] * len(ids))
+    dip_cols = legacy_table_columns("anagrafica_dipendenti") if _table_exists("anagrafica_dipendenti") else set()
+    if "utente_id" in dip_cols:
+        sel = [c for c in ("nome", "cognome", "email") if c in dip_cols]
+        if sel:
+            for row in _fetch_all_dict(
+                f"SELECT {', '.join(sel)} FROM anagrafica_dipendenti WHERE utente_id IN ({placeholders})", ids
+            ):
+                n, c = _n(row.get("nome")), _n(row.get("cognome"))
+                if n or c:
+                    nomi.update({f"{n} {c}", f"{c} {n}"})
+                if str(row.get("email") or "").strip():
+                    email.add(str(row["email"]).strip().lower())
+    ute_cols = legacy_table_columns("utenti") if _table_exists("utenti") else set()
+    if "id" in ute_cols:
+        sel = [c for c in ("nome", "email") if c in ute_cols]
+        if sel:
+            for row in _fetch_all_dict(f"SELECT {', '.join(sel)} FROM utenti WHERE id IN ({placeholders})", ids):
+                if _n(row.get("nome")):
+                    nomi.add(_n(row.get("nome")))
+                if str(row.get("email") or "").strip():
+                    email.add(str(row["email"]).strip().lower())
+    return nomi, email
+
+
+def _where_utenti(utenti_ids, alias: str = "a") -> tuple[str, list]:
+    """Perimetro «team» delle assenze: le richieste delle persone ``utenti_ids``.
+
+    Con la colonna ``assenze.utente_id`` vale quella; le righe senza (e tutte,
+    dove la colonna manca, come in produzione) si riconoscono da email e nome
+    della richiesta. Vuoto (fail-closed per chi chiama) se non ci sono persone o
+    nessun modo di riconoscerle."""
+    ids = sorted({int(u) for u in utenti_ids or [] if u is not None})
+    if not ids:
+        return "", []
+    cols = legacy_table_columns("assenze")
+    parti: list[str] = []
+    params: list = []
+    if "utente_id" in cols:
+        parti.append(f"{alias}.utente_id IN ({', '.join(['%s'] * len(ids))})")
+        params.extend(ids)
+    nomi, email = _chiavi_persone(ids)
+    nomi = nomi if "copia_nome" in cols else set()
+    email = email if "email_esterna" in cols else set()
+    if len(nomi) + len(email) > _MAX_CHIAVI_TEAM:
+        expr = _sql_utente_della_riga(alias)
+        if not expr:
+            return "", []
+        return f"{expr} IN ({', '.join(['%s'] * len(ids))})", ids
+    senza_utente = f"{alias}.utente_id IS NULL AND " if "utente_id" in cols else ""
+    if nomi:
+        parti.append(
+            f"({senza_utente}UPPER(LTRIM(RTRIM({alias}.copia_nome))) IN ({', '.join(['%s'] * len(nomi))}))"
+        )
+        params.extend(sorted(nomi))
+    if email:
+        parti.append(
+            f"({senza_utente}LOWER(LTRIM(RTRIM({alias}.email_esterna))) IN ({', '.join(['%s'] * len(email))}))"
+        )
+        params.extend(sorted(email))
+    if not parti:
+        return "", []
+    return f"({' OR '.join(parti)})", params
+
+
+def _utente_della_riga(row: dict) -> int | None:
+    """``utenti.id`` della persona di una richiesta già letta (vedi :func:`_sql_utente_della_riga`)."""
+    utente_id = _as_int(row.get("utente_id") or row.get("legacy_user_id"))
+    if utente_id is not None:
+        return utente_id
+    item_id = _as_int(row.get("id"))
+    expr = _sql_utente_della_riga("a")
+    if item_id is None or not expr:
+        return None
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(f"SELECT {expr} FROM assenze a WHERE a.id = %s", [item_id])
+            found = cursor.fetchone()
+    except Exception:
+        logger.warning("assenze: persona della richiesta %s non ricavabile", item_id, exc_info=True)
+        return None
+    return _as_int(found[0]) if found else None
+
+
+# Le richieste rimaste «In attesa» e finite da piu' di tanti giorni (in gran parte
+# importate dal vecchio portale SharePoint e mai decise) non stanno nella coda da
+# approvare: restano nello storico e nella ricerca, ma non aspettano piu' nessuno.
+CODA_GIORNI_DOPO_FINE = 30
+
+
+def _sql_coda_attiva(alias: str = "a") -> tuple[str, list]:
+    """Condizione «ancora da decidere»: in attesa e non finita da oltre CODA_GIORNI_DOPO_FINE."""
+    limite = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(
+        days=CODA_GIORNI_DOPO_FINE
+    )
+    if timezone.is_aware(limite) and not getattr(connections["default"].features, "supports_timezones", False):
+        limite = timezone.make_naive(limite)
+    return (
+        f"COALESCE({alias}.moderation_status, 2) = 2 AND ({alias}.data_fine IS NULL OR {alias}.data_fine >= %s)",
+        [limite],
+    )
 
 
 def _nominativi_per_utente(utente_ids) -> dict[int, str]:
@@ -3291,7 +3583,40 @@ def _applica_moderazione(request, item_id: int, current: dict, consenso: str, no
     except Exception:
         logger.exception("Assenze: notifica al richiedente non creata")
 
+    _notify_esito_dipendente(request, current, consenso, note_gestione)
     return _sp_enqueue_upsert(item_id)
+
+
+def _notify_esito_dipendente(request, record: dict, consenso: str, note: str = "") -> None:
+    """Decisione presa dal portale: chiude il link della mail e avvisa il dipendente (best-effort)."""
+    from automazioni.services import chiudi_approvazioni_pendenti
+
+    from ..mail_esito_service import send_esito_dipendente
+
+    try:
+        nome, email, _ = _legacy_identity(request)
+    except Exception:
+        nome, email = "", ""
+    try:
+        chiudi_approvazioni_pendenti(
+            "assenze",
+            record.get("id"),
+            "approved" if consenso == "Approvato" else "rejected",
+            decided_by=email or nome or request.user.get_username(),
+        )
+    except Exception:
+        logger.warning("Assenze: richiesta di approvazione via mail non chiusa (id=%s)", record.get("id"), exc_info=True)
+
+    try:
+        send_esito_dipendente(
+            record,
+            consenso=consenso,
+            tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")),
+            note=note,
+            deciso_da=nome or email or request.user.get_username(),
+        )
+    except Exception:
+        logger.warning("Assenze: mail di esito al dipendente non inviata (id=%s)", record.get("id"), exc_info=True)
 
 
 def _e_propria_assenza(request, current: dict) -> bool:
@@ -3333,6 +3658,42 @@ def _e_mia_richiesta(request, current: dict) -> bool:
     if email and rec_email:
         return rec_email.casefold() == email.casefold()
     return bool(name) and str(current.get("copia_nome") or "").strip().casefold() == str(name).strip().casefold()
+
+
+def _notify_assenza_modificata(request, record: dict, modifiche: list[dict], *, motivo: str = "") -> None:
+    """Avvisa assenza@ e il capo reparto di una richiesta modificata (best-effort).
+
+    Non parte se e' cambiato solo lo stato: approvazione e rifiuto hanno gia' le
+    loro mail dalle automazioni.
+    """
+    from ..mail_modifica_service import send_assenza_modificata_notification
+
+    rilevanti = [m for m in modifiche or [] if m.get("campo") != "Stato"]
+    if not rilevanti:
+        return
+    # Il capo e' un destinatario in piu': se non si risolve, la mail parte
+    # comunque verso la casella assenze.
+    capo_email = ""
+    try:
+        capo_email = _resolve_capo_option_value_from_ids(
+            local_id=_as_int(record.get("capo_reparto_id")),
+            lookup_id=_as_int(record.get("capo_reparto_lookup_id")),
+            capi=_load_capi_options(),
+        )
+    except Exception:
+        logger.warning("Notifica modifica assenza id=%s: capo reparto non risolto", record.get("id"), exc_info=True)
+    try:
+        nome, email, _ = _legacy_identity(request)
+        send_assenza_modificata_notification(
+            record,
+            modifiche=rilevanti,
+            tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")),
+            capo_email=capo_email,
+            modificata_da=nome or email or request.user.get_username(),
+            motivo=motivo,
+        )
+    except Exception:
+        logger.warning("Notifica modifica assenza id=%s non inviata", record.get("id"), exc_info=True)
 
 
 def _notify_assenza_deleted(request, record: dict) -> None:

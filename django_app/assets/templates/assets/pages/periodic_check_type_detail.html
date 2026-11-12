@@ -23,6 +23,7 @@
 
 {% block assets_shell_content %}
 <div class="md-page">
+  {% include "scadenzario/components/riquadro.html" with fonti="impianti" collegata_tipo="verifica" collegata_id=check_type.pk nome=check_type.name %}
   {% include "assets/partials/periodic_check_type_tabs.html" %}
   {% if tab == "panoramica" %}{% include "assets/partials/periodic_check_tab_panoramica.html" %}
   {% elif tab == "storico" %}{% include "assets/partials/periodic_check_tab_storico.html" %}  {% elif tab == "documenti" %}{% include "assets/partials/periodic_check_tab_documenti.html" %}

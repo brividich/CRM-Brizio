@@ -119,8 +119,11 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
             _row(meeting, tone=tone, motivo=motivo, action_url=action_url, action_label=action_label)
         )
 
+    # Le tre categorie si leggono intere: il totale (badge) conta tutto, la
+    # lista mostra le prime _LIMIT. Prima ogni categoria era già tagliata a
+    # _LIMIT e il badge non superava mai 18.
     # 1. Incontro passato ancora «pianificato»: l'esito non e' mai stato registrato.
-    for meeting in base.filter(stato=MeetingStatus.PIANIFICATO, data__lt=today).order_by("-data")[: _LIMIT]:
+    for meeting in base.filter(stato=MeetingStatus.PIANIFICATO, data__lt=today).order_by("-data"):
         giorni = (today - meeting.data).days
         add(
             meeting,
@@ -133,7 +136,7 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
     # 2. Incontro svolto con minuta mai approvata.
     for meeting in base.filter(
         stato=MeetingStatus.SVOLTO, minuta_chiusa_at__isnull=True
-    ).order_by("-data")[: _LIMIT]:
+    ).order_by("-data"):
         if not can_manage(meeting.project):
             continue
         add(
@@ -154,7 +157,7 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
             )
         )
         .filter(aperti__gt=0)
-        .order_by("-data")[: _LIMIT]
+        .order_by("-data")
     )
     for meeting in con_problemi:
         add(
@@ -207,5 +210,32 @@ def _mie_voci(user, projects, today) -> list[dict]:
                 "scaduta": bool(item.due_date and item.due_date < today),
                 "url": url,
             })
+    # Stesse voci della pagina «Le mie azioni»: prima il riquadro contava solo
+    # azioni e problemi e «Tutte (N)» non tornava con la pagina.
+    from .models import ProjectTechRef, Task, TaskStatus, TechRefStatus
+    from .services.programmi import senza_attivita_aperta
+
+    for task in Task.objects.filter(
+        assigned_to=user, status__in=(TaskStatus.TODO, TaskStatus.IN_PROGRESS), project_id__in=project_ids
+    ).select_related("project"):
+        rows.append({
+            "kind": "Attività",
+            "title": task.title,
+            "project": task.project,
+            "due_date": task.due_date,
+            "scaduta": bool(task.due_date and task.due_date < today),
+            "url": _url("tasks:detail", task.pk),
+        })
+    for ref in senza_attivita_aperta(
+        ProjectTechRef.objects.filter(assigned_to=user, status=TechRefStatus.OPEN, project_id__in=project_ids)
+    ).select_related("project"):
+        rows.append({
+            "kind": ref.get_kind_display(),
+            "title": ref.label,
+            "project": ref.project,
+            "due_date": ref.due_date,
+            "scaduta": bool(ref.due_date and ref.due_date < today),
+            "url": _url("tasks:project_tech_refs", ref.project_id),
+        })
     rows.sort(key=lambda r: (not r["scaduta"], r["due_date"] is None, r["due_date"] or today))
     return rows

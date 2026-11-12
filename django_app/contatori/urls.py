@@ -1,10 +1,12 @@
 from django.urls import path
-from . import views, views_verifica_oid, views_wizard
+from . import views, views_tabelle, views_verifica_oid, views_wizard
 
 app_name = "contatori"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("riconciliazione/", views.riconciliazione, name="riconciliazione"),
+    path("guida/", views.guida, name="guida"),
+    # Vecchio indirizzo della guida: reindirizza a /contatori/guida/.
     path("riconciliazione/guida/", views.riconciliazione_guida, name="riconciliazione_guida"),
     path("riconciliazione/<str:trimestre>/", views.riconciliazione, name="riconciliazione_trim"),
     path("fatture/", views.fatture_elenco, name="fatture"),
@@ -23,8 +25,11 @@ urlpatterns = [
     path("letture/trimestre/", views.letture_trimestre, name="letture_trimestre"),
     path("letture/proposte/", views.letture_proposte, name="letture_proposte"),
     path("letture/gestisci/", views.letture_gestisci, name="letture_gestisci"),
+    path("letture/mensili/", views.letture_mensili, name="letture_mensili"),
     path("letture/mensili/<int:pk>/", views.lettura_mensile_edit, name="lettura_mensile_edit"),
     path("letture/mensili/<int:pk>/elimina/", views.lettura_mensile_elimina, name="lettura_mensile_elimina"),
+    path("letture/<slug:tipo>/<int:pk>/calo-spiegato/", views.lettura_calo_spiegato,
+         name="lettura_calo_spiegato"),
     path("letture/<int:pk>/", views.importa_lettura, name="lettura_edit"),
     path("letture/<int:pk>/elimina/", views.lettura_elimina, name="lettura_elimina"),
     path("leggi-snmp/", views.leggi_snmp, name="leggi_snmp"),
@@ -69,8 +74,13 @@ urlpatterns = [
          views.sonda_snmp_edit, name="snmp_sonda_edit"),
     path("macchina/<int:pk>/consumabili/", views.macchina_consumabili, name="macchina_consumabili"),
     path("consumabili/", views.consumabili_flotta, name="consumabili"),
+    path("consumabili/fabbisogno/", views.consumabili_fabbisogno, name="consumabili_fabbisogno"),
     path("consumabili/<int:pk>/riepilogo/", views.macchina_consumabili_riepilogo, name="consumabili_riepilogo"),
     path("consumabili/<int:pk>/aggiorna/", views.consumabili_aggiorna, name="consumabili_aggiorna"),
+    path("anteprima/<slug:kind>/<int:pk>/", views_tabelle.anteprima, name="anteprima"),
+    path("consumabili/azioni/", views_tabelle.consumabili_azioni, name="consumabili_azioni"),
+    path("macchine/collega-asset/", views_tabelle.macchine_collega_asset, name="macchine_collega_asset"),
+    path("discovery/correggi-ip/", views_tabelle.discovery_correggi_ip, name="discovery_correggi_ip"),
     path("analisi/", views.analisi, name="analisi"),
     path("analisi/export.xlsx", views.export_analisi, name="export_analisi"),
     path("riconciliazione/<str:trimestre>/export.xlsx", views.export_riconciliazione, name="export_riconciliazione"),

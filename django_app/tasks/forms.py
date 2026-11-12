@@ -165,13 +165,13 @@ class ProjectChoiceField(forms.ModelChoiceField):
 
 
 class ProjectKickoffForm(forms.ModelForm):
-    """Form dedicato alla creazione di un kickoff (Project) senza task.
+    """Creazione e modifica di un kickoff (Project): anagrafica e team.
 
-    Usato dal flow /tasks/projects/new/: anagrafica kickoff -> redirect al
-    vrf_compile -> redirect al gantt con CTA 'aggiungi prima attivita'.
-    La duplicate-identity logica (stesso P/N + rev + versione) viene
-    intercettata in clean() e restituita via reuse_existing_project per
-    consentire alla view di redirigere al kickoff gia esistente.
+    In creazione (/tasks/projects/new/) stesso P/N + rev + versione di un kickoff
+    esistente viene intercettato in clean() e restituito via
+    reused_existing_project, cosi' la view porta a quello. In modifica
+    (instance salvata) la stessa identita' su un altro kickoff e' un errore.
+    La descrizione e' una sola: alimenta anche la «Descrizione» del file VRF.
     """
 
     # Ogni ruolo ammette piu' persone: checkbox multiple invece della tendina singola.
@@ -210,7 +210,6 @@ class ProjectKickoffForm(forms.ModelForm):
             "control_method",
             "safety_impact",
             "vrf_quote_number",
-            "vrf_description",
             "vrf_esp",
         ]
         widgets = {
@@ -219,11 +218,10 @@ class ProjectKickoffForm(forms.ModelForm):
             "part_number":      forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
             "revisione":        forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. A, B, 01"}),
             "versione":         forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. 1.0, 2.3"}),
-            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Cosa si deve fare (opzionale): compare anche nella scheda VRF"}),
             "control_method":   forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Metodo di controllo"}),
             "safety_impact":    forms.CheckboxInput(attrs={"class": "input-checkbox"}),
             "vrf_quote_number": forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Preventivo n."}),
-            "vrf_description":  forms.TextInput(attrs={"class": "input", "maxlength": 500, "placeholder": "Descrizione scheda VRF"}),
             "vrf_esp":          forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Esp"}),
         }
 
@@ -239,7 +237,7 @@ class ProjectKickoffForm(forms.ModelForm):
             self.fields[_name].label_from_instance = user_display_label
         for name in ("name", "part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
-                     "vrf_description", "vrf_esp"):
+                     "vrf_esp"):
             self.fields[name].required = False
         # Il nome si compone da solo come «Cliente · P/N · KICK-OFF n»: qui resta
         # scrivibile per i casi in cui quella formula non basta.
@@ -247,6 +245,15 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["name"].help_text = (
             "Lascia vuoto per il nome proposto: «Cliente · P/N · KICK-OFF n»."
         )
+        if self.instance.pk:
+            for _name in self.TEAM_FIELDS:
+                membri = self.instance.team_members(_name)
+                self.initial[_name] = [u.pk for u in membri]
+                # Chi e' gia' nel team resta selezionabile anche se oggi non ha il ruolo.
+                ids = [u.pk for u in membri]
+                self.fields[_name].queryset = (
+                    self.fields[_name].queryset | User.objects.filter(pk__in=ids)
+                ).distinct()
 
     def clean(self):
         cleaned = super().clean()
@@ -271,6 +278,19 @@ class ProjectKickoffForm(forms.ModelForm):
             )
 
         if part_number:
+            if self.instance.pk:
+                # Tutti i kickoff, non solo quelli visibili: un doppione resta un doppione.
+                doppione = Project.objects.filter(
+                    part_number__iexact=part_number,
+                    revisione__iexact=revisione,
+                    versione__iexact=versione,
+                ).exclude(pk=self.instance.pk).exists()
+                if doppione:
+                    self.add_error(
+                        "part_number",
+                        "Esiste già un altro kickoff con questo P/N, revisione e versione.",
+                    )
+                return cleaned
             match_qs = self.project_queryset.filter(
                 part_number__iexact=part_number,
                 revisione__iexact=revisione,
@@ -285,6 +305,8 @@ class ProjectKickoffForm(forms.ModelForm):
         if self.reused_existing_project is not None:
             return self.reused_existing_project
         project = super().save(commit=False)
+        if "description" in self.changed_data or not project.vrf_description:
+            project.vrf_description = (project.description or "").strip()[:500]
         if commit:
             project.save()
             self.save_team(project)
@@ -361,7 +383,7 @@ class TaskForm(forms.ModelForm):
     )
     project_new_description = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Cosa si deve fare (opzionale): compare anche nella scheda VRF"}),
         label="Descrizione kickoff",
     )
     project_new_client = forms.CharField(
@@ -503,11 +525,11 @@ class TaskForm(forms.ModelForm):
             "status": forms.Select(attrs={"class": "input"}),
             "priority": forms.Select(attrs={"class": "input"}),
             "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "next_step_text": forms.TextInput(attrs={"class": "input", "maxlength": 300}),
-            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "assigned_to": forms.Select(attrs={"class": "input"}),
-            "subscribers": forms.SelectMultiple(attrs={"class": "input"}),
+            "subscribers": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, *args, user=None, project_queryset=None, locked_project=None, **kwargs):
@@ -553,10 +575,10 @@ class TaskForm(forms.ModelForm):
         self.fields["project_new_versione"].label = "Versione"
         self.fields["project_similar_choice"].label = "Attivita simile (cerca esistente)"
         self.fields["project_similar_new_note"].label = "Attivita simile (inserisci nuova)"
-        self.fields["title"].label = "Titolo attivita kickoff"
-        self.fields["description"].label = "Descrizione attivita"
+        self.fields["title"].label = "Titolo attività"
+        self.fields["description"].label = "Descrizione attività"
         self.fields["tags"].label = "Etichette"
-        self.fields["status"].label = "Stato attivita kickoff"
+        self.fields["status"].label = "Stato attività"
         self.fields["priority"].label = "Priorita"
         self.fields["due_date"].label = "Data fine prevista"
         self.fields["next_step_text"].label = "Prossima azione"
@@ -564,8 +586,8 @@ class TaskForm(forms.ModelForm):
         self.fields["assigned_to"].label = "Operatore incaricato"
         self.fields["subscribers"].label = "Partecipanti in copia"
         self.fields["assignment_conflict_action"].label = "Se l'operatore ha altri impegni nello stesso periodo"
-        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: l'attivita verra segnalata come overdue."
-        self.fields["next_step_due"].help_text = "Data di inizio attivita (di norma il giorno successivo alla fine dell'attivita precedente)."
+        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: l'attività verrà segnalata come scaduta."
+        self.fields["next_step_due"].help_text = "Di norma il giorno dopo la fine dell'attività precedente."
         self.fields["tags"].help_text = "Separare le etichette con virgola. Esempio: produzione, urgente."
         self.fields["assignment_conflict_action"].help_text = (
             "Il sistema controlla eventuali altre attivita kickoff attive assegnate all'operatore nello stesso intervallo date."
@@ -928,11 +950,11 @@ class TaskFilterForm(forms.Form):
     without_due_date = forms.BooleanField(required=False)
     due_from = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
+        widget=forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
     )
     due_to = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
+        widget=forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
     )
     assigned_to = forms.ModelChoiceField(
         required=False,
@@ -1060,7 +1082,7 @@ class SubTaskForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"class": "input", "maxlength": 200}),
             "assigned_to": forms.Select(attrs={"class": "input"}),
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "order_index": forms.NumberInput(attrs={"class": "input", "min": 0}),
         }
 
@@ -1085,7 +1107,7 @@ class TaskAttachmentForm(forms.ModelForm):
     TARGET_PROJECT = "project"
 
     attach_to = forms.ChoiceField(
-        choices=((TARGET_TASK, "Task corrente"),),
+        choices=((TARGET_TASK, "Questa attività"),),
         widget=forms.Select(attrs={"class": "input"}),
         label="Destinazione",
     )
@@ -1100,7 +1122,7 @@ class TaskAttachmentForm(forms.ModelForm):
     def __init__(self, *args, task=None, **kwargs):
         self.task = task
         super().__init__(*args, **kwargs)
-        choices = [(self.TARGET_TASK, "Task corrente")]
+        choices = [(self.TARGET_TASK, "Questa attività")]
         if task and task.project_id:
             choices.append((self.TARGET_PROJECT, "Kickoff collegato"))
         self.fields["attach_to"].choices = choices
@@ -1140,17 +1162,23 @@ class TaskAttachmentForm(forms.ModelForm):
 class ProjectTaskGanttUpdateForm(forms.ModelForm):
     class Meta:
         model = Task
-        fields = ["next_step_due", "due_date", "status", "progress"]
+        fields = ["next_step_due", "due_date", "status", "progress", "priority"]
         widgets = {
             "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "status": forms.Select(attrs={"class": "input"}),
             "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
+            "priority": forms.Select(attrs={"class": "input"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, consenti_priorita: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["progress"].required = False
+        self.fields["priority"].label = "Priorità"
+        # La priorità è una scelta di pianificazione: senza il permesso il campo
+        # non esiste nel form, quindi un valore inviato a mano viene ignorato.
+        if not consenti_priorita:
+            del self.fields["priority"]
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1199,7 +1227,7 @@ class KickoffMeetingForm(forms.ModelForm):
     class Meta:
         model = KickoffMeeting
         fields = [
-            "titolo", "data", "ora", "luogo", "stato",
+            "titolo", "data", "ora", "durata_minuti", "sala", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
             "cc_utenti", "cc_email_extra",
             # `ordine_del_giorno` (testo libero) e' storico in sola lettura: i
@@ -1211,7 +1239,12 @@ class KickoffMeetingForm(forms.ModelForm):
             "titolo": forms.TextInput(attrs={"class": "input", "placeholder": "Titolo opzionale"}),
             "data": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "ora": forms.TimeInput(attrs={"class": "input", "type": "time"}, format="%H:%M"),
-            "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. Sala riunioni / Teams"}),
+            "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. link Teams o sede del cliente"}),
+            "sala": forms.Select(attrs={"class": "input"}),
+            "durata_minuti": forms.Select(attrs={"class": "input"}, choices=[
+                ("", "Dall'ordine del giorno"), (30, "30 minuti"), (45, "45 minuti"), (60, "1 ora"), (90, "1 ora e mezza"),
+                (120, "2 ore"), (150, "2 ore e mezza"), (180, "3 ore"), (240, "4 ore"), (300, "5 ore"), (480, "Giornata (8 ore)"),
+            ]),
             "partecipanti_utenti": forms.CheckboxSelectMultiple(),
             "partecipanti_email_extra": forms.Textarea(
                 attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
@@ -1242,6 +1275,15 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["cc_email_extra"].required = False
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False
+        from .models import MeetingRoom
+
+        sale = MeetingRoom.objects.filter(attiva=True)
+        if self.instance and self.instance.sala_id:
+            sale = MeetingRoom.objects.filter(Q(attiva=True) | Q(pk=self.instance.sala_id))
+        self.fields["sala"].queryset = sale.order_by("ordine", "nome")
+        self.fields["sala"].required = False
+        self.fields["durata_minuti"].required = False
+        self.fields["sala"].empty_label = "Nessuna sala (online o altrove)"
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
         # «Annullato» nemmeno: si annulla con l'azione dedicata del dettaglio,
         # che chiede il motivo, toglie l'evento Outlook e avvisa i convocati.
@@ -1324,6 +1366,10 @@ class KickoffMeetingForm(forms.ModelForm):
         dopo aver assegnato il punto.
         """
         cleaned = super().clean()
+        # Con una sala e nessun altro luogo, il luogo è la sala (mail, minuta, Outlook).
+        sala = cleaned.get("sala")
+        if sala is not None and not (cleaned.get("luogo") or "").strip():
+            cleaned["luogo"] = sala.nome[:200]
         items = cleaned.get("agenda_items_raw") or []
         partecipanti = cleaned.get("partecipanti_utenti")
         allowed_ids = {user.pk for user in partecipanti} if partecipanti is not None else set()

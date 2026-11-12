@@ -45,18 +45,23 @@ try {
     if (-not (Test-Path (Join-Path $build "package.json"))) {
         npm init -y | Out-Null
     }
-    Write-Host "Installo la toolchain Babel (temporanea)..."
-    npm install --no-save --no-audit --no-fund "@babel/core@^7" "@babel/cli@^7" "@babel/preset-react@^7" | Out-Null
+    # Un'unica installazione: con --no-save una seconda «npm install» pota i
+    # pacchetti della prima (Babel spariva e il bundle non veniva riscritto).
+    Write-Host "Installo Babel e React $ReactVersion (temporanei)..."
+    npm install --no-save --no-audit --no-fund "@babel/core@^7" "@babel/cli@^7" "@babel/preset-react@^7" "react@$ReactVersion" "react-dom@$ReactVersion" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "npm install fallito." }
 
-    $babel = Join-Path $build "node_modules/.bin/babel"
+    $babelCli = Join-Path $build "node_modules/@babel/cli/bin/babel.js"
     $preset = Join-Path $build "node_modules/@babel/preset-react"
+    if (-not (Test-Path $babelCli)) { throw "Babel non installato: $babelCli" }
 
+    $prima = (Get-Item $bundle -ErrorAction SilentlyContinue).LastWriteTimeUtc
     Write-Host "Transpilo $src -> $bundle"
-    & $babel $src --presets $preset --no-babelrc -o $bundle
+    node $babelCli $src --presets $preset --no-babelrc -o $bundle
     if ($LASTEXITCODE -ne 0) { throw "Transpilazione Babel fallita." }
+    if ((Get-Item $bundle).LastWriteTimeUtc -eq $prima) { throw "Il bundle non e' stato riscritto." }
 
     Write-Host "Aggiorno i build React di produzione ($ReactVersion)..."
-    npm install --no-save --no-audit --no-fund "react@$ReactVersion" "react-dom@$ReactVersion" | Out-Null
     Copy-Item (Join-Path $build "node_modules/react/umd/react.production.min.js") (Join-Path $jsDir "react.production.min.js") -Force
     Copy-Item (Join-Path $build "node_modules/react-dom/umd/react-dom.production.min.js") (Join-Path $jsDir "react-dom.production.min.js") -Force
 

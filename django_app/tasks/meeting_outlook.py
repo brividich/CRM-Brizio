@@ -1,7 +1,8 @@
 """Integrazione Outlook Calendar per KickoffMeeting.
 
 Crea/aggiorna/elimina l'evento calendario sul profilo dell'organizzatore
-e aggiunge tutti i partecipanti (utenti portale + email extra) come attendees.
+e aggiunge tutti i partecipanti (utenti portale + email extra) come attendees,
+più i destinatari in copia come attendees facoltativi.
 Gli errori Graph non sono bloccanti: l'incontro resta salvato con un warning.
 """
 from __future__ import annotations
@@ -77,14 +78,30 @@ def _organizer_hint(organizer_email: str) -> str:
     )
 
 
-def _build_attendees(meeting) -> list[dict]:
-    return [
-        {
-            "emailAddress": {"address": email, "name": email},
-            "type": "required",
-        }
-        for email in meeting.get_all_attendee_emails()
+def _build_attendees(meeting, organizer_email: str = "") -> list[dict]:
+    """Convocati come «obbligatori», destinatari in copia come «facoltativi».
+
+    Chi è in copia riceve lo stesso invito di calendario dei convocati: i CC sono
+    gli stessi della mail di convocazione (scelti a mano, oppure i predefiniti,
+    oppure PM e capo commessa), senza doppioni con i convocati e senza
+    l'organizzatore, che la riunione l'ha già nel proprio calendario.
+    """
+    from .minute_email import _cc_management  # import locale: minute_email importa da qui
+
+    convocati = meeting.get_all_attendee_emails()
+    attendees = [
+        {"emailAddress": {"address": email, "name": email}, "type": "required"}
+        for email in convocati
     ]
+    gia = {e.lower() for e in convocati}
+    if organizer_email:
+        gia.add(organizer_email.strip().lower())
+    for email in _cc_management(meeting, exclude=convocati):
+        if email.lower() in gia:
+            continue
+        gia.add(email.lower())
+        attendees.append({"emailAddress": {"address": email, "name": email}, "type": "optional"})
+    return attendees
 
 
 def _agenda_items_html(meeting) -> str:
@@ -141,29 +158,66 @@ def _meeting_body_html(request, meeting) -> str:
     except Exception:
         detail_url = ""
 
+    # Testi scritti dagli utenti: protetti come le voci dell'agenda, sennò un
+    # «<» o un «&» nel titolo rompe il corpo dell'evento.
     lines = [
-        f"<p><strong>Kickoff:</strong> {meeting.project.name}</p>",
+        f"<p><strong>Kickoff:</strong> {escape(meeting.project.name)}</p>",
         f"<p><strong>Incontro:</strong> {meeting.numero}"
-        + (f" — {meeting.titolo}" if meeting.titolo else "") + "</p>",
+        + (f" — {escape(meeting.titolo)}" if meeting.titolo else "") + "</p>",
     ]
     if meeting.luogo:
-        lines.append(f"<p><strong>Luogo:</strong> {meeting.luogo}</p>")
+        lines.append(f"<p><strong>Luogo:</strong> {escape(meeting.luogo)}</p>")
     agenda_html = _agenda_items_html(meeting)
     if agenda_html:
         lines.append(f"<p><strong>Ordine del giorno:</strong></p>{agenda_html}")
     if meeting.ordine_del_giorno:
-        odg = str(meeting.ordine_del_giorno).replace("\n", "<br>")
+        odg = escape(str(meeting.ordine_del_giorno)).replace("\n", "<br>")
         label = "Note aggiuntive ordine del giorno" if agenda_html else "Ordine del giorno"
         lines.append(f"<p><strong>{label}:</strong><br>{odg}</p>")
     if detail_url:
-        lines.append(f'<p><a href="{detail_url}">Apri verbale incontro sul portale</a></p>')
+        lines.append(f'<p><a href="{escape(detail_url)}">Apri verbale incontro sul portale</a></p>')
     return "\n".join(lines)
+
+
+def _registra_invito(meeting) -> None:
+    """L'invito Outlook è la convocazione: data e impronta, come per la mail."""
+    from django.utils import timezone
+
+    from .models import KickoffMeeting, MeetingStatus
+
+    if meeting.stato != MeetingStatus.PIANIFICATO or not meeting.pk:
+        return
+    meeting.convocazione_inviata_at = timezone.now()
+    campi = meeting.registra_convocazione_inviata()
+    KickoffMeeting.objects.filter(pk=meeting.pk).update(
+        convocazione_inviata_at=meeting.convocazione_inviata_at, **{c: getattr(meeting, c) for c in campi},
+    )
+
+
+def _testo_invitati(attendees: list[dict]) -> str:
+    n_att = sum(1 for a in attendees if a.get("type") == "required")
+    n_cc = sum(1 for a in attendees if a.get("type") == "optional")
+    testo = f"{n_att} partecipanti"
+    return f"{testo}, {n_cc} in copia" if n_cc else testo
+
+
+def _testo_sala(sala) -> str:
+    if sala is None:
+        return ""
+    if sala.email:
+        return f", richiesta di prenotazione inviata alla sala {sala.nome}"
+    return f", sala {sala.nome} senza casella Microsoft 365: non prenotata in Outlook"
+
+
+def meeting_duration_minutes(meeting) -> int:
+    """Durata dell'incontro: quella scelta, altrimenti la somma dei punti all'ordine del giorno, un'ora se mancano."""
+    return getattr(meeting, "durata_minuti", None) or meeting.durata_prevista_minuti() or DEFAULT_DURATION_MINUTES
 
 
 def _meeting_start_end(meeting) -> tuple[datetime, datetime]:
     ora: time = meeting.ora or time(DEFAULT_START_HOUR, 0)
     start = datetime.combine(meeting.data, ora)
-    end = start + timedelta(minutes=DEFAULT_DURATION_MINUTES)
+    end = start + timedelta(minutes=meeting_duration_minutes(meeting))
     return start, end
 
 
@@ -209,7 +263,8 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     if meeting.titolo:
         subject = f"{subject}: {meeting.titolo}"
     body_html = _meeting_body_html(request, meeting)
-    location = meeting.luogo or meeting.project.name
+    sala = meeting.sala if meeting.sala_id else None
+    location = (sala.nome if sala else "") or meeting.luogo or meeting.project.name
     transaction_id = _transaction_id(meeting)
 
     payload = build_event_payload(
@@ -220,7 +275,7 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
         transaction_id=transaction_id,
         reminder_minutes_before_start=15,
         start_hour=start.hour,
-        duration_minutes=DEFAULT_DURATION_MINUTES,
+        duration_minutes=meeting_duration_minutes(meeting),
     )
     # Sovrascrive start/end con l'ora esatta dell'incontro
     tz = "W. Europe Standard Time"
@@ -228,13 +283,26 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     payload["end"]   = {"dateTime": end.strftime("%Y-%m-%dT%H:%M:%S"),   "timeZone": tz}
     payload["isOnlineMeeting"] = False
 
-    attendees = _build_attendees(meeting)
+    attendees = _build_attendees(meeting, organizer_email)
+    # Sala con casella Microsoft 365: luogo «sala riunioni» + invitata come risorsa,
+    # così Exchange la prenota (o la rifiuta se è già occupata).
+    if sala is not None and sala.email:
+        payload["location"] = {
+            "displayName": sala.nome,
+            "locationEmailAddress": sala.email,
+            "locationType": "conferenceRoom",
+        }
+        attendees = [a for a in attendees if a["emailAddress"]["address"].lower() != sala.email.lower()]
+        attendees.append({"emailAddress": {"address": sala.email, "name": sala.nome}, "type": "resource"})
     if attendees:
         payload["attendees"] = attendees
 
     # ── crea o aggiorna ────────────────────────────────────────────────────
     try:
         existing_id = meeting.outlook_event_id
+        # Niente di cambiato per i partecipanti: nessun aggiornamento, così non ricevono mail inutili.
+        if existing_id and meeting.convocazione_firma and meeting.convocazione_firma == meeting.firma_convocazione():
+            return ("", "")
         if existing_id:
             graph_event = update_event(
                 target_email=organizer_email,
@@ -243,25 +311,28 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
             )
             web_link = str(graph_event.get("webLink") or meeting.outlook_event_web_link)
             KickoffMeeting.objects.filter(pk=meeting.pk).update(
+                sala_risposta="", sala_risposta_at=None,
                 outlook_event_web_link=web_link,
                 outlook_organizer_email=organizer_email,
             )
             meeting.outlook_event_web_link = web_link
-            n_att = len(attendees)
-            return ("success", f"Evento Outlook aggiornato ({n_att} partecipanti).")
+            meeting.outlook_event_id = existing_id
+            _registra_invito(meeting)
+            return ("success", f"Invito Outlook aggiornato: i partecipanti ricevono l'aggiornamento ({_testo_invitati(attendees)}){_testo_sala(sala)}.")
 
         graph_event = create_event(target_email=organizer_email, payload=payload)
         event_id = str(graph_event.get("id") or "")
         web_link = str(graph_event.get("webLink") or "")
         KickoffMeeting.objects.filter(pk=meeting.pk).update(
+            sala_risposta="", sala_risposta_at=None,
             outlook_event_id=event_id,
             outlook_event_web_link=web_link,
             outlook_organizer_email=organizer_email,
         )
         meeting.outlook_event_id = event_id
         meeting.outlook_event_web_link = web_link
-        n_att = len(attendees)
-        return ("success", f"Evento Outlook creato sul calendario di {organizer_email} ({n_att} partecipanti).")
+        _registra_invito(meeting)
+        return ("success", f"Invito Outlook inviato dal calendario di {organizer_email} ({_testo_invitati(attendees)}){_testo_sala(sala)}.")
 
     except Exception as exc:
         logger.warning("Meeting outlook sync fallita (meeting=%s): %s", meeting.id, exc)

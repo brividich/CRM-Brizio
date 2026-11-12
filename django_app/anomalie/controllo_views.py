@@ -51,49 +51,174 @@ def _mail_mode(value) -> str:
     return AnomaliaControllo.MailMode.FINE
 
 
-def _get_controllo(request, pk: int):
-    """Il controllo è dell'operatore che l'ha aperto (o di un superuser)."""
-    controllo = AnomaliaControllo.objects.filter(pk=pk).first()
+def _get_controllo(request, pk: int, *, lettura: bool = False):
+    """Il controllo si modifica solo da chi lo ha in carico (o da un superuser).
+
+    In lettura (``lettura=True``) lo vedono anche i colleghi del gruppo qualità, che
+    possono poi prenderlo in carico con ``api_controllo_prendi``.
+    """
+    controllo = AnomaliaControllo.objects.select_related("operatore").filter(pk=pk).first()
     if controllo is None:
         return None, _err("Controllo non trovato", 404)
-    if controllo.operatore_id != request.user.pk and not request.user.is_superuser:
-        return None, _err("Permesso negato: il controllo è di un altro operatore", 403)
-    return controllo, None
+    if controllo.operatore_id == request.user.pk or request.user.is_superuser:
+        return controllo, None
+    if lettura and cs.colleghi_del_gruppo(request.user, controllo):
+        return controllo, None
+    if lettura:
+        # Chi può aprire segnalazioni sull'OP vede (e può prendere in carico) i controlli
+        # non terminati di altri sullo stesso OP: evita controlli doppi.
+        from .views import _can_create_anomalie_for_op
+
+        if controllo.terminato_at is None and _can_create_anomalie_for_op(request, controllo.op_id):
+            return controllo, None
+    chi = controllo.operatore_display or "un altro operatore"
+    return None, _err(f"Il controllo è in carico a {chi}: per proseguirlo usa «Prendi in carico».", 403)
+
+
+def _op_esiste(op_id: str) -> bool:
+    from .views import _fetch_all_dict, _has_table
+
+    if not op_id or not _has_table("ordini_produzione"):
+        return False
+    return bool(_fetch_all_dict("SELECT COUNT(*) AS n FROM ordini_produzione WHERE title = %s", [op_id])[0]["n"])
+
+
+def _op_ancora_da_creare(op_id: str) -> bool:
+    try:
+        return not _op_esiste(op_id)
+    except Exception:
+        return False
+
+
+def _apri_su_op_nuovo(request, dati) -> tuple[str, dict, JsonResponse | None]:
+    """Controllo su un OP nuovo non ancora creato: ``(titolo, dati puliti, errore)``.
+    Stesse regole di «+ Nuovo OP»; l'OP vero nasce al primo «Salva blocco»."""
+    from .views import _can_create_anomalie_for_op, _op_role_codes_da_persone, titolo_nuovo_op
+
+    if not isinstance(dati, dict):
+        return "", {}, _err("Dati del nuovo OP non validi")
+    campi = ("causale_doc", "anno", "numero", "fase", "pn", "capocommessa", "car", "note", "collaudo_benestare")
+    pulito = {k: dati.get(k) for k in campi if k in dati}
+    for k, label in (("pn", "P/N"), ("anno", "anno"), ("numero", "numero"), ("capocommessa", "Capocommessa"),
+                     ("car", "CAR")):
+        if not str(pulito.get(k) or "").strip():
+            return "", {}, _err(f"{label} obbligatorio")
+    titolo = titolo_nuovo_op(pulito)
+    if _op_esiste(titolo):
+        return "", {}, _err(f"L'OP {titolo} esiste già: sceglilo dall'elenco.", 409)
+    puo = _can_create_anomalie_for_op(request, titolo) or bool(
+        _op_role_codes_da_persone(request, pulito.get("capocommessa"), pulito.get("car")))
+    if not puo:
+        return "", {}, _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
+    return titolo, pulito, None
+
+
+def crea_op_del_controllo(request, controllo) -> tuple[dict | None, str]:
+    """Primo «Salva blocco» su un OP nuovo: crea l'OP (o aggancia quello con lo stesso
+    titolo, se nel frattempo l'ha creato qualcun altro) e svuota ``op_nuovo``."""
+    from .views import _fetch_all_dict, crea_op_da_dati
+
+    if not controllo.op_nuovo:
+        return None, ""
+    if _op_esiste(controllo.op_id):
+        rows = _fetch_all_dict(
+            "SELECT sharepoint_item_id, title, part_number, capocomessa, incaricato, stato "
+            "FROM ordini_produzione WHERE title = %s", [controllo.op_id])
+        r = rows[0] if rows else {}
+        op = {"item_id": str(r.get("sharepoint_item_id") or ""), "id": r.get("title") or controllo.op_id,
+              "pn": r.get("part_number") or "—", "capo": r.get("capocomessa") or "—",
+              "car": r.get("incaricato") or "—", "stato": r.get("stato") or "Aperto"}
+    else:
+        esito = crea_op_da_dati(request, controllo.op_nuovo)
+        if not esito["success"] or not esito.get("op"):
+            return None, esito.get("error") or "Creazione OP non riuscita"
+        op = esito["op"]
+    controllo.op_id = str(op.get("id") or controllo.op_id)[:100]
+    controllo.op_item_id = str(op.get("item_id") or "")[:100]
+    controllo.op_nuovo = {}
+    controllo.save(update_fields=["op_id", "op_item_id", "op_nuovo", "updated_at"])
+    log_action(request, "anomalie_controllo_op_creato", "anomalie",
+               {"controllo_id": controllo.pk, "op_id": controllo.op_id})
+    return op, ""
 
 
 @login_required
 @require_GET
 def api_controlli(request):
     """Controlli ancora aperti dell'utente sull'OP (per riprenderli) e fasi già usate."""
-    from .views import _can_edit_anomalie_for_op
+    from .views import _can_create_anomalie_for_op
 
     op_id = _txt(request.GET.get("op_id"), 100)
     if not op_id:
         return _err("op_id obbligatorio")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     recenti = timezone.now() - timedelta(days=7)
-    aperti = AnomaliaControllo.objects.filter(
+    propri = list(AnomaliaControllo.objects.filter(
         op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True, created_at__gte=recenti,
-    ).order_by("-id")[:5]
+    ).order_by("-id")[:5])
+    # Controlli non terminati di altri su questo OP (chiunque): si propone di
+    # prenderli in carico invece di aprirne uno doppio.
+    colleghi = list(AnomaliaControllo.objects.filter(
+        op_id__iexact=op_id, terminato_at__isnull=True, created_at__gte=recenti,
+    ).exclude(operatore=request.user).order_by("-id")[:5])
     fasi = list(dict.fromkeys(
         AnomaliaControllo.objects.filter(op_id__iexact=op_id).order_by("-id").values_list("fase", flat=True)[:30]
     ))
+    controlli = []
+    for c in propri + colleghi:
+        dati = cs.serializza_controllo(c, con_allegati=False)
+        dati["mio"] = c.operatore_id == request.user.pk
+        controlli.append(dati)
+    return JsonResponse({"success": True, "controlli": controlli, "fasi": fasi})
+
+
+@login_required
+@require_GET
+def api_controlli_sospesi(request):
+    """Controlli aperti con qualcosa in sospeso: i propri e quelli dei colleghi del
+    gruppo qualità (Controllo qualità / Qualità), su tutti gli OP."""
+    righe = [cs.riassunto_sospeso(c, request.user) for c in cs.controlli_sospesi(request.user) if cs.in_sospeso(c)]
+    return JsonResponse({"success": True, "controlli": righe, "gruppo": cs.nel_gruppo_qualita(request.user)})
+
+
+@login_required
+@require_POST
+def api_controllo_prendi(request, pk: int):
+    """«Prendi in carico»: il controllo di un collega del gruppo qualità passa a chi lo
+    riprende (bozza compresa). Tracciato nel controllo e nell'audit."""
+    from .views import _current_user_identity
+
+    controllo, error = _get_controllo(request, pk, lettura=True)
+    if error:
+        return error
+    if controllo.terminato_at:
+        return _err("Il controllo è già terminato", 409)
+    if controllo.operatore_id == request.user.pk:
+        return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
+    identity = _current_user_identity(request)
+    nome = _txt(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
+    da = controllo.operatore_display
+    passaggio = cs.prendi_in_carico(controllo, request.user, nome)
+    log_action(request, "anomalie_controllo_preso_in_carico", "anomalie", {
+        "controllo_id": controllo.pk, "op_id": controllo.op_id, "da": da, "a": nome, "at": passaggio["at"],
+    })
     return JsonResponse({
         "success": True,
-        "controlli": [cs.serializza_controllo(c, con_allegati=False) for c in aperti],
-        "fasi": fasi,
+        "controllo": cs.serializza_controllo(controllo),
+        "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
 
 
 @login_required
 @require_GET
 def api_controllo_dettaglio(request, pk: int):
-    controllo, error = _get_controllo(request, pk)
+    controllo, error = _get_controllo(request, pk, lettura=True)
     if error:
         return error
     return JsonResponse({
         "success": True,
+        "mio": controllo.operatore_id == request.user.pk or request.user.is_superuser,
         "controllo": cs.serializza_controllo(controllo),
         "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
@@ -104,13 +229,13 @@ def api_controllo_dettaglio(request, pk: int):
 def api_destinatari_op(request):
     """Chi riceverà la mail del controllo su un OP: serve alla pagina prima ancora
     che il controllo esista, per mostrare i destinatari già in fase di avvio."""
-    from .views import _can_edit_anomalie_for_op
+    from .views import _can_create_anomalie_for_op
 
     op_id = _txt(request.GET.get("op_id"), 100)
     if not op_id:
         return _err("op_id obbligatorio")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not _can_create_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     return JsonResponse({"success": True, "destinatari": cs.destinatari_display(op_id)})
 
 
@@ -127,24 +252,32 @@ def api_persone(request):
 @login_required
 @require_POST
 def api_controllo_apri(request):
-    from .views import _can_edit_anomalie_for_op, _current_user_identity
+    from .views import _can_create_anomalie_for_op, _current_user_identity
 
     data = _body(request)
     op_id = _txt(data.get("op_id"), 100)
     fase = _txt(data.get("fase"), 100)
+    op_nuovo = {}
+    if data.get("op_nuovo"):
+        if not fase:
+            return _err("Indica la fase del controllo")
+        op_id, op_nuovo, errore = _apri_su_op_nuovo(request, data.get("op_nuovo"))
+        if errore:
+            return errore
     if not op_id:
         return _err("op_id obbligatorio")
     if not fase:
         return _err("Indica la fase del controllo")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not op_nuovo and not _can_create_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     extra, rifiutati = cs.normalizza_destinatari_extra(data.get("destinatari_extra"))
     if rifiutati:
         return _err("Indirizzi non collegati a nessuna persona in anagrafica: " + ", ".join(rifiutati))
     identity = _current_user_identity(request)
     controllo = AnomaliaControllo.objects.create(
         op_id=op_id,
-        op_item_id=_txt(data.get("op_item_id"), 100),
+        op_item_id="" if op_nuovo else _txt(data.get("op_item_id"), 100),
+        op_nuovo=op_nuovo,
         fase=fase,
         mail_mode=_mail_mode(data.get("mail_mode")),
         destinatari_extra=extra,
@@ -210,6 +343,8 @@ def api_controllo_blocco(request, pk: int):
         return _err("Inserisci almeno un seriale")
     label = etichetta_blocco(voci)
     stati = [s for s in (_txt(v, 60) for v in (data.get("stato_superficie") or [])) if s][:10]
+    # «Dove sono i pezzi?»: vale per tutto il blocco (stessi pezzi), finisce nella scheda di ogni anomalia.
+    dove_pezzi = _txt(data.get("dove_pezzi"), 200) if "dove_pezzi" in data else None
     anomalie_in = data.get("anomalie") if isinstance(data.get("anomalie"), list) else []
     anomalie = []
     for item in anomalie_in[:MAX_ANOMALIE_PER_BLOCCO]:
@@ -222,7 +357,8 @@ def api_controllo_blocco(request, pk: int):
             # Flag «su tutti i seriali del blocco» (default sì); se spento, i S/N scelti.
             tutti = item.get("tutti", True) is not False
             scelti = item.get("seriali") if isinstance(item.get("seriali"), list) else []
-            anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti})
+            anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti,
+                             "dettaglio": item.get("dettaglio"), "tipo_difetto_id": item.get("tipo_difetto_id")})
     if not any(a["testo"] for a in anomalie):
         return _err("Descrivi almeno un'anomalia")
     if any(not a["testo"] for a in anomalie):
@@ -303,6 +439,12 @@ def api_controllo_blocco(request, pk: int):
             "seriali_scoperti": scoperti,
         }, status=409)
 
+    op_creato = None
+    if controllo.op_nuovo:
+        op_creato, errore_op = crea_op_del_controllo(request, controllo)
+        if errore_op:
+            return _err(f"OP non creato: {errore_op}", 400)
+
     with transaction.atomic():
         if blocco is None:
             ultimo = controllo.blocchi.order_by("-ordine").values_list("ordine", flat=True).first()
@@ -330,6 +472,8 @@ def api_controllo_blocco(request, pk: int):
                 str(prima.get("descrizione") or "").strip() == descrizione and str(prima.get("seriale") or "") == a["sn"]
             ):
                 AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=a["local_id"]).update(ordine_nel_blocco=ordine)
+                if not cs.riga_gestita(prima):
+                    salva_dettaglio(a["local_id"], a["dettaglio"], a["tipo_difetto_id"], a["testo"], dove_pezzi)
                 risultati.append({"local_id": a["local_id"], "ok": True, "invariata": True})
                 continue
         esito = _salva_riga_anomalia(request, {
@@ -344,7 +488,7 @@ def api_controllo_blocco(request, pk: int):
             "aprire_rdc": False,
             "segnalare": False,
             "chiudere": False,
-        }, notifica_debounce=False)
+        }, notifica_debounce=False, da_controllo=True)
         if not esito.get("success"):
             risultati.append({"local_id": a["local_id"], "ok": False, "error": esito.get("error", "")})
             continue
@@ -364,6 +508,7 @@ def api_controllo_blocco(request, pk: int):
             },
         )
         _sync_scheda(local_id)
+        salva_dettaglio(local_id, a["dettaglio"], a["tipo_difetto_id"], a["testo"], dove_pezzi)
         da_notificare.append(local_id)
         risultati.append({"local_id": local_id, "ok": True, "creata": bool(esito.get("created"))})
 
@@ -385,6 +530,7 @@ def api_controllo_blocco(request, pk: int):
         "blocco_id": blocco.pk,
         "risultati": risultati,
         "controllo": cs.serializza_controllo(controllo),
+        "op_creato": op_creato,
     }, status=200 if not errori else 207)
 
 
@@ -402,6 +548,40 @@ def api_controllo_bozza(request, pk: int):
     return JsonResponse({"success": True, "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else ""})
 
 
+@login_required
+@require_POST
+def api_report_cmm_leggi(request):
+    """Screenshot di righe di un protocollo ZEISS -> misure proposte (l'immagine non si salva)."""
+    from .report_cmm import ErroreReport, leggi_screenshot
+    from .views import _can_create_anomalie_for_op
+
+    op_id = _txt(request.POST.get("op_id"), 100)
+    if not op_id:
+        return _err("op_id obbligatorio")
+    if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
+    immagine = request.FILES.get("immagine")
+    if immagine is None:
+        return _err("Nessuna immagine ricevuta")
+    if (immagine.size or 0) > 8 * 1024 * 1024:
+        return _err("L'immagine è troppo grande: cattura solo le righe che servono.", 413)
+    try:
+        esito = leggi_screenshot(immagine.read())
+    except ErroreReport as exc:
+        return _err(str(exc), 422)
+    log_action(request, "anomalie_report_cmm_letto", "anomalie", {
+        "op_id": op_id, "righe": len(esito["righe"]), "fuori": sum(1 for r in esito["righe"] if r["fuori"]),
+    })
+    return JsonResponse({"success": True, **esito})
+
+
+def salva_dettaglio(local_id, dettaglio, tipo_difetto_id, testo, dove_pezzi=None) -> None:
+    """Dati strutturati del controllore e «Dove sono i pezzi?» nella scheda qualità (mai bloccante)."""
+    from .dettaglio_controllo import salva_su_scheda
+
+    salva_su_scheda(int(local_id), dettaglio, tipo_difetto_id, testo, dove_pezzi=dove_pezzi)
+
+
 def _sync_scheda(local_id: int) -> None:
     """Scheda qualità / NC dell'OP: stesso aggancio di ``api_salva``, mai bloccante."""
     try:
@@ -413,6 +593,66 @@ def _sync_scheda(local_id: int) -> None:
                 AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=local_id).update(nc_id=scheda.nc_id)
     except Exception:
         logger.warning("controllo: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+
+
+@login_required
+@require_POST
+def api_controllo_cambia_op(request, pk: int):
+    """Cambia l'OP del controllo in corso (dati inseriti sull'OP sbagliato).
+
+    Le anomalie già salvate passano all'OP scelto, purché nessuna abbia avanzamenti;
+    quelle già comunicate al capocommessa vanno nel riepilogo modifiche del nuovo OP.
+    """
+    from .elimina_sposta import cambia_op_controllo
+    from .views import _can_create_anomalie_for_op, _client_ip, _current_user_identity, _dove_pezzi_di, get_legacy_user
+
+    controllo, error = _get_controllo(request, pk)
+    if error:
+        return error
+    if controllo.terminato_at:
+        return _err("Il controllo è già terminato: sposta le singole anomalie con «Taglia» da Gestione anomalie", 409)
+    data = _body(request)
+    op_dest = _txt(data.get("op_id"), 100)
+    if not op_dest:
+        return _err("Scegli l'OP")
+    if op_dest.lower() == str(controllo.op_id or "").lower():
+        return _err("Il controllo è già su questo OP")
+    if not _op_esiste(op_dest):
+        return _err(f"OP «{op_dest}» non trovato", 404)
+    if not _can_create_anomalie_for_op(request, op_dest):
+        return _err(f"Non puoi inserire anomalie sull'OP «{op_dest}»", 403)
+    try:
+        esito = cambia_op_controllo(controllo, op_dest=op_dest, op_dest_item_id=data.get("op_item_id"))
+    except ValueError as exc:
+        return _err(str(exc), 409)
+    chi = _current_user_identity(request).get("name") or request.user.username
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    nota = f"Controllo spostato dall'OP {esito['op_da']} all'OP {op_dest}"
+    try:
+        from .mail_action_service import log_anomalia_portal_action, register_pending_update
+
+        for local_id in esito["ids"]:
+            log_anomalia_portal_action(
+                anomalia_id=local_id, op_id=op_dest, action="spostata", user=request.user,
+                legacy_user_id=int(legacy_user.id) if legacy_user else None, user_display=chi, note=nota,
+                ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+        for local_id in esito["gia_comunicate"]:
+            row = esito["righe"].get(local_id) or {}
+            register_pending_update(op_id=op_dest, op_nominativo=op_dest, modified_by=chi, update_row={
+                "id": local_id, "seriale": str(row.get("seriale") or ""), "avanzamento": str(row.get("avanzamento") or ""),
+                "descrizione": str(row.get("descrizione") or ""), "dove_pezzi": _dove_pezzi_di(local_id),
+                "note": nota, "aprire_rdc": False, "segnalare": False, "chiudere": False,
+                "modified_by": chi, "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
+            })
+    except Exception:
+        logger.warning("cambio OP controllo %s: cronologia/riepilogo non scritti", controllo.pk, exc_info=True)
+    log_action(request, "anomalie_controllo_cambia_op", "anomalie", {
+        "controllo_id": controllo.pk, "da": esito["op_da"], "a": op_dest, "anomalie": esito["ids"],
+    })
+    controllo.refresh_from_db()
+    return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo), "spostate": len(esito["ids"]),
+                         "nota": nota})
 
 
 @login_required
@@ -435,4 +675,103 @@ def api_controllo_termina(request, pk: int):
         "success": True,
         "mail": esito,
         "controllo": cs.serializza_controllo(controllo, con_allegati=False),
+    })
+
+
+MAX_CLONA = 200
+
+
+@login_required
+@require_GET
+def api_clona_dati(request):
+    """Dati per clonare un OP: OP di origine e blocchi con le anomalie scelte.
+
+    Le anomalie dello stesso blocco di seriali restano insieme (stessi S/N e stato
+    superficie, ognuna con i suoi S/N se non vale per tutti); quelle nate fuori da
+    un controllo diventano un blocco ciascuna. La fase proposta è la più usata.
+    """
+    from collections import Counter
+
+    from .seriali import espandi_seriale_composito
+    from .views import _can_view_anomalie_for_op, _fetch_all_dict, _list_attachments_for_local, _row_capocommessa
+
+    op_id = _txt(request.GET.get("op_id"), 100)
+    try:
+        ids = [int(x) for x in str(request.GET.get("anomalie") or "").split(",") if x.strip()][:MAX_CLONA]
+    except ValueError:
+        return _err("Elenco anomalie non valido")
+    if not op_id or not ids:
+        return _err("OP e anomalie da copiare obbligatori")
+    if not _can_view_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non puoi consultare le anomalie di questo OP", 403)
+
+    righe = {
+        i: r for i, r in cs.carica_righe(ids).items()
+        if str(r.get("ex_op_nominativo") or "").strip().lower() == op_id.lower()
+    }
+    metas = {
+        m.anomalia_id: m
+        for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=list(righe)).select_related("blocco")
+    }
+    # Dati strutturati del controllore (misure, difetto, documenti, riferimento): si copiano
+    # con l'anomalia. «Dove sono i pezzi?» no: i pezzi del nuovo OP sono altri.
+    from .quality_models import AnomaliaSchedaQualita
+
+    schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=list(righe)).values(
+        "anomalia_id", "dettaglio_controllo", "tipo_difetto_id")}
+    blocchi: list[dict] = []
+    per_chiave: dict[str, dict] = {}
+    fasi: Counter = Counter()
+    for i in dict.fromkeys(ids):
+        row = righe.get(i)
+        if row is None:
+            continue
+        meta = metas.get(i)
+        stati, testo = cs.separa_descrizione(row.get("descrizione"))
+        if meta and meta.fase:
+            fasi[meta.fase] += 1
+        if meta and meta.blocco_id:
+            chiave = f"b{meta.blocco_id}"
+            info = cs.seriali_anomalia(row.get("seriale"), meta.blocco)
+            voci = list(meta.blocco.seriali) if isinstance(meta.blocco.seriali, list) else []
+            stati_blocco = list(meta.blocco.stato_superficie) if isinstance(meta.blocco.stato_superficie, list) else []
+            copertura = {"tutti": info["tutti"], "seriali": [] if info["tutti"] else info["seriali"]}
+        else:
+            chiave = f"r{i}"
+            voci = comprimi_seriali(espandi_seriale_composito(row.get("seriale")))
+            stati_blocco = stati
+            copertura = {"tutti": True, "seriali": []}
+        blocco = per_chiave.get(chiave)
+        if blocco is None:
+            blocco = {"seriali": voci, "stato_superficie": stati_blocco, "anomalie": []}
+            per_chiave[chiave] = blocco
+            blocchi.append(blocco)
+        blocco["anomalie"].append({
+            "origine_id": i,
+            "testo": testo,
+            "dettaglio": (schede.get(i) or {}).get("dettaglio_controllo") or {},
+            "tipo_difetto_id": (schede.get(i) or {}).get("tipo_difetto_id"),
+            **copertura,
+            "allegati": len(_list_attachments_for_local(i)),
+        })
+
+    op_info = {"id": op_id, "pn": "", "capo": "", "car": "", "stato": ""}
+    try:
+        rows = _fetch_all_dict("SELECT TOP 1 * FROM ordini_produzione WHERE title = %s", [op_id])
+    except Exception:
+        rows = []
+    if rows:
+        r = rows[0]
+        op_info.update({
+            "pn": str(r.get("part_number") or "").strip(),
+            "capo": str(_row_capocommessa(r) or "").strip(),
+            "car": str(r.get("incaricato") or "").strip(),
+            "stato": str(r.get("stato") or "").strip(),
+        })
+    return JsonResponse({
+        "success": True,
+        "op": op_info,
+        "fase": fasi.most_common(1)[0][0] if fasi else "",
+        "fasi": list(fasi),
+        "blocchi": blocchi,
     })

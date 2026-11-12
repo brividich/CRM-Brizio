@@ -337,20 +337,31 @@ class ImpostazioniPaginaTest(_BaseIntake):
         self.assertTrue(config.conferma_automatica)
         self.assertEqual(config.max_file_per_giro, 10)
 
-    def test_prova_adesso_esegue_un_passaggio(self):
-        self._deposita(nome="prova.png")
-        from .services import intake_scansioni
+    def test_prova_adesso_avvia_la_lettura_nel_worker(self):
+        """La lettura non gira nella richiesta: si accoda e la pagina lo dice."""
+        from unittest import mock
 
-        originale = intake_scansioni.ATTESA_STABILITA_SECONDI
-        intake_scansioni.ATTESA_STABILITA_SECONDI = 0
-        try:
+        self._deposita(nome="prova.png")
+        with mock.patch("django_q.tasks.async_task") as accoda:
             r = self.client.post(reverse("anagrafica:formazione_scansioni_impostazioni"),
                                  {"azione": "prova"}, follow=True)
-        finally:
-            intake_scansioni.ATTESA_STABILITA_SECONDI = originale
 
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(TrainingScanLog.objects.count(), 1)
+        accoda.assert_called_once()
+        self.assertEqual(accoda.call_args[0][0], "anagrafica.tasks.run_intake_scansioni_formazione")
+        self.assertContains(r, "Lettura avviata")
+        self.assertEqual(TrainingScanLog.objects.count(), 0, "niente lettura nella richiesta web")
+
+    def test_prova_adesso_con_acquisizione_spenta_non_accoda(self):
+        from unittest import mock
+
+        self.config.attiva = False
+        self.config.save()
+        with mock.patch("django_q.tasks.async_task") as accoda:
+            r = self.client.post(reverse("anagrafica:formazione_scansioni_impostazioni"),
+                                 {"azione": "prova"}, follow=True)
+        accoda.assert_not_called()
+        self.assertContains(r, "Attiva l")
 
     def test_senza_permessi_la_pagina_non_si_apre(self):
         self.client.logout()

@@ -857,6 +857,22 @@ _ALLOWED_DOC_MIMES = {
 _MAX_DOC_SIZE = DOCUMENT_MAX_BYTES
 
 
+def _richiesti_per_ruoli(ruoli_ids, oggi) -> set[int]:
+    """Persone che devono una visita perché ricoprono **oggi** uno dei ruoli collegati.
+
+    Unica regola per dashboard ed export: senza il filtro sul periodo contava anche
+    chi aveva già lasciato il ruolo, che risultava «senza visita».
+    """
+    return set(
+        DipendenteRuoloOperativo.objects
+        .filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi), ruolo_id__in=ruoli_ids)
+        .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
+            data_cessazione__isnull=False,
+        ).values("legacy_anagrafica_id"))
+        .values_list("legacy_anagrafica_id", flat=True)
+    )
+
+
 @login_required
 def visite_mediche_dashboard(request):
     """Dashboard globale visite mediche.
@@ -885,7 +901,13 @@ def visite_mediche_dashboard(request):
 
     # Fonte unica "visite correnti" (l'ultima per dipendente+tipo): le righe
     # storiche superate non contano più come scadute/in scadenza.
-    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    visite_qs = filtro_centro.applica(VisitaMedica.objects.all())
+    # Senza i cessati, come lo scadenzario a cui portano i riquadri.
+    correnti_qs = visite_qs.filter(id__in=ultime_visite_correnti_ids()).exclude(
+        legacy_anagrafica_id__in=_helpers._cessati_legacy_ids())
 
     # KPI globali (sulle visite correnti dell'intero dataset, non filtrato per mese)
     kpi_scadute = correnti_qs.filter(
@@ -894,14 +916,14 @@ def visite_mediche_dashboard(request):
     kpi_in_scad = correnti_qs.filter(
         data_scadenza__isnull=False, data_scadenza__range=[oggi, soglia_avviso]
     ).count()
-    kpi_visite_totali = VisitaMedica.objects.count()
+    kpi_visite_totali = visite_qs.count()
 
     _MESI_ITA = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
                  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
 
     # Ultime visite registrate (globale, 30 più recenti)
     ultime_visite = list(
-        VisitaMedica.objects
+        visite_qs
         .select_related("tipo", "referto_documento")
         .order_by("-data_svolgimento", "-id")[:30]
     )
@@ -971,14 +993,9 @@ def visite_mediche_dashboard(request):
     for t in tipi_attivi_qs:
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
-            legacy_ids_richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
-                    data_cessazione__isnull=False,
-                ).values("legacy_anagrafica_id"))
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
+            if filtro_centro.attivo:
+                legacy_ids_richiesti &= filtro_centro.ids
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
@@ -1072,6 +1089,7 @@ def visite_mediche_dashboard(request):
     ])
 
     return render(request, "anagrafica/pages/visite_mediche_dashboard.html", {
+        "filtro_centro": filtro_centro,
         "oggi": oggi,
         "copertura_visite": copertura_visite,
         "kpi_referti": kpi_referti,
@@ -1406,7 +1424,9 @@ def visite_mediche_nuova_sessione(request):
             if doppioni:
                 msg += f" {doppioni} già presenti in pari data: saltate."
             messages.success(request, msg)
-        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sess.pk)
+        return redirect(_helpers.con_back(
+            reverse("anagrafica:visite_mediche_sessione_detail", args=[sess.pk]),
+            _helpers.back_sicuro(request, request.POST.get("back"))))
 
     # ---- GET: pagina Giornata visite (reattiva) --------------------------
     pre_tipo_id = (request.GET.get("tipo") or "").strip()
@@ -1422,6 +1442,7 @@ def visite_mediche_nuova_sessione(request):
         .order_by("medico_competente").values_list("medico_competente", flat=True).distinct()[:20]
     )
     return render(request, "anagrafica/pages/visite_mediche_nuova_sessione.html", {
+        "back": _helpers.back_da_richiesta(request),
         "tipi_attivi": tipi_attivi,
         "tipo_pre": tipo_pre,
         "righe": righe,
@@ -1686,6 +1707,9 @@ def visite_mediche_export_scadenze(request):
     oggi = _tz.localdate()
     filtro = request.GET.get("scad", "tutti").strip()
     correnti_ids = ultime_visite_correnti_ids()
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
 
     if filtro == "mese_corrente":
         _, ld = _cal.monthrange(oggi.year, oggi.month)
@@ -1712,7 +1736,7 @@ def visite_mediche_export_scadenze(request):
         )
         label = "scadenze_60gg"
 
-    qs = qs.select_related("tipo").order_by("data_scadenza")
+    qs = filtro_centro.applica(qs).select_related("tipo").order_by("data_scadenza")
     nomi_map = _helpers._build_nomi_map()
 
     # CF lookup
@@ -1782,8 +1806,11 @@ def visite_mediche_export_copertura(request):
 
     from django.utils import timezone as _tz
 
+    from ..services import centro_filtro
+
     oggi = _tz.localdate()
-    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    filtro_centro = centro_filtro.leggi(request)
+    correnti_qs = filtro_centro.applica(VisitaMedica.objects.all()).filter(id__in=ultime_visite_correnti_ids())
 
     _valide_per_tipo = {
         row["tipo_id"]: row["n"]
@@ -1819,14 +1846,9 @@ def visite_mediche_export_copertura(request):
     for t in tipi:
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
-            legacy_ids_richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
-                    data_cessazione__isnull=False,
-                ).values("legacy_anagrafica_id"))
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
+            if filtro_centro.attivo:
+                legacy_ids_richiesti &= filtro_centro.ids
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
@@ -1966,7 +1988,7 @@ def sicurezza_hub(request):
         sezioni_c.Area("anagrafica:visite_mediche_dashboard", "Visite mediche", "Sorveglianza sanitaria", icona="i-pill"),
         sezioni_c.Area("anagrafica:fattori_rischio_list", "Fattori di rischio", "Catalogo", icona="i-clipboard"),
         sezioni_c.Area("anagrafica:esposizioni_rischio_list", "Esposizioni", "Chi è esposto a cosa", icona="i-clipboard"),
-        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice competenze", "Dipendenti × abilitazioni per audit ISO", icona="i-grid"),
+        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice qualifiche", "Dipendenti × abilitazioni per audit ISO", icona="i-grid"),
         sezioni_c.Area("anagrafica:qualifiche_list", "Qualifiche di sicurezza", "Carrellisti, antincendio, BLSD…", "categoria=SICUREZZA", icona="i-cap"),
         sezioni_c.Area("dpi:impostazioni", "Catalogo DPI", "Categorie, tipi, modelli, taglie", icona="i-shield"),
         sezioni_c.Area("anagrafica:formazione_dashboard", "Formazione", "Piani, corsi, sessioni, scadenze", icona="i-book"),
@@ -2145,11 +2167,17 @@ def matrice_competenze(request):
             tabs.append((cat_code, cat_lbl, n))
     tipi = [t for t in tipi_all if not cat_filter or t.categoria == cat_filter]
     tipo_ids = [t.id for t in tipi]
+    # Solo la qualifica corrente per persona e tipo: senza, la cella poteva
+    # mostrare il record scaduto invece del rinnovo.
+    from ..services.requisiti import id_qualifiche_correnti
+
+    correnti_q = id_qualifiche_correnti()
     q_map: dict[tuple[int, int], DipendenteQualifica] = {}
     for q in DipendenteQualifica.objects.filter(
         legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids
     ):
-        q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
+        if q.pk in correnti_q:
+            q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
 
     def _stato(q):
         if q is None:
@@ -2170,7 +2198,7 @@ def matrice_competenze(request):
         celle = []
         for t in tipi:
             q = q_map.get((lid, t.id))
-            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None})
+            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None, "tipo_id": t.id})
         righe.append({
             "legacy_id": lid,
             "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
@@ -2233,6 +2261,18 @@ def conformita_report(request):
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    legacy_ids = list(dip_map.keys())
+
+    # Stesso perimetro di dashboard HR e scadenzari: senza i cessati e solo le
+    # schede che il ruolo può vedere.
+    _cessati = _helpers._cessati_legacy_ids()
+    _visibili = None
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        _visibili = _schede_visibili(request)
+    dip_map = {k: v for k, v in dip_map.items()
+               if k not in _cessati and (_visibili is None or k in _visibili)}
     legacy_ids = list(dip_map.keys())
 
     # Mappa nome mansione → id (per collegare ogni riga alla sua pagina Requisiti).
@@ -2428,6 +2468,9 @@ def libretto_sanitario_generale(request):
         "filtro_dominio": filtri["dominio"],
         "filtro_stato": filtri["stato"],
         "can_view_visite": _helpers._can_view_visite_mediche(request),
+        "can_edit_visite": _helpers._can_edit_visite_mediche(request),
+        "can_edit_formazione": _helpers._can_edit_formazione(request),
+        "can_edit_qualifiche": _helpers._qualifiche_can_edit(request),
         "oggi": django_timezone.localdate(),
         **quadro,
     })

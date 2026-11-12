@@ -5,8 +5,8 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
 <link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=4">
 {% endblock %}
 
@@ -26,6 +26,7 @@
         <p class="fmd-ph-sub">Processi, reparti, aree, ruoli e mansioni della struttura della Qualità. Quello che vedi qui è la bozza viva: quando la Qualità la approva, l'MSM ne emette una revisione.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Esplora</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_revisioni' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Revisioni</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_rischi' %}"><svg class="fmd-ico"><use href="#i-shield"/></svg>Rischi da confermare{% if kpi.rischi_da_confermare %} <span class="fmd-count">{{ kpi.rischi_da_confermare }}</span>{% endif %}</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% if is_admin %}{% url 'anagrafica:mansionario_struttura' %}{% else %}{% url 'anagrafica:mansionario' %}{% endif %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>

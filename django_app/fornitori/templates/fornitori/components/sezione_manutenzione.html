@@ -1,0 +1,122 @@
+{% if vuota %}
+<div class="ana-empty">Nessun contratto, piano, ordine di lavoro, ticket o ricambio collegato a questa ditta. Si riempie da solo quando la scegli in una manutenzione.</div>
+{% else %}
+<div class="fr-azioni">
+  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'assets:maintenance_supplier_detail' fornitore.pk %}">Scheda manutenzione completa →</a>
+</div>
+<div class="fr-kpis">
+  <div class="ana-metric"><div class="ana-metric-val">{{ r.open_wos|length }}</div><div class="ana-metric-label">OdL aperti</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ r.closed_12m|length }}</div><div class="ana-metric-label">OdL chiusi 12 mesi</div></div>
+  <div class="ana-metric">
+    <div class="ana-metric-val">{% if r.costo_12m_coverage.rows %}€ {{ r.costo_12m|floatformat:0 }}{% else %}—{% endif %}</div>
+    <div class="ana-metric-label">Costo OdL 12 mesi</div>
+  </div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ contratti_attivi }}</div><div class="ana-metric-label">Contratti attivi</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ piani_attivi }}</div><div class="ana-metric-label">Piani attivi</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ ticket_aperti|length }}</div><div class="ana-metric-label">Ticket aperti</div></div>
+</div>
+{% if r.closed_12m %}
+<p class="fr-nota">Il costo è compilato su {{ r.costo_12m_coverage.rows }} OdL chiusi su {{ r.closed_12m|length }}: la cifra vale solo per quelli.</p>
+{% endif %}
+
+{% if r.open_wos %}
+<div class="fr-sez">Ordini di lavoro aperti</div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>OdL</th><th>Asset</th><th>Aperto il</th><th>Scadenza</th><th>Assegnato a</th></tr></thead>
+  <tbody>{% for wo in r.open_wos %}
+    <tr>
+      <td><a class="fr-link" href="{% url 'assets:wo_view' wo.pk %}">{{ wo.title|default:wo.pk }}</a></td>
+      <td>{{ wo.asset.name }}</td>
+      <td>{{ wo.opened_at|date:"d-m-Y" }}</td>
+      <td>{% if wo.due_at %}{{ wo.due_at|date:"d-m-Y" }}{% if wo.is_overdue %} <span class="ana-pill ana-pill-red">In ritardo</span>{% endif %}{% else %}—{% endif %}</td>
+      <td>{{ wo.assigned_to|default:"—" }}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if ordinarie %}
+<div class="fr-sez">Manutenzioni ordinarie affidate alla ditta <small>{{ n_ordinarie }} aperte{% if n_ordinarie_ritardo %} · {{ n_ordinarie_ritardo }} in ritardo{% endif %}{% if n_ordinarie > ordinarie|length %} · le prime {{ ordinarie|length }} per scadenza{% endif %}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Manutenzione</th><th>Asset</th><th>Scadenza</th><th>Appuntamento</th><th>Ingressi collegati</th></tr></thead>
+  <tbody>{% for o in ordinarie %}
+    <tr>
+      <td><a class="fr-link" href="{% url 'assets:occurrence_complete' o.pk %}">{{ o.plan.label }}</a></td>
+      <td>{{ o.asset.name }}</td>
+      <td>{{ o.due_date|date:"d-m-Y" }}{% if o.due_date < oggi %} <span class="ana-pill ana-pill-red">In ritardo</span>{% endif %}</td>
+      <td>{{ o.appointment_date|date:"d-m-Y"|default:"—" }}</td>
+      <td>{{ o.n_ingressi|default:"—" }}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if ticket_aperti or ticket_chiusi %}
+<div class="fr-sez">Ticket delegati alla ditta{% if n_ticket_chiusi > ticket_chiusi|length %} <small>ultimi {{ ticket_chiusi|length }} chiusi su {{ n_ticket_chiusi }}</small>{% endif %}</div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Ticket</th><th>Titolo</th><th>Stato</th><th>Aperto il</th></tr></thead>
+  <tbody>{% for t in ticket_aperti %}
+    <tr><td><a class="fr-link" href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td><td>{{ t.titolo }}</td><td><span class="ana-pill ana-pill-blue">{{ t.get_stato_display }}</span></td><td>{{ t.created_at|date:"d-m-Y" }}</td></tr>{% endfor %}
+    {% for t in ticket_chiusi %}
+    <tr><td><a class="fr-link" href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td><td>{{ t.titolo }}</td><td><span class="ana-pill ana-pill-gray">{{ t.get_stato_display }}</span></td><td>{{ t.created_at|date:"d-m-Y" }}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if r.contracts %}
+<div class="fr-sez">Contratti di assistenza</div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Contratto</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Canone</th><th>Stato</th></tr></thead>
+  <tbody>{% for c in r.contracts %}
+    <tr>
+      <td><strong>{{ c.title }}</strong>{% if c.code %} <small>{{ c.code }}</small>{% endif %}</td>
+      <td>{{ c.get_contract_type_display }}</td>
+      <td>{{ c.start_date|date:"d-m-Y" }}</td>
+      <td>{{ c.end_date|date:"d-m-Y"|default:"—" }}</td>
+      <td>{% if c.periodic_cost_eur %}€ {{ c.periodic_cost_eur }}{% else %}—{% endif %}</td>
+      <td>{% if c.is_active %}<span class="ana-pill ana-pill-green">Attivo</span>{% else %}<span class="ana-pill ana-pill-gray">Non attivo</span>{% endif %}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if chiusi_recenti %}
+<div class="fr-sez">Ultimi ordini di lavoro chiusi <small>{{ chiusi_recenti|length }} su {{ r.closed_wos|length }}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>OdL</th><th>Asset</th><th>Chiuso il</th></tr></thead>
+  <tbody>{% for wo in chiusi_recenti %}
+    <tr><td><a class="fr-link" href="{% url 'assets:wo_view' wo.pk %}">{{ wo.title|default:wo.pk }}</a></td><td>{{ wo.asset.name }}</td><td>{{ wo.closed_at|date:"d-m-Y" }}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if sessioni %}
+<div class="fr-sez">Verifiche impianti eseguite <small>{{ sessioni|length }} su {{ n_sessioni }}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Impianto</th><th>Eseguita il</th><th>Tecnico</th><th>Esito</th></tr></thead>
+  <tbody>{% for s in sessioni %}
+    <tr><td><a class="fr-link" href="{% url 'assets:periodic_check_type_detail' s.check_type_id %}">{{ s.check_type }}</a></td><td>{{ s.performed_on|date:"d-m-Y" }}</td><td>{{ s.technician|default:"—" }}</td><td>{{ s.get_outcome_display }}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if ricambi %}
+<div class="fr-sez">Ricambi forniti <small>{{ ricambi|length }} su {{ n_ricambi }}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Codice</th><th>Descrizione</th><th>Giacenza</th><th>Costo unitario</th></tr></thead>
+  <tbody>{% for p in ricambi %}
+    <tr><td>{{ p.code }}</td><td>{{ p.description }}</td><td>{{ p.stock_qty|floatformat:"-2" }}</td><td>{% if p.unit_cost_eur %}€ {{ p.unit_cost_eur }}{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if rinnovi %}
+<div class="fr-sez">Rinnovi licenze software <small>{{ rinnovi|length }} su {{ n_rinnovi }}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Licenza</th><th>Rinnovata il</th><th>Fino al</th><th>Costo</th></tr></thead>
+  <tbody>{% for x in rinnovi %}
+    <tr><td>{{ x.license }}</td><td>{{ x.renewed_on|date:"d-m-Y" }}</td><td>{{ x.period_end|date:"d-m-Y"|default:"—" }}</td><td>{% if x.cost_eur %}€ {{ x.cost_eur }}{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endif %}

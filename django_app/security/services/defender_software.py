@@ -73,8 +73,16 @@ def _dopo_import() -> None:
 
 
 def sincronizza(*, righe: list[dict] | None = None) -> dict:
+    from core import m365_graph
+
     if righe is None:
         righe = leggi()
+    if m365_graph.troncata(righe):
+        # L'import segna «non più rilevato» il software assente dei PC letti: con un elenco parziale
+        # (l'ultimo PC a metà) sparirebbero programmi ancora installati. Si salta tutto il giro.
+        logger.warning("Defender software: lettura troncata (%s righe), import non eseguito", len(righe))
+        return {"righe": len(righe), "importate": 0,
+                "saltato": "lettura troncata: Defender ha più pagine del limite, import non eseguito"}
     preview = anteprima(righe)
     impronta = hashlib.sha256(json.dumps(preview.valid, sort_keys=True, default=str).encode()).hexdigest()
     item = SoftwareInventoryImport.objects.create(

@@ -59,10 +59,74 @@
       {% endfor %}
     </div>
 
+    {% if not is_edit %}
+      {% if also_assets %}
+        <div class="ad-also-create">
+          <div class="ad-also-create-head">
+            <strong>&#128161; Crea anche su…</strong>
+            <button type="button" class="btn btn-sm btn-secondary" data-also-create-all>Spunta tutti</button>
+          </div>
+          <p class="as-help">Altri asset della stessa categoria: spuntati ricevono la stessa scadenza (tipo, titolo, data, periodicità, preavviso, riferimento, ente e note; senza componente). Chi ha già una scadenza attiva con lo stesso titolo e tipo viene saltato.</p>
+          <ul class="ad-also-create-list">
+            {% for other in also_assets %}
+              <li><label><input type="checkbox" name="extra_asset_ids" value="{{ other.id }}"{% if other.id in also_checked %} checked{% endif %}> <strong>{{ other.asset_tag|default:other.name }}</strong>{% if other.asset_tag and other.name %} {{ other.name }}{% endif %}</label></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% elif not selected_asset %}
+        <p class="as-help" data-also-create-hint>Scegli l'asset: la pagina propone di creare la stessa scadenza anche sugli altri asset della sua categoria.</p>
+      {% endif %}
+    {% endif %}
+
     <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
       <a class="btn" href="{{ back_url }}">Annulla</a>
-      <button type="submit" class="btn btn-primary">Salva</button>
+      <button type="submit" class="btn btn-primary" data-also-create-submit>Salva</button>
     </div>
   </form>
 </section>
+{% if is_edit %}
+<div hx-get="{% url 'fornitori:presenze_intervento' 'amministrativa' deadline.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="muted">Caricamento presenze in azienda della ditta…</p></div>
+{% endif %}
+{% if not is_edit %}
+<style>
+.ad-also-create{display:grid;gap:6px;border:1px solid var(--border,#dbe1ea);border-radius:10px;padding:10px 12px;background:var(--surface-alt,#f8fafc)}
+.ad-also-create-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
+.ad-also-create-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px;max-height:calc(36 * var(--vh, 1vh));overflow:auto}
+.ad-also-create-list label{display:flex;gap:8px;align-items:center;cursor:pointer;font-size:var(--fs-sm);min-height:36px}
+.ad-also-create-list li:has(input:checked){background:rgba(37,99,235,.08);border-radius:6px}
+</style>
+<script>
+(function () {
+  var submit = document.querySelector('[data-also-create-submit]');
+  function refresh() {
+    var extra = document.querySelectorAll('input[name="extra_asset_ids"]:checked').length;
+    if (submit) { submit.textContent = extra ? 'Salva su ' + (extra + 1) + ' asset' : 'Salva'; }
+  }
+  document.addEventListener('change', function (event) {
+    if (event.target.matches('input[name="extra_asset_ids"]')) { refresh(); }
+  });
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('[data-also-create-all]')) { return; }
+    var boxes = document.querySelectorAll('input[name="extra_asset_ids"]');
+    var all = Array.prototype.every.call(boxes, function (box) { return box.checked; });
+    boxes.forEach(function (box) { box.checked = !all; });
+    refresh();
+  });
+  // Asset scelto nel modulo: se non hai ancora scritto il titolo, la pagina si ricarica
+  // su quell'asset per proporre gli altri della stessa categoria.
+  var hint = document.querySelector('[data-also-create-hint]');
+  var assetField = document.getElementById('{{ form.asset.id_for_label }}');
+  var titleField = document.getElementById('{{ form.title.id_for_label }}');
+  if (hint && assetField && assetField.tagName === 'SELECT') {
+    assetField.addEventListener('change', function () {
+      if (!assetField.value || (titleField && titleField.value.trim())) { return; }
+      var url = new URL(window.location.href);
+      url.searchParams.set('asset', assetField.value);
+      window.location.assign(url.toString());
+    });
+  }
+  refresh();
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,13 @@
+{% comment %}Passi del programma (Inizia, Pronto da provare, Validato, Da correggere, Nuova revisione). Contesto: ref, azioni.{% endcomment %}
+{% if azioni %}
+<div class="pg-azioni">
+  {% for chiave, etichetta in azioni %}
+  <form method="post" action="{% url 'tasks:programma_fase' ref.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="{{ chiave }}">
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-sm{% if not forloop.first %} btn-secondary{% endif %}">{{ etichetta }}</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}

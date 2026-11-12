@@ -209,6 +209,19 @@ body.theme-dark .tkt-sla-risposta    { background:rgba(217,119,6,.15);  color:#f
 .tkt-cb { width:16px; height:16px; cursor:pointer; accent-color:#0369a1; }
 .tkt-table tr.tkt-selected td { background:#eff6ff !important; }
 
+@media(max-width:720px){.tkt-hero{display:none}}
+.tkt-viste{display:inline-flex;flex-wrap:wrap;gap:6px;padding:6px;margin-bottom:14px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px}
+.tkt-vista{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:700;color:var(--text-mid,#334155);text-decoration:none}
+.tkt-vista:hover{background:var(--hover-bg,#f1f5f9)}
+.tkt-vista.is-active{background:#06264f;color:#fff}
+.tkt-vista-n{font-weight:500}
+.tkt-riga-az{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:8px;border:1px solid #0369a1;background:var(--surface,#fff);color:#0369a1;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none;cursor:pointer}
+.tkt-riga-az:hover{background:#e0f2fe}
+.tkt-riga-az-prim{background:#0369a1;color:#fff}
+.tkt-riga-az-prim:hover{background:#075985}
+body.theme-dark .tkt-riga-az{color:#7dd3fc;border-color:#7dd3fc}
+body.theme-dark .tkt-riga-az:hover{background:var(--hover-bg)}
+body.theme-dark .tkt-riga-az-prim{background:#0369a1;color:#fff;border-color:#0369a1}
 #bulk-toolbar {
   display:none; position:sticky; bottom:16px; z-index:100;
   background:#1e3a5f; color:#fff; border-radius:14px;
@@ -375,39 +388,26 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
     </div>
   </div>
 
-  <div class="tkt-kpi-row">
-    <div class="tkt-kpi tkt-kpi-red">
-      <div class="tkt-kpi-val">{{ n_urgenti }}</div>
-      <div class="tkt-kpi-lbl">Urgenti aperti</div>
-    </div>
-    <div class="tkt-kpi tkt-kpi-orange">
-      <div class="tkt-kpi-val">{{ n_aperte }}</div>
-      <div class="tkt-kpi-lbl">Da prendere in carico</div>
-    </div>
-    <div class="tkt-kpi tkt-kpi-blue">
-      <div class="tkt-kpi-val">{{ n_in_carico }}</div>
-      <div class="tkt-kpi-lbl">In carico</div>
-    </div>
-    <div class="tkt-kpi tkt-kpi-green">
-      <div class="tkt-kpi-val">{{ n_risolti }}</div>
-      <div class="tkt-kpi-lbl">Risolti</div>
-    </div>
+  <nav class="tkt-viste" aria-label="Viste ticket">
+    {% for v in viste_gestione %}<a class="tkt-vista{% if v.attiva %} is-active{% endif %}" href="{{ v.url }}"{% if v.attiva %} aria-current="true"{% endif %}>{{ v.etichetta }} <span class="tkt-vista-n">{{ v.conta }}</span></a>{% endfor %}
+  </nav>
+  {% if n_allegati_da_validare or filtro_allegati %}<div class="tkt-kpi-row">
     <a class="tkt-kpi tkt-kpi-violet{% if filtro_allegati == 'da_validare' %} is-active{% endif %}"
        href="{% if filtro_allegati == 'da_validare' %}?tipo={{ tab_attivo }}{% else %}?tipo={{ tab_attivo }}&allegati=da_validare{% endif %}"
        title="{% if filtro_allegati == 'da_validare' %}Rimuovi il filtro{% else %}Mostra i ticket con allegati da validare{% endif %}">
       <div class="tkt-kpi-val">{{ n_allegati_da_validare }}</div>
       <div class="tkt-kpi-lbl">Allegati da validare</div>
     </a>
-  </div>
+  </div>{% endif %}
 
   <!-- Tab tipo -->
   <div class="tkt-tabs-wrap" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:0 16px;">
     <div class="tkt-tabs">
-      <a href="?tipo=TUTTI{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+      <a href="?tipo=TUTTI&vista={{ filtro_vista }}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
          class="tkt-tab {% if tab_attivo == 'TUTTI' %}active{% endif %}">Tutti</a>
-      <a href="?tipo=IT{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+      <a href="?tipo=IT&vista={{ filtro_vista }}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
          class="tkt-tab tkt-tab-it {% if tab_attivo == 'IT' %}active{% endif %}">Ticket IT</a>
-      <a href="?tipo=MAN{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+      <a href="?tipo=MAN&vista={{ filtro_vista }}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
          class="tkt-tab tkt-tab-man {% if tab_attivo == 'MAN' %}active{% endif %}">Ticket Manutenzione</a>
     </div>
   </div>
@@ -432,6 +432,7 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
     <div class="tkt-filter-body" id="tkt-filter-body">
       <form method="get" id="tkt-filter-form">
         <input type="hidden" name="tipo" value="{{ tab_attivo }}">
+        <input type="hidden" name="vista" value="{{ filtro_vista }}">
         <input type="hidden" name="ordine" value="{{ filtro_ordine }}">
         {% if filtro_allegati %}<input type="hidden" name="allegati" value="{{ filtro_allegati }}">{% endif %}
 
@@ -519,124 +520,29 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
   </div>
   {% endwith %}
 
-  <!-- Sort bar -->
-  {% with base_url="?tipo="|add:tab_attivo %}
-  <div class="tkt-sort-bar">
-    <span class="tkt-sort-label">Ordina:</span>
-    <a class="tkt-sort-btn {% if not filtro_ordine or filtro_ordine == 'apertura_desc' %}active{% endif %}"
-       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=apertura_desc">
-      <span class="tkt-sort-icon">↓</span> Più recenti
-    </a>
-    <a class="tkt-sort-btn {% if filtro_ordine == 'apertura_asc' %}active{% endif %}"
-       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=apertura_asc">
-      <span class="tkt-sort-icon">↑</span> Meno recenti
-    </a>
-    <a class="tkt-sort-btn {% if filtro_ordine == 'priorita' %}active{% endif %}"
-       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=priorita">
-      <span class="tkt-sort-icon">🔴</span> Priorità
-    </a>
-    <a class="tkt-sort-btn {% if filtro_ordine == 'stato' %}active{% endif %}"
-       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=stato">
-      <span class="tkt-sort-icon">📋</span> Stato
-    </a>
-    <a class="tkt-sort-btn {% if filtro_ordine == 'assegnato' %}active{% endif %}"
-       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=assegnato">
-      <span class="tkt-sort-icon">👤</span> Assegnato
-    </a>
-  </div>
-  {% endwith %}
-
-  <!-- Tabella ticket IT -->
-  {% if tickets_it is not None %}
-  <div class="tkt-section tkt-section-it">
-    {% if tab_attivo != 'IT' %}
-    <div class="tkt-section-header">
-      <span class="tkt-section-title">Ticket IT</span>
-      <span class="tkt-section-count">{{ tickets_it|length }}</span>
-    </div>
-    {% endif %}
-    <div class="tkt-table-wrap {% if tab_attivo == 'IT' %}tkt-table-wrap-solo{% endif %}">
-      {% if tickets_it %}
-      <table class="tkt-table" data-table-id="tickets.gestione.it">
+  <!-- Tabella ticket -->
+  {% if tickets_lista is not None %}
+  <div class="tkt-section tkt-section-{% if tab_attivo == 'IT' %}it{% else %}man{% endif %}">
+    <div class="tkt-table-wrap tkt-table-wrap-solo">
+      {% if tickets_lista %}
+      <table class="tkt-table" data-table-id="tickets.gestione.{{ tabella_id }}">
         <thead>
           <tr>
             <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
             <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
             <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Titolo</th>
-            <th data-col="cat" data-col-label="Categoria" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Cat.</th>
-            <th data-col="asset" data-col-label="Asset" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Asset</th>
-            <th data-col="priorita" data-col-label="Priorità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Priorità</th>
-            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
-            <th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th>
-            <th data-col="assegnato" data-col-label="Assegnato a" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Assegnato a</th>
-            <th data-col="apertura" data-col-label="Apertura" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Apertura</th>
-            <th>Azioni</th>
-            <th>Report</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in tickets_it %}
-          <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
-            <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
-            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
-            <td>
-              <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
-              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}{% if t.n_allegati_da_validare %}<span class="tkt-att-badge" title="Allegati caricati in attesa di validazione">&#128206; {{ t.n_allegati_da_validare }} da validare</span>{% endif %}
-            </td>
-            <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
-            <td style="font-size:12px;color:#0369a1;">
-              {% if t.asset %}<a href="{% url 'assets:asset_view' t.asset.pk %}" style="color:#0369a1;">{{ t.asset.name }}</a>
-              {% elif t.asset_descrizione_libera %}<span style="color:#64748b;">{{ t.asset_descrizione_libera|truncatechars:25 }}</span>
-              {% else %}—{% endif %}
-            </td>
-            <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
-            <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
-            <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome|upper }}</a>{% else %}{{ t.richiedente_nome|upper }}{% endif %}</td>
-            <td style="font-size:12px;">{{ t.assegnato_a|upper|default:"—" }}</td>
-            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d-m-Y H:i" }}</td>
-            <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
-            <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="tkt-empty">Nessun ticket IT trovato con i filtri impostati.</div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Tabella ticket MAN -->
-  {% if tickets_man is not None %}
-  <div class="tkt-section tkt-section-man">
-    {% if tab_attivo != 'MAN' %}
-    <div class="tkt-section-header">
-      <span class="tkt-section-title">Ticket Manutenzione</span>
-      <span class="tkt-section-count">{{ tickets_man|length }}</span>
-    </div>
-    {% endif %}
-    <div class="tkt-table-wrap {% if tab_attivo == 'MAN' %}tkt-table-wrap-solo{% endif %}">
-      {% if tickets_man %}
-      <table class="tkt-table" data-table-id="tickets.gestione.man">
-        <thead>
-          <tr>
-            <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
-            <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
-            <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Titolo</th>
-            <th data-col="cat" data-col-label="Categoria" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Cat.</th>
+            <th data-col="cat" data-col-hidden="1" data-col-label="Categoria" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Cat.</th>
             <th data-col="asset" data-col-label="Asset / Macchinario" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Asset / Macchinario</th>
             <th data-col="priorita" data-col-label="Priorità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Priorità</th>
             <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
             <th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th>
             <th data-col="assegnato" data-col-label="Assegnato a" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Assegnato a</th>
-            <th data-col="apertura" data-col-label="Apertura" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Apertura</th>
+            <th data-col="apertura" data-col-label="Da quanto" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Da quanto</th>
             <th>Azioni</th>
-            <th>Report</th>
           </tr>
         </thead>
         <tbody>
-          {% for t in tickets_man %}
+          {% for t in tickets_lista %}
           <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
             <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
             <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
@@ -654,15 +560,14 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
             <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
             <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome|upper }}</a>{% else %}{{ t.richiedente_nome|upper }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|upper|default:"—" }}</td>
-            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d-m-Y H:i" }}</td>
-            <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
-            <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
+            <td style="font-size:12px;white-space:nowrap;" data-sort-value="{{ t.created_at|date:'c' }}" title="{{ t.created_at|date:'d-m-Y H:i' }}">{{ t.created_at|timesince }}</td>
+            <td>{% include "tickets/components/gestione_azione_riga.html" %}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
       {% else %}
-      <div class="tkt-empty">Nessun ticket Manutenzione trovato con i filtri impostati.</div>
+      <div class="tkt-empty">Nessun ticket trovato in questa vista.</div>
       {% endif %}
     </div>
   </div>
@@ -1018,20 +923,18 @@ async function prendiInCaricoInline(ticketId, btn) {
     const r = await fetch(_PIC_API, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': _PIC_CSRF},
-      body: JSON.stringify({ticket_id: ticketId, stato: 'IN_CARICO', nota: ''})
+      body: JSON.stringify({ticket_id: ticketId, azione: 'prendi', solo_se_libero: true})
     });
     const d = await r.json();
-    if (d.ok) {
+    if (d.ok || r.status === 409) {
       location.reload();
-    } else {
-      btn.disabled = false;
-      btn.textContent = 'Prendi in carico';
-      alert(d.error || 'Errore');
+      return;
     }
+    btn.disabled = false;
+    btn.textContent = d.error || 'Errore: riprova';
   } catch(e) {
     btn.disabled = false;
-    btn.textContent = 'Prendi in carico';
-    alert('Errore di rete');
+    btn.textContent = 'Errore di rete: riprova';
   }
 }
 </script>

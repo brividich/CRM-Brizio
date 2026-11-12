@@ -80,10 +80,10 @@ body.theme-dark .cf-add>summary{color:#60a5fa}
 {# Con nessun requisito applicabile i 4 riquadri direbbero solo «N/D»: si mostrano quando c'è qualcosa da valutare. #}
 {% if stato.complessivo == 'ok' or stato.complessivo == 'warn' or stato.complessivo == 'ko' %}
 <div class="cf-domini">
-  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.formazione titolo="Formazione" icon="📚" %}
-  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.visite titolo="Visite mediche" icon="🏥" %}
-  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.qualifiche titolo="Qualifiche" icon="🎓" %}
-  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.dpi titolo="DPI" icon="🦺" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.formazione titolo="Formazione" icon="📚" vai="formazione" vai_ancora="scheda-formazione" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.visite titolo="Visite mediche" icon="🏥" vai="visite" vai_ancora="visite-mediche" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.qualifiche titolo="Qualifiche" icon="🎓" vai="auto" vai_ancora="qualifiche" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.dpi titolo="DPI" icon="🦺" vai="dotazioni" vai_ancora="dpi" %}
 </div>
 {% endif %}
 

@@ -1,8 +1,10 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}{{ ticket.numero_ticket }} | Ticket | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
+{% if mappe_ticket %}<link rel="stylesheet" href="{% static 'tickets/css/mappa_asset.css' %}">{% endif %}
 <style>
 #tkt-root { display:flex; flex-direction:column; gap:20px; }
 
@@ -66,6 +68,20 @@
 .tkt-btn-sm { padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; border:none; cursor:pointer; }
 .tkt-btn-blue { background:#0369a1; color:#fff; }
 .tkt-btn-blue:hover { background:#075985; }
+.tkt-btn-green { background:#16a34a; color:#fff; }
+.tkt-btn-green:hover { background:#15803d; }
+.tkt-btn-red { background:#dc2626; color:#fff; }
+.tkt-btn-red:hover { background:#b91c1c; }
+.tkt-azioni-risolto { border-color:#86efac; background:#f0fdf4; }
+.tkt-azioni-testo { font-size:13px; color:#334155; margin:0 0 12px; line-height:1.5; }
+.tkt-azioni-form { display:flex; flex-direction:column; gap:8px; }
+.tkt-azioni-form textarea { width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font:inherit; font-size:13px; }
+.tkt-azioni-dett { margin-top:10px; }
+.tkt-azioni-dett summary { cursor:pointer; font-size:13px; font-weight:700; color:#0369a1; }
+.tkt-azioni-dett[open] summary { margin-bottom:8px; }
+body.theme-dark .tkt-azioni-risolto { background:rgba(22,163,74,.12); border-color:rgba(74,222,128,.35); }
+body.theme-dark .tkt-azioni-testo { color:var(--text-mid); }
+body.theme-dark .tkt-azioni-form textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
 
 /* Allegati */
 .tkt-allegato-item {
@@ -118,6 +134,12 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d}
 </style>
+<style>
+.tkt-creato { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; padding:12px 16px; border:1px solid #86efac; border-radius:12px; background:#f0fdf4; color:#166534; font-size:13px; }
+.tkt-creato-btn { display:inline-block; padding:7px 14px; border-radius:8px; background:#16a34a; color:#fff; font-weight:700; text-decoration:none; white-space:nowrap; }
+.tkt-creato-btn:hover { background:#15803d; }
+body.theme-dark .tkt-creato { background:rgba(22,163,74,.12); border-color:rgba(74,222,128,.35); color:#bbf7d0; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -125,6 +147,15 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
   {% include "tickets/components/subnav.html" %}
 
   <a href="{% url 'tickets:dashboard' %}" class="tkt-back">← Torna ai ticket</a>
+
+  {% if appena_creato %}
+  <div class="tkt-creato" role="status">
+    <div class="tkt-creato-testo"><strong>Ticket {{ ticket.numero_ticket }} inviato.</strong>
+      {% if ticket.stato == "CHIUSO" %}È registrato come già risolto.{% else %}Il team lo prende in carico: gli aggiornamenti arrivano qui e per email.{% endif %}
+      Lo ritrovi in qualsiasi momento in «I miei ticket».</div>
+    <a class="tkt-creato-btn" href="{% url 'tickets:dashboard' %}">Vai a I miei ticket</a>
+  </div>
+  {% endif %}
 
   <!-- Titolo ticket -->
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:22px 26px;">
@@ -174,6 +205,12 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
           <span>{{ ticket.asset_descrizione_libera }}</span>
         </div>
         {% endif %}
+        {% if mappe_ticket %}
+        <div style="margin-top:14px;">
+          <div class="tmap-pannello-titolo">Dove si trova</div>
+          <div id="tkt-mappa"></div>
+        </div>
+        {% endif %}
       </div>
 
       <!-- Allegati: elenco, stato di validazione e caricamento -->
@@ -213,7 +250,38 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
       </div>
     </div>
 
-    <!-- Colonna destra: meta -->
+    <!-- Colonna destra: azioni del richiedente + meta -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+    {% if azioni_richiedente %}
+    <div class="tkt-card tkt-azioni{% if ticket.stato == 'RISOLTO' %} tkt-azioni-risolto{% endif %}">
+      <div class="tkt-card-title">La tua richiesta</div>
+      {% if ticket.stato == 'RISOLTO' %}
+      <p class="tkt-azioni-testo">Il tecnico ha segnato il problema come <strong>risolto</strong>{% if ticket.risolto_da_nome %} ({{ ticket.risolto_da_nome }}){% endif %}. Funziona tutto?</p>
+      <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+        {% csrf_token %}<input type="hidden" name="azione" value="conferma">
+        <button type="submit" class="tkt-btn-sm tkt-btn-green">Sì, è risolto: chiudi il ticket</button>
+      </form>
+      <details class="tkt-azioni-dett">
+        <summary>No, non è risolto</summary>
+        <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+          {% csrf_token %}<input type="hidden" name="azione" value="riapri">
+          <textarea name="nota" rows="3" required placeholder="Cosa non funziona ancora?"></textarea>
+          <button type="submit" class="tkt-btn-sm tkt-btn-blue">Riapri il ticket</button>
+        </form>
+      </details>
+      {% else %}
+      <p class="tkt-azioni-testo">Nessuno l'ha ancora presa in carico: se non serve più puoi annullarla.</p>
+      <details class="tkt-azioni-dett">
+        <summary>Annulla la richiesta</summary>
+        <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+          {% csrf_token %}<input type="hidden" name="azione" value="annulla">
+          <textarea name="nota" rows="2" placeholder="Motivo (facoltativo): si è risolto da solo, doppione…"></textarea>
+          <button type="submit" class="tkt-btn-sm tkt-btn-red">Conferma l'annullamento</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="tkt-card">
       <div class="tkt-card-title">Dettagli</div>
       <div class="tkt-meta-row">
@@ -239,7 +307,7 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
         </div>
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Richiedente</span>
-          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}</span>
+          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}{% if ticket.aperto_da_nome %}<br><small style="font-weight:500;color:#64748b;">aperto da {{ ticket.aperto_da_nome|upper }} per suo conto</small>{% endif %}</span>
         </div>
         {% if ticket.assegnato_a %}
         <div class="tkt-meta-item">
@@ -265,9 +333,24 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
         {% endif %}
       </div>
     </div>
+    </div>
   </div>
 </div>
 
+{% if mappe_ticket %}
+{{ mappe_ticket|json_script:"mappe-ticket-data" }}
+<script src="{% static 'tickets/js/mappa_asset.js' %}"></script>
+<script>
+(function () {
+  const radice = document.getElementById("tkt-mappa");
+  if (!radice || !window.TicketMappa) return;
+  let dati = [];
+  try { dati = JSON.parse(document.getElementById("mappe-ticket-data").textContent) || []; } catch (e) {}
+  const mappa = TicketMappa.monta(radice, { mappe: dati, selezionabile: false });
+  {% if ticket.asset_id %}mappa.mostraAsset({{ ticket.asset_id }});{% elif ticket.mappa_layout_id %}mappa.mostraPunto({{ ticket.mappa_layout_id }}, {{ ticket.mappa_x|stringformat:"s" }}, {{ ticket.mappa_y|stringformat:"s" }});{% endif %}
+})();
+</script>
+{% endif %}
 <script>
 const TICKET_ID = {{ ticket.pk }};
 const API_COMM  = "{% url 'tickets:api_commento' %}";

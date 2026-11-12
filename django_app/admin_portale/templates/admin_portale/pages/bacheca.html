@@ -6,18 +6,18 @@
 <style>
   .bz-wrap{ display:flex; flex-direction:column; gap:16px }
   .bz-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow) }
-  .bz-card-h{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border) }
+  .bz-card-h{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border) }
   .bz-card-h h3{ font-size:var(--fs-md); font-weight:800; margin:0 }
   .bz-card-h .sp{ flex:1 }
   .bz-body{ padding:12px 16px }
-  .bz-row{ display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:9px }
+  .bz-row{ display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:9px 10px; border-radius:9px }
   .bz-row:hover{ background:var(--bg) }
   .bz-row + .bz-row{ border-top:1px solid var(--border) }
   .bz-kind{ font-size:var(--fs-2xs); font-weight:800; text-transform:uppercase; padding:2px 8px; border-radius:6px; flex-shrink:0 }
   .bz-kind.file{ background:var(--danger-bg); color:var(--danger) }
   .bz-kind.url{ background:var(--accent-light); color:var(--primary-mid) }
   .bz-kind.internal{ background:var(--accent-light); color:var(--accent) }
-  .bz-row-bd{ flex:1; min-width:0 }
+  .bz-row-bd{ flex:1 1 180px; min-width:0 }
   .bz-row-t{ font-weight:600; font-size:var(--fs-base) }
   .bz-row-m{ font-size:var(--fs-xs); color:var(--text-light) }
   .bz-roles{ display:flex; gap:5px; flex-wrap:wrap }
@@ -29,7 +29,7 @@
   .bz-btn.primary:hover{ background:#ea580c; color:#fff }
   .bz-btn.danger:hover{ border-color:var(--danger); color:var(--danger) }
   .bz-form{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:12px 16px; border-top:1px dashed var(--border); background:var(--bg) }
-  .bz-field{ display:flex; flex-direction:column; gap:4px; min-width:160px }
+  .bz-field{ display:flex; flex-direction:column; gap:4px; min-width:160px; max-width:100% }
   .bz-field label{ font-size:var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-light) }
   .bz-field input, .bz-field select{ min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text) }
   .bz-rolesbox{ display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 }
@@ -39,6 +39,7 @@
   .bz-off{ opacity:.5 }
   .bz-inline{ min-height:32px; padding:4px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:var(--fs-sm) }
   input[type=color].bz-inline, .bz-field input[type=color]{ padding:2px; width:48px; cursor:pointer }
+  .bz-thumb{ flex-shrink:0; width:44px; height:32px; object-fit:cover; border-radius:6px; border:1px solid var(--border) }
   .bz-sigla{ flex-shrink:0; min-width:44px; text-align:center; padding:3px 6px; border-radius:6px; color:#fff; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.02em }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
@@ -52,7 +53,7 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
   <div class="page-header">
     <div class="page-header-main">
       <h1 class="page-h">Documenti &amp; Collegamenti</h1>
-      <p class="page-sub">Gestisci le risorse mostrate nella home, stanza «Sapere». Le categorie «Documenti &amp; collegamenti» compaiono come elenco; le categorie «Risorse self-help» (guide, manuali, video) compaiono come scaffale con una copertina per voce, del colore della categoria e con la sigla della voce. Le voci senza ruoli assegnati sono visibili a tutti.</p>
+      <p class="page-sub">Gestisci le risorse mostrate nella home, stanza «Sapere». Le categorie «Documenti &amp; collegamenti» compaiono come elenco; le categorie «Risorse self-help» (guide, manuali, video) compaiono come scaffale con una copertina per voce, del colore della categoria e con la sigla della voce. Ogni voce può avere un'immagine di copertina (JPG, PNG o WEBP): sostituisce colore e sigla. Le voci senza ruoli assegnati sono visibili a tutti. Per raccogliere guide e risorse in percorsi tematici usa <a href="{% url 'admin_portale:sapere_cataloghi' %}">Cataloghi Sapere</a>.</p>
     </div>
   </div>
 
@@ -96,7 +97,7 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
           {% for link in cat.links.all %}
             <div class="bz-row{% if not link.is_visible %} bz-off{% endif %}" data-link="{{ link.id }}">
               <span class="bz-kind {{ link.kind }}">{{ link.get_kind_display }}</span>
-              {% if cat.sezione == "self_help" %}<span class="bz-sigla" style="background:{{ cat.colore|default:'#1f4f86' }}" title="Sigla della copertina">{{ link.sigla_copertina }}</span>{% endif %}
+              {% if link.copertina %}<img class="bz-thumb" src="{{ link.copertina_url }}" alt="" loading="lazy">{% elif cat.sezione == "self_help" %}<span class="bz-sigla" style="background:{{ cat.colore|default:'#1f4f86' }}" title="Sigla della copertina">{{ link.sigla_copertina }}</span>{% endif %}
               <div class="bz-row-bd">
                 <div class="bz-row-t">{{ link.title }}</div>
                 <div class="bz-row-m">{{ link.description }}</div>
@@ -108,6 +109,10 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
                   <span class="bz-chip all">Tutti</span>
                 {% endfor %}
               </div>
+              <label class="bz-btn" title="Immagine di copertina (JPG, PNG o WEBP)">{% if link.copertina %}Cambia copertina{% else %}+ Copertina{% endif %}
+                <input type="file" accept="{{ accept_copertina }}" hidden onchange="setCover({{ link.id }}, this)">
+              </label>
+              {% if link.copertina %}<button class="bz-btn" onclick="removeCover({{ link.id }})" title="Torna alla copertina con colore e sigla">Togli copertina</button>{% endif %}
               <button class="bz-btn" onclick="toggleLink({{ link.id }}, {% if link.is_visible %}false{% else %}true{% endif %})">
                 {% if link.is_visible %}Nascondi{% else %}Mostra{% endif %}
               </button>
@@ -137,7 +142,11 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
             <label>Sigla copertina</label>
             <input type="text" name="sigla" maxlength="8" placeholder="Es. VPN">
           </div>
-          <div class="bz-field bz-t-url" style="flex:1">
+          <div class="bz-field" style="min-width:180px">
+            <label>Copertina (facoltativa)</label>
+            <input type="file" name="copertina" accept="{{ accept_copertina }}">
+          </div>
+          <div class="bz-field bz-t-url" style="flex:1; display:none">
             <label>URL esterno</label>
             <input type="url" name="url" placeholder="https://...">
           </div>
@@ -145,9 +154,9 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
             <label>Nome route Django</label>
             <input type="text" name="route_name" placeholder="Es. assenze_menu">
           </div>
-          <div class="bz-field bz-t-file" style="display:none">
-            <label>File (PDF/Office/immagine)</label>
-            <input type="file" name="file">
+          <div class="bz-field bz-t-file" style="flex:1">
+            <label>File (PDF, Office, immagine; max {{ max_mb }} MB)</label>
+            <input type="file" name="file" accept="{{ accept_ext }}">
           </div>
           <button class="bz-btn primary" type="submit">+ Aggiungi voce</button>
           <div style="flex-basis:100%">
@@ -210,26 +219,35 @@ function onKindChange(sel){
   form.querySelector('.bz-t-internal').style.display = sel.value === 'internal' ? '' : 'none';
   form.querySelector('.bz-t-file').style.display  = sel.value === 'file' ? '' : 'none';
 }
+// Allinea i campi visibili al tipo selezionato all'apertura (il primo tipo è «Documento»).
+document.querySelectorAll('form.bz-form select[name=kind]').forEach(onKindChange);
 async function createLink(ev, categoryId){
   ev.preventDefault();
   const form = ev.target;
-  const kind = form.kind.value;
-  let r;
-  if(kind === 'file'){
-    const fd = new FormData(form);
-    fd.append('category_id', categoryId);
-    r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd});
-  } else {
-    const role_ids = Array.from(form.querySelectorAll('input[name=role_ids]:checked')).map(c => c.value);
-    r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {
-      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-      body: JSON.stringify({category_id:categoryId, kind, title:form.title.value, description:form.description.value,
-                            sigla:form.sigla.value, url:form.url.value, route_name:form.route_name.value, role_ids})
-    });
-  }
+  if(form.elements.kind.value === 'file' && !form.elements.file.files.length){ fail({error:'Scegli il file da caricare.'}); return false; }
+  // Sempre multipart: porta anche la copertina e i ruoli (role_ids ripetuti).
+  const fd = new FormData(form);
+  fd.append('category_id', categoryId);
+  if(form.elements.kind.value !== 'file'){ fd.delete('file'); }
+  const r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd});
   const res = await r.json().catch(() => ({ok:false, error:'Risposta non valida'}));
   if(res.ok){ location.reload(); } else { fail(res); }
   return false;
+}
+async function sendCover(fd){
+  const r = await fetch("{% url 'admin_portale:api_hub_link_copertina' %}", {method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd});
+  const res = await r.json().catch(() => ({ok:false, error:'Risposta non valida'}));
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+function setCover(id, input){
+  if(!input.files.length) return;
+  const fd = new FormData(); fd.append('id', id); fd.append('copertina', input.files[0]);
+  sendCover(fd);
+}
+async function removeCover(id){
+  if(!(await hubConfirm('Togliere la copertina? Torna quella con colore e sigla.'))) return;
+  const fd = new FormData(); fd.append('id', id); fd.append('rimuovi', '1');
+  sendCover(fd);
 }
 </script>
 {% endblock %}

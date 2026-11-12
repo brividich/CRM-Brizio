@@ -127,6 +127,9 @@
 .mp-campo input, .mp-campo select { min-height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; font: inherit; font-size: 15px; font-weight: 400; color: var(--text); background: var(--surface); }
 .mp-campo input:disabled { background: var(--surface-alt, #f1f5f9); color: var(--text-mid); }
 .mp-campo .mp-nota { font-weight: 400; }
+.mp-campo[hidden] { display: none; }
+.mp-spunta { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.mp-campo .mp-spunta input { min-height: 0; width: 18px; height: 18px; padding: 0; }
 .mp-azione { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; text-decoration: none; }
 .mp-azione:hover { background: var(--surface-alt, #f1f5f9); }
 .mp-azione svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--primary-mid, var(--primary)); }

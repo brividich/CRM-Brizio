@@ -167,9 +167,9 @@ class ArchivioStoricoTests(_Base):
         sup = Specifica.objects.create(codice="SP-TERM", titolo="T")
         sup.annulla(attore=self.su, motivo="non valida")
         sup.save()  # ANNULLATO (terminale)
-        r = self.client.get(reverse("gestione_specifiche:lista"))
+        r = self.client.get(reverse("gestione_specifiche:lista") + "?vista=elenco")
         self.assertNotContains(r, "SP-TERM")
-        r2 = self.client.get(reverse("gestione_specifiche:lista") + "?storico=1")
+        r2 = self.client.get(reverse("gestione_specifiche:lista") + "?vista=elenco&storico=1")
         self.assertContains(r2, "SP-TERM")
 
     def test_filtro_per_stato_mostra_terminale(self):

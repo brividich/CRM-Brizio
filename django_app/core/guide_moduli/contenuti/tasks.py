@@ -8,14 +8,22 @@ GUIDA = {
     "prefissi": ("/tasks/",),
     "uso": [
         {
+            "id": "guida-completa",
+            "titolo": "La guida completa del modulo",
+            "blocchi": [
+                ("p", "Dentro il modulo, «? Guida» apre la guida completa con le immagini, sulla pagina in cui ti trovi. Da lì ci sono le due guide rapide (chi gestisce la commessa, chi partecipa) e «Scarica PDF»."),
+            ],
+        },
+        {
             "id": "creare",
             "titolo": "Creare un KICK-OFF",
             "blocchi": [
                 ("passi", [
                     "Apri KICK-OFF e clicca «+ Nuovo kickoff».",
                     "Compila cliente e P/N: il nome viene proposto da solo (Cliente · P/N · KICK-OFF numero). Lascia vuoto il nome per usare la proposta.",
-                    "Scegli il team: PM, capo commessa, programmatore, caporeparto (anche più persone per ruolo).",
-                    "Salva. Nasce in automatico l'incontro 1 e si apre la sua convocazione.",
+                    "Scegli il team: PM, capo commessa, programmatore, caporeparto (anche più persone per ruolo). Basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore.",
+                    "Salva con «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 e si apre la sua convocazione.",
+                    "Dati e team si correggono poi da «Modifica kickoff» nella Panoramica.",
                 ]),
             ],
         },
@@ -30,8 +38,24 @@ GUIDA = {
                     "team assegnato: almeno un PM, un capo commessa e un programmatore;",
                     "piano attività con le scadenze.",
                 ]),
-                ("p", "Il VRF si carica dalla scheda VRF della commessa: il portale legge da solo P/N, descrizione, cliente, preventivo e versione."),
+                ("p", "Il link «Correggi» accanto a ogni voce porta a dove si sistema; il team si cambia da «Modifica kickoff»."),
+                ("p", "Il file VRF già pronto si carica con «Carica file esistente»: il portale legge da solo P/N, descrizione, cliente, preventivo e versione."),
+                ("p", "In alternativa «Compila VRF online»: per i 9 rischi scegli la Probabilità (1-3 o N/A), la Gravità è quella del modulo; "
+                      "R = P × D e il Totale Rischio è la somma (Basso fino a 35, Medio tra 35 e 50, Alto da 50: coinvolgimento CEO). "
+                      "Si aggiungono fino a 4 azioni correttive e le firme IN1 / EM; «Conferma e genera xlsx» crea il file."),
                 ("nota", "Dopo 7 giorni senza VRF compare un avviso; dopo 30 giorni non si possono più creare o modificare attività finché non lo carichi."),
+            ],
+        },
+        {
+            "id": "attivita-rapide",
+            "titolo": "Creare attività al volo",
+            "blocchi": [
+                ("def", [
+                    ("Nel Piano", "la riga sopra il Gantt: titolo, responsabile, Inizio, Fine, «Aggiungi»."),
+                    ("Dettaglio ed esito dell'incontro", "«Attività di questo incontro»: scrivi il titolo e premi Invio; la pagina non si ricarica."),
+                    ("Conduci incontro", "«Registro dell'incontro», a destra, con tipo Attività (con un punto scelto senza attività, il punto la prende); o «+ Nuova attività» sul punto. Le attività entrano nel Piano, azioni e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
+                ]),
+                ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo, priorità e attrezzatura."),
             ],
         },
         {
@@ -41,9 +65,14 @@ GUIDA = {
                 ("passi", [
                     "«+ Nuovo incontro»: data, ora, sala, partecipanti e ordine del giorno. L'ordine del giorno si precompila con i problemi aperti.",
                     "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
-                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare».",
-                    "Durante la riunione puoi usare «Conduci incontro»: appello dei convocati, un punto alla volta, con il tempo e le note.",
-                    "Dopo la riunione registra l'esito: presenti, note per ogni punto, decisioni e azioni (chi fa cosa entro quando).",
+                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
+                    "Chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo. "
+                    "L'evento in calendario dura quanto la somma dei punti all'ordine del giorno (un'ora se nessun punto ha una durata).",
+                    "Durante la riunione puoi usare «Conduci incontro»: presenti, un punto alla volta con il tempo e le note. Nel «Registro dell'incontro» "
+                    "scrivi problemi trovati, azioni, decisioni e attività legati al punto in discussione (o con «+ Problema», «+ Azione», «+ Decisione» sul punto); "
+                    "problemi e azioni riportati dagli incontri prima si chiudono lì con «Risolto» o «Fatta».",
+                    "Dopo la riunione registra l'esito: presenti, note per ogni punto, problemi trovati, decisioni e azioni (chi fa cosa entro quando), ognuno con il suo punto.",
+                    "La barra delle fasi (Convocazione, Conduzione, Esito, Minuta) in testa alle pagine dell'incontro dice cosa è fatto e porta alla fase successiva.",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",
                     "Quando è tutto giusto: «Approva e chiudi minuta». Riaprirla richiede un motivo.",
                     "«Pianifica prossimo incontro» crea il successivo con gli stessi convocati, persone in copia, luogo e ora.",
@@ -57,12 +86,18 @@ GUIDA = {
             "titolo": "Dove guardare",
             "blocchi": [
                 ("def", [
-                    ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline."),
+                    ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Ogni card mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e la prossima scadenza fra le attività aperte («In ritardo di N gg» se è passata)."),
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
                     ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
-                    ("Le mie azioni", "le azioni e i problemi degli incontri assegnati a te: li chiudi da qui. Quando completi l'attività collegata si chiudono da soli."),
+                    ("Percorso del kickoff", "in Panoramica e nell'incontro: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Terzista, Processi speciali, FAI. «Assegna» crea l'attività con responsabile e data; «Non serve» la toglie dal conteggio. Per la macchina mostra abilitati della skill matrix, assenze nel periodo e manutenzioni o verifiche dell'asset."),
+                    ("Programmi e FAI", "scheda della commessa con codici e percorsi di rete di programmi CAM, programmi CMM e FAI, ognuno col suo responsabile. Si compila anche dentro l'incontro. Una riga con responsabile diventa un'attività del kickoff (tipo «Programmazione CAM», «Programmazione CMM» o «Esecuzione FAI»): chi la riceve ha notifica e mail e la porta avanti dalla scheda dell'attività."),
+                    ("Programmi", "tutti i programmi CAM e CMM delle commesse, con cartella, responsabile e stato. L'attività di programmazione CAM o CMM chiede il suo programma e la riga nasce da sola; il legame si imposta nel tipo attività, campo «Richiede»."),
+                    ("Report FAI", "articoli per situazione e per cliente, FAI per stato e per anno; file Excel e PDF di scadenze, controllo trimestrale, situazione, riepilogo per cliente e tutti i FAI (solo Excel)."),
+                    ("Registro FAI", "qui si gestiscono tutti i FAI, importati dal file Situazione FAI-ISIR con «importa_situazione_fai»: la scheda «Tutti i FAI» ha una riga per FAI, l'altra una riga per articolo con il FAI più recente: propone FAI completo o Delta FAI secondo la MT CN 15 e segnala gli articoli da ripetere e quelli da segnalare. La proposta non è un obbligo: in «Programmi e FAI» chi gestisce il kickoff può segnarlo «Non richiesto per questo kickoff». Motivi, piani, stati e mesi si configurano in Impostazioni, scheda «FAI». Il campo OP della scheda propone gli OP dell'elenco unico di Gestione anomalie e mostra le anomalie dell'OP scelto."),
+                    ("Le mie azioni", "tutto quello assegnato a te: attività del piano, azioni, problemi, programmi e FAI. Un'attività la prendi in carico con «Inizia» e la chiudi con «Fatta». Chi riceve un'attività ha la notifica nel portale e una mail che porta qui; il lunedì la mail «Scadenze KICK-OFF» elenca anche le attività scadute e quelle in scadenza."),
                     ("Registro azioni", "dalla commessa: problemi, azioni d'incontro, attività e sotto-attività in un solo elenco, filtrabile per tipo, responsabile e scadenza."),
-                    ("Gantt", "le attività come barre: trascina il centro per spostarle, i bordi per allungarle."),
+                    ("Gantt", "le attività come barre: trascina il centro per spostarle, i bordi per allungarle; clic sulla riga per cambiare date, stato e avanzamento. Sotto ogni nome: responsabile, date, assenze e scostamento dalla baseline. Sul piano compaiono anche gli incontri (riga «Incontri», cerchi viola) e le scadenze aperte di azioni, problemi, programmi e FAI: sulla riga dell'attività collegata o in fondo, con un rombo sulla data. Le attività possono sovrapporsi: seguono solo le dipendenze dichiarate («dopo 2»); «insieme a 3» segnala la stessa persona nello stesso periodo. Le frecce ▲▼ cambiano l'ordine delle righe, «Alta»/«Bassa» mostra la priorità."),
+                    ("Chi può modificare cosa", "pannello sotto il Gantt, dall'alto in basso: amministratore del modulo; responsabile del kickoff (ordine, dipendenze, baseline, priorità e date di tutte le attività); chi ha creato l'attività (date e priorità delle sue); ruolo con permesso di modifica (date e stato, non la priorità); responsabile dell'attività (solo lo stato della propria); chi vede il kickoff (legge e commenta). Con più ruoli vale il più alto."),
                 ]),
             ],
         },
@@ -75,11 +110,18 @@ GUIDA = {
                 ("p", "KICK-OFF → «Impostazioni», con le schede:"),
                 ("def", [
                     ("Configurazione", "giorni di avviso e di blocco del VRF (predefiniti 7 e 30), sale riunioni."),
-                    ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti."),
+                    ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti. Ogni modello è una scheda chiusa (nome, descrizione, numero di punti e minuti, «Spento»); aperta, mostra il form con l'anteprima dei punti mentre si scrive; «Salva» compare solo se qualcosa è cambiato e salva senza ricaricare; «Duplica» crea una copia spenta; ricerca e «Mostra anche gli spenti» in alto."),
                     ("Ruoli operativi e Accessi", "chi vede tutto, chi modifica solo le proprie attività, chi modifica tutto."),
                     ("Promemoria", "i promemoria automatici."),
+                    ("Catalogo", "scheda «Catalogo»: le voci ricorrenti (punti ODG, azioni, attività, problemi) raccolte da sole da quello che si scrive, con quante volte sono state usate. Si rinominano (rinominare in una voce già esistente le unisce), si uniscono i doppioni, si nascondono quelle da non suggerire; per i punti ODG anche nota e durata predefinite."),
+                    ("Poteri e avvisi", "Configurazione → «Poteri e avvisi»: ruoli del team con pieni poteri (di base capocommessa e PM), altre persone con pieni poteri, spostamenti di date con approvazione (decide il primo capocommessa che risponde), chi riceve gli avvisi sui cambiamenti (di base incaricato e capocommessa). La mail degli avvisi è il flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni."),
+                    ("Menu delle impostazioni", "a sinistra, per argomento: Commesse (Generale, Modelli di commessa, Sale riunioni), Incontri (Modelli ordine del giorno, Catalogo voci), Persone e permessi (Poteri e avvisi, Ruoli operativi, Accessi), Attività (Tipi, Promemoria, FAI), Controllo (Riepilogo, Eliminazioni, Registro modifiche)."),
+                    ("Modelli di commessa", "un modello per tipo di lavoro: tappe che servono e giorni prima della consegna per ciascuna. Nel nuovo kickoff il modello spunta le tappe e, con la consegna, propone le scadenze. Accanto a ogni tappa c'è la media reale delle commesse fatte con quel modello; «Usa i valori reali» la copia nei giorni."),
+                    ("Sale riunioni", "«Sale riunioni»: nome, casella Microsoft 365 della sala, posti, attiva. Con la casella l'invito Outlook dell'incontro prenota la sala e il form ne mostra la disponibilità; servono una casella «sala» con accettazione automatica in Exchange e il permesso applicativo Graph Calendars.ReadWrite. Una sala con incontri si disattiva invece di eliminarsi."),
+                    ("Flussi del Percorso del kickoff", "Automazioni → Eventi applicativi: «KICK-OFF — promemoria prima della scadenza delle tappe» e «KICK-OFF — evento nel calendario Outlook del responsabile». Nascono spenti: si accendono dal designer della regola dopo l'installazione dei flussi (install_managed_flows). Il promemoria usa i giorni di preavviso della scheda Promemoria."),
                     ("Record", "eliminare un kickoff o un'attività: la motivazione è obbligatoria e resta nell'audit."),
-                    ("Log attivita", "chi ha fatto cosa."),
+                    ("FAI", "scheda «FAI» a sezioni: Scadenze, poi un gruppo di opzioni per sezione (motivi, piani, chiusura, versione, cross-correlation, stati) con il numero di voci; ricerca e «Mostra le disattivate» per gruppo; ogni riga si salva da sola senza ricaricare («Salva» compare solo se la riga è cambiata, «Salvato» in riga)."),
+                    ("Registro modifiche", "chi ha fatto cosa. Tre viste: «Essenziali» (senza la routine), «Critico» (eliminazioni, permessi, forzature), «Tutto»; ricerca nel testo, filtri per azione, utente e date; livello su ogni riga e dettaglio leggibile; 100 voci per pagina."),
                 ]),
             ],
         },
@@ -103,8 +145,15 @@ GUIDA = {
         {
             "sintomo": "Non si possono creare attività: «VRF mancante»",
             "fare": [
-                "Carica il VRF dalla scheda VRF della commessa.",
+                "Compila la scheda dalla voce VRF della commessa, oppure caricane il file: resta possibile anche a kickoff bloccato.",
                 "Se il VRF non serve, segnalo come «non richiesto».",
+            ],
+        },
+        {
+            "sintomo": "«Conferma e genera xlsx» non crea il file VRF",
+            "fare": [
+                "Il messaggio elenca i rischi senza Probabilità («Mancano: R…»): sceglila per tutti i 9, N/A se il rischio non si applica.",
+                "La bozza resta salvata: non si perde niente.",
             ],
         },
         {

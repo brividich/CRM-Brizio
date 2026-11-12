@@ -1,0 +1,236 @@
+{% extends "core/base.html" %}
+{% block title %}Verbale di riesame {{ riesame.anno }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:riesame_elenco' %}">← Riesame della direzione</a>
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Verbale di riesame {{ riesame.anno }}</div>
+      <div class="page-sub">{{ riesame.get_stato_display }} · riunione del {{ riesame.data|date:"d/m/Y" }} · dati dal {{ riesame.periodo_dal|date:"d/m/Y" }} al {{ riesame.periodo_al|date:"d/m/Y" }}</div>
+    </div>
+    <div class="sg-actions">
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_pdf' riesame.pk %}">PDF</a>
+      {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_modifica' riesame.pk %}">Dati del verbale</a>{% endif %}
+      {% if riesame.stato == "BOZZA" and puo_proporre %}<form method="post" action="{% url 'sistema_gestione:riesame_proponi' riesame.pk %}">{% csrf_token %}<button class="btn" type="submit">Proponi alla Direzione</button></form>{% endif %}
+      {% if riesame.stato == "PROPOSTO" and puo_proporre %}<form method="post" action="{% url 'sistema_gestione:riesame_riporta_in_bozza' riesame.pk %}">{% csrf_token %}<button class="btn btn-secondary" type="submit">Riporta in bozza</button></form>{% endif %}
+      {% if riesame.stato == "PROPOSTO" and puo_approvare %}<form method="post" action="{% url 'sistema_gestione:riesame_approva' riesame.pk %}">{% csrf_token %}<button class="btn" type="submit">Approva</button></form>{% endif %}
+    </div>
+  </div>
+
+  {% if problemi %}<details class="sg-alert warn sg-rz-manca"><summary>Prima di proporlo alla Direzione: {{ problemi|length }} {% if problemi|length == 1 %}cosa{% else %}cose{% endif %} da completare</summary><ul>{% for p in problemi %}<li>{{ p }}</li>{% endfor %}</ul></details>{% endif %}
+
+  {% if puo_modificare %}<form id="rz-form" method="post" action="{% url 'sistema_gestione:riesame_salva_analisi' riesame.pk %}">{% csrf_token %}<input type="hidden" name="next" value="" data-rz-next></form>
+  <form id="rz-indicatori" method="post" action="{% url 'sistema_gestione:riesame_aggiorna_indicatori' riesame.pk %}">{% csrf_token %}</form>{% endif %}
+
+  <div class="sg-rz" data-rz>
+    <button class="btn btn-secondary sg-rz-apri" type="button" data-rz-apri aria-expanded="false"><span><strong data-rz-conta>{{ n_compilati }}</strong> di {{ n_argomenti }} compilati</span><span>Tutti gli argomenti</span></button>
+
+    <nav class="rc-card sg-rz-indice" aria-label="Indice del verbale" data-rz-indice>
+      <div class="sg-rz-avanz"><span><strong data-rz-conta>{{ n_compilati }}</strong> di {{ n_argomenti }} argomenti compilati</span><progress value="{{ n_compilati }}" max="{{ n_argomenti }}" aria-label="Argomenti compilati" data-rz-barra></progress></div>
+      {% if riesame.stato == "APPROVATO" %}<a class="sg-rz-voce {% if riesame.copia_firmata %}is-ok{% else %}is-avviso{% endif %}" href="#approvazione" data-rz-breve="Approvazione"><i aria-hidden="true"></i><span>Approvazione e copia firmata</span></a>{% endif %}
+      <div class="sg-rz-gruppo">Preparazione</div>
+      <a class="sg-rz-voce {% if partecipanti %}is-ok{% else %}is-avviso{% endif %}" href="#partecipanti" data-rz-breve="Partecipanti"><i aria-hidden="true"></i><span>Partecipanti</span></a>
+      <a class="sg-rz-voce {% if riesame.documenti_esaminati %}is-ok{% else %}is-avviso{% endif %}" href="#documenti" data-rz-breve="Documenti"><i aria-hidden="true"></i><span>Documenti esaminati</span></a>
+      <a class="sg-rz-voce {% if n_prec_valutati == n_precedenti %}is-ok{% else %}is-avviso{% endif %}" href="#precedenti" data-rz-breve="Obiettivi precedenti"><i aria-hidden="true"></i><span>Obiettivi precedenti{% if n_precedenti %}, {{ n_prec_valutati }} di {{ n_precedenti }}{% endif %}</span></a>
+      <div class="sg-rz-gruppo">Argomenti in ingresso</div>
+      {% for a in ingresso %}<a class="sg-rz-voce {% if a.analisi %}is-ok{% else %}is-vuoto{% endif %}" href="#arg-{{ a.pk }}" data-rz-breve="{{ a.codice }} · {{ a.titolo|truncatechars:30 }}" data-rz-codice="{{ a.codice }}" data-rz-arg="{{ a.pk }}"><i aria-hidden="true"></i><span><b>{{ a.codice }}</b> {{ a.titolo }}</span></a>{% endfor %}
+      <div class="sg-rz-gruppo">Decisioni in uscita</div>
+      {% for a in uscita %}<a class="sg-rz-voce {% if a.analisi %}is-ok{% else %}is-vuoto{% endif %}" href="#arg-{{ a.pk }}" data-rz-breve="{{ a.codice }} · {{ a.titolo|truncatechars:30 }}" data-rz-codice="{{ a.codice }}" data-rz-arg="{{ a.pk }}"><i aria-hidden="true"></i><span><b>{{ a.codice }}</b> {{ a.titolo }}</span></a>{% endfor %}
+      <a class="sg-rz-voce {% if obiettivi %}is-ok{% else %}is-vuoto{% endif %}" href="#obiettivi" data-rz-breve="Nuovi obiettivi"><i aria-hidden="true"></i><span>Nuovi obiettivi, {{ obiettivi|length }}</span></a>
+    </nav>
+
+    <div class="rc-card sg-rz-corpo">
+      {% if riesame.stato == "APPROVATO" %}<section class="sg-rz-pannello" id="approvazione" data-rz-pannello>
+        <h2>Approvazione</h2>
+        <p>Approvato il {{ riesame.approvato_il|date:"d/m/Y H:i" }}{% if riesame.approvato_da %} da {{ riesame.approvato_da.get_full_name|default:riesame.approvato_da.username }}{% endif %}.</p>
+        {% if riesame.copia_firmata %}<p><a href="{% url 'sistema_gestione:riesame_copia_firmata' riesame.pk %}">Copia firmata: {{ riesame.copia_firmata_nome }}</a></p>{% else %}<p class="sg-muted">La copia con le firme dei partecipanti non è ancora caricata.</p>{% endif %}
+        {% if puo_proporre %}<form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:riesame_carica_firmata' riesame.pk %}" class="sg-actions sg-upload">{% csrf_token %}<label for="{{ form_firmata.file.id_for_label }}">{{ form_firmata.file.label }}</label>{{ form_firmata.file }}<button class="btn btn-secondary" type="submit">Carica</button></form>{% endif %}
+      </section>{% endif %}
+
+      <section class="sg-rz-pannello" id="partecipanti" data-rz-pannello>
+        <h2>Riunioni e partecipanti</h2>
+        <p class="sg-rz-date"><span>Riesame intermedio: <strong>{{ riesame.data_intermedio|date:"d/m/Y"|default:"—" }}</strong></span><span>Pianificazione strategica: <strong>{{ riesame.data_pianificazione|date:"d/m/Y"|default:"—" }}</strong></span><span>Verbale: <strong>{{ riesame.data|date:"d/m/Y" }}</strong></span></p>
+        <ul class="sg-rz-persone">
+          {% for p in partecipanti %}<li><strong>{{ p.funzione }}</strong> {{ p.nominativo }}{% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:riesame_partecipante_togli' riesame.pk p.pk %}">{% csrf_token %}<button class="sg-rz-togli" type="submit" aria-label="Togli {{ p.nominativo }}">×</button></form>{% endif %}</li>
+          {% empty %}<li class="sg-muted">Nessun partecipante.</li>{% endfor %}
+        </ul>
+        {% if form_partecipante %}<form method="post" action="{% url 'sistema_gestione:riesame_partecipante_aggiungi' riesame.pk %}" class="sg-rz-aggiungi">{% csrf_token %}
+          {% include "core/forms/_field.html" with field=form_partecipante.funzione %}
+          {% include "core/forms/_field.html" with field=form_partecipante.utente %}
+          {% include "core/forms/_field.html" with field=form_partecipante.nome %}
+          <button class="btn btn-secondary" type="submit">Aggiungi</button>
+        </form>{% endif %}
+      </section>
+
+      <section class="sg-rz-pannello" id="documenti" data-rz-pannello>
+        <div class="sg-testa"><h2>Documenti esaminati</h2>{% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_modifica' riesame.pk %}">Modifica</a>{% endif %}</div>
+        <p>{{ riesame.documenti_esaminati|default:"Non ancora indicati."|linebreaksbr }}</p>
+      </section>
+
+      <section class="sg-rz-pannello" id="precedenti" data-rz-pannello>
+        <h2>Obiettivi dei riesami precedenti</h2>
+        {% if riesame.stato == "APPROVATO" %}
+          {% for o in riesame.fotografia_precedenti %}<div class="sg-rz-prec"><div><strong>{{ o.descrizione }}</strong> <span class="sg-muted">{{ o.verbale }}</span>{% if o.risultato_atteso %}<div class="sg-muted">Atteso: {{ o.risultato_atteso }}</div>{% endif %}</div><div>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.stato %} {{ o.nota|linebreaksbr }}</div></div>
+          {% empty %}<p class="sg-muted">Nessun obiettivo da valutare.</p>{% endfor %}
+        {% else %}
+          {% for o in precedenti %}<div class="sg-rz-prec">
+            <div><strong>{{ o.descrizione }}</strong>{% if o.risultato_atteso %}<div class="sg-muted">Atteso: {{ o.risultato_atteso }}{% if o.scadenza %} entro il {{ o.scadenza|date:"d/m/Y" }}{% endif %}</div>{% endif %}</div>
+            {% if puo_modificare %}<div class="sg-rz-esito">
+              <select name="stato_{{ o.pk }}" form="rz-form" aria-label="Livello di raggiungimento">{% for valore, etichetta in stati_obiettivo %}<option value="{{ valore }}"{% if valore == o.stato %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
+              <textarea name="nota_{{ o.pk }}" form="rz-form" rows="2" placeholder="Livello raggiunto e motivi" aria-label="Livello raggiunto e motivi">{{ o.nota }}</textarea>
+            </div>{% else %}<div>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.get_stato_display %} {{ o.nota|linebreaksbr }}</div>{% endif %}
+          </div>{% empty %}<p class="sg-muted">Nessun obiettivo da valutare.</p>{% endfor %}
+        {% endif %}
+      </section>
+
+      {% for a in ingresso %}{% include "sistema_gestione/components/_riesame_argomento.html" with etichetta="Argomento" totale=ingresso|length %}{% endfor %}
+      {% for a in uscita %}{% include "sistema_gestione/components/_riesame_argomento.html" with etichetta="Decisione" totale=uscita|length %}{% endfor %}
+
+      <section class="sg-rz-pannello" id="obiettivi" data-rz-pannello>
+        <div class="sg-testa"><h2>Nuovi obiettivi</h2>{% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_obiettivo_nuovo' riesame.pk %}">Aggiungi obiettivo</a>{% endif %}</div>
+        <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Indicatore</th><th>Risultato atteso</th><th>Responsabile e risorse</th><th>Scadenza</th><th>Stato</th>{% if puo_proporre %}<th>Azioni</th>{% endif %}</tr></thead><tbody>
+          {% for o in obiettivi %}<tr>
+            <td><strong>{{ o.descrizione }}</strong>{% if o.origine_id %} <span class="sg-badge">Ripianificato</span>{% endif %}</td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.indicatore|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
+            <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}<span class="sg-badge warn">Manca</span>{% endif %}{% if o.risorse %}<div class="sg-muted">{{ o.risorse }}</div>{% endif %}</td>
+            <td>{{ o.scadenza|date:"d/m/Y"|default:"—" }}</td>
+            <td>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.get_stato_display %}{% if o.nota and riesame.stato == "APPROVATO" %}<div class="sg-muted">{{ o.nota }}</div>{% endif %}</td>
+            {% if puo_proporre %}<td class="sg-actions"><a href="{% url 'sistema_gestione:riesame_obiettivo' riesame.pk o.pk %}">{% if puo_modificare %}Modifica{% else %}Andamento{% endif %}</a>{% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:riesame_obiettivo_togli' riesame.pk o.pk %}">{% csrf_token %}<button class="sg-rz-togli" type="submit" aria-label="Togli l'obiettivo">×</button></form>{% endif %}</td>{% endif %}
+          </tr>{% empty %}<tr><td colspan="8">Nessun obiettivo fissato.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </section>
+
+      <div class="sg-rz-piede">
+        <button class="btn btn-secondary" type="button" data-rz-prima hidden>‹ Precedente</button>
+        <span class="sg-muted" data-rz-stato aria-live="polite"></span>
+        {% if puo_modificare %}<button class="btn" type="submit" form="rz-form" data-rz-avanti>Salva il verbale</button>{% else %}<button class="btn btn-secondary" type="button" data-rz-avanti hidden>Successivo ›</button>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var radice = document.querySelector("[data-rz]");
+  if (!radice) { return; }
+  var pannelli = Array.prototype.slice.call(radice.querySelectorAll("[data-rz-pannello]"));
+  var voci = Array.prototype.slice.call(radice.querySelectorAll(".sg-rz-voce"));
+  var indice = radice.querySelector("[data-rz-indice]");
+  var apri = radice.querySelector("[data-rz-apri]");
+  var prima = radice.querySelector("[data-rz-prima]");
+  var avanti = radice.querySelector("[data-rz-avanti]");
+  var stato = radice.querySelector("[data-rz-stato]");
+  var modulo = document.getElementById("rz-form");
+  var prossimo = document.querySelector("[data-rz-next]");
+  var modificato = false;
+  var attuale = -1;
+
+  radice.classList.add("is-js");
+  prima.hidden = false;
+  avanti.hidden = false;
+
+  function posizione(id) {
+    for (var i = 0; i < pannelli.length; i++) { if (pannelli[i].id === id) { return i; } }
+    return -1;
+  }
+  function voceDi(id) {
+    return voci.filter(function (v) { return v.getAttribute("href") === "#" + id; })[0];
+  }
+  function breve(i) {
+    var voce = voceDi(pannelli[i].id);
+    var stretto = window.matchMedia("(max-width: 760px)").matches;
+    return (stretto && voce.getAttribute("data-rz-codice")) || voce.getAttribute("data-rz-breve");
+  }
+  function haCampi(pannello) {
+    return !!pannello.querySelector("[form='rz-form']");
+  }
+  function aggiornaPiede() {
+    var succ = attuale + 1 < pannelli.length ? attuale + 1 : -1;
+    prima.hidden = attuale < 1;
+    if (attuale > 0) { prima.textContent = "‹ " + breve(attuale - 1); }
+    if (modulo) {
+      var salva = modificato || haCampi(pannelli[attuale]);
+      avanti.hidden = !salva && succ < 0;
+      if (succ < 0) { avanti.textContent = "Salva il verbale"; }
+      else { avanti.textContent = (salva ? "Salva e vai a " : "Vai a ") + breve(succ) + " ›"; }
+    } else {
+      avanti.hidden = succ < 0;
+      if (succ >= 0) { avanti.textContent = breve(succ) + " ›"; }
+    }
+    stato.textContent = modificato ? "Modifiche non salvate" : "";
+  }
+  function mostra(i, scorri) {
+    attuale = i;
+    pannelli.forEach(function (p, n) { p.classList.toggle("is-attivo", n === i); });
+    voci.forEach(function (v) {
+      var attiva = v.getAttribute("href") === "#" + pannelli[i].id;
+      v.classList.toggle("is-attiva", attiva);
+      if (attiva) { v.setAttribute("aria-current", "true"); } else { v.removeAttribute("aria-current"); }
+    });
+    indice.classList.remove("is-aperto");
+    apri.setAttribute("aria-expanded", "false");
+    aggiornaPiede();
+    if (scorri && radice.getBoundingClientRect().top < 0) { radice.scrollIntoView({block: "start"}); }
+  }
+  function vai(i) {
+    if (location.hash === "#" + pannelli[i].id) { mostra(i, true); }
+    else { location.hash = pannelli[i].id; }
+  }
+  function iniziale() {
+    var daHash = posizione(location.hash.slice(1));
+    if (daHash >= 0) { return daHash; }
+    if (modulo) {
+      var manca = voci.filter(function (v) { return v.classList.contains("is-avviso") || v.classList.contains("is-vuoto"); })[0];
+      if (manca) { return posizione(manca.getAttribute("href").slice(1)); }
+    }
+    return 0;
+  }
+
+  window.addEventListener("hashchange", function () {
+    var i = posizione(location.hash.slice(1));
+    if (i >= 0) { mostra(i, true); }
+  });
+  apri.addEventListener("click", function () {
+    var aperto = indice.classList.toggle("is-aperto");
+    apri.setAttribute("aria-expanded", aperto ? "true" : "false");
+  });
+  prima.addEventListener("click", function () { if (attuale > 0) { vai(attuale - 1); } });
+  avanti.addEventListener("click", function (e) {
+    var succ = attuale + 1 < pannelli.length ? attuale + 1 : -1;
+    if (modulo && (modificato || haCampi(pannelli[attuale]))) {
+      if (prossimo) { prossimo.value = pannelli[succ < 0 ? attuale : succ].id; }
+      return;
+    }
+    e.preventDefault();
+    if (succ >= 0) { vai(succ); }
+  });
+
+  if (modulo) {
+    var campi = document.querySelectorAll("[form='rz-form']:not(button)");
+    var conte = document.querySelectorAll("[data-rz-conta]");
+    var barra = radice.querySelector("[data-rz-barra]");
+    Array.prototype.forEach.call(campi, function (campo) {
+      campo.addEventListener("input", function () {
+        modificato = true;
+        var arg = /^analisi_(\d+)$/.exec(campo.name);
+        if (arg) {
+          var voce = radice.querySelector("[data-rz-arg='" + arg[1] + "']");
+          voce.classList.toggle("is-ok", !!campo.value.trim());
+          voce.classList.toggle("is-vuoto", !campo.value.trim());
+          var n = radice.querySelectorAll("[data-rz-arg].is-ok").length;
+          Array.prototype.forEach.call(conte, function (c) { c.textContent = n; });
+          barra.value = n;
+        }
+        aggiornaPiede();
+      });
+    });
+    modulo.addEventListener("submit", function () { modificato = false; });
+    window.addEventListener("beforeunload", function (e) {
+      if (modificato) { e.preventDefault(); e.returnValue = ""; }
+    });
+  }
+
+  mostra(iniziale(), false);
+})();
+</script>
+{% endblock %}

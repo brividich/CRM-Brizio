@@ -92,6 +92,17 @@ button.hs-guide{ background:none; cursor:pointer; font-family:inherit; line-heig
 .hs-pers-c{ display:flex; align-items:center; gap:7px; font-weight:500 }
 .hs-pers-n{ margin:0; font-size:11.5px; color:var(--text-light) }
 .hs-pers-a{ display:flex; gap:8px; flex-wrap:wrap }
+.hs-pers{ width:min(360px, calc(100vw - 32px)); max-height:calc(100dvh - 140px); overflow-y:auto }
+.hs-az-fonte{ font-weight:500; color:var(--text-light) }
+.hs-az-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; counter-reset:az }
+.hs-az-i{ display:flex; align-items:center; gap:4px; padding:4px 4px 4px 8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); font-weight:500; counter-increment:az }
+.hs-az-i::before{ content:counter(az); font-size:11px; font-weight:700; color:var(--text-light); min-width:14px }
+.hs-az-l{ flex:1; min-width:0; overflow-wrap:anywhere }
+.hs-az-b{ flex:none; width:28px; height:28px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer; font-size:13px; line-height:1 }
+.hs-az-b:hover{ border-color:var(--accent); color:var(--accent) }
+.hs-az-vuoto{ margin:0; font-size:11.5px; font-weight:500; color:var(--text-light) }
+.hs-az .btn{ align-self:flex-start }
+.hs-az-admin{ font-size:11.5px; font-weight:600; color:var(--accent) }
 
 /* ── Preferiti ────────────────────────────────────────────────────── */
 .hs-fav-list{ display:flex; flex-direction:column; gap:4px }
@@ -127,6 +138,18 @@ button.hs-guide{ background:none; cursor:pointer; font-family:inherit; line-heig
 .hs-oggi{ display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:14px; align-items:start }
 .hs-col{ display:flex; flex-direction:column; gap:14px; min-width:0 }
 
+/* Banco consegne DPI (solo per chi gestisce le consegne). */
+.hs-banco-kpi{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px }
+.hs-banco-k{ display:inline-flex; align-items:baseline; gap:5px; padding:6px 10px; border-radius:8px;
+             border:1px solid var(--border); background:var(--tone-bg, var(--bg)); color:var(--tone-fg, var(--text));
+             font-size:13px; text-decoration:none }
+.hs-banco-k b{ font-size:16px }
+.hs-banco-k:hover{ border-color:var(--tone-solid, var(--text-light)) }
+.hs-banco-cerca{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px }
+.hs-banco-cerca .input{ flex:1 1 220px; min-width:0 }
+.hs-banco-altre{ display:inline-block; margin-top:8px }
+.hs-banco .hp-list a{ grid-template-columns:minmax(0,1fr) auto; padding-left:0; padding-right:0 }
+
 /* ── Sapere ───────────────────────────────────────────────────────── */
 .hs-chips{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end }
 .hs-chip{ font:inherit; font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; cursor:pointer;
@@ -148,6 +171,30 @@ button.hs-guide{ background:none; cursor:pointer; font-family:inherit; line-heig
 .hs-book-d{ font-size:11px; color:var(--text-light); line-height:1.3;
             display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .hs-new{ font-family:ui-monospace,Menlo,monospace; font-size:9px; font-weight:800; color:var(--accent) }
+/* Copertina con immagine: la foto riempie, una sfumatura in basso tiene leggibili le scritte */
+.hs-cover.has-img{ background:#0f172a var(--cover-img) center/cover no-repeat }
+.hs-cover.has-img::before{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.38),transparent 38%,transparent 55%,rgba(0,0,0,.6)) }
+.hs-cover.has-img > *{ position:relative; z-index:1; text-shadow:0 1px 2px rgba(0,0,0,.5) }
+/* Cataloghi: copertine larghe 4:3 */
+.hs-cats{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:16px 14px }
+.hs-cat .hs-cover{ aspect-ratio:4/3 }
+.hs-cat .hs-cover-g{ font-size:24px }
+/* Pagina di un catalogo (/sapere/<slug>/) */
+.sp-crumb{ font-size:12px; color:var(--text-light); margin:0 0 10px }
+.sp-crumb a{ color:var(--text-mid) }
+.sp-hero{ position:relative; overflow:hidden; display:flex; gap:14px; align-items:flex-end; justify-content:space-between;
+          flex-wrap:wrap; min-height:150px; padding:20px; margin:0 0 14px; border-radius:var(--radius, 12px); color:#fff;
+          background:var(--cover, #1f4f86) }
+.sp-hero.has-img{ background:#0f172a var(--cover-img) center/cover no-repeat; min-height:210px }
+.sp-hero.has-img::before{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.3),rgba(0,0,0,.75)) }
+.sp-hero.has-img .sp-hero-bd{ text-shadow:0 1px 3px rgba(0,0,0,.6) }
+.sp-hero > *{ position:relative; z-index:1 }
+.sp-hero-bd{ min-width:0; max-width:760px }
+.sp-hero-k{ font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; opacity:.9 }
+.sp-hero-t{ font-size:26px; font-weight:900; line-height:1.15; margin:4px 0 0; color:#fff; overflow-wrap:anywhere }
+.sp-hero-d{ margin:6px 0 0; font-size:14px; opacity:.95 }
+.sp-hero-a{ display:flex; gap:8px; flex-wrap:wrap }
+.hp-wrap > .hp-card + .hp-card{ margin-top:14px }
 .hs-docs{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:4px 14px }
 
 /* ── Persone & sicurezza ──────────────────────────────────────────── */

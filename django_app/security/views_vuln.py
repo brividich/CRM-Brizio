@@ -85,17 +85,27 @@ def _filtri_elenco(request):
     }
 
 
+def metriche_copertura():
+    from .services.metriche import copertura_cpe
+
+    return copertura_cpe()
+
+
 def vulnerabilities_dashboard(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    latest = cve_impact.latest_inventory_date()
     filtri = _filtri_elenco(request)
+    if request.GET.get("formato") == "csv":
+        return _elenco_cve_csv(request, cve_gestione.elenco_cve(**filtri, limite=None), filtri)
+    latest = cve_impact.latest_inventory_date()
     return render(request, "security/vuln_dashboard.html", {
         "elenco": cve_gestione.elenco_cve(**filtri),
         "filtri": filtri,
         "filtri_attivi": any(filtri.values()),
         "hosts": _con_apparati_snmp(cve_impact.most_exposed_hosts()),
+        "hosts_esposti": cve_impact.exposed_hosts_count(),
         "unmapped": cve_impact.unmapped_software(limit=30),
+        "copertura": metriche_copertura(),
         "inventory_date": latest,
         "inventory_fresh": bool(latest and latest >= cve_impact.fresh_since()),
         "freshness_days": cve_impact.freshness_days(),
@@ -110,6 +120,26 @@ def vulnerabilities_dashboard(request):
         "ciclo": _ciclo_cve(),
         "termini": _termini_cve(),
     })
+
+
+def _elenco_cve_csv(request, elenco, filtri):
+    """Tutte le CVE del filtro (la tabella si ferma alle prime MAX_RIGHE), con PC oltre il termine e accettati."""
+    from .services import esporta_csv
+
+    def riga(c):
+        r, t = c["record"], c["termine"]
+        return [c["cve_id"], c["classe_label"], esporta_csv.numero(r.cvss) if r.cvss is not None else "",
+                esporta_csv.numero(r.epss, 3) if r.epss is not None else "", esporta_csv.si_no(r.kev),
+                esporta_csv.data(r.kev_added) if r.kev else "", "; ".join(c["programmi"]), c["impatta"], c["da_verificare"],
+                esporta_csv.data(c["esposta_dal"]), esporta_csv.data(t["scadenza"]) if t else "", c["pc_oltre"], c["pc_in_scadenza"],
+                c["pc_accettati"], c["corretti_90"], (r.description or "")[:1000]]
+
+    return esporta_csv.risposta(
+        request, "cve",
+        ["CVE", "Gravità", "CVSS", "EPSS", "Sfruttata (KEV)", "In KEV dal", "Programmi coinvolti", "PC impattati", "Da verificare",
+         "Esposta dal", "Termine", "PC oltre il termine", "PC in scadenza", "PC con rischio accettato", "Corretti (90 giorni)", "Descrizione"],
+        (riga(c) for c in elenco["righe"]), azione="soc_cve_export", filtri={k: v for k, v in filtri.items() if v},
+    )
 
 
 def cve_correzioni(request):
@@ -157,11 +187,22 @@ def _termini_cve(giorni=90):
     try:
         from .services import cve_sla
 
-        oggi = timezone.localdate()
-        dati = cve_sla.riepilogo(oggi - timezone.timedelta(days=giorni), oggi)
+        andamento = cve_sla.andamento(giorni)
+        dati = andamento["adesso"]
         dati["giorni"] = giorni
+        dati["prima"], dati["differenze"] = andamento["prima"], andamento["differenze"]
+        # Il riquadro ne elenca 15; il numero in alto e il titolo dicono il totale vero.
+        dati["aperte_scadute_totale"] = len(dati["aperte_scadute"])
         dati["aperte_scadute"] = dati["aperte_scadute"][:15]
         dati["attivo"] = cve_sla.soc_settings.value("cve.sla.attivo")
+        settimane = cve_sla.serie_settimanale(8)
+        dati["settimane"] = settimane
+        dati["spark"] = {
+            "percentuale_in_tempo": cve_sla.punti_sparkline([s["percentuale_in_tempo"] for s in settimane]),
+            "giorni_mediani": cve_sla.punti_sparkline([s["giorni_mediani"] for s in settimane]),
+        }
+        for c in dati["classi"]:
+            c["pct_in_tempo"] = round(100 * c["in_tempo"] / c["corrette"]) if c["corrette"] else None
         return dati
     except Exception:  # noqa: BLE001
         logger.exception("Tempi di correzione delle CVE non disponibili")
@@ -207,7 +248,112 @@ def cve_detail(request, cve_id):
         "record": record, "summary": cve_impact.summary(record), "impacts": impacts, "outcome": outcome,
         "outcomes": SecurityCveImpact.OUTCOME_CHOICES, "can_edit": can_manage_security_config(request.user),
         "proposte_ai": len(proposte), **_termini_record(record, impacts),
+        "lavoro": _lavoro(record),
     })
+
+
+def _lavoro(record):
+    from .services import cve_lavoro
+
+    return cve_lavoro.riepilogo(record)
+
+
+@require_POST
+def cve_lavoro_apri(request, cve_id):
+    """Dalla scheda della CVE: apre il caso con un'attività per PC colpito e ci porta dentro."""
+    from .services import cve_lavoro
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    try:
+        caso = cve_lavoro.apri_lavoro(record, request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("security:cve_detail", cve_id=cve_id)
+    messages.success(request, "Lavoro di correzione aperto: le attività dei PC si spuntano da sole con l'inventario.")
+    return redirect("security:case_detail", pk=caso.pk)
+
+
+CVE_HOST_AZIONI = ("case", "accetta_rischio", "proposte")
+
+
+@require_POST
+def cve_host_bulk(request, cve_id):
+    """Azioni sui PC selezionati nella tabella «Esito per host» della scheda CVE.
+
+    ``case``: un ticket per i PC (come ``pc_bulk``). ``accetta_rischio``: un'accettazione per PC, con gli stessi
+    controlli, campi obbligatori e permesso di quella singola. ``proposte``: accetta le proposte dell'AI aperte
+    e applicabili dei PC selezionati, come il pulsante «Accetta» della riga.
+    """
+    from .services import accettazione_rischio
+    from .services.cases import open_pc_case
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    default = reverse("security:cve_detail", args=[record.cve_id])
+    action = request.POST.get("action", "")
+    valutati = {h.lower(): h for h in record.impacts.values_list("host", flat=True)}
+    hosts = [valutati[h.strip().lower()] for h in dict.fromkeys(request.POST.getlist("devices")) if h.strip().lower() in valutati]
+    if action not in CVE_HOST_AZIONI:
+        messages.error(request, "Azione non supportata.")
+        return _redirect_sicuro(request, default)
+    if not hosts:
+        messages.error(request, "Nessun PC selezionato.")
+        return _redirect_sicuro(request, default)
+    if action == "case":
+        title = request.POST.get("title", "").strip() or f"{record.cve_id}: da sistemare su {len(hosts)} PC"
+        case = open_pc_case(hosts, user=request.user, title=title, pagina=record.cve_id)
+        if case is None:
+            messages.error(request, "Il SOC non ha ancora nessuna sorgente dati a cui collegare il ticket.")
+            return _redirect_sicuro(request, default)
+        messages.success(request, f"Ticket #{case.pk} aperto con {case.tasks.count()} PC e assegnato a te.")
+        return redirect("security:case_detail", pk=case.pk)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    if action == "accetta_rischio":
+        raw = request.POST.get("scadenza", "").strip()
+        try:
+            scadenza = timezone.datetime.fromisoformat(raw).date() if raw else None
+        except ValueError:
+            scadenza = None
+        fatte, errori = 0, []
+        for host in hosts:
+            try:
+                accettazione_rischio.crea(record, host=host, motivo=request.POST.get("motivo", ""), misure=request.POST.get("misure", ""),
+                                          scadenza=scadenza, user=request.user, request=request)
+                fatte += 1
+            except ValueError as exc:
+                errori.append((host, str(exc)))
+        if fatte:
+            messages.success(request, f"Rischio accettato per {record.cve_id} su {fatte} PC fino al {scadenza:%d/%m/%Y}: resta nell'audit.")
+        if errori:
+            # Lo stesso errore su tutti i PC (motivo corto, scadenza mancante) si dice una volta sola.
+            testi = list(dict.fromkeys(e for _h, e in errori))
+            if len(testi) == 1 and not fatte:
+                messages.error(request, testi[0])
+            else:
+                messages.warning(request, "Non accettato su " + "; ".join(f"{h}: {e}" for h, e in errori[:10]))
+        return _redirect_sicuro(request, default)
+    proposte = {h.lower(): p for h, p in cpe_ai.proposte_esito_aperte(record).items()}
+    scelte = [proposte[h.lower()] for h in hosts if h.lower() in proposte and proposte[h.lower()].applicabile]
+    for proposta in scelte:
+        _accetta_proposta(request, proposta)
+    if scelte:
+        _queue_recompute()
+        n = len(scelte)
+        messages.success(request, f"{n} propost{'a' if n == 1 else 'e'} dell'AI accettat{'a' if n == 1 else 'e'}. Impatti in ricalcolo.")
+    saltati = len(hosts) - len(scelte)
+    if saltati:
+        messages.warning(request, f"{saltati} PC senza una proposta dell'AI da applicare: lasciati com'erano.")
+    return _redirect_sicuro(request, default)
 
 
 def _termini_record(record, impacts):
@@ -332,6 +478,31 @@ def _redirect_sicuro(request, default):
     return redirect(default)
 
 
+def _dettaglio_proposta(proposta):
+    return {"tipo": proposta.tipo, "proposta": proposta.proposta, "confidenza": proposta.confidenza,
+            "vendor": proposta.vendor, "product": proposta.product, "cve": proposta.cve.cve_id if proposta.cve_id else "",
+            "host": proposta.host, "motivazione": proposta.motivazione[:300]}
+
+
+def _accetta_proposta(request, proposta, dettaglio=None):
+    """Applica una proposta aperta e applicabile (stesso percorso della conferma a mano), con audit. Ritorna il testo dell'esito."""
+    from core.audit import log_action
+
+    if proposta.tipo == SecurityPropostaAi.TIPO_CPE:
+        nota = f"proposta AI #{proposta.pk} accettata (confidenza {proposta.confidenza}%)"
+        if proposta.proposta == SecurityPropostaAi.NON_APPLICABILE:
+            _set_mapping(request, proposta.vendor, proposta.product, note=nota)
+            testo = f"«{proposta.product}» segnato non applicabile"
+        else:
+            _set_mapping(request, proposta.vendor, proposta.product, cpe=proposta.proposta, note=nota)
+            testo = f"«{proposta.product}» collegato a {proposta.proposta}"
+    else:
+        testo = f"{proposta.cve.cve_id} su {proposta.host}: {proposta.proposta_label.lower()}"
+    cpe_ai.segna_decisa(proposta, request.user, accettata=True)
+    log_action(request, "soc_proposta_ai_accettata", "security", dettaglio or _dettaglio_proposta(proposta), oggetto=proposta)
+    return testo
+
+
 @require_POST
 def proposta_ai_decidi(request, pk):
     """«Accetta» o «Rifiuta» una proposta dell'AI: accettare passa dallo stesso percorso della conferma a mano."""
@@ -353,26 +524,13 @@ def proposta_ai_decidi(request, pk):
     if decisione == "accetta" and not proposta.applicabile:
         messages.error(request, "L'AI non ha preso posizione («resta da verificare»): non c'è nulla da applicare. Puoi solo rifiutarla.")
         return _redirect_sicuro(request, default)
-    dettaglio = {"tipo": proposta.tipo, "proposta": proposta.proposta, "confidenza": proposta.confidenza,
-                 "vendor": proposta.vendor, "product": proposta.product, "cve": proposta.cve.cve_id if proposta.cve_id else "",
-                 "host": proposta.host, "motivazione": proposta.motivazione[:300]}
+    dettaglio = _dettaglio_proposta(proposta)
     if decisione == "rifiuta":
         cpe_ai.segna_decisa(proposta, request.user, accettata=False)
         log_action(request, "soc_proposta_ai_rifiutata", "security", dettaglio, oggetto=proposta)
         messages.success(request, "Proposta rifiutata: l'AI non la ripropone finché i dati del caso non cambiano.")
         return _redirect_sicuro(request, default)
-    if proposta.tipo == SecurityPropostaAi.TIPO_CPE:
-        nota = f"proposta AI #{proposta.pk} accettata (confidenza {proposta.confidenza}%)"
-        if proposta.proposta == SecurityPropostaAi.NON_APPLICABILE:
-            _set_mapping(request, proposta.vendor, proposta.product, note=nota)
-            testo = f"«{proposta.product}» segnato non applicabile"
-        else:
-            _set_mapping(request, proposta.vendor, proposta.product, cpe=proposta.proposta, note=nota)
-            testo = f"«{proposta.product}» collegato a {proposta.proposta}"
-    else:
-        testo = f"{proposta.cve.cve_id} su {proposta.host}: {proposta.proposta_label.lower()}"
-    cpe_ai.segna_decisa(proposta, request.user, accettata=True)
-    log_action(request, "soc_proposta_ai_accettata", "security", dettaglio, oggetto=proposta)
+    testo = _accetta_proposta(request, proposta, dettaglio)
     _queue_recompute()
     messages.success(request, f"Proposta accettata: {testo}. Impatti in ricalcolo.")
     return _redirect_sicuro(request, default)
@@ -611,21 +769,33 @@ def _mapping_rows(q=""):
     """Prodotti dell'inventario (vendor+prodotto) con mappatura e proposte locali, i più diffusi prima."""
     from .services.cpe_auto import known_cpe_pairs, proposals
 
-    products = (
-        SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
-        .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
-    )
-    if q:
-        products = products.filter(Q(vendor__icontains=q) | Q(product__icontains=q))
+    from .services.software_catalog import indice_famiglie
+
+    # Una riga per programma: i nomi e le release si decidono insieme (vedi ``_set_mapping``).
+    canonici = indice_famiglie(con_unioni=False)[0]
+    programmi = {}
+    for vendor, product, host in SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product", "host").distinct():
+        canon = canonici.get((vendor, product), (vendor, product))
+        riga = programmi.setdefault(canon, {"vendor": canon[0], "product": canon[1], "pc": set(), "membri": set()})
+        riga["pc"].add(host)
+        riga["membri"].add((vendor, product))
+    needle = q.casefold()
     mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.select_related("na_rule")}
     known = known_cpe_pairs()
     proposte_ai = cpe_ai.proposte_cpe_aperte()
-    rows = list(products)
-    for row in rows:
-        row["mapping"] = mappings.get((row["vendor"], row["product"]))
+    rows = []
+    for riga in programmi.values():
+        if needle and not any(needle in v.casefold() or needle in p.casefold() for v, p in riga["membri"]):
+            continue
+        presenti = [mappings[m] for m in sorted(riga["membri"]) if m in mappings]
+        row = {"vendor": riga["vendor"], "product": riga["product"], "hosts": len(riga["pc"]), "nomi": len(riga["membri"])}
+        # Il nome con la decisione più forte: confermato, poi non applicabile, poi il primo.
+        row["mapping"] = next((m for m in presenti if m.confirmed), None) or next((m for m in presenti if m.not_applicable), None) or (presenti[0] if presenti else None)
         row["local_suggestions"] = proposals(row["vendor"], row["product"], known)
         # Una proposta dell'AI vale solo finché il software è ancora da decidere.
-        row["ai"] = proposte_ai.get((row["vendor"], row["product"])) if _is_open(row) or _excluded_by_rule(row) else None
+        row["ai"] = next((proposte_ai[m] for m in sorted(riga["membri"]) if m in proposte_ai), None) if _is_open(row) or _excluded_by_rule(row) else None
+        rows.append(row)
+    rows.sort(key=lambda r: (-r["hosts"], r["vendor"], r["product"]))
     return rows, known
 
 
@@ -675,19 +845,23 @@ def _is_na(row):
 
 def _set_mapping(request, vendor, product, *, cpe=None, note=""):
     """Conferma (``cpe`` = "vendor:product") o segna non applicabile (``cpe`` None), con audit."""
-    mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor[:120], product=product[:160])
-    old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}"
-    if cpe:
-        mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
-        mapping.confirmed, mapping.not_applicable = True, False
-    else:
-        mapping.confirmed, mapping.not_applicable = False, True
-    mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
-    mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
-    mapping.save()
-    new = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata" if cpe else "non applicabile"
-    audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
-                        new_value=f"{new} {note}".strip(), request=request)
+    # La decisione è per programma: vale per tutti i nomi con cui le fonti lo riportano.
+    from .services.software_catalog import membri_automatici
+
+    for membro_vendor, membro_product in sorted(membri_automatici(vendor[:120], product[:160])):
+        mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=membro_vendor, product=membro_product)
+        old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}"
+        if cpe:
+            mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
+            mapping.confirmed, mapping.not_applicable = True, False
+        else:
+            mapping.confirmed, mapping.not_applicable = False, True
+        mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
+        mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
+        mapping.save()
+        new = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata" if cpe else "non applicabile"
+        audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
+                            new_value=f"{new} {note}".strip(), request=request)
 
 
 def _software_mapping_post(request):
@@ -837,6 +1011,10 @@ def _software_mapping_post(request):
         key = request.POST.get("nvd_key", "").strip()[:200]
         if not key:
             messages.error(request, "Incolla la API key NVD (per toglierla usa «Rimuovi»).")
+        elif not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", key):
+            # Le chiavi NVD sono UUID: una chiave incollata male farebbe rispondere 404 a ogni lettura.
+            messages.error(request, "API key NVD non valida: è un codice come 1a2b3c4d-1a2b-1a2b-1a2b-1a2b3c4d5e6f "
+                                    "(quello della mail di NVD). Non salvata.")
         else:
             set_nvd_api_key(key, actor=request.user)
             messages.success(request, "API key NVD salvata (cifrata).")
@@ -887,10 +1065,13 @@ def cve_pannello_programma(request):
     key = request.GET.get("k", "")
     if "|" not in key:
         raise Http404
-    vendor, product = software_catalog.families().get(software_catalog.split_key(key), software_catalog.split_key(key))
-    nome = (SoftwareInstallation.objects.filter(vendor=vendor, product=product).exclude(product_raw="")
-            .values_list("product_raw", flat=True).first() or product)
+    vendor, product = software_catalog.split_key(software_catalog.chiave_canonica(key))
+    nome = software_inventory.nome_programma(
+        SoftwareInstallation.objects.filter(vendor=vendor, product=product).exclude(product_raw="")
+        .values_list("product_raw", flat=True).first() or product
+    )
     return render(request, "security/partials/cve_pannello_elenco.html", {
+        "stato_cve": software_catalog.stati_cve().get(software_catalog.inventory_key(vendor, product), software_catalog.NON_CONTROLLATO),
         "titolo": nome, "sottotitolo": "CVE sui PC che hanno oggi il programma",
         "dati": cve_pannello.per_programma(key), "qui": request.get_full_path(),
     })
@@ -933,3 +1114,47 @@ def cve_pannello_cve(request, cve_id):
     if dati is None:
         raise Http404
     return render(request, "security/partials/cve_pannello_cve.html", {"d": dati, "ritorno": _ritorno(request)})
+
+
+@require_POST
+def cve_ai(request, cve_id):
+    """Spiegazione della CVE dall'AI locale (con le fonti web se chieste), nel riquadro del pannello."""
+    if not can_view_security_center(request.user):
+        return _pannello_negato()
+    from .services.ai_risoluzione import spiega_cve
+
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    ai = spiega_cve(record, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+
+
+@require_POST
+def rischi_revoca_bulk(request):
+    """Revoca insieme le accettazioni del rischio selezionate (stesso motivo per tutte)."""
+    from .models import SecurityAccettazioneRischio
+    from .services import accettazione_rischio
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    ids = [int(v) for v in request.POST.getlist("acc_ids") if str(v).isdigit()]
+    motivo = request.POST.get("motivo", "").strip()
+    if not ids:
+        messages.error(request, "Nessuna accettazione selezionata.")
+        return _redirect_sicuro(request, reverse("security:accettazioni_rischio"))
+    fatte, errori = 0, []
+    for acc in SecurityAccettazioneRischio.objects.filter(pk__in=ids).select_related("cve"):
+        try:
+            accettazione_rischio.revoca(acc, user=request.user, motivo=motivo, request=request)
+            fatte += 1
+        except ValueError as exc:
+            errori.append(f"{acc.cve.cve_id}: {exc}")
+    if fatte:
+        messages.success(request, f"{fatte} accettazion{'e' if fatte == 1 else 'i'} del rischio revocat{'a' if fatte == 1 else 'e'}: l'esposizione torna a contare per il termine di correzione.")
+    if errori:
+        messages.error(request, "Non revocate: " + "; ".join(errori[:5]))
+    return _redirect_sicuro(request, reverse("security:accettazioni_rischio"))

@@ -3,9 +3,9 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
+    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza azioni rapide scorciatoie tour cataloghi sapere copertine guide tabelle viste colonne filtri schede scorrere lato",
     "url": "dashboard_home",
-    "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
+    "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/sapere/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
     "uso": [
         {
@@ -45,9 +45,14 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "La barra in alto contiene i moduli divisi per area. Vedi solo quelli che puoi usare.",
+                    "«Moduli» apre l'elenco completo. La stella accanto a un modulo lo aggiunge a «Preferiti», la tendina "
+                    "subito a fianco; le stelle della home sono le stesse.",
+                    "Se la barra non entra nello schermo si adatta da sola: testi un po' più piccoli, ricerca e strumenti "
+                    "solo con l'icona e, se serve, le ultime voci in «Altro».",
+                    "La lampadina in alto a destra apre il Suggestion Corner.",
                     "Sotto la barra c'è il menu del modulo in cui ti trovi.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
-                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona o un documento scrivendo il nome.",
+                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP o un FAI scrivendo il nome.",
                 ]),
                 ("p", "Dal telefono:"),
                 ("ul", [
@@ -62,7 +67,16 @@ GUIDA = {
                     "Le schede dentro una pagina (per esempio quelle della scheda dipendente o della scheda asset) "
                     "funzionano allo stesso modo: un pulsante con la scheda aperta, che mostra l'elenco delle altre.",
                     "Le tabelle troppo larghe per lo schermo mostrano ogni riga come un riquadro: in alto il nome, "
-                    "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono.",
+                    "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono; se un campo ha più righe "
+                    "(es. le colonne di un profilo SNMP) stanno una sotto l'altra a destra del titolo.",
+                    "Le pagine non scorrono di lato: i pulsanti delle testate e i filtri vanno a capo. Solo i grafici e le "
+                    "griglie larghe (es. la matrice di Carichi macchina) scorrono di lato dentro il loro riquadro, come le "
+                    "tabelle con intestazioni su più righe che non si possono mostrare a riquadri.",
+                    "Nei moduli e nei form le colonne affiancate vanno una sotto l'altra: impostazioni, filtri e schede "
+                    "si compilano dall'alto in basso, senza campi schiacciati.",
+                    "Toccando un campo la pagina non si ingrandisce: i campi sul telefono hanno il testo più grande apposta.",
+                    "Pulsanti, filtri a pastiglia, briciole di pane, indici delle guide e sezioni da aprire sono alti "
+                    "almeno quanto un dito: si toccano senza prendere la voce accanto.",
                 ]),
                 ("p", "Prima di eliminare, togliere o fare un'azione che non si annulla, in tutti i moduli il portale "
                       "chiede conferma in una finestra al centro della pagina: il titolo dice cosa succede, sotto "
@@ -139,9 +153,11 @@ GUIDA = {
                 ("p", "La home ti mostra cosa devi fare oggi (richieste da approvare, scadenze, letture), i documenti utili e i collegamenti ai moduli. "
                       "La guida completa della home è nel collegamento qui sopra."),
                 ("ul", [
-                    "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali) e «Rifai il tour».",
+                    "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali e, per chi gestisce le consegne DPI, Banco consegne DPI) e «Rifai il tour».",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
+                    "Azioni rapide: in «⚙ Personalizza» scegli le tue (azioni come Segnala anomalia o moduli da aprire), le riordini con ↑ ↓ e le togli con ✕, fino a 12; «Torna alle predefinite» rimette quelle del tuo ruolo o del portale. Compaiono solo le pagine che i tuoi permessi ti fanno aprire. Senza scelte vedi lo standard: Le mie attività, Scadenzario e poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente (al massimo 6).",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
+                    "Stanza «Sapere»: in alto i «Cataloghi», raccolte di guide, documenti e collegamenti per argomento; «Tutti i cataloghi →» apre la pagina Cataloghi. Vedi solo i cataloghi e le voci aperti al tuo ruolo.",
                 ]),
             ],
         },
@@ -166,6 +182,11 @@ GUIDA = {
                     ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo. "
                      "In fondo al menu «Ripristina colonne predefinite» torna alle colonne e alle larghezze di partenza "
                      "(le viste salvate restano)."),
+                    ("Raggruppa ▾ (Security Center)", "divide le righe per il valore di una colonna (es. per PC, per patch, per CVE, per stato): "
+                     "ogni gruppo ha una riga con il nome, quante righe contiene e la freccia per aprirlo o chiuderlo; «Apri tutti» e «Chiudi tutti» "
+                     "sono in fondo al menu. Dove c'è la selezione multipla, la casella del gruppo seleziona tutte le sue righe. "
+                     "Una riga con più valori (es. una patch che corregge due CVE) compare in ogni gruppo: le copie sono più chiare e non selezionabili. "
+                     "La scelta resta salvata ed entra nelle viste. Il menu propone solo le colonne che hanno valori ripetuti."),
                     ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
                      "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
                      "Quando una vista è attiva il pulsante dice «Vista: nome»."),
@@ -183,6 +204,8 @@ GUIDA = {
                       "in fondo alla tabella il piede dice «Visualizzate 100 di 1.340 righe»; scorrendo fino in fondo "
                       "arrivano le successive, oppure usa «Mostra altre 100» o «Mostra tutte». Gli elenchi divisi in pagine "
                       "caricano la pagina successiva allo stesso modo."),
+                ("p", "La ricerca della tabella non è parola per parola: «dixi 80» trova anche «DIXI80» e «Dixi-80» "
+                      "(spazi, trattini, punti e barre non contano) e più parole valgono in qualunque ordine."),
                 ("nota", "Ricerca, filtri e ordinamento valgono sempre su tutte le righe, anche quelle non ancora "
                          "disegnate: alla prima ricerca il portale carica l'elenco completo (fino a 5.000 righe). "
                          "Senza una vista, filtri e ricerca valgono solo finché resti sulla pagina: ricaricando la tabella torna completa."),
@@ -192,8 +215,24 @@ GUIDA = {
             "id": "scadenzario",
             "titolo": "Lo Scadenzario globale",
             "blocchi": [
-                ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in una tabella sola, "
-                      "le scadute in cima. Contiene le scadute e quelle dei prossimi 90 giorni."),
+                ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in un posto solo. "
+                      "In alto i contatori (Scadute, Entro 30 giorni, 31–60, 61–90, Totale: contano le scadute e i prossimi 90 giorni; "
+                      "un clic aggiunge quella fascia al filtro, anche più di una insieme, un secondo clic la toglie; «Totale» le toglie tutte), sotto tre viste da scegliere con i pulsanti Calendario, Agenda ed Elenco."),
+                ("def", [
+                    ("Calendario", "si apre qui: il mese con lunedì come primo giorno, oggi nel cerchio blu. In ogni giorno le scadenze che ci stanno "
+                                   "(colore = fonte, sfondo rosso = scaduta) e «+N altre» per le restanti; il numero in alto a destra è rosso se c'è una scaduta, "
+                                   "arancio se scade entro 30 giorni. Clicca un giorno: a destra (sotto, da telefono) l'elenco completo di quel giorno; "
+                                   "«✕ chiudi» torna a «Oggi e i prossimi 7 giorni». Il riquadro «⚠ Scadute» mostra le 6 più vecchie e «Vedi tutte» apre l'elenco. "
+                                   "Con ‹ › o con le frecce ← → della tastiera cambi mese (fino a 24 mesi avanti o indietro), «Oggi» torna al mese corrente. Il calendario mostra anche le scadenze oltre i 90 giorni."),
+                    ("⛶ Schermo intero", "lo scadenzario copre tutta la finestra e il calendario riempie l'altezza: più grande è lo schermo, più scadenze si vedono in ogni giorno. "
+                                         "Resta attivo cambiando filtri, mese o vista; si esce con «✕ Esci dallo schermo intero» o con Esc. Per togliere anche le barre del browser, F11."),
+                    ("Agenda", "le settimane in fila: prima le Scadute, poi «Questa settimana», «La prossima settimana» e le seguenti, giorno per giorno."),
+                    ("Anno", "i 12 mesi affiancati: ogni giorno colorato per numero di scadenze (più scuro = più scadenze, bordo rosso = ci sono scadute), "
+                             "festivi in rosso. Per programmare audit, rinnovi e ferie. Clic su un giorno: apre il mese con quel giorno già aperto; clic sul nome del mese: il mese."),
+                    ("Elenco", "la tabella di sempre, 50 righe per pagina."),
+                    ("Andamento", "solo per chi gestisce lo scadenzario: le scadute e quelle entro 30 giorni nel tempo, da tutte le fonti (ogni mattina il portale ne fa una fotografia), "
+                                  "e per ogni fonte il numero di oggi, di 30 e di 90 giorni prima. Per il riesame della direzione."),
+                ]),
                 ("def", [
                     ("Personale (HR)", "qualifiche, visite mediche, corsi obbligatori, contratti a termine e periodi di prova. Le stesse voci dello Scadenzario di Anagrafica."),
                     ("Asset", "scadenze amministrative (revisioni, certificati), licenze software e contratti di assistenza."),
@@ -201,14 +240,27 @@ GUIDA = {
                     ("DPI", "i DPI consegnati e non ancora sostituiti, alla data di fine vita utile."),
                     ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
                     ("Azioni CAPA", "le azioni aperte con una scadenza; chi non gestisce le CAPA vede solo le proprie."),
+                    ("Altre fonti", "sistema di gestione (certificazioni, audit, CAR, efficacia, auditor, SoA, rischi OT), qualifiche di processo MOD.128 e abilitazioni macchina, documenti di enti e docenti e verifica NC a 6 mesi, SOC (azioni correttive, accettazioni del rischio), revisione degli amministratori di sistema, prese visione (guida «Scadenzario»)."),
+                    ("Scadenze generiche", "certificati, contratti e altre attività fuori dagli altri moduli, con avvisi per mail e rinnovi (guida «Scadenzario»)."),
                 ]),
                 ("ul", [
-                    "Vedi solo le fonti che puoi aprire: se non hai accesso alle visite mediche, le visite non compaiono.",
-                    "Filtri: Sorgente, Stato (Scadute, Entro 30, 60 o 90 giorni) e Reparto; «⬇ CSV» scarica le righe filtrate.",
-                    "«⬇ Calendario (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
+                    "Vedi le fonti che puoi aprire più quello che il pannello «⚙ Gestione» ti concede (per ruolo, ruolo aziendale o persona); il pannello può anche togliere voci a tutti.",
+                    "Filtri, tutti a scelta multipla e validi in tutte le viste: le fasce dai contatori; le fonti dalle etichette colorate (un clic aggiunge o toglie una fonte, ✕ sulle scelte) "
+                    "o dalla tendina «Fonti»; i reparti dalla tendina «Reparti» (spunta, poi «Applica» o chiudi la tendina); «Cerca» trova persona, asset, attività o reparto (Invio). "
+                    "Ogni contatore conta con gli altri filtri ma non con il proprio, così vedi quante scadenze aggiungeresti. «✕ Togli tutti i filtri» riparte da zero. «⬇ CSV» scarica le righe filtrate.",
+                    "«⬇ Outlook (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
                     "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",
                     "Per averle sempre aggiornate in Outlook: Impostazioni notifiche → «Le mie scadenze nel calendario Outlook».",
-                    "Il nome nella colonna Soggetto apre la pagina dove la scadenza si gestisce. Qui si guarda soltanto: niente si modifica.",
+                    "Una scadenza (nel pannello del giorno, nell'agenda o il nome nella colonna Soggetto dell'elenco) apre la pagina dove si gestisce.",
+                    "«👤 Me ne occupo io» (sotto la scadenza, nel pannello del giorno e nell'agenda): la scadenza compare a tutti con il tuo nome e la nota (＋ nota); «✕ Lascia» la libera. "
+                    "Chi gestisce lo scadenzario può liberare quelle degli altri; «Subentro io» prende il posto di chi l'aveva. Se la scadenza cambia data (rinnovo) la presa in carico decade da sola.",
+                    "«✓ Rinnovato oggi» (solo scadenze generiche, per chi gestisce la categoria): registra il rinnovo con la data di oggi e calcola la prossima scadenza; per un'altra data o un allegato si usa la scheda.",
+                    "«→ Assegna» (per chi ha la scadenza o gestisce lo scadenzario): affida la scadenza a un collega, che riceve una notifica. In Home, «Cose da gestire» mostra «Le mie scadenze»: scadute ed entro 7 giorni, senza quelle sanitarie.",
+                    "«👤 Solo le mie»: le scadenze col tuo nome, di cui sei responsabile o che hai preso in carico.",
+                    "«★ Viste»: salva i filtri e la vista attuali con un nome e li richiami con un clic; con ☆ una vista diventa quella che si apre entrando nello scadenzario (★ = attiva).",
+                    "Festivi (nazionali, Pasqua e Pasquetta, santo patrono se impostato) in rosso nel calendario; una scadenza che cade di sabato, domenica o festivo mostra «⚠ domenica», «⚠ Natale»…",
+                    "«🖨 Stampa»: stampa o salva in PDF la vista (dal dialogo di stampa «Salva come PDF»), in orizzontale, con i filtri attivi in testa; il mese aggiunge l'elenco delle sue scadenze su una seconda pagina.",
+                    "In schermo intero, «⟳ Aggiorna No / 5 / 10 / 15 min» ricarica da sola la pagina: per un monitor d'ufficio (non ricarica mentre stai scrivendo o una tendina è aperta).",
                 ]),
             ],
         },
@@ -235,6 +287,11 @@ GUIDA = {
                 ("ul", [
                     "Moduli visibili: Amministrazione → Hub → «Moduli» (accendi o spegni un modulo per tutti).",
                     "Voci del menu: Amministrazione → «Navigation Builder».",
+                    "Azioni rapide della home: Amministrazione → «Azioni rapide della home». Imposti la lista «Predefinite per tutti», "
+                    "una lista per ruolo («Predefinite per ruolo») e la lista di singole persone o di tante insieme («Per persona»: "
+                    "cerca o filtra per ruolo, «Seleziona le visibili», poi «Imposta la lista alle selezionate»). Vince la più "
+                    "specifica: persona → ruolo → tutti → standard. «Riporta alle predefinite» toglie la lista personale. "
+                    "Ognuno vede solo le voci che i suoi permessi gli fanno aprire e può sempre cambiarle da «⚙ Personalizza».",
                     "Logo, nomi e colori: Amministrazione → «Branding portale».",
                     "Cosa vede ogni persona dipende dai permessi: vedi la guida «Amministrazione del portale».",
                 ]),
@@ -254,7 +311,7 @@ GUIDA = {
                     "Il server deve poter uscire su internet in https (porta 443) verso fcm.googleapis.com, *.push.services.mozilla.com, "
                     "*.notify.windows.com e *.push.apple.com. Il traffico contiene solo il segnale, mai il testo della notifica.",
                     "Gli invii partono dal qcluster (django-q): senza qcluster attivo le push non partono, la campanella sì.",
-                    "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30), disattivabile dalla Centrale di comando.",
+                    "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30): si sospende fino a una data o si disattiva da Automazioni → Pianificati → «Digest e promemoria».",
                     "Il calendario Outlook delle scadenze è il task «scadenze_outlook_sync» (ogni giorno 6:30): scrive nelle caselle con il "
                     "permesso Graph Calendars.ReadWrite (applicazione), lo stesso degli incontri KICK-OFF. L'ultimo errore di ogni persona "
                     "compare nella sua pagina Impostazioni notifiche.",
@@ -264,6 +321,28 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un'azione rapida impostata dall'amministratore non compare nella mia home",
+            "fare": [
+                "Le azioni rapide mostrano solo le pagine che i tuoi permessi ti fanno aprire: se non hai il permesso, la voce resta nascosta.",
+                "Se hai scelto tu le tue azioni rapide (in «⚙ Personalizza» c'è scritto «Scelte da te»), le liste dell'amministratore "
+                "non ti toccano: «Torna alle predefinite» ti rimette quelle del ruolo o del portale.",
+                "Controlla che il riquadro «Azioni rapide» sia spuntato in «Riquadri da mostrare».",
+            ],
+        },
+        {
+            "sintomo": "Ho salvato un modulo, è comparso un errore e i campi si sono svuotati",
+            "fare": [
+                "Il portale ricorda quello che hai scritto: se dopo «Salva» compare un messaggio di errore, i campi vengono "
+                "riempiti di nuovo e compare «Ho rimesso nei campi i dati che avevi inserito». Correggi il valore indicato e salva.",
+                "Vale anche tornando indietro con il pulsante «Indietro» del browser subito dopo l'errore o da una "
+                "pagina «Accesso negato», e quando la pagina rifiuta il modulo senza un messaggio riconoscibile.",
+                "Se l'errore ti porta su un'altra pagina (per esempio «carica prima il documento»), i dati tornano nei campi "
+                "quando riapri il modulo, entro 30 minuti.",
+                "Non vengono ricordati i file allegati, le password e i PIN: quelli vanno scelti di nuovo.",
+                "I dati restano solo in quella scheda del browser e per 30 minuti: chiudendo la scheda si perdono.",
+            ],
+        },
         {
             "sintomo": "Mi arriva «Accesso da un nuovo dispositivo» ma ero io",
             "fare": [
@@ -303,7 +382,7 @@ GUIDA = {
             "fare": [
                 "Chiedi il messaggio esatto che vede.",
                 "«Credenziali non valide»: la password è quella del PC; se l'ha appena cambiata, attenda qualche minuto.",
-                "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito, dal terminale del Setup Wizard: axes_reset_username <nome utente>.",
+                "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito: Amministrazione → «Accessi bloccati» → «Sblocca» (o, dal terminale del Setup Wizard, axes_reset_username <nome utente>).",
                 "L'utente non esiste: va creato o importato da Active Directory (Amministrazione → Import Utenti LDAP).",
                 "Se nessuno riesce a entrare, apri il Manuale di emergenza → «Nessuno riesce a entrare».",
             ],
@@ -335,6 +414,9 @@ GUIDA = {
                 "Controlla che il modulo sia acceso (Amministrazione → Hub → «Moduli»).",
                 "Stanza «Moduli» della home vuota o incompleta: con «Ruoli e permessi» attivo le tessere seguono "
                 "«Cosa vede questa persona» (azione «Vedere»); dai il ruolo giusto lì, non il ruolo storico della scheda utente.",
+                "I numeri delle tessere e della Hub Preview contano solo i dati che la persona vede nel modulo "
+                "(es. «Anomalie aperte» con la stessa visibilità dell'elenco anomalie, «Approvazioni» come il badge in alto): "
+                "se due persone leggono numeri diversi è per l'ambito del loro ruolo, non un errore.",
                 "Controlla i suoi permessi: Amministrazione → «Accessi negati» mostra ogni pagina bloccata con il motivo e i pulsanti «Consenti» / «Non consentire».",
             ],
         },

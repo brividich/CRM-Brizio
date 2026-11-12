@@ -39,6 +39,11 @@
   ul,ol{margin:8px 0;padding-left:22px}li{margin:4px 0}
   .muted{color:var(--muted);font-size:12.5px}
   footer{max-width:920px;margin:0 auto;padding:10px 22px 40px;color:var(--muted);font-size:12px}
+  @media (max-width:720px){
+    section{padding:16px}
+    table{display:block;overflow-x:auto}
+    code{overflow-wrap:anywhere}
+  }
 </style>
 </head>
 <body>
@@ -52,6 +57,7 @@
 <nav>
   <b>Indice</b>
   <a href="#intro">1. Cos'è</a>
+  <a href="#catalogo">Il catalogo per cartella</a>
   <a href="#stati">2. Stati e ciclo di vita</a>
   <a href="#flusso">3. Il flusso passo-passo</a>
   <a href="#ruoli">4. Ruoli e permessi</a>
@@ -68,6 +74,27 @@
   <h2>1. Cos'è</h2>
   <p>Il modulo digitalizza il <strong>Flusso Specifiche + MOD.133</strong>: dalla ricezione/creazione di una specifica cliente (o comunicazione, piano di qualità) fino alla sua messa in validità, distribuzione tracciata e verifica periodica, passando per il <strong>flow-down dei requisiti</strong> (analisi degli impatti sui documenti e sull'operatività) formalizzato nel modulo <strong>MOD.133</strong>.</p>
   <p>Principi di fondo: <strong>audit immutabile</strong> di ogni evento, <strong>separazione dei compiti</strong> (chi compila ≠ chi approva), <strong>documenti controllati</strong> (revisioni, copie cartacee, obsolescenza) e <strong>l'AI che propone, l'umano che firma</strong>.</p>
+</section>
+
+<section id="catalogo">
+  <h2>Il catalogo: una copertina per cartella</h2>
+  <p>Il cruscotto mostra le specifiche come la libreria CN-SGI: <strong>una copertina per ogni cartella</strong> della cartella delle specifiche sulla share (di solito una per cliente). Sopra il nome compare il cliente collegato in «Mappatura cliente-cartella»; sotto, quante specifiche ci sono, le nuove degli ultimi 30 giorni e quelle da prendere in carico, in scadenza di verifica o sospese.</p>
+  <ul>
+    <li>Una specifica sta nella cartella del suo PDF. Se non ha un PDF collegato, sta nella cartella mappata al suo cliente; altrimenti in «Senza cartella».</li>
+    <li>Clicca una copertina per l'elenco della cartella: la ricerca cerca solo lì e «Nuova per …» apre una specifica con il cliente già scritto. «Tutte le cartelle» torna alle copertine.</li>
+    <li>Con più di 8 cartelle compare «Trova una cartella o un cliente…».</li>
+    <li>La ricerca e i filtri (cliente, stato, tipo) mostrano subito l'elenco su tutte le cartelle. «Copertine» / «Elenco» cambia la vista e il portale ricorda la scelta; «Mostra storico» include le superate, annullate e respinte.</li>
+    <li>L'amministrazione del modulo, dentro una cartella, con «Personalizza copertina» sceglie colore, sigla, icona e logo.</li>
+  </ul>
+  <h3>Sempre allineato alla cartella</h3>
+  <p>Ogni 15 minuti il portale elenca i PDF della cartella delle specifiche (esclusa <code>_SUPERATO</code>), <strong>senza modificarla</strong>:</p>
+  <ul>
+    <li>un PDF che nel catalogo non c'è diventa una <strong>specifica in bozza</strong>: codice e revisione dal nome del file (<code>15500 REV.1.pdf</code>), cliente dalla cartella, PDF collegato. Chi prende in carico le specifiche riceve l'avviso (oltre 10 insieme, un solo avviso riassuntivo);</li>
+    <li>una revisione più recente di una specifica esistente diventa la sua <strong>nuova revisione</strong>, in bozza, collegata alla precedente;</li>
+    <li>un file spostato o rinominato con lo stesso codice e revisione viene <strong>ricollegato</strong>;</li>
+    <li>restano fuori i MOD.133/MOD.134 compilati, i file senza codice, le revisioni non più recenti e i doppioni: l'elenco con il motivo è in «Amministrazione» → «Sincronizzazione con la cartella».</li>
+  </ul>
+  <p>Il <strong>primo giro</strong> fotografa l'archivio: i PDF già nella cartella entrano <strong>in validità</strong> (la revisione più alta; le precedenti superate), senza avvisi. In «Amministrazione» → «Sincronizzazione con la cartella» si accende o spegne la sincronizzazione e c'è «Sincronizza ora».</p>
 </section>
 
 <section id="stati">

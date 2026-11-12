@@ -1,0 +1,18 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Ricerca · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Ricerca{% endblock %}
+{% block cn_h1 %}Ricerca{% endblock %}
+{% block cn_guida_anchor %}#ricerca{% endblock %}
+{% block cn_body %}
+<form method="get" id="cn-form-cerca" action="{% url 'procedure_refresh:libreria_cerca' %}"
+      hx-get="{% url 'procedure_refresh:libreria_cerca' %}" hx-target="#cn-risultati" hx-swap="innerHTML"
+      hx-trigger="input changed delay:250ms from:#cn-q, change, submit" hx-push-url="true" hx-indicator="#cn-cerca-ind">
+  <div class="cn-search" role="search" style="margin-bottom:18px">
+    <span aria-hidden="true">⌕</span>
+    <input id="cn-q" name="q" type="search" value="{{ q }}" aria-label="Codice, titolo o frase" placeholder="Codice, titolo o frase: i risultati arrivano mentre scrivi" autocomplete="off"{% if not q %} autofocus{% endif %} data-cn-ricorda>
+    <span id="cn-cerca-ind" class="cn-ind" aria-hidden="true">…</span>
+    <button class="cn-btn pri" type="submit">Cerca</button>
+  </div>
+  <div id="cn-risultati" aria-live="polite">{% include "procedure_refresh/libreria/_risultati.html" %}</div>
+</form>
+{% endblock %}

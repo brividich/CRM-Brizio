@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida Scadenzario | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+{% include "scadenzario/components/stile.html" %}
+<style>
+.sg-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; align-items:start; }
+.sg-indice { position:sticky; top:72px; font-size:13px; }
+.sg-indice ol { margin:0; padding-left:20px; display:flex; flex-direction:column; gap:5px; }
+.sg-indice a { color:var(--text,#0f172a); text-decoration:none; }
+.sg-indice a:hover { text-decoration:underline; }
+.sg-testo { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.sg-sez { scroll-margin-top:72px; }
+.sg-sez h2 { margin:0 0 8px; font-size:17px; }
+.sg-sez p, .sg-sez li, .sg-sez dd { font-size:14px; line-height:1.6; }
+.sg-sez ol, .sg-sez ul { padding-left:22px; }
+.sg-sez dl { display:grid; grid-template-columns:minmax(150px,240px) minmax(0,1fr); gap:6px 16px; margin:8px 0; }
+.sg-sez dt { font-weight:700; font-size:14px; line-height:1.6; }
+.sg-sez dd { margin:0; }
+.sg-nota { margin:10px 0; padding:10px 14px; border-radius:10px; font-size:13px; line-height:1.5; background:var(--surface-alt,#fff7ed); border:1px solid var(--border,#fdba74); }
+.sg-fig { margin:10px 0; }
+.sg-fig img { display:block; max-width:100%; height:auto; border:1px solid var(--border,#e2e8f0); border-radius:8px; }
+.sg-fig figcaption { font-size:12px; color:var(--text-light,#64748b); margin-top:4px; }
+@media (max-width:900px) { .sg-layout { grid-template-columns:1fr; } .sg-indice { position:static; } .sg-sez dl { grid-template-columns:1fr; gap:2px; } .sg-sez dd { margin-bottom:8px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Guida · {{ titolo }}</h1>
+      <div class="sz-sub">{{ sottotitolo }}</div>
+    </div>
+    <div><a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:guida' %}?formato=pdf">Scarica PDF</a></div>
+  </div>
+  {% include "scadenzario/components/nav.html" with attiva="guida" %}
+
+  <div class="sg-layout">
+    <nav class="sz-card sg-indice" aria-label="Indice della guida">
+      <ol>{% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}</ol>
+    </nav>
+    <div class="sg-testo">
+      {% for sez in sezioni %}
+      <section class="sz-card sg-sez" id="{{ sez.id }}">
+        <h2>{{ forloop.counter }}. {{ sez.titolo }}</h2>
+        {% for tipo, contenuto in sez.blocchi %}
+          {% if tipo == "p" %}<p>{{ contenuto }}</p>
+          {% elif tipo == "ul" %}<ul>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ul>
+          {% elif tipo == "passi" %}<ol>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ol>
+          {% elif tipo == "nota" %}<div class="sg-nota">{{ contenuto }}</div>
+          {% elif tipo == "def" %}<dl>{% for t, d in contenuto %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>
+          {% elif tipo == "img" %}<figure class="sg-fig"><img src="{% static contenuto.0 %}" alt="{{ contenuto.1 }}" loading="lazy"><figcaption>{{ contenuto.1 }}</figcaption></figure>
+          {% endif %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

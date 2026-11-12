@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -38,7 +38,7 @@
       {% if lacune %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">
-          <thead><tr><th>Persona</th><th>Mansione</th><th>Reparto</th><th>Esito</th><th>Livello</th><th>Cosa manca</th></tr></thead>
+          <thead><tr><th>Persona</th><th>Mansione</th><th>Reparto</th><th>Esito</th><th>Livello</th><th>Cosa manca</th><th class="fmd-r">Cosa fare</th></tr></thead>
           <tbody>
             {% for r in lacune %}
             <tr>
@@ -47,7 +47,12 @@
               <td class="fmd-muted">{{ r.reparto|default:"—" }}</td>
               <td>{% if r.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
               <td>{{ r.valutazione.livello|default:"—" }}</td>
-              <td class="fmd-muted" style="font-size:12.5px;">{{ r.valutazione.mancanze|join:" · "|default:"—" }}</td>
+              <td class="fmd-muted" style="font-size:12.5px;">{% if r.valutazione.mancanze %}{% include "anagrafica/partials/_mancanze_competenze.html" with val=r.valutazione %}{% else %}—{% endif %}</td>
+              <td class="fmd-r fmd-nowrap">
+                {% for c in r.corsi_mancanti %}{% if puo_iscrivere %}<form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ r.legacy_id }}"><input type="hidden" name="back" value="{{ request.get_full_path }}"><button type="submit" class="fmd-act" title="Crea una sessione di «{{ c.titolo }}» con la persona già iscritta">↻ Iscrivi a {{ c.titolo|truncatechars:24 }}</button></form>{% endif %}{% endfor %}
+                {% if puo_valutare %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}#persone" title="Apre la mansione: livelli per competenza">Valuta</a>{% endif %}
+                {% if not puo_valutare and not puo_iscrivere %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>

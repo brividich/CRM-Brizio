@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -25,6 +25,8 @@
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-alarm"/></svg>Scadenzario qualifiche</h1>
           <p class="fmd-sub">Tutte le qualifiche e certificazioni dei dipendenti con stato di validità. I promemoria email sono gestiti dal <a href="{% url 'automazioni:automazioni_settings' %}" class="fmd-data-link">report scadenze (automazioni)</a>.</p>
           <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
+            <a class="fmd-btn-template" href="{% url 'scadenze_globali' %}?sorgente=hr" title="Queste scadenze insieme a quelle di tutti gli altri moduli">Scadenzario generale</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_dashboard' %}">
               <svg class="fmd-ico"><use href="#i-cap"/></svg>Torna al cruscotto
             </a>
@@ -62,6 +64,13 @@
             {% endfor %}
           </select>
         </label>
+        {% if filtro_centro.scelte %}<label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Centro di costo
+          <select name="centro" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;max-width:220px;">
+            <option value="">Tutti</option>
+            {% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}
+            <option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro di costo</option>
+          </select>
+        </label>{% endif %}
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Reparto
           <select name="reparto" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
             <option value="">Tutti</option>
@@ -72,7 +81,7 @@
         </label>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a class="fmd-btn fmd-btn-ghost"
-           href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}">
+           href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}{{ filtro_centro.suffisso }}">
           <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV
         </a>
         <span class="fmd-spacer"></span>
@@ -98,6 +107,7 @@
             <span style="flex:1 1 auto;">{{ g.tipo_nome }}</span>
             {% if g.n_scadute %}<span class="fmd-badge fmd-b-red">{{ g.n_scadute }} scadut{{ g.n_scadute|pluralize:"a,e" }}</span>{% endif %}
             <span class="fmd-badge fmd-b-cyan">{{ g.n_totale }} dipendent{{ g.n_totale|pluralize:"e,i" }}</span>
+            {% if g.voci.0.tipo_id %}<a class="fmd-act" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ g.voci.0.tipo_id }}" title="Crea una sessione di rinnovo di «{{ g.tipo_nome }}» per più persone insieme" onclick="event.stopPropagation();">↻ Sessione di rinnovo</a>{% endif %}
           </summary>
           <div style="border-top:1px solid #eef2f7;overflow-x:auto;">
             <table class="fmd-table" style="margin:0;">
@@ -114,6 +124,7 @@
                     {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
                     {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
                   </td>
+                  <td class="fmd-act-cell">{% if v.stato == "scaduta" or v.stato == "s30" or v.stato == "s60" %}<a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo di «{{ g.tipo_nome }}» precompilato">↻ Rinnova</a>{% endif %}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -175,11 +186,11 @@
               </td>
               <td>
                 {% if v.verificata %}<span class="fmd-badge fmd-b-green">✓ Verif.</span>
-                {% elif v.ha_evidenza %}<span class="fmd-badge fmd-b-amber">Da verif.</span>
+                {% elif v.ha_evidenza %}<a class="fmd-badge fmd-b-amber" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}#scheda-ruolo" title="Apri la scheda alle qualifiche per verificare l'evidenza" style="text-decoration:none;">Da verif.</a>
                 {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
               <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
+                <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
               </td>
             </tr>
             {% endfor %}

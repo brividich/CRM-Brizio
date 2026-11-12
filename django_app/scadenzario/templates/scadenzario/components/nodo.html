@@ -1,0 +1,14 @@
+{% load scadenzario_tags %}
+{% with cfg=voci_cfg|voce:nodo.chiave n=regole_per_chiave|n_regole:nodo.chiave %}
+<li class="gz-nodo{% if not nodo.presente %} gz-assente{% endif %}" data-testo="{{ nodo.etichetta|lower }}"{% if cfg or n %} data-imp="1"{% endif %}>
+  {% if nodo.figli %}<details{% if selezione and selezione.chiave|startswith_key:nodo.chiave %} open{% endif %}><summary>{% endif %}
+  <a href="?chiave={{ nodo.chiave|urlencode }}" class="gz-link{% if selezione and selezione.chiave == nodo.chiave %} on{% endif %}">{{ nodo.etichetta }}</a>
+  {% if nodo.n_voci %}<span class="sz-muted">{{ nodo.n_voci }}</span>{% endif %}
+  {% if cfg.attiva is False %}<span class="sz-pill sz-scaduta">spenta</span>{% elif cfg.attiva is True %}<span class="sz-pill sz-ok">accesa</span>{% endif %}
+  {% if cfg.modalita == "REGOLE" %}<span class="sz-pill sz-vicina">solo regole</span>{% endif %}
+  {% if n %}<span class="sz-pill sz-blu">{{ n }} regol{{ n|pluralize:"a,e" }}</span>{% endif %}
+  {% if nodo.figli %}</summary>
+    <ul>{% for figlio in nodo.figli %}{% include "scadenzario/components/nodo.html" with nodo=figlio %}{% endfor %}</ul>
+  </details>{% endif %}
+</li>
+{% endwith %}

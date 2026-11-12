@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_info_styles.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
@@ -101,7 +101,7 @@ body.theme-dark .sm-empty{color:var(--text-mid)}
 
   <div class="sm-tabs">
     <span class="sm-tab active">Macchina</span>
-    <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Processi qualificati</a>
+    <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Matrice qualifiche</a>
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Skill Matrix in sintesi">

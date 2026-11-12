@@ -139,10 +139,12 @@ from ._tooling import (  # noqa: F401
 )
 from .gantt import (  # noqa: F401
     project_gantt,
+    project_quick_task,
     project_gantt_add_dependency,
     project_gantt_clear_baseline,
     project_gantt_fix_baseline,
     project_gantt_remove_dependency,
+    project_gantt_move_task,
     project_gantt_shift_task,
     project_gantt_update_task,
 )
@@ -163,6 +165,7 @@ from .meetings import (  # noqa: F401
     project_decisions,
     project_meeting_action_status,
     project_meeting_agenda_item_add,
+    project_meeting_agenda_item_delete,
     project_meeting_agenda_item_task_create,
     project_meeting_agenda_item_update,
     project_meeting_agenda_toggle,
@@ -195,6 +198,7 @@ from .projects import (  # noqa: F401
     copy_project_with_vrf,
     copy_project_with_vrf_without_pn,
     project_create,
+    project_edit,
     project_list,
     project_set_phase,
 )
@@ -257,3 +261,22 @@ from .mie_azioni import (  # noqa: F401
     mia_voce_stato,
     mie_azioni,
 )
+
+from .fai import fai_op, fai_registro, fai_scheda  # noqa: F401,E402
+from .fai_report import fai_report, fai_report_scarica  # noqa: F401,E402
+from .tech_refs import (  # noqa: F401,E402
+    fai_non_richiesto,
+    programmi_registro,
+    project_tech_refs,
+    task_programma,
+    tech_ref_action,
+    tech_ref_save,
+    programma_fase,
+)
+from .tappe import tappa_anteprima, tappa_azione, utensili_azione  # noqa: F401,E402
+from .projects import project_chiudi  # noqa: F401,E402
+from .cruscotto import cruscotto_commesse  # noqa: F401,E402
+from .sale import sala_verifica, sale_disponibilita  # noqa: F401,E402
+from .meetings import project_meeting_send_outlook  # noqa: F401,E402
+from .spostamenti import spostamento_annulla, spostamento_decidi  # noqa: F401,E402
+from .azioni_rapide import task_azione_rapida  # noqa: F401,E402

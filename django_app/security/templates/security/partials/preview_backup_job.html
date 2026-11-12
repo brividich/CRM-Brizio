@@ -1,0 +1,20 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge sec-badge-{{ job.tone }}">{{ job.last_label }}</span>{% if job.vendor %}<span class="sec-badge sec-badge-muted">{{ job.vendor|capfirst }}</span>{% endif %}</div>
+  <h2>{{ job.name }}</h2>
+  <p class="pv-sub">{% if job.nas %}{{ job.nas }} · {% endif %}ultimo esito {{ job.last_at|date:"d/m H:i" }} · ultimi {{ job.days }} giorni</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>Ultimo riuscito</dt><dd>{{ job.last_ok|date:"d/m H:i"|default:"mai nel periodo" }}</dd></div>
+  <div><dt>Riuscite</dt><dd>{% if job.rate is not None %}{{ job.rate|floatformat:0 }}% <small>{{ job.ok }}/{{ job.runs }}</small>{% else %}—{% endif %}</dd></div>
+  <div><dt>Dati medi</dt><dd>{% if job.avg_gb %}{{ job.avg_gb|floatformat:1 }} GB{% else %}—{% endif %}</dd></div>
+  <div><dt>Durata media</dt><dd>{% if job.avg_minutes %}{{ job.avg_minutes|floatformat:0 }} min{% else %}—{% endif %}</dd></div>
+</dl>
+<div class="bk-strip bk-strip-lg">{% for s in job.strip %}<i class="bk-dot bk-{{ s.tone }}" title="{{ s.at|date:'d/m H:i' }} · {{ s.label }}"></i>{% endfor %}</div>
+{% include "security/partials/backup_alert_azioni.html" with kind="job" nome=job.name giorni=job.days alerts=job.alerts %}
+{% if job.tickets %}<h3 class="pv-h">Ticket</h3><ul class="pv-list">{% for t in job.tickets %}<li><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:60 }}</a><span class="sec-badge {{ t.status }}">{{ t.status|ui_label }}</span></li>{% endfor %}</ul>{% endif %}
+{% if job.devices_list %}<h3 class="pv-h">Dispositivi</h3><ul class="pv-list">{% for d in job.devices_list|slice:":8" %}<li><a href="{% url 'security:pc_detail' %}?nome={{ d|urlencode }}">{{ d }}</a></li>{% endfor %}</ul>{% if job.devices_list|length > 8 %}<p class="sec-muted sec-small">e altri {{ job.devices_list|length|add:-8 }}.</p>{% endif %}{% endif %}
+<footer class="pv-foot">
+  <form method="post" action="{% url 'security:backup_bulk_case' %}">{% csrf_token %}<input type="hidden" name="action" value="case"><input type="hidden" name="jobs" value="{{ job.name }}"><button type="submit" class="sec-button sec-button-primary">Apri un ticket</button></form>
+  <a class="sec-button" href="{% url 'security:backup_log' %}?job={{ name_q }}&amp;giorni={{ job.days }}">Log del job</a>
+</footer>

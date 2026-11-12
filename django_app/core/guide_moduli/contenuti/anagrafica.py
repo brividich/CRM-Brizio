@@ -17,11 +17,22 @@ GUIDA = {
             "titolo": "Come è organizzato il menu",
             "blocchi": [
                 ("def", [
-                    ("Persone", "elenco dipendenti, nuovo dipendente, ex dipendenti, documenti, organigramma, reparti."),
-                    ("Competenze", "formazione (corsi, sessioni, e-learning, copertura) e skill matrix."),
-                    ("Salute e sicurezza", "cruscotto sicurezza, visite mediche, idoneità, mansioni di rischio. Sulle pagine "
-                                           "della sezione, sotto il menu compare una seconda riga con le sue parti "
-                                           "(Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI)."),
+                    ("Due righe", "la prima riga ha le grandi sezioni: un clic apre la sezione. La seconda riga mostra "
+                                  "le sue parti a sinistra e le pagine della parte scelta a destra. Il numero arancione "
+                                  "indica le cose da gestire. Se lo schermo è stretto, le righe si adattano da sole."),
+                    ("Persone", "Dipendenti (elenco, il mio team, nuovo dipendente, ex dipendenti, documenti) e Ingressi "
+                                "(recruiting, posizioni aperte, onboarding)."),
+                    ("Organizzazione", "Struttura (struttura organizzativa, esplora la struttura, organigramma, prospetto "
+                                       "dei cambiamenti, mansionario) e Reparti e costi (reparti, centri di costo)."),
+                    ("Competenze", "Formazione (corsi, sessioni, e-learning, copertura), Qualifiche e Abilitazioni "
+                                   "(matrice competenze, abilitazioni macchina, refresh semestrale)."),
+                    ("Salute e sicurezza", "le parti Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI. "
+                                           "Il numero sulla sezione somma adempimenti aperti, scadenze scadute e referti "
+                                           "da rivedere; le visite scadute sono già tra le scadenze."),
+                    ("Numeri della dashboard", "dashboard HR, «In elenco» dei Dipendenti e cruscotto qualifiche contano solo "
+                                               "le persone che il tuo ruolo vede (propri, team o tutti); la formazione "
+                                               "compare solo a chi ha il permesso formazione. Le qualifiche contano solo "
+                                               "l'ultima per persona e tipo, senza gli ex dipendenti."),
                     ("Amministrazione", "due pagine: «Cedolini» (voci retributive del mese, con l'importazione del CSV "
                                         "dello studio paghe in fondo) e «Ferie e permessi» (saldi ferie, ROL ed ex festività, "
                                         "con l'importazione del file cedolini, anche da SharePoint, in fondo). L'import dei "
@@ -32,7 +43,7 @@ GUIDA = {
                 ("p", "Vedi solo le voci per cui hai il permesso. Le voci con un codice di modulo (es. «Processi "
                       "qualificati» = MOD.128, «Abilitazioni macchina» = MOD.187) lo spiegano al passaggio del mouse."),
                 ("p", "Sul telefono il menu è un pulsante sotto la barra in alto che mostra la pagina aperta: "
-                      "toccandolo si apre dal basso l'elenco di tutte le voci, divise come le tendine "
+                      "toccandolo si apre dal basso l'elenco di tutte le voci, divise per sezione "
                       "(Persone, Salute e sicurezza…), con «Filtra le voci» in cima."),
                 ("p", "Prima di eliminare, togliere o chiudere qualcosa il portale chiede conferma in una finestra al "
                       "centro della pagina: il titolo dice cosa succede, sotto c'è cosa resta. Il pulsante rosso "
@@ -51,6 +62,22 @@ GUIDA = {
                       "sulla mansione. Le azioni che chiudono o sospendono il rapporto (Avvia uscita dipendente…, "
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
+                ("p", "Nella scheda Anagrafica, riquadro «Anagrafica aziendale», chi amministra l'anagrafica preme "
+                      "«✏ Modifica»: si apre un pannello sulla destra con le schede Identità (nome, cognome, matricola, "
+                      "username, email per le notifiche), Badge e contatti, Rapporto di lavoro, Organico e privacy, "
+                      "Taglie. «Salva» registra tutte le schede insieme; «Annulla», ✕ o Esc chiudono senza salvare. "
+                      "Nome e cognome si salvano in maiuscolo e passano sull'account portale, lo username anche. Ogni "
+                      "correzione resta nel registro attività."),
+                ("p", "Reparto, area, mansione di rischio e ruolo si cambiano da «Spostamenti organizzativi»; un capo "
+                      "diverso da quello dell'organigramma si indica da «Coerenza capi». La data di cessazione non si "
+                      "scrive a mano: la registra «Avvia uscita dipendente…». Contratto e livello si cambiano dallo "
+                      "storico contratti."),
+                ("p", "«Escludi dai conteggi dell'organico» (pannello «✏ Modifica», scheda «Organico e privacy», con un motivo) serve "
+                      "per chi va tenuto in anagrafica ma non è organico: amministratore, RSPP esterno, consulenti. La "
+                      "persona resta negli elenchi e in formazione, visite, DPI e scadenze, ma non conta in: persone in "
+                      "forza (home e cruscotto), «Attivi» e organico per reparto dell'elenco, report Organico e "
+                      "turnover, Assunzioni e cessazioni, Parità di genere, indici infortuni. L'elenco mostra il riquadro "
+                      "«Fuori conteggio»; la scheda dice «Escluso» o «Conteggiato»."),
                 ("p", "Le schede sono nove: Riepilogo, Anagrafica, Ruolo e competenze, Contratto e retribuzione "
                       "(con l'Onboarding in fondo), Ferie e assenze (ratei dall'ultimo cedolino e storico assenze), "
                       "Formazione, Visite mediche, Documenti e Dotazioni (DPI, asset, licenze software e timbri; i "
@@ -106,6 +133,8 @@ GUIDA = {
                 ("p", "Anagrafica → Persone → «Il mio team» (anche dalla Dashboard reparto delle Assenze) elenca le persone "
                       "di cui sei responsabile: quelle della tua area aziendale, o del tuo reparto se l'area non ha un "
                       "responsabile. È la stessa regola che decide a chi arrivano le richieste di ferie."),
+                ("p", "Per ognuno vedi anche il centro di costo e i segnali di carico: unico operativo su una mansione, "
+                      "troppe mansioni, carico concentrato."),
                 ("p", "Per ognuno vedi area, mansione e il semaforo di conformità alla mansione; prima chi non è conforme, "
                       "poi chi ha adempimenti in scadenza. Nessun dato sanitario. Il nome apre la scheda solo se hai il "
                       "permesso di vederla."),
@@ -129,11 +158,75 @@ GUIDA = {
         },
         {
             "id": "scadenzario",
-            "titolo": "Scadenzario: filtrare per periodo",
+            "titolo": "Scadenzario: filtrare per periodo e agire dalla riga",
             "blocchi": [
                 ("p", "Oltre a tipo, stato e reparto, il menu «Periodo» mostra solo le scadenze di «Questo mese», del "
                       "«Prossimo mese» o di un «Intervallo…» (dal / al, anche una sola data). Con un periodo scelto il "
                       "filtro di stato non conta; l'export Excel/PDF dei risultati filtrati usa lo stesso periodo."),
+                ("p", "Ogni riga ha, a destra, un solo pulsante «↻ Rinnova», uguale in tutte le viste (Gruppi, Elenco, Affiancata):"),
+                ("ul", [
+                    "Visita medica → apre «Nuova giornata di visite» già sul tipo giusto (chi ha visita scaduta o mancante è proposto come candidato).",
+                    "Qualifica → apre «Nuova sessione di rinnovo» del tipo (solo per chi gestisce le qualifiche).",
+                    "Formazione → porta nella creazione della sessione del corso con la persona già iscritta (serve il permesso di modifica della formazione). In fondo alla pagina resta la selezione multipla per corso.",
+                    "Contratto → apre una finestra già compilata dall'ultimo contratto: inizio il giorno dopo la scadenza, stessa tipologia, livello e qualifica; la data di fine vuota vuol dire tempo indeterminato. Al salvataggio il contratto precedente resta nello storico della scheda e si torna allo scadenzario (solo utenti HR).",
+                    "Fine periodo di prova → «Apri scheda» sulla sezione Contratto: la prova non si rinnova, si conferma o si trasforma da lì.",
+                ]),
+                ("p", "Lo stesso pulsante compare nelle altre pagine del modulo accanto a ogni stato «scaduto», «mancante» o «senza»: porta sempre all'azione già precompilata, senza cercarla altrove."),
+            ],
+        },
+        {
+            "id": "passaggi",
+            "titolo": "Dopo un'azione: si torna da dove si era, o si va al passo dopo",
+            "blocchi": [
+                ("ul", [
+                    "«↻ Iscrivi» / «↻ Rinnova» di un corso (da mansione, lacune, libretto, scadenzari, piano del "
+                    "cambio mansione, onboarding): se il corso ha già un'edizione pianificata o in corso, la pagina "
+                    "propone «Iscrivi qui»; altrimenti si compila la nuova edizione. Dopo, sugli iscritti compare "
+                    "«← Torna a dove eri»; «Annulla» riporta alla pagina di partenza.",
+                    "«+ Visita» e «↻ Rinnova» delle visite: dopo aver registrato la giornata, «← Torna a dove eri».",
+                    "«↻ Rinnova» di una qualifica (da scadenzario, matrice, libretto, cruscotto, scheda qualifica): "
+                    "salvato il rinnovo nella scheda si torna alla pagina di partenza.",
+                    "Spostamento o cambio mansione: si torna sul riquadro «Spostamenti organizzativi» con il numero "
+                    "delle cose da fare; ogni voce del piano di adeguamento ha il suo pulsante («↻ Iscrivi» per un "
+                    "corso, «+ Visita», «Consegna DPI»). Se il piano non si genera compare un avviso. Gli stessi "
+                    "pulsanti sono nella pagina «Cambi mansione».",
+                    "Nuovo dipendente con «Avvia onboarding»: dopo il salvataggio si apre direttamente la pratica; se "
+                    "la pratica non parte compare un avviso.",
+                    "Onboarding: le voci automatiche (visita, corso, DPI, account) hanno il pulsante per farle; quando "
+                    "non resta niente da spuntare compare «✓ Chiudi la pratica».",
+                    "Registro presenze: in alto «Lezione N →» per la successiva; all'ultima, «Esiti e completamenti →».",
+                ]),
+            ],
+        },
+        {
+            "id": "conformita-qualifiche",
+            "titolo": "Conformità, libretto, qualifiche e onboarding: dal numero all'azione",
+            "blocchi": [
+                ("p", "Ogni numero si clicca e porta all'elenco già filtrato; ogni riga da sistemare ha il suo pulsante."),
+                ("ul", [
+                    "Dashboard HR: «Persone con formazione o visite scadute» apre la Conformità con solo i non conformi; "
+                    "nelle barre «Obblighi del personale» le voci «In scadenza», «Scaduti» e «Da acquisire» aprono il "
+                    "Libretto sanitario nella vista per requisito; «Mansioni da guardare» porta al Mansionario già "
+                    "filtrato (scoperte, uomo solo, concentrate).",
+                    "Libretto sanitario, vista per requisito: colonna «Azione» con «↻ Rinnova» per i corsi (sessione "
+                    "con la persona già iscritta), «+ Visita» per le visite (giornata di visite sul tipo giusto), "
+                    "«↻ Rinnova» per le qualifiche e «Apri DPI» per i DPI. Il pulsante compare solo a chi ha il permesso.",
+                    "Conformità alla mansione: i badge Formazione, Visite, Qualifiche e DPI aprono la scheda della "
+                    "persona sulla sezione giusta. Conta le stesse persone della dashboard: senza i cessati e solo le "
+                    "schede che il ruolo può vedere. Dalla pagina di una mansione di rischio, «Conformità / Idoneità» "
+                    "mostra solo chi ha quella mansione (in alto «mostra tutti» per togliere il filtro).",
+                    "Scheda dipendente, riquadro conformità: sotto ogni area non in regola «Vai alla sezione per "
+                    "sistemare →» apre la scheda giusta (Formazione, Visite mediche, Qualifiche, Dotazioni/DPI).",
+                    "Qualifiche: la scheda del tipo, l'elenco e la «Matrice qualifiche» contano solo la qualifica "
+                    "corrente di ogni persona (un rinnovo registrato a parte non lascia la vecchia «scaduta») e "
+                    "niente cessati: gli stessi numeri del cruscotto e dello scadenzario. I corsi della qualifica si "
+                    "aprono con un clic; dalla sessione di rinnovo il nome porta alla qualifica.",
+                    "Visite mediche: «Scadute» e «In scadenza» non contano i cessati, come lo scadenzario a cui "
+                    "portano. «Senza visita (da ruolo)» parte dai ruoli operativi del tipo di visita.",
+                    "Onboarding: «Ingressi a 30 giorni», «Fine prova a 30 giorni» e «Pre-ingresso» aprono l'elenco "
+                    "con solo quelle pratiche («mostra tutte» per tornare).",
+                    "Cruscotto MOD.128: «Processi in scadenza» e «Processi scaduti» portano alla tabella dei processi in scadenza.",
+                ]),
             ],
         },
         {
@@ -178,7 +271,7 @@ GUIDA = {
                     ("Persone", "prima l'elenco dei dipendenti, subito sotto i numeri; poi una scheda per reparto con l'organico per tipo di contratto (il clic filtra l'elenco)."),
                     ("Ingressi (Cruscotto recruiting)", "una scheda per posizione aperta con i candidati per fase dell'iter; sotto, gli onboarding aperti."),
                     ("Formazione", "una scheda per corso obbligatorio con la copertura e la prossima sessione."),
-                    ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
+                    ("Qualifiche", "si filtra anche per centro di costo, come Formazione e Visite; una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
                     ("Salute e sicurezza", "una scheda per mansione di rischio; con il permesso HR la barra dice quante persone sono in regola con tutti gli obblighi."),
                     ("Visite mediche", "una scheda per tipo di visita: in regola, entro 60 giorni, scadute, senza visita. Mai esiti o giudizi."),
                     ("Cedolini", "solo i cedolini: ultima mensilità, mensilità in archivio, dipendenti, righe e le righe dell'ultimo import (arancione se ne ha scartate; il clic porta alla sezione «Importazione»), poi la vista globale. Contratti e scadenze stanno nello Scadenzario, i saldi in «Ferie e permessi»."),
@@ -365,9 +458,12 @@ GUIDA = {
                       "mansione si assegna come nel Mansionario."),
                 ("p", "Il capo di una persona si cerca in quest'ordine: 1) eccezione indicata a mano sulla persona; "
                       "2) chi ha la «Responsabilità dell'area» della sua area; 3) chi ha la «Responsabilità del reparto» "
-                      "del suo reparto; 4) organigramma: chi ha un ruolo sopra quello della persona («riporta a») e lavora nella "
-                      "stessa area, poi nello stesso reparto, poi chi non ha un reparto (ruolo trasversale); se nessuno, "
-                      "si sale di livello: chi guida un altro reparto non diventa mai il capo. Nessuno è capo di sé stesso. "
+                      "del suo reparto; 4) organigramma produttivo: chi ricopre il ruolo a cui riporta il ruolo della persona "
+                      "(«riporta a»), anche in un altro reparto (Caporeparto → Operations Manager); contano solo i ruoli "
+                      "dell'assetto produttivo, non Preposto, Privacy Manager o gli altri organigrammi (45001, 27001…); "
+                      "fra più titolari stessa area, poi stesso reparto, poi chi non ha reparto, e il capo di un altro "
+                      "reparto non diventa mai il capo (si sale). L'eccezione sulla persona (pagina «Coerenza capi») "
+                      "cambia il capo a mano e vince su tutto. Nessuno è capo di sé stesso. "
                       "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
                       "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
                 ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Ruolo responsabile», "
@@ -397,6 +493,92 @@ GUIDA = {
                       "serve il motivo, la modifica va nel registro attività."),
                 ("nota", "Chi resta senza capo non ha nessuno che gli approvi le assenze: guarda il filtro «Senza capo» "
                          "dopo ogni modifica."),
+            ],
+        },
+        {
+            "id": "prospetto",
+            "titolo": "Prospetto dei cambiamenti",
+            "blocchi": [
+                ("p", "Persone → Prospetto dei cambiamenti: confronta «Oggi» e «Dopo» prima di cambiare la struttura. "
+                      "Finché non premi «Applica» non cambia niente."),
+                ("def", [
+                    ("Si prova", "reparto in un altro centro di costo; persona in un altro reparto (lascia o tiene le "
+                                 "mansioni); ruolo di una persona; persona su una mansione; mansione in un altro reparto."),
+                    ("Si confronta", "persone, RML e costo orario medio per centro e reparto; per mansione in lista, "
+                                     "operativi, teste equivalenti, carico e costo pesato; capi, ruoli scoperti e requisiti "
+                                     "delle persone spostate. RML e costo solo con il permesso sui dati HR riservati."),
+                    ("I segnali", "«Scoperta» = nessun operativo; «Uomo solo» = meno operativi della soglia della skill "
+                                  "matrix; «Carico concentrato» e «Su troppe mansioni» dalle soglie in Impostazioni Skill Matrix (di serie 80% e 8); «Persona "
+                                  "chiave» = unico operativo su una mansione."),
+                ]),
+                ("nota", "Il carico è un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore "
+                         "richieste da una mansione. RML e costo seguono la persona: spostarla cambia dove finisce il "
+                         "costo, non quanto vale. «Applica» passa dai percorsi normali e tiene l'esito di ogni riga."),
+            ],
+        },
+        {
+            "id": "esplora-struttura",
+            "titolo": "Esplora la struttura",
+            "blocchi": [
+                ("p", "Persone → Esplora la struttura: in una pagina sola la catena centro di costo → reparto → ruolo → "
+                      "mansione → competenza. Sola lettura, per chi vede la Struttura organizzativa."),
+                ("ul", [
+                    "Per scendere scegli una voce in una colonna; per risalire clicca un punto del percorso in alto.",
+                    "«Altre strade»: stesso ruolo in altri reparti, «riporta a» e «gli riporta», stessa mansione sotto "
+                    "un altro ruolo, stessa competenza su un'altra mansione, pagine già filtrate.",
+                    "«Cerca in tutta la struttura» trova ogni livello dal nome e ci salta sopra.",
+                    "Passare da un reparto o da un ruolo all'altro è immediato: la pagina non si ricarica e il ruolo e "
+                    "la mansione scelti restano, se esistono anche nella nuova voce. Si usano anche ‹ e › sopra il "
+                    "dettaglio, le frecce della tastiera (Invio sceglie) e, nelle liste lunghe, la casella «Filtra».",
+                    "La tabella delle persone cambia col punto scelto: capo, reparto, ruolo, livello, mansioni e segnali "
+                    "di carico, semaforo di conformità; a chi lavora sui dati HR anche contratto e costo orario del mese.",
+                    "Sul centro di costo trovi i suoi reparti con responsabile, persone e mansioni da guardare; sul "
+                    "reparto il responsabile e le mansioni da guardare.",
+                    "«Senza centro di costo», «Senza reparto» e «Senza ruolo» raccolgono quello che non è collegato.",
+                ]),
+                ("nota", "Un ruolo compare in un reparto se è previsto dall'elenco aziendale, se lo ricopre una persona "
+                         "del reparto o se una mansione del reparto sta sotto quel ruolo. Il numero a destra sono le "
+                         "persone in forza, come in «Reparti, aree e capi»."),
+            ],
+        },
+        {
+            "id": "centri-costo",
+            "titolo": "Centri di costo",
+            "blocchi": [
+                ("p", "Persone → Centri di costo: una scheda per centro con reparti, persone e ruoli. Un centro di costo "
+                      "può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'area aziendale del "
+                      "portale, l'unità in cui lavorano le persone."),
+                ("ul", [
+                    "«Modifica» sulla riga del reparto: «Centro di costo» (scegliere un altro centro lo toglie dal "
+                    "precedente) e «Ruoli del reparto». Il centro si sceglie anche in «Reparti, aree e capi», nella "
+                    "modifica dell'area.",
+                    "I «Ruoli del reparto» sono un'indicazione: non assegnano ruoli alle persone e non danno permessi.",
+                    "«Reparti senza centro di costo» elenca quelli da collegare; la Direzione può restare lì.",
+                    "«+ Nuovo centro di costo» crea un centro; «Modifica» sulla scheda cambia nome e descrizione o lo "
+                    "rende non attivo; «Elimina il centro di costo» funziona solo se non ha più reparti.",
+                ]),
+                ("nota", "Cambiare il centro di costo non sposta nessuno e non cambia i capi. Esporta dà una riga per "
+                         "reparto; anche l'export delle Aree aziendali ha la colonna «Centro di costo»."),
+                ("p", "Dove compare: scheda del dipendente, elenco Dipendenti (colonna da aggiungere alla vista), Report "
+                      "dipendenti (colonna e filtro), Costo orario e Storico (filtro ed export)."),
+                ("def", [
+                    ("Reportistica, filtro", "«Filtri sulle persone» → «Centri di costo» vale per tutte le sezioni del "
+                                             "documento."),
+                    ("Report «Carico sulle persone»", "chi è su troppe mansioni, unico operativo o su mansioni a carico "
+                                                      "concentrato, con le soglie di Impostazioni Skill Matrix. "
+                                                      "«Copertura delle mansioni» ora conta solo le persone in forza."),
+                    ("Modello pronto", "«Centri di costo: organico e costo orario» (Excel): organico, RML e andamento "
+                                       "per centro; le parti sul costo sono solo per chi ha il permesso sui dati HR "
+                                       "riservati."),
+                    ("Organico per centro di costo", "per centro i reparti, i «Ruoli del reparto», le persone e la %; "
+                                                     "chi non ha un centro va in «Senza centro di costo». La somma "
+                                                     "delle righe «Centro di costo» è il totale delle persone."),
+                    ("Altre sezioni", "colonna «Centro di costo» a scelta nelle sezioni con le persone; «Centro di "
+                                      "costo» anche in «Distribuzioni da mostrare», in «Dettaglio per» della formazione "
+                                      "erogata, in «Una riga per» e «Raggruppa i mesi per» del costo orario."),
+                ]),
+                ("nota", "Il centro di costo non ha uno storico: è quello di oggi dell'area della persona, anche per i "
+                         "mesi passati del costo orario."),
             ],
         },
         {
@@ -501,10 +683,10 @@ GUIDA = {
                     "riga; colonne «Sul mese prima» (€ e %), «Scostamento» (% dalla media dei mostrati: cambia con i "
                     "filtri), «Andamento» (mini-grafico); filtro «Mostra»: sopra/sotto la media, oltre ±10%, "
                     "aumentati, diminuiti.",
-                    "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, ricerca; «Esporta ▾» "
+                    "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, centro di costo, ricerca; «Esporta ▾» "
                     "(Excel o PDF; «tutto» = tutti i mesi).",
                     "«Storico»: una riga per dipendente e una colonna per mese (di serie gli ultimi 12), filtri Dal, "
-                    "Al, reparto e nome; ▲ ▼ rispetto al mese prima, «Variazione» in € e % nel periodo, «Media» di "
+                    "Al, reparto, centro di costo e nome; ▲ ▼ rispetto al mese prima, «Variazione» in € e % nel periodo, «Media» di "
                     "ogni mese; «Esporta ▾» con una colonna per mese.",
                     "Scheda del dipendente: ultimo valore nel riepilogo, ultimi 12 mesi con il calcolo tra le "
                     "retribuzioni e «Storico completo →».",
@@ -610,8 +792,11 @@ GUIDA = {
                       "operative e da assegnare e porta alla scheda. La vede chi vede il Mansionario e chi gestisce la "
                       "skill matrix. Report: «Excel per persona» nella Struttura organizzativa (o dalla scheda di un "
                       "reparto, solo quel reparto), anche nel Centro report."),
-                ("p", "Formazione per mansione lavorativa: nella scheda di un corso, «Regole di obbligatorietà» → "
-                      "«+ Aggiungi regola» → campo «Mansione lavorativa». Il corso diventa obbligatorio per chi è in lista "
+                ("p", "Formazione per mansione lavorativa: dalla scheda della mansione, scheda «Formazione» → «Collega un corso», "
+                      "oppure dalla scheda di un corso, «A chi serve questo corso». Si sceglie «Obbligatorio» o «Consigliato» "
+                      "(il consigliato resta come proposta, senza scadenze; si cambia con «Rendi obbligatorio/consigliato»). "
+                      "La scheda Formazione mostra per ogni corso chi in lista è in regola e «↻ Iscrivi chi manca»; in «Cosa manca» (scheda Persone della mansione e scheda persona del Mansionario) "
+                      "compaiono i corsi obbligatori non fatti con «↻ Iscrivi», e nella scheda persona anche i consigliati come proposta. Da obbligatorio vale per chi è in lista "
                       "sulla mansione nella skill matrix (anche in addestramento): scadenzario, fabbisogni, candidati del "
                       "corso, onboarding di chi riceve un ruolo con quella mansione e scheda della mansione («Formazione "
                       "obbligatoria per chi fa questa mansione»). Gli altri moduli leggono la struttura: scheda macchina "
@@ -722,8 +907,11 @@ GUIDA = {
                                          "Una mansione che serve a più ruoli compare sotto ciascuno. In fondo, in "
                                          "arancione, «Da collegare a un ruolo» raccoglie le mansioni senza ruolo."),
                     ("Cerca e filtri", "la casella «Cerca» trova per nome della mansione, persona, reparto, area, "
-                                       "ruolo o mansione di rischio; le tendine filtrano per reparto, area e persona; "
-                                       "«Macchine» e «Processi» per tipo. I riquadri «Senza operativi», «Senza ruolo», "
+                                       "ruolo o mansione di rischio; le tendine filtrano per centro di costo, reparto, area e persona; "
+                                       "«Macchine» e «Processi» per tipo. Operativi, «Scoperte», «Uomo solo» e «Carico "
+                                       "concentrato» contano solo chi è in forza, come Prospetto e report; «Liste da "
+                                       "ripulire» indica le mansioni con persone non più in forza da togliere. I riquadri "
+                                       "«Scoperte», «Senza ruolo», "
                                        "«Senza mansione di rischio», «Responsabilità senza titolare», «Uomo solo» e «Con "
                                        "il ruolo, senza mansioni» filtrano (clic di nuovo o «Mostra tutto» per togliere "
                                        "il filtro); «Persone non abilitate» e «In addestramento» aprono le Lacune di "
@@ -825,6 +1013,32 @@ GUIDA = {
                                             "in tutte» (un nome già esistente va unito, non rinominato) e «Unisci» (non "
                                             "se una mansione ha già entrambe le competenze attive: prima togline una). "
                                             "Minimo, bloccante e requisiti restano della singola mansione."),
+                    ("Scheda della competenza", "clic sul nome di una competenza (nel Catalogo, nella Matrice o nella "
+                                                "scheda «Competenze richieste» di una mansione). In alto il filo: "
+                                                "Ruoli → Mansioni che la chiedono → Competenza → Requisito formale, "
+                                                "ognuno cliccabile. Le schede: «Persone» (chi è in lista su quelle "
+                                                "mansioni, il livello per mansione con il minimo e lo stato: La sa "
+                                                "fare, Sotto il minimo, Da valutare, Manca il requisito; «Valuta» o "
+                                                "«Rivaluta» apre la mansione giusta), «Mansioni» (minimo, bloccante, "
+                                                "requisito, quanti la sanno fare), «Requisiti e corsi» (chi è senza "
+                                                "il corso, la qualifica o il MOD.128 valido, con «↻ Iscrivi chi manca») "
+                                                "e «Storico» (ultime 25 valutazioni). I numeri sono gli stessi della "
+                                                "scheda mansione: senza requisito il livello resta «I»."),
+                    ("Cosa manca, cliccabile", "nella scheda persona del Mansionario e nelle «Lacune di "
+                                               "competenza» ogni competenza in «Cosa manca» apre la sua scheda. Le "
+                                               "Lacune hanno anche «Cosa fare»: «↻ Iscrivi a …» quando manca un corso "
+                                               "(crea la sessione con la persona già iscritta) e «Valuta», che apre la "
+                                               "mansione. Nella scheda corso le competenze che lo chiedono portano "
+                                               "alla loro scheda."),
+                    ("Mansione di rischio ↔ mansioni", "la pagina dei requisiti di una mansione di rischio mostra "
+                                                       "«Mansioni che la comportano»: le mansioni del Mansionario che "
+                                                       "la indicano, con il loro ruolo. I corsi richiesti si aprono "
+                                                       "con un clic."),
+                    ("Ruolo ↔ Mansionario", "nel Mansionario ogni ruolo ha «ruolo →» verso il catalogo dei Ruoli; nel "
+                                            "catalogo dei Ruoli ogni ruolo elenca le sue mansioni (clic = scheda "
+                                            "mansione) e «Mansionario →» riporta al suo gruppo. Anche i ruoli nella "
+                                            "testata della mansione e nella scheda competenza portano al gruppo del "
+                                            "ruolo nel Mansionario."),
                     ("Livelli già valutati", "nella valutazione di una persona, sotto ogni competenza valutata su "
                                              "un'altra mansione compare «Già valutato X in «…»» con «Usa»; «Riprendi N "
                                              "livelli già valutati» li copia tutti nei campi vuoti. Si salva solo con "
@@ -916,6 +1130,26 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "«Prova adesso» (acquisizione scansioni o referti) dice «Lettura avviata» ma non si vede subito l'esito",
+            "perche": "la lettura della cartella gira in background, non nella pagina: con molti file o una cartella di rete lenta "
+                      "terrebbe ferma la pagina per minuti.",
+            "fare": [
+                "Ricarica la pagina dopo qualche secondo: l'esito compare in «Ultimo passaggio».",
+                "«Un passaggio sulla cartella è già in corso» vuol dire che il giro automatico stava già leggendo: aspetta il suo esito.",
+                "«rimandati al prossimo giro»: un giro dura al massimo un minuto e mezzo, i file restanti li legge il giro dopo. "
+                "Un file già letto non si rilegge; un PDF di referti letto a metà resta nella cartella finché non sono lette tutte le pagine.",
+                "Se l'esito non cambia mai, controlla che il servizio django-q (qcluster) sia attivo.",
+            ],
+        },
+        {
+            "sintomo": 'Lo scadenzario o la dashboard mostrano meno persone a un capo',
+            "fare": [
+                "Scadenzario, «Cose da gestire», badge della subnav e riquadri formazione contano solo le persone che il ruolo vede (propri, team o tutti), come l'elenco dipendenti.",
+                'I badge si aggiornano appena si salva un dato; gli adempimenti del cambio mansione si chiudono appena il requisito è soddisfatto, senza aspettare la notte.',
+                '«Senza visita» conta solo chi ricopre oggi un ruolo che richiede la visita.',
+            ],
+        },
         {
             "sintomo": "Lo storico di una mansione o di un ruolo è vuoto, ma la voce è stata modificata",
             "perche": "le modifiche registrate prima del 27/10/2026 non erano agganciate al record, oppure il cambio è "

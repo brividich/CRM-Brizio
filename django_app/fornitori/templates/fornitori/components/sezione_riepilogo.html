@@ -1,0 +1,44 @@
+<form class="fr-anno" hx-get="{% url 'fornitori:fornitore_sezione' fornitore.pk 'riepilogo' %}" hx-target="#tab-riepilogo" hx-swap="innerHTML" hx-trigger="change">
+  <label for="fr-anno-sel">Anno</label>
+  <select id="fr-anno-sel" name="anno">{% for a in anni %}<option value="{{ a }}"{% if a == anno %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+</form>
+
+{% if manutenzione %}
+<div class="fr-sez">Manutenzione</div>
+<div class="fr-kpis">
+  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.odl_chiusi }}</div><div class="ana-metric-label">OdL chiusi</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.odl_aperti }}</div><div class="ana-metric-label">OdL aperti adesso</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">€ {{ manutenzione.costo|floatformat:2 }}</div><div class="ana-metric-label">Costo su {{ manutenzione.odl_con_costo }} OdL su {{ manutenzione.odl_chiusi }}</div></div>
+  {% if manutenzione.ordinarie is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.ordinarie }}</div><div class="ana-metric-label">Ordinarie eseguite, {{ manutenzione.ordinarie_in_ritardo }} in ritardo</div></div>{% endif %}
+  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.ticket }}</div><div class="ana-metric-label">Ticket delegati, {{ manutenzione.ticket_chiusi }} chiusi</div></div>
+  {% if manutenzione.verifiche is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.verifiche }}</div><div class="ana-metric-label">Verifiche impianti</div></div>{% endif %}
+</div>
+{% endif %}
+
+{% if presenze %}
+<div class="fr-sez">Presenze in azienda</div>
+<div class="fr-kpis">
+  {% if presenze.totali is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ presenze.totali }}{% if presenze.totali_troncati %}+{% endif %}</div><div class="ana-metric-label">Ingressi nel GuestPortal</div></div>{% endif %}
+  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.collegati }}</div><div class="ana-metric-label">Collegati a un intervento</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.ore_label }}</div><div class="ana-metric-label">Ore degli ingressi collegati</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.tecnici }}</div><div class="ana-metric-label">Tecnici diversi</div></div>
+</div>
+{% endif %}
+
+<div class="fr-sez">Ordini, copie e valutazioni</div>
+<div class="fr-kpis">
+  <div class="ana-metric"><div class="ana-metric-val">{{ ordini.n }}</div><div class="ana-metric-label">Ordini, annullati esclusi</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">€ {{ ordini.importo|floatformat:2 }}</div><div class="ana-metric-label">Importo ordini</div></div>
+  {% if n_fatture_copie is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ n_fatture_copie }}</div><div class="ana-metric-label">Fatture copie</div></div>{% endif %}
+  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.n }}</div><div class="ana-metric-label">Valutazioni</div></div>
+  {% if valutazioni.n %}
+  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.q|floatformat:1 }}</div><div class="ana-metric-label">Qualità media (su 5)</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.p|floatformat:1 }}</div><div class="ana-metric-label">Puntualità media (su 5)</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.c|floatformat:1 }}</div><div class="ana-metric-label">Comunicazione media (su 5)</div></div>
+  {% endif %}
+</div>
+
+{% if requisiti.esito != "non_richiesto" %}
+<p class="fr-nota"><strong>Documenti di sicurezza, oggi:</strong> {{ requisiti.etichetta }}{% if requisiti.riassunto %} ({{ requisiti.riassunto }}){% endif %}.</p>
+{% endif %}
+<p class="fr-nota">Sono solo conteggi, da guardare qui: il giudizio sulla ditta resta a voi, nella scheda «Valutazioni». Gli OdL e le ordinarie contano nell'anno di chiusura o esecuzione, i ticket nell'anno di apertura. Gli ingressi cancellati dalla pulizia GDPR del GuestPortal non sono nel totale.</p>

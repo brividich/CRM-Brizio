@@ -1,4 +1,5 @@
-{# Nodo ricorsivo dell'organigramma ad albero. Riceve: nodo, cert_id (only). #}
+{# Nodo ricorsivo dell'organigramma ad albero. Riceve: nodo, cert_id, pres_ids (only). #}
+{% load presenti_tags %}
 <div class="orgt-node">
   <div class="orgt-role">
     <span class="orgt-role-name">{{ nodo.ruolo.nome }}</span>
@@ -11,7 +12,7 @@
     <ul class="orgt-titolari">
       {% for t in nodo.titolari %}
         <li class="orgt-tit">
-          <span class="orgt-tit-name">{{ t.nome|default:t.legacy_id }}</span>
+          <span class="orgt-tit-name">{{ t.nome|default:t.legacy_id }}</span>{% pallino_presenza t.legacy_id ids=pres_ids stile=False %}
           {% if cert_id and t.stato %}
             {% if t.stato == "posseduta_valida" %}
               <span class="orgt-badge orgt-badge-valida">Valida</span>
@@ -29,7 +30,7 @@
   {% if nodo.figli %}
     <div class="orgt-children">
       {% for figlio in nodo.figli %}
-        {% include "anagrafica/partials/_org_nodo.html" with nodo=figlio cert_id=cert_id only %}
+        {% include "anagrafica/partials/_org_nodo.html" with nodo=figlio cert_id=cert_id pres_ids=pres_ids only %}
       {% endfor %}
     </div>
   {% endif %}

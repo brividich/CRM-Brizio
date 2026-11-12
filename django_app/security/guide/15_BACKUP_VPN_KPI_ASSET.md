@@ -19,9 +19,23 @@ L'elenco delle cose da sistemare: job attesi mancanti, PC con l'ultimo backup fa
 
 ### Per PC e server
 
-Una riga per dispositivo, con in cima i casi peggiori. La **striscia** mostra le ultime esecuzioni, dalla più vecchia a sinistra alla più recente a destra, con i colori della legenda (riuscito, con avvisi, fallito). Selezionando più PC, **Apri un ticket per questi PC** crea un solo ticket per tutti.
+Una riga per dispositivo, con in cima i casi peggiori. La **striscia** mostra le ultime esecuzioni, dalla più vecchia a sinistra alla più recente a destra, con i colori della legenda (riuscito, con avvisi, fallito). Un clic su una riga apre il **pannello laterale** del PC con i suoi alert di backup aperti.
 
-Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezione di quel dispositivo). **Log completo** elenca ogni esecuzione con filtri per esito, job, periodo e PC.
+### Per job
+
+Una riga per job di backup. Un clic su una riga apre il **pannello laterale** del job: esecuzioni, dispositivi, alert aperti e ticket. Dal pannello si lavora senza lasciare la pagina: **Prendo in carico** gli alert del job, oppure **Chiudi** scegliendo come (Risolto, Non rilevante, Rischio accettato, Falso positivo) e scrivendo il motivo, che resta su ogni alert. **Apri un ticket** crea il ticket del job con dentro i suoi alert.
+
+### Più righe insieme
+
+Nelle tabelle **Per PC e server**, **Per job** e nel **Log esecuzioni** si selezionano più righe con le caselle. La barra in alto offre:
+
+- **Apri un ticket**: un ticket solo, con un'attività per PC o job e gli alert aperti collegati;
+- **Prendi in carico gli alert**: gli alert nuovi passano a «preso in carico»;
+- **Chiudi gli alert**: con esito e motivo obbligatorio. I ticket di backup rimasti senza alert aperti si risolvono da soli.
+
+Gli alert di backup nascono per job: dai PC si agisce sugli alert dei job che li hanno protetti negli ultimi 90 giorni. Un job condiviso da più server ha un alert solo, che vale per tutti i suoi dispositivi. Nel Log le azioni valgono per il job di ogni esecuzione selezionata.
+
+Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezione di quel dispositivo). **Log completo** elenca ogni esecuzione con filtri per esito, job, periodo e PC: a video le prime 300, **Scarica CSV** tutte quelle del filtro.
 
 ### Una cosa da sapere
 
@@ -30,13 +44,16 @@ Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezio
 
 Se un PC non compare, il report del job non lo elenca: controlla la configurazione del job sul NAS o su Veeam.
 
+- Un nuovo tentativo di Veeam («Job (Retry 2)») conta come lo stesso job: un alert solo, e il tentativo riuscito chiude il fallimento.
+- Le mail di Veeam sul **malware trovato nei backup** non sono esiti di job: non entrano nei conteggi dei backup e aprono un solo alert alto «Veeam: malware nei backup (…)».
+
 ### Lettura diretta da Veeam
 
 Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazioni-e-ai/#backup-letti-direttamente-da-veeam)) compare il riquadro **Lettura diretta da Veeam**: stato del collegamento («collegata», «errore» con il motivo), esito dell'ultimo giro e lo **spazio libero di ogni repository**, dal più pieno. Le righe sotto la soglia sono evidenziate e hanno un alert «Repository di backup quasi pieno».
 
 ### Prove di ripristino
 
-Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
+Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). Il registro si legge a pagine (si caricano scorrendo); **Scarica CSV** sul registro dà l'elenco completo per l'audit (data, esito, sistema, job, cosa, durata, eseguita da, note, allegato sì/no, alert). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
 
 - Prova **fallita**: il SOC apre da solo un alert alto «Prova di ripristino fallita» collegato alla prova.
 - Prova **in ritardo** (o mai fatta): con l'avviso acceso in [Impostazioni](/soc/docs/16-impostazioni-e-ai/#avvisi-automatici) parte un promemoria, uno per scadenza.
@@ -49,7 +66,9 @@ Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup �
 - **Accessi per giorno**: un clic su un giorno lo seleziona e confronta con il giorno prima.
 - **Accessi per ora**: le ore notturne sono evidenziate.
 - **Utenti più attivi** e **IP di origine**: un clic filtra il registro.
-- **Registro accessi**: utente, IP, accesso, uscita, durata, tipo. Filtri per utente, IP, esito, tipo e date.
+- **Registro accessi**: utente, IP, accesso, uscita, durata, tipo. Filtri per utente, IP, esito, tipo e date. Un clic su una riga apre il **pannello dell'utente**: accessi e negati del periodo, IP diversi, sessione media, segnali da controllare, IP più usati e ultimi accessi. **Tutti i suoi accessi** filtra il registro sul nome esatto dell'utente (campo «Utente (nome esatto)»): il campo «Utente» normale cerca invece una parte del nome.
+
+Gli orari sono in ora italiana. I report di WatchGuard Cloud possono essere in UTC o in ora italiana: il portale ricava il fuso dal periodo scritto nella mail del report, così lo stesso accesso arrivato da due report diversi resta una riga sola. Per ripulire lo storico salvato prima: `manage.py vpn_riallinea_fuso` (prova a vuoto) e poi `--apply`.
 
 ### I segnali «Da controllare»
 
@@ -84,16 +103,20 @@ Su tutti i grafici del SOC, passando sopra a un giorno compare il dettaglio; un 
 Le colonne:
 
 - **Intune**, **WatchGuard**, **Defender**: ✓ la fonte vede il dispositivo, ✕ non lo vede. WatchGuard e Defender si ricavano dall'inventario software.
-- **Backup**: l'esito dell'ultimo backup negli ultimi 30 giorni («Riuscito», «Con avvisi», «Fallito»); in rosso se è fallito o se non c'è un backup riuscito da troppi giorni (la soglia è in Impostazioni). «nessuno» se il dispositivo non compare nei report di backup.
-- **Vulnerabilità**: quante CVE lo colpiscono secondo l'inventario software, e quante sono **gravi** (già sfruttate, KEV, o CVSS 9 e oltre). Se il dispositivo è collegato a un asset, il clic apre il pannello con le CVE raggruppate per software.
+- **Backup**: l'esito dell'ultimo backup negli ultimi 90 giorni (la stessa finestra del numero sul menu e del riquadro «PC con backup ko») («Riuscito», «Con avvisi», «Fallito»); in rosso se è fallito o se non c'è un backup riuscito da troppi giorni (la soglia è in Impostazioni). «nessuno» se il dispositivo non compare nei report di backup.
+- **Vulnerabilità**: quante CVE uniche lo colpiscono (inventario software più vulnerabilità aperte di Defender, ogni CVE una volta: lo stesso numero della scheda e del pannello del PC), e quante sono **gravi** (già sfruttate, KEV, o CVSS 9 e oltre). Se il dispositivo è collegato a un asset, il clic apre il pannello con le CVE raggruppate per software.
 - **Stato Intune**: «Conforme», oppure i problemi aperti (disco non cifrato, non conforme ai criteri, non si sincronizza).
-- **Asset del registro**: il codice dell'asset del portale collegato. **Proposto** vuol dire che c'è un asset con lo stesso IP o lo stesso nome: lo confermi con **Conferma**, oppure tutti insieme con **Conferma le N proposte**; **scollega** se il collegamento è sbagliato. Per i PC di Intune «da collegare» porta alla **riconciliazione dispositivi** del modulo Asset. Collegare e scollegare richiede il permesso di configurazione del SOC.
+- **Asset del registro**: il codice dell'asset del portale collegato. **Proposto** vuol dire che c'è un asset con lo stesso IP o lo stesso nome: lo confermi con **Conferma**, oppure tutti insieme con **Conferma le N proposte**, o solo quelli selezionati con **Collega gli asset proposti** nella barra della selezione; **scollega** se il collegamento è sbagliato. Per i PC di Intune «da collegare» porta alla **riconciliazione dispositivi** del modulo Asset. Collegare e scollegare richiede il permesso di configurazione del SOC.
 
-I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non in Intune**, **Senza WatchGuard** e **Senza backup** mostrano accanto quanti dispositivi trovano; il numero è sempre uguale alle righe che si aprono. «Senza backup» non è un errore: non tutti i PC devono avere un backup, è un elenco da controllare.
+I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non in Intune**, **Senza WatchGuard**, **Senza backup**, **Sistema fuori supporto** e **Supporto in scadenza** mostrano accanto quanti dispositivi trovano; il numero è sempre uguale alle righe che si aprono. Il link «N collegati a un asset del registro» nel testo in testa apre i soli dispositivi collegati. «Senza backup» non è un errore: non tutti i PC devono avere un backup, è un elenco da controllare.
+
+**Piano di aggiornamento Windows.** La colonna **Sistema** dice la release di Windows letta dall'inventario: verde se supportata, «fuori supporto» (rosso) se non riceve più aggiornamenti di sicurezza, «fino al gg/mm/aa» (giallo) se smette entro 90 giorni. La data tiene conto dell'edizione: Home e Pro finiscono prima di Enterprise e LTSC. Sotto i filtri, una striscia gialla dice «N PC con Windows da aggiornare» con i contatori fuori supporto / in scadenza (cliccabili, aprono il filtro); chi ha il permesso di configurazione preme **Apri il piano**: nasce un caso del SOC con un'attività per PC («PC-01: Windows 11 24H2 Pro fuori supporto, fine supporto 13/10/2026»). Quasi sempre basta passare alla release corrente della stessa edizione (da 24H2 a 25H2), senza cambiare PC. A ogni ricalcolo dell'inventario l'attività del PC passato a una release supportata si spunta da sola, un PC nuovo fuori supporto aggiunge un'attività, e quando non ne resta nessuno il caso si chiude; le attività aggiunte a mano restano da fare. Finché il caso è aperto, la striscia mostra «N su M PC aggiornati» con la barra di avanzamento e il pulsante **Vai al caso**; diventa verde quando tutti sono aggiornati.
 
 In cima ci sono i dispositivi con backup ko, poi quelli con problemi Intune, poi quelli con CVE gravi, poi quelli visti da meno fonti. Il dispositivo si riconosce dal nome, senza dominio e senza maiuscole: «PC-01.dominio.local» e «pc-01» sono lo stesso. Gli apparati di rete letti via SNMP non compaiono, e nemmeno i dispositivi non più presenti in Intune.
 
 Un clic sulla riga apre l'anteprima; il nome apre la scheda completa del dispositivo. Le pagine **Backup** e **Vulnerabilità** restano per il lavoro trasversale (job di backup e log, CVE per programma), e ogni dispositivo lì porta alla stessa scheda.
+
+**Dispositivi bloccati dalla policy.** In fondo alla pagina, il riquadro (chiuso, si apre col clic) elenca per PC le chiavette USB e gli altri dispositivi fermati da Endpoint Security negli ultimi 30 giorni: dispositivi bloccati, notifiche, giorni con blocchi, ultima. Non aprono alert, salvo la soglia di Impostazioni › «Meno rumore».
 
 Sotto il nome compare l'**indirizzo IP** letto dal DHCP o dal DNS di Windows Server (prima quello collegato all'asset, poi quello con lo stesso nome) e, se uno switch monitorato vede il suo MAC, **switch e porta**. Il clic sull'IP apre **Rete (IP)** filtrata su quel dispositivo; la ricerca dell'elenco trova anche IP e MAC. Lo stesso dato è in cima alla scheda del dispositivo.
 

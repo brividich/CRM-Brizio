@@ -1,6 +1,8 @@
 """Viste dei kickoff/commesse: elenco, creazione, copia, fase, commenti."""
 from __future__ import annotations
 
+import json
+
 import logging
 
 from django.contrib import messages
@@ -26,6 +28,7 @@ from ..models import (
     Task,
     TaskImpostazioni,
     TaskStatus,
+    TappaKickoff,
 )
 from ..access import (
     can_manage_project,
@@ -39,6 +42,7 @@ from ..services.notify import (
 )
 from ._shared import (
     OPEN_STATUSES,
+    percentuale_avanzamento,
     _tasks_shell_context,
     _vrf_status_detail,
 )
@@ -66,8 +70,11 @@ def _copy_project_vrf_file(project: Project, *, clear_part_number: bool = False)
 
         workbook = openpyxl.load_workbook(io.BytesIO(file_bytes))
         try:
-            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
-            worksheet["B3"] = ""
+            from .. import vrf_catalog
+            from ..vrf_generator import select_sheet
+
+            worksheet = select_sheet(workbook)
+            worksheet[vrf_catalog.HEADER_CELLS["part_number"]] = ""
             output = io.BytesIO()
             workbook.save(output)
             file_bytes = output.getvalue()
@@ -112,7 +119,7 @@ def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number
     return kickoff
 
 
-def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
+def _create_first_meeting(project, user, primo=None) -> KickoffMeeting | None:
     """Crea l'incontro 1 del kickoff appena nato e vi precarica il team.
 
     Un kickoff senza incontri e' un kickoff che non e' ancora partito: l'incontro
@@ -126,9 +133,17 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
     if project.meetings.exists():
         return None
 
+    primo = primo or {}
+    from ..services.tappe import agenda_items as tappe_agenda
+
     meeting = KickoffMeeting.objects.create(
+        # Il primo ordine del giorno sono le tappe che servono: chi fa cosa si decide lì.
+        agenda_items=tappe_agenda(project),
         project=project,
-        data=timezone.localdate(),
+        data=primo.get("data") or timezone.localdate(),
+        ora=primo.get("ora"),
+        sala=primo.get("sala"),
+        luogo=primo["sala"].nome if primo.get("sala") else "",
         stato=MeetingStatus.PIANIFICATO,
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
@@ -141,6 +156,141 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
             task_active_users_queryset().filter(pk__in=team_ids)
         )
     return meeting
+
+
+def _contesto_filo(project, post) -> dict:
+    """Tappe «cosa serve» e dati del primo incontro per il form della commessa."""
+    from ..models import MeetingRoom
+    from ..services.tappe import AIUTO, tipi_per_tappa
+
+    tipi = tipi_per_tappa()
+    escluse = set(project.tappe_escluse or []) if project is not None else set()
+    scelte = set(post.getlist("tappe_servono")) if post is not None else None
+    tappe = [
+        {"key": k, "label": label, "aiuto": AIUTO.get(k, ""),
+         "serve": (k in scelte) if scelte is not None else (k not in escluse)}
+        for k, label in TappaKickoff.choices if k in tipi
+    ]
+    from ..models import ModelloCommessa
+
+    modelli = list(ModelloCommessa.objects.filter(attivo=True))
+    if post is not None:
+        consegna = post.get("data_consegna", "")
+        modello_id = post.get("modello", "")
+    else:
+        consegna = project.data_consegna.isoformat() if project is not None and project.data_consegna else ""
+        modello_id = str(project.modello_id) if project is not None and project.modello_id else ""
+    return {
+        "filo_modelli": modelli,
+        "filo_modelli_json": json.dumps({str(m.pk): m.chiavi for m in modelli}),
+        "filo_consegna": consegna,
+        "filo_modello_id": modello_id,
+        "filo_tappe": tappe,
+        "filo_sale": list(MeetingRoom.objects.filter(attiva=True).order_by("ordine", "nome")),
+        "filo_primo": {
+            "data": (post.get("primo_data") if post is not None else "") or timezone.localdate().isoformat(),
+            "ora": post.get("primo_ora", "") if post is not None else "",
+            "sala": post.get("primo_sala", "") if post is not None else "",
+        },
+    }
+
+
+def _salva_tappe(project, post) -> None:
+    """Le tappe non spuntate «non servono». Senza il campo nel POST non cambia niente."""
+    if post.get("tappe_presenti") != "1":
+        return
+    from datetime import date
+
+    from ..models import ModelloCommessa
+
+    campi = []
+    raw = (post.get("data_consegna") or "").strip()
+    try:
+        consegna = date.fromisoformat(raw) if raw else None
+    except ValueError:
+        consegna = project.data_consegna
+    if consegna != project.data_consegna:
+        project.data_consegna = consegna
+        campi.append("data_consegna")
+    modello = ModelloCommessa.objects.filter(pk=int(post["modello"])).first() if (post.get("modello") or "").isdigit() else None
+    if (modello.pk if modello else None) != project.modello_id:
+        project.modello = modello
+        campi.append("modello")
+    if campi:
+        project.save(update_fields=campi)
+    from ..services.tappe import tipi_per_tappa
+
+    tipi = tipi_per_tappa()
+    servono = set(post.getlist("tappe_servono"))
+    gia = set(project.tappe_escluse or [])
+    # Una tappa con attività non diventa «non serve» da qui.
+    con_attivita = set(
+        project.tasks.filter(category__tappa__in=list(tipi)).exclude(status=TaskStatus.CANCELED)
+        .values_list("category__tappa", flat=True)
+    )
+    escluse = {k for k in tipi if k not in servono and k not in con_attivita} | (gia - set(tipi))
+    nuove = [k for k, _ in TappaKickoff.choices if k in escluse]
+    if nuove != list(project.tappe_escluse or []):
+        project.tappe_escluse = nuove
+        project.save(update_fields=["tappe_escluse"])
+
+
+def _primo_incontro(post) -> dict:
+    from datetime import date, time
+
+    from ..models import MeetingRoom
+
+    dati = {}
+    try:
+        if (post.get("primo_data") or "").strip():
+            dati["data"] = date.fromisoformat(post["primo_data"].strip())
+    except ValueError:
+        pass
+    try:
+        if (post.get("primo_ora") or "").strip():
+            dati["ora"] = time.fromisoformat(post["primo_ora"].strip())
+    except ValueError:
+        pass
+    if (post.get("primo_sala") or "").isdigit():
+        dati["sala"] = MeetingRoom.objects.filter(pk=int(post["primo_sala"]), attiva=True).first()
+    return dati
+
+
+@task_permissions_required("tasks_view", "tasks_edit")
+def project_edit(request, project_id: int):
+    """Modifica anagrafica e team di un kickoff esistente."""
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not can_manage_project(request, project):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+
+    if request.method == "POST":
+        form = ProjectKickoffForm(request.POST, instance=project)
+        if form.is_valid():
+            with transaction.atomic():
+                project = form.save()
+                _salva_tappe(project, request.POST)
+            log_action(request, "kickoff_edited", "tasks", {
+                "project_id": project.id,
+                "fields": form.changed_data,
+                "message": f"Kickoff #{project.id} '{project.name}' modificato",
+            })
+            messages.success(request, "Kickoff aggiornato.")
+            return redirect("tasks:project_overview", project_id=project.id)
+    else:
+        form = ProjectKickoffForm(instance=project)
+
+    return render(
+        request,
+        "tasks/project_create.html",
+        {
+            **_tasks_shell_context(request, active="projects", project=project),
+            "page_title": f"Modifica kickoff - {project.name}",
+            "form": form,
+            "edit_project": project,
+            "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
+            **_contesto_filo(project, request.POST if request.method == "POST" else None),
+        },
+    )
 
 
 @task_permissions_required("tasks_view", "tasks_create")
@@ -183,7 +333,8 @@ def project_create(request):
                 # Il team va scritto prima dell'incontro: i partecipanti di default
                 # si leggono dagli elenchi M2M appena salvati.
                 form.save_team(project)
-                meeting = _create_first_meeting(project, request.user)
+                _salva_tappe(project, request.POST)
+                meeting = _create_first_meeting(project, request.user, _primo_incontro(request.POST))
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
                 "part_number": project.part_number,
@@ -209,7 +360,9 @@ def project_create(request):
             )
             return redirect("tasks:project_vrf_compile", project_id=project.id)
     else:
-        form = ProjectKickoffForm(project_queryset=projects_qs)
+        # Dalla scheda OP («Nuovo KICK-OFF»): P/N già compilato.
+        pn = (request.GET.get("pn") or "").strip()[:120]
+        form = ProjectKickoffForm(project_queryset=projects_qs, initial={"part_number": pn} if pn else None)
 
     return render(
         request,
@@ -219,6 +372,7 @@ def project_create(request):
             "page_title": "Nuovo kickoff",
             "form": form,
             "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
+            **_contesto_filo(None, request.POST if request.method == "POST" else None),
         },
     )
 
@@ -245,8 +399,10 @@ def project_list(request):
     # campo non aggregato su una relazione multi-riga forza Django a raggruppare
     # anche gli altri Count() per quel valore, sdoppiando il progetto in una riga
     # per ogni due_date distinta tra i suoi task.
+    # Solo attivita' aperte: prima contava anche le completate, e una commessa in
+    # regola risultava «Scaduta da 15gg» per un'attivita' chiusa da tempo.
     earliest_due_sq = (
-        Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
+        Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False, status__in=OPEN_STATUSES)
         .order_by()
         .values("project")
         .annotate(v=Min("due_date"))
@@ -266,6 +422,7 @@ def project_list(request):
     projects_qs = projects_base_qs.annotate(
         data_inizio=Subquery(first_meeting_sq),
         task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
+        task_total=Count("tasks", filter=~Q(tasks__status=TaskStatus.CANCELED), distinct=True),
         task_overdue=Count(
             "tasks",
             filter=Q(tasks__status__in=OPEN_STATUSES, tasks__due_date__lt=today),
@@ -303,6 +460,12 @@ def project_list(request):
         p.can_manage = can_manage_project(request, p)
         p.readiness = compute_project_readiness(p)
         p.days_to_delivery = (p.earliest_due - today).days if p.earliest_due else None
+        p.progress_pct = percentuale_avanzamento(p.task_done, p.task_total)
+
+    if q_sort == "progress_desc":
+        # Per percentuale, come la barra della card: il conteggio assoluto delle
+        # chiuse premiava le commesse con piu' attivita'.
+        projects.sort(key=lambda p: (-p.progress_pct, p.name.casefold()))
 
     # Filtro VRF applicato lato Python (usa vrf_detail già calcolato)
     if q_vrf:
@@ -436,7 +599,7 @@ def copy_project_with_vrf_without_pn(request, project_id: int):
         {
             "message": (
                 f"Copiato kickoff #{source_project.id} in kickoff #{kickoff.id} "
-                "svuotando il P/N e la cella B3 del file VRF."
+                "svuotando il P/N anche nel file VRF."
             ),
             "source_project_id": source_project.id,
             "copied_project_id": kickoff.id,
@@ -472,3 +635,35 @@ def add_project_comment(request, project_id: int):
     if return_qs:
         target_url = f"{target_url}?{return_qs}"
     return redirect(target_url)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_chiudi(request, project_id: int):
+    """Chiude il kickoff (o lo riapre): passa a Completata, con chi, quando e una nota a registro."""
+    from ..access import ha_pieni_poteri
+    from ..models import ProjectPhase
+
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not ha_pieni_poteri(request, project):
+        messages.error(request, "Il kickoff lo chiude il capocommessa.")
+        return redirect("tasks:project_overview", project_id=project.pk)
+    if request.POST.get("azione") == "riapri":
+        project.chiuso_il, project.chiuso_da = None, None
+        project.phase = ProjectPhase.EXEC
+        project.save(update_fields=["chiuso_il", "chiuso_da", "phase", "updated_at"])
+        log_action(request, "kickoff_riaperto", "tasks", {"project_id": project.pk})
+        messages.info(request, "Kickoff riaperto.")
+        return redirect("tasks:project_overview", project_id=project.pk)
+    aperte = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).count()
+    if aperte and request.POST.get("conferma") != "1":
+        messages.error(request, f"Ci sono ancora {aperte} attività aperte: spunta la conferma per chiudere lo stesso.")
+        return redirect(reverse("tasks:project_overview", args=[project.pk]) + "#chiusura")
+    project.chiuso_il = timezone.now()
+    project.chiuso_da = request.user
+    project.chiusura_nota = (request.POST.get("nota") or "").strip()[:2000]
+    project.phase = ProjectPhase.DONE
+    project.save(update_fields=["chiuso_il", "chiuso_da", "chiusura_nota", "phase", "updated_at"])
+    log_action(request, "kickoff_chiuso", "tasks", {"project_id": project.pk, "aperte": aperte, "nota": project.chiusura_nota[:300]})
+    messages.success(request, "Kickoff chiuso.")
+    return redirect("tasks:project_overview", project_id=project.pk)

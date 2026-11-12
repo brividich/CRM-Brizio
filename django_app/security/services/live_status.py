@@ -1,6 +1,6 @@
 """Barra di stato del SOC: i numeri che contano, in cima a ogni pagina, sempre aggiornati.
 
-Calcolati una volta al minuto per tutti (cache) tranne «i miei», che dipende da chi guarda.
+Calcolati una volta al minuto e uguali per tutti (cache condivisa): nessuna voce dipende da chi guarda.
 Ogni voce porta alla lista già filtrata. Fail-safe: se un conteggio fallisce, la voce sparisce
 invece di rompere la pagina.
 """
@@ -30,6 +30,13 @@ def _shared():
             logger.exception("Barra di stato SOC: voce %s non calcolata", fn.__name__)
     last = SecurityMailboxMessage.objects.order_by("-received_at").values_list("received_at", flat=True).first()
     return {"items": items, "last_report": last, "computed_at": timezone.now()}
+
+
+def invalida(*args, **kwargs) -> None:
+    """Svuota la cache a transazione conclusa (ricevitore dei segnali in SecurityConfig.ready)."""
+    from django.db import transaction
+
+    transaction.on_commit(lambda: cache.delete(CACHE_KEY))
 
 
 def live_status(user):

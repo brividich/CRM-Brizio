@@ -21,16 +21,14 @@ from pathlib import Path
 
 from django.conf import settings
 
+from core.accounts.portal_links import portal_link
+
 logger = logging.getLogger(__name__)
 
 _CHECK_NAME = "sgi_share_drift"
 
 # Ordine settimana coerente con reminder_config.GIORNI_VALIDI (lun=0 ... dom=6).
 _WEEKDAYS = ("lun", "mar", "mer", "gio", "ven", "sab", "dom")
-
-
-def _site_url() -> str:
-    return str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
 
 
 def log_sgi_change(
@@ -141,7 +139,7 @@ def _send_reminder_mail(user, email: str, assignments: list, *, subject: str, in
         due = a.due_date.strftime("%d/%m/%Y") if a.due_date else "-"
         lines.append(f"- {doc.code} — {doc.title} (rev. {a.revision.revision_code}, scadenza {due})")
     lines += ["", "Accedi al portale per confermare la presa visione:",
-              f"{_site_url()}/procedure-refresh/"]
+              portal_link("/procedure-refresh/letture/") or "/procedure-refresh/letture/"]
     try:
         send_hub_mail(
             subject,
@@ -200,6 +198,19 @@ def run_assignment_lifecycle(**kwargs) -> dict:
             )
             result["overdue_marked"] += 1
 
+        # ── 1b) CN-SGI: sollecito a chi ha in mano una modifica ferma ────────
+        try:
+            from procedure_refresh.modifiche import solleciti
+            from procedure_refresh.segnalazioni import destinatari_gestori
+
+            from core.models import Profile
+
+            legacy = destinatari_gestori()
+            gestori = list(Profile.objects.filter(legacy_user_id__in=legacy).values_list("user_id", flat=True)) if legacy else []
+            result["modifiche_sollecitate"] = solleciti(gestori)
+        except Exception:
+            logger.exception("run_assignment_lifecycle: solleciti delle modifiche CN-SGI falliti")
+
         cfg = get_reminder_config()
         if not cfg["attivo"]:
             return result
@@ -233,7 +244,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                 invia_notifica(
                     legacy_map.get(uid), "presa_visione",
                     f"{len(items)} documenti in presa visione scadono tra {soglia} giorni.",
-                    url_azione="/procedure-refresh/",
+                    url_azione="/procedure-refresh/letture/",
                 )
                 for a in items:
                     _log_reminder_event(a, f"pre{soglia}")
@@ -304,7 +315,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                             f"{doc.code} {doc.title} (scadenza {due})"
                         )
                     lines.append("")
-                lines.append(f"Report completo: {_site_url()}/procedure-refresh/admin/report/campagna/")
+                lines.append(f"Report completo: {portal_link('/procedure-refresh/admin/report/campagna/')}")
                 from core.email_utils import send_hub_mail
 
                 try:
@@ -332,9 +343,33 @@ def run_assignment_lifecycle(**kwargs) -> dict:
 
 _AUTO_SYNC_FLAG = "pr_sgi_auto_sync_attivo"
 _LAST_SYNC_KEY = "pr_sgi_last_sync"
+_ESCLUSI_KEY = "pr_sgi_esclusi"
+# Da dove riprendere la sync troncata dal budget (codice documento).
+_RIPRENDI_DA_KEY = "pr_sgi_sync_riprendi_da"
+# Il worker django-q chiude il task a 120 s: si resta sotto, il resto al giro dopo.
+SGI_SYNC_BUDGET_SECONDI = 90.0
+_SGI_SYNC_LOCK = "procedure_refresh:sgi_auto_sync:lock"
+_SGI_SYNC_LOCK_TTL = 600
 
 
-def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str | None = None, **kwargs) -> dict:
+def _ordina_per_priorita(safe: list[dict], riprendi_da: str) -> list[dict]:
+    """Prima documenti nuovi e revisioni più recenti; poi gli altri a partire da
+    ``riprendi_da`` (giro precedente troncato), ricominciando dall'inizio in coda."""
+    prioritari = [i for i in safe if i.get("nuovo") or i.get("aggiornamento_revisione")]
+    altri = sorted((i for i in safe if not (i.get("nuovo") or i.get("aggiornamento_revisione"))),
+                   key=lambda i: i["code"])
+    if riprendi_da:
+        altri = [i for i in altri if i["code"] >= riprendi_da] + [i for i in altri if i["code"] < riprendi_da]
+    return prioritari + altri
+
+
+# Quante volte una sync troncata si riaccoda da sola prima di lasciare il resto
+# alla notte dopo.
+SGI_SYNC_MAX_CATENA = 20
+
+
+def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str | None = None,
+                      catena: int = 0, reindex_pendente: bool = False, **kwargs) -> dict:
     """Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro).
 
     Applica soltanto i candidati "safe" (:func:`filter_auto_safe`): documenti nuovi
@@ -350,9 +385,12 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         "skipped": False,
         "created": 0,
         "updated": 0,
+        "unchanged": 0,
         "revisions": 0,
         "excluded": 0,
     }
+    from django.core.cache import cache
+
     try:
         from core.models import SiteConfig
 
@@ -361,6 +399,55 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
             if flag not in {"1", "true", "on", "yes"}:
                 result.update(skipped=True, reason="pr_sgi_auto_sync_attivo non attivo")
                 return result
+    except Exception as exc:  # fail-safe assoluto
+        logger.exception("run_sgi_auto_sync fallito: %s", exc)
+        result.update(ok=False, error=str(exc))
+        return result
+
+    # Pulsante e cron non si sovrappongono: due sync in parallelo scriverebbero
+    # le stesse revisioni e raddoppierebbero le letture dalla share.
+    try:
+        preso = bool(cache.add(_SGI_SYNC_LOCK, 1, _SGI_SYNC_LOCK_TTL))
+    except Exception:
+        logger.warning("run_sgi_auto_sync: lock non disponibile, procedo senza", exc_info=True)
+        preso = None
+    if preso is False:
+        result.update(skipped=True, reason="sincronizzazione già in corso")
+        return result
+    try:
+        result = _sgi_auto_sync(result, force=force, reindex=reindex, origine=origine,
+                                reindex_pendente=reindex_pendente)
+    finally:
+        if preso:
+            try:
+                cache.delete(_SGI_SYNC_LOCK)
+            except Exception:
+                logger.warning("run_sgi_auto_sync: rilascio del lock fallito", exc_info=True)
+
+    # Giro troncato dal budget: il seguito si riaccoda subito (lock già rilasciato),
+    # con un tetto alla catena; oltre, riprende la notte dopo da `riprendi_da`.
+    if result.get("troncato") and catena < SGI_SYNC_MAX_CATENA:
+        try:
+            from django_q.tasks import async_task
+
+            async_task(
+                "procedure_refresh.tasks.run_sgi_auto_sync",
+                force=force, reindex=reindex, origine=origine, catena=catena + 1,
+                reindex_pendente=bool(result.get("reindex_pendente")),
+            )
+            result["seguito_accodato"] = True
+        except Exception:
+            logger.warning("run_sgi_auto_sync: seguito non accodato, riprende al prossimo giro", exc_info=True)
+    return result
+
+
+def _sgi_auto_sync(result: dict, *, force: bool, reindex: bool, origine: str | None,
+                   reindex_pendente: bool = False) -> dict:
+    import time
+
+    inizio = time.monotonic()
+    try:
+        from core.models import SiteConfig
 
         raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
         if not raw_root:
@@ -382,12 +469,33 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         candidates, _skipped, _conflicts = scan_share_candidates(root)
         safe, excluded = filter_auto_safe(candidates)
         result["excluded"] = len(excluded)
+        # I file lasciati fuori, con il motivo: «Impostazioni» li mostra a chi gestisce.
+        try:
+            SiteConfig.set(_ESCLUSI_KEY, json.dumps([
+                {"code": e.get("code", ""), "file": e.get("file_name", ""), "rev": e.get("revision", ""),
+                 "motivo": e.get("motivo_esclusione", "")}
+                for e in excluded[:100]
+            ]), "CN-SGI: file della cartella non sincronizzati all'ultimo giro, con il motivo.")
+        except Exception:
+            logger.warning("run_sgi_auto_sync: elenco degli esclusi non salvato", exc_info=True)
 
         now = timezone.now()
         run_id = now.strftime("%Y%m%d%H%M%S")
         origine_log = origine or ("manuale" if force else "auto")
 
-        for info in safe:
+        riprendi_da = str(SiteConfig.get(_RIPRENDI_DA_KEY, "") or "").strip()
+        ordinati = _ordina_per_priorita(safe, riprendi_da)
+        prossimo = ""
+        for indice, info in enumerate(ordinati):
+            if time.monotonic() - inizio > SGI_SYNC_BUDGET_SECONDI:
+                # Budget finito: il giro dopo riparte da qui (i prioritari si
+                # rifanno comunque, sono pochi e costano poco se invariati).
+                restanti = ordinati[indice:]
+                prossimo = next((i["code"] for i in restanti
+                                 if not (i.get("nuovo") or i.get("aggiornamento_revisione"))), "")
+                result["troncato"] = True
+                result["rimanenti"] = len(restanti)
+                break
             try:
                 # Revisione corrente PRIMA dell'upsert (per il log NUOVA_REVISIONE).
                 old_rev = ""
@@ -401,6 +509,8 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
                     result["created"] += 1
                 elif doc_state == "updated":
                     result["updated"] += 1
+                elif doc_state == "unchanged":
+                    result["unchanged"] += 1
                 if rev_created:
                     result["revisions"] += 1
 
@@ -420,18 +530,47 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
             except Exception:
                 logger.exception("run_sgi_auto_sync: upsert fallito per %s", info.get("code"))
 
+        try:
+            SiteConfig.set(_RIPRENDI_DA_KEY, prossimo,
+                           "Presa visione: documento da cui riprendere la sync SGI troncata dal budget.")
+        except Exception:
+            logger.warning("run_sgi_auto_sync: punto di ripresa non salvato", exc_info=True)
+
         # Persisti l'esito per la card dashboard.
         payload = {
             "at": now.isoformat(timespec="seconds"),
             "created": result["created"],
             "updated": result["updated"],
+            "unchanged": result["unchanged"],
             "revisions": result["revisions"],
             "excluded": result["excluded"],
+            "troncato": bool(result.get("troncato")),
+            "rimanenti": int(result.get("rimanenti") or 0),
             "forced": bool(force),
         }
         SiteConfig.set(_LAST_SYNC_KEY, json.dumps(payload), "Presa visione: esito ultima sync SGI automatica.")
 
+        # CN-SGI: sezioni e scaffali seguono la share (solo righe nel DB, mai sulla share).
+        try:
+            from procedure_refresh.libreria import assicura_scaffali
+
+            assicura_scaffali()
+        except Exception:
+            logger.exception("run_sgi_auto_sync: allineamento scaffali CN-SGI fallito")
+        # CN-SGI: le modifiche approvate la cui nuova revisione è arrivata nella cartella diventano «Emessa».
+        try:
+            from procedure_refresh.modifiche import riconosci_emissioni
+
+            result["modifiche_emesse"] = riconosci_emissioni()
+        except Exception:
+            logger.exception("run_sgi_auto_sync: riconoscimento delle modifiche emesse fallito")
+
         changed = result["created"] + result["updated"] + result["revisions"]
+        if result.get("troncato"):
+            # Estrazione e re-index una volta sola, all'ultimo pezzo della catena.
+            result["reindex_pendente"] = bool(reindex_pendente or changed)
+            return result
+        changed = changed or int(reindex_pendente)
         # Testo persistito (A1): accoda l'estrazione delle revisioni nuove/cambiate,
         # un documento per task; il re-index (se richiesto) parte a fine catena.
         if accoda_estrazione_sgi(reindex=bool(reindex and changed)):
@@ -537,6 +676,9 @@ def run_sgi_share_check(**kwargs) -> dict:
         missing = drift.get("missing", [])
         n_missing = len(missing)
         result.update(new=n_new, updated=n_upd, missing=n_missing, in_db=drift.get("in_db", 0))
+        if drift.get("missing_saltati"):
+            result["missing_saltati"] = True
+            logger.warning("run_sgi_share_check: %s", drift.get("missing_motivo", ""))
 
         # Cataloga a log i documenti spariti (evidenza ISO "prevenire uso di obsoleti"),
         # con dedup: non riscrivere lo stesso codice se già loggato negli ultimi 30 gg.
@@ -620,7 +762,8 @@ def run_sgi_share_check(**kwargs) -> dict:
                 },
                 notify=False,  # informativo: compare in "Stato sistema", niente email
             )
-        else:
+        elif not drift.get("missing_saltati"):
+            # Con un elenco parziale «nessuna anomalia» non è dimostrato: la Issue resta.
             resolve_health_check_issue(
                 check_name=_CHECK_NAME,
                 summary="Nessuna anomalia sul corpus SGI (share allineata al DB).",
@@ -630,3 +773,140 @@ def run_sgi_share_check(**kwargs) -> dict:
         logger.warning("run_sgi_share_check fallito: %s", exc)
         result.update(ok=False, error=str(exc))
         return result
+
+
+_IMPRONTA_KEY = "pr_sgi_impronta_share"
+_ULTIMO_CONTROLLO_KEY = "pr_sgi_ultimo_controllo"
+
+
+def impronta_share(root: Path) -> tuple[str, int]:
+    """Impronta leggera della share: percorso, dimensione e data di modifica dei file.
+
+    Nessun file viene aperto né letto: solo l'elenco e gli attributi. Esclude
+    ``SUPERATO`` e i lock di Office come l'import. Ritorna ``(impronta, n_file)``.
+    """
+    import hashlib
+
+    from procedure_refresh.management.commands.import_sgi_da_share import _SUPERATO_RE, _scan_files
+
+    h = hashlib.sha1(usedforsecurity=False)
+    n = 0
+    for f in _scan_files(root):
+        full = str(f)
+        if _SUPERATO_RE.search(full):
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        h.update(f"{full}|{st.st_size}|{int(st.st_mtime)};".encode("utf-8", "replace"))
+        n += 1
+    return h.hexdigest(), n
+
+
+def run_sgi_controllo_orario(**kwargs) -> dict:
+    """Controllo orario della share per CN-SGI: se qualcosa è cambiato, sincronizza.
+
+    Confronta l'impronta leggera (:func:`impronta_share`) con quella salvata; solo se
+    è diversa lancia :func:`run_sgi_auto_sync` (stesso perimetro sicuro e stesso flag
+    ``pr_sgi_auto_sync_attivo``). La share è solo letta. Fail-safe: non solleva mai.
+    """
+    result: dict = {"ok": True, "skipped": False, "cambiato": False}
+    try:
+        from django.utils import timezone
+
+        from core.models import SiteConfig
+
+        flag = str(SiteConfig.get(_AUTO_SYNC_FLAG, "") or "").strip().lower()
+        if flag not in {"1", "true", "on", "yes"}:
+            result.update(skipped=True, reason="pr_sgi_auto_sync_attivo non attivo")
+            return result
+        raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
+        if not raw_root or not Path(raw_root).exists():
+            result.update(skipped=True, reason="share non raggiungibile o non impostata")
+            return result
+
+        impronta, n_file = impronta_share(Path(raw_root))
+        result["file"] = n_file
+        precedente = str(SiteConfig.get(_IMPRONTA_KEY, "") or "")
+        if impronta != precedente:
+            result["cambiato"] = True
+            esito = run_sgi_auto_sync(origine="auto")
+            result["sync"] = esito
+            if esito.get("ok") and not esito.get("skipped"):
+                SiteConfig.set(_IMPRONTA_KEY, impronta, "CN-SGI: impronta della share all'ultimo controllo orario.")
+        SiteConfig.set(
+            _ULTIMO_CONTROLLO_KEY,
+            timezone.now().isoformat(timespec="seconds"),
+            "CN-SGI: ora dell'ultimo controllo della share.",
+        )
+        return result
+    except Exception as exc:  # fail-safe
+        logger.warning("run_sgi_controllo_orario fallito: %s", exc)
+        result.update(ok=False, error=str(exc))
+        return result
+
+
+def stato_sincronizzazione() -> dict:
+    """Controlli per «Impostazioni»: perché la libreria è (o non è) allineata alla cartella.
+
+    Solo letture del database e un ``exists()`` sulla cartella: nessun file aperto.
+    Ritorna ``{"controlli": [{"ok", "titolo", "dettaglio"}], "esclusi": [...]}``.
+    """
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone
+
+    from core.models import SiteConfig
+
+    controlli = []
+
+    def aggiungi(ok, titolo, dettaglio=""):
+        controlli.append({"ok": ok, "titolo": titolo, "dettaglio": dettaglio})
+
+    flag = str(SiteConfig.get(_AUTO_SYNC_FLAG, "") or "").strip().lower() in {"1", "true", "on", "yes"}
+    aggiungi(flag, "Sincronizzazione automatica accesa",
+             "" if flag else "Spunta «Sincronizzazione automatica attiva» qui sotto: senza, il controllo periodico non importa niente.")
+    raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
+    try:
+        raggiungibile = bool(raw_root) and Path(raw_root).exists()
+    except OSError:
+        raggiungibile = False
+    aggiungi(raggiungibile, "Cartella SGI raggiungibile dal sito",
+             "" if raggiungibile else ("PROCEDURE_REFRESH_SGI_SHARE_ROOT non impostata nel .env." if not raw_root
+                                       else "L'account del sito non vede la cartella: servono i permessi di lettura."))
+    adesso = timezone.now()
+    try:
+        from django_q.models import Schedule, Success
+
+        sched = Schedule.objects.filter(name="pr_sgi_controllo_orario").first()
+        if sched is None:
+            aggiungi(False, "Controllo programmato registrato",
+                     "Manca lo schedule pr_sgi_controllo_orario: lancia «manage.py setup_q_schedules» sul server.")
+        else:
+            prossimo = timezone.localtime(sched.next_run).strftime("%d/%m %H:%M") if sched.next_run else "—"
+            aggiungi(True, "Controllo programmato registrato", f"Ogni 15 minuti ({sched.cron}); prossimo alle {prossimo}.")
+        recenti = Success.objects.filter(stopped__gte=adesso - timedelta(minutes=45)).exists()
+        aggiungi(recenti, "Lavoratore delle attività (qcluster) in funzione",
+                 "" if recenti else "Nessuna attività completata negli ultimi 45 minuti: il servizio qcluster sul server va riavviato.")
+    except Exception:
+        logger.warning("stato_sincronizzazione: django-q non leggibile", exc_info=True)
+    raw = str(SiteConfig.get(_ULTIMO_CONTROLLO_KEY, "") or "").strip()
+    ultimo = None
+    try:
+        ultimo = datetime.fromisoformat(raw) if raw else None
+        if ultimo is not None and timezone.is_naive(ultimo):
+            ultimo = timezone.make_aware(ultimo)
+    except ValueError:
+        ultimo = None
+    if ultimo is None:
+        aggiungi(False, "Ultimo controllo della cartella", "Il controllo periodico non è ancora mai partito.")
+    else:
+        fresco = adesso - ultimo < timedelta(minutes=45)
+        aggiungi(fresco, "Ultimo controllo della cartella",
+                 timezone.localtime(ultimo).strftime("%d/%m/%Y %H:%M") + ("" if fresco else ": troppo vecchio, il controllo periodico non sta girando."))
+    try:
+        esclusi = json.loads(SiteConfig.get(_ESCLUSI_KEY, "") or "[]")
+    except (ValueError, TypeError):
+        esclusi = []
+    return {"controlli": controlli, "tutto_ok": all(c["ok"] for c in controlli), "esclusi": esclusi}

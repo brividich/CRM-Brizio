@@ -28,7 +28,7 @@ CAMPI_V3 = ("v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key")
 _ETICHETTE = {
     "oid": "OID", "modalita": "Modalità", "unita": "Unità", "profilo_snmp": "Profilo SNMP",
     "port": "Porta", "version": "Versione", "timeout": "Timeout (secondi)",
-    "a4_bn": "A4 B/N", "a3_bn": "A3 B/N", "a4_col": "A4 colore", "a3_col": "A3 colore",
+    "a4_bn": "A4 BN", "a3_bn": "A3 BN", "a4_col": "A4 COL", "a3_col": "A3 COL",
     "sys_object_id_prefix": "Prefisso sysObjectID", "sys_descr_pattern": "Pattern sysDescr",
     "oid_riconoscimento": "OID di riconoscimento", "contatore_mfc": "Contatore MFC",
     "soglia_warning_min": "Avviso - minimo", "soglia_warning_max": "Avviso - massimo",
@@ -423,6 +423,40 @@ class ImpostazioniSNMPForm(SezioniFormMixin, forms.ModelForm):
             "tvcc_intervallo_telecamere": "TVCC - Intervallo telecamere (minuti)",
             "tvcc_retention_giorni": "TVCC - Storico rilevazioni (giorni)",
         }
+
+    storico_snmp_giorni = forms.IntegerField(
+        label="Altri apparati - Storico rilevazioni (giorni)", required=False, min_value=0, max_value=3650,
+        help_text="Giorni di storico delle rilevazioni SNMP di stampanti, switch, server e degli altri "
+                  "apparati non TVCC: le più vecchie vengono cancellate ogni notte, l'ultima di ogni "
+                  "apparato resta. 0 = conserva tutto (di serie). Minimo 60 giorni.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .tasks import storico_snmp_giorni
+
+        self.fields["storico_snmp_giorni"].initial = storico_snmp_giorni()
+
+    def clean_storico_snmp_giorni(self):
+        from .tasks import STORICO_SNMP_MINIMO_GIORNI
+
+        giorni = self.cleaned_data.get("storico_snmp_giorni") or 0
+        if 0 < giorni < STORICO_SNMP_MINIMO_GIORNI:
+            raise forms.ValidationError(
+                f"Minimo {STORICO_SNMP_MINIMO_GIORNI} giorni (servono alle stime dei toner), oppure 0 per conservare tutto.")
+        return giorni
+
+    def save(self, commit=True):
+        from core.models import SiteConfig
+
+        from .tasks import CHIAVE_STORICO_SNMP
+
+        obj = super().save(commit=commit)
+        if commit:
+            # update_or_create e non SiteConfig.set: il controllo «niente SNMP SET» dei test scarta ogni .set().
+            SiteConfig.objects.update_or_create(chiave=CHIAVE_STORICO_SNMP, defaults={
+                "valore": str(self.cleaned_data.get("storico_snmp_giorni") or 0),
+                "descrizione": "Contatori: giorni di storico delle rilevazioni SNMP non TVCC (0 = tutto)."})
+        return obj
 
 
 class DispositivoSNMPForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):

@@ -31,7 +31,7 @@ from typing import Callable
 from report_conformita.registry import TONE_DANGER, TONE_OK, TONE_WARN, Kpi
 
 from anagrafica.services import requisiti as calcoli
-from .dati import Contesto, anni_compiuti
+from .dati import SENZA_CENTRO, Contesto, anni_compiuti
 from .permessi import has_perm, perm_check
 
 logger = logging.getLogger(__name__)
@@ -320,7 +320,7 @@ def _elenco_personale(ctx: Contesto, o: dict) -> Risultato:
     for p in persone:
         anni = anni_compiuti(p.data_assunzione, ctx.today)
         res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "area": p.area,
+            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo, "area": p.area,
             "mansione": p.mansione, "ruolo": p.ruolo_aziendale, "contratto": p.contratto_label,
             "livello": p.livello, "assunzione": p.data_assunzione, "anzianita": anni,
             "titolo_studio": p.titolo_studio, "cessazione": p.cessazione_effettiva,
@@ -343,7 +343,7 @@ _registra(Sezione(
     builder=_elenco_personale,
     riferimenti=(f"{ISO_9001} §7.1.2", f"{EN_9100} §7.1.2"),
     colonne=(
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"),
         ("area", "Area aziendale"), ("mansione", "Mansione"), ("ruolo", "Ruolo aziendale"),
         ("contratto", "Contratto"), ("livello", "Livello"), ("assunzione", "Assunzione"),
         ("anzianita", "Anzianità (anni)"), ("titolo_studio", "Titolo di studio"),
@@ -373,7 +373,7 @@ _qualifiche_correnti = calcoli.qualifiche_correnti
 def _riga_qualifica(p, q, *, conseguita, scadenza, numero, livello, ente, stato, verificata, oggi) -> dict:
     tipo = q.tipo
     return {
-        "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
+        "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo, "mansione": p.mansione,
         "qualifica": getattr(tipo, "nome", ""),
         "categoria": tipo.get_categoria_display() if tipo and getattr(tipo, "categoria", "") else "",
         "livello": livello or "", "numero": numero or "", "ente": ente or "",
@@ -443,7 +443,7 @@ _registra(Sezione(
     builder=_qualifiche_personale,
     riferimenti=(f"{ISO_9001} §7.2", f"{EN_9100} §7.2", f"{EN_9100} §8.5.1.2"),
     colonne=(
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("mansione", "Mansione"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("mansione", "Mansione"),
         ("qualifica", "Qualifica"), ("categoria", "Categoria"), ("livello", "Livello"),
         ("numero", "N. certificato"), ("ente", "Ente"), ("conseguita", "Conseguita il"),
         ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"), ("stato", "Stato"), ("verificata", "Verificata"),
@@ -500,7 +500,7 @@ def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) ->
         stato, tono = _STATI_FORMAZIONE.get(v.stato, (v.stato, ""))
         corso = v.corso
         res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
+            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo, "mansione": p.mansione,
             "corso": getattr(corso, "titolo", ""), "codice": getattr(corso, "codice", ""),
             "fonte": corso.get_fonte_obbligo_display() if getattr(corso, "fonte_obbligo", "") else "",
             "riferimento": getattr(corso, "riferimento_fonte", "") or "",
@@ -532,7 +532,7 @@ def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) ->
 
 
 _COLONNE_FORMAZIONE = (
-    ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("mansione", "Mansione"),
+    ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("mansione", "Mansione"),
     ("corso", "Corso"), ("codice", "Codice"), ("fonte", "Fonte obbligo"), ("riferimento", "Riferimento"),
     ("ore", "Ore"), ("obbligatorio", "Obbligatorio"), ("origine", "Richiesto da"),
     ("completato", "Ultimo completamento"), ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"),
@@ -596,7 +596,7 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
 
     def _base_persona(p) -> dict:
         return {"voce": p.nominativo, "codice": p.matricola, "nominativo": p.nominativo, "matricola": p.matricola,
-                "reparto": p.reparto, "mansione": p.mansione}
+                "reparto": p.reparto, "centro_costo": p.centro_costo, "mansione": p.mansione}
 
     for r in record:
         p = persone[ctx.canonico(r.legacy_anagrafica_id)]
@@ -606,6 +606,9 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
         elif o["dettaglio"] == "reparto":
             chiave, base = p.reparto or "—", {"voce": p.reparto or "Senza reparto", "codice": "",
                                               "reparto": p.reparto or "Senza reparto"}
+        elif o["dettaglio"] == "centro_costo":
+            chiave, base = p.centro_costo or "—", {"voce": p.centro_costo or SENZA_CENTRO, "codice": "",
+                                                   "centro_costo": p.centro_costo or SENZA_CENTRO}
         else:
             chiave, base = str(p.id), _base_persona(p)
         acc = per_chiave.setdefault(chiave, {**base, "completamenti": 0, "ore": Decimal(0), "persone": set(), "corsi": []})
@@ -631,6 +634,7 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
         res.riga({
             "voce": acc["voce"], "codice": acc.get("codice", ""), "nominativo": acc.get("nominativo", ""),
             "matricola": acc.get("matricola", ""), "reparto": acc.get("reparto", ""),
+            "centro_costo": acc.get("centro_costo", ""),
             "mansione": acc.get("mansione", ""), "completamenti": acc["completamenti"], "ore": acc["ore"],
             "persone": len(acc["persone"]), "corsi": "; ".join(acc["corsi"][:10]),
         }, TONE_WARN if per_persona and not acc["completamenti"] else "")
@@ -646,7 +650,8 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
     ]
     if filtro:
         etichetta = dict(_CONFRONTI_ORE)[o["confronto_ore"]].lower()
-        cosa = {"persona": "Persone", "corso": "Corsi", "reparto": "Reparti"}[o["dettaglio"]]
+        cosa = {"persona": "Persone", "corso": "Corsi", "reparto": "Reparti",
+                "centro_costo": "Centri di costo"}[o["dettaglio"]]
         res.kpis.append(Kpi(f"{cosa} con {etichetta} {o['soglia_ore']} ore", len(res.righe),
                             TONE_WARN if res.righe and o["confronto_ore"] in ("meno_di", "al_massimo") else ""))
     res.note = [f"Completamenti registrati nel periodo {ctx.periodo_label}, dettaglio per "
@@ -677,18 +682,19 @@ def _completamenti(ctx: Contesto, o: dict, persone: dict) -> list:
     return record
 
 
-_DETTAGLI_EROGATA = (("persona", "Persona"), ("corso", "Corso"), ("reparto", "Reparto"))
+_DETTAGLI_EROGATA = (("persona", "Persona"), ("corso", "Corso"), ("reparto", "Reparto"),
+                     ("centro_costo", "Centro di costo"))
 
 _registra(Sezione(
     key="formazione_erogata",
     titolo="Formazione erogata nel periodo",
     gruppo=GRUPPO_PERSONE,
-    descrizione="Ore e completamenti nel periodo, per persona, per corso o per reparto.",
+    descrizione="Ore e completamenti nel periodo, per persona, per corso, per reparto o per centro di costo.",
     builder=_formazione_erogata,
     riferimenti=(f"{ISO_9001} §7.2", f"{ISO_45001} §7.2", f"{PDR_125} – Opportunità di crescita"),
     colonne=(
-        ("voce", "Persona / corso / reparto"), ("codice", "Matricola / codice"),
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"),
+        ("voce", "Persona / corso / reparto / centro di costo"), ("codice", "Matricola / codice"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"),
         ("mansione", "Mansione"), ("completamenti", "Completamenti"), ("ore", "Ore"),
         ("persone", "Persone"), ("corsi", "Corsi"),
     ),
@@ -715,7 +721,7 @@ def _attestati(ctx: Contesto, o: dict) -> Risultato:
                                            x.data_completamento)):
         p = persone[ctx.canonico(r.legacy_anagrafica_id)]
         res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto,
+            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo,
             "corso": r.course_title_snapshot, "codice": r.course_code_snapshot,
             "data": r.data_completamento, "ore": _ore_record(r),
             "protocollo": r.numero_protocollo, "docente": r.teacher_name_snapshot,
@@ -735,7 +741,7 @@ _registra(Sezione(
     builder=_attestati,
     riferimenti=(f"{ISO_9001} §7.2 d)", f"{ISO_45001} §7.2"),
     colonne=(
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("corso", "Corso"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("corso", "Corso"),
         ("codice", "Codice"), ("data", "Completato il"), ("ore", "Ore"), ("protocollo", "N. protocollo"),
         ("docente", "Docente"), ("esito", "Esito"), ("scadenza", "Scadenza"),
     ),
@@ -777,7 +783,7 @@ def _abilitazioni_processi(ctx: Contesto, o: dict) -> Risultato:
         if tono == TONE_DANGER:
             scadute += 1
         res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto,
+            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo,
             "processo": a.processo.nome, "regime": a.processo.get_regime_display(),
             "cliente": str(a.processo.cliente or ""), "ruoli": ", ".join(ruoli),
             "dal": a.data_ingresso, "certificazione": scad, "stato": stato,
@@ -799,7 +805,7 @@ _registra(Sezione(
     builder=_abilitazioni_processi,
     riferimenti=(f"{EN_9100} §8.5.1.2", f"{ISO_9001} §8.5.1 f)"),
     colonne=(
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("processo", "Processo"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("processo", "Processo"),
         ("regime", "Regime"), ("cliente", "Cliente"), ("ruoli", "Ruolo"), ("dal", "Abilitato dal"),
         ("certificazione", "Scadenza certificazione"), ("stato", "Stato"),
     ),
@@ -1014,28 +1020,28 @@ def _scadenzario(ctx: Contesto, o: dict) -> Risultato:
     if "qualifiche" in tipi:
         r = _qualifiche_personale(ctx, {"categorie": [], "tipi": [], "preavviso": o["giorni"], "stati": [],
                                         "solo_verificate": False, "storico": False})
-        voci += [(x["scadenza"], "Qualifica", x["nominativo"], x["reparto"], x["qualifica"]) for x in r.righe if x["scadenza"]]
+        voci += [(x["scadenza"], "Qualifica", x["nominativo"], x["reparto"], x["centro_costo"], x["qualifica"]) for x in r.righe if x["scadenza"]]
     if "formazione" in tipi:
         r = _formazione_obbligatoria(ctx, {"stati": [], "fonti": [], "solo_obbligatori": True}, solo_sicurezza=False)
-        voci += [(x["scadenza"], "Formazione", x["nominativo"], x["reparto"], x["corso"]) for x in r.righe if x["scadenza"]]
+        voci += [(x["scadenza"], "Formazione", x["nominativo"], x["reparto"], x["centro_costo"], x["corso"]) for x in r.righe if x["scadenza"]]
     if "processi" in tipi:
         r = _abilitazioni_processi(ctx, {"processi": [], "solo_attive": True, "preavviso": o["giorni"]})
-        voci += [(x["certificazione"], "Certificazione processo", x["nominativo"], x["reparto"], x["processo"])
+        voci += [(x["certificazione"], "Certificazione processo", x["nominativo"], x["reparto"], x["centro_costo"], x["processo"])
                  for x in r.righe if x["certificazione"]]
     visite_ok = "visite" in tipi and has_perm(ctx.request, PERM_VISITE)
     if visite_ok:
         r = _sorveglianza(ctx, {"preavviso": o["giorni"], "stati": [], "tipi": [], "includi_senza_visita": False})
         # Solo le visite dovute: una visita non richiesta non e' una scadenza da presidiare.
         r.righe = [x for x in r.righe if x["richiesta"] == "Sì"]
-        voci += [(x["scadenza"], "Visita medica", x["nominativo"], x["reparto"], x["visita"]) for x in r.righe if x["scadenza"]]
+        voci += [(x["scadenza"], "Visita medica", x["nominativo"], x["reparto"], x["centro_costo"], x["visita"]) for x in r.righe if x["scadenza"]]
     scadute = 0
-    for scad, tipo, nom, rep, voce in sorted(voci, key=lambda v: (v[0], v[2].casefold())):
+    for scad, tipo, nom, rep, centro, voce in sorted(voci, key=lambda v: (v[0], v[2].casefold())):
         if scad > limite or (scad < ctx.today and not o["includi_scadute"]):
             continue
         giorni = (scad - ctx.today).days
         tono = TONE_DANGER if giorni < 0 else TONE_WARN if giorni <= 30 else ""
         scadute += giorni < 0
-        res.riga({"scadenza": scad, "giorni": giorni, "tipo": tipo, "nominativo": nom, "reparto": rep, "voce": voce,
+        res.riga({"scadenza": scad, "giorni": giorni, "tipo": tipo, "nominativo": nom, "reparto": rep, "centro_costo": centro, "voce": voce,
                   "mese": _mese(scad)}, tono)
     res.kpis = [Kpi("Scadenze", len(res.righe)), Kpi("Già scadute", scadute, TONE_DANGER if scadute else TONE_OK),
                 Kpi("Entro 30 giorni", sum(1 for r in res.righe if 0 <= r["giorni"] <= 30))]
@@ -1053,7 +1059,7 @@ _registra(Sezione(
     builder=_scadenzario,
     riferimenti=(f"{ISO_9001} §7.2", f"{ISO_45001} §9.1"),
     colonne=(("scadenza", "Scadenza"), ("giorni", "Giorni"), ("tipo", "Tipo"), ("nominativo", "Nominativo"),
-             ("reparto", "Reparto"), ("voce", "Voce"), ("mese", "Mese")),
+             ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("voce", "Voce"), ("mese", "Mese")),
     predefinite=("scadenza", "giorni", "tipo", "nominativo", "voce"),
     opzioni=(
         Opzione("giorni", "Orizzonte (giorni)", INTERO, predefinito=90, minimo=1),
@@ -1083,7 +1089,7 @@ def _fascia(valore: int | None, fasce) -> str:
 
 
 _DIMENSIONI = (
-    ("reparto", "Reparto"), ("area", "Area aziendale"), ("mansione", "Mansione"), ("contratto", "Contratto"),
+    ("reparto", "Reparto"), ("area", "Area aziendale"), ("centro_costo", "Centro di costo"), ("mansione", "Mansione"), ("contratto", "Contratto"),
     ("livello", "Livello"), ("eta", "Fascia d'età"), ("anzianita", "Fascia di anzianità"),
     ("titolo_studio", "Titolo di studio"), ("genere", "Genere"),
 )
@@ -1091,6 +1097,8 @@ _GENERE = {"F": "Donne", "M": "Uomini"}
 
 
 def _valore_dimensione(p, dim: str, oggi: date) -> str:
+    if dim == "centro_costo":
+        return p.centro_costo or SENZA_CENTRO
     if dim == "eta":
         return _fascia(anni_compiuti(p.data_nascita, oggi), _FASCE_ETA)
     if dim == "anzianita":
@@ -1103,7 +1111,7 @@ def _valore_dimensione(p, dim: str, oggi: date) -> str:
 
 
 def _movimenti(ctx: Contesto) -> tuple[list, list]:
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     assunti = [p for p in tutti if p.data_assunzione and ctx.date_from <= p.data_assunzione <= ctx.date_to]
     cessati = [p for p in tutti if p.data_cessazione and ctx.date_from <= p.data_cessazione <= ctx.date_to]
     return assunti, cessati
@@ -1111,9 +1119,10 @@ def _movimenti(ctx: Contesto) -> tuple[list, list]:
 
 def _organico(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     in_forza = [p for p in tutti if p.in_forza_al(ctx.today)]
     totale = len(in_forza)
+    esclusi = sum(1 for p in ctx.dipendenti_perimetro() if p.escluso_conteggi and p.in_forza_al(ctx.today))
     assunti, cessati = _movimenti(ctx)
     inizio = sum(1 for p in tutti if p.in_forza_al(ctx.date_from))
     fine = sum(1 for p in tutti if p.in_forza_al(ctx.date_to))
@@ -1144,6 +1153,8 @@ def _organico(ctx: Contesto, o: dict) -> Risultato:
         "Dati aggregati: nessun nominativo.",
         f"Movimenti e turnover nel periodo {ctx.periodo_label}; organico medio = media fra inizio e fine periodo.",
     ]
+    if esclusi:
+        res.note.append(f"Escluse dai conteggi dell'organico (amministratori, consulenti esterni...): {esclusi} persone.")
     if o["soglia_anonimato"] > 1:
         res.note.append(f"Conteggi sotto {o['soglia_anonimato']} mostrati come «<{o['soglia_anonimato']}» per anonimato.")
     return res
@@ -1182,7 +1193,7 @@ def _movimenti_personale(ctx: Contesto, o: dict) -> Risultato:
     for giorno, tipo, p in sorted(righe, key=lambda r: (r[0], r[2].nominativo.casefold())):
         res.riga({
             "data": giorno, "movimento": tipo, "nominativo": p.nominativo, "matricola": p.matricola,
-            "reparto": p.reparto, "mansione": p.mansione, "contratto": p.contratto_label, "livello": p.livello,
+            "reparto": p.reparto, "centro_costo": p.centro_costo, "mansione": p.mansione, "contratto": p.contratto_label, "livello": p.livello,
             "mese": _mese(giorno),
         }, TONE_OK if tipo == "Assunzione" else "")
     res.kpis = [Kpi("Assunzioni", len(assunti)), Kpi("Cessazioni", len(cessati)),
@@ -1199,7 +1210,7 @@ _registra(Sezione(
     builder=_movimenti_personale,
     riferimenti=(f"{ISO_9001} §7.1.2",),
     colonne=(("data", "Data"), ("movimento", "Movimento"), ("nominativo", "Nominativo"), ("matricola", "Matricola"),
-             ("reparto", "Reparto"), ("mansione", "Mansione"), ("contratto", "Contratto"), ("livello", "Livello"),
+             ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("mansione", "Mansione"), ("contratto", "Contratto"), ("livello", "Livello"),
              ("mese", "Mese")),
     predefinite=("data", "movimento", "nominativo", "reparto", "mansione"),
     opzioni=(Opzione("tipi", "Movimenti", MULTI, (("assunzioni", "Assunzioni"), ("cessazioni", "Cessazioni")),
@@ -1229,11 +1240,13 @@ def _organigramma(ctx: Contesto, o: dict) -> Risultato:
                   "responsabile": _nome(rep.caporeparto_legacy_id), "persone": n_rep})
         if not o["includi_aree"]:
             continue
-        for area in AreaAziendale.objects.filter(is_active=True, reparto=rep).order_by("nome"):
+        for area in (AreaAziendale.objects.filter(is_active=True, reparto=rep)
+                     .select_related("centro_di_costo").order_by("nome")):
             n_area = per_area.get(area.nome.casefold(), 0)
             if o["solo_con_persone"] and not n_area:
                 continue
             res.riga({"reparto": rep.nome, "area": area.nome, "livello": "Area",
+                      "centro_costo": area.centro_di_costo.nome if area.centro_di_costo_id else "",
                       "responsabile": _nome(area.responsabile_legacy_id), "persone": n_area})
     # Chi ha un reparto che non e' nel catalogo, o nessun reparto, non deve sparire dai conteggi.
     noti = {r.nome.casefold() for r in reparti_catalogo}
@@ -1261,11 +1274,78 @@ _registra(Sezione(
     descrizione="Reparti e aree aziendali con responsabile e numero di persone.",
     builder=_organigramma,
     riferimenti=(f"{ISO_9001} §5.3", f"{ISO_45001} §5.3", f"{ISO_27001} §5.3"),
-    colonne=(("reparto", "Reparto"), ("area", "Area aziendale"), ("livello", "Livello"),
-             ("responsabile", "Responsabile"), ("persone", "Persone")),
+    colonne=(("reparto", "Reparto"), ("area", "Area aziendale"), ("centro_costo", "Centro di costo"),
+             ("livello", "Livello"), ("responsabile", "Responsabile"), ("persone", "Persone")),
     predefinite=("reparto", "area", "responsabile", "persone"),
     opzioni=(Opzione("includi_aree", "Mostra anche le aree aziendali", SI_NO, predefinito=True),
              Opzione("solo_con_persone", "Solo reparti/aree con persone nel perimetro", SI_NO, predefinito=True)),
+))
+
+
+def _pct_su(n: int, totale: int):
+    return round(n * 100 / totale, 1) if totale else None
+
+
+def _organico_centri_costo(ctx: Contesto, o: dict) -> Risultato:
+    """Persone per centro di costo: la somma delle righe «Centro di costo» e «Senza centro» fa il totale."""
+    from anagrafica.models import AreaAziendale, CentroDiCosto
+
+    res = Risultato()
+    persone = ctx.dipendenti()
+    totale = len(persone)
+    per_centro = Counter(p.centro_costo.casefold() for p in persone if p.centro_costo)
+    per_area = Counter(p.area.casefold() for p in persone if p.area)
+    aree = list(AreaAziendale.objects.select_related("reparto").prefetch_related("ruoli_reparto").order_by("nome"))
+    centri_mostrati = 0
+    for centro in CentroDiCosto.objects.order_by("nome"):
+        n = per_centro.get(centro.nome.casefold(), 0)
+        if not n and (o["solo_con_persone"] or not centro.is_active):
+            continue
+        centri_mostrati += 1
+        res.riga({"centro": centro.nome, "livello": "Centro di costo", "persone": n, "pct": _pct_su(n, totale)})
+        if not o["includi_reparti"]:
+            continue
+        for area in aree:
+            n_area = per_area.get(area.nome.casefold(), 0)
+            if area.centro_di_costo_id != centro.pk or (o["solo_con_persone"] and not n_area):
+                continue
+            ruoli = sorted(r.sigla or r.nome for r in area.ruoli_reparto.all())
+            res.riga({"centro": centro.nome, "reparto": area.nome, "livello": "Reparto",
+                      "reparto_portale": area.reparto.nome if area.reparto_id else "",
+                      "ruoli": ", ".join(ruoli), "persone": n_area, "pct": _pct_su(n_area, totale)})
+    senza = [p for p in persone if not p.centro_costo]
+    if senza:
+        res.riga({"centro": SENZA_CENTRO, "livello": "Centro di costo", "persone": len(senza),
+                  "pct": _pct_su(len(senza), totale)}, TONE_WARN)
+        if o["includi_reparti"]:
+            for nome, n in sorted(Counter(p.area or "Senza area" for p in senza).items(),
+                                  key=lambda kv: kv[0].casefold()):
+                res.riga({"centro": SENZA_CENTRO, "reparto": nome, "livello": "Reparto", "persone": n,
+                          "pct": _pct_su(n, totale)}, TONE_WARN)
+    res.kpis = [Kpi("Centri di costo", centri_mostrati), Kpi("Persone", totale),
+                Kpi(SENZA_CENTRO, len(senza), TONE_WARN if senza else TONE_OK)]
+    res.note = [f"Situazione al {ctx.today:%d/%m/%Y}: il centro di costo è quello di oggi dell'area della persona. "
+                f"La somma delle righe con livello «Centro di costo» fa {totale} persone; le righe «Reparto» ne sono il dettaglio.",
+                "Qui «reparto» è l'area aziendale; «Reparto del portale» è il reparto che la contiene."]
+    if senza:
+        res.note.append(f"«{SENZA_CENTRO}»: persone senza area, o in un'area non collegata a un centro. Si collega da "
+                        "Persone → Centri di costo; una Direzione senza centro può essere voluta.")
+    return res
+
+
+_registra(Sezione(
+    key="centri_costo",
+    titolo="Organico per centro di costo",
+    gruppo=GRUPPO_ORGANICO,
+    descrizione="Per centro di costo i reparti collegati, i loro ruoli e le persone, compreso chi non ha un centro.",
+    builder=_organico_centri_costo,
+    colonne=(("centro", "Centro di costo"), ("reparto", "Reparto (area)"), ("livello", "Livello"),
+             ("reparto_portale", "Reparto del portale"), ("ruoli", "Ruoli del reparto"),
+             ("persone", "Persone"), ("pct", "%")),
+    predefinite=("centro", "livello", "reparto", "ruoli", "persone", "pct"),
+    opzioni=(Opzione("includi_reparti", "Mostra anche i reparti di ogni centro", SI_NO, predefinito=True),
+             Opzione("solo_con_persone", "Solo centri e reparti con persone nel perimetro", SI_NO, predefinito=True)),
+    nominativa=False,
 ))
 
 
@@ -1320,7 +1400,7 @@ def _sorveglianza(ctx: Contesto, o: dict) -> Risultato:
             continue
         p = persone[v.persona]
         righe.append(({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
+            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo, "mansione": p.mansione,
             "visita": v.tipo_da_mostrare.nome, "richiesta": "Sì" if v.richiesta else "No",
             "origine": "; ".join(v.origini), "ultima": v.ultima, "scadenza": v.scadenza,
             "giorni": (v.scadenza - ctx.today).days if v.scadenza else None, "stato": stato,
@@ -1355,7 +1435,7 @@ _registra(Sezione(
     descrizione="Visite dovute e ultima visita per persona e famiglia di visita, senza giudizio né prescrizioni.",
     builder=_sorveglianza,
     riferimenti=(f"{ISO_45001} §8.1", "D.Lgs. 81/2008 art. 41"),
-    colonne=(("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("mansione", "Mansione"),
+    colonne=(("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("mansione", "Mansione"),
              ("visita", "Tipo visita"), ("richiesta", "Dovuta"), ("origine", "Richiesta da"),
              ("ultima", "Ultima visita"), ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"), ("stato", "Stato")),
     predefinite=("nominativo", "mansione", "visita", "ultima", "scadenza", "stato"),
@@ -1385,7 +1465,7 @@ def _responsabili_ids() -> set[int]:
     return {int(x) for x in ids if x}
 
 
-_DIMENSIONI_PDR = (("contratto", "Contratto"), ("livello", "Livello"), ("reparto", "Reparto"), ("area", "Area aziendale"),
+_DIMENSIONI_PDR = (("contratto", "Contratto"), ("livello", "Livello"), ("reparto", "Reparto"), ("area", "Area aziendale"), ("centro_costo", "Centro di costo"),
                    ("mansione", "Mansione"), ("eta", "Fascia d'età"), ("anzianita", "Fascia di anzianità"))
 _AREE_PDR = (("governance", "Governance (responsabili)"), ("processi_hr", "Processi HR (assunzioni, cessazioni)"),
              ("crescita", "Opportunità di crescita (formazione)"))
@@ -1396,7 +1476,7 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
 
     res = Risultato()
     k = o["soglia_anonimato"]
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     in_forza = [p for p in tutti if p.in_forza_al(ctx.today)]
     assunti, cessati = _movimenti(ctx)
 

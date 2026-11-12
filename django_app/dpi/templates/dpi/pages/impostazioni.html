@@ -105,6 +105,12 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .dpi-btn-red:hover{background:rgba(229,62,62,.16)}
 body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93c5fd}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
@@ -160,9 +166,29 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
           <label>Amministrazione: email per il report di consegna, solo per le categorie con «avvisa l'Amministrazione» (una per riga)</label>
           <textarea name="amministrazione_emails" rows="3">{{ impost.amministrazione_emails }}</textarea>
         </div>
+        <div class="dpi-field">
+          <label>Scarpe: nome del negozio</label>
+          <input type="text" name="negozio_nome" value="{{ impost.negozio_nome }}" maxlength="120">
+        </div>
+        <div class="dpi-field">
+          <label>Scarpe: mail del negozio per l'ordine in convenzione</label>
+          <input type="email" name="negozio_email" value="{{ impost.negozio_email }}" maxlength="254">
+        </div>
+        <div class="dpi-field">
+          <label>Scarpe: operatore incaricato degli ordini, email (una per riga; vuoto = referenti DPI)</label>
+          <textarea name="negozio_operatore_emails" rows="2">{{ impost.negozio_operatore_emails }}</textarea>
+        </div>
+        <div class="dpi-field">
+          <label>Scarpe: ogni quanti giorni ricordare il riepilogo al negozio</label>
+          <input type="number" name="negozio_giorni_riepilogo" value="{{ impost.negozio_giorni_riepilogo }}" min="1" max="365">
+        </div>
         <div class="dpi-field" style="display:flex; align-items:center;">
           <input type="checkbox" name="avviso_ritiro_all_approvazione" id="avviso-ritiro" value="1"{% if impost.avviso_ritiro_all_approvazione %} checked{% endif %}>
           <label for="avviso-ritiro" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Avvisa il dipendente di ritirare il DPI subito all'approvazione (senza «Pronto per il ritiro» del magazzino)</label>
+        </div>
+        <div class="dpi-field">
+          <label for="domini-aziendali">Domini della mail aziendale per la conferma di ricevuta (es. azienda.it, separati da virgola; vuoto = qualunque mail di notifica)</label>
+          <input type="text" name="domini_email_aziendali" id="domini-aziendali" value="{{ impost.domini_email_aziendali }}" placeholder="azienda.it">
         </div>
 
         <button type="submit" class="dpi-btn dpi-btn-green">Salva impostazioni</button>
@@ -366,6 +392,18 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
       <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" name="avvisa_amministrazione_consegna" id="avvisa-amministrazione" value="1"{% if not cat_edit or cat_edit.avvisa_amministrazione_consegna %} checked{% endif %}>
         <label for="avvisa-amministrazione" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Alla consegna avvisa l'Amministrazione (report con PDF)</label>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="consegna_magazzino" id="consegna-magazzino" value="1"{% if not cat_edit or cat_edit.consegna_magazzino %} checked{% endif %}>
+        <label for="consegna-magazzino" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">La consegna la fa il magazzino (Banco consegne e mail «Da consegnare»; togli per le scarpe)</label>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="si_ordina_al_negozio" id="si-ordina-negozio" value="1"{% if cat_edit.si_ordina_al_negozio %} checked{% endif %}>
+        <label for="si-ordina-negozio" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Si ordina al negozio: convenzione o fuori convenzione (scarpe)</label>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="consegna_diretta" id="consegna-diretta" value="1"{% if cat_edit.consegna_diretta %} checked{% endif %}>
+        <label for="consegna-diretta" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Consegna diretta dal banco, senza approvazione (consumabili: guanti, tappi…)</label>
       </div>
 
       <div style="display:flex; gap:10px; margin-top:8px;">

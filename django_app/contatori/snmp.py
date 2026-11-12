@@ -13,6 +13,13 @@ from time import monotonic
 
 # Two specification passes plus printer discovery must fit the 110s job limit.
 SPECIFICATION_BUDGET = 30.0
+# puresnmp ripete di serie il pacchetto UDP 10 volte (send_udp, retries=10): con un
+# timeout di 3 s un apparato spento costava fino a 30 s per OID. Qui due tentativi in tutto
+# (uno + un nuovo invio), come la cattura (snmp_capture).
+TENTATIVI_UDP = 2
+# Scadenza unica per tutto il poll di un dispositivo (sonde, sonde nuove, Printer-MIB):
+# resta sotto il timeout del job (110 s) con margine per il salvataggio.
+POLL_BUDGET = 80.0
 WALK_BUDGET = 10.0
 MAX_WALK_ROWS = 256
 # Righe per richiesta GETBULK (v2c/v3): uno switch con 50+ porte in v3 richiede
@@ -261,6 +268,11 @@ def sonda_engine_v3(host, port=161, timeout=2):
     return risposta[inizio:inizio + lunghezza].hex()
 
 
+def mittente_udp(send_udp, timeout):
+    """Trasporto UDP puresnmp con timeout e numero di tentativi espliciti (mai i 10 di serie)."""
+    return functools.partial(send_udp, timeout=timeout, retries=TENTATIVI_UDP)
+
+
 def _testo(valore):
     if isinstance(valore, bytes):
         return valore.decode("latin-1", "replace").strip()
@@ -290,7 +302,7 @@ def leggi_oids(host, oids, community="", port=161, timeout=3,
     cred = costruisci_credenziali(community, version)
 
     async def _run():
-        sender = functools.partial(send_udp, timeout=timeout)
+        sender = mittente_udp(send_udp, timeout)
         client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
         valori, errori = {}, {}
         deadline = monotonic() + max_duration
@@ -332,7 +344,7 @@ def leggi_colonna(host, oid, community="", port=161, timeout=3,
     cred = costruisci_credenziali(community, version)
 
     async def _run():
-        sender = functools.partial(send_udp, timeout=timeout)
+        sender = mittente_udp(send_udp, timeout)
         client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
         valori = []
         async for vb in scorri(client, oid, version):
@@ -405,10 +417,10 @@ def _intero_somma(valori, errori, oid):
 
 
 def leggi_specifiche(host, specifiche, community="", port=161,
-                     timeout=3, version="v1"):
+                     timeout=3, version="v1", *, max_duration=SPECIFICATION_BUDGET):
     """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
     specifiche = list(specifiche)
-    deadline = monotonic() + SPECIFICATION_BUDGET
+    deadline = monotonic() + min(SPECIFICATION_BUDGET, max_duration)
     # "A+B" (solo GET) = somma di piu' OID: es. Kyocera, stampa + copia per formato.
     somme = {s["oid"]: parti_oid(s["oid"]) for s in specifiche
              if s.get("modalita", "GET") == "GET" and "+" in s["oid"]}
@@ -523,7 +535,7 @@ def scansiona_hosts(hosts, community="", port=161, timeout=2,
         async with sem:
             for index, candidate in enumerate(candidates, 1):
                 cred = costruisci_credenziali(candidate, version)
-                sender = functools.partial(send_udp, timeout=timeout)
+                sender = mittente_udp(send_udp, timeout)
                 client = PyWrapper(Client(host, cred, port=port, sender=sender))
                 try:
                     descr = await asyncio.wait_for(client.get(SYS_DESCR), timeout=timeout)
@@ -574,7 +586,7 @@ def _tabella(host, community, port, timeout, version):
     cred = costruisci_credenziali(community, version)
 
     async def _run():
-        sender = functools.partial(send_udp, timeout=timeout)
+        sender = mittente_udp(send_udp, timeout)
         client = PyWrapper(Client(host, cred, port=port, sender=sender))
         # colonna .4 = valore; l'ultimo componente dell'OID e' gia' il numero
         # contatore -> mappa {numero_contatore: valore}
@@ -606,7 +618,7 @@ def _consumabili_raw(host, community, port, timeout, version):
     cred = costruisci_credenziali(community, version)
 
     async def _run():
-        sender = functools.partial(send_udp, timeout=timeout)
+        sender = mittente_udp(send_udp, timeout)
         client = PyWrapper(Client(host, cred, port=port, sender=sender))
 
         async def col(base):

@@ -1,187 +1,49 @@
 {% load anagrafica_extras %}
 {% load static %}
 {% subnav_anagrafica as nav %}
-{% safety_subnav_corrente as safnav_gruppi %}
 {% include "anagrafica/components/_fm_icons.html" %}
 {% include "anagrafica/components/_hr_tokens.html" %}
-<style>
-/* Subnav Anagrafica HR — design «Novicrom HUB»: pill-tab + icone line */
-.hrnav { display:flex; gap:4px; flex-wrap:wrap; align-items:center;
-  position:sticky; top:var(--nav-h, 60px); z-index:90;
-  background:#fff; border-bottom:1px solid #e6ebf3; border-radius:0;
-  padding:7px var(--content-pad-x, 24px);
-  box-shadow:0 6px 14px -10px rgba(12,37,69,.28);
-  font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
-/* In modalità sidebar (desktop) NON c'è una topnav in alto (l'app-header è
-   display:none): la subnav va fissata al top assoluto della pagina. */
-body.nav-side .hrnav { top:0; }
-/* Su mobile l'app-header torna visibile e sticky a top:0 → ripristina l'offset. */
-@media (max-width:768px){ body.nav-side .hrnav { top:var(--nav-h, 60px); } }
-.hrnav-tab { display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
-  border-radius:9px; padding:8px 13px; font-size:13px; font-weight:600;
-  color:#5a6580; text-decoration:none; border:none; background:none;
-  cursor:pointer; font-family:inherit; transition:background .15s, color .15s; }
-.hrnav-ico { width:16px; height:16px; flex:0 0 16px; stroke:currentColor; stroke-width:1.8;
-  fill:none; stroke-linecap:round; stroke-linejoin:round; color:#94a3b8; transition:color .15s; }
-.hrnav-tab:hover { background:#f1f5f9; color:#0c2545; }
-.hrnav-tab:hover .hrnav-ico { color:#1f87cd; }
-.hrnav-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(8,20,45,.25); }
-.hrnav-tab.active .hrnav-ico { color:#1f87cd; }
-.hrnav-caret { font-size:9px; opacity:.7; margin-left:2px; display:inline-block; transition:transform .18s ease; }
-@media (prefers-reduced-motion:reduce){ .hrnav-caret { transition:none; } }
-.hrnav-dd { position:relative; display:inline-flex; align-items:stretch; }
-/* Pilastro «split»: il testo è un link verso la dashboard del sotto-modulo,
-   il caret apre il dropdown. I due pezzi sembrano un'unica pill. */
-.hrnav-pill { border-top-right-radius:0; border-bottom-right-radius:0; padding-right:9px; }
-.hrnav-caret-btn { display:inline-flex; align-items:center; border:none; background:none;
-  cursor:pointer; color:#5a6580; font-size:9px; padding:8px 10px 8px 4px; border-radius:9px;
-  border-top-left-radius:0; border-bottom-left-radius:0; font-family:inherit;
-  transition:background .15s, color .15s; }
-.hrnav-dd:hover .hrnav-pill, .hrnav-dd:hover .hrnav-caret-btn { background:#f1f5f9; color:#0c2545; }
-.hrnav-pill.active, .hrnav-caret-btn.active { background:#0c2545; color:#fff; }
-.hrnav-pill.active .hrnav-ico { color:#1f87cd; }
-.hrnav-dd:hover .hrnav-pill.active, .hrnav-dd:hover .hrnav-caret-btn.active { background:#0c2545; color:#fff; }
-.hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:210px;
-  background:#fff; border:1px solid #e6ebf3; border-radius:12px;
-  box-shadow:0 14px 36px rgba(12,37,69,.18); z-index:200; padding:6px; }
-/* Apertura al CLICK: stato .open pilotato dal controller JS in fondo al file. */
-.hrnav-dd-menu.open { display:block; }
-/* Mega-menu a colonne: una colonna per «gruppo» con intestazione (al click). */
-.hrnav-dd-menu.hrnav-dd-mega.open { display:flex; gap:2px; }
-/* Stato «aperto» sul trigger + caret ruotato. */
-.hrnav-caret-btn[aria-expanded="true"], .hrnav-dd-btn[aria-expanded="true"] { background:#f1f5f9; color:#0c2545; }
-.hrnav-caret-btn.active[aria-expanded="true"], .hrnav-dd-btn.active[aria-expanded="true"] { background:#0c2545; color:#fff; }
-.hrnav-dd-btn[aria-expanded="true"] .hrnav-caret { transform:rotate(180deg); }
-/* Fallback senza JS: finché il controller non marca <html class="hrnav-js">, i menu
-   restano raggiungibili all'hover / focus da tastiera (nessuno resta tagliato fuori). */
-html:not(.hrnav-js) .hrnav-dd:hover .hrnav-dd-menu,
-html:not(.hrnav-js) .hrnav-dd:focus-within .hrnav-dd-menu,
-html:not(.hrnav-js) .hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
-html:not(.hrnav-js) .hrnav-dd:hover .hrnav-dd-menu.hrnav-dd-mega,
-html:not(.hrnav-js) .hrnav-dd:focus-within .hrnav-dd-menu.hrnav-dd-mega { display:flex; gap:2px; }
-.hrnav-dd-col { min-width:188px; padding:0 3px; }
-.hrnav-dd-col + .hrnav-dd-col { border-left:1px solid #eef2f7; }
-.hrnav-dd-head { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
-  color:#94a3b8; padding:8px 11px 4px; }
-body.theme-dark .hrnav-caret-btn { color:var(--text-light); }
-body.theme-dark .hrnav-dd:hover .hrnav-pill, body.theme-dark .hrnav-dd:hover .hrnav-caret-btn { background:var(--surface-alt); color:#93c5fd; }
-body.theme-dark .hrnav-dd-col + .hrnav-dd-col { border-color:var(--border); }
-body.theme-dark .hrnav-dd-head { color:var(--text-light); }
-body.theme-dark .hrnav-caret-btn[aria-expanded="true"], body.theme-dark .hrnav-dd-btn[aria-expanded="true"] { background:var(--surface-alt); color:#93c5fd; }
-body.theme-dark .hrnav-caret-btn.active[aria-expanded="true"], body.theme-dark .hrnav-dd-btn.active[aria-expanded="true"] { background:#0c2545; color:#fff; }
-.hrnav-dd-menu a { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:8px;
-  font-size:13px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
-.hrnav-dd-menu a:hover { background:#f4f8fc; color:#0c2545; }
-.hrnav-dd-menu a:hover .hrnav-ico { color:#1f87cd; }
-.hrnav-dd-menu a.active { background:#e8f3fb; color:#0c2545; }
-.hrnav-dd-menu a.active .hrnav-ico { color:#1f87cd; }
-body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
-body.theme-dark .hrnav-tab { color:var(--text-light); }
-body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
-body.theme-dark .hrnav-dd-menu { background:var(--surface); border-color:var(--border); }
-body.theme-dark .hrnav-dd-menu a { color:var(--text-mid); }
-body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#93c5fd; }
-/* Secondo livello «Salute e sicurezza»: sezioni + voci della sezione accesa, dentro
-   la stessa barra sticky (prima era una seconda barra scritta in ogni pagina). */
-.hrnav-sub { flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px;
-  margin-top:4px; padding-top:6px; border-top:1px solid #eef2f7; }
-.hrnav-sub-sez { display:flex; gap:2px; flex-wrap:wrap; }
-.hrnav-sub-sez a { padding:5px 10px; border-radius:8px; font-size:12px; font-weight:700; color:#64748b; text-decoration:none; white-space:nowrap; }
-.hrnav-sub-sez a:hover { background:#f1f5f9; color:#0c2545; }
-.hrnav-sub-sez a.active { color:#0c2545; box-shadow:inset 0 -2px 0 #1f87cd; border-radius:0; }
-.hrnav-sub-voci { display:flex; gap:4px; flex-wrap:wrap; padding-left:10px; border-left:1px solid #e6ebf3; }
-.hrnav-sub-voci a { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px; font-size:12px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
-.hrnav-sub-voci a:hover { background:#f4f8fc; color:#0c2545; }
-.hrnav-sub-voci a.active { background:#e8f3fb; color:#0c2545; }
-.hrnav-sub-n { min-width:18px; padding:0 6px; border-radius:999px; background:#f59e0b; color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; }
-body.theme-dark .hrnav-sub, body.theme-dark .hrnav-sub-voci { border-color:var(--border); }
-body.theme-dark .hrnav-sub-sez a, body.theme-dark .hrnav-sub-voci a { color:var(--text-light); }
-body.theme-dark .hrnav-sub-sez a.active, body.theme-dark .hrnav-sub-voci a.active { color:#93c5fd; background:var(--surface-alt); }
-.hrnav-sub, .hrnav-sub-sez, .hrnav-sub-voci { min-width:0; max-width:100%; }
-/* Contenitore delle voci: sul computer è invisibile al layout (display:contents),
-   sul telefono diventa una riga sola che scorre invece di 4 righe a capo. */
-.hrnav-tabs { display:contents; }
-@media (max-width:720px) {
-  .hrnav { padding:6px 12px; }
-  .hrnav-tabs { display:flex; flex-wrap:nowrap; gap:2px; width:100%; overflow-x:auto; scrollbar-width:none; }
-  .hrnav-tabs::-webkit-scrollbar { display:none; }
-  /* La riga che scorre taglierebbe le tendine: sul telefono stanno fisse allo schermo,
-     sotto la voce (il top lo mette lo script all'apertura). */
-  .hrnav-dd-menu { position:fixed; left:8px; right:8px; min-width:0; max-height:calc(70 * var(--vh, 1vh)); overflow:auto; }
-  .hrnav-dd-menu.hrnav-dd-mega.open { flex-direction:column; }
-  .hrnav-sub { flex-direction:column; align-items:stretch; }
-  .hrnav-sub-sez, .hrnav-sub-voci { flex-wrap:nowrap; overflow-x:auto; width:100%; }
-  .hrnav-sub-voci { padding-left:0; border-left:0; }
-}
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .hrnav-tab:hover .hrnav-ico{color:#93c5fd}
-body.theme-dark .hrnav-tab.active .hrnav-ico{color:#93c5fd}
-body.theme-dark .hrnav-pill.active .hrnav-ico{color:#93c5fd}
-body.theme-dark .hrnav-dd-menu a:hover .hrnav-ico{color:#93c5fd}
-body.theme-dark .hrnav-dd-menu a.active .hrnav-ico{color:#93c5fd}
-body.theme-dark .hrnav-sub-sez a:hover{background:var(--surface-alt,#0f1b2d);color:var(--text)}
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/subnav.css' %}?v=20261112">
 <div class="hrnav">
   <div class="hrnav-tabs">
   {% for item in nav.items %}
+    {% with ic=item.label|subnav_svg_icon %}
     {% if item.type == "link" %}
-      {% with ic=item.label|subnav_svg_icon %}
-      <a class="hrnav-tab{% if item.active %} active{% endif %}"
+      <a class="hrnav-tab{% if item.active %} active{% endif %}{% if item.fine %} hrnav-fine{% endif %}"
          href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}
-         {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
-      {% endwith %}
+         {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}{% if item.n %} <span class="hrnav-sub-n" title="Scadenze già scadute">{{ item.n }}</span>{% endif %}</a>
     {% elif item.type == "category" %}
       <span class="hrnav-dd">
-        {% with ic=item.label|subnav_svg_icon %}
-        {% if item.landing_url %}
-          {# Pilastro «split»: il testo porta alla dashboard del sotto-modulo, il caret apre il menu. #}
-          <a class="hrnav-tab hrnav-pill{% if item.active %} active{% endif %}" href="{{ item.landing_url }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
-          <button class="hrnav-caret-btn{% if item.active %} active{% endif %}" type="button" aria-label="Apri menu {{ item.label }}" aria-haspopup="true" aria-expanded="false" aria-controls="hrnav-menu-{{ item.id }}">▾</button>
-        {% else %}
-          <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="hrnav-menu-{{ item.id }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
-        {% endif %}
-        {% endwith %}
-        <div class="hrnav-dd-menu{% if item.has_headers %} hrnav-dd-mega{% endif %}" id="hrnav-menu-{{ item.id }}">
-          {% if item.has_headers %}
-            {% for g in item.groups %}
-              <div class="hrnav-dd-col">
-                {% if g.header %}<div class="hrnav-dd-head">{{ g.header }}</div>{% endif %}
-                {% for child in g.links %}
-                  {% with cic=child.label|subnav_svg_icon %}
-                  <a href="{{ child.url }}"
-                     class="{% if child.active %}active{% endif %}"{% if child.active %} aria-current="page"{% endif %}{% with hint=child.label|menu_hint %}{% if hint %} title="{{ hint }}"{% endif %}{% endwith %}
-                     {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
-                  {% endwith %}
-                {% endfor %}
-              </div>
-            {% endfor %}
-          {% else %}
-            {% for child in item.links %}
-              {% with cic=child.label|subnav_svg_icon %}
-              <a href="{{ child.url }}"
-                 class="{% if child.active %}active{% endif %}"{% if child.active %} aria-current="page"{% endif %}{% with hint=child.label|menu_hint %}{% if hint %} title="{{ hint }}"{% endif %}{% endwith %}
-                 {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
-              {% endwith %}
-            {% endfor %}
-          {% endif %}
+        <a class="hrnav-tab hrnav-pill{% if item.active %} active{% endif %}" href="{{ item.url }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}{% if item.n %} <span class="hrnav-sub-n" title="Da gestire in questa sezione">{{ item.n }}</span>{% endif %}</a>
+        <div class="hrnav-dd-menu" id="hrnav-menu-{{ item.id }}">
+          {% for g in item.groups %}
+            <div class="hrnav-dd-col">
+              {% if g.header %}<div class="hrnav-dd-head">{{ g.header }}</div>{% endif %}
+              {% for child in g.links %}
+                <a href="{{ child.url }}"
+                   class="{% if child.active %}active{% endif %}"{% if child.active %} aria-current="page"{% endif %}
+                   {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{{ child.label|strip_leading_emoji }}</a>
+              {% endfor %}
+            </div>
+          {% endfor %}
         </div>
       </span>
     {% endif %}
+    {% endwith %}
   {% empty %}
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
   </div>
-  {% if safnav_gruppi %}
-  <nav class="hrnav-sub" aria-label="Salute e sicurezza">
+  {% if nav.seconda %}
+  <nav class="hrnav-sub" aria-label="{{ nav.seconda.aria }}">
+    {% if nav.seconda.sezioni %}
     <div class="hrnav-sub-sez">
-      {% for g in safnav_gruppi %}<a href="{{ g.url }}" class="{% if g.active %}active{% endif %}"{% if g.active %} aria-current="true"{% endif %}>{{ g.titolo }}{% if g.n and not g.active %} <span class="hrnav-sub-n" title="Da gestire in questa sezione">{{ g.n }}</span>{% endif %}</a>{% endfor %}
+      {% for g in nav.seconda.sezioni %}<a href="{{ g.url }}" class="{% if g.active %}active{% endif %}"{% if g.active %} aria-current="true"{% endif %}>{{ g.titolo }}{% if g.n and not g.active %} <span class="hrnav-sub-n" title="Da gestire in questa sezione">{{ g.n }}</span>{% endif %}</a>{% endfor %}
     </div>
-    {% for g in safnav_gruppi %}{% if g.active %}
-    <div class="hrnav-sub-voci" role="group" aria-label="{{ g.titolo }}">
-      {% for v in g.voci %}<a href="{{ v.url }}" class="{% if v.active %}active{% endif %}"{% if v.active %} aria-current="page"{% endif %}>{{ v.label }}{% if v.n %} <span class="hrnav-sub-n" title="Da gestire">{{ v.n }}</span>{% endif %}</a>{% endfor %}
+    {% endif %}
+    <div class="hrnav-sub-voci" role="group" aria-label="{{ nav.seconda.aria }}">
+      {% for v in nav.seconda.voci %}{% with hint=v.label|menu_hint %}<a href="{{ v.url }}" class="{% if v.active %}active{% endif %}"{% if v.active %} aria-current="page"{% endif %}{% if hint %} title="{{ hint }}"{% endif %}{% if v.target == "_blank" %} target="_blank" rel="noopener"{% endif %}>{{ v.label|strip_leading_emoji }}{% if v.n %} <span class="hrnav-sub-n" title="Da gestire">{{ v.n }}</span>{% endif %}</a>{% endwith %}{% endfor %}
     </div>
-    {% endif %}{% endfor %}
   </nav>
   {% endif %}
 </div>
@@ -200,50 +62,30 @@ suoi sotto-moduli. Vedi anagrafica/static/anagrafica/js/ana_table_ux.js.
 <link rel="stylesheet" href="{% static 'anagrafica/css/ana_table_ux.css' %}?v=1">
 <script src="{% static 'anagrafica/js/ana_table_ux.js' %}?v=1" defer></script>
 <script>
-/* Subnav Anagrafica — apertura dropdown al CLICK (non più hover).
-   Uno alla volta · click fuori / Esc chiudono · gestisce aria-expanded.
-   Degrada senza JS: senza la classe .hrnav-js sul <html>, il CSS di fallback
-   riapre i menu all'hover/focus da tastiera. */
+/* Se una riga non entra le dimensioni scendono da sole (data-fit 0→4): si misura a ogni cambio di larghezza
+   e a font caricati, quindi vale per ogni schermo, zoom e «dimensione testo» delle preferenze. */
 (function(){
   var bar = document.querySelector(".hrnav");
   if(!bar) return;
-  document.documentElement.classList.add("hrnav-js");
-  var groups = Array.prototype.slice.call(bar.querySelectorAll(".hrnav-dd")).map(function(dd){
-    return { trigger: dd.querySelector(".hrnav-caret-btn, .hrnav-dd-btn"),
-             menu: dd.querySelector(".hrnav-dd-menu") };
-  }).filter(function(g){ return g.trigger && g.menu; });
-  if(!groups.length) return;
-  function close(g){ g.menu.classList.remove("open"); g.trigger.setAttribute("aria-expanded","false"); }
-  var stretto = window.matchMedia("(max-width:720px)");
-  function open(g){
-    // Sul telefono la tendina è fissa allo schermo: va messa subito sotto la voce.
-    g.menu.style.top = stretto.matches ? (g.trigger.getBoundingClientRect().bottom + 6) + "px" : "";
-    g.menu.classList.add("open"); g.trigger.setAttribute("aria-expanded","true");
+  var LIVELLI = 4, telefono = window.matchMedia("(max-width:720px)");
+  var righe = [bar.querySelector(".hrnav-tabs"), bar.querySelector(".hrnav-sub")].filter(Boolean);
+  function sfora(){
+    return righe.some(function(r){ return r.scrollWidth > r.clientWidth + 1; });
   }
+  function adatta(){
+    bar.setAttribute("data-fit", "0");
+    if(telefono.matches) return;
+    for(var i = 1; i <= LIVELLI && sfora(); i++) bar.setAttribute("data-fit", String(i));
+  }
+  var raf = 0;
+  function pianifica(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(adatta); }
+  window.addEventListener("resize", pianifica);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(pianifica);
+  adatta();
   // Sul telefono la voce attiva resta in vista nella riga che scorre.
-  var tabs = bar.querySelector(".hrnav-tabs");
-  var attiva = tabs && tabs.querySelector(".active");
-  if (stretto.matches && attiva && tabs.scrollWidth > tabs.clientWidth) {
+  var tabs = righe[0], attiva = tabs && tabs.querySelector(".active");
+  if(telefono.matches && attiva && tabs.scrollWidth > tabs.clientWidth){
     tabs.scrollLeft += attiva.getBoundingClientRect().left - tabs.getBoundingClientRect().left - 24;
   }
-  function closeAll(except){ groups.forEach(function(g){ if(g!==except) close(g); }); }
-  groups.forEach(function(g){
-    g.trigger.addEventListener("click", function(e){
-      e.preventDefault(); e.stopPropagation();
-      var isOpen = g.trigger.getAttribute("aria-expanded") === "true";
-      closeAll(g);
-      if(isOpen){ close(g); } else { open(g); }
-    });
-  });
-  document.addEventListener("click", function(e){
-    if(!e.target.closest(".hrnav-dd")) closeAll(null);
-  });
-  document.addEventListener("keydown", function(e){
-    if(e.key === "Escape" || e.key === "Esc"){
-      groups.forEach(function(g){
-        if(g.menu.classList.contains("open")){ close(g); g.trigger.focus(); }
-      });
-    }
-  });
 })();
 </script>

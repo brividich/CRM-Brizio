@@ -1048,8 +1048,15 @@ def gestione_admin(request):
     pubblicate = Notizia.objects.filter(stato=STATO_PUBBLICATA).count()
     archiviate = Notizia.objects.filter(stato=STATO_ARCHIVIATA).count()
     obbligatorie = Notizia.objects.filter(stato=STATO_PUBBLICATA, obbligatoria=True).count()
-    totale_letture = NotiziaLettura.objects.count()
-    totale_conformi = NotiziaLettura.objects.filter(ack_at__isnull=False).count()
+    # Conformità = conferme della versione corrente sui destinatari delle notizie
+    # obbligatorie pubblicate (stessa regola del riepilogo per notizia). Prima era
+    # conferme / righe di lettura di tutte le versioni e notizie, e chi non aveva
+    # mai aperto la notizia non contava: il tasso risultava gonfiato.
+    righe_obbligatorie = _dashboard_rows(list(
+        Notizia.objects.filter(stato=STATO_PUBBLICATA, obbligatoria=True).prefetch_related("audience")
+    ))
+    totale_letture = sum(r["target_count"] for r in righe_obbligatorie)
+    totale_conformi = sum(r["stats"][COMPLIANCE_CONFORME] for r in righe_obbligatorie)
     tasso_conformita = round(totale_conformi * 100 / totale_letture, 1) if totale_letture else 0
     tasso_conformita_int = max(0, min(100, int(round(tasso_conformita))))
 

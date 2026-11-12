@@ -1,0 +1,97 @@
+{% extends "security/_base_soc.html" %}
+{# Storico dei task di installazione patch della console WatchGuard (services/watchguard_api.py: sincronizza_task). #}
+
+{% block title %}Installazioni da console | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Installazioni da console WatchGuard{% endblock %}
+
+{% block soc_content %}
+{% if not attivo %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-bottom: 12px;">
+  <strong>Lettura spenta:</strong> accendi «Patch» nella sezione «WatchGuard Endpoint Security (API)» delle impostazioni.
+</section>
+{% endif %}
+<section class="sec-panel">
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>Task</span><strong>{{ conteggio }}</strong>{% if ultima %} <small class="sec-muted">letti il {{ ultima|date:"d/m H:i" }}</small>{% endif %}</div>
+    <div class="sec-fact"><span>Riuscite</span><strong>{{ totali.riuscite|default:0 }}</strong></div>
+    <div class="sec-fact"><span>Errori</span><strong>{{ totali.errori|default:0 }}</strong></div>
+    <div class="sec-fact"><span>PC in attesa</span><strong>{{ totali.in_attesa|default:0 }}</strong></div>
+  </div>
+  <form class="sec-filter-bar" method="get" style="margin-top: 10px;">
+    <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="task, PC o patch"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    {% if q %}<a class="sec-button" href="{% url 'security:watchguard_task' %}">Reimposta</a>{% endif %}
+  </form>
+</section>
+
+{% if scelto %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>{{ scelto.nome|default:scelto.task_id }}</h2>
+    <a class="sec-button" href="?q={{ q|urlencode }}">Chiudi</a>
+  </div>
+  {% if scelto.verifica_il %}
+  <p class="sec-small">
+    <span class="sec-badge {% if scelto.verifica.stato == 'fatta' %}low{% elif scelto.verifica.stato == 'errore' %}high{% else %}muted{% endif %}">{{ scelto.verifica_label }}</span>
+    il {{ scelto.verifica_il|date:"d/m/Y H:i" }}{% if scelto.verifica.motivo %}: {{ scelto.verifica.motivo }}{% endif %}{% if scelto.verifica.software.pc %} · software di {{ scelto.verifica.software.pc }} PC{% endif %}.
+    {% if scelto.verifica.stato == 'fatta' %}Il ricalcolo delle CVE e la chiusura con prove partono da soli.{% endif %}
+  </p>
+  {% elif scelto.in_attesa == 0 and scelto.riuscite %}
+  <p class="sec-small sec-muted">Task finito: patch e software si rileggono alla prossima lettura oraria.</p>
+  {% endif %}
+  {% if evidenza and evidenza.totale %}
+  <div class="sec-fact-grid">
+    {% for k, label, classe, n in evidenza.stati %}<div class="sec-fact"><span>CVE {{ label|lower }}</span><strong>{{ n }}</strong></div>{% endfor %}
+  </div>
+  {% endif %}
+  {% if esiti %}
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-preview-scope>
+      <thead><tr><th>PC</th><th>Patch</th><th>Esito</th><th>Quando</th><th>CVE della patch</th></tr></thead>
+      <tbody>
+      {% for e in esiti %}
+        <tr>
+          <td data-fm-group="{{ e.host_display|default:e.host }}">{% with nome=e.host_display|default:e.host %}<a href="{% url 'security:pc_detail' %}?nome={{ nome|urlencode }}" data-preview="{% url 'security:preview_pc' %}?nome={{ nome|urlencode }}">{{ nome }}</a>{% endwith %}</td>
+          <td data-fm-group="{{ e.patch_nome }}">{{ e.patch_nome|default:"—" }}</td>
+          <td>{% if e.esito %}<span class="sec-badge {% if e.esito_errore %}high{% else %}low{% endif %}">{{ e.esito_label }}</span>{% else %}<span class="sec-badge muted">In attesa</span>{% endif %}</td>
+          <td class="sec-nowrap" data-sort-value="{{ e.esito_il|date:'Y-m-d H:i' }}">{{ e.esito_il|date:"d/m/Y H:i" }}</td>
+          <td>{% for c in e.cve|slice:":4" %}<a href="{% url 'security:cve_detail' c.id %}" data-preview="{% url 'security:cve_pannello_cve' c.id %}">{{ c.id }}</a> <span class="sec-badge {{ c.classe }}">{{ c.label }}</span>{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}{% if e.cve|length > 4 %}<br><small class="sec-muted">e altre {{ e.cve|length|add:"-4" }}</small>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="sec-empty">WatchGuard non ha ancora restituito esiti per questo task.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Task</h2>
+    {% if conteggio > tasks|length %}<span class="sec-muted sec-small">mostrati i {{ tasks|length }} più recenti di {{ conteggio }}</span>{% endif %}
+  </div>
+  {% if tasks %}
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Ultima esecuzione</th><th>Task</th><th>PC</th><th>Riuscite</th><th>Errori</th><th>In attesa</th><th>Verifica</th></tr></thead>
+      <tbody>
+      {% for t in tasks %}
+        <tr{% if scelto and scelto.pk == t.pk %} class="is-selected"{% endif %}>
+          <td class="sec-nowrap" data-sort-value="{{ t.ultimo_job_il|date:'Y-m-d H:i' }}">{{ t.ultimo_job_il|date:"d/m/Y H:i" }}</td>
+          <td><a href="?task={{ t.pk }}&amp;q={{ q|urlencode }}">{{ t.nome|default:t.task_id }}</a></td>
+          <td>{{ t.pc }}</td>
+          <td>{{ t.riuscite }}</td>
+          <td>{% if t.errori %}<span class="sec-badge high">{{ t.errori }}</span>{% else %}0{% endif %}</td>
+          <td>{% if t.in_attesa %}<span class="sec-badge muted">{{ t.in_attesa }}</span>{% else %}0{% endif %}</td>
+          <td>{% if t.verifica_il %}<span class="sec-badge {% if t.verifica.stato == 'fatta' %}low{% elif t.verifica.stato == 'errore' %}high{% else %}muted{% endif %}" title="{{ t.verifica.motivo }}">{{ t.verifica_label }}</span> <small class="sec-muted">{{ t.verifica_il|date:"d/m H:i" }}</small>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="sec-empty">Nessun task di installazione letto{% if q %} con questa ricerca{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -24,6 +24,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
 {% block content %}
 <div class="hr-shell">
   {% include "anagrafica/components/flash_messages.html" %}
+  {% include "anagrafica/partials/_torna_a.html" with testo="Iscrizioni fatte. Completa qui la sessione oppure torna alla pagina da cui sei partito." %}
 
   {% if motivo_blocco %}<div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>{% endif %}
 

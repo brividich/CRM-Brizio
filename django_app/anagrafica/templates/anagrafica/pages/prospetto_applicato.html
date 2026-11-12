@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ p.nome }} | Prospetto dei cambiamenti{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% include "anagrafica/components/_rc_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="rc-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">{{ p.nome }}</div>
+      <div class="rc-sub">{{ p.get_stato_display }}{% if p.applicato_il %} il {{ p.applicato_il|date:"d/m/Y H:i" }}{% if p.applicato_da %} da {{ p.applicato_da.get_full_name|default:p.applicato_da.username }}{% endif %}{% if p.decorrenza %}, decorrenza {{ p.decorrenza|date:"d/m/Y" }}{% endif %}{% endif %}.</div>
+    </div>
+    <div class="rc-actions"><a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Tutti i prospetti</a></div>
+  </div>
+
+  <section class="rc-panel">
+    <h2>Cambiamenti</h2>
+    <table class="rc-aree" data-fm-table-skip="1">
+      <thead><tr><th>Tipo</th><th>Esito</th></tr></thead>
+      <tbody>
+        {% for r in righe %}<tr><td>{{ r.get_tipo_display }}</td><td>{% if r.esito_ok is None %}<span class="rc-none">non applicato</span>{% elif r.esito_ok %}{{ r.esito }}{% else %}<span class="rc-avviso">Non riuscito: {{ r.esito }}</span>{% endif %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if fotografia.soglie %}<p class="rc-sub">Soglie al momento di applicare: carico concentrato da {{ fotografia.soglie.soglia_concentrazione }}%, troppe mansioni oltre {{ fotografia.soglie.soglia_mansioni }}, uomo solo sotto {{ fotografia.soglie.uomo_solo }} operativi.</p>{% endif %}
+  {% if fotografia.kpi %}
+  <section class="rc-panel">
+    <h2>Il confronto al momento di applicare</h2>
+    <table class="rc-aree" data-fm-table-skip="1">
+      <thead><tr><th>Voce</th><th class="rc-n">Oggi</th><th class="rc-n">Dopo</th></tr></thead>
+      <tbody>{% for r in fotografia.kpi %}<tr><td>{{ r.voce }}</td><td class="rc-n">{{ r.prima }}</td><td class="rc-n">{{ r.dopo }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if fotografia.centri %}
+    <div style="height:12px;"></div>
+    <table class="rc-aree" data-fm-table-skip="1">
+      <thead><tr><th>Centro di costo</th><th class="rc-n">Persone prima</th><th class="rc-n">Persone dopo</th></tr></thead>
+      <tbody>{% for r in fotografia.centri %}<tr><td>{{ r.voce }}</td><td class="rc-n">{{ r.persone_prima }}</td><td class="rc-n">{{ r.persone_dopo }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

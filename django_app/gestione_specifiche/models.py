@@ -509,6 +509,12 @@ class RegistroOFI(models.Model):
     def is_chiuso(self) -> bool:
         return self.fase == self.FASE_CHIUSO or self.data_chiusura is not None
 
+    @classmethod
+    def q_aperte(cls) -> models.Q:
+        """Il contrario di ``is_chiuso`` per i queryset: unica definizione di «aperta»
+        per registro, home, «Le mie» e report MOD.174."""
+        return ~models.Q(fase=cls.FASE_CHIUSO) & models.Q(data_chiusura__isnull=True)
+
     @property
     def is_scaduto(self) -> bool:
         """Scaduta: data richiesta passata e voce ancora aperta."""
@@ -933,3 +939,33 @@ class ClienteCartellaShare(models.Model):
 
     def __str__(self) -> str:
         return f"{self.cliente} -> {self.cartella}"
+
+
+def _copertina_storage():
+    from core.private_attachments import PrivateAttachmentStorage
+
+    return PrivateAttachmentStorage(download_hint="Logo della copertina: si vede solo dalle pagine del modulo.")
+
+
+class CopertinaCliente(models.Model):
+    """Aspetto della copertina di un cliente nel catalogo (colore, sigla, icona, logo).
+
+    ``chiave`` = nome del cliente in minuscolo, come raggruppa il catalogo. I campi vuoti
+    lasciano i valori automatici (colore dal nome, sigla dalla prima parola).
+    """
+
+    chiave = models.CharField("Cliente (chiave)", max_length=200, unique=True)
+    colore = models.CharField("Colore", max_length=7, blank=True, default="")
+    sigla = models.CharField("Sigla", max_length=20, blank=True, default="")
+    icona = models.CharField("Icona", max_length=30, blank=True, default="")
+    logo = models.FileField("Logo", upload_to="gestione_specifiche/copertine/", storage=_copertina_storage,
+                            blank=True, max_length=200)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Copertina cliente"
+        verbose_name_plural = "Copertine clienti"
+        ordering = ["chiave"]
+
+    def __str__(self) -> str:
+        return self.chiave

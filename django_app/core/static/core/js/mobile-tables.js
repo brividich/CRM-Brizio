@@ -10,6 +10,8 @@
   var mq = window.matchMedia("(max-width:720px)");
   var tables = [];
 
+  var BLOCK_TAGS = /^(DIV|P|UL|OL|SECTION|TABLE|FORM)$/;
+
   function clean(t) { return String(t || "").replace(/\s+/g, " ").trim(); }
 
   function headCells(table) {
@@ -67,6 +69,10 @@
           if (/^[-–—]?$/.test(text) && !td.querySelector("input, select, textarea, img, svg, button, a")) td.classList.add("mcards-empty");
           /* Senza etichetta, o con un'etichetta uguale al contenuto (es. pulsante «Scheda»). */
           if (!h || h === text) td.classList.add("mcards-nolabel");
+          /* Più blocchi nella cella (righe di dettaglio): uno sotto l'altro a destra dell'etichetta. */
+          var blocks = 0;
+          for (var k = 0; k < td.children.length; k++) if (BLOCK_TAGS.test(td.children[k].tagName)) blocks++;
+          if (blocks > 1) td.classList.add("mcards-stack");
         });
       });
     });
@@ -90,10 +96,28 @@
     return true;
   }
 
+  /* Tabelle che non diventano schede (intestazioni a più righe, celle unite) ma escono dallo
+     schermo: le si mette in un riquadro che scorre di lato da solo, così la pagina resta ferma. */
+  function scrollBox(table) {
+    if (table.__mcBox || table.getClientRects().length === 0) return;
+    if (table.closest(".mnav-sheet, .mcards")) return;
+    var w = document.documentElement.clientWidth;
+    if (table.getBoundingClientRect().right <= w + 2) return;
+    for (var p = table.parentElement; p && p !== document.body; p = p.parentElement) {
+      var o = window.getComputedStyle(p).overflowX;
+      if (o === "auto" || o === "scroll" || o === "hidden") return;
+    }
+    table.__mcBox = true;
+    var box = document.createElement("div");
+    box.className = "mtable-scroll";
+    table.parentNode.insertBefore(box, table);
+    box.appendChild(table);
+  }
+
   function scan() {
     if (!mq.matches) return;
     document.querySelectorAll("table").forEach(function (table) {
-      if (!eligible(table)) return;
+      if (!eligible(table)) { scrollBox(table); return; }
       table.__mc = true;
       label(table);
       tables.push(table);

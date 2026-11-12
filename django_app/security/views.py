@@ -112,7 +112,8 @@ def dashboard(request):
     context = {
         "items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime(),
         "brief": cached_brief(items),
-        "urgenti": metriche.segnalazioni_urgenti(), "aperte": metriche.segnalazioni_aperte(),
+        # Le urgenti sono già nella barra di stato: qui solo le aperte.
+        "aperte": metriche.segnalazioni_aperte(),
         "secure_score": _secure_score(),
         "trend": build_trend(today=today),
         "source_rows": source_status_rows(),
@@ -148,15 +149,23 @@ def alerts_list(request):
     if severities:
         alerts = alerts.filter(severity__in=severities)
 
-    total = alerts.count()
+    from security.services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _alerts_csv(request, alerts)
+
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, alerts)
     severity_chips = [
         {"value": value, "count": severity_counts.get(value, 0), "active": value in severities,
          "toggle": _toggle_query(request, "severity", value)}
         for value, _label in reversed(Severity.choices)
     ]
     context = {
-        "alerts": _decorate_alerts(alerts[:100]),
-        "total": total,
+        "alerts": _decorate_alerts(page_obj.object_list),
+        "page_obj": page_obj,
+        "total": page_obj.paginator.count,
         "severity_chips": severity_chips,
         "all_count": sum(severity_counts.values()),
         "sources": SecuritySource.objects.order_by("name"),
@@ -168,6 +177,42 @@ def alerts_list(request):
         "open_cases": _open_cases(),
     }
     return render(request, "security/alerts_list.html", context)
+
+
+def _alerts_csv(request, alerts):
+    """Tutti gli alert del filtro (non solo la pagina), con ticket collegato e responsabile."""
+    from security.services import esporta_csv
+
+    alerts = list(alerts)
+    ids = [a.pk for a in alerts]
+    # Ticket più recente per alert (principale o collegato, come _alert_case): poche query a blocchi
+    # (SQL Server accetta al massimo 2100 parametri), invece di una per riga.
+    candidati = []
+    for blocco in esporta_csv.a_blocchi(ids):
+        candidati += [(t["alert_id"], t["updated_at"], t["pk"], t["status"]) for t in
+                      SecurityRemediationTicket.objects.filter(alert_id__in=blocco).values("pk", "alert_id", "status", "updated_at")]
+        candidati += [(x["securityalert_id"], x["securityremediationticket__updated_at"], x["securityremediationticket_id"],
+                       x["securityremediationticket__status"]) for x in
+                      SecurityRemediationTicket.linked_alerts.through.objects.filter(securityalert_id__in=blocco).values(
+                          "securityalert_id", "securityremediationticket_id", "securityremediationticket__updated_at",
+                          "securityremediationticket__status")]
+    ticket = {}
+    for alert_id, _quando, pk, stato in sorted(candidati, key=lambda c: c[1]):
+        ticket[alert_id] = {"pk": pk, "status": stato}
+    righe = (
+        [a.pk, esporta_csv.data_ora(a.created_at), esporta_csv.etichetta(a.severity), a.title, a.source.name,
+         a.event.asset.hostname if a.event_id and a.event.asset_id else "", esporta_csv.etichetta(a.status),
+         esporta_csv.data_ora(a.event.occurred_at if a.event_id else a.updated_at), a.owner,
+         f"#{ticket[a.pk]['pk']} {esporta_csv.etichetta(ticket[a.pk]['status'])}" if a.pk in ticket else "",
+         esporta_csv.data_ora(a.acknowledged_at), esporta_csv.data_ora(a.closed_at), a.status_reason]
+        for a in alerts
+    )
+    return esporta_csv.risposta(
+        request, "alert",
+        ["N.", "Creato il", "Severità", "Alert", "Sorgente", "Asset", "Stato", "Ultimo evento", "Responsabile", "Ticket",
+         "Preso in carico il", "Chiuso il", "Motivo dello stato"],
+        righe, azione="soc_alert_export", filtri=esporta_csv.filtri_get(request, "status", "source", "date", "severity"),
+    )
 
 
 def _toggle_query(request, key, value):
@@ -185,17 +230,20 @@ def _querystring_without(request, key):
 
 
 @ensure_csrf_cookie
-def alert_detail(request, pk, ai=None):
+def alert_detail(request, pk, ai=None, ai_risoluzione=None):
     alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event"), pk=pk)
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
     ticket = _alert_case(alert)
     evidence = alert.evidence_containers.prefetch_related("items").order_by("-created_at")
-    occurrences = SecurityEventRecord.objects.filter(dedup_hash=alert.dedup_hash).select_related("report").order_by("-occurred_at")[:25]
+    from security.services.alert_doppioni import occorrenze
+
+    occurrences = occorrenze(alert).select_related("report").order_by("-occurred_at")[:25]
     action_logs = alert.action_logs.select_related("ticket").order_by("-created_at")[:25]
     payload = alert.event.payload if alert.event_id else {}
     context = {
         "alert": alert,
         "ai": ai,
+        "ai_risoluzione": ai_risoluzione,
         "ticket": ticket,
         "open_cases": _open_cases(),
         "evidence": evidence,
@@ -210,6 +258,9 @@ def alert_detail(request, pk, ai=None):
         },
     }
     context.update(_alert_lifecycle_context(alert))
+    from security.services.ai_proposte import proposta_aperta
+
+    context["proposta_ai"] = proposta_aperta(alert)
     from security.services.investigation import playbook, precedents, related_facts
 
     context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
@@ -314,6 +365,112 @@ def alert_explain(request, pk):
 
 
 @require_POST
+def alert_resolve(request, pk):
+    """Come risolvere e chiudere l'alert, dall'AI locale (con le fonti web se chieste): propone, non chiude."""
+    from security.services.ai_risoluzione import risolvi_alert
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__report"), pk=pk)
+    ai = risolvi_alert(alert, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/alert_ai_risoluzione.html", {"ai": ai, "alert": alert, **_alert_lifecycle_context(alert)})
+    return alert_detail(request, pk, ai_risoluzione=ai)
+
+
+def alert_proposte(request):
+    """Proposte di chiusura dell'AI: da confermare, chiuse da sola, cosa ha imparato per tipo di alert."""
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    return render(request, "security/alert_proposte.html", ai_proposte.pagina())
+
+
+@require_POST
+def alert_gruppo_chiudi(request):
+    """Chiude gli alert di un gruppo o di un tipo. Conta come una decisione sola, con motivo obbligatorio."""
+    from security.services import alert_gruppi
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    motivo = request.POST.get("motivo", "").strip()[:500]
+    esito = request.POST.get("esito", "")
+    chiave = request.POST.get("chiave", "").strip()
+    tipo = request.POST.get("tipo", "").strip()
+    max_pk = request.POST.get("max_pk", "")
+    if not motivo:
+        messages.error(request, "Scrivi il motivo: resta su ogni alert chiuso.")
+    elif esito not in dict(alert_gruppi.ESITI) or not max_pk.isdigit() or not (chiave or tipo):
+        messages.error(request, "Richiesta non valida.")
+    else:
+        fatti = alert_gruppi.chiudi(esito=esito, motivo=motivo, max_pk=int(max_pk), user=request.user, chiave=chiave, tipo=tipo)
+        if fatti:
+            messages.success(request, f"{fatti} alert chius{'o' if fatti == 1 else 'i'} come «{dict(alert_gruppi.ESITI)[esito]}».")
+        else:
+            messages.info(request, "Nessun alert da chiudere: erano già stati gestiti.")
+    return redirect("security:alert_proposte")
+
+
+@require_POST
+def alert_proposta_azione(request, pk, azione):
+    """Conferma (chiude con l'esito proposto), scarta (resta aperto) o riapri (chiusura automatica sbagliata)."""
+    from security.models import SecurityAlertProposta
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    proposta = get_object_or_404(SecurityAlertProposta.objects.select_related("alert"), pk=pk)
+    testo = request.POST.get("nota", "").strip()
+    if azione == "conferma" and proposta.stato == SecurityAlertProposta.APERTA:
+        if proposta.esito == "aperto":
+            messages.error(request, "L'AI propone di lasciarlo aperto: non c'è niente da confermare.")
+        elif proposta.esito != "resolved" and not (testo or proposta.motivo):
+            messages.error(request, "Scrivi il motivo: serve a chi rilegge l'alert e alla soppressione appresa.")
+        else:
+            ai_proposte.conferma(proposta, request.user, testo)
+            messages.success(request, f"Alert #{proposta.alert_id} chiuso come «{proposta.esito_label}».")
+    elif azione == "scarta" and proposta.stato == SecurityAlertProposta.APERTA:
+        ai_proposte.scarta(proposta, request.user, testo)
+        messages.success(request, f"Proposta per l'alert #{proposta.alert_id} scartata: l'alert resta aperto.")
+    elif azione == "riapri" and proposta.stato == SecurityAlertProposta.CHIUSA_AUTO:
+        ai_proposte.riapri(proposta, request.user, testo)
+        messages.success(request, f"Alert #{proposta.alert_id} riaperto: l'AI non chiuderà più da sola questo tipo finché non riguadagna la fiducia.")
+    else:
+        messages.error(request, "Questa proposta è già stata decisa.")
+    back = request.POST.get("next", "")
+    if back.startswith("/soc/") and "//" not in back:
+        return redirect(back)
+    return redirect("security:alert_proposte")
+
+
+@require_POST
+def alert_proposte_riapri(request):
+    """«Riapri le selezionate» tra i chiusi dall'AI: come «Riapri» della riga, con la nota obbligatoria."""
+    from security.models import SecurityAlertProposta
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    ids = [int(v) for v in request.POST.getlist("proposta_ids") if str(v).isdigit()]
+    nota = request.POST.get("nota", "").strip()[:500]
+    if not ids:
+        messages.error(request, "Nessun alert selezionato.")
+    elif not nota:
+        messages.error(request, "Scrivi perché le chiusure sono sbagliate: resta su ogni alert riaperto e insegna all'AI.")
+    else:
+        proposte = list(SecurityAlertProposta.objects.filter(pk__in=ids, stato=SecurityAlertProposta.CHIUSA_AUTO).select_related("alert"))
+        for proposta in proposte:
+            ai_proposte.riapri(proposta, request.user, nota)
+        n = len(proposte)
+        if n:
+            messages.success(request, f"{n} alert riapert{'o' if n == 1 else 'i'}: l'AI non chiuderà più da sola questi tipi finché non riguadagna la fiducia.")
+        if len(ids) > n:
+            messages.warning(request, f"{len(ids) - n} già riapert{'o' if len(ids) - n == 1 else 'i'} o non più chius{'o' if len(ids) - n == 1 else 'i'} dall'AI.")
+    return redirect("security:alert_proposte")
+
+
+@require_POST
 def overview_brief(request):
     """Sintesi del giorno della Panoramica, dall'AI locale."""
     from security.services.ai_explain import daily_brief
@@ -336,7 +493,8 @@ def history_page(request):
     except ValueError:
         days = 30
     days = days if days in (7, 30, 90) else 30
-    return render(request, "security/history_review.html", {"review": build_review(days), "days": days})
+    return render(request, "security/history_review.html", {"review": build_review(days), "days": days,
+                                                            "can_configure": can_configure_soc(request)})
 
 
 @require_POST
@@ -679,8 +837,10 @@ def admin_config_alert_rules(request):
 
 @ensure_csrf_cookie
 def admin_config_suppressions(request):
+    # «Crea soppressione» dallo Storico apre il modulo già compilato (?name=…&source=…&event_type=…&reason=…).
     return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions",
-                              extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]}, toggle_field="is_active")
+                              extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]}, toggle_field="is_active",
+                              initial_from_get=("name", "source", "event_type", "severity", "reason"))
 
 
 @ensure_csrf_cookie
@@ -816,7 +976,8 @@ def admin_addon_detail(request, code):
     return render(request, "security/admin_addon_detail.html", {"addon": addon})
 
 
-def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None, toggle_field=None, deletable=True, before_save=None, ordering=None):
+def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None, toggle_field=None, deletable=True, before_save=None, ordering=None,
+                       initial_from_get=()):
     """Pagina elenco di configurazione: crea, MODIFICA, attiva/disattiva, elimina.
 
     Prima c'era solo «aggiungi»: una regola esistente non si poteva correggere (stesso codice =
@@ -866,6 +1027,11 @@ def _config_model_page(request, model, form_class, template, redirect_name, extr
     elif request.GET.get("edit"):
         editing = get_object_or_404(model, pk=request.GET.get("edit"))
         form = form_class(instance=editing)
+    elif initial_from_get:
+        # Solo valori iniziali (il modulo non è legato): si salva solo con «Crea», dopo la revisione.
+        initial = {k: request.GET[k][:500] for k in initial_from_get if request.GET.get(k)}
+        if initial:
+            form = form_class(initial=initial)
     objects = model.objects.all()
     if ordering:
         objects = objects.order_by(*ordering)
@@ -1327,11 +1493,21 @@ def admin_mailbox_sources_list(request):
             messages.success(request, f"Casella «{obj.name}» creata. Ora prova la lettura con «Anteprima».")
             return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
+    from security.services.source_heartbeat import IN_RITARDO
+
     sources = list(SecurityMailboxSource.objects.all().order_by("name"))
+    # Stato dei report: la stessa funzione del riquadro «sorgenti in ritardo» della barra.
+    battiti = {r["id"]: r for r in source_status_rows()}
     for source in sources:
         source.latest_run = source.ingestion_runs.order_by("-started_at").first()
+        source.battito = battiti.get(source.pk)
+    in_ritardo = [s for s in sources if s.battito and s.battito["state"] in IN_RITARDO]
+    solo_ritardo = request.GET.get("stato") == "ritardo"
     context = {
-        "sources": sources,
+        "sources": in_ritardo if solo_ritardo else sources,
+        "n_sources": len(sources),
+        "n_ritardo": len(in_ritardo),
+        "solo_ritardo": solo_ritardo,
         "form": form,
         "can_manage": can_manage,
         "graph": graph_credentials_status(),

@@ -86,7 +86,7 @@ _MODULE_CATALOG: list[dict] = [
     {"id": "task",        "cat": "ops",   "label": "Task / Kick-off",       "sub": "Attività di reparto",        "tone": "info",    "kpi_unit": "in corso",    "url_name": "tasks:list",                      "pulsante_aliases": ("task", "tasks", "vrf-kickoff", "kickoff")},
     {"id": "diario",      "cat": "ops",   "label": "Diario preposto",       "sub": "Giornale di sicurezza",      "tone": "warning", "kpi_unit": "da firmare",  "url_name": "diario_preposto:lista",           "pulsante_aliases": ("diario-preposto",)},
     {"id": "incidenti",   "cat": "ops",   "label": "Rilevazione incidenti", "sub": "Near miss e infortuni",      "tone": "danger",  "kpi_unit": "in analisi",  "url_name": "rilevazione_incidenti:lista",     "pulsante_aliases": ("rilevazione-incidenti", "incidenti")},
-    {"id": "procedure",   "cat": "ops",   "label": "Procedure refresh",     "sub": "Procedure aggiornate",       "tone": "info",    "kpi_unit": "da rivedere", "url_name": "procedure_refresh:my_assignments","pulsante_aliases": ("procedure-refresh", "refresh-procedure", "procedure")},
+    {"id": "procedure",   "cat": "ops",   "label": "CN-SGI",                "sub": "Letture da fare",       "tone": "info",    "kpi_unit": "da rivedere", "url_name": "procedure_refresh:my_assignments","pulsante_aliases": ("procedure-refresh", "refresh-procedure", "procedure")},
     # HR
     {"id": "anagrafica",  "cat": "hr",    "label": "Anagrafica HR",         "sub": "Dipendenti attivi",          "tone": "info",    "kpi_unit": "dipendenti",  "url_name": "anagrafica:index",                "pulsante_aliases": ("anagrafica", "dipendenti")},
     {"id": "assenze",     "cat": "hr",    "label": "Assenze",               "sub": "Ferie, malattia, permessi",  "tone": "warning", "kpi_unit": "oggi assenti","url_name": "assenze_menu",                    "pulsante_aliases": ("assenze", "assenza")},
@@ -187,6 +187,14 @@ def _mod_is_accessible(mod: dict, user_slugs: set[str], is_admin: bool) -> bool:
     return False
 
 
+
+def moduli_visibili(request, is_admin: bool) -> set[str]:
+    """Id dei moduli del catalogo che l'utente può aprire: stessa regola delle tessere."""
+    if _sistema_ruoli_attivo():
+        return {spec["id"] for spec in _MODULE_CATALOG if _mod_visibile_da_ruoli(request, spec, is_admin)}
+    accessible = _build_accessible_set(request)
+    return {spec["id"] for spec in _MODULE_CATALOG if _mod_is_accessible(spec, accessible, is_admin)}
+
 # ── Data layer ────────────────────────────────────────────────────────────────
 
 def _first_kpi_value(tile_kpis: dict, module_id: str) -> int:
@@ -252,7 +260,7 @@ def _user_ids_da_legacy(legacy_ids) -> list[int]:
     return list(Profile.objects.filter(legacy_user_id__in=list(legacy_ids)).values_list("user_id", flat=True))
 
 
-def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
+def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=None) -> dict:
     """Multi-KPI per tile. Returns dict[module_id, list[{value, unit, tone}]].
     Tutte le query sono lightweight e avvolte in try/except — un errore non blocca la home."""
     from datetime import timedelta
@@ -267,10 +275,14 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── ANOMALIE ──────────────────────────────────────────────────────
     try:
-        raw = _board_data_anomalie(legacy_user, is_admin, {"max_items": 500, "solo_aperte": True})
-        out["anomalie"] = [
-            {"value": len(raw), "unit": "aperte", "tone": "danger"},
-        ]
+        # Conteggio pieno con lo stesso ambito dell'elenco anomalie: la lista del
+        # widget è troncata (MAX_BOARD_WIDGET_ITEMS) e non va mai contata.
+        if request is not None:
+            from anomalie.views import conta_anomalie_aperte_visibili
+
+            out["anomalie"] = [
+                {"value": conta_anomalie_aperte_visibili(request), "unit": "aperte", "tone": "danger"},
+            ]
     # Un riquadro che si rompe non deve far cadere la home — ma se sparisce in
     # silenzio e' indistinguibile da "nessun dato", e nessuno lo scopre mai.
     except Exception:
@@ -307,7 +319,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     # ── DIARIO PREPOSTO ───────────────────────────────────────────────
     try:
         from diario_preposto.models import SegnalazionePreposto
-        qs_diario = SegnalazionePreposto.objects.all()
+        qs_diario = SegnalazionePreposto.objects.attive()
         ambito = _ambito_kpi(request_user, is_admin, "diario_preposto")
         if ambito is not _TUTTI:
             qs_diario = qs_diario.filter(creato_da_id__in=_user_ids_da_legacy(ambito))
@@ -360,21 +372,35 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     if is_admin:
         try:
             from django.db import connections
+            from anagrafica.services.conteggi_organico import esclusi_dai_conteggi_ids
             with connections["default"].cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
-                row = cur.fetchone()
+                cur.execute("SELECT id FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
+                attivi = {int(r[0]) for r in cur.fetchall()}
+            # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non si conta.
             out["anagrafica"] = [
-                {"value": row[0] if row else None, "unit": "in forza", "tone": "info"},
+                {"value": len(attivi - esclusi_dai_conteggi_ids()), "unit": "in forza", "tone": "info"},
             ]
         except Exception:
             logger.exception("Home: riquadro «Anagrafica» non calcolato")
 
     # ── ASSENZE ───────────────────────────────────────────────────────
     try:
-        pending = _board_data_assenze_da_approvare(legacy_user, is_admin, {"max_items": 500})
-        out["assenze"] = [
-            {"value": len(pending), "unit": "in approvazione", "tone": "warning"},
-        ]
+        # Conteggio pieno, stesso perimetro della coda di approvazione: chi vede
+        # tutto (admin/amministrazione) conta tutte le attese, il capo le sue —
+        # con la stessa funzione del badge in alto, non con la lista troncata.
+        if legacy_user:
+            ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip().upper()
+            if is_admin or ruolo in ("AMMINISTRAZIONE", "ADMIN"):
+                from assenze.views import count_all_pending
+
+                in_attesa = count_all_pending()
+            else:
+                from core.context_processors import _count_car_pending
+
+                in_attesa = _count_car_pending(int(legacy_user.id), legacy_user=legacy_user)
+            out["assenze"] = [
+                {"value": in_attesa, "unit": "in approvazione", "tone": "warning"},
+            ]
     except Exception:
         logger.exception("Home: riquadro «Assenze» non calcolato")
 
@@ -737,14 +763,55 @@ def _active_unit(legacy_user_id) -> str | None:
         return None
 
 
-def _header_actions(request) -> list[dict]:
-    return [
-        {"label": "Le mie attività",   "href": _safe_url("mie_attivita"),          "variant": "primary"},
-        {"label": "Scadenzario",       "href": _safe_url("scadenze_globali"),      "variant": "ghost"},
-        {"label": "Nuovo ticket",      "href": _safe_url("tickets:nuovo"),       "variant": "ghost"},
-        {"label": "Segnala anomalia",  "href": _safe_url("apertura_segnalazione"), "variant": "ghost"},
-        {"label": "Richiedi permesso", "href": _safe_url("assenze_richiesta"),     "variant": "ghost"},
-    ]
+# Azioni rapide della colonna «polso». Ogni voce dichiara la tessera del catalogo
+# (regola legacy: Pulsanti del ruolo) e i permessi che la aprono col sistema dei
+# ruoli (basta uno). Senza tessera/permessi = sempre visibile (pagine personali).
+# Si mostrano le prime HOME_AZIONI_MAX che la persona può davvero usare.
+_AZIONI_RAPIDE: list[dict] = [
+    {"code": "mie_attivita", "label": "Le mie attività",       "url_name": "mie_attivita"},
+    {"code": "scadenzario", "label": "Scadenzario",           "url_name": "scadenze_globali"},
+    {"code": "anomalia", "label": "Segnala anomalia",      "url_name": "apertura_segnalazione",     "mod": "anomalie",   "perm": (("anomalie", "creare"),)},
+    {"code": "ticket", "label": "Nuovo ticket",          "url_name": "tickets:nuovo",             "mod": "ticket",     "perm": (("ticket_it", "creare"), ("ticket_manutenzione", "creare"))},
+    {"code": "permesso", "label": "Richiedi permesso",     "url_name": "assenze_richiesta",         "mod": "assenze",    "perm": (("assenze", "creare"),)},
+    {"code": "near_miss", "label": "Segnala near miss",     "url_name": "rilevazione_incidenti:nuovo", "mod": "incidenti", "perm": (("rilevazione_incidenti", "creare"),)},
+    {"code": "diario", "label": "Nuova voce di diario",  "url_name": "diario_preposto:nuovo",     "mod": "diario",     "perm": (("diario_preposto", "creare"),)},
+    {"code": "task", "label": "Nuovo task",            "url_name": "tasks:create",              "mod": "task",       "perm": (("kickoff", "creare"),)},
+    {"code": "dpi", "label": "Richiedi DPI",          "url_name": "dpi:nuova",                 "mod": "dpi",        "perm": (("dpi", "creare"),)},
+    {"code": "assistente", "label": "Chiedi all'assistente", "url_name": "ai_assistant:chat",         "mod": "ai",         "perm": (("assistente_ai", "vedere"),)},
+]
+HOME_AZIONI_MAX = 6
+
+
+def _azione_consentita(request, spec: dict, is_admin: bool, da_ruoli: bool, visibili: set[str] | None) -> bool:
+    if is_admin or not spec.get("mod"):
+        return True
+    if da_ruoli:
+        from core.permessi.motore import puo_fare
+
+        return any(puo_fare(request, chiave, azione) for chiave, azione in spec.get("perm", ()))
+    return visibili is not None and spec["mod"] in visibili
+
+
+def _header_actions(request, is_admin: bool = False) -> list[dict]:
+    """Azioni rapide filtrate su ciò che la persona può aprire (stessa regola delle tessere)."""
+    da_ruoli = _sistema_ruoli_attivo()
+    visibili = None if (da_ruoli or is_admin) else moduli_visibili(request, is_admin)
+    out: list[dict] = []
+    for spec in _AZIONI_RAPIDE:
+        href = _safe_url(spec["url_name"])
+        if href == "#":
+            continue
+        try:
+            ok = _azione_consentita(request, spec, is_admin, da_ruoli, visibili)
+        except Exception:
+            logger.exception("Home: azione rapida %s non valutata", spec["label"])
+            ok = False
+        if not ok:
+            continue
+        out.append({"label": spec["label"], "href": href, "variant": "primary" if not out else "ghost"})
+        if len(out) >= HOME_AZIONI_MAX:
+            break
+    return out
 
 
 # ── Bacheca "Documenti & Collegamenti" ────────────────────────────────────────
@@ -805,6 +872,7 @@ def _documenti_collegamenti(request, preview: bool = True, sezione: str | None =
 
 SELF_HELP_NUOVA_GIORNI = 14
 SELF_HELP_COLORE_DEFAULT = "#1f4f86"
+SAPERE_CATALOGHI_HOME = 8  # copertine dei cataloghi nella stanza; gli altri in /sapere/
 
 
 def _risorse_self_help(request) -> list[dict]:
@@ -835,6 +903,7 @@ def _risorse_self_help(request) -> list[dict]:
                 "href": l.resolve_href(),
                 "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
                 "is_new": bool(l.created_at and l.created_at >= soglia),
+                "copertina": l.copertina_url,
             } for l in g["items"]],
         })
     return out
@@ -870,8 +939,27 @@ def _module_launcher(groups: list[dict]) -> list[dict]:
 # accessibile sparisce dai preferiti senza bisogno di pulizia.
 
 HOME_STANZE = (("oggi", "Oggi"), ("sapere", "Sapere"), ("persone", "Persone & sicurezza"), ("moduli", "Moduli"))
-HOME_RIQUADRI = (("azioni", "Azioni rapide"), ("brief", "Il tuo brief di oggi"), ("news", "News aziendali"))
+HOME_RIQUADRI = (
+    ("azioni", "Azioni rapide"), ("brief", "Il tuo brief di oggi"), ("news", "News aziendali"),
+    ("banco_dpi", "Banco consegne DPI"),
+)
 PREFERITI_MAX = 12
+
+
+def _gestisce_consegne_dpi(request) -> bool:
+    try:
+        from dpi.views import _is_gestore
+
+        return _is_gestore(request)
+    except Exception:
+        logger.exception("Home: permesso consegne DPI non verificato")
+        return False
+
+
+def _riquadri_offerti(request) -> list[tuple[str, str]]:
+    """Riquadri proposti in «Personalizza»: il banco DPI solo a chi gestisce le consegne."""
+    dpi = _gestisce_consegne_dpi(request)
+    return [(k, label) for k, label in HOME_RIQUADRI if k != "banco_dpi" or dpi]
 
 
 def _pulisci_home_prefs(raw: Any) -> dict:
@@ -883,12 +971,22 @@ def _pulisci_home_prefs(raw: Any) -> dict:
             preferiti.append(val)
     stanze = {k for k, _ in HOME_STANZE}
     riquadri = {k for k, _ in HOME_RIQUADRI}
-    return {
+    out = {
         "preferiti": preferiti[:PREFERITI_MAX],
         "stanza": raw.get("stanza") if raw.get("stanza") in stanze else "",
         "nascosti": [k for k in (raw.get("nascosti") or []) if k in riquadri],
         "tour_visto": bool(raw.get("tour_visto")),
     }
+    # Azioni rapide personali: assenti = valgono le predefinite (dashboard.azioni_rapide).
+    if isinstance(raw.get("azioni"), list):
+        from dashboard import azioni_rapide
+
+        out["azioni"] = azioni_rapide.pulisci(raw["azioni"])
+        out["azioni_fonte"] = (
+            azioni_rapide.FONTE_ADMIN if raw.get("azioni_fonte") == azioni_rapide.FONTE_ADMIN
+            else azioni_rapide.FONTE_UTENTE
+        )
+    return out
 
 
 def _home_prefs(user) -> dict:
@@ -923,7 +1021,18 @@ def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
     elif azione == "personalizza":
         prefs["stanza"] = request.POST.get("stanza") or ""
         mostra = set(request.POST.getlist("mostra"))
-        prefs["nascosti"] = [k for k, _ in HOME_RIQUADRI if k not in mostra]
+        offerti = {k for k, _ in _riquadri_offerti(request)}
+        # I riquadri non proposti a questa persona (es. banco DPI) restano com'erano.
+        prefs["nascosti"] = [
+            k for k, _ in HOME_RIQUADRI
+            if (k not in mostra if k in offerti else k in prefs["nascosti"])
+        ]
+        if request.POST.get("azioni_modificate") == "1":
+            prefs["azioni"] = _azioni_scelte_valide(request, request.POST.getlist("voce"), prefs)
+            prefs["azioni_fonte"] = "utente"
+    elif azione == "azioni_ripristina":
+        prefs.pop("azioni", None)
+        prefs.pop("azioni_fonte", None)
     elif azione == "tour_visto":
         prefs["tour_visto"] = True
     else:
@@ -933,6 +1042,25 @@ def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
     obj.home_prefs = prefs
     obj.save(update_fields=["home_prefs"])
     return JsonResponse({"ok": True, "prefs": prefs})
+
+
+def _azioni_scelte_valide(request: HttpRequest, voci: list[str], prefs: dict) -> list[str]:
+    """Le voci scelte dalla persona, tenute solo se può aprirle (il resto si scarta).
+
+    Le voci della sua lista attuale che oggi non può aprire restano in coda: se
+    il permesso torna, l'azione ricompare senza doverla rifare.
+    """
+    from dashboard import azioni_rapide
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    groups = _module_groups(request, _build_accessible_set(request), is_admin, {}, {})
+    consentite = {v["key"] for v in azioni_rapide.voci_consentite(request, is_admin, groups)}
+    scelte = [k for k in azioni_rapide.pulisci(voci) if k in consentite]
+    for k in prefs.get("azioni") or []:
+        if k not in consentite and k not in scelte:
+            scelte.append(k)
+    return azioni_rapide.pulisci(scelte)
 
 
 def _preferiti(groups: list[dict], ids: list[str]) -> list[dict]:
@@ -971,27 +1099,62 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         parts.append(f"{len(pending)} richieste in approvazione")
     greeting_summary = " e ".join(parts) + "." if parts else "Benvenuto nel portale."
 
-    tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user)
+    tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
     groups = _module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
 
     # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.
-    from dashboard.views_mie_attivita import build_cose_da_gestire
+    from dashboard.views_mie_attivita import build_cose_da_gestire, contesto_mie_attivita
     cose_da_gestire = build_cose_da_gestire(request)
 
     from core.models import HubLinkCategory
 
     bacheca_groups = _documenti_collegamenti(request, sezione=HubLinkCategory.SEZIONE_DOCUMENTI)
     self_help = _risorse_self_help(request)
+    try:
+        from core import sapere
+
+        sapere_cataloghi = sapere.schede_cataloghi(sapere.identita(request))
+    except Exception:
+        logger.exception("home: cataloghi Sapere non disponibili")
+        sapere_cataloghi = []
+    # CN-SGI nella stanza Sapere: copertina tra i cataloghi e riquadro con novità e letture.
+    sapere_sgi = None
+    try:
+        from procedure_refresh.libreria import catalogo_sapere, riquadro_sapere
+
+        sapere_sgi = riquadro_sapere(request)
+        if sapere_sgi is not None:
+            sapere_cataloghi = [catalogo_sapere(), *sapere_cataloghi]
+    except Exception:
+        logger.exception("home: riquadro CN-SGI non disponibile")
     sicurezza = _sicurezza(legacy_user)
     home_prefs = _home_prefs(request.user)
+    riquadri = _riquadri_offerti(request)
+    banco_dpi = None
+    if "banco_dpi" not in home_prefs["nascosti"] and any(k == "banco_dpi" for k, _ in riquadri):
+        from dpi.pannello_home import riepilogo_banco
+
+        banco_dpi = riepilogo_banco(request)
+
+    from dashboard import azioni_rapide
+
+    azioni_home = azioni_rapide.azioni_home(
+        home_prefs,
+        getattr(legacy_user, "ruolo_id", None),
+        azioni_rapide.voci_consentite(request, is_admin, groups),
+    )
 
     context: dict[str, Any] = {
         "home_prefs":         home_prefs,
+        "home_azioni":        azioni_home,
+        "home_azioni_max":    azioni_rapide.AZIONI_MAX,
+        "home_is_admin":      is_admin,
         "home_preferiti":     _preferiti(groups, home_prefs["preferiti"]),
         "home_preferiti_ids": home_prefs["preferiti"],
         "home_nascosti":      home_prefs["nascosti"],
         "home_stanze":        HOME_STANZE,
-        "home_riquadri":      HOME_RIQUADRI,
+        "home_riquadri":      riquadri,
+        "banco_dpi":          banco_dpi,
         "home_star":          True,
         "greeting":           _greeting(now),
         "greeting_name":      display_name,
@@ -1000,7 +1163,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "time_label":         now.strftime("%H:%M"),
         "active_role":        _active_role(legacy_user),
         "active_unit":        _active_unit(legacy_user_id),
-        "header_actions":     _header_actions(request),
+        "header_actions":     azioni_home["azioni"],
         "priority_kpis":      _priority_kpis(request, tile_kpis),
         "module_groups":      groups,
         "module_total":       sum(g["total"] for g in groups),
@@ -1008,11 +1171,16 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         # d'azione sono stati sostituiti dal cockpit "Le mie attività" (cose_da_gestire).
         "my_tasks":           my_tasks_list,
         "pending_approvals":  pending,
+        **contesto_mie_attivita(cose_da_gestire),
+        "ma_titolo":              "Le mie attività",
         "cose_da_gestire":        cose_da_gestire["sections"],
         "cose_da_gestire_total":  cose_da_gestire["total"],
         "bacheca_groups":     bacheca_groups,
         "self_help_groups":   self_help,
-        "self_help_total":    sum(len(g["items"]) for g in self_help),
+        "self_help_total":    sum(len(g["items"]) for g in self_help) + len(sapere_cataloghi),
+        "sapere_cataloghi":   sapere_cataloghi[:SAPERE_CATALOGHI_HOME],
+        "sapere_sgi":         sapere_sgi,
+        "sapere_cataloghi_altri": max(0, len(sapere_cataloghi) - SAPERE_CATALOGHI_HOME),
         "sicurezza":          sicurezza,
         "module_launcher":    _module_launcher(groups),
         "news_items":         _news_items(request),
@@ -1030,9 +1198,11 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 @require_GET
 def home_guida(request: HttpRequest) -> HttpResponse:
     """Guida d'uso della home (pulsante «? Guida»)."""
-    from dashboard.guida import DOC_TITOLO, SEZIONI
+    from core.guide_moduli import puo_vedere_admin
+    from dashboard.guida import DOC_TITOLO, sezioni_per
 
-    return render(request, "dashboard/pages/home_guida.html", {"doc_titolo": DOC_TITOLO, "sezioni": SEZIONI})
+    sezioni = sezioni_per(puo_vedere_admin(request))
+    return render(request, "dashboard/pages/home_guida.html", {"doc_titolo": DOC_TITOLO, "sezioni": sezioni})
 
 
 # ── HTMX endpoints ────────────────────────────────────────────────────────────

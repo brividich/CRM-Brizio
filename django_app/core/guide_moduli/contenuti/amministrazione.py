@@ -11,6 +11,7 @@ GUIDA = {
         ("Guida Ruoli e permessi", "admin_portale:ruoli_portale", "?tab=guida"),
         ("Guida Centro report", "admin_portale:centro_report", "?tab=guida"),
         ("Guida Postazioni condivise", "admin_portale:postazioni_condivise", "?guida=1"),
+        ("Guida Accessi bloccati", "admin_portale:accessi_bloccati", "?guida=1"),
     ],
     "uso": [
         {
@@ -31,10 +32,15 @@ GUIDA = {
                     ("Utenti", "elenco account, disattivazione, impersonazione («vedi come»), import da Active Directory (Import Utenti LDAP). "
                                "Con «Ruoli e permessi» acceso la colonna «Ruolo del portale» mostra i ruoli che decidono davvero (il primo comanda; «· organigramma» se arriva dall'organigramma): clic per assegnarli. Il vecchio ruolo («Ruolo storico») non decide più i permessi."),
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
-                    ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
+                    ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; sotto ogni modulo «↳ Pagina per pagina» elenca ogni permesso di pagina del modulo, come nel vecchio elenco dei permessi, e per il ruolo lo lascia alla matrice («Segue la matrice») o lo forza («Sì, sempre» / «No, mai»), eccezione che resta anche ai salvataggi successivi; il campo «Cerca un modulo, una pagina o il suo percorso» sopra la matrice trova la riga del permesso: si scrive il percorso che segue l'indirizzo del portale (es. assenze/calendario, anche con l'id di una scheda o incollando l'indirizzo intero) e restano il modulo e le sue righe, con la pagina esatta e quelle che contengono quel percorso; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Eccezioni sulla persona (scheda «Persone», riquadro sotto i ruoli): a una sola persona si toglie un'azione («Negato») o la si restringe («Al massimo i propri» / «propri e del team») anche se il suo ruolo, pure dall'organigramma, la concede; motivo obbligatorio, solo in meno, mai in più; le pagine aperte solo da quell'azione le vengono chiuse; nel registro, in «Cosa vede questa persona» e nel foglio «Eccezioni sulla persona» del riesame. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Il ruolo base «Operatore» vale solo per chi non ha altri ruoli: chi ne ha uno prende solo la colonna del suo ruolo, dove ogni ruolo nuovo trova già copiate le caselle «sì» di Operatore (nota «dal ruolo base», contano per ultime); per togliergliele si svuotano nella colonna del ruolo. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
+                    ("Accessi bloccati", "chi ha il login bloccato dopo 5 password sbagliate (per un'ora, stesso nome utente e IP), con «Sblocca» e «Azzera errori». "
+                                         "Per ogni riga: persona, account AD o password del portale, ultimo accesso; «Account AD, mai entrato» = quasi sempre manca il gruppo AD ammesso al portale. Ha la sua guida."),
                     ("Menu del portale", "la barra in alto, le categorie (tendine), le voci e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
                     ("Branding", "logo, favicon, nome e colori."),
+                    ("Documenti & Collegamenti", "le risorse della home (stanza «Sapere»): categorie, documenti, collegamenti e scorciatoie, "
+                                                 "con sigla, immagine di copertina e ruoli che le vedono."),
+                    ("Cataloghi Sapere", "raccolte di guide, risorse e collegamenti con copertina, mostrate nella stanza «Sapere». Ha la sua sezione qui sotto."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
@@ -57,9 +63,10 @@ GUIDA = {
                 ("p", "Amministrazione → «Menu del portale». In alto la barra del portale com'è: le categorie (Per me, Produzione, Persone, Qualità, IT…) "
                       "sono le tendine, le altre voci stanno da sole. Sotto, a sinistra, cosa c'è in ogni tendina, con i sottogruppi "
                       "(es. «Da fare», «Richieste») e le sottovoci; a destra la scheda di quello che hai scelto. "
-                      "Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, e si cambia in «Ruoli e permessi»."),
+                      "Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, e si cambia in «Ruoli e permessi». "
+                      "Fanno eccezione i link esterni: vedi «Link esterni»."),
                 ("def", [
-                    ("Guarda il menu come", "«Tutti (amministratore)» mostra tutte le voci; il ruolo base (es. «Operatore (tutti)») e «Un altro ruolo…» "
+                    ("Guarda il menu come", "«Tutti (amministratore)» mostra tutte le voci; il ruolo base (es. «Operatore (senza altri ruoli)») e «Un altro ruolo…» "
                                             "mostrano il menu di una persona con quel ruolo; «una persona…» mostra il menu vero di quella persona. "
                                             "La barra in alto mostra solo le tendine che vede; a sinistra le voci che non vede diventano tratteggiate "
                                             "con «non la vede» e ogni categoria dice quante ne vede (es. «2 di 3»)."),
@@ -74,7 +81,11 @@ GUIDA = {
                                      "«Non è legata a una pagina protetta»: con «Ruoli e permessi» acceso la vedono solo gli amministratori."),
                     ("Cosa vuoi fare", "cambia il nome (per i moduli il nome si cambia in Branding); «In quale categoria» la sposta in un'altra tendina "
                                        "o da sola nella barra, con il «Sottogruppo nella tendina»; per una sottovoce «Sotto quale voce»; "
+                                       "«Pagina a cui porta» (una pagina del portale dall'elenco o un indirizzo esterno https://…), «Apri in una nuova scheda», "
                                        "cambia l'icona, «Nascondila solo a …» (dopo aver scelto una persona in alto), «Apri la pagina». Poi «Salva»."),
+                    ("Link esterni", "una voce che porta a un sito esterno (https://…) senza permesso la vedono tutti. Per limitarla, nella sua scheda "
+                                     "«Chi vede il link esterno» scegli un permesso: la vede chi ha quel permesso in «Ruoli e permessi» "
+                                     "(gli amministratori sempre). Si scelgono solo permessi che proteggono una pagina del portale."),
                     ("Nel menu / Tolta dal menu", "toglie o rimette la voce per tutti, subito."),
                     ("Riordinare", "nella barra in alto trascina una tendina o una voce per cambiare l'ordine della barra; a sinistra trascina una voce "
                                    "sopra un'altra della stessa tendina (o tra le sottovoci della stessa voce). L'ordine si salva da solo. "
@@ -195,6 +206,58 @@ GUIDA = {
                 ]),
                 ("nota", "I controlli girano da soli ogni 30 minuti: se uno diventa rosso si apre una segnalazione e parte una mail agli amministratori. "
                          "Il ripristino da Hub → «Database» è disattivato: si fa solo con il tool dedicato, dopo aver parlato con la Direzione."),
+            ],
+        },
+        {
+            "id": "sapere-cataloghi",
+            "titolo": "Cataloghi e copertine della stanza «Sapere»",
+            "blocchi": [
+                ("p", "Amministrazione → «Cataloghi Sapere». Un catalogo raccoglie in un ordine scelto guide del Centro guide, "
+                      "risorse della bacheca (Documenti & Collegamenti) e collegamenti liberi: per esempio «Primo giorno in azienda» "
+                      "o «IT e accessi». Una stessa guida o risorsa può stare in più cataloghi."),
+                ("passi", [
+                    "In «Nuovo catalogo» scrivi titolo e descrizione, scegli il colore, carica se vuoi un'immagine di copertina e spunta "
+                    "i ruoli che lo vedono (nessuno = tutti). «+ Crea catalogo» apre la pagina del catalogo.",
+                    "In «Aggiungi» scegli «Guida del Centro guide», «Risorsa della bacheca» o «Collegamento». Per il collegamento servono "
+                    "titolo e indirizzo: una pagina del portale che inizia con «/» oppure un indirizzo che inizia con https://.",
+                    "Titolo, descrizione e sigla della voce sono facoltativi per guide e risorse: vuoti, si usano quelli originali.",
+                    "Con ↑ e ↓ cambi l'ordine delle voci e dei cataloghi; «Togli» toglie la voce dal catalogo (la guida o la risorsa restano dove sono).",
+                    "«Vedi come utente» apre la pagina del catalogo come la vedono gli altri.",
+                ]),
+                ("def", [
+                    ("Copertine", "JPG, PNG o WEBP fino a 10 MB. Il portale le riduce a 1200 pixel sul lato lungo e le salva di nuovo in JPEG, "
+                                  "senza i dati nascosti della foto (posizione GPS, modello del telefono). Senza immagine la copertina mostra colore e sigla."),
+                    ("Copertina di una risorsa", "si carica in «Documenti & Collegamenti» («+ Copertina» sulla riga o nel modulo della nuova voce) "
+                                                 "e vale ovunque; la copertina di una voce di catalogo la sostituisce solo in quel catalogo."),
+                    ("Chi vede cosa", "il catalogo segue i suoi ruoli; dentro, ogni voce segue i suoi permessi: una risorsa riservata ad altri ruoli, "
+                                      "nascosta o una guida per soli amministratori non compare. Un catalogo senza voci visibili non compare nella home."),
+                ]),
+                ("nota", "Nelle copertine e negli screenshot usa solo immagini senza dati di persone o clienti reali."),
+            ],
+        },
+        {
+            "id": "home-azioni-rapide",
+            "titolo": "Azioni rapide della home",
+            "blocchi": [
+                ("p", "Amministrazione → «Azioni rapide della home» (anche dal link in «⚙ Personalizza» della home). Le azioni rapide "
+                      "sono le scorciatoie della colonna di sinistra della home: azioni (es. «Segnala anomalia», «Nuovo ticket») e "
+                      "moduli da aprire («Apri un modulo»). Al massimo 12 per lista."),
+                ("def", [
+                    ("Predefinite per tutti", "la lista di chi non ha una lista del ruolo né personale. «Torna allo standard» "
+                                              "rimette lo standard del portale: Le mie attività, Scadenzario e le altre azioni, al massimo 6."),
+                    ("Predefinite per ruolo", "scegli il ruolo, componi la lista e «Salva per il ruolo». «Usa le predefinite per tutti» "
+                                              "la toglie. Sotto, l'elenco dei ruoli con una lista propria."),
+                    ("Per persona", "a sinistra componi la lista, a destra scegli le persone: cerca per nome, filtra per ruolo, "
+                                    "«Seleziona le visibili» per sceglierle in blocco. «Imposta la lista alle selezionate» la dà a tutte; "
+                                    "«Riporta alle predefinite» toglie la loro lista personale. Nella tabella «Persone con una lista "
+                                    "personale», «Modifica» riapre la lista di quella persona."),
+                ]),
+                ("ul", [
+                    "Vince la lista più specifica: persona → ruolo → tutti → standard.",
+                    "Ognuno vede solo le voci che i suoi permessi gli fanno aprire, qualunque lista le contenga: la lista non dà permessi.",
+                    "La persona può sempre cambiare la sua lista da «⚙ Personalizza»: in quel caso la lista diventa «Scelte da te».",
+                    "Ogni salvataggio finisce nell'audit log (modulo «home_azioni_rapide»).",
+                ]),
             ],
         },
         {
@@ -364,6 +427,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Una persona vede «Troppi tentativi di accesso» (anche dalla postazione condivisa)",
+            "fare": [
+                "Amministrazione → «Accessi bloccati»: trova la riga del suo nome utente e del suo IP e premi «Sblocca». Può riprovare subito.",
+                "Il blocco scatta dopo 5 password sbagliate e dura un'ora; ogni tentativo durante il blocco lo fa ripartire. Vale anche per «Imposta il PIN» della postazione, che chiede la stessa password.",
+                "Se la riga dice «Account AD, mai entrato» e la persona è sicura della password: l'utente non è in un gruppo AD ammesso al portale. Aggiungilo al gruppo, poi sblocca.",
+            ],
+        },
+        {
             "sintomo": "Mail «[SERVER CRITICO] qcluster»",
             "fare": [
                 "Il qcluster non completa lavori da oltre 40 minuti: riavvialo (Manuale di emergenza → «qcluster»).",
@@ -425,6 +496,15 @@ GUIDA = {
                 "Dal terminale: hub_backup_doctor. Guarda «Top modelli»: un modello tecnico con molte righe va proposto per l'esclusione (modifica di core/audit_policy.py tramite PR).",
                 "audit_archive --plan per vedere quanto spazio si libera; il --run lo lancia il responsabile.",
                 "Non fare SHRINK del database: lo spazio liberato viene riusato.",
+            ],
+        },
+        {
+            "sintomo": "Un link «Apri…» in una mail del portale apre il login invece di entrare da solo",
+            "fare": [
+                "I link delle mail (anomalie, assenze, formazione, checklist, scadenze, specifiche, procedure, SOC, Suggestion Corner, KICK-OFF, avviso IT, automazioni) passano dall'accesso Windows quando LDAP è attivo e in «Login» il pulsante «Accedi con credenziali Windows» è «Visibile»: dai PC del dominio si entra da soli e si arriva alla pagina.",
+                "Da telefono o da PC fuori dominio si apre il login normale, che dopo l'accesso porta comunque alla pagina: è il comportamento previsto.",
+                "Se succede da un PC del dominio: il portale deve stare tra i siti intranet del browser (criterio di gruppo, IT). Con il pulsante Windows «Nascosto» i link restano diretti senza accesso automatico.",
+                "I link di approvazione a token e le etichette QR non cambiano: restano diretti.",
             ],
         },
     ],

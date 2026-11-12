@@ -150,6 +150,30 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
 
     # Azioni dispositive: aggiorna il DB legacy e marca il token monouso
     if is_dispositive:
+        # Stessa regola della pagina: una nota scritta non lascia l'anomalia «In attesa».
+        from .views import MSG_NOTA_STATO_IN_ATTESA, _nota_con_stato_in_attesa
+
+        stato_live = {str(a.get("id")): str(a.get(_STATO_FIELD) or "") for a in anomalie_live}
+        default_avanzamento = nuovo_avanzamento or _ACTION_TO_AVANZAMENTO.get(action, "")
+        for anomalia_id, per_riga in aggiornamenti_per_id.items():
+            if str(anomalia_id) not in stato_live or not isinstance(per_riga, dict):
+                continue
+            riga_note = str(per_riga.get("note") or "").strip() or (note if action in _NOTE_GLOBALE_ACTIONS else "")
+            # Avanzamento vuoto = «invariato»: vale quello attuale.
+            riga_avanzamento = (
+                str(per_riga.get("avanzamento") or "").strip() or default_avanzamento or stato_live[str(anomalia_id)]
+            )
+            if _nota_con_stato_in_attesa(riga_note, riga_avanzamento):
+                return _render_error(
+                    request, f"Anomalia #{anomalia_id}: {MSG_NOTA_STATO_IN_ATTESA} Torna indietro e correggi.", "invalid",
+                )
+            # Prima decisione «Azione di recupero»: si chiude solo con l'azione effettuata.
+            if per_riga.get("chiudere") and not per_riga.get("aprire_rdc"):
+                from .tempi_service import MSG_SERVE_AZIONE, serve_azione_per_chiudere
+                if serve_azione_per_chiudere(int(anomalia_id)):
+                    return _render_error(
+                        request, f"Anomalia #{anomalia_id}: {MSG_SERVE_AZIONE} Si registra dal portale.", "invalid",
+                    )
         # Presa in carico atomica del token PRIMA di toccare le anomalie: con due invii
         # simultanei (doppio click, due schede) solo uno passa. Se l'applicazione
         # solleva un'eccezione il token torna disponibile per un nuovo tentativo.
@@ -197,6 +221,28 @@ def _release_token(token_obj) -> None:
     logger.warning("mail_action: applicazione fallita, token %s… rilasciato", str(token_obj.token)[:8])
 
 
+def _segna_decise_e_azioni(anomalie_live) -> None:
+    """Per «Applica la stessa decisione anche a…»: ``decisa`` (il capocommessa ha già
+    deciso qualcosa) e ``serve_azione`` (prima decisione «Azione di recupero» senza
+    azione effettuata: la decisione si applica ma l'anomalia resta aperta)."""
+    from .controllo_service import riga_gestita
+
+    serve: set[int] = set()
+    try:
+        from .quality_models import AnomaliaSchedaQualita
+        from .tempi_service import AVANZAMENTO_RECUPERO
+
+        ids = [int(a["id"]) for a in anomalie_live if a.get("id")]
+        serve = set(AnomaliaSchedaQualita.objects.filter(
+            anomalia_id__in=ids, primo_avanzamento__iexact=AVANZAMENTO_RECUPERO, azione_effettuata_il__isnull=True,
+        ).values_list("anomalia_id", flat=True)) if ids else set()
+    except Exception:
+        logger.warning("mail_action: verifica azione effettuata non riuscita", exc_info=True)
+    for a in anomalie_live:
+        a["decisa"] = riga_gestita(a)
+        a["serve_azione"] = int(a.get("id") or 0) in serve
+
+
 def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_avanzamento, aggiornamenti_per_id):
     from .mail_action_models import AnomaliaActionLog
 
@@ -222,6 +268,20 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
             riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
+            if riga_segnalare:
+                from .views import avanzamento_dopo_segnalazione
+
+                riga_avanzamento = avanzamento_dopo_segnalazione(True, riga_avanzamento, anomalia.get(_STATO_FIELD) or "")
+            # Stessa regola della pagina: RDC senza numero o cliente non ancora avvisato
+            # lasciano l'anomalia aperta, in carico al referente RDC.
+            if riga_chiudere and action != "chiudi":
+                from .views import chiusura_automatica, segnalato_cliente_registrato
+
+                riga_chiudere = chiusura_automatica(
+                    riga_aprire_rdc, riga_numero_rdc, riga_segnalare,
+                    segnalato_cliente_registrato(anomalia_id) if riga_segnalare else False,
+                    riga_avanzamento or anomalia.get(_STATO_FIELD) or "",
+                )
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
             riga_aprire_rdc = riga_segnalare = riga_chiudere = None
@@ -259,6 +319,16 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                     )
             except Exception:
                 logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
+        if ok:
+            # Scheda qualita' e tempi (prima decisione, attesa cliente, chiusura).
+            try:
+                from django.db import transaction
+
+                from .qualita_service import sync_da_anomalia
+                with transaction.atomic():
+                    sync_da_anomalia(int(anomalia_id))
+            except Exception:
+                logger.warning("mail_action: scheda/tempi non aggiornati id=%s", anomalia_id, exc_info=True)
         results.append({
             "id": anomalia_id,
             "ok": ok,
@@ -566,6 +636,7 @@ def _raggruppa(token_obj, anomalie_live: list[dict]) -> list[dict]:
             {"chiave": f"r{a['id']}", "titolo": a.get("seriale") or "", "sottotitolo": "", "righe": [a]}
             for a in anomalie_live
         ]
+    _segna_decise_e_azioni(anomalie_live)
     for gruppo in gruppi:
         gruppo["nuovo"] = any(r.get("nuova") for r in gruppo["righe"])
     gruppi.sort(key=lambda g: 0 if g["nuovo"] else 1)

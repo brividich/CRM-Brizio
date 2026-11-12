@@ -123,6 +123,7 @@ body.theme-dark .dp-btn-outline:hover{background:var(--surface-alt,#0f1b2d);colo
     <span class="dp-breadcrumb-sep">></span>
     {% endif %}
     <span>{{ title }}</span>
+    <a href="{% url 'diario_preposto:guida' %}" style="margin-left:auto;">? Guida</a>
   </div>
 
   <div class="dp-form-card">
@@ -136,6 +137,7 @@ body.theme-dark .dp-btn-outline:hover{background:var(--surface-alt,#0f1b2d);colo
     <div class="dp-form-body">
       <form method="post" enctype="multipart/form-data" id="dp-main-form">
         {% csrf_token %}
+        {{ form.versione }}
 
         {% if form.non_field_errors %}
         <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px;">
@@ -212,8 +214,14 @@ function showFileNames(input) {
   if (input.files.length === 0) {
     label.innerHTML = 'Seleziona i file da allegare<br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare piu file contemporaneamente</span>';
   } else {
+    // Nomi file con textContent: un nome con markup non diventa HTML.
     var names = Array.from(input.files).map(function(f){ return f.name; }).join(', ');
-    label.innerHTML = input.files.length + ' file selezionati:<br><span style="font-size:11px;color:#0f766e;">' + names + '</span>';
+    label.textContent = input.files.length + ' file selezionati: ';
+    var span = document.createElement('span');
+    span.style.cssText = 'font-size:11px;color:#0f766e;';
+    span.textContent = names;
+    label.appendChild(document.createElement('br'));
+    label.appendChild(span);
   }
 }
 
@@ -232,7 +240,8 @@ async function deleteAllegato(id, btn) {
       } else {
         alert('Errore: ' + data.error);
       }
-    });
+    })
+    .catch(() => alert('Errore di rete: allegato non rimosso.'));
 }
 {% endif %}
 </script>

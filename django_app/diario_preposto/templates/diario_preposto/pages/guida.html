@@ -1,0 +1,49 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · {{ titolo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.dpg { display:flex; flex-direction:column; gap:14px; max-width:900px; }
+.dpg-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.dpg-head h1 { margin:0; font-size:22px; }
+.dpg-head p { margin:4px 0 0; color:var(--text-mid); font-size:14px; }
+.dpg-azioni { display:flex; gap:8px; flex-wrap:wrap; }
+.dpg-btn { display:inline-flex; align-items:center; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid var(--border); background:var(--surface); color:var(--text-mid); }
+.dpg-btn:hover { background:var(--surface-alt, #f8fafc); }
+.dpg-sec { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 20px; }
+.dpg-sec h2 { margin:0 0 8px; font-size:17px; }
+.dpg-sec p, .dpg-sec li, .dpg-sec dd { font-size:14px; line-height:1.6; }
+.dpg-sec dl { display:grid; grid-template-columns:minmax(150px,220px) minmax(0,1fr); gap:6px 16px; margin:0; }
+.dpg-sec dt { font-weight:700; }
+.dpg-sec dd { margin:0; }
+.dpg-nota { border-left:3px solid var(--border); padding:6px 12px; font-size:13px; color:var(--text-mid); }
+@media (max-width:720px) { .dpg-sec dl { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dpg">
+  <div class="dpg-head">
+    <div><h1>Guida · {{ titolo }}</h1><p>{{ sottotitolo }}</p></div>
+    <div class="dpg-azioni">
+      <a class="dpg-btn" href="{% url 'diario_preposto:lista' %}">Torna al diario</a>
+      <a class="dpg-btn" href="{% url 'diario_preposto:guida' %}?formato=pdf">Scarica PDF</a>
+    </div>
+  </div>
+
+  {% for sez in sezioni %}
+  <section class="dpg-sec" id="{{ sez.id }}">
+    <h2>{{ forloop.counter }}. {{ sez.titolo }}</h2>
+    {% for tipo, contenuto in sez.blocchi %}
+      {% if tipo == "p" %}<p>{{ contenuto }}</p>
+      {% elif tipo == "ul" %}<ul>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ul>
+      {% elif tipo == "passi" %}<ol>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ol>
+      {% elif tipo == "nota" %}<div class="dpg-nota">{{ contenuto }}</div>
+      {% elif tipo == "def" %}<dl>{% for t, d in contenuto %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -419,6 +419,20 @@ def _periodo_da_request(request) -> tuple[date | None, date | None]:
     return dal, al
 
 
+def _con_mansioni(ruoli) -> None:
+    """Mette su ogni ruolo ``mansioni_list``: le mansioni attive del Mansionario
+    che stanno sotto quel ruolo (il filo ruolo → mansione → competenza)."""
+    from ..models import CompetenzaSkm
+    from ..services.mansionario_struttura import TIPI_MANSIONE
+
+    per_ruolo: dict[int, list] = {}
+    for m in CompetenzaSkm.objects.filter(attiva=True, tipo__in=TIPI_MANSIONE).prefetch_related("ruoli"):
+        for r in m.ruoli.all():
+            per_ruolo.setdefault(r.pk, []).append(m)
+    for r in ruoli:
+        r.mansioni_list = sorted(per_ruolo.get(r.pk, []), key=lambda m: m.nome.casefold())
+
+
 def _ruoli_conteggio_da_scheda() -> dict[str, int]:
     """Quante schede dipendente riportano ciascun ruolo nel campo testuale.
 
@@ -648,6 +662,7 @@ def _build_scadenzario_voci(
     filtro_reparto: str = "",
     dip_map: dict | None = None,
     periodo: tuple | None = None,
+    tutte_le_fonti: bool = False,
 ) -> list[dict]:
     """Voci dello scadenzario unificato, ordinate per urgenza.
 
@@ -672,9 +687,11 @@ def _build_scadenzario_voci(
     # in NESSUNA sorgente: il filtro va applicato a monte, non solo ai contratti.
     cessati = _cessati_legacy_ids()
 
-    can_view_visite = _can_view_visite_mediche(request)
-    can_view_formazione = _can_view_formazione(request)
-    can_view_contratti = _check_hr_permission(request)
+    # ``tutte_le_fonti``: raccolta senza permessi per lo scadenzario generale, che
+    # poi decide da sé chi vede cosa (scadenzario/visibilita.py).
+    can_view_visite = tutte_le_fonti or _can_view_visite_mediche(request)
+    can_view_formazione = tutte_le_fonti or _can_view_formazione(request)
+    can_view_contratti = tutte_le_fonti or _check_hr_permission(request)
 
     if dip_map is None:
         dip_rows = fetch_anagrafica_rows(deduplicate=True)
@@ -814,12 +831,16 @@ def _build_scadenzario_voci(
         ):
             ultimo_contratto.setdefault(c.legacy_anagrafica_id, c)
 
-        scadenze_contratti: list[tuple[int, date, str]] = []
+        # Ogni scadenza porta con sé il contratto da cui nasce: la pagina offre
+        # «Rinnova» precompilato (stessa tipologia, livello e qualifica, inizio il
+        # giorno dopo la fine) senza passare dalla scheda. La fine prova non ha un
+        # contratto da rinnovare: lì l'azione è aprire la scheda.
+        scadenze_contratti: list[tuple[int, date, str, StoricoContratto | None]] = []
         for legacy_id, c in ultimo_contratto.items():
             if legacy_id in cessati or c.data_fine is None:
                 continue
             tip = c.tipologia_contratto or "a termine"
-            scadenze_contratti.append((legacy_id, c.data_fine, f"Contratto {tip}"))
+            scadenze_contratti.append((legacy_id, c.data_fine, f"Contratto {tip}", c))
         # Periodi di prova: solo futuri — una prova già conclusa non è un'azione da fare.
         prova_rows = DipendenteAnagraficaAziendale.objects.filter(
             data_cessazione__isnull=True,
@@ -827,9 +848,9 @@ def _build_scadenzario_voci(
             prova_data_fine__gte=oggi,
         ).values_list("legacy_anagrafica_id", "prova_data_fine")
         for legacy_id, fine_prova in prova_rows:
-            scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova"))
+            scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova", None))
 
-        for legacy_id, data_fine, descrizione in scadenze_contratti:
+        for legacy_id, data_fine, descrizione, contratto in scadenze_contratti:
             if periodo:
                 if not (periodo[0] <= data_fine <= periodo[1]):
                     continue
@@ -861,9 +882,26 @@ def _build_scadenzario_voci(
                 "data_scadenza": data_fine,
                 "giorni":       delta,
                 "scaduta":      delta < 0,
+                "contratto_id": contratto.pk if contratto else None,
+                "rinnovo": {
+                    "data_inizio": data_fine + _timedelta(days=1),
+                    "tipologia": contratto.tipologia_contratto,
+                    "codice_livello": contratto.codice_livello,
+                    "descrizione_livello": contratto.descrizione_livello,
+                    "qualifica_nome": contratto.qualifica_nome,
+                } if contratto else None,
             })
 
     # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine
+    # Ambito del ruolo (propri / team / tutti), come l'elenco dipendenti: un capo
+    # con ambito team vede le scadenze delle sue persone, non di tutta l'azienda.
+    # Vale per pagina, «Cose da gestire» e badge della subnav (stessa funzione).
+    if _ruoli_attivi() and not tutte_le_fonti:
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            voci = [v for v in voci if int(v.get("legacy_id") or 0) in visibili]
     voci.sort(key=lambda x: x["giorni"])
     return voci
 
@@ -1206,3 +1244,49 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
 
     transaction.on_commit(_archivia)
     return record
+
+
+
+def back_sicuro(request, grezzo: str | None) -> str:
+    """Indirizzo di ritorno sicuro: un percorso dello stesso host oppure un nome
+    di URL («anagrafica:scadenzario»), che alcuni form passano ancora. Vuoto se
+    non valido."""
+    from django.urls import NoReverseMatch, reverse
+
+    from core.redirects import safe_next
+
+    grezzo = (grezzo or "").strip()
+    if not grezzo:
+        return ""
+    if ":" in grezzo and "/" not in grezzo:
+        try:
+            return reverse(grezzo)
+        except NoReverseMatch:
+            return ""
+    return safe_next(request, grezzo, "")
+
+
+def back_da_richiesta(request) -> str:
+    """Dove tornare dopo l'azione: ?back= esplicito, altrimenti la pagina da cui si
+    è arrivati (stesso host, mai la pagina stessa)."""
+    back = back_sicuro(request, request.GET.get("back") or request.POST.get("back"))
+    if back:
+        return back
+    ref = back_sicuro(request, request.META.get("HTTP_REFERER"))
+    if ref:
+        from urllib.parse import urlparse
+
+        p = urlparse(ref)
+        ref = p.path + (f"?{p.query}" if p.query else "")
+        if p.path != request.path:
+            return ref
+    return ""
+
+
+def con_back(url: str, back: str) -> str:
+    """Aggiunge ?back= a un URL interno."""
+    if not back:
+        return url
+    from urllib.parse import quote
+
+    return f"{url}{'&' if '?' in url else '?'}back={quote(back, safe='')}"

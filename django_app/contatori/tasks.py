@@ -1,4 +1,5 @@
 """Job per lo scheduler django-q2 esistente del portale."""
+import logging
 from datetime import date, timedelta
 
 from django.core.cache import cache
@@ -11,6 +12,7 @@ from .models import (
 from .services import interroga_dispositivo, leggi_mensile_macchina
 from .snmp import SNMPError
 
+logger = logging.getLogger(__name__)
 
 # Audit S9: poco oltre il timeout del task (110 s) e un'attesa in coda ragionevole.
 # Con 3600 s un worker ucciso lasciava l'apparato senza letture per un'ora.
@@ -96,14 +98,77 @@ def poll_stampante_mfc(pk):
 
 _BLOCCO_PULIZIA = 500
 
+# Storico delle rilevazioni SNMP degli apparati non TVCC (stampanti, switch, server...).
+# Chiave SiteConfig, impostata da Contatori › Impostazioni. 0 = conserva tutto (di serie).
+CHIAVE_STORICO_SNMP = "contatori.snmp_retention_giorni"
+# Sotto i 60 giorni le stime dei toner (``stampanti.GIORNI_STIME``) perderebbero lo storico.
+STORICO_SNMP_MINIMO_GIORNI = 60
+# La pulizia notturna non supera questo tempo: quello che resta si cancella la notte dopo.
+_BUDGET_PULIZIA_SECONDI = 90.0
+
+
+def storico_snmp_giorni() -> int:
+    """Giorni di storico delle rilevazioni SNMP non TVCC; 0 = conserva tutto."""
+    from core.models import SiteConfig
+
+    try:
+        giorni = int(str(SiteConfig.get(CHIAVE_STORICO_SNMP, "0") or "0").strip())
+    except (TypeError, ValueError):
+        return 0
+    if giorni <= 0:
+        return 0
+    return max(giorni, STORICO_SNMP_MINIMO_GIORNI)
+
+
+def pulisci_rilevazioni_storico(adesso=None, budget=_BUDGET_PULIZIA_SECONDI):
+    """Cancella le rilevazioni SNMP non TVCC oltre lo storico impostato (spento di serie).
+
+    L'ultima rilevazione di ogni dispositivo resta sempre (scheda, KPI e monitoraggio la
+    leggono). A blocchi e con un tempo massimo: un primo giro su anni di storico prosegue
+    nelle notti successive.
+    """
+    from time import monotonic
+
+    from django.db.models import Max
+
+    giorni = storico_snmp_giorni()
+    if not giorni:
+        return {"attivo": False, "giorni": 0, "cancellate": 0}
+    limite = (adesso or timezone.now()) - timedelta(days=giorni)
+    fine = monotonic() + max(0.0, budget)
+    ultime = set(RilevazioneSNMP.objects.order_by().values("dispositivo_id").annotate(ultima=Max("pk"))
+                 .values_list("ultima", flat=True))
+    vecchie = RilevazioneSNMP.objects.exclude(
+        dispositivo__categoria__in=DispositivoSNMP.CATEGORIE_TVCC).filter(rilevata_il__lt=limite)
+    cancellate, ultimo_pk, completa = 0, 0, True
+    while True:
+        if monotonic() > fine:
+            completa = False
+            break
+        blocco = list(vecchie.filter(pk__gt=ultimo_pk).order_by("pk").values_list("pk", flat=True)[:_BLOCCO_PULIZIA])
+        if not blocco:
+            break
+        ultimo_pk = blocco[-1]
+        da_cancellare = [pk for pk in blocco if pk not in ultime]
+        if da_cancellare:
+            cancellate += RilevazioneSNMP.objects.filter(pk__in=da_cancellare).delete()[1].get(
+                RilevazioneSNMP._meta.label, 0)
+    esito = {"attivo": True, "giorni": giorni, "cancellate": cancellate}
+    if not completa:
+        esito["da_completare"] = "Tempo della pulizia esaurito: il resto si cancella la notte prossima."
+    return esito
+
 
 def pulisci_rilevazioni_tvcc():
     """Cancella le rilevazioni SNMP dei dispositivi TVCC oltre la retention impostata.
 
-    Solo NVR e telecamere: stampanti, server e gli altri apparati conservano lo
-    storico. Lo stato corrente resta sul dispositivo. A blocchi, per non tenere
+    Solo NVR e telecamere; per gli altri apparati c'è lo storico facoltativo
+    (``pulisci_rilevazioni_storico``, spento di serie). Lo stato corrente resta sul dispositivo. A blocchi, per non tenere
     una transazione enorme su SQL Server.
     """
+    from time import monotonic
+
+    inizio = monotonic()
     giorni = ImpostazioniSNMP.get_solo().tvcc_retention_giorni
     limite = timezone.now() - timedelta(days=giorni)
     vecchie = RilevazioneSNMP.objects.filter(
@@ -116,7 +181,16 @@ def pulisci_rilevazioni_tvcc():
             break
         cancellate += RilevazioneSNMP.objects.filter(pk__in=blocco).delete()[1].get(
             RilevazioneSNMP._meta.label, 0)
-    return {"giorni": giorni, "cancellate": cancellate}
+    esito = {"giorni": giorni, "cancellate": cancellate}
+    try:
+        # Lo stesso job (timeout 120 s) fa le due pulizie: la seconda usa il tempo che resta.
+        storico = pulisci_rilevazioni_storico(budget=_BUDGET_PULIZIA_SECONDI - (monotonic() - inizio))
+    except Exception:  # noqa: BLE001 - la pulizia TVCC resta valida anche se l'altra fallisce
+        logger.exception("contatori: pulizia storico rilevazioni SNMP non riuscita")
+        storico = {"errore": True}
+    if storico.get("attivo") or storico.get("errore"):
+        esito["storico_altri"] = storico
+    return esito
 
 
 def poll_dispositivo(pk):
@@ -144,7 +218,19 @@ def run_letture_mensili():
         _enqueue("contatori.tasks.leggi_mensile", pk, mese.isoformat())
         for pk in macchine.exclude(pk__in=presenti).values_list("pk", flat=True)
     )
-    return {"mese": mese.isoformat(), "accodati": queued}
+    from .mail_mensile import e_ultimo_giro
+    return {"mese": mese.isoformat(), "accodati": queued,
+            "mail": _notifica_mensile(mese, ultimo_giro=e_ultimo_giro())}
+
+
+def _notifica_mensile(mese, *, ultimo_giro=False):
+    """Mail di riepilogo delle letture mensili: un errore di invio non fa fallire la lettura."""
+    from .mail_mensile import notifica
+    try:
+        return notifica(mese, ultimo_giro=ultimo_giro)
+    except Exception:
+        logger.exception("contatori: invio mail letture mensili %s non riuscito", mese)
+        return "errore"
 
 
 def leggi_mensile(pk, mese):
@@ -159,7 +245,10 @@ def leggi_mensile(pk, mese):
             # Spenta o in sospensione: stato ed errore restano sulla macchina,
             # il recupero (ogni 15 minuti fino al giorno 7) la rilegge appena risponde.
             return {"macchina_id": pk, "non_raggiungibile": True, "errore": str(exc)[:200]}
-        return {"lettura_id": lettura.pk, "creata": creata}
+        esito = {"lettura_id": lettura.pk, "creata": creata}
+        if creata:
+            esito["mail"] = _notifica_mensile(lettura.mese)
+        return esito
     finally:
         cache.delete(key)
 

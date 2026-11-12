@@ -10,10 +10,21 @@ urlpatterns = [
 
     # Lista e CRUD
     path("elenco/", views.fornitori_list, name="fornitori_list"),
+    path("guida/", views.guida, name="guida"),
     path("nuovo/", views.fornitore_create, name="fornitore_create"),
     path("<int:fornitore_id>/", views.fornitore_detail, name="fornitore_detail"),
     path("<int:fornitore_id>/modifica/", views.fornitore_edit, name="fornitore_edit"),
     path("<int:fornitore_id>/toggle-active", views.fornitore_toggle_active, name="fornitore_toggle_active"),
+
+    # Sezioni caricate all'apertura della scheda: manutenzione, copie MFC, scadenze, tecnici
+    path("<int:fornitore_id>/sezione/<slug:sezione>/", views.fornitore_sezione, name="fornitore_sezione"),
+    path("<int:fornitore_id>/contatori/", views.fornitore_collega_contatori, name="fornitore_collega_contatori"),
+
+    # Registro dei tecnici
+    path("<int:fornitore_id>/tecnici/nuovo/", views.tecnico_add, name="tecnico_add"),
+    path("<int:fornitore_id>/tecnici/registra/", views.tecnico_registra, name="tecnico_registra"),
+    path("<int:fornitore_id>/tecnici/<int:tecnico_id>/modifica/", views.tecnico_edit, name="tecnico_edit"),
+    path("<int:fornitore_id>/tecnici/<int:tecnico_id>/stato/", views.tecnico_stato, name="tecnico_stato"),
 
     # Documenti
     path("<int:fornitore_id>/documenti/add", views.fornitore_documento_add, name="fornitore_documento_add"),
@@ -31,4 +42,19 @@ urlpatterns = [
     # Asset assegnati
     path("<int:fornitore_id>/asset/add", views.fornitore_asset_add, name="fornitore_asset_add"),
     path("<int:fornitore_id>/asset/<int:fa_id>/remove", views.fornitore_asset_remove, name="fornitore_asset_remove"),
+
+    # Accessi esterni dal GuestPortal (sola lettura) e apertura pannello con SSO
+    path("accessi-esterni/", views.accessi_esterni, name="accessi_esterni"),
+    path("accessi-esterni/<int:visita_id>/crea-fornitore/", views.ingresso_crea_fornitore, name="ingresso_crea_fornitore"),
+    path("accessi-esterni/<int:visita_id>/collega/", views.ingresso_collega, name="ingresso_collega"),
+    path("guestportal/apri/", views.guestportal_apri, name="guestportal_apri"),
+    path("guestportal/ditte/", views.guestportal_ditte, name="guestportal_ditte"),
+
+    # Presenze in azienda: ingressi GuestPortal collegati a ticket/OdL (riquadro HTMX)
+    # «scollega» prima della rotta con <tipo>, che altrimenti la cattura.
+    path("presenze/scollega/<int:link_id>/", views.presenze_scollega, name="presenze_scollega"),
+    path("accessi-esterni/<int:visita_id>/non-serve/", views.ingresso_non_serve, name="ingresso_non_serve"),
+    path("presenze/<str:tipo>/<int:pk>/", views.presenze_intervento, name="presenze_intervento"),
+    path("presenze/<str:tipo>/<int:pk>/collega/", views.presenze_collega, name="presenze_collega"),
+    path("presenze/<str:tipo>/<int:pk>/ditta/", views.presenze_imposta_ditta, name="presenze_imposta_ditta"),
 ]

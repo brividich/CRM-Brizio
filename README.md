@@ -7,7 +7,7 @@
 **Il portale interno unificato di Costruzioni Novicrom SRL**
 *Workflow · Operations · Sicurezza · Automazioni · Governance*
 
-![Version](https://img.shields.io/badge/version-1.6.8-F97316?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.9.1-F97316?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
 ![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
@@ -147,6 +147,7 @@ sequenceDiagram
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) · [scheda](docs/moduli/setup_wizard.md) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni · [scheda](docs/moduli/monitoring.md) |
 | 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | **Anagrafica HR**: dipendenti, storico contrattuale e organizzativo, onboarding/offboarding, formazione, visite mediche e referti, ruoli, organigramma, reportistica · [scheda](docs/moduli/anagrafica.md) |
+| 7c | [`scadenzario`](django_app/scadenzario/) | Direzione | `/scadenze/` | **Scadenzario generale**: scadenze di tutti i moduli, scadenze generiche con avvisi e rinnovi, pannello «Gestione» (chi vede cosa per ruolo, ruolo aziendale, persona) · [scheda](docs/moduli/scadenzario.md) |
 | 7b | [`fornitori`](django_app/fornitori/) | Operations | `/fornitori/` | **Anagrafica Fornitori** (permessi separati da HR): KPI spesa/ordini/asset, scheda fornitore con documenti, ordini, valutazioni qualità e asset · [scheda](docs/moduli/fornitori.md) |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione, work order, manutenzioni periodiche e scadenzario, verifiche periodiche impianti, mappa officina, schede IT con dati SNMP/SOC, indirizzi IP da DHCP/DNS · [scheda](docs/moduli/assets.md) |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
@@ -155,17 +156,19 @@ sequenceDiagram
 | 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF**: progetti, attività, Gantt, timeline, incontri in due tempi con convocazione e minuta (AU52/AU53), «Le mie azioni» (`/tasks/mie-azioni/`) · [scheda](docs/moduli/tasks.md) |
 | 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout · [scheda](docs/moduli/planimetria.md) |
 | 12 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, **riconciliazione presenze↔assenze**, sync SharePoint · [scheda](docs/moduli/assenze.md) |
+| 10b | [`produzione`](django_app/produzione/) | Operations | `/produzione/` | **Ordini di produzione**: scheda dell'OP con documenti di produzione, FAI, programmi CAM/CMM e anomalie · [scheda](docs/moduli/produzione.md) |
 | 13 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Controllo dell'OP a blocchi di seriali: più anomalie per blocco con allegati, decisione del capocommessa, mail di esito · [scheda](docs/moduli/anomalie.md) |
 | 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina e ricorrenti; allegati da web e dal QR macchina con validazione del team gestore · [scheda](docs/moduli/tickets.md) |
 | 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | **Registro Timbri MOD.130-RTF-Rev.2**: timbri, firme e sigle del personale, immagini private, guida in-app · [scheda](docs/moduli/timbri.md) |
+| 15b | [`presenti`](django_app/presenti/) | HR & Workflow | `/presenti/` | **Presenti in azienda**: lista live dalle timbrature Solari, pallino «In azienda», appello di evacuazione condiviso, uscite non timbrate al capo, PDF CN-PRESENZE · [scheda](docs/moduli/presenti.md) |
 | 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked · [scheda](docs/moduli/notizie.md) |
 | 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo, richieste e approvazione, consegna firmata, sostituzioni, documenti, magazzino, reminder scadenze · [scheda](docs/moduli/dpi.md) |
 | 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni, allegati privati e ispezioni periodiche · [scheda](docs/moduli/diario_preposto.md) |
 | 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions, near miss, incidenti, KPI sicurezza e heatmap planimetria · [scheda](docs/moduli/rilevazione_incidenti.md) |
-| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, scadenze e solleciti, sync SGI, matrice formazione ISO · [scheda](docs/moduli/procedure_refresh.md) |
-| 21 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI): registro C/O/M/R con consolidamento e annullamento, scadenzario adempimenti, **giacenze per CER** (FIFO, m³), **verifica di coerenza** · [scheda](docs/moduli/rentri.md) |
+| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Qualità | `/procedure-refresh/` | CN-SGI: libreria delle procedure SGI (scaffali, ricerca nel testo, chi vede cosa), presa visione, solleciti, matrice formazione ISO · [scheda](docs/moduli/procedure_refresh.md) |
+| 21 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI): registro C/O/M/R con consolidamento e annullamento, scadenzario adempimenti, **giacenze per CER** (FIFO, m³), **verifica di coerenza**, riepilogo annuale (base MUD) e registro cronologico · [scheda](docs/moduli/rentri.md) |
 | 22 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, flussi dei moduli, regole KICK-OFF (AU52-AU54) · [scheda](docs/moduli/automazioni.md) |
-| 23 | [`suggestion_corner`](django_app/suggestion_corner/) | Operations | `/suggestion-corner/` | **Suggestion Corner** (SMS): segnalazioni e miglioramenti con ciclo PDCA, form pubblico anonimo, console di gestione · [scheda](docs/moduli/suggestion_corner.md) |
+| 23 | [`suggestion_corner`](django_app/suggestion_corner/) | Operations | `/suggestion-corner/` | **Suggestion Corner** (SMS): segnalazioni e miglioramenti con ciclo PDCA, form pubblico (anonimo o firmato, foto), locandine QR, console di gestione · [scheda](docs/moduli/suggestion_corner.md) |
 | 24 | [`schede_sicurezza`](django_app/schede_sicurezza/) | Sicurezza | `/schede-sicurezza/` | Schede dati di sicurezza (SDS) dei prodotti chimici: versioni, mansioni di rischio, QR pubblico, presa visione · [scheda](docs/moduli/schede_sicurezza.md) |
 | 24b | [`report_conformita`](django_app/report_conformita/) | Qualità | `/report-conformita/` | **Report conformità** per audit ISO 9001, EN 9100, ISO 45001, ISO 27001: 16 report a video, PDF ed Excel, pacchetto riesame della direzione · [scheda](docs/moduli/report_conformita.md) |
 | 24d | [`glossario_tecnico`](django_app/glossario_tecnico/) | Qualità | `/glossario/` | **Glossario tecnico**: lavorazioni, quotatura, tolleranze, GD&T, trattamenti, controlli e sigle SGI con sinonimi, simboli e traduzione; validazione Qualità e proposte AI dai documenti SGI · [scheda](docs/moduli/glossario_tecnico.md) |

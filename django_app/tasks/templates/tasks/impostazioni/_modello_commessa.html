@@ -1,0 +1,25 @@
+<form method="post" class="mc-riga">
+  {% csrf_token %}
+  <input type="hidden" name="tab" value="commesse">
+  {% if m %}<input type="hidden" name="modello_id" value="{{ m.pk }}">{% endif %}
+  <div class="mc-testa">
+    <input class="input" name="nome" value="{{ m.nome|default:'' }}" maxlength="120" placeholder="{% if m %}Nome{% else %}Nuovo modello, es. Particolare nuovo con FAI{% endif %}" aria-label="Nome del modello" {% if m %}required{% endif %}>
+    <input class="input" name="descrizione" value="{{ m.descrizione|default:'' }}" maxlength="255" placeholder="Quando si usa (facoltativo)" aria-label="Descrizione">
+    <div class="mc-azioni">
+      {% if m %}<label class="pt-scelta"><input type="checkbox" name="attivo" {% if m.attivo %}checked{% endif %}> Attivo</label>{% endif %}
+      <button type="submit" class="btn btn-sm {% if m %}btn-secondary{% endif %}">{% if m %}Salva{% else %}Aggiungi{% endif %}</button>
+      {% if m and m.reali %}<button type="submit" name="azione" value="reali" class="btn btn-secondary btn-sm" title="Sostituisce i giorni con la media reale delle commesse di questo modello">Usa i valori reali</button>{% endif %}
+      {% if m %}<button type="submit" name="azione" value="elimina" class="btn btn-secondary btn-sm">Elimina</button>{% endif %}
+    </div>
+  </div>
+  <div class="mc-tappe">
+    {% for chiave, etichetta in tappe_scelte %}
+      <label class="mc-tappa">
+        <input type="checkbox" name="tappa_{{ chiave }}" {% if m and chiave in m.chiavi %}checked{% elif not m %}checked{% endif %}>
+        <span>{{ etichetta }}{% if m %}{% for k, v in m.reali.items %}{% if k == chiave %}<small class="mc-reale">reale {{ v.media }} gg · {{ v.n }} comm.</small>{% endif %}{% endfor %}{% endif %}</span>
+        <input class="input" type="number" name="giorni_{{ chiave }}" min="0" max="365" placeholder="gg" title="Giorni prima della consegna" aria-label="Giorni prima della consegna per {{ etichetta }}"
+               value="{% if m %}{% for v in m.tappe %}{% if v.tappa == chiave %}{{ v.giorni|default_if_none:'' }}{% endif %}{% endfor %}{% endif %}">
+      </label>
+    {% endfor %}
+  </div>
+</form>

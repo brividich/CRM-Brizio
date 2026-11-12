@@ -104,7 +104,15 @@ def _log_email_row(
     *, kind, sent, subject, from_email, to_list, cc_list, body_text, body_html,
     op_id, context, created_by, error_text, resend_of,
 ):
-    """Scrive la riga di log. Non solleva mai: il log non blocca l'invio."""
+    """Scrive la riga di log. Non solleva mai: il log non blocca l'invio.
+
+    Oltre al log del modulo (corpo completo, «Reinvia») scrive la riga nel
+    registro trasversale Automazioni → «Mail inviate» (solo destinatari/oggetto/esito).
+    """
+    _registra_mail_inviate(
+        kind=kind, subject=subject, to_list=to_list, cc_list=cc_list, op_id=op_id,
+        error_text="" if sent else (error_text or "Invio non riuscito"),
+    )
     try:
         from .mail_log_models import AnomalieEmailLog
 
@@ -126,6 +134,24 @@ def _log_email_row(
     except Exception:
         logger.warning("anomalie: registrazione log email fallita", exc_info=True)
         return None
+
+
+def _registra_mail_inviate(*, kind, subject, to_list, cc_list, op_id, error_text=""):
+    """Riga nel registro Automazioni → «Mail inviate». Non solleva mai."""
+    try:
+        from automazioni.mail_inviate import registra
+
+        registra(
+            origine=f"anomalie_{kind or 'altro'}",
+            destinatari=to_list,
+            copia=cc_list,
+            oggetto=subject,
+            sorgente="OP" if op_id else "",
+            record_id=op_id or None,
+            errore=error_text or "",
+        )
+    except Exception:
+        logger.warning("anomalie: riga «Mail inviate» non scritta", exc_info=True)
 
 
 def resend_logged_email(log_row, *, user=None):
@@ -170,8 +196,12 @@ def _alert_admins_send_failure(*, context: str, op_id: str = "", detail: str = "
             "Verificare la configurazione SMTP e i destinatari. "
             "Questo è un avviso automatico di sistema; non rispondere a questa email."
         )
-        EmailMultiAlternatives(subject=subject, body=body, from_email=_from, to=recipients).send(
+        inviate = EmailMultiAlternatives(subject=subject, body=body, from_email=_from, to=recipients).send(
             fail_silently=True
+        )
+        _registra_mail_inviate(
+            kind="alert_admin", subject=subject, to_list=recipients, cc_list=[], op_id=op_id,
+            error_text="" if inviate else "Invio non riuscito (SMTP)",
         )
     except Exception:
         logger.warning("_alert_admins_send_failure: invio avviso supervisori fallito", exc_info=True)
@@ -229,6 +259,10 @@ def build_anomalie_action_email(
         ]
 
     action_url = site_url + reverse("anomalie_mail_action", kwargs={"token": token_str})
+    from .automazioni_service import op_portal_link
+    from .silenzia_op import link_silenzia
+    portal_url = op_portal_link(op_id, base=site_url)
+    silenzia_url = link_silenzia(op_id, base=site_url)
 
     n_tot = len(anomalie_rows)
     troncato = n_tot > MAX_ANOMALIE_IN_EMAIL
@@ -267,6 +301,8 @@ def build_anomalie_action_email(
         action_label=action_label,
         action_url=action_url,
         expires_at=expires_at,
+        portal_url=portal_url,
+        silenzia_url=silenzia_url,
     )
 
     body_html = render_to_string(
@@ -283,6 +319,8 @@ def build_anomalie_action_email(
             "action": action,
             "action_label": action_label,
             "action_url": action_url,
+            "portal_url": portal_url,
+            "silenzia_url": silenzia_url,
             "expires_at": expires_at,
             "site_url": site_url,
         },
@@ -383,6 +421,8 @@ def _build_plain_text(
     action_label: str,
     action_url: str,
     expires_at: Any,
+    portal_url: str = "",
+    silenzia_url: str = "",
 ) -> str:
     plurale = n_tot != 1
     lines = [
@@ -396,10 +436,14 @@ def _build_plain_text(
     for gruppo in gruppi:
         titolo = gruppo.get("titolo") or "(S/N non indicato)"
         lines.append(f"S/N {titolo}" + (f" — {gruppo['sottotitolo']}" if gruppo.get("sottotitolo") else ""))
+        if gruppo.get("dove_pezzi"):
+            lines.append(f"  Dove sono i pezzi: {gruppo['dove_pezzi']}")
         for a in gruppo.get("righe") or []:
             stato = a.get("avanzamento") or ""
             testo = a.get("testo") or a.get("descrizione") or "(nessuna descrizione)"
             lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else "") + f": {str(testo)[:500]}")
+            for riga in a.get("dettaglio_righe") or []:
+                lines.append(f"    {riga}")
             if a.get("stato_superficie"):
                 lines.append(f"    Stato superficie: {a['stato_superficie']}")
             for index, detail in enumerate(a.get("descrizioni") or [], start=1):
@@ -427,6 +471,11 @@ def _build_plain_text(
             lines.append(f"Link valido fino a: {local_exp.strftime('%d/%m/%Y %H:%M')}")
         except Exception:
             pass
+    if portal_url:
+        lines += ["", "Oppure apri l'OP direttamente in Gestione anomalie (accesso automatico dai PC aziendali):",
+                  portal_url]
+    if silenzia_url:
+        lines += ["", f"Non vuoi più aggiornamenti su questo OP? {silenzia_url}"]
     lines += [
         "",
         "—",
@@ -499,6 +548,27 @@ def _resolve_lista_rdc_segnalazione() -> list[str]:
     return _resolve_lista_config("rdc_segnalazione")
 
 
+def righe_extra_decisione(u: dict) -> list[str]:
+    """Righe della mail di riepilogo per terzista, CAR segnalati e «Segnalato».
+
+    «Segnalato» non manda mail da solo: compare nel primo riepilogo successivo.
+    """
+    def _fatto(s):
+        if not isinstance(s, dict) or not s.get("il"):
+            return ""
+        return f" — segnalato il {s['il']}" + (f" da {s['da']}" if s.get("da") else "")
+
+    out = []
+    if u.get("segnalare") and u.get("segnalato_cliente"):
+        out.append("Segnalare al cliente" + _fatto(u.get("segnalato_cliente")))
+    if u.get("segnala_terzista"):
+        out.append("Segnalare al terzista" + _fatto(u.get("segnalato_terzista")))
+    car = [str(c).strip() for c in (u.get("car_segnalati") or []) if str(c).strip()]
+    if car:
+        out.append("Segnalata ai CAR: " + ", ".join(car))
+    return out
+
+
 def send_anomalie_update_confirmation(
     *,
     op_id: str,
@@ -523,6 +593,7 @@ def send_anomalie_update_confirmation(
     from automazioni.services import _resolve_op_recipients
 
     anomalie_ids = [r.get("id") for r in anomalie_rows if r.get("id") is not None]
+    updates_summary = [{**u, "extra_decisione": righe_extra_decisione(u)} for u in updates_summary]
 
     # Anomalie con risalto, divise per tipo di azione richiesta.
     # Vanno in cima alla mail e attivano l'invio alla lista dedicata.
@@ -552,11 +623,15 @@ def send_anomalie_update_confirmation(
     destinatari.extend(_resolve_lista_fissa_conferma())
 
     # 4) Lista dedicata RDC/segnalazione: solo se ci sono anomalie con quei flag
-    if has_rdc:
-        destinatari.extend(_resolve_lista_rdc_segnalazione())
+    lista_rdc = _resolve_lista_rdc_segnalazione() if has_rdc else []
+    destinatari.extend(lista_rdc)
 
     if extra_emails:
         destinatari.extend(extra_emails)
+
+    # Chi ha silenziato l'OP esce, tranne la lista RDC: per lei è un compito.
+    from .silenzia_op import link_silenzia, togli_silenziati
+    destinatari = togli_silenziati(op_id, destinatari, tieni=lista_rdc)
 
     # Dedup case-insensitive preservando l'ordine
     seen = {str(e or "").strip().lower() for e in (exclude_emails or []) if str(e or "").strip()}
@@ -615,6 +690,9 @@ def send_anomalie_update_confirmation(
             out.append(f"      N° RDC: {u['numero_rdc']}")
         if u.get("pezzi_recuperato"):
             out.append("      Pezzo recuperato: sì")
+        if u.get("dove_pezzi"):
+            out.append(f"      Dove sono i pezzi: {u['dove_pezzi']}")
+        out += [f"      {r}" for r in u.get("extra_decisione") or []]
         if u.get("note"):
             out.append(f"      Note: {str(u['note'])[:200]}")
         return out
@@ -641,8 +719,15 @@ def send_anomalie_update_confirmation(
         for u in altre_rows:
             lines += _fmt_row(u)
         lines.append("")
+    from .automazioni_service import op_portal_link
+    portal_url = op_portal_link(op_id)
+    if portal_url:
+        lines += [f"Apri l'OP nel portale (accesso automatico dai PC aziendali): {portal_url}", ""]
     if source_label:
         lines += [f"Origine: {source_label}", ""]
+    silenzia_url = link_silenzia(op_id)
+    if silenzia_url:
+        lines += [f"Non vuoi più aggiornamenti su questo OP? {silenzia_url}", ""]
     lines += [
         "—",
         "NOVICROM HUB · Portale interno · Email automatica",
@@ -662,6 +747,8 @@ def send_anomalie_update_confirmation(
             "altre_rows": altre_rows,
             "has_rdc": has_rdc,
             "source_label": source_label,
+            "portal_url": portal_url,
+            "silenzia_url": silenzia_url,
             "n": n,
             "n_aprire": n_aprire,
             "n_segnalare": n_segnalare,
@@ -735,7 +822,22 @@ def register_pending_update(
         logger.warning("register_pending_update: errore op=%s", op_str, exc_info=True)
 
 
-def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
+def decisioni_in_coda(op_id: str) -> dict | None:
+    """Decisioni salvate dal portale su un OP e non ancora inviate nel riepilogo:
+    ``{"n", "partenza"}`` (istante previsto dell'invio) oppure None."""
+    from datetime import timedelta
+
+    from .escalation_config import riepilogo_decisioni_minuti
+    from .mail_action_models import AnomaliaPendingNotification
+
+    p = AnomaliaPendingNotification.objects.filter(op_id__iexact=str(op_id or "").strip(), notified=False).first()
+    snapshot = p.updates_snapshot if p and isinstance(p.updates_snapshot, list) else []
+    if not snapshot:
+        return None
+    return {"n": len(snapshot), "partenza": p.last_modified_at + timedelta(minutes=riepilogo_decisioni_minuti())}
+
+
+def flush_pending_update_notifications(*, threshold_minutes: int = 5, op_id: str | None = None) -> dict:
     """Invia la mail di conferma per gli OP fermi da più di `threshold_minutes`.
 
     Affidabilità (no fallimenti silenziosi):
@@ -750,10 +852,14 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     from django.utils import timezone as _tz
     from datetime import timedelta
 
-    cutoff = _tz.now() - timedelta(minutes=threshold_minutes)
-    pending = list(
-        AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
-    )
+    if op_id:
+        # «Invia ora» da Gestione anomalie: solo quell'OP, senza aspettare la pausa.
+        pending = list(AnomaliaPendingNotification.objects.filter(notified=False, op_id__iexact=str(op_id).strip()))
+    else:
+        cutoff = _tz.now() - timedelta(minutes=threshold_minutes)
+        pending = list(
+            AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
+        )
     from . import automazioni_service as automazioni_decisioni
 
     sent = 0
@@ -783,7 +889,8 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
                 op_nominativo=p.op_nominativo or "",
                 anomalie_rows=[{"id": u.get("id"), "seriale": u.get("seriale")} for u in snapshot],
                 updates_summary=snapshot,
-                source_label=f"Modifiche da portale (debounce {threshold_minutes} min)",
+                source_label=("Modifiche da portale (inviate subito)" if op_id
+                              else f"Modifiche da portale (debounce {threshold_minutes} min)"),
                 exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
         except Exception as exc:
@@ -819,11 +926,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending),
               "decisioni_operatore": decisioni_inviate}
     # Controlli OP a blocchi: mail al capocommessa con il link di decisione.
-    try:
-        from .controllo_service import flush_controlli
-        result.update(flush_controlli())
-    except Exception:
-        logger.warning("flush_pending_update_notifications: invio mail controlli fallito", exc_info=True)
+    if not op_id:
+        try:
+            from .controllo_service import flush_controlli
+            result.update(flush_controlli())
+        except Exception:
+            logger.warning("flush_pending_update_notifications: invio mail controlli fallito", exc_info=True)
     if flushed_ops:
         # Automazione «OP completato»: se con queste modifiche l'OP ha chiuso l'ultima
         # anomalia aperta, CC/CAR ricevono subito la mail (idempotente, vedi marcatori).
@@ -1076,6 +1184,19 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
     return created
 
 
+def _destinatari_resoconto(op_id: str, recs: list[dict]) -> list[str]:
+    """CC/CAR dell'OP per il resoconto, senza chi l'ha silenziato; chi deve decidere
+    resta: il resoconto è il sollecito per la decisione che manca."""
+    from .controllo_service import _destinatari
+    from .silenzia_op import email_silenziate, togli_silenziati
+
+    emails = [r["email"] for r in recs if r.get("email")]
+    if not email_silenziate(op_id):
+        return emails
+    primary, _ = _destinatari(op_id)
+    return togli_silenziati(op_id, emails, tieni=[primary["email"]] if primary else [])
+
+
 def send_escalation_resoconto(
     op_rows: list[dict],
     *,
@@ -1106,15 +1227,13 @@ def send_escalation_resoconto(
         cc_car = ", ".join(
             f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))
         )
-        for r in recs:
-            if r.get("email"):
-                destinatari.append(r["email"])
+        destinatari.extend(_destinatari_resoconto(op.get("op_id") or "", recs))
         enriched.append({**op, "cc_car": cc_car})
 
     rdc_enriched = []
     for op in rdc_rows:
         recs = _resolve_op_recipients(op.get("op_id") or "")
-        destinatari.extend(r["email"] for r in recs if r.get("email"))
+        destinatari.extend(_destinatari_resoconto(op.get("op_id") or "", recs))
         rdc_enriched.append({
             **op,
             "cc_car": ", ".join(f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))),

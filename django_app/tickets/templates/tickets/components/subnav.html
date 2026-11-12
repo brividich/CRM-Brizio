@@ -17,6 +17,8 @@
   <a class="sub-a{% if current == 'tickets:impostazioni' %} active{% endif %}" href="{% url 'tickets:impostazioni' %}">Impostazioni</a>
   {% endif %}
   {% endif %}
+  <div class="sub-sep"></div>
+  <a class="sub-a" href="{% url 'guida_modulo' 'tickets' %}{% if current == 'tickets:nuovo' %}#aprire{% elif current == 'tickets:gestione_detail' or current == 'tickets:gestione_list' %}#gestire{% elif current == 'tickets:impostazioni' %}#impostazioni{% endif %}">? Guida</a>
 </div>
 <div class="notice" style="margin-top:10px;">
   {% if current == 'tickets:dashboard' %}

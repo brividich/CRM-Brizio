@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import re
 import socket
-from functools import lru_cache
 from typing import Iterable
 
 from django.conf import settings
@@ -11,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import DatabaseError, IntegrityError, connections, transaction
 
-from core.ldap_conn import build_ldap_server, ldap_receive_timeout
+from core.ldap_conn import ldap_breaker_open, ldap_service_bind
 from core.legacy_models import Ruolo, UtenteLegacy
 from core import naming
 from core.models import Profile
@@ -158,53 +157,31 @@ def resolve_ldap_identity(
         if not server_url or not service_user or not service_password:
             return preferred_upn, full_name
 
+        if ldap_breaker_open():
+            logger.warning("resolve_ldap_identity: Active Directory non raggiungibile (breaker attivo)")
+            return preferred_upn, full_name
+
         try:
-            from ldap3 import Connection, NTLM, SIMPLE
-            from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+            from ldap3.core.exceptions import LDAPException
         except Exception as exc:
             logger.warning("resolve_ldap_identity: ldap3 unavailable: %s", exc)
             return preferred_upn, full_name
 
         try:
-            server = build_ldap_server(server_url, timeout)
-            if "\\" in service_user:
-                bind_attempts = [(service_user, NTLM)]
-            elif "@" in service_user:
-                bind_attempts = [(service_user, SIMPLE)]
-            else:
-                bind_attempts = []
-                if suffix:
-                    bind_attempts.append((f"{service_user}@{suffix}", SIMPLE))
-                bind_attempts.append((service_user, SIMPLE))
-                if domain:
-                    bind_attempts.append((f"{domain}\\{service_user}", NTLM))
-
-            last_error = None
-            for bind_user, authentication in bind_attempts:
-                candidate = Connection(
-                    server,
-                    user=bind_user,
-                    password=service_password,
-                    authentication=authentication,
-                    auto_bind=False,
-                    auto_referrals=False,
-                    raise_exceptions=False,
-                    receive_timeout=ldap_receive_timeout(),
-                )
-                ok = candidate.bind()
-                if ok:
-                    active_conn = candidate
-                    cleanup_conn = True
-                    break
-                last_error = candidate.result
-                try:
-                    candidate.unbind()
-                except Exception:
-                    pass
-            if active_conn is None:
+            candidate, last_error = ldap_service_bind(
+                server_url=server_url,
+                timeout=timeout,
+                user=service_user,
+                password=service_password,
+                domain=domain,
+                upn_suffix=suffix,
+            )
+            if candidate is None:
                 logger.warning("resolve_ldap_identity: LDAP service bind failed: %s", last_error)
                 return preferred_upn, full_name
-        except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
+            active_conn = candidate
+            cleanup_conn = True
+        except (LDAPException, socket.error, OSError, ValueError) as exc:
             logger.warning("resolve_ldap_identity: LDAP service connection failed: %s", exc)
             return preferred_upn, full_name
 
@@ -586,28 +563,46 @@ def get_legacy_user(django_user):
         return None
 
 
-@lru_cache(maxsize=32)
+_LEGACY_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
+
+
 def legacy_table_columns(table_name: str) -> set[str]:
+    """Colonne (minuscole) di una tabella legacy, in cache per processo.
+
+    Va in cache solo una lettura riuscita: un errore momentaneo del database
+    (ramo ``except``) restituisce ``set()`` senza fissarlo fino al riavvio.
+    """
     normalized_table = str(table_name or "").strip().lower()
     if normalized_table not in ALLOWED_LEGACY_TABLES:
         return set()
+    cached = _LEGACY_COLUMNS_CACHE.get(normalized_table)
+    if cached is not None:
+        return set(cached)
     try:
         with connections["default"].cursor() as cursor:
             vendor = connections["default"].vendor
             if vendor == "sqlite":
                 cursor.execute(f'PRAGMA table_info("{normalized_table}")')
-                return {str(row[1]).lower() for row in cursor.fetchall()}
-            cursor.execute(
-                """
-                SELECT LOWER(COLUMN_NAME)
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = %s
-                """,
-                [normalized_table],
-            )
-            return {str(row[0]).lower() for row in cursor.fetchall()}
-    except Exception:
+                columns = {str(row[1]).lower() for row in cursor.fetchall()}
+            else:
+                cursor.execute(
+                    """
+                    SELECT LOWER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME = %s
+                    """,
+                    [normalized_table],
+                )
+                columns = {str(row[0]).lower() for row in cursor.fetchall()}
+    except Exception as exc:
+        logger.warning("legacy_table_columns: lettura colonne di %s non riuscita: %s", normalized_table, exc)
         return set()
+    _LEGACY_COLUMNS_CACHE[normalized_table] = frozenset(columns)
+    return columns
+
+
+# Stessa interfaccia del vecchio @lru_cache (usata dai test).
+legacy_table_columns.cache_clear = _LEGACY_COLUMNS_CACHE.clear
 
 
 def legacy_table_has_column(table_name: str, column_name: str) -> bool:

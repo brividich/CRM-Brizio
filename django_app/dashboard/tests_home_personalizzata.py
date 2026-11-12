@@ -63,7 +63,8 @@ class HomePrefsViewTests(TestCase):
         self.assertEqual(r.status_code, 200)
         p = self._prefs()
         self.assertEqual(p["stanza"], "moduli")
-        self.assertEqual(p["nascosti"], ["brief", "news"])
+        # Il superuser gestisce le consegne DPI: anche il banco gli è proposto, e qui non è spuntato.
+        self.assertEqual(p["nascosti"], ["brief", "news", "banco_dpi"])
         resp = self.client.get(self.url)
         self.assertContains(resp, 'data-hs-stanza="moduli"')
         self.assertNotContains(resp, "News aziendali</h3>")
@@ -105,3 +106,41 @@ class NewsHomeTests(TestCase):
         self.assertContains(resp, "Mensa chiusa venerdì")
         self.assertNotContains(resp, "Bozza riservata")
         self.assertNotContains(resp, "Solo per un ruolo")
+
+
+class AzioniRapideDinamicheTests(TestCase):
+    """Azioni rapide: solo quelle che la persona può davvero aprire."""
+
+    def _labels(self, **kw):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        concessi = kw.pop("concessi", set())
+        with (
+            patch("dashboard.views_home_portale._sistema_ruoli_attivo", return_value=kw.pop("da_ruoli", True)),
+            patch("core.permessi.motore.puo_fare", side_effect=lambda _s, chiave, azione: (chiave, azione) in concessi),
+            patch("dashboard.views_home_portale.moduli_visibili", return_value=kw.pop("visibili", set())),
+        ):
+            return [a["label"] for a in hp._header_actions(SimpleNamespace(), **kw)]
+
+    def test_senza_permessi_solo_pagine_personali(self):
+        self.assertEqual(self._labels(), ["Le mie attività", "Scadenzario"])
+
+    def test_ruoli_aggiungono_le_azioni_concesse(self):
+        labels = self._labels(concessi={("anomalie", "creare"), ("ticket_manutenzione", "creare"), ("assenze", "vedere")})
+        self.assertEqual(labels, ["Le mie attività", "Scadenzario", "Segnala anomalia", "Nuovo ticket"])
+
+    def test_legacy_usa_le_tessere_visibili(self):
+        labels = self._labels(da_ruoli=False, visibili={"assenze", "dpi"})
+        self.assertEqual(labels, ["Le mie attività", "Scadenzario", "Richiedi permesso", "Richiedi DPI"])
+
+    def test_admin_massimo_e_prima_primaria(self):
+        azioni = []
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        with patch("dashboard.views_home_portale._sistema_ruoli_attivo", return_value=True):
+            azioni = hp._header_actions(SimpleNamespace(), is_admin=True)
+        self.assertEqual(len(azioni), hp.HOME_AZIONI_MAX)
+        self.assertEqual([a["variant"] for a in azioni].count("primary"), 1)
+        self.assertEqual(azioni[0]["variant"], "primary")

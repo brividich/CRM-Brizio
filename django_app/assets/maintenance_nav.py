@@ -251,7 +251,7 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         'Viste Mese, Settimana, Elenco e Per asset; le tipologie si accendono e spengono in alto.',
     ),
     'scadenzario': (
-        'Scegli il periodo (scadute, 7/30/90 giorni) e la tipologia con le schede in alto.',
+        "Scegli il periodo (scadute, 7/30/90 giorni) e la tipologia con le schede in alto; «Svolte →» apre lo Storico con il lavoro gia' fatto.",
         'Seleziona le manutenzioni e crea un ordine di lavoro unico dalla barra in fondo.',
         "Scarica l'elenco in Excel o PDF con gli stessi filtri.",
     ),
@@ -259,6 +259,7 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Revisioni, certificati, garanzie e altri adempimenti dell'asset: un registro a parte, non un piano di manutenzione.",
         "«+ Nuova scadenza» per aggiungerne una; apri una riga per registrare l'adempimento e fissare la scadenza successiva.",
         'Le scadenze amministrative compaiono anche in Calendario, Scadenzario e promemoria.',
+        "Registrata, una scadenza si rinnova o passa in «Chiuse»: ogni esecuzione resta nello Storico («Svolte →»).",
     ),
     'verifiche': (
         "Verifiche periodiche sugli impianti (illuminazione di emergenza, quadri, cabine, terra, antincendio...): una riga per tipo di verifica, raggruppate per impianto.",
@@ -281,8 +282,9 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         'Apri un intervento per avviarlo, sospenderlo o chiuderlo con esito e costi.',
     ),
     'storico': (
-        "Ordini di lavoro conclusi e ticket di manutenzione, in un'unica cronologia.",
-        'Filtra per asset, periodo o testo per ritrovare un intervento passato.',
+        "Tutto il lavoro svolto in un'unica cronologia: ordini di lavoro conclusi, manutenzioni registrate senza OdL, scadenze amministrative svolte e ticket di manutenzione.",
+        "Filtra per asset, periodo o testo; «Origine» mostra un solo tipo (es. «Scadenze amministrative svolte»).",
+        "Ci arrivi anche da «Svolte →» nelle pagine Scadenze manutenzione e Scadenze amministrative.",
     ),
     'ricambi': (
         "Cosa c'e' a magazzino: giacenza, scorta minima, scaffale. «Sotto scorta» mostra cosa sta finendo.",

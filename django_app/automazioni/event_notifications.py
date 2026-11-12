@@ -53,9 +53,27 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "label": "Richiesta DPI approvata - avviso di consegna",
         "module": "DPI",
         "trigger": "Il responsabile/preposto approva una richiesta DPI, o la richiesta di un CAR/preposto si approva da sola.",
-        "destinatari": "Impostazioni DPI: email Magazzino",
+        "destinatari": "Impostazioni DPI: email Magazzino; per le categorie senza «La consegna la fa il magazzino» i referenti DPI; per le scarpe al negozio l'operatore incaricato",
         "source": "dpi/flusso.py",
         "func": "notifica_approvata",
+    },
+    {
+        "code": "dpi_ordine_negozio",
+        "label": "DPI scarpe - ordine in convenzione al negozio",
+        "module": "DPI",
+        "trigger": "L'operatore incaricato preme «Invia l'ordine» nella pagina DPI > Scarpe.",
+        "destinatari": "Impostazioni DPI: mail del negozio, in copia l'operatore incaricato",
+        "source": "dpi/flusso.py",
+        "func": "invia_ordine_negozio",
+    },
+    {
+        "code": "dpi_promemoria_ordine_scarpe",
+        "label": "DPI scarpe - promemoria del riepilogo al negozio",
+        "module": "DPI",
+        "trigger": "Ci sono scarpe in convenzione da ordinare e sono passati i giorni del riepilogo (task dpi_expiry_reminders); si ripete ogni 3 giorni finché l'ordine non parte.",
+        "destinatari": "Impostazioni DPI: operatore incaricato degli ordini di scarpe (vuoto: referenti DPI)",
+        "source": "dpi/flusso.py",
+        "func": "notifica_promemoria_ordine",
     },
     {
         "code": "dpi_pronta_ritiro",
@@ -80,9 +98,33 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "label": "Richiesta DPI rifiutata dopo approvazione - consegna annullata",
         "module": "DPI",
         "trigger": "Il responsabile/preposto rifiuta una richiesta DPI già approvata (avviso di consegna già partito).",
-        "destinatari": "Impostazioni DPI: email Magazzino",
+        "destinatari": "Impostazioni DPI: email Magazzino; per le categorie senza «La consegna la fa il magazzino» (es. scarpe) i referenti DPI",
         "source": "dpi/flusso.py",
         "func": "notifica_rifiutata_dopo_approvazione",
+    },
+    {
+        "code": "dpi_conferma_ricevuta",
+        "label": "DPI consegnato - conferma della ricevuta via mail",
+        "module": "DPI",
+        "trigger": (
+            "Il magazzino registra una consegna senza firma né ricevuta su carta (Banco consegne o scheda richiesta); "
+            "promemoria unico dopo 3 giorni senza risposta (task dpi_expiry_reminders)."
+        ),
+        "destinatari": (
+            "Il dipendente se la sua email di notifica è aziendale (Impostazioni DPI: domini della mail aziendale), "
+            "altrimenti il suo caporeparto/responsabile/preposto; in mancanza i referenti DPI. Link personale monouso."
+        ),
+        "source": "dpi/conferme.py",
+        "func": "_invia",
+    },
+    {
+        "code": "dpi_consegna_contestata",
+        "label": "DPI - consegna contestata («Non li ho ricevuti»)",
+        "module": "DPI",
+        "trigger": "Chi riceve la mail di conferma della ricevuta risponde «Non li ho ricevuti».",
+        "destinatari": "Impostazioni DPI: email Magazzino (referenti DPI per le categorie che il magazzino non consegna)",
+        "source": "dpi/conferme.py",
+        "func": "_avvisa_contestazione",
     },
     {
         "code": "mpq_timbri_sospesi",
@@ -168,6 +210,43 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "destinatari": "Team Suggestion Corner",
         "source": "suggestion_corner/notifications.py",
         "func": "notifica_team_nuova_segnalazione",
+    },
+    {
+        "code": "kickoff_avviso_cambiamenti",
+        "label": "KICK-OFF — mail quando cambia un incarico",
+        "module": "KICK-OFF",
+        "trigger": (
+            "Cambiano date, priorità, stato, titolo o responsabile di un'attività, oppure arriva o si decide "
+            "una richiesta di spostamento. La campanella del portale parte sempre."
+        ),
+        "destinatari": "Impostazioni KICK-OFF → Poteri e avvisi (incaricato, capocommessa, PM, chi ha creato); chi modifica escluso",
+        "source": "tasks/services/avvisi.py",
+        "func": "mail_cambiamento",
+    },
+    # Flussi nuovi spenti finché qualcuno non li accende dal designer.
+    {
+        "code": "kickoff_promemoria_scadenza",
+        "label": "KICK-OFF — promemoria prima della scadenza delle tappe",
+        "module": "KICK-OFF",
+        "trigger": (
+            "Una tappa del «Percorso del kickoff» o una riga di «Programmi e FAI» diventa un'attività "
+            "con data «Entro il»: prepara il promemoria nel portale con i giorni di preavviso delle "
+            "Impostazioni KICK-OFF."
+        ),
+        "destinatari": "Responsabile dell'attività (campanella del portale)",
+        "source": "tasks/services/tappe.py",
+        "func": "promemoria_scadenza",
+        "attivo_di_default": False,
+    },
+    {
+        "code": "kickoff_evento_outlook",
+        "label": "KICK-OFF — evento nel calendario Outlook del responsabile",
+        "module": "KICK-OFF",
+        "trigger": "Una tappa del «Percorso del kickoff» viene assegnata con data «Entro il» e la spunta «Anche in Outlook».",
+        "destinatari": "Calendario Outlook del responsabile (email di notifica dell'anagrafica), via Microsoft Graph",
+        "source": "tasks/services/tappe.py",
+        "func": "evento_outlook",
+        "attivo_di_default": False,
     },
 ]
 

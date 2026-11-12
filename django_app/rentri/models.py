@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.utils import timezone
 
@@ -34,6 +36,9 @@ class RegistroRifiuti(models.Model):
     data = models.DateField(db_index=True)
     id_registrazione = models.CharField(max_length=50, blank=True, default="", db_index=True)
     rif_op = models.CharField(max_length=200, blank=True, default="")
+    # Collegamenti tolti (a mano o perché il movimento collegato è stato annullato):
+    # una riga per evento, «gg/mm/aaaa · 2026/0012 · motivo». Resta come traccia.
+    rif_op_storico = models.TextField(blank=True, default="")
     codice = models.CharField(max_length=100, blank=True, default="")
     quantita = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     carico_scarico = models.CharField(max_length=10, blank=True, default="")
@@ -56,6 +61,10 @@ class RegistroRifiuti(models.Model):
     )
     sharepoint_item_id = models.CharField(max_length=64, blank=True, default="")
     inserito_da = models.CharField(max_length=200, blank=True, default="")
+    # Utente del portale che l'ha inserito (per i promemoria in-app); vuoto su storico e import.
+    inserito_da_legacy_id = models.IntegerField(null=True, blank=True)
+    # Ultimo promemoria «manca lo scarico effettivo» inviato (solo tipo=O): uno a settimana.
+    promemoria_m_il = models.DateField(null=True, blank=True)
     # Unità della quantità: vuota sui movimenti storici (non dichiarata).
     unita = models.CharField(max_length=3, choices=UNITA_CHOICES, blank=True, default="")
     # Da dove arriva il movimento: i termini di annotazione si controllano solo
@@ -91,6 +100,13 @@ class RegistroRifiuti(models.Model):
             anno = self.data.year if self.data else timezone.now().year
             self.id_registrazione = alloca_id_registrazione(anno)
         super().save(*args, **kwargs)
+
+    @property
+    def classi_hp(self) -> list[str]:
+        """Classi di pericolo (HP4, HP14…) del campo «pericolosità», in ordine e senza doppioni."""
+        testo = self.pericolosita or ""
+        codici = list(dict.fromkeys(f"HP{int(n)}" for n in re.findall(r"HP\s*0*(\d+)", testo, re.I)))
+        return codici or ([testo.strip()] if testo.strip() else [])
 
     @property
     def bloccato(self) -> bool:
@@ -161,3 +177,30 @@ class RentriImpostazioni(models.Model):
     def get_singleton(cls) -> "RentriImpostazioni":
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class CatalogoEER(models.Model):
+    """Elenco europeo dei rifiuti (Decisione 2000/532/CE e s.m.): solo per confronto.
+
+    Serve a mostrare accanto al codice scritto nel movimento la descrizione
+    ufficiale e se è pericoloso (asterisco). Non vincola il registro: un codice
+    assente dal catalogo si può registrare lo stesso, con un avviso. Si carica con
+    ``python manage.py rentri_catalogo_eer <file>`` (CSV o pagina EUR-Lex salvata).
+    """
+
+    codice = models.CharField(max_length=6, unique=True)  # sei cifre senza spazi, es. 150106
+    pericoloso = models.BooleanField(default=False)
+    descrizione = models.CharField(max_length=500)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Codice EER (catalogo)"
+        verbose_name_plural = "Catalogo EER"
+
+    def __str__(self):
+        return self.codice_esteso
+
+    @property
+    def codice_esteso(self) -> str:
+        c = self.codice
+        return f"{c[0:2]} {c[2:4]} {c[4:6]}" + ("*" if self.pericoloso else "")

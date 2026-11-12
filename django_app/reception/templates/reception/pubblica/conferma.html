@@ -1,0 +1,11 @@
+{% extends "reception/pubblica/_base.html" %}
+{% block title %}Conferma la richiesta{% endblock %}
+{% block testa %}<h1>{% if richiesta %}Conferma la richiesta{% else %}Link non più valido{% endif %}</h1>{% endblock %}
+{% block corpo %}
+{% if richiesta %}
+<p class="pb-sub">Visita del {{ richiesta.data_visita|date:"d/m/Y" }}{% if richiesta.ora_inizio %} alle {{ richiesta.ora_inizio|time:"H:i" }}{% endif %} per {{ richiesta.nome }} {{ richiesta.cognome }}. Premi il pulsante per inoltrarla.</p>
+<form method="post">{% csrf_token %}<button class="pb-btn" type="submit">Conferma e inoltra</button></form>
+{% else %}
+<p class="pb-sub">La richiesta è già stata confermata oppure il link è scaduto. Se serve, compila di nuovo il modulo.</p>
+{% endif %}
+{% endblock %}

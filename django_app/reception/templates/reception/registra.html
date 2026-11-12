@@ -1,0 +1,9 @@
+{% extends "reception/_base.html" %}
+{% load static %}
+{% block title %}Registra ingresso | Reception{% endblock %}
+{% block rc_titolo %}Registra ingresso{% endblock %}
+{% block rc_contenuto %}
+{{ referenti_json|json_script:"referenti-dati" }}
+<div class="rc-card rc-card-modulo">{% include "reception/_form_ingresso.html" %}</div>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}

@@ -110,7 +110,7 @@ MODULE_LABELS = {
     "monitoring": "Monitoraggio",
     "notizie": "Notizie e comunicazioni",
     "planimetria": "Planimetria",
-    "procedure_refresh": "Presa visione procedure",
+    "procedure_refresh": "CN-SGI · Procedure",
     "rentri": "RENTRI - registro rifiuti",
     "report_conformita": "Report di conformità",
     "rilevazione_incidenti": "Rilevazione incidenti",

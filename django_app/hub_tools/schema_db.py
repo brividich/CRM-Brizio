@@ -18,7 +18,7 @@ from django.apps import apps
 
 # Area, colore e descrizione per ogni app del progetto, nell'ordine della pagina.
 APP_INFO: dict[str, tuple[str, str, str]] = {
-    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report, postazioni condivise e PIN"),
+    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report, postazioni condivise e PIN, bacheca e cataloghi della stanza Sapere"),
     "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
     "dati_bi": ("Piattaforma", "#0369a1", "Dati per Power BI (viste SQL bi_*) e API dati in sola lettura per applicazioni"),
     "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),
@@ -27,13 +27,19 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "setup_wizard": ("Piattaforma", "#94a3b8", "Configurazione iniziale"),
     "twofa": ("Piattaforma", "#64748b", "Verifica in due passaggi"),
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
-    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, classificazione e coefficienti delle mansioni, costo orario mensile, fornitori, richieste di rettifica (GDPR)"),
+    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, centri di costo, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, classificazione e coefficienti delle mansioni, costo orario mensile, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint, "
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
+    "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
+                   "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli"),
+    "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
+                 "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
-    "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
+    "scadenzario": ("Altri moduli", "#2563eb", "Scadenzario generale: scadenze generiche (ex scadenzario sul NAS), rinnovi, avvisi, regole di visibilità per voce, prese in carico, viste salvate, fotografie giornaliere"),
+    "reception": ("Operations", "#16a34a", "Visitatori della reception su SQL Server: ospiti, visite, cartellini, referenti, ditte accreditate con i nominativi, pre-registrazioni, richieste di appuntamento degli esterni (cancellate dopo 30 giorni), correzioni. Prende il posto del database MySQL del GuestPortal con RECEPTION_NATIVA=1"),
+    "fornitori": ("Operations", "#16a34a", "Fornitori (anagrafica nelle tabelle di anagrafica); ingressi del GuestPortal collegati a ticket e OdL, abbinamento ditte GuestPortal, avvisi di ingresso di ditte con documenti di sicurezza non in regola, abbinamento facoltativo con i codici fornitore del modulo Contatori, registro dei tecnici di ogni fornitore, ingressi segnati come senza intervento, avvisi delle ditte attese con documenti non in regola"),
     "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
@@ -45,12 +51,12 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "planimetria": ("Operations", "#a3a3a3", "Ponte verso le planimetrie di assets"),
     "diario_preposto": ("Sicurezza sul lavoro", "#ef4444", "Diario del preposto e ispezioni"),
     "rilevazione_incidenti": ("Sicurezza sul lavoro", "#f43f5e", "Incidenti, near miss, situazioni pericolose"),
-    "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino"),
+    "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino, conferme di ricevuta via mail, ordini e fatture delle scarpe al negozio"),
     "schede_sicurezza": ("Sicurezza sul lavoro", "#dc2626", "Schede di sicurezza dei prodotti chimici"),
     "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
-    "procedure_refresh": ("Qualità", "#22c55e", "Presa visione procedure, sync SGI"),
+    "procedure_refresh": ("Qualità", "#22c55e", "CN-SGI: libreria procedure SGI, chi vede cosa, presa visione, modifiche ai documenti (bozze, verifica, approvazione), sync SGI"),
     "sistema_gestione": ("Qualità", "#15803d", "Audit interni ed esterni, certificazioni, SoA, threat intelligence; audit ISMS "
-                         "MOD.171/168 (sistema_gestione_auditisms, _auditismsrequisito, _auditismscontrollo); analisi "
+                         "copie dei certificati (sistema_gestione_certificazionedocumento), verbali di riesame MOD.062 (sistema_gestione_riesame, _riesameargomento, _riesamepartecipante, _riesameobiettivo), MOD.171/168 (sistema_gestione_auditisms, _auditismsrequisito, _auditismscontrollo); analisi "
                          "del rischio MOD.165 (sistema_gestione_rischiominaccia, _scenariorischioot)"),
     "gestione_specifiche": ("Qualità", "#4d7c0f", "Specifiche cliente, MOD.133 e tabelle del Registro OFI / NC "
                             "(il modulo con dashboard e viste è registro_ofi)"),
@@ -65,7 +71,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), PC del dominio letti, sigilli giornalieri dell'archivio, "
                      "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
                      "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),
-    "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log"),
+    "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log, mail inviate"),
 }
 # App di Django e librerie: le loro tabelle esistono nel database, mostrate a parte.
 FRAMEWORK_INFO: dict[str, str] = {
@@ -80,6 +86,27 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
         "Sicurezza informatica", "Automazioni", "Altri moduli", "Framework e librerie")
 
 CONNESSIONI_ESTERNE: list[dict] = [
+    {
+        "nome": "Vecchio scadenzario (Flask + MySQL sul NAS)",
+        "cosa": "App Flask sul NAS (10.0.0.222:8080) con database MySQL scadenziario su 10.0.0.7: categorie, attività con scadenza e registro degli avvisi. L'HUB lo legge in sola lettura solo con il comando di import, che copia i dati nelle scadenze generiche; dopo il passaggio il vecchio va spento.",
+        "chi": "Scadenzario → Scadenze generiche (scadenzario_categoriascadenza, scadenzario_scadenzagenerica, scadenzario_avvisoinviato importati con legacy_id).",
+        "config": "Comando importa_scadenzario (--host, --port, --database, --user); password solo dalla variabile d'ambiente SCADENZARIO_DB_PASSWORD; utente MySQL con solo SELECT su scadenziario.*.",
+        "controllo": "importa_scadenzario senza --apply conta categorie e attività senza scrivere.",
+    },
+    {
+        "nome": "Timbrature Solari (SQL Server)",
+        "cosa": "Database del sistema presenze Solari (anagrafico + timbrature). L'HUB legge in sola lettura, al massimo una volta al minuto per tutto il server (cache condivisa), chi è in azienda (ultima timbratura di oggi = entrata) e le giornate con entrata senza uscita. Nessuna copia delle timbrature nel database del portale.",
+        "chi": "Presenti in azienda (lista live, appello di evacuazione, uscite non timbrate, PDF CN-PRESENZE su SharePoint); pallino «In azienda» in elenco e scheda dipendente. Aggancio all'anagrafica per codice fiscale.",
+        "config": "SOLARI_DB_SERVER, SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con solo db_datareader), SOLARI_DB_DRIVER, SOLARI_DB_ENCRYPT, SOLARI_DB_TRUST_CERT (con ODBC Driver 18: 1 e 1, certificato autofirmato), SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM; pubblicazione PDF e avvisi in Presenti › Impostazioni.",
+        "controllo": "Pagina Presenti in azienda (rosso = non configurato o DB non risponde); raggiungibilità dell'istanza SQL Solari dal server HUB; Impostazioni › «Ultima pubblicazione» per l'upload su SharePoint.",
+    },
+    {
+        "nome": "GuestPortal (accessi visitatori, MySQL)",
+        "cosa": "Applicazione separata (PHP + MySQL su IIS) del chiosco della reception: check-in/out di visitatori, fornitori e consulenti. Il chiosco nell'HUB (/chiosco/, senza login, solo postazioni ammesse) chiama le sue API lato server, senza scrivere nel database. L'HUB legge in sola lettura Visits/Guests/Suppliers (Accessi esterni; esterni in azienda nella lista Presenti e nell'appello di evacuazione; nessuna copia: la pulizia GDPR del GuestPortal resta valida) e apre il suo pannello con un token firmato a uso singolo (public/admin/sso.php).",
+        "chi": "Fornitori → Accessi esterni e Ditte GuestPortal; scheda «Tecnici» del fornitore; riquadro «Presenze in azienda della ditta» in ticket MAN e OdL esterni (fornitori_ingressointervento, fornitori_dittaguestportal); voce di menu «Accessi azienda».",
+        "config": "GUESTPORTAL_DB_HOST, GUESTPORTAL_DB_PORT, GUESTPORTAL_DB_NAME, GUESTPORTAL_DB_USER, GUESTPORTAL_DB_PASSWORD (utente MySQL con solo SELECT); GUESTPORTAL_ADMIN_URL, GUESTPORTAL_SSO_URL, GUESTPORTAL_SSO_SECRET (= GP_SSO_SECRET in config/sso.php del GuestPortal).",
+        "controllo": "Pagina Accessi esterni (avviso giallo = non configurato, rosso = DB non risponde); porta 3306 aperta dal server HUB; righe «[SSO] accesso rifiutato: …» in C:\\Windows\\Temp\\guestportal.log del server GuestPortal.",
+    },
     {
         "nome": "Collector letture contatori (OPC UA)",
         "cosa": "Script esterni (es. il collector OPC UA delle CNC) che inviano le ore/km/cicli delle macchine a POST /api/assets/contatori/ingest/. Le letture finiscono in assets_assetmeter e assets_assetmeterhistory e alimentano i piani di manutenzione a contatore.",
@@ -114,6 +141,27 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "chi": "Mail, promemoria, sincronizzazioni, letture SNMP, Security Center, indicizzazione AI.",
         "config": "Attività pianificata QCluster_PROD + watchdog; schedule registrati da setup_q_schedules",
         "controllo": "Monitoring → Centrale di comando e «Salute degli schedule»; logs\\qcluster.log.",
+    },
+    {
+        "nome": "OSV (database pubblico delle vulnerabilità)",
+        "cosa": "Ogni mattina alle 06:50 il SOC manda a https://api.osv.dev nomi e versioni delle librerie Python installate nel portale (nessun dato personale) e riceve le vulnerabilità note: Dispositivi › Librerie del portale.",
+        "chi": "Security Center (security.services.dipendenze_portale, schedule security_dipendenze_portale).",
+        "config": "Interruttori in /soc/impostazioni/ › «Librerie del portale»; accesso HTTPS in uscita verso api.osv.dev (eventuale proxy da HTTPS_PROXY).",
+        "controllo": "SOC › Impostazioni › Letture automatiche › «Librerie Python del portale (OSV)»; Battito del SOC.",
+    },
+    {
+        "nome": "Microsoft Security Update Guide (API CVRF)",
+        "cosa": "Alle 06:10 e alle 13:10, nel giro WatchGuard, il SOC legge da https://api.msrc.microsoft.com/cvrf/v3.0 (pubblica, senza chiave) i documenti mensili dell'ultimo anno, solo se Microsoft li ha aggiornati e al massimo una volta al giorno: quale KB sostituisce quale. Non manda dati.",
+        "chi": "Security Center → Patch e protezione («Compresa in KB…»), riquadro «Patch» della scheda asset, pannello CVE. Tabelle security_microsoftkbsostituzione e security_microsoftcvrfmese (security.services.patch_kb).",
+        "config": "Interruttore «Cerca le patch comprese in una più recente (Microsoft)» in /soc/impostazioni/ › «WatchGuard Endpoint Security (API)» (serve anche «Leggi le patch mancanti»); accesso HTTPS in uscita verso api.msrc.microsoft.com.",
+        "controllo": "SOC › Impostazioni › Letture automatiche › WatchGuard (voce «msrc»); manage.py soc_api_sync --solo watchguard.",
+    },
+    {
+        "nome": "Fonti web per l'AI del SOC (siti ufficiali)",
+        "cosa": "A richiesta (casella «Cerca anche sul web») il SOC legge pagine https di nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, first.org, support/learn/msrc.microsoft.com, watchguard.com, veeam.com, synology.com (mai forum) e, se configurato, interroga un SearXNG interno. Escono solo codici pubblici: CVE, KB, codici d'errore, Event ID, nome del produttore.",
+        "chi": "Security Center → scheda alert («Proponi la soluzione»), ticket («Proponi con l'AI»), pannello CVE e Patch e protezione («Spiega con l'AI»). Cache in security_securityexternalfeedcache (feed «web», 24 h), registro security_securityaiinteractionlog (web_ricerca, web_pagina). Codice security.services.ricerca_web.",
+        "config": "Impostazioni › «Ricerca sul web per l'AI» in /soc/impostazioni/ (interruttore spento di serie, altri siti ammessi, indirizzo SearXNG); accesso HTTPS in uscita dal server del portale verso i siti ammessi.",
+        "controllo": "SOC › Configurazione › registro AI (azioni web_ricerca e web_pagina con esito ed errore).",
     },
     {
         "nome": "Active Directory (LDAP)",
@@ -198,7 +246,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "WatchGuard Cloud (API Endpoint Security)",
         "cosa": "Lettura dei PC con agente (protezione, ultima connessione, MAC), dei dispositivi in rete senza agente, del software installato e delle patch mancanti con l'esito dei task di installazione. Sola lettura.",
-        "chi": "Security Center → Dispositivi › Patch e protezione, inventario software (fonte WatchGuard), pannello CVE, riga «Visto da» della scheda asset. Tabelle security_watchguarddispositivo, security_watchguardpatch.",
+        "chi": "Security Center → Dispositivi › Patch e protezione, Patch installate, Tempi delle patch; inventario software (fonte WatchGuard), pannello CVE, riga «Visto da» e riquadro «Patch» della scheda asset. Tabelle security_watchguarddispositivo, security_watchguardpatch, security_watchguardpatchgiorno (fotografia giornaliera delle patch mancanti), security_watchguardtask e security_watchguardtaskesito (storico dei task di installazione della console, pagina Installazioni da console).",
         "config": "SOC › Impostazioni › «Credenziali API WatchGuard» (URL API della regione, ID account, Access ID, password, API Key da Managed Access; cifrate nel database) e interruttori «WatchGuard Endpoint Security (API)».",
         "controllo": "«Prova la connessione» nelle Impostazioni o manage.py soc_api_sync --prova; esito del task watchguard_api_sync.",
     },
@@ -252,7 +300,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Server AI (Ollama e indice)",
         "cosa": "Il modello di linguaggio dell'Assistente AI e il servizio che calcola l'indice dei documenti, su un server interno.",
         "chi": "Assistente AI, copiloti dei moduli (DPI, Suggestion Corner, Specifiche, Security Center: spiegazioni, lettura assistita, "
-               "proposte su CPE ed esiti CVE da verificare nella tabella security_securitypropostaai).",
+               "proposte su CPE ed esiti CVE da verificare nella tabella security_securitypropostaai, proposte di chiusura degli alert ogni 15 minuti con apprendimento dalle decisioni nella tabella security_securityalertproposta), RENTRI (lettura del FIR, solo per i campi che le regole non trovano).",
         "config": "OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL, RAG_EMBED_BACKEND, RAG_EMBED_OPENAI_BASE_URL",
         "controllo": "Setup Wizard → Server Dashboard → Assistente AI (verifica); Centrale di comando.",
     },

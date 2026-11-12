@@ -1,0 +1,68 @@
+{% extends "reception/_base.html" %}
+{% load static %}
+{% block title %}Richieste di appuntamento | Reception{% endblock %}
+{% block rc_titolo %}Richieste di appuntamento{% endblock %}
+{% block extra_scripts %}<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>{% endblock %}
+{% block rc_contenuto %}
+<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">
+<div class="rc-card">
+  <div class="rc-body">
+    <p class="rc-note">Modulo pubblico: <strong>{% if pubbliche %}acceso{% else %}spento{% endif %}</strong>{% if pubbliche %} all'indirizzo <code>{{ link_pubblico }}</code>{% else %} (RECEPTION_RICHIESTE_PUBBLICHE nel .env){% endif %}. In attesa di conferma dell'email: {{ da_confermare }}.</p>
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Da decidere ({{ in_attesa|length }})</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Chi</th><th>Giorno</th><th>Vuole incontrare</th><th>Motivo e messaggio</th><th>Decidi</th></tr></thead>
+      <tbody>
+      {% for r in in_attesa %}
+        <tr>
+          <td><strong>{{ r.nome_completo }}</strong>{% if r.azienda %}<br><span class="rc-muted">{{ r.azienda }}</span>{% endif %}<br><span class="rc-muted">{{ r.email }}{% if r.telefono %} · {{ r.telefono }}{% endif %}</span></td>
+          <td>{{ r.data_visita|date:"D d/m/Y" }}{% if r.ora_inizio %}<br>{{ r.ora_inizio|time:"H:i" }}{% endif %}</td>
+          <td>«{{ r.referente_indicato }}»<br>{% if r.referente %}<span class="rc-pill rc-pill-ok">{{ r.referente.nome_elenco }}</span>{% else %}<span class="rc-pill">Da assegnare</span>{% endif %}</td>
+          <td>{{ r.motivo|default:"—" }}{% if r.messaggio %}<br><span class="rc-muted">{{ r.messaggio|linebreaksbr }}</span>{% endif %}</td>
+          <td>
+            <form method="post" action="{% url 'reception:richiesta_azione' r.pk %}" class="rc-form">
+              {% csrf_token %}
+              <div class="rc-field"><label for="q-ref-{{ r.pk }}">Referente</label><select class="rc-input" id="q-ref-{{ r.pk }}" name="referente"><option value="">{% if r.referente %}{{ r.referente.nome_elenco }}{% else %}Scegli{% endif %}</option>{% for x in referenti %}<option value="{{ x.pk }}">{{ x.nome_elenco }}</option>{% endfor %}</select></div>
+              <input type="hidden" id="q-data-{{ r.pk }}" value="{{ r.data_visita|date:'Y-m-d' }}">
+              <div class="rc-riga rc-riga-2">
+                <div class="rc-field"><label for="q-ora-{{ r.pk }}">Dalle</label><input class="rc-input" id="q-ora-{{ r.pk }}" type="time" name="ora_inizio" value="{{ r.ora_inizio|time:'H:i' }}"></div>
+                <div class="rc-field"><label for="q-fine-{{ r.pk }}">Alle</label><input class="rc-input" id="q-fine-{{ r.pk }}" type="time" name="ora_fine"></div>
+              </div>
+              {% include "reception/_sala_scelta.html" with pfx="q-" data_id="q-data-" ora_id="q-ora-" fine_id="q-fine-" riga=r.pk %}
+              <div class="rc-field"><label for="q-nota-{{ r.pk }}">Nota per l'esterno</label><input class="rc-input" id="q-nota-{{ r.pk }}" name="nota" maxlength="500"></div>
+              <div class="rc-field"><span><button class="rc-btn rc-btn-p" name="azione" value="approva"{% if not nativa %} disabled{% endif %}>Accetta</button> <button class="rc-btn rc-btn-d" name="azione" value="rifiuta">Rifiuta</button></span></div>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="rc-empty">Nessuna richiesta da decidere.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Decise negli ultimi 30 giorni</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Chi</th><th>Giorno</th><th>Referente</th><th>Esito</th><th>Deciso da</th></tr></thead>
+      <tbody>
+      {% for r in decise %}
+        <tr>
+          <td>{{ r.nome_completo }}{% if r.azienda %} <span class="rc-muted">({{ r.azienda }})</span>{% endif %}</td>
+          <td>{{ r.data_visita|date:"d/m/Y" }}</td>
+          <td>{{ r.referente.nome_elenco|default:"—" }}</td>
+          <td>{% if r.stato == "APPROVATA" %}<span class="rc-pill rc-pill-ok">Accettata{% if r.preregistrazione %} · {{ r.preregistrazione.codice }}{% endif %}</span>{% else %}<span class="rc-pill">Rifiutata</span>{% endif %}{% if r.nota_decisione %}<br><span class="rc-muted">{{ r.nota_decisione }}</span>{% endif %}</td>
+          <td>{{ r.decisa_da }} <span class="rc-muted">{{ r.decisa_il|date:"d/m H:i" }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="rc-empty">Nessuna.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

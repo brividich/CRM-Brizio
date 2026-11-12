@@ -30,10 +30,15 @@ CVE_PC_INCLUSO = "soc_cve_pc_incluso"
 CVE_RECIDIVA = "soc_cve_recidiva"
 CVE_TERMINE_SCADUTO = "soc_cve_termine_scaduto"
 CVE_TERMINE_RIENTRATO = "soc_cve_termine_rientrato"
+PATCH_TERMINE_SCADUTO = "soc_patch_termine_scaduto"
+PATCH_TERMINE_RIENTRATO = "soc_patch_termine_rientrato"
+DIPENDENZA_VULNERABILE = "soc_dipendenza_vulnerabile"
+DIPENDENZA_AGGIORNATA = "soc_dipendenza_aggiornata"
 RISCHIO_ACCETTATO = "soc_rischio_accettato"
 RISCHIO_REVOCATO = "soc_rischio_revocato"
 RISCHIO_SCADUTO = "soc_rischio_scaduto"
 RISCHIO_IN_SCADENZA = "soc_rischio_in_scadenza"
+SOPPRESSIONE_IN_SCADENZA = "soc_soppressione_in_scadenza"
 
 
 def _pulito(valore):

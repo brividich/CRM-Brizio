@@ -6,9 +6,12 @@ AuditLog con ``modulo="permessi"``: chi, cosa, quando, e il prima/dopo.
 """
 from __future__ import annotations
 
+import json
+
 from django.contrib import messages
 from django.db import DatabaseError, transaction
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
@@ -28,12 +31,16 @@ from core.permessi.motore import (
     sistema_ruoli_attivo,
 )
 from core.permessi.organigramma import provenienze_per_utenti
+from core.permessi.percorsi import trova_permessi_percorso
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
+from core.permessi.ruolo_base import completa_dal_ruolo_base
 from core.permessi.sync import (
     capacita_permessi,
     codici_per_modulo,
     dati_anteprima_ruolo,
+    imposta_eccezioni_pagina,
+    pagine_modulo_ruolo,
     sincronizza_ruolo,
     sincronizza_tutti,
     stato_pagine_ruolo,
@@ -188,7 +195,47 @@ def _ctx_persone(request) -> dict:
         "scadenza_selezionata": scadenze[0] if scadenze else None,
         "organigramma_selezionata": organigramma_selezionata,
         "ids_organigramma_selezionata": {r["gruppo"].id for r in organigramma_selezionata},
+        **_ctx_eccezioni(persona_id),
     }
+
+
+def _ctx_eccezioni(persona_id: int | None) -> dict:
+    """Eccezioni della persona scelta e voci del modulo per aggiungerne una."""
+    if not persona_id:
+        return {"eccezioni_selezionata": [], "voci_eccezione": []}
+    from core.permessi.eccezioni import elenco
+
+    voci = [
+        {"modulo": spec, "azioni": [(a, spec.etichetta_azione(a)) for a in spec.azioni]}
+        for spec in sorted(moduli_registrati().values(), key=lambda s: str(s.nome).upper())
+    ]
+    return {"eccezioni_selezionata": elenco(persona_id), "voci_eccezione": voci}
+
+
+@legacy_admin_required
+@require_POST
+def ruoli_portale_eccezione(request, legacy_user_id: int):
+    """Aggiunge, cambia o toglie un'eccezione sulla persona (core.permessi.eccezioni)."""
+    from core.permessi import eccezioni
+
+    persona = UtenteLegacy.objects.filter(id=legacy_user_id).first()
+    if persona is None:
+        messages.error(request, "Persona non trovata.")
+        return redirect(_url("persone"))
+    try:
+        togli_id = _int(request.POST.get("togli"))
+        if togli_id:
+            messages.success(request, eccezioni.togli(request, persona, togli_id))
+        else:
+            modulo, _sep, azione = str(request.POST.get("voce") or "").partition("::")
+            messaggio = eccezioni.salva(
+                request, persona, modulo.strip(), azione.strip(),
+                str(request.POST.get("limite") or "").strip(), request.POST.get("motivo"),
+            )
+            messages.success(request, messaggio)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect(_url("persone", persona=persona.id, q=request.POST.get("q", "")) + "#eccezioni")
 
 
 @legacy_admin_required
@@ -261,6 +308,10 @@ def ruoli_portale_persona(request, legacy_user_id: int):
             oggetto_tipo="utente",
             oggetto_id=str(persona.id),
         )
+        from core.permessi.eccezioni import ha_eccezioni, sincronizza_pagine_persona
+
+        if ha_eccezioni(persona.id):
+            sincronizza_pagine_persona(persona.id)  # con altri ruoli cambiano le pagine da chiudere
         invalida_permessi()
         messages.success(request, f"Ruoli di {persona.nome} aggiornati.")
     else:
@@ -281,6 +332,7 @@ def _ctx_matrice(request) -> dict:
         ruolo = ruoli[0]
     celle = {}
     pagine = {}
+    dettaglio = {}
     anteprima = None
     if ruolo is not None:
         celle = {
@@ -294,6 +346,8 @@ def _ctx_matrice(request) -> dict:
             pagine = stato_pagine_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
             # Anteprima lato pagina: come saranno i badge dopo «Salva matrice».
             anteprima = dati_anteprima_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
+            # Le pagine una per una, con l'eccezione «Sì sempre» / «No mai».
+            dettaglio = pagine_modulo_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
     righe = []
     for spec in moduli_registrati().values():
         righe.append(
@@ -318,6 +372,8 @@ def _ctx_matrice(request) -> dict:
                     }
                     for azione, _label in spec.azioni_extra
                 ],
+                "pagine_dettaglio": dettaglio.get(spec.chiave, []),
+                "eccezioni": sum(1 for p in dettaglio.get(spec.chiave, []) if p["eccezione"]),
             }
         )
     return {
@@ -467,7 +523,7 @@ def ruoli_portale_organigramma(request, ruolo_id: int):
         messages.error(request, "Un ruolo amministratore si assegna solo a mano: non si collega all'organigramma.")
         return redirect(_url("matrice", ruolo=ruolo.id))
     if ruolo.preset == PRESET_BASE:
-        messages.error(request, "Il ruolo base vale già per tutti: non serve collegarlo all'organigramma.")
+        messages.error(request, "Il ruolo base vale già per chi non ha altri ruoli: non serve collegarlo all'organigramma.")
         return redirect(_url("matrice", ruolo=ruolo.id))
     attuali = set(ruolo.ruoli_organigramma.values_list("id", flat=True))
     voluti = {i for i in (_int(v) for v in request.POST.getlist("ruoli_organigramma")) if i}
@@ -599,21 +655,41 @@ def _ctx_modulo(request) -> dict:
 
 
 @legacy_admin_required
+def ruoli_portale_percorso(request):
+    """Permessi che governano un percorso, per la ricerca nella matrice. Sola lettura."""
+    return JsonResponse({"ok": True, "righe": trova_permessi_percorso(request.GET.get("q", ""))})
+
+
+@legacy_admin_required
 @require_POST
 def ruoli_portale_matrice(request, ruolo_id: int):
     ruolo = AccessGroup.objects.filter(id=ruolo_id).first()
     if ruolo is None:
         messages.error(request, "Ruolo non trovato.")
         return redirect(_url("matrice"))
+    # Le tendine arrivano in UN solo campo JSON: una per cella piu' una per
+    # pagina del «pagina per pagina» superano DATA_UPLOAD_MAX_NUMBER_FIELDS
+    # (1000) e Django risponde 400 prima di entrare nella view. Il ramo a campi
+    # separati resta per il caso senza JS.
+    dati = request.POST
+    grezzo = request.POST.get("matrice_json")
+    if grezzo:
+        try:
+            dati = json.loads(grezzo)
+        except ValueError:
+            dati = None
+        if not isinstance(dati, dict):
+            messages.error(request, "Matrice non leggibile: ricarica la pagina e riprova.")
+            return redirect(_url("matrice", ruolo=ruolo.id))
     esistenti = {(c.modulo, c.azione): c for c in RuoloPermessoModulo.objects.filter(ruolo=ruolo)}
     modifiche = []
     with transaction.atomic():
         for spec in moduli_registrati().values():
             for azione in spec.azioni:
                 chiave = f"c__{spec.chiave}__{azione}"
-                if chiave not in request.POST:
+                if chiave not in dati:
                     continue
-                valore = str(request.POST.get(chiave) or "").strip()
+                valore = str(dati.get(chiave) or "").strip()
                 cella = esistenti.get((spec.chiave, azione))
                 prima = "" if cella is None else (cella.ambito if cella.consentito else VALORE_NO)
                 if valore == prima:
@@ -630,20 +706,31 @@ def ruoli_portale_matrice(request, ruolo_id: int):
                 else:
                     continue
                 modifiche.append({"modulo": spec.chiave, "azione": azione, "prima": prima or "-", "dopo": valore or "-"})
-    if modifiche:
+        eccezioni = []
+        if not ruolo.amministratore:
+            eccezioni = imposta_eccezioni_pagina(
+                ruolo,
+                {k[3:]: str(v or "").strip() for k, v in dati.items() if k.startswith("p__")},
+            )
+    if modifiche or eccezioni:
         esito = sincronizza_ruolo(ruolo)
         invalida_permessi()
         log_action(
             request,
             "permessi_matrice",
             MODULO_AUDIT,
-            {"ruolo": ruolo.label, "modifiche": modifiche, "pagine": {"+": esito.accesi, "-": esito.spenti}},
+            {
+                "ruolo": ruolo.label,
+                "modifiche": modifiche,
+                "eccezioni_pagina": eccezioni,
+                "pagine": {"+": esito.accesi, "-": esito.spenti},
+            },
             oggetto_tipo="ruolo",
             oggetto_id=str(ruolo.id),
         )
         messages.success(
             request,
-            f"Matrice di «{ruolo.label}» salvata: {len(modifiche)} celle cambiate, "
+            f"Matrice di «{ruolo.label}» salvata: {len(modifiche)} celle e {len(eccezioni)} pagine cambiate, "
             f"permessi di pagina +{esito.accesi} / -{esito.spenti}.",
         )
     else:
@@ -674,16 +761,20 @@ def ruoli_portale_ruolo(request, ruolo_id: int | None = None):
         while AccessGroup.objects.filter(code=code).exists():
             code, n = f"{base}-{n}", n + 1
         ruolo = AccessGroup.objects.create(code=code, **dati)
-        log_action(request, "permessi_ruolo_creato", MODULO_AUDIT, {"ruolo": ruolo.label, **dati},
+        # Operatore vale solo per chi non ha altri ruoli: il ruolo nuovo parte dalle sue caselle.
+        copiate = completa_dal_ruolo_base([ruolo]) if not ruolo.amministratore else []
+        log_action(request, "permessi_ruolo_creato", MODULO_AUDIT,
+                   {"ruolo": ruolo.label, **dati, "dal_ruolo_base": copiate[0]["celle"] if copiate else []},
                    oggetto_tipo="ruolo", oggetto_id=str(ruolo.id))
-        messages.success(request, f"Ruolo «{ruolo.label}» creato: compila la sua matrice.")
+        messages.success(request, f"Ruolo «{ruolo.label}» creato con le caselle di «Operatore»: "
+                                  "compila la sua matrice e togli quello che non serve.")
     else:
         ruolo = AccessGroup.objects.filter(id=ruolo_id).first()
         if ruolo is None:
             messages.error(request, "Ruolo non trovato.")
             return redirect(_url("matrice"))
         if ruolo.preset == PRESET_BASE and not dati["is_active"]:
-            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il minimo di ogni utente.")
+            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il ruolo di chi non ne ha altri.")
             return redirect(_url("matrice", ruolo=ruolo.id))
         prima = {k: getattr(ruolo, k) for k in dati}
         for chiave, valore in dati.items():
@@ -838,6 +929,7 @@ def _ctx_m365(request) -> dict:
 
 _AZIONI_REGISTRO = {
     "permessi_ruoli_persona": "Ruoli di una persona",
+    "permessi_eccezione_persona": "Eccezione sulla persona",
     "permessi_matrice": "Matrice di un ruolo",
     "permessi_ruolo_creato": "Ruolo creato",
     "permessi_ruolo_modificato": "Ruolo modificato",
@@ -857,6 +949,9 @@ def _descrivi(voce) -> str:
         if d.get("tolti"):
             parti.append("tolti: " + ", ".join(d["tolti"]))
         return f"{d.get('persona', '')} — " + "; ".join(parti) + (f" (nota: {d['nota']})" if d.get("nota") else "")
+    if voce.azione == "permessi_eccezione_persona":
+        testo = f"{d.get('persona', '')} — {d.get('voce', '')}: {d.get('prima', '-')} → {d.get('dopo', '-')}"
+        return testo + (f" (motivo: {d['motivo']})" if d.get("motivo") else "")
     if voce.azione == "permessi_matrice":
         celle = [f"{m['modulo']}.{m['azione']}: {m['prima']} → {m['dopo']}" for m in d.get("modifiche", [])]
         return f"{d.get('ruolo', '')} — " + "; ".join(celle)

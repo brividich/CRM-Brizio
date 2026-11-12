@@ -21,6 +21,25 @@ class VRFDocStatus(models.TextChoices):
     NOT_REQUIRED = "NOT_REQUIRED", "Non richiesto"
 
 
+class TechRefKind(models.TextChoices):
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    FAI = "FAI", "FAI"
+
+
+class TappaKickoff(models.TextChoices):
+    """Le attività base di ogni kickoff, nell'ordine in cui si preparano."""
+    MATERIALI = "MATERIALI", "Arrivo materiali"
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    MACCHINA = "MACCHINA", "Macchina"
+    ATTREZZATURA = "ATTREZZATURA", "Attrezzatura"
+    UTENSILI = "UTENSILI", "Utensili"
+    TERZISTA = "TERZISTA", "Terzista"
+    PROCESSI = "PROCESSI", "Processi speciali"
+    FAI = "FAI", "FAI"
+
+
 class ProjectPhase(models.TextChoices):
     BOZZA = "BOZZA", "Bozza"
     VRF = "VRF", "VRF"
@@ -42,6 +61,7 @@ class TaskPriority(models.TextChoices):
 
 
 class TaskEventType(models.TextChoices):
+    DATE_REQUEST = "DATE_REQUEST", "Richiesta di spostamento"
     STATUS_CHANGE = "STATUS_CHANGE", "Status change"
     ASSIGNMENT_CHANGE = "ASSIGNMENT_CHANGE", "Assignment change"
     EDIT = "EDIT", "Edit"
@@ -79,6 +99,22 @@ class Project(models.Model):
     vrf_status = models.CharField(
         max_length=20, choices=VRFDocStatus.choices, default=VRFDocStatus.PENDING,
         verbose_name="Stato documento VRF",
+    )
+    # Valorizzata quando chi gestisce il kickoff decide che il FAI qui non serve.
+    data_consegna = models.DateField(null=True, blank=True, verbose_name="Consegna al cliente")
+    modello = models.ForeignKey(
+        "ModelloCommessa", on_delete=models.SET_NULL, null=True, blank=True, related_name="commesse", verbose_name="Modello",
+    )
+    chiuso_il = models.DateTimeField(null=True, blank=True, verbose_name="Kickoff chiuso il")
+    chiuso_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    chiusura_nota = models.TextField(blank=True, default="", verbose_name="Nota di chiusura")
+    # Tappe del percorso che per questo kickoff non servono (es. niente terzista).
+    tappe_escluse = models.JSONField(default=list, blank=True, verbose_name="Tappe che non servono")
+    fai_non_richiesto_il = models.DateTimeField(null=True, blank=True)
+    fai_non_richiesto_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
     phase = models.CharField(
         max_length=10, choices=ProjectPhase.choices,
@@ -361,6 +397,11 @@ class Task(models.Model):
         default=0,
         help_text="Avanzamento manuale dell'attività (0–100).",
     )
+    gantt_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Posizione della riga nel Gantt del kickoff (0 = in fondo, in ordine di creazione).",
+    )
     reminder_portal_enabled = models.BooleanField(
         default=True,
         help_text="Se attivo, crea un promemoria nel centro notifiche 'giorni_preavviso' prima della scadenza.",
@@ -386,6 +427,14 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def save(self, *args, **kwargs):
+        # Una nuova attività del kickoff va in fondo al piano.
+        if self._state.adding and self.project_id and not self.gantt_order:
+            from .services.gantt_piano import prossimo_ordine
+
+            self.gantt_order = prossimo_ordine(self.project_id)
+        super().save(*args, **kwargs)
 
     def clean(self):
         super().clean()
@@ -691,6 +740,31 @@ class TaskImpostazioni(models.Model):
         verbose_name="CC predefiniti (email)",
         help_text="Un indirizzo per riga, per chi non e' un utente del portale.",
     )
+    # Poteri pieni sulla commessa: ruoli di team (codici separati da virgola) + persone scelte.
+    poteri_ruoli = models.CharField(
+        max_length=60, blank=True, default="CC,PM", verbose_name="Ruoli con pieni poteri",
+        help_text="Ruoli del team che modificano tutto sulla commessa, date comprese, senza approvazione.",
+    )
+    poteri_utenti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="+", verbose_name="Persone con pieni poteri",
+    )
+    spostamenti_con_approvazione = models.BooleanField(
+        default=True, verbose_name="Spostamenti di date con approvazione",
+        help_text="Chi non ha pieni poteri chiede lo spostamento: decide il capocommessa.",
+    )
+    # Chi riceve l'avviso quando cambia un incarico: INCARICATO, CC, PM, CREATORE.
+    avvisi_destinatari = models.CharField(
+        max_length=60, blank=True, default="INCARICATO,CC", verbose_name="Chi riceve gli avvisi sui cambiamenti",
+    )
+
+    fai_mesi_verifica = models.PositiveSmallIntegerField(
+        default=18,
+        verbose_name="Mesi dall'ultima spedizione per segnalare il FAI",
+    )
+    fai_mesi_ripetizione = models.PositiveSmallIntegerField(
+        default=24,
+        verbose_name="Mesi dall'ultima produzione per ripetere il FAI",
+    )
 
     def get_cc_predefiniti(self) -> list[str]:
         """Indirizzi in copia di default (utenti portale + email libere)."""
@@ -722,11 +796,11 @@ class TaskImpostazioni(models.Model):
 
 
 class VRFRiskAssessment(models.Model):
-    """Valutazione rischi del MOD.073 VRF Rev.10 compilata online.
+    """Scheda MOD.073 VRF compilata online (valutazione rischi e fornitura).
 
-    1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores().
-    I totali (TR per fase) sono cache denormalizzata: ricalcolati a ogni save()
-    dal catalogo per mantenere coerenza con la logica di riferimento.
+    1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores()
+    (schema 2: P per rischio, azioni correttive, firme). Totale Rischio, fascia e
+    coinvolgimento CEO sono cache denormalizzata ricalcolata dal catalogo.
     """
 
     project = models.OneToOneField(
@@ -735,10 +809,9 @@ class VRFRiskAssessment(models.Model):
         related_name="vrf_assessment",
     )
     data = models.JSONField(default=dict, blank=True)
-    total_p = models.FloatField(default=0.0)
-    total_i = models.FloatField(default=0.0)
-    total_c = models.FloatField(default=0.0)
-    dig_triggered = models.BooleanField(default=False)
+    total_tr = models.FloatField(default=0.0)
+    livello = models.CharField(max_length=10, blank=True, default="")
+    ceo_required = models.BooleanField(default=False)
     compiled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -760,11 +833,9 @@ class VRFRiskAssessment(models.Model):
     def recompute_totals(self) -> None:
         from .vrf_catalog import compute_totals
         result = compute_totals(self.data or {})
-        totals = result["totals"]
-        self.total_p = float(totals.get("p") or 0.0)
-        self.total_i = float(totals.get("i") or 0.0)
-        self.total_c = float(totals.get("c") or 0.0)
-        self.dig_triggered = bool(result.get("dig_triggered"))
+        self.total_tr = float(result["tr"])
+        self.livello = result["level"]["key"]
+        self.ceo_required = bool(result["ceo_required"])
 
 
 class TaskRoleType(models.TextChoices):
@@ -955,6 +1026,23 @@ class TaskCategory(models.Model):
     )
     order_index = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    richiede = models.CharField(
+        max_length=3,
+        choices=TechRefKind.choices,
+        blank=True,
+        default="",
+        verbose_name="Richiede",
+        help_text="Cosa deve produrre un'attività di questo tipo.",
+    )
+    tappa = models.CharField(
+        max_length=14,
+        choices=TappaKickoff.choices,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Tappa del kickoff",
+        help_text="Attività base del percorso del kickoff che questo tipo rappresenta.",
+    )
     is_machine_work = models.BooleanField(
         default=False,
         db_index=True,
@@ -1147,6 +1235,12 @@ class KickoffMeeting(models.Model):
         null=True, blank=True, verbose_name="Convocazione inviata il"
     )
     convocazione_firma = models.CharField(max_length=64, blank=True, default="")
+    # Copia leggibile degli stessi dati al momento dell'invio: serve a dire
+    # *cosa* e' cambiato, non solo che qualcosa e' cambiato.
+    convocazione_dati = models.TextField(blank=True, default="")
+    # Ultimo invio della minuta e impronta del contenuto inviato (per «da reinviare»).
+    minuta_inviata_at = models.DateTimeField(null=True, blank=True, verbose_name="Minuta inviata il")
+    minuta_firma = models.CharField(max_length=64, blank=True, default="")
     annullato_at = models.DateTimeField(null=True, blank=True, verbose_name="Annullato il")
     annullato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1159,7 +1253,15 @@ class KickoffMeeting(models.Model):
     annullato_motivo = models.TextField(blank=True, default="", verbose_name="Motivo dell'annullamento")
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
+    # Quanto tenere la sala e l'evento Outlook. Vuoto: somma dei punti all'ordine del giorno.
+    durata_minuti = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Durata")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
+    sala = models.ForeignKey(
+        "MeetingRoom", on_delete=models.SET_NULL, null=True, blank=True, related_name="incontri", verbose_name="Sala",
+    )
+    # Risposta della sala all'invito Outlook: accepted, tentativelyAccepted, declined, none.
+    sala_risposta = models.CharField(max_length=24, blank=True, default="", verbose_name="Risposta della sala")
+    sala_risposta_at = models.DateTimeField(null=True, blank=True)
 
     # Partecipanti: utenti portale (M2M) + email esterne (testo libero)
     partecipanti_utenti = models.ManyToManyField(
@@ -1306,8 +1408,10 @@ class KickoffMeeting(models.Model):
             pending = cache
         rows = MeetingAgendaItem.rows_from_dicts(self, pending)
         with transaction.atomic():
+            prima = set(MeetingAgendaItem.objects.filter(meeting=self).values_list("titolo", flat=True))
             MeetingAgendaItem.objects.filter(meeting=self).delete()
             MeetingAgendaItem.objects.bulk_create(rows)
+        self._catalogo_odg(rows, prima)
         # La lista del chiamante resta quella viva (come col campo JSON), ma con
         # i valori normalizzati: id univoci, collegamenti validi.
         pending[:] = [row.as_agenda_dict() for row in rows]
@@ -1315,6 +1419,21 @@ class KickoffMeeting(models.Model):
         prefetched = getattr(self, "_prefetched_objects_cache", None)
         if prefetched:
             prefetched.pop("agenda_rows", None)
+
+    @staticmethod
+    def _catalogo_odg(rows, prima) -> None:
+        """I punti nuovi scritti a mano entrano nel catalogo (le righe si ricreano a ogni salvataggio)."""
+        try:
+            from .services.catalogo import chiave, registra_uso
+
+            gia = {chiave(t) for t in prima}
+            for row in rows:
+                if row.issue_id or row.action_id or str(row.source or "").startswith(("tappa:", "meeting_issue", "meeting_action")):
+                    continue
+                if chiave(row.titolo) not in gia:
+                    registra_uso("ODG", row.titolo, nota=row.nota, durata=row.durata_minuti)
+        except Exception:
+            pass
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
@@ -1388,12 +1507,9 @@ class KickoffMeeting(models.Model):
                 emails.append(email)
         return emails
 
-    def firma_convocazione(self) -> str:
-        """Impronta dei dati che finiscono nella convocazione."""
-        import hashlib
-        import json
-
-        payload = {
+    def dati_convocazione(self) -> dict:
+        """Dati che finiscono nella convocazione (base di firma e confronto)."""
+        dati = {
             # str(): data e ora possono essere ancora stringhe su un'istanza appena creata.
             "data": str(self.data or ""),
             "ora": str(self.ora or "")[:5],
@@ -1406,8 +1522,149 @@ class KickoffMeeting(models.Model):
                 if isinstance(item, dict)
             ],
         }
-        raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        # Solo se valorizzate: le convocazioni già inviate prima di sala e durata non risultano cambiate.
+        if self.sala_id:
+            dati["sala"] = self.sala_id
+        if self.durata_minuti:
+            dati["durata"] = self.durata_minuti
+        # I CC ricevono anche l'invito Outlook: cambiarli aggiorna l'evento.
+        cc = sorted(self.get_all_cc_emails()) if self.pk else []
+        if cc:
+            dati["cc"] = cc
+        return dati
+
+    def firma_convocazione(self) -> str:
+        """Impronta dei dati che finiscono nella convocazione."""
+        import hashlib
+        import json
+
+        raw = json.dumps(self.dati_convocazione(), sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def firma_minuta(self) -> str:
+        """Impronta di quello che finisce nella minuta: se cambia dopo l'invio, va reinviata."""
+        import hashlib
+        import json
+
+        dati = {
+            "note": self.note, "problemi": self.problemi_aperti, "next": self.next_steps,
+            "presenti": sorted(self.presenti_utenti.values_list("pk", flat=True)) if self.pk else [],
+            "presenti_extra": self.presenti_email_extra,
+            "odg": [(i.get("titolo"), i.get("done"), i.get("nota"), i.get("esito")) for i in (self.agenda_items or []) if isinstance(i, dict)],
+            "decisioni": list(self.decisions.order_by("pk").values_list("pk", "testo")) if self.pk else [],
+            "azioni": [
+                (a.pk, a.title, a.status, a.assigned_to_id, str(a.due_date or ""))
+                for a in MeetingActionItem.objects.filter(source_meeting=self).order_by("pk")
+            ] if self.pk else [],
+        }
+        raw = json.dumps(dati, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @property
+    def minuta_inviata(self) -> bool:
+        return self.minuta_inviata_at is not None
+
+    @property
+    def minuta_da_reinviare(self) -> bool:
+        """Minuta partita, ma verbale, ordine del giorno, decisioni o azioni sono cambiati dopo."""
+        return bool(self.minuta_inviata_at and self.minuta_firma and self.minuta_firma != self.firma_minuta())
+
+    def registra_convocazione_inviata(self) -> list[str]:
+        """Valorizza firma e copia dei dati inviati; ritorna i campi da salvare."""
+        import json
+
+        self.convocazione_firma = self.firma_convocazione()
+        self.convocazione_dati = json.dumps(self.dati_convocazione(), ensure_ascii=False)
+        return ["convocazione_firma", "convocazione_dati"]
+
+    def modifiche_convocazione(self) -> list[str]:
+        """Cosa e' cambiato dall'ultimo invio, una riga leggibile per voce.
+
+        Vuoto se la convocazione non va reinviata o se l'invio e' precedente
+        alla copia dei dati (il dettaglio allora resta generico).
+        """
+        import json
+
+        if not self.convocazione_da_reinviare or not self.convocazione_dati:
+            return []
+        try:
+            prima = json.loads(self.convocazione_dati)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(prima, dict):
+            return []
+        ora = self.dati_convocazione()
+        righe: list[str] = []
+
+        def _data(valore: str) -> str:
+            parti = str(valore or "").split("-")
+            return "-".join(reversed(parti)) if len(parti) == 3 else (valore or "—")
+
+        if prima.get("data") != ora["data"]:
+            righe.append(f"Data: {_data(prima.get('data'))} → {_data(ora['data'])}")
+        if (prima.get("ora") or "") != ora["ora"]:
+            righe.append(f"Ora: {prima.get('ora') or '—'} → {ora['ora'] or '—'}")
+        if (prima.get("luogo") or "") != ora["luogo"]:
+            righe.append(f"Luogo: {prima.get('luogo') or '—'} → {ora['luogo'] or '—'}")
+
+        prima_conv = set(prima.get("convocati") or [])
+        ora_conv = set(ora["convocati"])
+        if prima_conv != ora_conv:
+            from django.contrib.auth import get_user_model
+
+            from tasks.forms import etichetta_utente
+
+            User = get_user_model()
+            utenti = {u.pk: u for u in User.objects.filter(pk__in=prima_conv | ora_conv)}
+
+            def _nomi(pks) -> str:
+                nomi = [etichetta_utente(utenti[pk]) if pk in utenti else f"utente {pk}" for pk in pks]
+                return ", ".join(sorted(nomi))
+
+            if ora_conv - prima_conv:
+                righe.append(f"Convocati aggiunti: {_nomi(ora_conv - prima_conv)}")
+            if prima_conv - ora_conv:
+                righe.append(f"Convocati tolti: {_nomi(prima_conv - ora_conv)}")
+
+        prima_est = set(prima.get("esterni") or [])
+        ora_est = set(ora["esterni"])
+        if ora_est - prima_est:
+            righe.append(f"Esterni aggiunti: {', '.join(sorted(ora_est - prima_est))}")
+        if prima_est - ora_est:
+            righe.append(f"Esterni tolti: {', '.join(sorted(prima_est - ora_est))}")
+
+        prima_cc = set(prima.get("cc") or [])
+        ora_cc = set(ora.get("cc") or [])
+        if ora_cc - prima_cc:
+            righe.append(f"In copia aggiunti: {', '.join(sorted(ora_cc - prima_cc))}")
+        if prima_cc - ora_cc:
+            righe.append(f"In copia tolti: {', '.join(sorted(prima_cc - ora_cc))}")
+
+        prima_odg = [tuple(item) for item in (prima.get("odg") or []) if isinstance(item, (list, tuple))]
+        if prima_odg != ora["odg"]:
+            prima_titoli = [t for t, _ in prima_odg]
+            ora_titoli = [t for t, _ in ora["odg"]]
+            aggiunti = [t for t in ora_titoli if t not in prima_titoli]
+            tolti = [t for t in prima_titoli if t not in ora_titoli]
+            if aggiunti:
+                righe.append(f"Punti dell'ordine del giorno aggiunti: {', '.join(aggiunti)}")
+            if tolti:
+                righe.append(f"Punti dell'ordine del giorno tolti: {', '.join(tolti)}")
+            if not aggiunti and not tolti:
+                righe.append("Ordine del giorno: cambiati l'ordine dei punti o le durate")
+        return righe
+
+    def durata_prevista_minuti(self) -> int | None:
+        """Somma delle durate dei punti all'ordine del giorno, se ce ne sono."""
+        totale = 0
+        for item in self.agenda_items or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                totale += int(item.get("durata_minuti") or 0)
+            except (TypeError, ValueError):
+                continue
+        return totale or None
 
     @property
     def convocazione_inviata(self) -> bool:
@@ -1574,6 +1831,9 @@ class MeetingIssue(models.Model):
         verbose_name="Attivita collegata",
     )
     resolution_note = models.TextField(blank=True, default="", verbose_name="Nota risoluzione")
+    # Punto dell'ordine del giorno in cui e' emerso (id stabile `MeetingAgendaItem.item_id`):
+    # lega la voce al punto di cui si parlava, in conduzione, esito e minuta.
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     resolved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1688,6 +1948,7 @@ class MeetingActionItem(models.Model):
         blank=True,
         related_name="meeting_actions_done",
     )
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1773,6 +2034,7 @@ class MeetingDecision(models.Model):
         db_index=True,
         verbose_name="Impatto",
     )
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -2021,6 +2283,10 @@ class MeetingRoom(models.Model):
     nome = models.CharField(max_length=120, unique=True, verbose_name="Nome sala")
     note = models.TextField(blank=True, default="", verbose_name="Note")
     ordine = models.PositiveSmallIntegerField(default=0, verbose_name="Ordine")
+    # Casella «sala» di Microsoft 365: con questa l'invito Outlook prenota la sala.
+    email = models.EmailField(blank=True, default="", verbose_name="Casella della sala (Microsoft 365)")
+    capienza = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Posti")
+    attiva = models.BooleanField(default=True, verbose_name="Attiva")
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -2029,3 +2295,469 @@ class MeetingRoom(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+class ProgrammaFase(models.TextChoices):
+    """Il lavoro vero di un programma CAM/CMM: si scrive, si prova in macchina, si valida."""
+    DA_SCRIVERE = "DA_SCRIVERE", "Da scrivere"
+    IN_SCRITTURA = "IN_SCRITTURA", "In scrittura"
+    DA_PROVARE = "DA_PROVARE", "Da provare in macchina"
+    VALIDATO = "VALIDATO", "Validato"
+
+
+class TechRefStatus(models.TextChoices):
+    OPEN = "OPEN", "Da fare"
+    DONE = "DONE", "Fatto"
+
+
+class ProjectTechRef(models.Model):
+    """Programma CAM, programma CMM o FAI di una commessa: codice, percorso, responsabile.
+
+    Tutto facoltativo tranne che la riga dica qualcosa: in riunione basta assegnare
+    «Programma CAM» a qualcuno, codice e percorso li scrive poi lui. La stessa riga si
+    vede in commessa e negli incontri, quindi non va mai inserita due volte.
+    """
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tech_refs", verbose_name="Kickoff")
+    kind = models.CharField(max_length=3, choices=TechRefKind.choices, db_index=True, verbose_name="Tipo")
+    code = models.CharField(max_length=120, blank=True, default="", verbose_name="Codice")
+    path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tasks_tech_refs",
+        verbose_name="Responsabile",
+    )
+    due_date = models.DateField(null=True, blank=True, verbose_name="Entro il")
+    # L'attività che deve produrre questo programma: responsabile, data e stato arrivano da lei.
+    task = models.OneToOneField(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="tech_ref", verbose_name="Attività"
+    )
+    status = models.CharField(
+        max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
+    )
+    # Solo programmi CAM/CMM: fase del lavoro, revisione, macchina su cui gira, note.
+    fase = models.CharField(
+        max_length=14, choices=ProgrammaFase.choices, default=ProgrammaFase.DA_SCRIVERE, db_index=True, verbose_name="Fase",
+    )
+    revisione = models.CharField(max_length=10, blank=True, default="", verbose_name="Revisione")
+    macchina = models.ForeignKey(
+        "assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="programmi_kickoff", verbose_name="Macchina",
+    )
+    note = models.TextField(blank=True, default="", verbose_name="Note")
+    source_meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tech_refs",
+        verbose_name="Incontro di origine",
+    )
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    done_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind", "id"]
+        verbose_name = "Programma o FAI"
+        verbose_name_plural = "Programmi e FAI"
+
+    def __str__(self) -> str:
+        return self.label
+
+    @property
+    def label(self) -> str:
+        return f"{self.get_kind_display()} {self.code}".strip()
+
+    @property
+    def is_open(self) -> bool:
+        return self.status == TechRefStatus.OPEN
+
+    @property
+    def is_overdue(self) -> bool:
+        return bool(self.is_open and self.due_date and self.due_date < timezone.localdate())
+
+    @property
+    def ha_contenuto(self) -> bool:
+        return bool(self.code or self.path or getattr(self, "fai_record", None))
+
+    @property
+    def attivita_aperta(self) -> bool:
+        return bool(self.task_id and self.task.status not in (TaskStatus.DONE, TaskStatus.CANCELED))
+
+    @property
+    def is_web_path(self) -> bool:
+        return self.path.lower().startswith(("http://", "https://"))
+
+    @property
+    def open_href(self) -> str:
+        from .tech_paths import href_percorso
+
+        return href_percorso(self.path)
+
+    def mark_done(self, user=None) -> None:
+        self.status = TechRefStatus.DONE
+        self.done_by = user
+        self.done_at = timezone.now()
+        # Per i programmi «fatto» vuol dire validato.
+        if self.kind != TechRefKind.FAI:
+            self.fase = ProgrammaFase.VALIDATO
+
+    def reopen(self) -> None:
+        self.status = TechRefStatus.OPEN
+        self.done_by = None
+        self.done_at = None
+        if self.kind != TechRefKind.FAI and self.fase == ProgrammaFase.VALIDATO:
+            self.fase = ProgrammaFase.IN_SCRITTURA if self.code else ProgrammaFase.DA_SCRIVERE
+
+    def save(self, *args, **kwargs):
+        # Un programma nato già con il codice non è «da scrivere».
+        if self.pk is None and self.kind in (TechRefKind.CAM, TechRefKind.CMM) and self.code:
+            if self.fase == ProgrammaFase.DA_SCRIVERE:
+                self.fase = ProgrammaFase.VALIDATO if self.status == TechRefStatus.DONE else ProgrammaFase.IN_SCRITTURA
+            self.revisione = self.revisione or "A"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_programma(self) -> bool:
+        return self.kind in (TechRefKind.CAM, TechRefKind.CMM)
+
+    @property
+    def etichetta_breve(self) -> str:
+        """«O1234 rev. B», per leggere il programma in una riga."""
+        testo = self.code or "da inserire"
+        return f"{testo} rev. {self.revisione}" if self.code and self.revisione else testo
+
+
+class FaiTipo(models.TextChoices):
+    COMPLETO = "COMPLETO", "FAI completo"
+    DELTA = "DELTA", "Delta FAI"
+
+
+class FaiGruppo(models.TextChoices):
+    CAUSALE = "CAUSALE", "Perché serve"
+    PIANO = "PIANO", "Piano FAI"
+    STATO = "STATO", "Stato"
+    CHIUSURA = "CHIUSURA", "Chiusura con"
+    VERSIONE = "VERSIONE", "Stato versione"
+    CROSS = "CROSS", "Cross-correlation"
+
+
+class FaiFase(models.TextChoices):
+    """Cosa significa uno stato per il portale: il nome lo decide chi configura."""
+
+    DA_FARE = "DA_FARE", "Da eseguire: la voce del responsabile resta aperta"
+    IN_CORSO = "IN_CORSO", "Eseguito, in attesa di esito"
+    POSITIVO = "POSITIVO", "Concluso con esito positivo"
+    NON_COMPLETO = "NON_COMPLETO", "Non completo: la voce del responsabile si riapre"
+    ANNULLATO = "ANNULLATO", "Annullato: non conta per la scadenza dell'articolo"
+
+
+class FaiDocumento(models.TextChoices):
+    PRESENTE = "S", "Presente"
+    DA_VERIFICARE = "V", "Da verificare"
+    NON_APPLICABILE = "N", "Non applicabile"
+
+
+class FaiOpzione(models.Model):
+    """Voce configurabile in Impostazioni: perché serve, tipo di piano, stato."""
+
+    gruppo = models.CharField(max_length=10, choices=FaiGruppo.choices, db_index=True)
+    # Solo per le voci che il portale riconosce da solo (causali a e f); non si eliminano.
+    codice = models.CharField(max_length=20, blank=True, default="", editable=False)
+    etichetta = models.CharField(max_length=120, verbose_name="Nome")
+    descrizione = models.CharField(max_length=255, blank=True, default="", verbose_name="Descrizione")
+    ordine = models.PositiveIntegerField(default=0, db_index=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+    tipo_proposto = models.CharField(max_length=8, choices=FaiTipo.choices, default=FaiTipo.COMPLETO)
+    motivo_se_delta = models.BooleanField(default=False, verbose_name="Motivo se Delta")
+    modulo = models.CharField(max_length=60, blank=True, default="")
+    stato_op = models.CharField(max_length=20, blank=True, default="")
+    numerazione_auto = models.BooleanField(default=False, verbose_name="Numero PFCN automatico")
+    fase = models.CharField(max_length=12, choices=FaiFase.choices, default=FaiFase.IN_CORSO)
+
+    class Meta:
+        ordering = ["gruppo", "ordine", "id"]
+        verbose_name = "Opzione FAI"
+        verbose_name_plural = "Opzioni FAI"
+
+    def __str__(self) -> str:
+        return self.etichetta
+
+
+class FaiArticolo(models.Model):
+    """Articolo del registro FAI: le date di scadenza sono del P/N, non del singolo FAI."""
+
+    client_name = models.CharField(max_length=180, blank=True, default="", verbose_name="Cliente")
+    part_number = models.CharField(max_length=120, verbose_name="P/N")
+    ultima_produzione = models.DateField(null=True, blank=True, verbose_name="Fine ultima produzione")
+    ultima_spedizione = models.DateField(null=True, blank=True, verbose_name="Ultima spedizione")
+    scadenza_cliente = models.DateField(null=True, blank=True, verbose_name="Ripetizione chiesta dal cliente entro")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["client_name", "part_number"]
+        verbose_name = "Articolo FAI"
+        verbose_name_plural = "Articoli FAI"
+        constraints = [
+            models.UniqueConstraint(fields=["client_name", "part_number"], name="tasks_fai_articolo_cliente_pn"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.part_number} ({self.client_name})" if self.client_name else self.part_number
+
+
+class FaiRecord(models.Model):
+    """Un FAI di un articolo. Con una commessa ha anche la sua riga in «Programmi e FAI»."""
+
+    articolo = models.ForeignKey(FaiArticolo, on_delete=models.CASCADE, related_name="fai", verbose_name="Articolo")
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_records", verbose_name="Kickoff"
+    )
+    tech_ref = models.OneToOneField(
+        ProjectTechRef, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_record"
+    )
+    # Vuoti solo sui FAI storici: il file non li indicava.
+    causale = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Perché serve"
+    )
+    tipo = models.CharField(max_length=8, choices=FaiTipo.choices, blank=True, default="", verbose_name="Tipo")
+    motivo = models.CharField(max_length=1000, blank=True, default="", verbose_name="Motivo del Delta FAI")
+    piano = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Piano FAI"
+    )
+    piano_numero = models.CharField(max_length=160, blank=True, default="", verbose_name="Numero piano")
+    stato = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Stato")
+    data_invio = models.DateField(null=True, blank=True, verbose_name="Data invio FAI")
+    path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tasks_fai", verbose_name="Responsabile",
+    )
+    # Le colonne del file «Situazione FAI-ISIR», che dal portale si gestisce qui.
+    faldone = models.CharField(max_length=40, blank=True, default="", verbose_name="Faldone")
+    fai_numero = models.CharField(max_length=40, blank=True, default="", db_index=True, verbose_name="FAI CN n°")
+    fai_anno = models.CharField(max_length=20, blank=True, default="", verbose_name="Anno FAI CN")
+    cci_numero = models.CharField(max_length=40, blank=True, default="", verbose_name="CCI CN n°")
+    cci_anno = models.CharField(max_length=20, blank=True, default="", verbose_name="Anno CCI CN")
+    invito = models.CharField(max_length=120, blank=True, default="", verbose_name="N° invito")
+    linea = models.CharField(max_length=120, blank=True, default="", verbose_name="Linea")
+    pn_assy = models.CharField(max_length=120, blank=True, default="", verbose_name="P/N assy")
+    nome_particolare = models.CharField(max_length=255, blank=True, default="", verbose_name="Nome particolare")
+    revisione = models.CharField(max_length=60, blank=True, default="", verbose_name="Rev.")
+    pn_alternativo = models.CharField(max_length=120, blank=True, default="", verbose_name="P/N alternativo")
+    rev_alternativo = models.CharField(max_length=60, blank=True, default="", verbose_name="Rev. P/N alternativo")
+    criticita = models.CharField(max_length=120, blank=True, default="", verbose_name="Criticità")
+    descrizione_piano = models.CharField(max_length=500, blank=True, default="", verbose_name="Descrizione piano")
+    avanzamento = models.CharField(max_length=1000, blank=True, default="", verbose_name="Avanzamento piano")
+    op = models.CharField(max_length=120, blank=True, default="", db_index=True, verbose_name="OP")
+    oda_item = models.CharField(max_length=120, blank=True, default="", verbose_name="OdA / Item")
+    chiusura_con = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Chiusura con"
+    )
+    data_chiusura = models.DateField(null=True, blank=True, verbose_name="Data chiusura FAI")
+    versione_produzione = models.CharField(max_length=120, blank=True, default="", verbose_name="Versione di produzione")
+    stato_versione = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Stato versione"
+    )
+    data_versione = models.DateField(null=True, blank=True, verbose_name="Data versione")
+    codice_dip = models.CharField(max_length=120, blank=True, default="", verbose_name="Codice DIP")
+    data_approvazione_dip = models.DateField(null=True, blank=True, verbose_name="Data approvazione DIP")
+    invio_cq = models.CharField(max_length=255, blank=True, default="", verbose_name="Invio CQ")
+    cross_correlation = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Cross-correlation"
+    )
+    doc_sdc = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="SDC")
+    doc_pfc = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="PFC")
+    doc_sintesi = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="Sintesi")
+    doc_fai = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="FAI")
+    # Migrazione dal file: la riga com'era e la chiave per riconoscerla se si importa di nuovo.
+    origine_excel = models.JSONField(default=dict, blank=True, editable=False)
+    chiave_import = models.CharField(max_length=64, blank=True, default="", db_index=True, editable=False)
+    importato_il = models.DateTimeField(null=True, blank=True, editable=False)
+    note = models.TextField(blank=True, default="", verbose_name="Note")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "FAI"
+        verbose_name_plural = "Registro FAI"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display() or 'FAI'} {self.articolo.part_number}".strip()
+
+
+class SpostamentoStato(models.TextChoices):
+    IN_ATTESA = "IN_ATTESA", "In attesa"
+    APPROVATA = "APPROVATA", "Approvata"
+    RIFIUTATA = "RIFIUTATA", "Rifiutata"
+    ANNULLATA = "ANNULLATA", "Annullata"
+
+
+class TaskSpostamento(models.Model):
+    """Richiesta di cambiare le date di un incarico: la decide chi ha pieni poteri sulla commessa."""
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="spostamenti")
+    richiesto_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    inizio_prima = models.DateField(null=True, blank=True)
+    fine_prima = models.DateField(null=True, blank=True)
+    inizio_nuovo = models.DateField(null=True, blank=True)
+    fine_nuovo = models.DateField(null=True, blank=True)
+    motivo = models.CharField(max_length=500, blank=True, default="")
+    stato = models.CharField(max_length=10, choices=SpostamentoStato.choices, default=SpostamentoStato.IN_ATTESA, db_index=True)
+    deciso_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    deciso_at = models.DateTimeField(null=True, blank=True)
+    nota_decisione = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Richiesta di spostamento"
+        verbose_name_plural = "Richieste di spostamento"
+
+    def __str__(self) -> str:
+        return f"Spostamento {self.task_id} ({self.stato})"
+
+    @property
+    def in_attesa(self) -> bool:
+        return self.stato == SpostamentoStato.IN_ATTESA
+
+
+class ProgrammaStorico(models.Model):
+    """Ogni passaggio di un programma: fase, revisione, codice. Non si cancella."""
+
+    ref = models.ForeignKey(ProjectTechRef, on_delete=models.CASCADE, related_name="storico")
+    fase = models.CharField(max_length=14, choices=ProgrammaFase.choices)
+    revisione = models.CharField(max_length=10, blank=True, default="")
+    code = models.CharField(max_length=120, blank=True, default="")
+    nota = models.CharField(max_length=500, blank=True, default="")
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Passaggio del programma"
+        verbose_name_plural = "Storico dei programmi"
+
+    def __str__(self) -> str:
+        return f"{self.ref_id} {self.fase} {self.revisione}"
+
+
+class CatalogoTipo(models.TextChoices):
+    ODG = "ODG", "Punto all'ordine del giorno"
+    AZIONE = "AZIONE", "Azione"
+    ATTIVITA = "ATTIVITA", "Attività"
+    PROBLEMA = "PROBLEMA", "Problema"
+
+
+class CatalogoVoce(models.Model):
+    """Voce ricorrente: si riempie da sola con quello che si scrive e torna come suggerimento."""
+
+    tipo = models.CharField(max_length=10, choices=CatalogoTipo.choices, db_index=True)
+    testo = models.CharField(max_length=220)
+    chiave = models.CharField(max_length=220, db_index=True)
+    nota = models.CharField(max_length=500, blank=True, default="", verbose_name="Nota predefinita")
+    durata_minuti = models.PositiveSmallIntegerField(null=True, blank=True)
+    usi = models.PositiveIntegerField(default=0)
+    ultimo_uso = models.DateTimeField(null=True, blank=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["tipo", "-usi", "testo"]
+        constraints = [models.UniqueConstraint(fields=["tipo", "chiave"], name="tasks_catalogo_tipo_chiave")]
+        verbose_name = "Voce del catalogo"
+        verbose_name_plural = "Catalogo voci ricorrenti"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()}: {self.testo}"
+
+
+class Utensile(models.Model):
+    """Catalogo utensili del portale: si riempie usandolo; più avanti arriverà la lettura dall'ERP."""
+
+    codice = models.CharField(max_length=80, unique=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    tipo = models.CharField(max_length=80, blank=True, default="", verbose_name="Tipo")
+    fornitore = models.CharField(max_length=120, blank=True, default="")
+    attivo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Utensile"
+        verbose_name_plural = "Utensili"
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.descrizione}".strip()
+
+
+class UtensileStato(models.TextChoices):
+    DA_ORDINARE = "DA_ORDINARE", "Da ordinare"
+    ORDINATO = "ORDINATO", "Ordinato"
+    ARRIVATO = "ARRIVATO", "Arrivato"
+    DISPONIBILE = "DISPONIBILE", "Disponibile a magazzino"
+
+
+class ProjectUtensile(models.Model):
+    """Utensile che serve alla commessa: quanti, se c'è o va ordinato, entro quando."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="utensili")
+    utensile = models.ForeignKey(Utensile, on_delete=models.PROTECT, related_name="commesse")
+    quantita = models.PositiveSmallIntegerField(default=1)
+    stato = models.CharField(max_length=12, choices=UtensileStato.choices, default=UtensileStato.DA_ORDINARE, db_index=True)
+    entro = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["stato", "utensile__codice", "id"]
+        verbose_name = "Utensile della commessa"
+        verbose_name_plural = "Utensili delle commesse"
+
+    def __str__(self) -> str:
+        return f"{self.project_id} {self.utensile_id} x{self.quantita}"
+
+    @property
+    def pronto(self) -> bool:
+        return self.stato in (UtensileStato.ARRIVATO, UtensileStato.DISPONIBILE)
+
+
+class ModelloCommessa(models.Model):
+    """Tipo di commessa (es. «Particolare nuovo con FAI»): quali tappe servono e quanti giorni prima della consegna."""
+
+    nome = models.CharField(max_length=120, unique=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    # [{"tappa": "CAM", "giorni": 20}, ...]: tappe che servono e scadenza proposta (giorni prima della consegna).
+    tappe = models.JSONField(default=list, blank=True)
+    attivo = models.BooleanField(default=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Modello di commessa"
+        verbose_name_plural = "Modelli di commessa"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    def giorni_per(self, tappa: str):
+        for voce in self.tappe or []:
+            if isinstance(voce, dict) and voce.get("tappa") == tappa:
+                return voce.get("giorni")
+        return None
+
+    @property
+    def chiavi(self) -> list[str]:
+        return [v.get("tappa") for v in self.tappe or [] if isinstance(v, dict) and v.get("tappa")]

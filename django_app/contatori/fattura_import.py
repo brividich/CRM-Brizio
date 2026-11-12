@@ -18,6 +18,8 @@ import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
+from .models import CONTATORI
+
 MAX_BYTES = 5 * 1024 * 1024
 
 # Rapporto del prezzo per copia rispetto all'A4 bianco/nero.
@@ -314,5 +316,5 @@ def leggi_fattura(nome_file: str, contenuto: bytes) -> dict:
     }
 
 
-_ETICHETTE = {"a4_bn": "A4 B/N", "a3_bn": "A3 B/N", "a4_col": "A4 colore", "a3_col": "A3 colore", None: "?"}
+_ETICHETTE = {**dict(CONTATORI), None: "?"}
 _ETICHETTE_TOTALI = {"a4_bn": "B/N totale", "a4_col": "Colore totale", None: "?"}

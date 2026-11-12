@@ -37,13 +37,14 @@
     <label>Creato il <input type="date" name="date" value="{{ filters.date }}"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:alerts_list' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
     <h2>Alert</h2>
-    <span class="sec-badge">{% if total > alerts|length %}Mostrati {{ alerts|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
+    {% if selected_severities %}<span class="sec-badge">{{ total }} alert</span>{% endif %}
   </div>
   <form id="sec-bulk-form" method="post" action="{% url 'security:alerts_bulk' %}" data-bulk>
   {% csrf_token %}
@@ -56,14 +57,16 @@
       {% if open_cases %}<option value="add_to_case">Aggiungi a un ticket aperto</option>{% endif %}
       <option value="close">Chiudi</option>
       <option value="false_positive">Segna falso positivo</option>
+      <option value="snooze">Rimanda fino al…</option>
     </select>
+    <input type="date" name="snooze_until" aria-label="Rimanda fino al" title="Gli alert tornano in coda quel giorno" data-show-for="snooze">
     <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" data-show-for="open_case">
     {% if open_cases %}
       <select name="case_id" aria-label="Ticket di destinazione" data-show-for="add_to_case">
         {% for case in open_cases %}<option value="{{ case.pk }}">#{{ case.pk }} · {{ case.title|truncatechars:60 }}</option>{% endfor %}
       </select>
     {% endif %}
-    <input type="text" name="reason" placeholder="Motivo (facoltativo)" data-show-for="acknowledge close false_positive">
+    <input type="text" name="reason" placeholder="Motivo (facoltativo)" data-show-for="acknowledge close false_positive snooze">
     <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
   </div>
   <div class="sec-table-wrap">
@@ -89,5 +92,6 @@
     </table>
   </div>
   </form>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </section>
 {% endblock %}

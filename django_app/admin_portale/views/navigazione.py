@@ -431,6 +431,8 @@ def _navigation_item_payload(
         "perm_explicit": perm_info.get("explicit", ""),
         "perm_target": perm_info.get("target", ""),
         "perm_stato": perm_info.get("stato", ""),
+        # Link esterno senza permesso: lo vedono tutti (navigation_registry).
+        "esterno": is_external_navigation_item(item),
     }
 
 
@@ -565,7 +567,7 @@ def navigation_builder(request):
     perm_doppi = sum(1 for r in item_rows_all if r["perm_stato"] == PERMESSO_ESPLICITO_E_PAGINA)
     perm_assenti = sum(
         1 for r in item_rows_all
-        if r["perm_stato"] == PERMESSO_ASSENTE and r["section"] != "admin_subnav" and r["is_visible"]
+        if r["perm_stato"] == PERMESSO_ASSENTE and r["section"] != "admin_subnav" and r["is_visible"] and not r["esterno"]
     )
 
     snapshots = list(NavigationSnapshot.objects.all().order_by("-version", "-id")[:20])

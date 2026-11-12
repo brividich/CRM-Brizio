@@ -1,0 +1,36 @@
+{% load anagrafica_extras %}
+{% comment %}
+Azione unica di una voce dello scadenzario: stesso pulsante «↻ Rinnova», stesso
+posto, per tutti i tipi. Variabili attese: v (voce), can_view_visite,
+is_qual_admin, can_edit_formazione, can_view_contratti, request.
+{% endcomment %}
+{% if v.kind == "visita" %}
+  {% if can_view_visite and v.tipo_id %}<a class="fmd-act" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" title="Crea la giornata di rinnovo per questa visita">↻ Rinnova</a>{% endif %}
+{% elif v.kind == "qualifica" %}
+  {% if is_qual_admin and v.tipo_id %}<a class="fmd-act" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ v.tipo_id }}" title="Crea la sessione di rinnovo per questa qualifica">↻ Rinnova</a>{% endif %}
+{% elif v.kind == "formazione" %}
+  {% if can_edit_formazione and v.corso_id %}
+  <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">
+    {% csrf_token %}
+    <input type="hidden" name="corso_id" value="{{ v.corso_id }}">
+    <input type="hidden" name="dipendenti_selezionati" value="{{ v.legacy_id }}">
+    <input type="hidden" name="back" value="{{ request.get_full_path }}">
+    <button type="submit" class="fmd-act" title="Crea la sessione di rinnovo con questa persona già iscritta">↻ Rinnova</button>
+  </form>
+  {% endif %}
+{% elif v.kind == "contratto" %}
+  {% if can_view_contratti %}
+    {% if v.rinnovo %}
+    <button type="button" class="fmd-act" title="Registra il nuovo contratto: parte il giorno dopo la scadenza, con tipologia e livello attuali"
+            data-rinnovo-url="{% url 'anagrafica:scadenzario_contratto_rinnova' v.legacy_id %}"
+            data-rinnovo-nome="{% nominativo v %}"
+            data-rinnovo-inizio="{{ v.rinnovo.data_inizio|date:'Y-m-d' }}"
+            data-rinnovo-tipologia="{{ v.rinnovo.tipologia }}"
+            data-rinnovo-livello="{{ v.rinnovo.codice_livello }}"
+            data-rinnovo-desc="{{ v.rinnovo.descrizione_livello }}"
+            data-rinnovo-qualifica="{{ v.rinnovo.qualifica_nome }}">↻ Rinnova</button>
+    {% else %}
+    <a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}#scheda-contratto" title="La fine prova si conferma o si trasforma dalla scheda">Apri scheda</a>
+    {% endif %}
+  {% endif %}
+{% endif %}

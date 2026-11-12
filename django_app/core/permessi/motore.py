@@ -10,11 +10,16 @@ Precedenza, dalla piu' forte:
    ``vede_tutto`` (Direzione) si esprime su vedere/esportare di ogni modulo con
    visibilita' «tutti». A parita' d'ordine: un «no» batte un «si'», fra due «si'»
    vale la visibilita' piu' ampia;
-3. nessun ruolo si esprime: negato.
+3. nessun ruolo si esprime: negato;
+4. eccezione sulla persona (``EccezionePermessoPersona``): toglie o restringe
+   quello che i ruoli concedono, mai il contrario. Vale su tutti i ruoli, anche
+   su quelli che arrivano dall'organigramma; non tocca superuser e amministratori.
 
-Il ruolo base (preset «dipendente») vale per tutti gli utenti attivi anche senza
-appartenenza esplicita: chi non ha ruoli vede solo i propri dati, e solo dove
-il ruolo base glielo concede.
+Il ruolo base (preset «dipendente», «Operatore») vale solo per chi non ha altri
+ruoli (a mano o dall'organigramma), senza bisogno di iscriverlo: chi ha un ruolo
+prende soltanto la colonna del suo ruolo (deciso 30/10/2026). Le caselle che
+servono a tutti (proprie assenze, notizie...) stanno quindi anche nelle colonne
+degli altri ruoli: vedi :mod:`core.permessi.ruolo_base`.
 """
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ FONTE_AMMINISTRATORE = "amministratore"
 FONTE_RUOLO = "ruolo"
 FONTE_VEDE_TUTTO = "vede_tutto"
 FONTE_NESSUNO = "nessuno"
+FONTE_ECCEZIONE = "eccezione"
 
 
 def sistema_ruoli_attivo() -> bool:
@@ -134,6 +140,11 @@ class ContestoPermessi:
     amministratore: bool = False
     ruoli: list[_Ruolo] = field(default_factory=list)
     celle: dict[tuple[int, str, str], tuple[bool, str]] = field(default_factory=dict)
+    # Caselle copiate da Operatore (nota «dal ruolo base»): contano con l'ordine di Operatore.
+    celle_dal_base: set[tuple[int, str, str]] = field(default_factory=set)
+    ordine_base: int | None = None
+    # (modulo, azione) -> (ambito massimo, "" = negato; motivo)
+    eccezioni: dict[tuple[str, str], tuple[str, str]] = field(default_factory=dict)
     _team: frozenset[int] | None = None
 
     @property
@@ -168,13 +179,15 @@ def _legacy_user_di(user, request=None):
 def ruoli_della_persona(legacy_user_id: int | None, *, includi_base: bool = True) -> list:
     """AccessGroup attivi della persona, dal piu' alto in ordine.
 
-    Somma i ruoli assegnati a mano, quelli che arrivano dall'organigramma
-    (:mod:`core.permessi.organigramma`) e il ruolo base.
+    I ruoli assegnati a mano e quelli che arrivano dall'organigramma
+    (:mod:`core.permessi.organigramma`); il ruolo base solo se non ce n'e'
+    nessun altro.
     """
     from core.models import AccessGroup
 
     try:
         qs = AccessGroup.objects.filter(is_active=True)
+        propri = []
         if legacy_user_id:
             from django.db.models import Q
 
@@ -185,14 +198,10 @@ def ruoli_della_persona(legacy_user_id: int | None, *, includi_base: bool = True
             da_organigramma = profili_da_organigramma(legacy_user_id)
             if da_organigramma:
                 filtro |= Q(id__in=da_organigramma)
-            if includi_base:
-                filtro |= Q(preset=PRESET_BASE)
-            qs = qs.filter(filtro)
-        elif includi_base:
-            qs = qs.filter(preset=PRESET_BASE)
-        else:
-            return []
-        return list(qs.distinct().order_by("-priority", "label", "id"))
+            propri = list(qs.filter(filtro).distinct().order_by("-priority", "label", "id"))
+        if not includi_base or any(g.preset != PRESET_BASE for g in propri):
+            return propri
+        return propri or list(qs.filter(preset=PRESET_BASE).order_by("-priority", "label", "id")[:1])
     except DatabaseError:
         logger.warning("permessi: ruoli non leggibili per %s", legacy_user_id, exc_info=True)
         return []
@@ -231,17 +240,8 @@ def contesto_per(soggetto) -> ContestoPermessi:
     if any(r.amministratore for r in ctx.ruoli):
         ctx.amministratore = True
 
-    if ctx.ruoli:
-        from core.models import RuoloPermessoModulo
-
-        try:
-            for ruolo_id, mod, azione, consentito, ambito in RuoloPermessoModulo.objects.filter(
-                ruolo_id__in=[r.id for r in ctx.ruoli]
-            ).values_list("ruolo_id", "modulo", "azione", "consentito", "ambito"):
-                ctx.celle[(int(ruolo_id), mod, azione)] = (bool(consentito), ambito)
-        except DatabaseError:
-            logger.warning("permessi: matrice non leggibile", exc_info=True)
-            ctx.celle = {}
+    carica_celle(ctx)
+    ctx.eccezioni = eccezioni_della_persona(ctx.legacy_user_id)
 
     if user is not None:
         try:
@@ -249,6 +249,46 @@ def contesto_per(soggetto) -> ContestoPermessi:
         except AttributeError:
             pass  # oggetto utente senza __dict__ (es. SimpleNamespace con slots)
     return ctx
+
+
+def carica_celle(ctx: ContestoPermessi) -> None:
+    """Le celle della matrice dei ruoli della persona, in ``ctx``."""
+    from core.models import AccessGroup, RuoloPermessoModulo
+    from core.permessi.ruolo_base import NOTA_DAL_BASE
+
+    ctx.celle, ctx.celle_dal_base, ctx.ordine_base = {}, set(), None
+    if not ctx.ruoli:
+        return
+    try:
+        for ruolo_id, mod, azione, consentito, ambito, nota in RuoloPermessoModulo.objects.filter(
+            ruolo_id__in=[r.id for r in ctx.ruoli]
+        ).values_list("ruolo_id", "modulo", "azione", "consentito", "ambito", "note"):
+            chiave = (int(ruolo_id), mod, azione)
+            ctx.celle[chiave] = (bool(consentito), ambito)
+            if nota == NOTA_DAL_BASE:
+                ctx.celle_dal_base.add(chiave)
+        if ctx.celle_dal_base:
+            ctx.ordine_base = AccessGroup.objects.filter(preset=PRESET_BASE).values_list("priority", flat=True).first()
+    except DatabaseError:
+        logger.warning("permessi: matrice non leggibile", exc_info=True)
+        ctx.celle, ctx.celle_dal_base = {}, set()
+
+
+def eccezioni_della_persona(legacy_user_id: int | None) -> dict[tuple[str, str], tuple[str, str]]:
+    if not legacy_user_id:
+        return {}
+    from core.models import EccezionePermessoPersona
+
+    try:
+        return {
+            (mod, azione): (ambito or "", motivo or "")
+            for mod, azione, ambito, motivo in EccezionePermessoPersona.objects.filter(
+                legacy_user_id=int(legacy_user_id)
+            ).values_list("modulo", "azione", "ambito_massimo", "motivo")
+        }
+    except DatabaseError:
+        logger.warning("permessi: eccezioni non leggibili per %s", legacy_user_id, exc_info=True)
+        return {}
 
 
 def invalida_contesto(user) -> None:
@@ -264,24 +304,47 @@ def _decidi(ctx: ContestoPermessi, chiave_modulo: str, azione: str) -> Decisione
         return Decisione(True, AMBITO_TUTTI, FONTE_SUPERUSER, motivo="Superuser: vede e fa tutto.")
     if ctx.amministratore:
         return Decisione(True, AMBITO_TUTTI, FONTE_AMMINISTRATORE, motivo="Amministratore del portale.")
+    esito = _decidi_dai_ruoli(ctx, chiave_modulo, azione)
+    eccezione = ctx.eccezioni.get((chiave_modulo, azione))
+    if eccezione is None or not esito.consentito:
+        return esito
+    limite, motivo = eccezione
+    nota = f" Motivo: {motivo}" if motivo else ""
+    if not limite:
+        return Decisione(
+            False, "", FONTE_ECCEZIONE, esito.ruolo, esito.ruolo_id, esito.ordine,
+            motivo=f"Eccezione sulla persona: negato anche se il ruolo «{esito.ruolo}» lo concede.{nota}",
+        )
+    if ambito_piu_ampio(limite, esito.ambito) == limite:
+        return esito  # il ruolo concede gia' non piu' del limite
+    return Decisione(
+        True, limite, FONTE_ECCEZIONE, esito.ruolo, esito.ruolo_id, esito.ordine,
+        motivo=f"Eccezione sulla persona: il ruolo «{esito.ruolo}» darebbe di più, limitato.{nota}",
+    )
+
+
+def _decidi_dai_ruoli(ctx: ContestoPermessi, chiave_modulo: str, azione: str) -> Decisione:
 
     # Raggruppa per ordine: al primo livello d'ordine in cui qualcuno si esprime, si decide.
-    livello: int | None = None
-    espressi: list[tuple[_Ruolo, bool, str, str]] = []
+    # Una casella copiata da Operatore conta con l'ordine di Operatore: e' il minimo che il
+    # ruolo concede, non deve restringere quello che un altro ruolo della persona da' di piu'.
+    voci: list[tuple[int, _Ruolo, bool, str, str]] = []
     for ruolo in ctx.ruoli:
-        if livello is not None and ruolo.priority < livello:
-            break
-        cella = ctx.celle.get((ruolo.id, chiave_modulo, azione))
+        chiave = (ruolo.id, chiave_modulo, azione)
+        cella = ctx.celle.get(chiave)
         if cella is not None:
             consentito, ambito = cella
-            espressi.append((ruolo, consentito, ambito if consentito else "", FONTE_RUOLO))
-            livello = ruolo.priority
+            ordine = ruolo.priority
+            if chiave in ctx.celle_dal_base and ctx.ordine_base is not None:
+                ordine = min(ordine, int(ctx.ordine_base))
+            voci.append((ordine, ruolo, consentito, ambito if consentito else "", FONTE_RUOLO))
         elif ruolo.vede_tutto and azione in AZIONI_LETTURA:
-            espressi.append((ruolo, True, AMBITO_TUTTI, FONTE_VEDE_TUTTO))
-            livello = ruolo.priority
+            voci.append((ruolo.priority, ruolo, True, AMBITO_TUTTI, FONTE_VEDE_TUTTO))
 
-    if not espressi:
+    if not voci:
         return Decisione(False, "", FONTE_NESSUNO, motivo="Nessun ruolo concede questa azione.")
+    livello = max(v[0] for v in voci)
+    espressi = [(ruolo, ok, ambito, fonte) for ordine, ruolo, ok, ambito, fonte in voci if ordine == livello]
 
     negati = [e for e in espressi if not e[1]]
     if negati:
@@ -390,5 +453,10 @@ def anteprima(soggetto) -> list[dict]:
         for azione in spec.azioni:
             esito = decisione(soggetto, spec.chiave, azione)
             azioni.append({"azione": azione, "label": spec.etichetta_azione(azione), "esito": esito})
-        righe.append({"modulo": spec, "azioni": azioni, "qualcosa": any(a["esito"].consentito for a in azioni)})
+        righe.append({
+            "modulo": spec,
+            "azioni": azioni,
+            "qualcosa": any(a["esito"].consentito for a in azioni),
+            "eccezioni": any(a["esito"].fonte == FONTE_ECCEZIONE for a in azioni),
+        })
     return righe

@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% block title %}{{ cert.nome_breve }} · {{ cert.ente }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">{{ cert.nome_breve }} · {{ cert.ente }}</div>
+      <div class="page-sub">{% if cert.numero %}Certificato n. {{ cert.numero }}{% else %}Numero non indicato{% endif %}{% if not cert.attiva %} · non più in vigore{% endif %}</div>
+    </div>
+    <div class="sg-actions">
+      {% if cert.stato == "scaduta" %}<span class="sg-badge danger">Scaduto</span>{% elif cert.stato == "in_scadenza" %}<span class="sg-badge warn">Scade tra {{ cert.giorni_alla_scadenza }} giorni</span>{% elif cert.stato == "ritirata" %}<span class="sg-badge">Non in vigore</span>{% else %}<span class="sg-badge ok">Valido</span>{% endif %}
+      {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_certificazione' cert.pk %}">Modifica</a><a class="btn" href="{% url 'sistema_gestione:esterni_audit_nuovo' %}?certificazione={{ cert.pk }}">Registra audit</a>{% endif %}
+    </div>
+  </div>
+
+  {% if cert.sorveglianza_superata %}<div class="sg-alert warn">La data della prossima sorveglianza ({{ cert.prossima_sorveglianza|date:"d/m/Y" }}) è passata: registra l'audit o aggiorna la data.</div>{% endif %}
+
+  <div class="sg-kpis">
+    <div class="sg-kpi"><span>Emesso</span><strong>{{ cert.emesso_il|date:"d/m/Y"|default:"—" }}</strong></div>
+    <div class="sg-kpi{% if cert.sorveglianza_superata %} is-warn{% endif %}"><span>Prossima sorveglianza</span><strong>{{ cert.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</strong></div>
+    <div class="sg-kpi{% if cert.stato == "scaduta" %} is-danger{% elif cert.stato == "in_scadenza" %} is-warn{% endif %}"><span>Scadenza</span><strong>{{ cert.scade_il|date:"d/m/Y" }}</strong></div>
+  </div>
+
+  {% if cert.campo_applicazione or cert.note %}<section class="rc-card sg-section">
+    {% if cert.campo_applicazione %}<h2>Campo di applicazione</h2><p>{{ cert.campo_applicazione|linebreaksbr }}</p>{% endif %}
+    {% if cert.note %}<h2>Note</h2><p>{{ cert.note|linebreaksbr }}</p>{% endif %}
+  </section>{% endif %}
+
+  <section class="rc-card sg-section">
+    <h2>Copia del certificato</h2>
+    {% if documenti %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>File</th><th>Emesso</th><th>Scadenza</th><th>Caricato</th></tr></thead><tbody>
+      {% for doc in documenti %}<tr>
+        <td><a href="{% url 'sistema_gestione:esterni_certificazione_documento' cert.pk doc.pk %}">{{ doc.nome }}</a>{% if forloop.first %} <span class="sg-badge ok">Ultimo</span>{% endif %}</td>
+        <td>{{ doc.emesso_il|date:"d/m/Y"|default:"—" }}</td><td>{{ doc.scade_il|date:"d/m/Y"|default:"—" }}</td>
+        <td>{{ doc.caricato_il|date:"d/m/Y" }}{% if doc.caricato_da %} · {{ doc.caricato_da.get_full_name|default:doc.caricato_da.username }}{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="sg-muted">Nessuna copia caricata.</p>{% endif %}
+    {% if puo_modificare %}<form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:esterni_certificazione_documento_carica' cert.pk %}" class="sg-actions sg-upload">{% csrf_token %}
+      <label for="{{ form_documento.file.id_for_label }}">{{ form_documento.file.label }}</label>{{ form_documento.file }}
+      <button class="btn btn-secondary" type="submit">Carica</button>
+    </form><p class="sg-muted">Al rinnovo aggiorna prima le date con «Modifica», poi carica il nuovo certificato: i precedenti restano nello storico.</p>{% endif %}
+  </section>
+
+  <section class="rc-card sg-section">
+    <h2>Qualifiche del personale collegate</h2>
+    {% if copertura %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Qualifica</th><th>Valide</th><th>In scadenza (60 giorni)</th><th>Scadute</th></tr></thead><tbody>
+      {% for r in copertura %}<tr>
+        <td><a href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ r.tipo.pk }}">{{ r.tipo.nome }}</a></td>
+        <td>{{ r.valide }}</td>
+        <td>{% if r.in_scadenza %}<span class="sg-badge warn">{{ r.in_scadenza }}</span>{% else %}0{% endif %}</td>
+        <td>{% if r.scadute %}<span class="sg-badge danger">{{ r.scadute }}</span>{% else %}0{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="sg-muted">Nessuna qualifica collegata.{% if puo_modificare %} Si scelgono da «Modifica».{% endif %}</p>{% endif %}
+  </section>
+
+  <section class="rc-card sg-section">
+    <h2>Audit di questo certificato</h2>
+    {% if audit_list %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Date</th><th>Tipo</th><th>Stato</th><th>Esito</th><th>Rilievi</th><th>NC aperte</th></tr></thead><tbody>
+      {% for a in audit_list %}<tr>
+        <td><a href="{% url 'sistema_gestione:esterni_audit' a.pk %}">{{ a.data_inizio|date:"d/m/Y" }}{% if a.data_fine and a.data_fine != a.data_inizio %} – {{ a.data_fine|date:"d/m/Y" }}{% endif %}</a></td>
+        <td>{{ a.get_tipo_display }}</td><td>{{ a.get_stato_display }}</td><td>{{ a.get_esito_display|default:"—" }}</td><td>{{ a.n_rilievi }}</td>
+        <td>{% if a.n_nc_aperte %}<span class="sg-badge danger">{{ a.n_nc_aperte }}</span>{% else %}0{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="sg-muted">Nessun audit collegato.</p>{% endif %}
+  </section>
+
+  {% include "scadenzario/components/riquadro.html" with fonti="sgi" collegata_tipo="certificazione" collegata_id=cert.pk nome=cert.ente %}
+</div>
+{% endblock %}

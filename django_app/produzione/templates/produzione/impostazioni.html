@@ -1,0 +1,47 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Impostazioni · Ordini di produzione{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261108a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <h1>Impostazioni</h1>
+      <p>Tipi di documento di produzione. Un tipo spento non si propone più, ma i documenti già registrati lo tengono.</p>
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  <section class="prod-card prod-scorri">
+    <table class="prod-tab prod-tipo">
+      <thead><tr><th>Tipo</th><th>Descrizione</th><th class="prod-n">Ordine</th><th class="prod-n">Attivo</th><th class="prod-n">Documenti</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tipi %}
+        <tr>
+          <td><input form="tipo-{{ t.id }}" name="etichetta" maxlength="80" value="{{ t.etichetta }}" required aria-label="Tipo"></td>
+          <td><input form="tipo-{{ t.id }}" name="descrizione" maxlength="255" value="{{ t.descrizione }}" aria-label="Descrizione"></td>
+          <td class="prod-n"><input form="tipo-{{ t.id }}" name="ordine" type="number" min="0" value="{{ t.ordine }}" aria-label="Ordine"></td>
+          <td class="prod-n"><input form="tipo-{{ t.id }}" name="attivo" type="checkbox" value="1"{% if t.attivo %} checked{% endif %} aria-label="Attivo"></td>
+          <td class="prod-n">{{ t.documenti.count }}</td>
+          <td class="prod-azioni">
+            <form id="tipo-{{ t.id }}" method="post">{% csrf_token %}<input type="hidden" name="azione" value="salva"><input type="hidden" name="id" value="{{ t.id }}"><button class="prod-btn prod-btn-piccolo" type="submit">Salva</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td><input form="tipo-nuovo" name="etichetta" maxlength="80" placeholder="Nuovo tipo" required aria-label="Nuovo tipo"></td>
+          <td><input form="tipo-nuovo" name="descrizione" maxlength="255" placeholder="A cosa serve" aria-label="Descrizione"></td>
+          <td class="prod-n"><input form="tipo-nuovo" name="ordine" type="number" min="0" value="100" aria-label="Ordine"></td>
+          <td></td><td></td>
+          <td class="prod-azioni">
+            <form id="tipo-nuovo" method="post">{% csrf_token %}<input type="hidden" name="azione" value="nuovo"><button class="prod-btn prod-btn-primary prod-btn-piccolo" type="submit">Aggiungi</button></form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

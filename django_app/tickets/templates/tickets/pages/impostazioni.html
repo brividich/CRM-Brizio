@@ -110,7 +110,8 @@
 .tkt-import-result ul   { margin:6px 0 0 16px; padding:0; font-size:12px; color:#b91c1c; }
 
 .tkt-cat-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-@media(max-width:900px){ .tkt-cat-grid { grid-template-columns:1fr; } }
+@media(max-width:900px){ .tkt-cat-grid { grid-template-columns:minmax(0,1fr); } .tkt-cat-grid > * { min-width:0; } }
+@media(max-width:720px){ .tkt-card { padding:16px; } }
 .tkt-cat-table { width:100%; border-collapse:collapse; font-size:13px; }
 .tkt-cat-table th {
   text-align:left; font-size:11px; color:#64748b; text-transform:uppercase;
@@ -605,6 +606,62 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
 
     <div id="csv-import-result" class="tkt-import-result"></div>
   </div>
+</div>
+
+<!-- Mappa asset nei ticket di manutenzione -->
+<div class="tkt-card" id="mappa-asset">
+  <div class="tkt-card-header">
+    <div>
+      <div class="tkt-card-title">Mappa asset nei ticket di manutenzione</div>
+      <div class="tkt-card-sub">
+        Nel nuovo ticket e nella gestione l'asset si sceglie anche dalla planimetria; quelli del reparto di chi apre il ticket sono evidenziati.
+      </div>
+    </div>
+  </div>
+  <form method="post" style="padding:16px 18px;display:flex;flex-direction:column;gap:16px;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save_mappa_config">
+    <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;font-size:13px;">
+      <legend style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;">Come si riconosce il «tuo reparto» sulla mappa</legend>
+      {% for val, lbl in mappa_choices %}
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="radio" name="mappa_reparto_da" value="{{ val }}" {% if cfg_man.mappa_reparto_da == val %}checked{% endif %}>
+        {{ lbl }}
+      </label>
+      {% endfor %}
+      <span style="font-size:11px;color:#94a3b8;">Con le aree, una planimetria senza aree disegnate usa comunque il reparto scritto sull'asset. Le aree si disegnano dall'editor della mappa officina.</span>
+    </fieldset>
+
+    {% if mappa_planimetrie %}
+    <div style="font-size:12px;color:#64748b;display:flex;flex-wrap:wrap;gap:6px;">
+      {% for p in mappa_planimetrie %}
+      <span style="padding:3px 9px;border-radius:999px;border:1px solid #e2e8f0;">{{ p.category }} · {{ p.n_marker }} asset · {{ p.n_aree }} aree</span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:#94a3b8;">Nessuna planimetria attiva: la mappa nei ticket non compare.</div>
+    {% endif %}
+
+    {% if categorie_ticket_man and mappa_planimetrie %}
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;">Planimetria che si apre per categoria</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 16px;">
+        {% for cat in categorie_ticket_man %}
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#334155;">
+          {{ cat.etichetta }}
+          <select name="planimetria_{{ cat.pk }}" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+            <option value="" title="Apre la planimetria con più asset del reparto di chi apre il ticket">Automatica</option>
+            {% for p in mappa_planimetrie %}
+            <option value="{{ p.category }}" {% if cat.planimetria == p.category %}selected{% endif %}>{{ p.category }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    <div><button type="submit" class="tkt-save-btn">Salva mappa</button></div>
+  </form>
 </div>
 
 <!-- Escalation ticket urgenti non assegnati -->

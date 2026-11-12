@@ -12,10 +12,18 @@
 .sc-filters a.active{border-color:var(--link,#2563eb);color:var(--link,#2563eb);background:color-mix(in srgb,var(--link,#2563eb) 10%,transparent)}
 .sc-filters a span{opacity:.7;margin-left:4px}
 .sc-search{display:flex;gap:8px;margin-left:auto}
+.sc-mini-btn{padding:6px 12px;border:1px solid var(--border,#dbe3ef);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit;font-size:var(--fs-sm,13px);font-weight:600;cursor:pointer;white-space:nowrap}
+.sc-regola{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+.sc-regola .sc-tag{white-space:normal}
+.sc-unisci{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:14px}
+.sc-unisci label,.sc-unisci .sc-note{grid-column:1/-1}
+.sc-blocco{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:64px;z-index:5}
+.sc-blocco select{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit}
 .sc-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
 .sc-table-wrap{overflow:auto}
 .sc-cve-strip{display:flex;gap:14px;align-items:center;justify-content:space-between;border-left:5px solid var(--success,#16a34a)}
 .sc-cve-strip.has-cve{border-left-color:var(--danger,#dc2626);background:color-mix(in srgb,var(--danger,#dc2626) 5%,var(--surface,#fff))}
+.sc-cve-strip.is-unknown{border-left-color:var(--text-mid,#64748b)}
 .sc-cve-strip strong{font-size:16px}
 .sc-cve-strip .sc-note{margin-top:2px}
 .sc-cve-strip .cvp-open{font-size:13px;padding:6px 14px}
@@ -29,6 +37,28 @@
 body.theme-dark .sc-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .sc-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
 body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .sc-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
 .sc-input{width:100%;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:8px 10px;font:inherit;font-weight:400;background:var(--surface,#fff);color:inherit}
+.sc-dot-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;cursor:pointer;font-weight:700}
+.sc-dot-summary .sc-meta{font-weight:500;margin-left:6px}
+.sc-dot-rule{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(90px,1fr) 54px minmax(0,1.6fr) auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid color-mix(in srgb,var(--border,#dbe3ef) 70%,transparent)}
+.sc-dot-name strong{display:block}
+.sc-dot-name .sc-meta{display:block;font-size:var(--fs-xs,12px)}
+.sc-dot-bar{position:relative;height:8px;border-radius:999px;background:var(--surface-alt,#f1f5f9);box-shadow:inset 0 0 0 1px var(--border,#e2e8f0);overflow:hidden}
+.sc-dot-bar i{position:absolute;top:0;bottom:0;left:0;border-radius:999px;background:var(--success,#16a34a)}
+.sc-dot-bar i.is-bad{background:var(--danger,#dc2626)}
+.sc-dot-pct{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.sc-dot-chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.sc-chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--border,#dbe3ef);background:var(--surface,#fff);color:var(--link,#2563eb);font-size:var(--fs-xs,12px);text-decoration:none;white-space:nowrap;cursor:pointer}
+.sc-chip:hover{border-color:var(--link,#2563eb)}
+.sc-chip-more{display:inline}.sc-chip-more summary{list-style:none}.sc-chip-more summary::-webkit-details-marker{display:none}
+.sc-chip-more[open] p{flex-basis:100%}
+.sc-dot-togli{margin:0}
+.sc-dot-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border,#dbe3ef)}
+.sc-dot-form label{display:grid;gap:3px;font-size:var(--fs-xs,12px);font-weight:600;color:var(--text-mid,#64748b);min-width:0}
+.sc-dot-form select,.sc-dot-form input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;font-weight:400;background:var(--surface,#fff);color:var(--text,inherit);min-width:0;width:100%}
+.sc-dot-pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warning,#d97706);margin-right:5px;vertical-align:middle;animation:sc-pulse 1.8s ease-in-out infinite}
+@keyframes sc-pulse{0%,100%{opacity:.35}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sc-dot-pulse{animation:none}}
+@media(max-width:900px){.sc-dot-rule{grid-template-columns:minmax(0,1fr) 54px auto}.sc-dot-bar,.sc-dot-chips{grid-column:1/-1}.sc-dot-form{grid-template-columns:1fr 1fr}.sc-dot-form button{grid-column:1/-1}}
 @media(max-width:820px){.sc-search{margin-left:0;width:100%}.sc-search input{min-width:0;flex:1}}
 </style>
 {% endblock %}
@@ -37,25 +67,92 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
 {% block assets_shell_subtitle %}<p>I programmi installati sui PC dell'azienda, con le decisioni su ognuno: consentito, da rimuovere, non autorizzato.</p>{% endblock %}
 
 {% block assets_shell_content %}
+{% if can_edit %}<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var tutti = document.getElementById("sc-tutti"), n = document.getElementById("sc-blocco-n"), ok = document.getElementById("sc-blocco-ok");
+  if (!tutti || !n || !ok) return;
+  function aggiorna() {
+    var c = document.querySelectorAll(".sc-scelta:checked").length;
+    n.textContent = c ? c + (c === 1 ? " programma selezionato" : " programmi selezionati") : "Nessun programma selezionato";
+    ok.disabled = !c;
+  }
+  document.addEventListener("change", function (e) {
+    if (e.target === tutti) {
+      // solo le righe che si vedono: la ricerca e i filtri della tabella restano validi
+      document.querySelectorAll(".sc-scelta").forEach(function (box) { if (box.offsetParent !== null) box.checked = tutti.checked; });
+    }
+    if (e.target === tutti || e.target.classList.contains("sc-scelta")) aggiorna();
+  });
+});
+</script>{% endif %}
 <section class="sc-page">
   <div class="sc-card">
     <p class="sc-note">Dati dall'inventario software importato nel SOC{% if inventory_date %}, ultimo import del {{ inventory_date|date:"d/m/Y" }}{% endif %}. Apri un software per vedere su quali PC è installato{% if can_edit %} e per classificarlo{% endif %}. <a href="{% url 'assets:guida' %}#catalogo">Come funziona</a></p>
+    <p class="sc-note"><strong>{{ avanzamento.decisi }} programmi su {{ avanzamento.programmi }} con una decisione</strong>, pari al {{ avanzamento.percento_pc }}% delle installazioni. Ordina per PC per partire dai più diffusi.</p>
   </div>
   <div class="sc-card">
     <nav class="sc-filters" aria-label="Filtri del catalogo">
-      {% for f in filters %}<a href="?f={{ f.code }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if f.active %} class="active" aria-current="page"{% endif %}>{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
+      {% for f in filters %}<a href="?f={{ f.code }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if f.active %} class="active" aria-current="page"{% endif %}>{% if f.code == "nuovi" and f.count %}<i class="sc-dot-pulse" title="Programmi mai visti prima e ancora senza decisione"></i>{% endif %}{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
     </nav>
   </div>
+  {% if can_edit %}
+  <details class="sc-card"{% if produttori_regola %} open{% endif %}>
+    <summary style="cursor:pointer;font-weight:700">Regole per produttore{% if produttori_regola %} ({{ produttori_regola|length }}){% endif %}</summary>
+    <p class="sc-note" style="margin:8px 0">Tutti i programmi del produttore risultano «Consentito», anche quelli nuovi, finché non decidi diversamente sul singolo programma. Una regola può solo consentire: vietare si fa programma per programma.</p>
+    {% for r in produttori_regola %}
+    <form method="post" class="sc-regola">{% csrf_token %}<input type="hidden" name="azione" value="togli_produttore"><input type="hidden" name="regola" value="{{ r.pk }}">
+      <span class="sc-tag sc-tag--ok">{{ r }}</span><button type="submit" class="sc-mini-btn">Togli</button></form>
+    {% endfor %}
+    <form method="post" class="sc-unisci">{% csrf_token %}<input type="hidden" name="azione" value="consenti_produttore">
+      <select name="produttore" class="js-searchable" data-placeholder="Cerca il produttore" aria-label="Produttore da consentire" required>
+        <option value="">Scegli il produttore</option>
+        {% for p in produttori_proposti %}<option value="{{ p.etichetta }}">{{ p.etichetta }} ({{ p.n }} da classificare)</option>{% endfor %}
+      </select>
+      <button type="submit" class="sc-mini-btn">Consenti tutto</button>
+    </form>
+  </details>
+  <details class="sc-card" id="dotazione"{% if dotazione_mancanti %} open{% endif %}>
+    <summary class="sc-dot-summary"><span>Dotazione attesa{% if dotazione %} <span class="sc-meta">{{ dotazione|length }} regol{{ dotazione|length|pluralize:"a,e" }}{% if dotazione_percento is not None %} · copertura {{ dotazione_percento }}%{% endif %}</span>{% endif %}</span>{% if dotazione_mancanti %}<span class="sc-tag sc-tag--warn">manca su {{ dotazione_mancanti }} PC</span>{% elif dotazione %}<span class="sc-tag sc-tag--ok">tutto presente</span>{% endif %}</summary>
+    <p class="sc-note" style="margin:8px 0 4px">Che cosa deve esserci sui PC di un tipo o di un reparto: antivirus, agente di backup, il CAM dell'officina. Il confronto con l'inventario dice dove manca; i PC senza inventario non contano. Lo stesso scostamento compare nel riquadro Rischio del PC.</p>
+    {% for d in dotazione %}
+    <div class="sc-dot-rule">
+      <div class="sc-dot-name"><strong>{{ d.regola.etichetta|default:d.regola.programma }}</strong><span class="sc-meta">{{ d.regola.get_ambito_display }}{% if d.regola.reparto %} · {{ d.regola.reparto }}{% else %} · tutti i reparti{% endif %}{% if d.senza_inventario %} · {{ d.senza_inventario }} senza inventario{% endif %}{% if d.regola.nota %} · {{ d.regola.nota }}{% endif %}</span></div>
+      <div class="sc-dot-bar" role="img" aria-label="{{ d.coperti }} PC con il programma su {{ d.confrontati }}">{% if d.confrontati %}<i style="width:{{ d.percento }}%"></i>{% if d.mancanti %}<i class="is-bad" style="left:{{ d.percento }}%;width:calc(100% - {{ d.percento }}%)"></i>{% endif %}{% endif %}</div>
+      <div class="sc-dot-pct">{% if d.confrontati %}{{ d.coperti }}/{{ d.confrontati }}{% else %}<span class="sc-meta">nessun PC</span>{% endif %}</div>
+      <div class="sc-dot-chips">{% for a in d.mancanti|slice:":6" %}<a class="sc-chip" href="{% url 'assets:asset_view' a.pk %}" title="{{ a.name }}{% if a.reparto %} · {{ a.reparto }}{% endif %}: manca {{ d.regola.etichetta|default:d.regola.programma }}">{{ a.name }}</a>{% endfor %}{% if d.mancanti|length > 6 %}<details class="sc-chip-more"><summary class="sc-chip">+{{ d.mancanti|length|add:"-6" }}</summary><p class="sc-meta" style="margin:4px 0 0">{% for a in d.mancanti|slice:"6:" %}<a href="{% url 'assets:asset_view' a.pk %}">{{ a.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p></details>{% endif %}{% if not d.mancanti %}<span class="sc-tag sc-tag--ok">presente ovunque</span>{% endif %}</div>
+      <form method="post" class="sc-dot-togli">{% csrf_token %}<input type="hidden" name="azione" value="dotazione_togli"><input type="hidden" name="regola" value="{{ d.regola.pk }}"><button type="submit" class="sc-mini-btn" title="Togli la regola «{{ d.regola }}»">Togli</button></form>
+    </div>
+    {% endfor %}
+    <form method="post" class="sc-dot-form">{% csrf_token %}<input type="hidden" name="azione" value="dotazione_aggiungi">
+      <label>Programma<select name="programma" class="js-searchable" data-placeholder="Cerca il programma" required>
+        <option value="">Scegli il programma</option>
+        {% for value, label in dotazione_scelte %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select></label>
+      <label>Su quali asset<select name="ambito">{% for value, label in dotazione_ambiti %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+      <label>Reparto<input type="text" name="reparto" list="sc-reparti" placeholder="vuoto = tutti" maxlength="120"></label>
+      <datalist id="sc-reparti">{% for r in dotazione_reparti %}<option value="{{ r }}"></option>{% endfor %}</datalist>
+      <label>Nota<input type="text" name="nota" placeholder="facoltativa" maxlength="255"></label>
+      <button type="submit" class="sc-mini-btn">Aggiungi alla dotazione</button>
+    </form>
+  </details>
+  <form method="post" id="sc-blocco" class="sc-card sc-blocco">{% csrf_token %}<input type="hidden" name="azione" value="classifica">
+    <strong id="sc-blocco-n">Nessun programma selezionato</strong>
+    <select name="classification" aria-label="Classificazione" required>{% for value, label in classification_choices %}{% if value != "da_classificare" %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}<option value="da_classificare">Da classificare</option></select>
+    <select name="licensing" aria-label="Licenza"><option value="">Licenza: non cambiare</option>{% for value, label in licensing_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <button type="submit" class="sc-mini-btn" id="sc-blocco-ok" disabled>Applica</button>
+  </form>
+  {% endif %}
   <div class="sc-card sc-table-wrap">
     <table class="sc-table">
-      <thead><tr><th>Software</th><th>PC</th><th>Versioni</th><th>Classificazione</th><th>Licenza</th><th>Versione minima</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
+      <thead><tr>{% if can_edit %}<th data-fm-no-sort="1"><input type="checkbox" id="sc-tutti" aria-label="Seleziona i programmi visibili" title="Seleziona i programmi visibili"></th>{% endif %}<th>Software</th><th>PC</th><th>Versioni</th><th>Classificazione</th><th>Licenza</th><th>Versione minima</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
       <tbody>
       {% for row in rows %}
         <tr>
-          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}</span></td>
+          {% if can_edit %}<td><input type="checkbox" name="k" value="{{ row.key }}" form="sc-blocco" class="sc-scelta" aria-label="Seleziona {{ row.name }}"></td>{% endif %}
+          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a>{% if row.nuovo_dal %} <span class="sc-tag sc-tag--warn" title="Mai visto prima del {{ row.nuovo_dal|date:'d/m/Y' }} e ancora senza decisione"><i class="sc-dot-pulse"></i>nuovo dal {{ row.nuovo_dal|date:"d/m" }}</span>{% endif %}<br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
-          <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span></td>
+          <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span>{% if row.da_regola %}<br><span class="sc-meta">da regola</span>{% endif %}</td>
           <td>
             <span class="sc-meta">{{ row.licensing_label }}</span>
             {% if row.license_state == "coperta" %}<br><span class="sc-tag sc-tag--ok">Licenza valida</span>{% if row.seats %} <span class="sc-meta">{{ row.hosts }}/{{ row.seats }} posti</span>{% endif %}
@@ -64,7 +161,7 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
             {% if row.paid_without_license %}<br><span class="sc-tag sc-tag--warn">A pagamento senza licenza</span>{% endif %}
           </td>
           <td>{% if row.min_version %}{{ row.min_version }}{% if row.outdated %}<br><span class="sc-tag sc-tag--warn">{{ row.outdated }} PC sotto</span>{% endif %}{% else %}<span class="sc-meta">—</span>{% endif %}</td>
-          {% if show_cve %}<td>{% if row.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}?k={{ row.key|urlencode }}" title="Vedi le CVE di {{ row.name }}">{{ row.cves }} CVE</button>{% else %}<span class="sc-meta">—</span>{% endif %}</td>{% endif %}
+          {% if show_cve %}<td>{% if row.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}?k={{ row.key|urlencode }}" title="Vedi le CVE di {{ row.name }}">{{ row.cves }} CVE</button>{% elif row.cve_stato == "non_controllato" %}<span class="sc-tag sc-tag--muted" title="Non è collegato a un CPE: il SOC non può dire se ha CVE">non controllato</span>{% else %}<span class="sc-meta">—</span>{% endif %}</td>{% endif %}
         </tr>
       {% empty %}
         <tr><td colspan="7" class="sc-meta">{% if q or filter_code != "all" %}Nessun software con questi filtri.{% else %}Nessun software: l'inventario non è ancora stato importato nel SOC (Configurazione › Inventario software).{% endif %}</td></tr>

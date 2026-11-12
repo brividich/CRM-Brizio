@@ -1,12 +1,13 @@
 {% extends "core/base.html" %}
 {% load static %}
 {% load anagrafica_extras %}
+{% load presenti_tags %}
 
 {% block title %}Dipendenti | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -43,6 +44,7 @@
       {% url 'anagrafica:dipendenti_list' as u_dip %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_totale label="In elenco" sub="schede dipendente" url=u_dip %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_attivi label="Attivi" sub="scheda attiva" %}
+      {% if n_esclusi_conteggi %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-users" valore=n_esclusi_conteggi label="Fuori conteggio" sub="in elenco, non nell'organico" %}{% endif %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_attivi label="Non attivi" sub="scheda disattivata" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="con almeno un dipendente" %}
       {% url 'anagrafica:ex_dipendenti_list' as u_ex %}
@@ -72,6 +74,12 @@
         <select class="fmd-select" name="area" aria-label="Filtra per reparto del catalogo">
           <option value="">Reparto (catalogo)</option>
           {% for a in aree %}<option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        {% if centri_costo %}
+        <select class="fmd-select" name="centro_costo" aria-label="Filtra per centro di costo">
+          <option value="">Tutti i centri di costo</option>
+          {% for c in centri_costo %}<option value="{{ c }}"{% if c == centro_costo %} selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
         {% endif %}
         {% if tipologie_contratto %}
@@ -109,7 +117,7 @@
                 <div class="fmd-person">
                   <span class="fmd-avatar">{% if dip.foto_url %}<img src="{{ dip.foto_url }}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover;">{% else %}{% nominativo_iniziali dip %}{% endif %}</span>
                   <span>
-                    <span class="fmd-cell-main">{% nominativo dip %}</span>
+                    <span class="fmd-cell-main">{% nominativo dip %}{% pallino_presenza dip.timbri_legacy_id %}</span>
                     {% if dip.timbri_legacy_id %}<span class="fmd-cell-sub"><span class="fmd-code">#{{ dip.timbri_legacy_id }}</span></span>{% endif %}
                     {% comment %}
                     Termini della ricerca server-side che non sono a video (username, matricola):
@@ -172,7 +180,7 @@
         {% elif contratti_in_scadenza %}
         <div class="fmd-sidelist">
           {% for v in contratti_in_scadenza|slice:":8" %}
-          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">
+          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}#scheda-contratto">
             <span><b>{% nominativo nome=v.nome cognome=v.cognome %}</b><span class="fmd-sub2">{{ v.tipo_nome }} · {{ v.data_scadenza|date:"d-m-Y" }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</span></span>
             <span class="fmd-badge {% if v.giorni <= 30 %}fmd-b-orange{% else %}fmd-b-amber{% endif %}">{{ v.giorni }}gg</span>
           </a>

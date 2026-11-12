@@ -149,7 +149,9 @@ def device_list(request: HttpRequest) -> HttpResponse:
 
     bulk_list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
     bulk_asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
-    maint_kpis = get_maintenance_kpis_for_types(IT_DEVICE_TYPES)
+    from ..services.visibilita import ids_visibili
+
+    maint_kpis = get_maintenance_kpis_for_types(IT_DEVICE_TYPES, visibili=ids_visibili(request))
     return render(request, "assets/pages/device_list.html", {
         "page_title": "Dispositivi IT",
         "filters_form": form,

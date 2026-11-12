@@ -49,6 +49,9 @@ class SuggestionCorner(models.Model):
     legacy_sharepoint_id = models.IntegerField(null=True, blank=True, unique=True, db_index=True)
     da_portale = models.BooleanField(default=True)  # True = nuovo, False = migrato
     anonima = models.BooleanField(default=False)
+    # Nome scritto da chi si identifica dal form pubblico senza login (QR in
+    # bacheca): created_by resta vuoto, il nome è quello dichiarato.
+    segnalante_nome = models.CharField(max_length=150, blank=True)
 
     data_segnalazione = models.DateField(default=timezone.localdate)
     # Provenienza/destinazione = Reparto OPPURE Area Aziendale (un'Area è
@@ -178,6 +181,15 @@ class SuggestionCorner(models.Model):
             return self.Stato(self.stato).label
         except ValueError:
             return self.stato
+
+    @property
+    def segnalante_display(self) -> str:
+        """Chi ha inviato: «Anonima», l'account, il nome dichiarato o «—»."""
+        if self.anonima:
+            return "Anonima"
+        if self.created_by_id:
+            return self.created_by.get_full_name() or self.created_by.get_username()
+        return self.segnalante_nome or "—"
 
     @property
     def provenienza_display(self) -> str:
@@ -391,6 +403,10 @@ class SuggestionCornerAllegato(models.Model):
     def __str__(self) -> str:
         return self.file.name or self.link_esterno or f"Allegato #{self.pk}"
 
+    @property
+    def is_immagine(self) -> bool:
+        return (self.file.name or "").lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+
 
 class SuggestionCornerStorico(models.Model):
     segnalazione = models.ForeignKey(
@@ -422,6 +438,9 @@ class SuggestionCornerConfig(models.Model):
     giorni_escalation_oltre_scadenza = models.PositiveIntegerField(default=7)
     email_responsabile_escalation = models.EmailField(blank=True)
     sms_team_group_name = models.CharField(max_length=100, default="SMS_TEAM")
+    # Indirizzo stampato nel QR delle locandine. Vuoto = SITE_URL (o l'host
+    # della richiesta) + /suggestion-corner/nuova/.
+    url_pubblico_form = models.URLField(blank=True, max_length=300)
 
     class Meta:
         verbose_name = "Configurazione Suggestion Corner"
@@ -457,3 +476,49 @@ class SuggestionCornerProcessoMapping(models.Model):
 
     def __str__(self) -> str:
         return f"{self.valore_libero} → {self.processo or '(default)'}"
+
+
+class SuggestionCornerLocandina(models.Model):
+    """Preset della locandina con QR da appendere nelle bacheche.
+
+    Il QR (sempre al centro della pagina) porta al form pubblico; il preset
+    decide solo i testi, i colori e il formato di stampa (vedi locandina.py).
+    """
+
+    class Tema(models.TextChoices):
+        HUB = "hub", "Blu e arancio (HUB)"
+        VERDE = "verde", "Verde"
+        ROSSO = "rosso", "Rosso sicurezza"
+        GRIGIO = "grigio", "Grigio sobrio"
+
+    class Formato(models.TextChoices):
+        A4 = "A4", "A4"
+        A3 = "A3", "A3"
+
+    nome = models.CharField(max_length=80, unique=True)
+    titolo = models.CharField(max_length=60)
+    sottotitolo = models.CharField(max_length=140, blank=True)
+    invito = models.CharField(max_length=70, blank=True)
+    passi = models.TextField(blank=True, help_text="Un passo per riga, al massimo 3.")
+    nota = models.CharField(max_length=140, blank=True)
+    piede = models.CharField(max_length=120, blank=True)
+    tema = models.CharField(max_length=10, choices=Tema.choices, default=Tema.HUB)
+    formato = models.CharField(max_length=2, choices=Formato.choices, default=Formato.A4)
+    mostra_indirizzo = models.BooleanField(default=True)
+    predefinita = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Locandina QR"
+        verbose_name_plural = "Locandine QR"
+        ordering = ["-predefinita", "nome"]
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def elenco_passi(self) -> list[str]:
+        return [r.strip() for r in (self.passi or "").splitlines() if r.strip()][:3]

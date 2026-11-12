@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli
+from . import acl_v2_views, api, views, views_accessi_bloccati, views_accessi_negati, views_azioni_rapide, views_bacheca, views_centro_report, views_postazioni, views_ruoli, views_sapere
 from .views import menu_portale
 
 
@@ -133,7 +133,9 @@ urlpatterns = [
     path("accessi/preset/", views.accessi_preset, name="accessi_preset"),
     path("ruoli-portale/", views_ruoli.ruoli_portale, name="ruoli_portale"),
     path("ruoli-portale/persona/<int:legacy_user_id>/", views_ruoli.ruoli_portale_persona, name="ruoli_portale_persona"),
+    path("ruoli-portale/persona/<int:legacy_user_id>/eccezione/", views_ruoli.ruoli_portale_eccezione, name="ruoli_portale_eccezione"),
     path("ruoli-portale/matrice/<int:ruolo_id>/", views_ruoli.ruoli_portale_matrice, name="ruoli_portale_matrice"),
+    path("ruoli-portale/percorso/", views_ruoli.ruoli_portale_percorso, name="ruoli_portale_percorso"),
     path("ruoli-portale/organigramma/<int:ruolo_id>/", views_ruoli.ruoli_portale_organigramma, name="ruoli_portale_organigramma"),
     path("ruoli-portale/riesame.xlsx", views_ruoli.ruoli_portale_riesame, name="ruoli_portale_riesame"),
     path("ruoli-portale/ruolo/nuovo/", views_ruoli.ruoli_portale_ruolo, name="ruoli_portale_ruolo_nuovo"),
@@ -142,6 +144,8 @@ urlpatterns = [
     path("ruoli-portale/sistema/", views_ruoli.ruoli_portale_sistema, name="ruoli_portale_sistema"),
     path("accessi-negati/", views_accessi_negati.accessi_negati, name="accessi_negati"),
     path("accessi-negati/azione/", views_accessi_negati.accessi_negati_azione, name="accessi_negati_azione"),
+    path("accessi-bloccati/", views_accessi_bloccati.accessi_bloccati, name="accessi_bloccati"),
+    path("accessi-bloccati/sblocca/", views_accessi_bloccati.accessi_bloccati_sblocca, name="accessi_bloccati_sblocca"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),
     path("accessi-semplice/", views.accessi_semplice, name="accessi_semplice"),
     path("accessi-avanzati/", views.accessi_dashboard, name="accessi_avanzati"),
@@ -176,4 +180,9 @@ urlpatterns = [
     path("api/bacheca/link/delete", views_bacheca.api_hub_link_delete, name="api_hub_link_delete"),
     path("api/bacheca/link/toggle", views_bacheca.api_hub_link_toggle, name="api_hub_link_toggle"),
     path("api/bacheca/reorder", views_bacheca.api_hub_reorder, name="api_hub_reorder"),
+    path("api/bacheca/link/copertina", views_bacheca.api_hub_link_copertina, name="api_hub_link_copertina"),
+    # Cataloghi della stanza «Sapere»
+    path("home/azioni-rapide/", views_azioni_rapide.home_azioni_rapide, name="home_azioni_rapide"),
+    path("sapere/cataloghi/", views_sapere.sapere_cataloghi, name="sapere_cataloghi"),
+    path("sapere/cataloghi/<int:pk>/", views_sapere.sapere_catalogo, name="sapere_catalogo"),
 ]

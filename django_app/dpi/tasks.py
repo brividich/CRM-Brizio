@@ -21,7 +21,29 @@ def run_dpi_expiry_reminders() -> dict:
 
     try:
         call_command("send_dpi_expiry_reminders", verbosity=0)
-        return {"ok": True}
+        solleciti = 0
+        try:
+            from .conferme import sollecita
+
+            # Conferme di ricevuta senza risposta da 3 giorni: un solo promemoria.
+            solleciti = sollecita()
+        except Exception:
+            logger.exception("run_dpi_expiry_reminders: solleciti conferma ricevuta non inviati")
+        promemoria_scarpe = 0
+        try:
+            from .negozio import promemoria_ordine
+
+            promemoria_scarpe = promemoria_ordine()
+        except Exception:
+            logger.exception("run_dpi_expiry_reminders: promemoria riepilogo scarpe non inviato")
+        return {"ok": True, "solleciti_conferma": solleciti, "promemoria_scarpe": promemoria_scarpe}
     except Exception:
         logger.exception("run_dpi_expiry_reminders: eccezione inattesa")
         raise
+
+
+def run_dpi_avvisi_consegna() -> dict:
+    """Mail e PDF delle consegne dal banco rimasti in sospeso (browser chiuso, rete caduta)."""
+    from .views import completa_consegne_in_sospeso
+
+    return {"ok": True, "completate": completa_consegne_in_sospeso()}

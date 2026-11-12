@@ -71,6 +71,11 @@ class Fornitore(models.Model):
         default="",
     )
     is_active = models.BooleanField(default=True, verbose_name="Attivo")
+    accede_in_sede = models.BooleanField(
+        default=False, verbose_name="Lavora nei nostri locali",
+        help_text="Appalti, manutenzioni e servizi svolti in azienda: servono i documenti di sicurezza "
+                  "(art. 26 D.Lgs. 81/2008) e l'ingresso viene controllato.",
+    )
     note = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -124,6 +129,12 @@ class FornitoreDocumento(models.Model):
     TIPO_OFFERTA = "OFFERTA"
     TIPO_CERTIFICAZIONE = "CERTIFICAZIONE"
     TIPO_VISURA = "VISURA"
+    TIPO_DURC = "DURC"
+    TIPO_IDONEITA = "IDONEITA"
+    TIPO_DUVRI = "DUVRI"
+    TIPO_RCT = "RCT"
+    TIPO_POS = "POS"
+    TIPO_FORMAZIONE = "FORMAZIONE"
     TIPO_ALTRO = "ALTRO"
 
     TIPO_CHOICES = [
@@ -131,6 +142,12 @@ class FornitoreDocumento(models.Model):
         (TIPO_OFFERTA, "Offerta"),
         (TIPO_CERTIFICAZIONE, "Certificazione"),
         (TIPO_VISURA, "Visura camerale"),
+        (TIPO_DURC, "DURC"),
+        (TIPO_IDONEITA, "Idoneità tecnico-professionale"),
+        (TIPO_DUVRI, "DUVRI"),
+        (TIPO_RCT, "Polizza RCT/RCO"),
+        (TIPO_POS, "POS (piano operativo di sicurezza)"),
+        (TIPO_FORMAZIONE, "Formazione e idoneità dei lavoratori"),
         (TIPO_ALTRO, "Altro"),
     ]
 
@@ -145,6 +162,10 @@ class FornitoreDocumento(models.Model):
         storage=PrivateAnagraficaStorage(),
     )
     note = models.CharField(max_length=255, blank=True, default="")
+    data_scadenza = models.DateField(
+        null=True, blank=True, verbose_name="Scadenza",
+        help_text="Fino a quando vale (es. DURC 120 giorni, visura 6 mesi, polizza, fine contratto per il DUVRI).",
+    )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1034,6 +1055,27 @@ class Reparto(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Centri di costo: raggruppano più reparti dell'elenco dell'azienda, cioè più
+# aree del portale. Un'area sta in un solo centro (FK sull'area), non il
+# contrario. Elenco iniziale in ``centri_costo_dati.py``.
+# ---------------------------------------------------------------------------
+
+class CentroDiCosto(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Centro di costo"
+        verbose_name_plural = "Centri di costo"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
 # Aree aziendali (sotto-articolazione di un reparto, es. "IN1", "IN2", "IT",
 # "DM"). Un reparto può avere più aree aziendali; un'area aziendale
 # appartiene a un solo reparto. Il "responsabile" è opzionale e distinto dal
@@ -1077,6 +1119,15 @@ class AreaAziendale(models.Model):
         "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="aree_responsabilita", verbose_name="Ruolo responsabile",
         help_text="Ruolo della struttura responsabile dell'area. Vuoto = quello del reparto.",
+    )
+    centro_di_costo = models.ForeignKey(
+        CentroDiCosto, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="aree", verbose_name="Centro di costo",
+    )
+    ruoli_reparto = models.ManyToManyField(
+        "anagrafica.RuoloOperativo", blank=True, related_name="aree_reparto",
+        verbose_name="Ruoli del reparto",
+        help_text="Ruoli presenti in questo reparto, dall'elenco dell'azienda.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1335,6 +1386,18 @@ class DipendenteAnagraficaAziendale(models.Model):
         max_length=200, blank=True, default="", verbose_name="Motivo dell'eccezione",
     )
     ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
+    # Persone da tenere in anagrafica (CEO, RSPP esterno, consulenti...) ma da non
+    # contare nell'organico: KPI persone in forza, turnover, organico per reparto,
+    # indici infortuni. Restano in elenchi, scadenze, formazione e visite.
+    escluso_dai_conteggi = models.BooleanField(
+        default=False,
+        verbose_name="Escludi dai conteggi dell'organico",
+        help_text="La persona resta in anagrafica ma non entra in persone in forza, turnover e indici.",
+    )
+    motivo_esclusione_conteggi = models.CharField(
+        max_length=120, blank=True, default="", verbose_name="Motivo dell'esclusione",
+        help_text="Es. amministratore, RSPP esterno, consulente.",
+    )
 
     taglia_scarpe = models.CharField(max_length=10, blank=True, default="")
     taglia_pantalone = models.CharField(max_length=20, blank=True, default="")

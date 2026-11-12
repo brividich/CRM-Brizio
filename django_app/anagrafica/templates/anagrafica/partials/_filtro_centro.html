@@ -1,0 +1,13 @@
+{# Barra «Centro di costo» delle dashboard: nota = cosa resta di tutta l'azienda. #}
+{% if filtro_centro.scelte %}
+<form method="get" class="fmd-panel fmd-toolbar" style="margin-bottom:16px;">
+  {% for k, v in filtro_centro.conserva %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {% include "anagrafica/partials/_filtro_centro_select.html" %}
+  <noscript><button type="submit" class="fmd-btn fmd-btn-primary">Filtra</button></noscript>
+  {% if filtro_centro.attivo %}
+  <a class="fmd-btn fmd-btn-ghost" href="?{{ filtro_centro.senza_filtro }}">Togli il filtro</a>
+  {% if nota %}<span class="fmd-muted" style="font-size:12.5px;">{{ nota }}</span>{% endif %}
+  {% endif %}
+  {% if filtro_centro.avviso %}<span class="fmd-muted" style="font-size:12.5px;" role="status">{{ filtro_centro.avviso }}</span>{% endif %}
+</form>
+{% endif %}

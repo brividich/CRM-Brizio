@@ -2,16 +2,64 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v6"
 
 _PULSANTI_DEFINITIONS = [
     {
         "modulo": "procedure_refresh",
         "codice": "pr_view",
-        "label": "Presa Visione - Le mie letture",
+        "label": "CN-SGI - Libreria delle procedure",
         "url": "/procedure-refresh/",
         "visible_topbar": True,
         "ui_order": 70,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_letture",
+        "label": "CN-SGI - Le mie letture",
+        "url": "/procedure-refresh/letture/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_visibilita",
+        "label": "CN-SGI - Chi vede cosa",
+        "url": "/procedure-refresh/admin/visibilita/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_scaffali",
+        "label": "CN-SGI - Scaffali",
+        "url": "/procedure-refresh/admin/scaffali/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_collegamenti",
+        "label": "CN-SGI - Collegamenti ai moduli",
+        "url": "/procedure-refresh/admin/collegamenti/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_da_rivedere",
+        "label": "CN-SGI - Da rivedere",
+        "url": "/procedure-refresh/admin/da-rivedere/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_audit",
+        "label": "CN-SGI - Pacchetto audit",
+        "url": "/procedure-refresh/audit/",
+        "visible_topbar": False,
+        "ui_order": None,
     },
     {
         "modulo": "procedure_refresh",
@@ -124,13 +172,13 @@ def _bootstrap_navigation() -> bool:
     item, created = NavigationItem.objects.get_or_create(
         code="procedure_refresh",
         defaults={
-            "label": "Presa Visione",
+            "label": "CN-SGI",
             "section": "topbar",
-            "route_name": "procedure_refresh:my_assignments",
+            "route_name": "procedure_refresh:libreria",
             "order": 70,
             "is_visible": True,
             "is_enabled": True,
-            "description": "Presa visione procedure MT/MTSI",
+            "description": "Libreria delle procedure del sistema di gestione integrato",
             "icon": "file-text",
         },
     )
@@ -143,8 +191,8 @@ def _bootstrap_navigation() -> bool:
         if item.section != "topbar":
             item.section = "topbar"
             updates.append("section")
-        if item.route_name != "procedure_refresh:my_assignments":
-            item.route_name = "procedure_refresh:my_assignments"
+        if item.route_name != "procedure_refresh:libreria":
+            item.route_name = "procedure_refresh:libreria"
             updates.append("route_name")
         if updates:
             item.save(update_fields=updates)

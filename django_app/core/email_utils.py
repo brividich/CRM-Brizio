@@ -7,6 +7,7 @@ per garantire il layout grafico uniforme (core/email/base_email.html).
 from __future__ import annotations
 
 import html as _html
+import logging
 import re as _re
 from typing import Sequence
 
@@ -14,6 +15,8 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
+
+logger = logging.getLogger(__name__)
 
 
 def render_hub_email_html(
@@ -27,8 +30,12 @@ def render_hub_email_html(
     cta_buttons: str = "",
     footer_note: str = "",
     preheader: str = "",
+    footer_line: str = "",
 ) -> str:
-    """Renderizza il layout grafico base attorno a un frammento HTML."""
+    """Renderizza il layout grafico base attorno a un frammento HTML.
+
+    ``footer_line``: riga sotto la scheda (vuota = «NOVICROM HUB · Portale interno · Email automatica»).
+    """
     return render_to_string("core/email/base_email.html", {
         "email_type": email_type,
         "badge": badge,
@@ -39,6 +46,7 @@ def render_hub_email_html(
         "cta_buttons": mark_safe(cta_buttons),
         "footer_note": footer_note,
         "preheader": preheader,
+        "footer_line": footer_line,
     })
 
 
@@ -199,6 +207,35 @@ def email_item_cards(items: Sequence[dict]) -> str:
     )
 
 
+class _MailConImmagini(EmailMultiAlternatives):
+    """Mail con immagini dentro il corpo (``<img src="cid:...">``), non come allegati.
+
+    Struttura: mixed[ related[ alternative[testo, html], immagini ], allegati ]. Le immagini ``data:``
+    non servono: Outlook e Gmail le bloccano, quelle ``cid:`` invece le mostrano.
+    """
+
+    def __init__(self, *args, immagini=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.immagini = list(immagini)
+
+    def _create_alternatives(self, msg):
+        msg = super()._create_alternatives(msg)
+        if not self.immagini:
+            return msg
+        from email.mime.image import MIMEImage
+
+        from django.core.mail.message import SafeMIMEMultipart
+
+        related = SafeMIMEMultipart(_subtype="related", encoding=self.encoding)
+        related.attach(msg)
+        for cid, contenuto, mimetype in self.immagini:
+            immagine = MIMEImage(contenuto, _subtype=mimetype.split("/", 1)[-1])
+            immagine.add_header("Content-ID", f"<{cid}>")
+            immagine.add_header("Content-Disposition", "inline", filename=f"{cid}.{mimetype.split('/', 1)[-1]}")
+            related.attach(immagine)
+        return related
+
+
 def send_hub_mail(
     subject: str,
     body_text: str,
@@ -216,6 +253,8 @@ def send_hub_mail(
     attachments: list | None = None,
     cc: list[str] | Sequence[str] | None = None,
     fail_silently: bool = False,
+    footer_line: str = "",
+    inline_images: list | None = None,
 ) -> int:
     """
     Invia una email con layout grafico NOVICROM HUB.
@@ -225,6 +264,8 @@ def send_hub_mail(
     attachments: lista opzionale di tuple ``(filename, content, mimetype)`` allegate
                  al messaggio (es. un invito calendario .ics).
     cc: lista opzionale di indirizzi in copia conoscenza.
+    inline_images: tuple ``(cid, content, mimetype)`` mostrate nel corpo con ``<img src="cid:<cid>">``
+                   dentro ``body_html_fragment`` (es. il QR di un invito), non come allegati.
     """
     if not from_email:
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
@@ -237,16 +278,18 @@ def send_hub_mail(
         badge=badge,
         section_label=section_label,
         footer_note=footer_note,
+        footer_line=footer_line,
         preheader=preheader,
     )
 
-    msg = EmailMultiAlternatives(
+    msg = _MailConImmagini(
         subject=subject,
         body=body_text,
         from_email=from_email,
         to=list(recipients),
         cc=list(cc) if cc else None,
         connection=connection,
+        immagini=inline_images or (),
     )
     msg.attach_alternative(html_body, "text/html")
     for att in (attachments or []):
@@ -255,4 +298,20 @@ def send_hub_mail(
             msg.attach(filename, content, mimetype)
         except Exception:
             pass
-    return msg.send(fail_silently=fail_silently)
+    try:
+        inviate = msg.send(fail_silently=fail_silently)
+    except Exception as exc:
+        _registra_invio(subject, recipients, cc, email_type, errore=str(exc) or type(exc).__name__)
+        raise
+    _registra_invio(subject, recipients, cc, email_type, errore="" if inviate else "Nessuna mail consegnata al server di posta.")
+    return inviate
+
+
+def _registra_invio(subject, recipients, cc, email_type: str, *, errore: str = "") -> None:
+    """Automazioni → «Mail inviate»: ogni mail del portale, promemoria compresi. Non blocca mai l'invio."""
+    try:
+        from automazioni.mail_inviate import registra
+
+        registra(origine="hub", destinatari=recipients, copia=cc, oggetto=subject, sorgente=email_type, errore=errore)
+    except Exception:
+        logger.warning("Mail non scritta nel registro", exc_info=True)

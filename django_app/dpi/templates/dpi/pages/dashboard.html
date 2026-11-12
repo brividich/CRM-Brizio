@@ -82,6 +82,41 @@
   .dpi-kpi-row { grid-template-columns:repeat(2,1fr); }
 }
 
+.dpi-task {
+  background:#fff; border:1px solid #e2e8f0; border-left:4px solid #94a3b8; border-radius:14px; padding:16px 18px;
+  display:flex; flex-direction:column; gap:4px; text-decoration:none; transition:box-shadow .15s, transform .15s;
+}
+.dpi-task:hover { box-shadow:0 4px 14px rgba(15,23,42,.1); transform:translateY(-1px); }
+.dpi-task-nota { font-size:11px; color:#64748b; }
+.dpi-task-blu { border-left-color:#0369a1; } .dpi-task-blu .dpi-kpi-val { color:#0369a1; }
+.dpi-task-arancione { border-left-color:#d97706; } .dpi-task-arancione .dpi-kpi-val { color:#d97706; }
+.dpi-task-rosso { border-left-color:#dc2626; } .dpi-task-rosso .dpi-kpi-val { color:#dc2626; }
+.dpi-task-zero { border-left-color:#cbd5e1; } .dpi-task-zero .dpi-kpi-val { color:#94a3b8; }
+
+.dpi-mia { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:8px; }
+.dpi-mia-testa { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.dpi-mia-esito { font-size:12px; font-weight:700; color:#64748b; }
+.dpi-riga {
+  display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid #e2e8f0; border-left:4px solid #cbd5e1;
+  border-radius:10px; text-decoration:none; color:inherit; flex-wrap:wrap;
+}
+a.dpi-riga:hover { background:#f8fafc; }
+.dpi-riga-rosso { border-left-color:#dc2626; } .dpi-riga-rosso strong { color:#b91c1c; }
+.dpi-riga-arancione { border-left-color:#d97706; } .dpi-riga-arancione strong { color:#b45309; }
+.dpi-riga-verde { border-left-color:#16a34a; }
+.dpi-riga-manca { border-left-color:#dc2626; }
+.dpi-riga-aperta { border-left-color:#0369a1; }
+.dpi-riga-ico { width:34px; height:34px; border-radius:50%; background:#f0fdf4; color:#15803d; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
+.dpi-riga-ico img { width:100%; height:100%; object-fit:cover; }
+.dpi-riga-ico .dpi-ico { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.dpi-riga-testo { flex:1 1 220px; min-width:0; }
+.dpi-riga-nome { font-size:13px; font-weight:700; color:#0f172a; overflow-wrap:anywhere; }
+.dpi-riga-sub { font-size:12px; color:#64748b; margin-top:1px; }
+.dpi-riga-btn { padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none; color:#475569; background:#f1f5f9; white-space:nowrap; }
+.dpi-riga-btn:hover { background:#e2e8f0; }
+.dpi-riga-btn-forte { background:#15803d; color:#fff; }
+.dpi-riga-btn-forte:hover { background:#166534; }
+
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
@@ -107,12 +142,33 @@ body.theme-dark .dpi-badge-RIFIUTATA { background:rgba(153,27,27,.2);  color:#fc
 body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94a3b8; }
 body.theme-dark .dpi-cat-chip { background:rgba(21,128,61,.2); color:#86efac; border-color:rgba(21,128,61,.35); }
 body.theme-dark .dpi-empty { color:var(--text-light); }
-  
+body.theme-dark .dpi-task { background:var(--surface); border-top-color:var(--border); border-right-color:var(--border); border-bottom-color:var(--border); }
+body.theme-dark .dpi-task-blu { border-left-color:#60a5fa; } body.theme-dark .dpi-task-blu .dpi-kpi-val { color:#60a5fa !important; }
+body.theme-dark .dpi-task-arancione { border-left-color:#fb923c; } body.theme-dark .dpi-task-arancione .dpi-kpi-val { color:#fb923c !important; }
+body.theme-dark .dpi-task-rosso { border-left-color:#f87171; } body.theme-dark .dpi-task-rosso .dpi-kpi-val { color:#f87171 !important; }
+body.theme-dark .dpi-task-zero { border-left-color:var(--border); } body.theme-dark .dpi-task-zero .dpi-kpi-val { color:var(--text-light) !important; }
+body.theme-dark .dpi-task-nota, body.theme-dark .dpi-mia-esito, body.theme-dark .dpi-riga-sub { color:var(--text-light); }
+body.theme-dark .dpi-mia { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-riga { border-top-color:var(--border); border-right-color:var(--border); border-bottom-color:var(--border); }
+body.theme-dark a.dpi-riga:hover { background:var(--tbody-hover); }
+body.theme-dark .dpi-riga-rosso strong { color:#fca5a5; }
+body.theme-dark .dpi-riga-arancione strong { color:#fcd34d; }
+body.theme-dark .dpi-riga-nome { color:var(--text); }
+body.theme-dark .dpi-riga-ico { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .dpi-riga-btn { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .dpi-riga-btn-forte { background:#15803d; color:#fff; }
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .dpi-hbtn-white{background:var(--surface);color:#86efac}
 body.theme-dark .dpi-hbtn-white:hover{background:rgba(56,161,105,.18)}
 body.theme-dark .dpi-hbtn-outline{background:rgba(255,255,255,.06)}
 body.theme-dark .dpi-hbtn-outline:hover{background:rgba(255,255,255,.06)}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
@@ -128,41 +184,84 @@ body.theme-dark .dpi-hbtn-outline:hover{background:rgba(255,255,255,.06)}
     </div>
     <div class="dpi-hero-actions">
       <a href="{% url 'dpi:nuova' %}" class="dpi-hbtn dpi-hbtn-white">+ Nuova richiesta</a>
-      {% if is_gestore %}
-      <a href="{% url 'dpi:gestione_list' %}" class="dpi-hbtn dpi-hbtn-outline">Gestione richieste</a>
-      {% endif %}
+      <a href="{% url 'guida_modulo' 'dpi' %}" class="dpi-hbtn dpi-hbtn-outline">? Guida</a>
     </div>
   </div>
 
-  <!-- KPI -->
-  <div class="dpi-kpi-row">
-    <div class="dpi-kpi dpi-kpi-blue">
-      <div class="dpi-kpi-val">{{ n_inviate }}</div>
-      <div class="dpi-kpi-lbl">{% if is_gestore %}In attesa{% else %}Mie inviate{% endif %}</div>
+  {% if da_fare %}
+  <section aria-label="Da fare">
+    <div class="dpi-section-title">Da fare</div>
+    <div class="dpi-kpi-row">
+      {% for t in da_fare %}
+      <a href="{{ t.url }}" class="dpi-task dpi-task-{{ t.tono }}">
+        <span class="dpi-kpi-val">{{ t.n }}</span>
+        <span class="dpi-kpi-lbl">{{ t.etichetta }}</span>
+        {% if t.nota %}<span class="dpi-task-nota">{{ t.nota }}</span>{% endif %}
+      </a>
+      {% endfor %}
     </div>
-    <div class="dpi-kpi dpi-kpi-orange">
-      <div class="dpi-kpi-val">{{ n_approvate }}</div>
-      <div class="dpi-kpi-lbl">Approvate</div>
+  </section>
+  {% endif %}
+
+  {% if situazione %}
+  <section class="dpi-mia" aria-label="La mia dotazione">
+    <div class="dpi-mia-testa">
+      <div class="dpi-section-title">La mia dotazione</div>
+      <div class="dpi-mia-esito">
+        {% if situazione.n_da_sostituire %}{{ situazione.n_da_sostituire }} DPI da sostituire{% elif situazione.mancanti %}{% elif situazione.righe %}Tutto in regola{% endif %}
+      </div>
     </div>
-    <div class="dpi-kpi dpi-kpi-green">
-      <div class="dpi-kpi-val">{{ n_consegnate }}</div>
-      <div class="dpi-kpi-lbl">Consegnate</div>
+
+    {% for x in situazione.mancanti %}
+    <div class="dpi-riga dpi-riga-manca">
+      <div class="dpi-riga-ico">{% if x.categoria.immagine %}<img src="{{ x.categoria.immagine.url }}" alt="">{% else %}<svg class="dpi-ico"><use href="#i-dpi-{{ x.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}</div>
+      <div class="dpi-riga-testo">
+        <div class="dpi-riga-nome">{{ x.categoria.nome }}</div>
+        <div class="dpi-riga-sub">Previsto dalla tua mansione, non ancora consegnato</div>
+      </div>
+      <a class="dpi-riga-btn dpi-riga-btn-forte" href="{{ x.url }}">Richiedi</a>
     </div>
-    {% if is_gestore %}
-    <div class="dpi-kpi dpi-kpi-yellow">
-      <div class="dpi-kpi-val">{{ n_in_scadenza }}</div>
-      <div class="dpi-kpi-lbl">In scadenza (30 gg)</div>
+    {% endfor %}
+
+    {% for x in situazione.aperte %}
+    <a class="dpi-riga dpi-riga-aperta" href="{% url 'dpi:detail' x.richiesta.pk %}">
+      <div class="dpi-riga-ico">{% if x.richiesta.categoria.immagine %}<img src="{{ x.richiesta.categoria.immagine.url }}" alt="">{% else %}<svg class="dpi-ico"><use href="#i-dpi-{{ x.richiesta.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}</div>
+      <div class="dpi-riga-testo">
+        <div class="dpi-riga-nome">{{ x.richiesta.categoria.nome }}{% if x.richiesta.tipo_dpi %} · {{ x.richiesta.tipo_dpi.nome }}{% endif %}{% if x.richiesta.taglia_dpi %} · {{ x.richiesta.taglia_dpi.valore }}{% endif %}</div>
+        <div class="dpi-riga-sub">{{ x.richiesta.numero }} — {{ x.passo }}</div>
+      </div>
+      <span class="dpi-badge dpi-badge-{{ x.richiesta.stato }}">{{ x.richiesta.label_stato }}</span>
+    </a>
+    {% endfor %}
+
+    {% for x in situazione.righe %}
+    <div class="dpi-riga dpi-riga-{{ x.semaforo|default:'neutra' }}">
+      <div class="dpi-riga-ico">{% if x.richiesta.categoria.immagine %}<img src="{{ x.richiesta.categoria.immagine.url }}" alt="">{% else %}<svg class="dpi-ico"><use href="#i-dpi-{{ x.richiesta.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}</div>
+      <div class="dpi-riga-testo">
+        <div class="dpi-riga-nome">{{ x.richiesta.categoria.nome }}{% if x.richiesta.tipo_dpi %} · {{ x.richiesta.tipo_dpi.nome }}{% endif %}{% if x.richiesta.modello_dpi %} · {{ x.richiesta.modello_dpi.nome }}{% endif %}{% if x.richiesta.taglia_dpi %} · {{ x.richiesta.taglia_dpi.valore }}{% endif %}</div>
+        <div class="dpi-riga-sub">
+          Consegnato il {{ x.consegna.data_consegna|date:"d-m-Y" }} —
+          {% if x.semaforo == "rosso" %}<strong>scaduto da {{ x.giorni_fa }} giorn{{ x.giorni_fa|pluralize:"o,i" }}</strong>
+          {% elif x.semaforo == "arancione" %}<strong>{% if x.giorni == 0 %}scade oggi{% else %}scade tra {{ x.giorni }} giorn{{ x.giorni|pluralize:"o,i" }}{% endif %}</strong>
+          {% elif x.semaforo == "verde" %}valido fino al {{ x.consegna.data_scadenza_stimata|date:"d-m-Y" }}
+          {% else %}senza scadenza{% endif %}
+        </div>
+      </div>
+      {% if x.ricambio_aperto %}
+      <a class="dpi-riga-btn" href="{% url 'dpi:detail' x.ricambio_aperto.pk %}">Già richiesto: {{ x.ricambio_aperto.numero }}</a>
+      {% elif x.semaforo == "rosso" or x.semaforo == "arancione" %}
+      <a class="dpi-riga-btn dpi-riga-btn-forte" href="{{ x.url_ricambio }}">Richiedi il ricambio</a>
+      {% else %}
+      <a class="dpi-riga-btn" href="{{ x.url_ricambio }}">Rotto o perso?</a>
+      {% endif %}
     </div>
-    <div class="dpi-kpi dpi-kpi-red">
-      <div class="dpi-kpi-val">{{ n_scadute }}</div>
-      <div class="dpi-kpi-lbl">Scadute</div>
-    </div>
+    {% empty %}
+    {% if not situazione.mancanti and not situazione.aperte %}
+    <div class="dpi-empty">Non hai DPI in carico.</div>
     {% endif %}
-    <div class="dpi-kpi">
-      <div class="dpi-kpi-val">{{ n_totale }}</div>
-      <div class="dpi-kpi-lbl">Totale</div>
-    </div>
-  </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   <!-- Ultime richieste -->
   <div>

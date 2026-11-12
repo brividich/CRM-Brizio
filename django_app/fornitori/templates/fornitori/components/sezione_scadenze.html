@@ -1,0 +1,22 @@
+{% if voci %}
+<div class="fr-kpis">
+  <div class="ana-metric"><div class="ana-metric-val">{{ n_scadute }}</div><div class="ana-metric-label">Scadute</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ n_in_scadenza }}</div><div class="ana-metric-label">Entro {{ giorni_preavviso }} giorni</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ voci|length }}</div><div class="ana-metric-label">Totale</div></div>
+</div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Scadenza</th><th>Tipo</th><th>Cosa</th><th>Stato</th>{% if vede_ingressi %}<th>Ingressi collegati</th>{% endif %}</tr></thead>
+  <tbody>{% for v in voci %}
+    <tr>
+      <td>{{ v.data|date:"d-m-Y" }}</td>
+      <td>{{ v.tipo }}</td>
+      <td><a class="fr-link" href="{{ v.url }}">{{ v.cosa }}</a></td>
+      <td><span class="ana-pill {% if v.stato == 'scaduta' %}ana-pill-red{% elif v.stato == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-green{% endif %}">{{ v.stato_label }}</span></td>
+      {% if vede_ingressi %}<td>{{ v.ingressi|default:"—" }}</td>{% endif %}
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+<p class="fr-nota">Documenti, contratti, verifiche periodiche, manutenzioni aperte, scadenze degli asset con questa ditta come ente e attività dello Scadenzario. Per ogni tipo di documento conta quello con la scadenza più lontana.</p>
+{% else %}
+<div class="ana-empty">Nessuna scadenza collegata a questa ditta.</div>
+{% endif %}

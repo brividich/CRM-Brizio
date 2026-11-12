@@ -7,8 +7,9 @@ dopo approvazione» → assenza@ (e il caporeparto in CC) ricevevano due mail.
 Dopo:
 - «Avviso inserimento dopo approvazione» parte solo se ``salta_approvazione`` è falso;
 - la mail di «Inserimento con salta approvazione» va ad assenza@ con il
-  caporeparto in CC, tranne quando l'ha inserita un caporeparto
-  (``inserito_da_gruppo = CAR``): allora solo ad assenza@.
+  caporeparto in CC, tranne quando l'ha inserita il caporeparto
+  (``inserito_dal_capo``: profilo CAR o autore = capo del dipendente): allora
+  solo ad assenza@.
 
 Fail-closed: se le regole non hanno la forma attesa non tocca niente e lo dice.
 """
@@ -23,7 +24,8 @@ SKIP_RULE = "assenze-pa-skip-approvazione-avviso-inserimento"
 APPROVED_RULE = "assenze-pa-approvata-avviso-inserimento"
 CAPO_PLACEHOLDER = "{capo_email}"
 GROUP_FIELD = "inserito_da_gruppo"
-RUN_IF_CAR = {"field_name": GROUP_FIELD, "operator": "equals", "expected_value": "CAR", "value_type": "string"}
+CAPO_FIELD = "inserito_dal_capo"
+RUN_IF_CAR = {"field_name": CAPO_FIELD, "operator": "is_true", "expected_value": "", "value_type": "bool"}
 
 
 def _escludi_salta_approvazione(rule, AutomationCondition):
@@ -40,21 +42,36 @@ def _escludi_salta_approvazione(rule, AutomationCondition):
 
 def _dividi_mail_per_autore(rule, AutomationAction):
     actions = list(rule.actions.order_by("order", "pk"))
-    if any(GROUP_FIELD == ((a.config_json or {}).get("run_if") or {}).get("field_name") for a in actions):
+    if any(CAPO_FIELD == ((a.config_json or {}).get("run_if") or {}).get("field_name") for a in actions):
         return "già divisa"
+    divise = [a for a in actions if GROUP_FIELD == ((a.config_json or {}).get("run_if") or {}).get("field_name")]
+    if divise:
+        # Divisa dalla 0031 sul solo profilo CAR: passa al criterio «autore = capo».
+        for a in divise:
+            config = deepcopy(a.config_json)
+            config["run_if"] = {**RUN_IF_CAR, **({"negate": True} if config["run_if"].get("negate") else {})}
+            AutomationAction.objects.filter(pk=a.pk).update(config_json=config)
+        return "criterio aggiornato"
     mails = [
         a for a in actions
         if a.is_enabled and a.action_type == "send_email"
         and CAPO_PLACEHOLDER in str((a.config_json or {}).get("cc") or "")
     ]
+    if not mails:
+        # Produzione: la mail andava solo ad assenza@ (CC vuoto), quindi la 0031 si
+        # fermava qui e il caporeparto non era mai avvisato. Se la mail è una sola,
+        # il caporeparto si aggiunge nella variante «inserita da ufficio assenze».
+        mails = [a for a in actions if a.is_enabled and a.action_type == "send_email"]
     if len(mails) != 1 or (mails[0].config_json or {}).get("run_if"):
-        raise ValueError("Mail con il caporeparto in CC non trovata (o più di una): regola già personalizzata.")
+        raise ValueError("Mail di inserimento non univoca (o già condizionata): regola già personalizzata.")
     mail = mails[0]
 
     base = deepcopy(mail.config_json)
     solo_assenze = deepcopy(base)
     cc_rimasti = [p.strip() for p in str(base.get("cc") or "").split(",") if p.strip() and p.strip() != CAPO_PLACEHOLDER]
     solo_assenze["cc"] = ", ".join(cc_rimasti)
+    if CAPO_PLACEHOLDER not in str(base.get("cc") or ""):
+        base["cc"] = ", ".join([*cc_rimasti, CAPO_PLACEHOLDER])
     solo_assenze["run_if"] = dict(RUN_IF_CAR)
     base["run_if"] = {**RUN_IF_CAR, "negate": True}
 
@@ -110,3 +127,76 @@ def togli_doppione(*, models=None):
     if (approvata.source_code, approvata.operation_type) != ("assenze", "update"):
         raise ValueError(f"Regola {APPROVED_RULE}: sorgente/operazione diversa dall'atteso.")
     return {"condizione_dopo_approvazione": _escludi_salta_approvazione(approvata, AutomationCondition)}
+
+
+DIPENDENTE_PLACEHOLDER = "{dipendente_email}"
+DA_CAPOREPARTO = {"field_name": "inserito_da_caporeparto", "operator": "is_true", "expected_value": "",
+                  "value_type": "bool", "compare_with_old": False, "negate": False}
+DESCRIZIONE_DIPENDENTE = "Avvisa il dipendente se l'ha inserita un caporeparto (suo o di un altro reparto)"
+MAIL_DIPENDENTE = {
+    "to": DIPENDENTE_PLACEHOLDER,
+    "cc": "",
+    "bcc": "",
+    "reply_to": "",
+    "subject_template": "Richiesta {tipo_assenza} registrata dal {data_inizio} al {data_fine}",
+    "body_text_template": (
+        "Il caporeparto ha registrato questa richiesta a tuo nome, già approvata:\r\n"
+        "Tipo richiesta: {tipo_assenza}\r\n"
+        "Periodo: {data_inizio} - {data_fine}\r\n"
+        "Motivazione: {motivazione_richiesta}\r\n\r\n"
+        "Se qualcosa non torna, parlane con il tuo caporeparto."
+    ),
+    "body_html_template": "",
+    "fail_silently": False,
+    "run_if": DA_CAPOREPARTO,
+}
+
+
+@transaction.atomic
+def avvisa_dipendente(*, models=None):
+    """Con «Salta approvazione» avvisa il dipendente se l'ha inserita un caporeparto.
+
+    Il dipendente riceve la mail quando la richiesta è approvata dal capo oppure
+    inserita con «Salta approvazione» da un caporeparto (il suo o un altro). Se la
+    inserisce l'ufficio assenze (es. la malattia comunicata per telefono) no.
+    Prima la regola di inserimento scriveva solo ad assenza@ (e al caporeparto).
+    Una mail al dipendente con la condizione della prima versione («non Malattia»)
+    viene portata alla condizione nuova.
+    """
+    AutomationRule, AutomationAction, _ = models or (_Rule, _Action, _Condition)
+    rule = AutomationRule.objects.select_for_update().filter(code=SKIP_RULE).first()
+    if rule is None:
+        raise ValueError("Regola di inserimento con salta approvazione non presente.")
+    if (rule.source_code, rule.operation_type) != ("assenze", "insert"):
+        raise ValueError(f"Regola {SKIP_RULE}: sorgente/operazione diversa dall'atteso.")
+    if not rule.conditions.filter(field_name="salta_approvazione", operator="is_true", is_enabled=True).exists():
+        raise ValueError("La regola di inserimento non filtra più su salta_approvazione: verificare nel designer.")
+    actions = list(rule.actions.order_by("order", "pk"))
+    mails = [a for a in actions if a.action_type == "send_email"]
+    esistenti = [a for a in mails
+                 if any(DIPENDENTE_PLACEHOLDER in str((a.config_json or {}).get(k) or "") for k in ("to", "cc"))]
+    if esistenti:
+        aggiornate = 0
+        for a in esistenti:
+            config = a.config_json or {}
+            if (config.get("run_if") or {}).get("field_name") == "tipo_assenza":
+                nuova = deepcopy(MAIL_DIPENDENTE)
+                if config.get("from_email"):
+                    nuova["from_email"] = config["from_email"]
+                AutomationAction.objects.filter(pk=a.pk).update(config_json=nuova, description=DESCRIZIONE_DIPENDENTE)
+                aggiornate += 1
+        return "condizione aggiornata" if aggiornate else "già presente"
+    if not mails:
+        raise ValueError("La regola di inserimento non ha mail: regola già personalizzata.")
+    ultima = mails[-1]
+    config = deepcopy(MAIL_DIPENDENTE)
+    if (ultima.config_json or {}).get("from_email"):
+        config["from_email"] = ultima.config_json["from_email"]
+    for a in actions:
+        if a.order > ultima.order:
+            AutomationAction.objects.filter(pk=a.pk).update(order=a.order + 1)
+    AutomationAction.objects.create(
+        rule=rule, order=ultima.order + 1, action_type="send_email", is_enabled=True, config_json=config,
+        description=DESCRIZIONE_DIPENDENTE,
+    )
+    return "aggiunta"

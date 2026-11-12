@@ -130,10 +130,16 @@ def hr_cruscotto(request):
         "n_ferie_elevate": sum(1 for r in res.values() if r.ferie_residue >= soglia_ore),
         "giornate_ferie_elevate": GIORNATE_FERIE_ELEVATE,
         "n_contatori_oltre": sum(c["oltre"] for c in calcoli.riepilogo_contatori()),
-        "n_in_attesa": len(_helpers._fetch_all_dict(
-            "SELECT id FROM assenze WHERE COALESCE(moderation_status, 2) = 2", []
-        )) if _helpers._table_exists("assenze") else 0,
+        "n_in_attesa": _n_coda_attiva(),
     })
+
+
+def _n_coda_attiva() -> int:
+    """Richieste ancora da decidere: la stessa coda della dashboard segnalazioni."""
+    if not _helpers._table_exists("assenze"):
+        return 0
+    coda_sql, coda_params = _helpers._sql_coda_attiva("assenze")
+    return len(_helpers._fetch_all_dict(f"SELECT id FROM assenze WHERE {coda_sql}", coda_params))
 
 
 # ─── Saldi ───────────────────────────────────────────────────────────────────
@@ -200,6 +206,12 @@ def _salva_impostazioni(request) -> None:
     if dopo is None or ripeti is None or not (1 <= dopo <= 60) or not (1 <= ripeti <= 60):
         messages.error(request, "I giorni dei solleciti devono stare fra 1 e 60.")
         return
+    giorni_cert = _helpers._as_int(request.POST.get("certificato_avviso_giorni"))
+    if giorni_cert is None:
+        giorni_cert = imp.certificato_avviso_giorni
+    if not (1 <= giorni_cert <= 30):
+        messages.error(request, "I giorni dell'avviso certificato devono stare fra 1 e 30.")
+        return
     imp.ore_giornata = ore
     imp.sabato_lavorativo = request.POST.get("sabato_lavorativo") == "1"
     imp.patrono_giorno = giorno or None
@@ -208,6 +220,8 @@ def _salva_impostazioni(request) -> None:
     imp.sollecito_attivo = request.POST.get("sollecito_attivo") == "1"
     imp.sollecito_dopo_giorni = dopo
     imp.sollecito_ripeti_giorni = ripeti
+    imp.certificato_avviso_attivo = request.POST.get("certificato_avviso_attivo") == "1"
+    imp.certificato_avviso_giorni = giorni_cert
     imp.outlook_capo_attivo = request.POST.get("outlook_capo_attivo") == "1"
     if request.POST.get("outlook_capo_modo") in ("richiesta", "tutte"):
         imp.outlook_capo_modo = request.POST["outlook_capo_modo"]
@@ -217,6 +231,7 @@ def _salva_impostazioni(request) -> None:
         "ore_giornata": str(ore), "sabato_lavorativo": imp.sabato_lavorativo,
         "patrono": f"{giorno}/{mese}" if giorno else "", "sollecito_attivo": imp.sollecito_attivo,
         "sollecito_dopo_giorni": dopo, "sollecito_ripeti_giorni": ripeti,
+        "certificato_avviso_attivo": imp.certificato_avviso_attivo, "certificato_avviso_giorni": giorni_cert,
         "outlook_capo_attivo": imp.outlook_capo_attivo, "outlook_capo_modo": imp.outlook_capo_modo,
     })
     messages.success(request, "Impostazioni salvate.")
@@ -442,9 +457,17 @@ def api_verifica_richiesta(request):
     if not perms.get("can_insert"):
         return _helpers._json_error("Permessi insufficienti.", status=403)
     dip_id = _helpers._as_int(request.GET.get("dipendente_id"))
+    solo_malattia = False
     if dip_id is not None:
-        if not perms.get("can_insert_for_others") or not _helpers._can_insert_for_dipendente(request, dip_id):
-            return _helpers._json_error("Permessi insufficienti per questo dipendente.", status=403)
+        per_altri = perms.get("can_insert_for_others") and _helpers._can_insert_for_dipendente(request, dip_id)
+        if not per_altri:
+            # Abilitato alla sola malattia per tutti: niente saldi altrui.
+            if not (
+                _helpers._malattia_permessi(request)["per_tutti"]
+                and _helpers._norm_tipo(request.GET.get("tipo")) == "Malattia"
+            ):
+                return _helpers._json_error("Permessi insufficienti per questo dipendente.", status=403)
+            solo_malattia = True
         anagrafica_id = dip_id
     else:
         name, email, legacy_id = _helpers._legacy_identity(request)
@@ -460,4 +483,5 @@ def api_verifica_richiesta(request):
             anagrafica_id=anagrafica_id, tipo=tipo, motivazione=request.GET.get("motivazione") or "",
             inizio=inizio, fine=fine,
         )
-    return JsonResponse({"ok": True, "saldo": calcoli.riepilogo_saldo(anagrafica_id), "avvisi": avvisi})
+    saldo = None if solo_malattia else calcoli.riepilogo_saldo(anagrafica_id)
+    return JsonResponse({"ok": True, "saldo": saldo, "avvisi": avvisi})

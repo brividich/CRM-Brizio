@@ -4,7 +4,7 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261110pannello">
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
@@ -13,7 +13,7 @@
   <section class="ts-hero">
     <div class="ts-hero-left">
       <div class="ts-hero-eyebrow-row">
-        {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Workflow operativo</span>{% endblock %}
+        {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF</span>{% endblock %}
         {% if tasks_shell_active != "guida" %}
           <a class="ts-guide-link" href="{% url 'tasks:guida' %}{% block tasks_shell_guide_anchor %}{% endblock %}" title="Come funziona il modulo KICK-OFF">? Guida</a>
         {% endif %}
@@ -25,7 +25,8 @@
     <div class="ts-hero-right">
       {% block tasks_shell_actions %}
         {# Modulo solo-kickoff: le attivita' si creano DENTRO un kickoff, non da qui. #}
-        {% if tasks_shell_can_create %}
+        {# Dentro una commessa «+ Nuovo kickoff» portava fuori strada: lì valgono le azioni della pagina. #}
+        {% if tasks_shell_can_create and not tasks_shell_project %}
           <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
         {% endif %}
       {% endblock %}

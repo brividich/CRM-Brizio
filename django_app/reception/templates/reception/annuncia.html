@@ -1,0 +1,94 @@
+{% extends "core/base.html" %}
+{% block title %}Annuncia una visita{% endblock %}
+{% load static %}
+{% block extra_head %}{% include "reception/_stile.html" %}<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">{% endblock %}
+{% block extra_scripts %}<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>{% endblock %}
+{% block content %}
+<div class="rc-page">
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">Annuncia una visita</div>
+      <div class="rc-sub">Aspetti un ospite? Scrivi qui chi è e quando arriva: riceve una mail con il codice e il QR per entrare dal chiosco, tu l'invito in calendario e l'avviso quando arriva.</div>
+    </div>
+    <a class="rc-btn rc-btn-g" href="{% url 'guida_modulo' 'fornitori' %}#annuncia">? Guida</a>
+  </div>
+  {% include "fornitori/components/flash_messages.html" %}
+  {% if not nativa %}<div class="rc-avviso"><strong>Non ancora attivo:</strong> parte quando la reception passa all'HUB. Fino ad allora gli ospiti si annunciano alla reception.</div>{% endif %}
+  {% if not ha_email %}<div class="rc-avviso">Il tuo utente non ha un'email: senza, non puoi ricevere l'invito né le richieste. Chiedi all'IT di aggiungerla.</div>{% endif %}
+
+  {% if richieste %}
+  <div class="rc-card">
+    <div class="rc-card-head">Richieste per te ({{ richieste|length }})</div>
+    <div class="rc-wrap">
+      <table class="rc-table">
+        <thead><tr><th>Chi</th><th>Giorno</th><th>Motivo</th><th>Messaggio</th><th>Decidi</th></tr></thead>
+        <tbody>
+        {% for r in richieste %}
+          <tr>
+            <td><strong>{{ r.nome_completo }}</strong>{% if r.azienda %}<br><span class="rc-muted">{{ r.azienda }}</span>{% endif %}<br><span class="rc-muted">{{ r.email }}{% if r.telefono %} · {{ r.telefono }}{% endif %}</span></td>
+            <td>{{ r.data_visita|date:"D d/m/Y" }}{% if r.ora_inizio %}<br>{{ r.ora_inizio|time:"H:i" }}{% endif %}</td>
+            <td>{{ r.motivo|default:"—" }}</td>
+            <td>{{ r.messaggio|default:"—"|linebreaksbr }}</td>
+            <td>
+              <form method="post" action="{% url 'reception:annuncia_decidi' r.pk %}" class="rc-form">
+                {% csrf_token %}
+                <input type="hidden" id="a-data-{{ r.pk }}" value="{{ r.data_visita|date:'Y-m-d' }}">
+                <div class="rc-riga rc-riga-2">
+                  <div class="rc-field"><label for="a-ora-{{ r.pk }}">Dalle</label><input class="rc-input" id="a-ora-{{ r.pk }}" type="time" name="ora_inizio" value="{{ r.ora_inizio|time:'H:i' }}"></div>
+                  <div class="rc-field"><label for="a-fine-{{ r.pk }}">Alle</label><input class="rc-input" id="a-fine-{{ r.pk }}" type="time" name="ora_fine"></div>
+                </div>
+                {% include "reception/_sala_scelta.html" with pfx="a-" data_id="a-data-" ora_id="a-ora-" fine_id="a-fine-" riga=r.pk %}
+                <div class="rc-field"><label for="a-nota-{{ r.pk }}">Nota per l'ospite</label><input class="rc-input" id="a-nota-{{ r.pk }}" name="nota" maxlength="500"></div>
+                <div class="rc-field"><span><button class="rc-btn rc-btn-p" name="azione" value="approva"{% if not nativa %} disabled{% endif %}>Accetta</button> <button class="rc-btn rc-btn-d" name="azione" value="rifiuta">Rifiuta</button></span></div>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="rc-card">
+    <div class="rc-card-head">Nuovo ospite</div>
+    <div class="rc-body">
+      <form method="post" class="rc-form">
+        {% csrf_token %}
+        <div class="rc-field"><label for="n-nome">Nome e cognome *</label><input class="rc-input" id="n-nome" name="nome" maxlength="200" required></div>
+        <div class="rc-field"><label for="n-email">Email *</label><input class="rc-input" id="n-email" type="email" name="email" maxlength="255" required></div>
+        <div class="rc-field"><label for="n-azienda">Azienda</label><input class="rc-input" id="n-azienda" name="azienda" maxlength="200"></div>
+        <div class="rc-field"><label for="n-motivo">Motivo</label><select class="rc-input" id="n-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% endfor %}</select></div>
+        <div class="rc-field"><label for="n-data">Giorno *</label><input class="rc-input" id="n-data" type="date" name="data_visita" min="{{ oggi|date:'Y-m-d' }}" required></div>
+        <div class="rc-field"><label for="n-ini">Dalle</label><input class="rc-input" id="n-ini" type="time" name="ora_inizio"></div>
+        <div class="rc-field"><label for="n-fine">Alle</label><input class="rc-input" id="n-fine" type="time" name="ora_fine"></div>
+        <div class="rc-field rc-field-largo">{% include "reception/_sala_scelta.html" with pfx="n" data_id="n-data" ora_id="n-ini" fine_id="n-fine" riga="" %}</div>
+        <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit"{% if not nativa or not ha_email %} disabled{% endif %}>Annuncia e invia</button></div>
+      </form>
+      <p class="rc-note rc-muted">Il codice vale fino alla fine del giorno indicato.{% if not referente and ha_email %} Al primo annuncio entri nell'elenco dei referenti che i visitatori scelgono al chiosco.{% endif %}</p>
+    </div>
+  </div>
+
+  <div class="rc-card">
+    <div class="rc-card-head">I tuoi ospiti in arrivo</div>
+    <div class="rc-wrap">
+      <table class="rc-table">
+        <thead><tr><th>Ospite</th><th>Azienda</th><th>Giorno</th><th>Sala</th><th>Codice</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for p in mie_visite %}
+          <tr>
+            <td>{{ p.ospite_nome }}</td><td>{{ p.ospite_azienda|default:"—" }}</td>
+            <td>{{ p.data_visita|date:"D d/m/Y"|default:"—" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %}</td>
+            <td>{{ p.sala.nome|default:"—" }}</td>
+            <td><strong>{{ p.codice }}</strong></td>
+            <td>{% if p.usata_il %}<span class="rc-pill rc-pill-ok">Entrato il {{ p.usata_il|date:"d/m H:i" }}</span>{% else %}<span class="rc-pill">Atteso</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="rc-empty">Nessun ospite annunciato.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

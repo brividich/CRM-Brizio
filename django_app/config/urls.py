@@ -52,6 +52,9 @@ urlpatterns = [
     path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
     # Registro OFI/NC (MOD.174) — modulo dedicato (app registro_ofi), al top-level.
     path("ofi-registro/", include(("registro_ofi.urls", "registro_ofi"), namespace="registro_ofi")),
+    # Presenti in azienda (timbrature Solari): lista live, appello di evacuazione, uscite non timbrate.
+    path("presenti/", include(("presenti.urls", "presenti"), namespace="presenti")),
+    path("produzione/", include(("produzione.urls", "produzione"), namespace="produzione")),
     path("suggestion-corner/", include(("suggestion_corner.urls", "suggestion_corner"), namespace="suggestion_corner")),
     path("notizie/", include("notizie.urls")),
     path(
@@ -63,10 +66,17 @@ urlpatterns = [
     path("automazioni/", include(("automazioni.urls", "automazioni"), namespace="automazioni")),
     # Approval proxy — endpoint GET per Entra Application Proxy.
     # Pubblicare SOLO /approval-actions/* nell'Application Proxy (non /automazioni/).
+    # Conferma di ricevuta dei DPI (link personale monouso, stesso schema dei link di approvazione).
+    path("approval-actions/dpi/", include(("dpi.urls_pubblici", "dpi_pubblico"), namespace="dpi_pubblico")),
     path("approval-actions/", include(("automazioni.approval_proxy_urls", "approval_proxy"), namespace="approval_proxy")),
     path("monitoring/", include(("monitoring.urls", "monitoring"), namespace="monitoring")),
     path("anagrafica/", include(("anagrafica.urls", "anagrafica"), namespace="anagrafica")),
     path("fornitori/", include(("fornitori.urls", "fornitori"), namespace="fornitori")),
+    path("chiosco/", include(("fornitori.urls_chiosco", "chiosco"), namespace="chiosco")),
+    path("reception/", include(("reception.urls", "reception"), namespace="reception")),
+    # Richiesta di appuntamento degli esterni: pubblica, spenta di default (RECEPTION_RICHIESTE_PUBBLICHE).
+    path("richiesta-visita/", include(("reception.urls_pubbliche", "reception_pubblica"), namespace="reception_pubblica")),
+    path("scadenze/", include(("scadenzario.urls", "scadenzario"), namespace="scadenzario")),
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),
     path("tickets/",    include(("tickets.urls",    "tickets"),    namespace="tickets")),
     path("diario-preposto/", include(("diario_preposto.urls", "diario_preposto"), namespace="diario_preposto")),

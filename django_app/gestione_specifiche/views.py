@@ -27,6 +27,8 @@ from django_fsm import TransitionNotAllowed
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from core.copertine_librerie import ICONE as ICONE_COPERTINA
+
 from . import constants as C
 from .admin_views import utente_puo_admin
 from .notifiche_gs import notifica_nuova_specifica, pool_utenti
@@ -104,6 +106,11 @@ def lista(request):
     f_cliente = request.GET.get("cliente", "").strip()
     f_tag = request.GET.get("tag", "").strip()
     f_q = request.GET.get("q", "").strip()
+    # Catalogo a copertine (una per cliente, come la libreria CN-SGI) o elenco; la scelta resta in un cookie.
+    f_cartella = request.GET.get("cartella", "").strip()[:200]
+    vista = request.GET.get("vista") or request.COOKIES.get("gs_vista") or "copertine"
+    if vista not in ("copertine", "elenco"):
+        vista = "copertine"
     # M12: date parse-ate in modo sicuro (None se vuote/invalide) -> niente 500 su input errato.
     f_dal = parse_date(request.GET.get("dal", "").strip())
     f_al = parse_date(request.GET.get("al", "").strip())
@@ -120,6 +127,10 @@ def lista(request):
         qs = qs.filter(tipo=f_tipo)
     if f_cliente:
         qs = qs.filter(cliente__icontains=f_cliente)
+    if f_cartella:
+        from .scaffale_clienti import q_della_cartella
+
+        qs = qs.filter(q_della_cartella(f_cartella))
     if f_tag:
         qs = qs.filter(tag__icontains=f_tag)
     if f_q:
@@ -130,7 +141,9 @@ def lista(request):
         qs = qs.filter(data_inserimento__date__lte=f_al)
     qs = qs.order_by("-data_inserimento", "codice")
 
-    specifiche = list(qs[:500])
+    filtri = any([f_stato, f_tipo, f_cliente, f_tag, f_q, f_dal, f_al, f_cartella])
+    mostra_copertine = vista == "copertine" and not filtri
+    specifiche = [] if mostra_copertine else list(qs[:500])
     for s in specifiche:
         s.mod_label, s.mod_kind = _stato_mod133(s)
 
@@ -151,7 +164,16 @@ def lista(request):
         "verifica_scad": n_verifica_scad,
     }
 
+    from . import scaffale_clienti
+
     context = {
+        "vista": vista,
+        "mostra_copertine": mostra_copertine,
+        "copertine": scaffale_clienti.copertine(storico=mostra_storico, scadenza_giorni=_scadenza_verifica_giorni()) if mostra_copertine else [],
+        "cartella": (scaffale_clienti.copertina_di(f_cartella, storico=True, scadenza_giorni=_scadenza_verifica_giorni())
+                     if f_cartella else None),
+        "f_cartella": f_cartella,
+        "icone_copertina": ICONE_COPERTINA,
         "specifiche": specifiche,
         "tot": qs.count(),
         "mostra_storico": mostra_storico,
@@ -163,7 +185,10 @@ def lista(request):
         "C": C,
         "puo_admin": utente_puo_admin(request),
     }
-    return render(request, "gestione_specifiche/lista.html", context)
+    response = render(request, "gestione_specifiche/lista.html", context)
+    if request.GET.get("vista") in ("copertine", "elenco"):
+        response.set_cookie("gs_vista", vista, max_age=365 * 24 * 3600, samesite="Lax", httponly=True)
+    return response
 
 
 @login_required
@@ -266,17 +291,21 @@ def nuova_specifica(request):
             notifica_nuova_specifica(spec)
             messages.success(request, "Specifica creata.")
             # F6b-2: se abilitato e con destinazione share risolvibile, deposita la forma "in attesa".
-            from .composito_deposito import deposita_auto
+            # Il deposito scrive sulla share: gira nel worker, non nella richiesta.
+            from .composito_deposito import accoda_deposito_auto
 
-            dep = deposita_auto(spec, attore=request.user)
-            if dep is not None and dep.esito == "ok":
-                messages.info(request, "Composito 'in attesa MOD.133' depositato sulla share.")
+            if accoda_deposito_auto(spec, attore=request.user):
+                messages.info(request, "Deposito del composito 'in attesa MOD.133' sulla share avviato in background: "
+                                       "a deposito riuscito compare nello storico della specifica.")
             return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
     else:
         initial = {}
         if prev is not None:
             initial = {f: getattr(prev, f) for f in _INHERIT_FIELDS}
             initial["revisione"] = _incrementa_revisione(prev.revisione)
+        elif request.GET.get("cliente"):
+            # Dalla copertina di un cliente: il cliente è già scritto.
+            initial = {"cliente": request.GET["cliente"].strip()[:200], "fonte": C.FONTE_CLIENTE}
         form = SpecificaForm(initial=initial)
 
     return render(request, "gestione_specifiche/specifica_form.html",
@@ -440,8 +469,8 @@ def _auto_approva_se_configurata(request, spec, mod) -> bool:
         return False
     # #3 + F6b-2: se il deposito automatico è attivo, deposita la forma "approvato" (best-effort).
     try:
-        from .composito_deposito import deposita_auto
-        deposita_auto(spec, attore=cfg.approvatore)
+        from .composito_deposito import accoda_deposito_auto
+        accoda_deposito_auto(spec, attore=cfg.approvatore)
     except Exception:  # noqa: BLE001
         pass
     messages.success(request, f"MOD.133 approvato automaticamente per conto di {nome}.")
@@ -524,11 +553,11 @@ def mod133_approva(request, pk: int):
         # F6b-2: se abilitato, deposita la forma "approvato" (MOD.133 + originale) sulla share.
         # Best-effort e gated dal flag: un problema di deposito non tocca l'approvazione (gia' committata).
         if esito == C.ESITO_APPROVATO:
-            from .composito_deposito import deposita_auto
+            from .composito_deposito import accoda_deposito_auto
 
-            dep = deposita_auto(spec, attore=request.user)
-            if dep is not None and dep.esito == "ok":
-                messages.info(request, "Composito ufficiale (MOD.133) depositato sulla share.")
+            if accoda_deposito_auto(spec, attore=request.user):
+                messages.info(request, "Deposito del composito ufficiale (MOD.133) sulla share avviato in background: "
+                                       "a deposito riuscito compare nello storico della specifica.")
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Operazione non consentita: {exc}")
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
@@ -891,20 +920,27 @@ def cartella_suggerita(request):
     from .cartelle_cliente import cartelle_disponibili, risolvi, suggerisci
     from .models import ClienteCartellaShare
 
+    from .cartelle_cliente import share_raggiungibile
+
     cliente = (request.GET.get("cliente") or "").strip()
     mappata = ""
     suggerite: list[str] = []
     altre: list[str] = []
+    share_giu = False
     if cliente:
+        share_giu = not share_raggiungibile()
         _path, fonte = risolvi(cliente)
         m = ClienteCartellaShare.objects.filter(cliente__iexact=cliente, attivo=True).first()
-        mappata = m.cartella if (m and fonte == "mappatura") else ""
+        # Share giù: la mappatura confermata resta valida, non si sa solo se la
+        # cartella esiste ancora. Meglio tenerla che proporre di sceglierne un'altra.
+        mappata = m.cartella if (m and fonte in ("mappatura", "share_non_raggiungibile")) else ""
         if not mappata:
             suggerite = suggerisci(cliente)
         disponibili = cartelle_disponibili()
         altre = [c for c in disponibili if c not in suggerite]
     return render(request, "gestione_specifiche/partials/_cartella_suggerita.html",
-                  {"cliente": cliente, "mappata": mappata, "suggerite": suggerite, "altre": altre})
+                  {"cliente": cliente, "mappata": mappata, "suggerite": suggerite, "altre": altre,
+                   "share_giu": share_giu})
 
 
 def _salva_mappatura_cartella(request, spec):

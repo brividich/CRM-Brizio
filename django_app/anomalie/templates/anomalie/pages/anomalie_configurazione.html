@@ -117,6 +117,310 @@
 {# ========== TAB CONFIG ========== #}
 {% if tab == 'config' or not tab %}
 
+  <style>
+    #card-campi-controllo .cc-cond { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    #card-campi-controllo .cc-cond[hidden] { display: none; }
+    #card-campi-controllo .cc-ruoli input, #card-campi-controllo .cc-tipi input, #card-campi-controllo .cc-gruppi-sel input { width: 14px; height: 14px; min-height: 0; margin: 0 4px 0 0; vertical-align: -2px; }
+    #card-campi-controllo .cc-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); align-items: start; }
+    @media (max-width: 1100px) { #card-campi-controllo .cc-layout { grid-template-columns: 1fr; } }
+    #card-campi-controllo .cc-row.is-hi { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-light); }
+    .cc-preview { position: sticky; top: 76px; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+    .cc-pv-title { font-weight: 800; color: var(--text); display: grid; gap: 2px; }
+    .cc-pv-title small { font-weight: 500; color: var(--text-mid); font-size: 12px; }
+    .cc-pv-ctx { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; font-size: 12px; }
+    .cc-pv-ctx label { display: grid; gap: 2px; color: var(--text-mid); }
+    .cc-pv-ctx .full { grid-column: 1 / -1; }
+    .cc-pv-block { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--accent); border-radius: 10px; background: var(--surface); font-size: 12px; }
+    .cc-pv-lbl { font-weight: 800; color: var(--text); font-size: 12px; }
+    .cc-pv-fake { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; color: var(--text-mid); background: var(--bg); }
+    .cc-pv-area { min-height: 36px; }
+    .cc-pv-card { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--accent); border-radius: 8px; }
+    .cc-pv-sym { display: flex; gap: 3px; flex-wrap: wrap; }
+    .cc-pv-sym span { border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; background: var(--surface); }
+    .cc-pv-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+    .cc-pv-chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; background: var(--bg); font-weight: 700; }
+    .cc-pv-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .cc-pv-panel { display: grid; gap: 5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+    .cc-pv-ko { color: var(--danger); font-weight: 800; }
+    .cc-pv-zeiss { border: 2px dashed var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-mid); }
+    .cc-pv-link { color: var(--primary-mid); font-weight: 700; text-decoration: underline; }
+    [data-parte].is-hi { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; background: var(--accent-light); }
+    .cc-pv-hidden { font-size: 12px; color: var(--text-mid); }
+    .cc-preview [data-parte][hidden] { display: none !important; }
+  </style>
+  {{ gruppi_controllori|json_script:"cc-gruppi-dati" }}
+  {{ ruoli_membri|json_script:"cc-ruoli-membri" }}
+  <div class="card" id="card-campi-controllo">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Campi del blocco del controllore</div>
+        <div class="page-sub" style="margin-top:4px;">Decidi chi vede ogni parte di «Apertura segnalazione», per provarle con i controllori senza rilasci. «Solo se…»: la parte si vede quando valgono tutte le condizioni compilate (dentro ognuna basta una delle voci). Nascondere una parte non cancella i dati già inseriti.</div>
+      </div>
+    </div>
+    <div class="card-body cc-layout">
+      <div style="display:grid;gap:10px;min-width:0;">
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:8px;background:var(--bg);">
+        <div><strong>Chi fa cosa: gruppi di controllori</strong><br><small style="color:var(--text-mid);">Metti ogni controllore nel suo gruppo (es. chi fa il controllo CMM e chi il controllo visivo). Nelle regole «Solo se…» scegli poi i gruppi che vedono una parte.</small></div>
+        <div id="cc-gruppi" style="display:grid;gap:8px;"></div>
+        <div><button type="button" class="btn btn-secondary btn-sm" id="cc-gruppo-add">+ Aggiungi gruppo</button></div>
+      </div>
+      {% for campo in campi_controllo %}
+      <div class="cc-row" data-campo="{{ campo.chiave }}" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:8px;">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <span style="flex:1;min-width:220px;"><strong>{{ campo.etichetta }}</strong><br><small style="color:var(--text-mid);">{{ campo.aiuto }}</small></span>
+          <label style="display:flex;gap:6px;align-items:center;">Visibile
+            <select class="input cc-modo" style="width:auto;">
+              <option value="sempre"{% if campo.regola.modo == 'sempre' %} selected{% endif %}>Sempre</option>
+              <option value="se"{% if campo.regola.modo == 'se' %} selected{% endif %}>Solo se…</option>
+              <option value="mai"{% if campo.regola.modo == 'mai' %} selected{% endif %}>Mai</option>
+            </select>
+          </label>
+        </div>
+        <div class="cc-cond" {% if campo.regola.modo != 'se' %}hidden{% endif %}>
+          <label style="display:grid;gap:3px;"><small><strong>Persone</strong> (separate da virgola; «aggiungi» dall'anagrafica)</small>
+            <textarea class="input cc-persone" rows="2" spellcheck="false">{{ campo.regola.persone|join:", " }}</textarea>
+            <select class="input cc-persone-pick"><option value="">— aggiungi una persona —</option></select>
+          </label>
+          <div style="display:grid;gap:3px;"><small><strong>Gruppi di controllori</strong></small>
+            <div class="cc-gruppi-sel" data-scelti="{{ campo.regola.gruppi|join:',' }}" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;"></div>
+          </div>
+          <div style="display:grid;gap:3px;"><small><strong>Ruoli operativi</strong></small>
+            <div class="cc-ruoli" data-scelti="{{ campo.regola.ruoli|join:',' }}" style="display:flex;flex-wrap:wrap;gap:4px 10px;max-height:110px;overflow:auto;font-size:12px;"></div>
+          </div>
+          <label style="display:grid;gap:3px;"><small><strong>Fase del controllo contiene</strong> (parole separate da virgola, es. CMM)</small>
+            <textarea class="input cc-fasi" rows="2" spellcheck="false">{{ campo.regola.fasi|join:", " }}</textarea>
+          </label>
+          {% if not campo.di_blocco %}
+          <div style="display:grid;gap:3px;"><small><strong>Tipo di difetto dell'anomalia</strong> (scelto o proposto)</small>
+            <div class="cc-tipi" style="display:flex;flex-wrap:wrap;gap:4px 10px;max-height:110px;overflow:auto;font-size:12px;">
+              {% for t in tipi_difetto_cfg %}<label><input type="checkbox" value="{{ t.codice }}"{% if t.codice in campo.regola.tipi %} checked{% endif %}> {{ t.nome }}</label>{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;">
+        <span id="campi-controllo-status" class="status"></span>
+        <button id="btn-campi-controllo" class="btn" type="button">Salva campi</button>
+      </div>
+      </div>
+      <aside class="cc-preview" aria-label="Anteprima della scheda del controllore">
+        <div class="cc-pv-title">👁 Anteprima dal vivo <small>Cosa vedrebbe il controllore con le regole qui a fianco, anche prima di salvarle. Passa sopra una regola per evidenziare la sua parte.</small></div>
+        <div class="cc-pv-ctx">
+          <label class="full">Vedi come
+            <select class="input" id="cc-pv-persona"><option value="">— chiunque (nessuna persona in particolare) —</option></select>
+          </label>
+          <label>Fase del controllo <input class="input" id="cc-pv-fase" value="Collaudo"></label>
+          <label>Tipo di difetto dell'anomalia
+            <select class="input" id="cc-pv-tipo"><option value="">— nessuno —</option>{% for t in tipi_difetto_cfg %}<option value="{{ t.codice }}">{{ t.nome }}</option>{% endfor %}</select>
+          </label>
+        </div>
+        <div class="cc-pv-block">
+          <div><div class="cc-pv-lbl">Seriali</div><div class="cc-pv-fake">LCN00001</div></div>
+          <div data-parte="dove_pezzi"><div class="cc-pv-lbl">Dove sono i pezzi?</div><div class="cc-pv-fake">Area pezzi non conformi</div></div>
+          <div class="cc-pv-card">
+            <div class="cc-pv-lbl">Anomalia 1</div>
+            <div data-parte="simboli" class="cc-pv-sym"><span>Ø</span><span>±</span><span>°</span><span>⊥</span><span>∥</span><span>◎</span><span>⌖</span><span>…</span></div>
+            <div class="cc-pv-fake cc-pv-area">Descrizione dell'anomalia…</div>
+            <div data-parte="caso" class="cc-pv-chips"><strong>Che cosa hai trovato?</strong>
+              <span data-parte="caso_misura" class="cc-pv-chip on">✓ Misura fuori tolleranza</span>
+              <span data-parte="caso_difetto" class="cc-pv-chip">Difetto sul pezzo</span>
+              <span data-parte="caso_documenti" class="cc-pv-chip">Marcatura / documenti</span>
+            </div>
+            <div data-parte="pannello_misura" class="cc-pv-panel">
+              <div>📏 Ø 1/2 rilevato 2.1 <span class="cc-pv-ko">Fuori tolleranza +0.1</span></div>
+              <div data-parte="report_zeiss" class="cc-pv-zeiss">📋 Dal report ZEISS: incolla lo screenshot</div>
+            </div>
+            <div data-parte="riferimento" class="cc-pv-link">+ Riferimento (disegno, sezione, fase del ciclo)</div>
+            <div data-parte="tipo_difetto">Tipo di difetto: <span class="cc-pv-fake">Fuori tolleranza dimensionale</span> <em>proposto</em></div>
+            <div data-parte="copia_testo" class="cc-pv-link">↓ Copia nella descrizione</div>
+          </div>
+        </div>
+        <div class="cc-pv-hidden" id="cc-pv-nascoste"></div>
+      </aside>
+    </div>
+  </div>
+  <script>
+    // Parte a pagina caricata: persone e ruoli (window._CFG_*) sono definiti più in basso.
+    document.addEventListener("DOMContentLoaded", function () {
+      const btn = document.getElementById("btn-campi-controllo");
+      if (!btn) return;
+      const st = document.getElementById("campi-controllo-status");
+      const csrf = () => (document.cookie.split(";").find(c => c.trim().startsWith("csrftoken=")) || "").split("=")[1] || "";
+      const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+      const righe = (v) => String(v || "").split(/\r?\n|,/).map(t => t.trim()).filter(Boolean);
+      const nomi = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+      // Gruppi di controllori: elenco modificabile; le regole li scelgono per codice.
+      let gruppi = JSON.parse(document.getElementById("cc-gruppi-dati").textContent || "[]");
+      const boxGruppi = document.getElementById("cc-gruppi");
+      const codice = (n) => String(n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      const opzioniNomi = nomi.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      const leggiGruppi = () => Array.from(boxGruppi.querySelectorAll(".cc-gruppo")).map(el => ({
+        codice: el.dataset.codice || codice(el.querySelector(".cc-g-nome").value),
+        nome: el.querySelector(".cc-g-nome").value.trim(),
+        persone: righe(el.querySelector(".cc-g-persone").value),
+      })).filter(g => g.nome);
+      const disegnaSelezioni = () => {
+        const attuali = leggiGruppi();
+        document.querySelectorAll(".cc-gruppi-sel").forEach(sel => {
+          const scelti = new Set(Array.from(sel.querySelectorAll("input:checked")).map(i => i.value).concat((sel.dataset.scelti || "").split(",").filter(Boolean)));
+          sel.dataset.scelti = "";
+          sel.innerHTML = attuali.length ? attuali.map(g => `<label><input type="checkbox" value="${esc(g.codice)}"${scelti.has(g.codice) ? " checked" : ""}> ${esc(g.nome)}</label>`).join("") : "<small>Nessun gruppo</small>";
+        });
+      };
+      const disegnaGruppi = () => {
+        boxGruppi.innerHTML = gruppi.map(g => `
+          <div class="cc-gruppo" data-codice="${esc(g.codice || "")}" style="display:grid;gap:6px;grid-template-columns:minmax(160px,220px) 1fr auto;align-items:start;">
+            <input class="input cc-g-nome" value="${esc(g.nome)}" placeholder="Nome del gruppo">
+            <div style="display:grid;gap:4px;">
+              <textarea class="input cc-g-persone" rows="2" spellcheck="false" placeholder="Persone, separate da virgola">${esc((g.persone || []).join(", "))}</textarea>
+              <select class="input cc-g-pick"><option value="">— aggiungi una persona —</option>${opzioniNomi}</select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm cc-g-del" title="Togli il gruppo">×</button>
+          </div>`).join("");
+        boxGruppi.querySelectorAll(".cc-gruppo").forEach(el => {
+          const area = el.querySelector(".cc-g-persone");
+          el.querySelector(".cc-g-pick").addEventListener("change", (ev) => {
+            const n = ev.target.value; if (!n) return;
+            const att = righe(area.value);
+            if (!att.some(x => x.toLowerCase() === n.toLowerCase())) att.push(n);
+            area.value = att.join(", "); ev.target.value = "";
+          });
+          el.querySelector(".cc-g-nome").addEventListener("change", () => { gruppi = leggiGruppi(); disegnaSelezioni(); });
+          el.querySelector(".cc-g-del").addEventListener("click", () => { el.remove(); gruppi = leggiGruppi(); disegnaSelezioni(); });
+        });
+      };
+      document.getElementById("cc-gruppo-add").addEventListener("click", () => {
+        gruppi = leggiGruppi().concat([{ codice: "", nome: "Nuovo gruppo", persone: [] }]);
+        disegnaGruppi(); disegnaSelezioni();
+      });
+      disegnaGruppi();
+      disegnaSelezioni();
+
+      // ── Anteprima dal vivo: stessa regola della pagina del controllore (campi_controllo_per + campoVisibile) ──
+      const membriRuolo = JSON.parse(document.getElementById("cc-ruoli-membri").textContent || "{}");
+      const chiavePersona = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[’`]/g, "'").split(/\s+/).filter(Boolean).sort().join(" ");
+      const etichette = {};
+      document.querySelectorAll(".cc-row").forEach(row => { etichette[row.dataset.campo] = (row.querySelector("strong") || {}).textContent || row.dataset.campo; });
+      const pvPersona = document.getElementById("cc-pv-persona");
+      const pvFase = document.getElementById("cc-pv-fase");
+      const pvTipo = document.getElementById("cc-pv-tipo");
+      const regoleCorrenti = () => {
+        const out = {};
+        document.querySelectorAll(".cc-row").forEach(row => {
+          out[row.dataset.campo] = {
+            modo: row.querySelector(".cc-modo").value,
+            persone: righe(row.querySelector(".cc-persone").value),
+            ruoli: Array.from(row.querySelectorAll(".cc-ruoli input:checked")).map(el => Number(el.value)),
+            gruppi: Array.from(row.querySelectorAll(".cc-gruppi-sel input:checked")).map(el => el.value),
+            fasi: righe(row.querySelector(".cc-fasi").value),
+            tipi: Array.from(row.querySelectorAll(".cc-tipi input:checked")).map(el => el.value),
+          };
+        });
+        return out;
+      };
+      const riempiPersone = () => {
+        const attuale = pvPersona.value;
+        const insieme = new Map();
+        leggiGruppi().forEach(g => g.persone.forEach(n => insieme.set(chiavePersona(n), `${n} (${g.nome})`)));
+        nomi.forEach(n => { if (!insieme.has(chiavePersona(n))) insieme.set(chiavePersona(n), n); });
+        pvPersona.innerHTML = '<option value="">— chiunque (nessuna persona in particolare) —</option>' +
+          Array.from(insieme.entries()).map(([k, l]) => `<option value="${esc(k)}">${esc(l)}</option>`).join("");
+        pvPersona.value = attuale;
+      };
+      const visibile = (chiave, regola, ctx, gruppiCorr) => {
+        if (!regola || regola.modo === "sempre") return true;
+        if (regola.modo === "mai") return false;
+        if (regola.persone.length || regola.ruoli.length || regola.gruppi.length) {
+          const ammessi = new Set(regola.persone.map(chiavePersona));
+          regola.ruoli.forEach(id => (membriRuolo[id] || []).forEach(n => ammessi.add(chiavePersona(n))));
+          regola.gruppi.forEach(c => ((gruppiCorr.find(g => g.codice === c) || {}).persone || []).forEach(n => ammessi.add(chiavePersona(n))));
+          if (!ctx.persona || !ammessi.has(ctx.persona)) return false;
+        }
+        const fase = ctx.fase.toLowerCase();
+        if (regola.fasi.length && !regola.fasi.some(f => fase.includes(f.toLowerCase()))) return false;
+        if (chiave !== "dove_pezzi" && regola.tipi.length && !regola.tipi.includes(ctx.tipo)) return false;
+        return true;
+      };
+      const aggiornaAnteprima = () => {
+        const r = regoleCorrenti();
+        const gruppiCorr = leggiGruppi();
+        const ctx = { persona: pvPersona.value, fase: pvFase.value || "", tipo: pvTipo.value || "" };
+        const v = {};
+        Object.keys(r).forEach(k => { v[k] = visibile(k, r[k], ctx, gruppiCorr); });
+        // dipendenze come nella pagina: i casi stanno dentro «Che cosa hai trovato?»
+        ["caso_misura", "caso_difetto", "caso_documenti"].forEach(k => { v[k] = v[k] && v.caso; });
+        v.caso = v.caso && (v.caso_misura || v.caso_difetto || v.caso_documenti);
+        v.pannello_misura = v.caso_misura;
+        v.report_zeiss = v.report_zeiss && v.pannello_misura;
+        v.tipo_difetto = v.tipo_difetto && v.caso;
+        v.copia_testo = v.copia_testo && v.pannello_misura;
+        document.querySelectorAll(".cc-preview [data-parte]").forEach(el => { el.hidden = !v[el.dataset.parte]; });
+        const nascoste = Object.keys(r).filter(k => !v[k]).map(k => etichette[k]);
+        document.getElementById("cc-pv-nascoste").textContent = nascoste.length ? `Nascoste per questo controllore: ${nascoste.join(", ")}.` : "Questo controllore vede tutte le parti.";
+      };
+      const card = document.getElementById("card-campi-controllo");
+      card.addEventListener("input", () => { aggiornaAnteprima(); });
+      card.addEventListener("change", (e) => {
+        if (e.target.closest("#cc-gruppi")) riempiPersone();
+        aggiornaAnteprima();
+      });
+      card.addEventListener("click", (e) => { if (e.target.closest(".cc-g-del, #cc-gruppo-add")) setTimeout(() => { riempiPersone(); aggiornaAnteprima(); }, 0); });
+      // passando su una regola si evidenzia la parte che comanda
+      document.querySelectorAll(".cc-row").forEach(row => {
+        const parti = () => document.querySelectorAll(`.cc-preview [data-parte="${row.dataset.campo}"]`);
+        row.addEventListener("mouseenter", () => { row.classList.add("is-hi"); parti().forEach(el => el.classList.add("is-hi")); });
+        row.addEventListener("mouseleave", () => { row.classList.remove("is-hi"); parti().forEach(el => el.classList.remove("is-hi")); });
+      });
+      riempiPersone();
+      aggiornaAnteprima();
+      const ruoli = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
+      document.querySelectorAll(".cc-row").forEach(row => {
+        const modo = row.querySelector(".cc-modo");
+        const cond = row.querySelector(".cc-cond");
+        modo.addEventListener("change", () => { cond.hidden = modo.value !== "se"; });
+        const box = row.querySelector(".cc-ruoli");
+        const scelti = (box.dataset.scelti || "").split(",").filter(Boolean).map(Number);
+        box.innerHTML = ruoli.length ? ruoli.map(r => `<label><input type="checkbox" value="${r.id}"${scelti.includes(r.id) ? " checked" : ""}> ${esc(r.nome)}</label>`).join("") : "<small>Nessun ruolo operativo</small>";
+        const pick = row.querySelector(".cc-persone-pick");
+        const area = row.querySelector(".cc-persone");
+        pick.innerHTML += nomi.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+        pick.addEventListener("change", () => {
+          const n = pick.value; if (!n) return;
+          const att = righe(area.value);
+          if (!att.some(x => x.toLowerCase() === n.toLowerCase())) att.push(n);
+          area.value = att.join(", "); pick.value = "";
+        });
+      });
+      btn.addEventListener("click", async () => {
+        const campi = {};
+        document.querySelectorAll(".cc-row").forEach(row => {
+          campi[row.dataset.campo] = {
+            modo: row.querySelector(".cc-modo").value,
+            persone: righe(row.querySelector(".cc-persone").value),
+            ruoli: Array.from(row.querySelectorAll(".cc-ruoli input:checked")).map(el => Number(el.value)),
+            fasi: righe(row.querySelector(".cc-fasi").value),
+            tipi: Array.from(row.querySelectorAll(".cc-tipi input:checked")).map(el => el.value),
+            gruppi: Array.from(row.querySelectorAll(".cc-gruppi-sel input:checked")).map(el => el.value),
+          };
+        });
+        btn.disabled = true;
+        try {
+          const r = await fetch("{% url 'api_anomalie_config_campi_controllo' %}", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+            body: JSON.stringify({ campi, gruppi: leggiGruppi() }),
+          });
+          const j = await r.json();
+          if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
+          st.className = "status ok"; st.textContent = "Salvato: vale subito (i controllori ricaricano la pagina).";
+        } catch (e) { st.className = "status err"; st.textContent = e.message; }
+        btn.disabled = false;
+      });
+    });
+  </script>
+
   <div class="card" id="card-logo">
     <div class="card-head">
       <div>
@@ -275,9 +579,23 @@
         <textarea id="avanzamenti" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label for="azioni_effettuate">Scelte Azione effettuata</label>
+        <small>Usate nel riquadro «Tempi ed esiti» della gestione anomalie (rilavorazione, scarto...). Le voci con «rilavor» o «ripar» chiedono «Pezzo riverificato conforme» per chiudere.</small>
+        <textarea id="azioni_effettuate" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label for="autorizzati_modifica">Utenti extra autorizzati modifica</label>
         <small>Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.</small>
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label for="referenti_rdc">Referenti RDC / segnalazione cliente</label>
+        <small>Un nome o email per riga. In Gestione anomalie, sotto «In carico a me», vedono gli OP con anomalie aperte da aprire RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).</small>
+        <div style="display:flex;gap:8px;margin:4px 0 6px;flex-wrap:wrap;">
+          <select id="referenti_rdc_picker" class="input" style="max-width:320px;"></select>
+          <button id="referenti_rdc_add" class="btn btn-secondary btn-sm" type="button">Aggiungi</button>
+        </div>
+        <textarea id="referenti_rdc" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
         <label>Indirizzi email delle notifiche</label>
@@ -964,6 +1282,8 @@
       conferma_aggiornamenti: [],
       rdc_segnalazione: [],
       escalation_supervisori: [],
+      azioni_effettuate: ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
+      referenti_rdc: [],
       attachments_dir: "media\\anomalie_allegati",
     };
 
@@ -971,7 +1291,9 @@
       "causali_doc",
       "stati_superficie",
       "avanzamenti",
+      "azioni_effettuate",
       "autorizzati_modifica",
+      "referenti_rdc",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
     // Liste derivate: la composizione (ruoli + override persona) e' modificabile,
@@ -989,6 +1311,23 @@
     const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
     const ruoliOperativi = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
     const anagraficaNames = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+    // Referenti RDC: scelta rapida dall'anagrafica (si può anche scrivere a mano).
+    (function () {
+      const picker = document.getElementById("referenti_rdc_picker");
+      const addBtn = document.getElementById("referenti_rdc_add");
+      const area = document.getElementById("referenti_rdc");
+      if (!picker || !addBtn || !area) return;
+      picker.innerHTML = "<option value=''>— scegli una persona —</option>" +
+        anagraficaNames.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      addBtn.addEventListener("click", () => {
+        const name = picker.value;
+        if (!name) return;
+        const current = area.value.split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
+        if (!current.some((n) => n.toLowerCase() === name.toLowerCase())) current.push(name);
+        area.value = current.join("\n");
+        picker.value = "";
+      });
+    })();
     const derivedBlocks = {};
     document.querySelectorAll(".derived-block").forEach((block) => {
       const key = block.dataset.derivedKey;

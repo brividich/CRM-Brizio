@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+
+def _sgi_bozza_storage():
+    from core.private_attachments import PrivateAttachmentStorage
+
+    return PrivateAttachmentStorage(download_hint="File privato CN-SGI: si scarica solo dalle pagine del modulo.")
 
 
 class DocumentType(models.TextChoices):
@@ -28,6 +35,35 @@ class AssignmentStatus(models.TextChoices):
     READ_CONFIRMED = "read_confirmed", "Presa visione confermata"
     OVERDUE = "overdue", "Scaduta"
     CANCELLED = "cancelled", "Annullata"
+
+
+def q_scadute(oggi):
+    """Assegnazioni scadute **adesso**: già marcate OVERDUE oppure ancora da
+    leggere con scadenza passata in una campagna pubblicata (stessa regola di
+    ``run_assignment_lifecycle``, che le marca solo alle 06:45)."""
+    return models.Q(status=AssignmentStatus.OVERDUE) | models.Q(
+        status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED],
+        campaign__status=CampaignStatus.PUBLISHED,
+        due_date__isnull=False,
+        due_date__lt=oggi,
+    )
+
+
+def q_in_attesa(oggi):
+    """Da leggere e non ancora scadute: il complemento di ``q_scadute`` fra le pendenti."""
+    return models.Q(status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]) & ~q_scadute(oggi)
+
+
+def scaduta_ora(assignment, oggi) -> bool:
+    """``q_scadute`` per una riga già caricata."""
+    if assignment.status == AssignmentStatus.OVERDUE:
+        return True
+    return bool(
+        assignment.status in (AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED)
+        and assignment.due_date
+        and assignment.due_date < oggi
+        and assignment.campaign.status == CampaignStatus.PUBLISHED
+    )
 
 
 class ReadEventType(models.TextChoices):
@@ -92,6 +128,13 @@ class ProcedureDocument(models.Model):
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="Attivo")
     requires_acknowledgement = models.BooleanField(
         default=True, verbose_name="Richiede presa visione"
+    )
+    sezione = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Sezione",
+        help_text="Sottocartella della share sotto lo scaffale (es. «2_MT»). La scrive la sincronizzazione.",
     )
     escludi_dal_rag = models.BooleanField(
         default=False,
@@ -211,6 +254,12 @@ class SgiTestoEstratto(models.Model):
     ha_testo_nativo = models.BooleanField(default=True, verbose_name="Testo nativo")
     ocr_usato = models.BooleanField(default=False, verbose_name="OCR usato")
     avvisi = models.TextField(blank=True, default="", verbose_name="Avvisi")
+    offset_pagine = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Inizio delle pagine",
+        help_text="Posizione nel testo in cui comincia ogni pagina: serve ad aprire il PDF alla pagina trovata dalla ricerca.",
+    )
     estratto_il = models.DateTimeField(auto_now=True, verbose_name="Estratto il")
 
     class Meta:
@@ -648,3 +697,378 @@ class SgiDocumentoProcesso(models.Model):
 
     def __str__(self) -> str:
         return f"{self.processo_id} <-> {self.documento_id}"
+
+
+# ---------------------------------------------------------------------------
+# CN-SGI: libreria delle procedure (scaffali, visibilità, consultazioni)
+# ---------------------------------------------------------------------------
+
+
+class SgiScaffale(models.Model):
+    """Uno scaffale della libreria CN-SGI = una cartella di primo livello della share.
+
+    La riga nasce dalla sincronizzazione (o dalla pagina «Scaffali») con nome e colore
+    ricavati dal nome della cartella; chi gestisce CN-SGI può cambiarli. Il campo
+    ``cartella`` coincide con ``ProcedureDocument.category``.
+    """
+
+    cartella = models.CharField(max_length=100, unique=True, verbose_name="Cartella sulla share")
+    nome = models.CharField(max_length=120, verbose_name="Nome")
+    sigla = models.CharField(max_length=20, blank=True, default="", verbose_name="Sigla sulla copertina")
+    norma = models.CharField(max_length=160, blank=True, default="", verbose_name="Norma o riferimento")
+    colore = models.CharField(max_length=7, default="#1f4f86", verbose_name="Colore")
+    ordine = models.PositiveIntegerField(default=100, verbose_name="Ordine")
+    certificazione = models.ForeignKey(
+        "sistema_gestione.Certificazione",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scaffali_sgi",
+        verbose_name="Certificazione collegata",
+    )
+    attivo = models.BooleanField(default=True, verbose_name="Mostrato nella libreria")
+    icona = models.CharField(max_length=30, blank=True, default="", verbose_name="Icona sulla copertina")
+    logo = models.FileField(
+        upload_to="cn_sgi/copertine/", storage=_sgi_bozza_storage, blank=True, max_length=200,
+        verbose_name="Logo sulla copertina", help_text="JPG, PNG o WebP (es. logo dell'ente di certificazione): viene ricodificato in JPEG.",
+    )
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Scaffale CN-SGI"
+        verbose_name_plural = "Scaffali CN-SGI"
+
+    def __str__(self) -> str:
+        return self.nome or self.cartella
+
+
+class SgiVisibilitaChi(models.TextChoices):
+    RUOLI = "ruoli", "Solo i ruoli scelti"
+    NESSUNO = "nessuno", "Solo chi gestisce CN-SGI"
+
+
+class SgiVisibilita(models.Model):
+    """Regola «chi vede cosa» dentro CN-SGI.
+
+    Vale per uno scaffale (``sezione`` vuota, nessun documento), per una sezione
+    dello scaffale o per un singolo documento. Vince la regola più specifica
+    (documento > sezione > scaffale); senza regole il documento è visibile a tutti.
+    Chi gestisce CN-SGI, gli amministratori e i ruoli «vede tutto» vedono sempre tutto.
+    L'unicità della terna è controllata dal form (niente vincolo DB: con SQL Server
+    un vincolo con colonne NULL ammette un solo NULL).
+    """
+
+    scaffale = models.CharField(max_length=100, db_index=True, verbose_name="Scaffale (cartella)")
+    sezione = models.CharField(max_length=255, blank=True, default="", verbose_name="Sezione")
+    documento = models.ForeignKey(
+        ProcedureDocument,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="regole_visibilita",
+        verbose_name="Documento",
+    )
+    chi = models.CharField(
+        max_length=10, choices=SgiVisibilitaChi.choices, default=SgiVisibilitaChi.RUOLI, verbose_name="Chi vede"
+    )
+    ruoli = models.ManyToManyField(
+        "core.AccessGroup", blank=True, related_name="regole_visibilita_sgi", verbose_name="Ruoli"
+    )
+    note = models.CharField(max_length=300, blank=True, default="", verbose_name="Note")
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Aggiornata da",
+    )
+    aggiornata_il = models.DateTimeField(auto_now=True, verbose_name="Aggiornata il")
+
+    class Meta:
+        ordering = ["scaffale", "sezione", "documento_id"]
+        verbose_name = "Regola di visibilità CN-SGI"
+        verbose_name_plural = "Regole di visibilità CN-SGI"
+
+    @property
+    def livello(self) -> str:
+        if self.documento_id:
+            return "documento"
+        if self.sezione:
+            return "sezione"
+        return "scaffale"
+
+    def __str__(self) -> str:
+        return f"{self.livello}: {self.scaffale} / {self.sezione} / {self.documento_id or ''}"
+
+
+class SgiAperturaGiorno(models.Model):
+    """Aperture di un documento dalla libreria, contate per giorno («Più consultati»).
+
+    Solo un contatore: chi ha aperto cosa resta nell'audit (``log_action``).
+    """
+
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="aperture_giorno", verbose_name="Documento"
+    )
+    giorno = models.DateField(db_index=True, verbose_name="Giorno")
+    conteggio = models.PositiveIntegerField(default=0, verbose_name="Aperture")
+
+    class Meta:
+        unique_together = [("documento", "giorno")]
+        verbose_name = "Aperture giornaliere CN-SGI"
+        verbose_name_plural = "Aperture giornaliere CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.documento_id} {self.giorno}: {self.conteggio}"
+
+
+class SgiDocumentoModulo(models.Model):
+    """Documento SGI applicato da un modulo dell'HUB (CN-SGI, fase 2).
+
+    Mostra la procedura sulle pagine del modulo (etichetta accanto al sotto-menu) e,
+    con ``compila``, il pulsante «Compila nell'HUB» sulla scheda dei modelli MOD.
+    ``modulo`` è una chiave di ``procedure_refresh.libreria.MODULI_HUB``.
+    """
+
+    ORIGINE_MANUALE = "manuale"
+    ORIGINE_PROPOSTA = "proposta"
+    ORIGINI = [(ORIGINE_MANUALE, "A mano"), (ORIGINE_PROPOSTA, "Proposta confermata")]
+
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="moduli_hub", verbose_name="Documento"
+    )
+    modulo = models.CharField(max_length=40, db_index=True, verbose_name="Modulo dell'HUB")
+    compila = models.BooleanField(
+        default=False, verbose_name="Si compila nell'HUB",
+        help_text="Il modello cartaceo è stato digitalizzato da questo modulo: la scheda mostra «Compila nell'HUB».",
+    )
+    origine = models.CharField(max_length=10, choices=ORIGINI, default=ORIGINE_MANUALE, verbose_name="Origine")
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="Creato da",
+    )
+    creato_il = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
+
+    class Meta:
+        unique_together = [("documento", "modulo")]
+        ordering = ["modulo", "documento__code"]
+        verbose_name = "Collegamento CN-SGI ↔ modulo"
+        verbose_name_plural = "Collegamenti CN-SGI ↔ moduli"
+
+    def __str__(self) -> str:
+        return f"{self.documento_id} → {self.modulo}"
+
+
+class SgiPreferito(models.Model):
+    """Documento messo tra «I miei documenti» da un utente (stella nella scheda CN-SGI)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preferiti_sgi", verbose_name="Utente"
+    )
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="preferito_da", verbose_name="Documento"
+    )
+    creato_il = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il")
+
+    class Meta:
+        unique_together = [("user", "documento")]
+        ordering = ["-creato_il"]
+        verbose_name = "Preferito CN-SGI"
+        verbose_name_plural = "Preferiti CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.user_id} ★ {self.documento_id}"
+
+
+
+# ---------------------------------------------------------------------------
+# CN-SGI · Modifiche ai documenti (redazione → verifica → approvazione → emissione)
+# ---------------------------------------------------------------------------
+
+
+class SgiModificaStato(models.TextChoices):
+    IN_REDAZIONE = "in_redazione", "In redazione"
+    IN_VERIFICA = "in_verifica", "In verifica"
+    IN_APPROVAZIONE = "in_approvazione", "In approvazione"
+    APPROVATA = "approvata", "Approvata, da emettere"
+    EMESSA = "emessa", "Emessa"
+    ANNULLATA = "annullata", "Annullata"
+
+
+class SgiModificaOrigine(models.TextChoices):
+    SEGNALAZIONE = "segnalazione", "Segnalazione di chi legge"
+    NC = "nc", "Non conformità o azione correttiva"
+    AUDIT = "audit", "Audit"
+    RFC = "rfc", "Richiesta di cambiamento (MOD.172)"
+    RIESAME = "riesame", "Riesame periodico"
+    NORMA = "norma", "Cambio di norma o requisito del cliente"
+    ALTRO = "altro", "Altro"
+
+
+class SgiModifica(models.Model):
+    """Una modifica a un documento SGI (o un documento nuovo) dalla richiesta all'emissione.
+
+    Il testo si scrive in Word: qui vivono il ciclo, le bozze, le firme e il registro.
+    La cartella SGI resta in sola lettura: il PDF emesso lo copia la qualità e la
+    sincronizzazione lo riconosce (stato «Emessa»).
+    """
+
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="modifiche", verbose_name="Documento",
+    )
+    nuovo_codice = models.CharField(max_length=50, blank=True, default="", verbose_name="Codice del documento nuovo")
+    nuovo_titolo = models.CharField(max_length=300, blank=True, default="", verbose_name="Titolo del documento nuovo")
+    scaffale = models.ForeignKey(
+        SgiScaffale, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Scaffale",
+    )
+    oggetto = models.CharField(max_length=200, verbose_name="Cosa si modifica")
+    motivo = models.TextField(verbose_name="Perché")
+    origine = models.CharField(
+        max_length=20, choices=SgiModificaOrigine.choices, default=SgiModificaOrigine.ALTRO, verbose_name="Origine",
+    )
+    riferimento = models.CharField(max_length=200, blank=True, default="", verbose_name="Riferimento (NC, audit, RFC…)")
+    paragrafi = models.CharField(max_length=200, blank=True, default="", verbose_name="Paragrafi coinvolti")
+    stato = models.CharField(
+        max_length=20, choices=SgiModificaStato.choices, default=SgiModificaStato.IN_REDAZIONE,
+        db_index=True, verbose_name="Stato",
+    )
+    stato_dal = models.DateTimeField(default=timezone.now, verbose_name="Nello stato dal")
+    revisione_base = models.ForeignKey(
+        ProcedureRevision, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="Revisione in vigore all'apertura",
+    )
+    revisione_prevista = models.CharField(max_length=20, blank=True, default="", verbose_name="Revisione prevista")
+    redattore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sgi_modifiche_redatte", verbose_name="Redige",
+    )
+    verificatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sgi_modifiche_verificate", verbose_name="Verifica",
+    )
+    approvatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sgi_modifiche_approvate", verbose_name="Approva",
+    )
+    entro = models.DateField(null=True, blank=True, verbose_name="Da emettere entro")
+    segnalazioni = models.ManyToManyField(
+        ProcedureChangeRequest, blank=True, related_name="modifiche", verbose_name="Segnalazioni collegate",
+    )
+    rilettura_automatica = models.BooleanField(
+        default=True, verbose_name="Chiedi la rilettura all'emissione",
+        help_text="All'emissione pubblica la presa visione per chi aveva letto le revisioni precedenti.",
+    )
+    revisione_emessa = models.ForeignKey(
+        ProcedureRevision, on_delete=models.SET_NULL, null=True, blank=True, related_name="modifiche_emesse",
+        verbose_name="Revisione emessa",
+    )
+    sollecitata_il = models.DateTimeField(null=True, blank=True, verbose_name="Ultimo sollecito")
+    creata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sgi_modifiche_create", verbose_name="Aperta da",
+    )
+    creata_il = models.DateTimeField(auto_now_add=True, verbose_name="Aperta il")
+    aggiornata_il = models.DateTimeField(auto_now=True, verbose_name="Aggiornata il")
+
+    class Meta:
+        ordering = ["-aggiornata_il"]
+        verbose_name = "Modifica a un documento CN-SGI"
+        verbose_name_plural = "Modifiche ai documenti CN-SGI"
+        indexes = [models.Index(fields=["documento", "stato"], name="pr_sgimod_doc_stato")]
+
+    def __str__(self) -> str:
+        return f"{self.codice} · {self.oggetto}"
+
+    @property
+    def codice(self) -> str:
+        return self.documento.code if self.documento_id else (self.nuovo_codice or "Documento nuovo")
+
+    @property
+    def titolo(self) -> str:
+        return self.documento.title if self.documento_id else self.nuovo_titolo
+
+    @property
+    def aperta(self) -> bool:
+        return self.stato not in {SgiModificaStato.EMESSA, SgiModificaStato.ANNULLATA}
+
+
+class SgiBozza(models.Model):
+    """Una versione di lavoro (Word, Excel o PDF) caricata durante la redazione. Non si cancella."""
+
+    modifica = models.ForeignKey(SgiModifica, on_delete=models.CASCADE, related_name="bozze", verbose_name="Modifica")
+    numero = models.PositiveIntegerField(verbose_name="Bozza n.")
+    file = models.FileField(upload_to="cn_sgi/bozze/%Y/", storage=_sgi_bozza_storage, max_length=300, verbose_name="File")
+    nome_file = models.CharField(max_length=255, verbose_name="Nome del file")
+    dimensione = models.PositiveIntegerField(default=0, verbose_name="Dimensione (byte)")
+    impronta = models.CharField(max_length=64, verbose_name="Impronta SHA-256")
+    sintesi = models.TextField(blank=True, default="", verbose_name="Cosa cambia")
+    testo = models.TextField(blank=True, default="", verbose_name="Testo estratto")
+    caricata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="Caricata da",
+    )
+    caricata_il = models.DateTimeField(auto_now_add=True, verbose_name="Caricata il")
+
+    class Meta:
+        ordering = ["-numero"]
+        unique_together = [("modifica", "numero")]
+        verbose_name = "Bozza CN-SGI"
+        verbose_name_plural = "Bozze CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.modifica_id} bozza {self.numero}"
+
+
+class SgiPassaggio(models.Model):
+    """Registro della modifica: ogni azione con chi, ruolo, quando e impronta della bozza.
+
+    Solo in aggiunta: nessuna pagina lo modifica o lo cancella (evidenza EN 9100 §7.5.3).
+    """
+
+    modifica = models.ForeignKey(SgiModifica, on_delete=models.PROTECT, related_name="passaggi", verbose_name="Modifica")
+    azione = models.CharField(max_length=30, verbose_name="Azione")
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="Utente",
+    )
+    utente_nome = models.CharField(max_length=200, blank=True, default="", verbose_name="Nome al momento")
+    ruolo = models.CharField(max_length=30, blank=True, default="", verbose_name="Ruolo")
+    stato_da = models.CharField(max_length=20, blank=True, default="", verbose_name="Da stato")
+    stato_a = models.CharField(max_length=20, blank=True, default="", verbose_name="A stato")
+    nota = models.TextField(blank=True, default="", verbose_name="Nota")
+    bozza = models.ForeignKey(SgiBozza, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Bozza")
+    impronta = models.CharField(max_length=64, blank=True, default="", verbose_name="Impronta della bozza")
+    quando = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Quando")
+
+    class Meta:
+        ordering = ["quando", "pk"]
+        verbose_name = "Passaggio di una modifica CN-SGI"
+        verbose_name_plural = "Registro delle modifiche CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.modifica_id} {self.azione} {self.quando:%Y-%m-%d %H:%M}"
+
+
+class SgiFirmeTipo(models.Model):
+    """Chi redige, verifica e approva di solito, per tipo di documento (proposti all'apertura di una modifica)."""
+
+    tipo = models.CharField(max_length=20, unique=True, verbose_name="Tipo di documento")
+    redattore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Redige",
+    )
+    verificatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Verifica",
+    )
+    approvatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Approva",
+    )
+
+    class Meta:
+        verbose_name = "Firme CN-SGI per tipo di documento"
+        verbose_name_plural = "Firme CN-SGI per tipo di documento"
+
+    def __str__(self) -> str:
+        return self.tipo

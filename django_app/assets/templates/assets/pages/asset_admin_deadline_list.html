@@ -59,6 +59,18 @@
 .ad-dialog-grid .ad-wide{grid-column:1/-1}
 .ad-dialog :is(input,textarea){font:inherit;color:inherit;background:var(--surface,#fff);border:1px solid var(--border,#cbd5e1);border-radius:8px;padding:6px 8px}
 .ad-dialog-actions{display:flex;gap:8px;justify-content:flex-end}
+.ad-also-box{display:grid;gap:6px;border:1px solid var(--border,#dbe1ea);border-radius:10px;padding:10px 12px;background:var(--surface-alt,#f8fafc);font-size:var(--fs-sm)}
+.ad-also-box p{margin:0}
+.ad-also-box[hidden],.ad-also-box [hidden]{display:none}
+.ad-also-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
+.ad-also-head label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;color:var(--text-mid,#64748b)}
+.ad-dialog .ad-also-head select{font:inherit;color:inherit;background:var(--surface,#fff);border:1px solid var(--border,#cbd5e1);border-radius:8px;padding:4px 6px}
+.ad-also-list{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:calc(30 * var(--vh, 1vh));overflow:auto}
+.ad-also-list li{border-radius:6px;padding:3px 6px}
+.ad-also-list li:has(input:checked){background:rgba(37,99,235,.08)}
+.ad-also{display:flex;gap:8px;align-items:center;cursor:pointer}
+.ad-dialog .ad-also input{margin:0;padding:0;width:18px;height:18px;flex:none}
+.ad-also-box .btn{justify-self:start}
 @media (max-width:900px){.ad-strip{grid-template-columns:repeat(7,minmax(0,1fr))}.ad-dialog-grid{grid-template-columns:1fr}}
 </style>
 {% endblock %}
@@ -124,6 +136,7 @@
     {% for tab in status_tabs %}
       <a class="md-tab {% if tab.active and not month_filter %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}<span class="ad-tab-count">{{ tab.count }}</span></a>
     {% endfor %}
+    <a class="md-tab" href="{% url 'assets:maintenance_history' %}?source=deadlines" title="Ogni esecuzione registrata, anche delle scadenze che si sono rinnovate">Svolte →</a>
   </div>
 
   <form class="md-filters" method="get">
@@ -339,12 +352,31 @@
         </label>
       </div>
       <p class="ad-dialog-sub">Con la prossima scadenza la voce si rinnova a quella data. Se la lasci vuota: la voce periodica si rinnova da sola («Si ripete ogni»), quella di una serie lascia il posto alla data successiva, le altre si chiudono.</p>
+      <div class="ad-also-box" data-ad-also-box hidden>
+        <div class="ad-also-head">
+          <strong>&#128161; Stessa scadenza su altri asset</strong>
+          <label>scadute o entro
+            <select data-ad-also-window aria-label="Mostra le scadenze entro">
+              {% for days, label in same_outing_choices %}<option value="{{ days }}"{% if days == same_outing_days %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+        </div>
+        <p>Se l'hai fatta nella stessa uscita, spuntali: si registrano insieme a questa con la stessa data, le stesse note, la stessa prossima scadenza e gli stessi allegati. Costo e durata restano solo su questa.</p>
+        <ul class="ad-also-list" data-ad-also-list></ul>
+        <p class="ad-note" data-ad-also-empty hidden>Nessun altro asset in questo periodo: allarga il filtro.</p>
+        <button type="button" class="btn btn-sm btn-secondary" data-ad-also-all>Spunta tutti</button>
+      </div>
       <div class="ad-dialog-actions">
         <button type="button" class="btn btn-secondary" data-ad-close>Annulla</button>
-        <button type="submit" class="btn btn-primary">Registra</button>
+        <button type="submit" class="btn btn-primary" data-ad-submit>Registra</button>
       </div>
     </form>
   </dialog>
+  {% comment %}Elenco «stessa scadenza su altri asset» di ogni voce: la finestra copia quello della voce aperta.{% endcomment %}
+  {% for row in deadline_rows %}
+    {% include "assets/components/_admin_deadline_also.html" with item=row %}
+    {% for other in row.series %}{% include "assets/components/_admin_deadline_also.html" with item=other %}{% endfor %}
+  {% endfor %}
 {% endif %}
 
 <script>
@@ -364,18 +396,63 @@
 
   // Una sola finestra "Registra" per tutta la pagina, al posto di un modulo per riga.
   var dialog = document.getElementById("ad-register");
+  var alsoBox = dialog && dialog.querySelector("[data-ad-also-box]");
+  var alsoList = dialog && dialog.querySelector("[data-ad-also-list]");
+  var submit = dialog && dialog.querySelector("[data-ad-submit]");
+  var alsoWindow = dialog && dialog.querySelector("[data-ad-also-window]");
+  var alsoEmpty = dialog && dialog.querySelector("[data-ad-also-empty]");
+  // Il pulsante dice su quanti asset si registra.
+  function refreshSubmit() {
+    if (!submit) { return; }
+    var extra = dialog.querySelectorAll("[data-ad-also]:checked").length;
+    submit.textContent = extra ? "Registra su " + (extra + 1) + " asset" : "Registra";
+  }
+  // Filtro «scadute o entro N giorni»: chi esce dal periodo perde la spunta, cosi'
+  // non si registra niente che non si vede.
+  function applyWindow() {
+    if (!alsoList || !alsoWindow) { return; }
+    var limit = parseInt(alsoWindow.value, 10);
+    var shown = 0;
+    alsoList.querySelectorAll("[data-ad-also-days]").forEach(function (item) {
+      var inside = parseInt(item.getAttribute("data-ad-also-days"), 10) <= limit;
+      item.hidden = !inside;
+      if (!inside) { item.querySelector("[data-ad-also]").checked = false; } else { shown += 1; }
+    });
+    if (alsoEmpty) { alsoEmpty.hidden = shown > 0; }
+    var all = dialog.querySelector("[data-ad-also-all]");
+    if (all) { all.hidden = shown === 0; }
+    refreshSubmit();
+  }
   function openRegister(id, title, due) {
     if (!dialog) { return; }
     dialog.querySelector('[data-ad-field="id"]').value = id;
     dialog.querySelector('[data-ad-field="title"]').textContent = title || "";
     dialog.querySelector('[data-ad-field="due"]').textContent = due || "";
+    if (alsoList) {
+      var source = document.querySelector('template[data-ad-also-for="' + id + '"]');
+      alsoList.replaceChildren();
+      if (source) { alsoList.appendChild(source.content.cloneNode(true)); }
+      alsoBox.hidden = !source;
+    }
+    applyWindow();
     if (typeof dialog.showModal === "function") { dialog.showModal(); } else { dialog.setAttribute("open", ""); }
   }
+  document.addEventListener("change", function (event) {
+    if (event.target.matches("[data-ad-also]")) { refreshSubmit(); }
+    if (event.target.matches("[data-ad-also-window]")) { applyWindow(); }
+  });
   document.addEventListener("click", function (event) {
     var trigger = event.target.closest("[data-ad-register]");
     if (trigger) {
       event.preventDefault();
       openRegister(trigger.getAttribute("data-ad-register"), trigger.getAttribute("data-ad-title"), trigger.getAttribute("data-ad-due"));
+      return;
+    }
+    if (event.target.closest("[data-ad-also-all]") && dialog) {
+      var boxes = dialog.querySelectorAll("li:not([hidden]) > .ad-also > [data-ad-also]");
+      var all = Array.prototype.every.call(boxes, function (box) { return box.checked; });
+      boxes.forEach(function (box) { box.checked = !all; });
+      refreshSubmit();
       return;
     }
     if (event.target.closest("[data-ad-close]") && dialog) { dialog.close(); }

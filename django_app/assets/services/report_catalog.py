@@ -454,8 +454,16 @@ def _licenze(filtri: dict) -> RisultatoReport:
             return "In scadenza"
         return "Attiva"
 
+    # PC che hanno davvero il software, dall'inventario: stesso conteggio dell'elenco licenze.
+    licenze = list(qs.order_by("category", "vendor", "product_name", "id")[:MAX_RIGHE])
+    try:
+        from security.services.software_catalog import hosts_by_key
+
+        installati = hosts_by_key({lic.inventory_key for lic in licenze})
+    except Exception:  # noqa: BLE001 - il report resta usabile anche senza inventario
+        installati = {}
     righe = []
-    for lic in qs.order_by("category", "vendor", "product_name", "id")[:MAX_RIGHE]:
+    for lic in licenze:
         s = stato(lic)
         if stato_filtro == "scadute" and s != "Scaduta":
             continue
@@ -469,14 +477,19 @@ def _licenze(filtri: dict) -> RisultatoReport:
                       lic.license_reference, assegnata, reparto, lic.seats_used or 0,
                       lic.seats_total if lic.seats_total is not None else "",
                       lic.expiry_date.strftime("%d/%m/%Y") if lic.expiry_date else "",
-                      "Sì" if lic.auto_renew else "No", s])
+                      "Sì" if lic.auto_renew else "No", s,
+                      installati.get(lic.inventory_key, 0) if lic.inventory_key else "non collegata",
+                      lic.seats_total - installati.get(lic.inventory_key, 0) if lic.inventory_key and lic.seats_total is not None else ""])
+    oltre = sum(1 for r in righe if r[13] != "" and r[13] < 0)
     totali = [f"Totale {len(righe)} licenze", "", "", "", "", "", "", sum(r[7] for r in righe),
-              sum(r[8] for r in righe if r[8] != ""), "", "", f"Scadute {sum(1 for r in righe if r[11] == 'Scaduta')}"]
+              sum(r[8] for r in righe if r[8] != ""), "", "", f"Scadute {sum(1 for r in righe if r[11] == 'Scaduta')}",
+              "", f"Oltre i posti {oltre}"]
     return RisultatoReport("Licenze software", ["Categoria", "Prodotto", "Edizione", "Produttore", "Riferimento",
                                                 "Assegnata a", "Reparto", "Posti usati", "Posti totali", "Scadenza",
-                                                "Rinnovo automatico", "Stato"],
+                                                "Rinnovo automatico", "Stato", "PC con il software", "Posti meno PC"],
                            righe, totali, somma=(7, 8), troncato=len(righe) >= MAX_RIGHE,
-                           note=["«In scadenza» = entro 60 giorni. Le licenze disattivate compaiono solo con Stato «Tutte»."])
+                           note=["«In scadenza» = entro 60 giorni. Le licenze disattivate compaiono solo con Stato «Tutte».",
+                                 "«PC con il software» viene dall'inventario e vale per le licenze collegate; «Posti meno PC» negativo = più PC che posti."])
 
 
 def _sintesi_licenze(righe):
@@ -485,7 +498,8 @@ def _sintesi_licenze(righe):
     for r in righe:
         per_prodotto[r[1]] += r[7]
     riepilogo = [("Licenze", _num(len(righe))), ("Posti usati", _num(sum(r[7] for r in righe))),
-                 ("Scadute", _num(stati.get("Scaduta", 0))), ("Entro 60 giorni", _num(stati.get("In scadenza", 0)))]
+                 ("Scadute", _num(stati.get("Scaduta", 0))), ("Entro 60 giorni", _num(stati.get("In scadenza", 0))),
+                 ("Più PC che posti", _num(sum(1 for r in righe if r[13] != "" and r[13] < 0)))]
     return riepilogo, _barre("Posti usati per prodotto", per_prodotto.items())
 
 
@@ -582,7 +596,7 @@ COLONNE_UTILIZZO = (
     ("Ferma h", ("pronta",)),
     ("Interrotta h", ("ferma",)),
     ("Allarme/emergenza h", ("allarme", "emergenza")),
-    ("Offline h", ("spenta", "non_raggiungibile", "mai")),
+    ("Offline h", ("spenta", "non_raggiungibile", "non_leggibile", "mai")),
 )
 
 

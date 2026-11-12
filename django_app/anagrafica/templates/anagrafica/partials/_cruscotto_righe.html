@@ -1,12 +1,14 @@
 {% comment %}
 Righe di un riquadro del cruscotto HR: persona, voce, data e stato.
 Parametri: righe (services.cruscotto_hr.Riga), vuoto (testo se non ci sono righe),
-etichetta_data (opzionale, es. «entro il»).
+etichetta_data (opzionale, es. «entro il»), ancora (opzionale: id della sezione
+della scheda da aprire, es. «visite-mediche»; le qualifiche con tipo_id aprono
+il form di rinnovo con «?rinnova=<tipo>»).
 {% endcomment %}
 <ul class="hrg-righe">
   {% for r in righe %}
   <li>
-    <a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">
+    <a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}{% if r.tipo_id %}?rinnova={{ r.tipo_id }}#qualifiche{% elif ancora %}#{{ ancora }}{% endif %}">
       <span>{{ r.nominativo|upper }}<small>{{ r.testo }}</small></span>
       {% if r.tono == "ko" %}<span class="hrg-pill hrg-pill-danger">{% if etichetta_data %}{{ etichetta_data }} {% else %}scaduto {% endif %}{{ r.data|date:"d/m/Y" }}</span>
       {% elif r.tono == "mancante" %}<span class="hrg-pill">da acquisire</span>

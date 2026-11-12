@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ tecnico.nome }} | {{ fornitore.ragione_sociale }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.tf-page { max-width:720px; display:flex; flex-direction:column; gap:16px; }
+.tf-back { font-size:12px; color:var(--text-mid,#64748b); text-decoration:none; }
+.tf-back:hover { text-decoration:underline; }
+.tf-title { font-size:22px; font-weight:800; color:var(--text,#0f172a); margin-top:4px; }
+.tf-sub { font-size:13px; color:var(--text-mid,#64748b); margin-top:2px; }
+.tf-card { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; padding:20px; }
+.tf-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.tf-grid .full { grid-column:1/-1; }
+.tf-field { display:flex; flex-direction:column; gap:4px; }
+.tf-field label { font-size:11px; font-weight:700; color:var(--text-mid,#64748b); text-transform:uppercase; letter-spacing:.05em; }
+.tf-field .ana-input { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:8px 12px; font-size:13px; color:var(--text,#0f172a); background:var(--surface-alt,#f8fafc); width:100%; box-sizing:border-box; }
+.tf-err { color:#991b1b; font-size:12px; }
+.tf-check { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text,#0f172a); }
+.tf-azioni { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:16px; }
+.tf-btn { display:inline-flex; align-items:center; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; text-decoration:none; }
+.tf-btn-primary { background:#1d4ed8; color:#fff; }
+.tf-btn-ghost { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); border-color:var(--border,#e2e8f0); }
+.tf-btn-danger { background:#fee2e2; color:#991b1b; }
+body.theme-dark .tf-err { color:#fca5a5; }
+body.theme-dark .tf-btn-danger { background:rgba(229,62,62,.16); color:#fca5a5; }
+@media(max-width:600px){ .tf-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="tf-page">
+  <div>
+    <a class="tf-back" href="{% url 'fornitori:fornitore_detail' fornitore.pk %}#tab-tecnici">← {{ fornitore.ragione_sociale }}</a>
+    <div class="tf-title">{{ tecnico.nome }}</div>
+    <div class="tf-sub">{{ tecnico.get_origine_display }} il {{ tecnico.creato_il|date:"d-m-Y" }}</div>
+  </div>
+
+  <form method="post" class="tf-card">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="tf-err">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="tf-grid">
+      <div class="tf-field"><label for="{{ form.nome.id_for_label }}">Nome e cognome *</label>{{ form.nome }}{% for e in form.nome.errors %}<span class="tf-err">{{ e }}</span>{% endfor %}</div>
+      <div class="tf-field"><label for="{{ form.qualifica.id_for_label }}">Qualifica</label>{{ form.qualifica }}</div>
+      <div class="tf-field"><label for="{{ form.telefono.id_for_label }}">Telefono</label>{{ form.telefono }}</div>
+      <div class="tf-field"><label for="{{ form.email.id_for_label }}">Email</label>{{ form.email }}{% for e in form.email.errors %}<span class="tf-err">{{ e }}</span>{% endfor %}</div>
+      <div class="tf-field"><label for="{{ form.attestati_fino_al.id_for_label }}">Attestati validi fino al</label>{{ form.attestati_fino_al }}{% for e in form.attestati_fino_al.errors %}<span class="tf-err">{{ e }}</span>{% endfor %}</div>
+      <div class="tf-field"><label for="{{ form.note.id_for_label }}">Note</label>{{ form.note }}</div>
+      <label class="tf-check full">{{ form.attivo }} Attivo <small style="color:var(--text-mid,#64748b);">(chi non lavora più per la ditta si disattiva: resta nello storico)</small></label>
+    </div>
+    <div class="tf-azioni">
+      <a class="tf-btn tf-btn-ghost" href="{% url 'fornitori:fornitore_detail' fornitore.pk %}#tab-tecnici">Annulla</a>
+      <button class="tf-btn tf-btn-primary" type="submit">Salva</button>
+    </div>
+  </form>
+
+  <form method="post" action="{% url 'fornitori:tecnico_stato' fornitore.pk tecnico.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="elimina">
+    <button class="tf-btn tf-btn-danger" type="submit" data-hub-confirm="Eliminare questo tecnico dal registro? Se rientra dal GuestPortal verrà registrato di nuovo.">Elimina dal registro</button>
+  </form>
+</div>
+{% endblock %}

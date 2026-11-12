@@ -180,8 +180,8 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
       tutto lo storico, perche' e' una WHERE e non un filtro sul DOM.
       {% endcomment %}
       <form method="get" action="" class="ga-filters" id="ga-filters">
-        {# Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
-           risultato mostrerebbe una pagina vuota senza spiegare perche'. #}
+        {% comment %}Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
+           risultato mostrerebbe una pagina vuota senza spiegare perche'.{% endcomment %}
         <input type="hidden" name="page" id="ga-page" value="1">
         <input type="hidden" name="ordina" id="ga-ordina" value="{{ admin_filtri.ordina }}">
         <input type="hidden" name="verso" id="ga-verso" value="{{ admin_filtri.verso }}">
@@ -208,6 +208,17 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
             {% endfor %}
           </select>
         </div>
+        {% if admin_certificato_scelte %}
+        <div class="ga-field">
+          <label for="ga-certificato">Certificato</label>
+          <select id="ga-certificato" name="certificato">
+            <option value="">Tutte</option>
+            {% for c in admin_certificato_scelte %}
+              <option value="{{ c.key }}" {% if admin_filtri.certificato == c.key %}selected{% endif %}>{{ c.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
         <div class="ga-field">
           <label for="ga-da">Dal</label>
           <input type="date" id="ga-da" name="da" value="{{ admin_filtri.da }}">
@@ -239,6 +250,10 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
           <span class="ga-bulk-count" id="ga-bulk-count">0 selezionate</span>
           <button type="button" class="ga-act ga-act-approve" id="ga-bulk-approva">Approva selezionate</button>
           <button type="button" class="ga-act ga-act-reject" id="ga-bulk-rifiuta">Rifiuta selezionate</button>
+          {% if admin_certificato_scelte %}
+            <button type="button" class="ga-act ga-act-approve" id="ga-bulk-certificato"
+                    title="Segna il certificato medico come arrivato sulle malattie selezionate, senza mandare mail">Certificato arrivato (senza mail)</button>
+          {% endif %}
           <button type="button" class="ga-act" id="ga-bulk-annulla">Deseleziona</button>
           <span class="ms-field-help" id="ga-bulk-nota">La selezione vale solo su questa pagina.</span>
         </div>
@@ -268,7 +283,10 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
               <tr>
                 {% if admin_can_moderate %}
                   <td data-label="">
-                    {% if not a.gestita_sp %}
+                    {% comment %}Le richieste nate su SharePoint non si moderano qui, ma il
+                       certificato e' un dato solo del portale: si possono selezionare
+                       se sono malattie ancora senza certificato.{% endcomment %}
+                    {% if not a.gestita_sp or a.certificato is False %}
                       <input type="checkbox" class="ga-check ga-check-row" value="{{ a.id }}"
                              data-dip="{{ a.dipendente }}" aria-label="Seleziona assenza {{ a.id }}">
                     {% endif %}
@@ -276,7 +294,7 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
                 {% endif %}
                 <td data-label="#"><strong>{{ a.id }}</strong></td>
                 <td data-label="Dipendente">{{ a.dipendente }}</td>
-                <td data-label="Tipo">{{ a.tipo }}</td>
+                <td data-label="Tipo">{{ a.tipo }}{% if a.certificato is False %} <span class="abs-chip soft" title="Certificato medico non ancora arrivato">senza certificato</span>{% endif %}</td>
                 <td data-label="Dal">{{ a.inizio_label }}</td>
                 <td data-label="Al">{{ a.fine_label }}</td>
                 <td data-label="Stato">
@@ -467,6 +485,40 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
           window.location.reload();
         });
       }
+
+      // Certificato arrivato in blocco: nessuna mail, quindi niente nota
+      // obbligatoria; basta una conferma con il numero di righe.
+      var btnCert = document.getElementById("ga-bulk-certificato");
+      if (btnCert) btnCert.addEventListener("click", function () {
+        var ids = selezionate().map(function (c) { return parseInt(c.value, 10); });
+        if (!ids.length) return;
+        if (!window.confirm(
+          "Segni «Certificato arrivato» su " + ids.length + " assenz" + (ids.length === 1 ? "a" : "e") +
+          ".\nNon parte nessuna mail; resta nello storico della richiesta. Le righe che non sono malattie vengono saltate."
+        )) return;
+        var csrfEl = document.querySelector("#ga-modal-overlay [name=csrfmiddlewaretoken]")
+          || document.querySelector("[name=csrfmiddlewaretoken]");
+        fetch("{% url 'assenze_api_admin_bulk_certificato' %}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrfEl ? csrfEl.value : "" },
+          body: JSON.stringify({ ids: ids })
+        }).then(function (r) {
+          return r.json().then(function (d) { return { ok: r.ok, d: d }; }, function () { return { ok: r.ok, d: {} }; });
+        }).then(function (res) {
+          if (!res.ok || !res.d || !res.d.ok) {
+            window.alert((res.d && res.d.error) || "Operazione non riuscita.");
+            return;
+          }
+          var scartate = res.d.scartate || [];
+          if (scartate.length) {
+            window.alert(
+              res.d.applicate + " segnate, " + scartate.length + " saltate:\n" +
+              scartate.map(function (x) { return "#" + x.id + ": " + x.motivo; }).join("\n")
+            );
+          }
+          window.location.reload();
+        });
+      });
 
       var btnApprova = document.getElementById("ga-bulk-approva");
       var btnRifiuta = document.getElementById("ga-bulk-rifiuta");

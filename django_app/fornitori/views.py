@@ -9,13 +9,19 @@ dall'anagrafica HR dei dipendenti.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
+from django.http import Http404, HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from anagrafica.models import (
@@ -27,7 +33,14 @@ from anagrafica.models import (
 )
 from core.audit import log_action
 
+from . import collegamenti as col
+from . import guestportal as gp
+from . import ingressi as ing
+from .models import IngressoIntervento, IngressoSenzaIntervento, TecnicoFornitore
+from .nomi import chiave_ditta
+from . import tecnici as registro_tecnici
 from .forms import (
+    TecnicoFornitoreForm,
     FornitoreAssetForm,
     FornitoreDocumentoForm,
     FornitoreForm,
@@ -78,6 +91,8 @@ def index(request):
         "n_asset_assegnati": n_asset_assegnati,
         "ultimi_fornitori": ultimi_fornitori,
         "spesa_categorie": spesa_categorie,
+        "da_guardare": col.da_guardare(request),
+        "ditte_attese": col.ditte_attese(request),
     })
 
 
@@ -86,10 +101,62 @@ def index(request):
 # ---------------------------------------------------------------------------
 
 @login_required
+def guida(request):
+    from . import guida as guida_mod
+
+    if (request.GET.get("formato") or "") == "pdf":
+        from core.guida_pdf import render_guida_pdf
+
+        contenuto = render_guida_pdf(
+            titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO, sezioni=guida_mod.SEZIONI,
+            generato_da=request.user.get_username(), generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="Guida_Fornitori.pdf"'
+        return resp
+    return render(request, "fornitori/pages/guida.html", {
+        "titolo": guida_mod.TITOLO, "sottotitolo": guida_mod.SOTTOTITOLO, "sezioni": guida_mod.SEZIONI,
+    })
+
+
+REQUISITI_FILTRO = {
+    "non_in_regola": "Documenti non in regola",
+    "in_scadenza": "Documenti in scadenza",
+    "ok": "Documenti in regola",
+}
+
+
+def _fornitori_csv(request, qs):
+    """Stesse righe dell'elenco filtrato, senza limite di pagina."""
+    from core.csv_export import csv_download_response
+
+    from .requisiti import stati_per_fornitori
+
+    fornitori = list(qs)
+    stati = stati_per_fornitori([f.pk for f in fornitori])
+    response, writer = csv_download_response("fornitori.csv", delimiter=";")
+    writer.writerow(["Ragione sociale", "P.IVA", "Categoria", "Città", "Telefono", "Email", "Attivo",
+                     "Lavora in sede", "Documenti di sicurezza"])
+    for f in fornitori:
+        stato = stati.get(f.pk)
+        writer.writerow([
+            f.ragione_sociale, f.piva, f.get_categoria_display(), f.citta, f.telefono, f.email,
+            "Sì" if f.is_active else "No", "Sì" if f.accede_in_sede else "No",
+            stato.etichetta if stato and f.accede_in_sede else "",
+        ])
+    log_action(request, "fornitori_esportati", "fornitori", {"righe": len(fornitori)})
+    return response
+
+
+@login_required
 def fornitori_list(request):
     q = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "").strip()
-    solo_attivi = request.GET.get("attivi", "1") == "1"
+    # Il form manda sempre «q»: con la casella «Solo attivi» tolta «attivi» non c'è e vuol dire tutti.
+    solo_attivi = request.GET.get("attivi", "" if "q" in request.GET else "1") == "1"
+    requisiti_filtro = request.GET.get("requisiti", "").strip()
+    if requisiti_filtro not in REQUISITI_FILTRO:
+        requisiti_filtro = ""
 
     qs = Fornitore.objects.all()
     if solo_attivi:
@@ -99,9 +166,18 @@ def fornitori_list(request):
             Q(ragione_sociale__icontains=q)
             | Q(piva__icontains=q)
             | Q(citta__icontains=q)
-        )
+            | Q(tecnici__nome__icontains=q)
+        ).distinct()
     if categoria:
         qs = qs.filter(categoria=categoria)
+    from .requisiti import stati_per_fornitori
+
+    if requisiti_filtro:
+        stati_filtro = stati_per_fornitori(qs.filter(accede_in_sede=True).values_list("pk", flat=True))
+        qs = qs.filter(pk__in=[pk for pk, s in stati_filtro.items() if s.esito == requisiti_filtro])
+
+    if request.GET.get("formato") == "csv":
+        return _fornitori_csv(request, qs)
 
     stats = Fornitore.objects.aggregate(
         totale=Count("id"),
@@ -111,12 +187,20 @@ def fornitori_list(request):
 
     paginator = Paginator(qs, 25)
     page = paginator.get_page(request.GET.get("page"))
+    stati = stati_per_fornitori([f.pk for f in page.object_list])
+    for f in page.object_list:
+        f.requisiti = stati.get(f.pk)
 
     return render(request, "fornitori/pages/fornitori_list.html", {
         "page_obj": page,
         "q": q,
         "categoria": categoria,
         "solo_attivi": solo_attivi,
+        "requisiti_filtro": requisiti_filtro,
+        "requisiti_scelte": list(REQUISITI_FILTRO.items()),
+        "query_filtri": urlencode({
+            "q": q, "categoria": categoria, "attivi": "1" if solo_attivi else "", "requisiti": requisiti_filtro,
+        }),
         "categoria_choices": Fornitore.CATEGORIA_CHOICES,
         "stats_totale": stats["totale"],
         "stats_attivi": stats["attivi"],
@@ -136,9 +220,24 @@ def fornitore_detail(request, fornitore_id):
     documenti = fornitore.documenti.all()
     asset_assegnati = fornitore.asset_assegnati.select_related("asset", "created_by").all()
     spesa = ordini.aggregate(t=Sum("importo"))["t"] or Decimal("0")
+    from .requisiti import GIORNI_PREAVVISO, stato_fornitore
+
+    sezioni = col.sezioni_visibili(request)
+    codici_contatori: list = []
+    codici_scegliere: list = []
+    if sezioni[col.SEZIONE_COPIE]:
+        codici_contatori = col.codici_del_fornitore(fornitore)
+        if col.apre(request, "fornitori:fornitore_edit", fornitore.pk):
+            codici_scegliere = col.codici_da_scegliere(fornitore)
 
     return render(request, "fornitori/pages/fornitore_detail.html", {
         "fornitore": fornitore,
+        "sezioni": sezioni,
+        "codici_contatori": codici_contatori,
+        "codici_scegliere": codici_scegliere,
+        "n_tecnici": fornitore.tecnici.filter(attivo=True).count(),
+        "requisiti": stato_fornitore(fornitore),
+        "giorni_preavviso": GIORNI_PREAVVISO,
         "documenti": documenti,
         "ordini": ordini,
         "valutazioni": valutazioni,
@@ -149,6 +248,154 @@ def fornitore_detail(request, fornitore_id):
         "valutazione_form": FornitoreValutazioneForm(),
         "asset_form": FornitoreAssetForm(fornitore=fornitore),
     })
+
+
+@login_required
+def fornitore_sezione(request, fornitore_id, sezione):
+    """Una scheda della pagina fornitore, caricata quando la si apre. Ogni sezione segue il
+    permesso del modulo da cui arrivano i dati (``collegamenti.sezioni_visibili``)."""
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    visibili = col.sezioni_visibili(request)
+    if sezione not in visibili:
+        raise Http404("Sezione inesistente")
+    if not visibili[sezione]:
+        return JsonResponse({"ok": False, "errore": "Non hai il permesso di vedere questi dati."}, status=403)
+    if sezione == col.SEZIONE_RIEPILOGO:
+        dati = col.dati_riepilogo(request, fornitore, anno=request.GET.get("anno"))
+    elif sezione == col.SEZIONE_MANUTENZIONE:
+        dati = col.dati_manutenzione(request, fornitore)
+    elif sezione == col.SEZIONE_COPIE:
+        from contatori.permessi import puo_gestire
+
+        dati = {**col.dati_copie(fornitore), "puo_gestire_fatture": puo_gestire(request)}
+    elif sezione == col.SEZIONE_SCADENZE:
+        dati = col.dati_scadenze(request, fornitore)
+    else:
+        dati = {
+            **col.dati_tecnici(fornitore, vede_ingressi=col.vede_ingressi(request)),
+            "puo_modificare": col.apre(request, "fornitori:fornitore_edit", fornitore.pk),
+            "tecnico_form": TecnicoFornitoreForm(fornitore=fornitore),
+        }
+    return render(request, f"fornitori/components/sezione_{sezione}.html", {"fornitore": fornitore, **dati})
+
+
+# ---------------------------------------------------------------------------
+# Registro dei tecnici del fornitore
+# ---------------------------------------------------------------------------
+
+def _torna_ai_tecnici(fornitore):
+    return redirect(reverse("fornitori:fornitore_detail", args=[fornitore.pk]) + "#tab-tecnici")
+
+
+def _puo_modificare_tecnici(request, fornitore) -> bool:
+    return col.apre(request, "fornitori:fornitore_edit", fornitore.pk)
+
+
+_NEGATO_TECNICI = "Non puoi modificare i tecnici di questo fornitore."
+
+
+@login_required
+@require_POST
+def tecnico_add(request, fornitore_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    dati = request.POST.copy()
+    dati.setdefault("attivo", "on")
+    form = TecnicoFornitoreForm(dati, fornitore=fornitore)
+    if form.is_valid():
+        tecnico = form.save(commit=False)
+        tecnico.fornitore = fornitore
+        tecnico.creato_da = request.user
+        tecnico.save()
+        log_action(request, "fornitore_tecnico_aggiunto", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico.pk})
+        messages.success(request, f"{tecnico.nome} registrato.")
+    else:
+        errori = [e for lista in form.errors.values() for e in lista]
+        messages.error(request, " ".join(errori) or "Controlla i dati del tecnico.")
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+@require_POST
+def tecnico_registra(request, fornitore_id):
+    """Registra chi è entrato dal GuestPortal e non è ancora nel registro: una persona o tutte."""
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not (_puo_modificare_tecnici(request, fornitore) and col.vede_ingressi(request)):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.POST.get("azione") == "tutti":
+        nomi = [t.nome for t in col.dati_tecnici(fornitore)["da_registrare"]]
+    else:
+        nomi = [request.POST.get("nome") or ""]
+    nuovi = sum(
+        1 for nome in nomi
+        if registro_tecnici.registra(
+            fornitore.pk, nome, origine=TecnicoFornitore.ORIGINE_GUESTPORTAL, utente=request.user,
+        )[1]
+    )
+    log_action(request, "fornitore_tecnici_registrati", "fornitori", {"fornitore_id": fornitore.pk, "nuovi": nuovi})
+    messages.success(request, f"Tecnici registrati: {nuovi}.")
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+def tecnico_edit(request, fornitore_id, tecnico_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    tecnico = get_object_or_404(TecnicoFornitore, pk=tecnico_id, fornitore=fornitore)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.method == "POST":
+        form = TecnicoFornitoreForm(request.POST, instance=tecnico, fornitore=fornitore)
+        if form.is_valid():
+            form.save()
+            log_action(request, "fornitore_tecnico_modificato", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico.pk})
+            messages.success(request, "Tecnico aggiornato.")
+            return _torna_ai_tecnici(fornitore)
+    else:
+        form = TecnicoFornitoreForm(instance=tecnico, fornitore=fornitore)
+    return render(request, "fornitori/pages/tecnico_form.html", {"fornitore": fornitore, "tecnico": tecnico, "form": form})
+
+
+@login_required
+@require_POST
+def tecnico_stato(request, fornitore_id, tecnico_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    tecnico = get_object_or_404(TecnicoFornitore, pk=tecnico_id, fornitore=fornitore)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.POST.get("azione") == "elimina":
+        tecnico_pk = tecnico.pk
+        tecnico.delete()
+        log_action(request, "fornitore_tecnico_eliminato", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico_pk})
+        messages.success(request, "Tecnico eliminato dal registro.")
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+@require_POST
+def fornitore_collega_contatori(request, fornitore_id):
+    """Facoltativo: dice quale codice del modulo Contatori è questo fornitore."""
+    from .models import FornitoreContatori
+
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not (col.apre(request, "fornitori:fornitore_edit", fornitore.pk) and col.apre(request, "contatori:fatture")):
+        return HttpResponseForbidden("Non puoi modificare questo collegamento.")
+    catalogo = col.catalogo_codici()
+    codice = (request.POST.get("codice") or "").strip()
+    azione = request.POST.get("azione") or "collega"
+    if codice not in catalogo:
+        messages.error(request, "Scegli il fornitore del modulo Contatori.")
+    elif azione == "togli":
+        FornitoreContatori.objects.filter(codice=codice, fornitore=fornitore).delete()
+        messages.success(request, f"Collegamento con «{catalogo[codice]}» tolto.")
+    else:
+        FornitoreContatori.objects.update_or_create(
+            codice=codice, defaults={"fornitore": fornitore, "creato_da": request.user},
+        )
+        messages.success(request, f"«{catalogo[codice]}» collegato a questo fornitore.")
+    log_action(request, "fornitore_contatori_collegato", "fornitori",
+               {"fornitore_id": fornitore.pk, "codice": codice, "azione": azione})
+    return redirect(reverse("fornitori:fornitore_detail", args=[fornitore.pk]) + "#tab-copie")
 
 
 @login_required
@@ -373,3 +620,559 @@ def fornitore_asset_remove(request, fornitore_id, fa_id):
     log_action(request, "fornitore_asset_rimosso", "fornitori", {"fornitore_id": fornitore_id, "fa_id": fa_id, "asset": nome})
     messages.success(request, f'Asset "{nome}" rimosso dal fornitore.')
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore_id)
+
+
+# ---------------------------------------------------------------------------
+# Accessi esterni (GuestPortal, sola lettura) e apertura pannello con SSO
+# ---------------------------------------------------------------------------
+
+def _data_param(valore, default: date) -> date:
+    try:
+        return date.fromisoformat((valore or "").strip())
+    except ValueError:
+        return default
+
+
+@login_required
+def accessi_esterni(request):
+    """Visitatori, fornitori e consulenti registrati al GuestPortal: chi è presente
+    ora e lo storico del periodo. Lettura diretta, nessuna copia nell'HUB."""
+    oggi = timezone.localdate()
+    solo_da_collegare = request.GET.get("da_collegare") == "1"
+    dal = _data_param(request.GET.get("dal"), oggi - timedelta(days=ing.GIORNI_DA_COLLEGARE if solo_da_collegare else 6))
+    al = _data_param(request.GET.get("al"), oggi)
+    if al < dal:
+        dal, al = al, dal
+    testo = request.GET.get("q", "").strip()[:80]
+    tipo = request.GET.get("tipo", "").strip()
+    if tipo not in gp.TIPI:
+        tipo = ""
+
+    configurato = gp.db_configurato()
+    presenti: list = []
+    righe: list = []
+    troncato = False
+    errore = ""
+    if configurato:
+        try:
+            presenti = gp.presenti_ora()
+            righe, troncato = gp.storico(dal=dal, al=al, testo=testo, tipo=tipo)
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
+
+    # Collega l'azienda dell'esterno alla scheda fornitore (abbinamento ditta GuestPortal,
+    # altrimenti stessa ragione sociale): una sola regola, in fornitori/requisiti.py.
+    from .requisiti import abbina_fornitori, stati_per_fornitori
+
+    abbina_fornitori(presenti + righe)
+    collegati = ing.interventi_per_visite([a.visita_id for a in presenti + righe])
+    for accesso in presenti + righe:
+        accesso.interventi = collegati.get(accesso.visita_id, [])
+    # «Da collegare»: facoltativo, un promemoria. Se il GuestPortal non risponde qui, niente contatore.
+    da_collegare = {a.visita_id for a in ing.ingressi_da_collegare(righe)}
+    non_serve = set(IngressoSenzaIntervento.objects.filter(
+        visita_gp_id__in=[a.visita_id for a in righe]).values_list("visita_gp_id", flat=True))
+    for accesso in righe:
+        accesso.da_collegare = accesso.visita_id in da_collegare
+        accesso.non_serve = accesso.visita_id in non_serve
+    if solo_da_collegare:
+        righe = [a for a in righe if a.da_collegare]
+    n_da_collegare, da_collegare_troncato = 0, False
+    if configurato and not errore:
+        try:
+            ultimi, da_collegare_troncato = gp.storico(dal=oggi - timedelta(days=ing.GIORNI_DA_COLLEGARE), al=oggi)
+            abbina_fornitori(ultimi)
+            n_da_collegare = len(ing.ingressi_da_collegare(ultimi))
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            pass
+    # Requisiti di sicurezza della ditta per chi è dentro adesso (art. 26 D.Lgs. 81/2008).
+
+    stati = stati_per_fornitori([a.fornitore_id for a in presenti if a.fornitore_id])
+    for accesso in presenti:
+        accesso.requisiti = stati.get(accesso.fornitore_id) if accesso.fornitore_id else None
+
+    return render(request, "fornitori/pages/accessi_esterni.html", {
+        "dal": dal,
+        "al": al,
+        "q": testo,
+        "tipo": tipo,
+        "tipi": list(gp.TIPI.items()),
+        "configurato": configurato,
+        "presenti": presenti,
+        "storico": righe,
+        "troncato": troncato,
+        "limite": gp.STORICO_MAX_RIGHE,
+        "errore": errore,
+        "sso_attivo": gp.sso_configurato(),
+        "puo_creare_fornitore": col.apre(request, "fornitori:fornitore_create"),
+        "solo_da_collegare": solo_da_collegare,
+        "n_da_collegare": n_da_collegare,
+        "da_collegare_troncato": da_collegare_troncato,
+        "giorni_da_collegare": ing.GIORNI_DA_COLLEGARE,
+    })
+
+
+@login_required
+@require_POST
+def ingresso_non_serve(request, visita_id):
+    """Toglie un ingresso da «Da collegare» (riunione, consegna) o lo rimette. Non tocca il GuestPortal."""
+    if not col.vede_ingressi(request):
+        return HttpResponseForbidden("Permesso negato")
+    if request.POST.get("azione") == "togli":
+        IngressoSenzaIntervento.objects.filter(visita_gp_id=visita_id).delete()
+        azione = "ingresso_rimesso_da_collegare"
+    else:
+        IngressoSenzaIntervento.objects.get_or_create(visita_gp_id=visita_id, defaults={"segnato_da": request.user})
+        azione = "ingresso_senza_intervento"
+    log_action(request, azione, "fornitori", {"visita_gp_id": visita_id})
+    torna = request.POST.get("torna", "")
+    if not url_has_allowed_host_and_scheme(torna, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        torna = reverse("fornitori:accessi_esterni")
+    return redirect(torna)
+
+
+@login_required
+@require_POST
+def ingresso_crea_fornitore(request, visita_id):
+    """Crea il fornitore dall'ingresso di una ditta nuova e ci registra il tecnico.
+    Nome e nominativo si rileggono dal GuestPortal, mai dal POST."""
+    if not (col.apre(request, "fornitori:fornitore_create") and col.vede_ingressi(request)):
+        return HttpResponseForbidden("Non puoi creare fornitori dagli accessi esterni.")
+    try:
+        accesso = gp.visita(visita_id)
+    except gp.GuestPortalNonConfigurato:
+        messages.error(request, "Collegamento al database del GuestPortal non configurato.")
+        return redirect("fornitori:accessi_esterni")
+    except gp.GuestPortalNonRaggiungibile:
+        messages.error(request, "Il database del GuestPortal non risponde: riprova tra poco.")
+        return redirect("fornitori:accessi_esterni")
+    if accesso is None:
+        messages.error(request, "Ingresso non trovato nel GuestPortal (forse già cancellato).")
+        return redirect("fornitori:accessi_esterni")
+    fornitore, creato, registrato = ing.crea_fornitore_da_accesso(accesso, utente=request.user)
+    if fornitore is None:
+        messages.error(request, f"«{accesso.azienda or 'Azienda vuota'}» non si può creare: il nome è vuoto o "
+                                "corrisponde a più fornitori. Abbina la ditta in «Ditte GuestPortal».")
+        return redirect("fornitori:accessi_esterni")
+    log_action(request, "fornitore_da_ingresso", "fornitori", {
+        "fornitore_id": fornitore.pk, "visita_id": visita_id, "fornitore_creato": creato, "tecnico_registrato": registrato,
+    })
+    ditta = f"Fornitore «{fornitore.ragione_sociale}» creato" if creato else f"«{fornitore.ragione_sociale}» esisteva già"
+    tecnico = f": {accesso.nome} registrato tra i tecnici." if registrato else "."
+    messages.success(request, ditta + tecnico)
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+def guestportal_apri(request):
+    """Apre il pannello admin del GuestPortal già autenticato (token firmato, 60 s,
+    uso singolo). Senza SSO configurato porta al login normale del pannello. Dopo il passaggio
+    il pannello è quello dell'HUB."""
+    if gp.nativa():
+        return redirect("reception:cruscotto")
+    if gp.sso_configurato():
+        try:
+            token = gp.firma_token(request.user.get_username())
+        except (gp.GuestPortalNonConfigurato, ValueError):
+            token = ""
+        if token:
+            log_action(request, "guestportal_sso", "fornitori", {"esito": "token_emesso"})
+            risposta = HttpResponseRedirect(f"{gp.sso_url()}?{urlencode({'t': token})}")
+            risposta["Cache-Control"] = "no-store"
+            risposta["Referrer-Policy"] = "no-referrer"
+            return risposta
+    url = gp.admin_url()
+    if not url:
+        messages.error(request, "Indirizzo del GuestPortal non configurato (GUESTPORTAL_ADMIN_URL).")
+        return redirect("fornitori:accessi_esterni")
+    return HttpResponseRedirect(url)
+
+
+# ---------------------------------------------------------------------------
+# Presenze in azienda: ingressi GuestPortal collegati a ticket e OdL
+# (riquadro HTMX nelle pagine ticket/OdL; il permesso si verifica qui, sulla
+# regola della pagina che lo ospita)
+# ---------------------------------------------------------------------------
+
+def _puo_presenze(request, iv, *, modifica: bool) -> bool:
+    if iv.formazione:
+        from anagrafica.views import _helpers
+
+        if modifica:
+            return bool(_helpers._can_edit_formazione(request))
+        return bool(_helpers._can_view_formazione(request))
+    if iv.tipo == ing.TIPO_TICKET:
+        from tickets.services.accesso import utente_puo_gestire_ticket
+
+        return utente_puo_gestire_ticket(request, iv.oggetto)
+    if iv.tipo == ing.TIPO_SCADENZA:
+        from scadenzario.permessi import puo_gestire_categoria, puo_vedere_scadenza
+
+        if modifica:
+            return puo_gestire_categoria(request, iv.oggetto.categoria_id)
+        return puo_vedere_scadenza(request, iv.oggetto)
+    from django.urls import reverse
+
+    from core.middleware import acl_allows_path
+
+    if iv.tipo in (ing.TIPO_ORDINARIA, ing.TIPO_AMMINISTRATIVA):
+        from assets.registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+        from assets.services.visibilita import puo_vedere
+
+        ordinaria = iv.tipo == ing.TIPO_ORDINARIA
+        rotta = "assets:occurrence_complete" if ordinaria else "assets:asset_administrative_deadline_edit"
+        vede = acl_allows_path(
+            reverse(rotta, args=[iv.pk]), django_user=request.user,
+            legacy_user=getattr(request, "legacy_user", None), request=request,
+        ) and puo_vedere(request, iv.oggetto.asset, MODULO_MANUTENZIONE if ordinaria else MODULO_VERIFICHE)
+        if not vede or not modifica or not ordinaria:
+            return bool(vede)
+        from assets.views_maintenance import can_execute_maintenance
+
+        return bool(can_execute_maintenance(request))
+    vede = acl_allows_path(
+        reverse("assets:wo_view", args=[iv.pk]), django_user=request.user,
+        legacy_user=getattr(request, "legacy_user", None), request=request,
+    )
+    if not vede or not modifica:
+        return vede
+    from assets.views_maintenance import can_execute_maintenance
+
+    return bool(can_execute_maintenance(request))
+
+
+def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: int = 200):
+    giorno_txt = (request.POST.get("giorno") or request.GET.get("giorno") or "").strip()
+    giorno = _data_param(giorno_txt, None) if giorno_txt else None
+    puo_modificare = _puo_presenze(request, iv, modifica=True) and not iv.chiuso
+    configurato = gp.db_configurato()
+    proposte: list = []
+    del_giorno: list = []
+    errore_gp = ""
+    if configurato:
+        try:
+            ing.aggiorna_uscite(iv)
+            if puo_modificare:
+                proposte = ing.proposte(iv)
+                if giorno:
+                    del_giorno = ing.ingressi_del_giorno(iv, giorno)
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore_gp = "Il GuestPortal non risponde: proposte non disponibili, i collegamenti già fatti restano."
+    collegamenti = list(iv.collegamenti())
+    confronto = ing.confronto_ore(iv, collegamenti)
+    rapportino = ing.dati_rapportino(iv, collegamenti) if puo_modificare else None
+    # Intervento senza ditta con ingressi già collegati: la ditta si può impostare
+    # anche dopo (fornitore creato o ditta abbinata in un secondo momento).
+    ditta_proposta = None
+    aziende_sconosciute: list[str] = []
+    if puo_modificare and collegamenti and iv.puo_prendere_ditta:
+        ditta_proposta = ing.ditta_dai_collegamenti(iv, collegamenti)
+        if ditta_proposta is None:
+            aziende_sconosciute = sorted({c.azienda for c in collegamenti if c.azienda})
+    return render(request, "fornitori/components/presenze_intervento.html", {
+        "iv": iv,
+        "collegamenti": collegamenti,
+        "confronto": confronto,
+        "presenza_label": ing.ore_label(confronto.presenza_minuti),
+        "dichiarate_label": ing.ore_label(confronto.dichiarate_minuti) if confronto.dichiarate_minuti is not None else "",
+        "proposte": proposte,
+        "del_giorno": del_giorno,
+        "giorno": giorno,
+        "configurato": configurato,
+        "puo_modificare": puo_modificare,
+        "errore_gp": errore_gp,
+        "esito": esito,
+        "errore": errore,
+        "dal_al": iv.finestra(),
+        "ditta_proposta": ditta_proposta,
+        "aziende_sconosciute": aziende_sconosciute,
+        "rapportino": rapportino,
+        "puo_altri": not iv.formazione and col.vede_ingressi(request),
+    }, status=status)
+
+
+def _intervento_o_404(tipo: str, pk: int):
+    from django.http import Http404
+
+    iv = ing.intervento(tipo, pk)
+    if iv is None:
+        raise Http404("Intervento non trovato")
+    return iv
+
+
+def _autore(request) -> tuple[str, str]:
+    """Nome ed email con cui firmare il commento interno del ticket."""
+    try:
+        from tickets.services.accesso import identita_utente
+
+        return identita_utente(request)
+    except Exception:
+        return (request.user.get_username(), getattr(request.user, "email", "") or "")
+
+
+def _frase_collegato(link) -> str:
+    frase = (f"Ingresso del {timezone.localtime(link.ingresso):%d/%m/%Y %H:%M} collegato."
+             if link.ingresso else "Ingresso collegato.")
+    nota = getattr(link, "nota_ditta", "")
+    return f"{frase} {nota}".strip()
+
+
+@login_required
+def presenze_intervento(request, tipo, pk):
+    iv = _intervento_o_404(tipo, pk)
+    if not _puo_presenze(request, iv, modifica=False):
+        return HttpResponseForbidden("Permesso negato")
+    return _render_presenze(request, iv)
+
+
+@login_required
+@require_POST
+def presenze_collega(request, tipo, pk):
+    iv = _intervento_o_404(tipo, pk)
+    if not _puo_presenze(request, iv, modifica=True):
+        return HttpResponseForbidden("Permesso negato")
+    try:
+        visita_id = int(request.POST.get("visita_id") or 0)
+    except ValueError:
+        visita_id = 0
+    if not visita_id:
+        return _render_presenze(request, iv, errore="Ingresso non indicato.", status=400)
+    try:
+        link = ing.collega(iv, visita_id, utente=request.user, modo=request.POST.get("modo", ""),
+                           autore=_autore(request))
+    except ing.CollegamentoNonValido as exc:
+        return _render_presenze(request, iv, errore=str(exc))
+    except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+        return _render_presenze(request, iv, errore="Il GuestPortal non risponde: riprova tra poco.")
+    log_action(request, "ingresso_esterno_collegato", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": link.modo})
+    return _render_presenze(request, iv, esito=_frase_collegato(link))
+
+
+@login_required
+@require_POST
+def presenze_scollega(request, link_id):
+    from .models import IngressoIntervento
+
+    link = get_object_or_404(IngressoIntervento, pk=link_id)
+    iv = ing.intervento_del_link(link)
+    if not _puo_presenze(request, iv, modifica=True) or iv.chiuso:
+        return HttpResponseForbidden("Permesso negato")
+    log_action(request, "ingresso_esterno_scollegato", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
+    link.delete()
+    return _render_presenze(request, iv, esito="Collegamento tolto.")
+
+
+@login_required
+@require_POST
+def presenze_imposta_ditta(request, tipo, pk):
+    """Imposta sul ticket/OdL senza ditta quella di un ingresso già collegato."""
+    from .models import IngressoIntervento as _Link
+
+    iv = _intervento_o_404(tipo, pk)
+    if iv.tipo not in ing.TIPI or not _puo_presenze(request, iv, modifica=True):
+        return HttpResponseForbidden("Permesso negato")
+    link_txt = request.POST.get("link_id", "")
+    link = iv.collegamenti().filter(pk=int(link_txt)).first() if link_txt.isdigit() else None
+    if link is None:
+        return _render_presenze(request, iv, errore="Ingresso collegato non trovato.", status=400)
+    try:
+        frase = ing.imposta_ditta_da_collegamento(iv, link, utente=request.user, autore=_autore(request))
+    except ing.CollegamentoNonValido as exc:
+        return _render_presenze(request, iv, errore=str(exc))
+    log_action(request, "ingresso_esterno_ditta_impostata", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
+    iv = _intervento_o_404(tipo, pk)
+    return _render_presenze(request, iv, esito=frase or "Ditta impostata.")
+
+
+# ---------------------------------------------------------------------------
+# Collegamento partendo dall'ingresso (pagina Accessi esterni → «Collega»)
+# ---------------------------------------------------------------------------
+
+SCELTE_MAX = 100
+
+
+def _collega_piu(request, accesso, scelte: list[str]):
+    """Una visita su più interventi insieme: ognuno con il suo permesso, uno che non va non ferma gli altri."""
+    fatti: list[str] = []
+    saltati: list[str] = []
+    for scelta in list(dict.fromkeys(scelte))[:SCELTE_MAX]:
+        tipo, _, pk = scelta.partition(":")
+        iv = ing.intervento(tipo, int(pk)) if pk.isdigit() else None
+        if iv is None:
+            saltati.append("intervento non trovato")
+            continue
+        if not _puo_presenze(request, iv, modifica=True):
+            saltati.append(f"{iv.etichetta}: permesso negato")
+            continue
+        try:
+            link = ing.collega(iv, accesso.visita_id, utente=request.user,
+                               modo=IngressoIntervento.MODO_MANUALE, autore=_autore(request))
+        except ing.CollegamentoNonValido as exc:
+            saltati.append(f"{iv.etichetta}: {exc}")
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            saltati.append(f"{iv.etichetta}: il GuestPortal non risponde")
+        else:
+            log_action(request, "ingresso_esterno_collegato", "fornitori",
+                       {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": "DA_INGRESSO_MULTIPLO"})
+            fatti.append(iv.etichetta)
+    if fatti:
+        messages.success(request, f"Ingresso collegato a {len(fatti)}: " + ", ".join(fatti))
+    if saltati:
+        messages.error(request, "Non collegati: " + "; ".join(saltati))
+    return redirect(request.get_full_path())
+
+
+@login_required
+def ingresso_collega(request, visita_id):
+    """Sceglie il ticket MAN o l'OdL aperto a cui collegare un ingresso del GuestPortal.
+    Se l'intervento non ha ancora una ditta, prende quella dell'ingresso."""
+    try:
+        accesso = gp.visita(visita_id)
+    except gp.GuestPortalNonConfigurato:
+        messages.error(request, "Collegamento al database del GuestPortal non configurato.")
+        return redirect("fornitori:accessi_esterni")
+    except gp.GuestPortalNonRaggiungibile:
+        messages.error(request, "Il database del GuestPortal non risponde: riprova tra poco.")
+        return redirect("fornitori:accessi_esterni")
+    if accesso is None:
+        messages.error(request, "Ingresso non trovato nel GuestPortal (forse già cancellato).")
+        return redirect("fornitori:accessi_esterni")
+
+    if request.method == "POST":
+        scelte = request.POST.getlist("scelta")
+        if scelte:
+            return _collega_piu(request, accesso, scelte)
+        pk_txt = request.POST.get("pk", "")
+        iv = ing.intervento(request.POST.get("tipo", ""), int(pk_txt)) if pk_txt.isdigit() else None
+        if iv is None:
+            messages.error(request, "Intervento non trovato.")
+        elif not _puo_presenze(request, iv, modifica=True):
+            return HttpResponseForbidden("Permesso negato")
+        else:
+            try:
+                link = ing.collega(iv, accesso.visita_id, utente=request.user,
+                                   modo=IngressoIntervento.MODO_MANUALE, autore=_autore(request))
+            except ing.CollegamentoNonValido as exc:
+                messages.error(request, str(exc))
+            except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+                messages.error(request, "Il GuestPortal non risponde: riprova tra poco.")
+            else:
+                log_action(request, "ingresso_esterno_collegato", "fornitori",
+                           {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": "DA_INGRESSO"})
+                messages.success(request, f"{_frase_collegato(link)} → {iv.etichetta}")
+                return redirect("fornitori:ingresso_collega", visita_id=accesso.visita_id)
+        return redirect(request.get_full_path())
+
+    fornitore = ing.fornitore_da_accesso(accesso)
+    testo = request.GET.get("q", "").strip()[:80]
+    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore, accesso=accesso)
+    scadenze, elenco_tagliato = ing.scadenze_da_collegare(request, testo=testo, fornitore=fornitore, accesso=accesso)
+    interventi = sorted([*interventi, *scadenze], key=ing.stessa_ditta_prima(fornitore))
+    collegati = list(IngressoIntervento.objects.filter(visita_gp_id=accesso.visita_id)
+                     .select_related("ticket", "work_order", "work_order__asset", "sessione_formazione",
+                                     "sessione_formazione__corso", "occorrenza", "occorrenza__plan", "occorrenza__asset",
+                                     "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria",
+                                     "collegato_da"))
+    for c in collegati:
+        c.iv = ing.intervento_del_link(c)
+    gia = {(c.iv.tipo, c.iv.pk) for c in collegati}
+    righe = [iv for iv in interventi if (iv.tipo, iv.pk) not in gia]
+    vede_ticket = any(iv.tipo == ing.TIPO_TICKET for iv in interventi)
+    # Filtro per tipo: i conteggi restano sull'elenco completo, così si vede dove guardare.
+    filtro_tipo = request.GET.get("tipo", "")
+    conteggi: dict[str, int] = {}
+    for iv in righe:
+        conteggi[iv.tipo] = conteggi.get(iv.tipo, 0) + 1
+    filtri_tipo = [{"val": v, "label": e, "n": conteggi[v]} for v, e in ing.FILTRI_TIPO if conteggi.get(v)]
+    if filtro_tipo in conteggi:
+        righe = [iv for iv in righe if iv.tipo == filtro_tipo]
+    else:
+        filtro_tipo = ""
+    return render(request, "fornitori/pages/ingresso_collega.html", {
+        "a": accesso,
+        "fornitore": fornitore,
+        "righe": righe,
+        "filtri_tipo": filtri_tipo,
+        "vede_ticket": vede_ticket,
+        "filtro_tipo": filtro_tipo,
+        "collegati": collegati,
+        "q": testo,
+        "elenco_tagliato": elenco_tagliato,
+        "elenco_max": ing.ELENCO_MAX_SCADENZE,
+        "puo_odl": ing.puo_collegare_odl(request),
+        "puo_formazione": ing.puo_collegare_formazione(request),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Ditte GuestPortal ↔ fornitori HUB (abbinamento una tantum)
+# ---------------------------------------------------------------------------
+
+@login_required
+def guestportal_ditte(request):
+    from .models import DittaGuestPortal
+
+    if request.method == "POST":
+        try:
+            ditta_gp_id = int(request.POST.get("ditta_gp_id") or 0)
+        except ValueError:
+            ditta_gp_id = 0
+        fornitore_id = (request.POST.get("fornitore_id") or "").strip()
+        nome_gp = (request.POST.get("ditta_gp_nome") or "").strip()[:200]
+        if ditta_gp_id:
+            if fornitore_id:
+                fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+                DittaGuestPortal.objects.update_or_create(
+                    ditta_gp_id=ditta_gp_id,
+                    defaults={"fornitore": fornitore, "ditta_gp_nome": nome_gp or str(ditta_gp_id),
+                              "creato_da": request.user},
+                )
+                messages.success(request, f"«{nome_gp}» abbinata a «{fornitore.ragione_sociale}».")
+            else:
+                DittaGuestPortal.objects.filter(ditta_gp_id=ditta_gp_id).delete()
+                messages.success(request, f"Abbinamento di «{nome_gp}» tolto.")
+            log_action(request, "guestportal_ditta_abbinata", "fornitori",
+                       {"ditta_gp_id": ditta_gp_id, "fornitore_id": fornitore_id or None})
+        return redirect("fornitori:guestportal_ditte")
+
+    configurato = gp.db_configurato()
+    ditte: list = []
+    errore = ""
+    if configurato:
+        try:
+            ditte = gp.ditte_guestportal()
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
+    abbinate = {d.ditta_gp_id: d for d in DittaGuestPortal.objects.select_related("fornitore")}
+    fornitori = list(Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("pk", "ragione_sociale"))
+    per_chiave: dict[str, int | None] = {}
+    for pk, rs in fornitori:
+        chiave = chiave_ditta(rs)
+        if chiave:
+            per_chiave[chiave] = None if chiave in per_chiave else pk  # ambigua = nessuna proposta
+    righe = []
+    for ditta_id, nome in ditte:
+        abb = abbinate.get(ditta_id)
+        righe.append({
+            "id": ditta_id,
+            "nome": nome,
+            "abbinata": abb,
+            "suggerito": None if abb else per_chiave.get(chiave_ditta(nome)),
+        })
+    return render(request, "fornitori/pages/guestportal_ditte.html", {
+        "configurato": configurato,
+        "errore": errore,
+        "righe": righe,
+        "fornitori": fornitori,
+        "n_abbinate": sum(1 for r in righe if r["abbinata"]),
+    })

@@ -3,6 +3,8 @@
 .mnav-bar{position:sticky;top:var(--nav-h,60px);z-index:90;padding:8px 12px;background:var(--surface,#fff);border-bottom:1px solid var(--border,#e2e8f0);box-shadow:0 6px 14px -12px rgba(12,37,69,.35)}
 .mnav-bar[hidden]{display:none}
 .mnav-bar--inline{position:static;margin:0 0 14px;padding:0;background:transparent;border:0;box-shadow:none}
+/* Dentro una riga flex (es. barra delle stanze con i comandi a destra) prende lo spazio che resta. */
+.mnav-bar--inline{flex:1 1 auto;min-width:0}
 body.theme-dark .mnav-bar.mnav-bar--inline{background:transparent}
 .mnav-collapsed{display:none!important}
 .mnav-trigger{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:6px 12px;border:1px solid var(--border,#e2e8f0);border-radius:12px;background:var(--bg,#f6f8fb);color:var(--text,#0f172a);font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -82,11 +84,17 @@ body.theme-dark .mbar-item{color:var(--text-light)}
 body.theme-dark .mbar-item:active{background:rgba(255,255,255,.06)}
 body.theme-dark .mbar-item.is-active{color:#93c5fd}
 
+/* ── Campi sul telefono: almeno 16px, sotto quella misura iOS ingrandisce la pagina al tocco ── */
+@media (max-width:720px) and (pointer:coarse){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden]),
+  select,textarea{font-size:16px!important}
+}
+
 /* ── Tabelle a schede sul telefono (logica in core/js/mobile-tables.js) ── */
 @media (max-width:720px){
   table.mcards{display:block;width:100%;min-width:0!important;border:0;background:transparent}
   table.mcards thead{display:none}
-  table.mcards tbody{display:grid;gap:10px}
+  table.mcards tbody{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
   table.mcards tbody tr{position:relative;display:block;padding:12px 14px;border:1px solid var(--border,#e2e8f0);border-radius:12px;background:var(--surface,#fff);box-shadow:0 1px 2px rgba(15,23,42,.04)}
   table.mcards tbody tr.mcards-full{padding:14px;text-align:center}
   table.mcards tbody td{display:flex;gap:10px;align-items:baseline;justify-content:space-between;width:auto!important;min-width:0!important;max-width:none!important;padding:5px 0;border:0;border-top:1px dashed var(--border,#e9eef5);text-align:right;white-space:normal;overflow-wrap:anywhere;position:static;background:transparent!important}
@@ -100,7 +108,68 @@ body.theme-dark .mbar-item.is-active{color:#93c5fd}
   table.mcards tbody tr.mcards-full td{display:block;border:0;text-align:center}
   table.mcards tbody tr.mcards-full td::before{display:none}
   table.mcards tbody td:empty{display:none}
+  table.mcards tbody td>*{min-width:0;max-width:100%}
+  /* Cella con più blocchi (classe da mobile-tables.js): etichetta a sinistra, blocchi impilati a destra. */
+  table.mcards tbody td.mcards-stack{display:grid;grid-template-columns:fit-content(45%) minmax(0,1fr);gap:0 10px;align-items:baseline;justify-items:end}
+  table.mcards tbody td.mcards-stack::before{grid-column:1;grid-row:1 / span 20;max-width:none;align-self:start}
+  table.mcards tbody td.mcards-stack>*{grid-column:2}
+  table.mcards tbody td.mcards-stack>*+*{margin-top:3px}
+  table.mcards tbody td.mcards-stack.mcards-nolabel{grid-template-columns:minmax(0,1fr)}
+  table.mcards tbody td.mcards-stack.mcards-nolabel>*{grid-column:1}
   .fm-tbl-viewport.mcards-vp{max-height:none!important;overflow:visible!important}
 }
 body.theme-dark table.mcards tbody tr{background:var(--surface);border-color:var(--border);box-shadow:none}
 body.theme-dark table.mcards tbody td{border-color:var(--border)}
+
+/* ── Rete di sicurezza contro lo scorrimento laterale (telefono) ─────── */
+@media (max-width:720px){
+  .content>*{max-width:100%!important;min-width:0;box-sizing:border-box}
+  .content img,.content video,.content iframe{max-width:100%}
+  .content pre{white-space:pre-wrap;overflow-wrap:anywhere}
+  .content code{overflow-wrap:anywhere}
+  .content p,.content li,.content dd,.content h1,.content h2,.content h3,.content label{overflow-wrap:break-word}
+}
+.mtable-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ── Griglie scritte nel template (style="grid-template-columns:…") ──
+   Su telefono: 3-4 colonne diventano 2, affiancamenti e barre laterali una sotto l'altra.
+   Le griglie auto-fit/auto-fill e «1fr auto» (campo + pulsante) restano come sono. */
+@media (max-width:720px){
+  .content [style*="repeat(3,1fr)"],.content [style*="repeat(3, 1fr)"],
+  .content [style*="repeat(3,minmax(0,1fr))"],.content [style*="repeat(4,1fr)"],
+  .content [style*="repeat(4, 1fr)"],.content [style*="repeat(4,minmax(0,1fr))"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .content [style*="grid-template-columns:1fr 1fr"],.content [style*="grid-template-columns: 1fr 1fr"],
+  .content [style*="grid-template-columns:2fr 1fr"],.content [style*="grid-template-columns:1fr 2fr"],
+  .content [style*="grid-template-columns:2fr 2fr"],.content [style*="grid-template-columns:1.25fr 1fr"],
+  .content [style*="grid-template-columns:1fr 320px"],.content [style*="grid-template-columns:1fr 330px"],
+  .content [style*="grid-template-columns:1fr 216px"],.content [style*="grid-template-columns:200px 1fr"],
+  .content [style*="grid-template-columns:1fr 180px"],.content [style*="grid-template-columns:140px 120px"],
+  .content [style*="repeat(4,minmax(0,1fr)) auto"]{grid-template-columns:minmax(0,1fr)!important}
+  .content [style*="grid-template-columns"]>*{min-width:0}
+  .content [style*="grid-template-columns"]>[style*="grid-column:span"],
+  .content [style*="grid-template-columns"]>[style*="grid-column: span"]{grid-column:1 / -1!important}
+}
+
+/* ── Tocchi comodi sui comandi piccoli ricorrenti (telefono) ─────────── */
+@media (max-width:720px) and (pointer:coarse){
+  .fm-tbl-shell>.fm-tbl-controls .fm-tbl-btn{min-height:36px;min-width:36px;justify-content:center}
+  .rc-back,.as-backlink,.gs-back,.hi-back,.topbar-back{display:inline-flex;align-items:center;min-height:36px}
+  .hub-flash-close{min-width:36px;min-height:36px}
+}
+
+/* ── Sesto giro: pulsanti e filtri a pastiglia almeno 36px al tocco ──
+   Vale per i comandi con «btn»/«chip» nella classe dentro il contenuto; le tabelle
+   desktop e i campi restano come sono. */
+@media (max-width:720px) and (pointer:coarse){
+  .content :is(a,button)[class*="btn"]:not([class*="btn-link"]),
+  .content :is(a,button)[class*="chip"],
+  .content input:is([type=submit],[type=button]){min-height:36px}
+  .content a[class*="btn"]:not([class*="btn-link"]),.content a[class*="chip"]{align-items:center}
+  /* Briciole di pane: area di tocco più alta senza spostare il testo */
+  .content :is(.as-crumbs,.fmd-crumb,.gm-crumb,.hg-crumb,.sic-breadcrumb,.hr-pagehead-eyebrow) a{padding-top:9px;padding-bottom:9px}
+  /* Elenchi di collegamenti (guide, indici): una riga comoda per voce */
+  .content :is(.gm-card-links,.ag-toc,.elg-indice,.gpa-indice,.sg-section) a{display:flex;align-items:center;min-height:36px}
+  .content :is(h2,h3)>a:not([class]){padding-top:8px;padding-bottom:8px}
+  .content summary{min-height:36px;align-items:center;box-sizing:border-box}
+  .content summary:not([class]){padding-top:8px;padding-bottom:8px}
+}

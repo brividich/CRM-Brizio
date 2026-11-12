@@ -59,6 +59,7 @@ from .models import (
     MaintenancePlanAssignment,
     WorkOrder,
 )
+from . import registra_insieme
 from .registro_permessi import MODULO_MANUTENZIONE
 from .services import maintenance_domain as domain
 from .services import maintenance_history_import as history_import
@@ -241,11 +242,10 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
 
     if data.get("q"):
         term = data["q"].strip()
+        from .services.ricerca_flessibile import testo_q
+
         queryset = queryset.filter(
-            Q(plan__label__icontains=term)
-            | Q(asset__asset_tag__icontains=term)
-            | Q(asset__name__icontains=term)
-            | Q(asset__internal_number__icontains=term)
+            testo_q(term, ("plan__label", "asset__asset_tag", "asset__name", "asset__internal_number"))
         )
     if data.get("plan"):
         queryset = queryset.filter(plan=data["plan"])
@@ -1101,11 +1101,19 @@ def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
     from .services import deadline_feed as feed
 
     dues = feed.administrative_dues()
+    # Stesso ambito del resto della Panoramica (modulo Manutenzione).
+    from .registro_permessi import MODULO_MANUTENZIONE
+
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        dues = [due for due in dues if due.asset.id in visibili]
     scaduti = sum(1 for due in dues if due.due_date < today)
     kinds = feed.allowed_kinds(request) & {feed.KIND_LICENSE, feed.KIND_CONTRACT}
     rinnovi = feed.collect(
         start=None, end=today + timedelta(days=90), filters=feed.FeedFilters(kinds=frozenset(kinds)), today=today
     ) if kinds else []
+    if visibili is not None:
+        rinnovi = [row for row in rinnovi if row.asset_id in visibili]
     return {
         "adempimenti_aperti": len(dues),
         "adempimenti_scaduti": scaduti,
@@ -1213,16 +1221,15 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     # non mantengono. Sono un SOTTOINSIEME di open_workorders.
     from .maintenance import get_workorder_overdue_days
 
+    from .maintenance import q_odl_in_ritardo
+
     wo_overdue_days = get_workorder_overdue_days()
+    # Stessa regola di dashboard e report; il numero si conta sul queryset, la
+    # lista mostra i 40 più vecchi (prima il numero era len() della lista: max 40).
+    overdue_qs = odl().filter(q_odl_in_ritardo(), status=WorkOrder.STATUS_OPEN)
+    n_overdue_workorders = overdue_qs.count()
     overdue_workorders = []
-    for work_order in (
-        odl().filter(
-            status=WorkOrder.STATUS_OPEN,
-            opened_at__date__lte=today - timedelta(days=wo_overdue_days),
-        )
-        .select_related("asset", "assigned_to")
-        .order_by("opened_at")[:40]
-    ):
+    for work_order in overdue_qs.select_related("asset", "assigned_to").order_by("opened_at")[:40]:
         # I giorni si contano qui: il template non deve fare aritmetica, e
         # "1 mese, 1 settimana" e' meno leggibile di "38 giorni" in una colonna.
         work_order.days_open = (today - timezone.localtime(work_order.opened_at).date()).days
@@ -1286,7 +1293,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "workorders_open": open_workorders.count(),
         "workorders_running": sum(1 for wo in open_workorders if wo.started_at and not wo.is_waiting),
         "waiting": sum(1 for wo in open_workorders if wo.is_waiting),
-        "workorders_overdue": len(overdue_workorders),
+        "workorders_overdue": n_overdue_workorders,
         "report_missing": len(report_missing),
         "follow_ups": follow_ups.count(),
         "conflicts": len(conflicts),
@@ -1652,9 +1659,38 @@ def _assignment_suggestions(plan: MaintenanceInterventionTemplate) -> dict[str, 
     return {"existing_assignments": existing, "covered_count": len(covered_ids), "family_gaps": family_gaps}
 
 
-def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) -> dict[str, Any]:
+def _same_plan_other_assets(request: HttpRequest, occurrence: MaintenanceOccurrence) -> list[MaintenanceOccurrence]:
+    """Lo stesso piano ancora aperto su altre macchine visibili (una per asset, la prima),
+    gia' scaduto o entro ``registra_insieme.WINDOW_MAX_DAYS`` dalla scadenza di questa:
+    si registrano insieme quando il giro e' stato uno solo. Escluse quelle a contatore,
+    che vogliono la lettura di ogni macchina. ``other.insieme_days`` = giorni di distanza."""
+    limit = occurrence.due_date + timedelta(days=registra_insieme.WINDOW_MAX_DAYS)
+    candidates = (
+        filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+        .filter(
+            plan_id=occurrence.plan_id,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            is_meter_based=False,
+            due_date__lte=limit,
+        )
+        .exclude(asset_id=occurrence.asset_id)
+        .select_related("asset", "work_order")
+        .order_by("due_date", "id")
+    )
+    seen: set[int] = set()
+    others: list[MaintenanceOccurrence] = []
+    for other in candidates:
+        if other.asset_id in seen:
+            continue
+        seen.add(other.asset_id)
+        other.insieme_days = registra_insieme.days_between(occurrence.due_date, other.due_date)
+        others.append(other)
+    return others
+
+
+def _completion_suggestions(request: HttpRequest, occurrence: MaintenanceOccurrence, back_url: str) -> dict[str, Any]:
     """Informazioni utili mentre si registra un'esecuzione: l'ultima volta, cos'altro
-    c'e' da fare sulla stessa macchina, il contratto che la copre."""
+    c'e' da fare sulla stessa macchina, lo stesso piano sulle altre, il contratto che la copre."""
     from .maintenance import get_applicable_assistance_contracts
 
     today = timezone.localdate()
@@ -1683,7 +1719,17 @@ def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) ->
         contracts = list(get_applicable_assistance_contracts(occurrence.asset, today=today)[:1])
     except Exception:
         logger.exception("Contratti applicabili non calcolabili per asset %s", occurrence.asset_id)
-    return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
+    same_plan = [] if occurrence.is_meter_based else _same_plan_other_assets(request, occurrence)
+    for other in same_plan:
+        other.register_url = f"{reverse('assets:occurrence_complete', args=[other.pk])}?{urlencode({'next': back_url})}"
+    return {
+        "previous": previous,
+        "same_asset_open": same_asset,
+        "same_plan_other_assets": same_plan,
+        "today": today,
+        "contract": contracts[0] if contracts else None,
+        **registra_insieme.window_context(),
+    }
 
 
 def _complete_with_attachment(
@@ -1731,19 +1777,32 @@ def _complete_with_attachment(
     return following, created
 
 
+def _also_label(occurrence, other) -> str:
+    """Nei messaggi: il piano se e' la stessa macchina, la macchina se e' lo stesso piano."""
+    if other.asset_id == occurrence.asset_id:
+        return other.plan.label
+    return other.asset.asset_tag or other.asset.name
+
+
 def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attachment=None) -> list:
     """Registra insieme alla principale le altre manutenzioni della stessa macchina
     spuntate in «Registra» (stessa uscita): stessa data e stesse note; il fermo
     macchina resta solo sulla principale, per non contarlo due volte. Il rapporto
     caricato vale anche per loro. Ritorna le manutenzioni registrate."""
     ids = {int(v) for v in request.POST.getlist("also_complete") if str(v).isdigit()} - {occurrence.pk}
-    if not ids:
+    # Stesso piano su altre macchine: si accettano solo quelle che la pagina proporrebbe.
+    other_asset_ids = registra_insieme.ids_from_post(request, "also_complete_assets", exclude=occurrence.pk)
+    if not ids and not other_asset_ids:
         return []
     others = list(
         MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment", "work_order")
         .filter(pk__in=ids, asset_id=occurrence.asset_id, status=MaintenanceOccurrence.STATUS_OPEN)
         .order_by("due_date")
-    )
+    ) if ids else []
+    if other_asset_ids:
+        others += [
+            other for other in _same_plan_other_assets(request, occurrence) if other.pk in other_asset_ids
+        ]
     done, failed = [], []
     for other in others:
         try:
@@ -1755,13 +1814,25 @@ def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attac
                 notes=form.cleaned_data.get("notes") or "",
             )
         except domain.OccurrenceCompletionError as exc:
-            failed.append(f"{other.plan.label}: {exc}")
+            failed.append(f"{_also_label(occurrence, other)}: {exc}")
         else:
             done.append(other)
+            if other.asset_id != occurrence.asset_id:
+                from core.audit import log_action
+
+                log_action(
+                    request,
+                    "ASSET_OCCORRENZA_REGISTRATA_INSIEME",
+                    "assets",
+                    {"piano": other.plan.label, "asset": other.asset.asset_tag,
+                     "insieme_a_occorrenza": occurrence.pk, "insieme_a_asset": occurrence.asset.asset_tag},
+                    oggetto=other,
+                )
     if done:
         messages.success(
             request,
-            f"Registrat{'a' if len(done) == 1 else 'e'} anche: " + ", ".join(o.plan.label for o in done) + ".",
+            f"Registrat{'a' if len(done) == 1 else 'e'} anche: "
+            + ", ".join(_also_label(occurrence, o) for o in done) + ".",
         )
     for message in failed:
         messages.warning(request, f"Non registrata — {message}")
@@ -2607,7 +2678,7 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             "form": form,
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
-            **_completion_suggestions(occurrence, back_url),
+            **_completion_suggestions(request, occurrence, back_url),
         },
     )
 
@@ -2959,18 +3030,37 @@ def workorder_worksheet(request: HttpRequest, workorder_id: int) -> HttpResponse
     """Scheda di lavoro stampabile (A4) dell'intervento: da portare alla macchina,
     una sezione per ogni manutenzione raccolta con checklist da spuntare a penna."""
     work_order = get_object_or_404(
-        WorkOrder.objects.select_related("asset", "asset__asset_category", "assigned_to", "supplier"),
+        WorkOrder.objects.select_related(
+            "asset",
+            "asset__asset_category",
+            "assigned_to",
+            "executed_by",
+            "supplier",
+            "assistance_contract",
+            "periodic_verification",
+            "maintenance_rule",
+            "maintenance_rule__intervention_template",
+            "ticket",
+            "failure_problem",
+            "failure_cause_code",
+            "failure_remedy",
+        ),
         pk=workorder_id,
     )
     occurrences = work_order.occurrences.select_related("plan", "asset", "asset__asset_category").exclude(
         status=MaintenanceOccurrence.STATUS_CANCELED
     )
+    # La scheda deve riportare tutto cio' che e' stato scritto sull'OdL: anche
+    # la checklist propria dell'intervento (straordinarie, regole del vecchio
+    # motore), non solo quella dei piani delle manutenzioni raccolte.
+    checklist = list(work_order.checklist_items.select_related("done_by").order_by("step_number", "id"))
     return render(
         request,
         "assets/pages/work_sheet.html",
         {
             "page_title": f"Scheda di lavoro — OdL {work_order.display_number}",
             "work_order": work_order,
+            "wo_checklist": checklist,
             "items": _worksheet_items(occurrences),
             "today": timezone.localdate(),
             "back_url": reverse("assets:wo_view", kwargs={"id": work_order.pk}),

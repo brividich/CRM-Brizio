@@ -54,6 +54,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'La conformità in Impostazioni è più bassa di prima',
+            "fare": [
+                "Ora conta le conferme della versione corrente sui destinatari delle notizie obbligatorie pubblicate (chi non l'ha mai aperta conta come non conforme), come il riepilogo per notizia.",
+            ],
+        },
+        {
             "sintomo": "Una persona non vede la notizia",
             "fare": [
                 "Apri la notizia in modifica e controlla «Audience Ruoli»: la persona deve avere uno dei ruoli scelti.",

@@ -327,11 +327,11 @@ def _load_events(
     if manager_scope is not None and "utenti_ids" in manager_scope:
         # Perimetro dei ruoli del portale: elenco esplicito di persone. Vuoto o
         # colonna assente = fail-closed.
-        ids = [int(i) for i in manager_scope.get("utenti_ids") or []]
-        if not ids or not _helpers._has_assenze_column("utente_id"):
+        team_where, team_params = _helpers._where_utenti(manager_scope.get("utenti_ids"), "a")
+        if not team_where:
             return []
-        where_clauses.append(f"a.utente_id IN ({', '.join(['%s'] * len(ids))})")
-        params.extend(ids)
+        where_clauses.append(team_where)
+        params.extend(team_params)
     elif manager_scope is not None:
         scope_where, scope_params, use_legacy_join = _helpers._combined_manager_assignment_where_clause(
             legacy_user_id=manager_scope.get("legacy_user_id"),
@@ -374,6 +374,15 @@ def _load_events(
     rows = _helpers._applica_nominativo(_helpers._fetch_all_dict(sql, params))
     resolved_colors = colors or _load_colors()
 
+    # Calendario aziendale dell'intervallo delle righe, per le ore dei permessi.
+    date_righe = [
+        d.date()
+        for row in rows
+        for d in (calcoli_hr._as_dt(row.get("data_inizio")), calcoli_hr._as_dt(row.get("data_fine")))
+        if d is not None
+    ]
+    cal_ore = calcoli_hr.calendario(min(date_righe), max(date_righe)) if date_righe else None
+
     events: list[dict] = []
     for row in rows:
         tipo = _helpers._tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
@@ -386,6 +395,8 @@ def _load_events(
             "moderation_status": moderation_status,
             "capo": str(row.get("capo") or ""),
         }
+        if tipo == "Permesso" and cal_ore is not None:
+            props["ore_label"] = calcoli_hr.ore_label(row.get("data_inizio"), row.get("data_fine"), cal_ore)
         if include_sensitive:
             props["motivazione"] = _helpers._strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta"))
             props["certificato_medico"] = str(row.get("certificato_medico") or "")
@@ -409,12 +420,15 @@ def _load_events(
 @require_http_methods(["GET"])
 def api_dipendente_default_capo(request):
     perms = _helpers._assenze_permissions(request)
-    if not perms.get("can_insert_for_others"):
+    # Gli abilitati alla malattia (Impostazioni) la inseriscono per tutti i
+    # dipendenti: serve loro il capo proposto del dipendente scelto.
+    malattia_per_tutti = _helpers._malattia_permessi(request)["per_tutti"]
+    if not perms.get("can_insert_for_others") and not malattia_per_tutti:
         return _helpers._json_error("Permessi insufficienti.", status=403)
     dipendente_id = _helpers._as_int(request.GET.get("dipendente_id"))
     if not dipendente_id:
         return JsonResponse({"ok": True, "capo_value": ""})
-    if not _helpers._can_insert_for_dipendente(request, dipendente_id):
+    if not malattia_per_tutti and not _helpers._can_insert_for_dipendente(request, dipendente_id):
         return _helpers._json_error("Dipendente fuori dal tuo reparto.", status=403)
     identity = _helpers._resolve_employee_identity_from_anagrafica(dipendente_id)
     if not identity:
@@ -441,13 +455,10 @@ def menu(request):
         # Stesso perimetro della dashboard segnalazioni, che apre sempre in scope
         # "mine": contare tutte le pendenti globali mostrerebbe un badge che non
         # corrisponde a nulla di visibile nella pagina di destinazione.
-        pending_count = len(
-            _helpers._load_pending_for_manager(
-                legacy_id,
-                limit=200,
-                manager_name=name,
-                manager_email=email,
-            )
+        # Conteggio pieno con la stessa funzione del badge in alto (prima len() di
+        # una lista tagliata a 200: tre numeri diversi per la stessa coda).
+        pending_count = _helpers.count_pending_for_manager(
+            legacy_id, manager_name=name, manager_email=email,
         )
     return _helpers.render(
         request,
@@ -594,7 +605,7 @@ def api_evento_update(request, item_id: int | None = None):
     certificato_medico = payload.get("certificato_medico") if payload and "certificato_medico" in payload else None
     if certificato_medico is None:
         certificato_medico = request.POST.get("certificato_medico", current.get("certificato_medico") or "")
-    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico)
+    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico, current.get("certificato_medico"))
 
     dt_start = _helpers._parse_input_dt(inizio_raw) if inizio_raw else current.get("data_inizio")
     dt_end = _helpers._parse_input_dt(fine_raw) if fine_raw else current.get("data_fine")
@@ -629,6 +640,10 @@ def api_evento_update(request, item_id: int | None = None):
     modifiche = calcoli_hr.differenze(current, updates)
     motivo = str((payload.get("motivo_modifica") if payload else None) or request.POST.get("motivo_modifica") or "").strip()
     era_approvata = _helpers._effective_status(current.get("consenso"), current.get("moderation_status"))[1] == "Approvato"
+    # Malattia: la spunta «Certificato arrivato» e' gia' il motivo. Se e' l'unico
+    # cambio non serve scriverlo (uno esclude l'altro); con altri cambi si'.
+    if era_approvata and not motivo and _helpers._solo_certificato_arrivato(current, modifiche):
+        motivo = _helpers.CERTIFICATO_ARRIVATO_MOTIVO
     if era_approvata and modifiche and not motivo:
         return _helpers._json_error(
             "La richiesta era già approvata: scrivi il motivo della modifica.", status=400,
@@ -647,6 +662,9 @@ def api_evento_update(request, item_id: int | None = None):
             dopo=updates,
             motivo=motivo,
         )
+        _helpers._notify_assenza_modificata(request, current, modifiche, motivo=motivo)
+        if nuovo_stato in ("Approvato", "Rifiutato"):
+            _helpers._notify_esito_dipendente(request, {**current, **updates}, nuovo_stato, motivo)
 
     sync_result = _helpers._sp_enqueue_upsert(target_id)
 
@@ -734,6 +752,48 @@ def api_evento_delete(request, item_id: int | None = None):
 # CHECK FORMAZIONE: avviso non bloccante se richiesta assenza copre date di corsi
 # ─────────────────────────────────────────────────────────────────────────────
 
+def corsi_nel_periodo(legacy_anagrafica_id, d_start, d_end) -> list[dict]:
+    """Sessioni di formazione (non annullate) del dipendente che toccano [d_start, d_end].
+
+    Usata dall'API JSON ``api_check_corsi`` e dai controlli HTMX del form di richiesta.
+    """
+    try:
+        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
+    except Exception:
+        return []
+    sess_ids = list(
+        TrainingEnrollment.objects
+        .filter(legacy_anagrafica_id=legacy_anagrafica_id)
+        .values_list("sessione_id", flat=True)
+    )
+    if not sess_ids:
+        return []
+    qs = (
+        TrainingSession.objects
+        .select_related("corso")
+        .filter(pk__in=sess_ids, data_inizio__lte=d_end, data_fine__gte=d_start)
+        .exclude(stato="ANNULLATA")
+        .order_by("data_inizio")
+    )
+    conflicts = []
+    for s in qs:
+        first_overlap = max(s.data_inizio, d_start)
+        conflicts.append({
+            "date":          first_overlap.strftime("%Y-%m-%d"),
+            "date_label":    first_overlap.strftime("%d-%m-%Y"),
+            "session_id":    s.pk,
+            "code":          s.codice_sessione,
+            "title":         s.corso.titolo,
+            "course_code":   s.corso.codice,
+            "data_inizio":   s.data_inizio.strftime("%Y-%m-%d"),
+            "data_fine":     s.data_fine.strftime("%Y-%m-%d"),
+            "stato":         s.stato,
+            "stato_display": s.get_stato_display(),
+            "url":           f"/anagrafica/formazione/sessioni/{s.pk}/",
+        })
+    return conflicts
+
+
 @login_required
 def api_check_corsi(request):
     """Ritorna corsi/sessioni del dipendente che intersecano il range
@@ -777,42 +837,5 @@ def api_check_corsi(request):
             return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
         legacy_id = int(my_legacy)
 
-    try:
-        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
-    except Exception:
-        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
-
-    sess_ids = list(
-        TrainingEnrollment.objects
-        .filter(legacy_anagrafica_id=legacy_id)
-        .values_list("sessione_id", flat=True)
-    )
-    if not sess_ids:
-        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
-
-    qs = (
-        TrainingSession.objects
-        .select_related("corso")
-        .filter(pk__in=sess_ids, data_inizio__lte=d_end, data_fine__gte=d_start)
-        .exclude(stato="ANNULLATA")
-        .order_by("data_inizio")
-    )
-
-    conflicts = []
-    for s in qs:
-        first_overlap = max(s.data_inizio, d_start)
-        conflicts.append({
-            "date":          first_overlap.strftime("%Y-%m-%d"),
-            "date_label":    first_overlap.strftime("%d-%m-%Y"),
-            "session_id":    s.pk,
-            "code":          s.codice_sessione,
-            "title":         s.corso.titolo,
-            "course_code":   s.corso.codice,
-            "data_inizio":   s.data_inizio.strftime("%Y-%m-%d"),
-            "data_fine":     s.data_fine.strftime("%Y-%m-%d"),
-            "stato":         s.stato,
-            "stato_display": s.get_stato_display(),
-            "url":           f"/anagrafica/formazione/sessioni/{s.pk}/",
-        })
-
+    conflicts = corsi_nel_periodo(legacy_id, d_start, d_end)
     return JsonResponse({"ok": True, "n_conflicts": len(conflicts), "conflicts": conflicts})

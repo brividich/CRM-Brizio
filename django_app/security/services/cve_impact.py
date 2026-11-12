@@ -23,13 +23,14 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from security.models import (
+    DefenderVulnerabilita,
     SecurityCveImpact,
     SecurityCveRecord,
     SecurityCveRisoluzione,
     SoftwareCpeMapping,
     SoftwareInstallation,
 )
-from security.services import soc_settings, windows_build
+from security.services import soc_settings, software_inventory, windows_build
 from security.services.versioning import in_range
 
 logger = logging.getLogger(__name__)
@@ -170,6 +171,12 @@ class Contesto:
         # None = come da impostazione; True/False forzato (anteprima di windows_build).
         self.windows_per_build = (bool(soc_settings.value("cve.windows.per_build")) if windows_per_build is None
                                   else bool(windows_per_build))
+        self.defender = defaultdict(list)
+        from security.services import defender_vuln
+
+        if defender_vuln.ibrido_attivo():
+            for riga in DefenderVulnerabilita.objects.all():
+                self.defender[riga.cve_id].append(riga)
         self.windows = []
         if self.windows_per_build:
             for install in self.installs:
@@ -220,7 +227,40 @@ def evaluate(record, today=None, ctx=None):
             _merge(per_host, install, SecurityCveImpact.TO_VERIFY, text)
     if criteri_windows:
         _valuta_windows(record, criteri_windows, ctx, stale_before, per_host, today)
+    _aggiungi_defender(record, ctx, per_host)
     return per_host, unmapped
+
+
+def _installazione_defender(ctx, riga):
+    """Il programma del PC che corrisponde alla riga di Defender («windows_11» = «Windows 11 Pro»), se c'è."""
+    nome = riga.prodotto.replace("_", " ")
+    migliore, punti = None, 0.0
+    for install in ctx.per_host.get(riga.host, []):
+        if (install.vendor, install.product) in ctx.not_applicable:
+            continue
+        punteggio = software_inventory.somiglianza_prodotti(riga.produttore, nome, install.vendor, install.product)
+        if punteggio > punti:
+            migliore, punti = install, punteggio
+    return migliore
+
+
+def _aggiungi_defender(record, ctx, per_host):
+    """Quello che Defender vede su un PC vale come «impatta», anche senza CPE collegato. Se il calcolo sulle versioni
+    dice che il PC è a posto i due non concordano: «da verificare». Senza un programma corrispondente sul PC
+    (o se è «non applicabile») non si aggiunge niente: resta nel confronto come «solo Defender»."""
+    for riga in ctx.defender.get(record.cve_id, []):
+        install = _installazione_defender(ctx, riga)
+        if install is None:
+            continue
+        testo = (f"Defender la segnala su {install.host_display or install.host}: {riga.prodotto} {riga.versione}"
+                 + (f", corretta da {riga.kb}" if riga.kb else "") + ".")
+        attuale = per_host.get(install.host)
+        if attuale is not None and attuale[0] == SecurityCveImpact.NOT_IMPACTED:
+            outcome, testo = SecurityCveImpact.TO_VERIFY, f"{testo} Il calcolo sulle versioni dice invece che è a posto: da controllare."
+        else:
+            outcome = SecurityCveImpact.IMPACTS
+        outcome, testo = _applica_verifica(ctx, record, install, outcome, testo)
+        _merge(per_host, install, outcome, testo)
 
 
 def _valuta_windows(record, criteri, ctx, stale_before, per_host, today=None):
@@ -269,15 +309,14 @@ APERTI = (SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY)
 
 def _risoluzione(record, prima, inst, ctx, now):
     """Perché il PC di ``prima`` (riga del giro precedente, installazione ``inst``) non è più esposto."""
-    from security.services.software_catalog import _famiglia
+    from security.services.software_catalog import stesso_programma
 
     attuali = ctx.per_host.get(prima.host, [])
     come, dopo = SecurityCveRisoluzione.PC_ASSENTE, ""
     if inst is not None and inst.still_detected:
         come, dopo = SecurityCveRisoluzione.RIVALUTATA, inst.version_raw
     elif inst is not None and attuali:
-        famiglia = _famiglia(inst.vendor, inst.product)
-        stesso = [i for i in attuali if (i.vendor, i.product) == (inst.vendor, inst.product) or _famiglia(i.vendor, i.product) == famiglia]
+        stesso = [i for i in attuali if stesso_programma(inst.vendor, inst.product, i.vendor, i.product)]
         if stesso:
             come = SecurityCveRisoluzione.AGGIORNATO
             dopo = ", ".join(sorted({i.version_raw for i in stesso if i.version_raw}))
@@ -331,6 +370,12 @@ def recompute(record, today=None, ctx=None):
             cve_chiusura.aggiorna_alert(record, risolte)
         except Exception:  # noqa: BLE001 - l'alert è un di più: il ricalcolo non deve fallire per lui
             logger.exception("Aggiornamento dell'alert della CVE %s non riuscito", record.cve_id)
+        try:
+            from security.services import cve_lavoro
+
+            cve_lavoro.aggiorna(record)
+        except Exception:  # noqa: BLE001 - come sopra: il caso è un di più
+            logger.exception("Aggiornamento del lavoro della CVE %s non riuscito", record.cve_id)
     return len(rows)
 
 
@@ -352,6 +397,13 @@ def recompute_all(today=None):
             from security.services.rule_engine import evaluate_security_rules
 
             evaluate_security_rules()
+        try:
+            # Il piano di aggiornamento Windows segue lo stesso inventario: PC aggiornati = attività spuntate.
+            from security.services import windows_lavoro
+
+            windows_lavoro.aggiorna(today)
+        except Exception:  # noqa: BLE001 - il caso è un di più: il ricalcolo non deve fallire per lui
+            logger.exception("Aggiornamento del piano Windows non riuscito")
         try:
             # Chiusura con prove degli alert «PC con versione vulnerabile» (regola cve_impatto_risolto).
             from security.services.auto_resolution import run_cve_impatto_risolto
@@ -502,6 +554,11 @@ def most_exposed_hosts(limit=20):
         .annotate(cves=Count("cve", distinct=True), kev=Count("cve", filter=Q(cve__kev=True), distinct=True))
         .order_by("-kev", "-cves", "host")[:limit]
     )
+
+
+def exposed_hosts_count():
+    """Quanti host hanno almeno una CVE che impatta (il totale dietro «Asset più esposti»)."""
+    return SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS).values("host").order_by().distinct().count()
 
 
 def unmapped_software(limit=50):

@@ -40,8 +40,9 @@
       <thead><tr><th>Rilevata il</th><th>Contatori</th><th>Consumabili</th></tr></thead>
       <tbody>{% for r in rilevazioni %}<tr>
         <td>{{ r.rilevata_il|date:"d/m/Y H:i:s" }}</td>
+        {% if r.dati_stampante.invariati %}<td colspan="2">Invariati: uguali alla lettura successiva</td>{% else %}
         <td>{% for c in r.dati_stampante.contatori %}<div>{{ c.valore }} {{ c.unita }} ({{ c.indice }})</div>{% empty %}Non disponibili{% endfor %}</td>
-        <td>{% for c in r.dati_stampante.consumabili %}<div>{{ c.nome }}: {% if c.pct != None %}{{ c.pct }}%{% else %}{{ c.nota }}{% endif %}</div>{% empty %}Non disponibili{% endfor %}</td>
+        <td>{% for c in r.dati_stampante.consumabili %}<div>{{ c.nome }}: {% if c.pct != None %}{{ c.pct }}%{% else %}{{ c.nota }}{% endif %}</div>{% empty %}Non disponibili{% endfor %}</td>{% endif %}
       </tr>{% endfor %}</tbody>
     </table></div>
   </details>

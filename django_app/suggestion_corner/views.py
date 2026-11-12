@@ -16,10 +16,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
 
+from core.form_fields import user_display_label
 from core.public_headers import risposta_pubblica
 
 from . import forms as sc_forms
-from .models import SuggestionCorner
+from .foto import FOTO_MAX_MB
+from .models import SuggestionCorner, SuggestionCornerAllegato, SuggestionCornerLocandina
 from .permissions import (
     can_check, can_complete_do, is_sms_team, visible_segnalazioni,
 )
@@ -256,6 +258,7 @@ def dettaglio(request, pk: int):
     team = is_sms_team(request.user)
     ctx = {
         "seg": seg,
+        "allegati": list(seg.allegati.all()),
         "storico": storico,
         "is_team": team,
         "can_do": can_complete_do(request.user, seg),
@@ -400,21 +403,28 @@ def _nuova(request):
         if request.POST.get("website"):
             return render(request, "suggestion_corner/pubblica_ok.html")
 
-        form = sc_forms.SegnalazionePubblicaForm(request.POST)
+        form = sc_forms.SegnalazionePubblicaForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             cd = form.cleaned_data
-            anonima = cd["anonima"]
-            autenticato = getattr(request.user, "is_authenticated", False)
+            anonima = form.anonima
+            # Con il login e «Mi identifico» l'autore è l'account; senza login
+            # resta il nome dichiarato. Anonima: nessun legame con chi scrive.
+            autore = form.user if not anonima else None
             seg = SuggestionCorner(
                 reparto_provenienza=cd.get("reparto_provenienza"),
                 area_provenienza=cd.get("area_provenienza"),
                 opportunity=cd["opportunity"],
                 anonima=anonima,
+                segnalante_nome=cd["segnalante_nome"],
                 da_portale=True,
-                created_by=(request.user if autenticato and not anonima else None),
+                created_by=autore,
             )
             with transaction.atomic():
                 seg.save()
+                if cd.get("foto"):
+                    SuggestionCornerAllegato.objects.create(
+                        segnalazione=seg, file=cd["foto"], caricato_da=autore,
+                    )
                 # auto-avanzamento INSERITA → DA_CLASSIFICARE
                 seg.notifica_sms_team()
                 seg.save()
@@ -426,8 +436,13 @@ def _nuova(request):
                 pass
             return render(request, "suggestion_corner/pubblica_ok.html")
     else:
-        form = sc_forms.SegnalazionePubblicaForm()
-    return render(request, "suggestion_corner/pubblica_form.html", {"form": form})
+        form = sc_forms.SegnalazionePubblicaForm(user=request.user)
+    return render(request, "suggestion_corner/pubblica_form.html", {
+        "form": form,
+        "utente": form.user,
+        "utente_nome": user_display_label(form.user) if form.user else "",
+        "foto_max_mb": FOTO_MAX_MB,
+    })
 
 
 # --- Azioni FSM (sessione 3b) -----------------------------------------------
@@ -635,3 +650,154 @@ def ai_simili(request, pk: int):
     if deny is not None:
         return deny
     return JsonResponse({"risultati": sc_ai.trova_simili(seg)})
+
+
+# --- Foto/allegati della segnalazione -----------------------------------------
+
+@login_required
+def allegato(request, pk: int):
+    """Foto o file di una segnalazione, a chi vede la segnalazione (storage privato).
+
+    Le foto del form pubblico sono JPEG ricodificati (foto.py) e si mostrano
+    in pagina; gli altri file si scaricano.
+    """
+    import mimetypes
+    import os
+
+    from django.http import FileResponse, Http404
+
+    alleg = get_object_or_404(SuggestionCornerAllegato, pk=pk)
+    get_object_or_404(visible_segnalazioni(request.user), pk=alleg.segnalazione_id)
+    if not alleg.file or not alleg.file.name:
+        raise Http404("Allegato senza file.")
+    try:
+        handle = alleg.file.storage.open(alleg.file.name, "rb")
+    except FileNotFoundError:
+        raise Http404("File non trovato.")
+    filename = os.path.basename(alleg.file.name)
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    response = FileResponse(
+        handle, as_attachment=not content_type.startswith("image/"),
+        filename=filename, content_type=content_type,
+    )
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+# --- Locandine QR per le bacheche (team SMS) -----------------------------------
+
+def _richiede_team(request):
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Sezione riservata al team SMS.")
+
+
+@login_required
+def locandine(request):
+    """Preset delle locandine con QR al form pubblico: scelta, modifica, salvataggio.
+
+    Il PDF (anteprima nella pagina e download) lo produce `locandina_pdf`;
+    qui si gestiscono i preset e l'indirizzo codificato nel QR.
+    """
+    from .locandina import url_form_pubblico
+    from .models import SuggestionCornerConfig
+
+    _richiede_team(request)
+    presets = list(SuggestionCornerLocandina.objects.all())
+    scelto = None
+    pid = request.POST.get("preset") or request.GET.get("preset")
+    if pid and str(pid).isdigit():
+        scelto = next((p for p in presets if p.pk == int(pid)), None)
+    if scelto is None:
+        scelto = next((p for p in presets if p.predefinita), presets[0] if presets else None)
+
+    config = SuggestionCornerConfig.load()
+    form = sc_forms.LocandinaForm(instance=scelto)
+    form_url = sc_forms.LocandinaUrlForm(instance=config)
+
+    if request.method == "POST":
+        azione = request.POST.get("azione", "")
+        if azione == "url":
+            form_url = sc_forms.LocandinaUrlForm(request.POST, instance=config)
+            if form_url.is_valid():
+                form_url.save()
+                messages.success(request, "Indirizzo del QR aggiornato.")
+                return _redirect_locandine(scelto)
+        elif azione == "elimina" and scelto is not None:
+            if len(presets) <= 1:
+                messages.error(request, "Serve almeno un preset: questo non si può eliminare.")
+            else:
+                nome = scelto.nome
+                scelto.delete()
+                messages.success(request, f"Preset «{nome}» eliminato.")
+                return _redirect_locandine(None)
+        elif azione in ("salva", "nuovo"):
+            nuovo = azione == "nuovo" or scelto is None
+            istanza = SuggestionCornerLocandina() if nuovo else scelto
+            dati = request.POST.copy()
+            if nuovo:
+                dati["nome"] = (request.POST.get("nome_nuovo") or "").strip()
+            form = sc_forms.LocandinaForm(dati, instance=istanza)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                obj.updated_by = request.user
+                with transaction.atomic():
+                    if obj.predefinita:
+                        SuggestionCornerLocandina.objects.exclude(pk=obj.pk).update(predefinita=False)
+                    obj.save()
+                messages.success(request, f"Preset «{obj.nome}» {'creato' if nuovo else 'salvato'}.")
+                return _redirect_locandine(obj)
+
+    return render(request, "suggestion_corner/locandine.html", {
+        "presets": presets,
+        "scelto": scelto,
+        "form": form,
+        "form_url": form_url,
+        "url_qr": url_form_pubblico(request),
+    })
+
+
+def _redirect_locandine(preset):
+    from django.urls import reverse
+
+    url = reverse("suggestion_corner:locandine")
+    return redirect(f"{url}?preset={preset.pk}" if preset else url)
+
+
+@login_required
+def locandina_pdf(request):
+    """PDF della locandina: GET `?preset=<id>` (salvato) o POST con i campi del form (anteprima).
+
+    `scarica=1` lo manda come file da salvare; altrimenti si apre nella pagina
+    (iframe di anteprima, stessa origine).
+    """
+    from django.http import HttpResponse
+    from django.utils.text import slugify
+
+    from .locandina import render_locandina_pdf, url_form_pubblico
+
+    _richiede_team(request)
+    if request.method == "POST":
+        pid = request.POST.get("preset")
+        base = SuggestionCornerLocandina.objects.filter(pk=pid).first() if str(pid or "").isdigit() else None
+        dati = request.POST.copy()
+        dati["nome"] = (base.nome if base else "") or "anteprima"
+        form = sc_forms.LocandinaForm(dati, instance=SuggestionCornerLocandina())
+        form.is_valid()  # i limiti di lunghezza valgono anche in anteprima
+        locandina = SuggestionCornerLocandina(**{
+            k: form.cleaned_data.get(k, getattr(base, k, "") if base else "")
+            for k in sc_forms.LocandinaForm.Meta.fields if k != "predefinita"
+        })
+        if not locandina.titolo:
+            locandina.titolo = "Suggestion Corner"
+    else:
+        locandina = get_object_or_404(SuggestionCornerLocandina, pk=request.GET.get("preset") or 0)
+
+    pdf = render_locandina_pdf(locandina, url_form_pubblico(request))
+    response = HttpResponse(pdf, content_type="application/pdf")
+    nome_file = f"locandina-suggestion-corner-{slugify(locandina.nome) or 'anteprima'}.pdf"
+    tipo = "attachment" if request.GET.get("scarica") or request.POST.get("scarica") else "inline"
+    response["Content-Disposition"] = f'{tipo}; filename="{nome_file}"'
+    response["Cache-Control"] = "private, no-store"
+    response["X-Frame-Options"] = "SAMEORIGIN"
+    return response

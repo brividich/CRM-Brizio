@@ -16,6 +16,8 @@ from security.models import (
     SoftwareInstallation,
     WatchGuardDispositivo,
     WatchGuardPatch,
+    WatchGuardTask,
+    WatchGuardTaskEsito,
 )
 from security.services import cve_impact, cve_pannello, defender_vuln, soc_settings, watchguard_api
 
@@ -89,7 +91,11 @@ class WatchGuardSyncTests(TestCase):
         self.assertEqual((d1.host, d1.hub_asset, d1.mac_lista, d1.protetto), ("pc-wg-01", self.pc, ["aa:bb:cc:00:00:01"], True))
         self.assertFalse(WatchGuardDispositivo.objects.get(device_id="d2").protetto)
         self.assertFalse(WatchGuardDispositivo.objects.get(device_id="unmanaged:u1").gestito)
-        out = watchguard_api.sincronizza_dispositivi(dispositivi=[], protezione=[], non_gestiti=[])
+        with self.assertRaises(watchguard_api.WatchGuardError):  # elenco vuoto con PC già letti: nessuno sparito
+            watchguard_api.sincronizza_dispositivi(dispositivi=[], protezione=[], non_gestiti=[])
+        self.assertEqual(WatchGuardDispositivo.objects.filter(presente=True).count(), 3)
+        out = watchguard_api.sincronizza_dispositivi(dispositivi=[{"device_id": "d3", "host_name": "PC-WG-03"}],
+                                                     protezione=[], non_gestiti=[])
         self.assertEqual(out["spariti"], 3)
 
     def test_patch_aperte_chiuse_ed_esito(self):
@@ -103,7 +109,11 @@ class WatchGuardSyncTests(TestCase):
         self.assertIn(("CVE-2099-0201", "pc-wg-01"), watchguard_api.patch_aperte_per_cve({"CVE-2099-0201"}))
         WatchGuardPatch.objects.update(esito=4)
         self.assertTrue(WatchGuardPatch.objects.get().esito_errore)
-        self.assertEqual(watchguard_api.sincronizza_patch(righe=[]), {"patch": 0, "chiuse": 1})
+        with self.assertRaises(watchguard_api.WatchGuardError):  # elenco vuoto con patch aperte: niente chiuso
+            watchguard_api.sincronizza_patch(righe=[])
+        self.assertTrue(WatchGuardPatch.objects.get().presente)
+        altra = {"device_id": "d2", "patch_id": "p9", "host_name": "PC-WG-02", "patch_name": "Altra"}
+        self.assertEqual(watchguard_api.sincronizza_patch(righe=[altra]), {"patch": 1, "chiuse": 1})
         p.refresh_from_db()
         self.assertFalse(p.presente)
         self.assertIsNotNone(p.chiusa_il)
@@ -249,5 +259,177 @@ class TaskPatchTests(TestCase):
                     "total_items": None}
 
         with mock.patch.object(watchguard_api, "get", side_effect=finto_get):
-            self.assertEqual(watchguard_api.sincronizza_task(), {"task": 1, "patch_aggiornate": 1})
+            self.assertEqual(watchguard_api.sincronizza_task(),
+                             {"task": 1, "letti": 1, "invariati": 0, "esiti": 1, "oltre_limite": 0,
+                              "errori": [], "in_errore": 0})
         self.assertEqual(WatchGuardPatch.objects.get().esito_label, "Errore di installazione")
+        task = WatchGuardTask.objects.get(task_id="t1")
+        self.assertEqual((task.pc, task.errori, task.riuscite, task.in_attesa, task.completo), (1, 1, 0, 0, True))  # esecuzione di ieri: oltre 24 h, non si rilegge
+
+    def test_un_task_in_errore_non_ferma_gli_altri(self):
+        quando = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        def finto_get(percorso, params=None, **kw):
+            if percorso == "/tasks":
+                return {"data": [{"id": "rotto", "name": "Install Rotto patch", "status": {"last_job_date": quando}},
+                                 {"id": "buono", "name": "Install Buono patch", "status": {"last_job_date": quando}}],
+                        "total_items": 2}
+            if percorso == "/tasks/6/rotto/jobs":
+                raise watchguard_api.WatchGuardError("Risposta 502 su /tasks/6/rotto/jobs.", 502)
+            if percorso.endswith("/jobs"):
+                return [{"id": "j1", "date": quando}]
+            return {"data": [{"host_name": "PC-A", "patch_info": {"patch_name": "Buono 1.0", "result": 1}}],
+                    "total_items": 1}
+
+        with mock.patch.object(watchguard_api, "get", side_effect=finto_get):
+            out = watchguard_api.sincronizza_task()
+        self.assertEqual((out["letti"], out["in_errore"]), (1, 1))
+        self.assertIn("Install Rotto patch", out["errori"][0])
+        self.assertTrue(WatchGuardTask.objects.filter(task_id="buono", riuscite=1).exists())
+        from security.models import SecurityLetturaLog
+        from security.services import letture
+
+        self.assertEqual(letture.esito({"ok": True, "task": out})[0], SecurityLetturaLog.PARZIALE)
+
+    def test_tutti_in_errore_il_giro_si_ferma(self):
+        def finto_get(percorso, params=None, **kw):
+            if percorso == "/tasks":
+                return {"data": [{"id": f"t{i}", "status": {}} for i in range(8)], "total_items": 8}
+            raise watchguard_api.WatchGuardError("Risposta 502.", 502)
+
+        with mock.patch.object(watchguard_api, "get", side_effect=finto_get) as g:
+            with self.assertRaisesMessage(watchguard_api.WatchGuardError, "giro fermato"):
+                watchguard_api.sincronizza_task()
+        self.assertEqual(g.call_count, 1 + watchguard_api.TASK_ERRORI_MAX)
+
+    def test_gateway_502_riprova_una_volta(self):
+        risposte = [mock.Mock(status_code=502, headers={"Content-Type": "application/json"}),
+                    mock.Mock(status_code=200, headers={"Content-Type": "application/json"},
+                              **{"json.return_value": {"data": []}})]
+        client = watchguard_api.Client.__new__(watchguard_api.Client)
+        client.cfg = {"url_api": "https://api.example.test", "account_id": "ACC-1", "api_key": "k", "access_id": "a"}
+        client.http = mock.Mock(**{"get.side_effect": risposte})
+        client._token = lambda rinnova=False: "tok"
+        with mock.patch.object(watchguard_api, "RIPROVA_SECONDI", 0), \
+                mock.patch.object(watchguard_api, "_chi_risponde", return_value=""), \
+                mock.patch.object(watchguard_api, "_json", side_effect=lambda r, p: r.json()):
+            self.assertEqual(client.get("/tasks"), {"data": []})
+        self.assertEqual(client.http.get.call_count, 2)
+
+    def _finto(self, quando, risultati, chiamate):
+        def finto_get(percorso, params=None, **kw):
+            chiamate.append(percorso)
+            if percorso == "/tasks":
+                return {"data": [{"id": "t9", "name": "Install Acme Viewer patch on 2 computers",
+                                  "status": {"last_job_date": quando}}], "total_items": 1}
+            if percorso.endswith("/jobs"):
+                return {"data": [{"id": "j1", "date": quando}]}
+            return {"data": risultati, "total_items": len(risultati)}
+        return finto_get
+
+    def test_storico_in_attesa_poi_completo_non_si_rilegge(self):
+        vecchio = (timezone.now() - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        chiamate: list = []
+        in_corso = [{"host_name": "PC-A", "patch_info": {"patch_name": "Acme Viewer 2.0", "result": 1}},
+                    {"host_name": "PC-B", "patch_info": {"patch_name": "Acme Viewer 2.0"}}]
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, in_corso, chiamate)):
+            watchguard_api.sincronizza_task()
+        task = WatchGuardTask.objects.get(task_id="t9")
+        self.assertEqual(task.nome, "Install Acme Viewer patch on 2 computers")
+        self.assertEqual((task.pc, task.riuscite, task.in_attesa, task.completo), (2, 1, 1, False))
+        # il PC in attesa risponde: il task diventa completo
+        finiti = [in_corso[0], {"host_name": "PC-B", "patch_info": {"patch_name": "Acme Viewer 2.0", "result": 3}}]
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, finiti, chiamate)):
+            watchguard_api.sincronizza_task()
+        task.refresh_from_db()
+        self.assertEqual((task.riuscite, task.errori, task.in_attesa, task.completo), (1, 1, 0, True))
+        self.assertEqual(WatchGuardTaskEsito.objects.filter(task=task).count(), 2)
+        # completo e senza nuove esecuzioni: al giro dopo solo l'elenco dei task
+        chiamate.clear()
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, finiti, chiamate)):
+            self.assertEqual(watchguard_api.sincronizza_task()["invariati"], 1)
+        self.assertEqual(chiamate, ["/tasks"])
+
+    def _task_finito(self, quando=None):
+        return WatchGuardTask.objects.create(task_id="tf", nome="Install Acme patch", pc=1, riuscite=1,
+                                             ultimo_job_il=quando or timezone.now() - timedelta(hours=1))
+
+    def test_verifica_rilegge_patch_e_software_una_volta(self):
+        task = self._task_finito()
+        soc_settings.save({"watchguard.api.software": True}, None)
+        with mock.patch.object(watchguard_api, "sincronizza_patch", return_value={"patch": 3}) as sp, \
+                mock.patch.object(watchguard_api, "sincronizza_software", return_value={"pc": 1}) as ss:
+            esito = watchguard_api.verifica_task()
+            self.assertEqual((esito["stato"], esito["task"]), ("fatta", 1))
+            self.assertIsNone(watchguard_api.verifica_task())  # già verificato: niente seconda lettura
+        self.assertEqual((sp.call_count, ss.call_count), (1, 1))
+        task.refresh_from_db()
+        self.assertEqual(task.verifica_label, "Patch e software riletti")
+        self.assertIsNotNone(task.verifica_il)
+        # una nuova esecuzione del task lo rimette da verificare
+        WatchGuardTask.objects.filter(pk=task.pk).update(ultimo_job_il=timezone.now() + timedelta(minutes=1))
+        self.assertEqual(watchguard_api.task_da_verificare().count(), 1)
+
+    def test_verifica_saltata_senza_software_o_task_vecchio(self):
+        task = self._task_finito()
+        soc_settings.save({"watchguard.api.software": False}, None)
+        self.assertEqual(watchguard_api.verifica_task()["stato"], "saltata")
+        WatchGuardTask.objects.filter(pk=task.pk).update(verifica_il=None, ultimo_job_il=timezone.now() - timedelta(days=5))
+        soc_settings.save({"watchguard.api.software": True}, None)
+        with mock.patch.object(watchguard_api, "sincronizza_software") as ss:
+            self.assertIn("più di 2 giorni", watchguard_api.verifica_task()["motivo"])
+        ss.assert_not_called()
+
+    def test_verifica_usa_il_software_del_giro_completo(self):
+        self._task_finito()
+        soc_settings.save({"watchguard.api.software": True}, None)
+        with mock.patch.object(watchguard_api, "sincronizza_software") as ss:
+            self.assertEqual(watchguard_api.verifica_task(software_gia={"pc": 9})["software"], {"pc": 9})
+        ss.assert_not_called()
+
+    def test_evidenza_cve_per_pc(self):
+        from security.models import SecurityCveImpact, SecurityCveRisoluzione
+
+        task = self._task_finito()
+        rec = SecurityCveRecord.objects.create(cve_id="CVE-2099-0501")
+        for host in ("pc-a", "pc-b", "pc-c"):
+            WatchGuardPatch.objects.create(device_id=host, patch_id="p1", host=host, nome="Acme 2.0", cve="|CVE-2099-0501|")
+            WatchGuardTaskEsito.objects.create(task=task, job_id="j1", host=host, patch_nome="Acme 2.0", esito=1,
+                                               job_il=timezone.now() - timedelta(hours=1))
+        SecurityCveRisoluzione.objects.create(cve=rec, host="pc-a", come=SecurityCveRisoluzione.AGGIORNATO)
+        SecurityCveImpact.objects.create(cve=rec, host="pc-b", outcome=SecurityCveImpact.IMPACTS, explanation="x")
+        esiti = list(task.esiti.order_by("host"))
+        ev = watchguard_api.evidenza_cve(task, esiti)
+        self.assertEqual([e.cve[0]["stato"] for e in esiti], ["corretta", "vulnerabile", "fuori"])
+        self.assertEqual((ev["conteggi"]["corretta"], ev["totale"]), (1, 3))
+
+    def test_prova_della_chiusura_cita_il_task(self):
+        from security.services import cve_chiusura
+
+        task = self._task_finito()
+        p = WatchGuardPatch.objects.create(device_id="d", patch_id="p", host="pc-a", nome="Acme 2.0", cve="|CVE-2099-0502|")
+        WatchGuardTaskEsito.objects.create(task=task, job_id="j1", host="pc-a", patch_nome="Acme 2.0", esito=1)
+        cve_chiusura._task_delle_patch([p])
+        self.assertEqual(p.task_nome, "Install Acme patch")
+
+    def test_run_task_spento_senza_interruttore(self):
+        soc_settings.save({"watchguard.api.patch": False}, None)
+        self.assertEqual(watchguard_api.run_task(), {"attivo": False})
+
+
+class TaskPaginaTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create(username="wg_task", is_staff=True, is_superuser=True))
+
+    def test_pagina_installazioni_da_console(self):
+        task = WatchGuardTask.objects.create(task_id="t1", nome="Install Acme Viewer patch on 2 computers",
+                                             ultimo_job_il=timezone.now(), pc=2, riuscite=1, errori=1)
+        WatchGuardTaskEsito.objects.create(task=task, job_id="j1", host="pc-a", host_display="PC-A",
+                                           patch_nome="Acme Viewer 2.0", esito=4)
+        url = reverse("security:watchguard_task")
+        page = self.client.get(url)
+        self.assertContains(page, "Install Acme Viewer patch on 2 computers")
+        self.assertContains(self.client.get(url, {"task": task.pk}), "Errore di installazione")
+        self.assertContains(self.client.get(url, {"q": "zzz"}), "Nessun task")
+        WatchGuardTask.objects.filter(pk=task.pk).update(verifica_il=timezone.now(), verifica={"stato": "fatta"})
+        self.assertContains(self.client.get(url, {"task": task.pk}), "Patch e software riletti")

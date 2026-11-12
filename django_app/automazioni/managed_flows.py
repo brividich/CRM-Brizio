@@ -45,7 +45,7 @@ def install_flows():
             code="managed-" + code,
             defaults=dict(name=spec["label"], description=spec["description"],
                           source_code="managed_flows", operation_type="manual",
-                          trigger_scope="all_inserts", is_active=controls.get(code, True),
+                          trigger_scope="all_inserts", is_active=controls.get(code, spec.get("attivo_di_default", True)),
                           is_draft=False, stop_on_first_failure=True),
         )
         if not new_rule:
@@ -95,11 +95,20 @@ def _execute(binding, callback, *, initiated_by=None, raise_on_error=True):
         _invocation.reset(token)
 
 
-def run_managed_flow(code, *, queue_limit=None):
-    """Scheduled entry point, with durable exclusion and explicit rule state."""
+def run_managed_flow(code, *, queue_limit=None, ignora_sospensione=False):
+    """Scheduled entry point, with durable exclusion and explicit rule state.
+
+    Uno schedule sospeso a tempo (ScheduleControl.sospeso_fino) salta i giri fino a
+    quella data compresa; «Esegui ora» passa ``ignora_sospensione=True``.
+    """
     spec = catalog().get(code)
     if not spec or spec["kind"] != "schedule":
         raise ValueError("Flusso pianificato sconosciuto.")
+    if not ignora_sospensione:
+        from .schedules import sospeso_fino
+        fino = sospeso_fino(code)
+        if fino:
+            return {"skipped": True, "reason": "sospeso", "fino": fino.isoformat()}
     native_kwargs = dict(spec.get("kwargs", {}))
     # q_options è per django-q (timeout del task), non per la funzione nativa.
     native_kwargs.pop("q_options", None)
@@ -135,7 +144,10 @@ def event_flow(code, *, skipped_result=None):
                 return func(*args, **kwargs)
             binding = ManagedFlow.objects.select_related("rule").filter(code=code, kind="event").first()
             if binding is None:
-                # Backward-compatible only until the explicit installation.
+                # Backward-compatible only until the explicit installation,
+                # except for flows registered as disabled by default.
+                if not catalog().get(code, {}).get("attivo_di_default", True):
+                    return skipped_result
                 return func(*args, **kwargs)
             result, run = _execute(binding, lambda: func(*args, **kwargs), raise_on_error=False)
             return result if run and run.status == "success" else skipped_result
@@ -167,3 +179,11 @@ def reconcile_expired_approvals():
             status="skipped", result_message="Richiesta di approvazione scaduta; nessuna decisione applicata.",
             finished_at=timezone.now())
     return {"expired": count}
+
+
+def flusso_attivo(code) -> bool:
+    """Vero se il flusso è installato e acceso, o non installato ma acceso di default."""
+    binding = ManagedFlow.objects.select_related("rule").filter(code=code).first()
+    if binding is None:
+        return bool(catalog().get(code, {}).get("attivo_di_default", True))
+    return bool(binding.rule.is_active and not binding.rule.is_draft)

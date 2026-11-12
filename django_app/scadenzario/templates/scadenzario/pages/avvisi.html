@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+
+{% block title %}Avvisi | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Avvisi</h1>
+      <div class="sz-sub">Cosa partirà al prossimo invio e cosa è già partito. Gli avvisi vanno alle email della singola attività; il riepilogo del mese alle email della categoria.</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="avvisi" %}
+  </div>
+
+  <div class="sz-card sz-wrap">
+    <h2>Prossimo invio: {{ anteprima.giorno|date:"d/m/Y" }} alle {{ ora_invio }} · {{ anteprima.partono|length }} mail</h2>
+    <div class="sz-help" style="margin-bottom:8px">Anteprima: nessuna mail parte da questa pagina.</div>
+    <table class="sz-table" data-fm-table-skip="1">
+      <thead><tr><th>Attività</th><th>Categoria</th><th>Scadenza</th><th>Destinatari</th></tr></thead>
+      <tbody>
+      {% for r in anteprima.partono %}
+        <tr>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' r.scadenza.pk %}">{{ r.scadenza.titolo }}</a></td>
+          <td>{{ r.scadenza.categoria.nome }}</td>
+          <td style="white-space:nowrap">{{ r.scadenza.data_scadenza|date:"d/m/Y" }} <span class="sz-muted">{{ r.stato }}</span></td>
+          <td>{{ r.destinatari|join:", " }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="sz-muted">Nessuna mail in partenza.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if anteprima.senza %}
+    <details class="sz-altro">
+      <summary>{{ anteprima.senza|length }} nel preavviso senza destinatari: nessun avviso singolo</summary>
+      <div class="sz-help" style="margin:6px 0">Restano nel riepilogo mensile della categoria, come nel vecchio scadenzario. Se vuoi l'avviso singolo, aggiungi i destinatari all'attività.</div>
+      <table class="sz-table" data-fm-table-skip="1"><tbody>
+        {% for r in anteprima.senza %}
+        <tr>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' r.scadenza.pk %}">{{ r.scadenza.titolo }}</a></td>
+          <td>{{ r.scadenza.categoria.nome }}</td>
+          <td style="white-space:nowrap">{{ r.scadenza.data_scadenza|date:"d/m/Y" }} <span class="sz-muted">{{ r.stato }}</span></td>
+          <td>{% if r.scadenza.categoria.destinatari %}<span class="sz-muted">solo riepilogo</span>{% else %}<span class="sz-pill sz-scaduta">nessuna mail: la categoria non ha destinatari</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+    </details>
+    {% endif %}
+
+    {% if anteprima.aspettano %}
+    <details class="sz-altro">
+      <summary>{{ anteprima.aspettano|length }} già avvisate: ripartono più avanti</summary>
+      <table class="sz-table" data-fm-table-skip="1" style="margin-top:6px"><tbody>
+        {% for r in anteprima.aspettano %}
+        <tr>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' r.scadenza.pk %}">{{ r.scadenza.titolo }}</a></td>
+          <td>{{ r.scadenza.categoria.nome }}</td>
+          <td style="white-space:nowrap">{{ r.scadenza.data_scadenza|date:"d/m/Y" }} <span class="sz-muted">{{ r.stato }}</span></td>
+          <td class="sz-muted" style="white-space:nowrap">ultimo avviso {{ r.ultimo|date:"d/m/Y" }}, prossimo dal {{ r.prossimo|date:"d/m/Y" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+    </details>
+    {% endif %}
+
+    <div class="sz-help" style="margin-top:10px">Riepilogo mensile: prossimo invio {{ riepilogo.giorno|date:"d/m/Y" }} alle {{ riepilogo.ora }}.</div>
+  </div>
+
+  <div class="sz-card sz-wrap">
+    <h2>Già inviati (ultimi 300)</h2>
+    <table class="sz-table" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>Tipo</th><th>Attività / categoria</th><th>Destinatari</th><th>Esito</th></tr></thead>
+      <tbody>
+      {% for a in avvisi %}
+        <tr>
+          <td style="white-space:nowrap">{{ a.inviato_il|date:"d/m/Y H:i" }}</td>
+          <td>{{ a.get_tipo_display }}{% if a.importato %} <span class="sz-pill sz-off">vecchio scadenzario</span>{% endif %}</td>
+          <td>{% if a.scadenza %}<a href="{% url 'scadenzario:scadenza_dettaglio' a.scadenza_id %}">{{ a.scadenza.titolo }}</a>{% elif a.categoria %}{{ a.categoria.nome }}{% else %}—{% endif %}</td>
+          <td>{{ a.destinatari|default:"—" }}</td>
+          <td>{% if a.riuscito %}<span class="sz-pill sz-ok">inviato</span>{% else %}<span class="sz-pill sz-scaduta">non inviato</span>{% endif %} <span class="sz-muted">{{ a.esito }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="sz-muted">Nessun avviso.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

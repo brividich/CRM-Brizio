@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -130,9 +129,11 @@ class Command(BaseCommand):
         from core.email_utils import email_cta, send_hub_mail, text_to_html
 
         fragment = text_to_html(body)
-        site_url = (getattr(settings, "SITE_URL", "") or "").rstrip("/")
-        if site_url:
-            fragment += email_cta("Apri la checklist", f"{site_url}/checklist-operativa/")
+        from core.accounts.portal_links import portal_link
+
+        link = portal_link("/checklist-operativa/")
+        if link:
+            fragment += email_cta("Apri la checklist", link)
 
         try:
             send_hub_mail(

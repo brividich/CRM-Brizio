@@ -1,0 +1,170 @@
+{% extends "core/base.html" %}
+
+{% block title %}Collega ingresso | Accessi esterni{% endblock %}
+
+{% block extra_head %}
+<style>
+.ic-page { display:flex; flex-direction:column; gap:18px; }
+.ic-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ic-title { font-size:24px; font-weight:800; color:var(--text,#0f172a); letter-spacing:-.02em; }
+.ic-sub { font-size:13px; color:var(--text-light,#64748b); margin-top:2px; max-width:820px; }
+.ic-card { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; overflow:hidden; }
+.ic-card-head { padding:14px 20px; border-bottom:1px solid var(--border,#f1f5f9); font-size:15px; font-weight:700; color:var(--text,#1e293b); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; }
+.ic-dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px 18px; padding:14px 20px; font-size:13px; }
+.ic-dl dt { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); }
+.ic-dl dd { margin:2px 0 0; color:var(--text,#0f172a); font-weight:600; }
+.ic-wrap { overflow-x:auto; }
+.ic-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ic-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); background:var(--thead-bg,#f8fafc); border-bottom:1px solid var(--border,#e2e8f0); white-space:nowrap; }
+.ic-table td { padding:10px 16px; border-bottom:1px solid var(--border,#f1f5f9); color:var(--text-mid,#334155); vertical-align:middle; }
+.ic-btn { display:inline-flex; align-items:center; padding:7px 12px; border-radius:8px; font-size:12px; font-weight:600; border:1px solid transparent; cursor:pointer; text-decoration:none; }
+.ic-btn-primary { background:#1d4ed8; color:#fff; }
+.ic-btn-ghost { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); border-color:var(--border,#e2e8f0); }
+.ic-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+.ic-pill-man { background:#dbeafe; color:#1e40af; }
+.ic-pill-odl { background:#ffedd5; color:#9a3412; }
+.ic-pill-ok { background:#dcfce7; color:#166534; }
+.ic-pill-for { background:#ede9fe; color:#5b21b6; }
+body.theme-dark .ic-pill-for { background:rgba(124,58,237,.2); color:#c4b5fd; }
+.ic-muted { color:var(--text-light,#94a3b8); }
+.ic-filtri { display:flex; gap:6px; flex-wrap:wrap; padding:10px 20px 0; }
+.ic-filtro { display:inline-flex; gap:5px; padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid var(--border,#e2e8f0); color:var(--text-mid,#334155); background:var(--surface-alt,#f8fafc); }
+.ic-multi { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 20px; border-top:1px solid var(--border,#f1f5f9); font-size:13px; color:var(--text-mid,#334155); }
+.ic-multi button[disabled] { opacity:.5; cursor:default; }
+.ic-spunta { width:16px; height:16px; }
+.ic-filtro.is-on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.ic-search { display:flex; gap:8px; flex-wrap:wrap; }
+.ic-input { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:7px 12px; font-size:13px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); min-width:220px; }
+.ic-empty { text-align:center; padding:28px; color:var(--text-light,#94a3b8); }
+.ic-note { padding:10px 20px; font-size:12px; color:var(--text-light,#64748b); }
+body.theme-dark .ic-pill-man { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ic-pill-odl { background:rgba(154,52,18,.2); color:#fdba74; }
+body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ic-page">
+  <div class="ic-top">
+    <div>
+      <div class="ic-title">Collega l'ingresso a un intervento</div>
+      <div class="ic-sub">Scegli il ticket, la manutenzione straordinaria (OdL) o ordinaria, la scadenza amministrativa o l'attività per cui la persona è entrata: anche se è già chiusa, spesso il rapportino arriva dopo. Se è aperta e non ha ancora una ditta, prende quella dell'ingresso.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="ic-btn ic-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi">? Guida</a>
+      <a class="ic-btn ic-btn-ghost" href="{% url 'fornitori:accessi_esterni' %}">← Accessi esterni</a>
+    </div>
+  </div>
+
+  {% include "fornitori/components/flash_messages.html" %}
+
+  <div class="ic-card">
+    <div class="ic-card-head">Ingresso</div>
+    <dl class="ic-dl">
+      <div><dt>Nome</dt><dd>{{ a.nome }}</dd></div>
+      <div><dt>Azienda</dt><dd>{{ a.azienda|default:"—" }}</dd></div>
+      <div><dt>Ditta HUB</dt><dd>{% if fornitore %}<a href="{% url 'fornitori:fornitore_detail' fornitore.pk %}">{{ fornitore.ragione_sociale }}</a>{% else %}<span class="ic-muted">non riconosciuta</span>{% endif %}</dd></div>
+      <div><dt>Entrata</dt><dd>{{ a.ingresso|date:"d/m/Y H:i"|default:"—" }}</dd></div>
+      <div><dt>Uscita</dt><dd>{% if a.uscita %}{{ a.uscita|date:"d/m/Y H:i" }}{% else %}ancora dentro{% endif %}</dd></div>
+      <div><dt>Motivo</dt><dd>{{ a.motivo|default:"—" }}</dd></div>
+    </dl>
+    {% if not fornitore %}
+      <div class="ic-note">La ditta non è riconosciuta: abbinala in <a href="{% url 'fornitori:guestportal_ditte' %}">Ditte GuestPortal</a> per impostarla anche sull'intervento. Il collegamento si può fare lo stesso.</div>
+    {% endif %}
+  </div>
+
+  {% if collegati %}
+  <div class="ic-card">
+    <div class="ic-card-head">Già collegato a</div>
+    <div class="ic-wrap">
+      <table class="ic-table">
+        <tbody>
+        {% for c in collegati %}
+          <tr>
+            <td><span class="ic-pill {% if c.iv.tipo == 'ticket' %}ic-pill-man{% elif c.iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ c.iv.tipo_label }}</span> <a href="{{ c.iv.url }}">{{ c.iv.etichetta }}</a> {{ c.iv.titolo }}</td>
+            <td class="ic-muted">{{ c.get_modo_display }}{% if c.collegato_da %} · {{ c.collegato_da.get_username }}{% endif %} · {{ c.collegato_il|date:"d/m/Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="ic-card">
+    <div class="ic-card-head">
+      <span>Ticket, manutenzioni straordinarie e ordinarie, scadenze{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
+      <form method="get" class="ic-search">
+        {% if filtro_tipo %}<input type="hidden" name="tipo" value="{{ filtro_tipo }}">{% endif %}
+        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Titolo, macchina, scadenza…" aria-label="Cerca intervento">
+        <button class="ic-btn ic-btn-ghost" type="submit">Cerca</button>
+      </form>
+    </div>
+    {% if filtri_tipo %}
+    <div class="ic-filtri">
+      <a class="ic-filtro{% if not filtro_tipo %} is-on{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">Tutti</a>
+      {% for f in filtri_tipo %}<a class="ic-filtro{% if filtro_tipo == f.val %} is-on{% endif %}" href="?tipo={{ f.val }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ f.label }} <span>{{ f.n }}</span></a>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="ic-note">Ticket e OdL: quelli aperti e quelli chiusi fino a due mesi dopo l'ingresso. Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutti.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
+    {% if not vede_ticket %}<div class="ic-note">Nessun ticket in elenco: si vedono quelli di manutenzione o delegati a una ditta, se sei gestore di quel tipo di ticket.</div>{% endif %}
+    {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
+    {% if righe %}
+    <form method="post" id="ic-piu" class="ic-multi">
+      {% csrf_token %}
+      <span>Stessa visita su più voci: spuntale e collegale insieme.</span>
+      <button type="button" class="ic-btn ic-btn-ghost" id="ic-tutte">Spunta tutte</button>
+      <button type="submit" class="ic-btn ic-btn-primary" id="ic-invia" disabled>Collega le selezionate (<span id="ic-n">0</span>)</button>
+    </form>
+    {% endif %}
+    <div class="ic-wrap">
+      <table class="ic-table">
+        <thead><tr><th><span class="sr-only" style="position:absolute;left:-9999px">Scegli</span></th><th>Intervento</th><th>Titolo / macchina / corso / categoria</th><th>Ditta / docente</th><th>Aperto / scade il</th><th></th></tr></thead>
+        <tbody>
+        {% for iv in righe %}
+          <tr>
+            <td><input class="ic-spunta" type="checkbox" name="scelta" value="{{ iv.tipo }}:{{ iv.pk }}" form="ic-piu" aria-label="Scegli {{ iv.etichetta }}"></td>
+            <td><span class="ic-pill {% if iv.tipo == 'ticket' %}ic-pill-man{% elif iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ iv.tipo_label }}</span> <a href="{{ iv.url }}">{{ iv.etichetta }}</a></td>
+            <td>{{ iv.titolo }}</td>
+            <td>{% if iv.fornitore and fornitore and iv.fornitore.pk == fornitore.pk %}<span class="ic-pill ic-pill-ok">{{ iv.chi }}</span>{% else %}{{ iv.chi|default:"—" }}{% endif %}</td>
+            <td>{{ iv.aperto_il|date:"d/m/Y"|default:"—" }}{% if iv.concluso %} <span class="ic-muted">· chiuso</span>{% endif %}</td>
+            <td>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="tipo" value="{{ iv.tipo }}">
+                <input type="hidden" name="pk" value="{{ iv.pk }}">
+                <button class="ic-btn ic-btn-primary" type="submit">Collega</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="ic-empty">Nessun ticket, manutenzione, scadenza o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var invia = document.getElementById('ic-invia');
+  if (!invia) { return; }
+  var spunte = Array.prototype.slice.call(document.querySelectorAll('.ic-spunta'));
+  var tutte = document.getElementById('ic-tutte');
+  function aggiorna() {
+    var n = spunte.filter(function (s) { return s.checked; }).length;
+    document.getElementById('ic-n').textContent = n;
+    invia.disabled = n === 0;
+    tutte.textContent = n === spunte.length ? 'Togli tutte' : 'Spunta tutte';
+  }
+  spunte.forEach(function (s) { s.addEventListener('change', aggiorna); });
+  tutte.addEventListener('click', function () {
+    var accese = spunte.every(function (s) { return s.checked; });
+    spunte.forEach(function (s) { s.checked = !accese; });
+    aggiorna();
+  });
+})();
+</script>
+{% endblock %}

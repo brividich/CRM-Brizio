@@ -150,6 +150,23 @@
     .gruppo .anomalie-list { margin-bottom: 0; }
     .applica-blocco { display: flex; align-items: flex-start; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 9px 12px; font-size: 13px; color: #7c2d12; cursor: pointer; }
     .applica-blocco input { margin-top: 2px; accent-color: #ea580c; flex-shrink: 0; }
+    .applica-ambito { flex-direction: column; align-items: stretch; cursor: default; gap: 6px; }
+    .applica-t { font-weight: 700; }
+    .applica-mano { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #fed7aa; border-radius: 8px; padding: 8px 10px; }
+    .applica-mano .gr { font-size: 11px; font-weight: 800; color: #9a3412; font-family: ui-monospace, monospace; margin-top: 4px; }
+    .applica-mano label, .applica-decise { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #334155; }
+    .applica-mano-acts { display: flex; gap: 10px; font-size: 12px; }
+    .applica-mano-acts button { border: 0; background: none; color: #12395f; text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+    .applica-conta { font-size: 12px; color: #9a3412; }
+    .riep-list { text-align: left; max-height: 46vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
+    .riep-list .gr { font-size: 11px; font-weight: 800; color: #64748b; font-family: ui-monospace, monospace; margin: 6px 0 2px; }
+    .riep-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 3px 0; }
+    .riep-row .txt { flex: 1; min-width: 160px; color: #1e293b; }
+    .riep-row .st { font-size: 12px; color: #64748b; }
+    .riep-pill { font-size: 10.5px; font-weight: 800; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; }
+    .riep-pill.chiude { background: #dcfce7; color: #166534; }
+    .riep-pill.aperta { background: #fff7ed; color: #c2410c; }
+    .riep-warn { text-align: left; font-size: 12px; color: #9a3412; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
     .altri-divider { margin: 22px 0 10px; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 10px; }
     .altri-divider::after { content: ""; flex: 1; height: 1px; background: #dbe3ec; }
     .anomalia-row.is-nuova .anomalia-row-stripe { background: #ff6b00; }
@@ -210,6 +227,7 @@
       align-items: center; gap: 6px;
     }
     .salva-esito.visible { display: flex; }
+    .salva-esito.is-error { background: #fee2e2; color: #991b1b; }
 
     /* Notice permessi */
     .readonly-notice {
@@ -360,13 +378,16 @@
         <div class="gruppo-overline">{% if gruppo.nuovo and ha_nuove %}Da decidere · {% endif %}Seriali</div>
         <div class="gruppo-sn">{{ gruppo.titolo|default:"(S/N non indicato)" }}</div>
         {% if gruppo.sottotitolo %}<div class="gruppo-sub">{{ gruppo.sottotitolo }}</div>{% endif %}
+        {% if gruppo.dove_pezzi %}<div class="gruppo-sub">&#128230; Dove sono i pezzi: <strong>{{ gruppo.dove_pezzi }}</strong></div>{% endif %}
       </div>
       <div class="gruppo-count">{{ gruppo.righe|length }} anomali{{ gruppo.righe|length|pluralize:"a,e" }}</div>
     </div>
 
     <div class="anomalie-list">
       {% for a in gruppo.righe %}
-      <div class="anomalia-row{% if a.nuova %} is-nuova{% endif %}" id="row-{{ a.id }}" data-id="{{ a.id }}" data-gruppo="{{ gruppo.chiave }}">
+      <div class="anomalia-row{% if a.nuova %} is-nuova{% endif %}" id="row-{{ a.id }}" data-id="{{ a.id }}" data-gruppo="{{ gruppo.chiave }}"
+           data-gruppo-titolo="{{ gruppo.titolo|default:'(S/N non indicato)' }}" data-decisa="{% if a.decisa %}1{% endif %}" data-serve-azione="{% if a.serve_azione %}1{% endif %}"
+           data-stato="{{ a.avanzamento|default:'In attesa' }}">
         <div class="anomalia-row-header" onclick="toggleRow('row-{{ a.id }}')">
           <div class="anomalia-row-stripe"></div>
           <div class="anomalia-row-info">
@@ -400,6 +421,7 @@
             {% else %}
             <div class="body-desc-full">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|linebreaksbr }}</div>
             {% endif %}
+            {% if a.dettaglio_righe %}<div class="body-desc-full" style="font-family:Consolas,monospace;font-size:13px;">{% for r in a.dettaglio_righe %}{{ r }}<br>{% endfor %}</div>{% endif %}
 
             {% if a.immagini %}
             <div class="anomalia-images">
@@ -428,7 +450,7 @@
                   <span>Aprire RDC?</span>
                 </label>
                 <label class="toggle-row">
-                  <input type="checkbox" id="seg-{{ a.id }}" {% if a.segnalare_cliente %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
+                  <input type="checkbox" id="seg-{{ a.id }}" {% if a.segnalare_cliente %}checked{% endif %} onchange="onSegnalareChange({{ a.id }})">
                   <span>Segnalare a cliente?</span>
                 </label>
                 <label class="toggle-row toggle-readonly">
@@ -456,13 +478,24 @@
                 </div>
                 <div class="field-wide">
                   <div class="field-label">Risposta / note del capocommessa</div>
-                  <textarea class="field-textarea" id="note-{{ a.id }}" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
+                  <textarea class="field-textarea" id="note-{{ a.id }}" oninput="onToggleChange({{ a.id }})" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
                 </div>
-                {% if gruppo.righe|length > 1 %}
-                <label class="applica-blocco field-wide">
-                  <input type="checkbox" id="applica-{{ a.id }}">
-                  <span>Applica la stessa decisione anche alle altre <b>{{ gruppo.righe|length|add:"-1" }}</b> anomali{{ gruppo.righe|length|add:"-1"|pluralize:"a,e" }} aperte di questi seriali</span>
-                </label>
+                {% if anomalie|length > 1 %}
+                <div class="applica-blocco applica-ambito field-wide">
+                  <label class="applica-t" for="ambito-{{ a.id }}">Applica la stessa decisione anche a</label>
+                  <select class="field-select" id="ambito-{{ a.id }}" onchange="onAmbitoChange({{ a.id }})">
+                    <option value="solo">Solo questa</option>
+                    {% if gruppo.righe|length > 1 %}<option value="blocco">Stesso blocco di seriali</option>{% endif %}
+                    <option value="op">Tutte le aperte in questa pagina</option>
+                    <option value="mano">Scelte a mano</option>
+                  </select>
+                  <div class="applica-mano" id="mano-{{ a.id }}" hidden></div>
+                  <label class="applica-decise" id="decise-wrap-{{ a.id }}" hidden>
+                    <input type="checkbox" id="decise-{{ a.id }}" onchange="onAmbitoChange({{ a.id }})">
+                    <span>Includi anche quelle già decise (la loro decisione viene sostituita)</span>
+                  </label>
+                  <div class="applica-conta" id="conta-{{ a.id }}"></div>
+                </div>
                 {% endif %}
                 <div>
                   <button type="button" class="salva-btn" onclick="salvaIndividuale({{ a.id }})">Salva</button>
@@ -531,6 +564,19 @@
 </div>
 
 <!-- Modale conferma -->
+<div class="modal-overlay" id="riepModal" onclick="if(event.target===this)chiudiRiepilogo()">
+  <div class="modal-box">
+    <div class="modal-title" id="riep-title">Applica la decisione</div>
+    <p class="modal-sub" id="riep-sub"></p>
+    <div class="riep-list" id="riep-list"></div>
+    <div class="riep-warn" id="riep-warn" hidden>Le anomalie in «Azione di recupero» ricevono la decisione ma restano aperte finché non si registra l'azione effettuata (dal portale).</div>
+    <div class="modal-btn-row">
+      <button type="button" class="btn btn-primary" id="riep-ok">Conferma</button>
+      <button type="button" class="btn btn-secondary" onclick="chiudiRiepilogo()">Annulla</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="confirmModal" onclick="if(event.target===this)closeModal()">
   <div class="modal-box">
     <div class="modal-icon">
@@ -564,19 +610,27 @@
 
   // ── Regole Power Apps (identiche alla pagina web di gestione) ──
   var BASE_AVANZAMENTO = ["In attesa", "Accetto lo stato", "Finito trattato"];
+  // «Segnalare al cliente» porta l'anomalia in attesa della risposta del cliente.
+  var AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
 
   function buildAvanzamentoOptions(isAprireRdc) {
     var dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
     var dynamicAlt   = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
     var base = BASE_AVANZAMENTO.filter(function(o){ return o.toLowerCase() !== dynamicAlt.toLowerCase(); });
     var out = [dynamicFirst];
-    base.forEach(function(o){ if (out.map(function(x){return x.toLowerCase();}).indexOf(o.toLowerCase()) < 0) out.push(o); });
+    base.concat([AVANZAMENTO_RISPOSTA_CLIENTE]).forEach(function(o){ if (out.map(function(x){return x.toLowerCase();}).indexOf(o.toLowerCase()) < 0) out.push(o); });
     return out;
   }
 
-  function shouldAutoClose(isAprireRdc, avanz) {
+  // Stessa regola del server (views.chiusura_automatica): «Aprire RDC» chiude solo con
+  // il numero RDC, «Segnalare al cliente» mai da qui (la segnalazione fatta si registra
+  // nel portale); gli stati d'attesa tengono aperta l'anomalia.
+  var STATI_ATTESA = ['in attesa risposta cliente', 'in attesa di ulteriori informazioni'];
+  function shouldAutoClose(isAprireRdc, avanz, numRdc, segnalare) {
     var a = String(avanz || '').trim().toLowerCase();
-    return Boolean(isAprireRdc || a === 'accetto lo stato' || a === 'apertura ore/ripi');
+    if (STATI_ATTESA.indexOf(a) >= 0 || segnalare) return false;
+    if (isAprireRdc) return !!String(numRdc || '').trim();
+    return a === 'accetto lo stato' || a === 'apertura ore/ripi';
   }
 
   // Popola le select avanzamento di ogni riga in base allo stato corrente dei toggle.
@@ -596,8 +650,21 @@
     if (prev && opts.indexOf(prev) >= 0) sel.value = prev;
   }
 
-  // Applica le regole: se "Segnalare a cliente" è ON disabilita l'avanzamento;
-  // ricalcola "Chiudere automatico" da aprireRdc + avanzamento.
+  // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»;
+  // togliere la spunta torna a «invariato».
+  function onSegnalareChange(id) {
+    var seg = document.getElementById('seg-' + id);
+    var av  = document.getElementById('av-' + id);
+    // «Segnalare al cliente» spunta anche «Aprire RDC» (si può togliere).
+    var rdcBox = document.getElementById('rdc-' + id);
+    if (seg && seg.checked && rdcBox) rdcBox.checked = true;
+    rebuildSelect(id);
+    if (av && seg && seg.checked) av.value = AVANZAMENTO_RISPOSTA_CLIENTE;
+    else if (av && av.value === AVANZAMENTO_RISPOSTA_CLIENTE) av.value = '';
+    onToggleChange(id);
+  }
+
+  // Ricalcola "Chiudere automatico" da aprireRdc + avanzamento.
   function onToggleChange(id) {
     var rdc  = document.getElementById('rdc-' + id);
     var seg  = document.getElementById('seg-' + id);
@@ -606,13 +673,8 @@
 
     rebuildSelect(id);
 
-    if (av) {
-      var disabled = seg && seg.checked;
-      av.disabled = disabled;
-      av.style.opacity = disabled ? '0.6' : '1';
-      av.style.cursor = disabled ? 'not-allowed' : 'pointer';
-    }
-    if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
+    var numEl = document.getElementById('num-' + id);
+    if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '', numEl ? numEl.value : '', !!(seg && seg.checked));
     var numWrap = document.getElementById('numwrap-' + id);
     if (numWrap) numWrap.hidden = !(rdc && rdc.checked);
 
@@ -649,19 +711,119 @@
     });
   });
 
-  // Come in Gestione anomalie: copia la decisione dell'anomalia sulle altre anomalie
-  // aperte dello stesso blocco di seriali (flag, avanzamento, N° RDC, note) e le salva.
-  // Le risposte alle singole descrizioni restano di ciascuna anomalia.
-  function applicaAlBlocco(id) {
+  // Come in Gestione anomalie: «Applica la stessa decisione anche a» solo questa, stesso
+  // blocco di seriali, tutte le aperte della pagina o scelte a mano; le già decise solo
+  // con la spunta. Prima di salvare un riepilogo da confermare.
+  function righeAltre(id) {
+    return Array.prototype.slice.call(document.querySelectorAll('.anomalia-row'))
+      .filter(function(r){ return r.dataset.id !== String(id); });
+  }
+  function bersagliDi(id) {
+    var sel = document.getElementById('ambito-' + id);
+    var ambito = sel ? sel.value : 'solo';
+    if (ambito === 'solo') return [];
     var row = document.getElementById('row-' + id);
-    if (!row) return 0;
+    var decise = document.getElementById('decise-' + id);
+    var conDecise = !!(decise && decise.checked);
+    var lista = righeAltre(id).filter(function(r){ return conDecise || r.dataset.decisa !== '1'; });
+    if (ambito === 'blocco') lista = lista.filter(function(r){ return row && r.dataset.gruppo === row.dataset.gruppo; });
+    if (ambito === 'mano') {
+      var scelte = Array.prototype.slice.call(document.querySelectorAll('#mano-' + id + ' input[data-scelta]:checked'))
+        .map(function(i){ return i.dataset.scelta; });
+      lista = lista.filter(function(r){ return scelte.indexOf(r.dataset.id) >= 0; });
+    }
+    return lista;
+  }
+  function onAmbitoChange(id) {
+    var sel = document.getElementById('ambito-' + id);
+    var ambito = sel ? sel.value : 'solo';
+    var mano = document.getElementById('mano-' + id);
+    var decise = document.getElementById('decise-' + id);
+    var conDecise = !!(decise && decise.checked);
+    var nDecise = righeAltre(id).filter(function(r){ return r.dataset.decisa === '1'; }).length;
+    var wrap = document.getElementById('decise-wrap-' + id);
+    if (wrap) wrap.hidden = ambito === 'solo' || !nDecise;
+    if (mano) {
+      mano.hidden = ambito !== 'mano';
+      if (ambito === 'mano') {
+        var prima = Array.prototype.slice.call(mano.querySelectorAll('input[data-scelta]:checked')).map(function(i){ return i.dataset.scelta; });
+        var righe = righeAltre(id).filter(function(r){ return conDecise || r.dataset.decisa !== '1'; });
+        var html = '<div class="applica-mano-acts"><button type="button" onclick="scegliTutte(' + id + ', true)">Tutte</button>'
+          + '<button type="button" onclick="scegliTutte(' + id + ', false)">Nessuna</button></div>';
+        var gruppo = null;
+        righe.forEach(function(r){
+          if (r.dataset.gruppo !== gruppo) { gruppo = r.dataset.gruppo; html += '<div class="gr">S/N ' + esc(r.dataset.gruppoTitolo) + '</div>'; }
+          var testo = (r.querySelector('.anomalia-desc-compact') || {}).textContent || '';
+          html += '<label><input type="checkbox" data-scelta="' + r.dataset.id + '" onchange="onAmbitoConta(' + id + ')"'
+            + (prima.indexOf(r.dataset.id) >= 0 ? ' checked' : '') + '> #' + r.dataset.id + ' ' + esc(testo.trim()) + '</label>';
+        });
+        if (!righe.length) html += '<div>Nessun\'altra anomalia ' + (conDecise ? 'aperta' : 'da decidere') + '.</div>';
+        mano.innerHTML = html;
+      }
+    }
+    onAmbitoConta(id);
+  }
+  function scegliTutte(id, si) {
+    document.querySelectorAll('#mano-' + id + ' input[data-scelta]').forEach(function(i){ i.checked = si; });
+    onAmbitoConta(id);
+  }
+  function onAmbitoConta(id) {
+    var conta = document.getElementById('conta-' + id);
+    var sel = document.getElementById('ambito-' + id);
+    if (!conta) return;
+    var n = bersagliDi(id).length;
+    conta.textContent = (!sel || sel.value === 'solo') ? '' : (n ? 'Insieme a questa: ' + n + ' altr' + (n === 1 ? 'a anomalia' : 'e anomalie') : 'Nessun\'altra anomalia scelta.');
+  }
+
+  var riepilogoPer = null;
+  function apriRiepilogo(id, bersagli) {
+    var av = document.getElementById('av-' + id), rdc = document.getElementById('rdc-' + id);
+    var nuovo = (av && av.value) || '';
+    var chiude = shouldAutoClose(!!(rdc && rdc.checked), nuovo);
+    var row = document.getElementById('row-' + id);
+    var tutte = [row].concat(bersagli);
+    var html = '', gruppo = null, restaAperta = false;
+    tutte.forEach(function(r){
+      if (r.dataset.gruppo !== gruppo) { gruppo = r.dataset.gruppo; html += '<div class="gr">S/N ' + esc(r.dataset.gruppoTitolo) + '</div>'; }
+      var testo = ((r.querySelector('.anomalia-desc-compact') || {}).textContent || '').trim();
+      var bloccata = chiude && r !== row && r.dataset.serveAzione === '1' && !(rdc && rdc.checked);
+      if (bloccata) restaAperta = true;
+      html += '<div class="riep-row"><span class="txt">#' + r.dataset.id + ' ' + esc(testo) + (r === row ? ' (questa)' : '') + '</span>'
+        + '<span class="st">' + esc(r.dataset.stato || 'In attesa') + ' → ' + esc(nuovo || 'invariato') + '</span>'
+        + (chiude && !bloccata ? '<span class="riep-pill chiude">Si chiude</span>' : (bloccata ? '<span class="riep-pill aperta">Resta aperta</span>' : ''))
+        + '</div>';
+    });
+    document.getElementById('riep-title').textContent = 'Applica la decisione a ' + tutte.length + ' anomalie';
+    document.getElementById('riep-sub').textContent = 'Avanzamento: ' + (nuovo || 'invariato')
+      + ((rdc && rdc.checked) ? ' · RDC' : '') + ((document.getElementById('seg-' + id) || {}).checked ? ' · segnalata al cliente' : '');
+    document.getElementById('riep-list').innerHTML = html;
+    document.getElementById('riep-warn').hidden = !restaAperta;
+    document.getElementById('riep-ok').textContent = 'Conferma e salva ' + tutte.length + ' anomalie';
+    riepilogoPer = id;
+    document.getElementById('riepModal').classList.add('open');
+  }
+  function chiudiRiepilogo() {
+    riepilogoPer = null;
+    document.getElementById('riepModal').classList.remove('open');
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var ok = document.getElementById('riep-ok');
+    if (ok) ok.addEventListener('click', function(){
+      var id = riepilogoPer;
+      chiudiRiepilogo();
+      if (id != null) salvaIndividuale(id, false, true);
+    });
+  });
+
+  // Copia la decisione (flag, avanzamento, N° RDC, note) sulle anomalie scelte e le salva.
+  // Le risposte alle singole descrizioni restano di ciascuna anomalia.
+  function applicaA(id, bersagli) {
     var rdc = document.getElementById('rdc-' + id), seg = document.getElementById('seg-' + id);
     var av = document.getElementById('av-' + id), num = document.getElementById('num-' + id);
     var note = document.getElementById('note-' + id);
     var n = 0;
-    document.querySelectorAll('.anomalia-row[data-gruppo="' + row.dataset.gruppo + '"]').forEach(function(altra){
+    bersagli.forEach(function(altra){
       var aid = altra.dataset.id;
-      if (aid === String(id)) return;
       var r = document.getElementById('rdc-' + aid), s = document.getElementById('seg-' + aid);
       if (r) r.checked = !!(rdc && rdc.checked);
       if (s) s.checked = !!(seg && seg.checked);
@@ -679,7 +841,7 @@
     return n;
   }
 
-  function salvaIndividuale(id, daBlocco) {
+  function salvaIndividuale(id, daBlocco, confermato) {
     var av   = document.getElementById('av-' + id);
     var note = document.getElementById('note-' + id);
     var rdc  = document.getElementById('rdc-' + id);
@@ -689,8 +851,32 @@
 
     var aprireRdc = !!(rdc && rdc.checked);
     var segnalare = !!(seg && seg.checked);
-    var chiudere = shouldAutoClose(aprireRdc, av.value);
     var num = document.getElementById('num-' + id);
+    var chiudere = shouldAutoClose(aprireRdc, av.value, num ? num.value : '', segnalare);
+    // «Azione di recupero» senza azione effettuata: la decisione copiata non la chiude.
+    var rigaSel = document.getElementById('row-' + id);
+    if (daBlocco && chiudere && !aprireRdc && rigaSel && rigaSel.dataset.serveAzione === '1') chiudere = false;
+
+    // Una nota scritta non può lasciare l'anomalia «In attesa» (stesso controllo del server).
+    var pill = document.getElementById('stato-' + id);
+    var statoEffettivo = String((av.disabled ? '' : av.value) || (pill ? pill.dataset.stato : '') || '').trim().toLowerCase();
+    if (note && note.value.trim() && (statoEffettivo === '' || statoEffettivo === 'in attesa')) {
+      if (esito) {
+        esito.classList.add('visible', 'is-error');
+        esito.textContent = 'Hai scritto una nota: scegli anche lo stato di avanzamento, l’anomalia non può restare «In attesa».';
+      }
+      av.focus();
+      return;
+    }
+
+    // Con altre anomalie scelte: prima il riepilogo, poi il salvataggio di tutte.
+    var bersagli = daBlocco ? [] : bersagliDi(id);
+    var selAmbito = document.getElementById('ambito-' + id);
+    if (!daBlocco && selAmbito && selAmbito.value === 'mano' && !bersagli.length) {
+      if (esito) { esito.classList.add('visible', 'is-error'); esito.textContent = 'Scegli almeno un\'altra anomalia, oppure «Solo questa».'; }
+      return;
+    }
+    if (!daBlocco && bersagli.length && !confermato) { apriRiepilogo(id, bersagli); return; }
 
     aggiornamenti[id] = {
       avanzamento: av.disabled ? '' : av.value,
@@ -717,15 +903,15 @@
     if (row) row.classList.add('st-verde');
 
     var testo = '✓ Salvato' + (av.value ? ' — ' + av.value : '');
-    var applica = document.getElementById('applica-' + id);
-    if (!daBlocco && applica && applica.checked) {
-      var altre = applicaAlBlocco(id);
-      applica.checked = false;
-      if (altre) testo += ' · applicata anche ad altre ' + altre;
+    if (!daBlocco && bersagli.length) {
+      var altre = applicaA(id, bersagli);
+      if (selAmbito) { selAmbito.value = 'solo'; onAmbitoChange(id); }
+      if (altre) testo += ' · applicata anche ad altr' + (altre === 1 ? 'a ' : 'e ') + altre;
     } else if (daBlocco) {
-      testo += ' (dalla decisione del blocco)';
+      testo += ' (dalla decisione copiata)';
     }
     if (esito) {
+      esito.classList.remove('is-error');
       esito.classList.add('visible');
       esito.textContent = testo;
     }

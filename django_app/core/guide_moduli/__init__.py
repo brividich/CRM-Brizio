@@ -31,12 +31,15 @@ from functools import lru_cache
 # Ordine dell'indice: per area, poi come compaiono nel menu.
 _MODULI = (
     "home",
+    "scadenzario",
     "anagrafica",
     "assenze",
     "timbri",
+    "presenti",
     "notizie",
     "tickets",
     "tasks",
+    "produzione",
     "anomalie",
     "assets",
     "attrezzature",

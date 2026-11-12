@@ -9,7 +9,7 @@
 {% block extra_head %}
 <style>
 .tfa-grid { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 20px; max-width: 1280px; }
-@media(max-width:960px) { .tfa-grid { grid-template-columns: 1fr; } }
+@media(max-width:960px) { .tfa-grid { grid-template-columns: minmax(0,1fr); } .tfa-grid > * { min-width: 0; } }
 .method-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.78rem; font-weight:600; }
 .method-badge.totp { background:#dbeafe; color:#1e40af; }
 .method-badge.email { background:#dcfce7; color:#166534; }
@@ -65,7 +65,7 @@ body.theme-dark .method-badge.email{background:rgba(56,161,105,.18);color:#86efa
 
             <div class="field">
               <label>Reti interne (una per riga, notazione CIDR)</label>
-              <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{{ policy.internal_networks|join:"\n" }}</textarea>
+              <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{% for net in policy.internal_networks %}{{ net }}{% if not forloop.last %}&#10;{% endif %}{% endfor %}</textarea>
               <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">
                 Usato con "Solo da rete esterna" e "Da rete esterna e da dispositivi nuovi". Accessi da questi range non richiedono 2FA.
               </div>

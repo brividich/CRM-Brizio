@@ -348,6 +348,75 @@ def _v_8_7(dal, al):
 
 
 def _v_8_8(dal, al):
+    """Vulnerabilità tecniche: le CVE (``_v_8_8_cve``) più i tempi di installazione delle patch WatchGuard (``patch_sla``).
+
+    Le patch aggiungono numeri ed evidenza; un esito «ok» delle CVE scende ad «attenzione» se ci sono
+    patch KEV o critiche oltre il termine. Senza patch lette (WatchGuard API spenta) resta l'esito delle CVE.
+    """
+    esito = _v_8_8_cve(dal, al)
+    _v_8_8_librerie(esito)
+    from security.models import WatchGuardPatch
+
+    if not WatchGuardPatch.objects.exists():
+        return esito
+    from security.services import patch_sla
+
+    try:
+        t = patch_sla.tempi(dal, al)
+    except Exception:  # noqa: BLE001
+        logger.exception("patch_sla.tempi non riuscito")
+        return esito
+    esito["numeri"].update({
+        "patch_installate": t["installate"], "patch_giorni_medi_installazione": t["giorni_medi"],
+        "patch_entro_termine_pct": t["in_tempo_pct"], "patch_oltre_termine": t["oltre_termine"],
+        "patch_oltre_termine_kev_o_critiche": t["oltre_termine_gravi"],
+        "patch_classi": [{"etichetta": c["etichetta"], "termine_giorni": c["termine_giorni"], "installate": c["installate"],
+                          "giorni_medi": c["giorni_medi"], "entro_termine": c["in_tempo"], "in_ritardo": c["in_ritardo"],
+                          "oltre_termine_adesso": c["oltre_termine"]} for c in t["classi"]],
+    })
+    ev = _evidenza("Tempi delle patch", "security:watchguard_patch_tempi")
+    if ev.get("url"):
+        esito["evidenze"].append(ev)
+    if t["oltre_termine_gravi"]:
+        esito["azioni"].append(f"Installare dalla console WatchGuard le patch KEV o critiche oltre il termine ({t['oltre_termine_gravi']}): "
+                               "Dispositivi › Tempi delle patch.")
+        if esito["stato"] == OK:
+            esito["stato"] = ATTENZIONE
+            esito["frase"] += f" Però {_plurale(t['oltre_termine_gravi'], 'patch KEV o critica è', 'patch KEV o critiche sono')} oltre il termine di installazione."
+    return esito
+
+
+def _v_8_8_librerie(esito):
+    """Librerie Python del portale con vulnerabilità aperte (``dipendenze_portale``): numeri, evidenza, azione.
+
+    Un esito «ok» scende ad «attenzione» se una libreria ha vulnerabilità alte o critiche. Senza nessun
+    controllo eseguito l'esito non cambia.
+    """
+    from security.models import SecurityLetturaLog
+    from security.services import dipendenze_portale
+
+    if not SecurityLetturaLog.objects.filter(codice="dipendenze_portale").exists():
+        return
+    try:
+        librerie = dipendenze_portale.per_pacchetto()
+    except Exception:  # noqa: BLE001
+        logger.exception("dipendenze_portale.per_pacchetto non riuscito")
+        return
+    gravi = [g for g in librerie if g["gravita"] in ("critical", "high")]
+    esito["numeri"].update({"librerie_portale_vulnerabili": len(librerie), "librerie_portale_gravi": len(gravi)})
+    ev = _evidenza("Librerie del portale", "security:dipendenze_portale")
+    if ev.get("url"):
+        esito["evidenze"].append(ev)
+    if librerie:
+        esito["azioni"].append("Aggiornare le librerie del portale con vulnerabilità note: "
+                               + ", ".join(f"{g['pacchetto']} {g['versione']}" + (f" → {g['aggiorna_a']}" if g["aggiorna_a"] else "")
+                                           for g in librerie[:6]) + (" …" if len(librerie) > 6 else "") + ".")
+    if gravi and esito["stato"] == OK:
+        esito["stato"] = ATTENZIONE
+        esito["frase"] += f" Però {_plurale(len(gravi), 'libreria del portale ha', 'librerie del portale hanno')} vulnerabilità alte o critiche."
+
+
+def _v_8_8_cve(dal, al):
     """Vulnerabilità tecniche: corrette entro i tempi per classe, nessuna esposizione scaduta senza accettazione."""
     from security.services import cve_chiusura
 

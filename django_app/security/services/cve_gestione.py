@@ -107,8 +107,11 @@ def correzioni_valide(dal, al=None) -> list:
 # ── Elenco delle CVE aperte ────────────────────────────────────────────────────
 
 @cve_sla.termini_fissati()
-def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None) -> dict:
-    """CVE che impattano o da verificare, una riga per CVE con programmi, termine e correzioni."""
+def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None, limite=MAX_RIGHE) -> dict:
+    """CVE che impattano o da verificare, una riga per CVE con programmi, termine e correzioni.
+
+    ``limite``: righe al massimo nella tabella (``None`` = tutte, per lo «Scarica CSV»).
+    """
     oggi = oggi or timezone.localdate()
     records = (
         SecurityCveRecord.objects.annotate(
@@ -190,10 +193,10 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
             "corretti_90": corrette.get(rec.pk, 0),
         })
 
-    # I totali contano tutte le righe che passano i filtri; la tabella ne mostra al massimo MAX_RIGHE.
+    # I totali contano tutte le righe che passano i filtri; la tabella ne mostra al massimo ``limite``.
     return {
-        "righe": righe[:MAX_RIGHE],
-        "troncato": len(righe) > MAX_RIGHE,
+        "righe": righe[:limite] if limite else righe,
+        "troncato": bool(limite) and len(righe) > limite,
         "max_righe": MAX_RIGHE,
         "totali": {
             "cve": len(righe),

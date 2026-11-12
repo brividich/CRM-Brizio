@@ -101,17 +101,30 @@ class TicketTests(ModuliBase):
         self.it_op = ticket(TipoTicket.IT, self.op, self.op_l, "Stampante")
         self.man_altro = ticket(TipoTicket.MAN, self.altro, self.altro_l, "Porta rotta")
 
-    def dashboard(self, user, legacy):
+    def dashboard(self, user, legacy, sezione="tutti"):
+        # «Ticket» (sezione «tutti») mostra cio' che il ruolo vede; «I miei
+        # ticket» (sezione «miei») solo quelli aperti dalla persona.
         from tickets import views
 
-        return set(views.ticket_dashboard(self.req(user, legacy, path="/tickets/")).context_data["tickets"])
+        request = self.req(user, legacy, path="/tickets/")
+        return set(views.ticket_dashboard(request, sezione=sezione).context_data["tickets"])
 
     def test_dipendente_vede_solo_i_propri(self, _r):
+        from tickets import views
+
         # L'Operatore vede i propri ticket di manutenzione; i ticket IT non sono nel ruolo base.
         self.assertEqual(self.dashboard(self.op, self.op_l), {self.man_op})
         self.assertEqual(self.dashboard(self.altro, self.altro_l), {self.man_altro})
+        # «I miei ticket» mostra tutti quelli aperti dalla persona, di qualunque tipo,
+        # e senza ambito team/tutti la sezione «Ticket» non si apre.
+        self.assertEqual(self.dashboard(self.op, self.op_l, sezione="miei"), {self.man_op, self.it_op})
+        self.assertFalse(views.puo_vedere_altri_ticket(self.req(self.op, self.op_l)))
 
     def test_preposto_vede_manutenzione_del_team_ma_non_l_it_del_team(self, _r):
+        from tickets import views
+
+        self.assertTrue(views.puo_vedere_altri_ticket(self.req(self.capo, self.capo_l)))
+        self.assertEqual(self.dashboard(self.capo, self.capo_l, sezione="miei"), set())
         visti = self.dashboard(self.capo, self.capo_l)
         self.assertIn(self.man_op, visti)
         self.assertNotIn(self.it_op, visti)
@@ -322,10 +335,13 @@ class AssenzeTests(ModuliBase):
         op, op_l = self.persona("Operaio")
         self.nell_organigramma(capo_l, self.r_capo)
         self.nell_organigramma(op_l, self.r_op)
-        with patch("assenze.views._helpers._has_assenze_column", return_value=True):
+        # La tabella legacy «assenze» non esiste nel DB di test: si simulano le sue colonne.
+        with patch("assenze.views._helpers._has_assenze_column", return_value=True),                 patch("assenze.views._helpers.legacy_table_columns", return_value={"id", "utente_id"}):
             where, params, _join = views._combined_manager_assignment_where_clause(legacy_user_id=capo_l.id)
         self.assertIn("utente_id IN", where)
-        self.assertEqual(params, [op_l.id])
+        # Il team d'organigramma, più le richieste che hanno scelto a mano questo capo (AssenzaCapoScelto).
+        self.assertEqual(params, [op_l.id, capo_l.id])
+        self.assertIn("capo_legacy_user_id", where)
         request = self.req(capo, capo_l)
         self.assertTrue(views._can_manage_record(request, {"utente_id": op_l.id}))
         self.assertFalse(views._can_manage_record(request, {"utente_id": capo_l.id + 999}))

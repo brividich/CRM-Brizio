@@ -15,7 +15,10 @@ GUIDA = {
                 ("passi", [
                     "Apri Asset: si apre il cruscotto.",
                     "Clicca «Inventario completo» (area «Inventario» del menu a sinistra) oppure una categoria in «Inventario per categoria».",
-                    "Cerca per nome, numero interno, seriale o IP e apri la scheda.",
+                    "Cerca per nome, numero interno, seriale o IP e apri la scheda. Non serve scrivere il nome esatto: "
+                    "«dixi 80» trova anche «DIXI80» e «Dixi-80» (spazi, trattini e punti non contano) e le parole "
+                    "valgono in qualunque ordine («80 dixi»). Vale per la ricerca in testa al modulo, per gli elenchi "
+                    "e per la ricerca rapida delle tabelle.",
                 ]),
                 ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
                       "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
@@ -33,9 +36,33 @@ GUIDA = {
                       "sono pagine di tutta l'azienda e l'ambito non le restringe. «Tutti» vede tutto; «Propri» i beni "
                       "assegnati a te e gli asset dei reparti che guidi; «Propri e del team» anche quelli delle persone che ti riportano. "
                       "Un piano su più reparti (es. tutti i compressori) si vede se tocca almeno un tuo asset, con le sole scadenze tue. "
-                      "Gli ordini di lavoro assegnati a te si vedono sempre. Sulla mappa officina le altre macchine sono punti grigi."),
+                      "Gli ordini di lavoro assegnati a te si vedono sempre. Sulla mappa officina le altre macchine sono punti grigi. "
+                      "Anche i numeri della dashboard Asset (totali, OdL aperti, urgenti, in ritardo, miei, scadenze e verifiche) "
+                      "e della dashboard Macchine di lavoro contano solo ciò che vedi, come le liste a cui portano; le "
+                      "segnalazioni di manutenzione compaiono solo a chi gestisce i ticket di manutenzione."),
                 ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
                       "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),
+            ],
+        },
+        {
+            "id": "registra-insieme",
+            "titolo": "Registrare o rinnovare la stessa cosa su più asset in un colpo",
+            "blocchi": [
+                ("passi", [
+                    "Apri la voce da chiudere o rinnovare (Registra della manutenzione o della scadenza, Rinnova della licenza "
+                    "o del contratto, oppure Nuova scadenza da un asset).",
+                    "Nel riquadro delle voci gemelle scegli il periodo con «scadute o entro» (di partenza 30 giorni) e spunta "
+                    "quelle fatte insieme, o «Spunta tutti».",
+                    "Salva: il pulsante dice su quante voci parte.",
+                ]),
+                ("p", "Dove compare: manutenzione → «Stesso piano su altre macchine» (non le manutenzioni a contatore); "
+                      "Chiudi intervento → «Stesso intervento su altri asset» (stesso lotto, regola, piano di verifica o "
+                      "stesso titolo e tipo; non chi ha checklist obbligatoria o manutenzioni da registrare); "
+                      "Scadenze amministrative → «Stessa scadenza su altri asset»; Licenze software → «Rinnova anche» (stesso "
+                      "prodotto e produttore); Contratti assistenza → «Rinnova» e «Rinnova anche» (stesso fornitore); Nuova "
+                      "scadenza → «Crea anche su…» (stessa categoria, salta chi ce l'ha già)."),
+                ("p", "Le gemelle prendono data, note, allegati e nuova scadenza; costi, durate, posti e fermo macchina restano "
+                      "solo sulla voce aperta, per non contarli due volte."),
             ],
         },
         {
@@ -100,7 +127,7 @@ GUIDA = {
                 ("p", "Dal QR, «Segnala guasto ora» apre una pagina per il telefono: la macchina è già indicata, "
                       "scegli quanto è urgente e allega fino a 3 foto. La categoria è facoltativa."),
                 ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
-                      "con esito «Risolto» può segnarla anche come «Risolto»."),
+                      "con esito «Risolto» si chiude anche lei."),
             ],
         },
         {
@@ -119,12 +146,30 @@ GUIDA = {
                     "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
                     "contatore» chiedono il valore letto quando si registra la manutenzione.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "Nuovo intervento («+ Straordinaria»): «Chi lo esegue» Interno (già scelto: «Assegnato a» propone la "
+                    "squadra manutenzione e il manutentore predefinito) o Esterno («Ditta esterna» obbligatoria: scrivi per "
+                    "cercare fra i fornitori; se non c'è, «＋ Nuova ditta» la crea in anagrafica al salvataggio). La "
+                    "risoluzione si scrive solo in «Chiudi intervento». Le foto scelte in «Allegati» si vedono subito in anteprima. Ogni intervento, anche già chiuso, si corregge "
+                    "con «✎ Modifica» (in testa e nel riquadro Panoramica; su un chiuso anche «Cosa è stato fatto»); "
+                    "stato ed esito non cambiano e ogni modifica finisce nel registro dell'intervento.",
+                    "Ditte esterne: nell'OdL, anche chiuso, e in «Chiudi intervento» il riquadro «Presenze in azienda della ditta» propone gli "
+                    "ingressi della ditta registrati al chiosco della reception; «Collega» li lega all'OdL come prova "
+                    "dell'intervento e «Usa nel rapportino» riempie «Tempo impiegato» e chiusura con le ore in azienda. Se l'OdL aperto era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
+                    "(guida Fornitori, «Collegare l'ingresso della ditta»).",
+                    "«Scheda di lavoro» stampa macchina, dati dell'intervento, note, checklist dell'intervento e, se chiuso, "
+                    "esito e «Cosa è stato fatto». Nello Scadenzario la colonna Asset mostra in grande il nome della macchina.",
                     "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "
                     "Risolto temporaneamente, Non risolto, Non eseguito - annulla), poi Esecuzione (data e ora, "
                     "eseguito da, tempo impiegato, fermo macchina, «Cosa è stato fatto» obbligatorio) e rapportino. "
-                    "Giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli».",
-                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
-                    "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
+                    "In cima le foto dell'intervento e della segnalazione (frecce o miniature se sono più di una). "
+                    "Il pulsante «Chiudi definitivamente» è in fondo alla pagina, dopo i ricambi. Nelle straordinarie "
+                    "non ci sono «Rapporto / documento» e «Altri dettagli»: assegnatario, codici, costi e contratto "
+                    "restano quelli già sull'intervento. "
+                    "Negli altri interventi giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
+                    "intervento è aperto su altri asset, «Stesso intervento su altri asset» li chiude insieme (stesso "
+                    "esito, data, esecutore e descrizione; tempo, fermo, costi e allegati solo su quello aperto).",
+                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» si chiude anche la "
+                    "segnalazione (per chi gestisce i ticket di manutenzione, se non c'è un altro intervento aperto); "
                     "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
                     "indicato nella segnalazione.",
                     "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
@@ -172,6 +217,11 @@ GUIDA = {
                 ("p", "Le DMG MORI arrivano dal collector OPC UA dell'officina (a ogni cambio di stato e almeno ogni minuto); "
                       "le macchine con un agent MTConnect si leggono ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli "
                       "ultimi 15 minuti (collector o agent fermo): in quel caso la macchina non conta come in allarme."),
+                ("p", "«Non leggibile» = la macchina risponde ma non dà lo stato: per esempio un controllo Heidenhain senza "
+                      "l'opzione software #18 (DNC) o la libreria Fanuc Fwlib mancante sul PC del collector. Il motivo è scritto "
+                      "in «Macchine collegate»; nel report di utilizzo conta come ore offline."),
+                ("p", "Se il portale resta fermo, il collector tiene i cambi di stato in coda e li manda in ordine appena il "
+                      "portale torna raggiungibile: i periodi di stato non hanno buchi e un reinvio non li duplica."),
             ],
         },
         {
@@ -255,6 +305,11 @@ GUIDA = {
                     "«Ruota» raddrizza una pianta di traverso; «Ritaglia» e «Margini automatici» tolgono i bordi inutili. "
                     "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
                     "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
+                    "Reparto a «L» o di forma irregolare: «Reparto a punti», poi clicca i vertici uno dopo l'altro e chiudi cliccando "
+                    "il primo punto (verde), con Invio o con «Chiudi reparto» (Backspace toglie l'ultimo punto, Esc annulla). "
+                    "Un reparto selezionato mostra i punti bianchi da trascinare e un quadratino a metà di ogni lato per aggiungere un punto; "
+                    "un punto selezionato si toglie con Canc o «Togli il punto selezionato». «Forma libera» trasforma un rettangolo in punti, "
+                    "«Torna rettangolo» fa il contrario.",
                     "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
                     "Nuova versione della stessa pianta: «+ Nuova planimetria» con la stessa categoria e la casella "
                     "«Copia reparti e macchine da …» per non ricollocare tutto.",
@@ -264,6 +319,50 @@ GUIDA = {
                     "controlla e salva. I reparti servono anche alla mappa di calore degli incidenti.",
                     "«Togli dalla mappa» toglie una pianta doppia o non usata dalla mappa officina senza cancellarla (resta bozza).",
                     "Ogni collocazione o spostamento finisce nella timeline della macchina (etichetta PLANIMETRIA) con data e autore.",
+                    "«Leggi planimetria» (in alto nell'editor): legge le sigle scritte sulla pianta e propone dove collocare gli asset. "
+                    "Abbina numero interno («-233-» = «Int.233»), tag, matricola e la sigla nel nome («DM7»); i nomi dei reparti "
+                    "(«CN5») non contano. Meglio caricare il PDF stampato dal disegno (anche dal DWG): testi veri e posizioni esatte. "
+                    "Senza PDF legge l'immagine con il riconoscimento del testo.",
+                    "Nelle proposte: «Da collocare», «Sposta (ora altrove)», «Già qui» (entro il 3%). Sono spuntate solo quelle sicure; "
+                    "quelle dell'«AI locale», le sigle lette in più punti e gli spostamenti molto lunghi vanno controllati. "
+                    "«Colloca i selezionati» scrive le posizioni; «Usa questa pagina come immagine della planimetria» crea invece una "
+                    "nuova versione non attiva (reparti e macchine copiati) da pubblicare con «Pubblica come attiva».",
+                    "Le sigle lette ma non abbinate sono elencate in fondo: se una è il numero interno di un asset, scrivilo nella sua scheda e rileggi.",
+                    "Legenda: il riquadro con «LEGENDA», il cartiglio e gli elenchi «sigla descrizione» non contano come posizioni. "
+                    "Dalla legenda la lettura prende il tipo dal colore del simbolo («rosso = bruciatori»), il costruttore delle sigle "
+                    "(colonna «Costruttore») e la descrizione («T1 Piazzale uffici»): se il costruttore o il tipo non corrispondono alla "
+                    "scheda la proposta ha un avviso rosso e non è spuntata. Funziona anche sui PDF senza testo (scritte convertite in linee) "
+                    "e sulle pagine ruotate.",
+                    "La lettura cerca solo le categorie della pianta: quelle scelte in «Livello e scala», altrimenti quelle dei tipi in legenda, "
+                    "altrimenti quelle delle macchine già collocate. Così il «10» di un differenziale non diventa la macchina Int.10.",
+                    "«Sulla pianta ma non in anagrafica»: le sigle senza asset si possono creare da qui (n. interno «Int.» + sigla, nome e "
+                    "categoria modificabili, costruttore e descrizione dalla legenda), già collocate in quel punto. "
+                    "«Reparti scritti sulla pianta»: i nomi di reparto letti diventano riquadri da rifinire; sono spuntati solo quelli con un "
+                    "contorno disegnato tutto loro. «Applica le scelte» fa tutto insieme.",
+                    "«Importa planimetrie» (in alto nell'editor): scegli la pianta base e carica insieme tutti i PDF "
+                    "delle piante di servizio. Ogni PDF diventa una pianta, livello della base, allineata da sola sui muri "
+                    "(verde = combacia, giallo = da controllare, rosso = da allineare a mano in «Livello e scala»), con le "
+                    "categorie lette dalla legenda. Poi «Valida asset» rilegge il PDF salvato e mostra gli asset riconosciuti: "
+                    "togli la spunta a quelli sbagliati e premi «Valida e colloca». Ricaricare lo stesso file aggiorna la "
+                    "pianta che ne era nata; «Scarta» cancella una pianta importata non ancora validata.",
+                    "«Da associare a mano»: le sigle lette ma non abbinate da sole («?» arancione sulla pianta) dicono perché "
+                    "(più asset con la stessa sigla, asset di un'altra categoria, nessun asset). Scegli l'asset dall'elenco o "
+                    "cercalo per nome, n. interno, tag o matricola: la riga si spunta da sola. Per un asset che sulla pianta non è "
+                    "scritto premi «Aggiungi un asset a mano» e clicca nel suo punto. Tutto si applica con «Valida e colloca».",
+                    "Sulle piante di servizio la lettura propone da creare solo le sigle con il simbolo colorato o citate "
+                    "in legenda: i nomi di reparto («CN5») e i numeri delle macchine del disegno di fondo («-233-») no. "
+                    "Su un livello non propone reparti: si disegnano sulla pianta base.",
+                    "«Livello e scala» (in alto nell'editor): una pianta di servizio (condizionatori, differenziali, telecamere...) diventa un "
+                    "livello di una pianta base. Scegli la pianta base, poi clicca lo stesso punto sulle due piante e un secondo punto lontano "
+                    "(punto 1 sul livello, 1 sulla base, 2 sul livello, 2 sulla base): anche piante ruotate o in scala diversa tornano allineate. "
+                    "L'anteprima sovrappone il livello trasparente alla base.",
+                    "Sulla mappa della pianta base i livelli sono pulsanti colorati sotto «Livelli»: si accendono e spengono, la scelta resta "
+                    "sul tuo browser; «Stampa A3» stampa i livelli accesi con la legenda (con «&solo=1» nel link solo il servizio). "
+                    "Una nuova versione della pianta base si porta dietro i livelli con l'avviso «allineamento da verificare».",
+                    "Scala reale (sempre in «Livello e scala»): clicca i due estremi di una quota nota e scrivi i metri. Sulla mappa compare "
+                    "«Misura» (due clic = distanza) e la scheda del reparto mostra i metri quadri.",
+                    "Copertura: con le categorie scelte, «Livello e scala» mostra quanti asset in servizio di quelle categorie sono collocati "
+                    "e l'elenco dei mancanti.",
                     "Verifiche di legge sulla mappa: collega le macchine (es. i carroponti) al piano in Manutenzione → Verifiche periodiche, "
                     "campo «Asset coinvolti»; senza collegamento la mappa non le vede.",
                 ]),
@@ -275,6 +374,9 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
+                    "Impostazioni → Configurazione → «Squadra manutenzione»: il ruolo del portale con i manutentori "
+                    "interni (di serie «Manutenzione»; persone messe a mano nel ruolo o ricevute dall'organigramma) e il "
+                    "manutentore predefinito degli interventi «Interno». Con «Nessuno», «Assegnato a» elenca tutti gli utenti attivi.",
                     "Impostazioni → «Codici guasto»: problema, causa e rimedio per la chiusura degli interventi "
                     "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
                     "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
@@ -283,6 +385,10 @@ GUIDA = {
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
                     "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
+                    "Se la stessa scadenza (stesso titolo e tipo) è aperta su altri asset, la finestra "
+                    "«Registra» li propone (filtro «scadute o entro», da 7 giorni a un anno, di partenza 30): spuntati, si registrano insieme con la stessa data, note, prossima scadenza "
+                    "e allegati (costo e durata solo sulla voce aperta). "
+                    "Le esecuzioni registrate si ritrovano in Manutenzione → «Storico» (o «Svolte →» nelle pagine Scadenze). "
                     "Le manutenzioni finite nel registro si spostano nei piani con il comando "
                     "riordina_scadenze_amministrative (prima in prova, poi con --apply; --mesi \"Titolo=12\" per i "
                     "titoli senza serie).",
@@ -307,11 +413,71 @@ GUIDA = {
             ],
         },
         {
+            "id": "rischio_asset",
+            "titolo": "Capire il rischio di un PC o server",
+            "blocchi": [
+                ("p", "La Panoramica dell'asset, per chi vede il SOC, ha il riquadro «Rischio»: alto per CVE gravi o sfruttate e sistema fuori supporto; "
+                      "medio per altre CVE, supporto in scadenza entro 90 giorni, backup fallito o vecchio, server senza backup. "
+                      "«Nessun problema noto» non vuol dire al sicuro: sotto dice quanti programmi non sono controllati."),
+                ("p", "Il riquadro segnala anche i programmi della dotazione attesa che mancano (Catalogo software › Dotazione attesa), gli "
+                      "accessi di account amministratore negli ultimi 30 giorni letti dal Registro log (alto se l'account è di una persona "
+                      "cessata) e l'hardware da sostituire o da pianificare (età, garanzia, RAM, disco, ticket: scheda «Hardware a fine vita» "
+                      "in Inventario software; età da Data acquisto, garanzia dal campo Fine garanzia della scheda asset). Hardware e "
+                      "account amministratori sono due tessere nella griglia del riquadro; i motivi sotto hanno un'icona per livello "
+                      "(triangolo rosso, cerchio giallo, cerchio vuoto per le note). In «Hardware a fine vita» i quattro contatori in cima "
+                      "filtrano la tabella e la colonna Età è una barra con i segni a 5 e 6 anni; nel Catalogo software ogni regola della "
+                      "dotazione ha la barra di copertura e i PC mancanti come etichette cliccabili."),
+                ("p", "Nel Catalogo software l'etichetta «nuovo dal gg/mm» e il filtro «Nuovi» segnano i programmi comparsi per la prima "
+                      "volta negli ultimi 14 giorni e ancora senza decisione: il SOC apre un alert per programma, che si chiude quando lo "
+                      "classifichi. In Dispositivi del SOC «Apri il piano di aggiornamento» crea un caso con un'attività per ogni PC con "
+                      "Windows fuori supporto o in scadenza; le attività si spuntano da sole quando il PC passa a una release supportata."),
+            ],
+        },
+        {
+            "id": "riconciliazione_inventario",
+            "titolo": "Trovare i PC senza asset e gli asset senza inventario",
+            "blocchi": [
+                ("passi", [
+                    "IT e rete › Licenze software o scheda asset › Riconciliazione dispositivi IT: i PC dell'inventario software senza asset stanno con gli altri dispositivi, col modulo «Inventario software». Spunta la proposta e premi «Collega selezionati».",
+                    "Scheda «PC e server senza inventario»: PC, notebook e server in uso senza programmi rilevati. Scegli il motivo e premi «Segna»; «Togli» lo rimette in lista.",
+                    "Chi resta senza motivo è un PC da controllare: di solito manca l'agente WatchGuard.",
+                ]),
+            ],
+        },
+        {
+            "id": "licenze_inventario",
+            "titolo": "Collegare le licenze all'inventario e contare i posti",
+            "blocchi": [
+                ("passi", [
+                    "Licenze software, riquadro «Da sistemare»: «Collega le N con il nome uguale» conferma quelle identiche; «Collega a …» le altre proposte, una per una; il resto con «Modifica». Gli abbonamenti per persona come Microsoft 365 non vanno collegati: si contano sulle persone, non sui PC.",
+                    "Una licenza collegata vale per tutto il programma, anche dopo un aggiornamento.",
+                    "Report › Licenze software: le colonne «PC con il software» e «Posti meno PC» dicono dove i PC superano i posti.",
+                ]),
+            ],
+        },
+        {
+            "id": "catalogo_programmi",
+            "titolo": "Trovare un programma nel Catalogo software",
+            "blocchi": [
+                ("p", "Ogni programma è una riga sola: versioni, anno, architettura e lingua nel nome non lo dividono "
+                      "(«7-Zip 25.01 (x64)» e «7-Zip 26.05 (x64 edition)» sono «7-Zip», MUD 2024 e 2025 sono «MUD»), e nemmeno "
+                      "un produttore scritto diversamente dalle fonti. Il numero che fa parte del nome resta: Windows 10 e 11 "
+                      "sono righe separate, e anche Visual C++ 2013 e 2015."),
+                ("passi", [
+                    "Nella casella Cerca sopra la tabella scrivi programma, produttore o versione: filtra mentre scrivi e spazi e trattini non contano («7zip» trova 7-Zip).",
+                    "Apri il programma: la sezione «Nomi raggruppati in questo programma» dice come lo riportano le fonti.",
+                    "La decisione (classificazione, licenza, versione minima) vale per tutto il programma e resta dopo un aggiornamento.",
+                    "Per decidere su molti programmi: spunta le righe, scegli la classificazione e premi «Applica». «Regole per produttore › Consenti tutto» consente ogni programma ancora da classificare di quel produttore, anche i nuovi.",
+                    "Raggruppamento sbagliato? Gli amministratori del modulo premono «Separa» accanto a un nome, oppure scelgono un programma in «Unisci a un altro programma». Si annulla dalla stessa sezione.",
+                ]),
+            ],
+        },
+        {
             "id": "cve",
             "titolo": "Vedere le CVE di un programma o di un PC",
             "blocchi": [
                 ("passi", [
-                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center).",
+                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center). «non controllato» vuol dire che il programma non è collegato a un CPE: il SOC non sa se ha CVE; il filtro «CVE non controllate» li raccoglie.",
                     "Si apre un pannello a destra con le CVE in ordine di pericolo: prima le sfruttate attivamente, poi per punteggio CVSS.",
                     "Premi una CVE: vedi «Cosa fare» (la versione da installare, se nota) e i PC colpiti. «Torna all'elenco» per tornare, Esc per chiudere.",
                     "Scheda di un PC: il riquadro «Vulnerabilità» mostra le cinque CVE più pericolose; «Vedi tutte le CVE» apre il pannello per software.",
@@ -465,6 +631,40 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Cartella scansioni delle verifiche periodiche: «Leggi la cartella ora» dice «Lettura avviata» ma l'esito non cambia subito",
+            "perche": "la lettura gira in background (stesso lock del giro automatico), non nella pagina.",
+            "fare": [
+                "Ricarica la pagina dopo qualche secondo: l'esito compare in «Esito».",
+                "«rimandati al prossimo giro»: il giro si ferma dopo un minuto e mezzo e riprende dalle pagine mancanti; "
+                "un foglio già letto non si rilegge.",
+                "Se l'esito non cambia mai, controlla che il servizio django-q (qcluster) sia attivo.",
+            ],
+        },
+        {
+            "sintomo": "Nel nuovo intervento «Assegnato a» non elenca il manutentore che cerco, o non propone nessuno",
+            "fare": [
+                "Con l'intervento «Interno» l'elenco è la squadra manutenzione: la persona deve stare nel ruolo scelto in "
+                "Impostazioni › Configurazione › «Squadra manutenzione» (a mano o dall'organigramma) e avere un utente attivo.",
+                "Il manutentore predefinito si propone solo se fa parte della squadra; con «Esterno» non si propone nessuno.",
+            ],
+        },
+        {
+            "sintomo": "Nel riquadro delle voci gemelle («Stesso piano su altre macchine», «Rinnova anche», «Crea anche su…») manca un asset",
+            "fare": [
+                "Allarga il filtro «scadute o entro»: di partenza mostra 30 giorni; oltre un anno non si propone nulla.",
+                "Le gemelle devono avere lo stesso titolo e tipo (scadenze), lo stesso piano (manutenzioni, non a contatore), "
+                "lo stesso prodotto e produttore (licenze), lo stesso fornitore (contratti), la stessa categoria e stato «In uso» "
+                "(nuova scadenza), essere attive e tra gli asset che il tuo ruolo vede.",
+            ],
+        },
+        {
+            "sintomo": "Un OdL conta come «aperto da troppo» su una pagina e non su un'altra",
+            "fare": [
+                'Ora la regola è una sola ovunque (dashboard, Centro manutenzione, Macchine di lavoro, Report, Inventario): conta un OdL aperto da più dei giorni di soglia (21 se non impostati) o con la scadenza superata, se ne ha una.',
+                "Report, chip della lista, conformità e indicatori IT contano solo gli asset dell'ambito del ruolo.",
+            ],
+        },
+        {
             "sintomo": "Un caporeparto non vede una macchina, un piano o una scadenza del suo reparto (o vede quelli di altri)",
             "fare": [
                 "Controlla in Ruoli e permessi l'ambito del suo ruolo sulla riga giusta: Inventario, Manutenzione, Ordini di lavoro "
@@ -475,6 +675,15 @@ GUIDA = {
                 "Se è un co-capo, controlla che sia fra gli «Altri responsabili» del reparto o dell'area.",
                 "Se l'asset è assegnato a una persona vince la persona: il caporeparto lo vede solo con «Propri e del team» se quella persona gli riporta.",
                 "«Cosa vede questa persona» in Ruoli e permessi mostra l'ambito che decide per ogni modulo.",
+            ],
+        },
+        {
+            "sintomo": "Chi ha solo «Vedere» vede l'elenco ma la scheda asset, le Scadenze, il Quadro o le Verifiche restano chiuse",
+            "fare": [
+                "In Ruoli e permessi apri «↳ Pagina per pagina» del modulo: «Dettaglio asset», «Scadenze», «Quadro», "
+                "«Verifiche periodiche» e «Scadenze amministrative» devono dire «Vedere» nella colonna «La apre la colonna».",
+                "Se dicono «Chiudere / gestire» il portale non è aggiornato; se dicono «Vedere» ma sono «chiusa», "
+                "premi «Salva matrice» sul ruolo per riallineare i permessi di pagina.",
             ],
         },
         {
@@ -675,10 +884,10 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "Chiudendo l'intervento non compare «Segna anche la segnalazione come Risolta»",
+            "sintomo": "Ho chiuso l'intervento ma la segnalazione è rimasta aperta",
             "fare": [
-                "La casella compare solo se la segnalazione è ancora aperta e solo a chi gestisce i ticket di manutenzione.",
-                "Chiudi l'intervento e chiedi a un gestore dei ticket di risolvere la segnalazione dal modulo Ticket.",
+                "Si chiude da sola solo con esito «Risolto», se chi chiude gestisce i ticket di manutenzione e non c'è un altro intervento aperto sulla stessa segnalazione.",
+                "Altrimenti chiudi gli altri interventi, o chiedi a un gestore di chiuderla dal modulo Ticket con «Risolvi».",
             ],
         },
         {

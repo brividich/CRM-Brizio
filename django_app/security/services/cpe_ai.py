@@ -30,7 +30,7 @@ import urllib.request
 from collections import defaultdict
 
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.utils import timezone
 
 from security.models import (
@@ -51,6 +51,11 @@ TEMPERATURA = 0.1
 TIMEOUT_DISPONIBILE = 4
 BUDGET_PIANIFICATO = 60   # secondi: il worker django-q ha 120 s, una risposta in produzione 15-40 s
 BUDGET_MANUALE = 300      # «Proponi ora» gira in coda con TIMEOUT_CODA (600 s)
+# Tetto del giro intero: nessuna nuova richiesta dopo il BUDGET, e ogni richiesta ha come timeout il
+# minimo fra SECURITY_AI_TIMEOUT_SECONDS e il tempo che resta al tetto (ai_assistant.http_client.scadenza).
+# Pianificato: 100 s < 120 s del worker; prima l'ultima richiesta partita a 59 s poteva durare altri 120 s.
+TETTO_PIANIFICATO = 100
+TETTO_MANUALE = 540
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.S)
 _VERSIONE = re.compile(r"\d+(?:\.\d+)+")
@@ -161,17 +166,20 @@ def _chiedi(messaggi, *, action, object_type="", object_id=""):
     Non passa da ``chat_with_ollama`` perché quello aggiunge il prompt di sistema del portale e il
     contesto RAG: qui serve un prompt proprio, temperatura bassa e risposta solo JSON.
     """
+    from ai_assistant import http_client
     from ai_assistant.services import OllamaChatError, _acquire_ai_slot
 
     started = time.monotonic()
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip().rstrip("/")
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
     model = str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
-    timeout = int(getattr(settings, "SECURITY_AI_TIMEOUT_SECONDS", 120) or 120)
+    timeout = http_client.timeout_entro_scadenza(int(getattr(settings, "SECURITY_AI_TIMEOUT_SECONDS", 120) or 120))
     status, text, error = "ok", "", ""
     try:
         if not base_url or not model:
             raise OllamaChatError("OLLAMA_BASE_URL o OLLAMA_CHAT_MODEL non configurati.")
+        if http_client.scadenza_vicina():
+            raise OllamaChatError("Timeout: tempo del giro esaurito, richiesta all'AI non inviata.")
         payload = {"model": model, "messages": messaggi, "stream": False}
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if provider == "openwebui":
@@ -194,11 +202,13 @@ def _chiedi(messaggi, *, action, object_type="", object_id=""):
         request = urllib.request.Request(endpoint, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
         slots = _acquire_ai_slot()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with http_client.lan_urlopen(request, timeout=timeout) as response:
                 raw = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             raise OllamaChatError(f"Ollama ha risposto con HTTP {exc.code}") from exc
         except (urllib.error.URLError, OSError) as exc:
+            if http_client.tipo_errore(exc) == "timeout":
+                raise OllamaChatError(f"Timeout: Ollama non ha risposto entro {timeout} s") from exc
             raise OllamaChatError(f"Ollama non raggiungibile: {getattr(exc, 'reason', exc)}") from exc
         finally:
             slots.release()
@@ -283,9 +293,15 @@ def _per_token(pairs):
     return out
 
 
-def casi_cpe(limit=50):
-    """Software ancora senza decisione con almeno un CPE candidato, i più diffusi prima."""
+def casi_cpe(limit=50, esistenti=None):
+    """Software ancora senza decisione con almeno un CPE candidato, i più diffusi prima.
+
+    ``esistenti`` ({chiave: SecurityPropostaAi}): i casi con una proposta aperta o già esaminati con
+    gli stessi dati (anche scartati) restano fuori già qui, così non occupano i posti del giro.
+    """
     from security.services.cpe_auto import known_cpe_pairs
+
+    from security.services.software_catalog import indice_famiglie
 
     pairs = known_cpe_pairs()
     if not pairs:
@@ -294,21 +310,33 @@ def casi_cpe(limit=50):
     decisi = {}
     for m in SoftwareCpeMapping.objects.all():
         decisi[(m.vendor, m.product)] = m
+    # Una domanda per programma: il CPE si estende da solo agli altri nomi (cpe_auto.propaga_ai_programmi).
+    canonici = indice_famiglie(con_unioni=False)[0]
+    gia_deciso = {c for k, c in canonici.items() if k in decisi and (decisi[k].confirmed or decisi[k].not_applicable)}
     rows = (
         SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
         .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
     )
     out = []
     for row in rows:
-        mapping = decisi.get((row["vendor"], row["product"]))
+        chiave = (row["vendor"], row["product"])
+        if canonici.get(chiave, chiave) != chiave or chiave in gia_deciso:
+            continue
+        mapping = decisi.get(chiave)
         if mapping and (mapping.confirmed or mapping.not_applicable or mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED):
+            continue
+        esistente = (esistenti or {}).get(chiave_cpe(row["vendor"], row["product"]))
+        if esistente is not None and esistente.stato == SecurityPropostaAi.APERTA:
             continue
         candidati = candidati_cpe(row["vendor"], row["product"], pairs, by_token)
         if not candidati:
             continue
         versioni = sorted({v for v in SoftwareInstallation.objects.filter(
             still_detected=True, vendor=row["vendor"], product=row["product"]).values_list("version_raw", flat=True) if v})[:MAX_VERSIONI]
-        out.append({"vendor": row["vendor"], "product": row["product"], "hosts": row["hosts"], "versioni": versioni, "candidati": candidati})
+        caso = {"vendor": row["vendor"], "product": row["product"], "hosts": row["hosts"], "versioni": versioni, "candidati": candidati}
+        if esistente is not None and _da_saltare(esistente, _hash(contesto_cpe(caso))):
+            continue
+        out.append(caso)
         if len(out) >= limit:
             break
     return out
@@ -353,13 +381,23 @@ def proponi_cpe(caso, *, confidenza_minima=0):
 _NON_AIUTABILI = ("mappatura CPE non è confermata", "Inventario vecchio")
 
 
-def casi_esito(limit=50):
-    """Righe «da verificare» con il CPE confermato: versione non confrontabile o CVE condizionata."""
+def casi_esito(limit=50, esistenti=None):
+    """Righe «da verificare» con il CPE confermato: versione non confrontabile o CVE condizionata.
+
+    Le coppie CVE/PC con una proposta aperta restano fuori già nella query; con ``esistenti`` anche
+    quelle già esaminate (o scartate) con gli stessi dati.
+    """
+    aperta = SecurityPropostaAi.objects.filter(
+        stato=SecurityPropostaAi.APERTA, tipo=SecurityPropostaAi.TIPO_ESITO, cve=OuterRef("cve"), host=OuterRef("host"))
     qs = (SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.TO_VERIFY, installation__isnull=False)
+          .exclude(Exists(aperta))
           .select_related("cve", "installation").order_by("-cve__kev", "-cve__cvss", "cve__cve_id", "host"))
     out = []
     for impact in qs[:limit * 4]:
         if any(testo in impact.explanation for testo in _NON_AIUTABILI):
+            continue
+        esistente = (esistenti or {}).get(chiave_esito(impact.cve.cve_id, impact.host))
+        if esistente is not None and _da_saltare(esistente, _hash(contesto_esito(impact))):
             continue
         out.append(impact)
         if len(out) >= limit:
@@ -429,8 +467,26 @@ def chiave_esito(cve_id, host):
 
 
 def _da_saltare(esistente, contesto_hash):
-    """Una proposta aperta non si rifà; una decisa o superata solo se i dati del caso sono cambiati."""
+    """Una proposta aperta non si rifà; una decisa, superata o scartata solo se i dati del caso sono cambiati."""
     return esistente is not None and (esistente.stato == SecurityPropostaAi.APERTA or esistente.contesto_hash == contesto_hash)
+
+
+def _salva_scarto(chiave, tipo, contesto_hash, errore, esistente, **campi):
+    """La risposta dell'AI scartata dal controllo (CPE fuori elenco, versioni inventate, confidenza bassa…).
+
+    Si ricorda con l'hash del contesto, così il caso non torna a ogni giro finché i dati non cambiano.
+    Una decisione di una persona (accettata/rifiutata) resta com'è: si aggiorna solo l'hash del contesto.
+    """
+    if esistente is not None and esistente.stato in (SecurityPropostaAi.ACCETTATA, SecurityPropostaAi.RIFIUTATA):
+        SecurityPropostaAi.objects.filter(pk=esistente.pk).update(contesto_hash=contesto_hash)
+        esistente.contesto_hash = contesto_hash
+        return esistente
+    riga, _ = SecurityPropostaAi.objects.update_or_create(chiave=chiave, defaults={
+        "tipo": tipo, "contesto_hash": contesto_hash, "proposta": "", "confidenza": 0,
+        "motivazione": f"Scartata dal controllo: {errore}"[:300], "modello": "", "stato": SecurityPropostaAi.SCARTATA,
+        "creata_il": timezone.now(), "decisa_il": None, "decisa_da": None, **campi,
+    })
+    return riga
 
 
 def _salva(chiave, tipo, contesto_hash, proposta, **campi):
@@ -461,13 +517,30 @@ def aggiorna_superate():
     return n
 
 
+def _tetto(time_budget_seconds):
+    """Tempo massimo del giro intero (vedi TETTO_PIANIFICATO): sempre oltre il budget delle nuove richieste."""
+    tetto = TETTO_PIANIFICATO if time_budget_seconds <= BUDGET_PIANIFICATO else TETTO_MANUALE
+    return max(tetto, time_budget_seconds + 10)
+
+
 def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO, confidenza_minima=0):
-    """Un giro: superate, poi al massimo ``limit`` casi (prima i CPE, poi gli esiti) entro il tempo concesso."""
+    """Un giro: superate, poi al massimo ``limit`` casi (prima i CPE, poi gli esiti) entro il tempo concesso.
+
+    Nessuna nuova richiesta dopo ``time_budget_seconds``; ogni richiesta ha come timeout il minimo fra
+    quello configurato e il tempo che resta al tetto del giro (``_tetto``).
+    """
+    from ai_assistant.http_client import scadenza
+
+    with scadenza(_tetto(time_budget_seconds)):
+        return _giro(limit=limit, time_budget_seconds=time_budget_seconds, confidenza_minima=confidenza_minima)
+
+
+def _giro(*, limit, time_budget_seconds, confidenza_minima):
+    started = time.monotonic()
     superate = aggiorna_superate()
     ok, motivo = disponibile()
     if not ok:
         return {"ok": False, "errore": motivo}
-    started = time.monotonic()
     esito = {"superate": superate, "cpe": {"casi": 0, "proposte": 0, "scartate": 0}, "esiti": {"casi": 0, "proposte": 0, "scartate": 0}}
     tempi, fatti, fermo = [], 0, ""
 
@@ -475,7 +548,7 @@ def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO, confidenza_minima=0):
         return time.monotonic() - started > time_budget_seconds
 
     esistenti = {p.chiave: p for p in SecurityPropostaAi.objects.all()}
-    for caso in casi_cpe(limit=limit * 3):
+    for caso in casi_cpe(limit=limit * 3, esistenti=esistenti):
         if fatti >= limit or _tempo() or fermo:
             break
         chiave = chiave_cpe(caso["vendor"], caso["product"])
@@ -489,12 +562,17 @@ def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO, confidenza_minima=0):
             esito["cpe"]["scartate"] += 1
             if _ai_ferma(errore):
                 fermo = errore
+            else:
+                _salva_scarto(chiave, SecurityPropostaAi.TIPO_CPE, contesto_hash, errore, esistenti.get(chiave),
+                              vendor=caso["vendor"], product=caso["product"], candidati=caso["candidati"], cve=None,
+                              host="", versione="")
             continue
         tempi.append(proposta["ms"])
         _salva(chiave, SecurityPropostaAi.TIPO_CPE, contesto_hash, proposta, vendor=caso["vendor"], product=caso["product"],
                candidati=caso["candidati"], cve=None, host="", versione="")
         esito["cpe"]["proposte"] += 1
-    for impact in casi_esito(limit=limit * 3):
+    casi = casi_esito(limit=limit * 3, esistenti=esistenti) if fatti < limit and not _tempo() and not fermo else []
+    for impact in casi:
         if fatti >= limit or _tempo() or fermo:
             break
         chiave = chiave_esito(impact.cve.cve_id, impact.host)
@@ -508,6 +586,10 @@ def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO, confidenza_minima=0):
             esito["esiti"]["scartate"] += 1
             if _ai_ferma(errore):
                 fermo = errore
+            else:
+                _salva_scarto(chiave, SecurityPropostaAi.TIPO_ESITO, contesto_hash, errore, esistenti.get(chiave),
+                              vendor=impact.installation.vendor, product=impact.installation.product, cve=impact.cve,
+                              host=impact.host, versione=impact.installation.version_raw[:120], candidati=[])
             continue
         tempi.append(proposta["ms"])
         _salva(chiave, SecurityPropostaAi.TIPO_ESITO, contesto_hash, proposta, vendor=impact.installation.vendor,

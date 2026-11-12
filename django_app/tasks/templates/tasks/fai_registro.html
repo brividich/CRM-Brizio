@@ -1,0 +1,72 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Registro FAI</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#registro-fai{% endblock %}
+{% block tasks_shell_title %}Registro FAI{% endblock %}
+{% block tasks_shell_subtitle %}Una riga per articolo, con il suo FAI più recente. In alto quelli che richiedono una decisione.{% endblock %}
+{% block tasks_shell_actions %}
+  {% if fai_puo_creare %}<a class="ts-hero-action primary" href="{% url 'tasks:fai_nuovo' %}">+ Nuovo FAI</a>{% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body fai-registro">
+    {% include "tasks/_fai_schede_registro.html" %}
+    <div class="fai-viste" role="group" aria-label="Filtra per situazione">
+      {% for v in viste %}
+        <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'da_ripetere' and v.conta %} danger{% endif %}{% if v.codice == 'da_verificare' and v.conta %} warn{% endif %}"
+           href="?vista={{ v.codice }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>
+          <strong>{{ v.conta }}</strong> {{ v.etichetta }}
+        </a>
+      {% endfor %}
+    </div>
+    <form method="get" class="fai-cerca">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca cliente, P/N o piano" aria-label="Cerca">
+      <button type="submit" class="btn btn-secondary">Cerca</button>
+      <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&formato=csv">Esporta CSV</a>
+    </form>
+    {% if vista == "da_verificare" %}
+      <p class="fai-nota">Controllo trimestrale (MT CN 15 §5.10): articoli con ultima spedizione da oltre {{ mesi_verifica }} mesi, da segnalare a IN1 e MSM.</p>
+    {% endif %}
+
+    {% if righe %}
+    <div class="tl-table-wrap">
+      <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+        <thead><tr><th>Articolo</th><th>FAI più recente</th><th>Stato</th><th>Date</th><th>Situazione</th></tr></thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td>
+              <a class="tl-task-link" href="{% url 'tasks:fai_scheda' r.fai.id %}">{{ r.articolo.part_number }}</a>
+              <div class="tl-task-desc">{{ r.articolo.client_name|default:"Cliente non indicato" }}</div>
+            </td>
+            <td>
+              {{ r.fai.get_tipo_display|default:"FAI" }}
+              <div class="tl-task-desc">{{ r.fai.piano_numero|default:"Piano da inserire" }}{% if r.precedenti %} · altri {{ r.precedenti }}{% endif %}</div>
+            </td>
+            <td>
+              {{ r.fai.stato.etichetta }}
+              {% if r.fai.data_invio %}<div class="tl-task-desc">Inviato il {{ r.fai.data_invio|date:"d/m/Y" }}</div>{% endif %}
+            </td>
+            <td class="fai-date">
+              <div>Produzione: {{ r.articolo.ultima_produzione|date:"d/m/Y"|default:"-" }}</div>
+              <div>Spedizione: {{ r.articolo.ultima_spedizione|date:"d/m/Y"|default:"-" }}</div>
+            </td>
+            <td>
+              <span class="ts-chip {{ r.situazione.classe }}">{{ r.situazione.etichetta }}</span>
+              {% if r.situazione.nota %}<div class="tl-task-desc">{{ r.situazione.nota }}</div>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif q or vista %}
+      <p class="tr-hint">Nessun articolo con questi filtri.</p>
+    {% else %}
+      <p class="tr-hint">Il registro è vuoto. I FAI si aggiungono da «Programmi e FAI» della commessa{% if fai_puo_creare %} o con «+ Nuovo FAI»{% endif %}.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

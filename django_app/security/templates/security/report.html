@@ -98,6 +98,22 @@
     {% else %}<p class="sec-muted">Nessuna CVE critica o alta aperta con dispositivi esposti.</p>{% endif %}
   </div>
 
+  {% if report.patch %}{% with pt=report.patch %}
+  <div class="sec-panel" style="grid-column: 1 / -1;">
+    <div class="sec-section-head"><h2>Patch (WatchGuard)</h2><a class="sec-small" href="{% url 'security:watchguard_patch_tempi' %}">Tempi delle patch</a></div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Installate nel periodo</span><strong>{{ pt.installate }}</strong></div>
+      <div class="sec-fact"><span>Tempo medio di installazione</span><strong>{% if pt.giorni_medi is not None %}{{ pt.giorni_medi }} giorni{% else %}—{% endif %}</strong></div>
+      <div class="sec-fact"><span>Entro il termine</span><strong>{% if pt.in_tempo_pct is not None %}{{ pt.in_tempo_pct }}%{% else %}—{% endif %}</strong></div>
+      <div class="sec-fact"><span>Oltre il termine adesso</span><strong>{{ pt.oltre_termine }}</strong><span>{{ pt.oltre_termine_gravi }} KEV o critiche, su {{ pt.mancanti }} mancanti</span></div>
+    </div>
+    <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th class="sec-num">Installate</th><th class="sec-num">Giorni medi</th><th class="sec-num">Entro il termine</th><th class="sec-num">Oltre il termine adesso</th></tr></thead>
+      <tbody>{% for c in pt.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.termine_giorni }} gg</td><td class="sec-num">{{ c.installate }}</td><td class="sec-num">{{ c.giorni_medi|default_if_none:"—" }}</td><td class="sec-num">{% if c.in_tempo_pct is not None %}{{ c.in_tempo_pct }}%{% else %}—{% endif %}</td><td class="sec-num">{{ c.oltre_termine }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  {% endwith %}{% endif %}
+
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Accessi VPN e ticket</h2></div>
     <div class="sec-fact-grid">

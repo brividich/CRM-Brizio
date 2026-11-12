@@ -504,7 +504,7 @@ class DpiCatalogRequestTests(TestCase):
         response = self.client.get(reverse("dpi:report_conformita"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Report conformita DPI")
+        self.assertContains(response, "Conformità DPI di una persona")
 
     def test_modello_dpi_image_mime_policy(self):
         categoria, tipo, _, _ = self._catalogo()

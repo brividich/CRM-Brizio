@@ -48,6 +48,7 @@ from .models import (
 from .services import audit as service
 from .services import audit_automation as automation
 from .services import procedure
+from .services.qualifiche import tipo_auditor_id
 from .views import MODULE, _has_perm, _nega
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,7 @@ def auditor_elenco(request):
     return render(request, "sistema_gestione/pages/auditor_elenco.html", {
         "page_title": "Auditor",
         "auditor_list": Auditor.objects.select_related("user", "approvato_ceo_da"),
+        "formazione_collegata": bool(tipo_auditor_id()),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "puo_approvare": _has_perm(request, PERM_AUDIT_APPROVA),
     })

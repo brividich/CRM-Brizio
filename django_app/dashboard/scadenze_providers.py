@@ -31,6 +31,7 @@ SOURCE_DPI = "dpi"
 SOURCE_RENTRI = "rentri"
 SOURCE_CAPA = "capa"
 SOURCE_IMPIANTI = "impianti"
+SOURCE_GENERICHE = "generiche"
 
 SOURCE_LABELS = {
     SOURCE_HR: "Personale (HR)",
@@ -39,6 +40,7 @@ SOURCE_LABELS = {
     SOURCE_DPI: "DPI",
     SOURCE_RENTRI: "RENTRI",
     SOURCE_CAPA: "Azioni CAPA",
+    SOURCE_GENERICHE: "Scadenze generiche",
 }
 
 # Orizzonte dello scadenzario: tutto ciò che è scaduto più ciò che scade entro
@@ -64,6 +66,10 @@ class ScadenzaItem:
     giorni: int | None        # giorni alla scadenza (negativo = scaduto)
     url: str = ""             # link al dettaglio nel modulo sorgente
     extra: dict = field(default_factory=dict)
+    # Elemento dentro il tipo (es. il tipo di qualifica, la categoria CAPA): terzo
+    # livello delle chiavi del pannello «Gestione scadenzario» (scadenzario/visibilita.py).
+    elemento: str = ""
+    elemento_label: str = ""
 
     @property
     def scaduta(self) -> bool:
@@ -83,16 +89,24 @@ class ScadenzeContext:
     soglia_30: date
     soglia_60: date
     orizzonte: date
+    # Raccolta «di sistema»: nessun permesso di modulo, tutte le voci. La usa solo
+    # lo scadenzario generale per le voci concesse dalle sue regole e per il catalogo.
+    sistema: bool = False
 
     @classmethod
-    def build(cls, request, *, oggi: date | None = None) -> "ScadenzeContext":
+    def build(cls, request, *, oggi: date | None = None, sistema: bool = False,
+              orizzonte: date | None = None) -> "ScadenzeContext":
         oggi = oggi or timezone.localdate()
+        # Il calendario può guardare oltre i 90 giorni (mese mostrato): mai meno di oggi.
+        if orizzonte is None or orizzonte < oggi:
+            orizzonte = oggi + timedelta(days=ORIZZONTE_GIORNI)
         return cls(
             request=request,
             oggi=oggi,
             soglia_30=oggi + timedelta(days=30),
             soglia_60=oggi + timedelta(days=60),
-            orizzonte=oggi + timedelta(days=ORIZZONTE_GIORNI),
+            orizzonte=orizzonte,
+            sistema=sistema,
         )
 
 
@@ -114,7 +128,7 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     from core.acl import user_can_modulo_action
 
     request = ctx.request
-    if not getattr(request.user, "is_superuser", False):
+    if not ctx.sistema and not getattr(request.user, "is_superuser", False):
         if not user_can_modulo_action(request, "assets", "assets_deadlines"):
             return []
 
@@ -124,7 +138,9 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     # contratti restano soggetti all'ACL delle loro pagine.
     from assets.services import deadline_feed as feed
 
-    kinds = feed.allowed_kinds(request) & {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    kinds = {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    if not ctx.sistema:
+        kinds &= feed.allowed_kinds(request)
     rows = feed.collect(
         start=None,
         end=ctx.orizzonte,
@@ -144,7 +160,9 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 data_scadenza=row.due_date,
                 giorni=_giorni(ctx.oggi, row.due_date),
                 url=row.detail_url,
-                extra={"asset_tag": row.asset_tag},
+                extra={"asset_tag": row.asset_tag, "asset_id": row.asset_id},
+                elemento=row.title or "",
+                elemento_label=row.title or "",
             )
         )
     return items
@@ -164,7 +182,7 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     from core.acl import user_can_modulo_action
 
     request = ctx.request
-    if not getattr(request.user, "is_superuser", False):
+    if not ctx.sistema and not getattr(request.user, "is_superuser", False):
         if not user_can_modulo_action(request, "rentri", "rentri_elenco"):
             return []
 
@@ -195,7 +213,7 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 reparto="",
                 data_scadenza=data,
                 giorni=giorni,
-                url=elenco_url,
+                url=reverse("rentri_dettaglio", args=[row["pk"]]) if row.get("pk") else elenco_url,
                 extra={"codice": row.get("codice"), "quantita": str(row.get("quantita") or "")},
             )
         )
@@ -235,6 +253,8 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                         "giorni_deposito": g.giorni_giacenza,
                         "pericoloso": g.pericoloso,
                     },
+                    elemento=g.codice,
+                    elemento_label=f"CER {g.codice}",
                 )
             )
     except Exception:
@@ -252,7 +272,7 @@ def collect_dpi(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     from core.acl import user_can_modulo_action
 
     request = ctx.request
-    if not getattr(request.user, "is_superuser", False):
+    if not ctx.sistema and not getattr(request.user, "is_superuser", False):
         if not user_can_modulo_action(request, "dpi", "dpi_view"):
             return []
 
@@ -313,7 +333,13 @@ def collect_dpi(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 data_scadenza=c.data_scadenza_stimata,
                 giorni=_giorni(ctx.oggi, c.data_scadenza_stimata),
                 url=url,
-                extra={"richiesta": getattr(req, "numero", "")},
+                extra={
+                    "richiesta": getattr(req, "numero", ""),
+                    "legacy_id": getattr(req, "richiedente_legacy_id", None),
+                    "utente_id": None if getattr(req, "richiedente_legacy_id", None) else getattr(req, "created_by_id", None),
+                },
+                elemento=getattr(tipo, "nome", "") or "",
+                elemento_label=getattr(tipo, "nome", "") or "",
             )
         )
     return items
@@ -339,15 +365,21 @@ def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     from anagrafica.views import _build_scadenzario_voci
     from core.naming import nome_completo
 
-    voci = _build_scadenzario_voci(ctx.request, periodo=(date(1900, 1, 1), ctx.orizzonte))
+    voci = _build_scadenzario_voci(ctx.request, periodo=(date(1900, 1, 1), ctx.orizzonte),
+                                   tutte_le_fonti=ctx.sistema)
     try:
         base_url = reverse("anagrafica:scadenzario")
     except Exception:
         base_url = ""
+    schede = {"visita": "#scheda-visite", "contratto": "#scheda-contratto", "formazione": "#scheda-formazione"}
 
     items: list[ScadenzaItem] = []
     for v in voci:
         kind = v.get("kind") or ""
+        url = f"{base_url}?tipo={kind}" if base_url and kind else base_url
+        if v.get("legacy_id"):
+            # La scheda della persona, sulla parte giusta.
+            url = reverse("anagrafica:dipendente_detail", args=[v["legacy_id"]]) + schede.get(kind, "")
         items.append(ScadenzaItem(
             source=SOURCE_HR,
             kind=kind,
@@ -357,8 +389,10 @@ def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             reparto=(v.get("reparto") or "").strip(),
             data_scadenza=v.get("data_scadenza"),
             giorni=v.get("giorni"),
-            url=f"{base_url}?tipo={kind}" if base_url and kind else base_url,
+            url=url,
             extra={"legacy_id": v.get("legacy_id")},
+            elemento=v.get("tipo_nome") or "",
+            elemento_label=v.get("tipo_nome") or "",
         ))
     return items
 
@@ -385,7 +419,7 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
         .exclude(stato__in=ActionItem.STATI_CONCLUSI)
         .filter(data_scadenza__isnull=False, data_scadenza__lte=ctx.orizzonte)
     )
-    if not _can_manage_capa(request):
+    if not ctx.sistema and not _can_manage_capa(request):
         user_id = getattr(getattr(request, "user", None), "id", None)
         if not user_id:
             return []
@@ -409,7 +443,9 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             data_scadenza=a.data_scadenza,
             giorni=_giorni(ctx.oggi, a.data_scadenza),
             url=url,
-            extra={"origine": a.origine_label, "stato": a.get_stato_display()},
+            extra={"origine": a.origine_label, "stato": a.get_stato_display(), "utente_id": a.responsabile_id},
+            elemento=a.source_code or "manuale",
+            elemento_label=a.origine_label or "",
         ))
     return items
 
@@ -432,7 +468,7 @@ def collect_impianti(ctx: ScadenzeContext) -> list[ScadenzaItem]:
 
     request = ctx.request
     try:
-        if not acl_allows_path(VERIFICHE_IMPIANTI_PATH, django_user=request.user, request=request):
+        if not ctx.sistema and not acl_allows_path(VERIFICHE_IMPIANTI_PATH, django_user=request.user, request=request):
             return []
     except Exception:
         logger.exception("Scadenzario globale: ACL verifiche impianti non valutabile")
@@ -462,6 +498,8 @@ def collect_impianti(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             giorni=_giorni(ctx.oggi, t.next_due_date),
             url=reverse("assets:periodic_check_type_detail", args=[t.id]),
             extra={"stato": STATE_LABELS.get(stato, ""), "esecutore": t.performer_label},
+            elemento=t.name,
+            elemento_label=t.name,
         ))
     return items
 
@@ -478,18 +516,60 @@ PROVIDERS: dict[str, Callable[[ScadenzeContext], list[ScadenzaItem]]] = {
     SOURCE_DPI: collect_dpi,
     SOURCE_RENTRI: collect_rentri,
     SOURCE_CAPA: collect_capa,
+    SOURCE_GENERICHE: lambda ctx: _collect_generiche(ctx),
 }
 
 
-def collect_all(request, *, sources: set[str] | None = None, oggi: date | None = None) -> list[ScadenzaItem]:
-    """Esegue i provider richiesti e ritorna le voci ordinate per urgenza.
+# Fonti dagli altri moduli (sistema di gestione, qualifiche, formazione, SOC, GDPR,
+# presa visione): vivono in scadenzario/fonti_moduli.py, prima delle generiche.
+def _registra_fonti_moduli() -> None:
+    from scadenzario import fonti_moduli
 
-    Ogni provider è isolato: un errore (modulo assente/rotto, query legacy non
-    disponibile) viene loggato e non fa cadere l'intera pagina — la sorgente
-    semplicemente non contribuisce.
-    """
-    ctx = ScadenzeContext.build(request, oggi=oggi)
-    wanted = sources or set(PROVIDERS.keys())
+    generiche = PROVIDERS.pop(SOURCE_GENERICHE)
+    for code, provider in fonti_moduli.PROVIDERS.items():
+        PROVIDERS[code] = provider
+        SOURCE_LABELS[code] = fonti_moduli.SOURCE_LABELS[code]
+    PROVIDERS[SOURCE_GENERICHE] = generiche
+
+
+_registra_fonti_moduli()
+
+
+def _collect_generiche(ctx: ScadenzeContext) -> list[ScadenzaItem]:
+    from scadenzario.fonte import collect_generiche
+
+    return collect_generiche(ctx)
+
+
+class _UtenteDiSistema:
+    """Utente fittizio per la raccolta di sistema: nessun permesso viene chiesto
+    (``ctx.sistema``), serve solo a chi legge ``request.user``."""
+
+    is_authenticated = True
+    is_superuser = True
+    is_active = True
+    is_staff = False
+    id = pk = None
+    username = "__scadenzario__"
+    email = ""
+
+    def get_full_name(self):
+        return ""
+
+
+class _RichiestaDiSistema:
+    method = "GET"
+    GET: dict = {}
+    POST: dict = {}
+    legacy_user = None
+
+    def __init__(self):
+        self.user = _UtenteDiSistema()
+        self.session = {}
+        self.META = {}
+
+
+def _esegui(ctx: ScadenzeContext, wanted: set[str]) -> list[ScadenzaItem]:
     out: list[ScadenzaItem] = []
     for code, provider in PROVIDERS.items():
         if code not in wanted:
@@ -498,6 +578,34 @@ def collect_all(request, *, sources: set[str] | None = None, oggi: date | None =
             out.extend(provider(ctx))
         except Exception:
             logger.exception("Scadenzario globale: provider '%s' fallito", code)
-    # Urgenza: prima i più scaduti (giorni più negativi); None in fondo.
     out.sort(key=lambda it: (it.giorni is None, it.giorni if it.giorni is not None else 0))
     return out
+
+
+def collect_sistema(*, sources: set[str] | None = None, oggi: date | None = None,
+                    orizzonte: date | None = None) -> list[ScadenzaItem]:
+    """Tutte le voci delle fonti, senza permessi di modulo. Solo per lo scadenzario
+    generale (voci concesse dalle regole, catalogo del pannello): mai mostrata così."""
+    ctx = ScadenzeContext.build(_RichiestaDiSistema(), oggi=oggi, sistema=True, orizzonte=orizzonte)
+    return _esegui(ctx, set(sources or PROVIDERS.keys()))
+
+
+def collect_all(request, *, sources: set[str] | None = None, oggi: date | None = None,
+                orizzonte: date | None = None) -> list[ScadenzaItem]:
+    """Esegue i provider richiesti e ritorna le voci ordinate per urgenza.
+
+    Ogni provider è isolato: un errore (modulo assente/rotto, query legacy non
+    disponibile) viene loggato e non fa cadere l'intera pagina — la sorgente
+    semplicemente non contribuisce.
+    """
+    ctx = ScadenzeContext.build(request, oggi=oggi, orizzonte=orizzonte)
+    wanted = set(sources or PROVIDERS.keys())
+    out = _esegui(ctx, wanted)
+    # Pannello «Gestione scadenzario»: voci spente, «solo regole» e voci concesse
+    # dalle regole a chi nel modulo non le vedrebbe (scadenzario/visibilita.py).
+    from scadenzario.visibilita import applica
+
+    return applica(
+        request, out, sources=wanted,
+        raccogli_sistema=lambda fonti: collect_sistema(sources=fonti, oggi=oggi, orizzonte=orizzonte),
+    )

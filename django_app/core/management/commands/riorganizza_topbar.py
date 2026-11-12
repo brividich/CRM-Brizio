@@ -67,7 +67,8 @@ CATEGORIE: tuple[Cat, ...] = (
 
 VOCI: tuple[Voce, ...] = (
     # Per me — pagine personali (lo scope sulla persona e' della view, verificato).
-    Voce("procedure_refresh", "procedure_refresh:my_assignments", "per-me", "Da fare", 11, label="Presa visione"),
+    Voce("per-me-letture-sgi", "procedure_refresh:my_assignments", "per-me", "Da fare", 11,
+         label="Letture da fare", icon="file-check", create=True),
     Voce("per-me-kickoff-da-gestire", "tasks:da_gestire", "per-me", "Da fare", 12,
          label="KICK-OFF da gestire", icon="list-todo", create=True),
     Voce("assenze", "assenze_gestione", "per-me", "Richieste", 13, label="Le mie assenze"),
@@ -85,12 +86,13 @@ VOCI: tuple[Voce, ...] = (
     Voce("assets", "assets:asset_dashboard", "produzione", "Manutenzione", 34, label="Asset e manutenzione"),
     Voce("gestione-attrezzatura", "attrezzature:list", "produzione", "Manutenzione", 35),
     # Persone (Timbri = registro HR, non le timbrature personali)
-    Voce("anagrafica", "anagrafica:index", "persone", "", 41),
-    Voce("persone-assenze-hr", "assenze_impostazioni", "persone", "", 42,
+    Voce("anagrafica", "anagrafica:index", "persone", "Anagrafica e organico", 41),
+    Voce("presenti", "presenti:home", "persone", "Anagrafica e organico", 42),
+    Voce("persone-assenze-hr", "assenze_impostazioni", "persone", "Assenze e orari", 43,
          label="Assenze (gestione HR)", icon="clipboard-list", create=True,
          permission="legacy.assenze.admin_assenze"),
-    Voce("timbri", "timbri:index", "persone", "", 43),
-    Voce("persone-campagne-presa-visione", "procedure_refresh:admin_dashboard", "persone", "", 44,
+    Voce("timbri", "timbri:index", "persone", "Assenze e orari", 44),
+    Voce("persone-campagne-presa-visione", "procedure_refresh:admin_dashboard", "persone", "Comunicazione", 45,
          label="Campagne presa visione", icon="file-check", create=True),
     # Sicurezza e ambiente
     Voce("diario_preposto", "diario_preposto:lista", "sicurezza-ambiente", "Sul campo", 51),
@@ -99,6 +101,7 @@ VOCI: tuple[Voce, ...] = (
     Voce("schede-sicurezza", "schede_sicurezza:prodotto_list", "sicurezza-ambiente", "Prodotti e rifiuti", 54),
     Voce("rentri", "rentri_menu", "sicurezza-ambiente", "Prodotti e rifiuti", 55),
     # Qualità (le anomalie sono non conformita' legate agli ordini)
+    Voce("procedure_refresh", "procedure_refresh:libreria", "qualita", "", 60, label="CN-SGI"),
     Voce("gestione_anomalie", "anomalie_menu", "qualita", "", 61),
     Voce("gestione-specifiche", "gestione_specifiche:lista", "qualita", "", 62),
     Voce("ofi_registro", "registro_ofi:home", "qualita", "", 63),
@@ -109,7 +112,9 @@ VOCI: tuple[Voce, ...] = (
     Voce("security_center", "security:dashboard", "it", "", 71),
     Voce("contatori", "contatori:dashboard", "it", "", 72),
     Voce("accessi", "", "it", "", 73),
-    # Suggestion Corner: voce diretta, fuori da «Per me».
+    # Scadenzario generale: voce diretta, trasversale alle aree.
+    Voce("scadenzario", "scadenze_globali", None, "", 78),
+    # Suggestion Corner: fuori da «Per me»; la topbar lo mostra come icona a destra.
     Voce("suggestion-corner", "suggestion_corner:home", None, "", 80),
 )
 

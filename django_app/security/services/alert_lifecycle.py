@@ -12,6 +12,15 @@ ACTIVE_ALERT_STATUSES = [
     Status.MUTED,
 ]
 
+# «Da decidere»: gli aperti meno i rimandati e i silenziati, che hanno già una decisione
+# a tempo. Sono gli alert delle Proposte AI; le Segnalazioni contano tutti gli attivi.
+DA_DECIDERE_ALERT_STATUSES = [
+    Status.NEW,
+    Status.OPEN,
+    Status.ACKNOWLEDGED,
+    Status.IN_PROGRESS,
+]
+
 CLOSED_ALERT_STATUSES = [
     Status.CLOSED,
     Status.FALSE_POSITIVE,
@@ -160,4 +169,13 @@ def _transition_alert(alert, new_status, action, actor, reason="", extra_details
 
     traccia.registra(traccia.ALERT_STATO, {"alert_id": alert.pk, "titolo": alert.title, "azione": action, **details},
                      oggetto=alert, attore=actor)
+    # Ogni decisione insegna alle proposte di chiusura dell'AI (conferma, correzione, riapertura).
+    try:
+        from security.services.ai_proposte import registra_decisione
+
+        registra_decisione(alert, action, actor, details)
+    except Exception:  # noqa: BLE001 - l'apprendimento non deve mai annullare l'azione sull'alert
+        import logging
+
+        logging.getLogger(__name__).exception("Proposte AI non aggiornate per l'alert %s", alert.pk)
     return alert

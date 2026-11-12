@@ -191,6 +191,27 @@ MODELLI += [
              "opzioni": {"valori": {"mostra_mancanti": True}}},
         ],
     },
+    {
+        "codice_sistema": "centri_costo",
+        "nome": "Centri di costo: organico e costo orario",
+        "descrizione": "Reparti, ruoli e persone di ogni centro di costo, organico, mansioni da guardare, carico sulle "
+                       "persone e, solo per HR, RML e costo orario per centro di costo.",
+        "titolo_documento": "Centri di costo: organico e costo orario",
+        "sottotitolo": "Periodo {{periodo}} · situazione al {{oggi}}",
+        "riservatezza": "DATI_PERSONALI",
+        "periodo_tipo": "ULTIMI_12_MESI",
+        "formato_predefinito": "xlsx",
+        "blocchi": [
+            {"tipo": "SEZIONE", "sezione": "centri_costo"},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_ripartito", "titolo": "RML e costo orario per centro di costo",
+             "opzioni": {"valori": {"per": "centro_costo"}}},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_andamento", "titolo": "Andamento per centro di costo",
+             "opzioni": {"valori": {"per": "centro_costo", "raggruppa_per": "gruppo"}}},
+            {"tipo": "SEZIONE", "sezione": "copertura_mansioni", "titolo": "Mansioni da guardare",
+             "opzioni": {"valori": {"solo_da_guardare": True, "mostra_nomi": False}}},
+            {"tipo": "SEZIONE", "sezione": "carico_persone"},
+        ],
+    },
 ]
 
 

@@ -1,7 +1,9 @@
 {% extends "tasks/base_shell.html" %}
 {% load static %}
+{% block tasks_shell_guide_anchor %}#incontro{% endblock %}
 
 {% block tasks_shell_content %}
+{% include "tasks/_meeting_fasi.html" %}
 <div style="padding: 0 4px;">
   <div class="md-nav">
     <a href="{% url 'tasks:project_meetings' project.id %}">&larr; Tutti gli incontri</a>
@@ -24,6 +26,13 @@
             {{ meeting.luogo }}
           </span>
         {% endif %}
+        {% if meeting.sala and meeting.sala.email and not meeting.is_annullato %}
+          <span class="md-meta-item" data-sala-stato
+                data-url="{% url 'tasks:sala_verifica' project.id meeting.id %}">
+            <span class="ts-chip {{ sala_stato.1 }}" data-sala-chip>{{ sala_stato.0 }}</span>
+            {% if can_manage and meeting.outlook_event_id %}<button type="button" class="md-link-btn" data-sala-verifica>Verifica</button>{% endif %}
+          </span>
+        {% endif %}
         <span class="md-meta-item">
           <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
         </span>
@@ -35,7 +44,7 @@
         {% endif %}
       </div>
     </div>
-    {% if can_manage %}
+    {% if can_manage or can_edit_after_end and meeting.minuta_chiusa %}
       <div class="md-actions">
         {% if not meeting.minuta_chiusa and not meeting.is_annullato %}
           {% if not meeting.is_svolto %}
@@ -46,8 +55,9 @@
         {% if meeting.is_svolto %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
         {% endif %}
-        <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>
-        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
+        {% if not meeting.minuta_chiusa or can_edit_after_end %}
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">{% if meeting.minuta_chiusa %}Correggi ordine del giorno{% else %}Modifica incontro{% endif %}</a>
+        {% endif %}
         {% if meeting.stato == "PIANIFICATO" %}
           <button type="button" class="md-btn danger-ghost" id="meeting-cancel-open">Annulla incontro</button>
         {% endif %}
@@ -61,6 +71,24 @@
       </div>
     {% endif %}
   </div>
+
+  {% comment %}
+  Percorso, attività e programmi sono della commessa, non dell'incontro: qui restano a
+  portata di mano ma raccolti, così la scheda parla prima dell'incontro.
+  {% endcomment %}
+  {% if can_manage and not meeting.is_annullato %}
+    <details class="md-strumenti" id="strumenti-commessa"{% if request.GET.strumenti %} open{% endif %}>
+      <summary>Percorso, attività e programmi della commessa{% if tappe.totale %} <small>tappe a posto {{ tappe.a_posto }} su {{ tappe.totale }}</small>{% endif %}</summary>
+      <div class="md-strumenti-body">
+        {% include "tasks/_tappe.html" %}
+        {% include "tasks/_quick_task_bar.html" %}
+        <details class="tp-altri">
+          <summary>Codici, cartelle e schede FAI</summary>
+          {% include "tasks/_tech_refs.html" %}
+        </details>
+      </div>
+    </details>
+  {% endif %}
 
   {% if can_manage and meeting.stato == "PIANIFICATO" %}
     <form method="post" action="{% url 'tasks:project_meeting_cancel' project.id meeting.id %}" class="md-convocazione-note warn" id="meeting-cancel-box" hidden>
@@ -76,42 +104,60 @@
     <div class="md-convocazione-note warn">
       <strong>Incontro annullato</strong>
       {% if meeting.annullato_at %}il {{ meeting.annullato_at|date:"d-m-Y H:i" }}{% endif %}{% if meeting.annullato_da %} da {{ meeting.annullato_da.get_full_name|default:meeting.annullato_da.username }}{% endif %}{% if meeting.annullato_motivo %} — {{ meeting.annullato_motivo }}{% endif %}
-      {% if can_manage %}<span>Per riprogrammarlo apri «Convocazione» e riporta lo stato a Pianificato.</span>{% endif %}
+      {% if can_manage %}<span>Per riprogrammarlo apri «Modifica incontro» e riporta lo stato a Pianificato.</span>{% endif %}
     </div>
   {% elif meeting.stato == "PIANIFICATO" %}
     {% if meeting.convocazione_da_reinviare %}
       <div class="md-convocazione-note warn">
-        <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+        {% with modifiche=meeting.modifiche_convocazione %}
+        {% if modifiche %}
+          <strong>Convocazione da reinviare:</strong> dall'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }} è cambiato:
+          <ul class="md-convocazione-modifiche">
+            {% for riga in modifiche %}<li>{{ riga }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+        {% endif %}
+        {% endwith %}
       </div>
+    {% elif meeting.outlook_event_id %}
+      <div class="md-convocazione-note">Invito Outlook inviato ai partecipanti{% if meeting.convocazione_inviata_at %} il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}{% endif %}: lo accettano dal loro calendario. Le modifiche salvate in «Modifica incontro» arrivano come aggiornamento dell'invito.</div>
     {% elif meeting.convocazione_inviata %}
-      <div class="md-convocazione-note">Convocazione inviata il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>
+      <div class="md-convocazione-note">Convocazione inviata per mail il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>
     {% elif can_manage %}
-      <div class="md-convocazione-note">Convocazione non ancora inviata: salvare l'incontro non manda email. Usa «Invia convocazione».</div>
+      <div class="md-convocazione-note">Partecipanti non ancora invitati.{% if outlook_pronto %} Usa «Invia invito Outlook»: arriva come riunione da accettare, con la sala.{% else %} Usa «Invia convocazione».{% endif %}</div>
     {% endif %}
   {% endif %}
 
-  <div class="md-docbar">
+  <div class="md-docbar" id="documenti">
     <span class="md-docbar-label">Documenti</span>
     {% if can_manage %}
       {% if meeting.stato == "PIANIFICATO" %}
-      <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
-            data-hub-confirm="Inviare la convocazione con l'ordine del giorno a tutti i partecipanti?">
+      {% if outlook_pronto %}
+      <form method="post" action="{% url 'tasks:project_meeting_send_outlook' project.id meeting.id %}"
+            data-hub-confirm="{% if meeting.outlook_event_id %}Rimandare l'invito Outlook a tutti i partecipanti?{% else %}Mandare l'invito Outlook ai partecipanti e prenotare la sala?{% endif %}">
         {% csrf_token %}
-        <button type="submit" class="md-btn white">{% if meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione{% endif %}</button>
+        <button type="submit" class="md-btn {% if meeting.outlook_event_id %}white{% else %}primary{% endif %}">{% if meeting.outlook_event_id %}Reinvia invito Outlook{% else %}Invia invito Outlook{% endif %}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
+            data-hub-confirm="Inviare per mail l'ordine del giorno a tutti i partecipanti?">
+        {% csrf_token %}
+        <button type="submit" class="md-btn white">{% if meeting.outlook_event_id %}Mail con l'ordine del giorno{% elif meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione per mail{% endif %}</button>
       </form>
       {% endif %}
       {% if not meeting.is_annullato %}
       <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
             data-hub-confirm="Inviare la minuta dell'incontro a tutti i partecipanti?">
         {% csrf_token %}
-        <button type="submit" class="md-btn white">Invia minuta</button>
+        <button type="submit" class="md-btn white">{% if meeting.minuta_inviata %}Invia aggiornamento minuta{% else %}Invia minuta{% endif %}</button>
       </form>
       {% endif %}
     {% endif %}
     <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
     {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
-    {% if can_manage and meeting.is_svolto %}
-      {% if meeting.minuta_chiusa %}
+    {% if can_manage or can_edit_after_end %}{% if meeting.is_svolto %}
+      {% if meeting.minuta_chiusa %}{% if can_edit_after_end %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_reopen' project.id meeting.id %}" id="minute-reopen-form">
           {% csrf_token %}
           <button type="button" class="md-btn white" id="minute-reopen-open">Riapri minuta</button>
@@ -121,13 +167,18 @@
             <button type="submit" class="md-btn white">Conferma</button>
           </span>
         </form>
-      {% else %}
+      {% endif %}{% else %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_close' project.id meeting.id %}"
               data-hub-confirm="Approvare e chiudere la minuta? L'esito non sarà più modificabile senza riaprirla.">
           {% csrf_token %}
           <button type="submit" class="md-btn white">Approva e chiudi minuta</button>
         </form>
       {% endif %}
+    {% endif %}{% endif %}
+    {% if meeting.minuta_da_reinviare %}
+      <p class="md-docbar-hint md-docbar-hint--warn">La minuta è cambiata dopo l'invio del {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}: verbale, ordine del giorno, decisioni o azioni. Premi «Invia aggiornamento minuta».</p>
+    {% elif meeting.minuta_inviata %}
+      <p class="md-docbar-hint">Minuta inviata il {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}.</p>
     {% endif %}
     {% if meeting.minuta_chiusa %}
       <span class="md-minute-locked">
@@ -227,7 +278,7 @@
           </span>
         </div>
         <div class="md-card-body">
-          {% for item in meeting.agenda_items %}
+          {% for item in punti %}
             <div class="md-agenda-item{% if item.done %} done-item{% endif %}" id="agenda-item-{{ item.id }}" data-item-id="{{ item.id }}" data-done="{{ item.done|yesno:'true,false' }}">
               <div class="md-agenda-num">{{ forloop.counter }}</div>
               <div class="md-agenda-body">
@@ -237,8 +288,14 @@
                   {% if item.responsabile_label %}<span class="md-agenda-task">{{ item.responsabile_label }}</span>{% endif %}
                   {% if item.durata_minuti %}<span class="md-agenda-task">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
+                {% if item.collegata %}
+                  <ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>
+                {% endif %}
                 {% if item.nota %}<div class="md-agenda-nota">{{ item.nota }}</div>{% endif %}
-                {% if item.custom_fields %}
+                {% if item.emersi %}
+                  <ul class="mvoci md-agenda-emersi">{% for voce in item.emersi %}{% include "tasks/_meeting_voce.html" with mostra_punto=False %}{% endfor %}</ul>
+                {% endif %}
+                {% if item.custom_fields and not item.collegata %}
                   <dl class="md-agenda-extra-fields">
                     {% for field in item.custom_fields %}
                       {% if field.label and field.value %}
@@ -291,7 +348,7 @@
       <div class="md-card md-problems full">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-          <span>Problemi tracciati</span>
+          <span>Problemi trovati</span>
         </div>
         <div class="md-card-body">
           <div class="md-issue-list">
@@ -302,7 +359,8 @@
                     <div class="md-issue-title">{{ issue.title }}</div>
                     <div class="md-issue-meta">
                       <span class="md-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
-                      {% if issue.source_meeting %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
+                      {% if issue.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ issue.punto }}" title="{{ issue.punto_info.titolo }}">punto {{ issue.punto_info.num }}</a>{% endif %}
+                      {% if issue.source_meeting and issue.source_meeting_id != meeting.pk %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
                       {% if issue.resolution_meeting %}<span class="md-issue-chip">Chiuso in incontro {{ issue.resolution_meeting.numero }}</span>{% endif %}
                       {% if issue.assigned_to %}<span class="md-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
                       {% if issue.due_date %}<span class="md-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
@@ -367,7 +425,7 @@
     {% endif %}
 
     {# Proposte di punti: chi è convocato propone, chi gestisce decide. #}
-    {% if is_convocato or meeting_proposals %}
+    {% if meeting_proposals or is_convocato and not meeting.is_svolto %}
       <div class="md-card full">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5"/></svg>
@@ -423,6 +481,7 @@
                 <span class="mf-issue-chip">{{ decision.get_impatto_display }}</span>
                 {{ decision.testo }}
                 {% if decision.decisa_da %}<span class="mf-decision-who">— {{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}</span>{% endif %}
+                {% if decision.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ decision.punto }}" title="{{ decision.punto_info.titolo }}">punto {{ decision.punto_info.num }}</a>{% endif %}
                 {% if decision.dettaglio %}<div class="mf-issue-desc">{{ decision.dettaglio }}</div>{% endif %}
               </li>
             {% endfor %}
@@ -447,7 +506,8 @@
                   <span class="mf-issue-chip">{{ action.get_status_display }}</span>
                   {% if action.assigned_to %}<span class="mf-issue-chip">{{ action.assigned_to.get_full_name|default:action.assigned_to.username }}</span>{% endif %}
                   {% if action.due_date %}<span class="mf-issue-chip{% if action.is_overdue %} overdue{% endif %}">Scad. {{ action.due_date|date:"d-m-Y" }}</span>{% endif %}
-                  {% if action.source_meeting %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
+                  {% if action.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ action.punto }}" title="{{ action.punto_info.titolo }}">punto {{ action.punto_info.num }}</a>{% endif %}
+                  {% if action.source_meeting and action.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
                 </div>
                 {% if action.description %}<div class="mf-issue-desc">{{ action.description }}</div>{% endif %}
                 {% if action.linked_task %}<div class="mf-issue-desc">Attività collegata: <a href="{% url 'tasks:detail' action.linked_task.id %}">{{ action.linked_task.title }}</a> — si chiude da sola quando l'attività è completata.</div>{% endif %}
@@ -471,7 +531,7 @@
       <div class="md-card md-nextsteps{% if next_steps_lines and can_manage %} full{% endif %}">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-          <span>Next steps (storico)</span>
+          <span>Prossimi passi (storico)</span>
           {% if next_steps_lines and can_manage %}
             <span style="margin-left:auto;font-size:.75rem;color:var(--success);font-weight:500;opacity:.8;">{{ next_steps_lines|length }} rig{% if next_steps_lines|length == 1 %}a{% else %}he{% endif %} · clicca per creare task</span>
           {% endif %}
@@ -506,7 +566,7 @@
         <div class="md-card-body md-closing-summary-body">
           <div class="md-closing-summary-stats">
             <span><strong>{{ open_issue_count }}</strong> problem{{ open_issue_count|pluralize:"a,i" }} ancora apert{{ open_issue_count|pluralize:"o,i" }}{% if open_issue_count %} — {{ open_issue_count|pluralize:"entra,entrano" }} automaticamente nell'agenda del prossimo incontro{% endif %}</span>
-            <span><strong>{{ next_steps_lines|length }}</strong> next step registrat{{ next_steps_lines|length|pluralize:"o,i" }}</span>
+            <span><strong>{{ next_steps_lines|length }}</strong> prossim{{ next_steps_lines|length|pluralize:"o,i" }} pass{{ next_steps_lines|length|pluralize:"o,i" }} registrat{{ next_steps_lines|length|pluralize:"o,i" }}</span>
           </div>
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro &rarr;</a>
         </div>
@@ -560,6 +620,9 @@
 <script>
   window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
 </script>
-<script src="{% static 'tasks/js/meeting_task_modal.js' %}" defer></script>
+<script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
+<script src="{% static 'tasks/js/tech_refs.js' %}?v=20261111" defer></script>
+<script src="{% static 'tasks/js/sala_stato.js' %}?v=20261109" defer></script>
+<script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105b" defer></script>
 {% endif %}
 {% endblock %}

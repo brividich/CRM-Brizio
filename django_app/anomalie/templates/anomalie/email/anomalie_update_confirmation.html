@@ -110,6 +110,7 @@
                           {% if u.segnalare %}<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>{% endif %}
                           {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                         </div>
+                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                       </td>
                     </tr>
@@ -162,6 +163,7 @@
                           <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>
                           {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                         </div>
+                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                       </td>
                     </tr>
@@ -200,11 +202,35 @@
                   <div style="margin-top:6px;">
                     {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                   </div>
-                  {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
+                  {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+                        {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                 </td>
               </tr>
             </table>
             {% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if portal_url %}
+        <!-- APRI NEL PORTALE -->
+        <tr>
+          <td class="ep" style="padding:14px 34px 18px;background:#ffffff;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <tr>
+                <td style="border-radius:10px;background:#12395f;">
+                  <a href="{{ portal_url }}"
+                     style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;
+                            color:#ffffff;text-decoration:none;border-radius:10px;
+                            background:#12395f;mso-padding-alt:14px 32px;">
+                    Apri l'OP nel portale
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:10px 0 0;font-size:12px;color:#64748b;">
+              Dai PC aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login.
+            </p>
           </td>
         </tr>
         {% endif %}
@@ -215,6 +241,14 @@
             <div style="background:#f1f5f9;border-left:4px solid #94a3b8;border-radius:0 6px 6px 0;padding:10px 14px;font-size:12px;color:#64748b;">
               Origine: <strong>{{ source_label }}</strong>
             </div>
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if silenzia_url %}
+        <tr>
+          <td class="ep" style="padding:16px 34px 18px;background:#ffffff;text-align:center;">
+            <a href="{{ silenzia_url }}" style="display:inline-block;padding:7px 14px;border:1px solid #cbd5e1;border-radius:6px;color:#475569;font-size:12px;font-weight:600;text-decoration:none;">Non voglio più aggiornamenti su questo OP</a>
           </td>
         </tr>
         {% endif %}

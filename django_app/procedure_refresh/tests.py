@@ -657,16 +657,17 @@ class AutoSyncSafeSubsetTests(TestCase):
         candidates = [
             self._candidate("MT-NEW-001"),                 # nuovo -> safe
             self._candidate("MT-EXIST-CHILD"),             # safe
-            self._candidate("MT-EXIST-SP"),                # escluso
-            self._candidate("MT-EXIST-ACK"),               # escluso
-            self._candidate("MT-EXIST-ASSIGNED"),          # escluso
-            self._candidate("MT-FALLBACK", fallback=True), # escluso (nome non riconosciuto)
-            self._candidate("MT-DISAMB", disamb="MT-BASE"),# escluso (disambiguato)
+            self._candidate("MT-EXIST-SP"),                # escluso (revisione da SharePoint, stessa rev)
+            self._candidate("MT-EXIST-ACK"),               # stessa rev, file spostato -> riallineamento
+            self._candidate("MT-EXIST-ASSIGNED"),          # stessa rev, file spostato -> riallineamento
+            self._candidate("MT-FALLBACK", fallback=True), # nome libero: CN-SGI importa tutta la cartella
+            self._candidate("MT-DISAMB", disamb="MT-BASE"),# escluso (stesso codice in più file)
         ]
         safe, excluded = filter_auto_safe(candidates)
         safe_codes = {c["code"] for c in safe}
-        self.assertEqual(safe_codes, {"MT-NEW-001", "MT-EXIST-CHILD"})
-        self.assertEqual(len(excluded), 5)
+        self.assertEqual(safe_codes, {"MT-NEW-001", "MT-EXIST-CHILD", "MT-EXIST-ACK", "MT-EXIST-ASSIGNED", "MT-FALLBACK"})
+        self.assertEqual({c["code"] for c in excluded}, {"MT-EXIST-SP", "MT-DISAMB"})
+        self.assertTrue(next(c for c in safe if c["code"] == "MT-EXIST-ACK").get("riallineamento"))
 
     def test_filter_auto_safe_ammette_update_rev_su_presa_visione(self):
         from procedure_refresh.management.commands.import_sgi_da_share import filter_auto_safe
@@ -675,8 +676,9 @@ class AutoSyncSafeSubsetTests(TestCase):
         # revisione PIU' recente sulla share -> ora è un aggiornamento SAFE
         safe_newer, _ = filter_auto_safe([self._candidate("MT CN 06", revision="2")])
         self.assertEqual({c["code"] for c in safe_newer}, {"MT CN 06"})
-        # stessa revisione -> nessun aggiornamento -> resta escluso
-        safe_same, excl_same = filter_auto_safe([self._candidate("MT CN 06", revision="1")])
+        # stessa revisione nello stesso file -> nessun aggiornamento -> resta escluso
+        uguale = {**self._candidate("MT CN 06", revision="1"), "path": "C:/share/x.pdf", "file_name": "x.pdf"}
+        safe_same, excl_same = filter_auto_safe([uguale])
         self.assertEqual(safe_same, [])
         self.assertEqual(len(excl_same), 1)
 

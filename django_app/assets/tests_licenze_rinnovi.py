@@ -182,6 +182,35 @@ class SoftwareLicenseRenewalTests(TestCase):
         self.assertContains(response, "Rivenditore Sintetico Srl")
         self.assertContains(response, "Salva rinnovo")
 
+    def test_rinnova_anche_le_licenze_gemelle(self):
+        gemella = SoftwareLicense.objects.create(
+            vendor="fornitore demo", product_name=" suite demo", license_reference="DEMO-002",
+            seats_total=2, expiry_date=date(2027, 1, 20), is_active=True,
+        )
+        altro_prodotto = SoftwareLicense.objects.create(
+            vendor="Fornitore Demo", product_name="Altro Demo", expiry_date=date(2026, 12, 31), is_active=True,
+        )
+        lontana = SoftwareLicense.objects.create(
+            vendor="Fornitore Demo", product_name="Suite Demo", expiry_date=date(2028, 6, 30), is_active=True,
+        )
+        self.client.force_login(self.admin)
+        page = self.client.get(self.url)
+        self.assertContains(page, f'name="also_renew" value="{gemella.id}"')
+        self.assertContains(page, '<li data-insieme-days="20">')
+        self.assertNotContains(page, f'name="also_renew" value="{altro_prodotto.id}"')
+        payload = self._renew_payload()
+        payload["also_renew"] = [str(gemella.id), str(altro_prodotto.id), str(lontana.id)]
+        self.client.post(self.url, payload)
+        gemella.refresh_from_db()
+        renewal = SoftwareLicenseRenewal.objects.get(license=gemella)
+        self.assertEqual(gemella.expiry_date, date(2027, 12, 31))
+        self.assertEqual(gemella.seats_total, 2)  # posti solo sulla principale
+        self.assertIsNone(renewal.cost_eur)
+        self.assertEqual(renewal.previous_expiry, date(2027, 1, 20))
+        self.assertEqual(renewal.period_start, date(2027, 1, 21))
+        self.assertEqual(renewal.reference, "ORD-2026-77")
+        self.assertFalse(SoftwareLicenseRenewal.objects.filter(license__in=[altro_prodotto, lontana]).exists())
+
 
 class CoperturaLicenzeSoftwareTests(TestCase):
     def test_licenza_senza_chiave_e_stati(self):

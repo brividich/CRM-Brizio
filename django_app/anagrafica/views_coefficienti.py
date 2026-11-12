@@ -97,7 +97,6 @@ def _puo_costo(request) -> bool:
 
 def _righe_costo(request):
     from core import naming
-    from core.legacy_anagrafica import fetch_anagrafica_rows
 
     mesi = list(CostoOrarioMensile.objects.order_by("-mese").values_list("mese", flat=True).distinct())
     try:
@@ -108,7 +107,7 @@ def _righe_costo(request):
         mese = mesi[0] if mesi else None
     righe = list(CostoOrarioMensile.objects.filter(mese=mese)) if mese else []
     ids = [r.legacy_anagrafica_id for r in righe if r.legacy_anagrafica_id]
-    anag = {int(d["id"]): d for d in fetch_anagrafica_rows(ids=ids)} if ids else {}
+    anag = _anagrafica_canonica(ids)
     stati = coeff_svc.stati(ids) if ids else {}
     # Gli ultimi 12 mesi di ciascuno, fino al mese scelto: sottoriga e mini-grafico.
     finestra = [m for m in mesi if m <= mese][:MESI_SERIE] if mese else []
@@ -128,6 +127,7 @@ def _righe_costo(request):
             "nome": naming.nome_completo(d.get("nome"), d.get("cognome")) if d else r.tax_code,
             "ordine": naming.chiave_ordinamento(d.get("nome"), d.get("cognome")) if d else r.tax_code,
             "reparto": (d.get("reparto") or "").strip(),
+            "centro_costo": (d.get("centro_di_costo_nome") or "").strip(),
             "classe": stati.get(r.legacy_anagrafica_id, {}).get("classe_principale_label", ""),
             "prec": prec, "delta": delta, "delta_pct": _pct(delta, prec.costo_orario) if prec else None,
             "serie": _serie(storia),
@@ -139,10 +139,14 @@ def _righe_costo(request):
     q = (request.GET.get("q") or "").strip().casefold()
     reparto = (request.GET.get("reparto") or "").strip()
     reparti = sorted({x["reparto"] for x in out if x["reparto"]}, key=str.casefold)
+    centro = (request.GET.get("centro_costo") or "").strip()
+    centri = sorted({x["centro_costo"] for x in out if x["centro_costo"]}, key=str.casefold)
     if q:
         out = [x for x in out if q in x["nome"].casefold() or q in x["c"].tax_code.casefold()]
     if reparto:
         out = [x for x in out if x["reparto"] == reparto]
+    if centro:
+        out = [x for x in out if x["centro_costo"] == centro]
     # Scostamento dalla media di chi resta con i filtri: cambia con i filtri.
     media = sum(x["c"].costo_orario for x in out) / len(out) if out else None
     for x in out:
@@ -156,8 +160,19 @@ def _righe_costo(request):
         out = [x for x in out if FILTRI_MOSTRA[mostra][1](x)]
     out.sort(key=lambda x: x["ordine"])
     return {"mesi": mesi, "mese": mese, "righe": out, "reparti": reparti, "q": request.GET.get("q", ""),
-            "reparto": reparto, "media": media, "mostra": mostra if mostra in FILTRI_MOSTRA else "",
+            "reparto": reparto, "centri": centri, "centro": centro, "media": media, "mostra": mostra if mostra in FILTRI_MOSTRA else "",
             "filtri_mostra": [(k, v[0]) for k, v in FILTRI_MOSTRA.items()]}
+
+
+def _anagrafica_canonica(ids: list) -> dict:
+    """Righe anagrafiche per id, con reparto, area e centro di costo della catena canonica (come i report)."""
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from .services.reparto_canonico import enrich_rows_reparto_canonico
+
+    if not ids:
+        return {}
+    return {int(d["id"]): d for d in enrich_rows_reparto_canonico(fetch_anagrafica_rows(ids=ids))}
 
 
 MESI_SERIE = 12
@@ -273,7 +288,6 @@ def _storico(request) -> dict:
     from decimal import ROUND_HALF_UP, Decimal
 
     from core import naming
-    from core.legacy_anagrafica import fetch_anagrafica_rows
 
     tutti = list(CostoOrarioMensile.objects.order_by("mese").values_list("mese", flat=True).distinct())
     g = request.GET
@@ -294,7 +308,7 @@ def _storico(request) -> dict:
         chiave = c.legacy_anagrafica_id or c.tax_code
         per_chiave.setdefault(chiave, {})[c.mese] = c
     ids = [k for k in per_chiave if isinstance(k, int)]
-    anag = {int(d["id"]): d for d in fetch_anagrafica_rows(ids=ids)} if ids else {}
+    anag = _anagrafica_canonica(ids)
     righe = []
     for chiave, valori in per_chiave.items():
         d = anag.get(chiave) if isinstance(chiave, int) else None
@@ -315,16 +329,21 @@ def _storico(request) -> dict:
             "nome": naming.nome_completo(d.get("nome"), d.get("cognome")) if d else str(next(iter(valori.values())).tax_code),
             "ordine": naming.chiave_ordinamento(d.get("nome"), d.get("cognome")) if d else str(chiave),
             "reparto": ((d or {}).get("reparto") or "").strip(),
+            "centro_costo": ((d or {}).get("centro_di_costo_nome") or "").strip(),
             "celle": celle, "ultimo": ultimo, "var": var, "var_pct": var_pct,
         })
     reparti = sorted({r["reparto"] for r in righe if r["reparto"]}, key=str.casefold)
+    centri = sorted({r["centro_costo"] for r in righe if r["centro_costo"]}, key=str.casefold)
     q = (g.get("q") or "").strip().casefold()
     reparto = (g.get("reparto") or "").strip()
+    centro = (g.get("centro_costo") or "").strip()
     if q:
         righe = [r for r in righe if q in r["nome"].casefold()
                  or any(x["c"] and q in x["c"].tax_code.casefold() for x in r["celle"])]
     if reparto:
         righe = [r for r in righe if r["reparto"] == reparto]
+    if centro:
+        righe = [r for r in righe if r["centro_costo"] == centro]
     righe.sort(key=lambda r: r["ordine"])
     medie = []
     for i, _m in enumerate(mesi):
@@ -335,7 +354,7 @@ def _storico(request) -> dict:
     persona_nome = righe[0]["nome"] if persona.isdigit() and righe else ""
     return {
         "tutti_mesi": list(reversed(tutti)), "mesi": mesi, "dal": dal, "al": al, "righe": righe, "medie": medie,
-        "reparti": reparti, "reparto": reparto, "q": g.get("q", ""), "persona": persona if persona.isdigit() else "",
+        "reparti": reparti, "reparto": reparto, "centri": centri, "centro": centro, "q": g.get("q", ""), "persona": persona if persona.isdigit() else "",
         "persona_nome": persona_nome,
         "kpi": {
             "mesi": len(mesi),

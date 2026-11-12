@@ -124,11 +124,20 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
         {% for cat in categorie %}<option value="{{ cat.pk }}"{% if filtro_cat == cat.pk|stringformat:"s" %} selected{% endif %}>{{ cat.nome }}</option>{% endfor %}
       </select>
     </label>
+    <label>Scadenza
+      <select name="scadenza">
+        <option value="">Tutte</option>
+        {% for val,lbl in filtri_scadenza %}<option value="{{ val }}"{% if filtro_scadenza == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Centro di costo
+      <select name="centro"><option value="">Tutti</option>{% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}<option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro</option></select>
+    </label>
     <label>Richiedente
       <input type="text" name="q" value="{{ filtro_q }}" placeholder="Nome...">
     </label>
     <button type="submit" class="dpi-filter-btn">Filtra</button>
-    {% if filtro_stato or filtro_cat or filtro_q %}
+    {% if filtro_stato or filtro_cat or filtro_q or filtro_scadenza or filtro_centro.attivo %}
     <a href="{% url 'dpi:gestione_list' %}" class="dpi-filter-reset">Reset</a>
     {% endif %}
   </form>
@@ -181,9 +190,9 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
     </table>
     {% if page_obj.has_other_pages %}
     <div class="dpi-pagination">
-      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}">‹ Prec</a>{% endif %}
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}&scadenza={{ filtro_scadenza }}{{ filtro_centro.suffisso }}">‹ Prec</a>{% endif %}
       <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}">Succ ›</a>{% endif %}
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}&scadenza={{ filtro_scadenza }}{{ filtro_centro.suffisso }}">Succ ›</a>{% endif %}
     </div>
     {% endif %}
     {% else %}

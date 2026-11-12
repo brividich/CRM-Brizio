@@ -1,0 +1,166 @@
+{% extends "security/_base_soc.html" %}
+{# Tempi di installazione delle patch WatchGuard (services/patch_sla.py). Sola lettura. #}
+{% load l10n %}
+
+{% block title %}Tempi delle patch | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Tempi delle patch: quanto ci mettiamo e cosa è fermo{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-small">
+    Ogni patch mancante ha un termine che parte da <strong>«pubblicata il»</strong> e dipende dalla classe:
+    {% for c in t.classi %}{{ c.etichetta }} {{ c.termine_giorni }} giorni{% if not forloop.last %} · {% endif %}{% endfor %}.
+    Il tempo di installazione è da «pubblicata il» a quando WatchGuard non segnala più la patch; le patch sparite perché il PC è uscito da WatchGuard non contano.
+    {% if can_edit %}<a href="{% url 'security:soc_settings' %}#patch_termini">Cambia i termini</a>.{% endif %}
+    {% if allerta_attiva %}Le patch oltre il termine aprono un alert.{% else %}<strong>Gli alert sulle patch oltre il termine sono spenti</strong> (Impostazioni › «Patch: tempi di installazione»).{% endif %}
+  </p>
+  <form class="sec-filter-bar" method="get">
+    <label>Periodo delle installazioni
+      <select name="periodo">{% for k, v in periodi %}<option value="{{ k }}" {% if periodo == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <input type="hidden" name="classe" value="{{ f.classe }}"><input type="hidden" name="stato" value="{{ f.stato }}"><input type="hidden" name="q" value="{{ f.q }}">
+    <button class="sec-button" type="submit">Applica</button>
+  </form>
+  <div class="sec-fact-grid" style="margin-top: 10px;">
+    <div class="sec-fact"><span>Patch installate nel periodo</span><strong>{{ t.installate }}</strong>{% if t.senza_data %} <small class="sec-muted">+ {{ t.senza_data }} senza data di pubblicazione</small>{% endif %}</div>
+    <div class="sec-fact"><span>Tempo medio di installazione</span><strong>{% if t.giorni_medi is not None %}{{ t.giorni_medi }} giorni{% else %}—{% endif %}</strong></div>
+    <div class="sec-fact"><span>Installate entro il termine</span><strong>{% if t.in_tempo_pct is not None %}{{ t.in_tempo_pct }}%{% else %}—{% endif %}</strong> <small class="sec-muted">{{ t.in_tempo }} su {{ t.installate }}</small></div>
+    <div class="sec-fact"><span>Patch mancanti adesso</span><strong>{{ t.mancanti }}</strong> <small class="sec-muted">una per patch e PC</small></div>
+    <div class="sec-fact"><span>Oltre il termine adesso</span><strong>{{ t.oltre_termine }}</strong> <small class="sec-muted">{{ t.oltre_termine_gravi }} KEV o critiche</small></div>
+    <div class="sec-fact"><span>Installazione fallita</span><strong>{{ t.errori }}</strong> <small class="sec-muted">ultimo esito del task WatchGuard</small></div>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Per classe</h2><small class="sec-muted">installate nel periodo; mancanti e oltre il termine: adesso</small></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Classe</th><th>Termine</th><th>Installate</th><th>Giorni medi</th><th>Giorni (mediana)</th><th>Entro il termine</th><th>In ritardo</th><th>Mancanti</th><th>Oltre il termine</th></tr></thead>
+      <tbody>
+      {% for c in t.classi %}
+        <tr>
+          <td><strong>{{ c.etichetta }}</strong></td>
+          <td>{{ c.termine_giorni }} giorni</td>
+          <td>{{ c.installate }}</td>
+          <td>{{ c.giorni_medi|default_if_none:"—" }}</td>
+          <td>{{ c.giorni_mediana|default_if_none:"—" }}</td>
+          <td>{% if c.in_tempo_pct is not None %}{{ c.in_tempo }} ({{ c.in_tempo_pct }}%){% else %}—{% endif %}</td>
+          <td>{% if c.in_ritardo %}<span class="sec-badge medium">{{ c.in_ritardo }}</span>{% else %}0{% endif %}</td>
+          <td>{{ c.mancanti }}</td>
+          <td>{% if c.oltre_termine %}<a class="sec-badge {% if c.classe == 'kev' or c.classe == 'critica' %}critical{% else %}high{% endif %}" href="?periodo={{ periodo }}&amp;classe={{ c.classe }}&amp;stato=scadute#patch-ferme">{{ c.oltre_termine }}</a>{% else %}0{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Andamento</h2><small class="sec-muted">ultime {{ a.settimane|length }} settimane, l'ultima è quella in corso; passa sopra a una barra per i numeri</small></div>
+  {% localize off %}
+  <div class="wgp-trend">
+    <div class="vpn-chart soc-chart">
+      <h3>Patch installate per settimana <small class="sec-muted">({{ a.installate_totale }} in tutto)</small></h3>
+      {% with g=a.grafico_installate %}
+      <svg viewBox="0 0 {{ g.width }} {{ g.height }}" role="img" aria-label="Patch installate per settimana">
+        <line class="grid" x1="{{ g.left }}" x2="{{ g.width }}" y1="{{ g.top }}" y2="{{ g.top }}"></line>
+        <line class="grid" x1="{{ g.left }}" x2="{{ g.width }}" y1="{{ g.baseline }}" y2="{{ g.baseline }}"></line>
+        <text class="axis-label" x="0" y="{{ g.top|add:4 }}">{{ g.picco }}</text>
+        <text class="axis-label" x="0" y="{{ g.baseline }}">0</text>
+        {% for s in a.settimane %}{% with b=s.bar_installate %}
+          <g tabindex="0" data-tip-title="Settimana dal {{ s.inizio|date:'d/m' }} al {{ s.fine|date:'d/m/Y' }}" data-tip="var(--success)::{{ s.installate }} patch installate">
+            <rect class="bar-hit" x="{{ b.x }}" y="{{ g.top }}" width="{{ b.w }}" height="{{ g.baseline|add:-12 }}"></rect>
+            {% if b.h %}<rect class="bar-ok" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="1.5"></rect>{% endif %}
+          </g>
+          {% if s.etichetta %}<text class="axis-label" x="{{ b.label_x }}" y="{{ g.baseline|add:16 }}" text-anchor="middle">{{ s.inizio|date:"d/m" }}</text>{% endif %}
+        {% endwith %}{% endfor %}
+      </svg>
+      {% endwith %}
+    </div>
+    <div class="vpn-chart soc-chart">
+      <h3>Patch mancanti a fine settimana</h3>
+      {% if a.prima_foto %}
+      {% with g=a.grafico_mancanti %}
+      <svg viewBox="0 0 {{ g.width }} {{ g.height }}" role="img" aria-label="Patch mancanti a fine settimana">
+        <line class="grid" x1="{{ g.left }}" x2="{{ g.width }}" y1="{{ g.top }}" y2="{{ g.top }}"></line>
+        <line class="grid" x1="{{ g.left }}" x2="{{ g.width }}" y1="{{ g.baseline }}" y2="{{ g.baseline }}"></line>
+        <text class="axis-label" x="0" y="{{ g.top|add:4 }}">{{ g.picco }}</text>
+        <text class="axis-label" x="0" y="{{ g.baseline }}">0</text>
+        {% for s in a.settimane %}{% with b=s.bar_mancanti %}
+          <g tabindex="0" data-tip-title="Settimana dal {{ s.inizio|date:'d/m' }} al {{ s.fine|date:'d/m/Y' }}"
+             data-tip="{% if s.mancanti is None %}nessuna lettura in questa settimana{% else %}var(--warning)::{{ s.mancanti }} patch mancanti|{{ s.oltre_termine }} oltre il termine|lettura del {{ s.foto_del|date:'d/m' }}{% endif %}">
+            <rect class="bar-hit" x="{{ b.x }}" y="{{ g.top }}" width="{{ b.w }}" height="{{ g.baseline|add:-12 }}"></rect>
+            {% if b.h %}<rect class="bar-warn" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="1.5"></rect>{% endif %}
+          </g>
+          {% if s.etichetta %}<text class="axis-label" x="{{ b.label_x }}" y="{{ g.baseline|add:16 }}" text-anchor="middle">{{ s.inizio|date:"d/m" }}</text>{% endif %}
+        {% endwith %}{% endfor %}
+      </svg>
+      {% endwith %}
+      <p class="sec-muted sec-small">Dalla fotografia di ogni lettura WatchGuard, disponibile dal {{ a.prima_foto|date:"d/m/Y" }}.</p>
+      {% else %}
+      <p class="sec-empty">Ancora nessuna lettura: la prima fotografia arriva con la prossima lettura delle patch WatchGuard (06:10 e 13:10).</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endlocalize %}
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;" id="patch-ferme">
+  <div class="sec-section-head"><h2>Patch ferme</h2><small class="sec-muted">{{ f.kpi.patch }} patch su {{ f.kpi.pc }} PC: {{ f.kpi.scadute }} oltre il termine, {{ f.kpi.errori }} con installazione fallita</small></div>
+  <form class="sec-filter-bar" method="get" action="#patch-ferme">
+    <input type="hidden" name="periodo" value="{{ periodo }}">
+    <label>Classe
+      <select name="classe">{% for k, v in f.classi_scelte %}<option value="{{ k }}" {% if f.classe == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Cosa
+      <select name="stato">{% for k, v in f.stati_scelte %}<option value="{{ k }}" {% if f.stato == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Cerca <input type="search" name="q" value="{{ f.q }}" placeholder="PC, patch, programma o CVE"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="?periodo={{ periodo }}#patch-ferme">Reimposta</a>
+    <a class="sec-button" href="?classe={{ f.classe }}&amp;stato={{ f.stato }}&amp;q={{ f.q|urlencode }}&amp;formato=csv">Scarica CSV</a>
+  </form>
+  {% if f.righe|length > f.righe_mostrate|length %}<p class="sec-muted sec-small">Mostrate le prime {{ f.righe_max }} patch di {{ f.righe|length }}: il CSV le contiene tutte.</p>{% endif %}
+  {% if f.righe_mostrate %}
+  <form method="post" action="{% url 'security:pc_bulk' %}" id="ferme-bulk" data-bulk>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Tempi delle patch"><input type="hidden" name="action" value="case">
+    <div class="sec-bulk-bar">
+      <span class="sec-bulk-count"><strong data-bulk-count>0</strong> patch selezionate</span>
+      <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
+      <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled title="Un'attività per ogni PC delle patch selezionate">Apri un ticket per questi PC</button>
+    </div>
+  </form>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-preview-scope>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all form="ferme-bulk" aria-label="Seleziona tutte"></th><th>Patch</th><th>Classe</th><th>Pubblicata il</th><th>Scadenza</th><th>Ritardo</th><th>PC</th><th>CVE corrette</th></tr></thead>
+      <tbody>
+      {% for g in f.righe_mostrate %}
+        <tr>
+          <td class="sec-check-col"><input type="checkbox" name="devices_gruppo" value="{% for v in g.pc %}{{ v.p.host_display|default:v.p.host }}{% if not forloop.last %}|{% endif %}{% endfor %}" form="ferme-bulk" class="sec-bulk-item" aria-label="Seleziona i PC di {{ g.nome }}"></td>
+          <td><strong>{{ g.nome }}</strong>{% if g.programma %}<br><small class="sec-muted">{{ g.programma }}</small>{% endif %}</td>
+          <td><span class="sec-badge {% if g.classe == 'kev' %}critical{% elif g.classe == 'critica' %}high{% elif g.classe == 'importante' %}medium{% else %}muted{% endif %}">{{ g.etichetta }}</span></td>
+          <td class="sec-nowrap">{{ g.rilasciata_il|date:"d/m/Y"|default:"—" }}</td>
+          <td class="sec-nowrap">{{ g.scadenza|date:"d/m/Y"|default:"—" }}</td>
+          <td class="sec-nowrap" data-sort-value="{{ g.giorni_ritardo }}">{% if g.giorni_ritardo %}{{ g.giorni_ritardo }} giorn{{ g.giorni_ritardo|pluralize:"o,i" }}{% else %}—{% endif %}</td>
+          <td><div class="wgp-pc-cell">
+            {% for v in g.pc|slice:":6" %}{% with nome=v.p.host_display|default:v.p.host %}<a href="{% url 'security:pc_detail' %}?nome={{ nome|urlencode }}" data-preview="{% url 'security:preview_pc' %}?nome={{ nome|urlencode }}">{{ nome }}</a>{% endwith %}{% if v.errore %} <span class="sec-badge high" title="{{ v.p.esito_label }}{% if v.p.esito_il %} il {{ v.p.esito_il|date:'d/m/Y' }}{% endif %}">installazione fallita</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+            {% if g.pc|length > 6 %}<small class="sec-muted"> e altri {{ g.pc|length|add:"-6" }}</small>{% endif %}
+          </div></td>
+          <td><div class="wgp-cve-cell">
+            {% if g.kev %}<span class="sec-badge critical" title="{{ g.kev|join:', ' }}">CVE sfruttata</span><br>{% endif %}
+            {% for c in g.cve|slice:":3" %}<a href="{% url 'security:cve_detail' c %}" data-preview="{% url 'security:cve_pannello_cve' c %}">{{ c }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}
+            {% if g.cve|length > 3 %}<small class="sec-muted"> e altre {{ g.cve|length|add:"-3" }}</small>{% endif %}
+          </div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="sec-empty">Nessuna patch ferma con questi filtri: tutte le patch mancanti sono nel termine e senza installazioni fallite.</p>
+  {% endif %}
+  <p class="sec-muted sec-small" style="margin-top: 8px;">Le patch si installano dalla console WatchGuard. <a href="{% url 'security:watchguard_pc' %}">Tutte le patch mancanti</a> · <a href="{% url 'security:watchguard_patch_installate' %}">Patch installate</a></p>
+</section>
+{% endblock %}

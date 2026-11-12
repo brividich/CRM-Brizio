@@ -9,7 +9,7 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | Voce | Pagine |
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
-| **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
+| **Segnalazioni** | Tutte, Alert, Proposte AI, Ticket, Incidenti, Eventi |
 | **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Patch e protezione, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Panoramica, Avvisi e automatismi, Letture automatiche, Soppressioni, Guida |
@@ -18,7 +18,7 @@ La **Panoramica** delle impostazioni (solo con il permesso di configurazione) ap
 
 ## Da dove partire
 
-1. Apri **Panoramica**. In alto c'è il verdetto della giornata con due numeri (segnalazioni urgenti e aperte), sotto l'elenco **Da guardare adesso**, ordinato dal più grave: notifiche NIS2/GDPR in scadenza, alert critici, PC con backup ko, computer senza protezione, CVE gravi sui nostri PC, sorgenti che non mandano più report. Ogni voce porta al dettaglio. A destra la sintesi dell'AI e le **Fonti dati**, con l'ora dell'ultimo report di ogni casella.
+1. Apri **Panoramica**. In alto c'è il verdetto della giornata con il numero delle segnalazioni aperte (le urgenti sono nella barra di stato), sotto l'elenco **Da guardare adesso**, ordinato dal più grave: notifiche NIS2/GDPR in scadenza, alert critici, PC con backup ko, computer senza protezione, CVE gravi sui nostri PC, sorgenti che non mandano più report. Ogni voce porta al dettaglio. A destra la sintesi dell'AI e le **Fonti dati**, con l'ora dell'ultimo report di ogni casella.
 2. Se ti serve un riassunto, in **Sintesi del giorno** premi **Chiedi all'AI**: l'AI aziendale riassume in poche frasi cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.
 3. Apri **Da fare › Tutto ciò che è aperto** (seconda riga del menu): tutti gli incidenti, i ticket e gli alert ancora aperti, per tutto il team, con le scadenze più vicine in alto. Non c'è un elenco «per persona»: chi è libero prende la voce in cima.
 4. Guarda **Le aree** della Panoramica (firewall, computer, backup, accessi VPN, vulnerabilità, Secure Score). Sotto ogni numero è scritto se è l'**ultimo valore letto**, il **totale degli ultimi 7 giorni** o lo stato di **adesso**. Le aree senza dati stanno in fondo. Se la data dell'ultimo dato è segnata come **dati vecchi**, quella fonte non sta arrivando e i suoi numeri vanno letti con prudenza. L'area **Vulnerabilità** conta le CVE che colpiscono i nostri PC secondo l'inventario software e la quota di software controllabili (collegati a un CPE). In fondo, **Andamento**: il grafico degli ultimi 7 giorni con i totali del periodo.
@@ -32,13 +32,13 @@ Sotto il menu ci sono quattro riquadri che si aggiornano da soli ogni minuto: ve
 | segnalazioni urgenti | Alert, ticket e incidenti aperti critici o alti, più gli incidenti con una notifica di legge scaduta o in scadenza. Apre **Segnalazioni › Solo urgenti** |
 | scadenze NIS2/GDPR | Incidenti con una notifica scaduta o in scadenza entro 12 ore |
 | PC con backup ko | PC e server con l'ultimo backup fallito o senza un backup riuscito oltre la soglia. Apre **Backup › Solo backup ko** |
-| sorgenti in ritardo | Caselle che non mandano report nei tempi attesi |
+| sorgenti in ritardo | Caselle che non mandano report nei tempi attesi. Apre **Impostazioni › Caselle mail** filtrato su **In ritardo**: la colonna **Report** dice «Nessun report» o «Lettura ferma», con l'ultimo report e la cadenza attesa |
 
 Il colore dice la situazione: verde a posto, arancione da guardare, rosso urgente. A destra c'è l'ora dell'ultimo report arrivato.
 
 ### Un numero, un significato
 
-Ogni numero del SOC ha una sola definizione e si legge allo stesso modo ovunque compaia: riquadri, numeri sul menu, Panoramica ed elenchi. Il numero rosso su **Segnalazioni** nel menu è lo stesso dei riquadri «segnalazioni urgenti» e del chip **Solo urgenti**; il numero su **Dispositivi** è quello dei PC con backup ko. Il clic su un numero apre un elenco con esattamente quelle righe. I backup si contano sempre **per PC**: i singoli job falliti si vedono nella scheda del PC e nella pagina Backup.
+Ogni numero del SOC ha una sola definizione e si legge allo stesso modo ovunque compaia: riquadri, numeri sul menu, Panoramica ed elenchi. Il numero rosso su **Segnalazioni** nel menu è lo stesso dei riquadri «segnalazioni urgenti» e del chip **Solo urgenti**; il numero su **Dispositivi** è quello dei PC con backup ko, uguale al riquadro della barra e al filtro **Backup ko** dell'elenco Dispositivi (tutti guardano gli ultimi 90 giorni di report). Il clic su un numero apre un elenco con esattamente quelle righe. I backup si contano sempre **per PC**: i singoli job falliti si vedono nella scheda del PC e nella pagina Backup.
 
 ## Cercare qualcosa
 
@@ -46,24 +46,35 @@ La casella **Cerca** nel menu del SOC trova incidenti, ticket, alert, PC e serve
 
 ## Anteprime e selezione multipla
 
-- **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista.
+- **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC, Da fare, alert collegati a un ticket o a un incidente, chiusi dall'AI) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista. Nel pannello del **ticket** c'è anche **Cambia stato** (per chiudere scrivi l'esito, come nella scheda); in quello dell'**incidente** **Assegna a me**; in quello del **PC** **Apri un ticket per questo PC**. Nelle tabelle delle patch e nella scheda CVE il nome del PC apre il suo pannello (Ctrl+clic: la scheda PC).
+- **Raggruppa**: sopra ogni tabella del SOC, **Raggruppa ▾** divide le righe per una colonna (per PC, per patch, per CVE, per stato, per responsabile…). Ogni gruppo mostra quante righe ha e si apre o chiude con un clic; la sua casella seleziona tutte le righe del gruppo per le azioni multiple. Una patch che corregge più CVE compare sotto ognuna (le copie sono più chiare e non selezionabili). La scelta resta salvata per te.
+- **Dove si selezionano più righe**: Segnalazioni, Alert, Ticket, Incidenti, Eventi, Backup (PC, job, log), **Dispositivi** (ticket per i PC scelti, e **Collega gli asset proposti** per chi configura il SOC), **Patch e protezione › Installazioni non riuscite**, **Tempi delle patch › Patch ferme** (un ticket con un'attività per ogni PC delle patch scelte), **Vulnerabilità › Asset più esposti** e la tabella **Esito per host** della scheda CVE (ticket, **Accetta il rischio** sui PC scelti, **Conferma le proposte dell'AI**), **Proposte AI › Chiusi dall'AI** (**Riapri le selezionate**, con il perché obbligatorio), **Soppressioni** e **Rischi accettati** (revoca insieme, con un motivo unico). In Rischi accettati un clic sulla riga apre il pannello della CVE.
 - **Selezione multipla**: la casella in testa alla riga seleziona; la casella nell'intestazione seleziona tutte le righe della pagina. In fondo compare la barra con le azioni possibili e il conto dei selezionati. Le righe in uno stato non compatibile vengono saltate e il messaggio finale lo dice.
+
+## Scaricare gli elenchi (CSV)
+
+Accanto ai filtri di **Segnalazioni**, **Alert**, **Ticket**, **Incidenti**, **Eventi**, **Accessi VPN**, **Dispositivi**, **Backup › Log completo**, **Vulnerabilità** (elenco CVE), **Correzioni CVE**, **Patch installate** e **Tempi delle patch** c'è **Scarica CSV**; in **Prove di ripristino** il pulsante sta sul registro. Il file contiene **tutte** le righe dei filtri scelti, non solo quelle a video: anche oltre la pagina, oltre il taglio delle 300 segnalazioni per tipo, delle 300 esecuzioni di backup e delle 500 CVE. Colonne in italiano, separatore «;» (si apre con Excel), date «gg/mm/aaaa hh:mm», stati e gravità come a video. Una cella che inizia con «=», «+», «-» o «@» viene protetta con un apice, così Excel non la esegue come formula. Lo scarico richiede l'accesso al SOC, come la pagina, e resta nell'audit del portale con il numero di righe e i filtri.
 
 ## Le segnalazioni
 
-**Segnalazioni › Tutte** mette in un elenco solo gli alert, i ticket e gli incidenti. L'ordine è quello di lavoro: prima le notifiche NIS2/GDPR scadute o in scadenza, poi la gravità (critico, alto, attenzione, medio, basso, info), poi le più vecchie. In alto i chip **Tutte / Alert / Ticket / Incidenti** mostrano quante ce ne sono aperte; sotto si filtra per **Stato** (Da gestire, Chiuse, Tutte), **Gravità** e testo (titolo, PC, CVE, sorgente).
+**Segnalazioni › Tutte** mette in un elenco solo gli alert, i ticket e gli incidenti. L'ordine è quello di lavoro: prima le notifiche NIS2/GDPR scadute o in scadenza, poi la gravità (critico, alto, attenzione, medio, basso, info), poi le più vecchie. In alto i chip **Tutte / Alert / Ticket / Incidenti** mostrano quante ce ne sono con lo stato, la gravità e il testo scelti; sotto si filtra per **Stato** (Da gestire, Chiuse, Tutte), **Gravità** e testo (titolo, PC, CVE, sorgente). L'elenco si ferma alle 300 più recenti per tipo: quando succede (capita soprattutto con «Chiuse» o «Tutte») un avviso giallo dice «Elenco tagliato: mostrate N di M» e **Scarica CSV** le contiene tutte.
 
-Ogni riga dice il tipo, la gravità, che cosa è, dove (il PC o la sorgente), lo stato, da quanto tempo è aperta e chi se ne occupa. Un clic sulla riga apre l'anteprima laterale con le azioni; il titolo apre la pagina completa. Per agire su più elementi insieme (prendi in carico, chiudi, apri un ticket) servono le pagine **Alert**, **Ticket** e **Incidenti**. Gli **Eventi** letti dai report non sono nell'elenco: sono molti e per lo più già giudicati a posto, quindi hanno la loro scheda.
+Ogni riga dice il tipo, la gravità, che cosa è, dove (il PC o la sorgente), lo stato, da quanto tempo è aperta e chi se ne occupa. Un clic sulla riga apre l'anteprima laterale con le azioni; il titolo apre la pagina completa.
+
+**Più righe insieme.** Ogni riga ha una casella: selezionane quante vuoi (Maiusc+clic per un intervallo, la casella in testa per tutte quelle visibili) e in basso compare la barra con il numero dei selezionati e le azioni del tipo scelto: per gli alert **Prendi in carico**, **Chiudi**, **Segna falso positivo** (il motivo è obbligatorio) e **Apri un ticket con i selezionati**; per i ticket **Assegna a me** e **Cambia stato** (per chiudere serve l'esito); per gli incidenti **Diventa responsabile** e **Cambia stato**. Si lavora un tipo alla volta: appena selezioni un alert, le caselle dei ticket e degli incidenti si spengono finché non premi **Annulla**.
+
+**Alert simili dall'anteprima.** Nel pannello di un alert, sotto le azioni, il riquadro **Alert simili** dice quanti altri alert aperti riguardano la **stessa CVE** sugli altri PC, lo **stesso software** (tutte le CVE di quel programma) e lo **stesso PC**; per gli alert non legati a una CVE vale lo stesso problema sullo stesso PC, job o utente. Per ogni criterio vedi anche quanti sono **già stati chiusi e come**: l'esito (risolto, non rilevante, rischio accettato, falso positivo), chi ha deciso, quando e il motivo scritto; il nome del PC apre quell'alert nel pannello. Con **Chiudi insieme** scegli il criterio, l'esito e scrivi il motivo: chiude questo alert e tutti i simili aperti in un colpo, il motivo resta su ognuno e un alert arrivato dopo che avevi aperto il pannello resta aperto. **Chiudi solo questo** chiude il singolo alert come prima. Per gli alert CVE il pannello mostra anche CVE (con link alla scheda), CVSS, il segno **Sfruttata (KEV)**, il software e il termine di correzione con i giorni di ritardo; il dispositivo viene dai dati dell'alert anche quando non è collegato a un asset. Gli **Eventi** letti dai report non sono nell'elenco: sono molti e per lo più già giudicati a posto, quindi hanno la loro scheda.
 
 ## Alert
 
-La **Coda alert** è l'elenco di ciò che il motore ha giudicato un problema. Filtra per stato (di default «Da gestire»), severità e sorgente.
+La **Coda alert** è l'elenco di ciò che il motore ha giudicato un problema. Filtra per stato (di default «Da gestire»), severità e sorgente. Il chip **Tutte** dice quanti alert trovano i filtri; l'elenco li mostra tutti, cento per pagina, con i numeri di pagina in fondo e il totale delle righe (lo stesso vale per **Ticket** e **Registro incidenti**).
 
 ### Leggere un alert
 
 La scheda dell'alert risponde a quattro domande:
 
 - **In parole semplici**: premi **Spiega con l'AI** per avere cosa è successo, perché è scattato, quanto è urgente e cosa fare. L'AI tiene conto dello storico mostrato nella pagina.
+- **Come risolverlo**: se l'AI ha già esaminato l'alert in automatico, in cima c'è la sua **Proposta automatica** (esito, motivo, prove) con **Conferma e chiudi** e **Scarta** (sezione «Proposte di chiusura dell'AI» qui sotto). **Proponi la soluzione** dà la causa probabile, i passi per risolvere (dalla procedura standard e da come sono stati chiusi gli alert simili) e come verificare. Sotto arriva il modulo di chiusura già compilato con l'esito proposto (Risolto, Non rilevante, Rischio accettato o Falso positivo) e il motivo: correggilo se serve e chiudi solo dopo aver fatto i passi. Con **Cerca anche sul web** l'AI legge anche gli avvisi ufficiali sui codici CVE, KB o d'errore dell'alert (capitolo «Impostazioni e AI»).
 - **Perché è stato generato**: la regola che è scattata e i valori che l'hanno fatta scattare.
 - **Cosa sappiamo dagli altri dati del portale**: gli stessi indirizzi, utenti, PC o job incrociati con lo storico (accessi VPN, backup, asset), i precedenti e gli alert simili già chiusi o scartati.
 - **Come rispondere**: la procedura consigliata per quel tipo di alert. **Apri ticket con questi passi** crea il ticket con i passi già come attività.
@@ -75,7 +86,7 @@ Più in basso: il ticket collegato, la timeline di tutto ciò che è successo al
 | Azione | Quando usarla |
 | --- | --- |
 | Prendi in carico | Te ne occupi tu: nell'alert resta scritto chi l'ha preso in carico |
-| Posticipa | Non si può fare nulla adesso: l'alert torna da gestire alla data scelta |
+| Posticipa (in coda: **Rimanda fino al…**) | Non si può fare nulla adesso: l'alert torna da gestire alla data scelta. Dalla coda si rimandano più alert insieme fino al giorno scelto |
 | Chiudi con esito «Risolto» | Il problema era vero ed è stato sistemato |
 | Chiudi con esito «Non rilevante» o «Rischio accettato» | Il problema c'è ma non va gestito, con il motivo |
 | Falso positivo | Non era un problema |
@@ -83,6 +94,42 @@ Più in basso: il ticket collegato, la timeline di tutto ciò che è successo al
 | Riapri | Un alert chiuso va ripreso in mano |
 
 Falso positivo, «Non rilevante», «Rischio accettato» e Silenzia chiedono un motivo e contano per la **soppressione appresa**: dopo tre volte lo stesso alert non viene più aperto. Vedi il capitolo [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa). Le differenze tra gli stati sono spiegate in [Ciclo di vita degli alert](/soc/docs/07-alert-lifecycle/).
+
+## Proposte di chiusura dell'AI
+
+**Segnalazioni › Proposte AI** è il punto da cui smaltire gli alert aperti: sono raggruppati, e l'AI locale lavora sui gruppi. In testa conta gli alert **da decidere**: gli aperti senza i rimandati e i silenziati, che hanno già una decisione a tempo; per questo il numero può essere più basso degli alert aperti di Segnalazioni.
+
+**Gruppi.** Lo stesso problema sullo stesso PC, job di backup o utente è un gruppo; le CVE stanno tutte nel gruppo del loro tipo. La pagina mostra i tipi di alert dal più grave e, dentro, i gruppi: scegli l'esito, scrivi il motivo e premi **Chiudi i N alert**. **Chiudi tutti i N** fa lo stesso per tutto il tipo. Il motivo è obbligatorio e resta su ogni alert; un alert arrivato mentre avevi la pagina aperta resta aperto. Una chiusura di gruppo conta come una decisione sola, anche per quello che impara l'AI.
+
+Ogni 15 minuti (lettura «ai_proposte»), per i gruppi dal più grande, l'AI esamina l'alert più recente, purché aperto da almeno 2 ore e non più vecchio di 60 giorni:
+
+1. il portale raccoglie le **prove** dai report arrivati dopo l'alert: se lo stesso evento si è ripetuto o no, l'ultima esecuzione del job di backup, gli altri report sullo stesso PC, utente o IP;
+2. aggiunge le **decisioni passate** su alert dello stesso tipo (stessa sorgente e stesso tipo di evento, prima quelli sullo stesso PC/job/utente): come li avete chiusi o riaperti e con quale motivo, e le proposte che avete scartato con la vostra nota;
+3. l'AI propone l'esito (Risolto, Non rilevante, Rischio accettato, Falso positivo o «Lasciare aperto»), la confidenza, il motivo e le prove che lo dimostrano. Se non cita nessuna prova vera, la proposta diventa «Lasciare aperto».
+
+Un alert viene riesaminato solo quando cambia qualcosa: un report nuovo, una decisione nuova sullo stesso soggetto, l'evento che non si ripete da 1, 3, 7, 14 o 30 giorni.
+
+| Azione | Cosa succede |
+| --- | --- |
+| **Conferma e chiudi** | L'alert si chiude a tuo nome con l'esito proposto e il motivo (che puoi correggere). Conta come conferma |
+| Chiudere l'alert in un altro modo | Dalla scheda dell'alert, con un altro esito: la proposta risulta «chiusa con un altro esito» e conta come errore |
+| **Scarta** | L'alert resta aperto. Scrivi perché: la nota entra nelle decisioni passate dei prossimi alert dello stesso tipo |
+| **Riapri** (tra i chiusi dall'AI) | L'alert torna aperto; anche la riapertura dalla scheda dell'alert vale. Conta come errore grave. Con **Riapri le selezionate** se ne riaprono più insieme: il perché è obbligatorio e resta su ognuno |
+
+### Quando chiude da sola
+
+Quando l'AI chiude da sola, chiude anche gli alert più vecchi dello stesso gruppo, ognuno con gli stessi limiti: un critico nel gruppo resta aperto.
+
+Per ogni tipo di alert ed esito la tabella **Cosa ha imparato** conta le conferme di fila. Quando le ultime **5** (impostazione «Conferme per chiudere da sola») sono tutte conferme, le proposte successive con quell'esito chiudono l'alert da sole: nella timeline compare «Chiuso dall'AI (appreso da N conferme di fila)» con il motivo e le prove, attore `system:ai`. Non succede mai se:
+
+- la confidenza è sotto l'**80%** (impostazione «Confidenza minima per chiudere da sola»);
+- l'alert è critico, parla di minacce o malware, riguarda una CVE sfruttata attivamente (KEV) o un tipo escluso dalla soppressione appresa;
+- l'AI non cita prove;
+- la chiusura automatica è spenta.
+
+Una correzione, una proposta scartata o un alert riaperto azzerano le conferme di quel tipo ed esito: l'AI torna a proporre soltanto finché non le riguadagna. Le chiusure fatte dall'AI non contano per la soppressione appresa. Le proposte di alert chiusi dalle regole di rientro, posticipati o silenziati diventano «superate».
+
+Si regola in **Impostazioni › Avvisi e automatismi › Proposte di chiusura dell'AI**; tempi ed errori di ogni giro sono in **Letture automatiche** («Esegui ora» fa un giro più lungo subito).
 
 ## Eventi
 
@@ -108,7 +155,7 @@ Il **ticket** è il caso su cui si lavora: raccoglie uno o più alert e porta re
 
 - **Come nasce**: da solo per le CVE critiche (raggruppate per prodotto) e per i backup falliti; a mano dalla scheda di un alert («Apri ticket») o dalla coda alert selezionando più alert.
 - **Responsabile**: **Prendo io** oppure scegli una persona e **Assegna**. Assegnare un responsabile o aggiungere un'attività porta il ticket in lavorazione.
-- **Attività**: i passi da fare per chiudere il ticket, da spuntare man mano. Se c'è una procedura consigliata per quel tipo di problema, la aggiungi con un clic. **Proponi con l'AI** in «Prossimi passi» suggerisce cosa fare dopo; scegli tu quali passi diventano attività.
+- **Attività**: i passi da fare per chiudere il ticket, da spuntare man mano. Se c'è una procedura consigliata per quel tipo di problema, la aggiungi con un clic. **Proponi con l'AI** in «Prossimi passi» suggerisce cosa fare dopo (con **Cerca anche sul web** anche dagli avvisi ufficiali su CVE, KB e codici d'errore del ticket); scegli tu quali passi diventano attività.
 - **Note di lavoro**: tutto quello che serve a chi verrà dopo. Finisce nella timeline insieme alle azioni sugli alert collegati.
 - **Chiusura**: in **Cambia stato** scegli l'esito (Risolto, Chiuso, Falso positivo) e scrivi il motivo; con la spunta chiudi insieme gli alert ancora aperti. **Scrivi l'esito con l'AI** prepara una bozza da rivedere.
 - **Chiusura automatica**: quando tutti gli alert del ticket rientrano da soli, il ticket si chiude come Risolto, a meno che abbia attività ancora da fare.
@@ -121,7 +168,7 @@ Nella lista ticket il filtro **Responsabile › Non assegnati** mostra i ticket 
 La pagina **Storico** (Analisi dello storico) guarda indietro di 30, 90 o più giorni e mostra cosa migliorare:
 
 - **Alert che si ripetono** e come sono finiti;
-- **Falsi positivi ricorrenti**: candidati a una regola di soppressione;
+- **Falsi positivi ricorrenti**: candidati a una regola di soppressione; **Crea soppressione** (per chi configura il SOC) apre il modulo della soppressione manuale già compilato con nome, sorgente, tipo di evento e motivo, da rivedere prima di salvare;
 - **Scartati dal motore** e **Allarmi mancati** (eventi promossi a mano);
 - **Fermi**: alert aperti da più di 7 giorni, ticket fermi da più di 14;
 - **Come sono stati chiusi**: i motivi scritti da chi li ha gestiti.
@@ -130,7 +177,7 @@ La pagina **Storico** (Analisi dello storico) guarda indietro di 30, 90 o più g
 
 ## Caricare un report a mano
 
-Di solito i report arrivano da soli dalle caselle mail. Quando un report non è arrivato, oppure ne hai uno da un'altra fonte, lo carichi dalla pagina [Inbox](/soc/inbox/).
+Di solito i report arrivano da soli dalle caselle mail. Quando un report non è arrivato, oppure ne hai uno da un'altra fonte, lo carichi da **Impostazioni › Carica report** ([apri](/soc/inbox/)).
 
 1. In **Carica o incolla un report** scegli il **File del report** (PDF, CSV, TXT, EML o LOG), oppure incolla il contenuto in **Testo**.
 2. Compila **Mittente** e **Oggetto** come nella mail originale: servono a riconoscere la sorgente.
@@ -142,8 +189,8 @@ Il report viene elaborato subito, come se fosse arrivato per mail: gli alert e i
 
 Se la sorgente risulta «Nessuna» o il parser è vuoto, il report non è stato letto: scegli la sorgente a mano e riprova, oppure verifica con la [Diagnostica](/soc/docs/17-moduli-diagnostica-documentazione/#provare-se-una-mail-viene-riconosciuta).
 
-Sotto ci sono **Report recenti**, **Messaggi ricevuti** e **File caricati**, con il loro stato, e l'elenco **Sorgenti e parser** configurati.
+Sotto ci sono **Ultimi 10 report**, **Ultimi 10 messaggi ricevuti** e **Ultimi 10 file caricati**, con il loro stato, e l'elenco **Sorgenti e parser** configurati.
 
 ## Scheda PC e server
 
-Dall'elenco Dispositivi, da un risultato di ricerca, dalla pagina Backup o Vulnerabilità o da un alert si apre la **scheda PC**: un riepilogo di backup, alert aperti, vulnerabilità (le CVE dell'inventario software, le gravi in cima, e quelle segnalate dai report), protezione endpoint e ultimi eventi di quel dispositivo, con il link all'asset del portale se è collegato. Si apre anche per i PC visti solo da Intune o dall'inventario software. Se il dispositivo è collegato a un asset, sotto il verdetto c'è la **testata dell'asset** uguale a quella di Asset e Contatori (codice, stato, categoria, reparto, modello, seriale, gli stessi riquadri) con i link «Scheda asset» e alla stampante o al monitoraggio in Contatori. **Controlla il dispositivo** chiede all'AI cosa rischia e cosa fare.
+Dall'elenco Dispositivi, da un risultato di ricerca, dalla pagina Backup o Vulnerabilità o da un alert si apre la **scheda PC**: un riepilogo di backup, alert aperti, vulnerabilità (le CVE dell'inventario software, le gravi in cima, e quelle segnalate da Defender; il numero conta le **CVE uniche**: una CVE vista da entrambe conta una volta, ed è lo stesso nel pannello laterale e nell'elenco Dispositivi), protezione endpoint e ultimi eventi di quel dispositivo, con il link all'asset del portale se è collegato. Si apre anche per i PC visti solo da Intune o dall'inventario software. Se il dispositivo è collegato a un asset, sotto il verdetto c'è la **testata dell'asset** uguale a quella di Asset e Contatori (codice, stato, categoria, reparto, modello, seriale, gli stessi riquadri) con i link «Scheda asset» e alla stampante o al monitoraggio in Contatori. **Controlla il dispositivo** chiede all'AI cosa rischia e cosa fare.

@@ -17,9 +17,16 @@ from core.audit import log_action
 from core.excel_export import make_xlsx_response
 
 from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW
-from .esterni_forms import AuditEsternoForm, CertificazioneForm, RapportoEsternoForm, RilievoEsternoForm
-from .models import AuditEsterno, Certificazione, Processo
+from .esterni_forms import (
+    AuditEsternoForm,
+    CertificatoDocumentoForm,
+    CertificazioneForm,
+    RapportoEsternoForm,
+    RilievoEsternoForm,
+)
+from .models import AuditEsterno, Certificazione, CertificazioneDocumento, Processo
 from .services import audit_esterni as service
+from .services.qualifiche import copertura_qualifiche
 from .views import MODULE, _has_perm, _nega
 
 
@@ -37,11 +44,24 @@ def elenco(request):
         a.n_nc_aperte = service.nc_aperte(a)
     return render(request, "sistema_gestione/pages/esterni_elenco.html", {
         "page_title": "Certificazioni e audit esterni",
-        "certificazioni": Certificazione.objects.all(),
+        "certificazioni": Certificazione.objects.prefetch_related("documenti"),
+        "n_in_vigore": Certificazione.objects.filter(attiva=True).count(),
         "audit_list": audit_list,
         "scadenze": service.scadenze(),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
     })
+
+
+def _attivita_di_partenza(request):
+    """L'attività dello Scadenzario da cui nasce la certificazione, se chi scrive la gestisce."""
+    valore = request.GET.get("da_attivita", "")
+    if not valore.isdigit():
+        return None
+    from scadenzario.models import ScadenzaGenerica
+    from scadenzario.permessi import puo_gestire_categoria
+
+    attivita = ScadenzaGenerica.objects.filter(pk=int(valore)).first()
+    return attivita if attivita and puo_gestire_categoria(request, attivita.categoria_id) else None
 
 
 @login_required
@@ -49,16 +69,87 @@ def certificazione_modifica(request, pk: int | None = None):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
     oggetto = get_object_or_404(Certificazione, pk=pk) if pk else None
-    form = CertificazioneForm(request.POST or None, instance=oggetto)
+    # «Crea la certificazione da questa attività» dello Scadenzario: precompila e, al salvataggio, unisce.
+    attivita = _attivita_di_partenza(request) if oggetto is None else None
+    iniziale = {"descrizione": attivita.titolo[:200], "scade_il": attivita.data_scadenza} if attivita else {}
+    form = CertificazioneForm(request.POST or None, instance=oggetto, initial=iniziale)
     if request.method == "POST" and form.is_valid():
         cert = form.save(commit=False)
         cert.aggiornata_da = request.user
         cert.save()
         log_action(request, "certificazione_salvata", MODULE, {"id": cert.pk}, oggetto=cert)
+        if attivita:
+            from scadenzario.collegamenti import collega
+
+            collega(attivita, "certificazione", cert.pk, unisci=True)
+            log_action(request, "scadenza_generica_collegata", "scadenzario",
+                       {"id": attivita.pk, "tipo": "certificazione", "oggetto": cert.pk, "unita": True})
+        form.save_m2m()
         messages.success(request, f"Certificazione «{cert}» salvata.")
-        return redirect("sistema_gestione:esterni_elenco")
+        return redirect("sistema_gestione:esterni_certificazione_scheda", pk=cert.pk)
     return render(request, "sistema_gestione/pages/esterni_certificazione_form.html", {
         "page_title": "Certificazione", "form": form, "oggetto": oggetto})
+
+
+@login_required
+def certificazione_scheda(request, pk: int):
+    if not _has_perm(request, PERM_AUDIT_VIEW):
+        return _deny(request)
+    cert = get_object_or_404(Certificazione.objects.prefetch_related("documenti", "qualifiche_richieste"), pk=pk)
+    audit_list = list(cert.audit.order_by("-data_inizio", "-pk"))
+    for a in audit_list:
+        a.n_rilievi = service.rilievi(a).count()
+        a.n_nc_aperte = service.nc_aperte(a)
+    return render(request, "sistema_gestione/pages/esterni_certificazione_scheda.html", {
+        "page_title": str(cert),
+        "cert": cert,
+        "audit_list": audit_list,
+        "documenti": list(cert.documenti.all()),
+        "copertura": copertura_qualifiche(cert.qualifiche_richieste.all()),
+        "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
+        "form_documento": CertificatoDocumentoForm(),
+    })
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def certificazione_documento_carica(request, pk: int):
+    if not _has_perm(request, PERM_AUDIT_EDIT):
+        return _deny(request)
+    cert = get_object_or_404(Certificazione, pk=pk)
+    form = CertificatoDocumentoForm(request.POST, request.FILES)
+    if not form.is_valid():
+        for e in form.errors.get("file", []):
+            messages.error(request, e)
+        return redirect("sistema_gestione:esterni_certificazione_scheda", pk=pk)
+    caricato = form.cleaned_data["file"]
+    digest = hashlib.sha256()
+    for blocco in caricato.chunks():
+        digest.update(blocco)
+    caricato.seek(0)
+    documento = CertificazioneDocumento(
+        certificazione=cert, nome=caricato.name[:200], sha256=digest.hexdigest(),
+        emesso_il=cert.emesso_il, scade_il=cert.scade_il, caricato_da=request.user)
+    documento.file.save(caricato.name, caricato, save=True)
+    log_action(request, "certificato_caricato", MODULE, {"certificazione": cert.pk, "sha256": documento.sha256},
+               oggetto=cert)
+    messages.success(request, "Certificato caricato.")
+    return redirect("sistema_gestione:esterni_certificazione_scheda", pk=pk)
+
+
+@login_required
+def certificazione_documento(request, pk: int, documento_pk: int):
+    if not _has_perm(request, PERM_AUDIT_VIEW):
+        return _deny(request)
+    documento = get_object_or_404(CertificazioneDocumento, pk=documento_pk, certificazione_id=pk)
+    try:
+        fh = documento.file.open("rb")
+    except FileNotFoundError as exc:
+        raise Http404("File non trovato") from exc
+    log_action(request, "certificato_scaricato", MODULE, {"certificazione": pk, "documento": documento.pk},
+               oggetto=documento.certificazione)
+    return FileResponse(fh, as_attachment=True, filename=documento.nome or "certificato.pdf")
 
 
 @login_required

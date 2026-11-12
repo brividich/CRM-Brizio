@@ -80,6 +80,10 @@
 .tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
 
 .tkt-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+.tkt-da-confermare { margin:0 0 14px; padding:10px 16px; border:1px solid #86efac; border-radius:12px; background:#f0fdf4; color:#166534; font-size:13px; }
+.tkt-da-confermare a { color:#15803d; font-weight:700; }
+body.theme-dark .tkt-da-confermare { background:rgba(22,163,74,.12); border-color:rgba(74,222,128,.35); color:#bbf7d0; }
+body.theme-dark .tkt-da-confermare a { color:#86efac; }
 .tkt-asset-cell { display:flex; flex-direction:column; gap:2px; min-width:150px; }
 .tkt-asset-main { color:#0f172a; font-weight:600; }
 .tkt-asset-meta { color:#64748b; font-size:11px; }
@@ -185,6 +189,13 @@ body.theme-dark .tkt-kpi-blue .tkt-kpi-val{color:#93c5fd}
       <div class="tkt-kpi-lbl">Totale (filtro)</div>
     </div>
   </div>
+
+  {% if n_da_confermare and not is_gestore and not is_admin %}
+  <div class="tkt-da-confermare" role="status">
+    <strong>{{ n_da_confermare }} ticket risolt{{ n_da_confermare|pluralize:"o,i" }} da confermare:</strong>
+    il tecnico ha finito, dicci se funziona tutto. <a href="?stato=RISOLTO">Vedi {{ n_da_confermare|pluralize:"il ticket,i ticket" }}</a>
+  </div>
+  {% endif %}
 
   <form method="get" class="tkt-filters">
     <label>Tipo

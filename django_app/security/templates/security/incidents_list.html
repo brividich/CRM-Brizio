@@ -48,6 +48,7 @@
     <label>Cerca <input type="search" name="q" value="{{ filters.q }}" placeholder="Codice, titolo, riferimento CSIRT"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:incidents' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
   <div class="sec-actions" style="margin-top: 10px;">
     <a class="sec-button sec-button-primary" href="{% url 'security:incident_create' %}">Registra incidente</a>
@@ -59,7 +60,7 @@
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
     <h2>Incidenti</h2>
-    <span class="sec-badge">{% if total > incidents|length %}Mostrati {{ incidents|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
+    <span class="sec-badge">{{ total }} incident{{ total|pluralize:"e,i" }}</span>
   </div>
   <form method="post" action="{% url 'security:incidents_bulk' %}" data-bulk>
   {% csrf_token %}
@@ -104,5 +105,6 @@
     </table>
   </div>
   </form>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </section>
 {% endblock %}

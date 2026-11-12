@@ -146,6 +146,12 @@ def sync_da_anomalia(anomalia_id: int):
     if scheda is None:
         return None
     aggiorna_automatici(scheda, row)
+    try:
+        from .tempi_service import aggiorna_tempi
+        with transaction.atomic():
+            aggiorna_tempi(scheda, row)
+    except Exception:
+        logger.warning("tempi anomalia %s non aggiornati", anomalia_id, exc_info=True)
     nc_service.aggancia_a_nc(scheda, row)
     return scheda
 

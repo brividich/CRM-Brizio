@@ -255,8 +255,147 @@
       </div>
     </section>
 
+    <section class="ms-card" id="malattia">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Inserimento malattia</h2>
+          <p class="ms-card-subtitle">
+            Chi vede il pulsante «Malattia» nella nuova richiesta. Le persone scelte
+            possono inserire la malattia per qualunque dipendente attivo; tutti gli
+            altri non vedono il pulsante e, se provano a inviarla, ricevono un errore.
+          </p>
+        </div>
+        <span class="ms-card-badge">
+          {% if malattia_abilitati_count %}{{ malattia_abilitati_count }} abilitati{% else %}tutti{% endif %}
+        </span>
+      </div>
+      <div class="ms-card-body">
+        {% if not malattia_abilitati_count %}
+          <div class="abs-alert abs-alert-warn" style="margin-bottom:14px;">
+            Nessuno in elenco: vale la regola storica, tutti vedono «Malattia» e la
+            inseriscono per sé (per gli altri solo chi già inserisce richieste per
+            conto altrui). Spunta almeno una persona per riservare il pulsante.
+          </div>
+        {% endif %}
+        <form method="post" action="{% url 'assenze_impostazioni' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="malattia">
+
+          <div class="ms-field">
+            <label for="abs-malattia-filtro">Persone che vedono «Malattia»</label>
+            <input type="text" id="abs-malattia-filtro" placeholder="Filtra per nominativo..." autocomplete="off">
+            <div class="ms-field-help">
+              Di solito l'ufficio del personale o chi riceve le telefonate di
+              malattia. La persona deve avere un utente collegato all'anagrafica.
+            </div>
+          </div>
+
+          <div class="abs-fless-list" id="abs-malattia-list" role="group" aria-label="Persone abilitate all'inserimento della malattia">
+            {% for dip in malattia_dipendenti %}
+              <label class="abs-fless-item" data-nome="{{ dip.full_name|lower }}">
+                <input type="checkbox" name="malattia_abilitati" value="{{ dip.id }}" {% if dip.abilitato %}checked{% endif %}>
+                <span>{{ dip.full_name }}</span>
+                {% if dip.fuori_elenco %}<span class="abs-fless-tag">non più in elenco</span>{% endif %}
+              </label>
+            {% empty %}
+              <p class="ms-field-help">Nessun dipendente attivo trovato in anagrafica.</p>
+            {% endfor %}
+          </div>
+
+          <div class="abs-fless-actions">
+            <button type="submit" class="btn btn-primary">Salva inserimento malattia</button>
+            <span class="ms-field-help" id="abs-malattia-count"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="ms-card" id="cambio-capo">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Cambio capo reparto</h2>
+          <p class="ms-card-subtitle">
+            Chi può cambiare il capo reparto proposto nella nuova richiesta. Tutti gli
+            altri vedono il capo assegnato e non possono modificarlo.
+          </p>
+        </div>
+        <span class="ms-card-badge">
+          {% if cambio_capo_abilitati_count %}{{ cambio_capo_abilitati_count }} abilitati{% else %}tutti{% endif %}
+        </span>
+      </div>
+      <div class="ms-card-body">
+        {% if not cambio_capo_abilitati_count %}
+          <div class="abs-alert abs-alert-warn" style="margin-bottom:14px;">
+            Nessuno in elenco: tutti possono cambiare il capo reparto. Spunta almeno
+            una persona per riservare la scelta.
+          </div>
+        {% endif %}
+        <form method="post" action="{% url 'assenze_impostazioni' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="cambio_capo">
+
+          <div class="ms-field">
+            <label for="abs-cambio-capo-filtro">Persone che possono cambiare il capo</label>
+            <input type="text" id="abs-cambio-capo-filtro" placeholder="Filtra per nominativo..." autocomplete="off">
+            <div class="ms-field-help">
+              La persona deve avere un utente collegato all'anagrafica. Chi non ha un capo
+              assegnato può comunque sceglierlo, altrimenti nessuno potrebbe approvare la richiesta.
+            </div>
+          </div>
+
+          <div class="abs-fless-list" id="abs-cambio-capo-list" role="group" aria-label="Persone abilitate al cambio del capo reparto">
+            {% for dip in cambio_capo_dipendenti %}
+              <label class="abs-fless-item" data-nome="{{ dip.full_name|lower }}">
+                <input type="checkbox" name="cambio_capo_abilitati" value="{{ dip.id }}" {% if dip.abilitato %}checked{% endif %}>
+                <span>{{ dip.full_name }}</span>
+                {% if dip.fuori_elenco %}<span class="abs-fless-tag">non più in elenco</span>{% endif %}
+              </label>
+            {% empty %}
+              <p class="ms-field-help">Nessun dipendente attivo trovato in anagrafica.</p>
+            {% endfor %}
+          </div>
+
+          <div class="abs-fless-actions">
+            <button type="submit" class="btn btn-primary">Salva cambio capo reparto</button>
+            <span class="ms-field-help" id="abs-cambio-capo-count"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
     {% include "assenze/partials/_gestione_admin_panel.html" %}
   </div>
+
+  <script>
+  [
+    ["malattia", "malattia_abilitati", "Nessuno selezionato: tutti vedono «Malattia»"],
+    ["cambio-capo", "cambio_capo_abilitati", "Nessuno selezionato: tutti possono cambiarlo"]
+  ].forEach(function (sezione) {
+    var filtro = document.getElementById("abs-" + sezione[0] + "-filtro");
+    var lista = document.getElementById("abs-" + sezione[0] + "-list");
+    var contatore = document.getElementById("abs-" + sezione[0] + "-count");
+    if (!lista) return;
+    var voci = Array.prototype.slice.call(lista.querySelectorAll(".abs-fless-item"));
+    function aggiornaContatore() {
+      if (!contatore) return;
+      var n = lista.querySelectorAll('input[name="' + sezione[1] + '"]:checked').length;
+      contatore.textContent = n === 0 ? sezione[2]
+        : (n === 1 ? "1 persona selezionata" : n + " persone selezionate");
+    }
+    if (filtro) {
+      filtro.addEventListener("input", function () {
+        var q = filtro.value.trim().toLowerCase();
+        voci.forEach(function (voce) {
+          var nome = voce.getAttribute("data-nome") || "";
+          var spuntata = !!voce.querySelector("input:checked");
+          voce.hidden = !(!q || nome.indexOf(q) !== -1 || spuntata);
+        });
+      });
+    }
+    lista.addEventListener("change", aggiornaContatore);
+    aggiornaContatore();
+  });
+  </script>
 
   <script>
   (function () {

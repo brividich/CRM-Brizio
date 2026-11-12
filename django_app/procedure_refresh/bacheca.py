@@ -62,8 +62,12 @@ def build_procedure_group(legacy_role_id=None, is_admin: bool = False, preview_l
     Visibilità: tutti gli autenticati vedono i documenti **non sensibili**; i
     parametri ruolo restano nella firma per simmetria ma non filtrano ulteriormente.
     """
+    from procedure_refresh.libreria import visibilita_di_tutti
     from procedure_refresh.models import ProcedureDocument
 
+    # CN-SGI: in Bacheca solo i documenti aperti a tutti (le regole «chi vede cosa»
+    # riservano gli altri ad alcuni ruoli; quelli si trovano nella libreria).
+    tutti = visibilita_di_tutti()
     docs = (
         ProcedureDocument.objects.filter(is_active=True)
         .prefetch_related("revisions")
@@ -71,7 +75,7 @@ def build_procedure_group(legacy_role_id=None, is_admin: bool = False, preview_l
     )
     items: list[dict] = []
     for doc in docs:
-        if documento_e_sensibile(doc):
+        if documento_e_sensibile(doc) or not tutti.puo_vedere(doc):
             continue
         rev = next((r for r in doc.revisions.all() if r.is_current), None)
         if rev is None:
@@ -83,8 +87,8 @@ def build_procedure_group(legacy_role_id=None, is_admin: bool = False, preview_l
             "description": doc.category or "",
             "kind": "url",
             "kind_label": "Documento",
-            "href": reverse("procedure_refresh:document_open", args=[rev.pk]),
-            "open_in_new_tab": True,
+            "href": reverse("procedure_refresh:libreria_documento", args=[doc.pk]),
+            "open_in_new_tab": False,
         })
 
     if not items:
@@ -92,7 +96,7 @@ def build_procedure_group(legacy_role_id=None, is_admin: bool = False, preview_l
     total = len(items)
     shown = items[:preview_limit] if preview_limit else items
     return {
-        "category": _VirtualCategory("Procedure SGI", "procedure-sgi", "📘"),
+        "category": _VirtualCategory("CN-SGI · Procedure", "procedure-sgi", "📘"),
         "items": shown,
         "total": total,
         "more": max(0, total - len(shown)),

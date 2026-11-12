@@ -1,0 +1,163 @@
+"""Guida d'uso del modulo Presenti in azienda (pulsante «? Guida» e PDF).
+
+Testo semplice, stessi blocchi di ``core/guida_pdf.py``. Le etichette e i tempi
+citati sono quelli del codice (``views.AGGIORNA_LISTA``, ``views.AGGIORNA_APPELLO``,
+``services.DURATA_CACHE``, ``uscite.GIORNI_INDIETRO``, schedule in
+``automazioni/schedules.py``): se cambiano, va aggiornata anche questa guida e
+``core/guide_moduli/contenuti/presenti.py``.
+"""
+from __future__ import annotations
+
+TITOLO = "Presenti in azienda"
+SOTTOTITOLO = "Chi è in azienda adesso, appello di evacuazione e uscite non timbrate, dalle timbrature Solari."
+
+SEZIONI: list[dict] = [
+    {
+        "id": "cosa",
+        "titolo": "A cosa serve",
+        "blocchi": [
+            ("p", "Il modulo mostra chi è in azienda in questo momento leggendo le timbrature del sistema Solari. "
+                  "Una persona è presente quando la sua ultima timbratura di oggi è un'entrata. Due uscite di fila "
+                  "(E · U · U) contano come presente «da verificare»: la seconda è quasi sempre il rientro timbrato "
+                  "col tasto sbagliato. Chi è entrato ieri sera dalle 18 per il turno di notte resta presente fino a "
+                  "16 ore dall'entrata."),
+            ("p", "Sostituisce il PDF «CN-PRESENZE» che uno script generava ogni ora: qui la lista si aggiorna da "
+                  "sola e il PDF si può ancora scaricare o pubblicare su SharePoint."),
+            ("def", [
+                ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
+                ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso al GuestPortal e non ancora "
+                 "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
+                ("Andamento per reparto", "quante persone c'erano a ogni ora di oggi, reparto per reparto: solo numeri, "
+                 "nessun nome."),
+                ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
+                 "condiviso fra chi conta."),
+                ("Uscite non timbrate", "le giornate in cui le timbrature non tornano (uscita mancante, verso sbagliato)."),
+                ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente, "
+                 "nell'organigramma ad albero, in «Il mio team» e fra i dipendenti trovati con la ricerca in alto "
+                 "(Ctrl+K); "
+                 "grigio quando la persona non è in azienda."),
+            ]),
+        ],
+    },
+    {
+        "id": "lista",
+        "titolo": "La lista dei presenti",
+        "blocchi": [
+            ("ul", [
+                "La tabella si ricarica da sola ogni 30 secondi, senza ricaricare la pagina. In fondo c'è l'ora "
+                "dell'ultima lettura delle timbrature.",
+                "Le timbrature vengono lette al massimo una volta al minuto per tutto il portale: una timbratura "
+                "appena fatta può comparire con un minuto di ritardo.",
+                "In alto ci sono i contatori: presenti in totale e, per ogni incarico di sicurezza, quante persone con "
+                "quell'incarico sono in azienda.",
+                "Cerca per nome, matricola o reparto; filtra per reparto o per incarico. I filtri restano attivi "
+                "anche durante gli aggiornamenti.",
+                "«PDF» scarica la lista nel formato del vecchio report CN-PRESENZE.",
+                "Il nome porta alla scheda dipendente. Le persone senza link non sono collegate all'anagrafica del "
+                "portale (codice fiscale diverso o mancante): il numero è indicato in fondo alla lista.",
+            ]),
+            ("p", "Gli incarichi (Preposto, Squadra Antincendio, Addetto Primo Soccorso, RLS, ASPP, RSPP…) vengono "
+                  "dall'organigramma della sicurezza ISO 45001 in Anagrafica: si aggiornano lì, non in questo modulo."),
+        ],
+    },
+    {
+        "id": "andamento",
+        "titolo": "Andamento per reparto",
+        "blocchi": [
+            ("p", "Tabella con una riga per reparto e una colonna per ora, dalle 5 alle 22: in ogni casella quante "
+                  "persone del reparto erano in azienda allo scoccare di quell'ora. Più scuro = più persone. "
+                  "Le ore che devono ancora arrivare hanno un puntino."),
+            ("p", "«Adesso» usa la stessa regola e gli stessi dati della lista dei presenti. Il reparto è quello "
+                  "dell'anagrafica, non il posto dove la persona si trova. Gli esterni non sono contati qui: sono "
+                  "nella lista dei presenti. I dati si aggiornano al massimo ogni 5 minuti."),
+        ],
+    },
+    {
+        "id": "appello",
+        "titolo": "L'appello di evacuazione",
+        "blocchi": [
+            ("passi", [
+                "Apri «Appello di evacuazione» e premi «Avvia appello adesso». Segna «È un'esercitazione» se è una prova.",
+                "L'elenco è la fotografia di chi risulta in azienda in quel momento: chi entra dopo non compare.",
+                "Al punto di raccolta tocca ogni persona trovata: diventa verde con l'ora e il nome di chi l'ha contata. "
+                "Toccala di nuovo per togliere la spunta.",
+                "Più persone possono contare insieme dal telefono: le spunte degli altri compaiono entro 3 secondi. "
+                "In cima restano sempre le persone «Da trovare».",
+                "Quando hai finito premi «Chiudi appello». «Stampa» produce il PDF con la colonna «CONTATO».",
+            ]),
+            ("p", "L'appello comprende anche gli esterni registrati al GuestPortal (visitatori, ditte, docenti): "
+                  "hanno l'etichetta grigia «Esterno · azienda», sotto il nome tipo di visita e referente. "
+                  "Il PDF li elenca in una tabella «ESTERNI IN AZIENDA» con la colonna «CONTATO»."),
+            ("nota", "Se il database delle timbrature non risponde, l'appello parte dall'ultima lista letta. "
+                     "Se il GuestPortal non risponde compare l'avviso e gli esterni non sono in elenco: in quel caso "
+                     "contali dal registro della portineria. Chi entra senza registrarsi al GuestPortal non c'è."),
+            ("p", "Gli appelli conclusi restano nello storico in fondo alla pagina, con il PDF."),
+            ("p", "Alla chiusura si apre il «Verbale»: durata, tempo al 50, 90 e 100 % delle persone contate, chi ha "
+                  "contato, chi non è stato contato. Scrivi le osservazioni (criticità, azioni di miglioramento) e "
+                  "premi «Salva osservazioni»; «PDF verbale» dà il documento con gli spazi firma per coordinatore e "
+                  "RSPP. Il verbale si riapre dallo storico con «Verbale»."),
+            ("nota", "«Elimina esercitazione» (nel verbale) cancella una prova con tutte le spunte: per chi l'ha "
+                     "avviata o per l'amministratore del modulo. Gli appelli di emergenza non si possono eliminare."),
+        ],
+    },
+    {
+        "id": "uscite",
+        "titolo": "Uscite non timbrate",
+        "blocchi": [
+            ("p", "Si controllano tutte le timbrature del giorno, non solo l'ultima. Segnala: uscita mancante (l'ultima è un'entrata), verso sbagliato (es. E 12:55 · E 18:02: l'uscita delle 18:02 timbrata come entrata; E · U 12:03 · U 13:01 · U 17:08: il rientro delle 13:01 timbrato come uscita), due entrate o due uscite di fila. I turni a cavallo della mezzanotte (entrata la sera, uscita il mattino dopo entro 16 ore) non sono segnalati. La colonna «Problema» spiega cosa non torna e mostra le timbrature del giorno."),
+            ("p", "Chi è capo vede le persone della sua squadra (organigramma); l'amministratore vede tutti."),
+            ("p", "Ogni mattina alle 7:30 (lunedì-sabato) il portale controlla gli ultimi 3 giorni e manda al capo una "
+                  "notifica e una mail con le uscite mancanti nuove. I problemi di timbratura (verso sbagliato, due "
+                  "entrate o uscite di fila) restano solo in questa pagina: nessuna notifica né mail. "
+                  "La stessa giornata non viene segnalata due volte. "
+                  "La colonna «Capo avvisato» dice quando e come è partito l'avviso."),
+        ],
+    },
+    {
+        "id": "permessi",
+        "titolo": "Chi può fare cosa",
+        "blocchi": [
+            ("def", [
+                ("Lista dei presenti e pallino", "tutti gli utenti del portale."),
+                ("Appello di evacuazione", "tutti: in emergenza chiunque deve poter aprire l'appello e contare."),
+                ("Uscite non timbrate", "ogni capo per la sua squadra; tutta l'azienda con il permesso «Uscite non "
+                 "timbrate (tutti)», di default solo admin."),
+                ("Impostazioni", "solo admin, salvo diversa assegnazione in Accessi."),
+            ]),
+        ],
+    },
+    {
+        "id": "admin",
+        "titolo": "Amministratore: configurazione",
+        "blocchi": [
+            ("p", "Il collegamento al database Solari sta nel file .env del server, chiavi SOLARI_DB_SERVER, "
+                  "SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con la sola lettura), SOLARI_DB_DRIVER, "
+                  "SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM e, con ODBC Driver 18, "
+                  "SOLARI_DB_ENCRYPT=1 e SOLARI_DB_TRUST_CERT=1 (il server Solari ha un certificato autofirmato). Dopo la modifica va "
+                  "riavviato il portale."),
+            ("p", "In «Impostazioni» si attiva la pubblicazione del PDF su SharePoint (ogni 30 minuti, stesso file "
+                  "CN-PRESENZE.pdf della raccolta «CN Documentazione») e l'avviso mattutino delle uscite non timbrate. "
+                  "«Pubblica il PDF adesso» avvia subito la pubblicazione in background: l'esito compare dopo qualche "
+                  "secondo in «Ultima pubblicazione» (ricarica la pagina)."),
+            ("p", "Gli incarichi del vecchio config.ini si importano una volta con il comando "
+                  "«importa_incarichi_presenze» (prima senza --apply per vedere le differenze)."),
+        ],
+    },
+    {
+        "id": "problemi",
+        "titolo": "Se qualcosa non va",
+        "blocchi": [
+            ("def", [
+                ("«Il database delle timbrature non risponde»", "il server Solari è irraggiungibile: la pagina riprova da "
+                 "sola. Se dura, controlla la rete verso il server Solari e il login nel .env."),
+                ("«Database timbrature Solari non configurato»", "mancano le chiavi SOLARI_DB_* nel .env del server."),
+                ("Una persona presente non ha il link alla scheda", "il codice fiscale in Solari e in Anagrafica non "
+                 "coincide: correggilo in uno dei due."),
+                ("Un incarico non compare", "manca il ruolo nell'organigramma della sicurezza ISO 45001, oppure "
+                 "l'assegnazione ha una data di fine passata."),
+                ("Il pallino non compare", "il pallino si nasconde quando le timbrature non sono leggibili, per non "
+                 "mostrare un «Fuori» sbagliato."),
+            ]),
+        ],
+    },
+]

@@ -1,0 +1,7 @@
+{% load anagrafica_extras %}{% comment %}
+Riquadro «Torna a dove eri»: compare quando la pagina è stata aperta da un'azione
+partita altrove (parametro ?back=, validato sullo stesso host). Parametro opzionale: testo.
+{% endcomment %}{% torna_a_url as torna_url %}{% if torna_url %}<div class="fmd-torna" role="status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;padding:10px 14px;border:1px solid var(--fmd-cyan,#06b6d4);border-radius:10px;font-size:13px;">
+  <span>{{ testo|default:"Fatto. Puoi tornare alla pagina da cui sei partito." }}</span>
+  <a class="fmd-act" href="{{ torna_url }}" style="font-weight:700;color:#0e7490;text-decoration:none;white-space:nowrap;">← Torna a dove eri</a>
+</div>{% endif %}

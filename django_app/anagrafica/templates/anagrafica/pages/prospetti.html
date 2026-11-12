@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Prospetto dei cambiamenti | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% include "core/components/_hub_formkit.html" %}
+{% include "anagrafica/components/_rc_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="rc-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">Prospetto dei cambiamenti</div>
+      <div class="rc-sub">Prova uno spostamento di reparti, persone, ruoli o mansioni e guarda che cosa succederebbe a persone, capi, costi e copertura delle mansioni. Finché non applichi non cambia niente.</div>
+    </div>
+    <div class="rc-actions">
+      {% include "anagrafica/partials/_guida_persone_link.html" with ancora="prospetto" %}
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
+    </div>
+  </div>
+
+  {% if is_admin %}
+  <section class="rc-panel">
+    <h2>Nuovo prospetto</h2>
+    <form method="post" action="{% url 'anagrafica:prospetto_crea' %}" class="rc-assegna">
+      {% csrf_token %}
+      <input type="text" name="nome" maxlength="150" required placeholder="Es. Sdoppiamento CN5G" aria-label="Nome del prospetto" style="flex:1 1 260px;padding:8px 12px;border:1px solid var(--border,#e2e8f0);border-radius:10px;font-size:13px;">
+      <button type="submit" class="rc-btn rc-btn-primary">Crea il prospetto</button>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="rc-panel">
+    <h2>In preparazione ({{ bozze|length }})</h2>
+    {% if bozze %}
+    <table class="rc-aree" data-fm-table-skip="1">
+      <thead><tr><th>Prospetto</th><th class="rc-n">Cambiamenti</th><th>Di</th><th>Aggiornato</th></tr></thead>
+      <tbody>
+        {% for p in bozze %}<tr><td><a class="fmd-data-link" href="{% url 'anagrafica:prospetto' p.pk %}"><strong>{{ p.nome }}</strong></a></td><td class="rc-n">{{ p.modifiche.all|length }}</td><td>{{ p.creato_da.get_full_name|default:p.creato_da.username|default:"—" }}</td><td>{{ p.updated_at|date:"d/m/Y H:i" }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% else %}<span class="rc-none">Nessun prospetto in preparazione.</span>{% endif %}
+  </section>
+
+  {% if storico %}
+  <section class="rc-panel">
+    <h2>Chiusi</h2>
+    <table class="rc-aree" data-fm-table-skip="1">
+      <thead><tr><th>Prospetto</th><th>Stato</th><th class="rc-n">Cambiamenti</th><th>Applicato il</th><th>Da</th></tr></thead>
+      <tbody>
+        {% for p in storico %}<tr><td><a class="fmd-data-link" href="{% url 'anagrafica:prospetto' p.pk %}">{{ p.nome }}</a></td><td>{{ p.get_stato_display }}</td><td class="rc-n">{{ p.modifiche.all|length }}</td><td>{{ p.applicato_il|date:"d/m/Y H:i"|default:"—" }}</td><td>{{ p.applicato_da.get_full_name|default:p.applicato_da.username|default:"—" }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

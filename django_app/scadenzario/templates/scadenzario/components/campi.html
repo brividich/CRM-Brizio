@@ -1,0 +1,15 @@
+{% if form.non_field_errors %}<div class="sz-banner">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+<div class="sz-form">
+  {% for field in form %}
+    <label class="sz-field{% if field.field.widget.input_type == 'textarea' or field.name == 'descrizione' or field.name == 'email_avviso' or field.name == 'note' %} wide{% endif %}">
+      {% if field.field.widget.input_type == "checkbox" %}
+        <span style="display:flex;gap:6px;align-items:center">{{ field }} {{ field.label }}</span>
+      {% else %}
+        {{ field.label }}{% if field.field.required %} *{% endif %}
+        {{ field }}
+      {% endif %}
+      {% if field.help_text %}<span class="sz-help">{{ field.help_text }}</span>{% endif %}
+      {% for e in field.errors %}<span class="sz-err">{{ e }}</span>{% endfor %}
+    </label>
+  {% endfor %}
+</div>

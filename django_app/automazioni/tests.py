@@ -1707,6 +1707,8 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[89]))
         mock_reset_queue_event_to_pending.assert_called_once_with(89)
 
+    @patch("django_q.tasks.async_task", side_effect=RuntimeError("cluster fermo"))
+    @patch("automazioni.views.coda.get_queue_event_detail", return_value={"id": 90, "status": "error"})
     @patch("automazioni.views.coda.process_single_queue_event_by_id")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1715,7 +1717,10 @@ class AutomazioniAdminPageTests(TestCase):
         mock_get_legacy_user,
         _mock_is_admin,
         mock_process_single_queue_event_by_id,
+        _mock_detail,
+        _mock_async,
     ):
+        """Accodamento non riuscito: si elabora nella richiesta come prima."""
         mock_get_legacy_user.return_value = self.legacy_admin
         mock_process_single_queue_event_by_id.return_value = {
             "queue_id": 90,
@@ -1730,6 +1735,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[90]))
         mock_process_single_queue_event_by_id.assert_called_once_with(90)
 
+    @patch("automazioni.views.coda.get_queue_event_detail", return_value={"id": 91, "status": "done"})
     @patch("automazioni.views.coda.process_single_queue_event_by_id")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1738,6 +1744,7 @@ class AutomazioniAdminPageTests(TestCase):
         mock_get_legacy_user,
         _mock_is_admin,
         mock_process_single_queue_event_by_id,
+        _mock_detail,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
         mock_process_single_queue_event_by_id.return_value = {
@@ -1752,6 +1759,28 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[91]))
         mock_process_single_queue_event_by_id.assert_called_once_with(91)
+
+    @patch("django_q.tasks.async_task")
+    @patch("automazioni.views.coda.get_queue_event_detail", return_value={"id": 92, "status": "error"})
+    @patch("automazioni.views.coda.process_single_queue_event_by_id")
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_retry_view_accoda_nel_cluster(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_process_single_queue_event_by_id,
+        _mock_detail,
+        mock_async,
+    ):
+        """«Riprova» non elabora nel thread web: accoda il task e risponde subito."""
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(reverse("admin_portale:automazioni_queue_retry", args=[92]))
+
+        self.assertEqual(response.status_code, 302)
+        mock_process_single_queue_event_by_id.assert_not_called()
+        self.assertEqual(mock_async.call_args.args[:2], ("automazioni.tasks.run_queue_event_task", 92))
 
     @patch("automazioni.views._helpers.log_action")
     @patch("automazioni.views.coda.stop_queue_event", return_value=True)
@@ -3797,6 +3826,30 @@ class AutomationEmailExecutorTests(TestCase):
         email_message.send.assert_called_once_with(fail_silently=False)
 
     @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_email_malattia_aggiunge_certificato_arrivato(self, mock_email_class):
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.SEND_EMAIL,
+            config_json={
+                "to": "hr@test.local",
+                "subject_template": "Assenza #{id}",
+                "body_text_template": "Richiesta {id}",
+                "body_html_template": "<p>Richiesta {id}</p>",
+            },
+        )
+        payload = {**self.payload, "tipo_assenza": "Malattia", "certificato_medico": ""}
+
+        result = execute_action(action, payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertEqual(mock_email_class.call_args.kwargs["body"], "Certificato arrivato: No\n\nRichiesta 99")
+        self.assertIn("Certificato arrivato: No", email_message.attach_alternative.call_args[0][0])
+
+    @patch("automazioni.services.EmailMultiAlternatives")
     def test_send_email_accepts_recipient_lists(self, mock_email_class):
         email_message = MagicMock()
         email_message.send.return_value = 1
@@ -3964,8 +4017,9 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(action_log.status, AutomationActionLogStatus.ERROR)
         self.assertIn("Placeholder non risolto in to_template: {capo_email}.", action_log.result_message)
 
-    @patch("automazioni.services.requests.post")
-    def test_send_approval_teams_chat_flow_posts_payload(self, mock_post):
+    @patch("automazioni.services.validate_http_action_target", return_value=False)
+    @patch("automazioni.services.requests.request")
+    def test_send_approval_teams_chat_flow_posts_payload(self, mock_post, _mock_validate):
         endpoint = self._create_flow_endpoint("chat")
         response = MagicMock()
         response.ok = True
@@ -3984,8 +4038,11 @@ class AutomationApprovalExecutorTests(TestCase):
 
         approval = AutomationApproval.objects.get()
         self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
-        self.assertEqual(mock_post.call_args.args[0], endpoint.endpoint_url)
+        # Passa dal guard HTTP comune: allowlist/IP validati, niente redirect seguiti.
+        _mock_validate.assert_called_once_with(endpoint.endpoint_url)
+        self.assertEqual(mock_post.call_args.kwargs["url"], endpoint.endpoint_url)
         self.assertEqual(mock_post.call_args.kwargs["timeout"], 10)
+        self.assertIs(mock_post.call_args.kwargs["allow_redirects"], False)
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["approval_id"], approval.pk)
         # Audit B6: il token condiviso non viaggia nel payload Teams.
@@ -4003,12 +4060,14 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(payload["facts"][0]["value"], "Ferie")
         self.assertIn("Teams chat flow inviato a manager@test.local (HTTP 202).", run_log.result_message)
 
-    @patch("automazioni.services.requests.post")
+    @patch("automazioni.services.validate_http_action_target", return_value=False)
+    @patch("automazioni.services.requests.request")
     @patch("automazioni.services.EmailMultiAlternatives")
     def test_send_approval_email_and_teams_chat_flow_accumulates_result_message(
         self,
         mock_email_class,
         mock_post,
+        _mock_validate,
     ):
         endpoint = self._create_flow_endpoint("combo")
         email_message = MagicMock()
@@ -4036,12 +4095,14 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertIn("Email approvazione inviata a manager@test.local.", run_log.result_message)
         self.assertIn("Teams chat flow inviato a employee@test.local (HTTP 200).", run_log.result_message)
 
-    @patch("automazioni.services.requests.post")
+    @patch("automazioni.services.validate_http_action_target", return_value=False)
+    @patch("automazioni.services.requests.request")
     @patch("automazioni.services.EmailMultiAlternatives")
     def test_send_approval_email_and_teams_chat_flow_warns_on_flow_failure_by_default(
         self,
         mock_email_class,
         mock_post,
+        _mock_validate,
     ):
         endpoint = self._create_flow_endpoint("warn")
         email_message = MagicMock()
@@ -4064,8 +4125,9 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertIn("Email approvazione inviata a manager@test.local.", run_log.result_message)
         self.assertIn("Teams chat flow non inviato (Teams chat flow ha risposto con HTTP 500.).", run_log.result_message)
 
-    @patch("automazioni.services.requests.post")
-    def test_send_approval_teams_chat_flow_returns_error_when_flow_fails(self, mock_post):
+    @patch("automazioni.services.validate_http_action_target", return_value=False)
+    @patch("automazioni.services.requests.request")
+    def test_send_approval_teams_chat_flow_returns_error_when_flow_fails(self, mock_post, _mock_validate):
         endpoint = self._create_flow_endpoint("fail")
         response = MagicMock()
         response.ok = False
@@ -7004,12 +7066,13 @@ class GraphMailboxPollIntegrationTests(TestCase):
         APPROVAL_GRAPH_MARK_READ="1",
         APPROVAL_MAILBOX_BACKEND="graph",
     )
+    @patch("automazioni.mailbox_graph._get_token", return_value="tok-sintetico")
     @patch("automazioni.mailbox_graph.fetch_messages")
     @patch("automazioni.mailbox_graph.mark_message_as_read")
     @patch("automazioni.mailbox_graph._validate_sender")
     @patch("automazioni.services.process_approval_decision")
     def test_poll_marks_read_on_success_path(
-        self, mock_process, mock_validate, mock_mark, mock_fetch
+        self, mock_process, mock_validate, mock_mark, mock_fetch, _mock_token
     ):
         approval = self._make_approval(approver_emails=["approver@example.com"])
         token_str = str(approval.token)
@@ -7024,6 +7087,7 @@ class GraphMailboxPollIntegrationTests(TestCase):
         mock_mark.assert_called_once_with(
             mailbox="mb@example.com",
             graph_message_id=f"GMSG_{token_str[:8]}",
+            token="tok-sintetico",
         )
 
     @override_settings(

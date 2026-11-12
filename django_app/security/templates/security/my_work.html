@@ -10,7 +10,7 @@
 <section class="sec-panel mw-head">
   <div>
     <h2>{% if total %}{{ total }} cos{{ total|pluralize:"a,e" }} da fare{% else %}Niente da fare{% endif %}</h2>
-    <p class="sec-muted sec-small" style="margin: 4px 0 0;">Incidenti, ticket e alert ancora aperti, per tutto il team. Le scadenze più vicine in alto.</p>
+    <p class="sec-muted sec-small" style="margin: 4px 0 0;">Incidenti, ticket e alert ancora aperti, per tutto il team: in alto le scadenze più vicine e i più gravi. Clic su una riga per il pannello.</p>
   </div>
 </section>
 
@@ -19,7 +19,7 @@
   {% if incidents %}
   <div class="inc-urgent">
     {% for i in incidents %}
-      <a class="inc-urgent-row" href="{% url 'security:incident_detail' i.pk %}">
+      <a class="inc-urgent-row" href="{% url 'security:incident_detail' i.pk %}" data-preview="{% url 'security:preview' 'incident' i.pk %}">
         {% if i.next_deadline %}<span class="sec-badge sec-badge-{{ i.next_deadline.tone }}">{{ i.next_deadline.state_label }}</span>{% else %}<span class="sec-badge sec-badge-muted">{{ i.get_status_display }}</span>{% endif %}
         <span class="inc-urgent-what"><strong>{{ i.code }} · {{ i.title }}</strong><small>{% if i.next_deadline %}{{ i.next_deadline.label }}{% else %}nessuna notifica dovuta{% endif %}</small></span>
         <span class="inc-urgent-when">{% if i.next_deadline %}entro <strong>{{ i.next_deadline.due_at|date:"d/m H:i" }}</strong>{% else %}rilevato {{ i.detected_at|date:"d/m" }}{% endif %}</span>
@@ -31,20 +31,22 @@
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px; align-items: start;">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Ticket</h2><span class="sec-badge">{{ tickets|length }}</span></div>
+    <div class="sec-section-head"><h2>Ticket</h2><span class="sec-badge">{{ n_tickets }}</span></div>
     <ul class="sec-mini-list">
       {% for t in tickets %}
-        <li><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ t.severity }}">{{ t.severity|ui_label }}</span></span></li>
+        <li data-preview="{% url 'security:preview' 'ticket' t.pk %}"><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ t.severity }}">{{ t.severity|ui_label }}</span></span></li>
       {% empty %}<li class="sec-muted">Nessun ticket aperto.</li>{% endfor %}
     </ul>
+    {% if n_tickets > tickets|length %}<p class="sec-small"><a href="{% url 'security:segnalazioni' %}?tipo=ticket">e altri {{ altri_ticket }}</a></p>{% endif %}
   </div>
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Alert aperti</h2><span class="sec-badge">{{ alerts|length }}</span></div>
+    <div class="sec-section-head"><h2>Alert aperti</h2><span class="sec-badge">{{ n_alerts }}</span></div>
     <ul class="sec-mini-list">
       {% for a in alerts %}
-        <li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></span></li>
+        <li data-preview="{% url 'security:preview' 'alert' a.pk %}"><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></span></li>
       {% empty %}<li class="sec-muted">Nessun alert aperto.</li>{% endfor %}
     </ul>
+    {% if n_alerts > alerts|length %}<p class="sec-small"><a href="{% url 'security:segnalazioni' %}?tipo=alert">e altri {{ altri_alert }}</a></p>{% endif %}
   </div>
 </section>
 {% endblock %}

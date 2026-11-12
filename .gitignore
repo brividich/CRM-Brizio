@@ -138,6 +138,11 @@ db.sqlite3-journal
 # Configurazione vera del collector CNC (IP e matricole delle macchine): resta sul PC del collector
 django_app/assets/collector_cnc/machines.json
 django_app/assets/collector_cnc/machines.portale.json
+django_app/assets/collector_cnc/collector.env
+django_app/assets/collector_cnc/pilota/
+django_app/assets/collector_cnc/machines.db*
+django_app/assets/collector_cnc/browse_*.tsv
+django_app/assets/collector_cnc/logs/
 *.log
 logs/
 DIPENDENTI.csv

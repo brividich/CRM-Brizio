@@ -1557,7 +1557,7 @@ class TopbarGroupingTests(SimpleTestCase):
 
         grouped = _group_nav_items([self._item("A", "Uno"), self._item("B", "Uno"), self._item("C", "Due")])
         self.assertEqual([s["label"] for s in grouped[0]["sections"]], ["Uno", "Due"])
-        self.assertEqual(grouped[0]["cols"], 1)
+        self.assertEqual(grouped[0]["cols"], 2)
         single = _group_nav_items([self._item("A", "Uno"), self._item("B", "Uno")])
         self.assertEqual(single[0]["sections"], [])
 

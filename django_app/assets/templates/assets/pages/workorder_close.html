@@ -35,7 +35,10 @@
 .woc-gate ul { padding-left:18px; max-height:180px; overflow:auto; }
 .woc-gate-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .woc-after { max-width:940px; }
+.woc-insieme-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; }
 .woc-card { border:1px solid var(--border,#dbe1ea); border-radius:12px; background:var(--surface,#fff); }
+.woc-final-actions { max-width:940px; margin-top:12px; }
+.woc-final-actions .btn-primary { min-width:220px; min-height:44px; font-size:var(--fs-base); }
 body.theme-dark .woc-esito:has(input:checked) { background:rgba(59,130,246,.16); border-color:#60a5fa; box-shadow:inset 0 0 0 1px #60a5fa; }
 body.theme-dark .woc-esito--cancel:has(input:checked) { background:rgba(229,62,62,.16); border-color:#f87171; box-shadow:inset 0 0 0 1px #f87171; }
 body.theme-dark .woc-link { color:#93c5fd; }
@@ -48,9 +51,11 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
 {% block assets_shell_subtitle %}<p>{{ workorder.title }} su <strong>{{ workorder.asset.asset_tag|default:workorder.asset.name }}</strong>{% if workorder.asset.asset_tag %} — {{ workorder.asset.name }}{% endif %}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
+  <a class="btn btn-secondary" href="{% url 'assets:wo_edit' workorder.id %}">&#9998; Modifica</a>
 {% endblock %}
 
 {% block assets_shell_content %}
+<div hx-get="{% url 'fornitori:presenze_intervento' 'odl' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-note">Caricamento presenze in azienda della ditta…</p></div>
 <form class="md-form" method="post" enctype="multipart/form-data" id="workorderCloseForm" data-autosave-key="wo-close-draft-{{ workorder.id }}">
   {% csrf_token %}
   {{ form.status }}
@@ -64,6 +69,8 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
     {% if linked_ticket %}· segnalazione {{ linked_ticket.numero_ticket }} ({{ linked_ticket.get_stato_display }}){% endif %}
   </div>
+
+  {% include "assets/components/_workorder_foto.html" %}
 
   {% if checklist_blocking_items %}
     <div class="assets-message assets-message-error">
@@ -119,10 +126,9 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
       {% include "assets/components/_md_field.html" with field=form.follow_up_date %}
       <span class="md-sub">Viene creato un intervento di verifica collegato, con questa scadenza.</span>
     </div>
-    {% if form.resolve_ticket %}
+    {% if form.resolvable_ticket %}
       <div class="md-field">
-        <label class="woc-check" for="{{ form.resolve_ticket.id_for_label }}">{{ form.resolve_ticket }} <span>{{ form.resolve_ticket.label }}</span></label>
-        <span class="helptext">{{ form.resolve_ticket.help_text }}</span>
+        <span class="helptext">{% if form.altri_odl_aperti %}La segnalazione {{ form.resolvable_ticket.numero_ticket }} resta aperta: c'è un altro intervento aperto.{% else %}Con esito «Risolto» si chiude anche la segnalazione {{ form.resolvable_ticket.numero_ticket }}. Con «Risolto temporaneamente» o «Non risolto» resta com'è.{% endif %}</span>
       </div>
     {% endif %}
   </fieldset>
@@ -153,6 +159,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     {% include "assets/components/_md_field.html" with field=form.resolution %}
   </fieldset>
 
+  {% if not chiusura_essenziale %}
   <fieldset class="md-fieldset" id="wocDocuments">
     <h2>Rapporto / documento</h2>
     <div class="md-field">
@@ -161,7 +168,47 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
       <span class="helptext">Facoltativo. Anche più file, massimo {{ attachment_max_mb }} MB l'uno.</span>
     </div>
   </fieldset>
+  {% endif %}
 
+  {% if same_work_others %}
+    <aside class="md-suggest" aria-label="Stesso intervento su altri asset">
+      <div class="md-suggest-row is-list" data-insieme>
+        <div class="woc-insieme-head">
+          <strong>Stesso intervento su altri asset</strong>
+          {% include "assets/components/_insieme_window_select.html" %}
+        </div>
+        <span>Se li hai fatti nello stesso giro, spuntali: si chiudono insieme a questo con lo stesso esito, la stessa data, lo stesso esecutore e la stessa descrizione. Tempo, fermo macchina, costi e allegati restano solo su questo.</span>
+        <ul class="md-also-list">
+          {% for other in same_work_others %}
+            <li data-insieme-days="{{ other.insieme_days }}">
+              <label class="md-also">
+                <input type="checkbox" name="also_close" value="{{ other.pk }}"{% if other.insieme_blocked %} disabled{% endif %}>
+                <span>#{{ other.display_number }} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.title|lower != workorder.title|lower %} · {{ other.title }}{% endif %}{% if other.due_at %} · scadenza {{ other.due_at|date:"d/m/Y" }}{% if other.due_at|date:"Y-m-d" < today|date:"Y-m-d" %} <em>(scaduto)</em>{% endif %}{% endif %}{% if other.insieme_blocked %} · <em>{{ other.insieme_blocked }}: chiudilo a parte</em>{% endif %}</span>
+              </label>
+              <a class="md-sub" href="{% url 'assets:wo_close' other.pk %}">apri a parte</a>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="md-hint" data-insieme-empty hidden>Nessun altro asset in questo periodo: allarga il filtro.</p>
+        <button type="button" class="btn btn-sm btn-secondary" data-insieme-all>Spunta tutti</button>
+      </div>
+    </aside>
+  {% endif %}
+
+  {% if chiusura_essenziale %}
+    {% comment %}Straordinaria: niente «Altri dettagli». I valori gia' sull'OdL
+       (assegnazione, codici guasto, contratto, costi) viaggiano nascosti e restano com'erano.{% endcomment %}
+    {{ form.assigned_to.as_hidden }}
+    {{ form.failure_cause.as_hidden }}
+    {{ form.failure_problem.as_hidden }}
+    {{ form.failure_cause_code.as_hidden }}
+    {{ form.failure_remedy.as_hidden }}
+    {{ form.assistance_contract.as_hidden }}
+    {{ form.covered_by_contract.as_hidden }}
+    {{ form.labor_cost_eur.as_hidden }}
+    {{ form.materials_cost_eur.as_hidden }}
+    {{ form.cost_eur.as_hidden }}
+  {% else %}
   <details class="woc-more"{% if form.execution_days.value or form.assistance_contract.value or form.labor_cost_eur.value or form.materials_cost_eur.value or form.cost_eur.value or form.log_note.value or form.failure_problem.value or form.failure_cause_code.value or form.failure_remedy.value %} open{% endif %}>
     <summary>Altri dettagli <span>— giorni di lavoro, assegnazione{% if workorder.kind == "CORRECTIVE" or workorder.kind == "SAFETY" or workorder.kind == "CALIBRATION" %}, codici guasto{% endif %}, costi, nota</span></summary>
     <div class="woc-more-body">
@@ -200,24 +247,46 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
       {% include "assets/components/_md_field.html" with field=form.log_note %}
     </div>
   </details>
-
-  <div class="md-form-actions">
-    {% if pending_confirmation %}
-      <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
-      <button class="btn btn-secondary" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
-    {% else %}
-      <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
-    {% endif %}
-    <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">Torna indietro</a>
-  </div>
+  {% endif %}
 </form>
 
+{% comment %}Ricambi fuori dal form (hanno il loro form HTMX); i pulsanti stanno in fondo alla
+   pagina, dopo i ricambi, e inviano il form di chiusura con l'attributo form=.{% endcomment %}
 <div class="woc-after">
   <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-sub">Caricamento ricambi…</p></div>
+</div>
+
+<div class="md-form-actions woc-final-actions">
+  {% if pending_confirmation %}
+    <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
+    <button class="btn btn-secondary" type="submit" form="workorderCloseForm" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
+  {% else %}
+    <button class="btn btn-primary" id="workorderCloseSubmit" type="submit" form="workorderCloseForm">{{ close_submit_label }}</button>
+  {% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">Torna indietro</a>
 </div>
 {% endblock %}
 
 {% block assets_shell_scripts %}
+<script>
+/* «Usa nel rapportino» del riquadro Presenze: riempie tempo e chiusura, a salvare resta la persona. */
+document.body.classList.add('pz-con-rapportino');
+document.addEventListener('click', function (event) {
+  var b = event.target.closest('[data-pz-usa]');
+  if (!b) { return; }
+  var minuti = parseInt(b.dataset.minuti, 10) || 0;
+  [['id_intervention_duration_hours', Math.floor(minuti / 60)], ['id_intervention_duration_remainder', minuti % 60], ['id_closed_at', b.dataset.al]].forEach(function (voce) {
+    var campo = document.getElementById(voce[0]);
+    if (!campo) { return; }
+    campo.value = voce[1];
+    campo.dispatchEvent(new Event('input', {bubbles: true}));
+    campo.dispatchEvent(new Event('change', {bubbles: true}));
+  });
+  b.textContent = 'Inserito: controlla e salva';
+  var campo = document.getElementById('id_intervention_duration_hours');
+  if (campo) { campo.scrollIntoView({block: 'center'}); }
+});
+</script>
 <script>
 (function(){
   "use strict";
@@ -234,8 +303,6 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   const daysHidden=document.getElementById("id_execution_days");
   const daysList=document.getElementById("executionDaysList");
   const addDayButton=document.getElementById("addExecutionDay");
-  const resolveTicketBox=document.getElementById("id_resolve_ticket");
-  let resolveTicketTouched=false;
 
   function selectedEsito(){const c=document.querySelector("input[name=esito]:checked");return c?c.value:"";}
   function closureDate(){return closedAtField&&closedAtField.value?closedAtField.value.slice(0,10):"";}
@@ -255,13 +322,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   function syncDayLimits(){if(!daysList)return;daysList.querySelectorAll("input[type=date]").forEach(function(i){i.max=closureDate();});syncDays();}
   function syncCoverage(){if(!coveredField)return;const active=Boolean(String(contractField?contractField.value:"").trim());coveredField.disabled=!active;if(!active)coveredField.checked=false;}
   // Casella del ticket collegato: vale solo con «Risolto»; si spunta da sola finche' l'utente non la tocca.
-  function syncResolveTicket(){
-    if(!resolveTicketBox)return;
-    const allowed=selectedEsito()==="RESOLVED";
-    resolveTicketBox.disabled=!allowed;
-    if(!allowed){resolveTicketBox.checked=false;}else if(!resolveTicketTouched){resolveTicketBox.checked=true;}
-  }
-  function syncEsito(){
+    function syncEsito(){
     const esito=selectedEsito();
     const canceled=esito==="CANCELED";
     if(followUpField)followUpField.hidden=esito!=="RESOLVED_TEMP";
@@ -270,16 +331,18 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     if(documentsBox)documentsBox.hidden=canceled;
     if(executionTitle)executionTitle.textContent=canceled?"Motivo":"Esecuzione";
     if(resolutionLabel)resolutionLabel.textContent=canceled?"Perché si annulla":"Cosa è stato fatto";
-    if(submitButton)submitButton.textContent=canceled?"Annulla l'intervento":(esito==="NOT_RESOLVED"?"Registra e lascia aperto":"Chiudi definitivamente");
-    syncResolveTicket();
+    // Gemelli spuntati in «Stesso intervento su altri asset»: il pulsante dice quanti partono insieme.
+    const extra=document.querySelectorAll('[data-insieme] [data-insieme-days]:not([hidden]) input[name=also_close]:checked').length;
+    const label=canceled?"Annulla l'intervento":(esito==="NOT_RESOLVED"?"Registra e lascia aperto":"Chiudi definitivamente");
+    if(submitButton)submitButton.textContent=extra?label+" (+"+extra+")":label;
   }
 
-  if(resolveTicketBox)resolveTicketBox.addEventListener("change",function(){resolveTicketTouched=true;});
   (daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[]).forEach(addDay);
   if(addDayButton)addDayButton.addEventListener("click",function(){addDay("");});
   if(closedAtField)closedAtField.addEventListener("change",syncDayLimits);
   if(contractField)contractField.addEventListener("change",syncCoverage);
   esitoRadios.forEach(function(r){r.addEventListener("change",syncEsito);});
+  document.addEventListener("insieme:change",syncEsito);
   syncCoverage(); syncDayLimits(); syncEsito();
 })();
 </script>
@@ -292,7 +355,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   const key=form.dataset.autosaveKey;
   if(!key)return;
   const skipTypes=new Set(["file","hidden","submit","button"]);
-  const fields=Array.from(form.querySelectorAll("input,select,textarea")).filter(function(el){return el.name&&!skipTypes.has(el.type);});
+  const fields=Array.from(form.querySelectorAll("input,select,textarea")).filter(function(el){return el.name&&!skipTypes.has(el.type)&&!el.closest("[data-insieme]");});
   function readDraft(){try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):null;}catch(e){return null;}}
   function saveDraft(){
     const data={};
@@ -324,4 +387,5 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   form.addEventListener("submit",function(){try{localStorage.removeItem(key);}catch(e){}});
 })();
 </script>
+{% include "assets/components/_insieme_script.html" %}
 {% endblock %}

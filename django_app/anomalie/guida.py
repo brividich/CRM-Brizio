@@ -63,10 +63,16 @@ SEZIONI: list[dict] = [
                 ("Capocommessa dell'OP", "decide sulle anomalie dei propri OP, dal portale o dal link della mail."),
                 ("CAR dell'OP", "riceve le mail in copia e, se abilitato, decide sugli OP di cui è incaricato. "
                  "Per i collaudi di benestare è il destinatario principale."),
-                ("Chi gestisce tutti gli OP", "decide su qualunque OP (permesso di modifica globale)."),
+                ("Capo del team", "con «modificare» sul team (ruolo Caporeparto) vede e decide sugli OP del suo team: "
+                 "quelli dove lui o un membro del team è capocommessa o CAR e quelli con anomalie aperte dal team."),
+                ("Chi gestisce tutti gli OP", "decide su qualunque OP (in «Ruoli e permessi»: anomalie, modificare = "
+                 "«Tutti»; di serie solo il ruolo Qualità)."),
                 ("Amministratori del modulo", "configurano liste, promemoria, accessi e vedono i log."),
             ]),
-            ("p", "Chi può solo consultare vede tutto ma trova i campi della decisione disattivati, con l'avviso "
+            ("p", "Con il sistema «Ruoli e permessi» acceso ognuno vede solo gli OP che lo riguardano: quelli di cui è "
+                  "capocommessa o CAR, quelli dove ha aperto un'anomalia e quelli che l'ambito di «vedere» gli concede "
+                  "(team o tutti). Ingegneria e Controllo qualità aprono segnalazioni su qualsiasi OP ma modificano "
+                  "solo i propri. Chi può solo consultare trova i campi della decisione disattivati, con l'avviso "
                   "«Sola lettura». I pulsanti del menu compaiono solo a chi ha il permesso corrispondente."),
         ],
     },
@@ -91,7 +97,9 @@ SEZIONI: list[dict] = [
                 "Dal menu premi «Apertura Segnalazione».",
                 "Cerca l'OP per titolo, P/N, capocommessa o CAR e cliccalo. Se l'OP non esiste ancora, «+ Nuovo OP»: "
                 "compila P/N, poi anno e numero, infine capocommessa e CAR (i campi si sbloccano in ordine) e premi "
-                "«Crea OP e continua».",
+                "«Continua». L'OP si crea solo quando salvi il primo blocco di anomalie (in alto c'è «Nuovo · si crea "
+                "al primo salvataggio»); quello che scrivi prima si salva comunque in bozza. Se l'OP esiste già la "
+                "pagina lo dice: sceglilo dall'elenco.",
                 "Scrivi la «Fase del controllo», per esempio accettazione materiale, lavorazione o collaudo finale. "
                 "Vale per tutti i blocchi e si può cambiare durante il controllo con «Cambia».",
                 "Sotto «Mail al capocommessa: una sola, a fine controllo» vedi a chi andrà la mail: «A» il capocommessa "
@@ -107,8 +115,10 @@ SEZIONI: list[dict] = [
             ("p", "Si possono aggiungere solo persone dell'anagrafica con un'email di notifica (al massimo 10): ricevono la "
                   "stessa mail con il link di decisione, quindi non si accettano indirizzi esterni. I destinatari si "
                   "cambiano anche durante il controllo, dalla barra in alto, e valgono per le mail successive."),
-            ("p", "Se sull'OP hai già un controllo lasciato aperto, compare «Hai un controllo ancora aperto su questo OP»: "
-                  "con «Riprendi» continui da dove eri rimasto."),
+            ("p", "Se sull'OP c'è già un controllo non terminato (tuo o di un collega), compare l'elenco dei controlli "
+                  "aperti con fase, ora e blocchi salvati: con «Riprendi» continui il tuo, con «Prendi in carico» "
+                  "prosegui quello del collega (che riceve un avviso). Per un controllo nuovo scrivi comunque la fase. "
+                  "I controlli rimasti vuoti (nessun blocco salvato e nessuna bozza) si chiudono da soli dopo 24 ore."),
             ("def", [
                 ("Quando parte la mail", "una sola volta, quando premi «Termina controllo»."),
                 ("Promemoria (15 minuti)", "se 15 minuti dopo l'ultimo blocco salvato la mail non è ancora partita, "
@@ -122,7 +132,36 @@ SEZIONI: list[dict] = [
             ("p", "Salvataggio automatico: mentre scrivi un blocco, seriali, stato superficie e descrizioni si salvano da "
                   "soli pochi secondi dopo ogni modifica (sotto il titolo del blocco compare «salvato in automatico alle …»). "
                   "Se chiudi la pagina o si spegne il PC, rientrando nell'OP con «Riprendi» ritrovi il blocco com'era. "
+                  "Vale anche per un OP nuovo non ancora creato e per i blocchi copiati con «Clona» ancora da caricare. "
                   "Gli allegati non si salvano in automatico: dopo il ripristino vanno ricaricati."),
+            ("p", "OP sbagliato? Nella pagina di inserimento clicca sul numero dell'OP o sul P/N nella barra in alto (hanno la matita ✎), cerca l'OP giusto per numero, P/N, capocommessa o CAR e premi «Passa a …». Il controllo continua sul nuovo OP: le anomalie già salvate passano con lui (solo se nessuna è stata ancora gestita dal capocommessa) e il blocco che stai scrivendo resta com'è. Quelle già comunicate arrivano al capocommessa del nuovo OP nel riepilogo delle modifiche. A controllo terminato si spostano le singole anomalie con «✂ Taglia»."),
+            ("p", "Anomalia salvata per sbaglio o sul S/N sbagliato? Riapri il blocco («Modifica o aggiungi anomalie»), "
+                  "apri l'anomalia e usa «Elimina» (sparisce, con conferma) o «✂ Taglia» (sposta su un altro S/N: dello "
+                  "stesso OP va nel blocco che ha già quel S/N o in uno nuovo, di un altro OP esce da questo controllo). "
+                  "I pulsanti ci sono solo sulle anomalie che hai inserito tu e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate. Gli allegati di un'anomalia "
+                  "eliminata restano recuperabili dall'amministratore."),
+            ("p", "Bozza dimenticata: se un blocco resta scritto e non salvato per 15 minuti (lo stesso tempo del "
+                  "promemoria) e non ci sono anomalie salvate da inviare, ricevi una notifica nel portale e una mail con "
+                  "quello che avevi scritto (seriali, descrizioni, blocchi copiati ancora da caricare) e il link che "
+                  "riapre il controllo dove eri rimasto, anche su un OP nuovo. Un promemoria per ogni pausa: se riprendi "
+                  "a scrivere e ti fermi di nuovo, arriva di nuovo. La bozza non parte mai da sola: va salvata."),
+            ("p", "Controlli del gruppo qualità: chi ha il ruolo «Controllo qualità» o «Qualità» vede, in cima ad "
+                  "«Apertura segnalazione», il riquadro «Controlli in sospeso del gruppo qualità»: i controlli aperti "
+                  "suoi e dei colleghi del gruppo con anomalie scritte da salvare, blocchi copiati da caricare o "
+                  "anomalie non ancora comunicate (ultimi 14 giorni). Una segnalazione lunga iniziata a fine turno la "
+                  "prosegue il collega del turno dopo o del giorno successivo."),
+            ("passi", [
+                "Nel riquadro premi «Apri» accanto al controllo del collega (oppure, entrando nell'OP, «Prendi in carico» "
+                "in «Controlli ancora aperti su questo OP»).",
+                "Compare «Controllo in carico a …» con fase, blocchi salvati e anomalie da salvare: premi «Prendi in "
+                "carico e prosegui».",
+                "Da qui il controllo è tuo: ritrovi il blocco in scrittura, salvi, ricevi i promemoria e premi «Termina "
+                "controllo». Il collega riceve un avviso nel portale e il passaggio resta registrato (nel riquadro: "
+                "«iniziato da …»).",
+            ]),
+            ("p", "Finché non lo prendi in carico il controllo del collega si guarda soltanto. Dopo il passaggio chi lo "
+                  "aveva non può più modificarlo (gli compare «Il controllo è in carico a …»): così due persone non "
+                  "scrivono sulla stessa bozza. Chi non ha questi ruoli vede solo i propri controlli."),
         ],
     },
     {
@@ -133,7 +172,28 @@ SEZIONI: list[dict] = [
                 "In «Seriali» scrivi un seriale, un range (LCN00005-LCN00010) o più seriali separati da virgola e premi "
                 "Invio. Sotto compare il totale dei pezzi.",
                 "Se richiesto, scegli lo «Stato superficie del blocco»: vale per tutti i pezzi del blocco.",
-                "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza.",
+                "Scrivi «Dove sono i pezzi?» (es. area pezzi non conformi, reparto, carrello del collaudo): vale per "
+                "tutti i pezzi del blocco e il capocommessa lo trova nella mail, nella pagina della mail e in Gestione "
+                "anomalie.",
+                "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza. Sopra la "
+                "descrizione i pulsanti «Simboli» (Ø ± ° ⊥ ∥ ◎ ⌖ …) scrivono il simbolo dove si trova il cursore, anche "
+                "nei campi delle misure; il controllo ortografico è quello del browser, in italiano.",
+                "Se serve, in «Che cosa hai trovato?» scegli il caso (facoltativo): si aprono solo i campi di quel caso. "
+                "«Misura fuori tolleranza»: una riga per misura con caratteristica, tolleranza (min/max, ± sul nominale "
+                "o max per le tolleranze geometriche), rilevato e dove; il portale dice subito «Fuori tolleranza −0.015» "
+                "e scrive la frase uniforme. «Difetto sul pezzo»: che difetto (bava, testimone di fusione, graffio…), "
+                "dove e dimensioni. «Marcatura / documenti»: cosa c'è sul pezzo, cosa era atteso e i documenti coinvolti. "
+                "Toccando di nuovo il caso scelto lo togli.",
+                "Dal report ZEISS: nel riquadro «Misura fuori tolleranza» cattura le righe del protocollo (Win+Maiusc+S), "
+                "clicca nel riquadro «Dal report ZEISS» e premi Ctrl+V (o «scegli l'immagine»). Il portale legge le righe e "
+                "le propone con l'esito: quelle fuori tolleranza sono già spuntate, «da verificare» segnala un valore letto "
+                "male. «Aggiungi N misure» le mette fra le misure, dove restano modificabili. L'immagine non viene allegata. "
+                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare. Sotto le proposte, «Testo letto "
+                "dall'immagine» mostra cosa ha letto il portale: se mancano righe, ricattura più grande o a pezzi.",
+                "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
+                "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
+                "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "
+                "salvataggio si usano quelle frasi.",
                 "Con più pezzi nel blocco, sotto la descrizione c'è la casella «Presente su tutti i N seriali del blocco», "
                 "già spuntata. Se l'anomalia è solo su alcuni pezzi toglila e tocca i seriali interessati: un range "
                 "compare pezzo per pezzo. Per sceglierne più di fila tieni premuto su un seriale e trascina sugli altri "
@@ -190,10 +250,32 @@ SEZIONI: list[dict] = [
             ("p", "La pagina ha tre colonne: ordini di produzione, anomalie dell'OP scelto, dettaglio dell'anomalia. "
                   "Da telefono le tre colonne diventano le schede Ordini, Anomalie e Dettaglio in basso."),
             ("ul", [
-                "Ordini: i filtri «Tutti», «Con aperte» e «In carico a me» con i conteggi; la ricerca trova OP, P/N, "
-                "capocommessa e CAR. Il numero arancione su un OP indica le anomalie da decidere.",
-                "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
-                "senza decisione; le chiuse sono raccolte in fondo in «Chiuse».",
+                "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
+                "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
+                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, tranne quelle "
+                "rimandate al capocommessa con «In attesa di ulteriori informazioni», che possono "
+                "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
+                "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Ogni riga mostra numero e P/N "
+                "dell'OP: il numero arancione indica le anomalie aperte ancora da decidere, quello blu le aperte già "
+                "decise e in corso, la spunta verde un OP con tutte le anomalie chiuse.",
+                "In cima alla colonna Anomalie c'è la scheda dell'OP scelto: P/N, capocommessa, CAR, la barra "
+                "arancio/blu/verde con quante sono da decidere, in corso e chiuse, e i pulsanti «Modifica OP» e «Clona».",
+                "Anomalie: «Per S/N» le raggruppa per blocco di seriali (con fase, operatore e data; «Da decidere» "
+                "mostra solo quelle senza decisione), «Per stato» le mette in «Da decidere», poi un gruppo per "
+                "avanzamento (per esempio «In attesa risposta cliente») e le chiuse in «Chiuse». Ogni gruppo si apre e "
+                "si chiude cliccando il titolo (le «Chiuse» partono chiuse); un gruppo chiuso mostra solo l'anomalia "
+                "aperta a destra, se è sua. La scelta di raggruppamento e i gruppi chiusi restano memorizzati nel "
+                "browser per tutti gli OP finché non li cambi.",
+                "«Clona» (nella scheda dell'OP) copia anomalie su un nuovo OP: spunta nella colonna "
+                "Anomalie quelle da copiare (anche le chiuse; la casella sul gruppo le prende tutte, «Tutte», «Aperte» e "
+                "«Nessuna» fanno prima) e premi «Continua». Si apre «Nuova segnalazione» con il nuovo OP già compilato "
+                "(P/N, capocommessa, CAR): scrivi il numero e premi «Continua», oppure scegli l'OP se esiste già; il nuovo "
+                "OP si crea solo al primo «Salva blocco». Confermata la fase "
+                "(proposta quella dell'OP di origine), i blocchi copiati si caricano uno alla volta con seriali, stato "
+                "superficie e testi: cambia quello che serve e «Salva blocco» passa al successivo; «Salta questo blocco» "
+                "lo scarta, «Carica ora» nell'elenco «Da copiare ancora» ne anticipa uno. Gli allegati dell'anomalia di "
+                "origine si copiano solo spuntando «Copia anche … allegati». Con i testi si copiano anche misure, difetto, "
+                "documenti e riferimento scritti dal controllore; «Dove sono i pezzi?» no (i pezzi del nuovo OP sono altri).",
                 "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
                 "passano all'anomalia precedente o successiva.",
                 "Sotto il titolo, la fascia «Pezzi interessati» mostra i seriali dell'anomalia uno per chip (un "
@@ -211,25 +293,114 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Apri l'OP e scegli l'anomalia (filtro «Da decidere» per vedere solo quelle aperte).",
                 "Leggi la «Segnalazione» e guarda gli allegati: un clic su una foto la ingrandisce.",
-                "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Pezzi precedenti "
-                "al benestare».",
+                "In cima alla «Decisione del capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
+                "Segnalata, Decisa (con la decisione presa), Risposta del cliente se è stata segnalata, Azione "
+                "effettuata con «Azione di recupero», Chiusa; il passo arancione è quello in corso.",
+                "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Segnala a "
+                "terzista», «Segnala a CAR», «Pezzi precedenti al benestare». Spuntando «Segnalare al cliente» si spunta "
+                "anche «Aprire RDC» (puoi toglierla); con «Aprire RDC» la segnalazione al cliente resta facoltativa.",
+                "Con «Segnala a CAR» scegli in «A quale CAR?» uno o più capi reparto: nessuno è scelto di serie (il CAR "
+                "dell'OP è indicato con «· CAR dell'OP» e riceve comunque il riepilogo delle modifiche; le altre scelte "
+                "vengono dai capi reparto di Configurazione). Al salvataggio solo i CAR appena scelti ricevono la mail "
+                "«Segnala a CAR» con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già "
+                "ricevuta non la riceve di nuovo.",
+                "Con «Segnalare al cliente» o «Segnala a terzista» salvati compare la spunta «Segnalato al cliente» / "
+                "«Segnalato al terzista»: spuntala quando li hai avvisati. Si registra subito con data e nome (anche ad "
+                "anomalia chiusa) e non manda nessuna mail; resta nella cronologia e compare nel primo riepilogo delle "
+                "modifiche successivo, insieme a «Segnalare al terzista» e ai CAR segnalati.",
+                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), per esempio "
+                "la comunicazione al cliente o al terzista: si possono caricare anche ad anomalia chiusa e restano "
+                "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "
+                "le misure e i riferimenti scritti dal controllore (in sola lettura).",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
                 "Scrivi la «Risposta / note per il reparto»: decisione, istruzioni di rilavorazione, riferimenti.",
                 "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
             ]),
             ("ul", [
-                "L'anomalia si chiude da sola al salvataggio quando apri un RDC o scegli «Accetto lo stato» o «Apertura "
-                "ORE/RIPI»: la pagina lo avvisa prima di salvare.",
-                "Con «Segnalare al cliente» l'avanzamento resta quello attuale.",
-                "«Applica la stessa decisione anche alle altre anomalie aperte di questi seriali» copia la decisione sulle "
-                "altre anomalie aperte del blocco; sotto la frase sono ripetuti i seriali interessati.",
+                "L'anomalia si chiude da sola al salvataggio quando scegli «Accetto lo stato» o «Apertura ORE/RIPI»: "
+                "la pagina lo avvisa prima di salvare.",
+                "«Aprire RDC» e «Segnalare al cliente» non la chiudono: resta aperta, in carico ai referenti RDC, "
+                "finché l'RDC non ha il numero e la segnalazione non è registrata con «Segnalato al cliente». Un "
+                "riquadro in evidenza subito sotto le spunte elenca le due condizioni (✓ fatta, ○ da fare) e diventa "
+                "verde quando l'anomalia si chiuderà al salvataggio; il campo «Numero RDC» vuoto è evidenziato e "
+                "nell'elenco le anomalie mostrano «RDC · manca N°» e «Cliente · da segnalare».",
+                "Il referente RDC può rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte restano, "
+                "l'anomalia torna in carico al capocommessa (notifica nel portale, conta fra le da decidere) e quando "
+                "lui sceglie un altro stato torna al referente.",
+                "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
+                "il salvataggio si ferma con l'avviso (anche dal link della mail).",
+                "Spuntando «Segnalare al cliente» l'avanzamento passa a «In attesa risposta cliente»: l'anomalia resta "
+                "aperta e puoi scrivere la nota. Quando il cliente risponde scegli lo stato definitivo; togliendo la "
+                "spunta torna lo stato di prima. Vale anche nella pagina del link della mail.",
+                "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
+                "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
+                "«In attesa»; la riapertura resta nella «Cronologia azioni».",
+                "«Elimina» e «✂ Taglia» nella card «Segnalazione»: «Elimina» c'è solo per chi ha inserito l'anomalia, "
+                "«Taglia» anche per chi può modificare l'OP. «Taglia» sposta l'anomalia su un altro S/N dello stesso OP "
+                "o su un altro OP (scrivi OP e S/N; i S/N noti dell'OP vengono proposti). Su un altro OP passa alla sua "
+                "NC e il suo capocommessa la trova nel riepilogo delle modifiche. Entrambe le azioni si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate; "
+                "lo spostamento resta nella «Cronologia azioni».",
+                "«Modifica OP» nella scheda dell'OP in cima alla colonna Anomalie, accanto a «Clona»: c'è solo "
+                "per il controllore che ha creato l'OP dal portale («+ Nuovo OP»), non per gli OP che arrivano dal "
+                "gestionale. Corregge P/N, fase, capocommessa, CAR, note e «Collaudo di benestare»; il «Motivo della "
+                "modifica» è obbligatorio. Il numero dell'OP non si cambia: per un OP sbagliato usa «✂ Taglia». La "
+                "modifica (prima → dopo e motivo) resta nella «Cronologia azioni» dell'OP.",
+                "«Applica la stessa decisione anche a» copia la decisione (avanzamento, RDC, cliente, note) su altre "
+                "anomalie aperte: «Solo questa» (di serie), «Stesso blocco di seriali», «Tutte le aperte dell'OP» o "
+                "«Scelte a mano» (spunte raggruppate per S/N, con «Tutte» e «Nessuna»). Le anomalie già decise restano "
+                "fuori, a meno di spuntare «Includi anche le … già decise». Al salvataggio un riepilogo mostra ogni "
+                "anomalia con lo stato attuale e quello nuovo e quali si chiuderanno: «Conferma e salva» le salva tutte. "
+                "Quelle in «Azione di recupero» senza azione effettuata ricevono la decisione ma restano aperte.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",
             ]),
-            ("p", "Al salvataggio parte in automatico, qualche minuto dopo, la mail di riepilogo al segnalante, al "
-                  "capocommessa, al CAR e alla lista configurata; le anomalie con RDC o da segnalare al cliente sono "
-                  "evidenziate in cima. Non serve nessun pulsante di invio."),
+            ("p", "Dopo il salvataggio parte da sola la mail di riepilogo al segnalante, al capocommessa, al CAR e alla "
+                  "lista configurata, con tutte le decisioni prese sull'OP; le anomalie con RDC o da segnalare al cliente "
+                  "sono evidenziate in cima. Parte quando sull'OP non salvi niente per 5 minuti (ogni salvataggio fa "
+                  "ripartire l'attesa), così chi decide una alla volta manda una mail sola. In cima al dettaglio la "
+                  "barra «N decisioni in attesa di invio · il riepilogo parte fra … min» lo ricorda: «Invia ora» lo "
+                  "manda subito. Dal link della mail invece le decisioni partono alla conferma."),
+        ],
+    },
+    {
+        "id": "tempi",
+        "titolo": "Tempi ed esiti: risposta del cliente e azione effettuata",
+        "blocchi": [
+            ("p", "Nel dettaglio dell'anomalia, sotto la decisione, il riquadro «Tempi ed esiti» mostra da quanto "
+                  "tempo è aperta e quanto hanno richiesto le fasi, in ore lavorate: contano solo le ore dentro "
+                  "l'orario di lavoro (di serie 08:00–18:00) dei giorni lavorativi; sabati, domeniche, festivi "
+                  "nazionali, notti e ore fuori orario non contano. Da un giorno in su si vedono anche i giorni "
+                  "lavorativi (1 giorno = 10 ore con l'orario di serie), per esempio «24 h · 2,4 gg». Un tempo «in "
+                  "corso» è ancora aperto; in rosso se ha superato l'obiettivo."),
+            ("def", [
+                ("Risposta del capocommessa", "dalla mail del controllo (o dalla creazione, se l'anomalia è nata fuori "
+                 "da un controllo) alla prima decisione."),
+                ("Attesa del cliente", "da quando l'anomalia è «In attesa risposta cliente» a quando registri la "
+                 "risposta o cambi lo stato."),
+                ("Esecuzione dell'azione", "dalla decisione «Azione di recupero» all'azione effettuata."),
+                ("Risoluzione", "dalla creazione alla chiusura (dopo una riapertura conta l'ultima chiusura)."),
+            ]),
+            ("passi", [
+                "Risposta del cliente: quando l'anomalia è segnalata al cliente compare «Risposta del cliente». Scrivi "
+                "cosa ha risposto, allega la mail (.msg o .eml, anche trascinandola da Outlook), foto o PDF e premi "
+                "«Registra risposta». Poi scegli lo stato definitivo nella decisione.",
+                "Azione effettuata: con la decisione «Azione di recupero» il riquadro è già aperto; per le altre "
+                "anomalie aperte usa «+ Registra un'azione effettuata». Scegli l'azione (Rilavorato, Riparato, "
+                "Scartato, Reso al fornitore, Accettato in deroga), scrivi le note, allega foto o documenti.",
+                "Lascia «Chiudi l'anomalia» spuntato per chiuderla con l'azione. Dopo una rilavorazione o riparazione "
+                "per chiudere serve anche «Pezzo riverificato conforme».",
+                "Premi «Registra e chiudi» (o «Registra azione» se non la chiudi).",
+            ]),
+            ("ul", [
+                "Se la prima decisione è stata «Azione di recupero», l'anomalia non si chiude dalla decisione (né dal "
+                "link della mail) finché non registri l'azione effettuata; aprire un RDC resta possibile.",
+                "Registrano risposta e azione il capocommessa, il CAR, il controllore che ha segnalato e chi può "
+                "modificare l'OP.",
+                "Gli allegati finiscono anche tra gli allegati dell'anomalia; mail e testi si scaricano, non si aprono "
+                "nel browser.",
+                "Risposte e azioni compaiono nella «Cronologia azioni».",
+            ]),
         ],
     },
     {
@@ -242,10 +413,12 @@ SEZIONI: list[dict] = [
                 "Apri il link: in cima le anomalie della mail («Da decidere»), sotto le altre ancora aperte sull'OP.",
                 "Espandi un'anomalia per vedere descrizione, foto e allegati. «Espandi tutte» le apre tutte.",
                 "Nella «Decisione su questa anomalia» scegli «Aprire RDC?», «Segnalare a cliente?», il «Nuovo avanzamento» "
-                "e scrivi la risposta. «Chiudere? (automatico)» si calcola da solo.",
-                "Per dare la stessa decisione a tutto il blocco spunta «Applica la stessa decisione anche alle altre … anomalie "
-                "aperte di questi seriali» prima di «Salva»: avanzamento, RDC, cliente e note vengono copiati, come in "
-                "Gestione anomalie.",
+                "e scrivi la risposta. «Segnalare a cliente?» spunta anche «Aprire RDC?» (si può togliere). «Chiudere? "
+                "(automatico)» si calcola da solo. Terzista, CAR, dove sono i pezzi e allegati della decisione si "
+                "indicano in Gestione anomalie.",
+                "Per dare la stessa decisione ad altre anomalie scegli in «Applica la stessa decisione anche a» lo stesso "
+                "blocco, tutte le aperte della pagina o quelle scelte a mano, poi «Salva»: un riepilogo le mostra tutte "
+                "prima di confermare; avanzamento, RDC, cliente e note vengono copiati, come in Gestione anomalie.",
                 "Premi «Conferma e invia aggiornamenti», controlla il riepilogo e conferma con «Conferma e invia».",
             ]),
             ("ul", [
@@ -263,15 +436,30 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Mail del controllo", "al capocommessa con il link di decisione, il CAR in copia (per i collaudi di "
                  "benestare il contrario)."),
-                ("Riepilogo dopo una decisione", "al segnalante, al capocommessa, al CAR e alla lista configurata, qualche "
-                 "minuto dopo l'ultimo salvataggio. RDC e segnalazioni al cliente vanno anche al destinatario dedicato."),
+                ("Riepilogo dopo una decisione", "al segnalante, al capocommessa, al CAR e alla lista configurata, dopo 5 "
+                 "minuti senza salvataggi sull'OP (configurabile) oppure subito con «Invia ora». RDC e segnalazioni al "
+                 "cliente vanno anche al destinatario dedicato."),
                 ("Decisioni all'operatore", "chi ha segnalato riceve una mail con la decisione e una notifica nel portale "
                  "che apre l'OP."),
                 ("Promemoria", "a capocommessa e CAR, nella dashboard, per gli OP con anomalie «In attesa»; si chiudono da "
                  "soli quando l'OP è stato gestito."),
                 ("Resoconto giornaliero", "nei giorni lavorativi, se attivato dagli amministratori."),
             ]),
-            ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività)."),
+            ("p", "La mail del controllo e il riepilogo hanno il pulsante «Apri nel portale» («Apri l'OP nel portale» "
+                  "nel riepilogo): apre l'OP direttamente in Gestione anomalie, senza la pagina pubblica del link. Dai PC "
+                  "aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login e, dopo "
+                  "l'accesso, arrivi comunque all'OP. Il pulsante non contiene credenziali: inoltrare la mail non dà "
+                  "accesso a nessuno."),
+            ("p", "«Non voglio più aggiornamenti su questo OP», in fondo alla mail di decisione e al riepilogo, apre "
+                  "la pagina «Aggiornamenti per OP» con il tuo accesso: confermi lì e vale solo per te e solo per "
+                  "quell'OP. Non ricevi più copia della mail di decisione, riepilogo, decisioni, OP completato e "
+                  "resoconto giornaliero. Continuano ad arrivare la mail con il link di decisione se sei tu a dover "
+                  "decidere, «Segnala a CAR», le mail su RDC e segnalazione cliente se sei nella lista dedicata e le "
+                  "notifiche nel portale. «Riattiva» nella stessa pagina (dal Menu Anomalie, «Aggiornamenti per OP») "
+                  "annulla la scelta."),
+            ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività). "
+                  "Compaiono anche in Automazioni → «Mail inviate» (tipo «Anomalie · …», richiesta «OP #…»), insieme alle "
+                  "altre mail del portale."),
         ],
     },
     {
@@ -304,9 +492,15 @@ SEZIONI: list[dict] = [
                 "Imposta i filtri: periodo di creazione, avanzamento, nominativo OP, stato, RDC, segnalazione cliente e "
                 "ricerca libera (seriale, descrizione, OP, RDC).",
                 "Premi «Aggiorna»; «Azzera filtri» li toglie.",
-                "Leggi i KPI in alto e le tabelle per avanzamento, per mese, per difetto, origine e decisione, e i top OP.",
+                "Leggi i KPI in alto e le tabelle per avanzamento, per mese, per difetto, origine e decisione, e i top OP. "
+                "Numeri, tabelle e ricerca contano solo le anomalie degli OP che vedi nell'elenco: con visibilità "
+                "«assegnati» quelli in cui sei capocommessa o CAR, con «proprie anomalie» quelli su cui ne hai aperta una.",
                 "In «Ricerca dettaglio» scorri le anomalie (25 per pagina) e scarica tutto con «Esporta CSV»: l'export "
                 "rispetta i filtri ed è registrato.",
+                "«Tempi di risposta e risoluzione»: mediana e media dei tempi conclusi, quanti sono ancora in corso, "
+                "la percentuale entro l'obiettivo e le anomalie aperte oltre l'obiettivo, più le mediane per "
+                "capocommessa. Tutto in ore lavorate (con i giorni lavorativi accanto) e con gli stessi filtri "
+                "della pagina.",
             ]),
         ],
     },
@@ -323,7 +517,23 @@ SEZIONI: list[dict] = [
                  "e l'ultimo invio. Qui si cambiano le liste di destinatari fissi (riepilogo modifiche, RDC / "
                  "segnalazione cliente, supervisori), l'indirizzo della mail «nuova anomalia fuori da un controllo», "
                  "gli interruttori e gli orari. È la stessa vista di Automazioni → Notifiche di sistema: quello che "
-                 "cambi in una pagina lo trovi già cambiato nell'altra."),
+                 "cambi in una pagina lo trovi già cambiato nell'altra. In «Orari e soglie» ci sono anche «Riepilogo "
+                 "decisioni: invio dopo minuti di pausa» (di serie 5) e gli "
+                 "obiettivi dei tempi: «Tempi: obiettivo prima decisione» (di serie 2 giorni lavorativi) e «Tempi: "
+                 "obiettivo chiusura» (di serie 10), più l'orario di lavoro con cui si contano le ore: «Tempi: "
+                 "orario di lavoro, dalle ore» (di serie 8) e «alle ore» (di serie 18)."),
+                ("Campi del blocco del controllore", "in cima alla scheda Configurazione: per ogni parte nuova di "
+                 "«Apertura segnalazione» («Dove sono i pezzi?», simboli, «Che cosa hai trovato?» e i tre casi, riquadro "
+                 "«Dal report ZEISS», riferimento, tipo di difetto, «Copia nella descrizione») scegli «Visibile: Sempre», "
+                 "«Mai» o «Solo se…». In cima, «Chi fa cosa: gruppi di controllori» (di serie «Controllo CMM» e «Controllo "
+                 "visivo», se ne aggiungono altri) mette ogni controllore nel suo gruppo. Con «Solo se…» compili una o più "
+                 "condizioni: gruppi di controllori, persone, ruoli operativi, parole "
+                 "contenute nella fase del controllo (es. CMM), tipo di difetto dell'anomalia (scelto o proposto). Devono "
+                 "valere tutte quelle compilate; dentro ognuna basta una voce. A destra l'«Anteprima dal vivo» mostra la scheda "
+                 "come la vedrebbe un controllore («Vedi come»: persona, fase del controllo, tipo di difetto) mentre cambi "
+                 "le regole, anche prima di salvarle; passando su una regola si evidenzia la sua parte e sotto c'è "
+                 "l'elenco delle parti nascoste. «Salva campi» vale subito: il controllore "
+                 "ricarica la pagina. Nascondere una parte non cancella i dati già inseriti."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
                  "singolo utente."),
@@ -340,14 +550,19 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("def", [
                 ("Non trovo l'OP.", "Cercalo per P/N o capocommessa. Se non esiste, crealo con «+ Nuovo OP» in Apertura "
-                 "Segnalazione."),
+                 "Segnalazione: compare negli elenchi dopo che hai salvato il primo blocco."),
                 ("Ho salvato un blocco con un errore.", "«Modifica o aggiungi anomalie» lo riapre finché il capocommessa non "
                  "ha deciso."),
                 ("Il capocommessa non ha ricevuto la mail.", "Controlla nel riepilogo del controllo a chi è andata; gli "
                  "amministratori la vedono e la possono reinviare da Configurazione → Log attività."),
-                ("Vedo i campi della decisione grigi.", "Non sei capocommessa o CAR dell'OP e non hai il permesso di "
-                 "modifica globale: chiedilo a un amministratore."),
+                ("Vedo i campi della decisione grigi.", "Non sei capocommessa o CAR dell'OP e l'ambito di «modificare» "
+                 "del tuo ruolo non lo copre: chiedilo a un amministratore."),
+                ("Non vedo un OP.", "Vedi solo gli OP che ti riguardano (capocommessa, CAR, anomalie aperte da te o dal "
+                 "tuo team). Controlla anche il filtro: «Con aperte» nasconde gli OP con sole anomalie chiuse, «Tutti» "
+                 "li mostra."),
                 ("Il link della mail dice che è scaduto o già usato.", "Apri l'OP dal portale in Gestione anomalie."),
+                ("Non riesco a chiudere un'anomalia in «Azione di recupero».", "Va registrata prima l'azione "
+                 "effettuata in «Tempi ed esiti»: con «Chiudi l'anomalia» la chiude direttamente."),
             ]),
         ],
     },
@@ -363,6 +578,7 @@ PAGINE = {
     "anomalie_nc_lista": "non-conformita",
     "anomalie_nc_dettaglio": "non-conformita",
     "anomalie_mail_action": "mail",
+    "anomalie_op_silenzia": "avvisi",
 }
 
 _SEZIONI_PER_ID = {sezione["id"]: sezione for sezione in SEZIONI}
@@ -384,35 +600,51 @@ def con_guida(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         formato = str(request.GET.get("guida") or "").strip().lower()
-        if request.method == "GET" and formato in ("1", "pdf"):
+        if request.method == "GET" and (formato in ("1", "pdf") or formato in _guide_ruoli()):
             return guida_response(request, formato)
         return view_func(request, *args, **kwargs)
 
     return _wrapped
 
 
+def _guide_ruoli() -> dict:
+    from anomalie.guida_ruoli import GUIDE_RUOLI
+
+    return GUIDE_RUOLI
+
+
 def guida_response(request, formato: str) -> HttpResponse:
+    """Guida completa (``?guida=1`` / ``?guida=pdf``) o guida rapida per ruolo
+    (``?guida=controllore`` / ``?guida=pdf&per=controllore``, vedi ``guida_ruoli``)."""
+    ruoli = _guide_ruoli()
+    per = formato if formato in ruoli else str(request.GET.get("per") or "").strip().lower()
+    guida_ruolo = ruoli.get(per)
+    titolo = guida_ruolo["titolo"] if guida_ruolo else DOC_TITOLO
+    sezioni = guida_ruolo["sezioni"] if guida_ruolo else SEZIONI
     if formato == "pdf":
         from core.guida_pdf import render_guida_pdf
 
         autore = (request.user.get_full_name() or request.user.get_username() or "").strip()
         pdf = render_guida_pdf(
-            titolo=DOC_TITOLO,
-            sottotitolo=DOC_SOTTOTITOLO,
-            sezioni=SEZIONI,
+            titolo=titolo,
+            sottotitolo=guida_ruolo["sottotitolo"] if guida_ruolo else DOC_SOTTOTITOLO,
+            sezioni=sezioni,
             generato_da=autore,
             generato_il=timezone.localdate().strftime("%d-%m-%Y"),
         )
+        nome = guida_ruolo["file"] if guida_ruolo else "Guida_Gestione_Anomalie.pdf"
         response = HttpResponse(pdf, content_type="application/pdf")
-        response["Content-Disposition"] = 'attachment; filename="Guida_Gestione_Anomalie.pdf"'
+        response["Content-Disposition"] = f'attachment; filename="{nome}"'
         return response
     return render(
         request,
         "anomalie/pages/guida.html",
         {
-            "page_title": f"Guida · {DOC_TITOLO}",
-            "doc_titolo": DOC_TITOLO,
-            "sezioni": SEZIONI,
+            "page_title": titolo if guida_ruolo else f"Guida · {titolo}",
+            "doc_titolo": titolo,
+            "sezioni": sezioni,
             "torna_url": request.path,
+            "guida_per": per if guida_ruolo else "",
+            "guide_ruoli": [{"chiave": k, "etichetta": g["etichetta"]} for k, g in ruoli.items()],
         },
     )

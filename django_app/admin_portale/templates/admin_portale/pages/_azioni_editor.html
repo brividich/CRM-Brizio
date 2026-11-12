@@ -1,0 +1,29 @@
+{% comment %}
+Editor di una lista di azioni rapide (riusato tre volte in home_azioni_rapide.html).
+Parametri: lista (voci scelte), catalogo (tutte le voci), azioni_max.
+Le voci escono come <input name="voce"> nell'ordine della lista.
+{% endcomment %}
+<div class="ar-ed" data-ar-ed data-ar-max="{{ azioni_max }}">
+  <ol class="ar-list" data-ar-list>
+    {% for v in lista %}
+      <li class="ar-i" data-key="{{ v.key }}">
+        <input type="hidden" name="voce" value="{{ v.key }}">
+        <span class="ar-l">{{ v.label }}</span>
+        <span class="sc-chip">{% if v.gruppo == "Moduli" %}Modulo{% else %}Azione{% endif %}</span>
+        <button type="button" class="ar-b" data-ar-su title="Sposta su" aria-label="Sposta su {{ v.label }}">↑</button>
+        <button type="button" class="ar-b" data-ar-giu title="Sposta giù" aria-label="Sposta giù {{ v.label }}">↓</button>
+        <button type="button" class="ar-b" data-ar-togli title="Togli" aria-label="Togli {{ v.label }}">✕</button>
+      </li>
+    {% endfor %}
+  </ol>
+  <p class="sc-hint" data-ar-vuoto{% if lista %} hidden{% endif %}>Lista vuota: nella home non comparirà il riquadro «Azioni rapide».</p>
+  <select class="ar-add" data-ar-add aria-label="Aggiungi una voce">
+    <option value="">+ Aggiungi una voce…</option>
+    <optgroup label="Azioni">
+      {% for v in catalogo %}{% if v.gruppo == "Azioni" %}<option value="{{ v.key }}" data-gruppo="Azione">{{ v.label }}</option>{% endif %}{% endfor %}
+    </optgroup>
+    <optgroup label="Apri un modulo">
+      {% for v in catalogo %}{% if v.gruppo == "Moduli" %}<option value="{{ v.key }}" data-gruppo="Modulo">{{ v.label }}</option>{% endif %}{% endfor %}
+    </optgroup>
+  </select>
+</div>

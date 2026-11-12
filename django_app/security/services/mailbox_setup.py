@@ -145,7 +145,7 @@ def run_summary(run):
 
 
 # «Importa storico»: quanto lavorare subito, dentro la richiesta web. Il resto lo smaltisce
-# lo schedule security_cycle (ogni 15 minuti, max_messages_per_run mail a giro).
+# lo schedule security_caselle (ogni 15 minuti, max_messages_per_run mail a giro).
 HISTORY_DRAIN_SECONDS = 45
 HISTORY_DRAIN_MAX_RUNS = 10
 

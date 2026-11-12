@@ -7,12 +7,17 @@
   <button type="button" class="sto-sch-x" data-sto-chiudi aria-label="Chiudi">×</button>
 </div>
 
+<p style="margin:0 0 10px;font-size:12.5px;"><a class="fmd-data-link" href="{% url 'anagrafica:esplora_struttura' %}?mansione={{ mansione.pk }}">Esplora la struttura da qui</a></p>
+
 <div class="sto-sch-kpi">
   <div><b>{{ persone|length }}</b><span>in lista</span></div>
   <div><b>{{ operativi }}</b><span>operativ{{ operativi|pluralize:"o,i" }}</span></div>
   <div><b>{{ ruoli|length }}</b><span>ruol{{ ruoli|length|pluralize:"o,i" }}</span></div>
   <div><b>{{ rischi|length }}</b><span>mansion{{ rischi|length|pluralize:"e,i" }} di rischio</span></div>
 </div>
+{% if carico_riga and not mansione.is_responsabilita %}
+<p class="sto-nota">Stato: <strong>{{ carico_riga.stato }}</strong>{% if carico_riga.concentrazione is not None %} · carico {{ carico_riga.concentrazione }}%{% if carico_riga.concentrato %} (<strong>concentrato</strong>){% endif %}{% endif %}.{% if mansione.area.centro_di_costo_id %} Centro di costo: {{ mansione.area.centro_di_costo.nome }}.{% endif %}{% if fuori_forza %} {{ fuori_forza }} in lista non più in forza: gli operativi non li contano.{% endif %}</p>
+{% endif %}
 
 <section class="sto-sch-sez">
   <h3>Ruoli che la svolgono</h3>

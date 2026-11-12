@@ -18,11 +18,13 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from report_conformita.registry import TONE_OK, TONE_WARN, Kpi
 
-from .dati import Contesto, filtra_in
+from .dati import SENZA_CENTRO, Contesto, filtra_in
 from .sezioni import GRUPPO_ORGANICO, INTERO, SCELTA, SI_NO, Importo, Opzione, Risultato, Sezione, _registra
 from .sezioni_struttura import _mansioni_di, _per_persona
 
 SENZA = "Senza mansioni"
+_NOTA_CENTRO_OGGI = ("Il centro di costo è quello di oggi della persona: chi ha cambiato area porta con sé anche i "
+                     "mesi precedenti.")
 
 
 def _solo_hr(request) -> bool:
@@ -105,6 +107,7 @@ def _costo_orario_persone(ctx: Contesto, o: dict) -> Risultato:
         c = suoi.get(mese)
         st = _stato_di(stati, p)
         base = {"nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "area": p.area,
+                "centro_costo": p.centro_costo,
                 "classificazione": st.get("classe_principale_label", ""), "mese": mese.strftime("%m/%Y")}
         if c is None:
             if o["mostra_mancanti"] and p.in_forza_al(mese):
@@ -143,7 +146,8 @@ _registra(Sezione(
                 "mese prima. Solo HR.",
     builder=_costo_orario_persone,
     colonne=(("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"),
-             ("area", "Area aziendale"), ("classificazione", "Classificazione"), ("mese", "Mese"),
+             ("area", "Area aziendale"), ("centro_costo", "Centro di costo"),
+             ("classificazione", "Classificazione"), ("mese", "Mese"),
              ("rml", "RML (€)"), ("giorni", "Giorni"), ("ore", "Ore al giorno"), ("costo_orario", "Costo orario (€/h)"),
              ("precedente", "Mese prima (€/h)"), ("variazione", "Variazione (€/h)"), ("variazione_pct", "Variazione (%)"),
              ("origine", "RML da"), ("stato", "Da sistemare")),
@@ -162,7 +166,8 @@ _registra(Sezione(
 # ═══════════════════════════════════════════════════════════════════════════
 
 _PER = (("classificazione", "Classificazione (diretto / indiretto)"), ("mansione", "Mansione"),
-        ("reparto", "Reparto della persona"), ("area", "Area aziendale della persona"))
+        ("reparto", "Reparto della persona"), ("area", "Area aziendale della persona"),
+        ("centro_costo", "Centro di costo della persona"))
 
 
 def _quote(sue: list) -> list[tuple[object, Decimal]]:
@@ -206,6 +211,8 @@ def _costo_orario_ripartito(ctx: Contesto, o: dict) -> Risultato:
                         else ("Non classificate" if ab else SENZA))
             elif per == "area":
                 voce = p.area or "Senza area"
+            elif per == "centro_costo":
+                voce = p.centro_costo or SENZA_CENTRO
             else:
                 voce = p.reparto or "Senza reparto"
             a = acc[voce]
@@ -222,7 +229,7 @@ def _costo_orario_ripartito(ctx: Contesto, o: dict) -> Risultato:
             "voce": voce, "persone": len(a["persone"]), "fte": a["fte"].quantize(Decimal("0.01")),
             "costo_medio": _euro(a["ora"] / a["fte"]) if a["fte"] else None, "costo_ora": _euro(a["ora"]),
             "rml": _euro(a["rml"]), "quota": _pct(a["rml"], totale_rml),
-        }, TONE_WARN if voce in (SENZA, "Non classificate") else "")
+        }, TONE_WARN if voce in (SENZA, "Non classificate", SENZA_CENTRO) else "")
     res.kpis = [Kpi("Persone con costo", n_persone), Kpi("Voci", len(acc)),
                 Kpi("RML del mese ripartita", f"{_euro(totale_rml):,} €".replace(",", "X").replace(".", ",")
                     .replace("X", "."))]
@@ -235,6 +242,8 @@ def _costo_orario_ripartito(ctx: Contesto, o: dict) -> Risultato:
         "non sommano 1 vengono riproporzionati.",
         _nota_formula(),
     ]
+    if per == "centro_costo":
+        res.note.append(_NOTA_CENTRO_OGGI)
     return res
 
 
@@ -243,7 +252,7 @@ _registra(Sezione(
     titolo="Costo orario per mansione e classificazione",
     gruppo=GRUPPO_ORGANICO,
     descrizione="Costo orario e RML del mese ripartiti con i coefficienti per classificazione (diretto/indiretto "
-                "1T/2T), mansione, reparto o area. Solo HR.",
+                "1T/2T), mansione, reparto, area o centro di costo. Solo HR.",
     builder=_costo_orario_ripartito,
     colonne=(("voce", "Voce"), ("persone", "Persone"), ("fte", "Teste equivalenti"),
              ("costo_medio", "Costo orario medio (€/h)"), ("costo_ora", "Somma costi orari (€/h)"),
@@ -264,6 +273,7 @@ _registra(Sezione(
 # ═══════════════════════════════════════════════════════════════════════════
 
 _GRUPPI_ANDAMENTO = (("", "Tutta l'azienda"), ("reparto", "Reparto"), ("area", "Area aziendale"),
+                     ("centro_costo", "Centro di costo"),
                      ("classificazione", "Classificazione prevalente"))
 
 
@@ -283,6 +293,8 @@ def _costo_orario_andamento(ctx: Contesto, o: dict) -> Risultato:
             gruppo = p.reparto or "Senza reparto"
         elif per == "area":
             gruppo = p.area or "Senza area"
+        elif per == "centro_costo":
+            gruppo = p.centro_costo or SENZA_CENTRO
         elif per == "classificazione":
             gruppo = _stato_di(stati, p).get("classe_principale_label") or "Non classificate"
         else:
@@ -328,6 +340,8 @@ def _costo_orario_andamento(ctx: Contesto, o: dict) -> Risultato:
     ]
     if per == "classificazione":
         res.note.append("La classificazione è quella prevalente di oggi, non quella del mese.")
+    if per == "centro_costo":
+        res.note.append(_NOTA_CENTRO_OGGI)
     return res
 
 
@@ -336,7 +350,7 @@ _registra(Sezione(
     titolo="Andamento del costo orario",
     gruppo=GRUPPO_ORGANICO,
     descrizione="Mese per mese nel periodo: costo orario medio, minimo e massimo, variazione e RML, per tutta "
-                "l'azienda, reparto, area o classificazione. Solo HR.",
+                "l'azienda, reparto, area, centro di costo o classificazione. Solo HR.",
     builder=_costo_orario_andamento,
     colonne=(("mese", "Mese"), ("gruppo", "Gruppo"), ("persone", "Persone"), ("media", "Media (€/h)"),
              ("minimo", "Minimo (€/h)"), ("massimo", "Massimo (€/h)"), ("variazione", "Variazione (€/h)"),

@@ -50,6 +50,10 @@
 }
 .rp-org-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 4px; }
 .rp-org-list { margin: 0 0 6px; padding-left: 18px; }
+/* Eccezioni sulla persona: stesso riquadro, bordo pieno per distinguerle dall'organigramma. */
+.rp-eccezioni { margin-top: 16px; border-style: solid; }
+.rp-eccezioni .acl-table-wrap { margin: 8px 0; }
+.rp-eccezione-form { display: grid; gap: 4px; margin-top: 8px; }
 .rp-org-ambito { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 0 0 10px; }
 .rp-org-ambito legend { padding: 0 6px; font-weight: 700; color: var(--text); }
 .rp-org-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; }
@@ -167,6 +171,7 @@
 .rp-pag-ecc { border-style: dashed; border-color: var(--warning); font-weight: 600; }
 /* Anteprima: la cella e' cambiata ma non ancora salvata. */
 .rp-pag-dasalvare { border-style: solid; border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.rp-pag[hidden] { display: none; } /* «Modifiche non salvate»: .rp-pag scavalca l'attributo hidden */
 
 /* Simulatore: «Prova un ruolo» e «Confronta due ruoli» */
 .rp-prova { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 10px 0 14px; }
@@ -184,3 +189,20 @@
 .rp-m365-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .rp-m365-kpi { margin-bottom: 12px; }
 .rp-m365-row-cessato_attivo td { background: var(--danger-bg); }
+
+/* Matrice: dettaglio pagina per pagina sotto ogni modulo */
+.rp-pagine-riga > td { padding-top: 0; }
+.rp-pagine > summary { cursor: pointer; color: var(--text-mid); font-size: .85rem; padding: 2px 0; }
+.rp-pagine[open] > summary { color: var(--text); }
+.rp-pagine-tab { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: .85rem; }
+.rp-pagine-tab th { text-align: left; font-weight: 600; color: var(--text-mid); border-bottom: 1px solid var(--border); padding: 4px 6px; }
+.rp-pagine-tab td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
+.rp-pagine-tab select { min-width: 140px; }
+/* Ricerca nella matrice: modulo, pagina o percorso */
+.rp-cerca { margin: 10px 0 8px; }
+.rp-cerca label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+.rp-cerca input { width: 100%; max-width: 640px; box-sizing: border-box; padding: 8px 12px; }
+.rp-cerca-esito { font-size: .85rem; margin-top: 6px; }
+.rp-cerca-esito ul { margin: 4px 0 0; padding-left: 18px; }
+.rp-cerca-via { display: none !important; }
+.rp-pagine-tab tr.rp-cerca-trovata > td { background: var(--surface-alt, rgba(127, 127, 127, .12)); }

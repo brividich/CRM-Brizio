@@ -45,6 +45,7 @@
 .ana-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
 .ana-pill-green { background:#dcfce7; color:#166534; }
 .ana-pill-red { background:#fee2e2; color:#991b1b; }
+.ana-pill-amber { background:#fef3c7; color:#92400e; }
 .ana-pill-gray { background:#f1f5f9; color:#475569; }
 .ana-pill-blue { background:#dbeafe; color:#1e40af; }
 .ana-stars { color:#f59e0b; font-size:13px; letter-spacing:-.02em; }
@@ -102,6 +103,7 @@ body.theme-dark .ana-card-title{color:var(--text)}
 body.theme-dark .ana-rs{color:var(--text)}
 body.theme-dark .ana-pill-green{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .ana-pill-red{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .ana-pill-amber{background:rgba(217,119,6,.18);color:#fcd34d}
 body.theme-dark .ana-pag span{color:var(--text-light)}
 </style>
 {% endblock %}
@@ -117,6 +119,7 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
       <div class="ana-title">Fornitori</div>
       <div class="ana-sub">Anagrafica completa dei fornitori aziendali</div>
     </div>
+    <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:guida' %}">? Guida</a>
     <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo fornitore</a>
   </div>
 
@@ -145,7 +148,7 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
   <form method="get" class="ana-search-bar">
     <div class="ana-field">
       <label>Cerca</label>
-      <input class="ana-input" type="text" name="q" value="{{ q }}" placeholder="Ragione sociale, P.IVA, città...">
+      <input class="ana-input" type="text" name="q" value="{{ q }}" placeholder="Ragione sociale, P.IVA, città, tecnico...">
     </div>
     <div class="ana-field" style="max-width:200px;">
       <label>Categoria</label>
@@ -153,6 +156,15 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
         <option value="">Tutte</option>
         {% for val, label in categoria_choices %}
           <option value="{{ val }}"{% if val == categoria %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ana-field" style="max-width:220px;">
+      <label>Documenti di sicurezza</label>
+      <select class="ana-input" name="requisiti">
+        <option value="">Tutti</option>
+        {% for val, label in requisiti_scelte %}
+          <option value="{{ val }}"{% if val == requisiti_filtro %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
@@ -169,6 +181,7 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
   <div class="ana-card">
     <div class="ana-card-head">
       <div class="ana-card-title">Risultati — {{ page_obj.paginator.count }} fornitori</div>
+      <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?{{ query_filtri }}&formato=csv">Esporta CSV</a>
     </div>
     <div class="ana-table-wrap">
       <table class="ana-table">
@@ -213,6 +226,9 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
               {% else %}
                 <span class="ana-pill ana-pill-red">Inattivo</span>
               {% endif %}
+              {% if f.requisiti and f.requisiti.esito != "non_richiesto" %}
+                <span class="ana-pill {% if f.requisiti.esito == 'ok' %}ana-pill-green{% elif f.requisiti.esito == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-red{% endif %}" title="{{ f.requisiti.riassunto|default:'Documenti di sicurezza in regola' }}">{{ f.requisiti.etichetta }}</span>
+              {% endif %}
             </td>
             <td><a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:fornitore_detail' f.pk %}">Apri →</a></td>
           </tr>
@@ -226,11 +242,11 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
     {% if page_obj.has_other_pages %}
     <div class="ana-pag">
       {% if page_obj.has_previous %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&categoria={{ categoria }}&attivi={% if solo_attivi %}1{% endif %}">← Prec</a>
+        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.previous_page_number }}&{{ query_filtri }}">← Prec</a>
       {% endif %}
       <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&categoria={{ categoria }}&attivi={% if solo_attivi %}1{% endif %}">Succ →</a>
+        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.next_page_number }}&{{ query_filtri }}">Succ →</a>
       {% endif %}
     </div>
     {% endif %}

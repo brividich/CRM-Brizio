@@ -19,6 +19,7 @@ Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazion
 | Impatto CVE sugli asset | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#impatto-cve-sugli-asset) | Arricchimento spento |
 | Alert di Microsoft Defender | Vedi [Alert di Microsoft Defender](#alert-di-microsoft-defender) qui sotto | Spenta, severità minima Media |
 | Microsoft Entra ID (account, modifiche amministrative, accessi) | Vedi [Microsoft Entra ID](#microsoft-entra-id) qui sotto | Tutti spenti, primo giro 7 giorni, Paesi ammessi IT, 10 tentativi falliti |
+| Meno rumore: segnalazioni ripetitive | Vedi [Meno rumore](#meno-rumore-segnalazioni-ripetitive) qui sotto | Acceso: blocchi USB senza alert (soglia 0), amministratori del portale fidati in Entra, proposta per gli alert fermi da 30 giorni |
 
 ## Alert di Microsoft Defender
 
@@ -49,14 +50,26 @@ Ogni sessione diventa un'esecuzione della sorgente **Veeam Backup & Replication 
 
 Con **Avvisa quando un repository si riempie** acceso (default), un repository con lo spazio libero sotto lo **Spazio libero minimo** (default 15%) apre l'alert «Repository di backup quasi pieno», uno per repository; si chiude da solo quando lo spazio torna sopra.
 
-Le credenziali si inseriscono nel riquadro **Credenziali API Veeam** in fondo alla pagina Impostazioni: **Indirizzo** (es. `https://srv-veeam:9419`), **Utente** e **Password** di un utente con il solo ruolo **Veeam Backup Viewer**, **Revisione API** (facoltativa, default 1.1-rev0) e, se il certificato del server Veeam è firmato dalla CA interna, il **Certificato della CA** incollato in formato PEM. La password è salvata cifrata e non si rivede: per cambiare solo l'indirizzo lasciala vuota. **Prova la connessione** legge le ultime 24 ore e lo spazio dei repository senza salvare nulla; **Cancella le credenziali** ferma la lettura. Se nel file `.env` del server ci sono ancora le vecchie variabili `VEEAM_API_*`, valgono finché non si salvano le credenziali qui (il riquadro dice «Dal file .env»). Lo stesso si può fare dal terminale: `manage.py veeam_api --prova`, `manage.py veeam_api` (esito dell'ultimo giro).
+Le credenziali si inseriscono nel riquadro **Credenziali API Veeam** in fondo alla pagina Impostazioni: **Indirizzo** (es. `https://srv-veeam:9419`), **Utente** e **Password** di un utente con il solo ruolo **Veeam Backup Viewer**, **Revisione API** (facoltativa, default 1.1-rev0) e, se il certificato del server Veeam è firmato dalla CA interna, il **Certificato della CA** incollato in formato PEM. Se Veeam usa il suo certificato autofirmato (il caso di serie), dopo aver salvato premi **Fidati del certificato del server**: il portale legge il certificato, mostra a chi è intestato, la scadenza e l'identificazione personale (SHA-1, da confrontare con quella sul server Veeam) e da lì in poi accetta solo quel certificato. Se il certificato viene rinnovato, la prova dice che è cambiato: premi di nuovo il pulsante. Cambiando server o con «Togli il certificato salvato» l'impronta si cancella. La password è salvata cifrata e non si rivede: per cambiare solo l'indirizzo lasciala vuota. **Prova la connessione** legge le ultime 24 ore e lo spazio dei repository senza salvare nulla; **Cancella le credenziali** ferma la lettura. Se nel file `.env` del server ci sono ancora le vecchie variabili `VEEAM_API_*`, valgono finché non si salvano le credenziali qui (il riquadro dice «Dal file .env»). Lo stesso si può fare dal terminale: `manage.py veeam_api --prova`, `manage.py veeam_api` (esito dell'ultimo giro).
+
+## Meno rumore: segnalazioni ripetitive
+
+Le segnalazioni che si ripetono senza dire niente di nuovo non aprono più un alert ciascuna. Sezione **«Meno rumore: segnalazioni ripetitive»**, interruttore **Riduci le segnalazioni ripetitive** (acceso di serie; spento, tutto torna come prima). Ogni evento resta salvato, con il motivo della decisione, e ogni chiusura va nell'audit sigillato.
+
+- **Dispositivi bloccati dalla policy** (le notifiche di Endpoint Security con solo «devices blocked», di solito chiavette USB): la protezione ha funzionato, quindi niente alert. Il conteggio per PC (dispositivi bloccati, notifiche, giorni, ultima) è in **Dispositivi › Elenco**, riquadro **«Dispositivi bloccati dalla policy»** in fondo, sugli ultimi 30 giorni. «Computer non indicato nella mail» sono le notifiche di riepilogo di WatchGuard che non dicono il PC. **Alert per i dispositivi bloccati da**: con un numero sopra 0, un PC che in 24 ore arriva a quel numero di blocchi apre un alert (default 0 = mai). Le minacce vere (malware, exploit, ransomware…) aprono sempre l'alert.
+- **CVE oltre il termine di correzione**: un alert **per CVE**, non per PC. Se la CVE ha già l'alert «PC con versione vulnerabile» (CVE critiche o sfruttate), il termine scaduto del PC si scrive nella sua timeline («PC oltre il termine di correzione») senza un alert nuovo. Altrimenti nasce «Oltre il termine di correzione: CVE (programma), classe, N PC»: ogni PC che entra è una riga della timeline, ogni PC corretto (o con rischio accettato) lascia la riga «PC rientrato nel termine» e il numero scende; quando non ne resta nessuno l'alert si chiude da solo come Risolto. Lo storico delle correzioni PC per PC (versione prima e dopo, data) resta in **Vulnerabilità › Correzioni CVE**.
+- **Backup**: «Job (Retry 2)» è lo stesso job di «Job»: un alert solo, e il tentativo riuscito chiude il fallimento. Le mail di Veeam sul **malware trovato nei backup** («Potential malware activity detected», «Daily malware detection report») non sono più esiti di job: aprono un solo alert alto «Veeam: malware nei backup (…)», aggiornato dalla mail più recente, che non si chiude da solo. Il report giornaliero con 0 eventi non apre niente.
+- **Microsoft Entra ID**: le modifiche fatte da un **autore fidato** restano negli eventi senza alert. Sono fidati gli amministratori del portale (**Gli amministratori del portale sono autori fidati in Entra**, acceso: superutenti attivi con quell'email o nome utente) e gli indirizzi in **Altri autori fidati in Entra** (UPN separati da virgole).
+- **Alert fermi**: un alert «da decidere» senza nuove occorrenze da **Proponi la chiusura degli alert fermi da** giorni (default 30; 0 = mai) riceve una proposta «Risolto» in **Segnalazioni › Proposte AI**, con le prove calcolate dal portale (ultima occorrenza, esecuzioni del job dopo l'alert, report sullo stesso soggetto). Non chiude niente da sola: confermi, correggi o scarti, e ogni decisione insegna come le proposte dell'AI. Mai per CVE (si chiudono con le prove PC per PC), alert critici o malware; una proposta scartata non torna finché non arriva una nuova occorrenza.
+
+**Gli alert già aperti** si sistemano una volta dal terminale del server: `manage.py security_unisci_doppioni` (prova: dice cosa chiuderebbe e unirebbe), poi `manage.py security_unisci_doppioni --apply`. Chiude il rumore (blocchi USB, «oltre il termine» di CVE già seguite dall'alert «PC con versione vulnerabile», modifiche di Entra di autori fidati), unisce i doppioni (un alert per PC, job, CVE oltre il termine, malware nei backup) e chiude come doppioni gli alert della mail Defender su CVE già seguite dall'inventario. Gli alert chiusi così hanno lo stato «Chiuso» (non «Risolto») e il motivo.
 
 ## Microsoft Entra ID
 
 Tre controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account, modifiche amministrative, accessi)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.
 
 - **Controlla gli account degli ex dipendenti**: ogni 6 ore il SOC confronta gli account di Microsoft 365 con l'anagrafica (per email aziendale o di notifica e per nome di accesso). Per ogni account **ancora abilitato** di una persona con **data di cessazione passata** nasce un alert alto «Account Microsoft 365 attivo di un ex dipendente: <nome>». Quando l'account viene disattivato in Active Directory / Entra, l'alert si chiude da solo («Account disattivato in Microsoft 365»). Lo stesso elenco, con anche gli account inattivi e quelli non collegati, è in Amministrazione › Ruoli e permessi › «Account Microsoft 365».
-- **Leggi le modifiche amministrative di Entra**: ogni 15 minuti il SOC legge l'audit di Entra dal giro precedente (la prima volta: i giorni di **Primo giro dell'audit**, default 7) e apre un alert solo per le attività sensibili: autenticazione o federazione di un dominio (critico), ruoli di amministratore assegnati, criteri di accesso condizionale, credenziali/segreti delle app, MFA disattivata (alto), consensi e permessi concessi alle app, proprietari delle app, metodi MFA modificati (medio). Titolo: «Entra: <attività> (<su chi>) da <chi>». Le altre righe dell'audit non vengono salvate.
+- **Leggi le modifiche amministrative di Entra**: ogni 15 minuti il SOC legge l'audit di Entra dal giro precedente (la prima volta: i giorni di **Primo giro dell'audit**, default 7) e apre un alert solo per le attività sensibili: autenticazione o federazione di un dominio (critico), ruoli di amministratore assegnati, criteri di accesso condizionale, credenziali/segreti delle app, MFA disattivata (alto), consensi e permessi concessi alle app, proprietari delle app, metodi MFA modificati (medio). Titolo: «Entra: <attività> (<su chi>) da <chi>». Le modifiche di un autore fidato (vedi [Meno rumore](#meno-rumore-segnalazioni-ripetitive)) restano negli eventi senza alert. Le altre righe dell'audit non vengono salvate.
 
 - **Segnala gli accessi sospetti a Microsoft 365**: ogni 15 minuti il SOC legge gli accessi dal giro precedente e apre un alert per: **tentativi falliti a raffica** sullo stesso account (almeno **Tentativi falliti**, default 10, in un giro; medio), **accesso riuscito da un Paese non ammesso** (**Paesi ammessi**, codici a due lettere separati da virgole, default IT; alto), **accesso riuscito con un protocollo vecchio** senza MFA (IMAP4, POP3, SMTP autenticato, Exchange ActiveSync, altri client; medio). Al massimo un alert al giorno per account e motivo. I singoli accessi non vengono salvati nel portale: si guardano in Entra.
 
@@ -105,12 +118,15 @@ Cosa fare: **coda ferma** → riavviare il servizio qcluster sul server; **lettu
 
 ## L'AI nel SOC
 
-Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato esce dalla rete. L'AI non decide e non cambia nulla da sola: propone, e decide sempre una persona.
+Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: i dati del SOC non escono dalla rete. L'unica uscita, facoltativa, è la **ricerca sul web** (sotto), che manda solo codici pubblici. L'AI non decide e non cambia nulla da sola: propone, e decide sempre una persona.
 
 | Dove | Pulsante | Cosa fa |
 | --- | --- | --- |
 | Panoramica | Chiedi all'AI | Riassume i punti da guardare adesso e dice da dove partire |
 | Scheda alert | Spiega con l'AI | Cosa è successo, perché è scattato, quanto è urgente, cosa fare |
+| Scheda alert | Proponi la soluzione | Causa probabile, passi per risolvere, come verificare; il modulo di chiusura arriva compilato (esito e motivo) e chiude solo se confermi |
+| Pannello CVE | Spiega con l'AI | Cos'è, se ci riguarda, come si corregge, cosa fare se non si può correggere subito |
+| Patch e protezione | Spiega con l'AI (aprendo una patch) | Cosa corregge, quanto è urgente, cosa sapere prima di installare, come procedere |
 | Scheda evento | Chiedi all'AI («È un allarme?») | Propone se l'evento giudicato a posto è in realtà un allarme |
 | Ticket | Proponi con l'AI | Suggerisce i prossimi passi; scegli tu quali diventano attività |
 | Ticket | Scrivi l'esito con l'AI | Prepara una bozza dell'esito da rivedere prima di chiudere |
@@ -121,6 +137,16 @@ Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato e
 ### Cosa legge
 
 L'AI riceve solo quello che serve per la domanda: l'alert o il ticket, lo storico collegato (accessi, backup, precedenti, alert chiusi o scartati), le procedure del SOC. Per spiegare gli alert non riceve mai il testo delle mail originali, che è contenuto di terzi e può contenere dati personali. L'unica eccezione è la **lettura assistita** (sotto), se la accendi: riceve l'oggetto e l'inizio del report (al massimo 3000 caratteri), con gli indirizzi email mascherati.
+
+### Ricerca sul web
+
+Con la casella **Cerca anche sul web** (accanto ai pulsanti «Proponi la soluzione», «Proponi con l'AI» del ticket e «Spiega con l'AI» di CVE e patch) l'AI legge anche le pagine ufficiali: avvisi dei produttori, articolo Microsoft di una KB con i **problemi noti**, CISA, CSIRT Italia. Le fonti lette compaiono sotto la risposta con il link («Fonti dal web»).
+
+- **Si accende** in **Impostazioni › Ricerca sul web per l'AI** (spenta di serie: senza, la casella non compare). Serve l'accesso a internet in uscita dal server del portale verso i siti ammessi.
+- **Cosa esce**: solo codici pubblici trovati nell'alert, nel ticket, nella CVE o nella patch: codici CVE, numeri KB, codici d'errore come 0x80070005, «Event ID» e il nome del produttore. Mai nomi di PC, utenti, indirizzi IP, job di backup o testi delle mail. Se non c'è nessun codice pubblico il web non viene consultato e la risposta lo dice.
+- **Cosa entra**: solo pagine https di nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, first.org, dei siti Microsoft ufficiali (support, learn, msrc), di watchguard.com, veeam.com e synology.com, più i siti aggiunti in **Altri siti ammessi**. Mai forum o community, anche dentro questi siti. Al massimo 3 pagine per risposta, 20 secondi in tutto; ogni pagina resta in memoria un giorno.
+- **Dove cerca**: per una CVE legge i riferimenti dell'NVD (prima avvisi del produttore, mitigazioni e patch; mai le pagine con codice di attacco, di cui dice solo che esistono); per una KB l'articolo Microsoft dal paragrafo «Known issues». Per i codici d'errore e gli Event ID serve un **motore di ricerca interno** (SearXNG aziendale, campo facoltativo in Impostazioni): senza, quei codici non vengono cercati.
+- Il testo delle pagine arriva all'AI come informazione di terzi, con l'istruzione di non eseguire quello che contiene; se una fonte contraddice i dati del portale valgono i dati del portale. Ogni ricerca e ogni pagina letta resta nel registro AI del SOC (azioni «web_ricerca» e «web_pagina», con il codice cercato o il sito).
 
 ### Sintesi del giorno già pronta
 
@@ -141,10 +167,14 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 
 La stessa AI può esaminare i casi «da verificare» del calcolo CVE: a quale CPE collegare un software (scelto solo fra quelli delle CVE già nel sistema) e se una CVE riguarda davvero un PC quando la versione non si confronta. **Si accende** in **Impostazioni › Proposte AI su CPE ed esiti da verificare** (spenta di serie), con il massimo di casi per giro (5) e la confidenza minima (60) sotto cui la risposta viene scartata; **gira** con la lettura **cpe_ai** ogni 6 ore e con **Proponi con l'AI ora** in Software e CPE. Riceve solo dati del sistema (nomi dei programmi, versioni, numero di PC, range delle CVE): mai testi di mail. Le proposte si accettano o rifiutano in Software e CPE e nella scheda CVE: i dettagli sono nel capitolo «Automatismi e vulnerabilità».
 
+### Proposte di chiusura degli alert
+
+Ogni 15 minuti l'AI controlla gli alert aperti contro i report arrivati dopo e contro le vostre decisioni passate, e propone come chiuderli in **Segnalazioni › Proposte AI**; i tipi di alert su cui le ultime proposte sono state tutte confermate li chiude da sola. Impostazioni (sezione **Proposte di chiusura dell'AI**, accese di serie): proposte (sì), chiusura automatica (sì), conferme per chiudere da sola (5), confidenza minima (80%), attesa prima di proporre (2 ore), massimo per giro (4 alert). Gira con la lettura **ai_proposte**. Dettagli nel capitolo «Lavoro quotidiano», sezione «Proposte di chiusura dell'AI». Nello stesso elenco arrivano le proposte per gli alert fermi (modello «regola: alert fermo»), vedi [Meno rumore](#meno-rumore-segnalazioni-ripetitive).
+
 ### Come impara
 
 - Quando promuovi un evento ad alert o confermi che è a posto, la scelta viene ricordata: la volta dopo l'AI tiene conto di come avete deciso su eventi simili.
-- Gli alert chiusi, scartati e i motivi scritti diventano lo storico che l'AI usa per i consigli successivi. Motivi chiari ("job di test spento il 12/03") rendono i consigli migliori.
+- Gli alert chiusi, scartati e i motivi scritti diventano lo storico che l'AI usa per i consigli successivi. Per le proposte di chiusura conta anche ogni conferma, correzione, proposta scartata (con la nota) e riapertura: decidono quando l'AI può chiudere da sola un tipo di alert. Motivi chiari ("job di test spento il 12/03") rendono i consigli migliori.
 
 ### Limiti
 

@@ -397,7 +397,11 @@ class AssetsRoutingTests(TestCase):
         )
 
         self.client.force_login(self.user)
+        # Le segnalazioni MAN le vede solo chi gestisce i ticket di manutenzione.
         response = self.client.get(reverse("assets:asset_dashboard"))
+        self.assertNotContains(response, "Rumore anomalo mandrino")
+        with patch("tickets.views._can_manage_tickets", return_value=True):
+            response = self.client.get(reverse("assets:asset_dashboard"))
 
         self.assertEqual(response.status_code, 200)
         dash_wo = response.context["dash_wo"]
@@ -5213,7 +5217,8 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, "Torna agli interventi")
         self.assertContains(response, "Cosa devi registrare?")
         self.assertContains(response, "Impatto operativo")
-        self.assertContains(response, "Risoluzione gia applicata")
+        self.assertNotContains(response, "Risoluzione gia applicata")
+        self.assertContains(response, "Chi lo esegue")
         self.assertContains(response, "Pianificazione e copertura")
         self.assertContains(response, 'class="wof-form-body"', html=False)
         self.assertContains(response, 'class="wof-context"', html=False)
@@ -5256,9 +5261,10 @@ class WorkOrderFlowTests(TestCase):
         )
 
     def test_workorder_close_page_is_a_formal_guided_flow(self):
+        # Modulo completo: le straordinarie (CORRECTIVE) hanno la chiusura essenziale.
         workorder = WorkOrder.objects.create(
             asset=self.asset,
-            kind=WorkOrder.KIND_CORRECTIVE,
+            kind=WorkOrder.KIND_PREVENTIVE,
             status=WorkOrder.STATUS_OPEN,
             title="Intervento aperto",
         )
@@ -7855,6 +7861,35 @@ class AssetMaintenanceRegisterTicketTests(TestCase):
         self.assertContains(response, "Ticket MAN")
         self.assertEqual(response.context["history_workorder_count"], 1)
         self.assertEqual(response.context["history_ticket_count"], 1)
+
+    def test_company_maintenance_history_includes_completed_administrative_deadlines(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            title="Revisione periodica carrello",
+            due_date=timezone.localdate(),
+            recurrence_months=12,
+        )
+        AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=timezone.localdate(),
+            completed_by=self.user,
+            cost_eur=Decimal("80.00"),
+            next_due_date=timezone.localdate() + timedelta(days=365),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+        self.assertContains(response, "Revisione periodica carrello")
+        self.assertContains(response, "Scadenza amministrativa")
+        self.assertEqual(response.context["history_deadline_count"], 1)
+
+        solo_scadenze = self.client.get(reverse("assets:maintenance_history"), {"source": "deadlines"})
+        self.assertEqual(solo_scadenze.context["history_total"], 1)
+        solo_odl = self.client.get(reverse("assets:maintenance_history"), {"source": "workorders"})
+        self.assertNotContains(solo_odl, "Revisione periodica carrello")
+
+        elenco = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+        self.assertContains(elenco, f'{reverse("assets:maintenance_history")}?source=deadlines')
 
 
 class AssetMaintenanceRegisterUnifiedTests(TestCase):

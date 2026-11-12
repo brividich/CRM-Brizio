@@ -75,9 +75,11 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
 {% block assets_shell_subtitle %}<p>{{ workorder.title }} · {{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{{ workorder_asset_url }}">Apri asset</a>
+  {% if workorder_map_url %}<a class="btn btn-secondary" href="{{ workorder_map_url }}" title="Dove si trova sulla planimetria">Dov'è?</a>{% endif %}
   {% if workorder_rule_url %}<a class="btn btn-secondary" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
   {% if workorder_contract_url %}<a class="btn btn-secondary" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
   <a class="btn btn-secondary" href="{% url 'assets:workorder_worksheet' workorder.id %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>
+  <a class="btn btn-secondary" href="{% url 'assets:wo_edit' workorder.id %}">&#9998; Modifica</a>
   {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Registra intervento</a>{% endif %}
 {% endblock %}
 
@@ -141,7 +143,7 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
   <div class="ux-detail-grid">
     <div class="ux-detail-left">
       <article class="ux-card">
-        <header class="ux-card-head"><div><h3>Panoramica</h3><p>Le informazioni essenziali dell'intervento, senza perdere il collegamento a asset, piano e contratto.</p></div></header>
+        <header class="ux-card-head"><div><h3>Panoramica</h3><p>Le informazioni essenziali dell'intervento, senza perdere il collegamento a asset, piano e contratto.</p></div><a class="btn btn-primary btn-sm" href="{% url 'assets:wo_edit' workorder.id %}">&#9998; Modifica</a></header>
         <div class="ux-card-body">
           <div class="ux-info-grid">
             <div class="ux-info-block"><label>Asset</label><strong><a class="ux-link" href="{{ workorder_asset_url }}">{{ workorder.asset.asset_tag }}</a></strong><span>{{ workorder.asset.name }}</span></div>
@@ -226,11 +228,17 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
         </div>
       </article>
 
+      {% include "assets/components/_workorder_foto.html" %}
+
       {% include "assets/components/_workorder_occurrences.html" %}
 
       {% include "assets/components/workorder_checklist.html" %}
 
       <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento ricambi…</p></div>
+
+      {% if workorder.status != "CANCELED" or workorder.ingressi_esterni.exists %}
+      <div hx-get="{% url 'fornitori:presenze_intervento' 'odl' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento presenze in azienda della ditta…</p></div>
+      {% endif %}
 
       <article class="ux-card">
         <header class="ux-card-head"><div><h3>Note operative</h3><p>Ogni nota resta associata a data, ora e autore.</p></div></header>

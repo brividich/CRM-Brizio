@@ -99,6 +99,11 @@ def qualifiche_list(request):
         .order_by("data_scadenza")
     )
 
+    # Solo le qualifiche correnti (non quelle superate da un rinnovo), senza
+    # cessati: stessi numeri di cruscotto e scadenzario.
+    _conta = _qualifica_nel_perimetro(request)
+    scadenze_qs = [q for q in scadenze_qs if _conta(q)]
+
     # Arricchisce con nome dipendente
     legacy_ids = list({q.legacy_anagrafica_id for q in scadenze_qs})
     nome_map: dict[int, str] = {}
@@ -118,6 +123,7 @@ def qualifiche_list(request):
             "id": q.id,
             "legacy_anagrafica_id": q.legacy_anagrafica_id,
             "dipendente": nome_map.get(q.legacy_anagrafica_id, f"Dip. #{q.legacy_anagrafica_id}"),
+            "tipo_id": q.tipo_id,
             "tipo_nome": q.tipo.nome,
             "tipo_categoria": q.tipo.categoria,
             "data_conseguimento": q.data_conseguimento,
@@ -214,6 +220,27 @@ def _classifica_scadenza_qualifica(data_scadenza, oggi, soglia_30, soglia_60):
 
 
 @login_required
+def _qualifica_nel_perimetro(request):
+    """Funzione che dice se una qualifica conta: stessa regola per cruscotto, scadenzario ed export.
+
+    Solo la qualifica corrente per persona e tipo, senza i cessati, nell'ambito del ruolo.
+    """
+    from ..services.requisiti import id_qualifiche_correnti
+
+    correnti = id_qualifiche_correnti()
+    cessati = _helpers._cessati_legacy_ids()
+    visibili = None
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+
+    def conta(q) -> bool:
+        return (q.pk in correnti and q.legacy_anagrafica_id not in cessati
+                and (visibili is None or q.legacy_anagrafica_id in visibili))
+    return conta
+
+
 def qualifiche_dashboard(request):
     """Cruscotto Qualifiche & Certificazioni — vista trasversale di sola lettura.
 
@@ -237,7 +264,19 @@ def qualifiche_dashboard(request):
 
     tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
 
-    quals = list(DipendenteQualifica.objects.select_related("tipo").all())
+    # Stesse righe di dashboard HR e scadenzario: solo la qualifica corrente per
+    # persona e tipo (non quelle superate da un rinnovo), senza i cessati e
+    # nell'ambito del ruolo. Prima si contava tutto: «scadute» 40 qui, 12 altrove.
+    from ..reportistica.dati import filtra_in
+    from ..services import centro_filtro
+    from ..services.requisiti import id_qualifiche_correnti
+
+    filtro_centro = centro_filtro.leggi(request)
+    conta = _qualifica_nel_perimetro(request)
+    quals = [
+        q for q in filtra_in(DipendenteQualifica.objects.select_related("tipo"), "pk", id_qualifiche_correnti())
+        if conta(q) and filtro_centro.contiene(q.legacy_anagrafica_id)
+    ]
     n_valide = n_scadute = n_s30 = n_s60 = n_permanenti = 0
     n_con_evidenza = n_da_verificare = 0
     dipendenti_ids: set[int] = set()
@@ -348,6 +387,7 @@ def qualifiche_dashboard(request):
         prossime_per_tipo.setdefault(s.tipo_id, s)
     schede = sezioni_c.schede_qualifiche(
         quals, oggi=oggi, soglia_30=soglia_30, soglia_60=soglia_60, prossime_per_tipo=prossime_per_tipo,
+        suffisso=filtro_centro.suffisso,
     )
     presenti = {s["tags"] for s in schede}
     copertura_qualifiche = sezioni_c.griglia(
@@ -375,6 +415,7 @@ def qualifiche_dashboard(request):
     ])
 
     return render(request, "anagrafica/pages/qualifiche_dashboard.html", {
+        "filtro_centro": filtro_centro,
         "oggi": oggi,
         "is_admin": is_admin,
         "copertura_qualifiche": copertura_qualifiche,
@@ -450,6 +491,10 @@ def qualifiche_scadenzario(request):
     valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
     if filtro_cat not in valid_cats:
         filtro_cat = ""
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    conta = _qualifica_nel_perimetro(request)
 
     dip_rows = fetch_anagrafica_rows(deduplicate=True)
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
@@ -480,6 +525,8 @@ def qualifiche_scadenzario(request):
     voci: list[dict] = []
     counts = {"scaduta": 0, "s30": 0, "s60": 0, "valida": 0, "permanente": 0}
     for q in qs:
+        if not conta(q) or not filtro_centro.contiene(q.legacy_anagrafica_id):
+            continue
         dip = dip_map.get(q.legacy_anagrafica_id, {})
         reparto = str(dip.get("reparto") or "").strip()
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
@@ -511,12 +558,13 @@ def qualifiche_scadenzario(request):
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
         resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
-        writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria", "N°", "Livello",
+        centri = centro_filtro.centro_per_persona()
+        writer.writerow(["Dipendente", "Reparto", "Centro di costo", "Qualifica", "Categoria", "N°", "Livello",
                          "Ente", "Conseguimento", "Scadenza", "Giorni", "Stato",
                          "Evidenza", "Verificata"])
         for v in voci:
             writer.writerow([
-                v["dipendente"], v["reparto"], v["tipo_nome"], v["categoria"],
+                v["dipendente"], v["reparto"], centri.get(v["legacy_id"], ""), v["tipo_nome"], v["categoria"],
                 v["numero"], v["livello"], v["ente"],
                 v["data_conseguimento"].strftime("%d/%m/%Y") if v["data_conseguimento"] else "",
                 v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
@@ -538,6 +586,7 @@ def qualifiche_scadenzario(request):
     )
 
     return render(request, "anagrafica/pages/qualifiche_scadenzario.html", {
+        "filtro_centro": filtro_centro,
         "oggi": oggi,
         "voci": voci,
         "gruppi": gruppi,
@@ -575,9 +624,14 @@ def tipo_qualifica_detail(request, tipo_id: int):
     ordine = _helpers._build_ordine_map()
     holders: list[dict] = []
     n_scaduti = n_scadenza = 0
+    # Stessa regola di cruscotto e scadenzario (il riquadro «Scaduti» porta lì):
+    # solo la qualifica corrente per persona, senza cessati, nell'ambito del ruolo.
+    conta = _qualifica_nel_perimetro(request)
     for q in (DipendenteQualifica.objects.filter(tipo=tipo)
               .select_related("record_formazione", "record_formazione__corso", "sessione")
               .order_by("data_scadenza", "id")):
+        if not conta(q):
+            continue
         if q.data_scadenza is None:
             stato = "valida"
         elif q.data_scadenza < oggi:

@@ -18,6 +18,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 from .catalogo_27002 import TEMI
 from .storage import PrivateSistemaGestioneStorage
@@ -295,7 +296,17 @@ class Auditor(models.Model):
     def qualifica_scaduta(self) -> bool:
         from django.utils import timezone
 
-        return bool(self.qualifica_scadenza and self.qualifica_scadenza < timezone.localdate())
+        if self.qualifica_scadenza and self.qualifica_scadenza < timezone.localdate():
+            return True
+        formazione = self.qualifica_formazione
+        return bool(formazione and formazione["scaduta"])
+
+    @cached_property
+    def qualifica_formazione(self) -> dict | None:
+        """La qualifica «auditor» della persona in Formazione, se scelta nelle impostazioni."""
+        from .services.qualifiche import qualifica_auditor
+
+        return qualifica_auditor(self)
 
     @property
     def norme_abilitate_set(self) -> set[str]:
@@ -1145,6 +1156,12 @@ class Certificazione(models.Model):
     prossima_sorveglianza = models.DateField("Prossimo audit di sorveglianza", null=True, blank=True)
     attiva = models.BooleanField(default=True)
     note = models.TextField(blank=True, default="")
+    qualifiche_richieste = models.ManyToManyField(
+        "anagrafica.TipoQualifica", blank=True, related_name="certificazioni_sgi",
+        verbose_name="Qualifiche del personale collegate",
+        help_text="Le qualifiche di Formazione che questo certificato presuppone: la scheda mostra quante sono "
+                  "valide, in scadenza o scadute.",
+    )
     aggiornata_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                       related_name="+")
     aggiornata_il = models.DateTimeField(auto_now=True)
@@ -1171,6 +1188,47 @@ class Certificazione(models.Model):
         if giorni < 0:
             return "scaduta"
         return "in_scadenza" if giorni <= self.PREAVVISO_GIORNI else "valida"
+
+    @property
+    def nome_breve(self) -> str:
+        return self.descrizione if self.norma == "ALTRO" and self.descrizione else self.get_norma_display()
+
+    @property
+    def documento_corrente(self):
+        """L'ultimo certificato caricato (usa il prefetch di ``documenti`` se c'è)."""
+        return next(iter(self.documenti.all()), None)
+
+    @property
+    def sorveglianza_superata(self) -> bool:
+        """La data della prossima sorveglianza è passata: va registrato l'audit o aggiornata la data."""
+        return bool(self.attiva and self.prossima_sorveglianza and self.prossima_sorveglianza < timezone.localdate())
+
+
+def upload_to_certificato(instance, filename: str) -> str:
+    from django.utils.text import get_valid_filename
+    return f"sistema_gestione/certificati/{instance.certificazione_id}/{get_valid_filename(filename)}"
+
+
+class CertificazioneDocumento(models.Model):
+    """Copia del certificato. Un rinnovo aggiunge un documento: i precedenti restano come storico."""
+
+    certificazione = models.ForeignKey(Certificazione, on_delete=models.CASCADE, related_name="documenti")
+    file = models.FileField(upload_to=upload_to_certificato, storage=PrivateSistemaGestioneStorage())
+    nome = models.CharField(max_length=200)
+    sha256 = models.CharField(max_length=64)
+    emesso_il = models.DateField(null=True, blank=True)
+    scade_il = models.DateField(null=True, blank=True)
+    caricato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+")
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-caricato_il", "-pk"]
+        verbose_name = "Copia del certificato"
+        verbose_name_plural = "Copie del certificato"
+
+    def __str__(self) -> str:
+        return self.nome
 
 
 def upload_to_audit_esterno(instance, filename: str) -> str:
@@ -1473,3 +1531,118 @@ class ScenarioRischioOT(models.Model):
 
     def __str__(self) -> str:
         return f"{self.codice} {self.scenario[:60]}"
+
+
+class Riesame(models.Model):
+    """Verbale di riesame della direzione (MOD.062, MT CN 19): chi prepara propone, il DIG approva."""
+
+    STATO_BOZZA = "BOZZA"
+    STATO_PROPOSTO = "PROPOSTO"
+    STATO_APPROVATO = "APPROVATO"
+    STATO_CHOICES = [(STATO_BOZZA, "Bozza"), (STATO_PROPOSTO, "Proposto alla Direzione"), (STATO_APPROVATO, "Approvato")]
+    GRUPPO_INGRESSO = "INGRESSO"
+    GRUPPO_USCITA = "USCITA"
+
+    anno = models.PositiveSmallIntegerField("Anno")
+    data = models.DateField("Data del verbale")
+    data_intermedio = models.DateField("Riunione di riesame intermedio", null=True, blank=True)
+    data_pianificazione = models.DateField("Pianificazione strategica", null=True, blank=True)
+    periodo_dal = models.DateField("Dati dal")
+    periodo_al = models.DateField("Dati al")
+    documenti_esaminati = models.TextField("Documenti esaminati", blank=True, default="")
+    stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_BOZZA, db_index=True)
+    indicatori_aggiornati_il = models.DateTimeField(null=True, blank=True)
+    fotografia_precedenti = models.JSONField(default=list, blank=True)
+    preparato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+")
+    proposto_il = models.DateTimeField(null=True, blank=True)
+    approvato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+")
+    approvato_il = models.DateTimeField(null=True, blank=True)
+    copia_firmata = models.FileField(upload_to="sistema_gestione/riesami/%Y/", storage=PrivateSistemaGestioneStorage(),
+                                     blank=True)
+    copia_firmata_nome = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data", "-pk"]
+        verbose_name = "Verbale di riesame"
+        verbose_name_plural = "Verbali di riesame"
+
+    def __str__(self) -> str:
+        return f"Riesame {self.anno} del {self.data:%d/%m/%Y}"
+
+    @property
+    def modificabile(self) -> bool:
+        return self.stato == self.STATO_BOZZA
+
+
+class RiesamePartecipante(models.Model):
+    riesame = models.ForeignKey(Riesame, on_delete=models.CASCADE, related_name="partecipanti")
+    funzione = models.CharField("Funzione", max_length=80)
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                               related_name="+")
+    nome = models.CharField("Nome", max_length=150, blank=True, default="")
+
+    class Meta:
+        ordering = ["pk"]
+
+    @property
+    def nominativo(self) -> str:
+        if self.nome:
+            return self.nome
+        return (self.utente.get_full_name() or self.utente.get_username()) if self.utente_id else ""
+
+
+class RiesameArgomento(models.Model):
+    """Un argomento del verbale, con gli indicatori fissati e l'analisi di chi verbalizza."""
+
+    riesame = models.ForeignKey(Riesame, on_delete=models.CASCADE, related_name="argomenti")
+    codice = models.CharField(max_length=10)
+    gruppo = models.CharField(max_length=10)
+    titolo = models.CharField(max_length=200)
+    ordine = models.PositiveSmallIntegerField(default=0)
+    indicatori = models.JSONField(default=list, blank=True)
+    analisi = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["ordine", "pk"]
+
+
+class RiesameObiettivo(models.Model):
+    """Obiettivo fissato nel verbale (MT CN 19 §6.5): torna nel riesame successivo per il raggiungimento."""
+
+    STATO_APERTO = "APERTO"
+    STATO_RAGGIUNTO = "RAGGIUNTO"
+    STATO_PARZIALE = "PARZIALE"
+    STATO_NON_RAGGIUNTO = "NON_RAGGIUNTO"
+    STATO_RIPIANIFICATO = "RIPIANIFICATO"
+    STATO_CHOICES = [
+        (STATO_APERTO, "In corso"), (STATO_RAGGIUNTO, "Raggiunto"), (STATO_PARZIALE, "Raggiunto in parte"),
+        (STATO_NON_RAGGIUNTO, "Non raggiunto"), (STATO_RIPIANIFICATO, "Ripianificato"),
+    ]
+
+    riesame = models.ForeignKey(Riesame, on_delete=models.CASCADE, related_name="obiettivi")
+    descrizione = models.TextField("Obiettivo")
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.SET_NULL, related_name="obiettivi_riesame",
+                                 verbose_name="Processo")
+    indicatore = models.CharField("Indicatore di misurazione", max_length=200, blank=True, default="")
+    risultato_atteso = models.CharField("Risultato da raggiungere", max_length=200, blank=True, default="")
+    responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+", verbose_name="Responsabile")
+    risorse = models.TextField("Risorse destinate", blank=True, default="")
+    scadenza = models.DateField("Scadenza", null=True, blank=True)
+    stato = models.CharField(max_length=15, choices=STATO_CHOICES, default=STATO_APERTO, db_index=True)
+    nota = models.TextField("Livello raggiunto e motivi", blank=True, default="")
+    chiuso_in = models.ForeignKey(Riesame, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="obiettivi_valutati")
+    origine = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="ripianificati")
+
+    class Meta:
+        ordering = ["scadenza", "pk"]
+        verbose_name = "Obiettivo del riesame"
+        verbose_name_plural = "Obiettivi del riesame"
+
+    def __str__(self) -> str:
+        return self.descrizione[:80]

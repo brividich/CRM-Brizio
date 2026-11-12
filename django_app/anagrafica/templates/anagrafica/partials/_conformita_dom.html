@@ -11,4 +11,5 @@
     {% for d in dom.dettagli %}<li>{{ d }}</li>{% endfor %}
   </ul>
   {% endif %}
+  {% if vai and dom.esito == 'ko' or vai and dom.esito == 'warn' %}<a class="cf-vai" href="#{{ vai_ancora|default:vai }}" data-tab-vai="{{ vai }}" style="font-size:12px;color:#1f87cd;font-weight:600;text-decoration:none;">Vai alla sezione per sistemare →</a>{% endif %}
 </div>

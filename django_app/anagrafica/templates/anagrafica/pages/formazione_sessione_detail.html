@@ -326,7 +326,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
       </table>
       </div>
       {% else %}
-      <div class="fm-empty">Nessun programma: il fascicolo lo segnalerà come mancante. Dichiaralo sul corso e riprendilo qui.</div>
+      <div class="fm-empty">Nessun programma: il fascicolo lo segnalerà come mancante. <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' sessione.corso_id %}" title="Apri il corso per dichiarare il programma">↻ Dichiaralo sul corso</a> e riprendilo qui.</div>
       {% endif %}
       {% if is_editor %}
       <details class="fm-agg"><summary>+ Integra un argomento</summary>
@@ -488,6 +488,11 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     </div>
     {% endif %}
   </div>
+
+  {# ── Ingressi del docente esterno dal chiosco della reception (GuestPortal) #}
+  {% if sessione.modalita != "REMOTO" and sessione.docente.tipo != "INTERNO" or sessione.ingressi_esterni.exists %}
+  <div hx-get="{% url 'fornitori:presenze_intervento' 'formazione' sessione.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="muted" style="font-size:12px;">Caricamento presenze in azienda del docente…</p></div>
+  {% endif %}
 
   {# ── Allegati dell'edizione: registro firmato + materiale ──────────────── #}
   <div class="hr-card fm-section">

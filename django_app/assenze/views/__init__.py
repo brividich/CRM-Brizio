@@ -46,7 +46,6 @@ from ..constants import (
     SHORTCUT_PRESETS,
     SHORTCUT_CUSTOM,
     PERMESSO_MIN_MINUTES,
-    PERMESSO_MAX_HOURS,
 )
 from core import naming
 from django.http import StreamingHttpResponse
@@ -55,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 from .amministrazione import (
     api_admin_assenza_delete,
+    api_admin_bulk_certificato,
     api_admin_bulk_consenso,
     export_gestione_assenze_csv,
     gestione_admin,
@@ -75,12 +75,15 @@ from .richieste import (
     aggiorna_consenso_placeholder,
     api_car_aggiorna_consenso,
     api_mia_assenza_update,
+    api_sollecita_richiesta,
     car_dashboard,
     certificazione_presenza,
     export_assenze_car_csv,
     gestione_assenze,
     invio_placeholder,
     richiesta_assenze,
+    richiesta_campo_capo,
+    richiesta_controlli,
 )
 from .sharepoint import (
     api_sync_pull,

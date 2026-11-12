@@ -134,8 +134,9 @@ class AnomaliaMailActionTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "OP-2026-TEST")
 
-    def test_spunta_applica_al_blocco_come_nel_portale(self):
-        """Come in Gestione anomalie: la spunta compare solo nei blocchi con piu' anomalie."""
+    def test_applica_anche_a_come_nel_portale(self):
+        """Come in Gestione anomalie: «Applica la stessa decisione anche a» su ogni anomalia;
+        «Stesso blocco di seriali» solo nei blocchi con piu' anomalie."""
         token_obj = self._create_token(action="aggiorna_avanzamento")
         righe = _make_anomalie_rows(3)
         gruppi = [
@@ -147,14 +148,13 @@ class AnomaliaMailActionTokenTests(TestCase):
              patch("anomalie.mail_action_views._raggruppa", return_value=gruppi):
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="applica-1"')
-        self.assertContains(response, 'id="applica-2"')
-        self.assertNotContains(response, 'id="applica-3"')
-        self.assertContains(
-            response,
-            "Applica la stessa decisione anche alle altre <b>1</b> anomalia aperte di questi seriali",
-            count=2,
-        )
+        for i in (1, 2, 3):
+            self.assertContains(response, f'id="ambito-{i}"')
+        self.assertContains(response, '<option value="blocco">Stesso blocco di seriali</option>', count=2)
+        self.assertContains(response, '<option value="op">Tutte le aperte in questa pagina</option>', count=3)
+        self.assertContains(response, 'id="riepModal"')
+        # Un apostrofo non protetto in una stringa JS fermava tutto lo script della pagina.
+        self.assertNotContains(response, "stato di avanzamento, l'anomalia non può restare")
         self.assertNotContains(response, "Applica a tutte")
 
 

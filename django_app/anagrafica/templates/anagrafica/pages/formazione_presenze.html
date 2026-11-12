@@ -52,7 +52,9 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       </p>
       {% endif %}
     </div>
-    <div style="display:flex;gap:8px;align-items:flex-start;">
+    <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+      {% if lezione_successiva %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk lezione_successiva.pk %}" title="{{ lezione_successiva.argomento }}">Lezione {{ lezione_successiva.numero }} →</a>
+      {% else %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" title="Ultima lezione: registra esiti e completamenti degli iscritti">Esiti e completamenti →</a>{% endif %}
       {% if is_editor and righe %}
       <button class="hr-btn hr-btn-ghost" onclick="toggleAutocompila()"
               title="Spunta chi ha firmato ingresso/uscita sul registro caricato: le presenze si compilano da sole">✍ Autocompila dal registro</button>

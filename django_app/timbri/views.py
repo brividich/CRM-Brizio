@@ -54,6 +54,11 @@ def _legacy_role_name(legacy_user) -> str:
 def _can_view_timbri(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
+    # Ruoli attivi: decide la matrice («vedere»), come per modificare, copiare e
+    # scaricare; prima la lettura seguiva solo il ruolo storico.
+    esito = _ruoli(request, "vedere")
+    if esito is not None:
+        return esito
     legacy_user = _legacy_user(request)
     if not legacy_user:
         return False
@@ -650,6 +655,16 @@ def index(request):
     reparto = str(request.GET.get("reparto") or "").strip()
     qualifica = str(request.GET.get("qualifica") or "").strip()
     rows = _legacy_employee_rows()
+    # Ambito della matrice (propri / team / tutti): elenco, filtri e tessere
+    # contano solo le persone che il ruolo vede.
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        from anagrafica.views.dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request, "timbri", "vedere")
+        if visibili is not None:
+            rows = [row for row in rows if int(row.get("id") or 0) in visibili]
     # Reparto CANONICO (dipendente → area_aziendale → reparto): ha precedenza sul
     # testo legacy, così colonna e filtro non mostrano più i vecchi reparti.
     from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
@@ -724,6 +739,8 @@ def index(request):
     # Le tessere KPI contano l'elenco prima del filtro rapido, così restano
     # un riferimento stabile mentre si passa da un filtro all'altro.
     con_timbri = sum(1 for item in entries if item["timbri_count"] > 0)
+    # Sulle stesse righe (filtri compresi): prima era il totale aziendale.
+    record_attivi = sum(item["active_records"] for item in entries)
     stato = str(request.GET.get("stato") or "").strip()
     stato_filters = {
         "attivi": lambda item: item["active_records"] > 0,
@@ -759,8 +776,9 @@ def index(request):
             stats={
                 "dipendenti": len(rows),
                 "con_timbri": con_timbri,
-                "record_attivi": RegistroTimbro.objects.filter(is_attivo=True, is_archived=False).count(),
-                "da_gestire": len(pending_issues),
+                "record_attivi": record_attivi,
+                # Conteggio pieno: la lista sotto mostra i primi 100.
+                "da_gestire": TimbriImportIssue.objects.filter(is_resolved=False).count(),
             },
             pending_issues=pending_issues,
         ),

@@ -77,6 +77,8 @@ ANOMALIE_LIST_KEYS = (
     "conferma_aggiornamenti",
     "rdc_segnalazione",
     "escalation_supervisori",
+    "azioni_effettuate",
+    "referenti_rdc",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -99,13 +101,20 @@ ANOMALIE_LIST_DEFAULTS = {
     # Email supervisori del resoconto escalation "OP da controllare"
     # (anomalie ferme in "In attesa" oltre soglia ore).
     "escalation_supervisori": [],
+    # Scelte del riquadro «Azione effettuata» (rilavorazione, scarto...): chi
+    # contiene «rilavor» o «ripar» chiede la riverifica per chiudere.
+    "azioni_effettuate": ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
+    # Persone (nome o email) che seguono RDC e segnalazioni al cliente: in «In carico
+    # a me» vedono gli OP con anomalie aperte da aprire RDC o da segnalare al cliente.
+    "referenti_rdc": [],
 }
-ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
+ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti", "azioni_effettuate"})
 # SEC: liste di sola configurazione (email notifica/escalation, destinatari RDC,
 # whitelist autorizzati alla modifica). Vanno esposte solo a chi gestisce la config,
 # non a tutti gli utenti del modulo via il GET di api_anomalie_config_liste.
 _ANOMALIE_SENSITIVE_LIST_KEYS = frozenset({
     "autorizzati_modifica", "conferma_aggiornamenti", "rdc_segnalazione", "escalation_supervisori",
+    "referenti_rdc",
 })
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
 ANOMALIE_DERIVED_LIST_KEYS = frozenset({"capi_reparto", "capi_commessa"})
@@ -143,6 +152,10 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
     ".csv",
 }
 ALLEGATI_MAX_FILE_SIZE = DOCUMENT_MAX_BYTES
+# Allegati di «Risposta del cliente» e «Azione effettuata»: anche le mail salvate
+# (Outlook .msg, .eml) e i testi; si scaricano sempre, mai aperti nel browser.
+ESITI_SOLO_DOWNLOAD = {".msg", ".eml", ".txt"}
+ESITI_ALLOWED_EXTENSIONS = ALLEGATI_ALLOWED_EXTENSIONS | ESITI_SOLO_DOWNLOAD
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
 ALLEGATI_SYNC_PENDING = "pending"
@@ -594,6 +607,15 @@ def _attachment_dir_for_local(local_id: int, *, create: bool = False) -> Path:
     return folder
 
 
+# Allegati caricati nel riquadro «Decisione del capocommessa»: stessa cartella
+# dell'anomalia, riconoscibili dal suffisso prima di «__» (``<uuid>-cc__nome``).
+ALLEGATI_DECISIONE_SUFFIX = "-cc"
+
+
+def _is_allegato_decisione(file_id: str) -> bool:
+    return "__" in file_id and file_id.split("__", 1)[0].endswith(ALLEGATI_DECISIONE_SUFFIX)
+
+
 def _attachment_display_name(file_id: str) -> str:
     if "__" in file_id:
         return file_id.split("__", 1)[1]
@@ -775,6 +797,7 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
                 "mime_type": mime,
                 "is_image": _is_image_attachment(path.name, mime),
                 "modified": mtime,
+                "decisione": _is_allegato_decisione(file_id),
             }
         )
     from .quality_models import AnomaliaDescrizioneAllegato
@@ -861,6 +884,121 @@ def _read_anomalie_config() -> dict:
             logger.info("[anomalie] configurazione importata nel DB da %s", path)
         return payload
     return {}
+
+
+# Parti del blocco del controllore (Apertura segnalazione) accendibili da Configurazione:
+# servono a provarle con i controllori senza rilasci. Tutte accese di serie.
+CAMPI_CONTROLLO = (
+    ("dove_pezzi", "«Dove sono i pezzi?»", "Campo del blocco: vale per tutti i pezzi, esce nelle mail e in Gestione."),
+    ("simboli", "Pulsanti dei simboli", "Ø ± ° ⊥ ∥ ◎ ⌖ … sopra la descrizione: scrivono dove c'è il cursore."),
+    ("caso", "«Che cosa hai trovato?»", "Scelta facoltativa del caso per ogni anomalia: spento, nasconde anche i tre casi."),
+    ("caso_misura", "Caso «Misura fuori tolleranza»", "Righe di misura con esito e frase calcolati."),
+    ("report_zeiss", "Riquadro «Dal report ZEISS»", "Screenshot del protocollo incollato → misure proposte (dentro il caso misura)."),
+    ("caso_difetto", "Caso «Difetto sul pezzo»", "Genere del difetto, dove, dimensioni."),
+    ("caso_documenti", "Caso «Marcatura / documenti»", "Sul pezzo / atteso / documenti coinvolti."),
+    ("riferimento", "«+ Riferimento»", "Disegno/revisione, sezione/vista, fase del ciclo."),
+    ("tipo_difetto", "«Tipo di difetto» proposto", "Compare con un caso scelto; il portale lo propone, il controllore lo cambia."),
+    ("copia_testo", "«↓ Copia nella descrizione»", "Porta le frasi delle misure nel testo dell'anomalia."),
+)
+CAMPI_CONTROLLO_KEY = "campi_controllo"
+# «Chi fa cosa»: gruppi di controllori del modulo (i ruoli operativi sono generici).
+GRUPPI_CONTROLLORI_KEY = "gruppi_controllori"
+GRUPPI_CONTROLLORI_DEFAULT = (("cmm", "Controllo CMM"), ("visivo", "Controllo visivo"))
+
+
+def _codice_gruppo(nome: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", naming.chiave_testo(nome).lower()).strip("-")[:40]
+
+
+def gruppi_controllori() -> list[dict]:
+    """Gruppi di controllori ``[{codice, nome, persone}]`` (di serie CMM e visivo, vuoti)."""
+    salvati = (_read_anomalie_config() or {}).get(GRUPPI_CONTROLLORI_KEY)
+    if not isinstance(salvati, list):
+        return [{"codice": c, "nome": n, "persone": []} for c, n in GRUPPI_CONTROLLORI_DEFAULT]
+    return _pulisci_gruppi(salvati)
+
+
+def _pulisci_gruppi(raw) -> list[dict]:
+    out, visti = [], set()
+    for g in (raw or [])[:20]:
+        if not isinstance(g, dict):
+            continue
+        nome = " ".join(str(g.get("nome") or "").split())[:60]
+        codice = _codice_gruppo(g.get("codice") or nome)
+        if not nome or not codice or codice in visti:
+            continue
+        visti.add(codice)
+        persone = [" ".join(str(x).split())[:120] for x in (g.get("persone") or []) if str(x).strip()][:100]
+        out.append({"codice": codice, "nome": nome, "persone": persone})
+    return out
+
+
+# Parti a livello di blocco: la condizione sul tipo di difetto (che è dell'anomalia) non si applica.
+CAMPI_CONTROLLO_DI_BLOCCO = frozenset({"dove_pezzi"})
+MODI_VISIBILITA = ("sempre", "mai", "se")
+
+
+def _regola_campo(raw) -> dict:
+    """Regola «Visibile se» di una parte: sempre / mai / se (persone, ruoli, fasi, tipi difetto)."""
+    if isinstance(raw, bool):  # formato del primo rilascio: acceso / spento
+        raw = {"modo": "sempre" if raw else "mai"}
+    raw = raw if isinstance(raw, dict) else {}
+    pulisci = lambda v, n=120: [" ".join(str(x).split())[:n] for x in (v or []) if str(x).strip()][:50]  # noqa: E731
+    ruoli = []
+    for x in raw.get("ruoli") or []:
+        try:
+            ruoli.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return {
+        "modo": raw.get("modo") if raw.get("modo") in MODI_VISIBILITA else "sempre",
+        "persone": pulisci(raw.get("persone")),
+        "ruoli": ruoli[:50],
+        "fasi": pulisci(raw.get("fasi"), 60),
+        "tipi": pulisci(raw.get("tipi"), 40),
+        "gruppi": [_codice_gruppo(x) for x in pulisci(raw.get("gruppi"), 40)],
+    }
+
+
+def campi_controllo() -> dict[str, dict]:
+    """Regole «Visibile se» delle parti del blocco del controllore (di serie: sempre)."""
+    salvati = (_read_anomalie_config() or {}).get(CAMPI_CONTROLLO_KEY)
+    salvati = salvati if isinstance(salvati, dict) else {}
+    return {k: _regola_campo(salvati.get(k, True)) for k, _l, _h in CAMPI_CONTROLLO}
+
+
+def campi_controllo_per(request) -> dict[str, dict]:
+    """Per la pagina del controllore: ``{campo: {"visibile", "fasi", "tipi"}}``.
+
+    Persone e ruoli si valutano qui (sulla persona collegata); fase del controllo e
+    tipo di difetto dell'anomalia li valuta la pagina, perché cambiano mentre si scrive.
+    """
+    mie = {_chiave_persona(n) for n in _request_name_norms(request)}
+    email = _current_user_identity(request).get("email_norm") or ""
+    if email:
+        mie.add(_chiave_persona(email))
+    mie.discard("")
+    out = {}
+    persone_gruppo = {g["codice"]: g["persone"] for g in gruppi_controllori()}
+    for chiave, regola in campi_controllo().items():
+        visibile = regola["modo"] != "mai"
+        if regola["modo"] == "se" and (regola["persone"] or regola["ruoli"] or regola["gruppi"]):
+            ammessi = {_chiave_persona(n) for n in regola["persone"]}
+            for codice in regola["gruppi"]:
+                ammessi |= {_chiave_persona(n) for n in persone_gruppo.get(codice, [])}
+            if regola["ruoli"]:
+                try:
+                    ammessi |= {_chiave_persona(n) for n in _names_for_ruoli_operativi(regola["ruoli"])}
+                except Exception:
+                    logger.warning("anomalie: persone dei ruoli operativi non lette", exc_info=True)
+            visibile = bool(mie & ammessi)
+        se = regola["modo"] == "se"
+        out[chiave] = {
+            "visibile": visibile,
+            "fasi": regola["fasi"] if se else [],
+            "tipi": regola["tipi"] if se and chiave not in CAMPI_CONTROLLO_DI_BLOCCO else [],
+        }
+    return out
 
 
 def _write_anomalie_config(payload: dict) -> None:
@@ -1331,7 +1469,12 @@ def _resolve_op_lookup_id(op_item_id, op_title) -> int | None:
         if not rows:
             return None
         sp_id = str(rows[0].get(OP_ITEM_ID_COL) or "").strip()
-        return int(sp_id) if sp_id.isdigit() else None
+        # Gli OP creati nel portale hanno id negativi ("-3"): isdigit() li scartava
+        # e ogni salvataggio azzerava op_lookup_id della riga.
+        try:
+            return int(sp_id) if sp_id else None
+        except ValueError:
+            return None
     except Exception:
         return None
 
@@ -1356,6 +1499,9 @@ def _canonicalize_avanzamento(value: str) -> str:
     for c in choices:
         if str(c).strip().lower() == raw.lower():
             return str(c).strip()
+    for fisso in (AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_INFO_RICHIESTE):
+        if raw.lower() == fisso.lower():
+            return fisso
     if choices:
         logger.warning(
             "anomalie: avanzamento fuori catalogo: %r (catalogo=%s)", raw, list(choices)
@@ -1554,18 +1700,78 @@ def _op_role_codes_for_current_user(request, op_id: str) -> list[str]:
         return []
     if not rows:
         return []
+    return _op_role_codes_da_persone(request, _row_capocommessa(rows[0]), rows[0].get("incaricato"))
 
-    current_name_norms = _current_user_name_norms(request)
-    identity = _current_user_identity(request)
-    if not current_name_norms and identity["name_norm"]:
-        current_name_norms = {identity["name_norm"]}
+
+def _request_name_norms(request) -> set[str]:
+    """Nomi normalizzati della persona collegata (calcolati una volta per richiesta)."""
+    cached = getattr(request, "_anomalie_name_norms", None)
+    if cached is not None:
+        return cached
+    names = _current_user_name_norms(request)
+    if not names:
+        name_norm = _current_user_identity(request)["name_norm"]
+        names = {name_norm} if name_norm else set()
+    request._anomalie_name_norms = names
+    return names
+
+
+def _chiave_persona(value) -> str:
+    """Chiave di confronto di un nominativo indipendente dall'ordine (nome/cognome)."""
+    return " ".join(sorted(_normalize_identity_text(value).split()))
+
+
+def _is_referente_rdc(request) -> bool:
+    """La persona è nella lista «Referenti RDC / segnalazione cliente» di Configurazione.
+
+    Confronto per nominativo (in qualunque ordine nome/cognome) o per email.
+    Calcolato una volta per richiesta.
+    """
+    cached = getattr(request, "_anomalie_referente_rdc", None)
+    if cached is not None:
+        return cached
+    esito = False
+    try:
+        lista = _load_anomalie_lists().get("referenti_rdc") or []
+    except Exception:
+        lista = []
+    if lista:
+        voci = {_chiave_persona(v) for v in lista if v}
+        mie = {_chiave_persona(n) for n in _request_name_norms(request)}
+        email = _current_user_identity(request).get("email_norm") or ""
+        if email:
+            mie.add(_chiave_persona(email))
+        esito = bool(voci & {m for m in mie if m})
+    request._anomalie_referente_rdc = esito
+    return esito
+
+
+def _op_ha_rdc_o_cliente(op_title: str) -> bool:
+    """L'OP ha almeno un'anomalia da aprire RDC o da segnalare al cliente."""
+    if not op_title or not _has_table("anomalie"):
+        return False
+    try:
+        rows = _fetch_all_dict(
+            "SELECT COUNT(*) AS n FROM anomalie "
+            "WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) = LOWER(%s) "
+            "AND (COALESCE(aprire_rdc, 0) = 1 OR COALESCE(segnalare_cliente, 0) = 1)",
+            [op_title],
+        )
+        return bool(rows and int(rows[0].get("n") or 0) > 0)
+    except Exception:
+        return False
+
+
+def _op_role_codes_da_persone(request, capocommessa, incaricato) -> list[str]:
+    """Ruoli (CC/CAR) che la persona ricopre su un OP, dai campi già letti."""
+    current_name_norms = _request_name_norms(request)
     if not current_name_norms:
         return []
 
     matched_roles: list[str] = []
     role_to_people = {
-        AnomalieRoleType.CAPO_COMMESSA: _row_capocommessa(rows[0]),
-        AnomalieRoleType.CAR: rows[0].get("incaricato"),
+        AnomalieRoleType.CAPO_COMMESSA: capocommessa,
+        AnomalieRoleType.CAR: incaricato,
     }
     for role_code, raw_people in role_to_people.items():
         tokens = _split_people_tokens(str(raw_people or ""))
@@ -1592,6 +1798,623 @@ def _anomalie_role_access_level_for_codes(role_codes: list[str]) -> str:
 
 def _op_role_access_level_for_current_user(request, op_id: str) -> str:
     return _anomalie_role_access_level_for_codes(_op_role_codes_for_current_user(request, op_id))
+
+
+# ─── Permessi per OP con il sistema dei ruoli ───────────────────────────────
+# La matrice decide l'ambito di «vedere» e «modificare» sulle anomalie:
+#   «tutti»  → ogni OP;
+#   «team»   → gli OP dove capocommessa/CAR o chi ha aperto un'anomalia è la
+#              persona o qualcuno del suo team;
+#   «propri» → solo gli OP della persona (capocommessa/CAR o anomalie aperte da lei).
+# Chi è capocommessa/CAR dell'OP lo vede sempre e lo modifica secondo le regole
+# CC/CAR del modulo; chi ha aperto un'anomalia vede sempre il suo OP.
+
+
+def _nomi_norm_di_utenti(legacy_ids) -> frozenset[str]:
+    """Nomi normalizzati («Nome Cognome» e «Cognome Nome») di un insieme di utenti legacy."""
+    ids = {int(i) for i in legacy_ids if i}
+    if not ids:
+        return frozenset()
+    names: set[str] = set()
+    try:
+        for nome in UtenteLegacy.objects.filter(id__in=ids).values_list("nome", flat=True):
+            if nome:
+                names.add(_normalize_identity_text(nome))
+        for nome, cognome in AnagraficaDipendente.objects.filter(utente_id__in=ids).values_list("nome", "cognome"):
+            nome, cognome = str(nome or "").strip(), str(cognome or "").strip()
+            if nome and cognome:
+                names.add(_normalize_identity_text(f"{nome} {cognome}"))
+                names.add(_normalize_identity_text(f"{cognome} {nome}"))
+    except DatabaseError:
+        logger.warning("anomalie: nomi del team non risolti", exc_info=True)
+    return frozenset(n for n in names if n)
+
+
+def _ambito_anomalie(request, azione: str):
+    """``None`` = tutti gli OP; altrimenti ``(utenti.id ammessi, loro nomi normalizzati)``.
+
+    Insiemi vuoti = azione non concessa dalla matrice.
+    """
+    cache = request.__dict__.setdefault("_anomalie_ambiti", {})
+    if azione not in cache:
+        from core.permessi import utenti_visibili
+
+        ids = utenti_visibili(request, "anomalie", azione)
+        cache[azione] = None if ids is None else (frozenset(ids), _nomi_norm_di_utenti(ids))
+    return cache[azione]
+
+
+def _request_legacy_user_id(request) -> int | None:
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return int(legacy_user.id) if legacy_user and getattr(legacy_user, "id", None) else None
+
+
+def _persone_op_norm(capocommessa, incaricato) -> set[str]:
+    return {
+        _normalize_identity_text(t)
+        for raw in (capocommessa, incaricato)
+        for t in _split_people_tokens(str(raw or ""))
+    }
+
+
+def _ambito_copre_op(request, azione: str, capocommessa, incaricato, creatori) -> bool:
+    ambito = _ambito_anomalie(request, azione)
+    if ambito is None:
+        return True
+    ids, nomi = ambito
+    if not ids:
+        return False
+    return bool(_persone_op_norm(capocommessa, incaricato) & nomi) or bool(set(creatori) & ids)
+
+
+def _vede_op_ruoli(request, capocommessa, incaricato, creatori) -> bool:
+    """Visibilità di un OP con il sistema dei ruoli (dati dell'OP già letti)."""
+    if _op_role_codes_da_persone(request, capocommessa, incaricato):
+        return True
+    me = _request_legacy_user_id(request)
+    if me is not None and me in set(creatori):
+        return True
+    return (
+        _ambito_copre_op(request, "vedere", capocommessa, incaricato, creatori)
+        or _ambito_copre_op(request, "modificare", capocommessa, incaricato, creatori)
+    )
+
+
+def _modifica_op_ruoli(request, capocommessa, incaricato, creatori) -> bool:
+    """Modifica delle anomalie di un OP con il sistema dei ruoli."""
+    ruoli = _op_role_codes_da_persone(request, capocommessa, incaricato)
+    if ruoli and _access_level_at_least(
+        _anomalie_role_access_level_for_codes(ruoli), AnomalieAccessLevel.EDIT_ASSIGNED
+    ):
+        return True
+    return _ambito_copre_op(request, "modificare", capocommessa, incaricato, creatori)
+
+
+def _op_persone_row(op_title: str) -> dict:
+    """Capocommessa/CAR di un OP per titolo ({} se l'OP non è in ordini_produzione)."""
+    if not op_title or not _has_table("ordini_produzione"):
+        return {}
+    try:
+        rows = _fetch_all_dict(
+            "SELECT TOP 1 capocomessa, incaricato FROM ordini_produzione WHERE title = %s",
+            [op_title],
+        )
+    except Exception:
+        return {}
+    return rows[0] if rows else {}
+
+
+def _creatori_anomalie_op(op_title: str) -> set[int]:
+    """``utenti.id`` di chi ha aperto anomalie sull'OP (per titolo, copre op_lookup_id NULL)."""
+    if not op_title or "created_by_user_id" not in (legacy_table_columns("anomalie") or set()):
+        return set()
+    try:
+        rows = _fetch_all_dict(
+            "SELECT DISTINCT created_by_user_id AS uid FROM anomalie "
+            "WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) = LOWER(%s) AND created_by_user_id IS NOT NULL",
+            [op_title],
+        )
+    except Exception:
+        return set()
+    return {int(r["uid"]) for r in rows if r.get("uid") is not None}
+
+
+def _dati_op_per_permessi(op_id: str) -> tuple:
+    op_title = _safe_text(op_id, 100) or ""
+    row = _op_persone_row(op_title)
+    return _row_capocommessa(row), row.get("incaricato"), _creatori_anomalie_op(op_title)
+
+
+def _can_create_anomalie_for_op(request, op_id: str) -> bool:
+    """Aprire segnalazioni su un OP: chi può modificarlo o, con i ruoli accesi, chi
+    ha «creare» sulle anomalie (la segnalazione nasce sua, la decisione resta del
+    capocommessa)."""
+    if _can_edit_anomalie_for_op(request, op_id):
+        return True
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    return bool(sistema_ruoli_attivo() and decisione(request, "anomalie", "creare").consentito)
+
+
+def _is_creatore_anomalia(request, local_id: int) -> bool:
+    me = _request_legacy_user_id(request)
+    if me is None or "created_by_user_id" not in (legacy_table_columns("anomalie") or set()):
+        return False
+    try:
+        rows = _fetch_all_dict("SELECT TOP 1 created_by_user_id AS uid FROM anomalie WHERE id = %s", [int(local_id)])
+    except Exception:
+        return False
+    return bool(rows and rows[0].get("uid") is not None and int(rows[0]["uid"]) == me)
+
+
+def _can_attach_anomalia(request, local_id: int, op_id: str) -> bool:
+    """Allegati di un'anomalia: chi modifica l'OP o chi l'ha aperta (foto del controllo)."""
+    return _can_edit_anomalie_for_op(request, op_id) or _is_creatore_anomalia(request, local_id)
+
+
+def _riapre_su_op(request, op_id: str) -> bool:
+    """Riaprire per ruolo sull'OP: chi lo modifica o chi ne è capocommessa/CAR."""
+    if _can_edit_anomalie_for_op(request, op_id):
+        return True
+    row = _op_persone_row(_safe_text(op_id, 100) or "")
+    return bool(_op_role_codes_da_persone(request, _row_capocommessa(row), row.get("incaricato")))
+
+
+def _controlli_dell_utente(request) -> set[int]:
+    """Id dei controlli eseguiti dall'utente (è il controllore delle loro anomalie)."""
+    from anomalie.quality_models import AnomaliaControllo
+
+    uid = getattr(getattr(request, "user", None), "pk", None)
+    if not uid:
+        return set()
+    return set(AnomaliaControllo.objects.filter(operatore_id=uid).values_list("pk", flat=True))
+
+
+def _is_controllore_anomalia(request, local_id: int) -> bool:
+    if _is_creatore_anomalia(request, local_id):
+        return True
+    from anomalie.quality_models import AnomaliaSegnalazioneMeta
+
+    controlli = _controlli_dell_utente(request)
+    return bool(controlli) and AnomaliaSegnalazioneMeta.objects.filter(
+        anomalia_id=int(local_id), controllo_id__in=controlli
+    ).exists()
+
+
+def _dove_pezzi_di(local_id) -> str:
+    """«Dove sono i pezzi?» indicato dal controllore (scheda qualità), "" se non c'è."""
+    from anomalie.quality_models import AnomaliaSchedaQualita
+
+    try:
+        return AnomaliaSchedaQualita.objects.filter(anomalia_id=int(local_id)).values_list(
+            "dove_pezzi", flat=True).first() or ""
+    except Exception:
+        return ""
+
+
+def _salva_dove_pezzi_terzista(request, scheda, data: dict) -> None:
+    """«Dove sono i pezzi?», «Segnala a terzista» e «Segnala a CAR» della decisione
+    (scheda qualità). I CAR aggiunti ricevono la mail dopo il commit.
+
+    Solo chi può modificare l'OP (come le altre scelte della decisione) e solo i
+    campi presenti nel payload: i salvataggi che non li mandano non li azzerano.
+    """
+    if scheda is None or not any(k in data for k in ("dove_pezzi", "segnala_terzista", "segnala_car")):
+        return
+    if not _can_edit_anomalie_for_op(request, _safe_text(data.get("op_id"), 100)):
+        return
+    campi = []
+    if "dove_pezzi" in data:
+        dove = _safe_text(data.get("dove_pezzi"), 200) or ""
+        if dove != scheda.dove_pezzi:
+            scheda.dove_pezzi = dove
+            campi.append("dove_pezzi")
+    if "segnala_terzista" in data:
+        terzista = bool(_as_bool_int(data.get("segnala_terzista")))
+        if terzista != scheda.segnala_terzista:
+            scheda.segnala_terzista = terzista
+            campi.append("segnala_terzista")
+    da_avvisare: list[str] = []
+    if "segnala_car" in data:
+        from anomalie.automazioni_service import separa_car_scelti
+
+        segnala = bool(_as_bool_int(data.get("segnala_car")))
+        scelti = separa_car_scelti(data.get("car_segnalati")) if segnala else []
+        segnala = segnala and bool(scelti)
+        prima = {n.lower() for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
+        # Mail solo ai CAR aggiunti ora: risalvare la stessa decisione non rimanda nulla.
+        da_avvisare = [n for n in scelti if n.lower() not in prima]
+        testo = "; ".join(scelti)[:500]
+        if segnala != scheda.segnala_car or testo != scheda.car_segnalati:
+            scheda.segnala_car = segnala
+            scheda.car_segnalati = testo
+            campi += ["segnala_car", "car_segnalati"]
+        if da_avvisare:
+            scheda.car_segnalati_il = dj_tz.now()
+            campi.append("car_segnalati_il")
+    if campi:
+        scheda.save(update_fields=[*campi, "updated_at"])
+    if da_avvisare:
+        _programma_mail_segnala_car(request, scheda, data, da_avvisare)
+
+
+def _programma_mail_segnala_car(request, scheda, data: dict, car: list[str]) -> None:
+    """Mail «Segnala a CAR» dopo il commit del salvataggio (mai bloccante)."""
+    from anomalie.automazioni_service import _etichetta_decisione, invia_segnalazione_car
+
+    op_id = _safe_text(data.get("op_id"), 100) or ""
+    identity = _current_user_identity(request)
+    deciso_da = identity.get("name") or request.user.get_full_name() or request.user.username
+    decisione = _etichetta_decisione({
+        "chiudere": _as_bool_int(data.get("chiudere")),
+        "avanzamento": _safe_text(data.get("avanzamento"), 100),
+        "aprire_rdc": _as_bool_int(data.get("aprire_rdc")),
+        "numero_rdc": _safe_text(data.get("numero_rdc"), 100),
+        "segnalare_cliente": _as_bool_int(data.get("segnalare")),
+    })
+    if scheda.segnala_terzista:
+        decisione += " · Segnalare al terzista"
+    kwargs = {
+        "anomalia_id": scheda.anomalia_id, "op_id": op_id, "car": car,
+        "seriale": _safe_text(data.get("sn"), 200) or "",
+        "descrizione": _safe_text(data.get("desc")) or "",
+        "decisione": decisione, "note": _safe_text(data.get("note")) or "",
+        "dove_pezzi": scheda.dove_pezzi, "deciso_da": deciso_da,
+    }
+
+    def _invia():
+        try:
+            esito = invia_segnalazione_car(**kwargs)
+            log_action(request, "anomalia_segnala_car", "anomalie", {
+                "local_id": scheda.anomalia_id, "op_id": op_id, "car": car, **esito,
+            })
+        except Exception:
+            logger.warning("segnala CAR: invio fallito anomalia=%s", scheda.anomalia_id, exc_info=True)
+
+    transaction.on_commit(_invia)
+
+
+def _extra_decisione_per_mail(local_id, data: dict) -> dict:
+    """Terzista, CAR segnalati e «Segnalato» per la mail di riepilogo.
+
+    La scheda si aggiorna dopo che il salvataggio ha accodato la mail: i valori
+    appena scelti si prendono dal payload, il resto (e «Segnalato») dalla scheda.
+    """
+    out = {"segnala_terzista": False, "car_segnalati": [], "segnalato_cliente": None, "segnalato_terzista": None}
+    try:
+        from anomalie.automazioni_service import separa_car_scelti
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=int(local_id)).first() if local_id else None
+        if scheda is not None:
+            out["segnala_terzista"] = bool(scheda.segnala_terzista)
+            out["car_segnalati"] = separa_car_scelti(scheda.car_segnalati) if scheda.segnala_car else []
+            out["segnalato_cliente"] = _segnalato_payload(scheda.segnalato_cliente_il, scheda.segnalato_cliente_da)
+            out["segnalato_terzista"] = _segnalato_payload(scheda.segnalato_terzista_il, scheda.segnalato_terzista_da)
+        if "segnala_terzista" in data:
+            out["segnala_terzista"] = bool(_as_bool_int(data.get("segnala_terzista")))
+        if "segnala_car" in data:
+            out["car_segnalati"] = (separa_car_scelti(data.get("car_segnalati"))
+                                    if _as_bool_int(data.get("segnala_car")) else [])
+        if not _as_bool_int(data.get("segnalare")):
+            out["segnalato_cliente"] = None
+        if not out["segnala_terzista"]:
+            out["segnalato_terzista"] = None
+    except Exception:
+        logger.warning("anomalie: dati decisione per la mail non letti id=%s", local_id, exc_info=True)
+    return out
+
+
+def _segnalato_payload(il, da: str) -> dict | None:
+    """«Segnalato» per la pagina: ``None`` se non spuntato, altrimenti quando e chi."""
+    if not il:
+        return None
+    return {"il": dj_tz.localtime(il).strftime("%d/%m/%Y %H:%M"), "da": da or ""}
+
+
+SEGNALATO_A = {"cliente": "al cliente", "terzista": "al terzista"}
+
+
+@login_required
+def api_segnalato(request):
+    """Spunta «Segnalato» (cliente o terzista) della decisione.
+
+    Registra solo quando e chi: nessuna mail di aggiornamento, nessun passaggio
+    dalla coda delle conferme (per questo non passa da ``api_salva``). Si spunta
+    solo se la decisione salvata chiede di segnalare a quel destinatario; vale
+    anche su un'anomalia già chiusa (la segnalazione può arrivare dopo).
+    """
+    if request.method != "POST":
+        return _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return _json_error("local_id non valido", status=400)
+    chi = str(data.get("chi") or "").strip()
+    if chi not in SEGNALATO_A:
+        return _json_error("Destinatario non valido", status=400)
+    acceso = bool(_as_bool_int(data.get("segnalato")))
+    rows = _fetch_all_dict("SELECT TOP 1 * FROM anomalie WHERE id = %s", [local_id]) if _has_table("anomalie") else []
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+
+    from anomalie.qualita_service import sync_da_anomalia
+
+    with transaction.atomic():
+        scheda = sync_da_anomalia(local_id)
+        if scheda is None:
+            return _json_error("Scheda dell'anomalia non disponibile", status=500)
+        richiesto = bool(rows[0].get("segnalare_cliente")) if chi == "cliente" else scheda.segnala_terzista
+        if acceso and not richiesto:
+            etichetta = "Segnalare al cliente" if chi == "cliente" else "Segnala a terzista"
+            return _json_error(f"Prima spunta «{etichetta}» e salva la decisione", status=400)
+        identity = _current_user_identity(request)
+        chi_utente = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200) or ""
+        setattr(scheda, f"segnalato_{chi}_il", dj_tz.now() if acceso else None)
+        setattr(scheda, f"segnalato_{chi}_da", chi_utente if acceso else "")
+        scheda.save(update_fields=[f"segnalato_{chi}_il", f"segnalato_{chi}_da", "updated_at"])
+
+    nota = f"Segnalato {SEGNALATO_A[chi]}" if acceso else f"Tolta la spunta «Segnalato {SEGNALATO_A[chi]}»"
+    try:
+        log_action(request, "anomalia_segnalato", "anomalie",
+                   {"local_id": local_id, "op_id": op_id, "chi": chi, "segnalato": acceso})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=op_id, action="segnalato", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=chi_utente, note=nota,
+            ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_segnalato: timeline log fallita id=%s", local_id, exc_info=True)
+    return JsonResponse({
+        "success": True,
+        "segnalato": _segnalato_payload(getattr(scheda, f"segnalato_{chi}_il"), getattr(scheda, f"segnalato_{chi}_da")),
+    })
+
+
+def _segna_eliminabili(request, rows: list[dict], raw_by_id: dict, autori: dict, op_title: str) -> None:
+    """``can_elimina`` (solo chi l'ha inserita) e ``can_sposta`` («Taglia»: chi l'ha
+    inserita o chi modifica l'OP), finché l'anomalia non ha avanzamenti."""
+    from . import controllo_service as cs
+    from .elimina_sposta import ids_con_avanzamenti
+
+    for r in rows:
+        r["can_elimina"] = False
+        r["can_sposta"] = False
+    ids = [r.get("local_id") for r in rows if r.get("local_id") is not None]
+    if not ids:
+        return
+    me = _request_legacy_user_id(request)
+    edit_op = _can_edit_anomalie_for_op(request, op_title) if op_title else False
+    if me is None and not edit_op:
+        return
+    bloccate = ids_con_avanzamenti(ids)
+    for r in rows:
+        lid = r.get("local_id")
+        raw = raw_by_id.get(lid) or {}
+        if lid is None or lid in bloccate or cs.riga_gestita(raw):
+            continue
+        autore = autori.get(lid)
+        mia = me is not None and autore is not None and int(autore) == me
+        r["can_elimina"] = mia
+        r["can_sposta"] = mia or edit_op
+
+
+def _anomalia_da_body(request):
+    """``(local_id, data, riga, errore)`` per le API che agiscono su una sola anomalia."""
+    if request.method != "POST":
+        return None, {}, None, _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return None, {}, None, _json_error("local_id non valido", status=400)
+    from .elimina_sposta import riga
+
+    row = riga(local_id) if _has_table("anomalie") else None
+    if row is None:
+        return local_id, data, None, _json_error("Anomalia non trovata", status=404)
+    return local_id, data, row, None
+
+
+@login_required
+def api_anomalie_elimina(request):
+    """Elimina una singola anomalia: solo chi l'ha inserita e solo senza avanzamenti."""
+    from .elimina_sposta import elimina, motivi_avanzamento, testo_motivi
+
+    local_id, _data, row, err = _anomalia_da_body(request)
+    if err:
+        return err
+    if not _is_creatore_anomalia(request, local_id):
+        return _json_error("Elimina l'anomalia solo chi l'ha inserita", status=403)
+    motivi = motivi_avanzamento(local_id, row)
+    if motivi:
+        return _json_error(f"Non si può più eliminare: {testo_motivi(motivi)}", status=409)
+    try:
+        istantanea = elimina(local_id)
+    except DatabaseError as exc:
+        logger.exception("api_anomalie_elimina: id=%s", local_id)
+        return _json_error(f"Eliminazione non riuscita: {exc}", status=500)
+    try:
+        log_action(request, "anomalia_eliminata", "anomalie", istantanea)
+    except Exception:
+        logger.warning("api_anomalie_elimina: audit non scritto id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "controllo_id": istantanea.get("controllo_id")})
+
+
+@login_required
+def api_anomalie_sposta(request):
+    """«Taglia»: sposta l'anomalia su un altro S/N dello stesso OP o di un altro OP.
+
+    Chi l'ha inserita o chi modifica l'OP di partenza, con il permesso di aprire
+    segnalazioni sull'OP di arrivo; solo finché non ci sono avanzamenti.
+    """
+    from .controllo_views import _op_esiste
+    from .elimina_sposta import motivi_avanzamento, sposta, testo_motivi
+    from .seriali import etichetta_blocco, normalizza_voci
+
+    local_id, data, row, err = _anomalia_da_body(request)
+    if err:
+        return err
+    op_da = str(row.get("ex_op_nominativo") or "").strip()
+    if not (_is_creatore_anomalia(request, local_id) or _can_edit_anomalie_for_op(request, op_da)):
+        return _json_error("Sposta l'anomalia chi l'ha inserita o chi gestisce l'OP", status=403)
+    motivi = motivi_avanzamento(local_id, row)
+    if motivi:
+        return _json_error(f"Non si può più spostare: {testo_motivi(motivi)}", status=409)
+    op_dest = _safe_text(data.get("op_id"), 100) or op_da
+    raw_sn = data.get("seriali")
+    voci = normalizza_voci(raw_sn if isinstance(raw_sn, list) else [raw_sn or ""])
+    if not voci:
+        return _json_error("Indica il S/N di destinazione")
+    stesso_op = op_dest.lower() == op_da.lower()
+    if not stesso_op:
+        if not _op_esiste(op_dest):
+            return _json_error(f"OP «{op_dest}» non trovato", status=404)
+        if not _can_create_anomalie_for_op(request, op_dest):
+            return _json_error(f"Non puoi inserire anomalie sull'OP «{op_dest}»", status=403)
+    elif etichetta_blocco(voci).lower() == str(row.get("seriale") or "").lower():
+        return _json_error("L'anomalia è già su questo S/N")
+    try:
+        esito = sposta(local_id, op_dest=op_dest, op_dest_item_id=data.get("op_item_id"), voci=voci)
+    except DatabaseError as exc:
+        logger.exception("api_anomalie_sposta: id=%s", local_id)
+        return _json_error(f"Spostamento non riuscito: {exc}", status=500)
+
+    identity = _current_user_identity(request)
+    chi = identity.get("name") or request.user.username
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    da, a = esito["da"], esito["a"]
+    if esito["cambia_op"]:
+        nota = f"Spostata dall'OP {da['op_id']} (S/N {da['seriale']}) all'OP {a['op_id']} (S/N {a['seriale']})"
+    else:
+        nota = f"Spostata da S/N {da['seriale']} a S/N {a['seriale']}"
+    try:
+        log_action(request, "anomalia_spostata", "anomalie", {"local_id": local_id, **esito})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action, register_pending_update
+
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=a["op_id"], action="spostata", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None, user_display=chi, note=nota,
+            ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+        if esito["cambia_op"]:
+            # Il capocommessa del nuovo OP la riceve nel riepilogo delle modifiche.
+            register_pending_update(op_id=a["op_id"], op_nominativo=a["op_id"], modified_by=chi, update_row={
+                "id": local_id, "seriale": a["seriale"], "avanzamento": esito["avanzamento"],
+                "descrizione": esito["descrizione"], "dove_pezzi": _dove_pezzi_di(local_id),
+                "note": nota, "aprire_rdc": False, "segnalare": False, "chiudere": False,
+                "modified_by": chi, "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
+            })
+    except Exception:
+        logger.warning("api_anomalie_sposta: timeline/riepilogo non scritti id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "nota": nota, **esito})
+
+
+def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
+    """``dove_pezzi`` e ``segnala_terzista`` dalla scheda qualità di ogni riga."""
+    from anomalie.quality_models import AnomaliaSchedaQualita
+
+    per_id = {}
+    for r in rows:
+        r["dove_pezzi"] = ""
+        r["segnala_terzista"] = False
+        r["segnala_car"] = False
+        r["car_segnalati"] = []
+        r["dettaglio_righe"] = []
+        r["tipo_difetto"] = ""
+        r["segnalato_cliente"] = None
+        r["segnalato_terzista"] = None
+        if r.get("local_id"):
+            try:
+                per_id[int(r["local_id"])] = r
+            except (TypeError, ValueError):
+                pass
+    if not per_id:
+        return
+    try:
+        schede = AnomaliaSchedaQualita.objects.filter(anomalia_id__in=list(per_id)).values_list(
+            "anomalia_id", "dove_pezzi", "segnala_terzista", "segnala_car", "car_segnalati",
+            "dettaglio_controllo", "tipo_difetto__nome",
+            "segnalato_cliente_il", "segnalato_cliente_da", "segnalato_terzista_il", "segnalato_terzista_da",
+        )
+        from anomalie.automazioni_service import separa_car_scelti
+        from anomalie.dettaglio_controllo import frasi
+
+        for aid, dove, terzista, car, car_nomi, dettaglio, difetto, cli_il, cli_da, ter_il, ter_da in schede:
+            per_id[aid]["segnalato_cliente"] = _segnalato_payload(cli_il, cli_da)
+            per_id[aid]["segnalato_terzista"] = _segnalato_payload(ter_il, ter_da)
+            per_id[aid]["dove_pezzi"] = dove or ""
+            per_id[aid]["segnala_terzista"] = bool(terzista)
+            per_id[aid]["segnala_car"] = bool(car)
+            per_id[aid]["car_segnalati"] = separa_car_scelti(car_nomi) if car else []
+            per_id[aid]["dettaglio_righe"] = frasi(dettaglio or {})
+            per_id[aid]["tipo_difetto"] = difetto or ""
+    except Exception:
+        logger.warning("anomalie: dove sono i pezzi / terzista non letti", exc_info=True)
+
+
+def _segna_serve_azione(rows: list[dict]) -> None:
+    """``serve_azione`` sulle righe aperte la cui prima decisione è stata «Azione di
+    recupero» senza azione effettuata: la chiusura per loro non è ammessa."""
+    from anomalie.quality_models import AnomaliaSchedaQualita
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO
+
+    aperte = {int(r["local_id"]): r for r in rows if r.get("local_id") and not r.get("chiudere")}
+    for r in rows:
+        r["serve_azione"] = False
+    if not aperte:
+        return
+    try:
+        ids = set(AnomaliaSchedaQualita.objects.filter(
+            anomalia_id__in=list(aperte), primo_avanzamento__iexact=AVANZAMENTO_RECUPERO,
+            azione_effettuata_il__isnull=True,
+        ).values_list("anomalia_id", flat=True))
+    except Exception:
+        logger.warning("anomalie: verifica azione effettuata non riuscita", exc_info=True)
+        return
+    for aid in ids:
+        aperte[aid]["serve_azione"] = True
+
+
+def _segna_riapribili(request, rows: list[dict], op_title: str, autori: dict) -> None:
+    """``can_riaprire`` sulle righe chiuse (stessa regola di ``_can_riaprire_anomalia``)."""
+    chiuse = [r for r in rows if r.get("chiudere")]
+    for r in rows:
+        r["can_riaprire"] = False
+    if not chiuse:
+        return
+    if _riapre_su_op(request, op_title):
+        for r in chiuse:
+            r["can_riaprire"] = True
+        return
+    me = _request_legacy_user_id(request)
+    controlli = _controlli_dell_utente(request)
+    for r in chiuse:
+        autore = autori.get(r.get("local_id"))
+        r["can_riaprire"] = bool(
+            (me is not None and autore is not None and int(autore) == me)
+            or (r.get("controllo_id") and r["controllo_id"] in controlli)
+        )
+
+
+def _can_riaprire_anomalia(request, local_id: int, op_id: str) -> bool:
+    """Riapre un'anomalia chiusa chi ne è incaricato: capocommessa, CAR, controllore
+    (chi l'ha segnalata) e chi può modificare l'OP."""
+    return _riapre_su_op(request, op_id) or _is_controllore_anomalia(request, local_id)
 
 
 def _user_created_anomalia_on_op(request, op_id: str) -> bool:
@@ -1629,8 +2452,20 @@ def _can_view_anomalie_for_op(request, op_id: str) -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
 
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        if bool(getattr(user, "is_superuser", False)):
+            return True
+        if _vede_op_ruoli(request, *_dati_op_per_permessi(op_id)):
+            return True
+        # Referenti RDC: vedono (non modificano) gli OP con RDC / segnalazioni al cliente.
+        return _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100))
+
     scope = _request_anomalie_list_scope(request)
     if scope == AnomalieListScope.ALL:
+        return True
+    if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
         return True
 
     # Scope ristretto: consentito solo se l'utente ha titolo sull'OP.
@@ -1667,14 +2502,17 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     if _access_level_at_least(global_level, AnomalieAccessLevel.EDIT_ALL):
         return True
 
+    # Referenti RDC / segnalazione cliente (Configurazione): modificano gli OP con
+    # anomalie da aprire RDC o da segnalare al cliente (es. per il numero RDC).
+    if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
+        return True
+
     from core.permessi import sistema_ruoli_attivo
 
     if sistema_ruoli_attivo():
-        # Ruoli: niente whitelist per nome (omonimi); valgono i ruoli dell'OP.
-        matched_op_roles = _op_role_codes_for_current_user(request, op_id)
-        return _access_level_at_least(
-            _anomalie_role_access_level_for_codes(matched_op_roles), AnomalieAccessLevel.EDIT_ASSIGNED
-        )
+        # Ruoli: niente whitelist per nome (omonimi); valgono i ruoli dell'OP e
+        # l'ambito di «modificare» (propri / team) della matrice.
+        return _modifica_op_ruoli(request, *_dati_op_per_permessi(op_id))
 
     config_lists = _load_anomalie_lists()
     edit_whitelist = config_lists.get("autorizzati_modifica", []) if isinstance(config_lists, dict) else []
@@ -1952,9 +2790,10 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
 
     event="segnalare": notifica capocommessa OP
     event="chiudere":  notifica autore anomalia
+    event="info_richieste": notifica capocommessa OP (il referente RDC chiede altre informazioni)
     """
     try:
-        if event == "segnalare":
+        if event in ("segnalare", "info_richieste"):
             # Tenta di trovare la capocommessa per l'OP e notificarla
             if not op_id or not _has_table("ordini_produzione"):
                 return
@@ -1978,7 +2817,15 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                     capo_user = find_legacy_user_by_name(capo_val)
             except Exception:
                 pass
-            if capo_user:
+            if capo_user and event == "info_richieste":
+                Notifica.objects.create(
+                    legacy_user_id=capo_user.id,
+                    tipo="anomalia_da_gestire",
+                    messaggio=(f"Anomalia S/N {sn or '—'} (OP {op_id}): servono ulteriori informazioni, "
+                               "l'anomalia torna in carico a te."),
+                    url_azione="/gestione-anomalie",
+                )
+            elif capo_user:
                 Notifica.objects.create(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_segnalata",
@@ -2054,17 +2901,24 @@ def legacy_apertura_anomalie_redirect(request):
     return redirect(f"{reverse('gestione_anomalie_page')}?view=apertura_anomalie")
 
 
-@login_required
-def api_db_ordini(request):
-    if not _has_table("ordini_produzione"):
-        return JsonResponse([], safe=False)
-    try:
+def _ordini_payload(request, *, per_apertura: bool):
+    """Elenco OP con i conteggi delle anomalie.
+
+    Gestione (``per_apertura=False``): con il sistema dei ruoli solo gli OP che la
+    persona può vedere (vedi ``_vede_op_ruoli``). Apertura segnalazione: chi può
+    «creare» sceglie fra tutti gli OP. Ogni riga dice se l'OP è «in carico» alla
+    persona (capocommessa/CAR) e, con i ruoli, se può modificarlo.
+    """
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
+    is_super = bool(getattr(request.user, "is_superuser", False))
+    scope_where = ""
+    scope_params: list = []
+    if not ruoli_attivi:
         list_scope = _request_anomalie_list_scope(request)
         identity = _current_user_identity(request)
         legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-
-        scope_where = ""
-        scope_params: list = []
 
         if list_scope == AnomalieListScope.ASSIGNED:
             user_name = identity["name"]
@@ -2096,48 +2950,205 @@ def api_db_ordini(request):
             else:
                 scope_where = "WHERE 1=0"
 
-        sql = f"""
-            SELECT
-                op.{OP_ITEM_ID_COL} AS item_id,
-                op.title AS op_title,
-                op.part_number,
-                op.incaricato,
-                op.capocomessa,
-                op.stato,
-                COUNT(a.id) AS anomalie_count,
-                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count,
-                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0
-                          AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
-                          AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
-                          AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
-                     THEN 1 ELSE 0 END) AS anomalie_da_decidere_count
-            FROM ordini_produzione op
-            LEFT JOIN anomalie a
-                ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
-            {scope_where}
-            GROUP BY
-                op.{OP_ITEM_ID_COL}, op.title, op.part_number,
-                op.incaricato, op.capocomessa, op.stato
-            ORDER BY op.title
-        """
-        rows = _fetch_all_dict(sql, scope_params or None)
-        result = [
-            {
-                "item_id": r.get("item_id"),
-                "id": r.get("op_title") or "—",
-                "pn": r.get("part_number") or "—",
-                "capo": _row_capocommessa(r) or "—",
-                "car": r.get("incaricato") or "—",
-                "stato": r.get("stato"),
-                "anomalie_count": int(r.get("anomalie_count") or 0),
-                "anomalie_aperte_count": int(r.get("anomalie_aperte_count") or 0),
+    # Le anomalie si agganciano all'OP per op_lookup_id oppure, quando è NULL
+    # (OP senza sharepoint_item_id), per titolo: altrimenti chiuse e aperte di
+    # quegli OP sparivano dai conteggi.
+    sql = f"""
+        SELECT
+            op.{OP_ITEM_ID_COL} AS item_id,
+            op.title AS op_title,
+            op.part_number,
+            op.incaricato,
+            op.capocomessa,
+            op.stato,
+            COUNT(a.id) AS anomalie_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
+                      AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
+                 THEN 1
+                 WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) = '{_SQL_INFO}'
+                 THEN 1 ELSE 0 END) AS anomalie_da_decidere_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND (COALESCE(a.aprire_rdc, 0) = 1 OR COALESCE(a.segnalare_cliente, 0) = 1)
+                 THEN 1 ELSE 0 END) AS anomalie_rdc_cliente_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND (COALESCE(a.aprire_rdc, 0) = 1 OR COALESCE(a.segnalare_cliente, 0) = 1)
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) <> '{_SQL_INFO}'
+                 THEN 1 ELSE 0 END) AS anomalie_rdc_in_carico_count
+        FROM ordini_produzione op
+        LEFT JOIN anomalie a
+            ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
+            OR (a.op_lookup_id IS NULL
+                AND LOWER(CAST(a.ex_op_nominativo AS NVARCHAR(200))) = LOWER(CAST(op.title AS NVARCHAR(200))))
+        {{SCOPE}}
+        GROUP BY
+            op.{OP_ITEM_ID_COL}, op.title, op.part_number,
+            op.incaricato, op.capocomessa, op.stato
+        ORDER BY op.title
+    """
+    referente_rdc = _is_referente_rdc(request)
+    if scope_where and referente_rdc:
+        # Scope ristretto: i referenti RDC vedono anche gli OP con anomalie aperte
+        # da aprire RDC o da segnalare al cliente.
+        scope_where += (
+            " OR EXISTS (SELECT 1 FROM anomalie ar"
+            f" WHERE (ar.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)"
+            " OR (ar.op_lookup_id IS NULL AND LOWER(CAST(ar.ex_op_nominativo AS NVARCHAR(200)))"
+            " = LOWER(CAST(op.title AS NVARCHAR(200)))))"
+            " AND COALESCE(ar.chiudere, 0) = 0"
+            " AND (COALESCE(ar.aprire_rdc, 0) = 1 OR COALESCE(ar.segnalare_cliente, 0) = 1))"
+        )
+        scope_where = "WHERE (" + scope_where[len("WHERE "):] + ")"
+    rows = _fetch_all_dict(sql.replace("{SCOPE}", scope_where), scope_params or None)
+
+    filtra = ruoli_attivi and not is_super
+    if filtra and per_apertura and decisione(request, "anomalie", "creare").consentito:
+        filtra = False
+    creatori_per_op: dict[str, set[int]] = {}
+    if ruoli_attivi and not is_super and "created_by_user_id" in (legacy_table_columns("anomalie") or set()):
+        try:
+            for r in _fetch_all_dict(
+                "SELECT DISTINCT LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) AS op, created_by_user_id AS uid "
+                "FROM anomalie WHERE created_by_user_id IS NOT NULL"
+            ):
+                creatori_per_op.setdefault(str(r.get("op") or ""), set()).add(int(r["uid"]))
+        except Exception:
+            logger.warning("anomalie: autori delle anomalie per OP non letti", exc_info=True)
+
+    # «Modifica OP»: OP creati dal portale da chi guarda (solo in Gestione).
+    modificabili: set[str] = set()
+    if not per_apertura:
+        try:
+            from .modifica_op import op_modificabili_da
+
+            modificabili = op_modificabili_da(request)
+        except Exception:
+            logger.warning("anomalie: OP modificabili non letti", exc_info=True)
+
+    result = []
+    for r in rows:
+        capo = _row_capocommessa(r)
+        car = r.get("incaricato")
+        creatori = creatori_per_op.get(str(r.get("op_title") or "").lower(), set())
+        rdc_cliente = int(r.get("anomalie_rdc_cliente_count") or 0)
+        # Referente RDC: vede e modifica gli OP con anomalie aperte RDC / da segnalare
+        # al cliente; sono «in carico» a lui solo quelle che non ha rimandato al
+        # capocommessa con «In attesa di ulteriori informazioni».
+        vede_rdc = referente_rdc and rdc_cliente > 0
+        in_carico_rdc = referente_rdc and int(r.get("anomalie_rdc_in_carico_count") or 0) > 0
+        if filtra and not vede_rdc and not _vede_op_ruoli(request, capo, car, creatori):
+            continue
+        item = {
+            "item_id": r.get("item_id"),
+            "id": r.get("op_title") or "—",
+            "pn": r.get("part_number") or "—",
+            "capo": capo or "—",
+            "car": car or "—",
+            "stato": r.get("stato"),
+            "anomalie_count": int(r.get("anomalie_count") or 0),
+            "anomalie_aperte_count": int(r.get("anomalie_aperte_count") or 0),
             # Aperte su cui il capocommessa non ha ancora deciso nulla (stessa regola
             # di controllo_service.riga_gestita): ordinano e segnalano gli OP in carico.
             "anomalie_da_decidere_count": int(r.get("anomalie_da_decidere_count") or 0),
-            }
-            for r in rows
-        ]
-        return JsonResponse(result, safe=False)
+            # «In carico a me»: la persona è capocommessa o CAR dell'OP; poterlo
+            # modificare non basta.
+            "in_carico": bool(_op_role_codes_da_persone(request, capo, car)) or in_carico_rdc,
+            "anomalie_rdc_cliente_count": rdc_cliente,
+        }
+        if ruoli_attivi:
+            item["can_edit"] = is_super or vede_rdc or _modifica_op_ruoli(request, capo, car, creatori)
+        elif vede_rdc:
+            item["can_edit"] = True
+        if not per_apertura:
+            item["can_modifica_op"] = str(r.get("item_id") or "").strip() in modificabili
+        result.append(item)
+    return result
+
+
+@login_required
+def api_op_modifica(request):
+    """«Modifica OP»: GET legge i dati, POST li corregge con una motivazione.
+
+    Solo il controllore che ha creato l'OP dal portale (vedi ``modifica_op``).
+    """
+    from . import modifica_op as mo
+
+    if request.method == "GET":
+        item_id = request.GET.get("item_id")
+        data = {}
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            return _json_error("Body JSON non valido", status=400)
+        if not isinstance(data, dict):
+            return _json_error("Body JSON non valido", status=400)
+        item_id = data.get("item_id")
+    else:
+        return _json_error("Metodo non consentito", status=405)
+    if not _has_table("ordini_produzione"):
+        return _json_error("Tabella ordini_produzione non disponibile", status=500)
+    if not str(item_id or "").strip():
+        return _json_error("OP non indicato", status=400)
+    try:
+        row = mo.riga_op(item_id)
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
+    if row is None:
+        return _json_error("OP non trovato", status=404)
+    if not mo.puo_modificare(request, row):
+        return _json_error("Modifica l'OP solo il controllore che l'ha inserito dal portale", status=403)
+    if request.method == "GET":
+        return JsonResponse({"success": True, "op": mo.dati_modulo(row)})
+
+    try:
+        esito = mo.applica(request, row, data)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    except DatabaseError as exc:
+        logger.exception("api_op_modifica: item_id=%s", item_id)
+        return _json_error(f"Modifica non riuscita: {exc}", status=500)
+
+    op_title = str(row.get("title") or "")
+    cambi = mo.testo_modifiche(esito["modifiche"])
+    log_action(request, "op_modificato", "anomalie", {
+        "op_id": op_title, "item_id": esito["prima"]["item_id"], "motivazione": esito["motivazione"],
+        "modifiche": esito["modifiche"], "prima": esito["prima"], "dopo": esito["dopo"],
+    }, oggetto_tipo="ordini_produzione", oggetto_id=str(row.get("id") or esito["prima"]["item_id"]))
+    try:
+        from .mail_action_models import AnomaliaActionLog
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        # anomalia_id=0: azione sull'OP, non su un'anomalia; la cronologia la trova per op_id.
+        AnomaliaActionLog.objects.create(
+            anomalia_id=0, op_id=op_title[:100], user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=(_current_user_identity(request).get("name") or request.user.username)[:200],
+            action="op_modificato", note=f"{cambi}. Motivo: {esito['motivazione']}",
+            source=AnomaliaActionLog.Source.PORTAL, ip_address=_client_ip(request),
+            user_agent=str(request.META.get("HTTP_USER_AGENT", ""))[:500],
+        )
+    except Exception:
+        logger.warning("api_op_modifica: cronologia non scritta op=%s", op_title, exc_info=True)
+    dopo = esito["dopo"]
+    return JsonResponse({
+        "success": True,
+        "modifiche": esito["modifiche"],
+        "op": {"item_id": dopo["item_id"], "id": op_title, "pn": dopo["pn"], "capo": dopo["capocommessa"],
+               "car": dopo["car"], "stato": esito["stato"]},
+    })
+
+
+@login_required
+def api_db_ordini(request):
+    """OP per l'apertura di una segnalazione."""
+    if not _has_table("ordini_produzione"):
+        return JsonResponse([], safe=False)
+    try:
+        return JsonResponse(_ordini_payload(request, per_apertura=True), safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
 
@@ -2155,7 +3166,30 @@ def api_db_ordini_crea(request):
         return _json_error("Body JSON non valido", status=400)
     if not isinstance(data, dict):
         return _json_error("Body JSON non valido", status=400)
+    return _crea_op_response(request, data)
 
+
+def titolo_nuovo_op(data: dict) -> str:
+    """Titolo dell'OP che ``_crea_op_response`` creerebbe con questi dati."""
+    causale_doc = (_safe_text(data.get("causale_doc"), 20) or "OP").upper()
+    return _safe_text(f"{causale_doc}/{_safe_text(data.get('anno'), 10)}/{_safe_text(data.get('numero'), 30)}", 100) or ""
+
+
+def crea_op_da_dati(request, data: dict) -> dict:
+    """Crea l'OP dai dati del modulo «+ Nuovo OP» (stesse regole di
+    ``/api/anomalie/db/ordini/crea``): ``{"success", "op", "error", "status"}``."""
+    if not _has_table("ordini_produzione"):
+        return {"success": False, "error": "Tabella ordini_produzione non disponibile", "status": 500}
+    response = _crea_op_response(request, {k: v for k, v in (data or {}).items() if k != "verifica"})
+    try:
+        payload = json.loads(response.content.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    return {"success": bool(payload.get("success")), "op": payload.get("op"),
+            "error": payload.get("error", ""), "status": response.status_code}
+
+
+def _crea_op_response(request, data: dict):
     causale_doc = (_safe_text(data.get("causale_doc"), 20) or "OP").upper()
     anno = _safe_text(data.get("anno"), 10)
     numero = _safe_text(data.get("numero"), 30)
@@ -2183,6 +3217,23 @@ def api_db_ordini_crea(request):
 
     op_title = _safe_text(f"{causale_doc}/{anno}/{numero}", 100)
     stato_val = "Benestare" if collaudo_benestare else "Aperto"
+
+    if data.get("verifica"):
+        # Solo controllo, nessun inserimento: la pagina crea l'OP al primo salvataggio
+        # di un blocco, così chi esce prima non lascia OP vuoti.
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM ordini_produzione WHERE title = %s", [op_title])
+                esiste = bool((cursor.fetchone() or [0])[0])
+        except DatabaseError as exc:
+            return _json_error(str(exc), status=500)
+        if esiste:
+            return _json_error(f"L'OP {op_title} esiste già: sceglilo dall'elenco.", status=409)
+        return JsonResponse({
+            "success": True,
+            "verifica": True,
+            "op": {"item_id": None, "id": op_title, "pn": pn, "capo": capocommessa, "car": car, "stato": stato_val},
+        })
 
     info_chunks: list[str] = []
     if fase:
@@ -2309,9 +3360,11 @@ def api_db_anomalie(request):
     if not _has_table("anomalie"):
         return JsonResponse([], safe=False)
 
-    # Scope ristretto (ASSIGNED/OWN): lettura del singolo OP consentita solo se
-    # l'utente ha titolo. Per lo scope ALL (caso comune) si salta la verifica.
-    if _request_anomalie_list_scope(request) != AnomalieListScope.ALL:
+    # Scope ristretto (ASSIGNED/OWN) o sistema dei ruoli: lettura del singolo OP
+    # consentita solo se l'utente ha titolo. Per lo scope ALL si salta la verifica.
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo() or _request_anomalie_list_scope(request) != AnomalieListScope.ALL:
         op_row = _report_op_row(sp_item_id_int, None)
         op_title = _safe_text((op_row or {}).get("title"), 100)
         if not _can_view_anomalie_for_op(request, op_title):
@@ -2348,8 +3401,13 @@ def api_db_anomalie(request):
 
 @login_required
 def api_ordini(request):
-    # Compatibilita frontend legacy: per ora serviamo i dati dal DB locale.
-    return api_db_ordini(request)
+    """OP della pagina Gestione anomalie: solo quelli che la persona può vedere."""
+    if not _has_table("ordini_produzione"):
+        return JsonResponse([], safe=False)
+    try:
+        return JsonResponse(_ordini_payload(request, per_apertura=False), safe=False)
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
 
 
 @login_required
@@ -2379,6 +3437,7 @@ def api_anomalie(request):
 
     cols = legacy_table_columns("anomalie")
     rdc_col = ", numero_rdc" if "numero_rdc" in cols else ""
+    autore_col = ", created_by_user_id" if "created_by_user_id" in cols else ""
 
     # Se non ho il titolo OP ma ho il lookup id, lo derivo per estendere il match
     # anche ai record con op_lookup_id NULL ma stesso ex_op_nominativo.
@@ -2425,7 +3484,7 @@ def api_anomalie(request):
                 segnalare_cliente,
                 chiudere,
                 avanzamento,
-                modified_datetime
+                modified_datetime{autore_col}
             FROM anomalie
             WHERE {where_clause}
             ORDER BY seriale
@@ -2441,8 +3500,13 @@ def api_anomalie(request):
                 continue
             seen_ids.add(rid)
             unique_rows.append(r)
+        autori = {r.get("id"): r.get("created_by_user_id") for r in unique_rows}
         payload_rows = _serialize_anomalie_rows(unique_rows)
         _arricchisci_con_blocchi(payload_rows)
+        _segna_riapribili(request, payload_rows, op_title, autori)
+        _segna_serve_azione(payload_rows)
+        _segna_dove_pezzi_terzista(payload_rows)
+        _segna_eliminabili(request, payload_rows, {r.get("id"): r for r in unique_rows}, autori, op_title)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
@@ -2478,6 +3542,47 @@ def api_anomalie_allegati(request):
 
 
 @login_required
+@require_POST
+def api_anomalie_allegati_copia(request):
+    """Copia gli allegati di un'anomalia di origine su una nuova (clonazione di un OP)."""
+    import shutil
+
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        da_id, a_id = int(data.get("da")), int(data.get("a"))
+    except Exception:
+        return _json_error("Anomalie non valide", status=400)
+    origine, destinazione = _anomaly_local_row(da_id), _anomaly_local_row(a_id)
+    if not origine or not destinazione:
+        return _json_error("Anomalia non trovata", status=404)
+    if not _can_view_anomalie_for_op(request, str(origine.get("ex_op_nominativo") or "").strip()):
+        return _json_error("Permesso negato sull'anomalia di origine", status=403)
+    if not _can_attach_anomalia(request, a_id, str(destinazione.get("ex_op_nominativo") or "").strip()):
+        return _json_error("Permesso negato sulla nuova anomalia", status=403)
+
+    sorgente = _attachment_dir_for_local(da_id)
+    allegati = _list_attachments_for_local(da_id)
+    if not allegati:
+        return JsonResponse({"success": True, "copiati": 0})
+    cartella = _attachment_dir_for_local(a_id, create=True)
+    copiati, errori = 0, []
+    for item in allegati:
+        try:
+            nome = _safe_attachment_filename(item["name"]) or "allegato"
+            shutil.copy2(sorgente / item["file_id"], cartella / f"{uuid4().hex}__{nome}")
+            copiati += 1
+        except OSError as exc:
+            errori.append(f"{item['name']}: {exc}")
+    try:
+        log_action(request, "anomalia_allegati_copiati", "anomalie", {"da": da_id, "a": a_id, "copiati": copiati})
+    except Exception:
+        pass
+    if errori:
+        logger.warning("[anomalie] copia allegati %s -> %s: %s", da_id, a_id, "; ".join(errori))
+    return JsonResponse({"success": not errori, "copiati": copiati, "errors": errori})
+
+
+@login_required
 def api_anomalie_allegati_upload(request):
     try:
         if request.method != "POST":
@@ -2490,8 +3595,12 @@ def api_anomalie_allegati_upload(request):
         if not row:
             return _json_error("Anomalia non trovata", status=404)
         op_id = str(row.get("ex_op_nominativo") or "").strip()
-        if not _can_edit_anomalie_for_op(request, op_id):
+        if not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
+        # Allegati della decisione del capocommessa: solo chi decide (modifica l'OP).
+        per_decisione = str(request.POST.get("ambito") or "").strip().lower() == "decisione"
+        if per_decisione and not _can_edit_anomalie_for_op(request, op_id):
+            return _json_error("Permesso negato: solo chi decide può allegare alla decisione", status=403)
 
         files = request.FILES.getlist("files")
         if not files:
@@ -2547,7 +3656,7 @@ def api_anomalie_allegati_upload(request):
             if file_size > ALLEGATI_MAX_FILE_SIZE:
                 errors.append(f"{original}: supera {DOCUMENT_MAX_MB} MB")
                 continue
-            file_id = f"{uuid4().hex}__{safe_name}"
+            file_id = f"{uuid4().hex}{ALLEGATI_DECISIONE_SUFFIX if per_decisione else ''}__{safe_name}"
             target = folder / file_id
             try:
                 with target.open("wb") as dest:
@@ -2621,7 +3730,7 @@ def api_anomalie_allegati_delete(request):
         if not row:
             return _json_error("Anomalia non trovata", status=404)
         op_id = str(row.get("ex_op_nominativo") or "").strip()
-        if not _can_edit_anomalie_for_op(request, op_id):
+        if not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
         if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
             from .quality_models import AnomaliaDescrizioneAllegato
@@ -2674,7 +3783,7 @@ def api_anomalie_descrizione_allegati_upload(request):
     if not row:
         return _json_error("Anomalia non trovata", status=404)
     op_id = str(row.get("ex_op_nominativo") or "").strip()
-    if not _can_edit_anomalie_for_op(request, op_id):
+    if not _can_attach_anomalia(request, local_id, op_id):
         return _json_error("Permesso negato", status=403)
     from .quality_models import AnomaliaDescrizione, AnomaliaDescrizioneAllegato
     descrizione = AnomaliaDescrizione.objects.filter(
@@ -2767,6 +3876,8 @@ def api_anomalie_allegati_file(request):
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         display_name = _attachment_display_name(path.name)
         force_download = str(request.GET.get("download") or "").strip() in {"1", "true", "yes", "on"}
+        # Mail e testi degli esiti si scaricano sempre: il browser non li apre in modo sicuro.
+        force_download = force_download or path.suffix.lower() in ESITI_SOLO_DOWNLOAD
         try:
             log_action(
                 request,
@@ -2829,6 +3940,7 @@ def api_salva(request):
             from anomalie.quality_models import AnomaliaSegnalazioneMeta
             with transaction.atomic():
                 scheda = sync_da_anomalia(local_id)
+                _salva_dove_pezzi_terzista(request, scheda, data)
                 meta = AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=local_id).first()
                 if meta is None and fase_segnalazione:
                     meta = AnomaliaSegnalazioneMeta.objects.create(anomalia_id=local_id, fase=fase_segnalazione)
@@ -2866,6 +3978,394 @@ def api_salva(request):
             "protocollo": protocollo,
         }
     )
+
+
+@login_required
+def api_riapri(request):
+    """Riapre un'anomalia chiusa: torna aperta e «In attesa» della decisione."""
+    if request.method != "POST":
+        return _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return _json_error("local_id non valido", status=400)
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    rows = _fetch_all_dict("SELECT TOP 1 id, ex_op_nominativo, chiudere FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_riaprire_anomalia(request, local_id, op_id):
+        return _json_error("Permesso negato: riapre l'anomalia solo chi ne è incaricato", status=403)
+    if not rows[0].get("chiudere"):
+        return _json_error("L'anomalia è già aperta", status=400)
+
+    cols = legacy_table_columns("anomalie")
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    sets = ["chiudere = 0"]
+    params: list = []
+    if "avanzamento" in cols:
+        sets.append("avanzamento = %s")
+        params.append(_canonicalize_avanzamento("In attesa"))
+    if "modified_datetime" in cols:
+        sets.append("modified_datetime = SYSUTCDATETIME()")
+    if "modified_by_user_id" in cols and legacy_user:
+        sets.append("modified_by_user_id = %s")
+        params.append(legacy_user.id)
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id = %s", params + [local_id])
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
+
+    try:
+        log_action(request, "anomalia_riaperta", "anomalie", {"local_id": local_id, "op_id": op_id})
+    except Exception:
+        pass
+    try:
+        identity = _current_user_identity(request)
+        from anomalie.mail_action_service import log_anomalia_portal_action
+        log_anomalia_portal_action(
+            anomalia_id=local_id,
+            op_id=op_id,
+            action="riapri",
+            user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=identity.get("name") or request.user.username,
+            previous_status="Chiusa",
+            new_status="In attesa",
+            ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_riapri: timeline log fallita id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.qualita_service import sync_da_anomalia
+        with transaction.atomic():
+            sync_da_anomalia(local_id)
+    except Exception:
+        logger.warning("api_riapri: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "item_id": f"local:{local_id}"})
+
+
+# ── Esiti: risposta del cliente e azione effettuata ──────────────────────────
+# Li registra chi e' incaricato dell'anomalia (capocommessa, CAR, controllore, chi
+# modifica l'OP), con i file allegati: stanno nella cartella dell'anomalia, quindi si
+# vedono e si scaricano come gli altri allegati.
+
+_AZIONI_CON_RIVERIFICA = ("rilavor", "ripar")
+
+
+def _azione_chiede_riverifica(azione: str) -> bool:
+    nome = str(azione or "").strip().lower()
+    return any(k in nome for k in _AZIONI_CON_RIVERIFICA)
+
+
+def _salva_file_esito(local_id: int, files) -> tuple[list[str], list[str]]:
+    """Salva i file nella cartella allegati dell'anomalia: ``(file_id salvati, errori)``."""
+    salvati: list[str] = []
+    errori: list[str] = []
+    if not files:
+        return salvati, errori
+    folder = _attachment_dir_for_local(local_id, create=True)
+    for f in files:
+        originale = str(getattr(f, "name", "") or "").strip()
+        nome = _safe_attachment_filename(originale)
+        if not nome:
+            errori.append(f"{originale or 'file'}: nome non valido")
+            continue
+        if Path(nome).suffix.lower() not in ESITI_ALLOWED_EXTENSIONS:
+            errori.append(f"{originale}: formato non supportato")
+            continue
+        size = int(getattr(f, "size", 0) or 0)
+        if size <= 0:
+            errori.append(f"{originale}: file vuoto")
+            continue
+        if size > ALLEGATI_MAX_FILE_SIZE:
+            errori.append(f"{originale}: supera {DOCUMENT_MAX_MB} MB")
+            continue
+        file_id = f"{uuid4().hex}__{nome}"
+        try:
+            with (folder / file_id).open("wb") as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+        except OSError as exc:
+            logger.error("[anomalie] esito: scrittura allegato fallita id=%s file=%s: %s", local_id, nome, exc)
+            errori.append(f"{originale}: scrittura fallita ({exc})")
+            continue
+        salvati.append(file_id)
+    if salvati:
+        _mark_attachment_pending(local_id, salvati)
+    return salvati, errori
+
+
+def _serializza_esito(e) -> dict:
+    return {
+        "id": e.pk,
+        "tipo": e.tipo,
+        "tipo_label": e.get_tipo_display(),
+        "azione": e.azione,
+        "testo": e.testo,
+        "riverificato": e.riverificato,
+        "chiusa": e.chiusa,
+        "utente": e.utente_display or "—",
+        "data": e.created_at.isoformat() if e.created_at else "",
+        "allegati": [{"file_id": f, "name": _attachment_display_name(f)} for f in (e.allegati or [])],
+    }
+
+
+def _tempi_payload(local_id: int, created) -> dict:
+    from anomalie.quality_models import AnomaliaSchedaQualita
+    from anomalie.tempi_service import (
+        METRICHE, etichetta_durata, etichetta_orario, notifiche_il, soglie, tempi_anomalia,
+    )
+
+    scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=local_id).first()
+    tempi = tempi_anomalia(creata_il=created, scheda=scheda, notificata_il=notifiche_il([local_id]).get(local_id))
+    out = []
+    for chiave, label in METRICHE:
+        t = tempi.get(chiave)
+        if t:
+            out.append({"chiave": chiave, "label": label, "giorni": t["giorni"], "ore": t.get("ore"),
+                        "in_corso": t["in_corso"], "testo": etichetta_durata(t["giorni"])})
+    return {"tempi": out, "soglie": soglie(), "scheda": scheda, "unita": etichetta_orario()}
+
+
+def _iso(valore) -> str:
+    if not valore:
+        return ""
+    if isinstance(valore, str):
+        return valore
+    if dj_tz.is_naive(valore):
+        valore = dj_tz.make_aware(valore, timezone.utc)
+    return valore.isoformat()
+
+
+def _percorso_anomalia(row: dict, scheda, esiti_azione) -> list[dict]:
+    """Passi del percorso dell'anomalia con la loro data: segnalata, decisa, cliente
+    (solo se coinvolto), azione effettuata (solo con «Azione di recupero» o se c'e'),
+    chiusa. Il primo passo senza data e' quello in corso."""
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO
+
+    primo = (scheda.primo_avanzamento if scheda else "").strip()
+    avanz = str(row.get("avanzamento") or "").strip()
+    decisione = avanz if avanz and avanz.lower() != "in attesa" else primo
+    passi = [
+        {"chiave": "segnalata", "label": "Segnalata", "data": _iso(row.get("created_datetime")), "dettaglio": ""},
+        {"chiave": "decisa", "label": "Decisa", "data": _iso(scheda.prima_decisione_il if scheda else None),
+         "dettaglio": decisione if scheda and scheda.prima_decisione_il else ""},
+    ]
+    if scheda and scheda.attesa_cliente_dal:
+        passi.append({"chiave": "cliente", "label": "Risposta del cliente", "data": _iso(scheda.risposta_cliente_il),
+                      "dettaglio": "chiesta il " + dj_tz.localtime(scheda.attesa_cliente_dal).strftime("%d/%m")})
+    recupero = AVANZAMENTO_RECUPERO.lower() in (primo.lower(), avanz.lower())
+    if recupero or (scheda and scheda.azione_effettuata_il):
+        ultima = esiti_azione[-1] if esiti_azione else None
+        passi.append({"chiave": "azione", "label": "Azione effettuata",
+                      "data": _iso(scheda.azione_effettuata_il if scheda else None),
+                      "dettaglio": (ultima.azione + (" · riverificato" if ultima.riverificato else "")) if ultima else ""})
+    chiusa = bool(row.get("chiudere"))
+    passi.append({"chiave": "chiusa", "label": "Chiusa",
+                  "data": _iso(scheda.chiusa_il if scheda and scheda.chiusa_il else None) if chiusa else "",
+                  "dettaglio": ""})
+    in_corso = False
+    for p in passi:
+        if p["data"] or (p["chiave"] == "chiusa" and chiusa):
+            p["stato"] = "fatto"
+        elif not in_corso:
+            p["stato"], in_corso = "attuale", True
+        else:
+            p["stato"] = "da_fare"
+    return passi
+
+
+@login_required
+def api_decisioni_coda(request):
+    """GET: decisioni dell'OP in attesa del riepilogo; POST {op_id}: le invia subito."""
+    from anomalie.mail_action_service import decisioni_in_coda, flush_pending_update_notifications
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            data = {}
+        op_id = _safe_text(data.get("op_id"), 100)
+    else:
+        op_id = _safe_text(request.GET.get("op_id"), 100)
+    if not op_id:
+        return _json_error("op_id obbligatorio", status=400)
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+    if request.method == "POST":
+        coda = decisioni_in_coda(op_id)
+        if not coda:
+            return JsonResponse({"success": True, "inviate": 0, "coda": None})
+        esito = flush_pending_update_notifications(op_id=op_id)
+        try:
+            log_action(request, "anomalie_riepilogo_inviato_subito", "anomalie", {"op_id": op_id, "decisioni": coda["n"]})
+        except Exception:
+            pass
+        rimaste = decisioni_in_coda(op_id)
+        if rimaste:
+            return _json_error("Invio non riuscito: il sistema riprova da solo fra poco.", status=502)
+        return JsonResponse({"success": True, "inviate": coda["n"], "mail": bool(esito.get("sent")), "coda": None})
+    coda = decisioni_in_coda(op_id)
+    return JsonResponse({
+        "success": True,
+        "coda": {"n": coda["n"], "partenza": coda["partenza"].isoformat()} if coda else None,
+    })
+
+
+@login_required
+def api_anomalie_esiti(request):
+    """Tempi ed esiti (risposta del cliente, azione effettuata) di un'anomalia."""
+    from anomalie.quality_models import AnomaliaEsito
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO, AVANZAMENTO_RISPOSTA_CLIENTE
+
+    local_id_raw = str(request.GET.get("local_id") or "").strip()
+    if not local_id_raw.isdigit():
+        return _json_error("local_id non valido", status=400)
+    local_id = int(local_id_raw)
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    cols = legacy_table_columns("anomalie") or set()
+    select = ", ".join(c for c in ("id", "ex_op_nominativo", "chiudere", "avanzamento", "segnalare_cliente",
+                                   "created_datetime") if c in cols)
+    rows = _fetch_all_dict(f"SELECT TOP 1 {select} FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    row = rows[0]
+    op_id = str(row.get("ex_op_nominativo") or "").strip()
+    if not _can_view_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+    tempi = _tempi_payload(local_id, row.get("created_datetime"))
+    scheda = tempi.pop("scheda")
+    esiti_azione = list(AnomaliaEsito.objects.filter(anomalia_id=local_id, tipo=AnomaliaEsito.Tipo.AZIONE))
+    primo = (scheda.primo_avanzamento if scheda else "").strip()
+    avanz = str(row.get("avanzamento") or "").strip()
+    return JsonResponse({
+        "success": True,
+        "local_id": local_id,
+        **tempi,
+        "esiti": [_serializza_esito(e) for e in AnomaliaEsito.objects.filter(anomalia_id=local_id)],
+        "can_registrare": _can_riaprire_anomalia(request, local_id, op_id),
+        "chiusa": bool(row.get("chiudere")),
+        "in_attesa_cliente": avanz.lower() == AVANZAMENTO_RISPOSTA_CLIENTE.lower(),
+        "segnalata_cliente": bool(row.get("segnalare_cliente")),
+        "recupero": primo.lower() == AVANZAMENTO_RECUPERO.lower() or avanz.lower() == AVANZAMENTO_RECUPERO.lower(),
+        "serve_azione": bool(scheda and primo.lower() == AVANZAMENTO_RECUPERO.lower() and not scheda.azione_effettuata_il),
+        "azione_registrata": bool(scheda and scheda.azione_effettuata_il),
+        "percorso": _percorso_anomalia(row, scheda, esiti_azione),
+    })
+
+
+@login_required
+@require_POST
+def api_anomalie_esito(request):
+    """Registra la risposta del cliente o l'azione effettuata, con gli allegati.
+
+    Azione effettuata con «Chiudi l'anomalia»: la chiude; dopo una rilavorazione o
+    riparazione serve anche «Pezzo riverificato conforme» (EN 9100 §8.7).
+    """
+    from anomalie.quality_models import AnomaliaEsito, AnomaliaSchedaQualita
+
+    local_id_raw = str(request.POST.get("local_id") or "").strip()
+    if not local_id_raw.isdigit():
+        return _json_error("local_id non valido", status=400)
+    local_id = int(local_id_raw)
+    tipo = str(request.POST.get("tipo") or "").strip().upper()
+    if tipo not in AnomaliaEsito.Tipo.values:
+        return _json_error("Tipo non valido", status=400)
+    testo = _safe_text(request.POST.get("testo"), 4000) or ""
+    azione = _safe_text(request.POST.get("azione"), 100) or ""
+    riverificato = str(request.POST.get("riverificato") or "").lower() in ("1", "true", "on")
+    chiudi = str(request.POST.get("chiudi") or "").lower() in ("1", "true", "on")
+    files = request.FILES.getlist("files")
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    rows = _fetch_all_dict("SELECT TOP 1 id, ex_op_nominativo, chiudere FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_riaprire_anomalia(request, local_id, op_id):
+        return _json_error("Permesso negato: registra l'esito solo chi è incaricato dell'anomalia", status=403)
+    gia_chiusa = bool(rows[0].get("chiudere"))
+    if gia_chiusa:
+        return _json_error("L'anomalia è chiusa: riaprila prima di registrare un esito", status=400)
+    if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE:
+        if not testo and not files:
+            return _json_error("Scrivi la risposta del cliente o allega la mail.", status=400)
+        azione, riverificato, chiudi = "", False, False
+    else:
+        if not azione:
+            return _json_error("Scegli l'azione effettuata.", status=400)
+        if chiudi and _azione_chiede_riverifica(azione) and not riverificato:
+            return _json_error("Dopo una rilavorazione o riparazione la chiusura chiede «Pezzo riverificato "
+                               "conforme».", status=400)
+
+    salvati, errori = _salva_file_esito(local_id, files)
+    if files and not salvati:
+        return _json_error("Allegati non salvati: " + " · ".join(errori), status=400)
+
+    identity = _current_user_identity(request)
+    nome_utente = identity.get("name") or request.user.get_username()
+    esito = AnomaliaEsito.objects.create(
+        anomalia_id=local_id, tipo=tipo, azione=azione, testo=testo, riverificato=riverificato,
+        chiusa=chiudi, allegati=salvati, utente=request.user, utente_display=nome_utente[:200],
+    )
+    from anomalie.qualita_service import get_or_create_scheda
+    scheda, _ = get_or_create_scheda(local_id)
+    if scheda is not None:
+        campo = "risposta_cliente_il" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione_effettuata_il"
+        if tipo == AnomaliaEsito.Tipo.AZIONE or getattr(scheda, campo) is None:
+            AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**{campo: esito.created_at})
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if chiudi:
+        cols = legacy_table_columns("anomalie")
+        sets = ["chiudere = 1"]
+        params: list = []
+        if "modified_datetime" in cols:
+            sets.append("modified_datetime = SYSUTCDATETIME()")
+        if "modified_by_user_id" in cols and legacy_user:
+            sets.append("modified_by_user_id = %s")
+            params.append(legacy_user.id)
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id = %s", params + [local_id])
+        except DatabaseError as exc:
+            return _json_error(f"Esito registrato ma chiusura non riuscita: {exc}", status=500)
+
+    try:
+        log_action(request, "anomalia_esito", "anomalie",
+                   {"local_id": local_id, "op_id": op_id, "tipo": tipo, "azione": azione, "chiusa": chiudi,
+                    "allegati": len(salvati)})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+        log_anomalia_portal_action(
+            anomalia_id=local_id,
+            op_id=op_id,
+            action="risposta_cliente" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione",
+            user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=nome_utente,
+            previous_status="",
+            new_status="Chiusa" if chiudi else (azione or ""),
+            ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_anomalie_esito: timeline log fallita id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.qualita_service import sync_da_anomalia
+        with transaction.atomic():
+            sync_da_anomalia(local_id)
+    except Exception:
+        logger.warning("api_anomalie_esito: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "esito": _serializza_esito(esito), "chiusa": chiudi, "errors": errori})
 
 
 def _insert_anomalia_return_id(cursor, quoted_cols: str, placeholders: str, params: list) -> int | None:
@@ -2941,13 +4441,87 @@ def _decisione_su_propria_anomalia(local_pk_id, cols, writable: dict, legacy_use
             "RDC, chiusura) la prende un'altra persona.")
 
 
-def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True) -> dict:
+def _nota_con_stato_in_attesa(note, avanzamento) -> bool:
+    """Una risposta scritta nelle note non può lasciare l'anomalia «In attesa»."""
+    from anomalie.controllo_service import _STATI_LIBERI
+
+    return bool(str(note or "").strip()) and str(avanzamento or "").strip().lower() in _STATI_LIBERI
+
+
+MSG_NOTA_STATO_IN_ATTESA = (
+    "Hai scritto una nota: scegli anche lo stato di avanzamento, "
+    "l'anomalia non può restare «In attesa»."
+)
+
+AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente"
+# Risposta del referente RDC: rimanda l'anomalia al capocommessa, spunte comprese.
+AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni"
+_SQL_INFO = AVANZAMENTO_INFO_RICHIESTE.lower()  # costante, mai input: sicuro nelle query
+_STATI_ATTESA = {AVANZAMENTO_RISPOSTA_CLIENTE.lower(), _SQL_INFO}
+_STATI_CHIUSURA = {"accetto lo stato", "apertura ore/ripi"}
+
+
+def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento) -> bool:
+    """Regola unica della chiusura automatica al salvataggio (pagina e form mail).
+
+    «Aprire RDC» e «Segnalare al cliente» non chiudono da soli: l'anomalia resta
+    aperta, in carico al referente RDC, finché l'RDC non ha un numero e la
+    segnalazione al cliente non è registrata («Segnalato al cliente»). Gli stati
+    d'attesa (risposta del cliente, ulteriori informazioni) la tengono aperta.
+    """
+    av = str(avanzamento or "").strip().lower()
+    if av in _STATI_ATTESA:
+        return False
+    if segnalare and not segnalato_fatto:
+        return False
+    if aprire_rdc:
+        return bool(str(numero_rdc or "").strip())
+    return av in _STATI_CHIUSURA
+
+
+def segnalato_cliente_registrato(anomalia_id) -> bool:
+    """«Segnalato al cliente» spuntato sulla scheda qualità dell'anomalia."""
+    if not anomalia_id:
+        return False
+    try:
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        return AnomaliaSchedaQualita.objects.filter(
+            anomalia_id=int(anomalia_id), segnalato_cliente_il__isnull=False,
+        ).exists()
+    except Exception:
+        logger.warning("anomalie: lettura «Segnalato al cliente» fallita id=%s", anomalia_id, exc_info=True)
+        return False
+
+
+def avanzamento_dopo_segnalazione(segnalare, avanzamento, attuale: str = "") -> str:
+    """«Segnalare al cliente» senza uno stato scelto (vuoto o «In attesa»): l'anomalia
+    resta aperta «In attesa risposta cliente». ``attuale`` vale se ``avanzamento`` è vuoto."""
+    from anomalie.controllo_service import _STATI_LIBERI
+
+    if segnalare and str(avanzamento or attuale or "").strip().lower() in _STATI_LIBERI:
+        return AVANZAMENTO_RISPOSTA_CLIENTE
+    return avanzamento
+
+
+def _serve_azione_per_chiudere(anomalia_id: int) -> bool:
+    try:
+        from anomalie.tempi_service import serve_azione_per_chiudere
+        return serve_azione_per_chiudere(anomalia_id)
+    except Exception:
+        logger.warning("tempi: verifica azione effettuata fallita id=%s", anomalia_id, exc_info=True)
+        return False
+
+
+def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True, da_controllo: bool = False) -> dict:
     """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
 
     Percorso unico per il portale (``api_salva``) e per l'inserimento a blocchi
     (``controllo_views``): permessi per OP, audit, timeline e notifiche restano
     gli stessi. ``notifica_debounce=False`` lascia fuori la riga dalla coda della
     mail di riepilogo, quando la mail la gestisce il controllo.
+    ``da_controllo=True``: righe del controllo dell'operatore (nuove o non ancora
+    decise), ammesse con il permesso di aprire segnalazioni.
 
     Ritorna ``{"success", "error", "status", "local_id", "item_id", "created"}``.
     """
@@ -2955,8 +4529,20 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
     op_id = _safe_text(data.get("op_id"), 100)
     if not op_id:
         return {"success": False, "error": "op_id obbligatorio", "status": 400}
-    if not _can_edit_anomalie_for_op(request, op_id):
+    puo_modificare = _can_edit_anomalie_for_op(request, op_id)
+    if da_controllo or not item_id:
+        if not puo_modificare and not _can_create_anomalie_for_op(request, op_id):
+            return {"success": False, "error": "Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", "status": 403}
+    elif not puo_modificare:
         return {"success": False, "error": "Permesso negato: non autorizzato a modificare questo OP", "status": 403}
+    if not puo_modificare:
+        # Chi apre soltanto la segnalazione non ne decide la disposizione.
+        data = {**data, "note": "", "aprire_rdc": False, "numero_rdc": "", "segnalare": False, "chiudere": False,
+                "avanzamento": "In attesa"}
+    if _as_bool_int(data.get("segnalare")):
+        data = {**data, "avanzamento": avanzamento_dopo_segnalazione(True, data.get("avanzamento"))}
+    if not da_controllo and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento")):
+        return {"success": False, "error": MSG_NOTA_STATO_IN_ATTESA, "status": 400}
 
     cols = legacy_table_columns("anomalie")
     if not cols:
@@ -3026,6 +4612,8 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
 
     # Stato precedente (solo per UPDATE), per la timeline AnomaliaActionLog.
     previous_status = ""
+    prev_chiuso = False
+    prev_av = ""
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
@@ -3038,11 +4626,30 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                 prev_av = str(pre_row[0] or "").strip()
                 prev_chiuso = bool(pre_row[1])
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
+                # Prima decisione «Azione di recupero»: si chiude solo con l'azione
+                # effettuata (o aprendo un RDC, che porta la decisione al cliente).
+                if (not prev_chiuso and chiudere_val and not _as_bool_int(data.get("aprire_rdc"))
+                        and _serve_azione_per_chiudere(local_pk_id)):
+                    from anomalie.tempi_service import MSG_SERVE_AZIONE
+                    return {"success": False, "error": MSG_SERVE_AZIONE, "status": 400}
         except DatabaseError:
             logger.warning("api_salva: lettura stato precedente fallita id=%s", local_pk_id, exc_info=True)
         errore = _decisione_su_propria_anomalia(local_pk_id, cols, writable, legacy_user)
         if errore:
             return {"success": False, "error": errore, "status": 403}
+
+    # «Aprire RDC» / «Segnalare al cliente» senza numero RDC o segnalazione registrata:
+    # l'anomalia resta aperta anche se il client chiede di chiuderla (bundle vecchi
+    # compresi). Una già chiusa non si riapre da qui.
+    if chiudere_val and not prev_chiuso and not chiusura_automatica(
+        payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val,
+        segnalato_cliente_registrato(local_pk_id) if segnalare_val else False,
+        payload_map["avanzamento"],
+    ):
+        chiudere_val = 0
+        for d in (payload_map, writable, insert_writable, update_writable):
+            if "chiudere" in d:
+                d["chiudere"] = 0
 
     try:
         with connections["default"].cursor() as cursor:
@@ -3128,6 +4735,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
         _notify_anomalia_event(request, "segnalare", local_id, op_id, sn_val)
     if chiudere_val:
         _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
+    if (str(payload_map.get("avanzamento") or "").lower() == AVANZAMENTO_INFO_RICHIESTE.lower()
+            and prev_av.lower() != AVANZAMENTO_INFO_RICHIESTE.lower()):
+        _notify_anomalia_event(request, "info_richieste", local_id, op_id, sn_val)
 
     # Mail di conferma post-salvataggio: parte SEMPRE, su qualsiasi salvataggio
     # (INSERT di nuova anomalia o UPDATE), da qualsiasi pulsante. Per evitare di
@@ -3147,6 +4757,8 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                 "descrizione": _safe_text(data.get("desc")) or "",
                 "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
                 "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
+                "dove_pezzi": _dove_pezzi_di(local_id),
+                **_extra_decisione_per_mail(local_id, data),
                 "note": _safe_text(data.get("note")) or "",
                 "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                 "segnalare": bool(segnalare_val),
@@ -3179,6 +4791,12 @@ _TIMELINE_ACTION_LABELS = {
     "crea": "Anomalia creata",
     "aggiorna": "Anomalia aggiornata",
     "chiudi": "Anomalia chiusa",
+    "riapri": "Anomalia riaperta",
+    "segnalato": "Segnalato (senza mail)",
+    "spostata": "Spostata («Taglia»)",
+    "op_modificato": "Dati dell'OP modificati",
+    "risposta_cliente": "Risposta del cliente registrata",
+    "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
     "approva": "Approvata",
     "respingi": "Respinta",
@@ -3434,7 +5052,7 @@ def api_notifica_op(request):
     op_id = _safe_text(data.get("op_id"), 100)
     if not op_id:
         return _json_error("op_id obbligatorio", status=400)
-    if not _can_edit_anomalie_for_op(request, op_id):
+    if not _can_create_anomalie_for_op(request, op_id):
         return _json_error("Permesso negato: non autorizzato su questo OP", status=403)
 
     from automazioni.models import AutomationRule
@@ -3906,6 +5524,25 @@ def anomalie_configurazione_page(request):
                 _anomalie_anagrafica_name_choices(), ensure_ascii=False
             ),
         }
+        regole = campi_controllo()
+        config_tab_context["campi_controllo"] = [
+            {"chiave": k, "etichetta": etichetta, "aiuto": aiuto, "regola": regole[k],
+             "di_blocco": k in CAMPI_CONTROLLO_DI_BLOCCO}
+            for k, etichetta, aiuto in CAMPI_CONTROLLO
+        ]
+        from .dettaglio_controllo import catalogo_per_pagina
+
+        config_tab_context["tipi_difetto_cfg"] = catalogo_per_pagina()["tipi_difetto"]
+        config_tab_context["gruppi_controllori"] = gruppi_controllori()
+        # Anteprima «Vedi come»: chi ricopre ciascun ruolo operativo.
+        membri = {}
+        for r in get_active_roles():
+            try:
+                membri[r.id] = _names_for_ruoli_operativi([r.id])
+            except Exception:
+                membri[r.id] = []
+        config_tab_context["ruoli_membri"] = membri
+        config_tab_context["gruppi_controllori_json"] = json.dumps(gruppi_controllori(), ensure_ascii=False)
 
     context = {
         "page_title": "Gestione Anomalie",
@@ -4128,6 +5765,33 @@ def api_anomalie_config_logo(request):
 @login_required
 @csrf_protect
 @require_POST
+def api_anomalie_config_campi_controllo(request):
+    """Accende/spegne le parti del blocco del controllore (``{"campi": {chiave: bool}}``)."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"success": False, "error": "Permesso negato"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"success": False, "error": "Body JSON non valido"}, status=400)
+    richiesti = payload.get("campi") if isinstance(payload, dict) else None
+    if not isinstance(richiesti, dict):
+        return JsonResponse({"success": False, "error": "Campi mancanti"}, status=400)
+    attuali = campi_controllo()
+    nuovi = {k: _regola_campo(richiesti[k]) if k in richiesti else attuali[k] for k in attuali}
+    existing = _read_anomalie_config()
+    existing[CAMPI_CONTROLLO_KEY] = nuovi
+    if isinstance(payload.get("gruppi"), list):
+        existing[GRUPPI_CONTROLLORI_KEY] = _pulisci_gruppi(payload["gruppi"])
+    _write_anomalie_config(existing)
+    log_action(request, "anomalie_config_campi_controllo", "anomalie", {
+        "regole": {k: v["modo"] for k, v in nuovi.items()},
+    })
+    return JsonResponse({"success": True, "campi": nuovi})
+
+
+@login_required
+@csrf_protect
+@require_POST
 def api_anomalie_config_logo_reset(request):
     """Rimuove il logo personalizzato e ripristina quello di default."""
     if not _can_manage_anomalie_config(request):
@@ -4143,6 +5807,8 @@ def api_anomalie_config_logo_reset(request):
 @ensure_csrf_cookie
 @con_guida
 def apertura_segnalazione_page(request):
+    from .dettaglio_controllo import catalogo_per_pagina
+
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     display_name = (
         (legacy_user.nome if legacy_user else None)
@@ -4160,6 +5826,9 @@ def apertura_segnalazione_page(request):
         "can_manage_config": _can_manage_anomalie_config(request),
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
         "controllo_tempi": tempi_controllo(),
+        "dettaglio_catalogo_json": json.dumps(catalogo_per_pagina(), ensure_ascii=False),
+        "campi_controllo_json": json.dumps(campi_controllo_per(request)),
+        "legacy_user_id": _request_legacy_user_id(request),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
 
@@ -4401,6 +6070,66 @@ def anomalie_statistiche_page(request):
     return render(request, "anomalie/pages/anomalie_statistiche.html", context)
 
 
+def _anomalie_scope_where(request) -> tuple[list[str], list]:
+    """Filtro di visibilità sulle righe di ``anomalie`` per lo scope dell'utente.
+
+    Stessa regola dell'elenco OP (``api_db_ordini``): ALL vede tutto, ASSIGNED
+    solo gli OP in cui è capocommessa/CAR, OWN_ANOMALIE solo gli OP su cui ha
+    aperto almeno un'anomalia. Statistiche, ricerca e contatore della home
+    passano da qui, così il numero coincide con quello dell'elenco.
+    Con il sistema dei ruoli: gli OP che ``_ordini_payload`` (Gestione) mostra.
+    """
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        if bool(getattr(request.user, "is_superuser", False)) or (
+            _ambito_anomalie(request, "vedere") is None or _ambito_anomalie(request, "modificare") is None
+        ):
+            return [], []
+        titoli = sorted({
+            str(r["id"]).lower() for r in _ordini_payload(request, per_apertura=False) if r.get("id") not in ("", "—")
+        })
+        if not titoli:
+            return ["1=0"], []
+        return [
+            f"LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) IN ({', '.join(['%s'] * len(titoli))})"
+        ], titoli
+    scope = _request_anomalie_list_scope(request)
+    if scope == AnomalieListScope.ALL:
+        return [], []
+    if connections["default"].vendor == "sqlite":
+        op_id = f"CAST(op.{OP_ITEM_ID_COL} AS INTEGER)"
+    else:
+        op_id = f"TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)"
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if (
+        scope == AnomalieListScope.OWN_ANOMALIE
+        and legacy_user
+        and "created_by_user_id" in (legacy_table_columns("anomalie") or set())
+    ):
+        return [
+            "op_lookup_id IN (SELECT a_own.op_lookup_id FROM anomalie a_own "
+            "WHERE a_own.created_by_user_id = %s)"
+        ], [legacy_user.id]
+    user_name = _current_user_identity(request)["name"]
+    if not user_name or (scope == AnomalieListScope.OWN_ANOMALIE and not legacy_user):
+        return ["1=0"], []
+    return [
+        f"op_lookup_id IN (SELECT {op_id} FROM ordini_produzione op "
+        "WHERE op.capocomessa LIKE %s OR op.incaricato LIKE %s)"
+    ], [f"%{user_name}%", f"%{user_name}%"]
+
+
+def conta_anomalie_aperte_visibili(request) -> int:
+    """Anomalie aperte che l'utente vede nell'elenco: il numero della home."""
+    if not _has_table("anomalie"):
+        return 0
+    where_parts, params = _anomalie_scope_where(request)
+    where_parts = ["COALESCE(chiudere, 0) = 0", *where_parts]
+    rows = _fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie WHERE {' AND '.join(where_parts)}", params or None)
+    return int((rows or [{"n": 0}])[0]["n"])
+
+
 def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
     """Costruisce i frammenti WHERE condivisi tra statistiche, ricerca ed export."""
     da = request.GET.get("da", "").strip()
@@ -4446,7 +6175,30 @@ def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
             ors = " OR ".join(f"{_quote_identifier(c)} LIKE %s" for c in text_cols)
             where_parts.append("(" + ors + ")")
             params.extend([like] * len(text_cols))
-    return where_parts, params
+    scope_parts, scope_params = _anomalie_scope_where(request)
+    return where_parts + scope_parts, params + scope_params
+
+
+def _capocommessa_per_op(op_titles) -> dict[str, str]:
+    """{titolo OP in minuscolo: capocommessa} da ordini_produzione."""
+    titoli = sorted({str(t).strip() for t in op_titles if str(t or "").strip()})
+    if not titoli or not _has_table("ordini_produzione"):
+        return {}
+    out: dict[str, str] = {}
+    for i in range(0, len(titoli), 500):
+        chunk = titoli[i:i + 500]
+        ph = ",".join(["%s"] * len(chunk))
+        for r in _fetch_all_dict(f"SELECT title, capocomessa FROM ordini_produzione WHERE title IN ({ph})", chunk):
+            out[str(r.get("title") or "").strip().lower()] = str(r.get("capocomessa") or "").strip()
+    return out
+
+
+def _tempi_statistiche(rows: list[dict]) -> dict:
+    from anomalie.tempi_service import riepilogo, tempi_per_anomalie
+
+    capi = _capocommessa_per_op(r.get("ex_op_nominativo") for r in rows)
+    gruppi = {int(r["id"]): capi.get(str(r.get("ex_op_nominativo") or "").strip().lower(), "") for r in rows}
+    return riepilogo(tempi_per_anomalie(rows), gruppi=gruppi)
 
 
 @login_required
@@ -4541,11 +6293,15 @@ def api_anomalie_statistiche(request):
 
     capocommessa_list: list[str] = []
     if "ex_op_nominativo" in cols:
+        # Solo gli OP che l'utente può vedere: la tendina non deve elencare quelli altrui.
+        scope_parts, scope_params = _anomalie_scope_where(request)
+        scope_sql = "".join(f" AND {p}" for p in scope_parts)
         capocommessa_list = [
             str(r["ex_op_nominativo"])
             for r in _fetch_all_dict(
                 "SELECT DISTINCT ex_op_nominativo FROM anomalie "
-                "WHERE ex_op_nominativo IS NOT NULL AND ex_op_nominativo != '' ORDER BY ex_op_nominativo"
+                f"WHERE ex_op_nominativo IS NOT NULL AND ex_op_nominativo != ''{scope_sql} ORDER BY ex_op_nominativo",
+                scope_params or None,
             )
         ]
 
@@ -4560,8 +6316,19 @@ def api_anomalie_statistiche(request):
     except Exception:
         logger.warning("statistiche anomalie: pareto qualita' non disponibile", exc_info=True)
 
+    # Tempi (giorni lavorativi) delle anomalie del filtro, per capocommessa dell'OP.
+    tempi = None
+    if "created_datetime" in cols:
+        try:
+            tempi = _tempi_statistiche(
+                _fetch_all_dict(f"SELECT id, created_datetime, ex_op_nominativo FROM anomalie {_where()}", params)
+            )
+        except Exception:
+            logger.warning("statistiche anomalie: tempi non disponibili", exc_info=True)
+
     return JsonResponse({
         "qualita": qualita,
+        "tempi": tempi,
         "totale": totale,
         "aperte": totale - chiuse,
         "chiuse": chiuse,

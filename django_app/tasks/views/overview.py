@@ -14,9 +14,10 @@ from ..access import (
 )
 from ..action_register import ACTION_ORIGIN_CHOICES, build_project_actions, filter_action_rows
 from ..identity import normalize_client_name, normalize_part_number
-from ..models import MeetingStatus
+from ..models import MeetingStatus, TaskStatus
 from ..readiness import annotate_readiness_qs, compute_project_readiness
-from ._shared import _tasks_shell_context
+from ._shared import _tasks_shell_context, percentuale_avanzamento
+from .tappe import tappe_context
 
 
 _IDENTITY_FIELDS = {
@@ -139,6 +140,8 @@ def project_overview(request, project_id: int):
     task_counts = project.tasks.aggregate(
         total=Count("id"),
         planned=Count("id", filter=Q(due_date__isnull=False)),
+        done=Count("id", filter=Q(status=TaskStatus.DONE)),
+        attive=Count("id", filter=~Q(status=TaskStatus.CANCELED)),
     )
     recent_meetings = list(project.meetings.order_by("-numero", "-id")[:3])
     # Data di inizio della commessa: primo incontro non annullato.
@@ -150,6 +153,27 @@ def project_overview(request, project_id: int):
     )
     readiness = compute_project_readiness(project)
     can_manage = can_manage_project(request, project)
+    from ..services.filo import prossimi_passi
+
+    _filo = tappe_context(request, project)
+    _filo["prossimi_passi"] = prossimi_passi(project, tappe=_filo["tappe"], can_manage=can_manage)
+    from ..access import ha_pieni_poteri
+    from ..services.filo import stato_consegna
+
+    _filo["consegna"] = stato_consegna(project)
+    _filo["puo_chiudere"] = ha_pieni_poteri(request, project)
+    _filo["attivita_aperte"] = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).count()
+    # CN-SGI: piani qualità del cliente e procedure collegate al KICK-OFF (fail-safe).
+    try:
+        from procedure_refresh.collegamenti import documenti_per_kickoff
+
+        _filo["documenti_sgi"] = documenti_per_kickoff(request, project.client_name)
+    except Exception:
+        _filo["documenti_sgi"] = []
+    if next_meeting is not None:
+        from .meetings import _sala_stato
+
+        _filo["next_meeting_sala"] = _sala_stato(next_meeting)
 
     return render(
         request,
@@ -164,6 +188,7 @@ def project_overview(request, project_id: int):
             "page_title": f"Panoramica - {project.name}",
             "project": project,
             "readiness": readiness,
+            **_filo,
             "actions": actions,
             "top_actions": actions[:5],
             "action_open_count": action_open_count,
@@ -171,6 +196,10 @@ def project_overview(request, project_id: int):
             "first_meeting_date": first_meeting_date,
             "planned_task_count": task_counts["planned"],
             "total_task_count": task_counts["total"],
+            "done_task_count": task_counts["done"],
+            "unplanned_task_count": task_counts["total"] - task_counts["planned"],
+            "active_task_count": task_counts["attive"],
+            "progress_pct": percentuale_avanzamento(task_counts["done"], task_counts["attive"]),
             "recent_meetings": recent_meetings,
             "can_manage": can_manage,
             "hide_readiness_actions": not can_manage,

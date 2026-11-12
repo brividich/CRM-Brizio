@@ -60,15 +60,34 @@ def _periodic_recoveries():
 
 
 def _termini_correzione_cve():
-    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine.
+    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine, soppressioni in scadenza.
 
     Gira prima della valutazione delle regole dopo l'heartbeat, così gli eventi diventano alert nello stesso giro.
     """
-    from security.services import accettazione_rischio, cve_sla
+    from security.services import accettazione_rischio, alert_doppioni, cve_sla, soppressioni_scadenza
 
     accettazioni = accettazione_rischio.controlla_scadenze()
     eventi, chiusi = cve_sla.segnala_scadute()
-    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
+    soppressioni = soppressioni_scadenza.controlla_scadenze()
+    # CVE della mail di Defender già seguita PC per PC dall'inventario: l'alert della mail è un doppione.
+    doppie = len(alert_doppioni.chiudi_cve_doppie())
+    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi, "soppressioni_in_scadenza": soppressioni,
+            "cve_doppie_chiuse": doppie}
+
+
+def _alert_fermi():
+    """Alert senza nuove occorrenze da «rumore.fermi.giorni» giorni: proposta di chiusura da confermare."""
+    from security.services import alert_fermi
+
+    return alert_fermi.proponi_chiusura()
+
+
+def _termini_patch():
+    """Patch WatchGuard oltre il termine di installazione (``patch_sla``): eventi nuovi e alert rientrati."""
+    from security.services import patch_sla
+
+    eventi, chiusi = patch_sla.segnala_scadute()
+    return {"oltre_termine": eventi, "rientrati": chiusi}
 
 
 def _iso_incidenti():
@@ -102,12 +121,16 @@ def ai_sintesi_giorno_task():
 
     Una richiesta all'AI solo se i punti «da guardare» sono cambiati; spegnibile da /soc/impostazioni/.
     """
+    from ai_assistant.http_client import scadenza
     from security.services import soc_settings
     from security.services.ai_explain import prepare_daily_brief
+    from security.services.cpe_ai import TETTO_PIANIFICATO
 
     if not soc_settings.value("ai.sintesi.attivo"):
         return {"skipped": "sintesi automatica spenta"}
-    return prepare_daily_brief()
+    # Timeout della richiesta = min(SECURITY_AI_TIMEOUT_SECONDS, tempo che resta): entro i 120 s del worker.
+    with scadenza(TETTO_PIANIFICATO):
+        return prepare_daily_brief()
 
 
 def ai_lettura_assistita_task():
@@ -143,6 +166,17 @@ def ai_cpe_proposte_task():
     return letture.esegui("cpe_ai")
 
 
+def ai_proposte_task():
+    """Proposte di chiusura dell'AI sugli alert aperti (schedule `security_ai_proposte`, lettura `ai_proposte`).
+
+    Ogni 15 minuti: prove dai report successivi + decisioni passate → proposta; i tipi di alert che l'AI ha
+    imparato dalle conferme si chiudono da soli. Al massimo «Massimo per giro» alert, nessuna richiesta dopo 60 s.
+    """
+    from security.services import letture
+
+    return letture.esegui("ai_proposte")
+
+
 def pacchetto_iso_task():
     """Pacchetto mensile di evidenze ISO/IEC 27001 (schedule `security_pacchetto_iso`, lettura `pacchetto_iso`).
 
@@ -152,6 +186,16 @@ def pacchetto_iso_task():
     from security.services import letture
 
     return letture.esegui("pacchetto_iso")
+
+
+def dipendenze_portale_task():
+    """Librerie Python del portale contro il database OSV (schedule `security_dipendenze_portale`, lettura `dipendenze_portale`).
+
+    Ogni mattina alle 06:50: vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria.
+    """
+    from security.services import letture
+
+    return letture.esegui("dipendenze_portale")
 
 
 def suggest_cpe_task(vendor, product):
@@ -168,15 +212,33 @@ def suggest_cpe_task(vendor, product):
     return len(mapping.suggestions)
 
 
+# Tempo del giro oltre il quale le letture esterne del ciclo passano al giro dopo: i passi
+# interni (regole, battito, KPI, notifiche) girano comunque, entro i 120 s del worker.
+CICLO_BUDGET_LETTURE_SECONDI = 50
+LETTURE_DEL_CICLO = ("defender", "entra", "veeam", "secure_score")
+
+
+def run_security_caselle_task():
+    """Lettura delle caselle mail dei report (schedule `security_caselle`, ogni 15 minuti).
+
+    Sta in un lavoro suo, con un timeout più lungo, perché è il passo più pesante: con un
+    arretrato di mail non deve più far fermare il ciclo prima di regole, battito e KPI.
+    Ogni mail importata passa già da parser e regole.
+    """
+    from security.services import letture
+
+    return letture.esegui("caselle")
+
+
 def run_security_cycle_task():
     """Ciclo periodico del Security Center (schedule `security_cycle`, ogni 15 minuti).
 
-    Prima nessun task del modulo era pianificato: anche con una casella configurata,
-    nessuno andava a leggere le mail e dashboard/alert restavano vuoti.
-    1. legge le caselle attive (ogni mail importata passa già da parser e regole);
+    1. letture esterne (Defender, Entra, Veeam, Secure Score), saltate al giro dopo se il
+       giro ha già usato ``CICLO_BUDGET_LETTURE_SECONDI``;
     2. recupera eventuali elementi rimasti in coda e valuta le regole;
     3. controlla le sorgenti silenziose (heartbeat) e le rivaluta;
-    4. aggiorna gli snapshot KPI di oggi.
+    4. aggiorna gli snapshot KPI di oggi, rientri e notifiche.
+    Le caselle mail hanno il loro lavoro (``run_security_caselle_task``).
     Ogni passo è isolato: un errore (es. credenziali Graph) non ferma gli altri.
     """
     import logging
@@ -192,7 +254,6 @@ def run_security_cycle_task():
 
     steps = (
         # Le letture passano dal registro (Impostazioni › Letture automatiche): storico ed «Esegui ora».
-        ("mailboxes", lambda: letture.esegui("caselle", rilancia=True)),
         ("defender", lambda: letture.esegui("defender_alert", rilancia=True)),
         ("entra", lambda: letture.esegui("entra", rilancia=True)),
         ("veeam", lambda: letture.esegui("veeam", rilancia=True)),
@@ -201,14 +262,23 @@ def run_security_cycle_task():
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
         ("termini_cve", _termini_correzione_cve),
+        ("termini_patch", _termini_patch),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),
+        ("alert_fermi", _alert_fermi),
         ("pulizia_inventario", _cleanup_inventory_previews),
         ("iso", _iso_incidenti),
         ("avvisi", _scheduled_notifications),
     )
+    import time
+
+    inizio = time.monotonic()
     for name, step in steps:
+        if name in LETTURE_DEL_CICLO and time.monotonic() - inizio > CICLO_BUDGET_LETTURE_SECONDI:
+            result[name] = "rimandata al prossimo giro (tempo del giro esaurito)"
+            logger.warning("security_cycle: lettura %s rimandata, giro oltre %s s", name, CICLO_BUDGET_LETTURE_SECONDI)
+            continue
         try:
             result[name] = step()
         except Exception as exc:  # noqa: BLE001 - un passo fallito non blocca il ciclo
@@ -229,6 +299,13 @@ def run_watchguard_api_task() -> dict:
     from security.services import letture
 
     return letture.esegui("watchguard")
+
+
+def run_watchguard_task_task() -> dict:
+    """Task di installazione patch da WatchGuard Cloud, ogni ora (``watchguard_api.run_task``)."""
+    from security.services import letture
+
+    return letture.esegui("watchguard_task")
 
 
 def run_defender_vulnerabilita_task() -> dict:

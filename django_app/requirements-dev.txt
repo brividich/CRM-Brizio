@@ -140,7 +140,7 @@ pre-commit==4.6.0
 puresnmp==2.0.1
 puresnmp-crypto==1.0.1.post1
     # via -r requirements.in
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via ldap3
 pycparser==3.0
     # via cffi

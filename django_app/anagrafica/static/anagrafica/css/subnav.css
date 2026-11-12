@@ -1,0 +1,73 @@
+/* NOVICROM HUB — stili di anagrafica/components/subnav.html.
+ * Spostati dal <style> inline (12/11/2026): stesso punto della cascata, ora in cache. */
+/* Subnav Anagrafica: prima riga i pilastri, seconda riga sezioni e voci del pilastro acceso.
+   Le dimensioni scendono da sole se una riga non entra (data-fit, script in fondo). */
+.hrnav { position:sticky; top:var(--nav-h, 60px); z-index:90; display:block;
+  background:#fff; border-bottom:1px solid #e6ebf3; border-radius:0;
+  padding:6px var(--content-pad-x, 24px) 0;
+  box-shadow:0 6px 14px -10px rgba(12,37,69,.28);
+  font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
+/* In modalità sidebar (desktop) NON c'è una topnav in alto (l'app-header è
+   display:none): la subnav va fissata al top assoluto della pagina. */
+body.nav-side .hrnav { top:0; }
+/* Su mobile l'app-header torna visibile e sticky a top:0 → ripristina l'offset. */
+@media (max-width:768px){ body.nav-side .hrnav { top:var(--nav-h, 60px); } }
+.hrnav-tabs { display:flex; flex-wrap:nowrap; align-items:center; gap:3px; padding-bottom:6px; min-width:0; }
+.hrnav-tab { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; flex:0 0 auto;
+  border-radius:9px; padding:8px 12px; font-size:13px; font-weight:600;
+  color:#5a6580; text-decoration:none; transition:background .15s, color .15s; }
+.hrnav-ico { width:16px; height:16px; flex:0 0 16px; stroke:currentColor; stroke-width:1.8;
+  fill:none; stroke-linecap:round; stroke-linejoin:round; color:#94a3b8; transition:color .15s; }
+.hrnav-tab:hover { background:#f1f5f9; color:#0c2545; }
+.hrnav-tab:hover .hrnav-ico { color:#1f87cd; }
+.hrnav-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(8,20,45,.25); }
+.hrnav-tab.active .hrnav-ico { color:#5db4ee; }
+.hrnav-fine { margin-left:auto; }
+.hrnav-dd { display:contents; }
+/* Tutte le voci restano nella pagina, nascoste: il pannello del telefono (mobile-nav.js) le elenca da qui. */
+.hrnav-dd-menu { display:none; }
+.hrnav-sub { display:flex; flex-wrap:nowrap; align-items:center; gap:4px 10px; min-height:42px;
+  margin:0 calc(-1 * var(--content-pad-x, 24px)); padding:0 var(--content-pad-x, 24px); border-top:1px solid #eef2f7; }
+.hrnav-sub-sez { display:flex; gap:2px; flex:0 0 auto; align-self:stretch; }
+.hrnav-sub-sez a { display:inline-flex; align-items:center; gap:6px; padding:0 11px; font-size:12.5px; font-weight:700; color:#64748b; text-decoration:none; white-space:nowrap; }
+.hrnav-sub-sez a:hover { color:#0c2545; }
+.hrnav-sub-sez a.active { color:#0c2545; box-shadow:inset 0 -2.5px 0 #1f87cd; }
+.hrnav-sub-voci { display:flex; gap:3px; flex:0 0 auto; align-items:center; }
+.hrnav-sub-sez + .hrnav-sub-voci { margin-left:8px; padding-left:16px; border-left:1px solid #e6ebf3; }
+.hrnav-sub-voci a { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:8px; font-size:12.5px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
+.hrnav-sub-voci a:hover { background:#f4f8fc; color:#0c2545; }
+.hrnav-sub-voci a.active { background:#e8f3fb; color:#0c2545; }
+.hrnav-sub-n { min-width:18px; padding:0 5px; border-radius:999px; background:#ea580c; color:#fff; font-size:11px; font-weight:700; line-height:18px; text-align:center; }
+/* Adattamento automatico: 1 meno aria, 2 senza icone, 3 testo più piccolo, 4 le voci vanno a capo. */
+.hrnav[data-fit="1"] .hrnav-tab, .hrnav[data-fit="2"] .hrnav-tab, .hrnav[data-fit="3"] .hrnav-tab, .hrnav[data-fit="4"] .hrnav-tab { padding:7px 8px; gap:5px; }
+.hrnav[data-fit="1"] .hrnav-sub-sez a, .hrnav[data-fit="2"] .hrnav-sub-sez a, .hrnav[data-fit="3"] .hrnav-sub-sez a, .hrnav[data-fit="4"] .hrnav-sub-sez a { padding:0 7px; }
+.hrnav[data-fit="1"] .hrnav-sub-voci a, .hrnav[data-fit="2"] .hrnav-sub-voci a, .hrnav[data-fit="3"] .hrnav-sub-voci a, .hrnav[data-fit="4"] .hrnav-sub-voci a { padding:5px 7px; }
+.hrnav[data-fit="2"] .hrnav-tabs .hrnav-ico, .hrnav[data-fit="3"] .hrnav-tabs .hrnav-ico, .hrnav[data-fit="4"] .hrnav-tabs .hrnav-ico { display:none; }
+.hrnav[data-fit="3"] .hrnav-tab, .hrnav[data-fit="4"] .hrnav-tab { font-size:12px; }
+.hrnav[data-fit="3"] .hrnav-sub-sez a, .hrnav[data-fit="4"] .hrnav-sub-sez a, .hrnav[data-fit="3"] .hrnav-sub-voci a, .hrnav[data-fit="4"] .hrnav-sub-voci a { font-size:11.5px; }
+.hrnav[data-fit="4"] .hrnav-tabs, .hrnav[data-fit="4"] .hrnav-sub, .hrnav[data-fit="4"] .hrnav-sub-voci { flex-wrap:wrap; }
+.hrnav[data-fit="4"] .hrnav-sub { padding-top:4px; padding-bottom:4px; }
+.hrnav[data-fit="4"] .hrnav-sub-sez a { padding:6px 7px; }
+.hrnav[data-fit="4"] .hrnav-sub-voci { flex:1 1 100%; margin-left:0; padding-left:0; border-left:0; }
+body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hrnav-tab { color:var(--text-light); }
+body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-tab:hover .hrnav-ico { color:#93c5fd; }
+body.theme-dark .hrnav-tab.active { background:var(--surface-alt); color:#fff; }
+body.theme-dark .hrnav-tab.active .hrnav-ico { color:#93c5fd; }
+body.theme-dark .hrnav-sub, body.theme-dark .hrnav-sub-sez + .hrnav-sub-voci { border-color:var(--border); }
+body.theme-dark .hrnav-sub-sez a, body.theme-dark .hrnav-sub-voci a { color:var(--text-light); }
+body.theme-dark .hrnav-sub-sez a:hover { color:var(--text); }
+body.theme-dark .hrnav-sub-sez a.active { color:#93c5fd; box-shadow:inset 0 -2.5px 0 #93c5fd; }
+body.theme-dark .hrnav-sub-voci a:hover { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-sub-voci a.active { color:#93c5fd; background:var(--surface-alt); }
+@media (max-width:720px) {
+  .hrnav { padding:6px 12px; }
+  .hrnav-tabs { width:100%; overflow-x:auto; gap:2px; padding-bottom:0; scrollbar-width:none; }
+  .hrnav-tabs::-webkit-scrollbar { display:none; }
+  .hrnav-fine { margin-left:0; }
+  .hrnav-sub { flex-direction:column; align-items:stretch; margin:6px -12px 0; padding:0 12px; }
+  .hrnav-sub-sez, .hrnav-sub-voci { overflow-x:auto; width:100%; }
+  .hrnav-sub-sez { min-height:38px; }
+  .hrnav-sub-sez + .hrnav-sub-voci { margin-left:0; padding:0 0 6px; border-left:0; }
+}

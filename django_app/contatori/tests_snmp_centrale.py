@@ -384,16 +384,16 @@ class CentraleViewsAndAssetBridgeTest(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
+    @mock.patch("contatori.tasks._enqueue", return_value=True)
     @mock.patch("contatori.services.interroga_dispositivo")
-    def test_poll_tutti_interroga_solo_dispositivi_attivi(self, poll):
+    def test_poll_tutti_accoda_solo_dispositivi_attivi(self, poll, accoda):
         active = DispositivoSNMP.objects.create(nome="Attivo", host="192.0.2.50")
         DispositivoSNMP.objects.create(nome="Spento", host="192.0.2.51", attivo=False)
-        poll.return_value = RilevazioneSNMP(
-            dispositivo=active, stato=StatoSNMP.OK,
-        )
         response = self.client.post(reverse("contatori:snmp_interroga_tutti"))
         self.assertEqual(response.status_code, 302)
-        poll.assert_called_once_with(active)
+        # Nessuna interrogazione nella request: un job in coda per dispositivo attivo.
+        poll.assert_not_called()
+        accoda.assert_called_once_with("contatori.tasks.poll_dispositivo", active.pk)
 
     @mock.patch("contatori.management.commands.poll_snmp_devices.interroga_dispositivo")
     def test_command_poll_dispositivi(self, poll):

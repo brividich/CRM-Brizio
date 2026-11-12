@@ -189,6 +189,10 @@ Ogni patch è atomica e self-contained: una può essere posticipata senza blocca
 - Export Excel dei dati filtrati. Già coperto dagli export specifici.
 - Edit inline su cella. Non rientra in questo sistema.
 
+## Raggruppa per colonna (09/11/2026)
+
+Menu «Raggruppa ▾» nella barra (`buildGroupMenu`), attivo dove un antenato ha `data-fm-groupable="1"` (oggi `.soc-module` in `security/_base_soc.html`) o sulla tabella; `data-fm-groupable="0"` lo spegne. Colonne proposte (`groupableColumns`, calcolate una volta): non numeriche, con un nome vero e con almeno un valore ripetuto; `data-col-group="1"`/`"0"` sull'intestazione forza o esclude. Valore del gruppo (`groupValues`): `data-fm-group` della cella (più valori con `|`: la riga va nel primo gruppo, negli altri una copia `tr.fm-grp-clone` senza campi né `.sec-bulk-item`), altrimenti il testo del primo badge/chip, il giorno per le colonne data, il testo della cella. `applyGrouping` gira dopo filtro e ordinamento (l'ordine dentro il gruppo è quello dell'ordinamento, i gruppi seguono la prima riga), inserisce `tr.fm-grp-row` (casella `.fm-grp-pick` che spunta le `.sec-bulk-item` del gruppo e lancia `change`, pulsante apri/chiudi, conteggio) e spegne il caricamento passo passo. Stato `state.group` salvato nelle preferenze e nelle viste; gruppi chiusi solo in memoria (`table._fmGrpCollapsed`). Togliendo il raggruppamento si torna all'ordine del server (stessa strada di `_fmSorted`).
+
 ## Aspetto sobrio (28/10/2026)
 
 Richiesta utente: «la visualizzazione è ancora complicata». Solo CSS/JS del motore (`fm-table-enhanced.css`, blocco «Aspetto sobrio»), valido per ogni tabella dentro `.fm-tbl-shell`:

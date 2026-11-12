@@ -1,13 +1,17 @@
 """Impostazioni e amministrazione del modulo KICK-OFF."""
 from __future__ import annotations
 
+import json
+
 import logging
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, transaction
 from django.db.models import Count, Max, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -27,6 +31,12 @@ from ..forms import (
     task_active_users_queryset,
 )
 from ..models import (
+    TappaKickoff,
+    FaiFase,
+    FaiGruppo,
+    FaiOpzione,
+    FaiRecord,
+    FaiTipo,
     KickoffMeeting,
     MeetingAgendaTemplate,
     Project,
@@ -42,10 +52,12 @@ from ..models import (
     TaskRoleDefinition,
     TaskRoleType,
     TaskStatus,
+    TechRefKind,
     TaskUserAccessRule,
 )
 from ..services.agenda import (
     _parse_agenda_template_items,
+    _parse_optional_date,
 )
 from ._shared import (
     _coerce_positive_int,
@@ -60,7 +72,37 @@ SYSTEM_TASK_ROLE_DEFINITIONS = (
     (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
     (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli")
+TASK_SETTINGS_TABS = (
+    "config", "commesse", "sale", "poteri", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria",
+    "tipi", "modelli", "catalogo", "fai",
+)
+# Menu delle impostazioni, raggruppato per argomento: (gruppo, [(tab, etichetta, spiegazione)]).
+TASK_SETTINGS_MENU = (
+    ("Commesse", (
+        ("config", "Generale", "Avvisi, VRF, asset, copia conoscenza"),
+        ("commesse", "Modelli di commessa", "Tappe e scadenze per tipo di lavoro"),
+        ("sale", "Sale riunioni", "Sale e caselle Microsoft 365"),
+    )),
+    ("Incontri", (
+        ("modelli", "Modelli ordine del giorno", "Punti pronti da inserire"),
+        ("catalogo", "Catalogo voci", "Voci ricorrenti suggerite"),
+    )),
+    ("Persone e permessi", (
+        ("poteri", "Poteri e avvisi", "Chi decide e chi viene avvisato"),
+        ("ruoli", "Ruoli operativi", "Ruoli del team"),
+        ("accessi", "Accessi", "Cosa vede e modifica ciascuno"),
+    )),
+    ("Attività", (
+        ("tipi", "Tipi di attività", "Campi, tappe e programmi"),
+        ("promemoria", "Promemoria", "Avvisi prima delle scadenze"),
+        ("fai", "FAI", "Motivi, piani, stati"),
+    )),
+    ("Controllo", (
+        ("riepilogo", "Riepilogo", "Numeri del modulo"),
+        ("record", "Eliminazioni", "Kickoff e attività da togliere"),
+        ("log", "Registro modifiche", "Chi ha fatto cosa"),
+    )),
+)
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -199,10 +241,19 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         "done_count": tasks_by_status_raw.get(TaskStatus.DONE, 0),
     }
 
-    if tab == "config":
+    context["impostazioni_menu"] = TASK_SETTINGS_MENU
+    if tab in ("config", "sale", "poteri"):
         cfg_cc = TaskImpostazioni.get_singleton()
         scelti = set(cfg_cc.cc_predefiniti_utenti.values_list("pk", flat=True))
         context["cc_predefiniti_ids"] = scelti
+        from ..models import MeetingRoom
+
+        context["sale_riunioni"] = list(MeetingRoom.objects.order_by("ordine", "nome"))
+        context["poteri_ruoli_scelti"] = {c.strip() for c in (cfg_cc.poteri_ruoli or "").split(",") if c.strip()}
+        context["poteri_ruoli_opzioni"] = RUOLI_POTERI
+        context["poteri_utenti_ids"] = set(cfg_cc.poteri_utenti.values_list("pk", flat=True))
+        context["avvisi_scelti"] = {c.strip() for c in (cfg_cc.avvisi_destinatari or "").split(",") if c.strip()}
+        context["avvisi_opzioni"] = DESTINATARI_AVVISI
         context["cc_utenti_disponibili"] = [
             {"pk": utente.pk, "etichetta": etichetta_utente(utente)}
             for utente in task_active_users_queryset()
@@ -247,10 +298,25 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         )
 
     if tab == "log":
-        context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
+        context.update(_log_settings_context(request))
 
     if tab == "modelli":
-        context["agenda_templates"] = list(MeetingAgendaTemplate.objects.all())
+        modelli = list(MeetingAgendaTemplate.objects.all())
+        for m in modelli:
+            m.n_punti = len(m.items or [])
+            m.minuti = sum(int(i.get("durata_minuti") or 0) for i in (m.items or []) if isinstance(i, dict))
+        context["agenda_templates"] = modelli
+        context["modelli_attivi"] = sum(1 for m in modelli if m.is_active)
+        context["modello_aperto"] = _coerce_positive_int(request.GET.get("apri"), default=0)
+
+    if tab == "catalogo":
+        context.update(_catalogo_context(request))
+
+    if tab == "commesse":
+        context.update(_modelli_commessa_context())
+
+    if tab == "fai":
+        context.update(_fai_settings_context())
 
     if tab == "ruoli":
         cfg = TaskImpostazioni.get_singleton()
@@ -458,6 +524,8 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
             "tipi_categories": categories,
             "tipi_focus_category": focus_category,
             "tipi_field_types": TaskCategoryFieldType.choices,
+            "tipi_richiede_choices": TechRefKind.choices,
+            "tipi_tappa_choices": TappaKickoff.choices,
             "tipi_role_choices": [("", "Nessun ruolo dedicato")] + [
                 (role.code, role.name) for role in role_definitions if role.is_active
             ],
@@ -634,7 +702,6 @@ def _handle_tasks_roles_post(request):
 
 def _handle_tasks_access_post(request):
     """POST tab accessi: regole ruolo operativo + override singolo utente."""
-    from urllib.parse import urlencode
 
     params = {"tab": "accessi"}
     q_user = request.POST.get("q_access_user", "").strip()
@@ -830,6 +897,292 @@ def _handle_tasks_reminders_post(request):
     return redirect(target_url)
 
 
+# ── Registro modifiche: livelli, etichette e filtri ──────────────────────────
+# Il registro era una lista piatta delle ultime 100 voci: per capire chi aveva
+# cancellato cosa bisognava scorrerla tutta. Ogni azione ha un livello fisso,
+# cosi' la vista «Critico» mostra solo eliminazioni, permessi e forzature.
+LOG_VISTE = (
+    ("essenziali", "Essenziali", "Senza le operazioni di routine"),
+    ("critico", "Critico", "Eliminazioni, permessi, forzature"),
+    ("tutto", "Tutto", "Ogni voce registrata"),
+)
+_LOG_CRITICO = ("delete", "elimin", "annull", "riaperto", "ruol", "access", "poteri", "forz", "skipped", "scavalc", "impersona")
+_LOG_ROUTINE = ("reminder", "promemoria", "sala_verifica", "esporta", "quick", "tooling", "attendance", "presenz",
+                "agenda_item", "spostamento", "sync", "letto", "visual", "cattura")
+_LOG_ETICHETTE = {
+    "modifica": "Impostazioni modificate",
+    "kickoff_project_delete": "Kickoff eliminato",
+    "kickoff_task_delete": "Attività eliminata",
+    "kickoff_riaperto": "Kickoff riaperto",
+    "kickoff_reused_on_create": "Kickoff esistente riutilizzato",
+    "kickoff_meeting_create": "Incontro convocato",
+    "kickoff_meeting_edit": "Incontro modificato",
+    "kickoff_meeting_agenda_item_add": "Punto ODG aggiunto in riunione",
+    "kickoff_meeting_agenda_item_delete": "Punto ODG tolto in riunione",
+    "kickoff_task_from_agenda_item": "Attività creata da un punto ODG",
+    "task_quick_create": "Attività creata al volo",
+    "modello_odg_creato": "Modello ODG creato",
+    "modello_odg_modificato": "Modello ODG modificato",
+    "modello_odg_eliminato": "Modello ODG eliminato",
+    "modello_odg_duplicato": "Modello ODG duplicato",
+    "kickoff_fai_soglie": "Scadenze FAI modificate",
+    "kickoff_fai_opzione_crea": "Opzione FAI creata",
+    "kickoff_fai_opzione_aggiorna": "Opzione FAI modificata",
+    "kickoff_fai_opzione_elimina": "Opzione FAI eliminata",
+    "kickoff_fai_esporta": "Registro FAI esportato",
+    "ruoli_aggiornati": "Ruoli aggiornati",
+    "ruolo_creato": "Ruolo creato",
+    "ruolo_eliminato": "Ruolo eliminato",
+    "ruoli_source_modificata": "Origine ruoli modificata",
+    "reminder_forzati": "Promemoria forzati",
+    "reminder_rimandati": "Promemoria rimandati",
+    "reminder_eliminati": "Promemoria eliminati",
+    "vrf_skipped_with_reminder": "VRF saltato con promemoria",
+    "vrf_compiled_inline": "VRF compilato nel portale",
+    "vrf_compiled_draft": "VRF salvato in bozza",
+    "kickoff_sala_salva": "Sala salvata",
+    "kickoff_sala_elimina": "Sala eliminata",
+    "kickoff_sala_verifica": "Sala verificata in Outlook",
+    "kickoff_tappa_assegna": "Tappa assegnata",
+    "kickoff_tappa_da_punto": "Tappa assegnata da un punto ODG",
+    "kickoff_spostamento_decidi": "Spostamento deciso",
+    "kickoff_spostamento_annulla": "Spostamento annullato",
+    "kickoff_programma_fase": "Fase del programma aggiornata",
+    "kickoff_tech_ref_salva": "Riga Programmi/FAI salvata",
+    "kickoff_tech_ref_attivita": "Attività da riga Programmi/FAI",
+    "tipo_creato": "Tipo attività creato",
+    "tipo_modificato": "Tipo attività modificato",
+    "tipo_eliminato": "Tipo attività eliminato",
+    "tipo_campo_creato": "Campo del tipo creato",
+    "tipo_campo_modificato": "Campo del tipo modificato",
+    "tipo_campo_eliminato": "Campo del tipo eliminato",
+}
+
+
+def livello_audit(azione: str) -> str:
+    """``critico`` | ``importante`` | ``routine`` per un codice azione del modulo."""
+    a = (azione or "").lower()
+    # Righe scritte dai segnali sui modelli (auto_insert/auto_update/auto_delete): tracciano
+    # ogni record, non una decisione di qualcuno. Stanno nella routine.
+    if a.startswith("auto_"):
+        return "routine"
+    if any(k in a for k in _LOG_CRITICO):
+        return "critico"
+    if any(k in a for k in _LOG_ROUTINE):
+        return "routine"
+    return "importante"
+
+
+_LOG_AUTO = {"auto_insert": "Riga creata (automatico)", "auto_update": "Riga modificata (automatico)", "auto_delete": "Riga eliminata (automatico)"}
+
+
+def etichetta_audit(azione: str) -> str:
+    return _LOG_ETICHETTE.get(azione) or _LOG_AUTO.get(azione) or (azione or "").replace("_", " ").capitalize()
+
+
+def _dettaglio_righe(dettaglio) -> list[tuple[str, str]]:
+    """Il JSON del dettaglio come coppie leggibili; una stringa resta una riga sola."""
+    if isinstance(dettaglio, dict):
+        righe = []
+        for k, v in dettaglio.items():
+            if v in (None, "", [], {}):
+                continue
+            if isinstance(v, (list, tuple)):
+                v = ", ".join(str(x) for x in v[:10]) + (" …" if len(v) > 10 else "")
+            elif isinstance(v, dict):
+                v = json.dumps(v, ensure_ascii=False)[:200]
+            righe.append((str(k).replace("_", " "), str(v)[:300]))
+        return righe
+    if dettaglio in (None, ""):
+        return []
+    return [("", str(dettaglio)[:300])]
+
+
+def _log_settings_context(request) -> dict:
+    from django.core.paginator import Paginator
+
+    g = request.GET
+    q = (g.get("q") or "").strip()
+    azione = (g.get("azione") or "").strip()
+    utente = (g.get("utente") or "").strip()
+    vista = (g.get("vista") or "essenziali").strip().lower()
+    if vista not in {v[0] for v in LOG_VISTE}:
+        vista = "essenziali"
+    da = _parse_optional_date(g.get("da"))
+    a = _parse_optional_date(g.get("a"))
+
+    base = AuditLog.objects.filter(modulo="tasks")
+    azioni_tutte = list(base.values("azione").annotate(n=Count("id")).order_by("-n"))
+    per_livello = {"critico": 0, "importante": 0, "routine": 0}
+    for riga in azioni_tutte:
+        per_livello[livello_audit(riga["azione"])] += riga["n"]
+    codici_vista = {
+        "critico": [r["azione"] for r in azioni_tutte if livello_audit(r["azione"]) == "critico"],
+        "essenziali": [r["azione"] for r in azioni_tutte if livello_audit(r["azione"]) != "routine"],
+    }
+
+    qs = base
+    if vista in codici_vista:
+        qs = qs.filter(azione__in=codici_vista[vista])
+    if azione:
+        qs = qs.filter(azione=azione)
+    if utente:
+        qs = qs.filter(utente_display__iexact=utente)
+    if da:
+        qs = qs.filter(created_at__date__gte=da)
+    if a:
+        qs = qs.filter(created_at__date__lte=a)
+    if q:
+        # Il dettaglio e' JSON: la ricerca testuale passa dal suo testo serializzato.
+        qs = qs.filter(Q(azione__icontains=q) | Q(utente_display__icontains=q) | Q(dettaglio__icontains=q))
+    qs = qs.order_by("-created_at")
+
+    page = Paginator(qs, 100).get_page(g.get("page"))
+    voci = []
+    for entry in page:
+        entry.livello = livello_audit(entry.azione)
+        entry.azione_label = etichetta_audit(entry.azione)
+        dettaglio = entry.dettaglio
+        if entry.livello == "routine" and isinstance(dettaglio, dict) and "valori" in dettaglio:
+            # Il JSON completo del record non si legge: restano modello, chiave e oggetto.
+            dettaglio = {k: v for k, v in dettaglio.items() if k != "valori"}
+        entry.dettaglio_righe = _dettaglio_righe(dettaglio)
+        voci.append(entry)
+
+    filtri = {"tab": "log", "vista": vista, "q": q, "azione": azione, "utente": utente,
+              "da": da.isoformat() if da else "", "a": a.isoformat() if a else ""}
+    conteggi = {
+        "critico": per_livello["critico"],
+        "essenziali": per_livello["critico"] + per_livello["importante"],
+        "tutto": sum(per_livello.values()),
+    }
+    return {
+        "audit_entries": voci,
+        "log_page": page,
+        "log_totale": conteggi["tutto"],
+        "log_filtrati": page.paginator.count,
+        "log_viste": [(codice, nome, aiuto, conteggi[codice]) for codice, nome, aiuto in LOG_VISTE],
+        "log_vista": vista,
+        "log_q": q,
+        "log_azione": azione,
+        "log_utente": utente,
+        "log_da": filtri["da"],
+        "log_a": filtri["a"],
+        "log_azioni": [(r["azione"], etichetta_audit(r["azione"]), r["n"], livello_audit(r["azione"])) for r in azioni_tutte],
+        "log_utenti": list(base.exclude(utente_display="").values_list("utente_display", flat=True).distinct().order_by("utente_display")),
+        "log_query": urlencode({k: v for k, v in filtri.items() if v}),
+        "log_filtri_attivi": bool(q or azione or utente or da or a),
+    }
+
+
+def _fai_settings_context() -> dict:
+    testi = {
+        FaiGruppo.CAUSALE: ("Perché serve il FAI", "I motivi della MT CN 15 §5.1. Ognuno propone il tipo; con «Motivo se Delta» chi sceglie il Delta deve spiegarlo."),
+        FaiGruppo.PIANO: ("Tipi di piano FAI", "Modulo e stato OP si mostrano come promemoria nella scheda."),
+        FaiGruppo.CHIUSURA: ("Chiusura con", "Come si è chiuso il FAI."),
+        FaiGruppo.VERSIONE: ("Stato della versione", "Lo stato della versione di produzione."),
+        FaiGruppo.CROSS: ("Cross-correlation", "Lo stato della cross-correlation."),
+        FaiGruppo.STATO: ("Stati del FAI", "Il nome è libero; il significato dice al portale se la voce del responsabile è aperta e se il FAI è concluso."),
+    }
+    in_uso = set()
+    for campo in ("causale_id", "piano_id", "stato_id", "chiusura_con_id", "stato_versione_id", "cross_correlation_id"):
+        in_uso.update(FaiRecord.objects.values_list(campo, flat=True).distinct())
+    gruppi = []
+    for gruppo, (titolo, aiuto) in testi.items():
+        opzioni = list(FaiOpzione.objects.filter(gruppo=gruppo))
+        for opzione in opzioni:
+            opzione.in_uso = opzione.pk in in_uso
+        gruppi.append({"codice": gruppo.value, "titolo": titolo, "aiuto": aiuto, "opzioni": opzioni})
+    return {"fai_gruppi": gruppi, "fai_tipi": FaiTipo.choices, "fai_fasi": FaiFase.choices}
+
+
+def _fai_applica_campi(opzione: FaiOpzione, post) -> None:
+    opzione.etichetta = (post.get("etichetta") or "").strip()[:120]
+    if opzione.gruppo == FaiGruppo.CAUSALE:
+        opzione.descrizione = (post.get("descrizione") or "").strip()[:255]
+        tipo = post.get("tipo_proposto")
+        opzione.tipo_proposto = tipo if tipo in FaiTipo.values else FaiTipo.COMPLETO
+        opzione.motivo_se_delta = bool(post.get("motivo_se_delta"))
+    elif opzione.gruppo == FaiGruppo.PIANO:
+        opzione.modulo = (post.get("modulo") or "").strip()[:60]
+        opzione.stato_op = (post.get("stato_op") or "").strip()[:20]
+        opzione.numerazione_auto = bool(post.get("numerazione_auto"))
+    elif opzione.gruppo == FaiGruppo.STATO:
+        fase = post.get("fase")
+        opzione.fase = fase if fase in FaiFase.values else FaiFase.IN_CORSO
+
+
+def _fai_ultima_attiva(opzione: FaiOpzione) -> bool:
+    return not FaiOpzione.objects.filter(gruppo=opzione.gruppo, attiva=True).exclude(pk=opzione.pk).exists()
+
+
+def _handle_tasks_fai_post(request):
+    """POST tab FAI: soglie di scadenza e opzioni configurabili."""
+    post = request.POST
+    azione = (post.get("fai_action") or "").strip()
+    base_url = f"{reverse('tasks:impostazioni')}?tab=fai"
+
+    if azione == "soglie":
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.fai_mesi_verifica = min(_coerce_positive_int(post.get("fai_mesi_verifica"), default=18), 240)
+        cfg.fai_mesi_ripetizione = min(_coerce_positive_int(post.get("fai_mesi_ripetizione"), default=24), 240)
+        cfg.save(update_fields=["fai_mesi_verifica", "fai_mesi_ripetizione"])
+        log_action(request, "kickoff_fai_soglie", "tasks", {
+            "verifica": cfg.fai_mesi_verifica, "ripetizione": cfg.fai_mesi_ripetizione,
+        })
+        messages.success(request, "Scadenze salvate.")
+        return redirect(base_url)
+
+    if azione == "crea":
+        gruppo = post.get("gruppo")
+        if gruppo not in FaiGruppo.values:
+            messages.error(request, "Gruppo non valido.")
+            return redirect(base_url)
+        opzione = FaiOpzione(gruppo=gruppo)
+    elif azione in ("aggiorna", "elimina"):
+        opzione = FaiOpzione.objects.filter(pk=_coerce_positive_int(post.get("opzione_id"), default=0)).first()
+        if opzione is None:
+            messages.error(request, "Voce non trovata.")
+            return redirect(base_url)
+    else:
+        messages.error(request, "Azione non valida.")
+        return redirect(base_url)
+
+    if azione == "elimina":
+        usata = FaiRecord.objects.filter(Q(causale=opzione) | Q(piano=opzione) | Q(stato=opzione)).exists()
+        if usata or opzione.codice or _fai_ultima_attiva(opzione):
+            messages.error(request, f"«{opzione.etichetta}» non si può eliminare: disattivala.")
+            return redirect(base_url)
+        nome = opzione.etichetta
+        opzione.delete()
+        log_action(request, "kickoff_fai_opzione_elimina", "tasks", {"nome": nome})
+        messages.success(request, f"«{nome}» eliminata.")
+        return redirect(base_url)
+
+    _fai_applica_campi(opzione, post)
+    if not opzione.etichetta:
+        messages.error(request, "Scrivi il nome.")
+        return redirect(base_url)
+    if azione == "aggiorna":
+        attiva = bool(post.get("attiva"))
+        if not attiva and opzione.attiva and _fai_ultima_attiva(opzione):
+            messages.error(request, f"«{opzione.etichetta}» è l'ultima attiva del gruppo: deve restarne almeno una.")
+            return redirect(base_url)
+        opzione.attiva = attiva
+    testo_ordine = (post.get("ordine") or "").strip()
+    if testo_ordine.isdigit():
+        opzione.ordine = int(testo_ordine)
+    elif azione == "crea":
+        massimo = FaiOpzione.objects.filter(gruppo=opzione.gruppo).aggregate(m=Max("ordine")).get("m") or 0
+        opzione.ordine = massimo + 10
+    opzione.save()
+    log_action(request, f"kickoff_fai_opzione_{azione}", "tasks", {
+        "id": opzione.pk, "gruppo": opzione.gruppo, "nome": opzione.etichetta,
+    })
+    messages.success(request, f"«{opzione.etichetta}» salvata.")
+    return redirect(base_url)
+
+
 def _handle_tasks_agenda_templates_post(request):
     """POST tab modelli: CRUD dei modelli di ordine del giorno."""
     action = (request.POST.get("tpl_action") or "").strip()
@@ -882,6 +1235,34 @@ def _handle_tasks_agenda_templates_post(request):
         messages.success(request, f"Modello «{template.nome}» aggiornato.")
         return redirect(base_url)
 
+    if action == "template_duplicate":
+        # Un modello nuovo nasce quasi sempre da uno esistente con due punti in piu':
+        # prima andava ricopiato a mano riga per riga.
+        try:
+            origine = MeetingAgendaTemplate.objects.get(pk=int(request.POST.get("template_id") or 0))
+        except (MeetingAgendaTemplate.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Modello non trovato.")
+            return redirect(base_url)
+        nome = f"{origine.nome} (copia)"[:120]
+        n = 2
+        while MeetingAgendaTemplate.objects.filter(nome=nome).exists():
+            nome = f"{origine.nome} (copia {n})"[:120]
+            n += 1
+        max_order = MeetingAgendaTemplate.objects.aggregate(m=Max("order_index")).get("m") or 0
+        copia = MeetingAgendaTemplate.objects.create(
+            nome=nome,
+            descrizione=origine.descrizione,
+            items=list(origine.items or []),
+            is_active=False,
+            order_index=max_order + 10,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        log_action(request, "modello_odg_duplicato", "tasks", {
+            "template_id": copia.pk, "nome": copia.nome, "origine_id": origine.pk,
+        })
+        messages.success(request, f"Modello «{copia.nome}» creato, spento: attivalo quando è pronto.")
+        return redirect(f"{base_url}&apri={copia.pk}")
+
     if action == "template_delete":
         try:
             template = MeetingAgendaTemplate.objects.get(pk=int(request.POST.get("template_id") or 0))
@@ -925,6 +1306,10 @@ def _handle_tasks_categories_post(request):
         raw_role = (request.POST.get("role_type") or "").strip()
         return raw_role if raw_role in valid_role_codes else ""
 
+    def _clean_category_richiede() -> str:
+        valore = (request.POST.get("richiede") or "").strip()
+        return valore if valore in TechRefKind.values else ""
+
     if action == "category_create":
         name = (request.POST.get("name") or "").strip()
         if not name:
@@ -941,6 +1326,7 @@ def _handle_tasks_categories_post(request):
             role_type=_clean_category_role(),
             order_index=max_order + 10,
             is_machine_work=bool(request.POST.get("is_machine_work")),
+            richiede=_clean_category_richiede(),
         )
         log_action(request, "tipo_creato", "tasks", {
             "message": f"Creato tipo attivita '{category.name}'",
@@ -965,11 +1351,26 @@ def _handle_tasks_categories_post(request):
         category.role_type = _clean_category_role()
         category.is_active = bool(request.POST.get("is_active"))
         category.is_machine_work = bool(request.POST.get("is_machine_work"))
+        richiede_prima = category.richiede
+        category.richiede = _clean_category_richiede()
+        if "tappa" in request.POST:
+            tappa = (request.POST.get("tappa") or "").strip()
+            category.tappa = tappa if tappa in TappaKickoff.values else ""
         try:
             category.order_index = max(0, int(request.POST.get("order_index") or 0))
         except (TypeError, ValueError):
             pass
         category.save()
+        # Le attività aperte di questo tipo si allineano subito alla nuova regola.
+        if category.richiede != richiede_prima:
+            from ..models import ProjectTechRef
+            from ..services.programmi import allinea_da_attivita, sgancia
+
+            for task in category.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]):
+                allinea_da_attivita(task)
+            # Le attività già chiuse non si riaprono: perdono solo la richiesta che non vale più.
+            for ref in ProjectTechRef.objects.filter(task__category=category, task__status=TaskStatus.DONE):
+                sgancia(ref)
         log_action(request, "tipo_modificato", "tasks", {
             "message": f"Modificato tipo attivita '{category.name}'",
             "category_id": category.id,
@@ -985,6 +1386,12 @@ def _handle_tasks_categories_post(request):
             return redirect(_url_for())
         name = category.name
         in_use = Task.objects.filter(category_id=category.id).count()
+        # Eliminare il tipo svuota il campo senza salvare le attività: la riga va staccata qui.
+        from ..models import ProjectTechRef
+        from ..services.programmi import sgancia
+
+        for ref in ProjectTechRef.objects.filter(task__category=category):
+            sgancia(ref)
         category.delete()
         log_action(request, "tipo_eliminato", "tasks", {
             "message": f"Eliminato tipo attivita '{name}' (attivita collegate: {in_use})",
@@ -1209,6 +1616,199 @@ def impostazioni_task_delete(request, task_id: int):
     return redirect(record_url)
 
 
+def _modelli_commessa_context() -> dict:
+    from ..models import ModelloCommessa
+
+    from ..services.filo import durate_reali
+
+    modelli = list(ModelloCommessa.objects.all())
+    for m in modelli:
+        m.reali = durate_reali(m)
+    return {
+        "modelli_commessa": modelli,
+        "tappe_scelte": TappaKickoff.choices,
+    }
+
+
+def _handle_modelli_commessa_post(request):
+    """Modelli di commessa: nome, tappe che servono e giorni prima della consegna."""
+    from ..models import ModelloCommessa
+
+    target = f"{reverse('tasks:impostazioni')}?tab=commesse"
+    modello = None
+    if (request.POST.get("modello_id") or "").isdigit():
+        modello = ModelloCommessa.objects.filter(pk=int(request.POST["modello_id"])).first()
+    if request.POST.get("azione") == "reali" and modello is not None:
+        from ..services.filo import durate_reali
+
+        reali = durate_reali(modello)
+        modello.tappe = [{**v, "giorni": reali[v["tappa"]]["media"]} if v.get("tappa") in reali else v for v in modello.tappe]
+        modello.save(update_fields=["tappe"])
+        messages.success(request, f"«{modello.nome}»: giorni aggiornati con i valori reali delle commesse.")
+        return redirect(target)
+    if request.POST.get("azione") == "elimina" and modello is not None:
+        nome = modello.nome
+        modello.delete()
+        messages.success(request, f"Modello «{nome}» eliminato.")
+        return redirect(target)
+    nome = (request.POST.get("nome") or "").strip()[:120]
+    if not nome:
+        messages.error(request, "Il nome del modello è obbligatorio.")
+        return redirect(target)
+    if ModelloCommessa.objects.filter(nome__iexact=nome).exclude(pk=getattr(modello, "pk", None)).exists():
+        messages.error(request, f"Esiste già un modello «{nome}».")
+        return redirect(target)
+    tappe = []
+    for chiave, _label in TappaKickoff.choices:
+        if request.POST.get(f"tappa_{chiave}"):
+            raw = (request.POST.get(f"giorni_{chiave}") or "").strip()
+            tappe.append({"tappa": chiave, "giorni": int(raw) if raw.isdigit() else None})
+    modello = modello or ModelloCommessa()
+    modello.nome = nome
+    modello.descrizione = (request.POST.get("descrizione") or "").strip()[:255]
+    modello.tappe = tappe
+    modello.attivo = bool(request.POST.get("attivo")) or modello.pk is None
+    modello.save()
+    log_action(request, "kickoff_modello_commessa", "tasks", {"id": modello.pk, "nome": nome, "tappe": [t["tappa"] for t in tappe]})
+    messages.success(request, f"Modello «{nome}» salvato.")
+    return redirect(target)
+
+
+def _catalogo_context(request) -> dict:
+    from ..models import CatalogoTipo, CatalogoVoce
+
+    tipo = request.GET.get("tipo", "ODG")
+    if tipo not in CatalogoTipo.values:
+        tipo = "ODG"
+    q = (request.GET.get("q") or "").strip()
+    voci = CatalogoVoce.objects.filter(tipo=tipo)
+    if q:
+        voci = voci.filter(testo__icontains=q)
+    if request.GET.get("nascoste") != "1":
+        voci = voci.filter(attiva=True)
+    return {
+        "catalogo_tipo": tipo,
+        "catalogo_tipi": [(c, label, CatalogoVoce.objects.filter(tipo=c, attiva=True).count()) for c, label in CatalogoTipo.choices],
+        "catalogo_voci": list(voci.order_by("-usi", "testo")[:300]),
+        "catalogo_q": q,
+        "catalogo_nascoste": request.GET.get("nascoste") == "1",
+    }
+
+
+def _handle_tasks_catalogo_post(request):
+    """Rinomina, nota e durata predefinite, nascondi/mostra, unisci i doppioni."""
+    from ..models import CatalogoVoce
+    from ..services.catalogo import chiave, unisci
+
+    voce = CatalogoVoce.objects.filter(pk=int(request.POST.get("voce_id") or 0)).first()
+    target = f"{reverse('tasks:impostazioni')}?tab=catalogo&tipo={getattr(voce, 'tipo', 'ODG')}"
+    if voce is None:
+        messages.error(request, "Voce non trovata.")
+        return redirect(target)
+    azione = request.POST.get("azione")
+    if azione == "unisci":
+        dest = CatalogoVoce.objects.filter(pk=int(request.POST.get("dentro") or 0), tipo=voce.tipo).first()
+        if dest is None or dest.pk == voce.pk:
+            messages.error(request, "Scegli la voce in cui unire.")
+            return redirect(target)
+        unisci(voce, dest)
+        messages.success(request, f"«{voce.testo}» unita in «{dest.testo}».")
+    elif azione in ("nascondi", "mostra"):
+        voce.attiva = azione == "mostra"
+        voce.save(update_fields=["attiva"])
+        messages.success(request, "Voce nascosta: non viene più suggerita." if azione == "nascondi" else "Voce di nuovo suggerita.")
+    else:
+        testo = (request.POST.get("testo") or "").strip()[:220]
+        if len(chiave(testo)) < 3:
+            messages.error(request, "Il testo è troppo corto.")
+            return redirect(target)
+        altra = CatalogoVoce.objects.filter(tipo=voce.tipo, chiave=chiave(testo)).exclude(pk=voce.pk).first()
+        if altra is not None:
+            unisci(voce, altra)
+            messages.info(request, f"Esisteva già «{altra.testo}»: le due voci sono state unite.")
+            return redirect(target)
+        voce.testo, voce.chiave = testo, chiave(testo)
+        voce.nota = (request.POST.get("nota") or "").strip()[:500]
+        raw = (request.POST.get("durata") or "").strip()
+        voce.durata_minuti = int(raw) if raw.isdigit() and 0 < int(raw) <= 480 else None
+        voce.save()
+        messages.success(request, "Voce aggiornata.")
+    log_action(request, "kickoff_catalogo", "tasks", {"voce_id": voce.pk, "azione": azione or "salva"})
+    return redirect(target)
+
+
+RUOLI_POTERI = (("CC", "Capocommessa"), ("PM", "Project manager"), ("PRG", "Programmatore"), ("CR", "Caporeparto"))
+DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("PM", "Project manager"), ("CREATORE", "Chi ha creato l'incarico"))
+
+
+def _handle_tasks_poteri_post(request, cfg):
+    """Chi ha pieni poteri sulle commesse e chi riceve gli avvisi sui cambiamenti."""
+    target = f"{reverse('tasks:impostazioni')}?tab=poteri"
+    ruoli = [c for c in request.POST.getlist("poteri_ruoli") if c in dict(RUOLI_POTERI)]
+    cfg.poteri_ruoli = ",".join(ruoli)
+    cfg.spostamenti_con_approvazione = bool(request.POST.get("spostamenti_con_approvazione"))
+    cfg.avvisi_destinatari = ",".join(c for c in request.POST.getlist("avvisi_destinatari") if c in dict(DESTINATARI_AVVISI))
+    cfg.save(update_fields=["poteri_ruoli", "spostamenti_con_approvazione", "avvisi_destinatari"])
+    ids = [int(x) for x in request.POST.getlist("poteri_utenti") if str(x).isdigit()]
+    cfg.poteri_utenti.set(task_active_users_queryset().filter(pk__in=ids))
+    log_action(request, "kickoff_poteri_salva", "tasks", {
+        "ruoli": cfg.poteri_ruoli, "utenti": ids, "approvazione": cfg.spostamenti_con_approvazione, "avvisi": cfg.avvisi_destinatari,
+    })
+    messages.success(request, "Poteri e avvisi salvati.")
+    return redirect(target)
+
+
+def _handle_tasks_rooms_post(request):
+    """Sale riunioni: nome, casella Microsoft 365 per la prenotazione, posti, attiva."""
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    from ..models import MeetingRoom
+
+    target = f"{reverse('tasks:impostazioni')}?tab=sale"
+    azione = (request.POST.get("sala_action") or "").strip()
+    sala = None
+    if (request.POST.get("sala_id") or "").isdigit():
+        sala = MeetingRoom.objects.filter(pk=int(request.POST["sala_id"])).first()
+        if sala is None:
+            messages.error(request, "Sala non trovata.")
+            return redirect(target)
+    if azione == "elimina" and sala is not None:
+        if sala.incontri.exists():
+            sala.attiva = False
+            sala.save(update_fields=["attiva"])
+            messages.info(request, f"«{sala.nome}» ha incontri collegati: disattivata invece di eliminata.")
+        else:
+            nome = sala.nome
+            sala.delete()
+            messages.success(request, f"Sala «{nome}» eliminata.")
+        log_action(request, "kickoff_sala_elimina", "tasks", {"sala_id": request.POST.get("sala_id")})
+        return redirect(target)
+    nome = (request.POST.get("nome") or "").strip()[:120]
+    email = (request.POST.get("email") or "").strip()[:254]
+    if not nome:
+        messages.error(request, "Il nome della sala è obbligatorio.")
+        return redirect(target)
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            messages.error(request, "La casella della sala non è un indirizzo email valido.")
+            return redirect(target)
+    if MeetingRoom.objects.filter(nome__iexact=nome).exclude(pk=getattr(sala, "pk", None)).exists():
+        messages.error(request, f"Esiste già una sala «{nome}».")
+        return redirect(target)
+    sala = sala or MeetingRoom()
+    sala.nome, sala.email = nome, email
+    raw = (request.POST.get("capienza") or "").strip()
+    sala.capienza = int(raw) if raw.isdigit() and int(raw) > 0 else None
+    sala.attiva = bool(request.POST.get("attiva")) if azione == "salva" else True
+    sala.save()
+    log_action(request, "kickoff_sala_salva", "tasks", {"sala_id": sala.pk, "nome": nome})
+    messages.success(request, f"Sala «{nome}» salvata.")
+    return redirect(target)
+
+
 @legacy_admin_or_acl_required("tasks", "impostazioni")
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
@@ -1216,6 +1816,32 @@ def impostazioni(request):
     config_url = f"{reverse('tasks:impostazioni')}?tab=config"
 
     if request.method == "POST":
+        risposta = _impostazioni_post(request, cfg, config_url)
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return risposta
+        # Salvataggio in pagina (form con data-salva-ajax): i messaggi flash
+        # diventano la risposta, cosi' la riga mostra «Salvato» o l'errore
+        # senza ricaricare la scheda.
+        elenco = [{"livello": m.level_tag, "testo": str(m)} for m in messages.get_messages(request)]
+        ok = not any(m["livello"] == "error" for m in elenco)
+        return JsonResponse({"ok": ok, "messaggi": elenco}, status=200 if ok else 400)
+
+    tab = _normalize_tasks_settings_tab(request.GET.get("tab"), default="config")
+    return render(
+        request,
+        "tasks/impostazioni.html",
+        {
+            **_tasks_shell_context(request, active="impostazioni"),
+            **_build_tasks_settings_context(request, tab=tab),
+            "cfg": cfg,
+            **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
+        },
+    )
+
+
+def _impostazioni_post(request, cfg, config_url):
+    """Smista il POST alla scheda giusta; risponde sempre con un redirect."""
+    if True:
         posted_tab = (request.POST.get("tab") or "").strip().lower()
         if posted_tab == "ruoli":
             return _handle_tasks_roles_post(request)
@@ -1227,6 +1853,16 @@ def impostazioni(request):
             return _handle_tasks_categories_post(request)
         if posted_tab == "modelli":
             return _handle_tasks_agenda_templates_post(request)
+        if posted_tab == "fai":
+            return _handle_tasks_fai_post(request)
+        if posted_tab == "sale":
+            return _handle_tasks_rooms_post(request)
+        if posted_tab == "catalogo":
+            return _handle_tasks_catalogo_post(request)
+        if posted_tab == "commesse":
+            return _handle_modelli_commessa_post(request)
+        if posted_tab == "poteri":
+            return _handle_tasks_poteri_post(request, cfg)
 
         branding_response = handle_module_branding_post(
             request,
@@ -1257,15 +1893,3 @@ def impostazioni(request):
         log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
         messages.success(request, "Impostazioni salvate.")
         return redirect(config_url)
-
-    tab = _normalize_tasks_settings_tab(request.GET.get("tab"), default="config")
-    return render(
-        request,
-        "tasks/impostazioni.html",
-        {
-            **_tasks_shell_context(request, active="impostazioni"),
-            **_build_tasks_settings_context(request, tab=tab),
-            "cfg": cfg,
-            **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
-        },
-    )

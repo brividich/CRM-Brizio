@@ -139,19 +139,46 @@ class RicercaSemanticaTests(TestCase):
     def test_query_vuota(self):
         self.assertEqual(ricerca_semantica(""), [])
 
-    @override_settings(OLLAMA_EMBED_ENABLED=True)
+    @override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="ollama", OLLAMA_API_PROVIDER="ollama")
     def test_a3_embeddings_limitati_alla_shortlist(self):
-        # A3: con embeddings attivi le chiamate NON sono N+1 su tutto l'archivio, ma limitate
-        # alla shortlist lessicale (max limit*3=30) + la query.
+        # A3: con embeddings attivi le chiamate NON sono N+1 su tutto l'archivio: la query e poi la
+        # shortlist lessicale (max limit*3=30) in UNA richiesta a batch col backend configurato.
         from unittest.mock import patch
         from django.core.cache import cache
         cache.clear()
         for i in range(40):
             Specifica.objects.create(codice=f"SP-B{i}", titolo="trattamento termico lega")
-        with patch("gestione_specifiche.ai_copilota._embedding", return_value=[1.0, 0.0, 0.0]) as m:
+        with patch("ai_assistant.services.embed_texts", side_effect=lambda testi, timeout=None: [[1.0, 0.0, 0.0] for _ in testi]) as m:
             res = ricerca_semantica("trattamento termico")
         self.assertTrue(res)
-        self.assertLessEqual(m.call_count, 32)  # ~30 shortlist + 1 query, NON 41
+        self.assertEqual(m.call_count, 2)  # query + un batch per la shortlist, NON 31 chiamate
+        self.assertLessEqual(len(m.call_args_list[1].args[0]), 30)
+        # Seconda ricerca: i testi della shortlist sono in cache, si calcola solo la query.
+        with patch("ai_assistant.services.embed_texts", side_effect=lambda testi, timeout=None: [[1.0, 0.0, 0.0] for _ in testi]) as m:
+            ricerca_semantica("trattamento termico")
+        self.assertEqual(m.call_count, 1)
+
+    @override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="openai",
+                       RAG_EMBED_OPENAI_BASE_URL="http://tei.lan:8081", RAG_EMBED_OPENAI_MODEL="demo-embed")
+    def test_embeddings_usano_il_backend_configurato_non_ollama(self):
+        # RAG_EMBED_BACKEND=openai (TEI): niente chiamate a Ollama /api/embeddings.
+        from unittest.mock import patch
+        from django.core.cache import cache
+        cache.clear()
+        Specifica.objects.create(codice="SP-T1", titolo="trattamento termico lega")
+        with patch("ai_assistant.services._openai_embed_texts", side_effect=lambda testi, timeout=None: [[0.5, 0.5] for _ in testi]) as tei,              patch("ai_assistant.services._ollama_embed_texts") as ollama:
+            res = ricerca_semantica("trattamento termico")
+        self.assertTrue(res)
+        self.assertTrue(tei.called)
+        ollama.assert_not_called()
+
+    @override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="ollama", OLLAMA_API_PROVIDER="ollama")
+    def test_embeddings_giu_ripiega_sul_lessicale(self):
+        from unittest.mock import patch
+        Specifica.objects.create(codice="SP-T2", titolo="trattamento termico lega")
+        with patch("ai_assistant.services.embed_texts", return_value=None):
+            res = ricerca_semantica("trattamento termico")
+        self.assertEqual([r["codice"] for r in res], ["SP-T2"])
 
 
 class CopilotaViewTests(TestCase):

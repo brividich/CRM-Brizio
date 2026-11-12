@@ -9,7 +9,9 @@
 {% block extra_head %}
 <style>
 .lc-layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; max-width:1220px; }
-@media(max-width:900px) { .lc-layout { grid-template-columns:1fr; } }
+@media(max-width:900px) { .lc-layout { grid-template-columns:minmax(0,1fr); } }
+/* Telefono: i campi affiancati della pagina vanno uno sotto l'altro. */
+@media(max-width:720px) { .lc-layout div[style*="grid-template-columns"] { grid-template-columns:minmax(0,1fr) !important; } }
 </style>
 {% endblock %}
 

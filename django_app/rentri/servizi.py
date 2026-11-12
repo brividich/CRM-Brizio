@@ -10,8 +10,10 @@ Regole del registro:
   una rettifica (R) o annullandolo;
 - un movimento non si **elimina**: si annulla con un motivo, resta a registro
   barrato e non conta più nelle giacenze;
-- un movimento con scarichi collegati ancora validi non si annulla finché non
-  si annullano prima quelli.
+- un movimento con scarichi collegati si può annullare: gli scarichi restano
+  con il loro Rif. Op come traccia ma non risultano più collegati (la verifica
+  li elenca); si ricollegano con «Modifica» o restano così;
+- un collegamento tolto dal Rif. Op finisce in ``rif_op_storico``.
 """
 from __future__ import annotations
 
@@ -38,6 +40,7 @@ __all__ = [
     "segna_trasmesso",
     "figli_attivi",
     "consolida_in_blocco",
+    "annota_collegamenti_tolti",
 ]
 
 # Campi che descrivono il movimento (quelli confrontati prima/dopo una modifica).
@@ -88,6 +91,20 @@ def _blocca_contesto(registro: RegistroRifiuti) -> None:
         )
 
 
+def annota_collegamenti_tolti(registro: RegistroRifiuti, prima: dict | None, utente: str = "") -> list[str]:
+    """Riporta in ``rif_op_storico`` i riferimenti tolti dal Rif. Op in questa modifica."""
+    if prima is None:
+        return []
+    nuovi = set(split_rif_op(registro.rif_op))
+    tolti = [rid for rid in split_rif_op(prima.get("rif_op")) if rid not in nuovi]
+    if tolti:
+        oggi = timezone.localdate().strftime("%d/%m/%Y")
+        chi = f" ({utente})" if utente else ""
+        riga = f"{oggi} · {', '.join(tolti)} · collegamento tolto in modifica{chi}"
+        registro.rif_op_storico = "\n".join(x for x in (registro.rif_op_storico, riga) if x)
+    return tolti
+
+
 def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -> RegistroRifiuti:
     """Valida e salva un movimento nuovo (``prima=None``) o modificato.
 
@@ -111,6 +128,8 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
         errori = valida_movimento(registro, prima=prima)
         if errori:
             raise ErroreRegistro(errori)
+        utente = getattr(getattr(request, "user", None), "username", "") or ""
+        annota_collegamenti_tolti(registro, prima, utente)
         registro.save()
 
     modifiche = _modifiche(prima, registro)
@@ -180,8 +199,12 @@ def figli_attivi(registro: RegistroRifiuti) -> list[RegistroRifiuti]:
     return [r for r in qs if rid in split_rif_op(r.rif_op)]
 
 
-def annulla(request, registro: RegistroRifiuti, motivo: str, utente: str) -> None:
-    """Annulla un movimento: resta a registro, barrato, e non conta più."""
+def annulla(request, registro: RegistroRifiuti, motivo: str, utente: str) -> list[RegistroRifiuti]:
+    """Annulla un movimento: resta a registro, barrato, e non conta più.
+
+    Ritorna gli scarichi che erano collegati: tengono il riferimento come traccia
+    ma non risultano più collegati (il conto del filo ignora gli annullati).
+    """
     from .sharepoint import sincronizza
 
     motivo = (motivo or "").strip()
@@ -192,18 +215,17 @@ def annulla(request, registro: RegistroRifiuti, motivo: str, utente: str) -> Non
     with transaction.atomic():
         registro = RegistroRifiuti.objects.select_for_update().get(pk=registro.pk)
         figli = figli_attivi(registro)
-        if figli:
-            elenco = ", ".join(f"{f.tipo} {f.id_registrazione}" for f in figli[:5])
-            raise ErroreRegistro(f"Prima annulla i movimenti collegati: {elenco}.", stato_http=409)
         registro.annullato = True
         registro.annullato_il = timezone.now()
         registro.annullato_da = utente[:200]
         registro.motivo_annullamento = motivo
         registro.save(update_fields=["annullato", "annullato_il", "annullato_da", "motivo_annullamento", "updated_at"])
     log_action(request, "rentri_movimento_annullato", "rentri",
-               {"id_registrazione": registro.id_registrazione, "tipo": registro.tipo, "motivo": motivo},
+               {"id_registrazione": registro.id_registrazione, "tipo": registro.tipo, "motivo": motivo,
+                **({"scollegati": [f.id_registrazione for f in figli]} if figli else {})},
                oggetto=registro)
     sincronizza(registro)
+    return figli
 
 
 def consolida_in_blocco(request, fino_al, utente: str, *, applica: bool = True) -> dict:

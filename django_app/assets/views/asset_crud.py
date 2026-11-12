@@ -59,9 +59,6 @@ from ..models import (
     AssetSidebarButton,
     WorkOrder,
 )
-from ..maintenance import (
-    get_workorder_overdue_days,
-)
 from ..services import storico_asset
 from ..models import AssetFieldHistory
 
@@ -1062,13 +1059,15 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         tcr_only = bool(form.cleaned_data.get("tcr_only"))
 
         if q:
+            # Ricerca elastica: «dixi 80» trova anche «DIXI80» e «80 dixi».
+            from ..services.ricerca_flessibile import testo_q
+
             assets = assets.filter(
-                Q(asset_tag__icontains=q)
-                | Q(internal_number__icontains=q)
-                | Q(name__icontains=q)
-                | Q(serial_number__icontains=q)
-                | Q(manufacturer__icontains=q)
-                | Q(model__icontains=q)
+                testo_q(
+                    q,
+                    ("asset_tag", "internal_number", "name", "serial_number", "manufacturer", "model", "reparto"),
+                    compatti=("asset_tag", "internal_number", "name", "serial_number", "model"),
+                )
                 | Q(endpoints__endpoint_name__icontains=q)
                 | Q(endpoints__ip__icontains=q)
             )
@@ -1195,11 +1194,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     assigned_count = kpi_qs.exclude(assignment_to__isnull=True).exclude(assignment_to="").count()
     _kpi_wo_qs = WorkOrder.objects.filter(asset__in=kpi_qs)
     open_wo_count = _kpi_wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
-    maintenance_due_count = _kpi_wo_qs.filter(
-        status=WorkOrder.STATUS_OPEN,
-        opened_at__lt=timezone.now() - timedelta(days=get_workorder_overdue_days()),
-    ).count()
-    work_machine_total = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
+    from assets.maintenance import q_odl_in_ritardo
+
+    maintenance_due_count = _kpi_wo_qs.filter(q_odl_in_ritardo(), status=WorkOrder.STATUS_OPEN).count()
+    # Chip e ciclo di vita nell'ambito del ruolo, come gli altri numeri della pagina.
+    ambito_qs = filtra_visibili(request, Asset.objects.all())
+    work_machine_total = ambito_qs.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
 
     # Salute = quota di asset NON in riparazione sul totale filtrato; rischio =
     # asset in riparazione + OdL aperti (unita' diverse: niente barra, solo numero).
@@ -1221,7 +1221,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     # denominatore e' il totale degli OdL aperti dello stesso perimetro.
     due_percent = round(maintenance_due_count / open_wo_count * 100, 1) if open_wo_count else 0.0
 
-    phase_1_count = Asset.objects.filter(
+    phase_1_count = ambito_qs.filter(
         asset_type__in=[
             Asset.TYPE_PC,
             Asset.TYPE_NOTEBOOK,
@@ -1229,7 +1229,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             Asset.TYPE_HW,
         ]
     ).count()
-    phase_2_count = Asset.objects.filter(
+    phase_2_count = ambito_qs.filter(
         asset_type__in=[
             Asset.TYPE_SERVER,
             Asset.TYPE_VM,
@@ -1237,7 +1237,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             Asset.TYPE_CCTV,
         ]
     ).count()
-    phase_3_count = Asset.objects.filter(
+    phase_3_count = ambito_qs.filter(
         asset_type__in=[Asset.TYPE_CNC, Asset.TYPE_WORK_MACHINE, Asset.TYPE_OTHER],
     ).count()
     lifecycle_total = phase_1_count + phase_2_count + phase_3_count
@@ -1642,16 +1642,16 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
     if selected_asset is not None:
         component_qs = component_qs.filter(asset_id=selected_asset.id)
     if q:
+        from ..services.ricerca_flessibile import testo_q
+
         component_qs = component_qs.filter(
-            Q(code__icontains=q)
-            | Q(name__icontains=q)
-            | Q(component_type__icontains=q)
-            | Q(serial_number__icontains=q)
-            | Q(manufacturer__icontains=q)
-            | Q(model__icontains=q)
+            testo_q(
+                q,
+                ("code", "name", "component_type", "serial_number", "manufacturer", "model",
+                 "asset__asset_tag", "asset__name"),
+                compatti=("code", "name", "model", "asset__asset_tag", "asset__name"),
+            )
             | Q(notes__icontains=q)
-            | Q(asset__asset_tag__icontains=q)
-            | Q(asset__name__icontains=q)
         )
     if active_filter == "active":
         component_qs = component_qs.filter(is_active=True)

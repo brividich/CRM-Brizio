@@ -122,11 +122,69 @@ class ScaduteERiepilogoTests(_Base):
                          (2, 1, 1, 2, 1))
         self.assertEqual(critica["giorni"], 15)
         self.assertEqual(dati["percentuale_in_tempo"], 50)
+        self.assertEqual(critica["giorni_mediani"], 24.0)  # mediana di 9 e 39 giorni
+        self.assertEqual(dati["giorni_mediani"], 24.0)
         self.assertEqual([v["host"] for v in dati["aperte_scadute"]], ["pc-sla-02"])
         self.assertIsNone(cve_sla.riepilogo(oggi - timedelta(days=400), oggi - timedelta(days=300))["percentuale_in_tempo"])
 
 
+    def test_andamento_confronta_con_il_periodo_prima(self):
+        ora = timezone.now()
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-a", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=12), risolta_il=ora - timedelta(days=2))
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-b", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=160), risolta_il=ora - timedelta(days=120))
+        dati = cve_sla.andamento(90)
+        self.assertEqual((dati["adesso"]["corrette"], dati["prima"]["corrette"]), (1, 1))
+        self.assertEqual(dati["differenze"]["percentuale_in_tempo"], 100)  # 10 giorni nel termine, 40 fuori
+        self.assertEqual(dati["differenze"]["giorni_mediani"], -30.0)
+        self.assertEqual(dati["differenze"]["corrette"], 0)
+        vuoto = cve_sla.andamento(5)
+        self.assertIsNone(vuoto["differenze"]["percentuale_in_tempo"])
+
+    def test_serie_settimanale_e_sparkline(self):
+        ora = timezone.now()
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-a", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=12), risolta_il=ora - timedelta(days=2))
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-b", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=60), risolta_il=ora - timedelta(days=20))
+        serie = cve_sla.serie_settimanale(8)
+        self.assertEqual(len(serie), 8)
+        self.assertEqual(serie[-1]["corrette"], 1)  # pc-a corretto 2 giorni fa: ultima settimana
+        self.assertEqual(serie[-1]["percentuale_in_tempo"], 100)
+        self.assertEqual(serie[-1]["giorni_mediani"], 10.0)
+        self.assertEqual(sum(s["corrette"] for s in serie), 2)
+        self.assertEqual(serie[-3]["corrette"], 1)  # 20 giorni fa: terza settimana dalla fine
+        self.assertIsNone(serie[0]["percentuale_in_tempo"])
+        # sparkline: i buchi si saltano, la scala è sui valori presenti, l'ultimo punto è a destra
+        punti = cve_sla.punti_sparkline([None, 50, None, 100], larghezza=120, altezza=26)
+        self.assertEqual(punti["punti"].count(" ") + 1, 2)
+        self.assertEqual(punti["ultimo"][0], 117.0)
+        self.assertEqual((punti["min"], punti["max"]), (50, 100))
+        self.assertIsNone(cve_sla.punti_sparkline([None, 7]))
+        self.assertEqual(cve_sla.punti_sparkline([3, 3])["ultimo"][1], 13.0)  # valori uguali: linea a metà
+
+
 class AutomatismoTerminiTests(_Base):
+    """Comportamento con «Meno rumore» spento: un alert per CVE, PC e termine (quello acceso: test_meno_rumore)."""
+
+    def setUp(self):
+        super().setUp()
+        soc_settings.save({"rumore.attivo": False}, None)
+
+    def test_meno_rumore_termine_nella_timeline_dell_alert_impatto(self):
+        from security.models import SecurityAlertActionLog
+
+        soc_settings.save({"rumore.attivo": True}, None)
+        evaluate_security_rules()  # l'alert «PC con versione vulnerabile» della CVE critica
+        impatto = SecurityAlert.objects.get(event__event_type="cve_impact_confirmed")
+        self._retrodata(20)
+        cve_sla.segnala_scadute()
+        evaluate_security_rules()
+        self.assertFalse(self._sla_alerts().exists())
+        self.assertEqual(set(SecurityAlertActionLog.objects.filter(alert=impatto, action="cve_termine_scaduto")
+                             .values_list("details__host", flat=True)), {"pc-sla-01", "pc-sla-02"})
+
     def test_evento_e_alert_per_esposizione_oltre_il_termine(self):
         self._retrodata(20, "pc-sla-01")
         creati, chiusi = cve_sla.segnala_scadute()
@@ -200,6 +258,7 @@ class AccettazioneRischioTests(_Base):
         self.assertTrue(AuditLog.objects.filter(modulo="security", azione=traccia.RISCHIO_ACCETTATO).exists())
 
     def test_accettazione_evita_alert_e_chiude_quello_aperto(self):
+        soc_settings.save({"rumore.attivo": False}, None)  # un alert per PC, come prima di «Meno rumore»
         self._retrodata(20)
         cve_sla.segnala_scadute()
         evaluate_security_rules()
@@ -304,7 +363,9 @@ class PagineTests(_Base):
         self._retrodata(20)
         r = self.client.get(reverse("security:vulnerabilities"))
         self.assertContains(r, "Tempi di correzione")
-        self.assertContains(r, "2 oltre il termine")
+        self.assertContains(r, "PC oltre il termine")
+        self.assertContains(r, "<strong>2 <small>su 2 esposizioni aperte</small></strong>", html=False)
+        self.assertContains(r, "nessuna correzione")  # nessuna correzione nel periodo: niente barra per classe
 
     def test_pannello_cve_mostra_il_termine(self):
         self._retrodata(20, "pc-sla-02")

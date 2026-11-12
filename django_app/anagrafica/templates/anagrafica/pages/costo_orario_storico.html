@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .co-filtri{ grid-template-columns:170px 170px 190px minmax(0,1fr) auto auto; }
 .co-vista{ margin:0 0 14px; }
@@ -94,6 +94,9 @@ body.theme-dark .cs-vuoto{ color:#475569; }
         <div class="fmd-filtf"><label for="cs-reparto">Reparto</label>
           <select id="cs-reparto" name="reparto"><option value="">Tutti</option>{% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
         </div>
+        <div class="fmd-filtf"><label for="cs-centro">Centro di costo</label>
+          <select id="cs-centro" name="centro_costo"><option value="">Tutti</option>{% for c in centri %}<option value="{{ c }}"{% if c == centro %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        </div>
         <div class="fmd-filtf"><label for="cs-q">Cerca</label><input id="cs-q" type="text" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></div>
         <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
         <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:costo_orario_storico' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
@@ -140,7 +143,7 @@ body.theme-dark .cs-vuoto{ color:#475569; }
       <div class="fmd-empty">
         <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-coins"/></svg></span>
         <span class="fmd-et">Nessun costo orario nel periodo</span>
-        <span class="fmd-em">{% if q or reparto or persona %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
+        <span class="fmd-em">{% if q or reparto or centro or persona %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
       </div>
       {% endif %}
     </section>

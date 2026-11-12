@@ -101,6 +101,7 @@
                         <div style="font-size:11px;color:#64748b;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Seriali</div>
                         <div style="font-size:15px;color:#182232;font-weight:800;font-family:Consolas,monospace;margin-top:2px;">{{ gruppo.titolo|default:"(S/N non indicato)" }}</div>
                         {% if gruppo.sottotitolo %}<div style="font-size:12px;color:#64748b;margin-top:3px;">{{ gruppo.sottotitolo }}</div>{% endif %}
+                        {% if gruppo.dove_pezzi %}<div style="font-size:13px;color:#182232;margin-top:4px;">&#128230; Dove sono i pezzi: <strong>{{ gruppo.dove_pezzi }}</strong></div>{% endif %}
                       </td>
                     </tr>
                     {% for a in gruppo.righe %}
@@ -122,6 +123,9 @@
                         {% endfor %}
                         {% else %}
                         <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.45;white-space:pre-line;">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|truncatechars:400 }}</div>
+                        {% endif %}
+                        {% if a.dettaglio_righe %}
+                        <div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#182232;font-family:Consolas,monospace;line-height:1.5;">{% for r in a.dettaglio_righe %}<div>{{ r }}</div>{% endfor %}</div>
                         {% endif %}
                         {% if a.stato_superficie %}
                         <div style="margin-top:6px;font-size:12px;color:#475569;">Stato superficie: <strong>{{ a.stato_superficie }}</strong></div>
@@ -171,8 +175,23 @@
                     {% endif %}
                   </a>
                 </td>
+                {% if portal_url %}
+                <td style="width:10px;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="border-radius:10px;background:#ffffff;border:2px solid #12395f;">
+                  <a href="{{ portal_url }}"
+                     style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:700;
+                            color:#12395f;text-decoration:none;border-radius:10px;mso-padding-alt:12px 24px;">
+                    Apri nel portale
+                  </a>
+                </td>
+                {% endif %}
               </tr>
             </table>
+            {% if portal_url %}
+            <p style="margin:10px 0 0;font-size:12px;color:#64748b;">
+              «Apri nel portale» porta all'OP in Gestione anomalie: dai PC aziendali entri in automatico con l'utente Windows.
+            </p>
+            {% endif %}
             <p style="margin:14px 0 0;font-size:12px;color:#94a3b8;word-break:break-all;">
               Link diretto: <a href="{{ action_url }}" style="color:#1f5c91;text-decoration:none;">{{ action_url }}</a>
             </p>
@@ -197,6 +216,14 @@
             <div style="height:1px;background:#d8e1ec;line-height:1px;font-size:0;">&nbsp;</div>
           </td>
         </tr>
+
+        {% if silenzia_url %}
+        <tr>
+          <td class="ep" style="padding:16px 34px 18px;background:#ffffff;text-align:center;">
+            <a href="{{ silenzia_url }}" style="display:inline-block;padding:7px 14px;border:1px solid #cbd5e1;border-radius:6px;color:#475569;font-size:12px;font-weight:600;text-decoration:none;">Non voglio più aggiornamenti su questo OP</a>
+          </td>
+        </tr>
+        {% endif %}
 
         <!-- FOOTER -->
         <tr>

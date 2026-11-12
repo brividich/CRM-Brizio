@@ -103,7 +103,7 @@ def attention_items(now=None):
         from security.services.backup_monitoring import missing_backup_candidates
 
         for missing in missing_backup_candidates()[:3]:
-            items.append(_item("high", "Backup", f"Backup atteso non arrivato: {missing['job_name']}", "", reverse("security:admin_config_backups")))
+            items.append(_item("high", "Backup", f"Backup atteso non arrivato: {missing['job_name']}", "", reverse("security:backup")))
     except Exception:  # noqa: BLE001 - un controllo che fallisce non blocca la panoramica
         pass
 
@@ -209,7 +209,7 @@ def _vuln_numbers():
     return [
         {"name": "cve", "label": "CVE sui nostri PC", "tile": {"value": cve.value}, "hint": "adesso", "url": cve.url, "raw": True},
         {"name": "pc_esposti", "label": "PC con CVE", "tile": {"value": pc.value}, "hint": "adesso", "url": pc.url, "raw": True},
-        {"name": "copertura_cpe", "label": f"software controllabili ({cop.extra['coperti']} su {cop.extra['totale']})",
+        {"name": "copertura_cpe", "label": f"programmi controllabili ({cop.extra['coperti']} su {cop.extra['totale']})",
          "tile": {"value": f"{cop.value}%"}, "hint": "collegati a un CPE o N/A", "url": cop.url, "raw": True},
     ]
 

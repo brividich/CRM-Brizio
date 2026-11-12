@@ -113,14 +113,25 @@ SCHEDULES: list[dict] = [
         "kwargs": {"limit": 50},
     },
     {
-        # SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole,
-        # heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+        # SECURITY CENTER — letture Defender/Entra/Veeam/Secure Score, regole, heartbeat sorgenti,
+        # KPI e notifiche. Le caselle mail sono nel lavoro security_caselle.
         "name": "security_cycle",
         "func": "security.tasks.run_security_cycle_task",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
         "minutes": 15,
         "repeats": -1,
         "kwargs": {},
+    },
+    {
+        # SECURITY CENTER — lettura delle caselle mail dei report (Graph/IMAP): parser e regole su ogni
+        # mail importata. Lavoro a sé, separato dal security_cycle, con timeout dedicato: un arretrato di
+        # mail non ferma più regole, battito e KPI del ciclo.
+        "name": "security_caselle",
+        "func": "security.tasks.run_security_caselle_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 300}},
     },
     {
         # SECURITY CENTER — arricchimento CVE (NVD, CISA KEV, EPSS) e impatto sugli asset.
@@ -161,6 +172,16 @@ SCHEDULES: list[dict] = [
         "func": "security.tasks.ai_cpe_proposte_task",
         "schedule_type": "I",   # Schedule.MINUTES
         "minutes": 360,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SECURITY CENTER — proposte di chiusura dell'AI locale sugli alert aperti, con apprendimento
+        # dalle decisioni delle persone; chiude da sola solo i tipi di alert imparati. Lettura «ai_proposte».
+        "name": "security_ai_proposte",
+        "func": "security.tasks.ai_proposte_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 15,
         "repeats": -1,
         "kwargs": {},
     },
@@ -347,7 +368,9 @@ SCHEDULES: list[dict] = [
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
         "minutes": 25,          # ogni 25 min (< keep_alive 30m)
         "repeats": -1,
-        "kwargs": {},
+        # Il warmup aspetta Ollama fino a 300 s: oltre il timeout di 120 s del
+        # cluster il worker veniva ucciso a metà.
+        "kwargs": {"q_options": {"timeout": 330}},
     },
     {
         # Warm dell'indice RAG + cache embeddings del corpus documentale SGI
@@ -412,6 +435,18 @@ SCHEDULES: list[dict] = [
         "func": "procedure_refresh.tasks.run_sgi_auto_sync",
         "schedule_type": "C",   # Schedule.CRON
         "cron": "0 3 * * *",    # ogni notte alle 03:00 (prima del re-index RAG 03:30)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # CN-SGI «sempre aggiornata»: ogni 15 minuti confronta un'impronta leggera della share
+        # (percorso, dimensione, data dei file: nessun file aperto) e, solo se cambia,
+        # lancia la sincronizzazione a perimetro sicuro. Stesso flag pr_sgi_auto_sync_attivo.
+        # La share è solo letta. Fail-safe / no-op se flag spento o share giù.
+        "name": "pr_sgi_controllo_orario",
+        "func": "procedure_refresh.tasks.run_sgi_controllo_orario",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "*/15 * * * *",  # ogni 15 minuti (solo elenco e date dei file: leggero)
         "repeats": -1,
         "kwargs": {},
     },
@@ -516,6 +551,18 @@ SCHEDULES: list[dict] = [
         "func": "gestione_specifiche.tasks.run_specifiche_escalation",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "15 7 * * *",       # ogni mattina alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # GESTIONE SPECIFICHE — catalogo allineato alla cartella della share: ogni 15 minuti
+        # elenca i PDF (sola lettura, esclusa _SUPERATO) e, se qualcosa è cambiato, crea le
+        # specifiche nuove e le nuove revisioni (in bozza, con avviso a chi prende in carico) e
+        # ricollega i file spostati. Interruttore in Amministrazione (gs_sync_cartelle_attivo).
+        "name": "gestione_specifiche_sync_cartelle",
+        "func": "gestione_specifiche.tasks.run_sync_cartelle",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "*/15 * * * *",     # ogni 15 minuti
         "repeats": -1,
         "kwargs": {},
     },
@@ -784,6 +831,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 600}},
     },
     {
+        # SOC — WatchGuard Cloud (API): solo i task di installazione patch, ogni ora in orario di lavoro,
+        # così l'esito di un'installazione lanciata dalla console arriva in giornata. Interruttore «Patch».
+        "name": "watchguard_task_sync",
+        "func": "security.tasks.run_watchguard_task_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 7-19 * * 1-5",  # ogni ora dalle 07:40 alle 19:40, lun-ven
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 300}},
+    },
+    {
         # SOC — pacchetto mensile di evidenze ISO/IEC 27001: il giorno 1 alle 06:30 genera il PDF del mese
         # prima (esito dei controlli dell'Annex A, CVE corrette, esposizioni scadute, incidenti con lezioni
         # apprese), lo archivia con l'impronta SHA-256 nell'audit e, se acceso in /soc/impostazioni/,
@@ -794,6 +851,17 @@ SCHEDULES: list[dict] = [
         "cron": "30 6 1 * *",       # il 1° del mese alle 06:30
         "repeats": -1,
         "kwargs": {},
+    },
+    {
+        # SOC — librerie Python del portale contro il database pubblico OSV (lo stesso di pip-audit):
+        # vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria e versione.
+        # Spegnibile da /soc/impostazioni/; si vede in Letture automatiche e nel Battito del SOC.
+        "name": "security_dipendenze_portale",
+        "func": "security.tasks.dipendenze_portale_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "50 6 * * *",       # ogni mattina alle 06:50
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 600}},
     },
     {
         # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
@@ -885,6 +953,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # DPI — mail e PDF delle consegne dal banco rimasti in sospeso perche' il browser
+        # si e' chiuso nei secondi dell'annullo. Senza lavoro non fa nulla.
+        "name": "dpi_avvisi_consegna",
+        "func": "dpi.tasks.run_dpi_avvisi_consegna",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "*/5 * * * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash),
         # verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint
         # se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2
@@ -918,6 +996,34 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SCADENZARIO — avvisi delle scadenze generiche alle email delle attività
+        # (preavviso, ripetizione ogni N giorni, anche dopo la scadenza se la categoria lo vuole).
+        "name": "scadenzario_avvisi_attivita",
+        "func": "scadenzario.tasks.run_avvisi_attivita",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * *",       # ogni giorno alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SCADENZARIO — fotografia giornaliera dei numeri per fonte (vista «Andamento»).
+        "name": "scadenzario_foto_giornaliera",
+        "func": "scadenzario.tasks.run_foto_giornaliera",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 6 * * *",       # ogni giorno alle 06:45
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SCADENZARIO — riepilogo mensile per categoria alle email della categoria.
+        "name": "scadenzario_riepilogo_mensile",
+        "func": "scadenzario.tasks.run_riepiloghi_categorie",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 8 1 * *",        # il 1° del mese alle 08:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non
         # confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
         "name": "checklist_chiusura_reminders",
@@ -934,6 +1040,16 @@ SCHEDULES: list[dict] = [
         "func": "rentri.tasks.run_rentri_scadenze_check",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "20 7 * * *",       # ogni mattina alle 07:20
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # RENTRI — promemoria in-app: scarico originale senza scarico effettivo
+        # oltre soglia (SiteConfig rentri_promemoria_m_giorni, di serie 60).
+        "name": "rentri_promemoria_scarico_effettivo",
+        "func": "rentri.tasks.run_rentri_promemoria_scarico_effettivo",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "25 7 * * *",       # ogni mattina alle 07:25
         "repeats": -1,
         "kwargs": {},
     },
@@ -1000,6 +1116,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSENZE — avviso ad assenza@ per le malattie senza certificato medico
+        # dopo N giorni (una mail con l'elenco, ogni malattia una volta sola).
+        # Soglia e interruttore in Assenze → HR → Impostazioni.
+        "name": "assenze_certificato_avviso",
+        "func": "assenze.tasks.run_assenze_certificato_avviso",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 8 * * 1-5",     # ogni mattina feriale alle 08:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
         "name": "suggestion_corner_reminders",
         "func": "suggestion_corner.tasks.run_suggestion_corner_reminders",
@@ -1028,6 +1155,57 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello
+        # script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+        "name": "presenti_pubblica_pdf",
+        "func": "presenti.tasks.run_pubblica_pdf_presenti",
+        "schedule_type": "I",
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # PRESENTI IN AZIENDA — uscite non timbrate degli ultimi 3 giorni: notifica e mail al capo.
+        "name": "presenti_avvisi_uscite",
+        "func": "presenti.tasks.run_avvisi_uscite_mancanti",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1-6",     # lunedì-sabato alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # FORNITORI — ditta entrata dal GuestPortal con documenti di sicurezza non in regola:
+        # notifica in-app a RSPP/ASPP (mai mail), una volta per visita.
+        "name": "fornitori_avvisi_ingressi_non_in_regola",
+        "func": "fornitori.tasks.run_avvisi_ingressi_non_in_regola",
+        "schedule_type": "I", "minutes": 10, "repeats": -1, "kwargs": {},
+    },
+    {
+        # RECEPTION — mail al referente quando arriva il visitatore. Non fa niente finché RECEPTION_NATIVA è spenta.
+        "name": "reception_avvisi_referenti",
+        "func": "reception.tasks.run_avvisi_referenti",
+        "schedule_type": "I", "minutes": 1, "repeats": -1, "kwargs": {},
+    },
+    {
+        # RECEPTION — ogni notte: pre-registrazioni passate e dati oltre i 12 mesi dell'informativa.
+        "name": "reception_pulizia",
+        "func": "reception.tasks.run_pulizia",
+        "schedule_type": "C", "cron": "40 3 * * *", "repeats": -1, "kwargs": {},
+    },
+    {
+        # FORNITORI — a fine giornata, chi risulta ancora dentro: notifica ai ruoli configurati (per ora IT).
+        "name": "fornitori_avvisi_usciti_dimenticati",
+        "func": "fornitori.tasks.run_avvisi_usciti_dimenticati",
+        "schedule_type": "C", "cron": "0 19 * * 1-5", "repeats": -1, "kwargs": {},
+    },
+    {
+        # FORNITORI — ditta attesa (manutenzione, OdL o ticket aperti) che non sarà in regola
+        # con i documenti di sicurezza: notifica in-app a RSPP/ASPP (mai mail), prima che entri.
+        "name": "fornitori_avvisi_ditte_attese",
+        "func": "fornitori.tasks.run_avvisi_ditte_attese",
+        "schedule_type": "C", "cron": "10 7 * * 1-5", "repeats": -1, "kwargs": {},
+    },
 ]
 
 
@@ -1040,6 +1218,142 @@ RETIRED_SCHEDULE_NAMES: list[str] = [
     # MaintenanceRule. Se restasse attivo produrrebbe una seconda fonte di scadenze.
     "assets_generate_workorders",
 ]
+
+
+# Raccoglitore «Digest e promemoria» della pagina Task pianificati: i lavori che mandano
+# riepiloghi o solleciti a persone, sospendibili fino a una data (ScheduleControl.sospeso_fino).
+# Restano fuori i job che cambiano lo stato dei dati insieme alla mail (es. pr_assignment_lifecycle
+# marca «Scaduta», anomalie/tickets_escalation aggiornano i promemoria in dashboard) e gli avvisi
+# di sicurezza sulle ditte esterne (fornitori_avvisi_*). Valore = a chi arriva.
+DIGEST_E_PROMEMORIA: dict[str, str] = {
+    "system_digest": "Amministratori del monitoring",
+    "caporeparto_morning_digest": "Capireparto (email di notifica)",
+    "scadenze_digest_personale": "Chi l'ha attivato in Notifiche → Impostazioni",
+    "report_scadenze_settimanale": "Destinatari delle Impostazioni automazioni",
+    "assets_maintenance_reminders": "Destinatari manutenzioni (o amministratori)",
+    "assets_it_monitoring_alerts": "Destinatari monitoraggio IT (o amministratori)",
+    "part145_scadenze": "Qualità (destinatari MOD.128)",
+    "dpi_expiry_reminders": "Destinatari DPI (o amministratori)",
+    "visite_expiry_reminders": "Responsabili visite + notifica al dipendente",
+    "visite_mediche_digest": "HR (amministratori)",
+    "contratti_expiry_reminders": "Destinatari contratti",
+    "training_expiry_reminders": "HR + notifica al dipendente",
+    "elearning_reminders": "HR + notifica al discente",
+    "formazione_session_reminders": "Iscritti alle sessioni",
+    "formazione_audit_digest": "HR / amministratori",
+    "idoneita_digest": "RSPP, medico competente, HR",
+    "cambio_mansione_digest": "Destinatari cambio mansione",
+    "tickets_daily_digest": "Assegnatari dei ticket",
+    "tickets_sla_reminders": "Assegnatari con SLA scaduto",
+    "tasks_send_reminders": "Responsabili delle attività KICK-OFF",
+    "tasks_meetings_digest": "Partecipanti agli incontri",
+    "gestione_specifiche_reminder": "Incaricati delle specifiche",
+    "gestione_specifiche_escalation": "Approvatore e DM",
+    "gestione_specifiche_verifica_periodica": "Incaricati delle specifiche",
+    "gestione_specifiche_sync_cartelle": "Incaricati delle specifiche (specifiche nuove dalla cartella)",
+    "scadenzario_avvisi_attivita": "Email delle attività",
+    "scadenzario_riepilogo_mensile": "Email delle categorie",
+    "checklist_chiusura_reminders": "Responsabili della checklist",
+    "rentri_scadenze_check": "Amministratori",
+    "rentri_promemoria_scarico_effettivo": "Utenti RENTRI (notifica in-app)",
+    "assenze_solleciti": "Capi con richieste in attesa",
+    "assenze_certificato_avviso": "Casella assenze",
+    "suggestion_corner_reminders": "Responsabili DO/CHECK",
+    "sistema_gestione_car_solleciti": "Responsabili CAR, poi RSGI",
+    "sistema_gestione_scadenze_esterni": "RSGI",
+    "presenti_avvisi_uscite": "Capi (uscite non timbrate)",
+}
+
+# Oggetto delle mail dei digest, come lo compongono i comandi (N = numero, ‹…› = testo variabile).
+# Il primo è quello principale, gli altri sono le varianti; tupla vuota = solo notifica in-app.
+# Un oggetto personalizzato da «Configura mail» (ScheduledMailText) prevale: vedi schedule_rows.
+# Se cambi l'oggetto in un comando, aggiornalo anche qui.
+DIGEST_OGGETTO: dict[str, tuple[str, ...]] = {
+    "system_digest": ("[Portale] Digest stato sistema — tutto ok", "[Portale] Digest stato sistema — attenzioni presenti"),
+    "caporeparto_morning_digest": ("[Caporeparto] Riepilogo ‹reparti› - gg-mm-aaaa",),
+    "scadenze_digest_personale": ("[SCADENZE] N scadute, N entro N giorni - gg-mm-aaaa",),
+    "report_scadenze_settimanale": (
+        "[Scadenze] Visite mediche in scadenza (N)",
+        "[Scadenze] Contratti e periodi di prova in scadenza (N)",
+        "[Scadenze] Qualifiche e abilitazioni in scadenza (N)",
+    ),
+    "assets_maintenance_reminders": ("[Manutenzione] N SCADUTE + N non valutabili + N senza rapporto + N licenze/contratti — gg-mm-aaaa",),
+    "assets_it_monitoring_alerts": ("[Monitoraggio IT] N problemi aperti — gg-mm-aaaa",),
+    "part145_scadenze": ("[PART 145] Scadenze entro N giorni (N)",),
+    "dpi_expiry_reminders": (
+        "[DPI] N scaduti + N in scadenza - gg-mm-aaaa",
+        "[DPI] DPI scaduti o in scadenza nella tua squadra (N) - gg-mm-aaaa",
+    ),
+    "visite_expiry_reminders": ("[VISITE MEDICHE] N scadute + N in scadenza - gg-mm-aaaa",),
+    "visite_mediche_digest": ("[Visite mediche] N in scadenza entro Ngg - gg-mm-aaaa",),
+    "contratti_expiry_reminders": ("[CONTRATTI] N scaduti + N in scadenza + N fine prova - gg-mm-aaaa",),
+    "training_expiry_reminders": ("[FORMAZIONE] N scaduti + N in scadenza - gg-mm-aaaa",),
+    "elearning_reminders": ("[E-LEARNING] N corsi da completare - gg-mm-aaaa",),
+    "formazione_session_reminders": ("Promemoria corso: ‹corso› il gg-mm-aaaa",),
+    "formazione_audit_digest": ("[Formazione ISO] N abilitazioni in scadenza entro Ngg - gg-mm-aaaa",),
+    "idoneita_digest": ("[Idoneità] N non idonei, N con riserve - gg-mm-aaaa",),
+    "cambio_mansione_digest": (
+        "[Cambio mansione] N persone da verificare, N adempimenti in ritardo",
+        "[Cambio mansione] ‹persona›: N adempimenti da completare",
+    ),
+    "tickets_daily_digest": ("[Ticket] N da gestire oggi - gg-mm-aaaa",),
+    "tickets_sla_reminders": ("[SLA SCADUTO] Ticket ‹numero›",),
+    "tasks_send_reminders": (),
+    "tasks_meetings_digest": (
+        "Promemoria KICK-OFF: prossimo incontro e scadenze",
+        "Promemoria incontro ‹domani› — ‹incontro›",
+        "Scadenze KICK-OFF (N)",
+    ),
+    "gestione_specifiche_reminder": ("Promemoria MOD.133 — ‹codice›",),
+    "gestione_specifiche_escalation": ("ESCALATION MOD.133 — ‹codice›",),
+    "gestione_specifiche_verifica_periodica": ("Verifica periodica — ‹codice›",),
+    "gestione_specifiche_sync_cartelle": ("Nuova specifica ‹codice› da prendere in carico",),
+    "scadenzario_avvisi_attivita": ("[SCADENZA] ‹attività› - gg/mm/aaaa",),
+    "scadenzario_riepilogo_mensile": ("[RIEPILOGO SCADENZE] ‹categoria› - prossimi N giorni",),
+    "checklist_chiusura_reminders": ("Checklist chiusura «‹chiusura›»: N da confermare",),
+    "rentri_scadenze_check": ("[RENTRI] N registrazioni in scadenza — soglia N giorni",),
+    "rentri_promemoria_scarico_effettivo": (),
+    "assenze_solleciti": ("N richieste di assenza da approvare", "Richiesta di assenza da approvare: ‹DIPENDENTE›"),
+    "assenze_certificato_avviso": ("Certificato medico non arrivato: N malattie",),
+    "suggestion_corner_reminders": (
+        "[Suggestion Corner] Sollecito ‹fase› — SC#N",
+        "[Suggestion Corner] ESCALATION ‹fase› — SC#N",
+    ),
+    "sistema_gestione_car_solleciti": ("CAR in ritardo oltre N giorni: N",),
+    "sistema_gestione_scadenze_esterni": ("Certificazioni e audit esterni: N scadenze",),
+    "presenti_avvisi_uscite": (
+        "[NOVICROM HUB] N uscite non timbrate nella tua squadra",
+        "[NOVICROM HUB] Uscita non timbrata: ‹Cognome Nome› il gg/mm/aaaa",
+    ),
+}
+
+# Pausa massima a tempo: oltre si usa «Disattiva», che è una scelta esplicita e durevole.
+SOSPENSIONE_MAX_GIORNI = 60
+
+
+def orario_cron(spec: dict) -> str:
+    """«HH:MM» di un cron giornaliero/settimanale, per ordinare i digest; "" se non c'è."""
+    parts = str(spec.get("cron") or "").split()
+    if spec.get("schedule_type") != "C" or len(parts) != 5:
+        return ""
+    try:
+        return f"{int(parts[1]):02d}:{int(parts[0]):02d}"
+    except ValueError:
+        return ""
+
+
+def sospeso_fino(name: str, oggi=None):
+    """Data fino a cui lo schedule è sospeso (compresa), o None se non lo è oggi."""
+    from django.utils import timezone
+
+    try:
+        from monitoring.models import ScheduleControl
+
+        fino = ScheduleControl.objects.filter(name=name).values_list("sospeso_fino", flat=True).first()
+    except Exception:
+        return None
+    oggi = oggi or timezone.localdate()
+    return fino if fino and fino >= oggi else None
 
 
 def spec_by_name(name: str):
@@ -1061,6 +1375,8 @@ def _describe_cron(cron: str) -> str:
     minute, hour, dom, month, dow = parts
     if hour == "*" and minute == "*":
         quando = "in continuazione"
+    elif hour == "*" and minute.startswith("*/") and minute[2:].isdigit():
+        quando = f"ogni {int(minute[2:])} minuti"
     elif hour == "*":
         quando = f"ogni ora al minuto {minute}"
     else:
@@ -1120,6 +1436,14 @@ def schedule_descriptions() -> dict:
     return commenti
 
 
+def _oggetto_riga(name: str, personalizzato: str = "") -> dict:
+    """Oggetto mail da mostrare: quello personalizzato, se c'è, altrimenti il primo di serie."""
+    serie = DIGEST_OGGETTO.get(name, ())
+    if personalizzato:
+        return {"oggetto": personalizzato, "oggetto_varianti": (), "oggetto_personalizzato": True}
+    return {"oggetto": serie[0] if serie else "", "oggetto_varianti": serie[1:], "oggetto_personalizzato": False}
+
+
 def schedule_rows() -> list[dict]:
     """Righe pronte per la UI: statico (SCHEDULES) + stato runtime (django_q) + on/off.
 
@@ -1138,8 +1462,14 @@ def schedule_rows() -> list[dict]:
         from monitoring.models import ScheduleControl
 
         controls = {c.name: c.enabled for c in ScheduleControl.objects.all()}
+        from django.utils import timezone
+
+        oggi = timezone.localdate()
+        sospesi = dict(ScheduleControl.objects.filter(sospeso_fino__gte=oggi)
+                       .values_list("name", "sospeso_fino"))
     except Exception:
         controls = {}
+        sospesi = {}
 
     # Ultimo esito per func (ultimo Task django-q completato).
     last_runs: dict = {}
@@ -1152,6 +1482,15 @@ def schedule_rows() -> list[dict]:
             last_runs.setdefault(t["func"], (t["stopped"], t["success"]))
     except Exception:
         last_runs = {}
+
+    # Oggetti personalizzati da «Configura mail»: sostituiscono quello di serie.
+    try:
+        from .models import ScheduledMailText
+
+        oggetti_custom = {t: s.strip() for t, s in ScheduledMailText.objects.values_list("task_name", "subject")
+                          if (s or "").strip()}
+    except Exception:
+        oggetti_custom = {}
 
     from .models import ManagedFlow
     bindings = {b.code: b for b in ManagedFlow.objects.select_related("rule").all()}
@@ -1180,6 +1519,11 @@ def schedule_rows() -> list[dict]:
             "next_run": getattr(sch, "next_run", None),
             "last_run": last[0] if last else None,
             "last_ok": last[1] if last else None,
+            "digest": name in DIGEST_E_PROMEMORIA,
+            "a_chi": DIGEST_E_PROMEMORIA.get(name, ""),
+            **_oggetto_riga(name, oggetti_custom.get(name, "")),
+            "orario": orario_cron(effective),
+            "sospeso_fino": sospesi.get(name),
         })
     return rows
 

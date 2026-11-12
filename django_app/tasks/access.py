@@ -291,6 +291,11 @@ def _project_scope_filter_q(request) -> Q:
         # anche senza task nel progetto (bug: sparivano dalla dashboard).
         | Q(meetings__partecipanti_utenti=user)
         | Q(meetings__created_by=user)
+        # Chi riceve una voce da fare deve poter aprire la commessa: senza queste
+        # righe la voce assegnata non compariva né in «Le mie azioni» né altrove.
+        | Q(meeting_actions__assigned_to=user)
+        | Q(meeting_issues__assigned_to=user)
+        | Q(tech_refs__assigned_to=user)
     )
     role_map = _request_task_role_access_map(request)
     team_codes = _readable_team_codes(role_map)
@@ -390,8 +395,59 @@ def _can_edit_project_schedule(request, project: Project) -> bool:
     return False
 
 
+def _codici_poteri() -> list[str]:
+    from .models import TaskImpostazioni
+
+    raw = TaskImpostazioni.get_singleton().poteri_ruoli or ""
+    return [c.strip().upper() for c in raw.split(",") if c.strip()]
+
+
+def utenti_pieni_poteri(project: Project) -> list:
+    """Chi decide sulla commessa: ruoli di team con pieni poteri + persone scelte in Impostazioni."""
+    from .models import TaskImpostazioni
+
+    persone = {}
+    for codice in _codici_poteri():
+        for u in project.team_members(codice):
+            persone[u.pk] = u
+    for u in TaskImpostazioni.get_singleton().poteri_utenti.filter(is_active=True):
+        persone.setdefault(u.pk, u)
+    return list(persone.values())
+
+
+def ha_pieni_poteri(request, project: Project | None) -> bool:
+    """Capocommessa, PM (o i ruoli scelti) e le persone indicate in Impostazioni: modificano tutto."""
+    if project is None:
+        return False
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    # Calcolato una volta per richiesta e commessa: i portfolio lo chiedono per ogni riga.
+    cache = getattr(request, "_pieni_poteri", None)
+    if cache is None:
+        cache = {}
+        try:
+            request._pieni_poteri = cache
+        except AttributeError:
+            pass
+    if project.pk not in cache:
+        uid = getattr(request.user, "id", None)
+        cache[project.pk] = any(u.pk == uid for u in utenti_pieni_poteri(project))
+    return cache[project.pk]
+
+
+def puo_spostare_subito(request, task: Task) -> bool:
+    """Le date cambiano subito solo per chi ha pieni poteri; gli altri chiedono (se l'approvazione è attiva)."""
+    from .models import TaskImpostazioni
+
+    if not task.project_id or not TaskImpostazioni.get_singleton().spostamenti_con_approvazione:
+        return True
+    return ha_pieni_poteri(request, task.project)
+
+
 def can_manage_project(request, project: Project) -> bool:
     if has_task_permission(request, "tasks_admin"):
+        return True
+    if ha_pieni_poteri(request, project):
         return True
     if project.created_by_id == request.user.id:
         return True
@@ -404,6 +460,14 @@ def can_manage_project(request, project: Project) -> bool:
     return _task_access_allows_edit_all(role_level)
 
 
+def can_edit_after_end(request, project: Project) -> bool:
+    """Minuta approvata: la riaprono e la correggono solo il capocommessa e l'amministratore del modulo."""
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    uid = getattr(request.user, "id", None)
+    return any(u.pk == uid for u in project.team_members("CC"))
+
+
 def _is_project_lead_for_task(user, task: Task) -> bool:
     return bool(task.project_id and task.project and task.project.created_by_id == getattr(user, "id", None))
 
@@ -414,6 +478,8 @@ def can_manage_task(request, task: Task) -> bool:
     if task.created_by_id == getattr(request.user, "id", None):
         return True
     if _is_project_lead_for_task(request.user, task):
+        return True
+    if task.project_id and ha_pieni_poteri(request, task.project):
         return True
     if _ruoli_attivi():
         ambito = _ambito(request, "modificare")
@@ -433,6 +499,67 @@ def can_manage_task(request, task: Task) -> bool:
     if task.assigned_to_id == getattr(request.user, "id", None):
         return _task_access_allows_edit_assigned(global_level) or _task_access_allows_edit_assigned(role_level)
     return False
+
+
+# ── Chi può modificare cosa nel piano (Gantt) ──
+# Scala dall'alto in basso: se una persona ha più ruoli vale il più alto.
+GANTT_LIVELLI = (
+    ("admin", "Amministratore del modulo",
+     "Tutto, su ogni kickoff."),
+    ("responsabile", "Responsabile del kickoff",
+     "Struttura del piano (nuove attività, ordine delle righe, dipendenze, baseline) "
+     "e date, priorità, stato e avanzamento di tutte le attività."),
+    ("creatore", "Chi ha creato l'attività",
+     "Date, priorità, stato e avanzamento delle attività che ha creato."),
+    ("modifica", "Ruolo con permesso di modifica",
+     "Date, stato e avanzamento delle attività che il suo ruolo può modificare. La priorità no."),
+    ("assegnatario", "Responsabile dell'attività",
+     "Stato della propria attività: Inizia, Fatta, Riapri."),
+    ("lettore", "Chi vede il kickoff",
+     "Legge il piano e scrive commenti."),
+)
+
+
+def can_set_task_priority(request, task: Task, *, gestisce_progetto: bool | None = None) -> bool:
+    """La priorità decide l'ordine del lavoro: la cambiano il responsabile del kickoff e chi ha creato l'attività."""
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    if task.created_by_id == getattr(request.user, "id", None):
+        return True
+    if task.project_id is None:
+        return can_manage_task(request, task)
+    if gestisce_progetto is None:
+        gestisce_progetto = can_manage_project(request, task.project)
+    return bool(gestisce_progetto)
+
+
+def permessi_riga_gantt(request, task: Task, *, gestisce_progetto: bool) -> dict:
+    """Cosa può fare l'utente su una riga del Gantt."""
+    uid = getattr(request.user, "id", None)
+    gestisce = can_manage_task(request, task)
+    return {
+        "date": gestisce,
+        "stato": gestisce,
+        "priorita": gestisce and can_set_task_priority(request, task, gestisce_progetto=gestisce_progetto),
+        # Senza permesso di modifica il responsabile cambia solo lo stato, come in «Le mie azioni».
+        "solo_stato": (not gestisce) and task.assigned_to_id == uid and uid is not None,
+    }
+
+
+def livello_gantt(request, project: Project, righe: list[dict]) -> str:
+    """Il livello più alto dell'utente su questo kickoff (per mostrargli cosa può fare)."""
+    if has_task_permission(request, "tasks_admin"):
+        return "admin"
+    if can_manage_project(request, project):
+        return "responsabile"
+    uid = getattr(request.user, "id", None)
+    if any(r["task"].created_by_id == uid for r in righe):
+        return "creatore"
+    if any(r.get("permessi", {}).get("date") for r in righe):
+        return "modifica"
+    if any(r["task"].assigned_to_id == uid for r in righe):
+        return "assegnatario"
+    return "lettore"
 
 
 def _can_update_task_due_date(request, task: Task) -> bool:

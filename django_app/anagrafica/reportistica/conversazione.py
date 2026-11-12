@@ -46,7 +46,7 @@ PERIODI = {
     "MESE_PRECEDENTE": "Mese precedente",
     "PERSONALIZZATO": "Date personalizzate",
 }
-_CAMPI_PERIMETRO = ("reparti", "aree", "mansioni", "contratti", "livelli", "qualifiche")
+_CAMPI_PERIMETRO = ("reparti", "aree", "centri_costo", "mansioni", "contratti", "livelli", "qualifiche")
 
 
 def specifica_vuota() -> dict:
@@ -84,14 +84,15 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compat
 
     ``compatto``: ripieghi quando il catalogo non entra nella finestra del
     modello. 1 = colonne solo con la chiave e descrizioni di 90 caratteri; 2 =
-    descrizioni di 50 caratteri.
+    descrizioni di 50 caratteri; 3 = solo chiave e titolo.
     """
     sezioni = []
     for s in catalogo.catalogo():
         if not s.in_chat or not s.consentita(request):
             continue
-        voce = {"chiave": s.key, "titolo": s.titolo,
-                "descrizione": s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]}
+        voce = {"chiave": s.key, "titolo": s.titolo}
+        if compatto < 3:
+            voce["descrizione"] = s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]
         if s.colonne and not s.colonne_dinamiche:
             # Con l'etichetta: «voce» o «codice» da sole non dicono all'AI che cosa contengono.
             voce["colonne"] = ([k for k, _v in s.colonne] if compatto
@@ -117,6 +118,7 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compat
         "perimetro": {
             "reparti": [v for _k, v in scelte_perimetro.get("reparti", [])],
             "aree": [v for _k, v in scelte_perimetro.get("aree", [])][:limite * 2],
+            "centri_costo": [v for _k, v in scelte_perimetro.get("centri_costo", [])],
             "mansioni": [v for _k, v in scelte_perimetro.get("mansioni", [])][:limite * 2],
             "contratti": [f"{k}={v}" for k, v in scelte_perimetro.get("contratti", [])],
             "qualifiche": [v for _k, v in scelte_perimetro.get("qualifiche", [])][:limite * 2],
@@ -134,18 +136,18 @@ ISTRUZIONI = (
     '{"risposta": "una o due frasi in italiano che dicono cosa hai preparato o cosa manca", '
     '"specifica": {"titolo": "...", "destinatario": "", "formato": "pdf|xlsx", '
     '"periodo": {"tipo": "una chiave di periodi", "da": "AAAA-MM-GG o vuoto", "a": "AAAA-MM-GG o vuoto"}, '
-    '"perimetro": {"reparti": [], "aree": [], "mansioni": [], "contratti": [], "qualifiche": [], '
+    '"perimetro": {"reparti": [], "aree": [], "centri_costo": [], "mansioni": [], "contratti": [], "qualifiche": [], '
     '"persone": ["COGNOME NOME"], "includi_cessati": false}, '
     '"sezioni": [{"sezione": "chiave", "colonne": ["chiavi colonna, vuoto = predefinite"], '
     '"opzioni": {"nome_opzione": valore}}]}}. '
     "Nei valori del catalogo «CHIAVE=Etichetta», scrivi solo la CHIAVE. "
-    "Metti SOLO ciò che l'utente chiede: perimetro vuoto se non nomina reparti, aree, mansioni, contratti, "
+    "Metti SOLO ciò che l'utente chiede: perimetro vuoto se non nomina reparti, aree, centri di costo, mansioni, contratti, "
     "qualifiche o persone; opzioni non nominate assenti (valgono i predefiniti); periodo PERSONALIZZATO solo "
     "con date esplicite. «matrice» = sezioni matrice_formazione o matrice_qualifiche (la matrice formazione ha "
     "l'opzione solo_sicurezza). "
     "«raggruppato/raggruppate per X» = opzione raggruppa_per con la colonna X; «ordinato per X» = ordina_per. "
     "Regole: «scaduti/scadute» = opzione stati con i valori di scadenza; «in Excel» = formato xlsx; "
-    "«anno scorso» = ANNO_PRECEDENTE; persone e reparti vanno nel perimetro, non nelle opzioni; "
+    "«anno scorso» = ANNO_PRECEDENTE; persone, reparti e centri di costo vanno nel perimetro, non nelle opzioni; "
     "i numeri in perimetro.persone sono persone già scelte: conservali se l'utente non chiede di cambiarle. "
     "Colonne: scrivi la CHIAVE della colonna; in un elenco di persone metti sempre la colonna del nominativo. "
     "Ore di formazione per persona («dipendenti con meno di N ore», «chi ha fatto almeno N ore») = sezione "
@@ -314,7 +316,7 @@ def normalizza_specifica(grezza, request, scelte_perimetro: dict, dipendenti) ->
                        "a": a.isoformat() if a and tipo == "PERSONALIZZATO" else ""}
 
     perimetro = grezza.get("perimetro") if isinstance(grezza.get("perimetro"), dict) else {}
-    etichette = {"reparti": "Reparto", "aree": "Area", "mansioni": "Mansione", "contratti": "Contratto",
+    etichette = {"reparti": "Reparto", "aree": "Area", "centri_costo": "Centro di costo", "mansioni": "Mansione", "contratti": "Contratto",
                  "livelli": "Livello", "qualifiche": "Qualifica"}
     for campo in _CAMPI_PERIMETRO:
         scelte = scelte_perimetro.get(campo, [])
@@ -382,7 +384,7 @@ MAX_CATALOGO_CARATTERI = 24000  # num_ctx di produzione 16384 token: il catalogo
 
 def catalogo_json(request, scelte_perimetro: dict) -> str:
     """Catalogo compatto per l'AI; se cresce troppo si accorciano gli elenchi di scelte."""
-    for limite, compatto in ((60, 0), (25, 0), (10, 0), (10, 1), (10, 2)):
+    for limite, compatto in ((60, 0), (25, 0), (10, 0), (10, 1), (10, 2), (10, 3)):
         testo = json.dumps(catalogo_per_ai(request, scelte_perimetro, limite=limite, compatto=compatto),
                            ensure_ascii=False, separators=(",", ":"))
         if len(testo) <= MAX_CATALOGO_CARATTERI:
@@ -462,6 +464,8 @@ _PAROLE_SEZIONI = (
     (("assunzion", "cessazion", "movimenti", "entrati", "usciti"), "organico_movimenti"),
     (("organico", "turnover", "indicatori del personale", "età media", "anzianità"), "organico_indicatori"),
     (("organigramma", "responsabili di reparto", "responsabili d'area"), "organigramma"),
+    (("centri di costo", "per centro di costo"), "centri_costo"),
+    (("sovraccarico", "carico sulle persone", "persone chiave", "persona chiave", "troppe mansioni"), "carico_persone"),
     (("elenco", "lista del personale", "anagrafica", "dipendenti"), "personale_elenco"),
 )
 # Sezioni chiamate con parole generiche: si saltano se c'e' gia' una delle sezioni
@@ -550,8 +554,21 @@ def interpreta_senza_ai(messaggio: str, specifica: dict, scelte_perimetro: dict)
         if anno:
             spec["periodo"] = _periodo_anno(int(anno.group(1)))
     perimetro = spec.setdefault("perimetro", {})
+    # Un centro di costo si riconosce solo se detto come tale: «STRUTTURA» o «LOGISTICA» da soli sono
+    # parole comuni o reparti. Il nome esce dal testo, se no filtrerebbe anche il reparto omonimo
+    # e toglierebbe dal centro gli altri reparti che contiene.
+    testo_perimetro = testo
+    centri = []
+    for _k, lab in scelte_perimetro.get("centri_costo", []):
+        for frase in (f"centro di costo {lab}", f"cdc {lab}"):
+            if lab and _contiene(testo, frase):
+                centri.append(lab)
+                testo_perimetro = testo_perimetro.replace(naming.chiave_testo(frase), " ")
+                break
+    if centri:
+        perimetro["centri_costo"] = centri
     for campo in ("reparti", "aree", "mansioni"):
-        valori = [lab for _k, lab in scelte_perimetro.get(campo, []) if lab and _contiene(testo, lab)]
+        valori = [lab for _k, lab in scelte_perimetro.get(campo, []) if lab and _contiene(testo_perimetro, lab)]
         if valori:
             perimetro[campo] = valori
     if any(_contiene(testo, w) for w in ("cessati", "cessate", "ex dipendenti")):
@@ -644,6 +661,7 @@ def riassunto_decisione(specifica: dict) -> dict:
         "sezioni": [s["sezione"] for s in specifica.get("sezioni") or []],
         "periodo": (specifica.get("periodo") or {}).get("tipo", ""),
         "reparti": list(p.get("reparti") or []),
+        "centri_costo": list(p.get("centri_costo") or []),
         "mansioni": list(p.get("mansioni") or []),
         "formato": specifica.get("formato", "pdf"),
         "includi_cessati": bool(p.get("includi_cessati")),

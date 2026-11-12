@@ -10,6 +10,12 @@ Area **Qualità** · URL `/sistema-gestione/` · codice [`django_app/sistema_ges
 
 ## Dettaglio
 
+- **Riesame della direzione (06/11/2026, migration `0023`):** `/sistema-gestione/riesame/`, verbale MOD.062 secondo MT CN 19. Argomenti con indicatori da Report conformità fissati nel verbale, obiettivi con ritorno nel verbale successivo, bozza → proposto → approvato (immutabile), PDF e copia firmata. Permessi `.riesame.view/.edit/.approva`. Riesame annuale e obiettivi in Scadenzario e «Da fare adesso». Non replica la tabella dei rischi del MOD.062.
+- **Panoramica e menu (06/11/2026):** menu unico del modulo (`templatetags/sg_guida.py`, `sg_menu`) al posto dei pulsanti in testata, voci filtrate con i binding ACL; `/sistema-gestione/` mostra «Da fare adesso» (`services/panoramica.py`), che riusa le regole già esistenti.
+- **Scheda certificato (migration `0022`):** `/sistema-gestione/audit/esterni/certificazioni/<pk>/scheda/`, leggibile con `.audit.view`; `CertificazioneDocumento` conserva le copie PDF (storage privato cifrato, SHA-256, storico dei rinnovi, download registrato).
+- **Collegamento a Formazione (`services/qualifiche.py`, sola lettura):** `Certificazione.qualifiche_richieste` conta valide, in scadenza e scadute con le regole del cruscotto Qualifiche; l'impostazione «Qualifica auditor» lega `Auditor` a un `TipoQualifica`: se scaduta, l'auditor non è qualificato.
+- **Scadenzario:** le voci dei certificati aprono la scheda, non più il form riservato a chi modifica. **Riesame:** report `certificazioni-audit-esterni` (MT CN 19 §6.4 f).
+
 Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del SGI. Comprende SoA/threat intelligence, gli audit interni EN 9100 e gli audit ISMS MOD.171/MOD.168 (MT CN 276).
 
 - **SoA** = foglio *Control Matrix* del MOD.165 - RAR: catalogo dei 93 controlli ISO/IEC 27002:2022 (titoli brevi in italiano scritti per il portale), per ciascuno livello 0–4 (4 = pienamente applicato, 0 = escluso con giustificazione obbligatoria), vulnerabilità (suggerita dal livello come nel MOD.165), riferimenti, giustificazione, fonte dell'obbligo, azione del piano di trattamento (responsabile, scadenza obbligatoria, livello atteso, voce del Registro OFI).
@@ -87,3 +93,7 @@ Il rapporto MOD.035B diventa immutabile dopo la firma dell'auditor; l'auditor as
 #### Collegamento con la Struttura organizzativa (23/10/2026)
 
 Scheda processo: sezione «Chi possiede e chi esegue il processo» (`processi_views._persone_processo` → `anagrafica.services.struttura_processo.persone_processo`): titolari del ruolo owner, mansioni lavorative con `processo_sgi` = processo, operativi e in lista. Piano di audit (stato Pianificato, permesso di modifica): «Proposte dalla struttura organizzativa» (`audit_views._proposte_auditati`) con owner come «Responsabile del processo» ed esecutori operativi come «Auditato»; «Aggiungi» invia al già esistente `audit_persona_salva`. Nessuna migrazione, nessun URL nuovo.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+«Audit pianificati nell'anno» dell'hub esclude gli annullati, come l'indice audit.

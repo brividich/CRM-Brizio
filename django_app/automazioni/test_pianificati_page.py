@@ -63,3 +63,111 @@ class PianificatiPageTests(TestCase):
         )
         self.assertEqual(r.status_code, 302)
         self.assertFalse(ScheduleControl.objects.filter(name="non-esiste").exists())
+
+
+class DigestSospensioneTests(TestCase):
+    """Raccoglitore «Digest e promemoria»: pausa a tempo, che finisce da sola."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("dig_admin", "dig@x.local", "x")
+        self.client.force_login(self.admin)
+        self.url = reverse("admin_portale:automazioni_pianificati_action")
+
+    def test_catalogo_digest_esiste_negli_schedule(self):
+        from automazioni.schedules import DIGEST_E_PROMEMORIA
+
+        nomi = {s["name"] for s in SCHEDULES}
+        self.assertEqual(set(DIGEST_E_PROMEMORIA) - nomi, set())
+
+    def test_sospendi_e_riprendi_un_digest(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        fino = timezone.localdate() + timedelta(days=3)
+        r = self.client.post(self.url, {"name": "system_digest", "action": "sospendi", "fino": fino.isoformat()})
+        self.assertEqual(r.status_code, 302)
+        ctrl = ScheduleControl.objects.get(name="system_digest")
+        self.assertEqual(ctrl.sospeso_fino, fino)
+        self.assertTrue(ctrl.enabled)
+        row = next(x for x in schedule_rows() if x["name"] == "system_digest")
+        self.assertEqual(row["sospeso_fino"], fino)
+        self.client.post(self.url, {"name": "system_digest", "action": "riprendi"})
+        self.assertIsNone(ScheduleControl.objects.get(name="system_digest").sospeso_fino)
+
+    def test_non_digest_e_date_fuori_limite_rifiutati(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        oggi = timezone.localdate()
+        self.client.post(self.url, {"name": "automation_queue", "action": "sospendi", "fino": oggi.isoformat()})
+        self.assertFalse(ScheduleControl.objects.filter(name="automation_queue").exists())
+        for fino in (oggi - timedelta(days=1), oggi + timedelta(days=61)):
+            self.client.post(self.url, {"name": "system_digest", "action": "sospendi", "fino": fino.isoformat()})
+        self.assertFalse(ScheduleControl.objects.filter(name="system_digest", sospeso_fino__isnull=False).exists())
+
+    def test_sospendi_tutti(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from automazioni.schedules import DIGEST_E_PROMEMORIA
+
+        fino = timezone.localdate() + timedelta(days=1)
+        self.client.post(self.url, {"action": "sospendi_tutti", "fino": fino.isoformat()})
+        self.assertEqual(ScheduleControl.objects.filter(sospeso_fino=fino).count(), len(DIGEST_E_PROMEMORIA))
+        r = self.client.get(reverse("admin_portale:automazioni_pianificati"))
+        self.assertContains(r, "In pausa fino al")
+        self.client.post(self.url, {"action": "riprendi_tutti"})
+        self.assertFalse(ScheduleControl.objects.filter(sospeso_fino__isnull=False).exists())
+
+    def test_flusso_sospeso_salta_il_giro_e_poi_riparte(self):
+        from datetime import timedelta
+        from unittest import mock
+
+        from django.utils import timezone
+
+        from automazioni import managed_flows
+
+        oggi = timezone.localdate()
+        ScheduleControl.objects.create(name="system_digest", sospeso_fino=oggi)
+        esito = managed_flows.run_managed_flow("system_digest")
+        self.assertEqual(esito["reason"], "sospeso")
+        # Il giorno dopo la data la pausa è finita: si arriva al flusso (qui finto).
+        ScheduleControl.objects.filter(name="system_digest").update(sospeso_fino=oggi - timedelta(days=1))
+        with mock.patch.object(managed_flows.ManagedFlow.objects, "select_for_update",
+                               side_effect=RuntimeError("raggiunto")):
+            with self.assertRaisesMessage(RuntimeError, "raggiunto"):
+                managed_flows.run_managed_flow("system_digest")
+        # «Esegui ora» ignora la pausa.
+        ScheduleControl.objects.filter(name="system_digest").update(sospeso_fino=oggi)
+        with mock.patch.object(managed_flows.ManagedFlow.objects, "select_for_update",
+                               side_effect=RuntimeError("raggiunto")):
+            with self.assertRaisesMessage(RuntimeError, "raggiunto"):
+                managed_flows.run_managed_flow("system_digest", ignora_sospensione=True)
+
+
+class DigestOggettoTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("ogg_admin", "ogg@x.local", "x")
+        self.client.force_login(self.admin)
+
+    def test_ogni_digest_ha_la_voce_oggetto(self):
+        from automazioni.schedules import DIGEST_E_PROMEMORIA, DIGEST_OGGETTO
+
+        self.assertEqual(set(DIGEST_OGGETTO), set(DIGEST_E_PROMEMORIA))
+
+    def test_pagina_mostra_oggetto_e_quello_personalizzato_prevale(self):
+        from automazioni.models import ScheduledMailText
+
+        url = reverse("admin_portale:automazioni_pianificati")
+        r = self.client.get(url)
+        self.assertContains(r, "Oggetto della mail")
+        self.assertContains(r, "[Ticket] N da gestire oggi - gg-mm-aaaa")
+        self.assertContains(r, "solo notifica nel portale")
+
+        ScheduledMailText.objects.create(task_name="visite_expiry_reminders", subject="Visite da rinnovare")
+        r = self.client.get(url)
+        self.assertContains(r, "Visite da rinnovare")
+        self.assertNotContains(r, "[VISITE MEDICHE] N scadute")

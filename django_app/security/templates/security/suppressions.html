@@ -16,14 +16,14 @@
       La soppressione appresa è spenta.
     {% endif %}
     <a href="{% url 'security:soc_settings' %}">Impostazioni</a> ·
-    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#soppressione-appresa">Guida</a> ·
+    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#soppressione-appresa">? Guida</a> ·
     <a href="{% url 'security:events' %}?decision=suppressed">Eventi soppressi</a>
     {% if can_edit %}· <a href="{% url 'security:admin_config_suppressions' %}">Nuova soppressione manuale</a>{% endif %}
   </p>
   <div class="sec-kpi-strip sec-small">
     <span><strong>{{ counts.learned_active }}</strong> apprese attive</span> ·
     <span><strong>{{ counts.manual_active }}</strong> manuali attive</span> ·
-    <span><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni</span>
+    <span title="{% if expiring_alert %}Per ognuna nasce un alert di attenzione {{ expiring_days }} giorni prima della scadenza{% else %}Alert sulle soppressioni in scadenza spento in Impostazioni{% endif %}"><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni{% if not expiring_alert %} (senza alert){% endif %}</span>
   </div>
   <div class="sec-actions" style="margin-top: 8px;">
     {% for code, label in kind_filters.items %}
@@ -38,11 +38,23 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
+    {% if can_edit %}
+    <form method="post" action="{% url 'security:suppressions_bulk' %}" id="supp-bulk" data-bulk>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="sec-bulk-bar">
+        <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionate</span>
+        <input type="text" name="reason" maxlength="500" placeholder="Motivo della revoca" aria-label="Motivo della revoca (obbligatorio)" required>
+        <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled data-hub-confirm="Revocare le soppressioni selezionate? Le prossime occorrenze torneranno a creare alert.">Revoca le selezionate</button>
+      </div>
+    </form>
+    {% endif %}
     <table class="sec-table">
-      <thead><tr><th>Regola</th><th>Tipo</th><th>Ambito</th><th class="sec-num">Hit</th><th>Ultimo hit</th><th>Scadenza</th><th>Motivo</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
+      <thead><tr>{% if can_edit %}<th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="supp-bulk" aria-label="Seleziona tutte"></th>{% endif %}<th>Regola</th><th>Tipo</th><th>Ambito</th><th class="sec-num">Volte applicata</th><th>Ultima volta</th><th>Scadenza</th><th>Motivo</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
       <tbody>
       {% for rule in rules %}
         <tr>
+          {% if can_edit %}<td class="sec-check-col">{% if rule.is_live %}<input type="checkbox" name="rule_ids" value="{{ rule.pk }}" form="supp-bulk" class="sec-bulk-item" aria-label="Seleziona {{ rule.name }}">{% endif %}</td>{% endif %}
           <td class="sec-title-cell">{{ rule.name }}{% if not rule.is_live %}<br><span class="sec-badge sec-badge-muted">{% if rule.revoked_at %}Revocata {{ rule.revoked_at|date:"d/m/Y" }}{% elif rule.is_expired %}Scaduta{% else %}Spenta{% endif %}</span>{% endif %}</td>
           <td>{% if rule.is_learned %}<span class="sec-badge warning">Appresa</span>{% else %}<span class="sec-badge sec-badge-muted">Manuale</span>{% endif %}</td>
           <td class="sec-small">
@@ -52,7 +64,7 @@
           </td>
           <td class="sec-num">{{ rule.hit_count }}</td>
           <td class="sec-nowrap">{{ rule.last_hit_at|date:"d/m/Y H:i"|default:"—" }}</td>
-          <td class="sec-nowrap">{% if rule.expires_at %}{% if rule.expiring %}<span class="sec-badge warning">{{ rule.expires_at|date:"d/m/Y" }}</span>{% else %}{{ rule.expires_at|date:"d/m/Y" }}{% endif %}{% else %}nessuna{% endif %}</td>
+          <td class="sec-nowrap">{% if rule.expires_at %}{% if rule.expiring %}<span class="sec-badge warning"{% if rule.promemoria_il %} title="Promemoria mandato il {{ rule.promemoria_il|date:'d/m/Y H:i' }}"{% endif %}>{{ rule.expires_at|date:"d/m/Y" }}</span>{% else %}{{ rule.expires_at|date:"d/m/Y" }}{% endif %}{% else %}nessuna{% endif %}</td>
           <td class="sec-small">{{ rule.reason|linebreaksbr }}{% if rule.revoked_reason %}<br><em>{{ rule.revoked_reason }}</em>{% endif %}</td>
           {% if can_edit %}
             <td>
@@ -67,7 +79,7 @@
           {% endif %}
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">Nessuna soppressione con questi filtri.</td></tr>
+        <tr><td colspan="{% if can_edit %}9{% else %}7{% endif %}" class="sec-empty">Nessuna soppressione con questi filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>

@@ -73,6 +73,7 @@ def _plant_layout_editor_area_rows(layout: PlantLayout | None) -> list[dict[str,
             "y_percent": float(area.y_percent),
             "width_percent": float(area.width_percent),
             "height_percent": float(area.height_percent),
+            "punti": area.punti if area.e_poligono else [],
             "sort_order": area.sort_order,
         }
         for area in layout.areas.all().order_by("sort_order", "id")
@@ -187,12 +188,18 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
         })
     image_size = _plant_layout_image_size(layout)
     if request.GET.get("stampa") == "1" and layout is not None:
+        # livelli accesi sulla mappa (?livelli=3,5) e, con ?solo=1, la tavola del solo servizio
+        accesi = {_as_int(x, default=0) for x in _clean_string(request.GET.get("livelli")).split(",") if x.strip()}
+        livelli_stampa = [liv for liv in payload.get("livelli") or [] if liv["id"] in accesi]
+        solo = request.GET.get("solo") == "1" and bool(livelli_stampa)
         return render(
             request,
             "assets/pages/plant_layout_print.html",
             {
                 "layout": layout,
-                "rows": _plant_layout_print_rows(payload),
+                "rows": _plant_layout_print_rows(payload, livelli_stampa, solo=solo),
+                "livelli_stampa": livelli_stampa,
+                "solo_livelli": solo,
                 "image_width": image_size[0],
                 "image_height": image_size[1],
                 "printed_at": timezone.localtime(),
@@ -236,9 +243,11 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
     )
 
 
-def _plant_layout_print_rows(payload: dict[str, object]) -> list[dict[str, object]]:
-    """Macchine numerate per la stampa: per reparto, poi da sinistra a destra, dall'alto in basso."""
-    markers = sorted(
+def _plant_layout_print_rows(payload: dict[str, object], livelli=None, *, solo: bool = False) -> list[dict[str, object]]:
+    """Macchine numerate per la stampa: per reparto, poi da sinistra a destra, dall'alto in basso.
+
+    Gli asset dei livelli accesi seguono, raggruppati per livello e col suo colore."""
+    markers = [] if solo else sorted(
         payload.get("markers") or [],
         key=lambda m: (
             _clean_string(str((m.get("machine") or {}).get("reparto") or "")).casefold() or "~",
@@ -261,7 +270,21 @@ def _plant_layout_print_rows(payload: dict[str, object]) -> list[dict[str, objec
             "alert": marker["alert"],
             "alert_label": marker["alert_label"],
             "cnc": bool(machine.get("live")),
+            "gruppo": ("Reparto " + machine["reparto"]) if machine.get("reparto") else "Senza reparto",
+            "colore": "",
         })
+    number = len(rows)
+    for livello in livelli or []:
+        for marker in sorted(livello["markers"], key=lambda m: (str(m["label"]).casefold())):
+            machine = marker.get("machine") or {}
+            number += 1
+            rows.append({
+                "n": number, "x": marker["x_percent"], "y": marker["y_percent"], "label": marker["label"],
+                "name": machine.get("name") or marker["label"], "asset_tag": machine.get("asset_tag") or "",
+                "internal_number": machine.get("internal_number") or "", "reparto": machine.get("reparto") or "",
+                "alert": marker["alert"], "alert_label": marker.get("alert_label", ""), "cnc": False,
+                "gruppo": livello["nome"], "colore": livello["colore"],
+            })
     return rows
 
 
@@ -406,6 +429,21 @@ def _record_plant_position_changes(request: HttpRequest, layout: PlantLayout, ch
 
 @login_required
 def plant_layout_editor(request: HttpRequest) -> HttpResponse:
+    if request.GET.get("livello"):
+        # livello di una pianta base, allineamento, categorie e scala: stesso permesso dell'editor
+        from .layout_livello import livello_planimetria
+
+        return livello_planimetria(request)
+    if request.GET.get("importa") == "1":
+        # «Importa planimetrie»: più PDF in una volta, stesso permesso dell'editor
+        from .layout_importa import importa_planimetrie
+
+        return importa_planimetrie(request)
+    if request.GET.get("leggi") == "1":
+        # «Leggi planimetria»: stessa rotta, quindi stesso permesso dell'editor
+        from .layout_leggi import leggi_planimetria
+
+        return leggi_planimetria(request)
     all_layouts = list(
         _plant_layout_queryset().all().order_by("category", "-is_active", "-updated_at", "name", "id")
     )

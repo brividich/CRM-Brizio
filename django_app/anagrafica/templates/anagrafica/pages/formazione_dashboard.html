@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -90,6 +90,7 @@
     {% endif %}
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
+    {% include "anagrafica/partials/_filtro_centro.html" with nota="Piani, corsi e prossime sessioni restano di tutta l'azienda." %}
     <section class="fmd-kpi">
       <div class="fmd-mtr fmd-t-cyan">
         <span class="fmd-ribbon"></span>
@@ -97,19 +98,19 @@
         <div class="fmd-mtr-lbl">Dipendenti con formazione</div>
         <div class="fmd-mtr-sub">Con almeno un corso completato</div>
       </div>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=SCADUTO" title="Apri lo scadenzario: scaduti">
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=SCADUTO{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: scaduti">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Scaduti</div>
         <div class="fmd-mtr-sub">Corsi da rinnovare con priorità</div>
       </a>
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=IN_SCADENZA_30" title="Apri lo scadenzario: in scadenza entro 30 giorni">
+      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=IN_SCADENZA_30{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: in scadenza entro 30 giorni">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scadenza_30 }}</span></div>
         <div class="fmd-mtr-lbl">In scadenza ≤30gg</div>
         <div class="fmd-mtr-sub">Scadenze in avvicinamento</div>
       </a>
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:formazione_scadenzario' %}" title="Apri lo scadenzario: scaduti e mai frequentati">
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:formazione_scadenzario' %}{{ filtro_centro.prefisso }}" title="Apri lo scadenzario: scaduti e mai frequentati">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi_obbligatori_mancanti }}</span></div>
         <div class="fmd-mtr-lbl">Obbligatori mancanti</div>
@@ -153,7 +154,7 @@
       </div>
       <div class="fmd-cgrid" id="fmd-cgrid">
         {% for r in copertura_corsi %}
-        <a class="fmd-cc" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ r.corso.pk }}"
+        <a class="fmd-cc" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ r.corso.pk }}{{ filtro_centro.suffisso }}"
            data-piano="{{ r.piano }}" data-ord="{{ forloop.counter0 }}" data-titolo="{{ r.corso.titolo|lower }}">
           <span class="fmd-cc-h"><b>{{ r.corso.titolo }}</b><span class="fmd-cc-code">{{ r.corso.codice }}</span></span>
           <span class="fmd-cc-meta">{% if r.piano %}{{ r.piano }} · {% endif %}{{ r.corso.durata_ore_teorica|floatformat:"-1" }} h · {% if r.corso.validita_mesi %}validità {{ r.corso.validita_mesi }} mesi{% else %}una tantum{% endif %}</span>
@@ -228,6 +229,7 @@
               <th class="fmd-nowrap">Scadenza</th>
               <th class="fmd-r">Giorni</th>
               <th>Stato</th>
+              {% if can_edit_formazione %}<th class="fmd-act-cell">Azione</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -272,6 +274,7 @@
                   <span class="fmd-badge fmd-b-cyan">{{ d.get_stato_scadenza_display }}</span>
                 {% endif %}
               </td>
+              {% if can_edit_formazione %}<td class="fmd-act-cell">{% if d.legacy_anagrafica_id %}{% include "anagrafica/partials/_formazione_rinnova_btn.html" with corso_id=d.corso.pk legacy_id=d.legacy_anagrafica_id back="anagrafica:formazione_dashboard" titolo_corso=d.corso.titolo %}{% else %}<a class="fmd-act" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ d.corso.pk }}" title="Apri lo scadenzario del corso con la selezione per il rinnovo">↻ Rinnova</a>{% endif %}</td>{% endif %}
             </tr>
             {% endfor %}
           </tbody>
@@ -279,7 +282,7 @@
       </div>
       <div class="fmd-tfoot">
         <span class="fmd-info">Anteprima dei 20 record più urgenti.</span>
-        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-btn fmd-btn-ghost">
+        <a href="{% url 'anagrafica:formazione_scadenzario' %}{{ filtro_centro.prefisso }}" class="fmd-btn fmd-btn-ghost">
           Vedi scadenzario completo <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
         </a>
       </div>

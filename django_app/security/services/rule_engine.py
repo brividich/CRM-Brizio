@@ -5,6 +5,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity
+from security.services import alert_doppioni
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.auto_resolution import resolve_backup_recovered, resolve_vulnerability_cleared
 from security.services.evidence_builder import build_evidence_container
@@ -80,9 +81,9 @@ def _evaluate_event(event):
     if handler:
         handler(event)
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Nessuna regola di alert corrisponde"}
         event.save(update_fields=["decision_trace"])
-    if (event.decision_trace or {}).get("decision") != "alert":
+    if (event.decision_trace or {}).get("decision") not in ("alert", "merged"):
         _apply_learned_escalation(event)
 
 
@@ -139,16 +140,25 @@ def _evaluate_vulnerability(event):
         return
 
     if is_critical and exposed:
+        inventario = alert_doppioni.alert_inventario_per_cve(payload.get("cve"))
+        if inventario and not _active_alert(event.source, event.dedup_hash):
+            event.decision_trace = {
+                "decision": "kpi_only",
+                "rule": "CVE già seguita PC per PC dall'inventario => niente alert doppio",
+                "alert_inventario": [a.pk for a in inventario[:20]],
+            }
+            event.save(update_fields=["decision_trace"])
+            return
         trace = {
             "decision": "alert",
-            "rule": "CVE Critical/CVSS >= 9/exposed_devices > 0",
+            "rule": "CVE critica (CVSS ≥ 9) con dispositivi esposti => alert",
             "cvss": payload.get("cvss"),
             "exposed_devices": payload.get("exposed_devices"),
         }
         alert, alert_created = _get_or_create_active_alert(
             source=event.source,
             event=event,
-            title=f"Critical exposed vulnerability {payload.get('cve')}",
+            title=f"Vulnerabilità critica esposta {payload.get('cve')}",
             severity=(critical_rule.severity if critical_rule else Severity.CRITICAL),
             dedup_hash=event.dedup_hash,
             decision_trace=trace,
@@ -175,7 +185,7 @@ def _evaluate_vulnerability(event):
         _mark_rule_triggered(critical_rule)
         _mark_rule_triggered(exposed_rule)
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerability not both critical and exposed"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerabilità non critica o senza dispositivi esposti"}
         resolved = resolve_vulnerability_cleared(event)
         if resolved:
             event.decision_trace["auto_resolved_alerts"] = resolved
@@ -188,13 +198,13 @@ def _evaluate_source_silent(event):
     payload = event.payload
     rule = _get_rule("source_silent_beyond_expected")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Source heartbeat rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul silenzio delle sorgenti disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
 
     trace = {
         "decision": "alert",
-        "rule": "Source silent beyond expected cadence => alert",
+        "rule": "Sorgente silenziosa oltre la cadenza attesa => alert",
         "reason": payload.get("detail"),
         "source_code": payload.get("source_code"),
         "expected_every_hours": payload.get("expected_every_hours"),
@@ -205,7 +215,7 @@ def _evaluate_source_silent(event):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Source silent: {payload.get('source_name') or payload.get('source_code')}",
+        title=f"Sorgente silenziosa: {payload.get('source_name') or payload.get('source_code')}",
         severity=(rule.severity if rule else Severity.WARNING),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -236,7 +246,7 @@ def _evaluate_cve_impact(event):
     payload = event.payload
     rule = _get_rule("cve_impact_confirmed")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "CVE impact rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sulle CVE dell'inventario disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     cve = (payload.get("cve") or "").upper()
@@ -284,12 +294,39 @@ def _evaluate_cve_impact(event):
         notify_alert_created(alert)
 
 
+def _evaluate_software_nuovo(event):
+    """Programma mai visto prima nell'inventario e senza decisione nel Catalogo software (``software_nuovo``)."""
+    payload = event.payload
+    rule = _get_rule("software_nuovo")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul software nuovo disattivata", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Inventario software: programma mai visto prima, senza decisione nel catalogo => alert",
+        "product": payload.get("product"), "vendor": payload.get("vendor"),
+        "host_count": payload.get("host_count"), "hosts": payload.get("hosts"), "dal": payload.get("dal"),
+    }
+    title = f"Programma nuovo: {payload.get('product')} su {payload.get('host_count')} PC"[:255]
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=title,
+        severity=(rule.severity if rule else event.severity), dedup_hash=event.dedup_hash, decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+
+
 def _evaluate_software_policy(event):
     """Software non autorizzato, da rimuovere o sotto la versione minima secondo il Catalogo software."""
     payload = event.payload
     rule = _get_rule("software_policy")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Software policy rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul software non conforme disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
@@ -382,6 +419,34 @@ def _evaluate_defender_alert(event):
         notify_alert_created(alert)
 
 
+def _evaluate_dipendenza_vulnerabile(event):
+    """Libreria Python del portale con vulnerabilità note (``dipendenze_portale``): un alert per libreria e versione.
+
+    Severità della vulnerabilità più grave della libreria. Si chiude da solo quando quella versione non è
+    più installata o non ha più vulnerabilità aperte (``dipendenze_portale.chiudi_rientrati``).
+    """
+    from security.services import dipendenze_portale
+
+    payload = event.payload or {}
+    rule = _get_rule(dipendenze_portale.EVENT)
+    if not soc_settings_value("dipendenze.alert.attivo") or (rule and not rule.enabled):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sulle librerie del portale spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    if not dipendenze_portale.ancora_vulnerabile(event):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Libreria già aggiornata prima della valutazione: nessun alert"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Libreria Python del portale con vulnerabilità note nel database OSV => alert",
+        "pacchetto": payload.get("pacchetto"), "versione": payload.get("versione"),
+        "vulnerabilita": payload.get("vulnerabilita"), "aggiorna_a": payload.get("aggiorna_a"),
+    }
+    _alert_da_evento(event, dipendenze_portale.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    _mark_rule_triggered(rule)
+
+
 def _alert_da_evento(event, title, severity, trace):
     """Apre o riusa l'alert del SOC per un evento (stesso dedup), con traccia e notifica."""
     alert, alert_created = _get_or_create_active_alert(
@@ -464,11 +529,13 @@ def _evaluate_backup_repository_space(event):
 
 
 def _evaluate_cve_sla_scaduta(event):
-    """PC esposto a una CVE oltre il termine di correzione (ISO 27001 8.8, ``cve_sla``): un alert per CVE, PC e termine.
+    """PC esposto a una CVE oltre il termine di correzione (ISO 27001 8.8, ``cve_sla``).
 
-    Severità alta per CVE sfruttate (KEV) o critiche, media per le altre (dall'evento, o dalla
-    regola facoltativa ``cve_sla_scaduta`` se definita). Si chiude da solo quando l'esposizione
-    rientra o viene accettata (``cve_sla.chiudi_rientrate``).
+    L'evento resta uno per CVE, PC e termine (audit). L'alert, con «Meno rumore» acceso, è uno per CVE: se la
+    CVE ha già l'alert «PC con versione vulnerabile» il termine scaduto va nella sua timeline, senza un alert
+    nuovo; altrimenti un alert per CVE con i PC nella timeline. Spento: un alert per CVE, PC e termine, come prima.
+    Severità alta per CVE sfruttate (KEV) o critiche, media per le altre. Si chiude da solo quando tutti i PC
+    rientrano o il rischio viene accettato (``cve_sla.chiudi_rientrate``).
     """
     from security.services import cve_sla
 
@@ -483,8 +550,59 @@ def _evaluate_cve_sla_scaduta(event):
         "rule": "Esposizione a una CVE oltre il termine di correzione della sua classe => alert",
         "cve": payload.get("cve"), "host": payload.get("host"), "classe": payload.get("classe"),
         "scadenza": payload.get("scadenza"), "giorni_ritardo": payload.get("giorni_ritardo"), "aperta_dal": payload.get("aperta_dal"),
+        "event_id": event.pk,
     }
-    _alert_da_evento(event, cve_sla.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    severity = rule.severity if rule else event.severity
+    if not alert_doppioni.rumore_attivo():
+        _alert_da_evento(event, cve_sla.titolo_evento(payload), severity, trace)
+        _mark_rule_triggered(rule)
+        return
+    impatto = alert_doppioni.alert_impatto_per_cve(payload.get("cve"))
+    if impatto:
+        alert = impatto[0]
+        alert_doppioni.registra_termine_su_impatto(alert, payload, event.pk)
+        event.decision_trace = {**trace, "decision": "merged", "alert_id": alert.pk,
+                                "reason": "La CVE ha già l'alert «PC con versione vulnerabile»: termine scaduto scritto nella sua timeline"}
+        event.save(update_fields=["decision_trace"])
+        _mark_rule_triggered(rule)
+        return
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=cve_sla.titolo_cve(payload), severity=severity,
+        dedup_hash=alert_doppioni.chiave_alert(event), decision_trace=trace, aggiorna_titolo=True,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "cve_termine_scaduto",
+                                          details=trace)
+    if alert_created:
+        notify_alert_created(alert)
+    _mark_rule_triggered(rule)
+
+
+def _evaluate_patch_sla_scaduta(event):
+    """Patch WatchGuard mancante oltre il termine di installazione (``patch_sla``): un alert per patch e termine.
+
+    Severità alta per patch che correggono CVE sfruttate (KEV) o critiche, media per le altre. Si chiude
+    da solo quando la patch non manca più oltre il termine su nessun PC (``patch_sla.chiudi_rientrate``).
+    """
+    from security.services import patch_sla
+
+    payload = event.payload or {}
+    rule = _get_rule(patch_sla.EVENT_SLA)
+    if not soc_settings_value("patch.sla.attivo") or (rule and not rule.enabled):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Segnalazione delle patch oltre il termine spenta in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Patch mancante oltre il termine di installazione della sua classe => alert",
+        "patch": payload.get("patch"), "classe": payload.get("classe"), "pc": payload.get("pc"),
+        "scadenza": payload.get("scadenza"), "giorni_ritardo": payload.get("giorni_ritardo"),
+    }
+    _alert_da_evento(event, patch_sla.titolo_evento(payload), rule.severity if rule else event.severity, trace)
     _mark_rule_triggered(rule)
 
 
@@ -504,6 +622,23 @@ def _evaluate_accettazione_rischio(event):
         "host": payload.get("host"), "scadenza": payload.get("scadenza"),
     }
     _alert_da_evento(event, accettazione_rischio.titolo_evento(payload), event.severity, trace)
+
+
+def _evaluate_soppressione_in_scadenza(event):
+    """Soppressione che sta per scadere (``soppressioni_scadenza``): un alert di attenzione per regola e scadenza."""
+    from security.services import soppressioni_scadenza
+
+    payload = event.payload or {}
+    if not soc_settings_value("soppressione.scadenza.alert"):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sulle soppressioni in scadenza spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Soppressione in scadenza => alert",
+        "regola_id": payload.get("regola_id"), "regola": payload.get("regola"), "scadenza": payload.get("scadenza"),
+    }
+    _alert_da_evento(event, soppressioni_scadenza.titolo_evento(payload), event.severity, trace)
 
 
 def _evaluate_backup_restore_test_failed(event):
@@ -605,6 +740,11 @@ def _evaluate_m365_account_cessato(event):
 def _evaluate_entra_audit(event):
     """Modifica amministrativa sorvegliata in Entra ID (``entra_signals``): un alert per riga di audit."""
     payload = event.payload or {}
+    if alert_doppioni.rumore_attivo() and alert_doppioni.autore_fidato(payload.get("autore")):
+        event.decision_trace = {"decision": "kpi_only", "autore": payload.get("autore"),
+                                "reason": "Modifica fatta da un amministratore fidato: resta negli eventi, senza alert"}
+        event.save(update_fields=["decision_trace"])
+        return
     trace = {
         "decision": "alert",
         "rule": "Entra ID: attività amministrativa sorvegliata => alert",
@@ -679,12 +819,12 @@ def _evaluate_sender_spoofing(event):
     payload = event.payload
     rule = _get_rule("possible_sender_spoofing")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Sender spoofing rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul mittente non attendibile disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
         "decision": "alert",
-        "rule": "Vendor-looking report from untrusted sender => alert (not parsed)",
+        "rule": "Report di un fornitore da mittente non attendibile => alert (non letto)",
         "reason": payload.get("detail"),
         "claimed_vendor": payload.get("claimed_vendor"),
         "sender": payload.get("sender"),
@@ -693,7 +833,7 @@ def _evaluate_sender_spoofing(event):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Possible sender spoofing: {payload.get('claimed_vendor') or 'vendor'} report from {payload.get('sender_domain') or 'unknown domain'}",
+        title=f"Possibile mittente falso: report {payload.get('claimed_vendor') or 'di un fornitore'} da {payload.get('sender_domain') or 'dominio sconosciuto'}",
         severity=(rule.severity if rule else Severity.WARNING),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -717,7 +857,7 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     if exposed_unknown:
         trace = {
             "decision": "alert",
-            "rule": "Critical vulnerability with unreadable exposed devices count => fail-closed manual review",
+            "rule": "CVE critica con numero di dispositivi esposti illeggibile => verifica manuale (prudenza)",
             "reason": "La CVE è critica ma il numero di dispositivi esposti non è leggibile: NON viene considerato 0",
             "cve": payload.get("cve"),
             "cvss": payload.get("cvss"),
@@ -726,8 +866,8 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     else:
         trace = {
             "decision": "alert",
-            "rule": "Vulnerability data unreadable while devices are exposed => fail-closed manual review",
-            "reason": "Neither CVSS nor severity could be parsed; the score is NOT assumed to be 0",
+            "rule": "Dati della vulnerabilità illeggibili con dispositivi esposti => verifica manuale (prudenza)",
+            "reason": "Né il CVSS né la gravità sono leggibili: il punteggio NON viene considerato 0",
             "cve": payload.get("cve"),
             "exposed_devices": payload.get("exposed_devices"),
             "cvss_unparsed": True,
@@ -736,7 +876,7 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Unreadable vulnerability data for {payload.get('cve') or 'unknown CVE'} (manual review)",
+        title=f"Dati della vulnerabilità illeggibili per {payload.get('cve') or 'CVE sconosciuta'} (verifica manuale)",
         severity=Severity.HIGH,
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -757,39 +897,79 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
         notify_alert_created(alert)
 
 
+def _evaluate_veeam_malware(event):
+    """Mail di Veeam sul malware trovato nei backup: un alert solo (alto), aggiornato dalla mail più recente.
+
+    Arriva come ``veeam_malware`` dal parser, o come ``backup_job`` dalle mail lette prima che il parser le distinguesse.
+    Non si chiude da solo: un backup riuscito non dice che il malware non c'è più.
+    """
+    import re
+
+    payload = event.payload or {}
+    testo = " ".join(str(payload.get(k) or "") for k in ("title", "job_name", "subject"))
+    numero = re.search(r"(\d+)\s+malware", testo, re.I)
+    quanti = int(numero.group(1)) if numero else None
+    if quanti == 0:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Report malware di Veeam senza eventi"}
+        event.save(update_fields=["decision_trace"])
+        return
+    descrizione = (payload.get("title") or payload.get("job_name") or "attività sospetta").strip()
+    trace = {"decision": "alert", "rule": "Veeam: malware rilevato nei backup => alert alto (non si chiude da solo)",
+             "malware_eventi": quanti, "descrizione": descrizione, "event_id": event.pk}
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=f"Veeam: malware nei backup ({descrizione})"[:255],
+        severity=Severity.HIGH, dedup_hash=alert_doppioni.chiave_alert(event), decision_trace=trace, aggiorna_titolo=True,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+    if alert_created:
+        notify_alert_created(alert)
+
+
 def _evaluate_backup(event):
+    if alert_doppioni.e_report_malware(event.payload):
+        _evaluate_veeam_malware(event)
+        return
     status = event.payload.get("status", "").lower()
     if status == "completed":
-        event.decision_trace = {"decision": "kpi_only", "rule": "Backup completed => KPI only"}
+        event.decision_trace = {"decision": "kpi_only", "rule": "Backup completato => solo KPI"}
         resolved = resolve_backup_recovered(event)
         if resolved:
             event.decision_trace["auto_resolved_alerts"] = resolved
         event.save(update_fields=["decision_trace"])
         return
     if status == "unknown":
-        event.decision_trace = {"decision": "diagnostic_event", "rule": "Backup status unknown => diagnostic only"}
+        event.decision_trace = {"decision": "diagnostic_event", "rule": "Esito del backup sconosciuto => solo diagnostica"}
         event.save(update_fields=["decision_trace"])
         return
     failed_rule = _get_rule("backup_failed_gt_0")
     if failed_rule and not failed_rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Backup failure rule disabled"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sui backup falliti disattivata"}
         event.save(update_fields=["decision_trace"])
         return
-    trace = {"decision": "alert", "rule": "Backup missing/failed => alert + evidence", "backup_status": status}
+    trace = {"decision": "alert", "rule": "Backup mancante o fallito => alert + evidenza", "backup_status": status,
+             "event_id": event.pk}
+    # Un alert per job e dispositivo, non uno per notte: le mail successive aggiornano lo stesso.
+    chiave = alert_doppioni.chiave_alert(event) or event.dedup_hash
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Backup job requires attention: {event.payload.get('job_name')}",
+        title=f"Backup da controllare: {event.payload.get('job_name')}",
         severity=(failed_rule.severity if failed_rule else Severity.WARNING),
-        dedup_hash=event.dedup_hash,
+        dedup_hash=chiave,
         decision_trace=trace,
+        aggiorna_titolo=True,
     )
     trace["alert_created"] = alert_created
     _store_alert_decision_trace(alert, trace, alert_created)
     event.decision_trace = trace
     event.save(update_fields=["decision_trace"])
     evidence = build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
-    create_backup_ticket(event.source, alert, evidence, event.payload.get("job_name"), event.dedup_hash)
+    create_backup_ticket(event.source, alert, evidence, event.payload.get("job_name"), chiave)
     SecurityAlertActionLog.objects.create(
         alert=alert,
         action="alert_created" if alert_created else "alert_reused",
@@ -807,11 +987,11 @@ def _evaluate_vpn(event):
     ).aggregate(total=Count("id"))["total"]
     threshold = int(event.payload.get("threshold", 10))
     if count > threshold:
-        trace = {"decision": "alert", "rule": "VPN reconnect spike above threshold", "count": count, "threshold": threshold}
+        trace = {"decision": "alert", "rule": "Picco di riconnessioni VPN oltre la soglia", "count": count, "threshold": threshold}
         alert, alert_created = _get_or_create_active_alert(
             source=event.source,
             event=event,
-            title="VPN authentication spike detected",
+            title="Picco di autenticazioni VPN",
             severity=Severity.WARNING,
             dedup_hash=event.dedup_hash,
             decision_trace=trace,
@@ -827,7 +1007,7 @@ def _evaluate_vpn(event):
             notify_alert_created(alert)
         event.decision_trace = trace
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "VPN volume below threshold", "count": count, "threshold": threshold}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Volume VPN sotto la soglia", "count": count, "threshold": threshold}
     event.save(update_fields=["decision_trace"])
 
 
@@ -836,22 +1016,37 @@ def _evaluate_watchguard_alert_candidate(event):
     candidate_type = payload.get("type") or ""
     rule = _get_rule(candidate_type) or _get_rule("watchguard_botnet_detected_gt_baseline")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "WatchGuard alert rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sugli alert WatchGuard disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
+    if alert_doppioni.rumore_attivo() and alert_doppioni.solo_dispositivi_bloccati(payload):
+        # Chiavette USB fermate dalla policy: la protezione ha funzionato. Conteggio per PC, alert solo sopra la soglia.
+        soglia = soc_settings_value("rumore.dispositivi_bloccati.soglia")
+        blocchi = alert_doppioni.blocchi_ultime_24h(event)
+        if not soglia or blocchi < soglia:
+            event.decision_trace = {
+                "decision": "kpi_only",
+                "reason": "Dispositivi bloccati dalla policy (es. chiavette USB): conteggio per PC, alert solo sopra la soglia",
+                "blocchi_24h": blocchi, "soglia": soglia,
+            }
+            event.save(update_fields=["decision_trace"])
+            return
     trace = {
         "decision": "alert",
-        "rule": "WatchGuard parser-generated anti-noise alert candidate",
+        "rule": "Candidato alert WatchGuard proposto dal parser (filtro anti-rumore)",
         "candidate_type": payload.get("type"),
         "reason": payload.get("reason"),
+        "event_id": event.pk,
     }
+    # Un alert per tipo e PC (es. «devices blocked su PC-X»), non uno per mail: le successive aggiornano lo stesso.
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=payload.get("title") or "WatchGuard alert candidate",
+        title=payload.get("title") or "Alert WatchGuard da verificare",
         severity=(rule.severity if rule else payload.get("severity", Severity.WARNING)),
-        dedup_hash=event.dedup_hash,
+        dedup_hash=alert_doppioni.chiave_alert(event) or event.dedup_hash,
         decision_trace=trace,
+        aggiorna_titolo=True,
     )
     trace["alert_created"] = alert_created
     _store_alert_decision_trace(alert, trace, alert_created)
@@ -934,7 +1129,11 @@ def _active_alert(source, dedup_hash):
     )
 
 
-def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace):
+def _rango(severity):
+    return {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.WARNING: 1, Severity.LOW: 0}.get(severity, 1)
+
+
+def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace, aggiorna_titolo=False):
     """Check-then-create is a race. Let the database settle it.
 
     Two workers evaluating the same finding concurrently both used to read "no alert yet"
@@ -945,7 +1144,16 @@ def _get_or_create_active_alert(source, event, title, severity, dedup_hash, deci
     alert = _active_alert(source, dedup_hash)
     if alert:
         alert.event = event
-        alert.save(update_fields=["event", "updated_at"])
+        campi = ["event", "updated_at"]
+        if aggiorna_titolo:
+            # Alert per soggetto (PC, job): l'ultima mail dice il conteggio di adesso; la gravità non scende.
+            if title and alert.title != title[:255]:
+                alert.title = title[:255]
+                campi.append("title")
+            if _rango(severity) > _rango(alert.severity):
+                alert.severity = severity
+                campi.append("severity")
+        alert.save(update_fields=campi)
         return alert, False
 
     try:
@@ -999,6 +1207,7 @@ _HANDLERS = {
     "possible_sender_spoofing": _evaluate_sender_spoofing,
     "cve_impact_confirmed": _evaluate_cve_impact,
     "software_policy": _evaluate_software_policy,
+    "software_nuovo": _evaluate_software_nuovo,
     "defender_alert": _evaluate_defender_alert,
     "defender_incident": _evaluate_defender_incident,
     "accesso_nuovo_dispositivo": _evaluate_accesso_nuovo_dispositivo,
@@ -1011,6 +1220,10 @@ _HANDLERS = {
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
     "backup_repository_space": _evaluate_backup_repository_space,
     "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
+    "veeam_malware": _evaluate_veeam_malware,
+    "patch_sla_scaduta": _evaluate_patch_sla_scaduta,
+    "dipendenza_vulnerabile": _evaluate_dipendenza_vulnerabile,
     "accettazione_rischio": _evaluate_accettazione_rischio,
+    "soppressione_in_scadenza": _evaluate_soppressione_in_scadenza,
     "backup_restore_test_failed": _evaluate_backup_restore_test_failed,
 }

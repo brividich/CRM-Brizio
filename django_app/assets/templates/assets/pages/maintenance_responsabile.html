@@ -484,7 +484,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
     <summary class="md-section-head">
       <h2>Ordini di lavoro attivi</h2>
       <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
-      {% if overdue_workorders %}<span class="md-badge badge-danger">di cui {{ overdue_workorders|length }} aperti da oltre {{ wo_overdue_days }} giorni</span>{% endif %}
+      {% if overdue_workorders %}<span class="md-badge badge-danger">di cui {{ kpi.workorders_overdue }} aperti da oltre {{ wo_overdue_days }} giorni</span>{% endif %}
       {% if planned_workorders_count %}<span class="md-sub">{{ planned_workorders_count }} da manutenzione programmata</span>{% endif %}
     </summary>
     <div class="md-scroll">
@@ -559,8 +559,8 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
   <details class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-anziani" open data-md-collapsible>
     <summary class="md-section-head">
       <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
-      <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
-      <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni</span>
+      <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ kpi.workorders_overdue }}</span>
+      <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni{% if kpi.workorders_overdue > overdue_workorders|length %} · in elenco i {{ overdue_workorders|length }} più vecchi{% endif %}</span>
     </summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">

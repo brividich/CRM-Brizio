@@ -66,6 +66,9 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "rentri", "codice": "rentri_import_preview", "label": "RENTRI - Import preview", "url": "/rentri/import/preview/", "hide": True},
     {"modulo": "rentri", "codice": "rentri_import_confirm", "label": "RENTRI - Import confirm", "url": "/rentri/import/confirm/", "hide": True},
     {"modulo": "rentri", "codice": "rentri_export_pdf", "label": "RENTRI - Export PDF", "url": "/rentri/export/pdf/", "hide": True},
+    {"modulo": "rentri", "codice": "rentri_riepilogo_annuale", "label": "RENTRI - Riepilogo annuale", "url": "/rentri/riepilogo-annuale/", "hide": True},
+    {"modulo": "rentri", "codice": "rentri_registro_cronologico", "label": "RENTRI - Registro cronologico", "url": "/rentri/registro-cronologico/", "hide": True},
+    {"modulo": "rentri", "codice": "rentri_export_excel", "label": "RENTRI - Export Excel", "url": "/rentri/export/excel/", "hide": True},
     {"modulo": "rentri", "codice": "rentri_sync_pull", "label": "RENTRI - Sync pull API", "url": "/rentri/api/sync/pull", "hide": True},
 ]
 

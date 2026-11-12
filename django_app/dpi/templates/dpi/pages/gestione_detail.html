@@ -133,6 +133,12 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
 body.theme-dark .dpi-signature-canvas{background:var(--surface)}
 body.theme-dark .dpi-signature-preview{background:var(--surface)}
 body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
@@ -178,6 +184,8 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
         </div>
 
         <dl class="dpi-dl">
+          {% if richiesta.modalita_negozio %}<dt>Modalità</dt><dd>{{ richiesta.get_modalita_negozio_display }}</dd>{% endif %}
+          {% if richiesta.fattura_negozio %}<dt>Chiusa con</dt><dd>Fattura {{ richiesta.fattura_negozio.numero }} del {{ richiesta.fattura_negozio.data|date:"d-m-Y" }}</dd>{% endif %}
           <dt>Categoria</dt>
           <dd>{{ richiesta.categoria.nome }}</dd>
           <dt>Tipo</dt>
@@ -225,7 +233,11 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
             </span>
           </dd>
           {% endif %}
-          <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          <dt>Ricevuta firmata</dt><dd>{% if consegna.confermata_badge_il %}Confermata con badge il {{ consegna.confermata_badge_il|date:"d/m/Y H:i" }}{% elif consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          {% if consegna.conferma %}
+          <dt>Conferma via mail</dt>
+          <dd>{{ consegna.conferma.get_stato_display }}{% if consegna.conferma.decisa_il %} il {{ consegna.conferma.decisa_il|date:"d-m-Y H:i" }} da {{ consegna.conferma.decisa_da_email }}{% else %} ({{ consegna.conferma.get_destinatario_tipo_display|lower }}, mail del {{ consegna.conferma.created_at|date:"d-m-Y" }}){% endif %}{% if consegna.conferma.nota %} — «{{ consegna.conferma.nota }}»{% endif %}</dd>
+          {% endif %}
           {% if consegna.firma_immagine %}<dt>Firma</dt><dd><img class="dpi-signature-preview" src="{{ consegna.firma_immagine }}" alt="Firma consegna"></dd>{% endif %}
           {% if consegna.note_consegna %}<dt>Note</dt><dd>{{ consegna.note_consegna }}</dd>{% endif %}
         </dl>
@@ -281,7 +293,13 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
         </div>
         {% endif %}
 
-        {% if richiesta.stato == "APPROVATA" and is_gestore %}
+        {% if richiesta.stato == "APPROVATA" and is_gestore and richiesta.da_gestire_in_negozio %}
+        <div class="dpi-action-panel">
+          <div class="dpi-action-title">👟 Scarpe: {{ richiesta.get_modalita_negozio_display }}</div>
+          <p style="margin:0 0 10px; font-size:12px; color:#64748b;">{% if richiesta.modalita_negozio == "FUORI" %}Ritiro al negozio: si chiude caricando la fattura.{% else %}Da inserire nel prossimo ordine al negozio: la consegna si registra dopo.{% endif %}</p>
+          <a href="{% url 'dpi:negozio' %}" class="dpi-btn dpi-btn-blue" style="text-decoration:none; display:inline-block;">Apri la pagina Scarpe</a>
+        </div>
+        {% elif richiesta.stato == "APPROVATA" and is_gestore %}
         <!-- Pronto per il ritiro: avvisa il dipendente -->
         <div class="dpi-action-panel">
           <div class="dpi-action-title">🔔 Pronto per il ritiro</div>
@@ -321,6 +339,12 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
               <label for="note-consegna">Note consegna</label>
               <input type="text" name="note_consegna" id="note-consegna" placeholder="Es: Taglia M, lotto 2024">
             </div>
+            {% if chiedi_motivo_giacenza %}
+            <div class="dpi-field">
+              <label for="motivo-giacenza">Motivo della consegna senza giacenza *</label>
+              <input type="text" name="motivo_giacenza" id="motivo-giacenza" maxlength="200" required placeholder="Es: carico non ancora registrato">
+            </div>
+            {% endif %}
             <div class="dpi-field" style="display:flex; align-items:center;">
               <input type="checkbox" name="firmato_ricevuta" id="firmato" value="1">
               <label for="firmato" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Ricevuta firmata dal dipendente</label>

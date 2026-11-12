@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -26,9 +26,34 @@
         <p class="fmd-ph-sub">Mansione di rischio: DPI, visite mediche e formazione necessari per l'idoneità (D.Lgs. 81/08).{% if mansione.dvr_revisione or mansione.dvr_data %} DVR{% if mansione.dvr_revisione %} {{ mansione.dvr_revisione }}{% endif %}{% if mansione.dvr_data %} del {{ mansione.dvr_data|date:"d/m/Y" }}{% endif %}.{% endif %} Da qui parte il controllo di conformità e idoneità di chi la ricopre.</p>
       </div>
       <div class="fmd-pagehead-actions">
-        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}?mansione={{ mansione.nome|urlencode }}" title="Conformità di chi ha questa mansione di rischio"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansioni-rischio" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
+
+    {# ── Da dove arriva: le mansioni lavorative che la comportano ─────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Mansioni che la comportano <span class="fmd-count">{{ mansioni_lavorative|length }}</span></div>
+        <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:mansionario' %}">Mansionario →</a></div>
+      {% if mansioni_lavorative %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Mansione</th><th>Ruolo</th><th>Tipo</th></tr></thead>
+          <tbody>
+            {% for m in mansioni_lavorative %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.pk %}"><b>{{ m.nome }}</b></a></td>
+              <td>{% for r in m.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.pk }}">{{ r.nome }}</a> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
+              <td class="fmd-muted">{{ m.get_tipo_display }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessuna mansione lavorativa</span><span class="fmd-em">Chi fa una mansione del Mansionario riceve questa mansione di rischio quando la mansione la indica (scheda della mansione → Impostazioni → «Mansioni di rischio»).</span></div>
+      {% endif %}
+    </section>
 
     {# ── Riepilogo requisiti effettivi ─────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
@@ -44,7 +69,7 @@
         </div>
         <div>
           <div class="fmd-block-aside" style="margin-bottom:8px;">Formazione</div>
-          {% for c in requisiti.corsi %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">{{ c.titolo }}</span>{% endfor %}
+          {% for c in requisiti.corsi %}<a class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>{% endfor %}
           {% for p in requisiti.piani %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">Piano: {{ p.nome }}</span>{% endfor %}
           {% if not requisiti.corsi and not requisiti.piani %}<span class="fmd-muted">— nessuna</span>{% endif %}
         </div>

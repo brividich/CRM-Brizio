@@ -1,0 +1,33 @@
+<form method="post" action="{% url 'reception:registra' %}" class="rc-modulo">
+  {% csrf_token %}
+  <div class="rc-cerca"><input class="rc-input" id="r-cerca" type="search" placeholder="Cerca chi è già venuto: nome, azienda o email" aria-label="Cerca tra chi è già venuto"
+         data-cerca-url="{% url 'reception:api_ospiti' %}" data-formato="ospite" data-svuota data-avviso="#r-avviso" data-poi="#r-ref-cerca"
+         data-vuoto="Nessuno con questo nome: compila i campi qui sotto."
+         data-riempi='{"nome":"#r-nome","cognome":"#r-cognome","azienda":"#r-azienda","email":"#r-email","telefono":"#r-tel"}'></div>
+  <div class="rc-info" id="r-avviso" hidden></div>
+  <div class="rc-riga rc-riga-2">
+    <div class="rc-field"><label for="r-cognome">Cognome</label><input class="rc-input" id="r-cognome" name="cognome" value="{{ dati.cognome|default:'' }}" maxlength="100" required></div>
+    <div class="rc-field"><label for="r-nome">Nome</label><input class="rc-input" id="r-nome" name="nome" value="{{ dati.nome|default:'' }}" maxlength="100" required></div>
+  </div>
+  <div class="rc-field"><label for="r-azienda">Azienda <span class="rc-opz">facoltativa</span></label><input class="rc-input" id="r-azienda" name="azienda" value="{{ dati.azienda|default:'' }}" maxlength="255"></div>
+  <details class="rc-altro"{% if dati.email or dati.telefono %} open{% endif %}>
+    <summary>Email e telefono</summary>
+    <div class="rc-riga rc-riga-2">
+      <div class="rc-field"><label for="r-email">Email</label><input class="rc-input" id="r-email" type="email" name="email" value="{{ dati.email|default:'' }}" maxlength="255"></div>
+      <div class="rc-field"><label for="r-tel">Telefono</label><input class="rc-input" id="r-tel" type="tel" name="telefono" value="{{ dati.telefono|default:'' }}" maxlength="50"></div>
+    </div>
+  </details>
+  <div class="rc-field"><label for="r-ref-cerca">Chi lo riceve</label>
+    <div class="rc-cerca"><input class="rc-input" id="r-ref-cerca" type="search" placeholder="Nome o reparto del dipendente" value="{{ referente_scelto.nome_elenco|default:'' }}"
+           data-scegli="#referenti-dati" data-valore="#r-ref" data-formato="referente" data-poi="#r-cart"></div>
+    <input type="hidden" id="r-ref" name="referente" value="{{ referente_scelto.pk|default:'' }}"></div>
+  <div class="rc-field"><span class="rc-label">Motivo</span>
+    <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if dati.motivo == c.nome or not dati.motivo and forloop.first %} checked{% endif %}><span>{{ c.nome }}</span></label>{% empty %}<label class="rc-chip"><input type="radio" name="motivo" value="Altro" checked><span>Altro</span></label>{% endfor %}</div>
+  </div>
+  <div class="rc-riga rc-riga-2">
+    <div class="rc-field"><label for="r-cart">Cartellino</label>
+      <select class="rc-input" id="r-cart" name="cartellino" data-no-search>{% for n in liberi %}<option value="{{ n }}"{% if forloop.first %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="">Senza cartellino</option></select></div>
+    <div class="rc-field"><label for="r-ora">Entrato alle <span class="rc-opz">vuoto = adesso</span></label><input class="rc-input" id="r-ora" type="time" name="ora"></div>
+  </div>
+  <button class="rc-btn rc-btn-p rc-btn-largo" type="submit">Registra ingresso</button>
+</form>

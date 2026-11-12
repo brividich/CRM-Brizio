@@ -6,6 +6,14 @@
 {% block extra_head %}
 <style>
 #dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-rep-tabs { display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; }
+.dpi-rep-tabs a { padding:9px 16px; font-size:14px; font-weight:700; color:#475569; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-1px; }
+.dpi-rep-tabs a:hover { color:#0f172a; }
+.dpi-rep-tabs a.is-on { color:#0369a1; border-color:#0369a1; }
+body.theme-dark .dpi-rep-tabs { border-color:var(--border); }
+body.theme-dark .dpi-rep-tabs a { color:var(--text-mid); }
+body.theme-dark .dpi-rep-tabs a:hover { color:var(--text); }
+body.theme-dark .dpi-rep-tabs a.is-on { color:#7dd3fc; border-color:#7dd3fc; }
 .dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
 .dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
 .dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
@@ -99,6 +107,12 @@ body.theme-dark .dpi-hbtn{background:var(--surface);color:#86efac}
 body.theme-dark .dpi-hbtn:hover{background:rgba(56,161,105,.18)}
 body.theme-dark .dpi-hbtn-ghost{background:rgba(255,255,255,.06)}
 body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
@@ -106,6 +120,7 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
 <div id="dpi-root">
   {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" %}
+  {% include "dpi/components/_report_tabs.html" %}
 
   <div class="dpi-hero">
     <div>
@@ -114,6 +129,7 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
     </div>
     <div class="dpi-hero-actions">
       <a class="dpi-hbtn dpi-hbtn-ghost" href="{% url 'dpi:magazzino' %}">← Magazzino</a>
+      <a class="dpi-hbtn" href="{% url 'dpi:magazzino_riordino' %}?giorni={{ giorni }}">Bozza d'ordine</a>
       <a class="dpi-hbtn" href="?giorni={{ giorni }}&formato=csv">Esporta movimenti (CSV)</a>
     </div>
   </div>
@@ -151,7 +167,7 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
       {% if reparti %}
       <div class="dpi-hbars">
         {% for nome, pezzi in reparti %}
-        <div><div class="dpi-hbar-top"><strong>{{ nome }}</strong><span>{{ pezzi }}</span></div>
+        <div><div class="dpi-hbar-top"><strong>{% if nome == "Non indicato" %}{{ nome }}{% else %}<a href="{% url 'dpi:report_consegne' %}?da={{ da|date:'Y-m-d' }}&amp;reparto={{ nome|urlencode }}" style="color:inherit;">{{ nome }}</a>{% endif %}</strong><span>{{ pezzi }}</span></div>
           <div class="dpi-hbar-track"><div class="dpi-hbar-fill" style="width:{% widthratio pezzi reparti_max 100 %}%"></div></div></div>
         {% endfor %}
       </div>
@@ -171,6 +187,31 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
     </div>
     {% else %}<div class="dpi-empty">Nessuna consegna nel periodo.</div>{% endif %}
   </div>
+
+  {% if senza_giacenza %}
+  <div>
+    <div class="dpi-sec-head" style="margin-bottom:10px;">
+      <div class="dpi-card-title">Consegne senza giacenza</div>
+      <span class="dpi-muted">Consegnate nel periodo quando il magazzino non aveva abbastanza pezzi, con il motivo scritto alla consegna.</span>
+    </div>
+    <div class="dpi-table-wrap">
+      <table class="dpi-table" data-fm-table-skip="1">
+        <thead><tr><th>Data</th><th>DPI</th><th>Pezzi</th><th>Motivo</th><th>Richiesta</th></tr></thead>
+        <tbody>
+          {% for s in senza_giacenza %}
+          <tr>
+            <td>{{ s.movimento.data|date:"d-m-Y" }}</td>
+            <td><div class="dpi-nome">{{ s.movimento.modello.nome }}</div><div class="dpi-muted">{{ s.movimento.modello.codice }}</div></td>
+            <td>{{ s.pezzi }}</td>
+            <td>{{ s.motivo }}</td>
+            <td>{% if s.movimento.richiesta_id %}<a href="{% url 'dpi:gestione_detail' s.movimento.richiesta_id %}">{{ s.movimento.richiesta.numero }}</a>{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
   <div>
     <div class="dpi-sec-head" style="margin-bottom:10px;">

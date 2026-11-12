@@ -129,6 +129,11 @@ def send_assenza_deleted_notification(
         ("Tipo richiesta", tipo_display or "—"),
         ("Periodo", periodo),
     ]
+    from .mail_certificato import ETICHETTA, certificato_arrivato, etichetta_si_no
+
+    arrivato = certificato_arrivato(record.get("tipo_assenza"), record.get("certificato_medico"))
+    if arrivato is not None:
+        facts.append((ETICHETTA, etichetta_si_no(arrivato)))
     if motivazione:
         facts.append(("Motivazione", motivazione))
     facts.append(("Eliminata da", eseguita_da))
@@ -176,6 +181,8 @@ def send_assenza_deleted_notification(
         ]
     )
 
+    from automazioni.mail_inviate import registra
+
     _from = from_email or getattr(
         settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it"
     )
@@ -185,13 +192,17 @@ def send_assenza_deleted_notification(
         )
         msg.attach_alternative(html_body, "text/html")
         msg.send(fail_silently=False)
-    except Exception:
+    except Exception as exc:
         logger.warning(
             "send_assenza_deleted_notification: invio fallito per assenza id=%s",
             record.get("id"),
             exc_info=True,
         )
+        registra(origine="assenze_eliminazione", destinatari=to_list, oggetto=subject, sorgente="assenze",
+                 record_id=record.get("id"), errore=f"{type(exc).__name__}: {exc}")
         return False
+    registra(origine="assenze_eliminazione", destinatari=to_list, oggetto=subject, sorgente="assenze",
+             record_id=record.get("id"))
 
     logger.info(
         "send_assenza_deleted_notification: avviso inviato per assenza id=%s a %s",

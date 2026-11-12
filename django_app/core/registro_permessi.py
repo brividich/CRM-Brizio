@@ -18,13 +18,23 @@ registra_modulo(ModuloPermessi(
     codici_acl=("legacy.core.capa_manage",),
 ))
 
+# Visitatori della reception (GuestPortal e pannello Reception dell'HUB, app ``reception``). La chiave
+# resta «portale_ospiti» perché le celle dei ruoli già salvate la usano; non è il Wi-Fi ospiti.
+#   Vedere      -> Accessi esterni, Presenti, Storico, scheda visita, Richieste (dati personali: con giudizio)
+#   Creare / Modificare / Cancellare -> registrare ingressi e uscite, pre-registrazioni, richieste,
+#                  referenti, ditte, cartellini (reception.pannello.manage, reception 0006)
+#   Impostazioni -> Reception → Impostazioni (reception.impostazioni.manage, core/permessi/impostazioni.py)
 registra_modulo(ModuloPermessi(
     chiave="portale_ospiti",
-    nome="Portale ospiti (Wi-Fi)",
-    descrizione="Collegamento al pannello del portale ospiti.",
-    area="IT",
+    nome="Reception e visitatori",
+    descrizione="Accessi esterni e pannello Reception: presenti, ingressi, pre-registrazioni, richieste, referenti, ditte, cartellini.",
+    area="Persone",
     app="core",
     moduli_acl=("portale_esterno",),
+    capacita_forzate=(
+        ("legacy.portale_esterno.portale_esterno", "lettura"),
+        ("reception.pannello.manage", "modifica"),
+    ),
 ))
 
 registra_modulo(ModuloPermessi(

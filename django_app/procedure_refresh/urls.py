@@ -1,13 +1,43 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import views, views_libreria, views_modifiche
 
 app_name = "procedure_refresh"
 
 urlpatterns = [
+    # ── CN-SGI: libreria delle procedure (sola lettura della share) ─────────
+    path("", views_libreria.libreria, name="libreria"),
+    path("scaffale/<slug:slug>/", views_libreria.scaffale, name="libreria_scaffale"),
+    path("cerca/", views_libreria.cerca, name="libreria_cerca"),
+    path("cerca/suggerimenti/", views_libreria.suggerimenti, name="libreria_suggerimenti"),
+    path("documento/<int:pk>/preferito/", views_libreria.preferito, name="libreria_preferito"),
+    path("documento/<int:pk>/rilettura/", views_libreria.rilettura, name="libreria_rilettura"),
+    path("documento/<int:pk>/etichetta/", views_libreria.etichetta, name="libreria_etichetta"),
+    path("scaffale/<slug:slug>/etichette/", views_libreria.etichette_scaffale, name="libreria_etichette"),
+    path("admin/da-rivedere/", views_libreria.da_rivedere, name="libreria_da_rivedere"),
+    path("documento/<int:pk>/", views_libreria.documento, name="libreria_documento"),
+    path("documento/codice/", views_libreria.documento_da_codice, name="libreria_documento_codice"),
+    path("documento/<int:pk>/apri/", views_libreria.apri, name="libreria_apri"),
+    path("documento/<int:pk>/segnala/", views_libreria.segnala, name="libreria_segnala"),
+    path("admin/visibilita/", views_libreria.visibilita, name="libreria_visibilita"),
+    path("admin/visibilita/<int:pk>/elimina/", views_libreria.visibilita_elimina, name="libreria_visibilita_elimina"),
+    path("admin/scaffali/", views_libreria.scaffali_gestione, name="libreria_scaffali"),
+    path("scaffale-logo/<int:pk>/", views_libreria.scaffale_logo, name="libreria_scaffale_logo"),
+    path("admin/collegamenti/", views_libreria.collegamenti_moduli, name="libreria_collegamenti"),
+    path("audit/<slug:slug>/", views_libreria.audit, name="libreria_audit"),
+    # ── CN-SGI: modifiche ai documenti (redazione → verifica → approvazione → emissione) ──
+    path("modifiche/", views_modifiche.elenco, name="modifiche"),
+    path("modifiche/nuova/", views_modifiche.nuova, name="modifica_nuova"),
+    path("modifiche/firme/", views_modifiche.firme, name="modifiche_firme"),
+    path("modifiche/bozza/<int:pk>/", views_modifiche.bozza, name="modifica_bozza"),
+    path("modifiche/<int:pk>/", views_modifiche.dettaglio, name="modifica_dettaglio"),
+    path("modifiche/<int:pk>/azione/", views_modifiche.azione, name="modifica_azione"),
+    path("modifiche/<int:pk>/carica/", views_modifiche.carica, name="modifica_carica"),
+    path("modifiche/<int:pk>/persone/", views_modifiche.persone, name="modifica_persone"),
+
     # ── User views ──────────────────────────────────────────────────────────
-    path("", views.my_assignments, name="my_assignments"),
+    path("letture/", views.my_assignments, name="my_assignments"),
     path("<int:pk>/", views.assignment_detail, name="assignment_detail"),
 
     # ── Admin — dashboard ───────────────────────────────────────────────────

@@ -49,6 +49,7 @@ REGISTRO: dict[str, Colonna] = {c.chiave: c for c in [
     # --- base (riga legacy) ---
     Colonna("reparto", "Reparto", "base", "reparto"),
     Colonna("area_aziendale", "Area aziendale", "base", "area_aziendale_nome"),
+    Colonna("centro_costo", "Centro di costo", "base", "centro_di_costo_nome"),
     Colonna("mansione", "Mansione", "base", "mansione"),
     Colonna("ruoli", "Ruoli ricoperti", "ruoli"),
     Colonna("email", "Email notifica", "base", "email_notifica"),

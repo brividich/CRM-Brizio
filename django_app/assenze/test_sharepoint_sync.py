@@ -158,7 +158,46 @@ class DeltaPullTests(TestCase):
         mock_delete.assert_called_once_with(20)
         mock_apply.assert_called_once()
         self.assertIsNone(mock_apply.call_args.args[1])
-        self.assertEqual(cache.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=B")
+        from assenze.views import sharepoint as sp_views
+        from core.models import SiteConfig
+
+        # Il token sta in SiteConfig (durevole), non più solo in cache.
+        self.assertEqual(SiteConfig.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=B")
+        self.assertEqual(sp_views._leggi_delta_link(), "https://graph.example/delta?token=B")
+
+    def test_token_in_cache_letto_una_volta_poi_spostato_in_siteconfig(self, *_):
+        from assenze.views import sharepoint as sp_views
+        from core.models import SiteConfig
+
+        cache.set(views._SP_DELTA_LINK_KEY, "https://graph.example/delta?token=A")
+        with patch("assenze.views._helpers._graph_delta_changes",
+                   return_value=([], "https://graph.example/delta?token=B")) as delta:
+            views._sync_pull_from_sharepoint()
+        self.assertEqual(delta.call_args.args[0], "https://graph.example/delta?token=A")
+        self.assertEqual(SiteConfig.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=B")
+        self.assertIsNone(cache.get(views._SP_DELTA_LINK_KEY))
+        cache.clear()  # la cache si svuota (riavvio): il token resta
+        self.assertEqual(sp_views._leggi_delta_link(), "https://graph.example/delta?token=B")
+
+    def test_dettaglio_non_letto_conta_come_fallito_e_il_token_non_avanza(self, *_):
+        from core.models import SiteConfig
+
+        SiteConfig.set(views._SP_DELTA_LINK_KEY, "https://graph.example/delta?token=A")
+        risposta = MagicMock(status_code=503)
+        with patch("assenze.views._helpers._graph_delta_changes",
+                   return_value=([{"id": "7"}], "https://graph.example/delta?token=B")),                 patch("assenze.views._helpers._find_assenza_id_by_sp_id", return_value=None),                 patch("assenze.views._helpers._graph_base_url", return_value="https://graph.microsoft.com/v1.0/x/items"),                 patch("assenze.views._helpers._graph_headers", return_value={}),                 patch("requests.get", return_value=risposta):
+            result = views._sync_pull_from_sharepoint()
+        self.assertEqual(result["totals"]["failed"], 1)
+        self.assertEqual(SiteConfig.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=A")
+
+    def test_dettaglio_404_non_blocca_il_token(self, *_):
+        from core.models import SiteConfig
+
+        with patch("assenze.views._helpers._graph_delta_changes",
+                   return_value=([{"id": "7"}], "https://graph.example/delta?token=B")),                 patch("assenze.views._helpers._find_assenza_id_by_sp_id", return_value=None),                 patch("assenze.views._helpers._graph_base_url", return_value="https://graph.microsoft.com/v1.0/x/items"),                 patch("assenze.views._helpers._graph_headers", return_value={}),                 patch("requests.get", return_value=MagicMock(status_code=404)):
+            result = views._sync_pull_from_sharepoint()
+        self.assertEqual(result["totals"]["failed"], 0)
+        self.assertEqual(SiteConfig.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=B")
 
     def test_unlinked_item_already_on_portal_is_discarded_not_merged(self, *_):
         items = [{"id": "4", "fields": {"CopiaNome": "Mario Rossi", "Data_x0020_inizio": "2026-09-14T06:00:00Z"}}]

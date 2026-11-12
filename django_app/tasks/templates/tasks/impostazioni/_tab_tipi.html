@@ -38,6 +38,10 @@
               <option value="{{ value }}">{{ label }}</option>
             {% endfor %}
           </select>
+          <select name="richiede" class="input" style="padding:6px 8px;" aria-label="Cosa richiede">
+            <option value="">Non richiede nulla</option>
+            {% for value, label in tipi_richiede_choices %}<option value="{{ value }}">Richiede: {{ label }}</option>{% endfor %}
+          </select>
           <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
             <input type="checkbox" name="is_machine_work"> Lavoro macchina (compare nel calendario asset)
           </label>
@@ -71,6 +75,24 @@
                 <select name="role_type" class="input" style="width:100%;">
                   {% for value, label in tipi_role_choices %}
                     <option value="{{ value }}" {% if tipi_focus_category.role_type == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Richiede</label>
+                <select name="richiede" class="input" style="width:100%;">
+                  <option value="">Nulla</option>
+                  {% for value, label in tipi_richiede_choices %}
+                    <option value="{{ value }}" {% if tipi_focus_category.richiede == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Tappa del kickoff</label>
+                <select name="tappa" class="input" style="width:100%;">
+                  <option value="">Nessuna</option>
+                  {% for value, label in tipi_tappa_choices %}
+                    <option value="{{ value }}" {% if tipi_focus_category.tappa == value %}selected{% endif %}>{{ label }}</option>
                   {% endfor %}
                 </select>
               </div>

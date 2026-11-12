@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 
 from core.notifiche import invia_notifica, invia_notifica_email
 
@@ -65,8 +64,8 @@ def _invia_email_html(email: str, spec, url_rel: str) -> None:
     """
     try:
         from core.email_utils import email_cta, email_facts_table, send_hub_mail
-        base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-        url = (base + url_rel) if base else url_rel
+        from core.accounts.portal_links import portal_link
+        url = portal_link(url_rel) or url_rel
         codice = getattr(spec, "codice", "") or ""
         rev = getattr(spec, "revisione", "") or ""
         titolo = getattr(spec, "titolo", "") or ""
@@ -142,3 +141,21 @@ def notifica_nuova_specifica(spec) -> int:
             _invia_email_html(email, spec, url)
         n += 1
     return n
+
+
+def notifica_riepilogo_nuove(n: int, url: str = "/gestione-specifiche/?stato=bozza") -> int:
+    """Un solo avviso in-app al gruppo che prende in carico (IN1 + nomi aggiuntivi) per tante specifiche nuove insieme."""
+    from .models import NotificaConfig
+
+    cfg = NotificaConfig.get_config()
+    messaggio = f"{n} specifiche nuove dalla cartella delle specifiche, da prendere in carico."
+    fatti = 0
+    for u in cfg.utenti_aggiuntivi.filter(is_active=True):
+        lid = _legacy_id(u)
+        if lid:
+            invia_notifica(lid, _TIPO, messaggio, url)
+            fatti += 1
+    for em in _email_reparto(cfg.reparto_in1):
+        invia_notifica_email(em, _TIPO, messaggio, url)
+        fatti += 1
+    return fatti

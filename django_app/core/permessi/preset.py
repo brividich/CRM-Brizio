@@ -26,7 +26,9 @@ TUTTE = AZIONI_STANDARD
 # preferenze, notifiche, rubrica, organigramma, cambio password (modulo
 # «bacheca») e lettura delle notizie. Un ruolo assegnato da solo deve gia'
 # far entrare la persona nel portale, senza dipendere dal ruolo base.
-_DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}}
+# «Annuncia una visita» (reception): pagina personale, i dati li filtra la view; «tutti» come le notizie,
+# perche' una cella «propri» restringerebbe chi «vede tutto» (Direzione).
+_DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}, "visite_ospiti": {"vedere": A}}
 
 
 def _con_impostazioni(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
@@ -191,13 +193,13 @@ PRESETS: tuple[Preset, ...] = (
     ),
     Preset(
         "tecnico-it", "IT", 560,
-        "Ticket IT, asset, contatori, Security Center operativo, Wi-Fi ospiti.",
+        "Ticket IT, asset, contatori, Security Center operativo, reception e visitatori.",
         celle=_posizione(
             ticket_it={"vedere": A, "creare": A, "modificare": A, "gestire": A, "esportare": A},
             assets=_tutte(senza=("approvare",)),
             contatori=_tutte(senza=("approvare",)),
             soc=_tutte(senza=("approvare", "cancellare")),
-            portale_ospiti={"vedere": A, "gestire": A},
+            portale_ospiti={"vedere": A, "creare": A, "modificare": A, "cancellare": A, "gestire": A},
         ),
     ),
     Preset(
@@ -228,7 +230,8 @@ PRESETS: tuple[Preset, ...] = (
         "controllo-qualita", "Controllo qualità", 480,
         "Apre e istruisce le non conformità di tutti i reparti; consulta specifiche, commesse e timbri.",
         celle=_posizione(
-            anomalie={"vedere": A, "creare": A, "modificare": A, "esportare": A},
+            # Apre segnalazioni ovunque; modifica solo gli OP propri (CC/CAR o aperte da lui).
+            anomalie={"vedere": A, "creare": A, "modificare": P, "esportare": A},
             timbri={"vedere": A},
             specifiche={"vedere": A},
             kickoff={"vedere": A},
@@ -462,8 +465,10 @@ def applica_preset(*, chiavi=None, reset: bool = False, request=None) -> list[di
 
     from core.models import AccessGroup, RuoloPermessoModulo
     from core.permessi.registro import modulo as modulo_registrato
+    from core.permessi.ruolo_base import PRESET_BASE, completa_dal_ruolo_base
 
     esiti = []
+    da_completare = []
     selezionati = [p for p in PRESETS if not chiavi or p.chiave in set(chiavi)]
     with transaction.atomic():
         for preset in selezionati:
@@ -503,7 +508,13 @@ def applica_preset(*, chiavi=None, reset: bool = False, request=None) -> list[di
                         defaults={"ambito": ambito, "consentito": True, "note": f"preset {preset.chiave}"},
                     )
                     create += int(nuova)
+            if (creato or reset) and preset.chiave != PRESET_BASE:
+                da_completare.append(ruolo)
             esiti.append({"ruolo": ruolo, "creato": creato, "celle_create": create})
+        # Operatore vale solo per chi non ha altri ruoli: i ruoli nuovi ne prendono i «si'».
+        # Dopo il ciclo, perche' Operatore e' l'ultimo preset e puo' nascere adesso.
+        if da_completare:
+            completa_dal_ruolo_base(da_completare)
 
     if request is not None:
         from core.audit import log_action

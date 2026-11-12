@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .vm-detail-layout { display:grid; grid-template-columns:minmax(0, 2fr) minmax(270px, 1fr); gap:14px; align-items:start; }
 .vm-detail-sidebar { display:grid; gap:14px; }
@@ -82,7 +82,7 @@ body.theme-dark .vm-detail-docs a:hover{background:rgba(59,130,246,.18)}
     <div class="vm-detail-layout">
       <section class="hr-card" aria-labelledby="vm-dati">
         <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-dati">Dati della visita</h2><div class="hr-card-desc">Riepilogo della registrazione e del giudizio</div></div>
-          {% if visita.superata_il %}<span class="hr-pill neutral">Superata</span>{% elif visita.is_scaduta %}<span class="hr-pill danger">Scaduta</span>{% elif visita.in_scadenza %}<span class="hr-pill warning">In scadenza</span>{% elif visita.data_scadenza %}<span class="hr-pill ok">Valida</span>{% else %}<span class="hr-pill neutral">Senza scadenza</span>{% endif %}
+          {% if visita.superata_il %}<span class="hr-pill neutral">Superata</span>{% elif visita.is_scaduta %}<span class="hr-pill danger">Scaduta</span>{% if can_edit_visite %} <a class="fmd-act" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ visita.tipo_id }}" title="Registra una nuova sessione di «{{ visita.tipo.nome }}»: propone chi ha la visita scaduta o in scadenza">↻ Rinnova</a>{% endif %}{% elif visita.in_scadenza %}<span class="hr-pill warning">In scadenza</span>{% if can_edit_visite %} <a class="fmd-act" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ visita.tipo_id }}" title="Registra una nuova sessione di «{{ visita.tipo.nome }}»: propone chi ha la visita scaduta o in scadenza">↻ Rinnova</a>{% endif %}{% elif visita.data_scadenza %}<span class="hr-pill ok">Valida</span>{% else %}<span class="hr-pill neutral">Senza scadenza</span>{% endif %}
         </div>
         <div class="hr-card-pad" style="padding:20px;">
           <dl class="vm-detail-grid">

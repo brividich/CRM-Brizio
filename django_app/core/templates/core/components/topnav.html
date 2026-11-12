@@ -1,3 +1,4 @@
+{% load static %}
 {% load ui_icons guide_tags %}
 <nav class="topnav" id="topnav"{% if topbar_color %} style="--topnav-bg: {{ topbar_color }}"{% endif %}>
   <a class="nav-logo" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
@@ -31,6 +32,41 @@
       <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="search" placeholder="Cerca nel menu" autocomplete="off" aria-label="Cerca nel menu" data-nav-filter>
     </div>
+    {% if topbar_griglia.aree %}
+      <div class="nav-dropdown nav-moduli" id="nav-moduli">
+        <button class="nav-a nav-dropdown-btn nav-tool" type="button" aria-haspopup="true" aria-expanded="false" title="Tutti i moduli">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+          <span class="nav-label">Moduli</span>
+        </button>
+        <div class="nav-dropdown-menu nav-moduli-menu" role="menu" aria-label="Tutti i moduli">
+          {% for area in topbar_griglia.aree %}
+            <div class="nav-dd-section" role="group" aria-label="{{ area.label }}">
+              <div class="nav-dd-head" aria-hidden="true">{{ area.label }}</div>
+              {% for v in area.voci %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+            </div>
+          {% endfor %}
+          <div class="nav-moduli-piede">
+            {% for v in topbar_griglia.dirette %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+            <span class="nav-moduli-nota" data-nav-star-msg>La stella mette il modulo nei tuoi preferiti.</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-dropdown nav-preferiti" id="nav-preferiti" data-preferito-url="{{ topbar_preferito_url }}">
+        <button class="nav-a nav-dropdown-btn nav-tool" type="button" aria-haspopup="true" aria-expanded="false" title="I tuoi preferiti">
+          <svg class="nav-svg nav-svg-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.7l6.2-.9z"/></svg>
+          <span class="nav-label">Preferiti</span>
+          <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown-menu nav-preferiti-menu" role="menu" aria-label="I tuoi preferiti">
+          <div class="nav-dd-head" aria-hidden="true">I tuoi preferiti</div>
+          <div class="nav-preferiti-lista" data-nav-preferiti>
+            {% for v in topbar_griglia.preferiti %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+          </div>
+          <p class="nav-preferiti-vuoto" data-nav-preferiti-vuoto{% if topbar_griglia.preferiti %} hidden{% endif %}>Ancora nessuno: apri Moduli e clicca la stella.</p>
+        </div>
+      </div>
+      <span class="nav-links-sep" aria-hidden="true"></span>
+    {% endif %}
     {% for grp in topbar_groups %}
       {% if grp.type == "category" %}
         <div class="nav-dropdown{% if grp.active %} active{% endif %}" data-nav-top>
@@ -38,7 +74,7 @@
             <span class="nav-label">{{ grp.label }}</span>
             <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div class="nav-dropdown-menu{% if grp.cols > 1 %} nav-dropdown-menu--cols{% endif %}" role="menu" aria-label="{{ grp.label }}"{% if grp.cols > 1 %} style="--nav-cols: {{ grp.cols }}"{% endif %}>
+          <div class="nav-dropdown-menu{% if grp.cols_totali > 1 %} nav-dropdown-menu--cols{% endif %}" role="menu" aria-label="{{ grp.label }}"{% if grp.cols_totali > 1 %} style="--nav-cols: {{ grp.cols_totali }}"{% endif %}>
             {% if grp.sections %}
               {% for sec in grp.sections %}
                 <div class="nav-dd-section" role="group"{% if sec.label %} aria-label="{{ sec.label }}"{% endif %}>
@@ -47,10 +83,21 @@
                 </div>
               {% endfor %}
             {% else %}
-              {% for item in grp.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+              <div class="nav-dd-section" role="group">
+                {% for item in grp.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+              </div>
+            {% endif %}
+            {% if grp.dentro_anagrafica %}
+              <div class="nav-dd-section nav-dd-side" role="group" aria-label="Dentro Anagrafica">
+                <div class="nav-dd-head" aria-hidden="true">Dentro Anagrafica</div>
+                {% for d in grp.dentro_anagrafica %}<a class="nav-dropdown-item" href="{{ d.href }}" role="menuitem"><span class="nav-label">{{ d.label }}</span></a>{% endfor %}
+              </div>
             {% endif %}
           </div>
         </div>
+      {% elif grp.in_icona %}
+        {# Sul computer è l'icona a destra; nel menu a hamburger resta una voce con il nome. #}
+        <a class="nav-a nav-solo-menu" href="{{ grp.item.href }}"><span class="nav-label">{{ grp.item.label }}</span></a>
       {% elif not grp.is_home %}
         <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" data-nav-top{% if grp.item.active %} aria-current="page"{% endif %}>
           <span class="nav-label">{{ grp.item.label }}</span>
@@ -91,6 +138,12 @@
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
           <span class="nav-pending-num">{{ car_pending_count }}</span>
           <span class="nav-pending-text">da approvare</span>
+        </a>
+      {% endif %}
+
+      {% if topbar_icona_suggerimenti %}
+        <a href="{{ topbar_icona_suggerimenti.href }}" class="nav-icon nav-icon-sc" title="{{ topbar_icona_suggerimenti.label }}" aria-label="{{ topbar_icona_suggerimenti.label }}">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></svg>
         </a>
       {% endif %}
 
@@ -197,245 +250,4 @@
 </nav>
 {% endif %}
 
-<script>
-(function(){
-  var nav = document.getElementById('topnav');
-  var btn = document.getElementById('nav-toggle');
-  var panel = document.getElementById('nav-links-panel');
-  var more = document.getElementById('nav-more');
-  if (!nav || !btn || !panel) return;
-
-  var mqMobile = window.matchMedia('(max-width: 1100px)');
-
-  /* ── Menu a tendina (categorie, «Altro», menu utente) ─────────────── */
-  function menuOf(host) { return host.querySelector('.nav-dropdown-menu, .nav-user-panel'); }
-  function toggleBtnOf(host) { return host.querySelector('.nav-dropdown-btn, .nav-user'); }
-  function items(host) {
-    var m = menuOf(host);
-    return m ? Array.prototype.slice.call(m.querySelectorAll('a[role="menuitem"], button[role="menuitem"]')) : [];
-  }
-  function closeAll(except) {
-    nav.querySelectorAll('.nav-dropdown.open, .nav-user-menu.open').forEach(function(el){
-      if (el === except) return;
-      el.classList.remove('open');
-      var b = toggleBtnOf(el);
-      if (b) b.setAttribute('aria-expanded', 'false');
-    });
-  }
-  function openHost(host, focusFirst) {
-    closeAll(host);
-    host.classList.add('open');
-    toggleBtnOf(host).setAttribute('aria-expanded', 'true');
-    /* Una tendina larga (colonne) vicino al bordo destro si apre verso sinistra. */
-    var m = menuOf(host);
-    if (m && !mqMobile.matches) {
-      m.classList.remove('nav-menu-flip');
-      if (m.getBoundingClientRect().right > window.innerWidth - 8) m.classList.add('nav-menu-flip');
-    }
-    if (focusFirst) { var it = items(host); if (it.length) it[0].focus(); }
-  }
-  function closeHost(host, restoreFocus) {
-    host.classList.remove('open');
-    var b = toggleBtnOf(host);
-    b.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) b.focus();
-  }
-
-  nav.addEventListener('click', function(e){
-    if (e.target.closest('button[role="menuitem"]')) { closeAll(null); return; }
-    var b = e.target.closest('.nav-dropdown-btn, .nav-user');
-    if (!b) return;
-    e.stopPropagation();
-    var host = b.closest('.nav-dropdown, .nav-user-menu');
-    if (host.classList.contains('open')) closeHost(host, false); else openHost(host, false);
-  });
-
-  nav.addEventListener('keydown', function(e){
-    var host = e.target.closest('.nav-dropdown, .nav-user-menu');
-    if (!host) return;
-    var onToggle = e.target === toggleBtnOf(host);
-    if (e.key === 'Escape') {
-      if (host.classList.contains('open')) { e.preventDefault(); closeHost(host, true); }
-      return;
-    }
-    if (onToggle && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault(); openHost(host, true); return;
-    }
-    if (!onToggle && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) {
-      var list = items(host), i = list.indexOf(document.activeElement);
-      if (i < 0) return;
-      e.preventDefault();
-      if (e.key === 'ArrowDown') i = (i + 1) % list.length;
-      else if (e.key === 'ArrowUp') i = (i - 1 + list.length) % list.length;
-      else if (e.key === 'Home') i = 0;
-      else i = list.length - 1;
-      list[i].focus();
-    }
-    if (!onToggle && e.key === 'Tab' && !mqMobile.matches) closeHost(host, false);
-  });
-
-  document.addEventListener('click', function(e){
-    if (!e.target.closest('.nav-dropdown, .nav-user-menu, .nav-menu-filter')) closeAll(null);
-    if (!e.target.closest('#topnav, [data-mbar-menu]') && panel.classList.contains('open')) setPanel(false);
-  });
-
-  /* ── Hamburger (≤1100px) ──────────────────────────────────────────── */
-  function setPanel(open) {
-    panel.classList.toggle('open', open);
-    btn.classList.toggle('open', open);
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    btn.setAttribute('aria-label', open ? 'Chiudi menu' : 'Apri menu');
-    if (mbarMenu) {
-      mbarMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
-      mbarMenu.classList.toggle('is-active', open);
-    }
-    /* Sotto il menu aperto la pagina non scorre (sul telefono scorreva insieme). */
-    document.documentElement.classList.toggle('nav-panel-lock', open && mqMobile.matches);
-    if (open && mqMobile.matches) {
-      if (filterInput) { filterInput.value = ''; filterMenu(''); }
-      /* La categoria della pagina corrente si apre da sola. */
-      var cur = panel.querySelector('.nav-dropdown.active:not(.nav-more)');
-      /* Dopo il click in corso: il listener sul documento chiuderebbe subito le tendine. */
-      if (cur) setTimeout(function(){
-        if (!cur.classList.contains('open')) openHost(cur, false);
-        cur.scrollIntoView({ block: 'start' });
-      }, 0);
-    }
-  }
-
-  /* ── Filtro del menu a hamburger ──────────────────────────────────── */
-  var filterInput = panel.querySelector('[data-nav-filter]');
-  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
-  function filterMenu(q) {
-    q = norm(q);
-    panel.querySelectorAll('[data-nav-top]').forEach(function(el){
-      if (!el.classList.contains('nav-dropdown')) {
-        el.classList.toggle('nav-filter-miss', !!q && norm(el.textContent).indexOf(q) === -1);
-        return;
-      }
-      var catHit = !!q && norm(el.querySelector('.nav-dropdown-btn').textContent).indexOf(q) !== -1;
-      var anyHit = false;
-      el.querySelectorAll('.nav-dropdown-item').forEach(function(it){
-        var hit = !q || catHit || norm(it.textContent).indexOf(q) !== -1;
-        it.classList.toggle('nav-filter-miss', !hit);
-        if (hit) anyHit = true;
-      });
-      el.querySelectorAll('.nav-dd-section').forEach(function(sec){
-        sec.classList.toggle('nav-filter-miss', !!q && !sec.querySelector('.nav-dropdown-item:not(.nav-filter-miss)'));
-      });
-      el.classList.toggle('nav-filter-miss', !!q && !anyHit);
-      /* Con un filtro attivo le categorie con risultati si aprono da sole. */
-      if (q) {
-        el.classList.toggle('open', anyHit);
-        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', anyHit ? 'true' : 'false');
-      } else if (!el.classList.contains('active')) {
-        el.classList.remove('open');
-        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
-  if (filterInput) {
-    filterInput.addEventListener('input', function(){ filterMenu(filterInput.value); });
-    filterInput.addEventListener('keydown', function(e){
-      if (e.key !== 'Enter') return;
-      var first = panel.querySelector('a.nav-a:not(.nav-filter-miss):not([hidden]), .nav-dropdown.open .nav-dropdown-item:not(.nav-filter-miss)');
-      if (first && norm(filterInput.value)) { e.preventDefault(); first.click(); }
-    });
-  }
-  btn.addEventListener('click', function(){ setPanel(!panel.classList.contains('open')); });
-  /* «Menu» della barra in basso (telefono): stesso pannello dell'hamburger. */
-  var mbarMenu = document.querySelector('[data-mbar-menu]');
-  if (mbarMenu) mbarMenu.addEventListener('click', function(){
-    setPanel(!panel.classList.contains('open'));
-    if (panel.classList.contains('open')) panel.scrollTop = 0;
-  });
-  panel.addEventListener('click', function(e){ if (e.target.closest('a')) setPanel(false); });
-  document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && panel.classList.contains('open')) { setPanel(false); btn.focus(); }
-  });
-
-  /* ── Overflow «Altro»: le voci che non entrano nella barra ─────────── */
-  var tops = Array.prototype.slice.call(panel.querySelectorAll('[data-nav-top]'));
-  var moreMenu = more ? more.querySelector('.nav-more-menu') : null;
-
-  function fillMore(hidden) {
-    moreMenu.innerHTML = '';
-    hidden.forEach(function(el){
-      if (el.classList.contains('nav-dropdown')) {
-        var head = document.createElement('div');
-        head.className = 'nav-more-head';
-        head.textContent = el.querySelector('.nav-dropdown-btn .nav-label').textContent.trim();
-        moreMenu.appendChild(head);
-        el.querySelectorAll('.nav-dd-head, .nav-dropdown-item').forEach(function(n){
-          if (n.classList.contains('nav-dd-head')) {
-            var sub = document.createElement('div');
-            sub.className = 'nav-more-subhead';
-            sub.textContent = n.textContent.trim();
-            moreMenu.appendChild(sub);
-          } else {
-            moreMenu.appendChild(n.cloneNode(true));
-          }
-        });
-      } else {
-        var a = el.cloneNode(true);
-        a.className = 'nav-dropdown-item' + (el.classList.contains('active') ? ' active' : '');
-        a.removeAttribute('data-nav-top');
-        a.setAttribute('role', 'menuitem');
-        moreMenu.appendChild(a);
-      }
-    });
-  }
-
-  function layout() {
-    if (!more || !moreMenu) return;
-    tops.forEach(function(el){ el.hidden = false; });
-    more.hidden = true;
-    if (mqMobile.matches) return;
-    if (panel.scrollWidth <= panel.clientWidth + 1) return;
-    more.hidden = false;
-    var hidden = [];
-    /* Nasconde dal fondo finché tutto entra; la voce attiva resta visibile se possibile. */
-    for (var i = tops.length - 1; i >= 0 && panel.scrollWidth > panel.clientWidth + 1; i--) {
-      if (tops[i].classList.contains('active') && i > 0) continue;
-      tops[i].hidden = true;
-      hidden.unshift(tops[i]);
-    }
-    if (panel.scrollWidth > panel.clientWidth + 1) {
-      for (var j = tops.length - 1; j >= 0 && panel.scrollWidth > panel.clientWidth + 1; j--) {
-        if (!tops[j].hidden) { tops[j].hidden = true; hidden.unshift(tops[j]); }
-      }
-    }
-    hidden.sort(function(a, b){ return tops.indexOf(a) - tops.indexOf(b); });
-    fillMore(hidden);
-    more.classList.toggle('active', hidden.some(function(el){ return el.classList.contains('active'); }));
-    more.querySelector('.nav-dropdown-btn').classList.toggle('active', more.classList.contains('active'));
-  }
-
-  var raf = 0;
-  function schedule() { cancelAnimationFrame(raf); raf = requestAnimationFrame(layout); }
-  window.addEventListener('resize', schedule);
-  if (mqMobile.addEventListener) mqMobile.addEventListener('change', function(){ setPanel(false); schedule(); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
-  /* La zona destra puo' cambiare larghezza dopo il load (badge dal polling, ecc.). */
-  var right = nav.querySelector('.nav-right');
-  if (right && window.ResizeObserver) new ResizeObserver(schedule).observe(right);
-  layout();
-
-  /* ── Tema chiaro/scuro dal menu utente ────────────────────────────── */
-  var themeBtn = nav.querySelector('[data-theme-toggle]');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function(){
-      var dark = !document.body.classList.contains('theme-dark');
-      document.body.classList.toggle('theme-dark', dark);
-      var meta = document.querySelector("meta[name='csrf-token']");
-      var body = new FormData();
-      body.append('theme_mode', dark ? 'dark' : 'light');
-      fetch(themeBtn.getAttribute('data-url'), {
-        method: 'POST',
-        headers: { 'X-CSRFToken': meta ? meta.getAttribute('content') : '', 'X-Requested-With': 'XMLHttpRequest' },
-        body: body
-      }).catch(function(){});
-    });
-  }
-})();
-</script>
+<script src="{% static 'core/js/topnav.js' %}?v=20261112"></script>

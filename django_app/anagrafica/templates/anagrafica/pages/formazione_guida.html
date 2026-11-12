@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .elg-sec{ padding:20px 22px; scroll-margin-top:80px; }
 .elg-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
@@ -67,6 +67,18 @@
       <p class="elg-nota">Numeri e schede vengono dallo scadenzario formazione, lo stesso dei KPI: si aggiorna quando si registra un completamento; se sembra fermo, un amministratore lo ricalcola con <code>refresh_training_deadlines --all</code>.</p>
     </section>
 
+    <section class="fmd-panel elg-sec" id="scheda-corso">
+      <h2><svg class="fmd-ico"><use href="#i-book"/></svg>La scheda del corso</h2>
+      <ol>
+        <li>La scheda è divisa in quattro schede: <strong>Panoramica</strong> (a chi serve il corso, sessioni, iscritti), <strong>Persone</strong> (assegnare dipendenti, registrare un completamento senza sessione), <strong>Contenuti</strong> (programma, materiale, prerequisiti, versioni) e <strong>Regola di superamento</strong>. I moduli di aggiunta sono chiusi dietro «+ Aggiungi…» finché non servono.</li>
+        <li><strong>Versioni automatiche</strong>: non si inseriscono più a mano. Quando cambiano titolo, durata, validità, qualifica, categoria o programma, la versione corrente si aggiorna; se qualcuno ha già completato quella versione ne nasce una nuova (1.0 → 1.1), la vecchia si chiude con la data del giorno e i completamenti restano sulla versione frequentata. La colonna «Cosa è cambiato» lo scrive per esteso. I corsi e-learning seguono il versionamento dei contenuti (slide e quiz).</li>
+        <li><strong>A chi serve</strong> (tappa 3 della creazione e della modifica): mansioni lavorative per cui il corso è obbligatorio o consigliato; sotto «Anche per ruoli o mansioni di rischio» gli altri destinatari. Le stesse scelte si vedono e si cambiano dalla scheda della mansione (scheda «Formazione») e dalla scheda del corso. Aree e singole persone si collegano dalla scheda del corso.</li>
+        <li><strong>Modifica corso</strong> apre la stessa pagina a tappe della creazione (Identificazione, Classificazione, Durata e validità, E-learning, Pubblicazione): i campi sono già compilati e un errore resta accanto al campo. «Annulla» torna alla scheda.</li>
+        <li><strong>A chi serve questo corso → + Collega a mansione, ruolo, area o persona</strong> (in cima alla colonna destra; quando il corso non è collegato a nessuno il pannello è già aperto): ogni collegamento ha un solo destinatario. Si sceglie in «Si applica a» (mansione di rischio, mansione lavorativa della skill matrix, ruolo, area o una persona) e compare solo quel campo; la persona si cerca per nome. Il corso è quello della scheda, non va riscelto. «Obbligatoria» spenta = corso consigliato; «Regola attiva» spenta = regola sospesa.</li>
+        <li><strong>Prerequisiti, assegnazioni e completamenti</strong>: le tendine lunghe (corsi, persone, mansioni) si cercano scrivendo: dalla decima voce in su ogni tendina del portale diventa ricercabile da sola.</li>
+      </ol>
+    </section>
+
     <section class="fmd-panel elg-sec" id="ciclo">
       <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Il ciclo di un'edizione</h2>
       <ol>
@@ -89,6 +101,16 @@
       </ul>
     </section>
 
+    <section class="fmd-panel elg-sec" id="docente-esterno">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Ingresso del docente esterno</h2>
+      <ul>
+        <li>Nel dettaglio dell'edizione il riquadro «Presenze in azienda del docente» propone gli ingressi registrati al chiosco della reception (GuestPortal) dal giorno prima dell'inizio alla fine dell'edizione: quelli con il nome del docente (anche scritto al contrario, «ROSSI Mario» = «Mario Rossi») o con l'azienda dell'ente di formazione. «Collega» li lega all'edizione, anche dopo il corso e anche a edizione chiusa o approvata (non se annullata).</li>
+        <li>Se il docente ha scritto il nome in modo diverso: «Collega a mano un ingresso del giorno». Si può partire anche dall'ingresso: Fornitori → «Accessi esterni» → «Collega…» elenca le sessioni in corso quel giorno.</li>
+        <li>Il riquadro somma il tempo in azienda e lo confronta con le ore in aula a registro (pausa compresa): un avviso giallo segnala ore in aula oltre la presenza di più di 15 minuti.</li>
+        <li>Al collegamento si salvano giorno, entrata, uscita e nome: restano come prova anche dopo la pulizia GDPR del GuestPortal. Il riquadro non compare per le edizioni remote o con docente interno. Lo usa chi può modificare la formazione.</li>
+      </ul>
+    </section>
+
     <section class="fmd-panel elg-sec" id="iscritti">
       <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Iscritti ed esiti</h2>
       <ul>
@@ -108,6 +130,7 @@
         <li>Le ore effettive non possono superare la durata formativa della giornata; per un'assenza le ore non si scrivono.</li>
         <li>«Registro presenze» stampa il foglio firme con il QR; la scansione caricata in «Scansione del foglio firme di questa lezione» propone le presenze, che una persona conferma con «✍ Autocompila presenze dal registro firmato».</li>
         <li>Se l'edizione è chiusa le scansioni che arrivano dalla cartella di acquisizione vengono archiviate ma le presenze non vengono scritte.</li>
+        <li>In «Acquisizione scansioni da cartella» il pulsante «Prova adesso» avvia la lettura in background (serve l'acquisizione attiva e salvata): il messaggio dice «Lettura avviata», l'esito compare dopo qualche secondo in «Ultimo passaggio» ricaricando la pagina. Un file già letto non si rilegge e non viene archiviato due volte; se un passaggio è già in corso il successivo aspetta il giro dopo.</li>
       </ul>
     </section>
 

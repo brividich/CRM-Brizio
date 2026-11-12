@@ -1,0 +1,33 @@
+{% extends "reception/_base.html" %}
+{% load static %}
+{% block title %}Pre-registrazioni | Reception{% endblock %}
+{% block rc_titolo %}Inviti{% endblock %}
+{% block rc_contenuto %}
+<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">
+{{ referenti_json|json_script:"referenti-dati" }}
+<div class="rc-card">
+  <div class="rc-card-head">Codici validi e usati</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Codice</th><th>Ospite</th><th>Email</th><th>Referente</th><th>Giorno</th><th>Sala</th><th>Scade</th><th>Stato</th><th></th></tr></thead>
+      <tbody>
+      {% for p in righe %}
+        <tr>
+          <td><strong>{{ p.codice }}</strong></td><td>{{ p.ospite_nome }}</td><td>{{ p.ospite_email|default:"—" }}</td><td>{{ p.referente_nome }}</td>
+          <td>{{ p.data_visita|date:"d/m/Y"|default:"—" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %}</td><td>{{ p.sala.nome|default:"—" }}</td><td>{{ p.scade_il|date:"d/m/Y" }}</td>
+          <td>{% if p.usata_il %}<span class="rc-pill rc-pill-ok">Usato il {{ p.usata_il|date:"d/m H:i" }}</span>{% else %}<span class="rc-pill">Da usare</span>{% endif %}</td>
+          <td>{% if not p.usata_il %}<form class="rc-inline" method="post" action="{% url 'reception:preregistrazione_azione' p.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" name="azione" value="invia">Invia</button> <button class="rc-btn rc-btn-d" name="azione" value="elimina">Elimina</button></form>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9" class="rc-empty">Nessun invito. Con «+ Nuovo invito» l'ospite riceve codice e QR per entrare dal chiosco.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<aside class="rc-pannello" id="pannello-invito" role="dialog" aria-modal="true" aria-labelledby="pv-titolo" aria-hidden="true"{% if apri %} data-aperto{% endif %}>
+  <div class="rc-pannello-testa"><h2 id="pv-titolo">Nuovo invito</h2><button type="button" class="rc-chiudi" data-chiudi aria-label="Chiudi">×</button></div>
+  <div class="rc-pannello-corpo">{% include "reception/_form_invito.html" %}</div>
+</aside>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script><script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>{% endblock %}

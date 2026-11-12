@@ -1,0 +1,148 @@
+<div class="pz-card" id="presenze-{{ iv.tipo }}-{{ iv.pk }}">
+<style>
+.pz-card { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:12px; padding:14px 16px; margin:14px 0; font-size:13px; color:var(--text-mid,#334155); }
+.pz-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.pz-title { font-size:14px; font-weight:700; color:var(--text,#0f172a); }
+.pz-sub { font-size:12px; color:var(--text-light,#64748b); }
+.pz-table { width:100%; border-collapse:collapse; margin:6px 0 10px; }
+.pz-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-light,#64748b); padding:6px 8px; border-bottom:1px solid var(--border,#e2e8f0); white-space:nowrap; }
+.pz-table td { padding:7px 8px; border-bottom:1px solid var(--border,#f1f5f9); vertical-align:middle; }
+.pz-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:7px; font-size:12px; font-weight:600; border:1px solid transparent; cursor:pointer; text-decoration:none; }
+.pz-btn-primary { background:#1d4ed8; color:#fff; }
+.pz-btn-ghost { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); border-color:var(--border,#e2e8f0); }
+.pz-msg { border-radius:8px; padding:8px 12px; margin:6px 0; font-size:12px; }
+.pz-ok { background:#dcfce7; color:#166534; }
+.pz-err { background:#fee2e2; color:#991b1b; }
+.pz-warn { background:#fef9c3; color:#854d0e; }
+.pz-muted { color:var(--text-light,#94a3b8); }
+.pz-sez { font-size:12px; font-weight:700; color:var(--text,#1e293b); margin:12px 0 2px; }
+.pz-giorno { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+.pz-giorno input { border:1px solid var(--border,#e2e8f0); border-radius:7px; padding:4px 8px; font-size:12px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); }
+.pz-usa-riga { display:none; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.pz-con-rapportino .pz-usa-riga { display:flex; }
+body.theme-dark .pz-ok { background:rgba(56,161,105,.18); color:#86efac; }
+body.theme-dark .pz-err { background:rgba(229,62,62,.16); color:#fca5a5; }
+body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
+</style>
+  <div class="pz-head">
+    <div>
+      <div class="pz-title">{% if iv.formazione %}Presenze in azienda del docente{% else %}Presenze in azienda della ditta{% endif %}</div>
+      <div class="pz-sub">Ingressi dal chiosco della reception (GuestPortal) collegati a {{ iv.etichetta }}{% if iv.fornitore %} · ditta: {{ iv.fornitore.ragione_sociale }}{% elif iv.formazione and iv.chi %} · docente: {{ iv.chi }}{% endif %}</div>
+    </div>
+    <a class="pz-btn pz-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi" target="_blank" rel="noopener">? Guida</a>
+  </div>
+
+  {% if esito %}<div class="pz-msg pz-ok">{{ esito }}</div>{% endif %}
+  {% if errore %}<div class="pz-msg pz-err">{{ errore }}</div>{% endif %}
+  {% if errore_gp %}<div class="pz-msg pz-warn">{{ errore_gp }}</div>{% endif %}
+
+  {% if collegamenti %}
+  <table class="pz-table">
+    <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>In azienda</th><th>{% if iv.formazione %}Nome{% else %}Tecnico{% endif %}</th><th>Azienda</th><th>Collegato da</th>{% if puo_modificare %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for c in collegamenti %}
+      <tr>
+        <td>{{ c.ingresso|date:"d/m/Y"|default:"—" }}</td>
+        <td>{{ c.ingresso|date:"H:i"|default:"—" }}</td>
+        <td>{% if c.uscita %}{{ c.uscita|date:"H:i" }}{% else %}<span class="pz-muted">ancora dentro</span>{% endif %}</td>
+        <td>{{ c.durata_label }}</td>
+        <td>{{ c.tecnico_nome|default:"—" }}</td>
+        <td>{{ c.azienda|default:"—" }}</td>
+        <td><span class="pz-muted">{{ c.get_modo_display }}{% if c.collegato_da %} · {{ c.collegato_da.get_username }}{% endif %}</span></td>
+        {% if puo_modificare %}
+        <td>{% if puo_altri %}<a class="pz-btn pz-btn-ghost" href="{% url 'fornitori:ingresso_collega' c.visita_gp_id %}?tipo={{ iv.tipo }}" target="_blank" rel="noopener" title="Stessa visita su altre voci: si spuntano e si collegano insieme">Anche su altre…</a> {% endif %}<button type="button" class="pz-btn pz-btn-ghost" hx-post="{% url 'fornitori:presenze_scollega' c.pk %}" hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML" hx-confirm="Togliere il collegamento di questo ingresso?">Togli</button></td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="pz-sub">
+    Totale in azienda: <strong>{{ presenza_label }}</strong>{% if confronto.ingressi_aperti %} (più {{ confronto.ingressi_aperti }} ingresso ancora aperto){% endif %}{% if dichiarate_label %} · {% if iv.formazione %}ore in aula a registro (pausa compresa){% else %}ore registrate negli interventi{% endif %}: <strong>{{ dichiarate_label }}</strong>{% endif %}
+  </div>
+  {% if rapportino %}
+  <div class="pz-usa-riga">
+    <button type="button" class="pz-btn pz-btn-primary" data-pz-usa data-minuti="{{ rapportino.minuti }}" data-ore="{{ rapportino.ore }}" data-dal="{{ rapportino.dal }}" data-al="{{ rapportino.al }}" data-giorno="{{ rapportino.giorno }}" data-tecnici="{{ rapportino.tecnici }}" data-nota="{{ rapportino.nota }}">Usa nel rapportino ({{ rapportino.etichetta }})</button>
+    <span class="pz-sub">Le ore in azienda bastano per chiudere: riempie il modulo, controlla e salva.</span>
+  </div>
+  {% endif %}
+  {% else %}
+    <div class="pz-muted">Nessun ingresso collegato.</div>
+  {% endif %}
+
+  {% if confronto.dichiarate_minuti is not None and collegamenti %}
+    {% if confronto.da_controllare %}
+      <div class="pz-msg pz-warn">{% if iv.formazione %}Ore in aula a registro più alte della presenza in azienda del docente: controlla il registro della sessione e la fattura dell'ente.{% else %}Ore registrate negli interventi più alte della presenza in azienda: controlla il rapportino prima della fattura.{% endif %}</div>
+    {% endif %}
+  {% endif %}
+
+  {% if puo_modificare %}
+      {% if ditta_proposta %}
+        <div class="pz-msg pz-warn">
+          L'ingresso collegato di {{ ditta_proposta.1.tecnico_nome|default:"—" }} ({{ ditta_proposta.1.azienda|default:"—" }}) corrisponde al fornitore «{{ ditta_proposta.0.ragione_sociale }}».
+          <button type="button" class="pz-btn pz-btn-primary" hx-post="{% url 'fornitori:presenze_imposta_ditta' iv.tipo iv.pk %}" hx-vals='{"link_id": "{{ ditta_proposta.1.pk }}"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Imposta come ditta {{ iv.dove_la_ditta }}</button>
+        </div>
+      {% elif aziende_sconosciute %}
+        <div class="pz-msg pz-warn">
+          La ditta degli ingressi collegati ({{ aziende_sconosciute|join:", " }}) non è tra i fornitori dell'HUB: creala in Fornitori oppure abbinala in Fornitori → «Ditte GuestPortal», poi torna qui per impostare la ditta {{ iv.dove_la_ditta }}.
+        </div>
+      {% endif %}
+    {% if not configurato %}
+      <div class="pz-msg pz-warn">Collegamento al GuestPortal non configurato: le proposte non sono disponibili (vedi la guida, parte amministratori).</div>
+    {% else %}
+      {% if iv.formazione %}
+        {% if not proposte %}<div class="pz-sub" style="margin-top:8px">Nessun ingresso con il nome del docente o l'azienda dell'ente di formazione tra il {{ dal_al.0|date:"d/m" }} e il {{ dal_al.1|date:"d/m/Y" }}: se il docente ha scritto il nome in modo diverso al chiosco, collegalo a mano dal giorno.</div>{% endif %}
+      {% elif not iv.fornitore %}
+        <div class="pz-sub" style="margin-top:8px">Nessuna ditta {{ iv.dove_la_ditta }}: collega a mano un ingresso del giorno{% if iv.puo_prendere_ditta %} (se la ditta si riconosce viene impostata{% if iv.tipo == "odl" %} sull'OdL, che diventa «Esterna»{% elif iv.tipo == "ticket" %} sul ticket{% endif %}){% endif %}, oppure parti da Fornitori → Accessi esterni → «Collega…».</div>
+      {% endif %}
+      {% if proposte %}
+        <div class="pz-sez">{% if iv.formazione %}Ingressi del docente o dell'ente da collegare{% else %}Ingressi della ditta da collegare{% endif %} ({{ dal_al.0|date:"d/m" }} – {{ dal_al.1|date:"d/m/Y" }})</div>
+        <table class="pz-table">
+          <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>{% if iv.formazione %}Nome{% else %}Tecnico{% endif %}</th><th>Motivo</th><th></th></tr></thead>
+          <tbody>
+          {% for a in proposte %}
+            <tr>
+              <td>{{ a.ingresso|date:"d/m/Y"|default:"—" }}</td>
+              <td>{{ a.ingresso|date:"H:i"|default:"—" }}</td>
+              <td>{% if a.uscita %}{{ a.uscita|date:"H:i" }}{% else %}<span class="pz-muted">dentro</span>{% endif %}</td>
+              <td>{{ a.nome }}</td>
+              <td>{{ a.motivo|default:"—" }}</td>
+              <td><button type="button" class="pz-btn pz-btn-primary" hx-post="{% url 'fornitori:presenze_collega' iv.tipo iv.pk %}" hx-vals='{"visita_id": "{{ a.visita_id }}", "modo": "PROPOSTA"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Collega</button></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% elif iv.fornitore and not iv.formazione %}
+        <div class="pz-sub" style="margin-top:8px">Nessun altro ingresso della ditta tra il {{ dal_al.0|date:"d/m" }} e il {{ dal_al.1|date:"d/m/Y" }}.</div>
+      {% endif %}
+
+      <form class="pz-giorno" hx-get="{% url 'fornitori:presenze_intervento' iv.tipo iv.pk %}" hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">
+        <span class="pz-sub">Collega a mano un ingresso del giorno:</span>
+        <input type="date" name="giorno" value="{{ giorno|date:'Y-m-d' }}" aria-label="Giorno">
+        <button type="submit" class="pz-btn pz-btn-ghost">Mostra ingressi</button>
+      </form>
+      {% if giorno %}
+        {% if del_giorno %}
+        <table class="pz-table">
+          <thead><tr><th>Entrata</th><th>Uscita</th><th>Nome</th><th>Azienda</th><th>Motivo</th><th></th></tr></thead>
+          <tbody>
+          {% for a in del_giorno %}
+            <tr>
+              <td>{{ a.ingresso|date:"H:i"|default:"—" }}</td>
+              <td>{% if a.uscita %}{{ a.uscita|date:"H:i" }}{% else %}<span class="pz-muted">dentro</span>{% endif %}</td>
+              <td>{{ a.nome }}</td>
+              <td>{{ a.azienda|default:"—" }}</td>
+              <td>{{ a.motivo|default:"—" }}</td>
+              <td><button type="button" class="pz-btn pz-btn-ghost" hx-post="{% url 'fornitori:presenze_collega' iv.tipo iv.pk %}" hx-vals='{"visita_id": "{{ a.visita_id }}", "modo": "MANUALE", "giorno": "{{ giorno|date:'Y-m-d' }}"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Collega</button></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <div class="pz-sub">Nessun ingresso esterno da collegare il {{ giorno|date:"d/m/Y" }}.</div>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  {% elif iv.chiuso and not collegamenti %}
+    <div class="pz-sub">Intervento annullato o non più attivo.</div>
+  {% endif %}
+</div>

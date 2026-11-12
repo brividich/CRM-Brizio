@@ -57,6 +57,7 @@ class Command(BaseCommand):
         mode = "[apply]" if apply else "[dry-run]"
 
         self._cleanup_queue(days=days, apply=apply)
+        self._cleanup_mail_inviate(cutoff=cutoff, days=days, apply=apply)
 
         base_qs = AutomationRunLog.objects.filter(started_at__lt=cutoff)
         total = base_qs.count()
@@ -86,6 +87,21 @@ class Command(BaseCommand):
 
         logger.info("cleanup_run_logs: eliminati %s RunLog oltre %s giorni", deleted_total, days)
         self.stdout.write(self.style.SUCCESS(f"Completato: {deleted_total} RunLog eliminati."))
+
+    def _cleanup_mail_inviate(self, *, cutoff, days: int, apply: bool) -> None:
+        """Stessa retention per il registro «Mail inviate» (destinatari = dati personali)."""
+        from automazioni.models import EmailInviata
+
+        try:
+            qs = EmailInviata.objects.filter(inviata_il__lt=cutoff)
+            count = qs.count()
+            if apply and count:
+                qs.delete()
+        except Exception:
+            logger.exception("cleanup_run_logs: pulizia registro mail inviate non riuscita")
+            return
+        verb = "eliminate" if apply else "candidate"
+        self.stdout.write(f"Mail inviate: righe oltre {days} giorni {verb}: {count}")
 
     def _cleanup_queue(self, *, days: int, apply: bool) -> None:
         """Stessa retention per gli eventi «done» di automation_event_queue (audit S2)."""

@@ -1,0 +1,55 @@
+{% extends "reception/_base.html" %}
+{% block title %}Visita | Reception{% endblock %}
+{% block rc_titolo %}{{ v.ospite.nome_completo }}{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-numeri">
+  <span class="rc-pill{% if v.stato == 'CHECKEDIN' %} rc-pill-ok{% endif %}">{{ v.get_stato_display }}</span>
+  <span>Cartellino <b>{{ v.cartellino }}</b></span>
+  <span>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"Privato" }}{% endif %}</span>
+  <span>Da <b>{{ v.referente_nome }}</b></span>
+  <span>{{ v.motivo|default:"—" }}</span>
+  <span>Entrato <b>{{ v.ingresso|date:"d/m H:i"|default:"—" }}</b></span>
+  <span>Uscito <b>{{ v.uscita|date:"d/m H:i"|default:"—" }}</b></span>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Correggi l'uscita</div>
+  <div class="rc-body">
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="uscita">
+      <div class="rc-field"><label for="v-data">Giorno</label><input class="rc-input" id="v-data" type="date" name="data" value="{{ v.ingresso|date:'Y-m-d' }}" required></div>
+      <div class="rc-field"><label for="v-ora">Ora</label><input class="rc-input" id="v-ora" type="time" name="ora" required></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Salva l'uscita</button></div>
+    </form>
+  </div>
+</div>
+{% if v.stato == "CHECKEDOUT" %}
+<div class="rc-card">
+  <div class="rc-card-head">Riapri la visita</div>
+  <div class="rc-body">
+    <p class="rc-note">Se è uscita per errore. Si può fare entro {{ giorni_riapertura }} giorni dall'ingresso.</p>
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="riapri">
+      <div class="rc-field"><label for="v-cart">Cartellino</label><select class="rc-input" id="v-cart" name="cartellino" required><option value="">Scegli</option>{% for n in liberi %}<option value="{{ n }}">{{ n }}</option>{% endfor %}</select></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-g" type="submit">Riapri</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<div class="rc-card">
+  <div class="rc-card-head">Correzioni</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Quando</th><th>Cosa</th><th>Chi</th></tr></thead>
+      <tbody>
+      {% for e in eventi %}
+        <tr><td>{{ e.quando|date:"d/m/Y H:i" }}</td><td>{{ e.azione }}</td><td>{{ e.autore|default:"—" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="3" class="rc-empty">Nessuna correzione.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

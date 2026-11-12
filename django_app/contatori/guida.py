@@ -111,10 +111,19 @@ SEZIONI: list[dict] = [
                   "Ogni cella mostra il totale letto, le copie rispetto al trimestre prima e la fonte. «+ manca» "
                   "(in giallo) è un trimestre chiuso senza lettura, dalla prima lettura della MFC in poi: un clic "
                   "apre l'inserimento già compilato. In rosso i contatori scesi rispetto alla lettura prima. "
+                  "Nella colonna del trimestre «in corso», se la lettura del trimestre non c'è ancora, compare in "
+                  "grigio corsivo l'ultima lettura mensile presa nel trimestre (es. «mensile 01/11») con le copie "
+                  "rispetto al trimestre prima: è provvisoria, non conta come lettura e non si modifica da lì. "
+                  "«+ Nuova lettura» (o «+ manca», «+») con stampante e trimestre scelti precompila i contatori "
+                  "dalla lettura mensile SNMP: per un trimestre chiuso quella del primo giorno del trimestre dopo "
+                  "(presa entro il giorno 7), per il trimestre in corso l'ultima presa, provvisoria. Cambiando "
+                  "stampante o trimestre i valori si ricaricano; senza mensile si inseriscono a mano. "
                   "«Anche le MFC dismesse» mostra le macchine non più attive."),
             ("p", "Stampanti MFC: si cerca per reparto, matricola, contratto, IP, modello o asset e si filtra per "
-                  "salute SNMP e per lettura del trimestre in corso («Mancante» / «Presente»). Le MFC dismesse "
-                  "sono nascoste salvo «Anche le dismesse». Ogni riga mostra anche il consumabile più basso."),
+                  "salute SNMP e per «Lettura»: trimestre in corso mancante o presente, oppure «Mensile mm/aaaa "
+                  "mancante» (le MFC con IP senza la lettura mensile del mese, le stesse della voce «letture "
+                  "mensili in attesa / saltate» della Centrale). Le MFC dismesse sono nascoste salvo «Anche le "
+                  "dismesse». Ogni riga mostra anche il consumabile più basso."),
             ("p", "Letture → «Tutte le MFC di un trimestre»: una riga per MFC attiva con l'ultima lettura "
                   "precedente come riferimento. Compila solo le righe che hai e premi «Salva le letture "
                   "compilate»: le righe vuote si saltano, quelle valide si salvano e quelle con un errore "
@@ -124,15 +133,19 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Scheda MFC → letture trimestrali dalla più recente con la colonna «Copie»; un trimestre saltato "
                 "compare come «Lettura mancante» con «Inserisci».",
-                "Letture mensili con le copie del mese.",
-                "«Fatture del contratto»: esito della riconciliazione negli ultimi trimestri fatturati e giorni "
-                "tra la chiusura del fornitore e la lettura interna. Nelle MFC in pool l'Info elenca le altre "
-                "macchine dello stesso contratto.",
+                "Letture mensili con le copie del mese (gli ultimi 24 mesi; con il permesso di gestione "
+                "«Tutte (N) in Gestisci letture» apre l'elenco completo della MFC).",
+                "«Fatture del contratto»: esito della riconciliazione negli ultimi 6 trimestri fatturati e giorni "
+                "tra la chiusura del fornitore e la lettura interna; se ce ne sono di più, «Tutte (N) →» apre "
+                "l'archivio fatture. Nelle MFC in pool l'Info elenca le altre macchine dello stesso contratto.",
                 "«Esporta storico»: Excel con letture trimestrali (copie, mancanze, cali), mensili e anagrafica.",
                 "Scheda asset di una stampante (modulo Asset) → «Letture trimestrali (confronto con la fattura)»: "
                 "le ultime 4 con le copie del trimestre e le letture mancanti.",
                 "Monitor SNMP: «Cerca» per nome, IP, posizione o asset; la colonna «Risposte 24 h» dice quante "
                 "interrogazioni hanno avuto risposta (verde 100%, giallo dal 95%, rosso sotto).",
+                "Scheda di un dispositivo SNMP → «Storico interrogazioni»: tutte le interrogazioni dalla più "
+                "recente, caricate man mano che si scorre; «Stato» mostra solo quelle Operative, in Attenzione o "
+                "in Errore.",
             ]),
         ],
     },
@@ -145,7 +158,8 @@ SEZIONI: list[dict] = [
                   "oppure «Mensili» (le letture automatiche SNMP del giorno 1)."),
             ("ul", [
                 "Filtri: «MFC», «Anno» e «Solo letture con un calo». In rosso, con «calo A4 BN…», le letture "
-                "con un contatore più basso della lettura prima della stessa MFC: di solito sono quelle sbagliate.",
+                "con un contatore più basso della lettura prima della stessa MFC: di solito sono quelle sbagliate. "
+                "Dalla Centrale, un clic su una riga di «Cali di lettura» apre questo elenco già filtrato sulla MFC.",
                 "«Modifica» apre la correzione; dopo il salvataggio si torna all'elenco con gli stessi filtri. "
                 "Se un valore resta più basso della lettura prima (o più alto della dopo) il portale chiede "
                 "«Confermo i valori: il contatore è stato azzerato o la macchina sostituita».",
@@ -161,7 +175,7 @@ SEZIONI: list[dict] = [
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
             ("p", "La barra in alto raggruppa le pagine in Operatività (Centrale, Stampanti MFC, Letture, "
-                  "Consumabili, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione "
+                  "Mensili, Consumabili, Fabbisogno, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione "
                   "(Profili SNMP, Discovery, Impostazioni). Le procedure guidate «+ Apparato» (stampanti MFC e "
                   "dispositivi SNMP) e «+ Profilo SNMP» sono nel menu «+ Nuovo» (solo con il permesso di "
                   "gestione). «? Guida», a destra, apre questa pagina da qualunque punto del modulo."),
@@ -169,15 +183,41 @@ SEZIONI: list[dict] = [
                   "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
                   "letture da confermare, fatture da riconciliare, licenze degli apparati), sotto tre colonne che scorrono ognuna per "
                   "conto suo: «Da fare», «Parco MFC» e «SNMP». Ogni indicatore e ogni voce aprono la pagina "
-                  "dove si interviene; nel Parco MFC il dettaglio A4/A3 compare passando il mouse sul totale. "
-                  "In fondo a «Da fare», il blocco «Asset e SOC» (vedi la sezione dedicata)."),
-            ("p", "Monitor SNMP: «Interroga tutti ora» interroga subito tutti i dispositivi attivi (chiede "
-                  "conferma; il monitor lo fa comunque ogni 5 minuti). I filtri Cerca, Categoria e Stato valgono "
-                  "anche per la tabella «Stampanti MFC»; una categoria diversa da «Stampante / MFC extra» la "
-                  "svuota. Sotto i filtri, i filtri rapidi «Videosorveglianza», «In errore», «Non interrogati»."),
-            ("p", "Scheda MFC: «Prova SNMP» verifica subito che la stampante risponda e mostra i contatori letti "
-                  "senza salvarli; «Asset …» apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna "
-                  "alla scheda della stampante."),
+                  "dove si interviene, già filtrata (es. «MFC non raggiungibili» apre le Stampanti MFC in errore, "
+                  "«letture mensili in attesa» quelle senza la lettura del mese); nel Parco MFC il dettaglio "
+                  "A4/A3 compare passando il mouse sul totale. Gli elenchi brevi della colonna SNMP finiscono con "
+                  "«e altri N →», che apre la lista completa nel Monitor. In fondo a «Da fare», il blocco «Asset "
+                  "e SOC» (vedi la sezione dedicata)."),
+            ("p", "Cali di lettura: «Da fare» conta a parte le letture trimestrali e le letture mensili con un "
+                  "contatore più basso della lettura prima; l'elenco «Cali di lettura» mostra MFC, contatore e i "
+                  "due valori, e il nome della MFC apre «Gestisci letture» filtrato su quella stampante. Se il "
+                  "calo è vero (contatore azzerato dal tecnico, macchina sostituita) apri «Azzeramento o "
+                  "sostituzione? Segna come spiegato», scrivi il motivo e premi «Segna come spiegato» (serve "
+                  "«Contatori - Gestione»): il calo esce da «Da fare» e restano nel log chi, quando e perché. "
+                  "Se poi i contatori di quella lettura vengono corretti, la spiegazione si annulla."),
+            ("p", "Monitor SNMP: «Interroga tutti ora» (serve «Contatori - Gestione», come «Interroga ora» "
+                  "nella scheda di un dispositivo) mette in coda un'interrogazione per ogni dispositivo attivo: "
+                  "gli stati si aggiornano entro qualche minuto (il monitor lo fa comunque ogni 5 minuti). I "
+                  "filtri Cerca, Categoria e Stato valgono anche per la tabella «Stampanti MFC»; una categoria "
+                  "diversa da «Stampante / MFC extra» la svuota. «Stato» ha le stesse voci dei riquadri: "
+                  "Operativi, In attenzione, In errore, Non interrogati da oltre 3 giorni. I riquadri Operativi / "
+                  "Attenzione / Errori / Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale "
+                  "e un clic mostra quegli apparati; «Apparati» conta tutti quelli censiti. Sotto i filtri, il "
+                  "filtro rapido «Videosorveglianza»."),
+            ("p", "Scheda MFC: «Prova SNMP» (serve «Contatori - Gestione», come il pulsante «Test» nelle Stampanti "
+                  "MFC) verifica subito che la stampante risponda e mostra i contatori letti senza salvarli; «Asset …» "
+                  "apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna alla scheda della stampante."),
+            ("p", "«Apri ticket» (scheda MFC e pannello laterale, a chi può aprire ticket IT) apre il form «Nuovo "
+                  "ticket» già compilato: categoria «Stampante / Scanner», asset collegato se c'è, titolo con il "
+                  "problema (l'ultimo avviso critico aperto, altrimenti «non risponde in rete» o i consumabili da "
+                  "sostituire) e descrizione con matricola, modello, IP, stato SNMP e ultimo errore, avviso critico, "
+                  "consumabili sotto il 15% e link alla scheda. Priorità «Alta» con un avviso critico o la stampante "
+                  "non raggiungibile, altrimenti «Media». Il ticket nasce solo quando premi «Invia richiesta»: prima "
+                  "controlli e correggi."),
+            ("p", "«Scarica Excel» c'è in Consumabili, Fabbisogno, Registro letture, Gestisci letture, Stampanti "
+                  "MFC, Monitor SNMP e Archivio fatture: scarica tutte le righe con i filtri della pagina (in "
+                  "Gestisci letture anche quelle non ancora caricate scorrendo), con gli stessi permessi della "
+                  "pagina."),
         ],
     },
     {
@@ -191,9 +231,75 @@ SEZIONI: list[dict] = [
                 "Nella scheda MFC, «Letture mensili automatiche», il badge giallo (es. «+31 h» o «+3 gg») indica "
                 "che la lettura è arrivata dopo la chiusura: i contatori includono le copie fatte nel frattempo.",
                 "Dal giorno 2 al 7 la Centrale mostra «N letture mensili in attesa»; dal giorno 8 diventa "
-                "«N letture mensili saltate»: la MFC non ha mai risposto, controlla che sia accesa e in rete.",
+                "«N letture mensili saltate» («1 lettura mensile saltata» se è una sola): la MFC non ha mai "
+                "risposto, controlla che sia accesa e in rete.",
                 "La prima lettura riuscita del mese non viene più sovrascritta.",
+                "Mail di riepilogo: quando tutte le MFC sono lette parte una mail con contatori, copie del mese "
+                "(«—» se manca la lettura del mese prima o un contatore è sceso), Excel allegato e link a queste "
+                "letture. Il giorno 7 dalle 23:00, se manca ancora qualche MFC, parte con le mancanti e il motivo. "
+                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: "
+                "senza destinatari non parte.",
             ]),
+        ],
+    },
+    {
+        "id": "letture-mensili",
+        "titolo": "Letture mensili per mese",
+        "blocchi": [
+            ("p", "«Mensili» nella barra del modulo: una riga per MFC, una colonna per mese (gli ultimi 12 mesi, "
+                  "oppure i 12 mesi dell'anno scelto in «Periodo»). Ogni cella mostra il totale letto e, sotto, le "
+                  "copie rispetto al mese prima («copie n/d» se quella lettura manca, «calo …» se un contatore è "
+                  "sceso)."),
+            ("ul", [
+                "«manca» (in giallo): MFC attiva con IP senza la lettura di quel mese, dal mese della sua prima "
+                "lettura mensile; il mese in corso conta sempre, come «letture mensili in attesa» della Centrale.",
+                "In fondo, «Copie del mese»: la somma delle copie delle MFC che hanno anche la lettura del mese "
+                "prima, quante sono e quante mancano.",
+                "«Excel» sotto un mese con letture scarica lo stesso file allegato alla mail delle letture "
+                "mensili (letture, copie per contatore e MFC mancanti con il motivo).",
+                "Con «Contatori - Gestione» un clic sul totale apre la correzione della lettura.",
+            ]),
+        ],
+    },
+    {
+        "id": "consumabili",
+        "titolo": "Consumabili della flotta",
+        "blocchi": [
+            ("p", "«Consumabili» mostra l'ultimo livello letto di toner, tamburi e fusore di ogni MFC attiva con "
+                  "IP, le più critiche in cima. La lettura gira ogni mattina; «Leggi ora» (serve «Contatori - "
+                  "Gestione») aggiorna subito una macchina."),
+            ("def", [
+                ("Da ordinare", "MFC con almeno un consumabile al 15% o meno, qualunque sia la data "
+                                "dell'ultima lettura. Un clic mostra solo quelle."),
+                ("Finiscono entro 30 giorni", "MFC con almeno un consumabile che, al ritmo di consumo stimato, si "
+                                              "esaurisce entro 30 giorni. Un clic mostra solo quelle; se ce ne "
+                                              "sono, la Centrale lo dice in «Da fare»."),
+                ("Senza lettura recente", "MFC mai lette o con l'ultima lettura più vecchia di 7 giorni: la "
+                                          "stampante non risponde da giorni. Un clic mostra solo quelle; nella "
+                                          "colonna «Ultima lettura» la data è in giallo."),
+                ("MFC controllate", "MFC attive con indirizzo IP."),
+            ]),
+            ("p", "La stima dei giorni residui usa solo le letture degli ultimi 60 giorni, dall'ultima "
+                  "sostituzione: con una lettura vecchia il livello resta visibile ma la stima no."),
+        ],
+    },
+    {
+        "id": "fabbisogno",
+        "titolo": "Fabbisogno dei consumabili",
+        "blocchi": [
+            ("p", "«Fabbisogno» (barra del modulo, o il pulsante in Consumabili): una riga per consumabile, con il "
+                  "nome letto dalla stampante (es. il codice del toner), sotto i modelli di MFC che lo usano."),
+            ("def", [
+                ("MFC che lo usano", "MFC attive con IP che hanno quel consumabile nell'ultima lettura."),
+                ("Durata media", "media dei giorni tra due sostituzioni consecutive sulla stessa MFC (i cambi "
+                                 "rilevati quando il livello risale); «n/d» finché non ci sono almeno due cambi."),
+                ("Pezzi all'anno", "MFC che lo usano × 365 / durata media."),
+                ("Entro 30 giorni / Entro 60 giorni", "quanti di quei consumabili finiscono entro 30 o 60 giorni "
+                                                      "secondo la stima della pagina Consumabili. Il numero dei 30 "
+                                                      "giorni apre Consumabili filtrata."),
+            ]),
+            ("p", "Riquadro di Consumabili, voce della Centrale e questa pagina usano lo stesso calcolo: il "
+                  "riquadro conta le MFC, questa pagina i singoli consumabili."),
         ],
     },
     {
@@ -210,7 +316,7 @@ SEZIONI: list[dict] = [
                 "SNMP conta due volte le stesse pagine. Verifica il profilo.",
                 "Contatore più basso dell'ultima lettura salvata (trimestrale o mensile): o la lettura salvata "
                 "è sbagliata, e va corretta, o la macchina è stata azzerata/sostituita. In quel caso inserisci "
-                "la lettura a mano con «Confermo i valori».",
+                "la lettura a mano con «Confermo i valori» e segna il calo come spiegato dalla Centrale.",
                 "Contatore negativo o oltre 2.147.483.647: l'OID del profilo non è un contatore di pagine. "
                 "Verifica il profilo.",
             ]),
@@ -306,8 +412,14 @@ SEZIONI: list[dict] = [
             ("p", "In «Configurazione» → «Impostazioni», riquadro «Videosorveglianza» (link «Impostazioni SNMP "
                   "e TVCC» nel Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
                   "Intervallo telecamere (minuti)» (predefinito 30) e «TVCC - Storico rilevazioni (giorni)» "
-                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate; stampanti "
-                  "e altri apparati conservano tutto lo storico."),
+                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate."),
+            ("p", "Nello stesso riquadro «Altri apparati - Storico rilevazioni (giorni)» vale per stampanti, switch, "
+                  "server e gli altri apparati non TVCC: di serie è 0 = conserva tutto. Con un numero (minimo 60, "
+                  "servono alle stime dei toner) ogni notte le rilevazioni più vecchie vengono cancellate; l'ultima "
+                  "di ogni apparato resta sempre. Se lo storico è lungo la pulizia prosegue nelle notti successive."),
+            ("p", "Contatori e consumabili di una stampante si salvano solo quando cambiano: nello «Storico contatori "
+                  "e consumabili» le interrogazioni uguali alla successiva dello stesso giorno compaiono come "
+                  "«Invariati: uguali alla lettura successiva»."),
             ("p", "Nella lista asset un pallino accanto al nome riassume lo stato SNMP dei dispositivi "
                   "collegati: verde «Operativo», giallo «Attenzione», rosso «Errore» (non risponde), grigio "
                   "«Mai interrogato»; con più dispositivi vince il peggiore. Passando il mouse si vede il "
@@ -422,6 +534,9 @@ SEZIONI: list[dict] = [
                 "Si legge dal Q-BRIDGE-MIB o, se l'apparato non lo espone, dal BRIDGE-MIB. Gli switch Cisco con tabella separata per VLAN "
                 "(community@vlan) non sono coperti.",
                 "Interruttore nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch».",
+                "Se una lettura non arriva in fondo (lo switch smette di rispondere) l'esito dice «lettura parziale» e "
+                "restano le porte della lettura precedente: niente viene cancellato. Gli switch che non entrano nel "
+                "tempo della lettura (90 secondi) sono «rimandati al prossimo giro» e passano per primi la volta dopo.",
             ]),
         ],
     },
@@ -482,6 +597,33 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "tabelle",
+        "titolo": "Tabelle: anteprima, raggruppa e azioni su più righe",
+        "blocchi": [
+            ("p", "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» della Centrale apre "
+                  "il pannello laterale: stato SNMP, ultima lettura, consumabili con la percentuale, avvisi aperti, "
+                  "asset collegato e «Apri la scheda MFC» (o «Apri la scheda del dispositivo»). Le frecce ← → passano "
+                  "alla riga prima o dopo, Esc chiude. Ctrl+clic sul nome apre direttamente la scheda."),
+            ("p", "«Raggruppa ▾» sopra le tabelle divide le righe per valore di una colonna (stato, contratto, fonte…)."),
+            ("ul", [
+                "Le caselle a sinistra selezionano le righe; quella in testata le seleziona tutte (solo le visibili), "
+                "Maiusc+clic seleziona un intervallo. All'apertura nessuna riga è spuntata; i pulsanti compaiono quando "
+                "c'è una selezione, accanto a «N selezionate».",
+                "Consumabili: «Leggi ora le selezionate» mette in coda la lettura di quelle MFC (serve «Contatori - "
+                "Gestione»); «Prepara richiesta ordine» scarica un CSV con modello, matricola, MFC, consumabile, livello %, "
+                "giorni stimati e «Sotto soglia»: per ogni MFC i consumabili al 15% o meno, altrimenti il più basso.",
+                "Stampanti MFC: la casella c'è solo sulle MFC senza asset; «Collega gli asset proposti» mostra prima gli "
+                "abbinamenti (asset trovato per seriale o IP, «nessuna proposta», «già collegata») e collega solo con "
+                "«Conferma i collegamenti», e solo se la proposta non è cambiata nel frattempo.",
+                "Letture da confermare: spunta le letture e premi «Conferma le letture selezionate».",
+                "Gestisci letture: le righe arrivano a pagine da 100 e si caricano scorrendo; «Elimina selezionate» "
+                "chiede conferma.",
+                "Discovery: sulle righe «IP diverso» «Correggi gli IP selezionati» scrive su ogni MFC l'IP trovato in rete, "
+                "come «Correggi IP» di riga; entrambe restano nel log con l'IP di prima e quello nuovo.",
+            ]),
+        ],
+    },
+    {
         "id": "permessi",
         "titolo": "Chi può fare cosa",
         "blocchi": [
@@ -489,6 +631,13 @@ SEZIONI: list[dict] = [
                 ("Consultare la riconciliazione", "permesso «Contatori - Consultazione»."),
                 ("Caricare, modificare ed eliminare fatture e letture", "permesso «Contatori - Gestione»."),
                 ("Impostazioni, profili, discovery, nuovi apparati", "permesso «Contatori - Gestione»."),
+                ("Interrogare subito un dispositivo o tutti, «Prova SNMP» e «Test», segnare un calo come spiegato",
+                 "permesso «Contatori - Gestione»."),
+                ("«Scarica Excel»", "lo stesso permesso della pagina (Gestisci letture: «Contatori - Gestione»)."),
+                ("«Apri ticket»", "permesso di aprire ticket IT nel modulo Ticket."),
+                ("«Leggi ora le selezionate», «Collega gli asset proposti», «Correggi gli IP selezionati»",
+                 "permesso «Contatori - Gestione»; «Prepara richiesta ordine» e il pannello di anteprima con la "
+                 "consultazione."),
                 ("Creare l'asset da un apparato", "permesso «Contatori - Gestione» e permesso di creazione nel "
                                                   "modulo Asset."),
                 ("Vedere CVE, firmware nel SOC e alert", "accesso al Security Center (SOC)."),

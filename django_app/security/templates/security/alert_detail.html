@@ -1,9 +1,9 @@
 {% extends "security/_base_soc.html" %}
 {% load security_i18n security_cve %}
 
-{% block title %}Workspace investigazione | Security Center AI{% endblock %}
+{% block title %}Scheda alert | Security Center AI{% endblock %}
 {% block page_icon %}!{% endblock %}
-{% block page_marker %}Workspace investigazione{% endblock %}
+{% block page_marker %}Scheda alert{% endblock %}
 {% block page_title %}{{ alert.title }}{% endblock %}
 
 {% block soc_content %}
@@ -20,6 +20,21 @@
     {% if ai %}{% include "security/partials/ai_explanation.html" %}{% else %}<p class="sec-muted">L'AI locale dell'azienda (nessun dato esce dalla rete) spiega cosa è successo, perché è scattato l'alert, quanto è urgente e cosa fare, tenendo conto dello storico qui sotto: accessi, precedenti, alert chiusi o scartati. Ci vuole qualche secondo.</p>{% endif %}
   </div>
 </section>
+
+{% if can_act %}
+<section class="sec-panel ai-panel" id="ai-risolvi">
+  <div class="sec-section-head">
+    <h2>Come risolverlo</h2>
+    <form class="ai-ask" method="post" action="{% url 'security:alert_resolve' alert.pk %}" hx-post="{% url 'security:alert_resolve' alert.pk %}" hx-target="#ai-risolvi-body">
+      {% csrf_token %}{% include "security/partials/ai_casella_web.html" %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta cercando la soluzione…">Proponi la soluzione</button>
+    </form>
+  </div>
+  {% if proposta_ai %}<p class="sec-small"><strong>Proposta automatica dell'AI</strong> (dai report arrivati dopo l'alert e dalle decisioni passate) · <a href="{% url 'security:alert_proposte' %}">tutte le proposte</a></p>{% include "security/partials/alert_proposta.html" with p=proposta_ai mostra_alert=False %}{% endif %}
+  <div id="ai-risolvi-body">
+    {% if ai_risoluzione %}{% with ai=ai_risoluzione %}{% include "security/partials/alert_ai_risoluzione.html" %}{% endwith %}{% else %}<p class="sec-muted">L'AI locale propone la causa probabile, i passi per risolvere, come verificare e l'esito di chiusura, partendo dalla procedura standard e da come sono stati chiusi gli alert simili. Il modulo di chiusura arriva già compilato: chiude solo quando confermi.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
 
 <section class="sec-detail-hero">
   <div class="sec-panel">

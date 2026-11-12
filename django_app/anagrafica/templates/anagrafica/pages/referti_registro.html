@@ -31,7 +31,7 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
   <div class="hr-hero">
     <div>
       <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Sorveglianza sanitaria</div>
-      <h1 style="margin:6px 0 4px;font-size:24px;">Registro referti acquisiti</h1>
+      <h1 class="hr-hero-title" style="margin:6px 0 4px;">Registro referti acquisiti</h1>
       <div style="opacity:.85;font-size:13px;">
         Ogni scansione viene archiviata <strong>prima</strong> di essere letta, riuscita o no.
         Qui c'è dove è finito il file e cosa se n'è capito.
@@ -55,6 +55,7 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
     {% endfor %}
   </form>
 
+  <div style="overflow-x:auto;">
   <table class="fm-table">
     <thead>
       <tr>
@@ -107,6 +108,7 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
 </div>
 {% endblock %}

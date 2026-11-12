@@ -127,6 +127,44 @@ SECTIONS = [
         ],
     },
     {
+        "code": "soppressioni_scadenza",
+        "title": "Soppressioni in scadenza",
+        "intro": "Quando una soppressione attiva (manuale o appresa) sta per scadere nasce un alert di attenzione, una volta per "
+                 "scadenza: si decide se prolungarla o lasciarla scadere, e da quel giorno le occorrenze tornano a creare alert. "
+                 "Gli stessi giorni valgono per il filtro «In scadenza» della pagina Soppressioni.",
+        "channels_optional": True,
+        "options": [
+            Option("soppressione.scadenza.alert", True, "Alert quando una soppressione sta per scadere"),
+            Option("soppressione.scadenza.promemoria_giorni", 14, "Promemoria prima della scadenza", "Giorni prima della scadenza della soppressione.",
+                   "int", min_value=1, max_value=90, unit="giorni"),
+        ],
+    },
+    {
+        "code": "rumore",
+        "title": "Meno rumore: segnalazioni ripetitive",
+        "intro": "Le segnalazioni che si ripetono senza dire niente di nuovo non aprono un alert ciascuna. Dispositivi bloccati "
+                 "dalla policy (chiavette USB): conteggio per PC in Dispositivi › «Dispositivi bloccati dalla policy», alert solo sopra la soglia. "
+                 "CVE oltre il termine: un alert per CVE (non per PC); se la CVE ha già l'alert «PC con versione vulnerabile» il "
+                 "termine scaduto va nella sua timeline. Modifiche di Entra fatte da amministratori fidati: restano negli eventi. "
+                 "Alert fermi: proposta di chiusura da confermare in «Proposte di chiusura». Tutto resta negli eventi e nell'audit. "
+                 "Gli alert già aperti si sistemano con manage.py security_unisci_doppioni --apply.",
+        "channels_optional": True,
+        "options": [
+            Option("rumore.attivo", True, "Riduci le segnalazioni ripetitive",
+                   "Spento: ogni notifica apre o aggiorna il suo alert come prima."),
+            Option("rumore.dispositivi_bloccati.soglia", 0, "Alert per i dispositivi bloccati da",
+                   "Dispositivi bloccati sullo stesso PC in 24 ore che aprono un alert. 0 = mai: solo il conteggio per PC.",
+                   "int", min_value=0, max_value=1000, unit="blocchi in 24 ore"),
+            Option("rumore.entra.amministratori_portale", True, "Gli amministratori del portale sono autori fidati in Entra",
+                   "Le loro modifiche in Entra (consensi alle app, metodi MFA, ruoli) non aprono un alert."),
+            Option("rumore.entra.autori_fidati", "", "Altri autori fidati in Entra",
+                   "Indirizzi (UPN) separati da virgole, es. admin@azienda.it.", "text"),
+            Option("rumore.fermi.giorni", 30, "Proponi la chiusura degli alert fermi da",
+                   "Alert senza nuove occorrenze da questi giorni: proposta «Risolto» da confermare (non per CVE, critici o "
+                   "malware). 0 = mai.", "int", min_value=0, max_value=365, unit="giorni"),
+        ],
+    },
+    {
         "code": "impatto_cve",
         "title": "Impatto CVE sugli asset",
         "intro": "Il job orario legge da NVD i range di versione vulnerabili, da CISA KEV le CVE sfruttate e (facoltativo) "
@@ -152,8 +190,9 @@ SECTIONS = [
         "title": "Vulnerabilità: tempi di correzione (ISO 27001 8.8)",
         "intro": "Ogni PC esposto a una CVE ha un termine di correzione che parte da «esposto dal» e dipende dalla classe della "
                  "CVE: sfruttata (CISA KEV: la data chiesta da CISA, altrimenti i giorni qui sotto), critica (CVSS 9 o più), alta "
-                 "(7 o più), media (4 o più), bassa. Passato il termine nasce un evento e un alert (uno per CVE, PC e termine), "
-                 "salvo accettazione del rischio attiva. Le accettazioni in scadenza e scadute aprono un alert di attenzione.",
+                 "(7 o più), media (4 o più), bassa. Passato il termine nasce un evento per PC e un alert per CVE (se la CVE "
+                 "ha già l'alert «PC con versione vulnerabile», il termine scaduto va nella sua timeline), salvo accettazione del "
+                 "rischio attiva; l'alert si chiude da solo quando tutti i PC sono corretti. Le accettazioni in scadenza e scadute aprono un alert di attenzione.",
         "channels_optional": True,
         "options": [
             Option("cve.sla.attivo", True, "Segnala le esposizioni oltre il termine di correzione"),
@@ -168,6 +207,36 @@ SECTIONS = [
         ],
     },
     {
+        "code": "patch_termini",
+        "title": "Patch: tempi di installazione (ISO 27001 8.8)",
+        "intro": "Ogni patch che WatchGuard segnala mancante su un PC ha un termine che parte da «pubblicata il» e dipende dalla "
+                 "classe: corregge una CVE sfruttata (CISA KEV), critica, importante, moderata e altre (criticità di WatchGuard). "
+                 "Le patch oltre il termine o con l'installazione fallita sono in Dispositivi › Tempi delle patch. Con la "
+                 "segnalazione accesa nasce un alert per patch e termine, che si chiude da solo quando la patch non manca più.",
+        "channels_optional": True,
+        "options": [
+            Option("patch.sla.attivo", False, "Segnala le patch oltre il termine (un alert per patch)",
+                   "Spento di default: alla prima accensione le patch vecchie aprono subito un alert ciascuna. Guardare prima la pagina Tempi delle patch."),
+            Option("patch.sla.kev_giorni", 7, "Corregge una CVE sfruttata (CISA KEV)", "Giorni da «pubblicata il».", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.critica_giorni", 14, "Critica", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.importante_giorni", 30, "Importante", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.altre_giorni", 90, "Moderata, bassa e altre", "", "int", min_value=1, max_value=365, unit="giorni"),
+        ],
+    },
+    {
+        "code": "dipendenze_portale",
+        "title": "Librerie del portale (ISO 27001 8.8)",
+        "intro": "Ogni mattina le librerie Python installate nel portale si confrontano con il database pubblico OSV (lo stesso di "
+                 "pip-audit): le vulnerabilità note sono in Dispositivi › Librerie del portale e si chiudono da sole quando la "
+                 "libreria viene aggiornata. Serve l'accesso a Internet verso api.osv.dev; se manca la lettura va in errore.",
+        "channels_optional": True,
+        "options": [
+            Option("dipendenze.controllo.attivo", True, "Controlla le librerie del portale ogni mattina"),
+            Option("dipendenze.alert.attivo", True, "Alert per le librerie vulnerabili (uno per libreria e versione)",
+                   "Si chiude da solo dopo l'aggiornamento della libreria."),
+        ],
+    },
+    {
         "code": "software_conformita",
         "title": "Software non conforme",
         "intro": "Confronta l'inventario software con le decisioni del Catalogo software (modulo Asset): un alert per prodotto quando "
@@ -179,6 +248,11 @@ SECTIONS = [
             Option("software.da_rimuovere.alert", True, "Alert per software da rimuovere"),
             Option("software.versione_minima.alert", True, "Alert per versioni sotto la minima",
                    "Solo per i software «Consentiti» con una versione minima; le versioni non confrontabili non vengono mai segnalate."),
+            Option("software.nuovo.alert", True, "Alert per un programma mai visto prima",
+                   "Un programma che compare per la prima volta su un PC e non ha una decisione nel catalogo (shadow IT). Un alert per "
+                   "programma, una volta sola; si chiude da solo quando il programma riceve una decisione."),
+            Option("software.nuovo.giorni", 14, "Un programma è «nuovo» per", "Giorni dalla prima comparsa su un PC; vale anche per il "
+                   "filtro «Nuovi» del Catalogo software.", "int", min_value=1, max_value=90, unit="giorni"),
         ],
     },
     {
@@ -204,8 +278,12 @@ SECTIONS = [
                    "dell'API WindowsDefenderATP."),
             Option("defender.vulnerabilita.attivo", False, "Confronta le CVE con Defender",
                    "Ogni mattina alle 06:25 legge le vulnerabilità che Defender vede sui PC e le mette accanto al calcolo del SOC "
-                   "nel pannello CVE («Defender conferma» / «Defender non la vede»). Non apre alert. Servono Vulnerability.Read.All "
+                   "nel pannello CVE («Defender conferma» / «Defender non la vede»). Servono Vulnerability.Read.All "
                    "e Machine.Read.All dell'API WindowsDefenderATP."),
+            Option("defender.vulnerabilita.ibrido", True, "Usa le CVE di Defender nel calcolo",
+                   "Vale con il confronto acceso. Le CVE critiche e alte di Defender entrano nell'elenco del SOC: quello che Defender "
+                   "vede su un PC conta come «impatta», anche senza CPE collegato, e NVD permette di controllarle anche sui PC che "
+                   "Defender non vede. Le CVE critiche aprono un alert, raggruppato in Proposte AI."),
             Option("defender.secure_score.attivo", False, "Mostra il Secure Score",
                    "Punteggio di Microsoft Secure Score, andamento e le 5 azioni che valgono di più, nella Panoramica. "
                    "Letto ogni 12 ore. Serve SecurityEvents.Read.All."),
@@ -338,6 +416,10 @@ SECTIONS = [
             Option("watchguard.api.patch", False, "Leggi le patch mancanti",
                    "Patch pubblicate e non installate per PC, con le CVE che correggono, e l'esito dei task di installazione: "
                    "il pannello CVE dice dove la patch è pronta."),
+            Option("watchguard.api.msrc", False, "Cerca le patch comprese in una più recente (Microsoft)",
+                   "Legge dal Security Update Guide di Microsoft (api.msrc.microsoft.com, pubblico) quale KB sostituisce quale: "
+                   "le patch mancanti già comprese in un aggiornamento più recente lo dicono. Serve «Leggi le patch mancanti» "
+                   "e l'accesso a internet verso api.msrc.microsoft.com. I cumulativi di Windows si riconoscono anche senza, dal build."),
         ],
     },
     {
@@ -381,6 +463,53 @@ SECTIONS = [
                    "int", min_value=1, max_value=30, unit="casi"),
             Option("ai.cpe.confidenza_minima", 60, "Confidenza minima", "Sotto questa confidenza la risposta dell'AI viene scartata (resta «da verificare»).",
                    "int", min_value=0, max_value=100, unit="%"),
+        ],
+    },
+    {
+        "code": "ai_proposte",
+        "title": "Proposte di chiusura dell'AI",
+        "intro": "Ogni 15 minuti l'AI locale controlla gli alert aperti contro i report arrivati dopo (stesso PC, utente, IP, job "
+                 "di backup) e contro le decisioni passate su alert dello stesso tipo, e propone come chiuderli in Segnalazioni › "
+                 "Proposte AI. Ogni conferma, correzione o riapertura le insegna: quando per un tipo di alert e un esito le ultime "
+                 "proposte sono state tutte confermate, le successive chiudono l'alert da sole (mai alert critici, minacce, CVE "
+                 "sfruttate o tipi esclusi dalla soppressione appresa). Riaprire un alert chiuso dall'AI le toglie la fiducia su "
+                 "quel tipo. Gira dalla lettura «ai_proposte» (Letture automatiche).",
+        "options": [
+            Option("ai.proposte.attivo", True, "Fai proporre all'AI come chiudere gli alert aperti"),
+            Option("ai.proposte.chiusura_auto", True, "Lascia chiudere all'AI i tipi di alert che ha imparato",
+                   "Spento: l'AI propone soltanto, chiude sempre una persona."),
+            Option("ai.proposte.soglia", 5, "Conferme per chiudere da sola",
+                   "Quante proposte di fila, con lo stesso tipo di alert e lo stesso esito, una persona deve aver confermato.",
+                   "int", min_value=2, max_value=50, unit="conferme"),
+            Option("ai.proposte.confidenza_auto", 80, "Confidenza minima per chiudere da sola",
+                   "Sotto questa confidenza la proposta resta da confermare anche per i tipi già imparati.",
+                   "int", min_value=50, max_value=100, unit="%"),
+            Option("ai.proposte.attesa_ore", 2, "Attesa prima di proporre",
+                   "Ore dall'apertura dell'alert: prima lasciano lavorare le regole di rientro e arrivano i report successivi.",
+                   "int", min_value=0, max_value=72, unit="ore"),
+            Option("ai.proposte.max_per_giro", 4, "Massimo per giro",
+                   "Alert esaminati a ogni esecuzione: in produzione ogni risposta impegna l'AI per 15-40 secondi.",
+                   "int", min_value=1, max_value=20, unit="alert"),
+        ],
+    },
+    {
+        "code": "ai_web",
+        "title": "Ricerca sul web per l'AI",
+        "intro": "Con la casella «Cerca anche sul web» l'AI locale legge anche le pagine ufficiali (avvisi dei produttori, "
+                 "articoli Microsoft con i problemi noti di una KB, CSIRT Italia, CISA) quando spiega una CVE o una patch e quando "
+                 "propone come risolvere un alert o un ticket. Escono solo codici pubblici (CVE, KB, codici d'errore, Event ID, "
+                 "nome del produttore): mai nomi di PC, utenti, indirizzi o testi delle mail. Si leggono solo siti dell'elenco, "
+                 "mai forum. Serve l'accesso a internet in uscita dal server del portale verso quei siti; ogni ricerca resta nel "
+                 "registro AI del SOC.",
+        "channels_optional": True,
+        "options": [
+            Option("ai.web.attivo", False, "Permetti all'AI di consultare le fonti ufficiali sul web"),
+            Option("ai.web.domini", "", "Altri siti ammessi",
+                   "Domini in più oltre a quelli già ammessi (nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, siti Microsoft "
+                   "ufficiali, watchguard.com, veeam.com, synology.com), separati da virgola. Vale anche per i sottodomini.", "text"),
+            Option("ai.web.searxng_url", "", "Motore di ricerca interno (facoltativo)",
+                   "Indirizzo di un SearXNG aziendale (es. http://10.0.0.34:8888) con il formato JSON attivo: serve per cercare "
+                   "codici d'errore ed Event ID. Senza, l'AI legge solo i riferimenti NVD delle CVE e gli articoli delle KB.", "text"),
         ],
     },
     {

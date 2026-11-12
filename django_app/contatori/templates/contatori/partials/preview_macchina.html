@@ -1,0 +1,20 @@
+{# Pannello laterale di una MFC (contatori:anteprima, kind=mfc): solo dati salvati, nessuna interrogazione SNMP. #}
+<header class="pv-head">
+  <div class="pv-badges"><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span>{% if not m.attiva %}<span class="pill">dismessa</span>{% endif %}</div>
+  <h2>{{ m.reparto }}</h2>
+  <p class="pv-sub">{{ m.matricola }} · {{ m.modello|default:"modello non impostato" }}{% if m.host %} · <span class="mono">{{ m.host }}</span>{% endif %}</p>
+</header>
+{% if m.snmp_ultimo_errore %}<p class="health-error pv-text">{{ m.snmp_ultimo_errore|truncatechars:160 }}</p>{% endif %}
+<dl class="pv-facts">
+  <div><dt>Ultimo controllo SNMP</dt><dd>{% if m.snmp_ultimo_controllo %}{{ m.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% if m.snmp_tempo_risposta_ms is not None %} · {{ m.snmp_tempo_risposta_ms }} ms{% endif %}{% else %}mai{% endif %}</dd></div>
+  <div><dt>Ultima lettura</dt><dd>{% if ultima %}{{ ultima.trimestre }} del {{ ultima.data|date:"d/m/Y" }}<div class="muted">{{ ultima.totale }} copie · {{ ultima.get_fonte_display|lower }}</div>{% else %}mai letta{% endif %}{% if m.attiva and not ha_lettura_trimestre %}<div><span class="pill warn">manca {{ trimestre }}</span></div>{% endif %}</dd></div>
+  <div><dt>Contratto</dt><dd>{{ m.contratto|default:"—" }}</dd></div>
+  <div><dt>Asset HUB</dt><dd>{% if m.asset %}<a class="plain" href="{% url 'assets:asset_view' m.asset.pk %}">{{ m.asset.asset_tag }}</a><div class="muted">{{ m.asset.name }}</div>{% elif proposta %}<span class="pill warn">non collegato</span><div class="muted">proposto {{ proposta.asset.asset_tag }}</div>{% else %}<span class="pill warn">non collegato</span>{% endif %}</dd></div>
+</dl>
+<h3 class="pv-h">Consumabili{% if consumabili %} <span class="muted">· {{ consumabili.rilevata_il|date:"d/m H:i" }}</span>{% endif %}</h3>
+{% if consumabili and consumabili.voci %}<ul class="pv-list">{% for v in consumabili.voci %}<li><span>{{ v.nome }}</span><small>{% if v.pct is not None %}<span class="pv-bar{% if v.critico %} is-critical{% elif v.pct <= 30 %} is-warning{% endif %}"><span style="width:{{ v.pct }}%"></span></span><strong{% if v.critico %} class="health-error"{% endif %}>{{ v.pct }}%</strong>{% if v.giorni is not None %} · {% if v.giorni == 0 %}esaurito{% elif v.giorni > 365 %}oltre 1 anno{% else %}~{{ v.giorni }} gg{% endif %}{% endif %}{% else %}n/d{% endif %}</small></li>{% endfor %}</ul>
+{% else %}<p class="pv-empty">Nessun livello salvato.</p>{% endif %}
+<h3 class="pv-h">Avvisi aperti{% if n_avvisi %} ({{ n_avvisi }}){% endif %}</h3>
+{% if avvisi %}<ul class="pv-list">{% for a in avvisi %}<li><span{% if a.critico %} class="health-error"{% endif %}>{{ a.testo|truncatechars:70 }}</span><small>dal {{ a.aperto_il|date:"d/m H:i" }}</small></li>{% endfor %}</ul>
+{% else %}<p class="pv-empty">Nessun avviso aperto.</p>{% endif %}
+<footer class="pv-foot"><a class="btn" href="{% url 'contatori:macchina' m.pk %}">Apri la scheda MFC</a>{% if url_ticket %}<a class="btn ghost" href="{{ url_ticket }}" title="Nuovo ticket IT già compilato: controlli e invii tu">Apri ticket</a>{% endif %}{% if m.asset %}<a class="btn ghost" href="{% url 'assets:asset_view' m.asset.pk %}">Asset nel portale</a>{% endif %}</footer>

@@ -70,6 +70,12 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .dpi-cat-big-emoji{color:#86efac}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
@@ -113,6 +119,8 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
         </div>
 
         <dl class="dpi-dl">
+          {% if richiesta.modalita_negozio %}<dt>Modalità</dt><dd>{{ richiesta.get_modalita_negozio_display }}</dd>{% endif %}
+          {% if richiesta.fattura_negozio %}<dt>Chiusa con</dt><dd>Fattura {{ richiesta.fattura_negozio.numero }} del {{ richiesta.fattura_negozio.data|date:"d-m-Y" }}</dd>{% endif %}
           <dt>Categoria</dt>
           <dd>{{ richiesta.categoria.nome }}</dd>
           <dt>Tipo</dt>
@@ -175,7 +183,7 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
           </dd>
           {% endif %}
           <dt>Ricevuta firmata</dt>
-          <dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          <dd>{% if consegna.confermata_badge_il %}Confermata con badge il {{ consegna.confermata_badge_il|date:"d/m/Y H:i" }}{% elif consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
           {% if consegna.note_consegna %}
           <dt>Note</dt>
           <dd>{{ consegna.note_consegna }}</dd>

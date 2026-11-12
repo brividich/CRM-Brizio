@@ -24,7 +24,8 @@ from django.views.decorators.http import require_GET, require_POST
 from core.icon_utils import render_semantic_icon
 from core.templatetags.ui_icons import render_icon
 from core.legacy_models import UtenteLegacy
-from core.models import AccessGroup, GroupPermissionGrant, ModuleCategory, NavigationItem
+from core.acl_v2 import normalize_permission_code
+from core.models import AccessGroup, GroupPermissionGrant, ModuleCategory, NavigationItem, PermissionDefinition, RoutePermissionBinding
 from core.module_registry import MODULE_DEFINITIONS, navigation_code_label_map
 from core.navigation_registry import (
     PERMESSO_ASSENTE,
@@ -88,7 +89,7 @@ def _ruoli_portale() -> tuple[list[dict], int | None]:
         }
         for g in gruppi
     ]
-    # Il ruolo base per primo: e' quello di tutti.
+    # Il ruolo base per primo: e' quello di chi non ha altri ruoli.
     ruoli.sort(key=lambda r: (not r["base"], r["amministratore"], -r["priority"], r["nome"].lower()))
     return ruoli, base_id
 
@@ -108,8 +109,8 @@ def _grant_per_ruolo(ruoli: list[dict]) -> dict[int, dict[str, tuple[int, bool]]
     return mappa
 
 
-def _ruolo_vede(ruolo: dict, codes: list[str], grants, base_id: int | None) -> bool:
-    """Una persona con questo ruolo (e il ruolo base) vede la voce?
+def _ruolo_vede(ruolo: dict, codes: list[str], grants) -> bool:
+    """Una persona con questo ruolo vede la voce?
 
     Stessa regola di ``core.acl_resolver.group_grants_map``: vince la priorita'
     piu' alta, a parita' il diniego; nessuno si esprime = negato.
@@ -118,9 +119,8 @@ def _ruolo_vede(ruolo: dict, codes: list[str], grants, base_id: int | None) -> b
         return True
     if not codes:
         return False
+    # Chi ha un ruolo non ha anche il ruolo base: conta solo la sua colonna.
     gruppi = [ruolo["id"]]
-    if base_id is not None and int(base_id) != ruolo["id"]:
-        gruppi.append(int(base_id))
     for code in codes:
         best: tuple[int, bool] | None = None
         for gid in gruppi:
@@ -132,6 +132,23 @@ def _ruolo_vede(ruolo: dict, codes: list[str], grants, base_id: int | None) -> b
         if best is None or not best[1]:
             return False
     return True
+
+
+def _permessi_sceglibili() -> list[dict]:
+    """Permessi che si possono mettere su un link esterno: quelli che proteggono una pagina.
+
+    Solo questi li concede la matrice di «Ruoli e permessi»: un codice che non
+    protegge niente non lo avrebbe nessun ruolo e il link sparirebbe a tutti.
+    """
+    try:
+        legati = {
+            normalize_permission_code(str(c or ""))
+            for c in RoutePermissionBinding.objects.filter(is_active=True).values_list("permission_id", flat=True)
+        }
+        definizioni = list(PermissionDefinition.objects.filter(is_active=True, code__in=legati).order_by("module", "label"))
+    except DatabaseError:
+        return []
+    return [{"code": d.code, "nome": d.label or d.code, "modulo": d.module} for d in definizioni]
 
 
 def _href(item: NavigationItem) -> str:
@@ -219,7 +236,7 @@ def dati_menu() -> dict:
     info_map = describe_navigation_items_permission(items)
     nomi_menu = navigation_code_label_map(surface="menu")
     da_branding = _nomi_da_branding()
-    ruoli, base_id = _ruoli_portale()
+    ruoli, _base_id = _ruoli_portale()
     grants = _grant_per_ruolo(ruoli)
     categorie = list(ModuleCategory.objects.all().order_by("order", "label"))
 
@@ -230,7 +247,7 @@ def dati_menu() -> dict:
         if not codes and is_external_navigation_item(item):
             vedono = list(ruoli)  # link esterno: lo vedono tutti
         else:
-            vedono = [r for r in ruoli if _ruolo_vede(r, codes, grants, base_id)]
+            vedono = [r for r in ruoli if _ruolo_vede(r, codes, grants)]
         href = _href(item)
         code_norm = str(item.code or "").strip().lower()
         nome = nomi_menu.get(code_norm, item.label)
@@ -249,8 +266,14 @@ def dati_menu() -> dict:
             "icona_html": str(render_icon(item.icon or "", nome)),
             "visibile": bool(item.is_visible and item.is_enabled),
             "href": href,
+            "esterno": is_external_navigation_item(item),
+            "nuova_scheda": bool(item.open_in_new_tab),
+            # Indirizzo come lo scrive l'admin: percorso della pagina o https://…
+            "indirizzo": href if item.route_name else str(item.url_path or ""),
+            "permesso": str(info.get("explicit") or "") if is_external_navigation_item(item) else "",
             "ruoli": [r["id"] for r in vedono],
-            "tutti": any(r["base"] for r in vedono),
+            # Operatore vale solo per chi non ha altri ruoli: «tutti» = ogni ruolo la vede.
+            "tutti": bool(ruoli) and len(vedono) == len(ruoli),
             "problema": _problema(str(info.get("stato") or ""), vedono, href) if item.is_visible else None,
             "figli": [],
         }
@@ -314,6 +337,7 @@ def dati_menu() -> dict:
             for app, v in sorted(voce_di_app.items(), key=lambda kv: kv[1]["ordine"])
         ],
         "problemi": sum(1 for v in voci.values() if v["problema"]),
+        "permessi": _permessi_sceglibili(),
     }
 
 
@@ -384,10 +408,41 @@ def _perche_a_parole(riga: dict) -> str:
 @csrf_protect
 @require_POST
 def api_menu_voce_salva(request):
-    """Nome, categoria e sottogruppo (o voce madre), icona e «Nel menu» di una voce. Il resto non si tocca."""
+    """Nome, categoria e sottogruppo (o voce madre), icona, «Nel menu», indirizzo,
+    nuova scheda e, per i link esterni, il permesso che decide chi li vede.
+    Il resto non si tocca."""
+    from .navigazione import _normalize_nav_url_path
+
     payload = _helpers._post_or_json_payload(request)
     item = get_object_or_404(NavigationItem, id=_helpers._int_or_none(payload.get("id")) or 0)
     campi: list[str] = []
+    if "route_name" in payload or "url_path" in payload:
+        route_name = str(payload.get("route_name") or "").strip()
+        url_path = "" if route_name else _normalize_nav_url_path(payload.get("url_path") or "")
+        if route_name:
+            try:
+                reverse(route_name)
+            except NoReverseMatch:
+                return _helpers._json_error("Pagina del portale non trovata.")
+        elif not url_path:
+            return _helpers._json_error("Scrivi la pagina a cui porta la voce.")
+        item.route_name = route_name[:120]
+        item.url_path = url_path[:500]
+        campi += ["route_name", "url_path"]
+        if not is_external_navigation_item(item) and item.required_permission_code:
+            # Torna una pagina del portale: chi la vede lo decide la pagina.
+            item.required_permission_code = ""
+            campi.append("required_permission_code")
+    if "nuova_scheda" in payload:
+        item.open_in_new_tab = _helpers._bool_from_any(payload.get("nuova_scheda"))
+        campi.append("open_in_new_tab")
+    if "permesso" in payload and is_external_navigation_item(item):
+        code = normalize_permission_code(str(payload.get("permesso") or ""))
+        if code and code not in {p["code"] for p in _permessi_sceglibili()}:
+            return _helpers._json_error("Permesso non trovato fra quelli delle pagine del portale.")
+        item.required_permission_code = code
+        if "required_permission_code" not in campi:
+            campi.append("required_permission_code")
     if "nome" in payload and str(item.code or "").strip().lower() not in _nomi_da_branding():
         nome = str(payload.get("nome") or "").strip()
         if not nome:

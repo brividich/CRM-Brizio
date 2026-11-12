@@ -14,16 +14,22 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri Assenze e clicca «Nuova richiesta» nella barra del modulo.",
-                    "In «Tipo assenza» scegli Ferie, Permesso, Malattia, Flessibilità o Altro.",
-                    "Scegli le date in «Data inizio» e «Data fine». Per un solo giorno metti la stessa data.",
-                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)» o "
+                    "In «Tipo assenza» clicca una card: «Ferie / Permesso», «Malattia», «Flessibilità» o «Certifica presenza».",
+                    "Scegli le date in «Data inizio» e «Data fine»: partono vuote, vanno sempre scelte. Per un solo giorno metti la stessa data. "
+                    "Con «Ferie / Permesso» decidono le date: un solo giorno è un permesso a ore, più giorni sono ferie a giornata intera.",
+                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)», «Giornata lunga (08:00-18:00)» per chi fa il turno 8-18 o "
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
-                    "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando.",
-                    "Clicca «Conferma invio». La richiesta arriva al tuo capo, che riceve una mail.",
+                    "Controlla il riquadro «Riepilogo» (a destra; su telefono e schermi stretti in fondo al form): tipo, dipendente, periodo, durata e chi approva. "
+                    "Il bollino dice «Pronta» o «Da completare» e, finché manca qualcosa, sotto c'è «Manca: …».",
+                    "Clicca «Conferma invio» in fondo al riepilogo, una volta sola: il pulsante diventa «Invio in corso…». "
+                    "Se manca un dato non parte e l'errore compare in rosso accanto al campo da correggere.",
+                    "Si apre il riquadro verde «Richiesta inviata» con dipendente, tipo, periodo, stato (per esempio "
+                    "«In attesa di approvazione da …») e numero di riferimento: se lo vedi la richiesta è salvata e "
+                    "il capo riceve la mail. Da lì vai a «Le mie richieste» oppure fai una «Nuova richiesta».",
                 ]),
                 ("def", [
-                    ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
+                    ("Permesso", "almeno 30 minuti, senza un massimo di ore, sempre nello stesso giorno (anche con turni lunghi, es. 8-18)."),
                     ("Permesso su più giorni", "con lo stesso orario: compila il primo giorno e scegli la data in "
                      "«Ripeti lo stesso orario fino al». Si crea una richiesta per ogni giorno lavorativo (sabati, "
                      "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni. Il capo riceve una sola mail "
@@ -31,22 +37,32 @@ GUIDA = {
                      "assenza@ arriva una volta sola, con le date. Un singolo giorno si può ancora cambiare o "
                      "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
+                    ("Malattia", "il pulsante «Malattia» lo vede chi è abilitato in Impostazioni (se l'elenco è vuoto lo vedono tutti); "
+                     "chi è abilitato può scegliere qualunque dipendente in «Dipendente in malattia». "
+                     "Spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
+                     "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella. "
+                     "Se la malattia è già approvata, in «Le mie richieste» c'è il pulsante «Certificato arrivato»: vale come modifica "
+                     "e avvisa assenza@ e il capo reparto. "
+                     "Le mail della malattia (al capo, ad assenza@, esito, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No». "
+                     "Se dopo 2 giorni dall'inizio il certificato non risulta arrivato, l'ufficio assenze riceve un avviso."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
-                    ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
+                    ("Capo reparto", "è proposto in automatico dall'organigramma e cambia da solo quando scegli un altro dipendente. Puoi sceglierne un altro dall'elenco: "
                      "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
                      "tuo reparto sei tu, ti viene proposto chi ti sta sopra (es. l'Operations Manager)."),
                 ]),
                 ("nota", "Se l'ora di fine è prima dell'ora di inizio il portale la corregge da solo a inizio + 30 minuti e te lo dice: controlla prima di inviare."),
+                ("nota", "Una richiesta identica a una già inviata (stessa persona, tipo, inizio e fine, non rifiutata) non parte due volte: "
+                         "il portale dice «Questa richiesta è già stata inviata il …» e rimanda a «Le mie richieste»."),
             ],
         },
         {
             "id": "saldo",
             "titolo": "Il saldo di ferie e permessi e gli avvisi",
             "blocchi": [
-                ("p", "Se in Anagrafica c'è il tuo ultimo cedolino, nella «Bozza live» a destra compare «Saldo stimato»: "
+                ("p", "Se in Anagrafica c'è il tuo ultimo cedolino, nel «Riepilogo» compare «Saldo stimato» (del dipendente scelto, se la inserisci per un altro): "
                       "le ore di ferie e di permessi che ti restano, partendo dal cedolino e togliendo le richieste già inviate "
                       "e le chiusure aziendali."),
-                ("p", "Mentre compili, sotto la bozza possono comparire avvisi gialli. Non bloccano l'invio: servono a te e al capo."),
+                ("p", "Mentre compili, nel riepilogo possono comparire avvisi gialli, compreso «C'è 1 corso di formazione nei giorni richiesti» con il link al corso. Non bloccano l'invio: servono a te e al capo."),
                 ("def", [
                     ("Saldo ferie (o permessi) insufficiente", "la richiesta vale più ore di quelle che ti restano."),
                     ("Contatore oltre il limite", "per esempio «Assemblea sindacale» oltre le ore annue o «Legge 104» oltre i giorni del mese."),
@@ -63,8 +79,15 @@ GUIDA = {
                     "Clicca «Le mie richieste».",
                     "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
                     "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
+                    "Se il capo non decide, con «Sollecita» gli rimandi la richiesta da approvare: la mail non dice che l'hai chiesto tu. Dopo l'invio "
+                    "il pulsante diventa «Sollecitata» e resta fermo per i giorni di «Ripeti il sollecito ogni» (predefinito 2): "
+                    "conta anche il promemoria automatico del mattino.",
+                    "Ogni modifica (date, tipo, motivazione, «Certificato arrivato») manda una mail «Richiesta modificata» "
+                    "ad assenza@ e al capo reparto, con cosa è cambiato prima e dopo.",
                 ]),
-                ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) e, se attiva, una mail."),
+                ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) "
+                      "e una mail «Richiesta … approvata» o «Richiesta … rifiutata» all'indirizzo della richiesta, sia se decide dal "
+                      "link nella mail sia se decide nel portale (con l'eventuale nota del rifiuto)."),
                 ("nota", "Le richieste con l'etichetta «Gestita su SharePoint» sono nate nella vecchia app SharePoint: "
                          "si vedono qui ma si modificano solo là."),
             ],
@@ -80,7 +103,9 @@ GUIDA = {
                     "Clicca «Approva» per approvare.",
                     "Per rifiutare clicca «Rifiuta», scrivi il motivo e clicca «Conferma rifiuto».",
                 ]),
-                ("p", "Il dipendente riceve subito l'esito. Le richieste già decise restano in «Le mie richieste» → "
+                ("p", "Il dipendente riceve subito l'esito, anche per mail. Se decidi dal portale, il link «Approva/Rifiuta» "
+                      "della mail di approvazione si chiude: chi lo apre dopo legge «Questa richiesta è già stata gestita». "
+                      "Le richieste già decise restano in «Le mie richieste» → "
                       "«Richieste dei miei dipendenti», nel blocco «Già decise»."),
                 ("p", "Con il sistema «Ruoli e permessi» acceso nessuno approva o rifiuta una propria richiesta, nemmeno "
                       "in blocco o modificando l'evento: compare «Non puoi approvare o rifiutare una tua richiesta» e "
@@ -102,10 +127,21 @@ GUIDA = {
                       "del capo che le approva. Se una richiesta cambia l'evento si aggiorna, se viene rifiutata o eliminata "
                       "sparisce. Se cancelli tu un evento da Outlook, il portale non lo rimette. In questo caso le mail non "
                       "hanno più il pulsante «Aggiungi al calendario Outlook»."),
-                ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 un promemoria con l'elenco "
-                      "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
+                ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 la mail «richieste di assenza da approvare» "
+                      "con l'elenco (di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi). Accanto a ogni richiesta ci sono "
+                      "«Approva» e «Rifiuta»: si apre la conferma e con un clic hai deciso. Se la richiesta di approvazione è scaduta "
+                      "i pulsanti non ci sono: decidi da «Assenze del reparto»."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
                       "responsabile con il semaforo di conformità alla mansione (nessun dato sanitario)."),
+                ("p", "La dashboard del reparto conta le stesse persone di «Il mio team»: «Oggi», «Settimana» e "
+                      "«Gestite» sono le assenze di quel team (la pillola «N nel team» apre l'elenco). Se non risulti "
+                      "responsabile di nessuno vale il capo indicato sulle richieste. Chi ha la vista aziendale trova "
+                      "anche la scheda «Tutta l'azienda», con coda e riepiloghi di tutto il personale."),
+                ("p", "La persona di una richiesta si riconosce dall'email o dal nome scritto sulla richiesta (anche "
+                      "«COGNOME NOME» o «NOME COGNOME»), confrontati con l'Anagrafica e con l'utente del portale."),
+                ("p", "«In attesa» e «Richieste in attesa» contano solo le richieste ancora da decidere: quelle rimaste "
+                      "in attesa e finite da più di 30 giorni (in gran parte importate dal vecchio portale e mai decise) "
+                      "escono dalla coda, ma restano nello storico e nel calendario."),
             ],
         },
         {
@@ -113,13 +149,21 @@ GUIDA = {
             "titolo": "Il calendario",
             "blocchi": [
                 ("p", "«Calendario» mostra le assenze approvate con un colore per tipo. Con le frecce cambi mese."),
+                ("p", "Nell'elenco del giorno, accanto a «Permesso» c'è il totale delle ore (es. «Permesso - 8h»): sono le stesse "
+                      "ore che scala il saldo, quindi al massimo una giornata e zero se il giorno non è lavorativo."),
                 ("ul", [
                     "Cosa vedi dipende dal tuo ruolo: tutta l'azienda, solo il tuo reparto oppure solo le tue richieste.",
                     "Vedere le assenze degli altri non vuol dire poterle approvare.",
                     "Festività (rosa) e chiusure aziendali (grigio) sono colorate sullo sfondo, con il nome.",
                     "Cliccando una richiesta si apre il dettaglio con lo «Storico della richiesta»: chi l'ha creata, modificata, "
                     "approvata o rifiutata e quando, con i campi cambiati.",
-                    "Per modificare una richiesta già approvata serve scrivere il «Motivo della modifica»: finisce nello storico.",
+                    "Per modificare una richiesta già approvata serve scrivere il «Motivo della modifica»: finisce nello storico "
+                    "e nella mail «Richiesta modificata» che parte ad assenza@ e al capo reparto (non parte se cambia solo lo stato: "
+                    "approvazione e rifiuto hanno già le loro mail).",
+                    "Nelle malattie la casella «Certificato arrivato» si spunta anche da qui. Su una malattia già "
+                    "approvata, se cambi solo quella spunta il «Motivo della modifica» sparisce: la spunta vale come motivo "
+                    "(nello storico e nella mail compare «Certificato medico arrivato»). Se cambi anche date, tipo o "
+                    "motivazione, oppure togli la spunta, il motivo torna obbligatorio.",
                 ]),
             ],
         },
@@ -133,6 +177,9 @@ GUIDA = {
                     "Compila data e orari e clicca «Salva certificazione».",
                     "Per correggerla usa «Modifica» nella tabella «Certificazioni registrate».",
                 ]),
+                ("p", "La certificazione salvata da questa pagina è già approvata: parte subito la mail "
+                      "«Certificazione presenza approvata» al dipendente e a chi l'ha inserita, con assenza@ in copia. "
+                      "Se il nome corrisponde a più persone con indirizzi diversi, al dipendente non scrive."),
             ],
         },
     ],
@@ -149,7 +196,19 @@ GUIDA = {
                 ("def", [
                     ("Chi vede le assenze altrui", "riepilogo in sola lettura di chi vede tutta l'azienda, solo il reparto o solo le proprie richieste."),
                     ("Flessibilità", "elenco delle persone abilitate e orari ammessi di entrata e uscita (predefiniti 07:00/08:00/09:00 e 16:00/17:00/18:00). Si salva con «Salva flessibilità»."),
+                    ("Inserimento malattia", "chi vede il pulsante «Malattia» nella nuova richiesta: le persone spuntate la "
+                     "inseriscono per qualunque dipendente attivo, gli altri non la vedono e, se provano a inviarla o a "
+                     "trasformare una loro richiesta in malattia, ricevono un errore. Elenco vuoto = tutti la vedono come prima "
+                     "(per sé; per gli altri solo chi inserisce già per conto altrui). Si salva con «Salva inserimento malattia»."),
+                    ("Cambio capo reparto", "chi può cambiare il capo proposto nella nuova richiesta: le persone spuntate "
+                     "scelgono dall'elenco dei capi, gli altri vedono il capo assegnato e non possono modificarlo. Chi non ha un capo "
+                     "assegnato può comunque sceglierlo. Elenco vuoto = tutti possono cambiarlo. Si salva con «Salva cambio capo reparto»."),
                     ("Gestione admin · Tutte le assenze", "tutte le richieste con filtri, ordinamento, approvazione o rifiuto in blocco (fino a 200 alla volta, nota obbligatoria) ed «Export CSV»."),
+                    ("Certificati arrivati in blocco", "filtro «Certificato» = «Malattie senza certificato» (con «Tutti gli stati»), "
+                                                       "seleziona le righe e premi «Certificato arrivato (senza mail)». Non parte nessuna mail; "
+                                                       "nello storico della richiesta resta «Certificato medico arrivato (registrato in blocco, "
+                                                       "senza mail)». Vale anche per le malattie nate sul vecchio SharePoint, che il certificato "
+                                                       "non lo registravano. Le righe che non sono malattie o hanno già il certificato vengono saltate."),
                     ("Sincronizzazione SharePoint", "coda delle modifiche da mandare alla lista SharePoint, eventuali errori e pulsante «Sincronizza ora»."),
                 ]),
             ],
@@ -168,7 +227,8 @@ GUIDA = {
                     "Nessuno approva le proprie assenze: se il capo così trovato è il dipendente stesso (es. il CAR "
                     "capo del suo reparto), si propone chi gli sta sopra nella gerarchia dei ruoli, partendo dal suo "
                     "ruolo più alto (Caporeparto → Operations Manager, anche se lavora in un altro reparto).",
-                    "Tutti possono scegliere un altro capo nella richiesta. Se lo fanno, la richiesta compare in coda "
+                    "Chi è abilitato in Impostazioni → «Cambio capo reparto» (se l'elenco è vuoto, tutti) può scegliere un "
+                    "altro capo nella richiesta. Se lo fa, la richiesta compare in coda "
                     "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
                     "ancora nel calendario ma non la approva.",
                     "La visibilità si assegna in Amministrazione → «Accessi» con i permessi «view_all_assenze» "
@@ -211,7 +271,15 @@ GUIDA = {
                                                     "Sotto l'interruttore: quanti eventi ci sono e gli ultimi errori."),
                     ("Orario, patrono e solleciti", "ore di una giornata (predefinite 8), sabato lavorativo, patrono e solleciti ai "
                                                     "capi: «Sollecita dopo» (predefinito 2 giorni) e «Ripeti il sollecito ogni» "
-                                                    "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15."),
+                                                    "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15. "
+                                                    "Lo stesso interruttore e la stessa attesa valgono per il pulsante «Sollecita» "
+                                                    "che il dipendente trova in «Le mie richieste»."),
+                    ("Avviso certificato medico mancante", "acceso, ogni mattina feriale alle 08:30 (lavoro «assenze_certificato_avviso») "
+                                                    "parte una mail ad assenza@ con le malattie iniziate da almeno «Avvisa se il certificato "
+                                                    "manca dopo» giorni (predefinito 2) senza «Certificato arrivato». Ogni malattia compare in "
+                                                    "un solo avviso; restano fuori le rifiutate e quelle iniziate da più di 30 giorni. La mail ha una riga "
+                                                    "per dipendente con i periodi (giorno/mese) e il link «Segna i certificati arrivati», che apre "
+                                                    "Gestione admin già filtrata sulle malattie senza certificato."),
                 ]),
                 ("p", "Come si conta: una richiesta a giornata intera vale i giorni lavorativi × le ore di una giornata; una "
                       "parziale vale le sue ore (al massimo una giornata). Contano le richieste non rifiutate che iniziano dopo "
@@ -245,6 +313,56 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Non so se la mia richiesta è partita",
+            "perche": "dopo «Conferma invio» compare il riquadro verde «Richiesta inviata» con il numero di riferimento; "
+                      "se invece resta il form con un riquadro rosso, la richiesta non è partita e il motivo è scritto lì.",
+            "fare": [
+                "Apri «Le mie richieste»: ogni richiesta inviata è lì con il suo stato.",
+                "Non reinviarla: una richiesta identica viene comunque fermata con «Questa richiesta è già stata inviata».",
+            ],
+        },
+        {
+            "sintomo": "Non riesco a cambiare il capo reparto nella richiesta",
+            "perche": "in Impostazioni → «Cambio capo reparto» c'è un elenco di persone abilitate e tu non ci sei.",
+            "fare": [
+                "Invia la richiesta al capo assegnato: se è assente quel giorno, l'approvazione passa al suo superiore.",
+                "Chi amministra il modulo può aggiungerti in Impostazioni → «Cambio capo reparto» (serve un utente collegato all'anagrafica).",
+            ],
+        },
+        {
+            "sintomo": "Non vedo il pulsante «Malattia»",
+            "perche": "in Impostazioni → «Inserimento malattia» c'è un elenco di persone abilitate e tu non ci sei.",
+            "fare": [
+                "Comunica la malattia all'ufficio del personale, che la inserisce per te.",
+                "Chi amministra il modulo può aggiungerti in Impostazioni → «Inserimento malattia» (serve un utente collegato all'anagrafica).",
+            ],
+        },
+        {
+            "sintomo": "Un capo vede «Tutta l'azienda» e può approvare le richieste di tutti",
+            "perche": "nella matrice dei permessi il suo ruolo ha «Vedere» o «Approvare» di Assenze con ambito «tutti».",
+            "fare": [
+                "Apri Amministrazione → Ruoli e permessi, ruolo «Caporeparto», modulo Assenze.",
+                "Metti «Vedere», «Approvare», «Modificare» ed «Esportare» su «team»: il capo vede e approva solo il suo team.",
+                "«Creare» può restare su «tutti»: inserire una richiesta per un altro non vuol dire approvarla.",
+            ],
+        },
+        {
+            "sintomo": "«Il mio team» della dashboard è vuoto anche se il capo ha delle persone",
+            "perche": "le richieste si collegano alla persona da email o nome; se il nome sulla richiesta è scritto "
+                      "diversamente dall'Anagrafica la richiesta non viene riconosciuta.",
+            "fare": [
+                "Controlla in Anagrafica → «Il mio team» del capo che le persone ci siano (team dall'organigramma).",
+                "Controlla che nome e cognome in Anagrafica coincidano con il nome sulle richieste, oppure che la "
+                "richiesta porti l'email della persona.",
+            ],
+        },
+        {
+            "sintomo": 'Il numero «In attesa» della dashboard segnalazioni è diverso dalla lista',
+            "fare": [
+                '«In attesa» conta tutte le richieste da decidere, con la stessa regola del badge in alto e del menu; la lista sotto ne mostra le prime e lo dice. «Gestite» conta la pagina dello storico aperta.',
+            ],
+        },
+        {
             "sintomo": "La richiesta va al capo sbagliato",
             "perche": "il capo si ricava dall'Anagrafica, oppure il dipendente ne ha scelto un altro nella richiesta.",
             "fare": [
@@ -269,15 +387,55 @@ GUIDA = {
         },
         {
             "sintomo": "Con «Salta approvazione» assenza@ riceve due mail, o il caporeparto non è in copia",
-            "perche": "con «Salta approvazione» parte una sola mail ad assenza@: il caporeparto è in copia solo se "
-                      "la richiesta l'ha inserita l'ufficio assenze, non se l'ha inserita un caporeparto.",
+            "perche": "con «Salta approvazione» parte una sola mail ad assenza@: il caporeparto del dipendente è in "
+                      "copia se la richiesta l'ha inserita un'altra persona (es. l'ufficio assenze), non se l'ha "
+                      "inserita lui stesso, anche quando ha il profilo Amministrazione.",
             "fare": [
                 "Apri Automazioni → Regole, sorgente Assenze: «PA import - Avviso inserimento dopo approvazione» "
                 "deve avere la condizione «Salta approvazione è falso».",
-                "In «PA import - Inserimento con salta approvazione» ci sono due mail: una parte se «Inserita da (profilo)» "
-                "è CAR (solo assenza@), l'altra negli altri casi (assenza@ + caporeparto).",
+                "In «PA import - Inserimento con salta approvazione» ci sono due mail: una parte se «Inserita dal "
+                "caporeparto» è vero (solo assenza@), l'altra negli altri casi (assenza@ + caporeparto in copia).",
+                "«Inserita dal caporeparto» è vero se chi inserisce ha il profilo CAR oppure la sua email è quella "
+                "del caporeparto del dipendente.",
                 "Le richieste importate da SharePoint o dalla Certificazione presenze non hanno l'autore: "
                 "vengono trattate come inserite dall'ufficio (caporeparto in copia).",
+            ],
+        },
+        {
+            "sintomo": "La certificazione presenza inserita dalla pagina dedicata non avvisa nessuno",
+            "perche": "nasce già approvata e le regole delle automazioni non scattano: la mail parte dalla pagina "
+                      "stessa al salvataggio (dal 11/11/2026).",
+            "fare": [
+                "Cerca l'oggetto «Certificazione presenza approvata» in Automazioni → Mail inviate.",
+                "Se manca il dipendente fra i destinatari, controlla in Anagrafica l'email di notifica e che "
+                "il nominativo non abbia omonimi.",
+            ],
+        },
+        {
+            "sintomo": "Con «Salta approvazione» il dipendente non riceve la mail di conferma",
+            "perche": "con «Salta approvazione» il dipendente riceve «Richiesta … registrata dal … al …» solo se "
+                      "l'ha inserita un caporeparto, il suo o un altro (capi e responsabili del menu «Capo reparto»). "
+                      "Se la inserisce l'ufficio assenze, per esempio la malattia comunicata per telefono, no.",
+            "fare": [
+                "Apri Automazioni → Regole, sorgente Assenze, «PA import - Inserimento con salta approvazione»: "
+                "deve esserci la mail «Avvisa il dipendente se l'ha inserita un caporeparto (suo o di un altro "
+                "reparto)» con destinatario {dipendente_email} e condizione «Inserita da un caporeparto» "
+                "(la aggiunge l'aggiornamento del 10/11/2026).",
+                "Un caporeparto che non compare come capo o responsabile di nessun reparto o area in Anagrafica "
+                "conta come ufficio assenze: aggiungilo lì.",
+                "Il dipendente deve avere l'email nella richiesta: le righe senza email non ricevono niente.",
+                "Le richieste che passano dall'approvazione del caporeparto avvisano il dipendente con "
+                "«Richiesta … approvata/rifiutata», sia dal link nella mail sia dal portale.",
+            ],
+        },
+        {
+            "sintomo": "Per una malattia il caporeparto riceve due mail (da approvare e «Inserimento malattia»)",
+            "perche": "la malattia passa dall'approvazione del caporeparto: deve arrivargli solo «Richiesta di Malattia da "
+                      "approvare». La vecchia regola importata da Power Automate avvisava a ogni inserimento.",
+            "fare": [
+                "Apri Automazioni → Regole, sorgente Assenze: «PA import - Avviso malattia al responsabile» deve essere "
+                "disattivata (lo fa l'aggiornamento del 04/11/2026). Resta attiva «Assenze — approvazione unificata».",
+                "Con «Salta approvazione» il caporeparto è avvisato in copia dalla mail «Inserimento …» ad assenza@.",
             ],
         },
         {
@@ -298,6 +456,15 @@ GUIDA = {
                 "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
                 "Se l'errore parla di autorizzazione (401/403) il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Clicca «Sincronizza ora».",
+            ],
+        },
+        {
+            "sintomo": "Approvo o rifiuto dalla mail e compare «Richiesta già Elaborata»",
+            "perche": "fino al 02/11/2026 un secondo clic su «Conferma» o la riapertura del link mostravano «già gestita» "
+                      "anche a chi aveva appena deciso. La decisione era registrata.",
+            "fare": [
+                "Ora chi ha deciso rivede «Richiesta Approvata/Rifiutata»; «già Elaborata» resta solo se ha deciso un altro "
+                "approvatore, e il messaggio dice chi.",
             ],
         },
         {
@@ -342,6 +509,8 @@ GUIDA = {
             "fare": [
                 "Area HR → «Calendario aziendale» → «Orario, patrono e solleciti»: «Solleciti ai capi attivi» deve essere spuntato.",
                 "Il capo deve avere un'email in anagrafica: senza email la richiesta viene saltata.",
+                "Oggetto della mail: «Richiesta di assenza da approvare» o «N richieste di assenza da approvare». I pulsanti "
+                "«Approva» e «Rifiuta» compaiono se la richiesta di approvazione è ancora aperta (non scaduta) e il capo è fra i suoi approvatori.",
                 "Le richieste nate su SharePoint non vengono sollecitate: le gestisce il flusso Power Automate.",
                 "Monitoring → «Salute degli schedule»: controlla «assenze_solleciti».",
             ],

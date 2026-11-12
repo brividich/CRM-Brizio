@@ -476,6 +476,10 @@ def scadenzario(request):
         filtro_reparto=filtro_reparto,
         periodo=periodo,
     )
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    voci = [v for v in voci if filtro_centro.contiene(v.get("legacy_id"))]
 
     # KPI
     n_scadute = sum(1 for v in voci if v["scaduta"])
@@ -494,12 +498,14 @@ def scadenzario(request):
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_anagrafica.csv"'
         resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
-        writer.writerow(["Dipendente", "Reparto", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
+        writer.writerow(["Dipendente", "Reparto", "Centro di costo", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
+        centri = centro_filtro.centro_per_persona()
         for v in voci:
             stato = "Scaduta" if v["scaduta"] else f"Scade in {v['giorni']} giorni"
             writer.writerow([
                 naming.nome_completo(v["nome"], v["cognome"]),
                 v["reparto"],
+                centri.get(int(v.get("legacy_id") or 0), ""),
                 v["kind_label"],
                 v["tipo_nome"],
                 v["data_scadenza"].strftime("%d-%m-%Y") if v["data_scadenza"] else "",
@@ -518,9 +524,21 @@ def scadenzario(request):
     fm_is_cache_empty = True
     if can_view_formazione:
         try:
-            fm_n_scaduti = TrainingDeadline.objects.filter(stato_scadenza="SCADUTO").count()
-            fm_n_30gg    = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_30").count()
-            fm_n_90gg    = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_90").count()
+            # Stesse righe della lista sotto (sorgente «formazione» dello scadenzario):
+            # solo corsi obbligatori, senza ex dipendenti, nell'ambito del ruolo.
+            # Prima contava anche i corsi facoltativi: 25 scaduti sopra, 9 righe sotto.
+            fm_qs = filtro_centro.applica(TrainingDeadline.objects.filter(is_required=True)).exclude(
+                legacy_anagrafica_id__in=_helpers._cessati_legacy_ids()
+            )
+            if _helpers._ruoli_attivi():
+                from .dipendenti import _schede_visibili
+
+                fm_visibili = _schede_visibili(request)
+                if fm_visibili is not None:
+                    fm_qs = fm_qs.filter(legacy_anagrafica_id__in=sorted(fm_visibili))
+            fm_n_scaduti = fm_qs.filter(stato_scadenza="SCADUTO").count()
+            fm_n_30gg    = fm_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
+            fm_n_90gg    = fm_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
             fm_is_cache_empty = not TrainingDeadline.objects.exists()
         except Exception:
             logger.exception("Errore caricamento KPI formazione per scadenzario")
@@ -533,6 +551,19 @@ def scadenzario(request):
 
     voci_visite = [v for v in voci if v["kind"] == "visita"]
     voci_formazione = [v for v in voci if v["kind"] == "formazione"]
+
+    # «Rinnova» sul contratto: il dialog in pagina usa gli stessi cataloghi della
+    # scheda; chi non è HR non vede né le voci contratto né il dialog.
+    can_edit_formazione = can_view_formazione and _helpers._can_edit_formazione(request)
+    tipologie_contratto: list = []
+    livelli_catalogo: list = []
+    tipi_qualifica_prof: list = []
+    if can_view_contratti and any(v["kind"] == "contratto" for v in voci):
+        tipologie_contratto = list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice"))
+        livelli_catalogo = list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice"))
+        tipi_qualifica_prof = list(
+            TipoQualifica.objects.filter(is_active=True, categoria=TipoQualifica.CAT_PROFESSIONALE).order_by("nome")
+        )
 
     cal_settimane = cal_label = cal_prev = cal_next = None
     if layout == "calendario":
@@ -567,6 +598,7 @@ def scadenzario(request):
         cal_next = _helpers._add_months(primo, 1)
 
     return render(request, "anagrafica/pages/scadenzario.html", {
+        "filtro_centro": filtro_centro,
         "page_obj":      page_obj,
         "n_scadute":     n_scadute,
         "n_30gg":        n_30gg,
@@ -585,6 +617,10 @@ def scadenzario(request):
         "can_view_formazione": can_view_formazione,
         "can_view_contratti": can_view_contratti,
         "is_qual_admin": _helpers._qualifiche_can_edit(request),
+        "can_edit_formazione": can_edit_formazione,
+        "tipologie_contratto": tipologie_contratto,
+        "livelli_catalogo": livelli_catalogo,
+        "tipi_qualifica_prof": tipi_qualifica_prof,
         "fm_n_scaduti":  fm_n_scaduti,
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
@@ -673,6 +709,7 @@ def impostazioni(request):
     _ruoli_da_scheda = _helpers._ruoli_conteggio_da_scheda()
     for _r in ruoli_operativi:
         _r.n_da_scheda = _ruoli_da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    _helpers._con_mansioni(ruoli_operativi)
     # Stesso partial della pagina Ruoli: gli serve anche il catalogo qualifiche.
     _qual_per_ruolo: dict[int, list] = {}
     for _rq in RuoloQualifica.objects.select_related("qualifica").order_by("qualifica__nome"):
@@ -930,6 +967,9 @@ def impostazioni(request):
         ("anagrafica:ruoli_operativi_list", "Catalogo — ruoli operativi"),
         ("anagrafica:mansioni_list", "Catalogo — mansioni"),
         ("anagrafica:aree_list", "Catalogo — reparti"),
+        ("anagrafica:centri_costo", "Catalogo — centri di costo"),
+        ("anagrafica:esplora_struttura", "Catalogo — esplora la struttura"),
+        ("anagrafica:prospetti", "Catalogo — prospetto dei cambiamenti"),
         ("anagrafica:ruoli_aziendali_list", "Catalogo — ruoli aziendali"),
         ("anagrafica:widget_permissions", "Impostazioni — permessi widget"),
         ("anagrafica:impostazioni", "Impostazioni anagrafica"),

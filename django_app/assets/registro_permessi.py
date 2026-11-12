@@ -77,6 +77,11 @@ registra_modulo(ModuloPermessi(
     # controlli propri nelle view (verificati il 28/10/2026).
     capacita_forzate=(
         ('legacy.assets.assets_list', 'lettura'),
+        # La scheda asset: sotto il suo prefisso c'e' la stampa etichette in blocco
+        # («bulk»), che la faceva leggere come gestione e chiudeva la scheda a chi ha
+        # solo «vedere» (caporeparto, 30/10/2026).
+        ('legacy.assets.assets_view', 'lettura'),
+        ('assets.asset_qr_label.view', 'lettura'),
     ),
     nome="Assets · Inventario",
     descrizione="Elenco e scheda asset, dispositivi IT, macchine, componenti, software, rete, mappa officina.",
@@ -94,6 +99,15 @@ registra_modulo(ModuloPermessi(
     area="Produzione",
     app="assets",
     codici_acl=CODICI_MANUTENZIONE,
+    # Pagine di consultazione con sotto una rotta di gestione («bulk», «setup»)
+    # che ha un controllo proprio nella view: si aprono con «vedere».
+    capacita_forzate=(
+        ('legacy.assets.assets_maintenance_scadenze', 'lettura'),
+        ('legacy.assets.assets_maintenance_quadro', 'lettura'),
+        ('legacy.assets.assets_maintenance_plans', 'lettura'),
+        ('legacy.assets.assets_maintenance_coverage', 'lettura'),
+        ('legacy.assets.assets_maintenance_worksheet', 'lettura'),
+    ),
     proprietario=proprietario_asset,
 ))
 
@@ -114,6 +128,13 @@ registra_modulo(ModuloPermessi(
     area="Produzione",
     app="assets",
     codici_acl=CODICI_VERIFICHE,
+    # Il download allegati («admin_...») e l'immagine planimetria («layout»)
+    # le facevano leggere come gestione: sono consultazione.
+    capacita_forzate=(
+        ('legacy.assets.assets_deadlines', 'lettura'),
+        ('legacy.assets.assets_periodic_checks', 'lettura'),
+        ('assets.periodic_verifications.view', 'lettura'),
+    ),
     proprietario=proprietario_asset,
 ))
 
@@ -124,6 +145,8 @@ registra_modulo(ModuloPermessi(
     area="Produzione",
     app="assets",
     codici_acl=CODICI_IT,
+    # «catalog» nel nome della rotta del catalogo software la faceva leggere come gestione.
+    capacita_forzate=(('legacy.assets.assets_software_licenses', 'lettura'),),
     note="Pagine d'insieme dell'IT: l'ambito non le restringe, si concedono o no.",
 ))
 

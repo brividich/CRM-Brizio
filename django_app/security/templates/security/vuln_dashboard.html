@@ -12,13 +12,18 @@
     {% else %}<span class="sec-badge warning">Nessun inventario software importato</span>: senza inventario ogni CVE resta «da verificare».{% endif %}
     {{ totals.installations }} software su {{ totals.hosts }} host · {{ totals.cves }} CVE note ({{ totals.kev }} in CISA KEV).
     {% if can_edit %}<a href="{% url 'security:inventory' %}">Importa inventario</a> · <a href="{% url 'security:software_mapping' %}">Software e CPE</a> ·{% endif %}
-    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#impatto-cve-sugli-asset">Guida</a>
+    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#impatto-cve-sugli-asset">? Guida</a>
   </p>
+  {% if copertura.extra.non_controllati %}
+  <p class="sec-small"><span class="sec-badge warning">{{ copertura.extra.non_controllati }} programmi su {{ copertura.extra.totale }} non controllati</span>
+    Non sono collegati a un CPE: il SOC non può dire se hanno CVE, e un PC senza CVE in elenco non è per forza a posto.
+    <a href="{{ copertura.url }}">Collegali in Software e CPE</a></p>
+  {% endif %}
 </section>
 
 {% if ciclo %}
 <section class="sec-panel" style="margin-top: 12px;" id="ciclo-cve">
-  <div class="sec-section-head"><h2>Dalla segnalazione alla correzione (ultimi {{ ciclo.giorni }} giorni)</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#chiusura-con-prove">Guida</a></div>
+  <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>Dalla segnalazione alla correzione (ultimi {{ ciclo.giorni }} giorni)</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#chiusura-con-prove">? Guida</a></div>
   <div class="sec-fact-grid">
     <div class="sec-fact"><span>PC corretti (aggiornati o programma rimosso)</span><strong>{{ ciclo.correzioni }}</strong></div>
     <div class="sec-fact"><span>Giorni medi da «esposto dal» alla correzione</span><strong>{% if ciclo.giorni_medi is not None %}{{ ciclo.giorni_medi }}{% else %}—{% endif %}</strong></div>
@@ -32,26 +37,43 @@
 
 {% if termini %}
 <section class="sec-panel" style="margin-top: 12px;" id="tempi-di-correzione">
-  <div class="sec-section-head"><h2>Tempi di correzione (ISO 27001 8.8, ultimi {{ termini.giorni }} giorni)</h2><span class="sec-small"><a href="{% url 'security:accettazioni_rischio' %}">Rischi accettati</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">Guida</a></span></div>
-  <p class="sec-small">
-    PC corretti nel termine: <strong>{% if termini.percentuale_in_tempo is not None %}{{ termini.percentuale_in_tempo }}%{% else %}—{% endif %}</strong> ({{ termini.in_tempo }} su {{ termini.corrette }}) ·
-    esposizioni aperte {{ termini.aperte }}, di cui <strong>{{ termini.aperte_scadute|length }} oltre il termine</strong>{% if termini.accettate %}, {{ termini.accettate }} con rischio accettato{% endif %}.
-    {% if not termini.attivo %}<span class="sec-badge warning">Segnalazione oltre il termine spenta</span>{% endif %}
-  </p>
-  <div class="sec-table-wrap">
+  <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Tempi di correzione (ISO 27001 8.8, ultimi {{ termini.giorni }} giorni)</h2><span class="sec-small"><a href="{% url 'security:accettazioni_rischio' %}">Rischi accettati</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">? Guida</a></span></div>
+  {% with d=termini.differenze p=termini.prima %}
+  <div class="sec-fact-grid sec-fact-grid--3" title="Confronto con i {{ termini.giorni }} giorni prima: dal {{ p.dal|date:'d/m/Y' }} al {{ p.al|date:'d/m/Y' }}, {{ p.corrette }} PC corretti{% if p.percentuale_in_tempo is not None %}, {{ p.percentuale_in_tempo }}% nel termine{% endif %}{% if p.giorni_mediani is not None %}, mediana {{ p.giorni_mediani }} giorni{% endif %}">
+    <div class="sec-fact sec-kpi{% if termini.percentuale_in_tempo is not None %}{% if termini.percentuale_in_tempo >= 80 %} is-good{% elif termini.percentuale_in_tempo < 50 %} is-bad{% else %} is-warn{% endif %}{% endif %}">
+      <span>PC corretti nel termine</span>
+      <strong>{% if termini.percentuale_in_tempo is not None %}{{ termini.percentuale_in_tempo }}%{% else %}—{% endif %} <small>{{ termini.in_tempo }} su {{ termini.corrette }}</small></strong>
+      {% if d.percentuale_in_tempo is not None %}{% if d.percentuale_in_tempo > 0 %}<em class="sec-kpi-delta is-good" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.percentuale_in_tempo }}%)">▲ +{{ d.percentuale_in_tempo }} punti</em>{% elif d.percentuale_in_tempo < 0 %}<em class="sec-kpi-delta is-bad" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.percentuale_in_tempo }}%)">▼ {{ d.percentuale_in_tempo }} punti</em>{% else %}<em class="sec-kpi-delta" title="Come nei {{ termini.giorni }} giorni prima">= uguale a prima</em>{% endif %}{% else %}<em class="sec-kpi-delta" title="In uno dei due periodi non ci sono correzioni">senza confronto</em>{% endif %}
+      {% with sp=termini.spark.percentuale_in_tempo %}{% if sp %}<svg class="sec-spark" viewBox="0 0 {{ sp.larghezza }} {{ sp.altezza }}" preserveAspectRatio="none" role="img" aria-label="Percentuale nel termine nelle ultime {{ termini.settimane|length }} settimane, da {{ sp.min }} a {{ sp.max }}"><polyline points="{{ sp.punti }}"/><circle cx="{{ sp.ultimo.0 }}" cy="{{ sp.ultimo.1 }}" r="2.5"/></svg>{% endif %}{% endwith %}
+    </div>
+    <div class="sec-fact sec-kpi{% if d.giorni_mediani is not None %}{% if d.giorni_mediani < 0 %} is-good{% elif d.giorni_mediani > 0 %} is-warn{% endif %}{% endif %}">
+      <span title="Metà dei PC corretti ci ha messo meno di così, da «esposto dal» alla correzione">Giorni mediani alla correzione</span>
+      <strong>{% if termini.giorni_mediani is not None %}{{ termini.giorni_mediani }} <small>giorni</small>{% else %}—{% endif %}</strong>
+      {% if d.giorni_mediani is not None %}{% if d.giorni_mediani < 0 %}<em class="sec-kpi-delta is-good" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.giorni_mediani }} giorni)">▼ {{ d.giorni_mediani }} giorni</em>{% elif d.giorni_mediani > 0 %}<em class="sec-kpi-delta is-bad" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.giorni_mediani }} giorni)">▲ +{{ d.giorni_mediani }} giorni</em>{% else %}<em class="sec-kpi-delta">= uguale a prima</em>{% endif %}{% else %}<em class="sec-kpi-delta" title="In uno dei due periodi non ci sono correzioni">senza confronto</em>{% endif %}
+      {% with sp=termini.spark.giorni_mediani %}{% if sp %}<svg class="sec-spark" viewBox="0 0 {{ sp.larghezza }} {{ sp.altezza }}" preserveAspectRatio="none" role="img" aria-label="Giorni mediani nelle ultime {{ termini.settimane|length }} settimane, da {{ sp.min }} a {{ sp.max }}"><polyline points="{{ sp.punti }}"/><circle cx="{{ sp.ultimo.0 }}" cy="{{ sp.ultimo.1 }}" r="2.5"/></svg>{% endif %}{% endwith %}
+    </div>
+    <div class="sec-fact sec-kpi{% if termini.aperte_scadute %} is-bad{% elif termini.aperte %} is-good{% endif %}">
+      <span>PC oltre il termine</span>
+      <strong>{{ termini.aperte_scadute_totale }} <small>su {{ termini.aperte }} esposizioni aperte</small></strong>
+      <small class="sec-kpi-foot">{% if termini.accettate %}{{ termini.accettate }} con rischio accettato{% else %}nessun rischio accettato{% endif %}{% if not termini.attivo %} · <span class="sec-badge warning">Segnalazione oltre il termine spenta</span>{% endif %}</small>
+    </div>
+  </div>
+  {% endwith %}
+  <div class="sec-table-wrap" style="margin-top:10px">
     <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th class="sec-num">Corrette</th><th class="sec-num">Nel termine</th><th class="sec-num">In ritardo</th><th class="sec-num">Aperte</th><th class="sec-num">Oltre il termine</th></tr></thead>
-      <tbody>{% for c in termini.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.giorni }} gg</td><td class="sec-num">{{ c.corrette }}</td><td class="sec-num">{{ c.in_tempo }}</td><td class="sec-num">{{ c.in_ritardo }}</td><td class="sec-num">{{ c.aperte }}</td><td class="sec-num">{% if c.aperte_scadute %}<strong>{{ c.aperte_scadute }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th style="width:34%">Nel termine</th><th class="sec-num" title="Metà dei PC corretti ci ha messo meno di così">Mediana</th><th class="sec-num">Aperte</th><th class="sec-num">Oltre il termine</th></tr></thead>
+      <tbody>{% for c in termini.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.giorni }} gg</td><td>{% if c.corrette %}<div class="sec-bar-cell" title="{{ c.in_tempo }} nel termine, {{ c.in_ritardo }} in ritardo"><span class="sec-bar"><i style="width:{{ c.pct_in_tempo }}%"></i>{% if c.in_ritardo %}<i class="is-bad" style="left:{{ c.pct_in_tempo }}%;width:calc(100% - {{ c.pct_in_tempo }}%)"></i>{% endif %}</span><span>{{ c.in_tempo }} / {{ c.corrette }}</span></div>{% else %}<span class="sec-muted sec-small">nessuna correzione</span>{% endif %}</td><td class="sec-num">{% if c.giorni_mediani is not None %}{{ c.giorni_mediani }} gg{% else %}—{% endif %}</td><td class="sec-num">{{ c.aperte }}</td><td class="sec-num">{% if c.aperte_scadute %}<strong>{{ c.aperte_scadute }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
   {% if termini.aperte_scadute %}
-  <details style="margin-top: 8px;"><summary>PC oltre il termine ({{ termini.aperte_scadute|length }}{% if termini.aperte_scadute|length == 15 %}, i primi 15{% endif %})</summary>
+  <details style="margin-top: 8px;"><summary>PC oltre il termine ({% if termini.aperte_scadute_totale > termini.aperte_scadute|length %}i primi {{ termini.aperte_scadute|length }} su {{ termini.aperte_scadute_totale }}{% else %}{{ termini.aperte_scadute_totale }}{% endif %})</summary>
     <div class="sec-table-wrap">
       <table class="sec-table sec-table-compact" data-fm-table-skip="1">
         <thead><tr><th>CVE</th><th>PC</th><th>Classe</th><th>Scadenza</th><th class="sec-num">Ritardo</th><th>Rischio</th></tr></thead>
-        <tbody>{% for v in termini.aperte_scadute %}<tr><td><a href="{% url 'security:cve_detail' v.cve %}">{{ v.cve }}</a></td><td><a href="{% url 'security:pc_detail' %}?nome={{ v.host|urlencode }}">{{ v.host }}</a></td><td>{{ v.etichetta }}</td><td class="sec-nowrap">{{ v.scadenza|date:"d/m/Y" }}</td><td class="sec-num">{{ v.giorni_ritardo }} gg</td><td>{% if v.accettata %}<span class="sec-badge sec-badge-muted">accettato</span>{% else %}<span class="sec-badge sec-badge-critical">da correggere</span>{% endif %}</td></tr>{% endfor %}</tbody>
+        <tbody>{% for v in termini.aperte_scadute %}<tr data-preview="{% url 'security:preview_pc' %}?nome={{ v.host|urlencode }}"><td><a href="{% url 'security:cve_detail' v.cve %}">{{ v.cve }}</a></td><td><a href="{% url 'security:pc_detail' %}?nome={{ v.host|urlencode }}">{{ v.host }}</a></td><td>{{ v.etichetta }}</td><td class="sec-nowrap">{{ v.scadenza|date:"d/m/Y" }}</td><td class="sec-num">{{ v.giorni_ritardo }} gg</td><td>{% if v.accettata %}<span class="sec-badge sec-badge-muted">accettato</span>{% else %}<span class="sec-badge sec-badge-critical">da correggere</span>{% endif %}</td></tr>{% endfor %}</tbody>
       </table>
     </div>
+    <p class="sec-small"><a href="?termine=scaduta#elenco-cve">Tutte le CVE con PC oltre il termine</a></p>
   </details>
   {% endif %}
 </section>
@@ -59,7 +81,7 @@
 
 <section class="sec-panel" style="margin-top: 12px;" id="elenco-cve">
   <div class="sec-section-head">
-    <h2>CVE che impattano o da verificare</h2>
+    <h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 8v4M12 15v.5"/></svg>CVE che impattano o da verificare</h2>
     <span class="sec-small"><a class="sec-button" href="{% url 'security:cve_correzioni' %}">Correzioni CVE: cosa si è chiuso con gli aggiornamenti</a></span>
   </div>
   <div class="sec-fact-grid">
@@ -82,6 +104,7 @@
     <label class="sec-check"><input type="checkbox" name="kev" value="1" {% if filtri.solo_kev %}checked{% endif %}> Solo sfruttate (KEV)</label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     {% if filtri_attivi %}<a class="sec-button" href="{% url 'security:vulnerabilities' %}#elenco-cve">Reimposta</a>{% endif %}
+    <a class="sec-button" href="{% querystring formato='csv' %}">Scarica CSV</a>
   </form>
   <p class="sec-muted sec-small">Ordine: sfruttate, CVSS, EPSS, PC impattati. Clic sulla riga: pannello con PC, programmi e correzioni senza lasciare la pagina; clic sul codice della CVE: scheda completa.</p>
   <div class="sec-table-wrap">
@@ -117,16 +140,25 @@
       </tbody>
     </table>
   </div>
-  {% if elenco.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ elenco.max_righe }} CVE su {{ elenco.totali.cve }}</span> I numeri in cima le contano tutte: restringi con i filtri.</p>{% endif %}
+  {% if elenco.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ elenco.max_righe }} CVE su {{ elenco.totali.cve }}</span> I numeri in cima e il CSV le contano tutte: «Scarica CSV» per l'elenco completo.</p>{% endif %}
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Asset più esposti</h2></div>
+  <div class="sec-panel" id="pc">
+    <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Asset più esposti</h2><span class="sec-small">{% if hosts_esposti > hosts|length %}i {{ hosts|length }} con più CVE su {{ hosts_esposti }} · {% endif %}<a href="{% url 'security:pc_copertura' %}?f=con_cve">tutti</a></span></div>
+    <form method="post" action="{% url 'security:pc_bulk' %}" id="esposti-bulk" data-bulk>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Vulnerabilità"><input type="hidden" name="action" value="case">
+      <div class="sec-bulk-bar">
+        <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+        <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
+        <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+      </div>
+    </form>
     <div class="sec-table-wrap">
-      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-        <thead><tr><th>Host</th><th class="sec-num">CVE</th><th class="sec-num">di cui KEV</th></tr></thead>
-        <tbody>{% for h in hosts %}<tr><td>{% if h.snmp_url %}<a href="{{ h.snmp_url }}" title="Apparato monitorato in Contatori IT">{{ h.snmp_nome }}</a> <span class="sec-muted">{{ h.host }} · apparato di rete</span>{% else %}<a href="{% url 'security:pc_detail' %}?nome={{ h.host|urlencode }}">{{ h.host }}</a>{% endif %}</td><td class="sec-num">{{ h.cves }}</td><td class="sec-num">{{ h.kev }}</td></tr>{% empty %}<tr><td colspan="3" class="sec-empty">Nessun host impattato.</td></tr>{% endfor %}</tbody>
+      <table class="sec-table sec-table-compact">
+        <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all form="esposti-bulk" aria-label="Seleziona tutti"></th><th>Host</th><th class="sec-num">CVE</th><th class="sec-num">di cui KEV</th></tr></thead>
+        <tbody>{% for h in hosts %}<tr{% if not h.snmp_url %} data-preview="{% url 'security:preview_pc' %}?nome={{ h.host|urlencode }}"{% endif %}><td class="sec-check-col"><input type="checkbox" name="devices" value="{{ h.host }}" form="esposti-bulk" class="sec-bulk-item" aria-label="Seleziona {{ h.host }}"></td><td>{% if h.snmp_url %}<a href="{{ h.snmp_url }}" title="Apparato monitorato in Contatori IT">{{ h.snmp_nome }}</a> <span class="sec-muted">{{ h.host }} · apparato di rete</span>{% else %}<a href="{% url 'security:pc_detail' %}?nome={{ h.host|urlencode }}">{{ h.host }}</a>{% endif %}</td><td class="sec-num">{{ h.cves }}</td><td class="sec-num">{{ h.kev }}</td></tr>{% empty %}<tr><td colspan="4" class="sec-empty">Nessun host impattato.</td></tr>{% endfor %}</tbody>
       </table>
     </div>
   </div>
@@ -143,7 +175,7 @@
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;" id="software-non-conforme">
-  <div class="sec-section-head"><h2>Software non conforme</h2><a class="sec-small" href="{% url 'assets:software_catalog' %}">Catalogo software</a></div>
+  <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M17 14v6M14 17h6"/></svg>Software non conforme</h2><a class="sec-small" href="{% url 'assets:software_catalog' %}">Catalogo software</a></div>
   <p class="sec-muted sec-small">Confronto tra l'inventario e le decisioni del Catalogo software (modulo Asset). Gli alert nascono quando nuovi PC entrano in uno di questi casi.</p>
   <div class="sec-table-wrap">
     <table class="sec-table sec-table-compact" data-fm-table-skip="1">

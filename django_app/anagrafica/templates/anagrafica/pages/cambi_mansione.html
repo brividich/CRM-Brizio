@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=2">
 {% endblock %}
 
@@ -78,7 +78,7 @@
               {% if ad.motivo %}<small>{{ ad.motivo }}</small>{% endif %}
               {% if ad.chiusura_nota %}<small>{{ ad.get_stato_display }}: {{ ad.chiusura_nota }}</small>{% endif %}
             </span>
-            <span class="hrg-cm-data">{% if ad.aperto %}entro il {{ ad.entro_il|date:"d-m-Y" }}{% else %}{{ ad.chiuso_il|date:"d-m-Y" }}{% endif %}</span>
+            <span class="hrg-cm-data">{% if ad.aperto %}entro il {{ ad.entro_il|date:"d-m-Y" }} {% include "anagrafica/partials/_azione_adempimento.html" with tipo=ad.tipo rif=ad.riferimento_id legacy_id=g.legacy_id back=request.get_full_path %} <a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_detail' g.legacy_id %}#spostamenti-organizzativi" title="Apri il piano di adeguamento nella scheda">Apri</a>{% else %}{{ ad.chiuso_il|date:"d-m-Y" }}{% endif %}</span>
           </li>
           {% endfor %}
         </ul>

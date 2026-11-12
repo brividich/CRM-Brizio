@@ -14,8 +14,8 @@ registra_modulo(ModuloPermessi(
     capacita_forzate=(
         ('legacy.procedure_refresh.pr_assignment_detail', 'lettura'),
     ),
-    nome='Procedure (presa visione)',
-    descrizione='Campagne di presa visione delle procedure, scadenze e solleciti.',
+    nome='CN-SGI (procedure)',
+    descrizione='Libreria delle procedure del sistema di gestione integrato, presa visione, scadenze e solleciti.',
     area='Sicurezza',
     app='procedure_refresh',
     moduli_acl=('procedure_refresh',),

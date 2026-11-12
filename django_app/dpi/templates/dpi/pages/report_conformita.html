@@ -1,10 +1,24 @@
 {% extends "core/base.html" %}
 
-{% block title %}Report conformita DPI | Portale Applicativo{% endblock %}
+{% block title %}Conformità DPI di una persona | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
 <style>
 #dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-rep-tabs { display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; }
+.dpi-rep-tabs a { padding:9px 16px; font-size:14px; font-weight:700; color:#475569; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-1px; }
+.dpi-rep-tabs a:hover { color:#0f172a; }
+.dpi-rep-tabs a.is-on { color:#0369a1; border-color:#0369a1; }
+body.theme-dark .dpi-rep-tabs { border-color:var(--border); }
+body.theme-dark .dpi-rep-tabs a { color:var(--text-mid); }
+body.theme-dark .dpi-rep-tabs a:hover { color:var(--text); }
+body.theme-dark .dpi-rep-tabs a.is-on { color:#7dd3fc; border-color:#7dd3fc; }
+.dpi-status-in_scadenza { color:#92400e; }
+.dpi-status-in_scadenza .dpi-dot { background:#f59e0b; }
+.dpi-status-non_previsto { color:#64748b; }
+.dpi-status-non_previsto .dpi-dot { background:#cbd5e1; }
+body.theme-dark .dpi-status-in_scadenza { color:#fcd34d; }
+body.theme-dark .dpi-status-non_previsto { color:var(--text-light); }
 .dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
 .dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
 .dpi-subnav-link:hover { background:#e2e8f0; }
@@ -53,16 +67,23 @@ body.theme-dark .dpi-summary-neutral{background:var(--surface-alt,#0f1b2d);color
 body.theme-dark .dpi-status-ok{color:#86efac}
 body.theme-dark .dpi-status-scaduto{color:#fcd34d}
 body.theme-dark .dpi-status-mancante{color:#fca5a5}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div id="dpi-root">
   {% include "dpi/components/subnav.html" with is_gestore=True %}
+  {% include "dpi/components/_report_tabs.html" %}
 
   <div class="dpi-hero">
-    <div class="dpi-hero-title">Report conformita DPI</div>
-    <div class="dpi-hero-sub">Verifica i DPI obbligatori consegnati, scaduti o mancanti per dipendente</div>
+    <div class="dpi-hero-title">Conformità DPI di una persona</div>
+    <div class="dpi-hero-sub">I DPI dovuti alla persona: in regola, in scadenza, scaduti o mancanti</div>
   </div>
 
   <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
@@ -96,7 +117,7 @@ body.theme-dark .dpi-status-mancante{color:#fca5a5}
       <label class="dpi-check">
         <input type="hidden" name="solo_obbligatorie" value="0">
         <input type="checkbox" name="solo_obbligatorie" value="1"{% if solo_obbligatorie %} checked{% endif %}>
-        Solo obbligatorie
+        Solo DPI dovuti
       </label>
       <button type="submit" class="dpi-btn">Aggiorna</button>
     </form>
@@ -125,7 +146,11 @@ body.theme-dark .dpi-status-mancante{color:#fca5a5}
   {% if dipendente %}
   <div class="dpi-card">
     <div class="dpi-summary">
-      {% if conforme %}
+      {% if not righe_report %}
+      <span class="dpi-summary-pill dpi-summary-neutral">Nessun DPI dovuto</span>
+      {% elif in_scadenza %}
+      <span class="dpi-summary-pill dpi-summary-ok">Conforme, con DPI in scadenza</span>
+      {% elif conforme %}
       <span class="dpi-summary-pill dpi-summary-ok">Conforme</span>
       {% else %}
       <span class="dpi-summary-pill dpi-summary-ko">Non conforme</span>
@@ -137,11 +162,12 @@ body.theme-dark .dpi-status-mancante{color:#fca5a5}
     </div>
   </div>
 
-  <div class="dpi-card" style="padding:0; overflow-x:auto;" data-tour-step="4" data-tour-title="Stato dei DPI" data-tour-text="Per ogni categoria obbligatoria: consegnato (OK), scaduto o mancante, con l'ultima consegna e la scadenza.">
+  <div class="dpi-card" style="padding:0; overflow-x:auto;" data-tour-step="4" data-tour-title="Stato dei DPI" data-tour-text="Per ogni DPI dovuto: in regola, in scadenza, scaduto o mancante, con l'ultima consegna e la scadenza.">
     <table class="dpi-table">
       <thead>
         <tr>
-          <th>Categoria obbligatoria</th>
+          <th>Categoria</th>
+          <th>Perché</th>
           <th>Stato</th>
           <th>Ultima consegna</th>
           <th>Scadenza</th>
@@ -152,18 +178,20 @@ body.theme-dark .dpi-status-mancante{color:#fca5a5}
         {% for row in righe_report %}
         <tr>
           <td>{{ row.categoria.nome }}</td>
+          <td>{{ row.origine }}</td>
           <td>
             <span class="dpi-status dpi-status-{{ row.stato }}">
               <span class="dpi-dot"></span>
-              {% if row.stato == "ok" %}OK{% elif row.stato == "scaduto" %}Scaduto{% else %}Mancante{% endif %}
+              {% if row.stato == "non_previsto" %}Non consegnato{% else %}{{ row.etichetta }}{% endif %}
             </span>
+            {% if row.richiesta_in_corso %}<div class="dpi-muted" style="font-size:12px;">Richiesta {{ row.richiesta_in_corso }} in corso</div>{% endif %}
           </td>
           <td>{% if row.consegna %}{{ row.consegna.data_consegna|date:"d-m-Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
           <td>{% if row.consegna.scadenza_calcolata %}{{ row.consegna.scadenza_calcolata|date:"d-m-Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
           <td>{% if row.consegna %}<a href="{% url 'dpi:gestione_detail' row.consegna.richiesta.pk %}">{{ row.consegna.richiesta.numero }}</a>{% else %}<span class="dpi-muted">Nessuna consegna</span>{% endif %}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="dpi-muted">Nessuna categoria DPI obbligatoria configurata per il filtro corrente.</td></tr>
+        <tr><td colspan="6" class="dpi-muted">Nessun DPI dovuto con questi filtri.</td></tr>
         {% endfor %}
       </tbody>
     </table>

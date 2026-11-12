@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import views
+from . import views, views_negozio, views_report
 
 app_name = "dpi"
 
@@ -10,6 +10,8 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("nuova/", views.nuova_richiesta, name="nuova"),
     path("storico/", views.storico, name="storico"),
+    path("report/", views_report.report_persone, name="report_persone"),
+    path("report/consegne/", views_report.report_consegne, name="report_consegne"),
     path("report-conformita/", views.report_conformita, name="report_conformita"),
     path("<int:pk>/", views.richiesta_detail, name="detail"),
     path("<int:pk>/annulla/", views.annulla_richiesta, name="annulla"),
@@ -31,6 +33,11 @@ urlpatterns = [
     path("impostazioni/modelli/<int:pk>/modifica/", views.modello_edit, name="modello_modifica"),
     path("impostazioni/taglie/nuova/", views.taglia_edit, name="taglia_nuova"),
     path("impostazioni/taglie/<int:pk>/modifica/", views.taglia_edit, name="taglia_modifica"),
+    path("banco/", views.banco, name="banco"),
+    path("banco/prelievo/", views.banco_prelievo, name="banco_prelievo"),
+    path("magazzino/riordino/", views.magazzino_riordino, name="magazzino_riordino"),
+    path("negozio/", views_negozio.negozio, name="negozio"),
+    path("negozio/fatture/<int:pk>/", views_negozio.fattura_download, name="fattura_download"),
     path("magazzino/", views.magazzino_view, name="magazzino"),
     path("magazzino/report/", views.magazzino_report, name="magazzino_report"),
     path("documenti/", views.documenti, name="documenti"),

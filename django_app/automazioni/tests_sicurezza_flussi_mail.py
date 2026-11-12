@@ -73,13 +73,13 @@ class SegnalazioneSicurezzaApprovazioniTests(TestCase):
     def _approvazione(self, n):
         return AutomationApproval.objects.order_by("id")[n]
 
-    def test_avviso_ai_tre_senza_dati_personali_poi_rls(self):
+    def test_informativa_preposti_e_rls_senza_dati_personali_poi_rls(self):
         run_rule(self.regola, self.payload)
         avviso, richiesta_rls = mail.outbox[0], mail.outbox[1]
-        self.assertEqual(_destinatari(avviso), TRE)
+        self.assertEqual(_destinatari(avviso), {"preposti@costruzioninovicrom.it", "rls@costruzioninovicrom.it"})
         self.assertNotIn("Dipendente Sintetico", avviso.body)
         self.assertNotIn("Caduta di un attrezzo", avviso.body)
-        self.assertIn(f"/rilevazione-incidenti/{self.inc.pk}/", avviso.body)
+        self.assertIn("solo informativa", avviso.body)
         self.assertEqual(_destinatari(richiesta_rls), {"rls@costruzioninovicrom.it"})
         testo_rls = richiesta_rls.body + "".join(str(c) for c, _t in getattr(richiesta_rls, "alternatives", []))
         self.assertIn("Dipendente Sintetico", testo_rls)
@@ -119,3 +119,26 @@ class StatoSegnalazioneTests(TestCase):
         self.assertEqual(_deriva_stato({"Approvazione_RLS": "Non approvato"}), "APERTO")
         self.assertEqual(_deriva_stato({"Approvazione_RLS": "APPROVATO"}), "APPROVATO")
         self.assertEqual(_deriva_stato({"Approvazione_RLS": "Approvato", "Chiusura_RSPP": True}), "CHIUSO")
+
+
+@override_settings(SITE_URL="https://hub.example.test")
+class ProvaPackageTests(TestCase):
+    """Il «test al volo» dell'import non deve segnalare {object_url} come mancante."""
+
+    def test_object_url_valorizzato_nel_test_al_volo(self):
+        from automazioni.package_importer import build_example_payload_json, run_package_dry_run
+
+        for nome, sorgente in (
+            ("au3_incidente_approvazione_rls_rspp.automation_package.json", "rilevazione_incidenti"),
+            ("au57_diario_preposto_nuova_segnalazione.automation_package.json", "diario_preposto"),
+        ):
+            with self.subTest(pacchetto=nome):
+                dati = json.loads((PACCHETTI / nome).read_text(encoding="utf-8"))
+                analisi = analyze_package_dict(dati, filename=nome)
+                payload = json.loads(build_example_payload_json(sorgente) or "{}")
+                payload.setdefault("id", 40)
+                esito = run_package_dry_run(analisi, payload=payload, sample_label="Payload di esempio")
+                regola = esito["rules"][0]
+                messaggi = " ".join(regola["messages"])
+                self.assertNotIn("object_url", messaggi)
+                self.assertIn("https://hub.example.test/", esito["payload_pretty"])

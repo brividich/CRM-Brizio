@@ -221,12 +221,32 @@ body.theme-dark .soc-module .soc-kind.kind-incident { color: #fca5a5; }
 .soc-module .wgp-stat strong { font-size: 24px; line-height: 1.1; }
 .soc-module .wgp-stat span { font-weight: 600; font-size: 13px; }
 .soc-module .wgp-stat small { color: var(--text-light); font-size: 12px; }
+.soc-module a.wgp-stat { color: inherit; text-decoration: none; }
+.soc-module a.wgp-stat:hover { border-color: var(--text-light); }
+.soc-module .wgp-cve-cell { white-space: normal; max-width: 260px; line-height: 1.5; }
+/* Tempi delle patch (services/patch_sla.py): due grafici settimanali affiancati, PC di una patch ferma */
+.soc-module .wgp-trend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.soc-module .wgp-trend .bar-warn { fill: var(--warning); }
+.soc-module .wgp-trend h3 { margin: 0 0 6px; font-size: 14px; }
+.soc-module .wgp-pc-cell { white-space: normal; max-width: 300px; line-height: 1.5; }
+@media (max-width: 900px) { .soc-module .wgp-trend { grid-template-columns: 1fr; } }
 .soc-module .wgp-stat.is-danger strong { color: var(--danger); }
 .soc-module .wgp-stat.is-warn strong { color: #b7791f; }
 .soc-module .wgp-stat.is-ok strong { color: var(--success); }
 .soc-module .wgp-list { display: grid; gap: 6px; }
 .soc-module .wgp-item { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
 .soc-module .wgp-item.is-kev { border-left: 4px solid var(--danger); }
+.soc-module .wgp-item.is-compresa { opacity: .75; }
+/* AI: casella «Cerca anche sul web», fonti lette, modulo di chiusura proposto, spiegazione patch */
+.soc-module .ai-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.soc-module .ai-web-check { font-size: var(--fs-sm, 13px); color: var(--text-light); white-space: nowrap; }
+.soc-module .ai-fonti { margin: 8px 0 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: var(--fs-sm, 13px); }
+.soc-module .ai-fonti ol { margin: 4px 0 0 18px; padding: 0; }
+.soc-module .ai-fonti small { color: var(--text-light); }
+.soc-module .ai-chiusura { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.soc-module .wgp-ai { margin: 4px 0; }
+.soc-module .wgp-ai-body:empty { display: none; }
+.soc-module .wgp-ai-body { margin: 6px 0; padding: 8px 12px; border-radius: 10px; background: var(--surface-alt, rgba(127, 127, 127, .06)); }
 .soc-module .wgp-item > summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; cursor: pointer; list-style: none; }
 .soc-module .wgp-item > summary::-webkit-details-marker { display: none; }
 .soc-module .wgp-name { display: grid; gap: 2px; min-width: 0; flex: 1 1 320px; }
@@ -406,3 +426,37 @@ body.theme-dark .soc-module .iso-pill.is-attenzione, body.theme-dark .soc-module
 .soc-module .cfg-recent ul { margin: 8px 0; padding-left: 18px; color: var(--text-mid); }
 body.theme-dark .soc-module .cfg-todo li a { background: var(--surface); }
 @media (max-width: 520px) { .soc-module .cfg-grid { grid-template-columns: 1fr; } }
+
+/* Segnalazioni > Proposte AI: alert aperti per tipo e per gruppo (alert_gruppi) */
+.soc-module .agr-tipo { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 10px 14px; }
+.soc-module .agr-tipo > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.soc-module .agr-lista { display: grid; gap: 10px; margin-top: 10px; }
+.soc-module .agr-ai, .soc-module .agr-esempi { margin: 6px 0; }
+.soc-module .agr-esempi ul { margin: 6px 0 0; padding-left: 18px; }
+.soc-module .agr-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.soc-module .agr-form input[type=text] { flex: 1 1 240px; min-width: 0; }
+.soc-module .agr-form-tipo { margin-top: 10px; }
+.soc-module .agr-sev { text-transform: capitalize; }
+.soc-module .agr-sev-critical { background: var(--danger-bg, #fee2e2); color: var(--danger, #991b1b); }
+.soc-module .agr-sev-high, .soc-module .agr-sev-medium, .soc-module .agr-sev-warning { background: var(--warning-bg); color: #b45309; }
+body.theme-dark .soc-module .agr-sev-high, body.theme-dark .soc-module .agr-sev-medium, body.theme-dark .soc-module .agr-sev-warning { color: #fdba74; }
+
+/* Segnalazioni > Proposte AI (ai_proposte): schede di proposta e barra della fiducia */
+.soc-module .prop-list { display: grid; gap: 10px; }
+.soc-module .prop-card { padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: 12px; background: var(--surface); min-width: 0; }
+.soc-module .prop-card.is-aperto { border-left-color: #94a3b8; }
+.soc-module .prop-card.is-false_positive, .soc-module .prop-card.is-not_relevant, .soc-module .prop-card.is-accepted_risk { border-left-color: #d97706; }
+.soc-module .prop-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.soc-module .prop-alert { font-weight: 600; overflow-wrap: anywhere; }
+.soc-module .prop-esito { background: var(--success-bg); color: var(--success); }
+.soc-module .prop-esito-warn { background: var(--warning-bg); color: #b45309; }
+.soc-module .prop-tipo { margin: 4px 0 0; }
+.soc-module .prop-motivo { margin: 8px 0 0; }
+.soc-module .prop-prove { margin: 6px 0 0 18px; padding: 0; color: var(--text-mid); }
+.soc-module .prop-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.soc-module .prop-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1 1 280px; min-width: 0; }
+.soc-module .prop-form input[type="text"] { flex: 1 1 180px; min-width: 0; }
+.soc-module .prop-meter { display: inline-block; width: 70px; height: 6px; border-radius: 999px; background: var(--border); vertical-align: middle; overflow: hidden; }
+.soc-module .prop-meter span { display: block; height: 100%; background: var(--success); }
+body.theme-dark .soc-module .prop-esito { color: #86efac; }
+body.theme-dark .soc-module .prop-esito-warn { color: #fcd34d; }

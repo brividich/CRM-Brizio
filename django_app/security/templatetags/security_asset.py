@@ -87,7 +87,7 @@ def security_asset_software(context, asset):
     data = software_catalog.software_for_hub_asset(
         asset,
         with_cve=can_view_security_center(getattr(request, "user", None)),
-        license_states=software_catalog.license_states_for_keys(licenses),
+        license_states=software_catalog.license_states_per_programma(licenses),
     )
     if not data["rows"]:
         return {"show": False}
@@ -97,7 +97,9 @@ def security_asset_software(context, asset):
 
     from assets.models import SoftwareCatalogEntry
 
-    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.filter(inventory_key__in=[r["key"] for r in data["rows"]])}
+    # la decisione può essere su un altro nome dello stesso programma
+    tutte = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
+    entries = {canon: tutte[keys[0]] for canon, keys in software_catalog.chiavi_per_programma(tutte).items()}
     detail = reverse("assets:software_catalog_detail")
     for row in data["rows"]:
         entry = entries.get(row["key"])
@@ -114,7 +116,7 @@ def security_asset_vulns(context, asset):
     if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
         return {"show": False}
     from security.models import SoftwareInstallation
-    from security.services import cve_pannello
+    from security.services import cve_pannello, software_catalog
 
     installs = SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True)
     if not installs.exists():
@@ -135,5 +137,33 @@ def security_asset_vulns(context, asset):
         "dati": dati,
         "top": top[:5],
         "software_count": installs.count(),
+        "copertura": software_catalog.copertura_asset(asset),
         "inventory_date": installs.aggregate(last=Max("last_inventory_date"))["last"],
     }
+
+
+@register.inclusion_tag("security/partials/asset_rischio.html", takes_context=True)
+def security_asset_rischio(context, asset):
+    """Riquadro «Rischio» di un PC o server: livello, CVE, fine supporto, backup, reparto e i motivi."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.services.rischio_asset import valuta
+
+    r = valuta(asset)
+    return {"show": r is not None, "asset": asset, "r": r}
+
+
+@register.inclusion_tag("security/partials/asset_patch.html", takes_context=True)
+def security_asset_patch(context, asset):
+    """Sezione «Patch» nella pagina di un asset HUB: patch WatchGuard mancanti con il termine e installate nell'ultimo anno."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.models import WatchGuardPatch
+
+    if not WatchGuardPatch.objects.filter(hub_asset=asset).exists():
+        return {"show": False}
+    from security.services import patch_sla
+
+    return {"show": True, "asset": asset, **patch_sla.per_asset(asset)}

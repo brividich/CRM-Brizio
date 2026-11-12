@@ -3,7 +3,7 @@
 {% block modulo %}
 <div class="discovery-page">
 <h1>Discovery SNMP</h1>
-<p class="sub">Individua gli endpoint che rispondono in SNMP. Le MFC vengono abbinate per matricola; lettori, apparati e sensori possono essere aggiunti direttamente al monitor. La scansione usa solo letture GET.</p>
+<p class="sub">Individua gli apparati che rispondono in SNMP. Le MFC vengono abbinate per matricola; lettori, apparati e sensori possono essere aggiunti direttamente al monitor. La scansione usa solo letture GET.</p>
 
 {% if scan %}{% include "contatori/_discovery_stato.html" %}{% endif %}
 <div class="panel">
@@ -27,10 +27,10 @@
   <summary>Catalogo community salvate</summary>
   {% if request.GET.catalogo_salvato %}<p class="pos">Community salvata.</p>{% endif %}
   <p>I valori restano nascosti. La versione e la porta della community, se specificate, prevalgono su quelle della scansione. Le community vengono provate nell'ordine del catalogo, precedute dalla globale se selezionata.</p>
-  <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Nome</th><th>Versione</th><th>Porta</th><th>Ordine</th><th>Stato</th><th></th></tr></thead>
+  <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Nome</th><th>Versione</th><th>Porta</th><th>Ordine</th><th>Stato</th><th></th></tr></thead>
   <tbody>{% for c in catalogo %}<tr>
-    <td>{{ c.nome }}</td><td>{{ c.get_versione_display }}</td><td>{{ c.porta|default:"Globale" }}</td><td>{{ c.ordine }}</td><td>{{ c.attiva|yesno:"Attiva,Disattivata" }}</td>
-    <td><a href="{% url 'contatori:discovery' %}?community={{ c.pk }}">Modifica</a></td>
+    <td>{{ c.nome }}</td><td>{{ c.get_versione_display }}</td><td>{{ c.porta|default:"Globale" }}</td><td>{{ c.ordine }}</td><td>{% if c.attiva %}<span class="pill ok">Attiva</span>{% else %}<span class="pill">Disattivata</span>{% endif %}</td>
+    <td><a class="plain" href="{% url 'contatori:discovery' %}?community={{ c.pk }}">Modifica</a></td>
   </tr>{% empty %}<tr><td colspan="6">Nessuna community salvata. Puoi utilizzare quella globale o aggiungerne una.</td></tr>{% endfor %}</tbody></table></div>
   <h3>{% if community_edit %}Modifica {{ community_edit.nome }}{% else %}Nuova community{% endif %}</h3>
   <form method="post" action="{% url 'contatori:discovery' %}">

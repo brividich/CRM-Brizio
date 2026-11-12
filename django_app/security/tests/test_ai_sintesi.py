@@ -75,3 +75,24 @@ class PanoramicaTests(TestCase):
         ask.assert_not_called()  # aprire la pagina non chiama mai l'AI
         self.assertContains(response, "Chiedi all'AI")
         self.assertNotContains(response, "Rigenera")
+
+
+class SintesiScadenzaTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_task_runs_within_a_deadline_under_the_worker_timeout(self):
+        from ai_assistant import http_client
+        from security.services.cpe_ai import TETTO_PIANIFICATO
+
+        set_setting("ai.sintesi.attivo", True, category="avvisi")
+        residui = []
+
+        def _ask(*args, **kwargs):
+            residui.append(http_client.residuo())
+            return _ok()
+
+        with mock.patch(ITEMS, return_value=POINT), mock.patch(ASK, side_effect=_ask):
+            ai_sintesi_giorno_task()
+        self.assertEqual(len(residui), 1)
+        self.assertTrue(0 < residui[0] <= TETTO_PIANIFICATO)

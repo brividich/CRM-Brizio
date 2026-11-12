@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.core import mail
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -413,9 +414,9 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["submit_token"])
         self.assertContains(response, 'name="submit_token"')
-        today = timezone.localdate().strftime("%Y-%m-%d")
-        self.assertEqual(response.context["form_data"]["date_start"], today)
-        self.assertEqual(response.context["form_data"]["date_end"], today)
+        # Date vuote: chi compila deve sceglierle (niente «oggi» preimpostato).
+        self.assertEqual(response.context["form_data"]["date_start"], "")
+        self.assertEqual(response.context["form_data"]["date_end"], "")
 
     @patch("assenze.views.richieste._resolve_request_display_name", return_value="Luca Bova")
     @patch("assenze.views._helpers._template_perm_context", return_value={})
@@ -491,7 +492,7 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response_ok.status_code, 200)
+        self.assertEqual(response_ok.status_code, 302)  # redirect alla conferma
         mock_insert.assert_called_once()
 
         response_missing_csrf = csrf_client.post(
@@ -545,7 +546,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 "submit_token": submit_token,
                 "tipoassenza": "Malattia",
                 "motivazione": "Influenza",
-                "certificato_medico": "CERT-12345",
+                "certificato_medico": "Arrivato",
                 "date_start": "2026-03-12",
                 "date_end": "2026-03-12",
                 "time_start": "08:00",
@@ -554,12 +555,12 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Malattia")
-        self.assertEqual(payload["certificato_medico"], "CERT-12345")
+        self.assertEqual(payload["certificato_medico"], "Arrivato")
 
-    def _post_invio_con_capo(self, perms, capo_value):
+    def _post_invio_con_capo(self, perms, capo_value, capo_effettivo="capo1@example.com"):
         capi = [
             {"Value": "Capo Uno", "Email": "capo1@example.com", "LookupId": 1},
             {"Value": "Capo Due", "Email": "capo2@example.com", "LookupId": 2},
@@ -579,7 +580,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok")) as mock_render, \
                 patch("assenze.views._helpers._load_capi_options", return_value=capi), \
                 patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capo1@example.com"), \
-                patch("assenze.views._helpers._effective_capo_option", return_value=("capo1@example.com", False)):
+                patch("assenze.views._helpers._effective_capo_option", return_value=(capo_effettivo, False)):
             self.client.post(
                 reverse("assenze_invio"),
                 {
@@ -603,6 +604,17 @@ class AssenzeSubmitTokenTests(TestCase):
         perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
         mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com")
         self.assertEqual(mock_capo_local.call_args.args[0], "capo1@example.com")
+
+    def test_invio_non_abilitato_senza_capo_assegnato_solo_dall_elenco(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
+        mock_capo_local, mock_render = self._post_invio_con_capo(perms, "estraneo@example.com", capo_effettivo="")
+        mock_capo_local.assert_not_called()
+        self.assertEqual(mock_render.call_args.kwargs.get("error"), "Caporeparto selezionato non valido.")
+
+    def test_invio_non_abilitato_senza_capo_assegnato_sceglie_dall_elenco(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
+        mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com", capo_effettivo="")
+        self.assertEqual(mock_capo_local.call_args.args[0], "capo2@example.com")
 
     def test_invio_capo_scelto_fuori_elenco_rifiutato(self):
         perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": True}
@@ -652,7 +664,7 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["data_inizio"].strftime("%H:%M"), "00:00")
         self.assertEqual(payload["data_fine"].strftime("%H:%M"), "23:59")
@@ -757,7 +769,7 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Flessibilità")
         self.assertEqual(payload["motivazione_richiesta"], "Recupero ore")
@@ -805,7 +817,7 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Certifica presenza")
         self.assertEqual(payload["motivazione_richiesta"], "Turno mattina")
@@ -1309,6 +1321,9 @@ class MiaAssenzaUpdateTests(TestCase):
             username="assenze-update-user", email="assenze-update@example.com", password="pass12345"
         )
 
+    @patch("assenze.mail_modifica_service._hr_mailbox", return_value="")
+    @patch("assenze.views._helpers._load_capi_options",
+           return_value=[{"Value": "Capo Uno", "Email": "capo1@example.com", "LookupId": 5}])
     @patch("assenze.views._helpers._graph_configured", return_value=False)
     @patch("assenze.views._helpers._update_assenza", return_value=True)
     @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
@@ -1323,6 +1338,8 @@ class MiaAssenzaUpdateTests(TestCase):
         _mock_validate,
         mock_update,
         _mock_graph_configured,
+        _mock_capi,
+        _mock_hr_mailbox,
     ):
         mock_get_assenza.return_value = {
             "id": 42,
@@ -1335,19 +1352,86 @@ class MiaAssenzaUpdateTests(TestCase):
             "certificato_medico": "",
             "consenso": "In attesa",
             "moderation_status": 2,
+            "capo_reparto_lookup_id": 5,
         }
         self.client.force_login(self.user)
 
         response = self.client.post(
             reverse("assenze_api_mia_update", args=[42]),
             content_type="application/json",
-            data='{"tipo":"Malattia","inizio":"2026-03-12T08:00:00.000Z","fine":"2026-03-12T17:00:00.000Z","motivazione":"Influenza","certificato_medico":"CERT-777"}',
+            data='{"tipo":"Malattia","inizio":"2026-03-12T08:00:00.000Z","fine":"2026-03-12T17:00:00.000Z","motivazione":"Influenza","certificato_medico":"Arrivato"}',
         )
 
         self.assertEqual(response.status_code, 200)
         updates = mock_update.call_args.args[1]
         self.assertEqual(updates["tipo_assenza"], "Malattia")
-        self.assertEqual(updates["certificato_medico"], "CERT-777")
+        self.assertEqual(updates["certificato_medico"], "Arrivato")
+        # La modifica avvisa assenza@ e il capo reparto, con cosa e' cambiato.
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ["assenza@costruzioninovicrom.it", "capo1@example.com"])
+        self.assertIn("Richiesta modificata", msg.subject)
+        self.assertIn("Certificato arrivato: — -> Arrivato", msg.body)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class CertificatoArrivatoMailTests(SimpleTestCase):
+    def test_riga_solo_per_malattia(self):
+        from assenze.mail_certificato import blocco_mail
+        testo, html_blocco = blocco_mail("assenze", {"tipo_assenza": "Malattia", "certificato_medico": "Arrivato"})
+        self.assertEqual(testo, "Certificato arrivato: Sì\n\n")
+        self.assertIn("Certificato arrivato: Sì", html_blocco)
+        testo, _ = blocco_mail("assenze", {"tipo_assenza": "malattia", "certificato_medico": ""})
+        self.assertEqual(testo, "Certificato arrivato: No\n\n")
+        self.assertEqual(blocco_mail("assenze", {"tipo_assenza": "Ferie", "certificato_medico": "Arrivato"}), ("", ""))
+        self.assertEqual(blocco_mail("tasks", {"tipo_assenza": "Malattia", "certificato_medico": "Arrivato"}), ("", ""))
+
+    @patch("assenze.views._helpers._get_assenza", return_value={"tipo_assenza": "Malattia", "certificato_medico": "CERT-1"})
+    def test_senza_certificato_nel_payload_legge_la_richiesta(self, mock_get):
+        from assenze.mail_certificato import blocco_mail
+        testo, _ = blocco_mail("assenze", {"id": "7", "tipo_assenza": "Malattia"})
+        self.assertEqual(testo, "Certificato arrivato: Sì\n\n")
+        mock_get.assert_called_once_with(7)
+
+    def test_mail_modifica_mostra_certificato_dopo_la_modifica(self):
+        from assenze.mail_modifica_service import send_assenza_modificata_notification
+        record = {"id": 1, "copia_nome": "Mario Test", "tipo_assenza": "Malattia", "certificato_medico": ""}
+        send_assenza_modificata_notification(
+            record, modifiche=[{"campo": "Certificato arrivato", "prima": "", "dopo": "Arrivato"}], tipo_display="Malattia",
+        )
+        self.assertIn("Certificato arrivato: Sì", mail.outbox[-1].body)
+        send_assenza_modificata_notification(
+            dict(record, tipo_assenza="Ferie"), modifiche=[{"campo": "Inizio", "prima": "a", "dopo": "b"}], tipo_display="Ferie",
+        )
+        self.assertNotIn("Certificato arrivato", mail.outbox[-1].body)
+
+    def test_mail_eliminazione_mostra_certificato(self):
+        from assenze.mail_delete_service import send_assenza_deleted_notification
+        record = {"id": 1, "copia_nome": "Mario Test", "email_esterna": "dip@example.com",
+                  "tipo_assenza": "Malattia", "certificato_medico": ""}
+        self.assertTrue(send_assenza_deleted_notification(record, tipo_display="Malattia"))
+        self.assertIn("Certificato arrivato: No", mail.outbox[-1].body)
+
+
+class CertificatoArrivatoTests(SimpleTestCase):
+    def test_spunta_solo_per_malattia(self):
+        from assenze.views._helpers import _certificato_medico_for_tipo as cert
+        self.assertEqual(cert("Malattia", "Arrivato"), "Arrivato")
+        self.assertEqual(cert("Malattia", "on"), "Arrivato")
+        self.assertEqual(cert("Malattia", ""), "")
+        self.assertEqual(cert("Malattia", "false"), "")
+        self.assertEqual(cert("Ferie", "Arrivato"), "")
+
+    def test_vecchio_numero_resta_e_non_risulta_modificato(self):
+        from assenze.views._helpers import _certificato_medico_for_tipo as cert
+        self.assertEqual(cert("Malattia", "Arrivato", "CERT-1"), "CERT-1")
+        self.assertEqual(cert("Malattia", "", "CERT-1"), "")
+
+    @patch("assenze.mail_modifica_service.send_assenza_modificata_notification")
+    def test_solo_cambio_stato_niente_mail(self, mock_send):
+        from assenze.views._helpers import _notify_assenza_modificata
+        _notify_assenza_modificata(None, {"id": 1}, [{"campo": "Stato", "prima": "In attesa", "dopo": "Approvato"}])
+        mock_send.assert_not_called()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -2215,15 +2299,14 @@ class AssenzeRegoleDurataTests(SimpleTestCase):
     def _dt(self, s):
         return datetime.strptime(s, "%Y-%m-%d %H:%M")
 
-    # --- Permesso: 30min-8h, stesso giorno -------------------------------
-    def test_permesso_oltre_8h_respinto(self):
+    # --- Permesso: almeno 30min, nessun tetto di ore, stesso giorno ------
+    def test_permesso_turno_lungo_8_18_ok(self):
         err, _ = _validate_business_rules(
             tipo="Permesso",
             dt_start=self._dt("2026-03-10 08:00"),
-            dt_end=self._dt("2026-03-10 17:00"),  # 9h
+            dt_end=self._dt("2026-03-10 18:00"),  # 10h: turno 8-18
         )
-        self.assertTrue(err)
-        self.assertIn("8 ore", err)
+        self.assertEqual(err, "")
 
     def test_permesso_sotto_30min_respinto(self):
         err, _ = _validate_business_rules(
@@ -2287,6 +2370,15 @@ class AssenzeRegoleDurataTests(SimpleTestCase):
         )
         self.assertEqual(err, "")
 
+    def test_durata_rapida_giornata_lunga_8_18_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 18:00"),
+            shortcut="lunga",
+        )
+        self.assertEqual(err, "")
+
     def test_durata_rapida_multi_giorno_respinto(self):
         err, _ = _validate_business_rules(
             tipo="Permesso",
@@ -2344,7 +2436,7 @@ class AssenzeInvioRegoleDurataTests(TestCase):
     @patch("assenze.views.richieste._insert_assenza", return_value=1)
     @patch("assenze.views._helpers._table_exists", return_value=True)
     @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
-    def test_invio_permesso_oltre_8h_respinto(
+    def test_invio_permesso_sotto_30min_respinto(
         self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
     ):
         self.client.force_login(self.user)
@@ -2356,12 +2448,12 @@ class AssenzeInvioRegoleDurataTests(TestCase):
             "date_start": "2026-03-10",
             "date_end": "2026-03-10",
             "time_start": "08:00",
-            "time_end": "17:00",            # 9h
+            "time_end": "08:15",            # 15 minuti
             "caporeparto": "",
         })
         self.assertEqual(resp.status_code, 200)
         mock_insert.assert_not_called()
-        self.assertIn("8 ore", mock_render.call_args.kwargs["error"])
+        self.assertIn("30 minuti", mock_render.call_args.kwargs["error"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -2384,6 +2476,15 @@ class AssenzeRichiestaShortcutRenderTests(TestCase):
         self.assertContains(resp, 'name="shortcut"')
         self.assertContains(resp, 'id="time_start"')
         self.assertContains(resp, 'id="time_end"')
+        self.assertContains(resp, 'value="lunga"> Giornata lunga (08:00-18:00)')
+        html = resp.content.decode()
+        # Date prima dell'orario, card unica Ferie / Permesso, niente menu a tendina del tipo.
+        self.assertLess(html.index('id="date_start"'), html.index('name="shortcut"'))
+        self.assertLess(html.index('id="date_end"'), html.index('id="time_start"'))
+        self.assertContains(resp, "Ferie / Permesso")
+        self.assertContains(resp, '<div class="abs-type-native" hidden>')
+        self.assertNotContains(resp, "Puoi usare le card oppure il menu")
+        self.assertContains(resp, 'id="abs-live-dipendente"')
 
 
 class AssenzeSubnavTests(SimpleTestCase):

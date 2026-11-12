@@ -47,7 +47,7 @@ class SoftwareCatalogTests(TestCase):
 
     def test_catalog_lists_product_with_pc_count(self):
         item = software_catalog.catalog()[0]
-        self.assertEqual((item["key"], item["label"], item["hosts"]), (self.key, "7-Zip (x64)", 2))
+        self.assertEqual((item["key"], item["label"], item["hosts"]), (self.key, "7-Zip", 2))
 
 
 class SoftwarePagesTests(TestCase):
@@ -63,7 +63,7 @@ class SoftwarePagesTests(TestCase):
         SoftwareLicense.objects.create(product_name="7-Zip", inventory_key=self.key, seats_total=5)
         response = self.client.get(reverse("assets:asset_view", args=[self.hub.pk]))
         self.assertContains(response, "Software installati")
-        self.assertContains(response, "7-Zip (x64)")
+        self.assertContains(response, "7-Zip")
         self.assertContains(response, "Licenza valida")
 
     def test_asset_without_inventory_has_no_section(self):
@@ -79,7 +79,7 @@ class SoftwarePagesTests(TestCase):
     def test_license_form_offers_inventory_software(self):
         response = self.client.get(reverse("assets:software_license_list"))
         self.assertContains(response, 'name="inventory_key"')
-        self.assertContains(response, "7-Zip (x64) · Igor Pavlov (2 PC)")
+        self.assertContains(response, "7-Zip · Igor Pavlov (2 PC)")
 
 
 class SoftwareCatalogPageTests(TestCase):
@@ -93,11 +93,11 @@ class SoftwareCatalogPageTests(TestCase):
 
     def test_catalog_lists_products_and_filters(self):
         response = self.client.get(reverse("assets:software_catalog"))
-        self.assertContains(response, "7-Zip (x64)")
+        self.assertContains(response, "7-Zip")
         self.assertContains(response, "Da classificare")
         SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="non_autorizzato")
-        self.assertContains(self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato"), "7-Zip (x64)")
-        self.assertNotContains(self.client.get(reverse("assets:software_catalog") + "?f=da_rimuovere"), "7-Zip (x64)")
+        self.assertContains(self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato"), "7-Zip")
+        self.assertNotContains(self.client.get(reverse("assets:software_catalog") + "?f=da_rimuovere"), "Seleziona 7-Zip")
 
     def test_detail_saves_decision(self):
         url = reverse("assets:software_catalog_detail")
@@ -233,4 +233,4 @@ class ProgrammiRaggruppatiTests(TestCase):
         SoftwareCatalogEntry.objects.create(inventory_key=software_catalog.inventory_key("google", "chrome"), classification="non_autorizzato")
         page = self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato")
         self.assertContains(page, "hrome")
-        self.assertNotContains(page, "Chromium")
+        self.assertNotContains(page, "Seleziona Chromium")

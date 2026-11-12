@@ -98,7 +98,7 @@ def _aree_rows(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.models import AreaAziendale
 
     aree = list(
-        AreaAziendale.objects.select_related("reparto").order_by("reparto__nome", "nome")
+        AreaAziendale.objects.select_related("reparto", "centro_di_costo").order_by("reparto__nome", "nome")
     )
     responsabili = _nomi_legacy({a.responsabile_legacy_id for a in aree if a.responsabile_legacy_id})
 
@@ -107,6 +107,7 @@ def _aree_rows(request: HttpRequest, scope: str) -> list[dict]:
         rows.append({
             "nome": area.nome or "",
             "reparto": area.reparto.nome if area.reparto_id else "",
+            "centro_di_costo": area.centro_di_costo.nome if area.centro_di_costo_id else "",
             "descrizione": area.descrizione or "",
             "responsabile": responsabili.get(area.responsabile_legacy_id or 0, ""),
             "stato": "Attivo" if area.is_active else "Inattivo",
@@ -121,12 +122,120 @@ register(ExportSpec(
     columns=[
         ("Area aziendale", "nome"),
         ("Reparto", "reparto"),
+        ("Centro di costo", "centro_di_costo"),
         ("Descrizione", "descrizione"),
         ("Responsabile", "responsabile"),
         ("Stato", "stato"),
     ],
     dataset=_aree_rows,
     permission=acl_gate("/anagrafica/aree/"),
+))
+
+
+# ── Centri di costo (una riga per reparto, come la pagina) ───────────────────
+
+def _centri_costo_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import AreaAziendale
+    from anagrafica.views_centri_costo import carico_oggi, persone_per_area
+
+    persone = persone_per_area()
+    carico = carico_oggi()
+    segnali = carico.per_area() if carico else {}
+    aree = AreaAziendale.objects.select_related("reparto", "centro_di_costo").prefetch_related("ruoli_reparto")
+    rows: list[dict] = []
+    for area in aree.order_by("centro_di_costo__nome", "nome"):
+        if not area.is_active and not area.centro_di_costo_id:
+            continue
+        rows.append({
+            "centro": area.centro_di_costo.nome if area.centro_di_costo_id else "",
+            "nome": area.nome or "",
+            "reparto": area.reparto.nome if area.reparto_id else "",
+            "persone": persone.get(area.pk, 0),
+            "scoperte": (segnali.get(area.pk) or {}).get("scoperte", 0),
+            "uomo_solo": (segnali.get(area.pk) or {}).get("uomo_solo", 0),
+            "concentrate": (segnali.get(area.pk) or {}).get("concentrate", 0),
+            "ruoli": ", ".join(sorted((r.sigla or r.nome) for r in area.ruoli_reparto.all())),
+        })
+    return rows
+
+
+register(ExportSpec(
+    key="centri_costo",
+    title="Centri di costo",
+    sheet_title="Centri di costo",
+    columns=[
+        ("Centro di costo", "centro"),
+        ("Reparto (area)", "nome"),
+        ("Reparto del portale", "reparto"),
+        ("Persone", "persone"),
+        ("Mansioni scoperte", "scoperte"),
+        ("Mansioni uomo solo", "uomo_solo"),
+        ("Mansioni a carico concentrato", "concentrate"),
+        ("Ruoli", "ruoli"),
+    ],
+    dataset=_centri_costo_rows,
+    permission=acl_gate("/anagrafica/aree/centri-di-costo/"),
+))
+
+
+# ── Prospetto dei cambiamenti: confronto Oggi / Dopo ─────────────────────────
+
+def _prospetto_permesso(request: HttpRequest) -> bool:
+    from anagrafica.views_mansionario import _puo_vedere
+
+    return acl_gate("/anagrafica/struttura/prospetto/")(request) and _puo_vedere(request)
+
+
+def _prospetto_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models_struttura import ProspettoStruttura
+    from anagrafica.services import prospetto_struttura as svc
+    from anagrafica.views_prospetto import puo_costi, puo_visite
+
+    id_prospetto = str(request.GET.get("id") or "")
+    p = ProspettoStruttura.objects.filter(pk=int(id_prospetto), stato=ProspettoStruttura.STATO_BOZZA).first() if id_prospetto.isdigit() else None
+    if p is None:
+        return []
+    ctx = svc.costruisci(p, visite=puo_visite(request))
+    costi = puo_costi(request)
+    righe: list[dict] = []
+
+    def riga(sezione, voce, prima="", dopo="", nota=""):
+        righe.append({"sezione": sezione, "voce": voce, "prima": prima, "dopo": dopo, "nota": nota})
+
+    for r in ctx["righe_modifiche"]:
+        riga("Cambiamenti provati", r["testo"], nota=r["problema"])
+    for a in ctx["avvisi"]:
+        riga("Da guardare", a["testo"])
+    for r in ctx["kpi"]:
+        riga("Riepilogo", r["voce"], r["prima"], r["dopo"])
+    for r in ctx["centri"]:
+        riga("Persone per centro di costo", r["voce"], r["persone_prima"], r["persone_dopo"])
+        if costi:
+            riga("RML per centro di costo (€)", r["voce"], r["rml_prima"], r["rml_dopo"])
+            riga("Costo orario medio per centro (€/h)", r["voce"], r["medio_prima"], r["medio_dopo"])
+    for r in ctx["reparti"]:
+        riga("Persone per reparto", r["voce"], r["persone_prima"], r["persone_dopo"],
+             "; ".join(filter(None, ["entrano: " + ", ".join(r["entrano"]) if r["entrano"] else "",
+                                     "escono: " + ", ".join(r["escono"]) if r["escono"] else ""])))
+    for r in ctx["mansioni"]:
+        riga("Operativi per mansione", r["voce"], r["operativi_prima"], r["operativi_dopo"], f"{r['stato_prima']} → {r['stato_dopo']}")
+        riga("Teste equivalenti per mansione", r["voce"], r["fte_prima"], r["fte_dopo"])
+        if costi:
+            riga("Costo orario medio per mansione (€/h)", r["voce"], r["costo_prima"], r["costo_dopo"])
+    for r in ctx["persone"]:
+        riga("Reparto della persona", r["nome"], r["reparto_prima"], r["reparto_dopo"])
+        riga("Centro di costo della persona", r["nome"], r["centro_prima"], r["centro_dopo"])
+        riga("Capo della persona", r["nome"], r["capo_prima"], r["capo_dopo"])
+    return righe
+
+
+register(ExportSpec(
+    key="prospetto",
+    title="Prospetto dei cambiamenti",
+    sheet_title="Prospetto",
+    columns=[("Sezione", "sezione"), ("Voce", "voce"), ("Oggi", "prima"), ("Dopo", "dopo"), ("Note", "nota")],
+    dataset=_prospetto_rows,
+    permission=_prospetto_permesso,
 ))
 
 
@@ -516,7 +625,7 @@ def _costo_orario_rows(request: HttpRequest, scope: str) -> list[dict]:
     else:
         righe = _righe_costo(request)["righe"]
     return [{
-        "dipendente": x["nome"], "reparto": x["reparto"], "classificazione": x["classe"],
+        "dipendente": x["nome"], "reparto": x["reparto"], "centro_costo": x["centro_costo"], "classificazione": x["classe"],
         "mese": x["c"].mese.strftime("%m-%Y"), "rml": x["c"].rml, "giorni": x["c"].divisore_giorni,
         "ore": x["c"].divisore_ore, "costo": x["c"].costo_orario, "delta": x["delta"], "delta_pct": x["delta_pct"],
         "scost": x["scost"], "manuale": _si_no(x["c"].rml_manuale),
@@ -527,7 +636,7 @@ def _costo_orario_filters(request: HttpRequest) -> str:
     parts = []
     from anagrafica.views_coefficienti import FILTRI_MOSTRA
 
-    for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("q", "Ricerca")):
+    for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("q", "Ricerca")):
         valore = (request.GET.get(chiave) or "").strip()
         if valore:
             parts.append(f"{etichetta}: {valore}")
@@ -544,6 +653,7 @@ register(ExportSpec(
     columns=[
         ("Dipendente", "dipendente"),
         ("Reparto", "reparto"),
+        ("Centro di costo", "centro_costo"),
         ("Classificazione", "classificazione"),
         ("Mese", "mese"),
         ("RML (€)", "rml"),
@@ -584,7 +694,7 @@ def _costo_storico_columns(request: HttpRequest) -> list[tuple[str, str]]:
 
     scope = request.GET.get("scope") or "filtered"
     mesi = _storico(_storico_request(request, scope))["mesi"]
-    return ([("Dipendente", "dipendente"), ("Reparto", "reparto")]
+    return ([("Dipendente", "dipendente"), ("Reparto", "reparto"), ("Centro di costo", "centro_costo")]
             + [(m.strftime("%m/%Y"), m.strftime("m%Y%m")) for m in mesi]
             + [("Variazione (€)", "var"), ("Variazione (%)", "var_pct")])
 
@@ -595,7 +705,8 @@ def _costo_storico_rows(request: HttpRequest, scope: str) -> list[dict]:
     ctx = _storico(_storico_request(request, scope))
     out = []
     for r in ctx["righe"]:
-        riga = {"dipendente": r["nome"], "reparto": r["reparto"], "var": r["var"], "var_pct": r["var_pct"]}
+        riga = {"dipendente": r["nome"], "reparto": r["reparto"], "centro_costo": r["centro_costo"], "var": r["var"],
+                "var_pct": r["var_pct"]}
         for m, x in zip(ctx["mesi"], r["celle"]):
             riga[m.strftime("m%Y%m")] = x["c"].costo_orario if x["c"] else None
         out.append(riga)
@@ -604,7 +715,7 @@ def _costo_storico_rows(request: HttpRequest, scope: str) -> list[dict]:
 
 def _costo_storico_filters(request: HttpRequest) -> str:
     parts = []
-    for chiave, etichetta in (("dal", "Dal"), ("al", "Al"), ("reparto", "Reparto"), ("q", "Ricerca")):
+    for chiave, etichetta in (("dal", "Dal"), ("al", "Al"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("q", "Ricerca")):
         valore = (request.GET.get(chiave) or "").strip()
         if valore:
             parts.append(f"{etichetta}: {valore}")
@@ -615,7 +726,7 @@ register(ExportSpec(
     key="costo_orario_storico",
     title="Storico del costo orario",
     sheet_title="Storico costo orario",
-    columns=[("Dipendente", "dipendente"), ("Reparto", "reparto")],
+    columns=[("Dipendente", "dipendente"), ("Reparto", "reparto"), ("Centro di costo", "centro_costo")],
     columns_fn=_costo_storico_columns,
     dataset=_costo_storico_rows,
     filters_label=_costo_storico_filters,
@@ -656,7 +767,10 @@ def _visite_scad_queryset(filtro: str):
             data_scadenza__isnull=False,
             data_scadenza__lte=oggi + _timedelta(days=60),
         )
-    return oggi, qs.select_related("tipo").order_by("data_scadenza")
+    # Solo le visite correnti, come la dashboard: un rinnovo non lascia la vecchia «scaduta».
+    from anagrafica.services.visite import ultime_visite_correnti_ids
+
+    return oggi, qs.filter(id__in=ultime_visite_correnti_ids()).select_related("tipo").order_by("data_scadenza")
 
 
 def _visite_mediche_rows(request: HttpRequest, scope: str) -> list[dict]:
@@ -665,6 +779,10 @@ def _visite_mediche_rows(request: HttpRequest, scope: str) -> list[dict]:
         filtro = "tutti"
 
     oggi, qs = _visite_scad_queryset(filtro)
+    if scope == "filtered":
+        from anagrafica.services import centro_filtro
+
+        qs = centro_filtro.leggi(request).applica(qs)
     visite = list(qs)
     nomi = _nomi_legacy({v.legacy_anagrafica_id for v in visite})
 
@@ -693,7 +811,11 @@ def _visite_mediche_filters(request: HttpRequest) -> str:
         "mese_corrente": "Scadenze del mese corrente",
         "prossimo_mese": "Scadenze del prossimo mese",
     }
-    return labels.get(filtro, "Scadute o in scadenza entro 60 giorni")
+    from anagrafica.services import centro_filtro
+
+    testo = labels.get(filtro, "Scadute o in scadenza entro 60 giorni")
+    centro = centro_filtro.leggi(request).etichetta
+    return f"{testo} · {centro}" if centro else testo
 
 
 register(ExportSpec(
@@ -714,23 +836,29 @@ register(ExportSpec(
 
 
 # ── Visite mediche — copertura per tipologia ─────────────────────────────────
-# Seconda tabella della stessa dashboard (nessun filtro in querystring).
+# Seconda tabella della stessa dashboard: l'unico filtro è il centro di costo.
 
 def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     from django.db.models import Count
     from django.utils import timezone
 
-    from anagrafica.models import DipendenteRuoloOperativo, TipoVisitaMedica, VisitaMedica
+    from anagrafica.models import TipoVisitaMedica, VisitaMedica
+    from anagrafica.services.visite import ultime_visite_correnti_ids
+    from anagrafica.views.visite import _richiesti_per_ruoli
+
+    from anagrafica.services import centro_filtro
 
     oggi = timezone.localdate()
+    filtro_centro = centro_filtro.leggi(request) if scope == "filtered" else centro_filtro.Filtro()
+    visite = filtro_centro.applica(VisitaMedica.objects.all()).filter(id__in=ultime_visite_correnti_ids())
     valide_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects.filter(data_scadenza__gte=oggi)
+        for row in visite.filter(data_scadenza__gte=oggi)
         .order_by().values("tipo_id").annotate(n=Count("legacy_anagrafica_id", distinct=True))
     }
     scadute_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects.filter(data_scadenza__lt=oggi)
+        for row in visite.filter(data_scadenza__lt=oggi)
         .order_by().values("tipo_id").annotate(n=Count("legacy_anagrafica_id", distinct=True))
     }
 
@@ -738,15 +866,13 @@ def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     for t in TipoVisitaMedica.objects.filter(is_active=True).prefetch_related("ruoli_operativi"):
         ruoli_ids = [r.id for r in t.ruoli_operativi.all()]
         if ruoli_ids:
-            richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
+            if filtro_centro.attivo:
+                richiesti &= filtro_centro.ids
         else:
             richiesti = set()
         coperti = set(
-            VisitaMedica.objects
+            visite
             .filter(tipo=t, data_scadenza__gte=oggi)
             .values_list("legacy_anagrafica_id", flat=True)
         )

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Conferma ricevuta DPI</title>
+  <style>
+    :root { --bg:#f1f5f9; --card:#fff; --text:#0f172a; --mid:#475569; --light:#64748b; --line:#e2e8f0; --soft:#f8fafc; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0b1220; --card:#111a2e; --text:#e2e8f0; --mid:#cbd5e1; --light:#94a3b8; --line:#23304a; --soft:#16213a; }
+    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--bg); color:var(--text); display:flex; justify-content:center; padding:32px 16px; }
+    .card { background:var(--card); border-radius:18px; box-shadow:0 4px 32px rgba(15,23,42,.12); max-width:520px; width:100%; overflow:hidden; }
+    .head { padding:24px 24px 16px; border-bottom:1px solid var(--line); }
+    .brand { font-size:13px; font-weight:800; color:var(--light); letter-spacing:.02em; margin-bottom:12px; }
+    h1 { font-size:21px; font-weight:800; line-height:1.3; }
+    .sub { margin-top:6px; font-size:14px; color:var(--mid); line-height:1.5; }
+    .body { padding:20px 24px; display:grid; gap:14px; }
+    ul { list-style:none; display:grid; gap:8px; }
+    li { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--soft); font-size:14px; }
+    li small { display:block; color:var(--light); font-size:12px; margin-top:2px; }
+    textarea { width:100%; min-height:80px; padding:10px; border:1px solid var(--line); border-radius:10px; font-size:16px; background:var(--card); color:var(--text); font-family:inherit; }
+    label { font-size:13px; font-weight:700; color:var(--mid); display:block; margin-bottom:6px; }
+    .btn { display:block; width:100%; padding:14px; border:none; border-radius:12px; font-size:16px; font-weight:800; color:#fff; cursor:pointer; }
+    .si { background:#16a34a; } .no { background:#dc2626; }
+    .esito { padding:14px 16px; border-radius:12px; font-size:15px; font-weight:700; line-height:1.5; }
+    .ok { background:#dcfce7; color:#166534; } .ko { background:#fee2e2; color:#991b1b; } .info { background:#e0f2fe; color:#075985; }
+    @media (prefers-color-scheme: dark) {
+      .ok { background:rgba(22,163,74,.2); color:#86efac; } .ko { background:rgba(220,38,38,.2); color:#fca5a5; } .info { background:rgba(3,105,161,.25); color:#7dd3fc; }
+    }
+    .alt { font-size:13px; color:var(--light); text-align:center; }
+    .alt a { color:inherit; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="brand">NOVICROM HUB · DPI</div>
+      {% if errore %}
+      <h1>Link non valido</h1>
+      <p class="sub">Il link è sbagliato o non vale più (dopo un promemoria vale solo l'ultimo link ricevuto).</p>
+      {% else %}
+      <h1>{% if per_dipendente %}Hai ricevuto questi DPI?{% else %}{{ conferma.richiedente_nome|title }} ha ricevuto questi DPI?{% endif %}</h1>
+      <p class="sub">Consegnati dal magazzino{% with c=consegne.0 %}{% if c %} il {{ c.data_consegna|date:"d/m/Y" }}{% if c.consegnato_da_nome %} da {{ c.consegnato_da_nome|title }}{% endif %}{% endif %}{% endwith %}.</p>
+      {% endif %}
+    </div>
+    {% if not errore %}
+    <div class="body">
+      <ul>
+        {% for c in consegne %}{% with r=c.richiesta %}
+        <li>{% if r.modello_dpi %}{{ r.modello_dpi.nome }}{% else %}{{ r.categoria.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %} × {{ r.quantita }}
+          <small>{{ r.categoria.nome }} · {{ r.numero }}</small></li>
+        {% endwith %}{% endfor %}
+      </ul>
+
+      {% if conferma.stato == "CONFERMATA" %}
+      <div class="esito ok">Ricevuta confermata il {{ conferma.decisa_il|date:"d/m/Y H:i" }}. Grazie, puoi chiudere la pagina.</div>
+      {% elif conferma.stato == "CONTESTATA" %}
+      <div class="esito ko">Hai segnalato che i DPI non sono stati ricevuti ({{ conferma.decisa_il|date:"d/m/Y H:i" }}): il magazzino è stato avvisato.</div>
+      {% elif decisione == "conferma" %}
+      <form method="post">
+        <button type="submit" class="btn si">Confermo, {% if per_dipendente %}li ho ricevuti{% else %}li ha ricevuti{% endif %}</button>
+      </form>
+      <p class="alt">Non è così? <a href="../contesta/">Segnala che non sono stati ricevuti</a></p>
+      {% else %}
+      <form method="post">
+        <label for="nota">Cosa non torna? (facoltativo)</label>
+        <textarea name="nota" id="nota" maxlength="500" placeholder="Es: mancano i guanti, taglia sbagliata"></textarea>
+        <button type="submit" class="btn no" style="margin-top:10px;">Non {% if per_dipendente %}li ho ricevuti{% else %}li ha ricevuti{% endif %}</button>
+      </form>
+      <p class="alt">Li {% if per_dipendente %}hai{% else %}ha{% endif %} ricevuti? <a href="../conferma/">Conferma la ricevuta</a></p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>

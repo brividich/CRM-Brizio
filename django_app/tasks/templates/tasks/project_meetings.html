@@ -1,5 +1,6 @@
 {% extends "tasks/base_shell.html" %}
 {% load static %}
+{% block tasks_shell_guide_anchor %}#elenco-incontri{% endblock %}
 
 {% comment %}
 Pagina incontri di commessa. L'intestazione e' quella dello shell (come la
@@ -11,7 +12,7 @@ testo scuro su fondo scuro.
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  Stato di avanzamento, problemi aperti e next steps, incontro per incontro.
+  Stato di avanzamento, problemi aperti e prossimi passi, incontro per incontro.
 {% endblock %}
 
 {% block tasks_shell_meta %}

@@ -167,6 +167,11 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             # qui creerebbe un secondo scrittore capace di desincronizzare
             # l'assetto reale dall'assegnazione in corso.
             "area", "area_aziendale", "ruolo_aziendale",
+            # Il capo indicato a mano si gestisce da «Coerenza capi» (con la
+            # ricerca della persona, non con un ID); l'account pre-offboarding e
+            # la data di cessazione li scrivono uscita e rientro del dipendente.
+            "capo_eccezione_legacy_id", "capo_eccezione_motivo",
+            "utente_id_pre_offboarding", "data_cessazione",
         ]
         widgets = {
             "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
@@ -183,7 +188,16 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
             "telefono_aziendale": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
+            "motivo_esclusione_conteggi": forms.TextInput(
+                attrs={"class": "dp-input", "placeholder": "Es. amministratore, RSPP esterno"}
+            ),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        if "escluso_dai_conteggi" in self.fields and not cleaned.get("escluso_dai_conteggi"):
+            cleaned["motivo_esclusione_conteggi"] = ""
+        return cleaned
 
     def clean_badge(self):
         val = self.cleaned_data.get("badge", "").strip()
@@ -191,6 +205,20 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             stripped = val.lstrip("0")
             return stripped if stripped else "0"
         return val
+
+
+# Schede del pannello «Modifica» della card «Anagrafica aziendale» (scheda
+# dipendente): solo il raggruppamento a video, il form resta uno.
+AZIENDALE_SCHEDE = {
+    "contatti": ("Badge e contatti", ["badge", "email_aziendale", "telefono_aziendale"]),
+    "rapporto": ("Rapporto di lavoro", [
+        "data_prima_assunzione", "data_assunzione_ultima", "prova_data_inizio", "prova_data_fine",
+    ]),
+    "organico": ("Organico e privacy", [
+        "escluso_dai_conteggi", "motivo_esclusione_conteggi", "consenso_privacy", "data_consenso_privacy",
+    ]),
+    "taglie": ("Taglie", ["taglia_scarpe", "taglia_pantalone", "taglia_maglia"]),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +425,7 @@ class TrainingCourseForm(forms.ModelForm):
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
             "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
             "is_elearning", "quiz_punteggio_minimo",
-            "stato", "note", "versione", "is_active",
+            "stato", "note", "is_active",
         ]
         widgets = {
             "piano":              forms.Select(attrs=_FM_SELECT),
@@ -418,7 +446,6 @@ class TrainingCourseForm(forms.ModelForm):
             "quiz_punteggio_minimo": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "stato":              forms.Select(attrs=_FM_SELECT),
             "note":               forms.Textarea(attrs=_FM_TEXTAREA),
-            "versione":           forms.TextInput(attrs=_FM),
             "is_active":          forms.CheckboxInput(attrs=_FM_CHECK),
         }
 
@@ -440,6 +467,9 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["ente_formativo"].required = False
         self.fields["ente_formativo"].empty_label = "— Nessuno —"
 
+        # Etichette in italiano dove il modello le lascia in inglese.
+        self.fields["is_elearning"].label = "Corso e-learning"
+        self.fields["is_active"].label = "Corso attivo"
         # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
         self.fields["fonte_obbligo"].required = False
         self.fields["fonte_obbligo"].widget.choices = (
@@ -474,6 +504,106 @@ class TrainingCourseForm(forms.ModelForm):
                     self.instance.processi_richiedenti.values_list("pk", flat=True))
         except Exception:
             pass
+        self._aggiungi_campi_destinatari()
+
+    # Destinatari: (campo del form, campo della regola, obbligatorio?)
+    _DESTINATARI = (
+        ("mansioni_obbligatorie", "competenza", True),
+        ("mansioni_consigliate", "competenza", False),
+        ("ruoli_obbligatori", "ruolo_operativo", True),
+        ("rischio_obbligatorie", "mansione", True),
+    )
+    _ALTRI_TARGET = ("mansione", "area", "ruolo_operativo", "competenza", "legacy_anagrafica_id")
+
+    def _aggiungi_campi_destinatari(self) -> None:
+        """«A chi serve»: mansioni lavorative (obbligatorio o consigliato), ruoli e
+        mansioni di rischio. Sono regole di obbligatorietà con un solo destinatario,
+        le stesse della scheda corso e della scheda mansione."""
+        from .models import Mansione, RuoloOperativo
+        from .models_skillmatrix import CompetenzaSkm
+        from .services.mansionario_struttura import TIPI_MANSIONE
+
+        def picker(queryset, label, help_text, placeholder, etichetta=None):
+            campo = forms.ModelMultipleChoiceField(
+                queryset=queryset, required=False, label=label, help_text=help_text,
+                widget=forms.SelectMultiple(attrs={
+                    "class": "fm-input fm-select", "size": "6",
+                    "data-picker": "", "data-picker-placeholder": placeholder}),
+            )
+            if etichetta:
+                campo.label_from_instance = etichetta
+            return campo
+
+        mansioni = CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True).order_by("display")
+        nome_mansione = lambda c: c.display or c.competenza_key  # noqa: E731
+        self.fields["mansioni_obbligatorie"] = picker(
+            mansioni, "Obbligatorio per le mansioni",
+            "Entra in scadenzario, copertura e onboarding di chi è in lista sulla mansione, anche in addestramento.",
+            "Cerca mansione…", nome_mansione)
+        self.fields["mansioni_consigliate"] = picker(
+            mansioni, "Consigliato per le mansioni",
+            "Proposto a chi fa la mansione, senza scadenze.", "Cerca mansione…", nome_mansione)
+        self.fields["ruoli_obbligatori"] = picker(
+            RuoloOperativo.objects.filter(is_active=True).order_by("nome"), "Obbligatorio per i ruoli",
+            "Per chi ricopre il ruolo.", "Cerca ruolo…")
+        self.fields["rischio_obbligatorie"] = picker(
+            Mansione.objects.filter(is_active=True).order_by("nome"), "Obbligatorio per le mansioni di rischio",
+            "Per chi ha la mansione di rischio (DVR), anche ricavata dalla mansione lavorativa.",
+            "Cerca mansione di rischio…")
+        if self.instance and self.instance.pk:
+            from .models_formazione import TrainingRequirementRule
+
+            for nome, target, obbl in self._DESTINATARI:
+                self.fields[nome].initial = list(
+                    TrainingRequirementRule.objects.filter(
+                        corso=self.instance, is_active=True, is_mandatory=obbl, **{f"{target}__isnull": False})
+                    .values_list(f"{target}_id", flat=True))
+
+    def clean(self):
+        cd = super().clean()
+        doppie = set(cd.get("mansioni_obbligatorie") or []) & set(cd.get("mansioni_consigliate") or [])
+        if doppie:
+            nomi = ", ".join(sorted((m.display or m.competenza_key) for m in doppie))
+            self.add_error("mansioni_consigliate", f"Già indicate come obbligatorie: {nomi}. Scegli una delle due.")
+        return cd
+
+    def salva_destinatari(self, corso, user=None) -> int:
+        """Allinea le regole «a chi serve» del corso a quanto scelto. Tocca solo le
+        regole con quel solo destinatario: quelle per area o persona, o con più
+        destinatari, si gestiscono dalla scheda corso e restano com'erano."""
+        from .models_formazione import TrainingRequirementRule
+
+        if "mansioni_obbligatorie" not in self.fields:
+            return 0
+        cambi = 0
+        for target in ("competenza", "ruolo_operativo", "mansione"):
+            voluti: dict[int, bool] = {}
+            for nome, t, obbl in self._DESTINATARI:
+                if t != target:
+                    continue
+                for obj in self.cleaned_data.get(nome) or []:
+                    voluti[obj.pk] = voluti.get(obj.pk, False) or obbl
+            altri_vuoti = {f"{a}__isnull": True for a in self._ALTRI_TARGET if a != target}
+            esistenti = {
+                getattr(r, f"{target}_id"): r
+                for r in TrainingRequirementRule.objects.filter(
+                    corso=corso, piano__isnull=True, **{f"{target}__isnull": False}, **altri_vuoti)
+            }
+            for pk, obbl in voluti.items():
+                r = esistenti.get(pk)
+                if r is None:
+                    TrainingRequirementRule.objects.create(
+                        corso=corso, is_mandatory=obbl, is_active=True, created_by=user, **{f"{target}_id": pk})
+                    cambi += 1
+                elif r.is_mandatory != obbl or not r.is_active:
+                    r.is_mandatory, r.is_active = obbl, True
+                    r.save(update_fields=["is_mandatory", "is_active"])
+                    cambi += 1
+            for pk, r in esistenti.items():
+                if pk not in voluti and r.is_active:
+                    r.delete()
+                    cambi += 1
+        return cambi
 
     def salva_processi(self, corso) -> None:
         """Persiste il reverse-M2M dei processi qualificati che richiedono il corso.
@@ -616,6 +746,23 @@ class TrainingRequirementRuleForm(forms.ModelForm):
         campo.queryset = CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True).order_by("display")
         campo.label_from_instance = lambda c: c.display or c.competenza_key
         campo.help_text = "Vale per chi è in lista sulla mansione nella skill matrix, anche in addestramento."
+        # La persona si sceglie per nome (tendina ricercabile), non digitando l'id
+        # legacy: il valore salvato resta l'intero del modello.
+        self.fields["is_mandatory"].label = "Obbligatoria"
+        self.fields["is_active"].label = "Regola attiva"
+        self.fields["note"].widget.attrs["rows"] = 2
+        persona = self.fields["legacy_anagrafica_id"]
+        persona.label = "Persona"
+        persona.help_text = ""
+        try:
+            from .views._helpers import _dipendenti_picker_rows
+            scelte = [(r["id"], r["label"]) for r in _dipendenti_picker_rows()]
+        except Exception:  # pragma: no cover - anagrafica legacy non raggiungibile
+            scelte = []
+        attuale = self.initial.get("legacy_anagrafica_id") or getattr(self.instance, "legacy_anagrafica_id", None)
+        if attuale and attuale not in {v for v, _ in scelte}:
+            scelte.append((attuale, f"#{attuale}"))
+        persona.widget = forms.Select(choices=[("", "— Scegli la persona —")] + scelte, attrs=_FM_SELECT)
 
     def clean(self):
         cd = super().clean()
@@ -1617,7 +1764,8 @@ class SkillMatrixConfigForm(forms.ModelForm):
         model = SkillMatrixConfig
         fields = [
             "soglia_operativa", "includi_car_come_riserva", "regola_multivoce",
-            "soglia_uomo_solo", "finestra_continuita_mesi", "preavviso_continuita_mesi",
+            "soglia_uomo_solo", "soglia_concentrazione", "soglia_mansioni_persona",
+            "finestra_continuita_mesi", "preavviso_continuita_mesi",
             "periodicita_refresh_mesi", "preavviso_refresh_giorni",
             "etichetta_i", "etichetta_l", "etichetta_u", "etichetta_o",
         ]
@@ -1626,6 +1774,8 @@ class SkillMatrixConfigForm(forms.ModelForm):
             "regola_multivoce": forms.Select(attrs={"class": "ana-input"}),
             "includi_car_come_riserva": forms.CheckboxInput(attrs={"class": "ana-check"}),
             "soglia_uomo_solo": forms.NumberInput(attrs={"class": "ana-input", "min": 1}),
+            "soglia_concentrazione": forms.NumberInput(attrs={"class": "ana-input", "min": 1, "max": 100}),
+            "soglia_mansioni_persona": forms.NumberInput(attrs={"class": "ana-input", "min": 1, "max": 100}),
             "finestra_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "preavviso_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "periodicita_refresh_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),

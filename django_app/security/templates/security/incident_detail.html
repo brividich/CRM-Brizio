@@ -12,6 +12,7 @@
   <a class="sec-button sec-button-primary" href="{% url 'security:incident_edit' incident.pk %}">Modifica</a>
   <a class="sec-button" href="{% url 'security:incident_pdf' incident.pk %}">Scarica scheda PDF</a>
 </div>
+{% include "scadenzario/components/riquadro.html" with fonti="soc" nome=incident.code %}
 
 <section class="sec-detail-hero" style="align-items: start;">
   <div class="sec-panel">
@@ -122,7 +123,7 @@
     {% if alerts %}
       <h3 class="sec-subhead">Alert ({{ alerts|length }})</h3>
       <ul class="sec-mini-list">
-        {% for alert in alerts %}<li><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:90 }}</a> <small class="sec-muted">{{ alert.created_at|date:"d/m H:i" }}</small></li>{% endfor %}
+        {% for alert in alerts %}<li data-preview="{% url 'security:preview' 'alert' alert.pk %}"><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:90 }}</a> <small class="sec-muted">{{ alert.created_at|date:"d/m H:i" }}</small></li>{% endfor %}
       </ul>
     {% endif %}
   </div>

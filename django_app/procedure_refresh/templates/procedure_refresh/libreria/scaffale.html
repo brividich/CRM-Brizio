@@ -1,0 +1,76 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% load ui_icons %}
+{% block cn_title %}{{ scaffale.nome }} · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › {{ scaffale.nome }}{% endblock %}
+{% block cn_h1 %}{{ scaffale.nome }}{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
+{% block cn_guida_anchor %}#scaffali{% endblock %}
+{% block cn_actions %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_etichette' scaffale.slug %}{% if sezione is not None %}?sezione={{ sezione|urlencode }}{% endif %}" target="_blank" rel="noopener" title="Etichette con QR da affiggere in reparto">Etichette QR</a>{% if puo_audit %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_audit' scaffale.slug %}">Pacchetto audit</a>{% endif %}{% endblock %}
+{% block cn_body %}
+<div class="cn-split" style="--col:{{ scaffale.colore }}">
+  <aside class="cn-side" aria-label="Sezioni">
+    <a class="{% if sezione is None %}on{% endif %}" href="?{% if vista == 'elenco' %}vista=elenco{% endif %}">Tutte <span>{{ n_scaffale }}</span></a>
+    {% for raw, etichetta, n in scaffale.sezioni %}
+      <a class="{% if sezione == raw %}on{% endif %}" href="?sezione={{ raw|urlencode }}{% if vista == 'elenco' %}&amp;vista=elenco{% endif %}">{{ etichetta }} <span>{{ n }}</span></a>
+    {% endfor %}
+    {% if scaffali|length > 1 %}
+    <div class="cn-side-box"><h4>Altri scaffali</h4>
+      {% for s in scaffali %}{% if s.slug != scaffale.slug %}<a href="{% url 'procedure_refresh:libreria_scaffale' s.slug %}"><span class="cn-swatch" style="--col:{{ s.colore }}"></span>{{ s.nome }}</a>{% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+  <div style="min-width:0">
+    <div class="cn-band" style="--col:{{ scaffale.colore }}">
+      {% if scaffale.logo_url %}<img class="cn-band-logo" src="{{ scaffale.logo_url }}" alt="">{% elif scaffale.icona %}<span class="cn-band-ico">{% icona_copertina scaffale.icona "cn-band-svg" %}</span>{% endif %}
+      <div class="n">{{ scaffale.sigla|default:"SGI"|truncatechars:10 }}</div>
+      <div class="t"><h2>{{ scaffale.nome }}</h2><p>{{ n_scaffale }} document{{ n_scaffale|pluralize:"o,i" }} in vigore{% if scaffale.cartella %} · cartella <span class="mono">{{ scaffale.cartella }}</span>{% endif %}</p></div>
+      {% if scaffale.certificazione %}
+      <div class="c">
+        <div>Certificato fino al<b>{{ scaffale.certificazione.scade_il|date:"d/m/Y" }}</b></div>
+        {% if scaffale.certificazione.prossima_sorveglianza %}<div>Prossima sorveglianza<b>{{ scaffale.certificazione.prossima_sorveglianza|date:"d/m/Y" }}{% if giorni_sorveglianza is not None and giorni_sorveglianza >= 0 %} · {{ giorni_sorveglianza }} gg{% endif %}</b></div>{% endif %}
+        <div>Ente<b>{{ scaffale.certificazione.ente }}</b></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <form class="cn-toolbar" method="get">
+      {% if sezione is not None %}<input type="hidden" name="sezione" value="{{ sezione }}">{% endif %}
+      {% if vista == 'elenco' %}<input type="hidden" name="vista" value="elenco">{% endif %}
+      <input class="cn-input" type="search" name="q" value="{{ filtro }}" placeholder="Filtra in questo scaffale" aria-label="Filtra in questo scaffale" data-cn-autosubmit-ritardo{% if filtro %} autofocus{% endif %}>
+      {% if tipi|length > 1 %}<select class="cn-input" style="width:auto" name="tipo" aria-label="Tipo di documento" data-cn-autosubmit><option value="">Tutti i tipi</option>{% for k, l in tipi %}<option value="{{ k }}"{% if tipo == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}
+      <select class="cn-input" style="width:auto" name="cambiati" aria-label="Revisionati di recente" data-cn-autosubmit><option value="">Qualunque data</option><option value="30"{% if cambiati == '30' %} selected{% endif %}>Cambiati negli ultimi 30 giorni</option><option value="90"{% if cambiati == '90' %} selected{% endif %}>Ultimi 90 giorni</option><option value="365"{% if cambiati == '365' %} selected{% endif %}>Ultimo anno</option></select>
+      <select class="cn-input" style="width:auto" name="ordine" aria-label="Ordine" data-cn-autosubmit><option value="codice"{% if ordine == 'codice' %} selected{% endif %}>Per codice</option><option value="data"{% if ordine == 'data' %} selected{% endif %}>Più recenti</option><option value="consultati"{% if ordine == 'consultati' %} selected{% endif %}>Più consultati</option></select>
+      {% if filtro or tipo or cambiati or ordine != 'codice' %}<a class="cn-chip" href="?{% if sezione is not None %}sezione={{ sezione|urlencode }}{% endif %}">Togli i filtri</a>{% endif %}
+      <span class="cn-seg" role="group" aria-label="Vista">
+        <a class="{% if vista == 'copertine' %}on{% endif %}" href="?vista=copertine{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Copertine</a>
+        <a class="{% if vista == 'elenco' %}on{% endif %}" href="?vista=elenco{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Elenco</a>
+      </span>
+    </form>
+
+    {% for g in gruppi %}
+    <section class="cn-sub">
+      <h3>{{ g.etichetta }} <span>{{ g.documenti|length }}</span></h3>
+      {% if vista == 'elenco' %}
+      <div class="cn-tbl"><table>
+        <thead><tr><th>Codice</th><th>Titolo</th><th>Rev.</th><th>Data</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for d in g.documenti %}
+          <tr class="click">
+            <td class="num"><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc class="cn-mono-col" style="color:{{ scaffale.colore }};font-weight:700">{{ d.code }}</a></td>
+            <td><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc>{{ d.title }}</a></td>
+            <td class="num">{{ d.rev.revision_code|default:"—" }}</td>
+            <td class="num">{{ d.rev.revision_date|date:"d/m/Y" }}</td>
+            <td>{% if d.lettura %}<span class="cn-pill warn">Da leggere</span>{% elif d.nuova %}<span class="cn-pill nuova">Nuova rev.</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      <div class="cn-grid">{% for d in g.documenti %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
+      {% endif %}
+    </section>
+    {% empty %}
+    <p class="cn-empty">{% if filtro %}Nessun documento con «{{ filtro }}» qui. <a href="{% url 'procedure_refresh:libreria_cerca' %}?q={{ filtro|urlencode }}">Cerca in tutta la libreria</a>{% else %}Nessun documento in questa sezione.{% endif %}</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

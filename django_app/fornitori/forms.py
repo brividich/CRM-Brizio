@@ -19,6 +19,9 @@ from core.upload_mime import (
 from core.upload_limits import DOCUMENT_MAX_BYTES
 
 
+from .models import TecnicoFornitore  # noqa: E402
+from .nomi import chiave_tecnico  # noqa: E402
+
 FORNITORE_DOC_MAX_BYTES = DOCUMENT_MAX_BYTES
 FORNITORE_DOC_EXTENSIONS = {
     ".pdf",
@@ -44,6 +47,34 @@ FORNITORE_DOC_MIMES = {
 }
 
 
+class TecnicoFornitoreForm(forms.ModelForm):
+    class Meta:
+        model = TecnicoFornitore
+        fields = ["nome", "qualifica", "telefono", "email", "attestati_fino_al", "note", "attivo"]
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "ana-input"}),
+            "qualifica": forms.TextInput(attrs={"class": "ana-input", "placeholder": "es. Elettricista"}),
+            "telefono": forms.TextInput(attrs={"class": "ana-input"}),
+            "email": forms.EmailInput(attrs={"class": "ana-input"}),
+            # type=date vuole il valore in formato ISO, altrimenti il campo si riapre vuoto.
+            "attestati_fino_al": forms.DateInput(format="%Y-%m-%d", attrs={"class": "ana-input", "type": "date"}),
+            "note": forms.TextInput(attrs={"class": "ana-input"}),
+        }
+
+    def __init__(self, *args, fornitore=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fornitore = fornitore
+
+    def clean_nome(self):
+        nome = self.cleaned_data["nome"].strip()
+        doppioni = TecnicoFornitore.objects.filter(fornitore=self.fornitore, chiave=chiave_tecnico(nome))
+        if self.instance.pk:
+            doppioni = doppioni.exclude(pk=self.instance.pk)
+        if doppioni.exists():
+            raise forms.ValidationError("Questo tecnico è già registrato per il fornitore.")
+        return nome
+
+
 class FornitoreForm(forms.ModelForm):
     class Meta:
         model = Fornitore
@@ -51,7 +82,7 @@ class FornitoreForm(forms.ModelForm):
             "ragione_sociale", "piva", "codice_fiscale", "categoria",
             "telefono", "email", "pec", "website",
             "indirizzo", "citta", "cap", "provincia",
-            "is_active", "note",
+            "is_active", "accede_in_sede", "note",
         ]
         widgets = {
             "ragione_sociale": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Ragione sociale *"}),
@@ -73,10 +104,11 @@ class FornitoreForm(forms.ModelForm):
 class FornitoreDocumentoForm(forms.ModelForm):
     class Meta:
         model = FornitoreDocumento
-        fields = ["nome", "tipo", "file", "note"]
+        fields = ["nome", "tipo", "data_scadenza", "file", "note"]
         widgets = {
             "nome": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Nome documento"}),
             "tipo": forms.Select(attrs={"class": "ana-input"}),
+            "data_scadenza": forms.DateInput(attrs={"class": "ana-input", "type": "date"}, format="%Y-%m-%d"),
             "note": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Note opzionali"}),
         }
 

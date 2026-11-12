@@ -14,7 +14,7 @@ Privacy: i nomi delle visite seguono can_view_visite.
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .lsg-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
 .lsg-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
@@ -99,6 +99,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/components/_export_menu.html" with export_key=export_key %}
+      <a class="hr-btn hr-btn-outline" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità</a>
     </div>
   </div>
@@ -106,17 +107,17 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
   <!-- KPI -->
   {# Le righe di dettaglio con plurali restano scritte qui: l'include accetta solo valori singoli. #}
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Libretto sanitario in sintesi">
-    <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-orange" href="?vista=requisiti&amp;stato=ko" title="Elenca solo i requisiti scaduti"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.ko }}</span></div>
       <div class="fmd-mtr-lbl">Requisiti scaduti</div>
       <div class="fmd-mtr-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
-    </div>
+    </a>
     {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=conta_stato.warn label="In scadenza (60 gg)" sub="da rinnovare prima della scadenza" %}
-    <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-cyan" href="?vista=requisiti&amp;stato=mancante" title="Elenca solo i requisiti mai assolti"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.mancante }}</span></div>
       <div class="fmd-mtr-lbl">Da acquisire</div>
       <div class="fmd-mtr-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con requisiti mai assolti</div>
-    </div>
+    </a>
     <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ copertura }}%</span></div>
       <div class="fmd-mtr-lbl">Copertura</div>
@@ -250,6 +251,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
             <th>Ultima evidenza</th>
             <th>Scadenza</th>
             <th>Stato</th>
+            <th class="fmd-r">Azione</th>
           </tr>
         </thead>
         <tbody>
@@ -273,6 +275,15 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
               {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
             </td>
             <td><span class="lsg-pill lsg-{{ r.stato }}">{{ r.stato_label }}</span></td>
+            <td class="fmd-r" style="white-space:nowrap;">
+              {% if r.stato == 'ko' or r.stato == 'mancante' or r.stato == 'warn' %}
+                {% if r.dominio == 'corsi' and r.ref_id and can_edit_formazione %}{% include "anagrafica/partials/_formazione_rinnova_btn.html" with corso_id=r.ref_id legacy_id=a.legacy_id back=request.get_full_path titolo_corso=r.nome %}
+                {% elif r.dominio == 'visite' and r.ref_id and can_edit_visite and can_view_visite %}<a class="fmd-act" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ r.ref_id }}" title="Nuova giornata di visite su questo tipo: chi è scaduto o senza visita è proposto">+ Visita</a>
+                {% elif r.dominio == 'qualifiche' and r.ref_id and can_edit_qualifiche %}<a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' a.legacy_id %}?rinnova={{ r.ref_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
+                {% elif r.dominio == 'dpi' %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_detail' a.legacy_id %}#dpi" title="DPI della persona">Apri DPI</a>
+                {% else %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_libretto_sanitario' a.legacy_id %}">Apri</a>{% endif %}
+              {% endif %}
+            </td>
           </tr>
           {% endwith %}
           {% endfor %}

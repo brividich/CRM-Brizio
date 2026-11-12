@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 93
+**Totale automazioni disponibili:** 112
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -196,6 +196,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## DPI · Sicurezza
 
+### `dpi_avvisi_consegna`
+
+- **Quando gira:** ogni giorno, ogni 5 minuti
+- **Task eseguito:** `dpi.tasks.run_dpi_avvisi_consegna`
+- **Cosa fa:** DPI — mail e PDF delle consegne dal banco rimasti in sospeso perche' il browser si e' chiuso nei secondi dell'annullo. Senza lavoro non fa nulla.
+
 ### `dpi_expiry_reminders`
 
 - **Quando gira:** ogni giorno, alle 07:10
@@ -203,6 +209,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** DPI — promemoria DPI scaduti / in scadenza (+ notifica in-app). Destinatari da impostazioni DPI/SiteConfig con fallback ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
 
 ## RENTRI · Ambiente
+
+### `rentri_promemoria_scarico_effettivo`
+
+- **Quando gira:** ogni giorno, alle 07:25
+- **Task eseguito:** `rentri.tasks.run_rentri_promemoria_scarico_effettivo`
+- **Cosa fa:** RENTRI — promemoria in-app: scarico originale senza scarico effettivo oltre soglia (SiteConfig rentri_promemoria_m_giorni, di serie 60).
 
 ### `rentri_scadenze_check`
 
@@ -223,6 +235,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, ogni ora al minuto 0
 - **Task eseguito:** `tickets.tasks.run_tickets_escalation`
 - **Cosa fa:** Promemoria dashboard (sempre) + resoconto email "ticket urgenti non assegnati". Cadenza oraria: il task aggiorna i promemoria a ogni run e invia il resoconto solo nei giorni lavorativi all'ora configurata (default 08:00), se l'escalation è attivata da Impostazioni ticket.
+
+### `tickets_man_sharepoint_sync`
+
+- **Quando gira:** ogni 5 minuti
+- **Task eseguito:** `tickets.tasks.run_ticket_man_sharepoint_sync`
+- **Cosa fa:** TICKETS — ticket MAN <-> lista SharePoint «Ticket» (CNManutenzioni): invia la coda delle modifiche locali e legge solo gli elementi cambiati (delta query). No-op finche' l'interruttore in Impostazioni e' spento.
 
 ### `tickets_sla_reminders`
 
@@ -264,6 +282,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `gestione_specifiche.tasks.run_specifiche_reminder`
 - **Cosa fa:** GESTIONE SPECIFICHE — reminder 7gg sui MOD.133 non presi in carico. Timer in pausa per le specifiche sospese/in errore (gestito nel job).
 
+### `gestione_specifiche_sync_cartelle`
+
+- **Quando gira:** ogni giorno, ogni 15 minuti
+- **Task eseguito:** `gestione_specifiche.tasks.run_sync_cartelle`
+- **Cosa fa:** GESTIONE SPECIFICHE — catalogo allineato alla cartella della share: ogni 15 minuti elenca i PDF (sola lettura, esclusa _SUPERATO) e, se qualcosa è cambiato, crea le specifiche nuove e le nuove revisioni (in bozza, con avviso a chi prende in carico) e ricollega i file spostati. Interruttore in Amministrazione (gs_sync_cartelle_attivo).
+
 ### `gestione_specifiche_verifica_periodica`
 
 - **Quando gira:** ogni giorno, alle 06:30
@@ -283,6 +307,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:00
 - **Task eseguito:** `procedure_refresh.tasks.run_sgi_auto_sync`
 - **Cosa fa:** Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro): applica solo documenti nuovi o interamente figli dell'import, MAI quelli in presa visione o gestiti a mano. Dietro flag SiteConfig pr_sgi_auto_sync_attivo (default off). Gira alle 03:00 così i nuovi documenti sono già indicizzati dal re-index RAG delle 03:30. Fail-safe / no-op se flag off o share giù.
+
+### `pr_sgi_controllo_orario`
+
+- **Quando gira:** ogni giorno, ogni 15 minuti
+- **Task eseguito:** `procedure_refresh.tasks.run_sgi_controllo_orario`
+- **Cosa fa:** CN-SGI «sempre aggiornata»: ogni 15 minuti confronta un'impronta leggera della share (percorso, dimensione, data dei file: nessun file aperto) e, solo se cambia, lancia la sincronizzazione a perimetro sicuro. Stesso flag pr_sgi_auto_sync_attivo. La share è solo letta. Fail-safe / no-op se flag spento o share giù.
 
 ### `sgi_share_check`
 
@@ -432,6 +462,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## Altro
 
+### `assenze_certificato_avviso`
+
+- **Quando gira:** da lun a ven, alle 08:30
+- **Task eseguito:** `assenze.tasks.run_assenze_certificato_avviso`
+- **Cosa fa:** ASSENZE — avviso ad assenza@ per le malattie senza certificato medico dopo N giorni (una mail con l'elenco, ogni malattia una volta sola). Soglia e interruttore in Assenze → HR → Impostazioni.
+
 ### `assenze_outlook_sync`
 
 - **Quando gira:** ogni 10 minuti
@@ -470,7 +506,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ### `contatori_letture_mensili_recupero`
 
-- **Quando gira:** il giorno 1-7 del mese, ogni ora al minuto */15
+- **Quando gira:** il giorno 1-7 del mese, ogni 15 minuti
 - **Task eseguito:** `contatori.tasks.run_letture_mensili`
 - **Cosa fa:** CONTATORI — recupero per le MFC spente o in sospensione a mezzanotte: ogni 15 minuti dal giorno 1 al 7 accoda solo quelle ancora senza lettura del mese, cosi' una macchina viene letta entro 15 minuti da quando si riaccende. Stesso nome di prima: setup_q_schedules aggiorna il cron, nessuna schedule orfana.
 
@@ -504,6 +540,48 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `security.tasks.run_defender_vulnerabilita_task`
 - **Cosa fa:** SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
 
+### `fornitori_avvisi_ditte_attese`
+
+- **Quando gira:** da lun a ven, alle 07:10
+- **Task eseguito:** `fornitori.tasks.run_avvisi_ditte_attese`
+- **Cosa fa:** FORNITORI — ditta attesa (manutenzione, OdL o ticket aperti) che non sarà in regola con i documenti di sicurezza: notifica in-app a RSPP/ASPP (mai mail), prima che entri.
+
+### `fornitori_avvisi_ingressi_non_in_regola`
+
+- **Quando gira:** ogni 10 minuti
+- **Task eseguito:** `fornitori.tasks.run_avvisi_ingressi_non_in_regola`
+- **Cosa fa:** FORNITORI — ditta entrata dal GuestPortal con documenti di sicurezza non in regola: notifica in-app a RSPP/ASPP (mai mail), una volta per visita.
+
+### `fornitori_avvisi_usciti_dimenticati`
+
+- **Quando gira:** da lun a ven, alle 19:00
+- **Task eseguito:** `fornitori.tasks.run_avvisi_usciti_dimenticati`
+- **Cosa fa:** FORNITORI — a fine giornata, chi risulta ancora dentro: notifica ai ruoli configurati (per ora IT).
+
+### `presenti_avvisi_uscite`
+
+- **Quando gira:** da lun a sab, alle 07:30
+- **Task eseguito:** `presenti.tasks.run_avvisi_uscite_mancanti`
+- **Cosa fa:** PRESENTI IN AZIENDA — uscite non timbrate degli ultimi 3 giorni: notifica e mail al capo.
+
+### `presenti_pubblica_pdf`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `presenti.tasks.run_pubblica_pdf_presenti`
+- **Cosa fa:** PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+
+### `reception_avvisi_referenti`
+
+- **Quando gira:** ogni minuto
+- **Task eseguito:** `reception.tasks.run_avvisi_referenti`
+- **Cosa fa:** RECEPTION — mail al referente quando arriva il visitatore. Non fa niente finché RECEPTION_NATIVA è spenta.
+
+### `reception_pulizia`
+
+- **Quando gira:** ogni giorno, alle 03:40
+- **Task eseguito:** `reception.tasks.run_pulizia`
+- **Cosa fa:** RECEPTION — ogni notte: pre-registrazioni passate e dati oltre i 12 mesi dell'informativa.
+
 ### `registro_log_ad`
 
 - **Quando gira:** ogni 360 minuti
@@ -521,6 +599,24 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 60 minuti
 - **Task eseguito:** `registro_log.tasks.run_infra`
 - **Cosa fa:** Registro accessi — stato di ESXi/vCenter e iLO/iDRAC (sola lettura, solo ultima fotografia).
+
+### `scadenzario_avvisi_attivita`
+
+- **Quando gira:** ogni giorno, alle 07:15
+- **Task eseguito:** `scadenzario.tasks.run_avvisi_attivita`
+- **Cosa fa:** SCADENZARIO — avvisi delle scadenze generiche alle email delle attività (preavviso, ripetizione ogni N giorni, anche dopo la scadenza se la categoria lo vuole).
+
+### `scadenzario_foto_giornaliera`
+
+- **Quando gira:** ogni giorno, alle 06:45
+- **Task eseguito:** `scadenzario.tasks.run_foto_giornaliera`
+- **Cosa fa:** SCADENZARIO — fotografia giornaliera dei numeri per fonte (vista «Andamento»).
+
+### `scadenzario_riepilogo_mensile`
+
+- **Quando gira:** il giorno 1 del mese, alle 08:00
+- **Task eseguito:** `scadenzario.tasks.run_riepiloghi_categorie`
+- **Cosa fa:** SCADENZARIO — riepilogo mensile per categoria alle email della categoria.
 
 ### `scadenze_digest_personale`
 
@@ -546,11 +642,23 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `security.tasks.ai_lettura_assistita_task`
 - **Cosa fa:** SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert. Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, nessuna nuova richiesta dopo 60 s.
 
+### `security_ai_proposte`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `security.tasks.ai_proposte_task`
+- **Cosa fa:** SECURITY CENTER — proposte di chiusura dell'AI locale sugli alert aperti, con apprendimento dalle decisioni delle persone; chiude da sola solo i tipi di alert imparati. Lettura «ai_proposte».
+
 ### `security_ai_sintesi`
 
 - **Quando gira:** da lun a sab, (0,30 6-19)
 - **Task eseguito:** `security.tasks.ai_sintesi_giorno_task`
 - **Cosa fa:** SECURITY CENTER — sintesi del giorno della Panoramica preparata dall'AI locale, ogni 30 minuti dalle 6 alle 19 (lun-sab), solo se i punti da guardare sono cambiati: la pagina la mostra già scritta.
+
+### `security_caselle`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `security.tasks.run_security_caselle_task`
+- **Cosa fa:** SECURITY CENTER — lettura delle caselle mail dei report (Graph/IMAP): parser e regole su ogni mail importata. Lavoro a sé, separato dal security_cycle, con timeout dedicato: un arretrato di mail non ferma più regole, battito e KPI del ciclo.
 
 ### `security_cve_enrichment`
 
@@ -562,7 +670,13 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `security.tasks.run_security_cycle_task`
-- **Cosa fa:** SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole, heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+- **Cosa fa:** SECURITY CENTER — letture Defender/Entra/Veeam/Secure Score, regole, heartbeat sorgenti, KPI e notifiche. Le caselle mail sono nel lavoro security_caselle.
+
+### `security_dipendenze_portale`
+
+- **Quando gira:** ogni giorno, alle 06:50
+- **Task eseguito:** `security.tasks.dipendenze_portale_task`
+- **Cosa fa:** SOC — librerie Python del portale contro il database pubblico OSV (lo stesso di pip-audit): vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria e versione. Spegnibile da /soc/impostazioni/; si vede in Letture automatiche e nel Battito del SOC.
 
 ### `security_pacchetto_iso`
 

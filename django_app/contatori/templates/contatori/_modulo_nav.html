@@ -6,7 +6,9 @@
     <a href="{% url 'contatori:dashboard' %}" class="{% if n == 'dashboard' %}active{% endif %}">Centrale</a>
     <a href="{% url 'contatori:macchine' %}" class="{% if n in 'macchine macchina_nuova macchina_edit macchina macchina_test_snmp' %}active{% endif %}">Stampanti MFC</a>
     <a href="{% url 'contatori:letture_registro' %}" class="{% if n in 'letture_registro letture_trimestre importa_lettura lettura_edit letture_proposte letture_gestisci lettura_mensile_edit' %}active{% endif %}">Letture</a>
+    <a href="{% url 'contatori:letture_mensili' %}" class="{% if n == 'letture_mensili' %}active{% endif %}" title="Letture mensili SNMP per mese: MFC × 12 mesi">Mensili</a>
     <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' or n == 'consumabili_riepilogo' or n == 'macchina_consumabili' %}active{% endif %}">Consumabili</a>
+    <a href="{% url 'contatori:consumabili_fabbisogno' %}" class="{% if n == 'consumabili_fabbisogno' %}active{% endif %}" title="Pezzi per anno e consumabili in esaurimento per modello">Fabbisogno</a>
     <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit snmp_dispositivo_verifica_oid' or t == 'sonda' %}active{% endif %}">Monitor SNMP</a>
   </div>
   <div class="cnav-gruppo">
@@ -30,6 +32,6 @@
       <a href="{% url 'contatori:wizard_avvia' 'profilo' %}" class="cnav-config {% if t == 'profilo' %}active{% endif %}">+ Profilo SNMP</a>
     </div>
   </details>{% endif %}
-  <a href="{% url 'contatori:riconciliazione_guida' %}" class="cnav-guida {% if n == 'riconciliazione_guida' %}active{% endif %}" title="Guida di Contatori IT">? Guida</a>
+  <a href="{% url 'contatori:guida' %}" class="cnav-guida {% if n == 'guida' %}active{% endif %}" title="Guida di Contatori IT">? Guida</a>
 </nav>
 {% endwith %}

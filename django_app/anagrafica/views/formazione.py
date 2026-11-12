@@ -776,15 +776,15 @@ _COPERTURA_SEGMENTI = {
 }
 
 
-def _copertura_corsi_obbligatori(oggi) -> list[dict]:
+def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
     """Una riga per corso con scadenze obbligatorie: quante persone sono in regola,
     in scadenza, scadute o mai formate (dalla cache TrainingDeadline, come i KPI)
     e la prossima sessione pianificata. Ordinata dal corso più scoperto."""
     conteggi: dict[int, dict[str, int]] = {}
-    righe = (
-        TrainingDeadline.objects.filter(is_required=True)
-        .values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
-    )
+    base = TrainingDeadline.objects.filter(is_required=True)
+    if filtro_centro is not None:
+        base = filtro_centro.applica(base)
+    righe = base.values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
     for r in righe:
         segmento = _COPERTURA_SEGMENTI.get(r["stato_scadenza"])
         if segmento:
@@ -839,18 +839,22 @@ def formazione_dashboard(request):
 
     from django.utils import timezone as _tz
 
+    from ..services import centro_filtro
+
     oggi = _tz.localdate()
+    filtro_centro = centro_filtro.leggi(request)
+    scadenze_qs = filtro_centro.applica(TrainingDeadline.objects.all())
 
     # KPI da TrainingEmployeeRecord (non dipende dalla cache)
     kpi_dipendenti_formazione = (
-        TrainingEmployeeRecord.objects
+        filtro_centro.applica(TrainingEmployeeRecord.objects.all())
         .values("legacy_anagrafica_id").distinct().count()
     )
 
     # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata)
-    kpi_scaduti         = TrainingDeadline.objects.filter(stato_scadenza="SCADUTO").count()
-    kpi_in_scadenza_30  = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_30").count()
-    kpi_obbligatori_mancanti = TrainingDeadline.objects.filter(
+    kpi_scaduti         = scadenze_qs.filter(stato_scadenza="SCADUTO").count()
+    kpi_in_scadenza_30  = scadenze_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
+    kpi_obbligatori_mancanti = scadenze_qs.filter(
         stato_scadenza__in=["MAI_FREQUENTATO", "SCADUTO"],
         is_required=True,
     ).count()
@@ -861,7 +865,7 @@ def formazione_dashboard(request):
 
     # Scadenzario urgente TOP 20 (ordinato per urgenza crescente)
     scadenze_raw = list(
-        TrainingDeadline.objects
+        scadenze_qs
         .filter(stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"])
         .select_related("corso", "corso__piano")
         .order_by("data_scadenza", "legacy_anagrafica_id")[:20]
@@ -872,9 +876,10 @@ def formazione_dashboard(request):
         d.giorni = (d.data_scadenza - oggi).days if d.data_scadenza else None
 
     deadline_cache_empty = not TrainingDeadline.objects.exists()
-    copertura_corsi = _copertura_corsi_obbligatori(oggi)
+    copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro)
 
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
+        "filtro_centro": filtro_centro,
         "copertura_corsi": copertura_corsi,
         "copertura_piani": sorted({c["piano"] for c in copertura_corsi if c["piano"]}),
         "oggi": oggi,
@@ -1304,6 +1309,9 @@ def formazione_corso_create(request):
                     corso.created_by = request.user
                     corso.save()
                     form.salva_processi(corso)
+                    form.salva_destinatari(corso, user=request.user)
+                    from ..services.corso_versioni import registra as _registra_versione
+                    _registra_versione(corso, user=request.user)
                     if sess_form.cleaned_data.get("pianifica"):
                         from ..services.formazione_pianificazione import crea_sessione_unica
                         cd = sess_form.cleaned_data
@@ -1482,6 +1490,14 @@ def formazione_corso_detail(request, corso_id: int):
     versioni = list(
         TrainingCourseVersion.objects.filter(corso=corso).order_by("-created_at")
     )
+    # Mansioni che chiedono il corso tramite una competenza (requisito formale):
+    # stessa informazione della scheda mansione, vista dal lato del corso.
+    from ..models_skillmatrix import VoceMacchinaCatalogo
+    mansioni_da_competenze: dict[int, dict] = {}
+    for v in (VoceMacchinaCatalogo.objects.filter(corso=corso, mansione__isnull=False, mansione__attiva=True)
+              .select_related("mansione").order_by("mansione__display", "nome")):
+        voce = mansioni_da_competenze.setdefault(v.mansione_id, {"mansione": v.mansione, "competenze": []})
+        voce["competenze"].append(v)
     regole = list(
         TrainingRequirementRule.objects.filter(corso=corso, is_active=True)
         .select_related("mansione", "area", "ruolo_operativo", "competenza")
@@ -1607,6 +1623,7 @@ def formazione_corso_detail(request, corso_id: int):
         "programma": list(corso.programma.all()),
         "moduli": moduli,
         "versioni": versioni,
+        "mansioni_da_competenze": list(mansioni_da_competenze.values()),
         "regole": regole,
         "completion_rule": completion_rule,
         "n_sessioni": n_sessioni,
@@ -1629,22 +1646,34 @@ def formazione_corso_detail(request, corso_id: int):
 
 
 @login_required
-@require_POST
 def formazione_corso_edit(request, corso_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corsi_list")
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
-    form = TrainingCourseForm(request.POST, instance=corso)
-    if form.is_valid():
-        corso = form.save()
-        form.salva_processi(corso)
-        messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
+    # Stessa pagina a tappe della creazione (prima: modale piatta con venti
+    # campi in fila). Gli errori restano accanto al campo, non in un toast.
+    if request.method == "POST":
+        form = TrainingCourseForm(request.POST, instance=corso)
+        if form.is_valid():
+            from django.db import transaction as _tx
+
+            with _tx.atomic():
+                corso = form.save()
+                form.salva_processi(corso)
+                form.salva_destinatari(corso, user=request.user)
+            messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
+            from ..services.corso_versioni import registra_con_messaggio
+            registra_con_messaggio(request, corso)
+            return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     else:
-        for field_errors in form.errors.values():
-            for err in field_errors:
-                messages.error(request, err)
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+        form = TrainingCourseForm(instance=corso)
+    return render(request, "anagrafica/pages/formazione_corso_form.html", {
+        "form": form,
+        "sess_form": None,
+        "modo": "modifica",
+        "corso": corso,
+    })
 
 
 @login_required
@@ -1745,7 +1774,9 @@ def formazione_corso_argomento_add(request, corso_id: int):
         riferimento=(request.POST.get("riferimento") or "").strip()[:200],
     )
     messages.success(request, "Argomento aggiunto al programma del corso.")
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from ..services.corso_versioni import registra_con_messaggio
+    registra_con_messaggio(request, corso)
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#contenuti")
 
 
 @login_required
@@ -1755,10 +1786,13 @@ def formazione_corso_argomento_delete(request, corso_id: int, arg_id: int):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     voce = get_object_or_404(TrainingCourseArgomento, pk=arg_id, corso_id=corso_id)
+    corso = voce.corso
     voce.delete()
     messages.success(request, "Argomento rimosso dal programma del corso. "
                               "Le edizioni già erogate non sono state toccate.")
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from ..services.corso_versioni import registra_con_messaggio
+    registra_con_messaggio(request, corso)
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#contenuti")
 
 
 @login_required
@@ -1914,7 +1948,12 @@ def formazione_corso_req_rule_add(request, corso_id: int):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
-    form = TrainingRequirementRuleForm(request.POST)
+    # Il corso è quello della scheda: non va riscelto nel form (prima il form
+    # mostrava di nuovo «Corso» e «Piano», e senza sceglierli la regola falliva).
+    dati = request.POST.copy()
+    dati["corso"] = str(corso.pk)
+    dati["piano"] = ""
+    form = TrainingRequirementRuleForm(dati)
     if form.is_valid():
         rule = form.save(commit=False)
         rule.corso = corso
@@ -1927,6 +1966,21 @@ def formazione_corso_req_rule_add(request, corso_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_req_rule_tipo(request, corso_id: int, rule_id: int):
+    """Obbligatorio ↔ consigliato dalla scheda corso (stessa regola della scheda mansione)."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    rule = get_object_or_404(TrainingRequirementRule, pk=rule_id, corso_id=corso_id)
+    rule.is_mandatory = request.POST.get("tipo") != "consigliato"
+    rule.save(update_fields=["is_mandatory"])
+    messages.success(request, "Collegamento ora " + ("obbligatorio: entra in scadenzario e copertura."
+                                                     if rule.is_mandatory else "consigliato: proposta senza scadenze."))
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#panoramica")
 
 
 @login_required
@@ -2546,14 +2600,53 @@ def formazione_rinnovo_da_scadenzario(request):
             if lid > 0 and lid not in seen:
                 seen.add(lid)
                 ids.append(lid)
+    back = _helpers.back_sicuro(request, request.POST.get("back"))
     if not ids:
         messages.warning(request, "Nessun dipendente selezionato.")
-        from core.redirects import safe_next
+        return redirect(back or reverse("anagrafica:scadenzario"))
+    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids, "back": back}
+    n = len(ids)
+    messages.info(request, f"{n} dipendent{'e' if n == 1 else 'i'} da iscrivere: scegli un'edizione già "
+                           "pianificata oppure compila la nuova sessione.")
+    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}&rinnovo=1")
 
-        return redirect(safe_next(request, request.POST.get("back"), reverse("anagrafica:scadenzario")))
-    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids}
-    messages.info(request, f"{len(ids)} dipendenti pronti per il rinnovo: compila la sessione.")
-    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}")
+
+def _iscrivi_preselezione(request, sessione) -> int:
+    """Iscrive in blocco (idempotente) i dipendenti preselezionati da «↻ Iscrivi»."""
+    pre = request.session.get("rinnovo_preselect") or {}
+    n_new = 0
+    for lid in pre.get("ids") or []:
+        _, created = TrainingEnrollment.objects.get_or_create(
+            sessione=sessione, legacy_anagrafica_id=lid,
+            defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+        )
+        n_new += created
+    return n_new
+
+
+def _agli_iscritti(sessione, back: str):
+    """Pagina iscritti della sessione, con «Torna a dove eri» se l'azione era partita altrove."""
+    return redirect(_helpers.con_back(
+        reverse("anagrafica:formazione_sessione_iscritti", args=[sessione.pk]), back))
+
+
+@login_required
+@require_POST
+def formazione_rinnovo_in_sessione(request, sessione_id: int):
+    """«↻ Iscrivi» su un'edizione già pianificata dello stesso corso, invece di crearne una nuova."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per iscrivere dipendenti.")
+        return redirect("anagrafica:formazione_sessioni_list")
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id, stato__in=["PIANIFICATA", "IN_CORSO"])
+    pre = request.session.get("rinnovo_preselect") or {}
+    if pre.get("corso") != sessione.corso_id or not pre.get("ids"):
+        messages.warning(request, "Nessun dipendente da iscrivere per questo corso.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
+    n_new = _iscrivi_preselezione(request, sessione)
+    request.session.pop("rinnovo_preselect", None)
+    messages.success(request, f'{n_new} dipendent{"e" if n_new == 1 else "i"} iscritt{"o" if n_new == 1 else "i"} '
+                              f'a "{sessione.codice_sessione}".')
+    return _agli_iscritti(sessione, pre.get("back") or "")
 
 
 @login_required
@@ -2584,27 +2677,35 @@ def formazione_sessione_create(request):
             # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
             pre = request.session.get("rinnovo_preselect")
             if pre and pre.get("corso") == sessione.corso_id and pre.get("ids"):
-                n_new = 0
-                for lid in pre["ids"]:
-                    _, created = TrainingEnrollment.objects.get_or_create(
-                        sessione=sessione, legacy_anagrafica_id=lid,
-                        defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
-                    )
-                    if created:
-                        n_new += 1
+                n_new = _iscrivi_preselezione(request, sessione)
                 request.session.pop("rinnovo_preselect", None)
-                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti per il rinnovo.')
-                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
+                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti.')
+                return _agli_iscritti(sessione, pre.get("back") or "")
             messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
             return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
     else:
         initial = {}
         if request.GET.get("corso"):
             initial["corso"] = request.GET.get("corso")
+        # Una preselezione vale solo per il giro di «↻ Iscrivi» appena partito:
+        # aprendo la pagina in altro modo non deve iscrivere nessuno per sbaglio.
+        if not request.GET.get("rinnovo"):
+            request.session.pop("rinnovo_preselect", None)
         form = TrainingSessionForm(initial=initial)
+    rinnovo = None
+    pre = request.session.get("rinnovo_preselect")
+    if pre and pre.get("ids"):
+        rinnovo = {
+            "n": len(pre["ids"]),
+            "back": pre.get("back") or "",
+            "sessioni": list(TrainingSession.objects.filter(
+                corso_id=pre.get("corso"), stato__in=["PIANIFICATA", "IN_CORSO"])
+                .order_by("data_inizio")[:8]),
+        }
     return render(request, "anagrafica/pages/formazione_sessione_form.html", {
         "form": form,
         "modo": "crea",
+        "rinnovo": rinnovo,
     })
 
 
@@ -3751,7 +3852,11 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
 
     allegati_lezione = list(lezione.allegati.order_by("-created_at"))
 
+    # Il passo dopo: la lezione successiva o, all'ultima, esiti e attestati.
+    lezione_successiva = (TrainingLesson.objects.filter(sessione=sessione, numero__gt=lezione.numero)
+                          .order_by("numero").first())
     return render(request, "anagrafica/pages/formazione_presenze.html", {
+        "lezione_successiva": lezione_successiva,
         "motivo_blocco": motivo_blocco,
         "giornata_futura": giornata_futura,
         "sessione":   sessione,
@@ -4099,13 +4204,31 @@ def formazione_scansioni_impostazioni(request):
         azione = (request.POST.get("azione") or "salva").strip()
 
         if azione == "prova":
-            from ..services.intake_scansioni import elabora_cartella
+            # La lettura gira nel worker, non nella richiesta: una share lenta o
+            # un arretrato di file terrebbero occupato un thread del server per
+            # minuti. Il lock per cartella è lo stesso del lavoro periodico.
+            if not config.attiva or not (config.cartella or "").strip():
+                messages.error(request, "Attiva l'acquisizione e indica la cartella, poi salva: "
+                                        "solo dopo «Prova adesso» può leggerla.")
+                return redirect("anagrafica:formazione_scansioni_impostazioni")
+            try:
+                from django_q.tasks import async_task
 
-            esito = elabora_cartella(config)
+                async_task("anagrafica.tasks.run_intake_scansioni_formazione",
+                           q_options={"timeout": 110})
+                avviata = True
+            except Exception:
+                logger.warning("Prova acquisizione scansioni: accodamento fallito", exc_info=True)
+                avviata = False
             _audit_formazione(request, "intake_scansioni_prova", {
-                "cartella": config.cartella, "riepilogo": esito.get("riepilogo", ""),
+                "cartella": config.cartella, "accodata": avviata,
             })
-            messages.info(request, f"Passaggio eseguito: {esito.get('riepilogo', '')}")
+            if avviata:
+                messages.info(request, "Lettura avviata, l'esito compare tra poco in «Ultimo passaggio»: "
+                                       "ricarica la pagina tra qualche secondo.")
+            else:
+                messages.error(request, "Non è stato possibile avviare la lettura: la cartella verrà "
+                                        "letta comunque al prossimo giro automatico.")
             return redirect("anagrafica:formazione_scansioni_impostazioni")
 
         form = TrainingScanIntakeConfigForm(request.POST, instance=config)
@@ -4259,8 +4382,11 @@ def formazione_scadenzario(request):
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_corso = request.GET.get("corso", "").strip()
     filtro_q     = request.GET.get("q", "").strip()
+    from ..services import centro_filtro
 
-    qs = (
+    filtro_centro = centro_filtro.leggi(request)
+
+    qs = filtro_centro.applica(
         TrainingDeadline.objects
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
@@ -4290,14 +4416,14 @@ def formazione_scadenzario(request):
     for s in scadenze:
         s.nome_dip = nomi_map.get(s.legacy_anagrafica_id, f"#{s.legacy_anagrafica_id}")
 
-    # KPI globali (su tutti, non filtrati)
-    all_qs = TrainingDeadline.objects
+    # KPI su tutti gli stati e i corsi; col centro scelto, solo le sue persone (come la dashboard).
+    all_qs = filtro_centro.applica(TrainingDeadline.objects.all())
     n_scaduti  = all_qs.filter(stato_scadenza="SCADUTO").count()
     n_30gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
     n_90gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
     n_mai      = all_qs.filter(stato_scadenza="MAI_FREQUENTATO", is_required=True).count()
 
-    is_cache_empty = not all_qs.exists()
+    is_cache_empty = not TrainingDeadline.objects.exists()
 
     paginator = Paginator(scadenze, 50)
     page_obj  = paginator.get_page(request.GET.get("page"))
@@ -4305,6 +4431,7 @@ def formazione_scadenzario(request):
     corsi_list = TrainingCourse.objects.filter(is_active=True).order_by("codice")
 
     return render(request, "anagrafica/pages/formazione_scadenzario.html", {
+        "filtro_centro": filtro_centro,
         "page_obj":      page_obj,
         "filtro_stato":  filtro_stato,
         "filtro_corso":  filtro_corso,

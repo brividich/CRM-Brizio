@@ -1,0 +1,345 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ p.nome }} | Prospetto dei cambiamenti{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% include "core/components/_hub_formkit.html" %}
+{% include "anagrafica/components/_rc_stili.html" %}
+<style>
+.pr-cambi { list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:5px; font-size:13px; }
+.pr-cambi li { display:flex; justify-content:space-between; gap:10px; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; padding:6px 10px; }
+.pr-prova { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap:10px; align-items:start; }
+.pr-prova details { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
+.pr-prova summary { font-size:13.5px; font-weight:700; color:#1e293b; cursor:pointer; }
+.pr-prova form { margin-top:10px; }
+.pr-filtro { width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; margin-bottom:6px; }
+.pr-persone { max-height:230px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; }
+.pr-gruppo { border:0; margin:0 0 6px; padding:0; }
+.pr-gruppo legend { font-size:12px; font-weight:700; color:#475569; padding:0; }
+.pr-persona { display:block; font-size:13px; padding:1px 0 1px 18px; cursor:pointer; }
+.pr-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.pr-up { color:#b91c1c; font-weight:700; }
+.pr-giu { color:#15803d; font-weight:700; }
+.pr-neutro { color:#1f6fb0; font-weight:700; }
+.pr-t { width:100%; border-collapse:collapse; font-size:12.5px; }
+.pr-t th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:6px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.pr-t th.pr-num { text-align:right; }
+.pr-t td { padding:6px; border-bottom:1px solid #f1f5f9; vertical-align:top; color:#334155; }
+.pr-t tr.is-cambia td { background:rgba(31,135,205,.06); }
+.pr-scroll { overflow-x:auto; }
+.pr-stato { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:700; background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); white-space:nowrap; }
+.pr-stato.is-male { background:#fee2e2; color:#b91c1c; }
+.pr-stato.is-attento { background:var(--hr-alert-bg,#ffedd5); color:#9a3412; }
+.pr-freccia { color:#94a3b8; }
+.pr-avvisi { display:flex; flex-direction:column; gap:5px; }
+.pr-info { font-size:12.5px; color:#475569; background:#f1f5f9; border-radius:8px; padding:5px 9px; }
+.pr-req { margin-top:4px; font-size:12px; }
+.pr-req summary { cursor:pointer; color:#1f6fb0; font-weight:600; }
+.pr-req ul { margin:4px 0 0; padding-left:16px; }
+.pr-nota { font-size:12px; color:#64748b; margin:8px 0 0; line-height:1.5; }
+.pr-sez { scroll-margin-top:80px; }
+.pr-solo-cambi .pr-fermo { display:none; }
+body.theme-dark .pr-cambi li, body.theme-dark .pr-prova details { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .pr-prova summary { color:var(--text); }
+body.theme-dark .pr-filtro { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-persone { border-color:var(--border); }
+body.theme-dark .pr-gruppo legend, body.theme-dark .pr-t th, body.theme-dark .pr-nota { color:var(--text-light); }
+body.theme-dark .pr-t td, body.theme-dark .pr-persona { color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .pr-t th { border-color:var(--border); }
+body.theme-dark .pr-t tr.is-cambia td { background:rgba(124,192,240,.10); }
+body.theme-dark .pr-up { color:#fca5a5; }
+body.theme-dark .pr-giu { color:#86efac; }
+body.theme-dark .pr-neutro, body.theme-dark .pr-req summary { color:#7cc0f0; }
+body.theme-dark .pr-stato.is-male { background:rgba(229,62,62,.2); color:#fca5a5; }
+body.theme-dark .pr-stato.is-attento { background:rgba(245,158,11,.16); color:#fdba74; }
+body.theme-dark .pr-info { background:var(--surface-alt,#0f1b2d); color:var(--text-mid); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="rc-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">{{ p.nome }}</div>
+      <div class="rc-sub">Prospetto dei cambiamenti in preparazione: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non applichi non cambia niente.{% if totali.mese %} Costi dell'ultimo mese con i cedolini: {{ totali.mese|date:"m/Y" }}.{% endif %}</div>
+    </div>
+    <div class="rc-actions">
+      {% include "anagrafica/partials/_guida_persone_link.html" with ancora="prospetto" %}
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Tutti i prospetti</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=xlsx&amp;scope=filtered&amp;id={{ p.pk }}">Excel</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=pdf&amp;scope=filtered&amp;id={{ p.pk }}">PDF</a>
+    </div>
+  </div>
+
+  <section class="rc-panel pr-sez" id="aggiungi">
+    <h2>Cambiamenti da provare ({{ righe_modifiche|length }})</h2>
+    {% if righe_modifiche %}
+    <ul class="pr-cambi">
+      {% for r in righe_modifiche %}
+      <li>
+        <span>{{ r.testo }}{% if r.problema %}<div class="rc-avviso" style="margin-top:3px;">Non vale: {{ r.problema }}</div>{% endif %}</span>
+        {% if is_admin %}<form method="post" action="{% url 'anagrafica:prospetto_togli' p.pk r.m.pk %}">{% csrf_token %}<button type="submit" class="rc-btn rc-btn-x" aria-label="Togli questo cambiamento">×</button></form>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>Ancora nessun cambiamento: sotto vedi la situazione di oggi. Aggiungine uno per vedere il confronto.</p>
+    {% endif %}
+
+    {% if is_admin %}
+    <div class="pr-prova">
+      <details {% if not righe_modifiche %}open{% endif %}>
+        <summary>Persone in un altro reparto</summary>
+        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
+          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_REPARTO">
+          <div class="hub-form-stack">
+            {% include "anagrafica/partials/_prospetto_persone.html" %}
+            <div class="hub-field"><label>Vanno nel reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}{% if not a.reparto_id %} (senza reparto del portale){% endif %}</option>{% endfor %}</select></div>
+            <div class="hub-field"><label>Le mansioni del reparto di prima</label><select name="mansioni"><option value="lascia">Le lasciano</option><option value="tiene">Le tengono</option></select></div>
+            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
+          </div>
+        </form>
+      </details>
+      <details>
+        <summary>Persone su una mansione</summary>
+        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
+          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_MANSIONE">
+          <div class="hub-form-stack">
+            {% include "anagrafica/partials/_prospetto_persone.html" %}
+            <div class="hub-field"><label>Mansione</label><select name="mansione" required><option value="">Scegli…</option>{% for m in scelte.mansioni %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select></div>
+            <div class="hub-field"><label>Che cosa succede</label><select name="modo"><option value="entra">Entrano</option><option value="togli">Escono</option></select></div>
+            <div class="hub-field"><label>Livello, per chi entra</label><select name="livello">{% for l in scelte.livelli %}<option value="{{ l }}"{% if l == "U" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
+          </div>
+        </form>
+      </details>
+      <details>
+        <summary>Ruolo delle persone</summary>
+        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
+          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_RUOLO">
+          <div class="hub-form-stack">
+            {% include "anagrafica/partials/_prospetto_persone.html" %}
+            <div class="hub-field"><label>Ruolo</label><select name="ruolo" required><option value="">Scegli…</option>{% for r in scelte.ruoli %}<option value="{{ r.pk }}">{% if r.sigla %}{{ r.sigla }} · {% endif %}{{ r.nome }}</option>{% endfor %}</select></div>
+            <div class="hub-field"><label>Che cosa fare</label><select name="modo">{% for k, v in scelte.modi_ruolo %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
+          </div>
+        </form>
+      </details>
+      <details>
+        <summary>Reparto in un altro centro di costo</summary>
+        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
+          {% csrf_token %}<input type="hidden" name="tipo" value="REPARTO_CENTRO">
+          <div class="hub-form-stack">
+            <div class="hub-field"><label>Reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select></div>
+            <div class="hub-field"><label>Centro di costo</label><select name="centro"><option value="">Senza centro di costo</option>{% for c in scelte.centri %}<option value="{{ c.pk }}">{{ c.nome }}</option>{% endfor %}</select></div>
+            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
+          </div>
+        </form>
+      </details>
+      <details>
+        <summary>Mansione in un altro reparto</summary>
+        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
+          {% csrf_token %}<input type="hidden" name="tipo" value="MANSIONE_REPARTO">
+          <div class="hub-form-stack">
+            <div class="hub-field"><label>Mansione</label><select name="mansione" required><option value="">Scegli…</option>{% for m in scelte.mansioni_spostabili %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select></div>
+            <div class="hub-field"><label>Reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select></div>
+            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
+          </div>
+        </form>
+      </details>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="rc-panel pr-sez" id="confronto">
+    <h2>Riepilogo</h2>
+    {% if altri_prospetti %}
+    <form method="get" class="rc-assegna" style="margin-bottom:10px;">
+      <select name="con" aria-label="Confronta con un altro prospetto"><option value="">Confronta con un altro prospetto…</option>{% for x in altri_prospetti %}<option value="{{ x.pk }}"{% if altro and altro.pk == x.pk %} selected{% endif %}>{{ x.nome }}</option>{% endfor %}</select>
+      <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Confronta</button>
+    </form>
+    {% endif %}
+    <div class="pr-scroll">
+    <table class="pr-t" data-fm-table-skip="1">
+      <thead><tr><th>Voce</th><th class="pr-num">Oggi</th><th class="pr-num">Dopo</th><th class="pr-num">Differenza</th>{% if altro %}<th class="pr-num">{{ altro.nome }}</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for r in kpi %}<tr class="{% if r.delta %}is-cambia{% endif %}"><td>{{ r.voce }}</td><td class="pr-num">{{ r.prima }}</td><td class="pr-num">{{ r.dopo }}</td><td class="pr-num {% if r.peggiora %}pr-up{% elif r.migliora %}pr-giu{% endif %}">{% if r.delta > 0 %}+{% endif %}{% if r.delta %}{{ r.delta }}{% else %}—{% endif %}</td>{% if altro %}<td class="pr-num">{{ r.altro }}</td>{% endif %}</tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="pr-nota">{{ totali.persone }} persone in forza{% if puo_costi %}; {{ totali.con_costo }} con il costo di {{ totali.mese|date:"m/Y"|default:"—" }}, RML totale € {{ totali.rml|floatformat:"2g"|default:"—" }}, costo orario medio € {{ totali.costo_medio|floatformat:"2g"|default:"—" }}/h{% endif %}. Rosso = peggiora, verde = migliora.</p>
+    {% if avvisi %}
+    <div class="pr-avvisi" style="margin-top:10px;">{% for a in avvisi %}<div class="{% if a.livello == 'warn' %}rc-avviso{% else %}pr-info{% endif %}">{{ a.testo }}</div>{% endfor %}</div>
+    {% endif %}
+  </section>
+
+  <section class="rc-panel pr-sez" id="centri">
+    <h2>Centri di costo</h2>
+    <div class="pr-scroll">
+    <table class="pr-t {% if ha_modifiche and not altro %}pr-solo-cambi{% endif %}" id="pr-centri" data-fm-table-skip="1">
+      <thead><tr><th>Centro di costo</th><th class="pr-num">Reparti</th><th class="pr-num">Persone oggi</th><th class="pr-num">Dopo</th><th class="pr-num">Diff.</th>{% if puo_costi %}<th class="pr-num">RML oggi</th><th class="pr-num">RML dopo</th><th class="pr-num">Diff. €</th><th class="pr-num">€/h medio oggi</th><th class="pr-num">Dopo</th>{% endif %}{% if altro %}<th class="pr-num">{{ altro.nome }}: persone</th>{% if puo_costi %}<th class="pr-num">RML</th>{% endif %}{% endif %}</tr></thead>
+      <tbody>
+        {% for r in centri %}
+        <tr class="{% if r.cambia %}is-cambia{% else %}pr-fermo{% endif %}">
+          <td>{% if r.senza %}<em>{{ r.voce }}</em>{% else %}{{ r.voce }}{% endif %}</td>
+          <td class="pr-num">{{ r.reparti_prima }}{% if r.reparti_prima != r.reparti_dopo %} <span class="pr-freccia">→</span> {{ r.reparti_dopo }}{% endif %}</td>
+          <td class="pr-num">{{ r.persone_prima }}</td><td class="pr-num">{{ r.persone_dopo }}</td>
+          <td class="pr-num pr-neutro">{% if r.delta %}{% if r.delta > 0 %}+{% endif %}{{ r.delta }}{% endif %}</td>
+          {% if puo_costi %}
+          <td class="pr-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pr-num">{{ r.rml_dopo|floatformat:"2g" }}</td>
+          <td class="pr-num pr-neutro">{% if r.rml_delta %}{% if r.rml_delta > 0 %}+{% endif %}{{ r.rml_delta|floatformat:"2g" }}{% endif %}</td>
+          <td class="pr-num">{{ r.medio_prima|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.medio_dopo|floatformat:"2g"|default:"—" }}</td>
+          {% endif %}
+          {% if altro %}<td class="pr-num">{{ r.persone_altro }}</td>{% if puo_costi %}<td class="pr-num">{{ r.rml_altro|floatformat:"2g" }}</td>{% endif %}{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if ha_modifiche and not altro %}<button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" id="pr-mostra-centri" style="margin-top:8px;">Mostra anche i centri che non cambiano</button>{% endif %}
+    {% if puo_costi %}<p class="pr-nota">RML e costo seguono la persona: spostarla cambia dove finisce il costo, non quanto vale. Il totale resta lo stesso. Il costo medio è sulle persone con il costo del mese, senza pesi.</p>{% endif %}
+  </section>
+
+  {% if reparti %}
+  <section class="rc-panel pr-sez" id="reparti">
+    <h2>Reparti toccati ({{ reparti|length }})</h2>
+    <div class="pr-scroll">
+    <table class="pr-t" data-fm-table-skip="1">
+      <thead><tr><th>Reparto</th><th class="pr-num">Oggi</th><th class="pr-num">Dopo</th><th>Entrano</th><th>Escono</th>{% if puo_costi %}<th class="pr-num">RML oggi</th><th class="pr-num">Dopo</th><th class="pr-num">€/h oggi</th><th class="pr-num">Dopo</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for r in reparti %}<tr><td><strong>{{ r.voce }}</strong>{% if r.resta_vuoto %}<div class="rc-avviso" style="margin-top:3px;">Resta vuoto</div>{% endif %}</td><td class="pr-num">{{ r.persone_prima }}</td><td class="pr-num">{{ r.persone_dopo }}</td><td>{{ r.entrano|join:", "|default:"—" }}</td><td>{{ r.escono|join:", "|default:"—" }}</td>{% if puo_costi %}<td class="pr-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pr-num">{{ r.rml_dopo|floatformat:"2g" }}</td><td class="pr-num">{{ r.medio_prima|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.medio_dopo|floatformat:"2g"|default:"—" }}</td>{% endif %}</tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="rc-panel pr-sez" id="mansioni">
+    <h2>Mansioni toccate ({{ mansioni|length }})</h2>
+    {% if mansioni %}{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni %}{% else %}<span class="rc-none">Nessuna mansione cambia.</span>{% endif %}
+    <details style="margin-top:10px;">
+      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Tutte le mansioni da guardare, dopo i cambiamenti ({{ mansioni_critiche|length }})</summary>
+      <div style="margin-top:8px;">{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni_critiche %}</div>
+    </details>
+    <p class="pr-nota"><strong>Operativi</strong>: in lista al livello di soglia o sopra, solo persone in forza. <strong>Teste equivalenti</strong>: somma dei coefficienti delle persone. <strong>Carico</strong>: quanta parte del loro tempo, in media, gli operativi danno a questa mansione (dai coefficienti dei soli operativi). È un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore richieste da una mansione. <strong>Uomo solo</strong>: meno di {{ totali.uomo_solo }} operativi.</p>
+    <p class="pr-nota" id="soglie">Soglie in uso: carico concentrato da {{ totali.soglia_concentrazione }}%, troppe mansioni oltre {{ totali.soglia_mansioni }}, uomo solo sotto {{ totali.uomo_solo }} operativi.{% if puo_soglie %} <a class="fmd-data-link" href="{% url 'anagrafica:skm_impostazioni' %}#sovraccarico">Cambiale nelle impostazioni</a>{% endif %}</p>
+  </section>
+
+  <section class="rc-panel pr-sez" id="persone-carico">
+    <h2>Persone: carico dopo i cambiamenti</h2>
+    <details>
+      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Su troppe mansioni ({{ persone_su_troppe|length }})</summary>
+      <ul class="rc-list" style="margin-top:6px;">{% for x in persone_su_troppe %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a>: {{ x.n }} mansioni</li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
+    </details>
+    <details style="margin-top:6px;">
+      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Persone chiave: unico operativo su una mansione ({{ persone_chiave|length }})</summary>
+      <ul class="rc-list" style="margin-top:6px;">{% for x in persone_chiave %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a>: {{ x.mansioni|join:", " }}</li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
+    </details>
+  </section>
+
+  {% if persone %}
+  <section class="rc-panel pr-sez" id="persone">
+    <h2>Persone toccate ({{ persone|length }})</h2>
+    <div class="pr-scroll">
+    <table class="pr-t" data-fm-table-skip="1">
+      <thead><tr><th>Persona</th><th>Reparto</th><th>Centro di costo</th><th>Ruoli</th><th>Capo</th><th>Mansioni</th>{% if puo_costi %}<th class="pr-num">€/h</th><th class="pr-num">RML</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for r in persone %}
+        <tr>
+          <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.id %}"><strong>{{ r.nome }}</strong></a>{% if not r.modificata %}<div class="rc-old">cambia di conseguenza</div>{% endif %}</td>
+          <td>{{ r.reparto_prima }}{% if r.cambia_reparto %} <span class="pr-freccia">→</span> <strong>{{ r.reparto_dopo }}</strong>{% endif %}</td>
+          <td>{{ r.centro_prima }}{% if r.centro_prima != r.centro_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.centro_dopo }}</strong>{% endif %}</td>
+          <td>{{ r.ruoli_prima }}{% if r.cambia_ruoli %} <span class="pr-freccia">→</span> <strong>{{ r.ruoli_dopo }}</strong>{% endif %}</td>
+          <td>{{ r.capo_prima }}{% if r.cambia_capo %} <span class="pr-freccia">→</span> <strong>{{ r.capo_dopo }}</strong>{% endif %}</td>
+          <td>
+            {{ r.mansioni_prima }}{% if r.mansioni_prima != r.mansioni_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.mansioni_dopo }}</strong>{% endif %}
+            {% if r.mansioni_nuove %}<div class="rc-old">Nuove: {{ r.mansioni_nuove|join:", " }}</div>{% endif %}
+            {% if r.mansioni_tolte %}<div class="rc-old">Tolte: {{ r.mansioni_tolte|join:", " }}</div>{% endif %}
+            {% if r.fuori_reparto %}<div class="rc-old">Restano sul reparto di prima: {{ r.fuori_reparto|join:", " }}</div>{% endif %}
+            {% if r.da_assegnare %}<div class="rc-old">Previste dal suo ruolo nel reparto nuovo, da assegnare: {{ r.da_assegnare|join:", " }}</div>{% endif %}
+            {% for a in r.avvisi %}<div class="rc-avviso" style="margin-top:3px;">{{ a }}</div>{% endfor %}
+            {% if r.requisiti_nota %}<div class="rc-old">{{ r.requisiti_nota }}</div>{% endif %}
+            {% if r.requisiti %}
+            <details class="pr-req">
+              <summary>{% if r.requisiti.cambia_qualcosa %}Requisiti che cambiano{% else %}I requisiti non cambiano{% endif %}</summary>
+              {% if r.requisiti.cambia_qualcosa %}
+              <ul>
+                {% for x in r.requisiti.rischi_acquisiti %}<li>Rischio in più: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.rischi_persi %}<li>Rischio in meno: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.corsi_nuovi %}<li>Corso: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.corsi_non_piu_dovuti %}<li>Corso non più dovuto: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.visite_nuove %}<li>Visita: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.visite_non_piu_dovute %}<li>Visita non più dovuta: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.dpi_nuovi %}<li>DPI: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.dpi_non_piu_dovuti %}<li>DPI non più dovuto: {{ x }}</li>{% endfor %}
+                {% for x in r.requisiti.sds_da_leggere %}<li>Scheda di sicurezza da leggere: {{ x }}</li>{% endfor %}
+              </ul>
+              {% endif %}
+            </details>
+            {% endif %}
+          </td>
+          {% if puo_costi %}<td class="pr-num">{{ r.costo_orario|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.rml|floatformat:"2g"|default:"—" }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if is_admin and righe_modifiche %}
+  <section class="rc-panel rc-panel-warn pr-sez" id="applica">
+    <h2>Applica i cambiamenti</h2>
+    <p>Ogni riga passa dal percorso normale (spostamento organizzativo, ruoli in blocco, Mansionario) e il suo esito resta qui. La decorrenza vale per spostamenti e ruoli; centri di costo e mansioni cambiano subito. Una riga che non riesce non ferma le altre.{% if ha_ostacoli %} Le righe segnate «Non vale» non verranno applicate.{% endif %}</p>
+    <form method="post" action="{% url 'anagrafica:prospetto_applica' p.pk %}" class="rc-assegna" style="align-items:center;" data-hub-confirm="Applicare davvero {{ righe_modifiche|length }} cambiamenti?">
+      {% csrf_token %}
+      <label style="font-size:13px;">Decorrenza <input type="date" name="decorrenza" value="{{ oggi|date:'Y-m-d' }}" required></label>
+      <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" name="conferma" value="1" required> Ho controllato il confronto</label>
+      <button type="submit" class="rc-btn rc-btn-primary">Applica</button>
+    </form>
+    <form method="post" action="{% url 'anagrafica:prospetto_annulla' p.pk %}" style="margin-top:8px;" data-hub-confirm="Archiviare il prospetto senza cambiare niente?">
+      {% csrf_token %}<button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Archivia senza applicare</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+<script>
+(function () {
+  var mostra = document.getElementById('pr-mostra-centri');
+  if (mostra) mostra.addEventListener('click', function () {
+    var tolta = document.getElementById('pr-centri').classList.toggle('pr-solo-cambi');
+    mostra.textContent = tolta ? 'Mostra anche i centri che non cambiano' : 'Mostra solo i centri che cambiano';
+  });
+  document.querySelectorAll('.pr-filtro').forEach(function (campo) {
+    var box = campo.parentNode.querySelector('.pr-persone');
+    campo.addEventListener('input', function () {
+      var t = campo.value.trim().toLowerCase();
+      box.querySelectorAll('.pr-gruppo').forEach(function (g) {
+        var nome = g.querySelector('legend').textContent.toLowerCase(), visibili = 0;
+        g.querySelectorAll('.pr-persona').forEach(function (p) {
+          var ok = !t || nome.indexOf(t) !== -1 || p.textContent.toLowerCase().indexOf(t) !== -1;
+          p.style.display = ok ? '' : 'none';
+          if (ok) visibili++;
+        });
+        g.style.display = visibili ? '' : 'none';
+      });
+    });
+  });
+  document.querySelectorAll('.pr-tutti').forEach(function (tutti) {
+    tutti.addEventListener('change', function () {
+      tutti.closest('.pr-gruppo').querySelectorAll('.pr-persona').forEach(function (p) {
+        if (p.style.display !== 'none') p.querySelector('input').checked = tutti.checked;
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

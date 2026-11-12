@@ -1,9 +1,10 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie azioni</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#mie-azioni{% endblock %}
 {% block tasks_shell_title %}Le mie azioni{% endblock %}
-{% block tasks_shell_subtitle %}Azioni e problemi degli incontri di cui sei responsabile, su tutte le commesse.{% endblock %}
+{% block tasks_shell_subtitle %}Tutto quello che è assegnato a te, su tutte le commesse: attività del piano, azioni e problemi degli incontri, programmi e FAI. Lo chiudi da qui.{% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ open_count }} aperte</span>
@@ -16,6 +17,31 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
+{% if spostamenti_da_decidere %}
+<section class="ts-panel ma-sposta" id="spostamenti">
+  <div class="ts-panel-head"><div class="ts-panel-title-wrap">
+    <h2 class="ts-panel-title">Spostamenti da decidere <span class="ts-chip warn">{{ spostamenti_da_decidere|length }}</span></h2>
+    <p class="ts-panel-subtitle">Gli incaricati chiedono di cambiare le date: approva, rifiuta o approva con date diverse. Decide il primo capocommessa che risponde.</p>
+  </div></div>
+  <div class="ts-panel-body">
+    {% for sp in spostamenti_da_decidere %}
+    <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="ma-sp-riga">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'tasks:mie_azioni' %}#spostamenti">
+      <div class="ma-sp-testo">
+        <a class="tl-task-link" href="{% url 'tasks:detail' sp.task_id %}">{{ sp.task.title }}</a>
+        <small>{{ sp.task.project.name }} · {{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }} · {{ sp.fine_prima|date:"d/m"|default:"—" }} → <strong>{{ sp.fine_nuovo|date:"d/m"|default:"—" }}</strong>{% if sp.motivo %} · «{{ sp.motivo }}»{% endif %}</small>
+      </div>
+      <input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}" aria-label="Inizio">
+      <input class="input" type="date" name="fine" value="{{ sp.fine_nuovo|date:'Y-m-d' }}" aria-label="Fine">
+      <input class="input" type="text" name="nota" maxlength="500" placeholder="Nota (facoltativa)" aria-label="Nota">
+      <button type="submit" name="decisione" value="approva" class="btn btn-sm">Approva</button>
+      <button type="submit" name="decisione" value="rifiuta" class="btn btn-secondary btn-sm">Rifiuta</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 <section class="ts-panel">
   <div class="ts-panel-body">
     <form method="get" class="ml-filters">
@@ -25,11 +51,13 @@
         <a class="ml-scope-btn{% if filters.stato == 'tutte' %} active{% endif %}" href="?stato=tutte">Tutte</a>
       </div>
       <input type="hidden" name="stato" value="{{ filters.stato }}">
-      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, dettaglio, commessa…">
+      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, codice, commessa…">
       <select class="input" name="tipo" aria-label="Tipo">
-        <option value="">Azioni e problemi</option>
+        <option value="">Tutte le voci</option>
+        <option value="attivita"{% if filters.tipo == "attivita" %} selected{% endif %}>Solo attività del piano</option>
         <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo azioni</option>
         <option value="problema"{% if filters.tipo == "problema" %} selected{% endif %}>Solo problemi</option>
+        <option value="programma"{% if filters.tipo == "programma" %} selected{% endif %}>Solo programmi e FAI</option>
       </select>
       <select class="input" name="scadenza" aria-label="Scadenza">
         <option value="">Qualsiasi scadenza</option>
@@ -62,8 +90,14 @@
             {% for row in rows %}
               <tr class="{% if row.is_overdue %}status-overdue{% elif not row.is_open %}status-done{% endif %}">
                 <td>
-                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% else %}Azione{% endif %}</span>
-                  {% if row.meeting %}
+                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% elif row.kind == 'attivita' %}ok{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% elif row.kind == "programma" %}{{ row.obj.kind }}{% elif row.kind == "attivita" %}Attività{% else %}Azione{% endif %}</span>
+                  {% if row.kind == "attivita" %}
+                    <a class="tl-task-link" href="{% url 'tasks:detail' row.obj.id %}">{{ row.title }}</a>
+                    <div class="tl-task-desc">{% if row.start_date %}Dal {{ row.start_date|date:"d-m-Y" }} · {% endif %}{{ row.obj.get_status_display }}{% if row.obj.progress %} · {{ row.obj.progress }}%{% endif %}{% if row.project %} · <a href="{% url 'tasks:project_gantt' row.project.id %}">Gantt</a>{% endif %}</div>
+                  {% elif row.kind == "programma" %}
+                    <a class="tl-task-link" href="{% url 'tasks:project_tech_refs' row.project.id %}">{{ row.title }}</a>
+                    {% if row.obj.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=row.obj %}</div>{% endif %}
+                  {% elif row.meeting %}
                     <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' row.project.id row.meeting.id %}">{{ row.title }}</a>
                     <div class="tl-task-desc">Dall'incontro {{ row.meeting.numero }} del {{ row.meeting.data|date:"d-m-Y" }}</div>
                   {% else %}
@@ -71,15 +105,24 @@
                   {% endif %}
                   {% if row.linked_task %}<div class="tl-task-desc">Attività collegata: <a href="{% url 'tasks:detail' row.linked_task.id %}">{{ row.linked_task.title }}</a></div>{% endif %}
                 </td>
-                <td><a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a></td>
+                <td>{% if row.project %}<a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a>{% else %}&mdash;{% endif %}</td>
                 <td>
                   {% if row.due_date %}<span class="tl-date{% if row.is_overdue %} overdue{% endif %}">{{ row.due_date|date:"d-m-Y" }}</span>{% else %}<span class="tl-date">&mdash;</span>{% endif %}
                 </td>
                 <td>
-                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
+                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.kind == "attivita" and row.obj.status == "IN_PROGRESS" %}<span class="ts-chip info">In corso</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
                 </td>
                 <td>
-                  <div class="ma-actions">
+                  <div class="ma-actions" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+                    {% if row.kind == "attivita" %}{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=row.obj.id %}{% endif %}
+                    {% if row.kind == "attivita" and row.obj.status == "TODO" %}
+                    <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <input type="hidden" name="action" value="start">
+                      <button type="submit" class="md-btn">Inizia</button>
+                    </form>
+                    {% endif %}
                     <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -99,8 +142,9 @@
         </table>
       </div>
     {% else %}
-      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna azione o problema corrisponde ai filtri.</p>
+      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna voce corrisponde ai filtri.</p>
     {% endif %}
   </div>
 </section>
+<script src="{% static 'tasks/js/tech_refs.js' %}?v=20261111" defer></script>
 {% endblock %}

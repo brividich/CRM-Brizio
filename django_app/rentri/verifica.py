@@ -3,9 +3,11 @@
 Raccoglie in un posto solo le anomalie che il salvataggio ora impedisce ma che
 lo storico può ancora contenere, più gli adempimenti con un termine:
 
-- scarichi senza carico d'origine e catene con CER diversi;
-- movimenti datati prima del movimento a cui si collegano;
-- saldo del deposito che va sotto zero (uno scarico registrato prima del carico);
+- scarichi il cui Rif. Op non porta a nessun carico, scarichi collegati a un
+  movimento poi annullato, scarichi senza collegamento (ammessi, da controllare);
+- catene con CER diversi e movimenti datati prima del movimento a cui si collegano;
+- scarichi oltre il carico collegato o senza un carico disponibile (conto del
+  filo conduttore, :mod:`rentri.fili`);
 - numeri di registrazione doppi (escluse le coppie R+M dello stesso giorno);
 - scarichi originali senza scarico effettivo dopo 90 giorni (quarta copia del FIR);
 - annotazioni scritte oltre 10 giorni lavorativi dal movimento (solo quelle del portale);
@@ -20,14 +22,13 @@ dall'avviso periodico ``check_rentri_scadenze``.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date, timedelta
-from decimal import Decimal
 
 from django.utils import timezone
 
 from .catena import indice_per_id, risali_a_carichi, split_rif_op
-from .giacenze import chiave_codice, contributo, giacenze_per_cer, soglie_deposito
+from .fili import analizza
+from .giacenze import giacenze_per_cer, soglie_deposito
 from .models import RegistroRifiuti
 from .validazione import normalizza_cer
 
@@ -61,17 +62,22 @@ def _giorni_lavorativi(da: date, a: date) -> int:
     return giorni
 
 
-def _catene(records: list, by_id: dict) -> tuple[list, list, list]:
-    orfani, cer_misti, date_errate = [], [], []
+def _catene(records: list, by_id: dict, annullati: dict) -> tuple[list, list, list, list, list]:
+    orfani, scollegati, senza, cer_misti, date_errate = [], [], [], [], []
     for r in records:
         if r.tipo == "C":
             continue
         refs = split_rif_op(r.rif_op)
         carichi = risali_a_carichi(r.rif_op, by_id)
-        if not carichi:
-            dettaglio = f"Rif. Op «{r.rif_op}» non porta a nessun carico" if refs else "Nessun movimento collegato"
-            orfani.append(_riga(r, dettaglio))
-        else:
+        morti = [rid for rid in refs if rid in annullati and rid not in by_id]
+        if morti:
+            scollegati.append(_riga(r, "Collegato a " + ", ".join(f"{annullati[rid]} {rid}" for rid in morti)
+                                    + " annullato: ricollegalo o lascialo come traccia"))
+        if not refs:
+            senza.append(_riga(r, "Registrato senza movimento collegato"))
+        elif not carichi and not morti:
+            orfani.append(_riga(r, f"Rif. Op «{r.rif_op}» non porta a nessun carico"))
+        elif carichi:
             cer = normalizza_cer(r.codice)
             diversi = sorted({
                 c.codice for cid in carichi for c in by_id.get(cid, [])
@@ -84,29 +90,22 @@ def _catene(records: list, by_id: dict) -> tuple[list, list, list]:
                 if g.pk != r.pk and g.data and r.data and r.data < g.data:
                     date_errate.append(_riga(r, f"Datato prima di {g.tipo} {rid} del {g.data:%d/%m/%Y}"))
                     break
-    return orfani, cer_misti, date_errate
+    return orfani, scollegati, senza, cer_misti, date_errate
 
 
-def _saldi_negativi(records: list) -> list:
-    """Primo movimento che porta sotto zero il saldo di un codice, in ordine di data."""
-    per_codice: dict[str, list] = defaultdict(list)
-    for r in records:
-        if r.tipo in ("C", "M", "R") and chiave_codice(r.codice):
-            per_codice[chiave_codice(r.codice)].append(r)
-    ordine = {"C": 0, "R": 1, "M": 2}
+def _eccedenze(analisi) -> list:
+    """Scarichi che portano fuori più di quanto resta nei carichi (collegati o dello stesso codice)."""
     righe = []
-    for movimenti in per_codice.values():
-        saldo = Decimal(0)
-        for r in sorted(movimenti, key=lambda m: (m.data or date.min, ordine[m.tipo], m.pk)):
-            entrata, uscita = contributo(r)
-            saldo += entrata - uscita
-            if saldo < Decimal("-0.0005"):
-                righe.append(_riga(r, f"Dopo questo movimento il saldo è {saldo:.3f}: manca un carico precedente"))
-                break
+    for r, resto, collegato in analisi.eccedenze:
+        q = f"{resto:.3f}".rstrip("0").rstrip(".").replace(".", ",")
+        if collegato:
+            righe.append(_riga(r, f"Esce {q} oltre il residuo dei carichi collegati"))
+        else:
+            righe.append(_riga(r, f"Esce {q} oltre i carichi disponibili del codice"))
     return righe
 
 
-def _quarte_copie(records: list, oggi: date) -> list:
+def _quarte_copie(records: list, oggi: date, analisi) -> list:
     m_citati: set[str] = set()
     m_rif: set[str] = set()
     for r in records:
@@ -122,6 +121,9 @@ def _quarte_copie(records: list, oggi: date) -> list:
         if giorni <= GIORNI_QUARTA_COPIA:
             continue
         if r.id_registrazione in m_citati or ", ".join(split_rif_op(r.rif_op)) in m_rif:
+            continue
+        # Storico: M e R citano direttamente il carico dello scarico originale.
+        if any(f.tipo in ("M", "R") for pk in analisi.collegati.get(r.pk, []) for f in analisi.figli.get(pk, [])):
             continue
         righe.append(_riga(r, f"Partito da {giorni} giorni, nessuno scarico effettivo (M) registrato"))
     return righe
@@ -160,7 +162,9 @@ def verifica_registro() -> list[dict]:
     oggi = timezone.localdate()
     records = list(RegistroRifiuti.objects.attivi().order_by("data", "id"))
     by_id = indice_per_id(records)
-    orfani, cer_misti, date_errate = _catene(records, by_id)
+    annullati = dict(RegistroRifiuti.objects.filter(annullato=True).values_list("id_registrazione", "tipo"))
+    orfani, scollegati, senza, cer_misti, date_errate = _catene(records, by_id, annullati)
+    analisi = analizza(records)
 
     soglie = soglie_deposito()
     deposito, unita_miste = [], []
@@ -177,17 +181,23 @@ def verifica_registro() -> list[dict]:
     return [
         {"key": "orfani", "label": "Scarichi senza carico d'origine", "tone": "danger",
          "desc": "Scarichi e rettifiche la cui catena Rif. Op non arriva a nessun carico valido.", "righe": orfani},
+        {"key": "scollegati", "label": "Collegati a un movimento annullato", "tone": "warning",
+         "desc": "Il movimento a cui erano collegati è stato annullato: il riferimento resta come traccia.",
+         "righe": scollegati},
+        {"key": "senza_collegamento", "label": "Scarichi senza collegamento", "tone": "info",
+         "desc": "Registrati senza Rif. Op: è ammesso, controlla che sia voluto.", "righe": senza},
         {"key": "cer", "label": "Catene con codici CER diversi", "tone": "danger",
          "desc": "Il movimento ha un codice diverso dal carico da cui proviene.", "righe": cer_misti},
-        {"key": "saldo", "label": "Saldo del deposito sotto zero", "tone": "danger",
-         "desc": "In ordine di data, uno scarico porta fuori più di quanto era stato caricato.", "righe": _saldi_negativi(records)},
+        {"key": "saldo", "label": "Scarichi oltre il carico", "tone": "danger",
+         "desc": "Lo scarico originale porta fuori più di quanto resta nei carichi collegati o del codice.",
+         "righe": _eccedenze(analisi)},
         {"key": "date", "label": "Date incoerenti", "tone": "warning",
          "desc": "Il movimento è datato prima del movimento a cui si collega.", "righe": date_errate},
         {"key": "duplicati", "label": "Numeri di registrazione doppi", "tone": "warning",
          "desc": "Lo stesso numero su più movimenti (escluse le coppie R+M dello stesso giorno).", "righe": _duplicati()},
         {"key": "quarta_copia", "label": f"Quarta copia FIR oltre {GIORNI_QUARTA_COPIA} giorni", "tone": "warning",
          "desc": "Scarichi originali senza scarico effettivo: la quarta copia del formulario non risulta rientrata.",
-         "righe": _quarte_copie(records, oggi)},
+         "righe": _quarte_copie(records, oggi, analisi)},
         {"key": "tardive", "label": f"Annotazioni oltre {GIORNI_LAVORATIVI_ANNOTAZIONE} giorni lavorativi", "tone": "warning",
          "desc": "Movimenti scritti nel portale troppo tempo dopo la loro data (lo storico importato non è controllato).",
          "righe": _annotazioni_tardive(records)},

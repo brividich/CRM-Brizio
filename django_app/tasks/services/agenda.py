@@ -6,6 +6,7 @@ from datetime import date
 from uuid import uuid4
 
 from django.db.models import Q
+from django.utils import timezone
 
 
 from ..models import (
@@ -192,6 +193,14 @@ def _agenda_title_suggestions() -> list[dict]:
     aperte): non sono testo scritto da qualcuno, e come suggerimento
     riproporrebbero il problema di un'altra commessa.
     """
+    from .catalogo import suggerimenti
+
+    dal_catalogo = suggerimenti("ODG", AGENDA_SUGGESTIONS_MAX)
+    if dal_catalogo:
+        return [
+            {"titolo": v.testo, "nota": v.nota, "durata_minuti": v.durata_minuti, "usi": v.usi}
+            for v in dal_catalogo
+        ]
     meeting_ids = list(
         KickoffMeeting.objects.order_by("-id").values_list("id", flat=True)[:AGENDA_SUGGESTIONS_SCAN_LIMIT]
     )
@@ -301,6 +310,13 @@ def _set_meeting_agenda_issue_done(meeting: KickoffMeeting, issue_id: int, done:
     if changed:
         meeting.agenda_items = agenda_items
         meeting.save(update_fields=["agenda_items", "updated_at"])
+
+
+def _set_meeting_agenda_action_done(meeting: KickoffMeeting, action_id: int, done: bool) -> None:
+    """Azione chiusa (o riaperta) dalla scheda o dalla conduzione: il punto che la riporta segue."""
+    updated = MeetingAgendaItem.objects.filter(meeting=meeting, action_id=action_id).exclude(done=done).update(done=done)
+    if updated:
+        KickoffMeeting.objects.filter(pk=meeting.pk).update(updated_at=timezone.now())
 
 
 def _meeting_issues_for_form(project: Project, meeting: KickoffMeeting | None = None):

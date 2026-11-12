@@ -541,6 +541,8 @@ class SecurityAlertSuppressionRule(models.Model):
     max_severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     revoked_reason = models.TextField(blank=True)
+    # Scritto dal ciclo del SOC quando manda il promemoria «in scadenza» (services/soppressioni_scadenza.py).
+    promemoria_il = models.DateTimeField(null=True, blank=True)
 
     LEARNED_OWNER = "system:learned"
     LEARNED_SCOPE = "learned_fingerprint"
@@ -821,6 +823,8 @@ class SecurityCaseTask(models.Model):
 
     ticket = models.ForeignKey(SecurityRemediationTicket, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=255)
+    # PC di una CVE (cve_lavoro): l'attività si spunta da sola quando l'inventario non lo vede più esposto.
+    cve_host = models.CharField(max_length=255, blank=True, default="")
     done = models.BooleanField(default=False, db_index=True)
     done_at = models.DateTimeField(null=True, blank=True)
     done_by = models.ForeignKey(
@@ -1441,6 +1445,30 @@ class SoftwareAlias(models.Model):
         return f"{self.raw} → {self.canonical}"
 
 
+class SoftwareProgrammaRegola(models.Model):
+    """Correzione a mano del raggruppamento del Catalogo software, sopra la regola automatica.
+
+    «separa»: ``chiave`` (vendor|product) è un programma a sé. «unisci»: il programma di ``chiave``
+    e quello di ``chiave_altra`` sono uno solo; vale anche per le release future di entrambi.
+    """
+
+    TIPO_SEPARA = "separa"
+    TIPO_UNISCI = "unisci"
+    TIPO_CHOICES = [(TIPO_SEPARA, "Separa"), (TIPO_UNISCI, "Unisci")]
+
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES)
+    chiave = models.CharField(max_length=300)
+    chiave_altra = models.CharField(max_length=300, blank=True)
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["pk"]
+
+    def __str__(self):
+        return f"{self.tipo}: {self.chiave}" + (f" + {self.chiave_altra}" if self.chiave_altra else "")
+
+
 class SoftwareNaRule(models.Model):
     """Regola «non applicabile»: i software il cui nome contiene ``pattern`` non hanno CVE da seguire.
 
@@ -1740,6 +1768,11 @@ class WatchGuardPatch(models.Model):
     di_sistema = models.BooleanField(default=False)
     disponibilita = models.PositiveSmallIntegerField(null=True, blank=True)
     cve = models.TextField(blank=True, default="", help_text="CVE della patch come «|CVE-1|CVE-2|» (ricerca con contains).")
+    kb = models.CharField(max_length=12, blank=True, default="", db_index=True,
+                          help_text="Articolo Microsoft (es. KB5134133) ricavato da nome o file: services/patch_kb.py.")
+    download_url = models.CharField(max_length=1000, blank=True, default="")
+    nome_file = models.CharField(max_length=255, blank=True, default="")
+    riavvio_automatico = models.BooleanField(null=True, blank=True)
     esito = models.PositiveSmallIntegerField(null=True, blank=True)
     esito_il = models.DateTimeField(null=True, blank=True)
     presente = models.BooleanField(default=True, db_index=True)
@@ -1772,6 +1805,125 @@ class WatchGuardPatch(models.Model):
     @property
     def cve_lista(self):
         return [c for c in self.cve.split("|") if c]
+
+
+class MicrosoftKbSostituzione(models.Model):
+    """«La KB ``kb`` sostituisce ``sostituita``» dal Security Update Guide di Microsoft (API CVRF, campo Supercedence).
+
+    Letta da ``services/patch_kb.py``: dice quando una patch mancante è già compresa in una più recente.
+    """
+
+    kb = models.CharField(max_length=12, db_index=True)
+    sostituita = models.CharField(max_length=12, db_index=True)
+    mese = models.CharField(max_length=12, help_text="Documento CVRF da cui viene (es. 2026-Oct).")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["kb", "sostituita"], name="sec_ms_kb_sost_uniq")]
+
+    def __str__(self):
+        return f"{self.kb} sostituisce {self.sostituita}"
+
+
+class MicrosoftCvrfMese(models.Model):
+    """Documenti mensili CVRF già letti: si riscaricano solo quando Microsoft li aggiorna."""
+
+    mese = models.CharField(max_length=12, unique=True)
+    aggiornato_il = models.DateTimeField(null=True, blank=True, help_text="CurrentReleaseDate di Microsoft.")
+    letto_il = models.DateTimeField(null=True, blank=True)
+    sostituzioni = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return self.mese
+
+
+class WatchGuardPatchGiorno(models.Model):
+    """Fotografia giornaliera delle patch mancanti (``services/patch_sla.py``): l'andamento nel tempo.
+
+    Scritta a ogni lettura delle patch WatchGuard (l'ultima del giorno vince). Le patch chiuse per
+    settimana si ricavano da ``WatchGuardPatch.chiusa_il``; le mancanti di un giorno passato no, per
+    questo si fotografano qui.
+    """
+
+    giorno = models.DateField(unique=True)
+    mancanti = models.PositiveIntegerField(default=0)
+    pc = models.PositiveIntegerField(default=0)
+    critiche = models.PositiveIntegerField(default=0)
+    kev = models.PositiveIntegerField(default=0)
+    oltre_termine = models.PositiveIntegerField(default=0)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-giorno"]
+
+    def __str__(self):
+        return f"{self.giorno}: {self.mancanti} patch mancanti"
+
+
+class WatchGuardTask(models.Model):
+    """Task di installazione patch lanciato dalla console WatchGuard (``tasks`` di tipo 6): lo storico resta qui.
+
+    WatchGuard tiene i task finché qualcuno non li cancella dalla console; il SOC li conserva comunque,
+    con l'esito per PC in ``WatchGuardTaskEsito``. ``completo`` = tutti i PC hanno un esito e l'ultima
+    esecuzione è abbastanza vecchia da non cambiare più: il task non si rilegge.
+    """
+
+    task_id = models.CharField(max_length=120, unique=True)
+    nome = models.CharField(max_length=500, blank=True, default="")
+    creato_il = models.DateTimeField(null=True, blank=True)
+    ultimo_job_il = models.DateTimeField(null=True, blank=True, db_index=True)
+    pc = models.PositiveIntegerField(default=0)
+    riuscite = models.PositiveIntegerField(default=0)
+    errori = models.PositiveIntegerField(default=0)
+    in_attesa = models.PositiveIntegerField(default=0)
+    completo = models.BooleanField(default=False)
+    letto_il = models.DateTimeField(default=timezone.now)
+    # Verifica dopo la fine del task: patch e software riletti da WatchGuard → ricalcolo CVE e chiusura con prove.
+    verifica_il = models.DateTimeField(null=True, blank=True)
+    verifica = models.JSONField(default=dict, blank=True,
+                                help_text="{stato: fatta|saltata|errore, motivo, software: {...}, patch: {...}}")
+
+    class Meta:
+        ordering = ["-ultimo_job_il", "-pk"]
+
+    @property
+    def verifica_label(self):
+        stato = (self.verifica or {}).get("stato")
+        return {"fatta": "Patch e software riletti", "saltata": "Verifica saltata", "errore": "Verifica non riuscita"}.get(stato, "")
+
+    def __str__(self):
+        return self.nome or self.task_id
+
+
+class WatchGuardTaskEsito(models.Model):
+    """Esito di un task di installazione su un PC per una patch (``tasks/6/{id}/jobs/{job}/results``)."""
+
+    task = models.ForeignKey(WatchGuardTask, on_delete=models.CASCADE, related_name="esiti")
+    job_id = models.CharField(max_length=120)
+    job_il = models.DateTimeField(null=True, blank=True)
+    device_id = models.CharField(max_length=120, blank=True, default="")
+    host = models.CharField(max_length=255, db_index=True)
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="watchguard_task_esiti")
+    patch_nome = models.CharField(max_length=500, blank=True, default="")
+    esito = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Vuoto = il PC non ha ancora risposto.")
+    esito_il = models.DateTimeField(null=True, blank=True)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["host", "patch_nome"]
+        constraints = [models.UniqueConstraint(fields=["task", "job_id", "host", "patch_nome"], name="sec_wg_task_esito_uniq")]
+
+    def __str__(self):
+        return f"{self.host}: {self.patch_nome} ({self.esito_label or 'in attesa'})"
+
+    @property
+    def esito_label(self):
+        return WatchGuardPatch.ESITI.get(self.esito, "")
+
+    @property
+    def esito_errore(self):
+        return self.esito in WatchGuardPatch.ESITI_ERRORE
 
 
 class DefenderVulnerabilita(models.Model):
@@ -1858,7 +2010,11 @@ class SecurityPropostaAi(models.Model):
     ACCETTATA = "accettata"
     RIFIUTATA = "rifiutata"
     SUPERATA = "superata"
-    STATI = [(APERTA, "Da decidere"), (ACCETTATA, "Accettata"), (RIFIUTATA, "Rifiutata"), (SUPERATA, "Superata")]
+    # Risposta dell'AI scartata dal controllo (CPE fuori elenco, versioni inventate, confidenza bassa):
+    # non si mostra e non si rifà finché i dati del caso (``contesto_hash``) non cambiano.
+    SCARTATA = "scartata"
+    STATI = [(APERTA, "Da decidere"), (ACCETTATA, "Accettata"), (RIFIUTATA, "Rifiutata"), (SUPERATA, "Superata"),
+             (SCARTATA, "Scartata dal controllo")]
 
     # Valori di ``proposta``: per ``cpe`` un «vendor:product» fra i candidati, NON_APPLICABILE o DA_VERIFICARE;
     # per ``esito`` IMPATTA, NON_IMPATTA o DA_VERIFICARE.
@@ -1903,6 +2059,70 @@ class SecurityPropostaAi(models.Model):
     def applicabile(self):
         """«Accetta» ha un effetto solo se l'AI ha preso posizione (non su «resta da verificare»)."""
         return self.proposta != self.DA_VERIFICARE
+
+
+class SecurityAlertProposta(models.Model):
+    """Proposta di chiusura dell'AI locale per un alert aperto, calcolata in automatico (``services.ai_proposte``).
+
+    Il portale raccoglie le prove dai report arrivati dopo l'alert (stesso PC, utente, IP, job, CVE) e le
+    decisioni passate di chi gestisce il SOC; l'AI propone l'esito citando le prove. La persona conferma,
+    corregge o scarta: ogni decisione insegna. Quando per lo stesso tipo di alert e lo stesso esito le
+    ultime N proposte sono state tutte confermate, le successive chiudono da sole (``chiusa_auto``);
+    riaprire un alert chiuso così (``annullata``) toglie la fiducia a quel tipo finché non la riguadagna.
+    """
+
+    APERTA = "aperta"
+    CONFERMATA = "confermata"
+    CORRETTA = "corretta"
+    SCARTATA = "scartata"
+    CHIUSA_AUTO = "chiusa_auto"
+    ANNULLATA = "annullata"
+    SUPERATA = "superata"
+    # Risposta dell'AI non utilizzabile (non in JSON, esito non previsto): non è una decisione di una
+    # persona (non tocca la fiducia) e l'alert non si richiede finché il contesto non cambia.
+    NON_VALIDA = "non_valida"
+    STATI = [
+        (APERTA, "Da confermare"), (CONFERMATA, "Confermata"), (CORRETTA, "Chiusa con un altro esito"),
+        (SCARTATA, "Scartata"), (CHIUSA_AUTO, "Chiusa in automatico"), (ANNULLATA, "Chiusura automatica annullata"),
+        (SUPERATA, "Superata"), (NON_VALIDA, "Risposta dell'AI non valida"),
+    ]
+    # Esiti come in ``alert_lifecycle``; «aperto» = le prove non bastano per chiudere.
+    ESITI = [
+        ("resolved", "Risolto"), ("not_relevant", "Non rilevante"), ("accepted_risk", "Rischio accettato"),
+        ("false_positive", "Falso positivo"), ("aperto", "Lasciare aperto"),
+    ]
+
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.CASCADE, related_name="proposte_ai")
+    schema = models.CharField(max_length=200, db_index=True)  # «sorgente|tipo di evento»: cosa impara
+    schema_label = models.CharField(max_length=255, blank=True, default="")
+    impronta = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    esito = models.CharField(max_length=16, choices=ESITI)
+    motivo = models.TextField(blank=True, default="")
+    prove = models.JSONField(default=list, blank=True)  # le righe di prova citate dall'AI
+    confidenza = models.PositiveSmallIntegerField(default=0)
+    contesto_hash = models.CharField(max_length=64, blank=True, default="")
+    modello = models.CharField(max_length=160, blank=True, default="")
+    stato = models.CharField(max_length=12, choices=STATI, default=APERTA, db_index=True)
+    esito_deciso = models.CharField(max_length=16, blank=True, default="")
+    nota = models.TextField(blank=True, default="")  # perché è stata scartata, corretta o riaperta
+    decisa_da = models.CharField(max_length=120, blank=True, default="")
+    decisa_il = models.DateTimeField(null=True, blank=True)
+    creata_il = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-creata_il"]
+        indexes = [models.Index(fields=["schema", "stato"], name="sec_alert_prop_schema_idx")]
+
+    def __str__(self):
+        return f"Alert #{self.alert_id}: {self.esito} ({self.stato})"
+
+    @property
+    def esito_label(self):
+        return dict(self.ESITI).get(self.esito, self.esito)
+
+    @property
+    def esito_deciso_label(self):
+        return dict(self.ESITI).get(self.esito_deciso, self.esito_deciso)
 
 
 # --- ISO 27001 5.24-5.28 e 8.13: riesame degli incidenti, azioni correttive, prove di ripristino ------

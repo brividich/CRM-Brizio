@@ -126,6 +126,28 @@ LDAP_SERVICE_PASSWORD = env("LDAP_SERVICE_PASSWORD", "")
 LDAP_BASE_DN = env("LDAP_BASE_DN", "")
 LDAP_USER_FILTER = env("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))")
 LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
+# GuestPortal (portale accessi visitatori, app separata PHP+MySQL): vedi fornitori/guestportal.py.
+# Senza GUESTPORTAL_SSO_SECRET il link apre il login normale del pannello.
+GUESTPORTAL_ADMIN_URL = env("GUESTPORTAL_ADMIN_URL", "http://10.0.0.8/guestportal/public/admin/index.php")
+GUESTPORTAL_SSO_URL = env("GUESTPORTAL_SSO_URL", "http://10.0.0.8/guestportal/public/admin/sso.php")
+GUESTPORTAL_SSO_SECRET = env("GUESTPORTAL_SSO_SECRET", "")
+# Chiosco nell'HUB (/chiosco/, senza login): API del GuestPortal chiamate lato server e postazioni
+# ammesse (IP o reti CIDR). Elenco vuoto = chiosco chiuso. Vedi fornitori/chiosco.py.
+GUESTPORTAL_CHIOSCO_API_URL = env("GUESTPORTAL_CHIOSCO_API_URL", "http://10.0.0.8/guestportal/public/api/")
+# Il passaggio: con 1 chiosco, Accessi esterni, Presenti e avvisi usano le tabelle dell'HUB (app reception)
+# e il GuestPortal non serve più. Prima si importa: manage.py importa_guestportal --apply.
+RECEPTION_NATIVA = env_bool("RECEPTION_NATIVA", False)
+RECEPTION_CONSERVAZIONE_MESI = int(env("RECEPTION_CONSERVAZIONE_MESI", "12"))
+# Modulo pubblico «Richiedi un appuntamento» (/richiesta-visita/, senza login). Spento di default; serve anche
+# RECEPTION_NATIVA. Da internet solo dopo la pubblicazione su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
+RECEPTION_RICHIESTE_PUBBLICHE = env_bool("RECEPTION_RICHIESTE_PUBBLICHE", False)
+# Indirizzo pubblico (es. quello di Entra) per il link di conferma nella mail; vuoto = quello da cui arriva la richiesta.
+RECEPTION_RICHIESTE_URL_PUBBLICO = env("RECEPTION_RICHIESTE_URL_PUBBLICO", "")
+GUESTPORTAL_DB_HOST = env("GUESTPORTAL_DB_HOST", "")
+GUESTPORTAL_DB_PORT = env("GUESTPORTAL_DB_PORT", "3306")
+GUESTPORTAL_DB_NAME = env("GUESTPORTAL_DB_NAME", "GuestManagement")
+GUESTPORTAL_DB_USER = env("GUESTPORTAL_DB_USER", "")
+GUESTPORTAL_DB_PASSWORD = env("GUESTPORTAL_DB_PASSWORD", "")
 # Audit M2: la allowlist vale anche al login LDAP e all'SSO Windows (0 = solo sync).
 LDAP_GROUP_ALLOWLIST_ON_LOGIN = env_bool("LDAP_GROUP_ALLOWLIST_ON_LOGIN", True)
 # Audit A10/S7: CA per verificare il certificato del DC su ldaps:// e timeout di lettura.
@@ -555,6 +577,8 @@ INSTALLED_APPS = [
     "notizie.apps.NotizieConfig",
     "anagrafica.apps.AnagraficaConfig",
     "fornitori.apps.FornitoriConfig",
+    "reception.apps.ReceptionConfig",
+    "scadenzario.apps.ScadenzarioConfig",
     "timbri.apps.TimbriConfig",
     "planimetria.apps.PlanimetriaConfig",
     "tickets.apps.TicketsConfig",
@@ -568,6 +592,8 @@ INSTALLED_APPS = [
     "report_conformita.apps.ReportConformitaConfig",
     "sistema_gestione.apps.SistemaGestioneConfig",
     "registro_ofi.apps.RegistroOfiConfig",
+    "presenti.apps.PresentiConfig",
+    "produzione.apps.ProduzioneConfig",
     "glossario_tecnico.apps.GlossarioTecnicoConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
@@ -675,6 +701,17 @@ def build_sqlserver_database() -> dict:
     except ValueError:
         conn_max_age = 60
 
+    # Apertura connessione (mssql-django: OPTIONS connection_timeout/connection_retries/
+    # connection_retry_backoff_time). I default della libreria (timeout del driver, 5
+    # tentativi a 5 s su errori transitori) con SQL Server giù tenevano un thread di
+    # Waitress fermo per oltre mezzo minuto a richiesta: login entro 5 s, un solo
+    # nuovo tentativo dopo 2 s. Sovrascrivibili da .env.
+    def _int_env(nome: str, predefinito: int) -> int:
+        try:
+            return max(0, int(env(nome, str(predefinito)) or predefinito))
+        except ValueError:
+            return predefinito
+
     return {
         "ENGINE": "mssql",
         "NAME": env("DB_NAME", ""),
@@ -687,6 +724,9 @@ def build_sqlserver_database() -> dict:
             "driver": driver,
             "extra_params": extra_params,
             "query_timeout": query_timeout,
+            "connection_timeout": _int_env("DB_CONNECTION_TIMEOUT", 5),
+            "connection_retries": _int_env("DB_CONNECTION_RETRIES", 1),
+            "connection_retry_backoff_time": _int_env("DB_CONNECTION_RETRY_BACKOFF", 2),
         },
     }
 
@@ -975,6 +1015,13 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/2fa/",                       # 2FA verify/setup — gestiti internamente
     "/gestione-anomalie/mail-action/",  # token-based, no login required
     "/suggestion-corner/nuova/",  # form pubblico anonimo (§5), no login required
+    # Chiosco della reception: il visitatore non ha un utente. Allowlist IP nella view
+    # (CHIOSCO_ALLOWED_IPS, vuota = chiuso). Solo rete interna, MAI su Entra Application Proxy.
+    "/chiosco/",
+    # Richiesta di appuntamento degli esterni: form pubblico per scelta, spento finché
+    # RECEPTION_RICHIESTE_PUBBLICHE non vale 1 (404). Email da confermare, limite per IP e
+    # globale, campo trappola. Unica parte della reception pensata per Entra Application Proxy.
+    "/richiesta-visita/",
     # Letture contatori dai collector (es. OPC UA delle CNC): token per collector +
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
@@ -985,6 +1032,8 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md, dati_bi/api.py).
     "/api/v1/",
 )
+
+CHIOSCO_ALLOWED_IPS = env_list("CHIOSCO_ALLOWED_IPS", [])
 
 # API dati (dati_bi): client IP (o reti CIDR) da cui le applicazioni possono leggere.
 DATI_API_ALLOWED_IPS = env_list("DATI_API_ALLOWED_IPS", ["127.0.0.1", "::1"])

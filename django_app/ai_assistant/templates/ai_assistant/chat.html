@@ -836,6 +836,7 @@ body.theme-dark .ai-history-del:hover { background: rgba(185,28,28,.25); color: 
 @media (max-width: 640px) {
   .ai-shell { min-height: calc(calc(100 * var(--vh, 1vh)) - 130px); }
   .ai-hero-text h1 { font-size: 17px; }
+  .ai-hero-actions { flex-shrink: 1; min-width: 0; width: 100%; justify-content: flex-start; }
   .ai-form-row { flex-wrap: wrap; }
   .ai-send, .ai-learn { width: 100%; min-width: unset; }
   .ai-bubble { max-width: 92%; }
@@ -1307,7 +1308,14 @@ body.theme-dark .ai-feedback-thanks{color:#86efac}
     var wrap = document.createElement("div");
     wrap.className = "ai-sources";
     sources.forEach(function (s) {
-      var chip = document.createElement("span");
+      // Procedure CN-SGI: la fonte apre la scheda nella libreria.
+      var codiceProc = s.indexOf("proc:") === 0 ? s.slice(5).split("#")[0].split(">")[0].trim() : "";
+      var chip = document.createElement(codiceProc ? "a" : "span");
+      if (codiceProc) {
+        chip.href = "/procedure-refresh/documento/codice/?c=" + encodeURIComponent(codiceProc);
+        chip.target = "_blank";
+        chip.rel = "noopener";
+      }
       chip.className = "ai-source-chip" + (s.startsWith("tool:") ? " live" : "");
       chip.textContent = s.startsWith("tool:") ? s : s.split(">").pop().trim();
       chip.title = s;

@@ -1,0 +1,315 @@
+/* NOVICROM HUB — stili di assets/components/maintenance_domain_styles.html.
+ * Spostati dal <style> inline (12/11/2026): stesso punto della cascata, ora in cache. */
+/* `display:grid` sulle classi qui sotto vince sull'`[hidden]{display:none}` del
+   browser: senza questa riga i blocchi che il JS nasconde restano a video. */
+.md-page [hidden], .md-form [hidden], .md-filters [hidden] { display:none !important; }
+
+.md-page { display:grid; gap:16px; }
+
+/* --- Tablet e schermi touch in officina ---
+   Sui dispositivi a puntatore "grosso" i comandi delle righe operative arrivano
+   a 44px: si premono con il guanto, non si mirano. */
+.md-tabs--scope { align-items:center; }
+.md-bulk-stack .md-field--wide { flex:1 1 100%; }
+.md-bulk-stack .md-field--wide textarea { width:100%; min-height:64px; }
+.md-tabs--scope .md-sub { margin-left:6px; }
+@media (pointer:coarse) {
+  .md-table--op td { padding:14px 12px; }
+  .md-table--op .btn, .md-table--op .btn-sm { min-height:44px; padding:10px 16px; font-size:var(--fs-sm); }
+  .md-table--op input[type="checkbox"] { width:22px; height:22px; }
+  .md-tab { min-height:40px; display:inline-flex; align-items:center; }
+}
+
+/* --- Colori per tipologia di scadenza ---
+   Un solo posto: Calendario, Panoramica, Scadenzario e scheda asset li leggono
+   da qui. Sul body, cosi' valgono anche fuori da .md-page. */
+body {
+  --mk-ord:#2563eb; --mk-ord-bg:#e8f0ff;
+  --mk-adm:#7c3aed; --mk-adm-bg:#f1eaff;
+  --mk-lic:#0f8f86; --mk-lic-bg:#e2f6f4;
+  --mk-con:#b0620a; --mk-con-bg:#fcefdf;
+  --mk-mw:#475569;  --mk-mw-bg:#eef2f6;
+  --mk-chk:#0369a1; --mk-chk-bg:#e0f2fe;
+  --mk-late:#dc2626; --mk-soft:#f6f8fb;
+}
+body.theme-dark {
+  --mk-ord:#7aa5ff; --mk-ord-bg:rgba(37,99,235,.22);
+  --mk-adm:#b996ff; --mk-adm-bg:rgba(124,58,237,.24);
+  --mk-lic:#45cdc1; --mk-lic-bg:rgba(15,143,134,.24);
+  --mk-con:#eaa55c; --mk-con-bg:rgba(176,98,10,.26);
+  --mk-mw:#a3b1c6;  --mk-mw-bg:rgba(148,163,184,.16);
+  --mk-chk:#5ec8f5; --mk-chk-bg:rgba(3,105,161,.26);
+  --mk-late:#f87171; --mk-soft:rgba(255,255,255,.04);
+}
+.mk-k-ordinary       { --mk-k:var(--mk-ord); --mk-k-bg:var(--mk-ord-bg); }
+.mk-k-administrative { --mk-k:var(--mk-adm); --mk-k-bg:var(--mk-adm-bg); }
+.mk-k-license        { --mk-k:var(--mk-lic); --mk-k-bg:var(--mk-lic-bg); }
+.mk-k-contract       { --mk-k:var(--mk-con); --mk-k-bg:var(--mk-con-bg); }
+.mk-k-machine_work   { --mk-k:var(--mk-mw);  --mk-k-bg:var(--mk-mw-bg); }
+.mk-kind { display:inline-flex; align-items:center; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; padding:2px 8px; border-radius:6px; background:var(--mk-k-bg); color:var(--mk-k); white-space:nowrap; }
+
+/* --- Riepilogo in testa --- */
+.md-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.md-kpi {
+  background:var(--surface,#fff); border:1px solid var(--border,#dbe1ea); border-radius:12px;
+  padding:12px 14px; display:grid; gap:2px; text-decoration:none; color:inherit;
+}
+.md-kpi:hover { border-color:var(--accent,#2563eb); }
+.md-kpi-label { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-mid,#64748b); }
+.md-kpi-value { font-size:1.7rem; font-weight:900; line-height:1; color:var(--text,#0f172a); }
+.md-kpi-sub { font-size:var(--fs-xs); color:var(--text-mid,#94a3b8); }
+.md-kpi.is-danger .md-kpi-value { color:#dc2626; }
+.md-kpi.is-warn .md-kpi-value { color:#d97706; }
+.md-kpi.is-ok .md-kpi-value { color:#16a34a; }
+
+/* --- Barra filtri --- */
+.md-filters {
+  display:flex; gap:10px 12px; flex-wrap:wrap; align-items:flex-end;
+  background:var(--surface-alt,#f8fafc); border:1px solid var(--border,#e5e7eb);
+  border-radius:10px; padding:10px 14px;
+}
+.md-filters .md-field { display:grid; gap:3px; min-width:150px; }
+.md-filters label { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-mid,#64748b); }
+.md-filters .input { min-height:34px; }
+.md-filters .md-actions { margin-left:auto; display:flex; gap:8px; align-items:center; }
+
+/* --- Tab --- */
+.md-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.md-tab {
+  padding:6px 14px; border-radius:999px; text-decoration:none; font-weight:800;
+  font-size:var(--fs-sm); border:1px solid var(--border,#dbe1ea);
+  color:var(--text-mid,#5f7698); background:var(--surface,#fff);
+}
+.md-tab.active { background:var(--accent,#2563eb); border-color:var(--accent,#2563eb); color:#fff; }
+
+/* --- Sezione --- */
+.md-section { border:1px solid var(--border,#dbe1ea); border-radius:14px; background:var(--surface,#fff); overflow:hidden; }
+.md-section-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--border,#e5e7eb); }
+.md-section-head h2 { margin:0; flex:1; font-size:var(--fs-md); font-weight:800; color:var(--text,#0f172a); }
+.md-section.is-urgent { border-color:#fca5a5; }
+.md-section.is-urgent .md-section-head { background:rgba(220,38,38,.07); }
+.md-section.is-warn { border-color:#fcd34d; }
+.md-section.is-warn .md-section-head { background:rgba(217,119,6,.09); }
+/* Sezione apribile: il titolo diventa il comando, senza aggiungere bottoni. */
+details.md-section > summary.md-section-head { cursor:pointer; list-style:none; }
+details.md-section > summary.md-section-head::-webkit-details-marker { display:none; }
+details.md-section > summary.md-section-head:before {
+  content:"▸"; color:var(--text-mid,#8ea2bf); font-size:var(--fs-sm); transition:transform .15s ease;
+}
+details.md-section[open] > summary.md-section-head:before { transform:rotate(90deg); }
+details.md-section:not([open]) > summary.md-section-head { border-bottom:0; }
+details.md-section > summary.md-section-head:hover { background:var(--tbody-hover,#f8fbff); }
+details.md-section.is-urgent > summary.md-section-head:hover { background:rgba(220,38,38,.12); }
+details.md-section.is-warn > summary.md-section-head:hover { background:rgba(217,119,6,.14); }
+.md-empty { padding:18px 16px; color:var(--text-mid,#7f92af); font-size:var(--fs-sm); }
+
+/* --- Badge di stato --- */
+.md-badge {
+  display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:999px;
+  font-size:var(--fs-2xs); font-weight:900; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap;
+}
+.badge-danger  { background:rgba(220,38,38,.14); color:#b91c1c; }
+.badge-warning { background:rgba(217,119,6,.16); color:#92400e; }
+.badge-info    { background:rgba(37,99,235,.14); color:#1e40af; }
+.badge-primary { background:rgba(37,99,235,.2);  color:#1d4ed8; }
+.badge-success { background:rgba(22,163,74,.16); color:#15803d; }
+.badge-muted   { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#64748b); }
+
+/* --- Tabella occorrenze --- */
+.md-table { width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
+.md-table th {
+  text-align:left; padding:8px 12px; font-size:var(--fs-2xs); font-weight:800;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--text-mid,#64748b);
+  border-bottom:1px solid var(--border,#e5e7eb); background:var(--thead-bg,#f8fafc); white-space:nowrap;
+}
+.md-table td { padding:9px 12px; border-bottom:1px solid var(--border,#eef2f7); vertical-align:middle; }
+.md-table tbody tr:hover { background:var(--tbody-hover,#f8fbff); }
+/* ---- Variante OPERATIVA -------------------------------------------------
+   Stessa tabella, altro linguaggio. "Da fare" e "Interventi" si leggono da un
+   monitor di officina: righe piu' alte, meno colonne, una barra di colore che
+   dice l'urgenza prima che si legga il testo. Le pagine gestionali (Scadenze,
+   Piani, scheda piano, Cruscotto) NON aggiungono questa classe e restano dense
+   come sono: e' la densita' giusta per chi pianifica.
+   Le misure seguono i token del design system, con fallback espliciti. */
+.md-table--op td { padding:12px 12px; }
+.md-table--op th { padding:8px 12px; font-size:var(--fs-2xs,.72rem); }
+.md-table--op .md-op-title { display:block; font-size:var(--fs-sm,.9rem); font-weight:800; color:var(--text,#0f172a); text-decoration:none; line-height:1.3; }
+.md-table--op a.md-op-title:hover { text-decoration:underline; }
+.md-table--op .md-sub { margin-top:3px; font-size:var(--fs-xs,.8rem); line-height:1.35; }
+.md-table--op .md-op-when { display:block; margin-top:4px; font-size:var(--fs-xs,.8rem); font-weight:800; }
+.md-table--op .md-op-when.is-late { color:#dc2626; }
+.md-table--op .md-op-when.is-today { color:#b45309; }
+.md-table--op .md-op-meta { display:grid; gap:3px; }
+/* La barra e' sulla prima cella: una sola riga di CSS per riga di tabella, e
+   non si somma al bordo delle celle successive. */
+.md-table--op tbody tr > td:first-child { padding-left:16px; }
+.md-table--op tbody tr.tone-red    > td:first-child { box-shadow:inset 4px 0 0 #dc2626; }
+.md-table--op tbody tr.tone-amber  > td:first-child { box-shadow:inset 4px 0 0 #d97706; }
+.md-table--op tbody tr.tone-blue   > td:first-child { box-shadow:inset 4px 0 0 #2563eb; }
+.md-table--op tbody tr.tone-grey   > td:first-child { box-shadow:inset 4px 0 0 var(--border,#cbd5e1); }
+.md-table--op tbody tr.tone-green  > td:first-child { box-shadow:inset 4px 0 0 #16a34a; }
+.md-table--op tbody tr:hover { background:var(--tbody-hover,rgba(37,99,235,.035)); }
+/* Empty state operativo: una riga sola, positiva. Una sezione vuota non deve
+   occupare lo spazio di una piena. */
+.md-quiet { display:flex; gap:8px; align-items:center; padding:9px 16px; font-size:var(--fs-sm,.9rem); color:var(--text-mid,#64748b); }
+.md-quiet::before { content:"\2713"; font-weight:900; color:#16a34a; }
+.md-table .md-due { font-weight:800; white-space:nowrap; }
+.md-table .md-due.is-late { color:#dc2626; }
+.md-asset { font-weight:800; color:var(--text,#0f172a); text-decoration:none; }
+.md-asset:hover { text-decoration:underline; }
+.md-sub { display:block; font-size:var(--fs-xs); color:var(--text-mid,#8ea2bf); }
+.md-scroll { max-height:calc(60 * var(--vh, 1vh)); overflow:auto; }
+.md-nowrap { white-space:nowrap; }
+.md-right { text-align:right; }
+
+/* --- Raggruppamenti (per piano / famiglia / asset) --- */
+.md-groups { display:grid; gap:10px; }
+.md-group { border:1px solid var(--border,#dbe1ea); border-radius:12px; background:var(--surface,#fff); }
+.md-group > summary {
+  cursor:pointer; list-style:none; padding:10px 14px; display:flex; gap:10px;
+  align-items:center; font-weight:800; color:var(--text,#0f172a);
+}
+.md-group > summary::-webkit-details-marker { display:none; }
+.md-group > summary:before { content:"▸"; color:var(--text-mid,#8ea2bf); transition:transform .15s ease; }
+.md-group[open] > summary:before { transform:rotate(90deg); }
+.md-group-count { margin-left:auto; font-size:var(--fs-xs); color:var(--text-mid,#7f92af); font-weight:700; }
+
+/* --- Blocco selezione + azione massiva --- */
+.md-bulk {
+  position:sticky; bottom:0; z-index:5; display:none; gap:10px; align-items:flex-end; flex-wrap:wrap;
+  padding:12px 16px; border:1px solid var(--accent,#2563eb); border-radius:12px;
+  background:var(--surface,#fff); box-shadow:0 -8px 26px rgba(15,23,42,.12);
+}
+.md-bulk.is-visible { display:flex; }
+.md-bulk-stack { flex-direction:column; align-items:stretch; gap:10px; }
+.md-bulk-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+.md-bulk-row .md-field { display:grid; gap:3px; }
+.md-bulk-row label { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-mid,#64748b); }
+.md-bulk-row button[disabled] { opacity:.5; cursor:not-allowed; }
+.md-bulk-count { font-weight:900; color:var(--accent,#2563eb); }
+/* Riga selezionata (casella o Ctrl+clic, _multiselect_script). */
+.md-table tr.is-selected > td { background:rgba(37,99,235,.08); }
+
+/* --- Conflitto --- */
+.md-conflict { border:1px solid #fca5a5; background:rgba(220,38,38,.06); border-radius:10px; padding:10px 14px; }
+.md-conflict h3 { margin:0 0 4px; font-size:var(--fs-sm); font-weight:900; color:#b91c1c; }
+.md-conflict ul { margin:4px 0 8px 18px; padding:0; font-size:var(--fs-sm); }
+
+/* --- Matrice copertura --- */
+.md-matrix { border-collapse:collapse; font-size:var(--fs-xs); }
+.md-matrix th, .md-matrix td { border:1px solid var(--border,#e5e7eb); padding:4px 6px; text-align:center; }
+.md-matrix th.md-matrix-asset, .md-matrix td.md-matrix-asset { text-align:left; white-space:nowrap; position:sticky; left:0; background:var(--surface,#fff); z-index:1; }
+.md-matrix th { background:var(--thead-bg,#f8fafc); font-weight:800; }
+.md-matrix .cell-inherited { color:#15803d; font-weight:900; }
+.md-matrix .cell-custom { color:#1d4ed8; font-weight:900; }
+.md-matrix .cell-excluded { color:#b91c1c; font-weight:900; }
+.md-matrix .cell-conflict { background:rgba(220,38,38,.12); color:#b91c1c; font-weight:900; }
+.md-matrix .cell-none { color:var(--text-mid,#cbd5e1); }
+.md-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:var(--fs-xs); color:var(--text-mid,#64748b); }
+
+/* --- Form a sezioni --- */
+.md-form { display:grid; gap:16px; max-width:940px; }
+.md-fieldset { border:1px solid var(--border,#dbe1ea); border-radius:12px; background:var(--surface,#fff); padding:14px 16px; display:grid; gap:12px; }
+.md-fieldset > h2 { margin:0; font-size:var(--fs-md); font-weight:800; color:var(--text,#0f172a); }
+.md-fieldset > p.md-hint { margin:0; color:var(--text-mid,#7f92af); font-size:var(--fs-sm); }
+.md-grid-2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.md-field { display:grid; gap:4px; }
+.md-field > label { font-size:var(--fs-xs); font-weight:800; color:var(--text-mid,#5f7698); }
+.md-field .helptext { font-size:var(--fs-xs); color:var(--text-mid,#8ea2bf); }
+.md-field .errorlist { margin:0; padding-left:16px; color:#b91c1c; font-size:var(--fs-xs); }
+.md-field-check { display:flex; gap:8px; align-items:center; }
+.md-field-check input { width:auto; }
+.md-form-actions { display:flex; gap:10px; align-items:center; }
+.md-preview { border:1px dashed var(--border,#cbd5e1); border-radius:10px; padding:10px 14px; font-size:var(--fs-sm); color:var(--text-mid,#5f7698); }
+
+/* --- Tema scuro: solo cio' che non e' gia' su token --- */
+body.theme-dark .md-section-head { background:var(--surface-alt); }
+body.theme-dark .md-section.is-urgent .md-section-head { background:rgba(220,38,38,.14); }
+body.theme-dark .md-section.is-warn .md-section-head { background:rgba(217,119,6,.16); }
+body.theme-dark .md-badge.badge-danger { color:#fca5a5; }
+body.theme-dark .md-badge.badge-warning { color:#fcd34d; }
+body.theme-dark .md-badge.badge-info,
+body.theme-dark .md-badge.badge-primary { color:#93c5fd; }
+body.theme-dark .md-badge.badge-success { color:#86efac; }
+body.theme-dark .md-table .md-due.is-late { color:#fca5a5; }
+/* Variante operativa: sul fondo scuro i rossi e gli ambra pieni si spengono. */
+body.theme-dark .md-table--op .md-op-when.is-late { color:#fca5a5; }
+body.theme-dark .md-table--op .md-op-when.is-today { color:#fcd34d; }
+body.theme-dark .md-table--op tbody tr.tone-grey > td:first-child { box-shadow:inset 4px 0 0 #475569; }
+body.theme-dark .md-quiet::before { color:#86efac; }
+body.theme-dark .md-row-unassigned { background:rgba(220,38,38,.12); }
+body.theme-dark .md-row-unassigned strong { color:#fca5a5; }
+body.theme-dark .md-section.is-empty .md-section-head::after { color:#86efac; }
+body.theme-dark .md-conflict { border-color:rgba(220,38,38,.5); }
+body.theme-dark .md-conflict h3 { color:#fca5a5; }
+body.theme-dark .md-matrix .cell-inherited { color:#86efac; }
+body.theme-dark .md-matrix .cell-custom { color:#93c5fd; }
+body.theme-dark .md-matrix .cell-excluded,
+body.theme-dark .md-matrix .cell-conflict { color:#fca5a5; }
+body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
+body.theme-dark .md-table tr.is-selected > td { background:rgba(96,165,250,.14); }
+
+@media (max-width: 760px) {
+  .md-filters .md-field { min-width:100%; }
+  .md-filters .md-advanced { flex:1 1 100%; min-width:0; }
+  .md-table th, .md-table td { padding:7px 8px; }
+}
+  .md-scope-note{margin:0 0 12px;padding:8px 14px;border:1px solid var(--border);border-left:3px solid #2563eb;border-radius:8px;background:var(--surface);font-size:var(--fs-sm)}
+  .md-scope-note a{margin-left:8px;font-weight:700}
+
+  /* Filtri avanzati: nessun filtro tolto, solo messo in seconda fila. */
+  .md-advanced { grid-column: 1 / -1; margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .md-advanced > summary {
+    cursor: pointer; list-style: none; font-size: var(--fs-xs); font-weight: 800;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid);
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  }
+  .md-advanced > summary::-webkit-details-marker { display: none; }
+  .md-advanced > summary::before { content: "B8"; transition: transform .15s; }
+  .md-advanced[open] > summary::before { transform: rotate(90deg); }
+  .md-advanced > summary:hover { color: var(--text); }
+  .md-advanced-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px; padding: 10px 0 4px;
+  }
+
+  /* La riga del lavoro di nessuno non deve confondersi con le altre: non serve
+     colorarla tutta di rosso, basta che si veda al primo sguardo che questo
+     lavoro non ha un responsabile. */
+  .md-row-unassigned { background: rgba(220,38,38,.06); }
+  .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); padding-top: 11px; padding-bottom: 11px; }
+  .md-row-unassigned td:first-child { border-left: 4px solid var(--danger, #dc2626); }
+  .md-row-unassigned strong { color: #b91c1c; }
+
+  /* Gerarchia dei KPI del Cruscotto: quattro numeri comandano la giornata, gli
+     altri la commentano. Stesso componente, due pesi — non due componenti. */
+  .md-kpis--lead { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .md-kpis--lead .md-kpi-value { font-size: 2.1rem; }
+  .md-kpis--sub { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .md-kpis--sub .md-kpi { padding: 9px 12px; }
+  .md-kpis--sub .md-kpi-value { font-size: 1.25rem; }
+  .md-kpis--sub .md-kpi-label { font-size: var(--fs-2xs, .72rem); }
+  .md-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Sezione senza righe: resta il titolo con "nessuna criticita'", sparisce la
+     tabella vuota. Non si nasconde la sezione: sapere che il controllo e' stato
+     fatto e non ha trovato nulla e' un'informazione. */
+  .md-section.is-empty { opacity: .72; }
+  .md-section.is-empty .md-scroll,
+  .md-section.is-empty .md-table,
+  .md-section.is-empty .md-occ-list { display: none; }
+  .md-section.is-empty .md-section-head { border-bottom: 0; margin-bottom: 0; }
+  .md-section.is-empty .md-section-head::after {
+    content: "\2713  nessuna criticità";
+    font-size: var(--fs-xs); color: #16a34a; font-weight: 700;
+    margin-left: auto;
+  }
+.md-suggest{display:grid;gap:8px;margin:0 0 14px;padding:12px 14px;border:1px solid var(--border,#dbe1ea);border-left:4px solid #2563eb;border-radius:10px;background:var(--surface,#fff)}.md-suggest h2{margin:0;font-size:var(--fs-sm);font-weight:800}.md-suggest-row{display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:var(--fs-sm);padding:6px 10px;border-radius:8px;background:var(--surface-alt,#f8fafc)}.md-suggest-row.is-list{display:block}.md-suggest-row ul{margin:4px 0 0;padding-left:18px}.md-suggest-row .btn{flex:0 0 auto}
+.md-also-list{list-style:none;padding-left:0!important;display:grid;gap:4px;margin:6px 0 8px!important}.md-also-list li{display:flex;justify-content:space-between;gap:10px;align-items:center}.md-also{display:flex;gap:8px;align-items:center;cursor:pointer}.md-also input{margin:0}.md-also-list li:has(input:checked){background:rgba(37,99,235,.08);border-radius:6px}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark{--mk-ord-bg:var(--surface);--mk-adm-bg:var(--surface);--mk-lic-bg:var(--surface);--mk-con-bg:var(--surface);--mk-mw-bg:var(--surface);--mk-chk-bg:rgba(59,130,246,.18)}
+body.theme-dark .md-kpi.is-danger .md-kpi-value{color:#fca5a5}
+body.theme-dark .md-kpi.is-ok .md-kpi-value{color:#86efac}
+body.theme-dark .md-field .errorlist{color:#fca5a5}

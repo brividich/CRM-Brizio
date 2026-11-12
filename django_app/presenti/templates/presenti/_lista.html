@@ -1,0 +1,84 @@
+{% if stato.errore %}
+<div class="pres-avviso{% if not stato.configurato %} is-err{% endif %}">{{ stato.errore }}</div>
+{% endif %}
+{% if stato.errore_esterni %}
+<div class="pres-avviso">{{ stato.errore_esterni }}</div>
+{% endif %}
+
+<div class="pres-kpi">
+  <div class="pres-card"><b>{{ riepilogo.totale }}</b><span>Dipendenti presenti</span></div>
+  <div class="pres-card"><b>{{ n_esterni }}</b><span>Esterni in azienda</span></div>
+  {% for inc in riepilogo.incarichi %}
+  <div class="pres-card"><b>{{ inc.n }}</b><span><i style="background:{{ inc.colore }}"></i>{{ inc.nome }}</span></div>
+  {% endfor %}
+</div>
+
+<div class="pres-card" style="padding:0; overflow-x:auto;">
+  {# Niente barra fm-table: la pagina ha già ricerca e filtri, e la tabella viene sostituita ogni 30 s. #}
+  <table class="pres-tab" data-fm-table-skip="1">
+    <thead>
+      <tr>
+        <th class="pres-c">Turno</th>
+        <th class="pres-hide-sm">Matricola</th>
+        <th>Dipendente</th>
+        <th class="pres-hide-sm">Reparto</th>
+        <th class="pres-c">Entrata</th>
+        <th>Incarico sicurezza</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in righe %}
+      <tr>
+        <td class="pres-c">{% if p.turno %}<span class="pres-turno" title="Turno normale">{{ p.turno }}</span>{% endif %}</td>
+        <td class="pres-mono pres-hide-sm">{{ p.matricola }}</td>
+        <td class="pres-nome">
+          {% if p.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.cognome|upper }} {{ p.nome }}</a>{% else %}{{ p.cognome|upper }} {{ p.nome }}{% endif %}
+          {% if p.mansione %}<span class="pres-sub">{{ p.mansione }}</span>{% endif %}
+          {% if p.verifica %}<span class="pres-sub pres-verifica">Da verificare: {{ p.verifica }}</span>{% endif %}
+        </td>
+        <td class="pres-hide-sm">{{ p.reparto|default:"—" }}</td>
+        <td class="pres-c pres-mono">{{ p.entrata }}</td>
+        <td>{% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% empty %}<span style="color:var(--text-light)">—</span>{% endfor %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="pres-vuoto">{% if filtrato %}Nessun presente corrisponde ai filtri.{% elif not stato.errore %}Nessun dipendente risulta presente al momento.{% else %}Elenco non disponibile.{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="pres-gruppo" style="margin-top:18px;">Esterni in azienda ({% if filtrato %}{{ esterni|length }} su {% endif %}{{ n_esterni }})</h2>
+<div class="pres-card" style="padding:0; overflow-x:auto;">
+  <table class="pres-tab" data-fm-table-skip="1">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Azienda</th>
+        <th class="pres-hide-sm">Tipo</th>
+        <th class="pres-hide-sm">Referente</th>
+        <th class="pres-c">Entrata</th>
+        <th class="pres-c pres-hide-sm">Badge</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in esterni %}
+      <tr>
+        <td class="pres-nome">{{ p.cognome }}</td>
+        <td>{% if p.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' p.fornitore_id %}">{{ p.azienda }}</a>{% else %}{{ p.azienda|default:"—" }}{% endif %}
+          {% if p.requisiti_esito and p.requisiti_esito != "non_richiesto" and p.requisiti_esito != "ok" %}<span class="pres-sub pres-req-{{ p.requisiti_esito }}">{{ p.requisiti_etichetta }}: {{ p.requisiti_testo }}</span>{% endif %}</td>
+        <td class="pres-hide-sm">{{ p.tipo }}</td>
+        <td class="pres-hide-sm">{{ p.referente|default:"—" }}</td>
+        <td class="pres-c pres-mono">{{ p.entrata }}</td>
+        <td class="pres-c pres-mono pres-hide-sm">{{ p.badge|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="pres-vuoto">{% if stato.errore_esterni %}Elenco esterni non disponibile.{% elif filtrato %}Nessun esterno corrisponde ai filtri.{% else %}Nessun esterno registrato in azienda al GuestPortal.{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pres-piede">
+  <span class="pres-live">Si aggiorna da sola ogni {{ aggiorna_ogni }} secondi · timbrature lette alle {{ stato.aggiornato_il|time:"H:i:s" }}</span>
+  <span>{% if filtrato %}{{ righe|length }} su {{ riepilogo.totale }} · {% endif %}{% if riepilogo.non_collegati %}{{ riepilogo.non_collegati }} non collegat{{ riepilogo.non_collegati|pluralize:"o,i" }} all'anagrafica del portale{% endif %}</span>
+</div>

@@ -246,6 +246,42 @@ def destinatari_magazzino() -> list[str]:
     return _split_emails(DPIImpostazioni.get_singleton().magazzino_emails)
 
 
+def destinatari_consegna(richiesta) -> list[str]:
+    """Chi prepara e consegna: il Magazzino, oppure i referenti DPI per le categorie
+    che il magazzino non distribuisce (es. scarpe, spunta «La consegna la fa il magazzino»);
+    per le scarpe ordinate al negozio, l'operatore incaricato."""
+    if richiesta.modalita_negozio:
+        return destinatari_operatore_negozio()
+    if getattr(richiesta.categoria, "consegna_magazzino", True):
+        return destinatari_magazzino()
+    return destinatari_referenti()
+
+
+def destinatari_operatore_negozio() -> list[str]:
+    from .models import DPIImpostazioni
+
+    return _split_emails(DPIImpostazioni.get_singleton().negozio_operatore_emails) or destinatari_referenti()
+
+
+def luogo_ritiro(richiesta) -> str:
+    """Dove passare a ritirare, per il testo «passa ... a ritirarlo»."""
+    from .models import DPIImpostazioni, ModalitaNegozio
+
+    if richiesta.modalita_negozio == ModalitaNegozio.CONVENZIONE:
+        return "dall'ufficio amministrativo"
+    if richiesta.modalita_negozio == ModalitaNegozio.FUORI:
+        return f"dal negozio {DPIImpostazioni.get_singleton().negozio_nome}"
+    return "in magazzino"
+
+
+def link_negozio() -> str:
+    from django.urls import reverse
+
+    from core.accounts.portal_links import portal_link
+
+    return portal_link(reverse("dpi:negozio"))
+
+
 def destinatari_amministrazione() -> list[str]:
     from .models import DPIImpostazioni
 
@@ -263,11 +299,33 @@ def _riga_dpi(richiesta) -> str:
     return " - ".join(parti) + f" (x{richiesta.quantita})"
 
 
-def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachments=None) -> int:
+def link_banco(richiesta) -> str:
+    """Link «Apri nel portale» al Banco consegne, sulla scheda della persona; "" senza SITE_URL.
+
+    Le categorie che il magazzino non consegna (es. scarpe) stanno nella vista «tutte»."""
+    from django.urls import reverse
+
+    from core.accounts.portal_links import portal_link
+
+    from .views import _chiave_persona
+
+    path = reverse("dpi:banco")
+    if not getattr(richiesta.categoria, "consegna_magazzino", True):
+        path += "?tutte=1"
+    return portal_link(f"{path}#{_chiave_persona(richiesta)}")
+
+
+def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachments=None,
+          cta: tuple[str, str] | None = None) -> int:
+    """``cta`` = (etichetta, url): pulsante in fondo alla mail e riga col link nel testo semplice."""
     if not recipients:
         return 0
-    from core.email_utils import send_hub_mail
+    from core.email_utils import email_cta, send_hub_mail, text_to_html
 
+    fragment = ""
+    if cta and cta[1]:
+        fragment = text_to_html(body) + email_cta(cta[0], cta[1])
+        body = f"{body}\n\n{cta[0]}: {cta[1]}"
     return send_hub_mail(
         subject=subject,
         body_text=body,
@@ -275,6 +333,7 @@ def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachm
         title=title,
         email_type="DPI",
         section_label="Richieste DPI",
+        body_html_fragment=fragment,
         attachments=attachments,
         fail_silently=True,
     )
@@ -312,20 +371,42 @@ def notifica_nuova_richiesta(richiesta) -> None:
 
 @event_flow("dpi_avviso_consegna", skipped_result=None)
 def notifica_approvata(richiesta) -> None:
-    """Passo 2 -> 3: avviso al magazzino di preparare il DPI."""
-    from .models import DPIImpostazioni
+    """Passo 2 -> 3: avviso al magazzino di preparare il DPI; per le scarpe, all'operatore incaricato."""
+    from .models import DPIImpostazioni, ModalitaNegozio
+
+    if richiesta.modalita_negozio:
+        impost = DPIImpostazioni.get_singleton()
+        if richiesta.modalita_negozio == ModalitaNegozio.CONVENZIONE:
+            titolo = "Scarpe in convenzione da ordinare"
+            passo = f"Entra nel prossimo ordine a {impost.negozio_nome}: il riepilogo si manda dalla pagina DPI > Scarpe."
+        else:
+            titolo = "Scarpe fuori convenzione"
+            passo = (f"Ritiro al negozio: avvisa il negozio {impost.negozio_nome}, poi in DPI > Scarpe segna «Negozio avvisato». "
+                     "L'ordine si chiude caricando la fattura.")
+        try:
+            _mail(
+                f"[DPI] {titolo} {richiesta.numero} - {richiesta.richiedente_nome}",
+                _dettaglio_richiesta(richiesta) + f"\n\n{passo}",
+                destinatari_operatore_negozio(),
+                title=titolo,
+                cta=("Apri la pagina Scarpe", link_negozio()),
+            )
+        except Exception:
+            logger.warning("Avviso scarpe fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+        return
 
     if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
         passo = "il dipendente e' gia' stato avvisato di passare a ritirarlo: consegnalo e registra la consegna"
     else:
-        passo = ("preparalo, poi in DPI > Gestione richieste premi «Pronto per il ritiro» (avvisa il dipendente) "
-                 "e alla consegna registra la consegna")
+        passo = ("preparalo, poi in DPI > Banco consegne premi «Pronto per il ritiro» (avvisa il dipendente) "
+                 "e alla consegna registrala: la conferma di ricevuta arriva via mail, la firma è facoltativa")
     try:
         _mail(
             f"[DPI] Da consegnare {richiesta.numero} - {richiesta.richiedente_nome}",
             _dettaglio_richiesta(richiesta) + f"\n\nLa richiesta e' stata approvata: {passo}.",
-            destinatari_magazzino(),
+            destinatari_consegna(richiesta),
             title="DPI da consegnare",
+            cta=("Apri il Banco consegne", link_banco(richiesta)),
         )
     except Exception:
         logger.warning("Avviso di consegna DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
@@ -336,10 +417,11 @@ def notifica_pronta_ritiro(richiesta) -> None:
     """Passo 3: il DPI e' pronto, il dipendente passa a ritirarlo."""
     try:
         email = email_dipendente(richiesta)
+        ricevuta = "" if richiesta.modalita_negozio == "FUORI" else " Alla consegna firmerai la ricevuta."
         _mail(
             f"[DPI] Il tuo DPI e' pronto: passa a ritirarlo ({richiesta.numero})",
             _dettaglio_richiesta(richiesta)
-            + "\n\nIl DPI che hai richiesto e' pronto: passa in magazzino a ritirarlo. Alla consegna firmerai la ricevuta.",
+            + f"\n\nIl DPI che hai richiesto e' pronto: passa {luogo_ritiro(richiesta)} a ritirarlo.{ricevuta}",
             [email] if email else [],
             title="DPI pronto per il ritiro",
         )
@@ -372,7 +454,7 @@ def notifica_consegnata(consegna) -> None:
             _dettaglio_richiesta(richiesta),
             f"Consegnato il: {data:%d/%m/%Y}" if isinstance(data, date) else "",
             f"Consegnato da: {consegna.consegnato_da_nome}" if getattr(consegna, "consegnato_da_nome", "") else "",
-            "Ricevuta firmata: " + ("si" if consegna.firmato_ricevuta else "no"),
+            "Ricevuta: confermata con badge" if getattr(consegna, "confermata_badge_il", None) else "Ricevuta firmata: " + ("si" if consegna.firmato_ricevuta else "no"),
         ]
         scadenza = getattr(consegna, "scadenza_calcolata", None)
         if scadenza:
@@ -393,14 +475,37 @@ def notifica_rifiutata_dopo_approvazione(richiesta) -> None:
     """Rifiuto di una richiesta gia' approvata: il magazzino aveva ricevuto l'avviso
     di preparare il DPI, va detto di non consegnarlo."""
     try:
-        destinatari = destinatari_magazzino()
-        motivo = f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
+        destinatari = destinatari_consegna(richiesta)
+        motivo =f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
         _mail(
             f"[DPI] Consegna annullata {richiesta.numero} - {richiesta.richiedente_nome}",
             _dettaglio_richiesta(richiesta)
-            + "\n\nLa richiesta, gia' approvata, e' stata rifiutata: NON consegnare il DPI." + motivo,
+            + "\n\nLa richiesta, gia' approvata, e' stata rifiutata: NON consegnare il DPI."
+            + (" Se l'avevi gia' ordinato, avvisa il negozio." if richiesta.modalita_negozio else "") + motivo,
             destinatari,
             title="Consegna DPI annullata",
         )
     except Exception:
         logger.warning("Avviso di consegna annullata DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+
+
+@event_flow("dpi_ordine_negozio", skipped_result=0)
+def invia_ordine_negozio(testo: str) -> int:
+    """Riepilogo in convenzione al negozio, in copia all'operatore. Lo manda l'operatore dalla pagina Scarpe."""
+    from .models import DPIImpostazioni
+
+    impost = DPIImpostazioni.get_singleton()
+    destinatari = _split_emails(impost.negozio_email) + destinatari_operatore_negozio()
+    return _mail(f"Ordine scarpe - {impost.negozio_nome}", testo, destinatari, title="Ordine scarpe")
+
+
+@event_flow("dpi_promemoria_ordine_scarpe", skipped_result=0)
+def notifica_promemoria_ordine(paia: int) -> int:
+    """Passati i giorni del riepilogo: ricorda all'operatore di mandare l'ordine."""
+    return _mail(
+        "[DPI] E' ora del riepilogo scarpe",
+        f"Ci sono {paia} richieste di scarpe in convenzione da ordinare: controlla e invia l'ordine.",
+        destinatari_operatore_negozio(),
+        title="Riepilogo scarpe da inviare",
+        cta=("Apri la pagina Scarpe", link_negozio()),
+    )

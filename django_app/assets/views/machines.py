@@ -353,6 +353,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
     )
 
     from ..services.visibilita import filtra as filtra_visibili
+    from ..services.visibilita import filtra_odl
 
     machine_base_qs = filtra_visibili(
         request,
@@ -361,13 +362,18 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
     if reparto_filter:
         machine_base_qs = machine_base_qs.filter(reparto=reparto_filter)
 
-    workorders_base = WorkOrder.objects.select_related("asset").filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
+    # Stesso ambito delle macchine: OdL e totali per reparto solo di ciò che si vede.
+    workorders_base = filtra_odl(
+        request, WorkOrder.objects.select_related("asset").filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
+    )
     if reparto_filter:
         workorders_base = workorders_base.filter(asset__reparto=reparto_filter)
 
     open_workorders = workorders_base.filter(status=WorkOrder.STATUS_OPEN).order_by("opened_at", "id")
+    from assets.maintenance import q_odl_in_ritardo
+
     wo_overdue_days = get_workorder_overdue_days()
-    overdue_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=wo_overdue_days))
+    overdue_workorders = open_workorders.filter(q_odl_in_ritardo(now))
     recent_done_workorders = workorders_base.filter(
         status=WorkOrder.STATUS_DONE,
         closed_at__gte=now - timedelta(days=60),
@@ -403,7 +409,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
 
     total_machines = len(machine_rows)
     reparto_totals = list(
-        Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
+        filtra_visibili(request, Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES))
         .exclude(reparto="")
         .values("reparto")
         .annotate(total=Count("id"))

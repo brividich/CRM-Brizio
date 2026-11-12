@@ -44,7 +44,7 @@ def segnalazioni_urgenti():
     """Alert, ticket e incidenti aperti critici o alti, più gli incidenti con una notifica di legge scaduta o in scadenza."""
     from security.services import segnalazioni
 
-    n = len(segnalazioni.elenco(urgenti=True))
+    n = segnalazioni.conta_urgenti()
     return Metrica("urgenti", "segnalazioni urgenti", "segnalazioni", "adesso", "alert, ticket e incidenti del SOC", n,
                    reverse("security:segnalazioni") + "?urgenti=1", icon="alert", tone="critical" if n else "success")
 
@@ -76,29 +76,58 @@ def scadenze_legali():
 
 # --- Backup: sempre per PC ------------------------------------------------------------------
 
-def pc_backup_ko_rows(days=7):
-    from security.services.backup_center import FAIL, overview
+def _finestra_backup(days):
+    """Giorni di report da guardare: il periodo più lungo della pagina Backup (90).
 
-    return [d for d in overview(days)["devices"] if d["stale"] or d["last_status"] == FAIL]
+    Con una finestra fissa di 7 giorni un PC i cui backup si erano fermati del
+    tutto da più tempo non aveva esecuzioni nel periodo e spariva dai ko. Deve
+    essere uno dei periodi della pagina, così il link apre le stesse righe.
+    """
+    from security.services.backup_center import PERIODS
+
+    return max(days, max(p for p, _l in PERIODS))
+
+
+def backup_dispositivi(days=7):
+    """Le righe per PC della pagina Backup nella finestra dei «backup ko».
+
+    Una sola fonte per l'elenco Dispositivi (colonna e filtro «Backup ko»), il numero sul
+    menu Dispositivi e il riquadro della barra di stato: stessa finestra, stessi PC.
+    """
+    from security.services.backup_center import overview
+
+    return overview(_finestra_backup(days))["devices"]
+
+
+def backup_ko(dev):
+    """Un PC ha il backup ko se l'ultimo esito è fallito o non ha un backup riuscito recente."""
+    from security.services.backup_center import FAIL
+
+    return bool(dev and (dev["stale"] or dev["last_status"] == FAIL))
+
+
+def pc_backup_ko_rows(days=7):
+    return [d for d in backup_dispositivi(days) if backup_ko(d)]
 
 
 def pc_backup_ko(days=7):
     from security.services.backup_center import stale_days
 
+    finestra = _finestra_backup(days)
     n = len(pc_backup_ko_rows(days))
-    return Metrica("backup", "PC con backup ko", "PC", f"ultimi {days} giorni", "report di backup (Synology, Veeam)", n,
-                   reverse("security:backup") + f"?giorni={days}&stato=ko#pc", icon="disk", tone="warning" if n else "success",
+    return Metrica("backup", "PC con backup ko", "PC", f"ultimi {finestra} giorni", "report di backup (Synology, Veeam)", n,
+                   reverse("security:backup") + f"?giorni={finestra}&stato=ko#pc", icon="disk", tone="warning" if n else "success",
                    title=f"PC con l'ultimo backup fallito o senza un backup riuscito da oltre {stale_days()} giorni")
 
 
 # --- Fonti dati -------------------------------------------------------------------------------
 
 def sorgenti_mute():
-    from security.services.source_heartbeat import source_status_rows
+    from security.services.source_heartbeat import IN_RITARDO, source_status_rows
 
-    n = sum(1 for r in source_status_rows() if r["state"] in ("high", "warning"))
+    n = sum(1 for r in source_status_rows() if r["state"] in IN_RITARDO)
     return Metrica("sources", "sorgenti in ritardo", "sorgenti", "adesso", "caselle mail dei report", n,
-                   reverse("security:admin_mailbox_sources_list"), icon="signal", tone="warning" if n else "success",
+                   reverse("security:admin_mailbox_sources_list") + "?stato=ritardo", icon="signal", tone="warning" if n else "success",
                    title="Caselle che non mandano report nei tempi attesi")
 
 
@@ -124,28 +153,28 @@ def pc_esposti():
 
 
 def cve_per_pc():
-    """Per ogni host (nome come nell'inventario) le CVE che lo colpiscono e quante sono KEV: il dettaglio di «PC con CVE»."""
-    from security.models import SecurityCveImpact
+    """Per ogni PC (nome normalizzato) le CVE uniche che lo colpiscono: stesso numero di scheda e pannello del PC.
 
-    rows = (SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS).values("host").order_by()
-            .annotate(cves=Count("cve", distinct=True), kev=Count("cve", filter=Q(cve__kev=True), distinct=True),
-                      gravi=Count("cve", filter=Q(cve__kev=True) | Q(cve__cvss__gte=9), distinct=True)))
-    return {r["host"]: r for r in rows}
+    Definizione in ``pc_overview.cve_uniche``: inventario software + vulnerabilità Defender aperte, ogni CVE una volta.
+    """
+    from security.services.pc_overview import cve_uniche
+
+    return cve_uniche()
 
 
 def copertura_cpe():
-    """Quanti software presenti si possono controllare contro le CVE (collegati al CPE o dichiarati N/A)."""
-    from security.models import SoftwareCpeMapping, SoftwareInstallation
+    """Quanti programmi presenti hanno una decisione sulle CVE (collegati al CPE o dichiarati N/A)."""
+    from security.services.software_catalog import riepilogo_cve
 
-    presenti = set(SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product").distinct())
-    decisi = set(SoftwareCpeMapping.objects.filter(Q(confirmed=True) | Q(not_applicable=True)).values_list("vendor", "product"))
-    coperti = len(presenti & decisi)
-    totale = len(presenti)
+    conti = riepilogo_cve()
+    totale = conti["programmi"]
+    coperti = conti["controllati"] + conti["non_applicabili"]
     perc = round(100 * coperti / totale) if totale else 0
-    return Metrica("copertura_cpe", "software controllabili", "software", "adesso", "Software e CPE", perc,
+    return Metrica("copertura_cpe", "programmi controllabili", "programmi", "adesso", "Software e CPE", perc,
                    reverse("security:software_mapping") + "?stato=proposte", icon="shield",
                    tone="success" if perc >= 80 else ("warning" if perc >= 40 else "critical"),
-                   extra={"coperti": coperti, "totale": totale, "da_decidere": totale - coperti})
+                   extra={"coperti": coperti, "totale": totale, "da_decidere": totale - coperti,
+                          "controllati": conti["controllati"], "non_controllati": conti["non_controllati"]})
 
 
 # --- Gruppi usati dalle pagine ---------------------------------------------------------------

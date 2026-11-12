@@ -28,6 +28,7 @@ class ConfigPreavvisoTests(TestCase):
         cfg = SkillMatrixConfig.get_instance()
         data = {
             "soglia_operativa": "U", "regola_multivoce": "MIN", "soglia_uomo_solo": 2,
+            "soglia_concentrazione": 80, "soglia_mansioni_persona": 8,
             "finestra_continuita_mesi": 12, "preavviso_continuita_mesi": 9,
             "periodicita_refresh_mesi": 6, "preavviso_refresh_giorni": 45,
             "etichetta_i": "I", "etichetta_l": "L", "etichetta_u": "U", "etichetta_o": "O",
@@ -180,7 +181,7 @@ class ScadenzarioNavTests(TestCase):
     def test_voce_menu_scadenzario(self):
         link = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:skm_scadenzario").first()
         self.assertIsNotNone(link)
-        self.assertEqual(link.gruppo, "Skill Matrix")
+        self.assertEqual(link.gruppo, "Abilitazioni")
 
 
 class CoseDaGestireHelperTests(TestCase):

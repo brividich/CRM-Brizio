@@ -851,7 +851,10 @@ def vista_gantt(request):
     for p in pians_qs:
         by_mac[p.macchina_id].append(p)
 
-    sat = saturazione_finestra(start, giorni_n)
+    # Dal vivo: la cache (10 minuti) non sapeva degli spostamenti fatti qui
+    # (cella_edit, reschedule, duplica usano update() senza segnali) e la
+    # percentuale restava vecchia accanto alle barre già spostate.
+    sat = saturazione_finestra(start, giorni_n, usa_cache=False)
     filtro_lavori = bool(f_fam or f_cliente)  # nasconde le righe senza barre
     ciclo_tempi, affinita_ore, famiglia_ore = costruisci_indici()  # AI predittiva: durata
 

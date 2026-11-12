@@ -26,3 +26,7 @@ Sistema di comunicazione top-down con target per ruolo/reparto.
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) report e gestione delle notizie sono di chi ha «gestire» su Notizie (preset HR e Sicurezza), non più del nome del ruolo legacy. La visibilità delle notizie segue il pubblico della notizia.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+Conformità in Impostazioni = conferme della versione corrente / destinatari delle obbligatorie pubblicate (`_dashboard_rows`).

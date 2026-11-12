@@ -1,0 +1,204 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if fai_project %}Programmi e FAI{% else %}Registro FAI{% endif %}</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#registro-fai{% endblock %}
+{% block tasks_shell_title %}{% if record %}FAI {{ record.articolo.part_number }}{% else %}Nuovo FAI{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if record %}{{ record.nome_particolare }}{% if record.nome_particolare and record.articolo.client_name %} · {% endif %}{{ record.articolo.client_name }}{% else %}Scegli perché serve: il tipo lo propone il portale. Il resto puoi completarlo dopo.{% endif %}{% endblock %}
+{% block tasks_shell_meta %}{% if record %}
+  <span class="ts-chip soft">{{ record.stato.etichetta }}</span>
+  {% if record.tipo %}<span class="ts-chip soft">{{ record.get_tipo_display }}</span>{% endif %}
+{% endif %}{% endblock %}
+{% block tasks_shell_actions %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
+
+{% block tasks_shell_content %}
+<form method="post" class="fai-scheda" data-fai-form>
+  {% csrf_token %}
+  {% if fai_project %}<input type="hidden" name="project" value="{{ fai_project.id }}">{% endif %}
+  {% if fai_ref %}<input type="hidden" name="ref" value="{{ fai_ref.id }}">{% endif %}
+  <fieldset class="fai-layout"{% if not modificabile %} disabled{% endif %}>
+    <div class="fai-colonna">
+
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">Articolo</h2>
+        <div class="fai-griglia">
+          <label class="fai-campo s4"><span>P/N</span>
+            <input class="input" name="part_number" maxlength="120" required value="{{ form.part_number.value|default_if_none:'' }}">
+            {% if form.part_number.errors %}<small class="tr-err">{{ form.part_number.errors|join:" " }}</small>{% endif %}
+          </label>
+          {% include "tasks/_fai_campo.html" with c=f.revisione s="2" %}
+          {% include "tasks/_fai_campo.html" with c=f.nome_particolare s="6" %}
+          <label class="fai-campo s6"><span>Cliente</span>
+            <input class="input" name="client_name" maxlength="180" value="{{ form.client_name.value|default_if_none:'' }}">
+          </label>
+          {% include "tasks/_fai_campo.html" with c=f.linea s="3" %}
+          {% include "tasks/_fai_campo.html" with c=f.criticita s="3" %}
+          {% include "tasks/_fai_campo.html" with c=f.pn_assy s="4" %}
+          {% include "tasks/_fai_campo.html" with c=f.pn_alternativo s="5" %}
+          {% include "tasks/_fai_campo.html" with c=f.rev_alternativo s="3" %}
+        </div>
+      </section>
+
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">FAI e piano</h2>
+        <div class="fai-griglia">
+          {% include "tasks/_fai_campo.html" with c=f.fai_numero s="2" %}
+          {% include "tasks/_fai_campo.html" with c=f.fai_anno s="2" %}
+          <label class="fai-campo s4"><span>Perché serve</span>
+            <select class="input" name="causale"{% if not fai_storico %} required{% endif %} data-fai-causale>
+              <option value="">{% if fai_storico %}Non indicato{% else %}Scegli{% endif %}</option>
+              {% for c in causali %}<option value="{{ c.pk }}" data-tipo="{{ c.tipo_proposto }}" data-motivo="{{ c.motivo_se_delta|yesno:'1,' }}" data-descrizione="{{ c.descrizione }}"{% if c.pk == scelta_causale %} selected{% endif %}>{{ c.etichetta }}</option>{% endfor %}
+            </select>
+            {% if form.causale.errors %}<small class="tr-err">Scegli perché serve il FAI.</small>{% endif %}
+          </label>
+          <div class="fai-campo s4"><span>Tipo</span>
+            <div class="fai-tipi" role="radiogroup" aria-label="Tipo">
+              {% for valore, etichetta in tipi %}
+              <label class="fai-tipo"><input type="radio" name="tipo" value="{{ valore }}"{% if not fai_storico %} required{% endif %}{% if form.tipo.value == valore %} checked{% endif %}><span>{{ etichetta }}</span></label>
+              {% endfor %}
+            </div>
+            {% if form.tipo.errors %}<small class="tr-err">Scegli il tipo.</small>{% endif %}
+          </div>
+          <p class="fai-nota s12" data-fai-regola></p>
+          <label class="fai-campo s12" data-fai-motivo hidden><span>Perché basta un Delta FAI</span>
+            <input class="input" name="motivo" maxlength="1000" value="{{ form.motivo.value|default_if_none:'' }}" placeholder="Per esempio: stesso processo di un articolo già coperto al 100%">
+            {% if form.motivo.errors %}<small class="tr-err">{{ form.motivo.errors|join:" " }}</small>{% endif %}
+          </label>
+          <label class="fai-campo s3"><span>Piano FAI</span>
+            <select class="input" name="piano"{% if not fai_storico %} required{% endif %} data-fai-piano>
+              {% if fai_storico %}<option value="">Non indicato</option>{% endif %}
+              {% for p in piani %}<option value="{{ p.pk }}" data-modulo="{{ p.modulo }}" data-op="{{ p.stato_op }}" data-auto="{{ p.numerazione_auto|yesno:'1,' }}"{% if p.pk == scelta_piano %} selected{% endif %}>{{ p.etichetta }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="fai-campo s4"><span>Numero piano</span>
+            <input class="input" name="piano_numero" maxlength="160" value="{{ form.piano_numero.value|default_if_none:'' }}" data-fai-numero>
+          </label>
+          {% include "tasks/_fai_campo.html" with c=f.descrizione_piano s="5" %}
+          <small class="fai-nota s12" data-fai-modulo></small>
+        </div>
+      </section>
+
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">Avanzamento</h2>
+        <div class="fai-griglia">
+          <label class="fai-campo s3"><span>Stato</span>
+            <select class="input" name="stato" required>
+              {% for s in stati %}<option value="{{ s.pk }}"{% if s.pk == scelta_stato %} selected{% endif %}>{{ s.etichetta }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="fai-campo s3"><span>Data invio FAI</span>
+            <input class="input" type="date" name="data_invio" value="{{ form.data_invio.value|default_if_none:'' }}">
+          </label>
+          {% include "tasks/_fai_opzione_campo.html" with campo=campo_chiusura s="3" %}
+          <label class="fai-campo s3"><span>Data chiusura FAI</span>
+            <input class="input" type="date" name="data_chiusura" value="{{ form.data_chiusura.value|default_if_none:'' }}">
+          </label>
+          {% include "tasks/_fai_campo.html" with c=f.avanzamento s="12" %}
+          <label class="fai-campo s4"><span>Responsabile</span>
+            <select class="input" name="responsabile"{% if fai_attivita %} disabled{% endif %}>
+              <option value="">Da assegnare</option>
+              {% with quick_users=utenti selected=responsabile_scelto %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
+            </select>
+            {% if fai_attivita %}<small>È il responsabile dell'attività «{{ fai_attivita.title }}»: si cambia da lì.</small>{% endif %}
+            {% if form.responsabile.errors %}<small class="tr-err">{{ form.responsabile.errors|join:" " }}</small>{% endif %}
+          </label>
+          <label class="fai-campo s8"><span>Cartella o file di rete</span>
+            <input class="input" name="path" maxlength="500" value="{{ form.path.value|default_if_none:'' }}" placeholder="\\server\cartella">
+            {% if form.path.errors %}<small class="tr-err">{{ form.path.errors|join:" " }}</small>{% endif %}
+          </label>
+        </div>
+      </section>
+
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">Riferimenti</h2>
+        <div class="fai-griglia">
+          <label class="fai-campo s3"><span class="fai-op-etichetta">OP{% if nuovo_op and modificabile %}<button type="button" class="nop-apri" data-nuovo-op data-fai-nuovo-op>+ Nuovo OP</button>{% endif %}</span>
+            <input class="input" name="op" maxlength="{{ f.op.massimo }}" value="{{ f.op.valore|default_if_none:'' }}" list="fai-op-elenco" autocomplete="off" placeholder="Cerca OP o P/N" data-fai-op data-url="{% url 'tasks:fai_op' %}">
+            <datalist id="fai-op-elenco"></datalist>
+            {% if f.op.errori %}<small class="tr-err">{{ f.op.errori|join:" " }}</small>{% endif %}
+          </label>
+          {% include "tasks/_fai_campo.html" with c=f.oda_item s="3" %}
+          {% include "tasks/_fai_campo.html" with c=f.invito s="2" %}
+          {% include "tasks/_fai_campo.html" with c=f.faldone s="2" %}
+          {% include "tasks/_fai_campo.html" with c=f.cci_numero s="1" %}
+          {% include "tasks/_fai_campo.html" with c=f.cci_anno s="1" %}
+          <div class="fai-op s12" data-fai-op-scheda aria-live="polite">{% if op_collegato %}{% include "tasks/_fai_op.html" with op=op_collegato %}{% endif %}</div>
+        </div>
+      </section>
+
+      <details class="fai-blocco fai-piega"{% if ha_versione %} open{% endif %}>
+        <summary class="fai-titolo">Versione, DIP e documenti</summary>
+        <div class="fai-griglia">
+          {% include "tasks/_fai_campo.html" with c=f.versione_produzione s="4" %}
+          {% include "tasks/_fai_opzione_campo.html" with campo=campo_versione s="4" %}
+          <label class="fai-campo s4"><span>Data versione</span><input class="input" type="date" name="data_versione" value="{{ form.data_versione.value|default_if_none:'' }}"></label>
+          {% include "tasks/_fai_campo.html" with c=f.codice_dip s="4" %}
+          <label class="fai-campo s4"><span>Data approvazione DIP</span><input class="input" type="date" name="data_approvazione_dip" value="{{ form.data_approvazione_dip.value|default_if_none:'' }}"></label>
+          {% include "tasks/_fai_campo.html" with c=f.invio_cq s="4" %}
+          {% include "tasks/_fai_opzione_campo.html" with campo=campo_cross s="4" %}
+          {% for d in campi_documento %}
+          <label class="fai-campo s2"><span>{{ d.etichetta }}</span>
+            <select class="input" name="{{ d.nome }}">
+              <option value=""></option>
+              {% for valore, etichetta in scelte_documento %}<option value="{{ valore }}"{% if d.valore == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endfor %}
+        </div>
+      </details>
+
+      <section class="fai-blocco">
+        <label class="fai-campo"><span class="fai-titolo">Note</span><textarea class="input" name="note" rows="3" maxlength="4000">{{ form.note.value|default_if_none:'' }}</textarea></label>
+      </section>
+    </div>
+
+    <aside class="fai-lato">
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">Scadenza dell'articolo</h2>
+        {% if situazione %}
+          <p class="fai-esito"><span class="ts-chip {{ situazione.classe }}">{{ situazione.etichetta }}</span></p>
+          {% if situazione.nota %}<p class="fai-nota">{{ situazione.nota }}</p>{% endif %}
+        {% endif %}
+        {% if ripetizione %}
+          <p class="fai-ripeti"><span>Ripetizione entro</span><strong>{{ ripetizione|date:"d/m/Y" }}</strong></p>
+        {% endif %}
+        <label class="fai-campo"><span>Fine ultima produzione</span><input class="input" type="date" name="ultima_produzione" value="{{ form.ultima_produzione.value|default_if_none:'' }}"></label>
+        <label class="fai-campo"><span>Ultima spedizione</span><input class="input" type="date" name="ultima_spedizione" value="{{ form.ultima_spedizione.value|default_if_none:'' }}"></label>
+        <label class="fai-campo"><span>Il cliente chiede la ripetizione entro</span><input class="input" type="date" name="scadenza_cliente" value="{{ form.scadenza_cliente.value|default_if_none:'' }}"></label>
+        <p class="fai-nota">Valgono per tutti i FAI di questo P/N.</p>
+      </section>
+
+      {% if storico %}
+      <section class="fai-blocco">
+        <h2 class="fai-titolo">Altri FAI di questo articolo</h2>
+        <ul class="fai-storico">
+          {% for s in storico %}
+            <li>
+              <a href="{% url 'tasks:fai_scheda' s.id %}">{{ s.piano_numero|default:"Senza numero" }}</a>
+              <span class="fai-nota">{{ s.stato.etichetta }}{% if s.data_invio %} · {{ s.data_invio|date:"d/m/Y" }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+    </aside>
+  </fieldset>
+
+  <div class="fai-azioni">
+    {% if modificabile %}<button type="submit" class="btn">Salva</button>{% endif %}
+    <a class="btn btn-secondary" href="{% if fai_project %}{% url 'tasks:project_tech_refs' fai_project.id %}{% else %}{% url 'tasks:fai_registro' %}{% endif %}">{% if modificabile %}Annulla{% else %}Indietro{% endif %}</a>
+    {% if puo_eliminare %}<button type="submit" class="btn btn-secondary fai-elimina" name="azione" value="elimina" formnovalidate data-hub-confirm="Eliminare questo FAI?">Elimina</button>{% endif %}
+  </div>
+</form>
+
+{% if dati_originali %}
+<details class="fai-blocco fai-piega fai-origine">
+  <summary class="fai-titolo">Dati originali del file Situazione FAI-ISIR</summary>
+  <dl class="fai-originali">
+    {% for nome, valore in dati_originali %}<div><dt>{{ nome }}</dt><dd>{{ valore }}</dd></div>{% endfor %}
+  </dl>
+</details>
+{% endif %}
+{% if nuovo_op and modificabile %}{% include "produzione/_nuovo_op.html" %}{% endif %}
+<script src="{% static 'tasks/js/fai.js' %}?v=20261108c" defer></script>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "reception/pubblica/_base.html" %}
+{% block title %}{{ titolo }}{% endblock %}
+{% block testa %}<h1>{{ titolo }}</h1>{% endblock %}
+{% block corpo %}
+{% if inviata %}
+<p class="pb-sub">Ti abbiamo mandato una mail con il link per confermare la richiesta{% if ore_conferma %}, valido {{ ore_conferma }} ore{% endif %}. Finché non la confermi non arriva a nessuno. Se non la trovi, guarda nella posta indesiderata.</p>
+{% else %}
+<p class="pb-sub">{{ testo }}</p>
+{% endif %}
+{% endblock %}

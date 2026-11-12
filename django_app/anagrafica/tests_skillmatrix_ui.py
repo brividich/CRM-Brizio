@@ -81,6 +81,8 @@ class SkillMatrixImpostazioniViewTests(TestCase):
             "soglia_operativa": "U",
             "regola_multivoce": "MIN",
             "soglia_uomo_solo": 2,
+            "soglia_concentrazione": 80,
+            "soglia_mansioni_persona": 8,
             "finestra_continuita_mesi": 12,
             "preavviso_continuita_mesi": 9,
             "periodicita_refresh_mesi": 6,
@@ -132,5 +134,5 @@ class SkillMatrixNavTests(TestCase):
             link = SubnavLinkAnagrafica.objects.filter(url_value=url_value).first()
             self.assertIsNotNone(link, f"voce subnav mancante: {url_value}")
             self.assertTrue(link.is_active)
-            self.assertEqual(link.gruppo, "Skill Matrix")
+            self.assertEqual(link.gruppo, "Abilitazioni")
             self.assertEqual(link.categoria.nome, "Competenze")

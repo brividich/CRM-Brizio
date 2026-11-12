@@ -232,3 +232,83 @@ class ImpostazioniTest(_Base):
                 "tipo": "MAN", "sharepoint_list_id": "", "sharepoint_site_id": "sito", "sharepoint_sync_attivo": True,
             }), content_type="application/json")
         self.assertFalse(resp.json()["ok"])
+
+
+class AffidabilitaLetturaTest(_Base):
+    def test_token_delta_durevole_e_ripiego_dalla_cache(self):
+        from django.core.cache import cache
+
+        from core.models import SiteConfig
+
+        conf = sp.configurazione()
+        cache.set(sp._delta_key(conf), "link-vecchio", timeout=None)
+        with mock.patch.object(sp, "_delta", return_value=([], "link-nuovo", False)) as delta:
+            sp.leggi_modifiche()
+        self.assertEqual(delta.call_args.args[1], "link-vecchio")  # letto dalla cache una volta
+        self.assertEqual(SiteConfig.get(sp._delta_key(conf)), "link-nuovo")
+        cache.clear()
+        self.assertEqual(sp._leggi_delta_link(conf), "link-nuovo")
+
+    def test_dettaglio_non_letto_conta_come_fallito_e_il_token_non_avanza(self):
+        from core.models import SiteConfig
+
+        conf = sp.configurazione()
+        SiteConfig.set(sp._delta_key(conf), "link-A")
+        with mock.patch.object(sp, "_delta", return_value=([{"id": "77"}], "link-B", False)), \
+             mock.patch.object(sp.requests, "get", return_value=_risposta(503)):
+            esito = sp.leggi_modifiche()
+        self.assertEqual(esito["falliti"], 1)
+        self.assertEqual(SiteConfig.get(sp._delta_key(conf)), "link-A")
+
+    def test_dettaglio_404_ignorato_il_token_avanza(self):
+        from core.models import SiteConfig
+
+        conf = sp.configurazione()
+        with mock.patch.object(sp, "_delta", return_value=([{"id": "77"}], "link-B", False)), \
+             mock.patch.object(sp.requests, "get", return_value=_risposta(404)):
+            esito = sp.leggi_modifiche()
+        self.assertEqual((esito["falliti"], esito["ignorati"]), (0, 1))
+        self.assertEqual(SiteConfig.get(sp._delta_key(conf)), "link-B")
+
+    def test_id_nell_url_codificati(self):
+        url = sp._items_url({"site_id": "tenant.sharepoint.com,a,b", "list_id": "x/../y?z"})
+        self.assertIn("/sites/tenant.sharepoint.com,a,b/", url)
+        self.assertIn("/lists/x%2F..%2Fy%3Fz/", url)
+
+
+class ValidazioneIdTest(TestCase):
+    GUID = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    def test_validatori(self):
+        self.assertEqual(sp.errore_list_id(""), "")
+        self.assertEqual(sp.errore_list_id(self.GUID), "")
+        self.assertEqual(sp.errore_list_id("{" + self.GUID + "}"), "")
+        self.assertTrue(sp.errore_list_id("lista/../altro"))
+        self.assertEqual(sp.errore_site_id(f"tenant.sharepoint.com,{self.GUID},{self.GUID}"), "")
+        self.assertTrue(sp.errore_site_id("sito"))
+        self.assertTrue(sp.errore_site_id(f"tenant.sharepoint.com,{self.GUID}"))
+
+    def test_salvataggio_rifiuta_id_non_validi(self):
+        import json
+
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from .tests import _complete_onboarding
+
+        utente = get_user_model().objects.create_superuser("tk-sp-val", "tk-sp-val@example.com", "pass12345")
+        _complete_onboarding(utente)
+        self.client.force_login(utente)
+        with mock.patch("tickets.views._can_manage_settings", return_value=True):
+            resp = self.client.post(reverse("tickets:api_impostazioni"), json.dumps({
+                "tipo": "MAN", "sharepoint_list_id": "lista?x=1", "sharepoint_site_id": "",
+            }), content_type="application/json")
+            self.assertFalse(resp.json()["ok"])
+            self.assertIn("List ID non valido", resp.json()["error"])
+            resp = self.client.post(reverse("tickets:api_impostazioni"), json.dumps({
+                "tipo": "MAN", "sharepoint_list_id": self.GUID,
+                "sharepoint_site_id": f"tenant.sharepoint.com,{self.GUID},{self.GUID}",
+            }), content_type="application/json")
+        self.assertTrue(resp.json()["ok"], resp.content)
+        cfg = TicketImpostazioni.objects.get(tipo=TipoTicket.MAN)
+        self.assertEqual(cfg.sharepoint_list_id, self.GUID)

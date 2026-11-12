@@ -7,7 +7,7 @@
 {% block page_title %}Backup{% endblock %}
 
 {% block soc_content %}
-{% include "security/partials/tip.html" with tip_id="backup-v1" tip="<strong>Clic su un PC</strong> per backup, alert e vulnerabilità in un pannello; seleziona più PC per aprire un unico ticket con un'attività per ciascuno." %}
+{% include "security/partials/tip.html" with tip_id="backup-v1" tip="<strong>Clic su un PC</strong> per backup, alert e vulnerabilità in un pannello; seleziona più PC o job per aprire un ticket, prendere in carico o chiudere insieme i loro alert." %}
 {% include "security/partials/backup_subnav.html" with active="overview" %}
 
 <div class="kpi-filters">
@@ -145,14 +145,9 @@
   <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
-  <div class="sec-bulk-bar">
-    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
-    <input type="hidden" name="action" value="case">
-    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)">
-    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
-  </div>
+{% include "security/partials/backup_bulk_bar.html" with cosa="PC" %}
   <div class="sec-table-wrap">
-    <table class="sec-table" data-table-enhanced="0">
+    <table class="sec-table">
       <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Dispositivo</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th>Ultime esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati</th><th class="sec-num">Durata media</th><th>Job</th></tr></thead>
       <tbody>
       {% for d in devices %}
@@ -179,12 +174,17 @@
 
 <section class="sec-panel" style="margin-top: 12px;" id="job">
   <div class="sec-section-head"><h2>Per job</h2><span class="sec-badge">{{ jobs|length }}</span></div>
+  <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}#job">
+  {% include "security/partials/backup_bulk_bar.html" with cosa="job" %}
   <div class="sec-table-wrap">
-    <table class="sec-table" data-table-enhanced="0">
-      <thead><tr><th>Job</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th class="sec-num">Esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati medi</th><th class="sec-num">Durata media</th><th class="sec-num">Dispositivi</th></tr></thead>
+    <table class="sec-table">
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti i job"></th><th>Job</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th class="sec-num">Esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati medi</th><th class="sec-num">Durata media</th><th class="sec-num">Dispositivi</th></tr></thead>
       <tbody>
       {% for j in jobs %}
-        <tr>
+        <tr class="sec-row-link" data-preview="{% url 'security:preview_backup_job' %}?nome={{ j.name|urlencode }}&amp;giorni={{ days }}">
+          <td class="sec-check-col"><input type="checkbox" name="jobs" value="{{ j.name }}" class="sec-bulk-item" aria-label="Seleziona {{ j.name }}"></td>
           <td class="sec-title-cell"><a href="{% url 'security:backup_log' %}?job={{ j.name|urlencode }}&amp;giorni={{ days }}"><strong>{{ j.name }}</strong></a><small>{{ j.vendor|capfirst|default:"—" }}{% if j.nas %} · {{ j.nas }}{% endif %}</small></td>
           <td><span class="sec-badge sec-badge-{{ j.tone }}">{{ j.last_label }}</span><small class="sec-nowrap sec-muted"> {{ j.last_at|date:"d/m H:i" }}</small></td>
           <td class="sec-nowrap">{{ j.last_ok|date:"d/m H:i"|default:"mai nel periodo" }}</td>
@@ -195,10 +195,11 @@
           <td class="sec-num">{{ j.devices|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">Nessun job di backup nel periodo.</td></tr>
+        <tr><td colspan="9" class="sec-empty">Nessun job di backup nel periodo.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
 </section>
 {% endblock %}

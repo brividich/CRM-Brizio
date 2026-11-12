@@ -17,14 +17,10 @@ from django.shortcuts import render
 from core import naming
 from core.legacy_anagrafica import fetch_anagrafica_rows
 
+from anagrafica.services.conformita import ESITI
+
 logger = logging.getLogger(__name__)
 
-ESITI = {
-    "ko": ("danger", "Non conforme"),
-    "warn": ("warning", "In scadenza"),
-    "ok": ("ok", "In regola"),
-    "na": ("neutral", "Nessun requisito"),
-}
 _ORDINE = {"ko": 0, "warn": 1, "ok": 2, "na": 3}
 
 
@@ -37,6 +33,15 @@ def membri_team(responsabile_id: int) -> list[int]:
         DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=False)
         .values_list("legacy_anagrafica_id", flat=True)
     )
+    from anagrafica.services import capo_team
+
+    if capo_team.regola_unica_attiva():
+        # Regola unica capo/team accesa: lo stesso team che decide calendario e
+        # permessi (``core.permessi.team``), non la vecchia mappa dei responsabili.
+        return sorted(
+            lid for lid in capo_team.team_anagrafica(responsabile_id)
+            if int(lid) != int(responsabile_id) and lid not in cessati
+        )
     return sorted(
         lid for lid, resp in build_responsabile_effettivo_map().items()
         if int(resp) == int(responsabile_id) and int(lid) != int(responsabile_id) and lid not in cessati
@@ -57,7 +62,7 @@ def _puo_aprire_scheda(request, legacy_id: int) -> bool:
 @login_required
 def mio_team(request):
     from anagrafica.models import DipendenteAnagraficaAziendale
-    from anagrafica.services import conformita as conformita_service
+    from anagrafica.services import carico_mansioni, conformita as conformita_service
     from anagrafica.views import _current_legacy_anagrafica_id
 
     io = _current_legacy_anagrafica_id(request)
@@ -65,10 +70,12 @@ def mio_team(request):
     righe: list[dict] = []
     if membri:
         anagrafiche = {int(r["id"]): r for r in fetch_anagrafica_rows(ids=membri)}
-        aree = dict(
+        aree = {
+            lid: (area, centro) for lid, area, centro in
             DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=membri)
-            .select_related("area_aziendale").values_list("legacy_anagrafica_id", "area_aziendale__nome")
-        )
+            .values_list("legacy_anagrafica_id", "area_aziendale__nome", "area_aziendale__centro_di_costo__nome")
+        }
+        carico = carico_mansioni.oggi()
         mansioni = {lid: str(r.get("mansione") or "") for lid, r in anagrafiche.items() if r.get("mansione")}
         try:
             stati = conformita_service.stato_conformita_batch(
@@ -85,13 +92,16 @@ def mio_team(request):
                 "id": lid,
                 "nome": naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}",
                 "reparto": str(r.get("reparto") or ""),
-                "area": aree.get(lid) or "",
+                "area": (aree.get(lid) or ("", ""))[0] or "",
+                "centro": (aree.get(lid) or ("", ""))[1] or "",
+                "carico": carico_mansioni.frasi_persona(carico, lid),
                 "mansione": str(r.get("mansione") or ""),
                 "esito": esito, "tono": tono, "esito_label": etichetta,
                 "scheda": _puo_aprire_scheda(request, lid),
             })
         righe.sort(key=lambda x: (_ORDINE.get(x["esito"], 9), x["nome"]))
     conteggi = {k: sum(1 for r in righe if r["esito"] == k) for k in ESITI}
+    conteggi["carico"] = sum(1 for r in righe if r["carico"])
     return render(request, "anagrafica/pages/mio_team.html", {
         "righe": righe,
         "collegato": io is not None,

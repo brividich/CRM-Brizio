@@ -126,14 +126,15 @@ class MenuPortaleTests(TestCase):
         )
         self.assertIn({"app": "app_inesistente", "voci": [orfana.id]}, dati_menu()["orfani"])
 
-    def test_ruolo_base_vuol_dire_tutti(self):
+    def test_ruolo_base_vale_solo_per_chi_non_ha_altri_ruoli(self):
         if self.base is None:
             self.skipTest("ruolo base non presente nel DB di test")
         GroupPermissionGrant.objects.create(group=self.base, permission_id=PAGINA, enabled=True)
         self._accendi()
         voce = self._voce(dati_menu(), self.sotto.id)
-        self.assertTrue(voce["tutti"])
-        self.assertIn(self.capo.id, voce["ruoli"])
+        self.assertFalse(voce["tutti"])
+        self.assertIn(self.base.id, voce["ruoli"])
+        self.assertNotIn(self.capo.id, voce["ruoli"])
 
     def test_pagina_mostra_barra_e_strumenti_avanzati(self):
         response = self._come_admin("get", "admin_portale:navigation_builder")
@@ -232,6 +233,55 @@ class MenuPortaleTests(TestCase):
         # Una seconda volta non c'e' piu' niente da sistemare.
         response = self._come_admin("post", "admin_portale:api_menu_voce_sistema", {"id": self.voce.id})
         self.assertEqual(response.status_code, 400)
+
+    def test_modifica_indirizzo_e_nuova_scheda(self):
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {
+            "id": self.voce.id, "route_name": "", "url_path": "https://esterno.example/", "nuova_scheda": True,
+        })
+        self.assertEqual(response.status_code, 200, response.content)
+        self.voce.refresh_from_db()
+        self.assertEqual((self.voce.route_name, self.voce.url_path), ("", "https://esterno.example/"))
+        self.assertTrue(self.voce.open_in_new_tab)
+        # Tornando a una pagina del portale il permesso lo decide la pagina.
+        self.voce.required_permission_code = PAGINA
+        self.voce.save()
+        self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "route_name": "dashboard_home"})
+        self.voce.refresh_from_db()
+        self.assertEqual((self.voce.route_name, self.voce.url_path, self.voce.required_permission_code), ("dashboard_home", "", ""))
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "route_name": "rotta_inesistente"})
+        self.assertEqual(response.status_code, 400)
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "url_path": ""})
+        self.assertEqual(response.status_code, 400)
+
+    def test_link_esterno_tutti_o_solo_chi_ha_il_permesso(self):
+        self._accendi()
+        GroupPermissionGrant.objects.create(group=self.capo, permission_id=PAGINA, enabled=True)
+        link = NavigationItem.objects.create(code="link-ext", label="Link", section="topbar", url_path="https://esterno.example/", order=5)
+        voce = self._voce(dati_menu(), link.id)
+        self.assertTrue(voce["esterno"])
+        self.assertIn(self.capo.id, voce["ruoli"])
+        self.assertIn(PAGINA, [p["code"] for p in dati_menu()["permessi"]])
+        # Un permesso che non protegge nessuna pagina non lo concede nessun ruolo: rifiutato.
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": link.id, "permesso": VECCHIO})
+        self.assertEqual(response.status_code, 400)
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": link.id, "permesso": PAGINA})
+        self.assertEqual(response.status_code, 200, response.content)
+        link.refresh_from_db()
+        self.assertEqual(link.required_permission_code, PAGINA)
+        voce = self._voce(dati_menu(), link.id)
+        self.assertEqual(voce["permesso"], PAGINA)
+        self.assertIn(self.capo.id, voce["ruoli"])
+        if self.base is not None:
+            self.assertNotIn(self.base.id, voce["ruoli"])
+        # Sulle pagine del portale il permesso non si sceglie qui.
+        self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.sotto.id, "permesso": PAGINA})
+        self.sotto.refresh_from_db()
+        self.assertEqual(self.sotto.required_permission_code, "")
+
+    def test_avanzati_link_esterno_senza_permesso_lo_vedono_tutti(self):
+        NavigationItem.objects.create(code="link-ext", label="Link", section="topbar", url_path="https://esterno.example/", order=5)
+        response = self._come_admin("get", "admin_portale:navigation_builder_avanzato", {"advanced": "1"})
+        self.assertContains(response, "Link esterno senza permesso")
 
     def test_vedi_persona_usa_i_ruoli_e_gli_override(self):
         self._accendi()

@@ -1,0 +1,82 @@
+{% extends "core/base.html" %}
+
+{% block title %}Conformità DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}{% include "dpi/components/_report_stile.html" %}{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+  {% include "dpi/components/_report_tabs.html" %}
+
+  <div class="rep-testa">
+    <div>
+      <div class="rep-titolo">Conformità DPI delle persone</div>
+      <div class="rep-sotto">Chi ha i DPI dovuti: quelli obbligatori per tutti e quelli previsti dalla sua mansione di rischio.</div>
+    </div>
+    <div class="rep-azioni">
+      <a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}export=xlsx">Esporta Excel</a>
+      <a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}export=pdf">Esporta PDF</a>
+    </div>
+  </div>
+
+  {% if errore_requisiti %}<div class="rep-avviso" role="alert">Non è stato possibile leggere i DPI previsti dalle mansioni: i numeri contano solo le categorie obbligatorie per tutti.</div>{% endif %}
+  {% if nessuna_categoria %}<div class="rep-avviso">Nessuna categoria DPI attiva: configurale in Impostazioni.</div>{% endif %}
+
+  <div class="rep-kpi">
+    <a href="?{{ querystring_base }}" class="{% if not esito %}is-on{% endif %}"><b>{{ conteggi.totale }}</b><span>Persone controllate</span></a>
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}esito=mancante" class="t-rosso{% if esito == 'mancante' %} is-on{% endif %}"><b>{{ conteggi.mancante }}</b><span>Con DPI mancanti</span></a>
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}esito=scaduto" class="t-rosso{% if esito == 'scaduto' %} is-on{% endif %}"><b>{{ conteggi.scaduto }}</b><span>Con DPI scaduti</span></a>
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}esito=in_scadenza" class="t-arancio{% if esito == 'in_scadenza' %} is-on{% endif %}"><b>{{ conteggi.in_scadenza }}</b><span>In scadenza entro 30 giorni</span></a>
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}esito=ok" class="t-verde{% if esito == 'ok' %} is-on{% endif %}"><b>{{ conteggi.ok }}</b><span>In regola</span></a>
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}esito=non_previsto" class="{% if esito == 'non_previsto' %}is-on{% endif %}"><b>{{ conteggi.non_previsto }}</b><span>Nessun DPI dovuto</span></a>
+  </div>
+
+  <form method="get" class="rep-filtri">
+    <label>Cerca<input type="search" name="q" value="{{ q }}" placeholder="Nome, reparto, mansione, matricola"></label>
+    <label>Centro di costo
+      <select name="centro"><option value="">Tutti</option>{% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}<option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro</option></select>
+    </label>
+    <label>Reparto
+      <select name="reparto"><option value="">Tutti</option>{% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    </label>
+    <label>Categoria
+      <select name="categoria_id"><option value="">Tutte</option>{% for c in categorie %}<option value="{{ c.pk }}"{% if c.pk == categoria_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select>
+    </label>
+    <label>Esito
+      <select name="esito"><option value="">Tutti</option>{% for k, v in filtri_esito %}<option value="{{ k }}"{% if k == esito %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <button type="submit" class="rep-btn rep-btn-primo">Applica</button>
+    <a class="rep-btn" href="{% url 'dpi:report_persone' %}">Azzera</a>
+  </form>
+
+  <div class="rep-tab-wrap">
+    {% if page_obj.object_list %}
+    <table class="rep-tab" data-fm-table-skip="1">
+      <thead><tr><th>Persona</th><th>Reparto</th><th>Mansione</th><th>Esito</th><th>Da sistemare</th></tr></thead>
+      <tbody>
+        {% for p in page_obj %}
+        <tr>
+          <td><a href="{% url 'dpi:report_conformita' %}?dipendente_id={{ p.id }}">{{ p.nominativo }}</a></td>
+          <td>{{ p.reparto|default:"—" }}</td>
+          <td>{{ p.mansione|default:"—" }}</td>
+          <td><span class="rep-st rep-st-{{ p.esito }}">{{ p.esito_etichetta }}</span></td>
+          <td>{{ p.testo_da_sistemare|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="rep-vuoto">Nessuna persona con questi filtri.</div>{% endif %}
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="rep-pagine">
+    <span>Persone {{ page_obj.start_index }}–{{ page_obj.end_index }} di {{ page_obj.paginator.count }}. Gli export contengono tutte le righe filtrate.</span>
+    <span class="rep-azioni">
+      {% if page_obj.has_previous %}<a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}page={{ page_obj.previous_page_number }}">← Precedenti</a>{% endif %}
+      {% if page_obj.has_next %}<a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}page={{ page_obj.next_page_number }}">Successive →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

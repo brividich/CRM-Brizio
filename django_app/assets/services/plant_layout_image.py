@@ -39,14 +39,8 @@ def reset_marker_position(marker) -> None:
 
 def area_at_point(areas, x_percent, y_percent):
     """Il reparto disegnato che contiene il punto (il più piccolo, se si sovrappongono)."""
-    x = float(x_percent)
-    y = float(y_percent)
-    hits = [
-        area for area in areas
-        if float(area.x_percent) <= x <= float(area.x_percent) + float(area.width_percent)
-        and float(area.y_percent) <= y <= float(area.y_percent) + float(area.height_percent)
-    ]
-    hits.sort(key=lambda a: float(a.width_percent) * float(a.height_percent))
+    hits = [area for area in areas if area.contiene(x_percent, y_percent)]
+    hits.sort(key=lambda a: a.superficie())
     return hits[0] if hits else None
 
 
@@ -132,7 +126,9 @@ def rotate_layout(layout, *, clockwise: bool) -> TransformResult:
             nx, ny = y, 100 - (x + w)
         area.x_percent, area.y_percent = _d(_clamp(nx)), _d(_clamp(ny))
         area.width_percent, area.height_percent = _d(h), _d(w)
-        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "updated_at"])
+        if area.e_poligono:
+            area.imposta_punti([(100 - py, px) if clockwise else (py, 100 - px) for px, py in area.poligono()])
+        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "punti", "updated_at"])
     for marker in PlantLayoutMarker.objects.filter(layout=layout):
         if marker_is_unplaced(marker):
             continue
@@ -142,6 +138,9 @@ def rotate_layout(layout, *, clockwise: bool) -> TransformResult:
         marker.save(update_fields=["x_percent", "y_percent", "updated_at"])
 
     _store_layout_image(layout, image, fmt, "ruotata")
+    from .planimetria_livelli import rimappa_riferimenti
+
+    rimappa_riferimenti(layout, (lambda x, y: (100 - y, x)) if clockwise else (lambda x, y: (y, 100 - x)))
     verso = "a destra" if clockwise else "a sinistra"
     return TransformResult(True, f"Planimetria ruotata {verso}: reparti e macchine seguono la pianta.")
 
@@ -182,7 +181,9 @@ def crop_layout(layout, *, x_percent: float, y_percent: float, width_percent: fl
             continue
         area.x_percent, area.y_percent = _d(x0), _d(y0)
         area.width_percent, area.height_percent = _d(x1 - x0), _d(y1 - y0)
-        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "updated_at"])
+        if area.e_poligono:
+            area.imposta_punti([(_clamp(remap_x(px)), _clamp(remap_y(py))) for px, py in area.poligono()])
+        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "punti", "updated_at"])
 
     outside = 0
     for marker in PlantLayoutMarker.objects.filter(layout=layout):
@@ -197,6 +198,9 @@ def crop_layout(layout, *, x_percent: float, y_percent: float, width_percent: fl
         marker.save(update_fields=["x_percent", "y_percent", "updated_at"])
 
     _store_layout_image(layout, image, fmt, "ritagliata")
+    from .planimetria_livelli import rimappa_riferimenti
+
+    rimappa_riferimenti(layout, lambda x, y: (remap_x(x), remap_y(y)))
     bits = ["Planimetria ritagliata."]
     if outside:
         bits.append(f"{outside} macchin{'a' if outside == 1 else 'e'} fuori dal riquadro: ora da posizionare.")
@@ -224,6 +228,7 @@ def copy_layout_content(source, target) -> tuple[int, int]:
             y_percent=area.y_percent,
             width_percent=area.width_percent,
             height_percent=area.height_percent,
+            punti=list(area.punti or []),
             sort_order=area.sort_order,
         )
         areas += 1
@@ -240,4 +245,20 @@ def copy_layout_content(source, target) -> tuple[int, int]:
             sort_order=marker.sort_order,
         )
         markers += 1
+    # livello, colore, categorie e scala seguono la nuova versione; l'allineamento va ricontrollato
+    campi = []
+    if source.base_id and not target.base_id and source.base_id != target.pk:
+        target.base_id = source.base_id
+        target.allineamento = {**(source.allineamento or {}), "da_verificare": True} if source.matrice else {}
+        campi += ["base", "allineamento"]
+    if source.colore and not target.colore:
+        target.colore = source.colore
+        campi.append("colore")
+    if source.scala and not target.scala:
+        target.scala = dict(source.scala)
+        campi.append("scala")
+    if campi:
+        target.save(update_fields=[*campi, "updated_at"])
+    if not target.asset_categories.exists():
+        target.asset_categories.set(source.asset_categories.all())
     return areas, markers

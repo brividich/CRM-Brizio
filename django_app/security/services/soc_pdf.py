@@ -158,6 +158,20 @@ def render_period_report_pdf(report) -> bytes:
               [[f["cve"], f["product"], _num(f["cvss"]), f["devices"]] for f in v["top"]],
               widths=[2, 5, 1, 1.3], empty="Nessuna CVE critica o alta aperta.")
 
+    pt = report.get("patch")
+    if pt:
+        pdf.section("Patch (WatchGuard)")
+        pdf.facts([
+            ("Installate nel periodo", pt["installate"]),
+            ("Tempo medio di installazione", f"{pt['giorni_medi']} giorni" if pt["giorni_medi"] is not None else "-"),
+            ("Entro il termine", f"{pt['in_tempo_pct']}%" if pt["in_tempo_pct"] is not None else "-"),
+            ("Oltre il termine adesso", f"{pt['oltre_termine']} su {pt['mancanti']} mancanti ({pt['oltre_termine_gravi']} KEV o critiche)"),
+        ])
+        pdf.table(["Classe", "Termine", "Installate", "Giorni medi", "Entro il termine", "Oltre il termine"],
+                  [[c["etichetta"], f"{c['termine_giorni']} gg", c["installate"], c["giorni_medi"] if c["giorni_medi"] is not None else "-",
+                    f"{c['in_tempo_pct']}%" if c["in_tempo_pct"] is not None else "-", c["oltre_termine"]] for c in pt["classi"]],
+                  widths=[4, 1.3, 1.3, 1.3, 1.6, 1.6])
+
     pdf.section("Accessi VPN")
     pdf.facts([
         ("Accessi consentiti", vpn["allowed"]),

@@ -1,0 +1,145 @@
+{% extends "core/base.html" %}
+{% load scadenzario_tags %}
+
+{% block title %}Scadenze generiche | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Scadenze generiche</h1>
+      <div class="sz-sub">Attività con scadenza che non appartengono a un altro modulo: certificati, contratti, verifiche. Compaiono anche nel calendario.</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="elenco" %}
+  </div>
+
+  <div class="sz-kpis">
+    <a class="sz-kpi{% if not stato %} on{% endif %}" href="?{% qs_cambia stato='' %}"><b>{{ n_tutte }}</b><span>attività</span></a>
+    <a class="sz-kpi{% if stato == 'scadute' %} on{% endif %}" href="?{% qs_cambia stato='scadute' %}"><b style="color:#b91c1c">{{ n_scadute }}</b><span>scadute</span></a>
+    <a class="sz-kpi{% if stato == '30' %} on{% endif %}" href="?{% qs_cambia stato='30' %}"><b style="color:#b45309">{{ n_30 }}</b><span>entro 30 giorni</span></a>
+  </div>
+
+  <form method="get" class="sz-card sz-filters" id="sz-filtri">
+    <label>Categoria
+      <select name="categoria" class="sz-input">
+        <option value="">Tutte</option>
+        {% for c in categorie %}<option value="{{ c.pk }}" {% if filtro_categoria == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Stato
+      <select name="stato" class="sz-input">
+        <option value="">Tutte</option>
+        <option value="scadute" {% if stato == "scadute" %}selected{% endif %}>Scadute</option>
+        <option value="30" {% if stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
+        <option value="60" {% if stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+        <option value="90" {% if stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
+      </select>
+    </label>
+    <label>Mancano
+      <select name="senza" class="sz-input">
+        <option value="">—</option>
+        <option value="responsabile" {% if senza == "responsabile" %}selected{% endif %}>Senza responsabile</option>
+        <option value="destinatari" {% if senza == "destinatari" %}selected{% endif %}>Senza destinatari</option>
+      </select>
+    </label>
+    <label>Cerca <input class="sz-input" type="search" name="q" value="{{ q }}" maxlength="80" placeholder="Attività, descrizione, ubicazione"></label>
+    <label class="sz-check"><input type="checkbox" name="sospese" value="1" {% if mostra_sospese %}checked{% endif %}> anche le sospese</label>
+    <button class="sz-btn sz-btn-ghost" type="submit">Cerca</button>
+    {% if q or filtro_categoria or stato or senza or mostra_sospese %}<a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:elenco' %}">Azzera</a>{% endif %}
+    <span style="flex:1"></span>
+    <button class="sz-btn sz-btn-ghost" type="submit" name="format" value="xlsx">Excel</button>
+    {% if puo_inserire %}<a class="sz-btn sz-btn-primary" href="{% url 'scadenzario:scadenza_nuova' %}{% if filtro_categoria %}?categoria={{ filtro_categoria }}{% endif %}">+ Nuova attività</a>{% endif %}
+  </form>
+
+  <div class="sz-card sz-wrap">
+    <table class="sz-table" data-fm-table-skip="1">
+      <thead><tr>
+        {% if puo_massa %}<th><input type="checkbox" id="sz-tutte" aria-label="Seleziona tutte"></th>{% endif %}
+        <th>Stato</th><th>Scadenza</th><th>Attività</th><th>Categoria</th><th>Responsabile</th><th>Avvisi a</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for s in righe %}
+        {% with st=s.giorni|stato_giorni %}
+        <tr>
+          {% if puo_massa %}<td>{% if s.gestibile %}<input type="checkbox" name="ids" value="{{ s.pk }}" form="sz-massa" class="sz-sel" aria-label="Seleziona {{ s.titolo }}">{% endif %}</td>{% endif %}
+          <td><span class="sz-pill {{ st.0 }}">{{ st.1 }}</span></td>
+          <td style="white-space:nowrap">{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' s.pk %}">{{ s.titolo }}</a>{% if s.unita %} <span class="sz-pill sz-blu" title="La data viene dal modulo collegato">unita al modulo</span>{% endif %}{% if not s.is_active %} <span class="sz-pill sz-off">sospesa</span>{% endif %}{% if s.ubicazione %}<div class="sz-help">{{ s.ubicazione }}</div>{% endif %}</td>
+          <td>{{ s.categoria.nome }}</td>
+          <td>{% if s.responsabile %}{{ s.responsabile.get_full_name|default:s.responsabile.username }}{% else %}<span class="sz-muted">—</span>{% endif %}</td>
+          <td>{% if s.n_destinatari %}<span title="{{ s.destinatari|join:', ' }}">{{ s.n_destinatari }} indirizz{{ s.n_destinatari|pluralize:"o,i" }}</span>{% else %}<span class="sz-muted">solo riepilogo</span>{% endif %}</td>
+          <td>{% if s.gestibile and s.validita_mesi and s.is_active and not s.unita %}
+            <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" data-hub-confirm="Registrare il rinnovo di «{{ s.titolo }}» con data di oggi?">
+              {% csrf_token %}<input type="hidden" name="eseguito_il" value="{{ oggi|date:'Y-m-d' }}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="sz-btn sz-btn-ghost" type="submit" style="white-space:nowrap">✓ Rinnovato oggi</button>
+            </form>{% endif %}</td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="8" class="sz-muted" style="text-align:center;padding:24px">Nessuna attività{% if q or filtro_categoria or stato or senza %} con questi filtri{% endif %}.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if puo_massa %}
+  <form method="post" action="{% url 'scadenzario:scadenze_massa' %}" class="sz-massa" id="sz-massa" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <strong id="sz-conta"></strong>
+    <label>Cosa fare
+      <select name="azione" id="sz-azione" class="sz-input">
+        <option value="responsabile">Assegna il responsabile</option>
+        <option value="destinatari_aggiungi">Aggiungi destinatari degli avvisi</option>
+        <option value="destinatari_sostituisci">Sostituisci i destinatari degli avvisi</option>
+        <option value="destinatari_categoria">Usa i destinatari della categoria</option>
+        <option value="sospendi">Sospendi</option>
+        <option value="riattiva">Riattiva</option>
+      </select>
+    </label>
+    <label data-per="responsabile">Responsabile
+      <select name="responsabile" class="sz-input">
+        <option value="">Nessuno (toglie il responsabile)</option>
+        {% for u in utenti %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+      </select>
+    </label>
+    <label data-per="destinatari_aggiungi destinatari_sostituisci" class="sz-massa-mail">Indirizzi
+      <input type="text" name="email" class="sz-input" placeholder="nome@costruzioninovicrom.it, ...">
+    </label>
+    <button class="sz-btn sz-btn-primary" type="submit">Applica</button>
+  </form>
+  {% endif %}
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var filtri = document.getElementById("sz-filtri");
+  filtri.querySelectorAll("select").forEach(function (el) {
+    el.addEventListener("change", function () { filtri.submit(); });
+  });
+  var massa = document.getElementById("sz-massa");
+  if (!massa) return;
+  var sel = Array.prototype.slice.call(document.querySelectorAll(".sz-sel"));
+  var tutte = document.getElementById("sz-tutte"), conta = document.getElementById("sz-conta");
+  var azione = document.getElementById("sz-azione");
+  function aggiorna() {
+    var n = sel.filter(function (c) { return c.checked; }).length;
+    massa.hidden = n === 0;
+    conta.textContent = n === 1 ? "1 attività" : n + " attività";
+    tutte.checked = n > 0 && n === sel.length;
+    tutte.indeterminate = n > 0 && n < sel.length;
+  }
+  function campi() {
+    massa.querySelectorAll("[data-per]").forEach(function (el) {
+      el.hidden = el.getAttribute("data-per").split(" ").indexOf(azione.value) === -1;
+    });
+  }
+  sel.forEach(function (c) { c.addEventListener("change", aggiorna); });
+  tutte.addEventListener("change", function () { sel.forEach(function (c) { c.checked = tutte.checked; }); aggiorna(); });
+  azione.addEventListener("change", campi);
+  campi();
+  aggiorna();
+})();
+</script>
+{% endblock %}

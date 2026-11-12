@@ -27,6 +27,7 @@ from core.legacy_utils import get_legacy_user
 
 from ..models import (
     AreaAziendale,
+    CentroDiCosto,
     Reparto,
     DipendenteAnagraficaAziendale,
     DipendenteRuoloOperativo,
@@ -136,6 +137,7 @@ def ruoli_operativi_list(request):
     _da_scheda = _helpers._ruoli_conteggio_da_scheda()
     for _r in ruoli:
         _r.n_da_scheda = _da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    _helpers._con_mansioni(ruoli)
     # Qualifiche attese dal ruolo: l'associazione si costruisce a mano dal
     # portale (l'export del gestionale è arrivato senza la matrice skill).
     _qualifiche_per_ruolo: dict[int, list] = {}
@@ -750,8 +752,14 @@ def mansione_requisiti(request, mansione_id: int):
     except Exception:
         logger.warning("Elenco SDS della mansione non disponibile", exc_info=True)
 
+    from ..services.mansionario_struttura import TIPI_MANSIONE
+
+    mansioni_lavorative = sorted(
+        mansione.mansioni_lavorative_skm.filter(attiva=True, tipo__in=TIPI_MANSIONE).prefetch_related("ruoli"),
+        key=lambda m: m.nome.casefold())
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
+        "mansioni_lavorative": mansioni_lavorative,
         "is_editor": is_editor,
         "puo_protocollo": _helpers._can_view_visite_mediche(request),
         "requisiti": requisiti,
@@ -794,6 +802,11 @@ def _capo_da_post(request, unita, campo: str) -> None:
                  altri=_ids_da_post(request.POST.getlist("responsabili")), user=request.user)
 
 
+def _centro_di_costo_da_post(valore):
+    valore = str(valore or "")
+    return CentroDiCosto.objects.filter(pk=int(valore)).first() if valore.isdigit() else None
+
+
 def _ruolo_responsabile_da_post(raw: str | None):
     """Ruolo responsabile scelto nel form: genera la mansione di responsabilità (vuoto = nessuna)."""
     from anagrafica.models import RuoloOperativo
@@ -832,6 +845,7 @@ def area_aziendale_create(request):
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "reparto": reparto,
             "ruolo_responsabile": _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile")),
+            "centro_di_costo": _centro_di_costo_da_post(request.POST.get("centro_di_costo")),
         },
     )
     if created:
@@ -866,6 +880,8 @@ def area_aziendale_edit(request, area_id: int):
     area.reparto = reparto
     if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
         area.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
+    if "centro_di_costo" in request.POST:  # le Impostazioni non lo mandano: resta com'è
+        area.centro_di_costo = _centro_di_costo_da_post(request.POST.get("centro_di_costo"))
     area.is_active = request.POST.get("is_active") == "1"
     area.save()  # segnali_capi: riallinea capi e schede
     _capo_da_post(request, area, "responsabile_legacy_id")

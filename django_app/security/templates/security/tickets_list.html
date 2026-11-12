@@ -44,6 +44,7 @@
     <label>Cerca <input type="search" name="q" value="{{ filters.q }}" placeholder="Titolo, CVE, prodotto"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:tickets_list' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
   <p class="sec-muted sec-small" style="margin:10px 0 0;">Un ticket raccoglie uno o più alert e si lavora fino alla chiusura: responsabile, attività, note. Per aprirne uno nuovo seleziona gli alert nella <a href="{% url 'security:alerts_list' %}?status=active">coda alert</a>.</p>
 </section>
@@ -51,7 +52,7 @@
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
     <h2>Ticket</h2>
-    <span class="sec-badge">{% if total > tickets|length %}Mostrati {{ tickets|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
+    <span class="sec-badge">{{ total }} ticket</span>
   </div>
   <form method="post" action="{% url 'security:tickets_bulk' %}" data-bulk>
   {% csrf_token %}
@@ -101,5 +102,6 @@
     </table>
   </div>
   </form>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </section>
 {% endblock %}

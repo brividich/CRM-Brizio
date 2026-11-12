@@ -59,6 +59,18 @@
 .fn-btn-ghost:hover { background:#e2e8f0; }
 
 @media(max-width:900px){ .fn-kpi-row{grid-template-columns:repeat(3,1fr);} .fn-sections{grid-template-columns:1fr;} }
+.fn-guarda { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; padding:14px 18px; margin-bottom:16px; display:flex; flex-direction:column; gap:6px; }
+.fn-guarda-titolo { font-size:13px; font-weight:700; color:var(--text,#1e293b); margin-bottom:2px; }
+.fn-guarda-voce { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-mid,#334155); text-decoration:none; }
+.fn-guarda-voce:hover { text-decoration:underline; }
+.fn-guarda-n { display:inline-flex; min-width:24px; justify-content:center; padding:1px 7px; border-radius:999px; font-weight:800; font-size:12px; }
+.fn-guarda-danger { background:#fee2e2; color:#991b1b; }
+.fn-guarda-warn { background:#fef3c7; color:#92400e; }
+.fn-guarda-info { background:#dbeafe; color:#1e40af; }
+body.theme-dark .fn-hbtn-white { color:var(--text); }
+body.theme-dark .fn-guarda-danger { background:rgba(229,62,62,.16); color:#fca5a5; }
+body.theme-dark .fn-guarda-warn { background:rgba(217,119,6,.18); color:#fcd34d; }
+body.theme-dark .fn-guarda-info { background:rgba(59,130,246,.18); color:#93c5fd; }
 @media(max-width:600px){ .fn-kpi-row{grid-template-columns:1fr 1fr;} .fn-hero{padding:20px 18px;} .fn-hero-title{font-size:21px;} }
 
 /* Dark mode */
@@ -107,6 +119,25 @@ body.theme-dark .fn-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
   </div>
 
   {% include "fornitori/components/flash_messages.html" %}
+
+  {% if da_guardare %}
+  <div class="fn-guarda">
+    <div class="fn-guarda-titolo">Da guardare</div>
+    {% for v in da_guardare %}
+    <a class="fn-guarda-voce" href="{{ v.url }}"><span class="fn-guarda-n fn-guarda-{{ v.livello }}">{{ v.n }}</span> {{ v.testo }} <span aria-hidden="true">→</span></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if ditte_attese %}
+  <div class="fn-guarda">
+    <div class="fn-guarda-titolo">Ditte attese con i documenti non in regola</div>
+    {% for d in ditte_attese %}
+    <a class="fn-guarda-voce" href="{% url 'fornitori:fornitore_detail' d.fornitore_id %}"><span class="fn-guarda-n fn-guarda-danger">{{ d.n_interventi }}</span> {{ d.ragione_sociale }}, attesa entro il {{ d.entro_il|date:"d/m/Y" }}: {{ d.problemi }} <span aria-hidden="true">→</span></a>
+    {% endfor %}
+    <div class="fn-guarda-voce" style="color:var(--text-light,#64748b);font-size:12px">Il numero conta gli interventi aperti. È un avviso: nessun ingresso viene bloccato.</div>
+  </div>
+  {% endif %}
 
   <!-- KPI -->
   <div class="fn-kpi-row">

@@ -9,4 +9,10 @@
     {% if counts.in_ritardo %}· <b class="obd-late">{{ counts.in_ritardo }} in ritardo</b>{% endif %}
     {% if counts.fase_corrente %}· fase: <b>{{ counts.fase_corrente }}</b>{% endif %}
   </div>
+  {% if pratica.is_aperta and not counts.da_fare %}
+  <form method="post" action="{% url 'anagrafica:onboarding_chiudi' pratica.id %}" class="obd-fatto" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">{% csrf_token %}
+    <span><b>Tutto fatto.</b> Non resta niente da spuntare.</span>
+    <button type="submit" class="fmd-act">✓ Chiudi la pratica</button>
+  </form>
+  {% endif %}
 </div>

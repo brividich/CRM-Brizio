@@ -585,7 +585,7 @@ class CoseDaGestireTests(TestCase):
         keys = [s["key"] for s in data["sections"]]
         self.assertEqual(
             set(keys),
-            {"approvazioni", "ticket", "anomalie", "non_conformita", "procedure", "dpi", "elearning", "skm_refresh"},
+            {"kickoff", "approvazioni", "ticket", "anomalie", "non_conformita", "procedure", "dpi", "elearning", "skm_refresh"},
         )
         self.assertIn("total", data)
 
@@ -681,7 +681,7 @@ class ScadenzeGlobaliTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("scadenze_globali"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Scadenzario globale")
+        self.assertContains(response, "Scadenzario")
 
     def test_asset_provider_collects_active_deadlines_in_window(self):
         from dashboard.scadenze_providers import ScadenzeContext, collect_asset, SOURCE_ASSET
@@ -809,12 +809,12 @@ class ScadenzeGlobaliTests(TestCase):
         self.client.force_login(self.admin)
         self._make_asset_deadline(days=10, title="Entro dieci")
         self._make_asset_deadline(days=75, title="Entro settantacinque")
-        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=90")
+        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=90&vista=elenco")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["n_90gg"], 1)
+        self.assertEqual({k["codice"]: k["n"] for k in response.context["kpi"]}["90"], 1)
         self.assertContains(response, "Entro settantacinque")
         self.assertContains(response, "Asset")  # etichetta della sorgente, non il codice
-        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=30")
+        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=30&vista=elenco")
         self.assertNotContains(response, "Entro settantacinque")
 
     def _tipo_verifica(self, *, name, days, attivo=True):
@@ -882,7 +882,7 @@ class ScadenzeGlobaliTests(TestCase):
         self.assertEqual(item.titolo, "Visita periodica")
         self.assertIn("BIANCHI", item.soggetto)
         self.assertEqual(item.giorni, 12)
-        self.assertTrue(item.url.endswith("?tipo=visita"))
+        self.assertTrue(item.url.endswith("/dipendenti/7/#scheda-visite"), item.url)
 
 
 class CoseDaGestireSafetyTests(TestCase):

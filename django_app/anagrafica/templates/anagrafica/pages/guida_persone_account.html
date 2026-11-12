@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .gpa-sec{ padding:20px 22px; scroll-margin-top:80px; }
 .gpa-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
@@ -49,6 +49,9 @@
       {% if parte_admin %}
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
+      <a class="fmd-data-link" href="#centri-costo">Centri di costo</a>
+      <a class="fmd-data-link" href="#esplora-struttura">Esplora la struttura</a>
+      <a class="fmd-data-link" href="#prospetto">Prospetto dei cambiamenti</a>
       <a class="fmd-data-link" href="#ruoli-in-blocco">Ruoli e mansioni in blocco</a>
       <a class="fmd-data-link" href="#coefficienti">Classificazione e coefficienti</a>
       <a class="fmd-data-link" href="#costo-orario">Costo orario</a>
@@ -114,7 +117,7 @@
         <li>l'<strong>eccezione</strong> indicata a mano sulla persona;</li>
         <li>il <strong>responsabile dell'area aziendale</strong>: chi ha la «Responsabilità dell'area», che nasce dal <strong>ruolo responsabile</strong> dell'area (un'area senza ruolo responsabile, o senza nessuno sulla mansione, segue il reparto; un'area con lo stesso nome del reparto usa quella del reparto);</li>
         <li>il <strong>capo del reparto</strong>: chi ha la «Responsabilità del reparto», che nasce dal ruolo responsabile del reparto;</li>
-        <li>l'<strong>organigramma</strong>: chi ha un ruolo sopra quello della persona («riporta a») nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo trasversale). Se non c'è nessuno si sale di livello, ma chi guida un altro reparto non diventa mai il capo.</li>
+        <li>l'<strong>organigramma produttivo</strong>: chi ricopre il ruolo a cui riporta il ruolo della persona («riporta a»), anche se lavora in un altro reparto (per esempio Caporeparto → Operations Manager). Contano solo i ruoli dell'assetto produttivo: Preposto, Privacy Manager e gli altri organigrammi (ISO 45001, 27001…) non decidono il capo. Se il ruolo ha più titolari si sceglie chi è nella stessa area, poi nello stesso reparto, poi chi non ha reparto; il capo di un altro reparto non diventa mai il capo, si sale di livello.</li>
       </ol>
       <p>Il team è l'inverso: le persone di cui sei il capo, e i loro team. È la regola della struttura della Qualità (MEGA SKILL MATRIX): ogni reparto e ogni area hanno una sola «Responsabilità». Se più persone hanno la stessa «Responsabilità» sono tutte capo (<strong>co-capo</strong>): approva le assenze la prima, le richieste DPI le approvano tutte.</p>
       <h3>La pagina «Reparti, aree e capi»</h3>
@@ -188,9 +191,9 @@
       <p>Per ogni dipendente e mese: <strong>RML ÷ 26 ÷ 6,66</strong> (cioè RML ÷ 173,16). L'RML è la voce «RML» dei cedolini importati dallo studio paghe; per ogni mese vale l'import più recente e, se HR ha corretto la voce a mano, vale la correzione.</p>
       <ul>
         <li>Si aggiorna da solo a ogni import dei cedolini e quando si corregge la voce RML; resta lo storico mese per mese.</li>
-        <li>La pagina <strong>Cedolini → Costo orario</strong> mostra il mese scelto con il costo medio, minimo e massimo, i filtri per reparto e nome e il menu <strong>Esporta ▾</strong> (Excel o PDF: i risultati filtrati sono il mese, «tutto» sono tutti i mesi); nella scheda del dipendente, tra le retribuzioni, ci sono gli ultimi 12 mesi e nel riepilogo l'ultimo valore; nell'elenco dei dipendenti in forza le colonne <strong>Costo orario (€/h)</strong> e <strong>Costo orario: mese</strong> (vista «Mansioni e costi»).</li>
+        <li>La pagina <strong>Cedolini → Costo orario</strong> mostra il mese scelto con il costo medio, minimo e massimo, i filtri per reparto, centro di costo e nome e il menu <strong>Esporta ▾</strong> (Excel o PDF: i risultati filtrati sono il mese, «tutto» sono tutti i mesi); nella scheda del dipendente, tra le retribuzioni, ci sono gli ultimi 12 mesi e nel riepilogo l'ultimo valore; nell'elenco dei dipendenti in forza le colonne <strong>Costo orario (€/h)</strong> e <strong>Costo orario: mese</strong> (vista «Mansioni e costi»).</li>
         <li>La pagina ha una voce sua nel menu: <strong>Amministrazione → Costo orario</strong>. In tabella: <strong>clic sul nome</strong> apre sotto la riga l'andamento degli ultimi 12 mesi (colonne con il valore, ▲ ▼ sul mese prima, passando sopra RML e variazione) con i link a scheda, coefficienti e storico; <strong>Sul mese prima</strong> dà la differenza in € e in %; <strong>Scostamento</strong> è la distanza in % dalla media dei dipendenti mostrati, quindi cambia con i filtri (passando sopra anche quella dalla media del reparto); <strong>Andamento</strong> è il mini-grafico dei 12 mesi. Il filtro <strong>Mostra</strong> tiene solo chi è sopra o sotto la media, lontano dalla media (oltre ±10%), aumentato o diminuito sul mese prima; i riquadri contano aumentati, diminuiti e lontani dalla media con i filtri attivi, e l'export riporta le stesse colonne.</li>
-        <li><strong>Storico</strong> (pulsante in alto nella pagina, o «Storico →» sulla riga del dipendente e «Storico completo →» nella scheda): una riga per dipendente e una colonna per mese, di serie gli ultimi 12. Filtri <strong>Dal</strong>, <strong>Al</strong>, reparto e nome. La freccia ▲ ▼ confronta con il mese prima (passando sul valore si vedono RML e divisori), la colonna <strong>Variazione</strong> dà la differenza in € e in % tra il primo e l'ultimo mese del periodo, in fondo la <strong>Media</strong> di ogni mese. Anche lo storico si esporta da «Esporta ▾» con una colonna per mese.</li>
+        <li><strong>Storico</strong> (pulsante in alto nella pagina, o «Storico →» sulla riga del dipendente e «Storico completo →» nella scheda): una riga per dipendente e una colonna per mese, di serie gli ultimi 12. Filtri <strong>Dal</strong>, <strong>Al</strong>, reparto, centro di costo e nome. La freccia ▲ ▼ confronta con il mese prima (passando sul valore si vedono RML e divisori), la colonna <strong>Variazione</strong> dà la differenza in € e in % tra il primo e l'ultimo mese del periodo, in fondo la <strong>Media</strong> di ogni mese. Anche lo storico si esporta da «Esporta ▾» con una colonna per mese.</li>
         <li>I divisori (giorni del mese e ore al giorno) si cambiano in fondo alla pagina: <strong>Salva e ricalcola</strong> rifà tutti i mesi, anche i passati.</li>
         <li><strong>Report</strong> (pulsante in alto, o Reportistica → modello pronto <strong>Costo orario del personale</strong>, Excel o PDF): andamento mese per mese nel periodo (anche per reparto), ripartizione per classificazione e per mansione, costo orario per persona dell'ultimo mese. Le tre sezioni si usano anche da sole in qualsiasi modello:
           <ul>
@@ -203,6 +206,70 @@
       <div class="gpa-nota">È un dato retributivo: lo vede solo chi ha il permesso sui dati HR riservati (anche le sezioni del report: senza permesso compaiono come «Sezione omessa»), e ogni consultazione o esportazione va nel registro attività. Non compare nel Mansionario né in «Chiedi un report».</div>
     </section>
 
+    <section class="fmd-panel gpa-sec" id="centri-costo">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Centri di costo</h2>
+      <p><strong>Persone → Centri di costo</strong> mostra una scheda per centro con i suoi reparti, le persone e i ruoli. Un centro di costo può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'unità in cui lavorano le persone, cioè l'<strong>area aziendale</strong> del portale.</p>
+      <ul>
+        <li><strong>Spostare un reparto</strong>: <strong>Modifica</strong> sulla riga del reparto → «Centro di costo». Scegliere un altro centro lo toglie dal precedente. Lo stesso campo è in «Reparti, aree e capi», nella modifica dell'area.</li>
+        <li><strong>Ruoli del reparto</strong>: nella stessa finestra si spuntano i ruoli presenti nel reparto. Sono un'indicazione: non assegnano ruoli alle persone e non danno permessi.</li>
+        <li><strong>Reparti senza centro di costo</strong>: il riquadro in alto li elenca. Un reparto che non ne ha uno, come la Direzione, può restare lì.</li>
+        <li><strong>Nuovo centro</strong>: «+ Nuovo centro di costo» in fondo alla pagina. <strong>Modifica</strong> sulla scheda cambia nome e descrizione o lo rende non attivo; «Elimina il centro di costo» funziona solo se non ha più reparti.</li>
+      </ul>
+      <div class="gpa-nota">Le persone contate sono le stesse di «Reparti, aree e capi». Cambiare il centro di costo non sposta nessuno e non cambia i capi.</div>
+      <p><strong>Mansioni da guardare</strong>: su ogni centro e su ogni reparto, le mansioni scoperte, con poche persone o a carico concentrato. Le soglie sono in <strong>Impostazioni Skill Matrix</strong> e i numeri sono gli stessi del Prospetto, di Esplora, della scheda del dipendente e dei report. Chi vede i dati HR riservati trova anche RML e costo orario medio dell'ultimo mese.</p>
+      <h3>Nei report</h3>
+      <ul>
+        <li><strong>Reportistica</strong>: «Filtri sulle persone» → <strong>Centri di costo</strong> vale per tutto il documento. Il modello pronto <strong>Centri di costo: organico e costo orario</strong> (Excel) dà organico, RML e andamento per centro; le parti sul costo le vede solo chi ha il permesso sui dati HR riservati.</li>
+        <li><strong>Sezione «Organico per centro di costo»</strong>: reparti, ruoli, persone e %, con chi non ha un centro in «Senza centro di costo».</li>
+        <li><strong>Elenco Dipendenti</strong>: colonna «Centro di costo» da aggiungere alla vista. <strong>Report dipendenti</strong>, <strong>Costo orario</strong> e <strong>Storico</strong>: filtro «Centro di costo» ed export.</li>
+      </ul>
+      <div class="gpa-nota">Il centro di costo non ha uno storico: è quello di oggi dell'area della persona, anche per i mesi passati del costo orario.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="esplora-struttura">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Esplora la struttura</h2>
+      <p><strong>Persone → Esplora la struttura</strong> mette in una pagina sola la catena <strong>centro di costo → reparto → ruolo → mansione → competenza</strong>. Serve chi vede la Struttura organizzativa (amministrazione anagrafica o dati HR); è di sola lettura.</p>
+      <ul>
+        <li><strong>Scendere</strong>: scegli una voce in una colonna e si apre la successiva. Il numero a destra sono le persone in forza; sotto, quanti reparti, mansioni o competenze ci sono dentro.</li>
+        <li><strong>Risalire</strong>: clicca un punto del percorso in alto.</li>
+        <li><strong>Altre strade</strong>: a destra, per il punto scelto. Stesso ruolo in altri reparti, a chi riporta e chi gli riporta, stessa mansione sotto un altro ruolo, stessa competenza su un'altra mansione, poi le pagine filtrate (persone, costo orario, capi, Mansionario, report).</li>
+        <li><strong>Cerca in tutta la struttura</strong>: trova centri, reparti, ruoli, mansioni e competenze dal nome e ci salta sopra.</li>
+        <li><strong>Passare da una voce all'altra</strong>: la pagina non si ricarica. Cambiando reparto restano il ruolo e la mansione scelti, se esistono anche lì. Puoi usare ‹ e › sopra il dettaglio, le frecce della tastiera (Invio sceglie) e la casella «Filtra» nelle liste lunghe.</li>
+        <li><strong>Le persone</strong>: la tabella cambia col punto scelto. Capo, reparto, ruolo, livello, mansioni e segnali di carico, semaforo di conformità; a chi lavora sui dati HR anche contratto e costo orario. Puoi filtrarla e tenere solo chi ha segnali di carico.</li>
+        <li><strong>Le voci «Senza…»</strong>: «Senza centro di costo», «Senza reparto» e «Senza ruolo» raccolgono quello che non è collegato, così non sparisce nessuno.</li>
+      </ul>
+      <div class="gpa-nota">Un ruolo compare in un reparto se è previsto dall'elenco aziendale, se lo ricopre una persona del reparto o se una mansione del reparto sta sotto quel ruolo. Il link si può mandare: il punto scelto sta nell'indirizzo.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="prospetto">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Prospetto dei cambiamenti</h2>
+      <p><strong>Persone → Prospetto dei cambiamenti</strong> mostra che cosa succederebbe <strong>prima</strong> di cambiare: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non si applica non cambia niente. Lo vede chi vede la Struttura organizzativa; lo prepara e lo applica l'amministrazione dell'anagrafica.</p>
+      <h3>Che cosa si può provare</h3>
+      <ul>
+        <li><strong>Reparto in un altro centro di costo</strong>;</li>
+        <li><strong>Persona in un altro reparto</strong>, scegliendo se lascia o tiene le mansioni del reparto di prima;</li>
+        <li><strong>Ruolo di una persona</strong>: aggiunge, sostituisce o chiude, come in «Ruoli e mansioni in blocco»;</li>
+        <li><strong>Persona su una mansione</strong>: entra a un livello o esce;</li>
+        <li><strong>Mansione in un altro reparto</strong>.</li>
+      </ul>
+      <h3>Che cosa si confronta</h3>
+      <ul>
+        <li><strong>Riepilogo</strong>: persone senza centro e senza capo, mansioni scoperte, con poche persone o con carico concentrato, persone su troppe mansioni e persone chiave, ruoli previsti rimasti senza nessuno.</li>
+        <li><strong>Centri di costo e reparti</strong>: persone, chi entra e chi esce. Con il permesso sui dati HR riservati anche <strong>RML</strong> e <strong>costo orario medio</strong> dell'ultimo mese.</li>
+        <li><strong>Mansioni</strong>: in lista, operativi, <strong>teste equivalenti</strong> (somma dei coefficienti), carico per operativo e stato; con il permesso HR il costo orario medio pesato.</li>
+        <li><strong>Persone toccate</strong>: reparto, centro, ruoli, capo, mansioni tolte e da assegnare, costo. Per chi cambia reparto, i requisiti del confronto cambio mansione: rischi, corsi, visite, DPI e schede di sicurezza.</li>
+      </ul>
+      <h3>Come si leggono i segnali</h3>
+      <ul>
+        <li><strong>Scoperta</strong>: nessun operativo. <strong>Uomo solo</strong>: meno operativi della soglia della skill matrix.</li>
+        <li><strong>Carico concentrato</strong>: in media gli operativi danno a questa mansione almeno la % indicata del loro tempo, quindi hanno poco margine.</li>
+        <li><strong>Su troppe mansioni</strong>: la persona ne ha più di quante indicate nelle Impostazioni della Skill Matrix, dove si regola anche la % del carico concentrato. <strong>Persona chiave</strong>: è l'unico operativo su almeno una mansione.</li>
+      </ul>
+      <div class="gpa-nota">Il portale non conosce le ore richieste da una mansione: il carico è un segnale dai coefficienti, non una misura di ore. Le soglie le scegli tu nel prospetto. RML e costo seguono la persona: spostarla non cambia quanto costa, cambia dove quel costo finisce.</div>
+      <h3>Confrontare e applicare</h3>
+      <p>«Confronta con» mette accanto un altro prospetto in preparazione. <strong>Esporta</strong> dà il confronto in Excel o PDF. <strong>Applica</strong> chiede la decorrenza e la conferma: ogni riga passa dal percorso normale (spostamento organizzativo, ruoli in blocco, Mansionario) e il suo esito resta nel prospetto; una riga che non riesce non ferma le altre. La decorrenza vale per spostamenti e ruoli; centri di costo e mansioni cambiano subito.</p>
+    </section>
+
     <section class="fmd-panel gpa-sec" id="struttura-organizzativa">
       <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Struttura organizzativa e posizione della persona</h2>
       <p><strong>Persone → Struttura organizzativa</strong> mostra la struttura della Qualità: processi → reparti → aree → ruoli → mansioni. Le <strong>aree</strong> sono i «reparti» del file della Qualità (per esempio il reparto AGG/MONT ha le aree AGGIUSTAGGIO, MONTAGGIO, MASCHERATURA…; il reparto UT ha DIREZIONE, COMMERCIALE, UFFICIO TECNICO, OPERATIONS, ACQUISTI, QUALITA, RISORSE UMANE, HSE, IT). I ruoli hanno una <strong>sigla</strong> (ACO, IN1, MSM, CAR…) e sono <strong>diretti</strong> o <strong>indiretti</strong>.</p>
@@ -210,8 +277,13 @@
         <li>Ogni reparto ha un <strong>ruolo responsabile</strong> (es. CAR) e la sua mansione <strong>«Responsabilità del reparto»</strong>, creata da sola, dove si scrivono le competenze del responsabile. Chi ha questa mansione assegnata è il capo del reparto (salvo una mansione del capo diversa, vedi «Reparti, aree e capi»).</li>
         <li>Nella scheda del dipendente, scheda <strong>🧭 Ruolo e competenze</strong> (insieme a Ruoli operativi e Qualifiche), il riquadro <strong>Posizione nella struttura</strong> riassume ruolo, reparto e area, ruolo responsabile, processi e mansioni svolte con il livello. Sotto, <strong>Mansioni previste dal ruolo, non ancora assegnate</strong>: si assegnano <strong>una per una</strong>, scegliendo il livello (I in formazione, L intermedio, U autonomo, O esperto) e premendo <strong>Assegna</strong>. Ogni mansione ha il semaforo <strong>operativa</strong> / <strong>in addestramento</strong> / <strong>sospesa</strong>; <strong>Competenze e lacune</strong> apre la scheda competenze della persona. Nel Riepilogo la riga <strong>Ruolo e competenze</strong> riassume tutto e porta qui.</li>
         <li>Lo stesso riquadro è nella <strong>pratica di onboarding</strong>, con <strong>Assegna (I)</strong>: all'ingresso la mansione parte «in formazione». La checklist ha la voce <strong>Assegnare ruolo, area e mansioni della struttura</strong>.</li>
-        <li><strong>Formazione per mansione lavorativa</strong>: nella scheda di un corso, «Regole di obbligatorietà» → «+ Aggiungi regola», campo <strong>Mansione lavorativa</strong>. Il corso diventa obbligatorio per chi è in lista sulla mansione nella skill matrix, anche in addestramento: compare nello scadenzario e nei fabbisogni, nella pratica di onboarding di chi riceve un ruolo che prevede la mansione e nella scheda della mansione (scheda «Competenze richieste», «Formazione obbligatoria per chi fa questa mansione»).</li>
+        <li><strong>Formazione per mansione lavorativa</strong>: dalla scheda della mansione, scheda <strong>Formazione</strong> → «Collega un corso», oppure dalla scheda del corso, «A chi serve questo corso». Ogni corso collegato è <strong>obbligatorio</strong> (compare nello scadenzario e nei fabbisogni di chi è in lista, anche in addestramento, e nell'onboarding di chi riceve un ruolo che prevede la mansione) o <strong>consigliato</strong> (resta come proposta, senza scadenze). La scheda Formazione della mansione mostra per ogni corso quanti in lista sono in regola e, con «↻ Iscrivi chi manca», crea la sessione con i mancanti già iscritti.</li>
         <li><strong>Catalogo competenze</strong> (Mansionario → Catalogo competenze): la stessa competenza scritta in più mansioni è una sola; si rinomina in tutte con «Rinomina in tutte» e due nomi diversi si uniscono con «Unisci». Valutando una persona, il livello già dato su un'altra mansione compare con <strong>Usa</strong> (o «Riprendi … livelli già valutati»); ogni cambio resta nello <strong>Storico delle valutazioni</strong> della persona. La <strong>Matrice delle competenze</strong> mostra persone × competenze per reparto, con export Excel.</li>
+        <li><strong>Scheda della competenza</strong>: clic sul nome di una competenza (Catalogo, Matrice o «Competenze richieste» della mansione). In alto il filo <em>Ruoli → Mansioni → Competenza → Requisito formale</em>, tutto cliccabile. Schede: <strong>Persone</strong> (livello per mansione con il minimo; stato «La sa fare», «Sotto il minimo», «Da valutare», «Manca il requisito»; <strong>Valuta</strong>/<strong>Rivaluta</strong> apre la mansione giusta), <strong>Mansioni</strong>, <strong>Requisiti e corsi</strong> (chi è senza corso, qualifica o MOD.128 valido, con <strong>↻ Iscrivi chi manca</strong>) e <strong>Storico</strong>. Gli stati si calcolano come nella scheda mansione.</li>
+        <li><strong>Cosa manca, cliccabile</strong>: nella scheda persona del Mansionario e nelle <strong>Lacune di competenza</strong> ogni competenza apre la sua scheda; le Lacune hanno «Cosa fare» con <strong>↻ Iscrivi a …</strong> (corso mancante) e <strong>Valuta</strong> (apre la mansione). La pagina di una <strong>mansione di rischio</strong> mostra «Mansioni che la comportano».</li>
+        <li><strong>Dopo un'azione</strong>: «↻ Iscrivi» propone l'edizione già pianificata del corso («Iscrivi qui») e, salvato, mostra <strong>← Torna a dove eri</strong>; lo stesso dopo una giornata di visite e un rinnovo di qualifica. Lo spostamento riporta al piano di adeguamento, dove ogni voce ha il suo pulsante; un nuovo dipendente con onboarding apre subito la pratica, che a voci finite propone <strong>✓ Chiudi la pratica</strong>.</li>
+        <li><strong>Dal numero all'azione</strong>: i numeri di dashboard HR, onboarding e cruscotto MOD.128 aprono l'elenco già filtrato; il Libretto sanitario (vista per requisito) ha la colonna <strong>Azione</strong> («↻ Rinnova», «+ Visita», «Apri DPI»); i badge della Conformità e il riquadro conformità della scheda («Vai alla sezione per sistemare →») aprono la sezione giusta della persona. Qualifiche, Matrice qualifiche, visite e conformità contano le stesse persone e la qualifica corrente, come cruscotto e scadenzario.</li>
+        <li><strong>Ruolo ↔ Mansionario</strong>: nel catalogo dei Ruoli ogni ruolo elenca le sue mansioni e ha <strong>Mansionario →</strong>; nel Mansionario il gruppo del ruolo ha <strong>ruolo →</strong> verso il catalogo. I ruoli nella testata della mansione portano al loro gruppo.</li>
         <li><strong>Accessi dal ruolo</strong>: nella scheda di un ruolo (clic sul nome nella Struttura organizzativa) l'amministrazione del portale apre «Cambia gli accessi che concede», spunta i ruoli del portale e preme «Salva accessi»: vale subito per chi ricopre il ruolo. Ogni accesso ricevuto o perso per un'assegnazione, una chiusura o un collegamento finisce nel registro della persona: scheda del dipendente, «Ruolo e competenze» → «Variazioni degli accessi dal ruolo».</li>
         <li>Gli altri moduli leggono la struttura: la scheda di una <strong>macchina</strong> (Asset) mostra gli operatori abilitati e la copertura; la scheda di un <strong>processo</strong> del Sistema di gestione mostra chi ricopre il ruolo owner e chi è operativo sulle sue mansioni; il piano di <strong>audit</strong> propone auditati e responsabili di processo da aggiungere con un clic.</li>
         <li>Se il riquadro dice <strong>area da indicare</strong>, assegna l'area con uno spostamento: senza area il portale non sa quali mansioni proporre.</li>

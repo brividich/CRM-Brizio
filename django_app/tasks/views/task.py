@@ -47,6 +47,7 @@ from ..models import (
     TaskStatus,
 )
 from ..access import (
+    ha_pieni_poteri,
     can_manage_project,
     can_manage_task,
     _can_update_task_due_date,
@@ -56,6 +57,7 @@ from ..access import (
     scoped_tasks_queryset,
     task_permissions_required,
 )
+from ..services.spostamenti import intercetta as intercetta_spostamento
 from ..services.asset_conflicts import (
     _asset_availability_report,
     _check_blocking_asset_conflicts,
@@ -285,6 +287,15 @@ def da_gestire(request):
     )
 
 
+def _causale_fai(tech_ref) -> str:
+    if tech_ref is None or tech_ref.kind != "FAI" or tech_ref.project_id is None:
+        return ""
+    from ..services.fai import esito_progetto
+
+    esito = esito_progetto(tech_ref.project)
+    return esito.causale if esito else ""
+
+
 @task_permissions_required("tasks_view")
 def task_detail(request, task_id: int):
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
@@ -294,6 +305,9 @@ def task_detail(request, task_id: int):
         user=request.user,
         notify_user_queryset=_task_notify_users_queryset(task),
     )
+    from ..models import ProjectTechRef
+
+    tech_ref = ProjectTechRef.objects.filter(task=task).first()
 
     return render(
         request,
@@ -316,7 +330,16 @@ def task_detail(request, task_id: int):
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
             "task_timeline_events": _build_task_timeline_events(task),
-            "attrezzatura_embedded_context": _build_task_attrezzatura_context(task),
+            # Chi deve scrivere un programma vede il programma, non la gestione attrezzatura.
+            "attrezzatura_embedded_context": None if tech_ref else _build_task_attrezzatura_context(task),
+            "task_tech_ref": tech_ref,
+            # La scheda FAI parte da ciò che la procedura prevede per questo P/N.
+            "task_fai_causale": _causale_fai(tech_ref),
+            "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
+            # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
+            "is_assignee": task.assigned_to_id == request.user.pk,
+            **_contesto_programma(tech_ref),
+            **_contesto_spostamenti(request, task),
         },
     )
 
@@ -536,21 +559,21 @@ def attrezzatura_action(request, task_id: int):
 def _suggest_task_start_date(project) -> date:
     """Return the automatic start date for a new task in ``project``.
 
-    Day after the last existing task's end date (due_date or next_step_due),
-    or today if the project has no tasks yet.
+    Day after the latest end date among the project's tasks (due_date or
+    next_step_due), or today if the project has no dated tasks yet. Same rule
+    as the Gantt quick row: before it took the last *created* task, so the two
+    entry points proposed different dates.
     """
     today = timezone.localdate()
     if project is None:
         return today
-    last_task = (
-        Task.objects.filter(project=project)
-        .order_by("-id")
-        .first()
-    )
-    if last_task:
-        last_end = last_task.due_date or last_task.next_step_due
-        if last_end:
-            return max(last_end + timedelta(days=1), today)
+    fini = [
+        due or start
+        for due, start in Task.objects.filter(project=project).values_list("due_date", "next_step_due")
+        if due or start
+    ]
+    if fini:
+        return max(max(fini) + timedelta(days=1), today)
     return today
 
 
@@ -723,7 +746,7 @@ def task_create(request):
                     ),
                 )
             if form.auto_raised_priority:
-                messages.warning(request, "Priorita aggiornata automaticamente a High per conflitto impegni.")
+                messages.warning(request, "Priorità portata ad Alta in automatico per conflitto di impegni.")
             if task.is_overdue:
                 messages.warning(request, "Attivita kickoff creata con scadenza gia oltre la data odierna.")
             _add_task_absence_warnings(request, task)
@@ -792,6 +815,62 @@ def task_create(request):
     )
 
 
+def _blocca_priorita(request, task, form) -> None:
+    """Stessa regola del Gantt: la priorità la cambiano il responsabile del kickoff e chi ha creato l'attività."""
+    from ..access import can_set_task_priority
+
+    campo = form.fields.get("priority")
+    if campo is not None and not can_set_task_priority(request, task):
+        campo.disabled = True
+        campo.help_text = "La cambiano il responsabile del kickoff e chi ha creato l'attività."
+
+
+def _contesto_programma(ref) -> dict:
+    if ref is None or not ref.is_programma:
+        return {}
+    from ..services.programmi_fasi import azioni_possibili
+
+    return {
+        "task_programma_azioni": azioni_possibili(ref),
+        "task_programma_storico": list(ref.storico.select_related("utente")[:8]),
+    }
+
+
+def _contesto_spostamenti(request, task) -> dict:
+    from ..access import puo_spostare_subito
+    from ..models import SpostamentoStato
+
+    return {
+        "sposta_subito": puo_spostare_subito(request, task),
+        "spostamento_aperto": task.spostamenti.filter(stato=SpostamentoStato.IN_ATTESA).select_related("richiesto_da").first(),
+        "puo_decidere_spostamenti": bool(task.project_id and ha_pieni_poteri(request, task.project)),
+    }
+
+
+def _limita_a_pieni_poteri(request, task, before: dict) -> list[str]:
+    """Responsabile, priorità, annullamento e commessa li cambia solo chi ha pieni poteri."""
+    progetto_prima = Project.objects.filter(pk=before.get("project_id")).first() if before.get("project_id") else None
+    if progetto_prima is None or ha_pieni_poteri(request, progetto_prima):
+        return []
+    tolti = []
+    if task.assigned_to_id != before.get("assigned_to_id"):
+        task.assigned_to_id = before.get("assigned_to_id")
+        tolti.append("Responsabile")
+    from ..access import can_set_task_priority
+
+    # La priorità segue la regola già esistente (anche chi ha creato l'attività).
+    if task.priority != before.get("priority") and not can_set_task_priority(request, task):
+        task.priority = before.get("priority")
+        tolti.append("Priorità")
+    if task.status == TaskStatus.CANCELED and before.get("status") != TaskStatus.CANCELED:
+        task.status = before.get("status")
+        tolti.append("Annullamento")
+    if task.project_id != before.get("project_id"):
+        task.project_id = before.get("project_id")
+        tolti.append("Commessa")
+    return tolti
+
+
 @task_permissions_required("tasks_view")
 def task_edit(request, task_id: int):
     task = get_object_or_404(scoped_tasks_queryset(request).prefetch_related("subscribers"), pk=task_id)
@@ -807,6 +886,7 @@ def task_edit(request, task_id: int):
 
     if request.method == "POST":
         form = TaskForm(request.POST, instance=task, user=request.user, project_queryset=projects_qs)
+        _blocca_priorita(request, task, form)
         if form.is_valid():
             updated_task = form.save(commit=False)
             updated_task.project = form.resolve_project(created_by=request.user)
@@ -852,6 +932,14 @@ def task_edit(request, task_id: int):
                     },
                 )
 
+            limitati = _limita_a_pieni_poteri(request, updated_task, before)
+            if limitati:
+                messages.warning(
+                    request, f"{', '.join(limitati)}: li decide il capocommessa, sono rimasti come prima.",
+                )
+            richiesta = intercetta_spostamento(request, updated_task, before)
+            if richiesta is not None:
+                messages.info(request, "Spostamento delle date inviato al capocommessa: le date cambiano quando lo approva.")
             updated_task.save()
             form.save_m2m()
             if before.get("assigned_to_id") != updated_task.assigned_to_id:
@@ -881,7 +969,7 @@ def task_edit(request, task_id: int):
                     ),
                 )
             if form.auto_raised_priority:
-                messages.warning(request, "Priorita aggiornata automaticamente a High per conflitto impegni.")
+                messages.warning(request, "Priorità portata ad Alta in automatico per conflitto di impegni.")
             if updated_task.is_overdue:
                 messages.warning(request, "Task in stato overdue.")
             _add_task_absence_warnings(request, updated_task)
@@ -891,6 +979,7 @@ def task_edit(request, task_id: int):
             return redirect("tasks:detail", task_id=updated_task.id)
     else:
         form = TaskForm(instance=task, user=request.user, project_queryset=projects_qs)
+        _blocca_priorita(request, task, form)
 
     return render(
         request,
@@ -921,7 +1010,11 @@ def update_due_date(request, task_id: int):
     before = _task_snapshot(task)
     form = TaskDueDateForm(request.POST, instance=task)
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        if intercetta_spostamento(request, task, before, motivo=request.POST.get("motivo", "")) is not None:
+            messages.info(request, "Richiesta di spostamento inviata al capocommessa.")
+            return redirect("tasks:detail", task_id=task.id)
+        task.save()
         _log_task_update_events(task, request.user, before)
         messages.success(request, "Data prevista conclusione aggiornata.")
         if task.is_overdue:
@@ -961,7 +1054,11 @@ def update_start_date(request, task_id: int):
     before = _task_snapshot(task)
     form = TaskStartDateForm(request.POST, instance=task)
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        if intercetta_spostamento(request, task, before, motivo=request.POST.get("motivo", "")) is not None:
+            messages.info(request, "Richiesta di spostamento inviata al capocommessa.")
+            return redirect("tasks:detail", task_id=task.id)
+        task.save()
         _log_task_update_events(task, request.user, before)
         messages.success(request, "Data inizio aggiornata.")
     else:
@@ -983,22 +1080,33 @@ def change_status(request, task_id: int):
             status=403,
         )
     old_status = task.status
+    before = _task_snapshot(task)
     form = TaskStatusForm(request.POST, instance=task)
     if form.is_valid():
         task = form.save(commit=False)
+        if task.status == TaskStatus.CANCELED and task.project_id and not ha_pieni_poteri(request, task.project):
+            messages.error(request, "Annullare un'attività lo decide il capocommessa.")
+            return redirect("tasks:detail", task_id=task_id)
         # Completata = avanzamento al 100%: prima restava fermo all'ultimo valore
         # e la barra diceva «60%» su un'attivita' chiusa.
         if task.status == TaskStatus.DONE and (task.progress or 0) < 100:
             task.progress = 100
         task.save()
         if old_status != task.status:
-            _log_event(
-                task,
-                request.user,
-                TaskEventType.STATUS_CHANGE,
-                {"from": old_status, "to": task.status},
-            )
-            messages.success(request, "Stato task aggiornato.")
+            # Registra il cambio e avvisa i coinvolti (stesso giro di tutte le modifiche).
+            _log_task_update_events(task, request.user, before)
+            messages.success(request, "Stato aggiornato.")
+            if task.status == TaskStatus.DONE:
+                from ..services.meeting_tasks import notify_task_completed
+
+                notify_task_completed(task, actor=request.user)
+            from ..models import ProjectTechRef
+
+            mancante = ProjectTechRef.objects.filter(task=task, status="OPEN").first()
+            if task.status == TaskStatus.DONE and mancante and not mancante.ha_contenuto:
+                messages.warning(
+                    request, f"{mancante.get_kind_display()} non ancora inserito: resta da fare per {task.title}."
+                )
             # Integrazione Carichi Macchina (non bloccante): chiusura/annullamento
             # rimuove la pianificazione collegata, ripresa la ricrea.
             try:

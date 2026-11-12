@@ -11,6 +11,7 @@ consentite, escluse le _SUPERATO). La ``cartella`` in mappatura e' l'etichetta r
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 
 from django.conf import settings
@@ -40,17 +41,40 @@ def _cache_key(depth: int) -> str:
     return f"gs:cartelle_share:{depth}:{h}"
 
 
+class ShareNonRaggiungibile(Exception):
+    """Nessuna (o non tutte) le radici della share risponde: l'elenco non è affidabile."""
+
+
+def _radici_raggiungibili() -> bool:
+    radici = radici_consentite()
+    if not radici:
+        return False
+    for root in radici:
+        try:
+            if not os.path.isdir(root):
+                return False
+        except OSError:
+            return False
+    return True
+
+
 def _label_to_path() -> dict[str, str]:
     """Mappa {etichetta relativa (cliente o cliente\\sottocartella) -> path reale}, cache-ata.
 
     Le etichette a più segmenti (es. ``FERRARI - FERRARI GES\\Motori``) rappresentano le
     sotto-cartelle. Il camminamento della share è cache-ato (TTL) per non ripeterlo a ogni ricerca.
+
+    Solleva :class:`ShareNonRaggiungibile` se una radice non risponde: il fallimento NON
+    si mette in cache (prima un elenco vuoto restava in memoria per 10 minuti e ogni
+    cliente risultava «cartella mancante»).
     """
     depth = _max_depth()
     key = _cache_key(depth)
     cached = cache.get(key)
     if cached is not None:
         return cached
+    if not _radici_raggiungibili():
+        raise ShareNonRaggiungibile()
     out: dict[str, str] = {}
     for c in elenca_cartelle_consentite(max_depth=depth):
         lbl = c.get("label")
@@ -60,6 +84,15 @@ def _label_to_path() -> dict[str, str]:
     return out
 
 
+def share_raggiungibile() -> bool:
+    """True se l'elenco delle cartelle è disponibile (in cache o leggibile adesso)."""
+    try:
+        _label_to_path()
+        return True
+    except ShareNonRaggiungibile:
+        return False
+
+
 def invalida_cache_cartelle() -> None:
     """Invalida la cache delle cartelle (dopo aver aggiunto una cartella nuova sulla share)."""
     for d in (1, 2, 3, 4):
@@ -67,20 +100,30 @@ def invalida_cache_cartelle() -> None:
 
 
 def cartelle_disponibili() -> list[str]:
-    """Etichette delle cartelle reali sulla share (clienti + sotto-cartelle), ordinate."""
-    return sorted(_label_to_path().keys())
+    """Etichette delle cartelle reali sulla share (clienti + sotto-cartelle), ordinate.
+
+    Lista vuota se la share non risponde (usare :func:`share_raggiungibile` per distinguerlo).
+    """
+    try:
+        return sorted(_label_to_path().keys())
+    except ShareNonRaggiungibile:
+        return []
 
 
 def risolvi(cliente: str) -> tuple[str | None, str]:
     """(path_reale, fonte). fonte: 'mappatura' se confermata ed esistente; 'cartella_mancante' se
-    mappata ma la cartella non c'e' piu'; 'nessuna' se non mappata."""
+    mappata ma la cartella non c'e' piu'; 'share_non_raggiungibile' se mappata ma la share non
+    risponde (non si sa se la cartella c'e'); 'nessuna' se non mappata."""
     cli = (cliente or "").strip()
     if not cli:
         return None, "nessuna"
     m = ClienteCartellaShare.objects.filter(cliente__iexact=cli, attivo=True).first()
     if m is None:
         return None, "nessuna"
-    path = _label_to_path().get(m.cartella)
+    try:
+        path = _label_to_path().get(m.cartella)
+    except ShareNonRaggiungibile:
+        return None, "share_non_raggiungibile"
     if path and valida_cartella_destinazione(path):
         return path, "mappatura"
     return None, "cartella_mancante"

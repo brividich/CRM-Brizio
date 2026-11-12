@@ -24,14 +24,38 @@
 .ana-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; }
 .ana-pill-green { background:#dcfce7; color:#166534; }
 .ana-pill-red { background:#fee2e2; color:#991b1b; }
+.ana-pill-amber { background:#fef3c7; color:#92400e; }
+.fr-req-list { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.fr-req-list li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13px; }
+.fr-req-icona { display:inline-flex; width:20px; height:20px; border-radius:50%; align-items:center; justify-content:center;
+  font-weight:800; font-size:12px; background:#e2e8f0; color:#475569; flex-shrink:0; }
+.fr-req-ok .fr-req-icona { background:#dcfce7; color:#166534; }
+.fr-req-in_scadenza .fr-req-icona { background:#fef3c7; color:#92400e; }
+.fr-req-scaduto .fr-req-icona, .fr-req-mancante .fr-req-icona { background:#fee2e2; color:#991b1b; }
+.fr-req-det { color:var(--text-mid); font-size:12.5px; }
 .ana-pill-blue { background:#dbeafe; color:#1e40af; }
+.fr-anno { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; font-weight:600; }
+.fr-anno select { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:5px 10px; font-size:13px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); }
+.fr-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
+.fr-kpis .ana-metric { padding:12px 14px; }
+.fr-kpis .ana-metric-val { font-size:20px; }
+.fr-sez { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13px; font-weight:700; color:var(--text,#1e293b); margin:18px 0 6px; }
+.fr-sez small { font-weight:400; color:var(--text-mid,#64748b); }
+.fr-nota { font-size:12px; color:var(--text-mid,#64748b); margin:6px 0 0; }
+.fr-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
+.fr-link:hover { text-decoration:underline; }
+.fr-azioni { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:10px; }
+.fr-avviso, .fr-errore { border-radius:8px; padding:8px 12px; margin:0 0 12px; font-size:12.5px; }
+.fr-avviso { background:#fef9c3; color:#854d0e; }
+.fr-errore { background:#fee2e2; color:#991b1b; }
+.fr-codice { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; padding:4px 0; }
 .ana-pill-gray { background:#f1f5f9; color:#475569; }
 .ana-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .ana-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
 .ana-metric { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
 .ana-metric-val { font-size:26px; font-weight:800; color:#0f172a; line-height:1; }
 .ana-metric-label { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:5px; }
-.ana-layout { display:grid; grid-template-columns:1fr 300px; gap:20px; }
+.ana-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:20px; }
 .ana-main { display:flex; flex-direction:column; gap:0; }
 .ana-side { display:flex; flex-direction:column; gap:16px; }
 .ana-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
@@ -81,7 +105,7 @@
 .ana-rating-fill { height:100%; background:#f59e0b; border-radius:99px; }
 details summary { list-style:none; }
 details summary::-webkit-details-marker { display:none; }
-@media(max-width:900px){ .ana-layout{ grid-template-columns:1fr; } .ana-metrics{ grid-template-columns:1fr 1fr; } }
+@media(max-width:900px){ .ana-layout{ grid-template-columns:minmax(0,1fr); } .ana-metrics{ grid-template-columns:1fr 1fr; } }
 @media(max-width:500px){ .ana-metrics{ grid-template-columns:1fr; } .ana-form-grid{ grid-template-columns:1fr; } }
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .ana-breadcrumb { color:var(--text-light); }
@@ -114,6 +138,9 @@ body.theme-dark .ana-msg-error   { background:rgba(153,27,27,.2); color:#fca5a5;
 body.theme-dark .ana-rating-track { background:var(--surface-alt); }
 body.theme-dark .ana-field label { color:var(--text-light); }
 body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .fr-link { color:#93c5fd; }
+body.theme-dark .fr-avviso { background:rgba(133,77,14,.2); color:#fde68a; }
+body.theme-dark .fr-errore { background:rgba(229,62,62,.16); color:#fca5a5; }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ana-breadcrumb a:hover{color:#93c5fd}
@@ -124,6 +151,11 @@ body.theme-dark .ana-hero-title{color:var(--text)}
 body.theme-dark .ana-hero-meta{color:var(--text-light)}
 body.theme-dark .ana-pill-green{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .ana-pill-red{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .ana-pill-amber{background:rgba(217,119,6,.18);color:#fcd34d}
+body.theme-dark .fr-req-icona{background:rgba(148,163,184,.2);color:#cbd5e1}
+body.theme-dark .fr-req-ok .fr-req-icona{background:rgba(56,161,105,.2);color:#86efac}
+body.theme-dark .fr-req-in_scadenza .fr-req-icona{background:rgba(217,119,6,.2);color:#fcd34d}
+body.theme-dark .fr-req-scaduto .fr-req-icona, body.theme-dark .fr-req-mancante .fr-req-icona{background:rgba(229,62,62,.2);color:#fca5a5}
 body.theme-dark .ana-pill-blue{background:rgba(59,130,246,.18);color:#93c5fd}
 body.theme-dark .ana-pill-gray{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
 body.theme-dark .ana-metric-val{color:var(--text)}
@@ -160,12 +192,14 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
           {% if fornitore.is_active %}<span class="ana-pill ana-pill-green">Attivo</span>
           {% else %}<span class="ana-pill ana-pill-red">Non attivo</span>{% endif %}
           {% if fornitore.categoria %}<span class="ana-pill ana-pill-blue">{{ fornitore.get_categoria_display }}</span>{% endif %}
+          {% if requisiti.esito != "non_richiesto" %}<span class="ana-pill {% if requisiti.esito == 'ok' %}ana-pill-green{% elif requisiti.esito == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-red{% endif %}">{{ requisiti.etichetta }}</span>{% endif %}
           {% if fornitore.citta %}{{ fornitore.citta }}{% if fornitore.provincia %} ({{ fornitore.provincia }}){% endif %}{% endif %}
         </div>
       </div>
     </div>
     <div class="ana-hero-actions">
       <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">← Elenco</a>
+      <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:guida' %}#requisiti">? Guida</a>
       <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:fornitore_edit' fornitore.pk %}">✏ Modifica</a>
       <form method="post" action="{% url 'fornitori:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
         {% csrf_token %}
@@ -204,12 +238,36 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
 
     <!-- Main: Tabs -->
     <div class="ana-main">
+      {% if requisiti.esito != "non_richiesto" %}
+      <div class="ana-card fr-req" style="margin-bottom:14px; padding:16px 18px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:baseline;">
+          <h3 style="margin:0; font-size:15px;">Requisiti per lavorare in sede <small style="font-weight:400; color:var(--text-mid);">(art. 26 D.Lgs. 81/2008)</small></h3>
+          <span class="ana-pill {% if requisiti.esito == 'ok' %}ana-pill-green{% elif requisiti.esito == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-red{% endif %}">{{ requisiti.etichetta }}</span>
+        </div>
+        <ul class="fr-req-list">
+          {% for v in requisiti.voci %}
+          <li class="fr-req-{{ v.stato }}">
+            <span class="fr-req-icona" aria-hidden="true">{% if v.stato == "ok" %}✓{% elif v.stato == "in_scadenza" %}!{% elif v.obbligatorio %}✕{% else %}–{% endif %}</span>
+            <b>{{ v.etichetta }}</b>{% if not v.obbligatorio %} <small>(consigliato)</small>{% endif %}
+            <span class="fr-req-det">{% if v.stato == "mancante" %}non caricato{% elif v.scadenza %}{% if v.stato == "scaduto" %}scaduto il{% else %}valido fino al{% endif %} {{ v.scadenza|date:"d-m-Y" }}{% else %}caricato, senza scadenza{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        <p style="margin:6px 0 0; font-size:12px; color:var(--text-mid);">Carica i documenti nella scheda «Documenti» scegliendo il tipo e la scadenza. In scadenza = entro {{ giorni_preavviso }} giorni.</p>
+      </div>
+      {% endif %}
+      {% include "scadenzario/components/riquadro.html" with fonti="fornitori" collegata_tipo="fornitore" collegata_id=fornitore.pk nome=fornitore.ragione_sociale %}
       <div class="ana-card">
         <div class="ana-tabs">
           <button class="ana-tab is-active" data-tab="tab-ordini">Ordini ({{ ordini.count }})</button>
           <button class="ana-tab" data-tab="tab-docs">Documenti ({{ documenti.count }})</button>
           <button class="ana-tab" data-tab="tab-val">Valutazioni ({{ valutazioni.count }})</button>
           <button class="ana-tab" data-tab="tab-asset">Asset ({{ asset_assegnati.count }})</button>
+          {% if sezioni.manutenzione %}<button class="ana-tab" data-tab="tab-manutenzione">Manutenzione</button>{% endif %}
+          {% if sezioni.copie and codici_contatori %}<button class="ana-tab" data-tab="tab-copie">Copie MFC</button>{% endif %}
+          <button class="ana-tab" data-tab="tab-scadenze">Scadenze</button>
+          {% if sezioni.tecnici %}<button class="ana-tab" data-tab="tab-tecnici">Tecnici ({{ n_tecnici }})</button>{% endif %}
+          <button class="ana-tab" data-tab="tab-riepilogo">Riepilogo annuale</button>
         </div>
 
         <!-- TAB ORDINI -->
@@ -263,7 +321,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               <div class="ana-doc-icon">📄</div>
               <div>
                 <div style="font-weight:700;font-size:13px;"><a href="{% url 'fornitori:fornitore_documento_download' fornitore.pk doc.pk %}" style="color:#1d4ed8;text-decoration:none;">{{ doc.nome }}</a></div>
-                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d-m-Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
+                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d-m-Y" }}{% if doc.data_scadenza %} · scade il {{ doc.data_scadenza|date:"d-m-Y" }}{% endif %}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
               </div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
@@ -277,6 +335,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               {% csrf_token %}
               <div class="ana-field"><label>Nome *</label>{{ doc_form.nome }}</div>
               <div class="ana-field"><label>Tipo</label>{{ doc_form.tipo }}</div>
+              <div class="ana-field"><label>Scadenza</label>{{ doc_form.data_scadenza }}</div>
               <div class="ana-field full">
                 <label>File *</label>
                 <div class="ana-drop">{{ doc_form.file }}<div style="font-size:12px;color:#94a3b8;margin-top:6px;">PDF, DOC, XLS, immagini...</div></div>
@@ -354,6 +413,18 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
           </details>
         </div>
 
+        {% if sezioni.manutenzione %}
+        <div id="tab-manutenzione" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'manutenzione' %}"><div class="ana-empty">Caricamento…</div></div>
+        {% endif %}
+        {% if sezioni.copie and codici_contatori %}
+        <div id="tab-copie" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'copie' %}"><div class="ana-empty">Caricamento…</div></div>
+        {% endif %}
+        <div id="tab-scadenze" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'scadenze' %}"><div class="ana-empty">Caricamento…</div></div>
+        {% if sezioni.tecnici %}
+        <div id="tab-tecnici" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'tecnici' %}"><div class="ana-empty">Caricamento…</div></div>
+        {% endif %}
+        <div id="tab-riepilogo" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'riepilogo' %}"><div class="ana-empty">Caricamento…</div></div>
+
       </div>
     </div>
 
@@ -391,6 +462,38 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
         </div>
       </div>
 
+      {% if codici_contatori or codici_scegliere %}
+      <div class="ana-card">
+        <div class="ana-card-head"><div class="ana-card-title">Multifunzioni</div></div>
+        <div class="ana-card-body">
+          {% for c in codici_contatori %}
+          <div class="fr-codice">
+            <span>Fornitore delle MFC: <b>{{ c.etichetta }}</b>{% if not c.esplicito %} <small style="color:var(--text-mid,#64748b);">(stesso nome)</small>{% endif %}</span>
+            {% if c.esplicito %}
+            <form method="post" action="{% url 'fornitori:fornitore_collega_contatori' fornitore.pk %}">{% csrf_token %}
+              <input type="hidden" name="codice" value="{{ c.codice }}"><input type="hidden" name="azione" value="togli">
+              <button class="ana-btn ana-btn-ghost ana-btn-sm" type="submit" data-hub-confirm="Togliere il collegamento?">Togli</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% if codici_scegliere %}
+          <details{% if codici_contatori %} style="margin-top:8px;"{% endif %}>
+            <summary class="fr-link" style="cursor:pointer;font-size:12.5px;">Fattura le copie delle multifunzioni?</summary>
+            <form method="post" action="{% url 'fornitori:fornitore_collega_contatori' fornitore.pk %}" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+              {% csrf_token %}
+              <select class="ana-input" name="codice" aria-label="Fornitore nel modulo Contatori">
+                {% for c in codici_scegliere %}<option value="{{ c.codice }}">{{ c.etichetta }}{% if c.attuale %} (ora: {{ c.attuale }}){% endif %}</option>{% endfor %}
+              </select>
+              <button class="ana-btn ana-btn-ghost ana-btn-sm" type="submit">Collega</button>
+            </form>
+            <p class="fr-nota">Facoltativo: aggiunge la scheda «Copie MFC» con macchine e fatture.</p>
+          </details>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       {% if valutazioni %}
       <div class="ana-card">
         <div class="ana-card-head"><div class="ana-card-title">Rating qualità</div></div>
@@ -423,14 +526,40 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
 {% block extra_scripts %}
 <script>
 (function(){
+  const NON_DISPONIBILE = '<div class="ana-empty">Questi dati non sono disponibili ora: ricarica la pagina per riprovare.</div>';
+  function carica(pannello){
+    if (!pannello.dataset.sezione || pannello.dataset.caricata) return;
+    pannello.dataset.caricata = '1';
+    // Se un modulo non risponde la pagina resta usabile: lo si dice nella scheda.
+    if (!window.htmx) { pannello.innerHTML = NON_DISPONIBILE; return; }
+    window.htmx.ajax('GET', pannello.dataset.sezione, {target: pannello, swap: 'innerHTML'});
+  }
+  function apri(tab, aggiornaIndirizzo){
+    document.querySelectorAll('.ana-tab').forEach(t => t.classList.remove('is-active'));
+    document.querySelectorAll('.ana-tab-panel').forEach(p => p.classList.remove('is-active'));
+    tab.classList.add('is-active');
+    const pannello = document.getElementById(tab.dataset.tab);
+    pannello.classList.add('is-active');
+    carica(pannello);
+    if (aggiornaIndirizzo) history.replaceState(null, '', '#' + tab.dataset.tab);
+  }
+  function apriDaIndirizzo(){
+    const tab = location.hash ? document.querySelector('.ana-tab[data-tab="' + location.hash.slice(1) + '"]') : null;
+    if (tab) apri(tab, false);
+  }
   document.querySelectorAll('.ana-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.ana-tab').forEach(t => t.classList.remove('is-active'));
-      document.querySelectorAll('.ana-tab-panel').forEach(p => p.classList.remove('is-active'));
-      tab.classList.add('is-active');
-      document.getElementById(tab.dataset.tab).classList.add('is-active');
+    tab.addEventListener('click', () => apri(tab, true));
+  });
+  document.querySelectorAll('.ana-tab-panel[data-sezione]').forEach(pannello => {
+    ['htmx:responseError', 'htmx:sendError'].forEach(evento => {
+      pannello.addEventListener(evento, () => { pannello.innerHTML = NON_DISPONIBILE; });
     });
   });
+  // Link diretto a una scheda (#tab-copie) e ritorno dopo un salvataggio. htmx è caricato
+  // in differita: esiste solo da DOMContentLoaded in poi.
+  window.addEventListener('hashchange', apriDaIndirizzo);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apriDaIndirizzo);
+  else apriDaIndirizzo();
 })();
 </script>
 {% endblock %}

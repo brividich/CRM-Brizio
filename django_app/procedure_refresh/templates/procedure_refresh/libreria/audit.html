@@ -1,0 +1,43 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Pacchetto audit · {{ scaffale.nome }} · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:libreria_scaffale' scaffale.slug %}">{{ scaffale.nome }}</a> › Pacchetto audit{% endblock %}
+{% block cn_h1 %}Pacchetto audit{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
+{% block cn_guida_anchor %}#audit{% endblock %}
+{% block cn_actions %}<a class="cn-btn sm pri" href="?formato=xlsx">Scarica Excel</a>{% endblock %}
+{% block cn_body %}
+<div class="cn-toolbar">
+  {% for s in scaffali_audit %}<a class="cn-chip{% if s.slug == scaffale.slug %} on{% endif %}" href="{% url 'procedure_refresh:libreria_audit' s.slug %}">{{ s.nome }}</a>{% endfor %}
+</div>
+<div class="cn-band" style="--col:{{ scaffale.colore }}">
+  <div class="n">{{ documenti|length }}</div>
+  <div class="t"><h2>{{ scaffale.nome }}</h2><p>documenti in vigore · {{ revisionati_anno }} revisionati negli ultimi 12 mesi{% if pct_lette is not None %} · prese visione confermate {{ pct_lette }}%{% endif %}</p></div>
+  {% if scaffale.certificazione %}
+  <div class="c">
+    <div>Certificato fino al<b>{{ scaffale.certificazione.scade_il|date:"d/m/Y" }}</b></div>
+    {% if scaffale.certificazione.prossima_sorveglianza %}<div>Prossima sorveglianza<b>{{ scaffale.certificazione.prossima_sorveglianza|date:"d/m/Y" }}{% if giorni_sorveglianza is not None and giorni_sorveglianza >= 0 %} · {{ giorni_sorveglianza }} gg{% endif %}</b></div>{% endif %}
+    <div>Ente<b>{{ scaffale.certificazione.ente }}</b></div>
+  </div>
+  {% elif is_manager %}
+  <div class="c"><a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_scaffali' %}">Collega la certificazione</a></div>
+  {% endif %}
+</div>
+<div class="cn-tbl"><table>
+  <thead><tr><th>Sezione</th><th>Codice</th><th>Titolo</th><th>Rev.</th><th>Data</th><th>Processi</th><th>Presa visione</th></tr></thead>
+  <tbody>
+  {% for d in documenti %}
+  <tr>
+    <td>{{ d.sezione_label }}</td>
+    <td class="num"><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc class="cn-mono-col" style="color:{{ scaffale.colore }};font-weight:700">{{ d.code }}</a></td>
+    <td>{{ d.title }}</td>
+    <td class="num">{{ d.rev.revision_code|default:"—" }}</td>
+    <td class="num">{{ d.rev.revision_date|date:"d/m/Y" }}</td>
+    <td>{{ d.processi|join:", "|default:"—" }}</td>
+    <td style="min-width:130px">{% if d.pv_pct is not None %}<div class="cn-bar"><i style="width:{{ d.pv_pct }}%{% if d.pv_pct < 80 %};background:var(--cn-warn){% endif %}"></i></div><small class="mono" style="color:var(--text-light)">{{ d.pv_lette }}/{{ d.pv_totale }}</small>{% else %}<span style="color:var(--text-light)">non chiesta</span>{% endif %}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="7">Nessun documento in vigore in questo scaffale.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="cn-note" style="margin-top:12px">L'elenco è la fotografia di oggi della cartella SGI: revisioni in vigore, processi confermati e stato delle prese visione chieste per quella revisione. «Scarica Excel» porta le stesse colonne.</p>
+{% endblock %}

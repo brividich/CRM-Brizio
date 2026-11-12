@@ -1,6 +1,8 @@
 """Helper comuni alle viste KICK-OFF: shell, timeline, eventi, rollup."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import json
 import logging
 from datetime import date, datetime
@@ -41,6 +43,7 @@ TASK_EVENT_TONE_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "green",
     TaskEventType.SUBTASK_STATUS_CHANGE: "purple",
     TaskEventType.ATTACHMENT_ADDED: "indigo",
+    TaskEventType.DATE_REQUEST: "amber",
 }
 TASK_EVENT_TITLE_BY_TYPE = {
     TaskEventType.STATUS_CHANGE: "Stato aggiornato",
@@ -50,6 +53,7 @@ TASK_EVENT_TITLE_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "Subtask creata",
     TaskEventType.SUBTASK_STATUS_CHANGE: "Subtask aggiornata",
     TaskEventType.ATTACHMENT_ADDED: "Allegato caricato",
+    TaskEventType.DATE_REQUEST: "Spostamento di date",
 }
 TASK_EVENT_DESCRIPTION_BY_TYPE = {
     TaskEventType.STATUS_CHANGE: "Lo stato operativo dell'attivita e cambiato.",
@@ -59,6 +63,7 @@ TASK_EVENT_DESCRIPTION_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "E stata aggiunta una nuova sotto-attivita operativa.",
     TaskEventType.SUBTASK_STATUS_CHANGE: "Lo stato di una subtask e stato aggiornato.",
     TaskEventType.ATTACHMENT_ADDED: "E stato caricato un documento collegato all'attivita.",
+    TaskEventType.DATE_REQUEST: "Richiesta di spostamento delle date.",
 }
 TASK_FIELD_LABELS = {
     "title": "Titolo",
@@ -131,9 +136,9 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
         return {
             "status": "blocked",
             "label": (
-                f"Kickoff BLOCCATO: documento VRF non caricato da {days} giorni "
+                f"Kickoff BLOCCATO: scheda VRF mancante da {days} giorni "
                 f"(soglia blocco: {cfg.vrf_blocking_days} giorni). "
-                "Non e possibile aggiungere o modificare attivita kickoff finche il documento non viene caricato."
+                "Non si possono aggiungere o modificare attività finché la scheda non viene compilata o caricata."
             ),
             "is_blocked": True,
             "days_pending": days,
@@ -144,8 +149,8 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
         return {
             "status": "warning",
             "label": (
-                f"Attenzione: documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff). "
-                f"Il kickoff sara bloccato dopo {cfg.vrf_blocking_days} giorni."
+                f"Attenzione: scheda VRF da compilare ({days} giorni dalla creazione del kickoff). "
+                f"Il kickoff sarà bloccato dopo {cfg.vrf_blocking_days} giorni."
             ),
             "is_blocked": False,
             "days_pending": days,
@@ -154,17 +159,70 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
 
     return {
         "status": "pending",
-        "label": f"Documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff).",
+        "label": f"Scheda VRF da compilare ({days} giorni dalla creazione del kickoff).",
         "is_blocked": False,
         "days_pending": days,
         "show_upload_cta": True,
     }
 
 
+def _prossimo_inizio(tasks, today):
+    """Inizio proposto per la prossima attivita': il giorno dopo l'ultima fine."""
+    fini = [t.due_date for t in tasks if t.due_date]
+    return max(fini) + timedelta(days=1) if fini else today
+
+
+def _utenti_riga_rapida(project):
+    """Prima il team della commessa, poi gli altri utenti attivi."""
+    from ..forms import task_active_users_queryset, user_display_label
+
+    ids = project.team_user_ids
+    utenti = task_active_users_queryset()
+    return {
+        "team": [(u.pk, user_display_label(u)) for u in utenti.filter(pk__in=ids)],
+        "altri": [(u.pk, user_display_label(u)) for u in utenti.exclude(pk__in=ids)],
+    }
+
+
+def _vrf_bozza(project) -> dict | None:
+    """Scheda VRF iniziata e non confermata: quanti rischi mancano e il TR parziale."""
+    from .. import vrf_catalog
+    from ..models import VRFRiskAssessment
+
+    if project.vrf_status != VRFDocStatus.PENDING:
+        return None
+    assessment = VRFRiskAssessment.objects.filter(project=project).first()
+    if assessment is None:
+        return None
+    totali = vrf_catalog.compute_totals(assessment.data)
+    if len(totali["missing"]) == len(vrf_catalog.RISKS):
+        return None
+    return {"tr": totali["tr"], "livello": totali["level"]["label"], "mancanti": totali["missing"]}
+
+
+def percentuale_avanzamento(completate: int, totale_non_annullate: int) -> int:
+    """Avanzamento di una commessa: completate sul totale, annullate escluse.
+
+    Unica regola per portfolio, panoramica e Gantt: prima il Gantt contava anche
+    le annullate e le tre pagine davano percentuali diverse.
+    """
+    return round(completate * 100 / totale_non_annullate) if totale_non_annullate else 0
+
+
 def _apply_default_ordering(qs):
-    return qs.order_by(
-        F("next_step_due").asc(nulls_last=True),
+    """Aperte prima, poi per scadenza: prima le completate stavano in cima."""
+    from django.db.models import Case, IntegerField, Value, When
+
+    return qs.annotate(
+        _chiusa=Case(
+            When(status__in=(TaskStatus.DONE, TaskStatus.CANCELED), then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by(
+        "_chiusa",
         F("due_date").asc(nulls_last=True),
+        F("next_step_due").asc(nulls_last=True),
         "-updated_at",
     )
 
@@ -192,7 +250,17 @@ def _tasks_shell_context(
         "tasks_shell_can_create": has_task_permission(request, "tasks_create"),
         "tasks_shell_can_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
         "tasks_shell_is_scope_admin": has_task_permission(request, "tasks_admin"),
+        # Nel pannello laterale (hub-bulk-pannello) la pagina arriva senza
+        # cornice: solo titolo, azioni e contenuto, pronta per innerHTML.
+        "shell_base": (
+            "tasks/base_shell_pannello.html" if _vuole_pannello(request) else "tasks/base_shell.html"
+        ),
     }
+
+
+def _vuole_pannello(request) -> bool:
+    """La scheda e' richiesta dal pannello laterale, non come pagina intera."""
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
 
 
 def _json_safe(value):
@@ -361,6 +429,18 @@ def _build_task_timeline_events(task: Task) -> list[dict]:
                 )
             if changed_labels:
                 description = "Campi aggiornati: " + ", ".join(changed_labels) + "."
+
+        elif event.type == TaskEventType.DATE_REQUEST:
+            azione = payload.get("azione")
+            if azione == "richiesta":
+                description = "Richiesto lo spostamento delle date al capocommessa."
+                details.append(_timeline_detail("Nuove date", note=f"{payload.get('inizio') or '—'} → {payload.get('fine') or '—'}"))
+                if payload.get("motivo"):
+                    details.append(_timeline_detail("Motivo", note=payload.get("motivo")))
+            else:
+                description = "Spostamento approvato." if azione == "approvata" else "Spostamento rifiutato."
+                if payload.get("nota"):
+                    details.append(_timeline_detail("Nota", note=payload.get("nota")))
 
         elif event.type == TaskEventType.COMMENT_ADDED:
             if payload.get("target_user_id"):
@@ -558,3 +638,10 @@ def _log_task_update_events(task: Task, actor, before: dict) -> None:
             TaskEventType.EDIT,
             {"changes": key_changes},
         )
+    # Chi è coinvolto lo sa subito: date, priorità, stato, responsabile.
+    try:
+        from ..services.avvisi import notifica_cambiamenti
+
+        notifica_cambiamenti(task, actor, before)
+    except Exception:
+        logger.exception("Avvisi cambiamento falliti (task=%s)", task.pk)

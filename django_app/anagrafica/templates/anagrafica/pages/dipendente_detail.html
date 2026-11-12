@@ -1,6 +1,7 @@
 {% extends "core/base.html" %}
 {% load safe_json %}
 {% load anagrafica_extras %}
+{% load presenti_tags %}
 {% load dpi_extras %}
 
 {% block title %}{% nominativo dip %} | Scheda dipendente{% endblock %}
@@ -226,6 +227,31 @@ body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 
 /* Sezione HR riservata */
 .dp-hr-badge { display:inline-flex; align-items:center; gap:6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; margin-bottom:12px; }
+
+/* Pannello laterale «Modifica anagrafica aziendale» (dialog a destra, schede) */
+.dp-pannello { position:fixed; inset:0 0 0 auto; margin:0; height:100%; max-height:100%; max-width:100vw; width:min(560px, 100vw); border:0; border-left:1px solid var(--hr-border); border-radius:0; padding:0; background:var(--hr-surface); color:var(--hr-text); box-shadow:-24px 0 48px -24px rgba(15,23,42,.45); }
+.dp-pannello::backdrop { background:rgba(8,20,45,.35); }
+.dp-pannello-form { display:flex; flex-direction:column; height:100%; }
+.dp-pannello-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:14px 18px; border-bottom:1px solid var(--hr-border); }
+.dp-pannello-titolo { margin:0; font-size:16px; font-weight:800; color:var(--hr-title); }
+.dp-pannello-x { border:0; background:none; font-size:16px; color:var(--hr-text-mid); cursor:pointer; padding:4px 8px; border-radius:6px; }
+.dp-pannello-x:hover { background:rgba(148,163,184,.15); }
+.dp-pannello-tabs { display:flex; gap:2px; padding:0 12px; border-bottom:1px solid var(--hr-border); overflow-x:auto; flex:none; }
+.dp-pannello-tab { border:0; background:none; font:inherit; font-size:12px; font-weight:700; color:var(--hr-text-mid); padding:10px 8px; border-bottom:2px solid transparent; white-space:nowrap; cursor:pointer; }
+.dp-pannello-tab[aria-selected="true"] { color:#1f87cd; border-bottom-color:#1f87cd; }
+.dp-pannello-body { flex:1; overflow:auto; padding:16px 18px; display:flex; flex-direction:column; gap:14px; }
+.dp-pannello-scheda { display:flex; flex-direction:column; gap:12px; }
+.dp-pannello-scheda[hidden], .dp-pannello-scheda [data-dp-motivo-esclusione][hidden] { display:none; }
+.dp-pannello-hint { font-size:11px; color:#94a3b8; }
+.dp-pannello-check { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--hr-text); }
+.dp-pannello-nota { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; }
+.dp-pannello-nota-neutra { color:var(--hr-text-mid); background:transparent; border-color:var(--hr-border); margin-top:auto; }
+.dp-pannello-nota a { color:#1f87cd; font-weight:700; }
+.dp-pannello-foot { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--hr-border); flex:none; }
+body.theme-dark .dp-pannello-tab[aria-selected="true"] { color:#60a5fa; border-bottom-color:#60a5fa; }
+body.theme-dark .dp-pannello-nota { background:rgba(253,230,138,.08); border-color:rgba(253,230,138,.3); color:#fcd34d; }
+body.theme-dark .dp-pannello-nota-neutra { background:transparent; border-color:var(--hr-border); color:var(--hr-text-mid); }
+body.theme-dark .dp-pannello-nota a { color:#60a5fa; }
 
 /* Toggle sezione edit */
 .dp-edit-section { display:none; margin-top:14px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
@@ -671,12 +697,26 @@ body.theme-dark .dp-btn-edit-sm:hover{background:rgba(59,130,246,.18)}
 body.theme-dark .dp-pos-l{color:var(--text-light)}
 body.theme-dark .dp-pos-warn{color:#fdba74}
 body.theme-dark .dp-pos-meta{color:var(--text-light)}
+body.theme-dark .dp-pos-v a,body.theme-dark .dp-pos-list a,body.theme-dark .dp-pos-vai{color:#93c5fd}
 body.theme-dark .sp-gap{border-color:var(--border)}
 body.theme-dark .sp-gap-titolo{color:#fcd34d}
 body.theme-dark .sp-card-foot{border-color:var(--border)}
 body.theme-dark .sp-confronto{border-color:var(--border)}
 body.theme-dark .dp-soon-badge{background:rgba(139,92,246,.2);color:var(--text)}
 body.theme-dark .dp-th-muted{color:var(--text-light)}
+/* Azione unica accanto a uno stato «da fare» (stesse regole di formazione_design.css .fmd-act) */
+.fmd-act{ display:inline-block; font:700 11px/1.2 inherit; color:var(--fmd-cyan,#0369a1); background:transparent; border:1px solid currentColor; border-radius:999px; padding:3px 9px; text-decoration:none; white-space:nowrap; cursor:pointer; vertical-align:middle; }
+.fmd-act:hover{ background:var(--fmd-cyan,#0369a1); color:#fff; }
+.fmd-act-ghost{ color:#64748b; }
+.fmd-act-ghost:hover{ background:#64748b; color:#fff; }
+.fmd-act-form{ display:inline; margin:0; }
+.fmd-act-cell{ text-align:right; white-space:nowrap; }
+body.theme-dark .fmd-act{ color:#7cc4f5; }
+body.theme-dark .fmd-act:hover{ background:#7cc4f5; color:#0f172a; }
+body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
+.dp-contr-scade td{ background:#fff7ed; }
+.dp-contr-badge{ display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#ffedd5; color:#9a3412; }
+.dp-contr-badge-ko{ background:#fee2e2; color:#b91c1c; }
 </style>
 {% endblock %}
 
@@ -716,7 +756,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% if civile_foto_url %}<img class="dp-avatar-img" src="{{ civile_foto_url }}" alt="">{% endif %}
     </div>
     <div class="dp-hero-info">
-      <div class="dp-hero-name">{% nominativo dip %}</div>
+      <div class="dp-hero-name">{% nominativo dip %}{% pallino_presenza dip.id True %}</div>
       <div class="dp-hero-meta">
         {% if dip.mansione %}{{ dip.mansione }}{% endif %}
         {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
@@ -739,6 +779,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       </div>
     </div>
     <div class="dp-hero-actions">
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'guida_modulo' 'anagrafica' %}#scheda" title="Come funziona la scheda">? Guida</a>
       {% if dip.email_notifica %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}" title="{{ dip.email_notifica }}">✉ Scrivi</a>
       {% endif %}
@@ -938,6 +979,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div class="dp-info-item"><div class="dp-info-label">Mansione di rischio</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale.nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Centro di costo</div><div class="dp-info-value">{% if aziendale.area_aziendale.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ aziendale.area_aziendale_id }}" style="color:#1f87cd;">{{ aziendale.area_aziendale.centro_di_costo.nome }}</a>{% else %}{{ aziendale.area_aziendale.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
@@ -993,6 +1035,8 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     </div>
   </div>
 
+  <div data-tab="riepilogo">{% include "scadenzario/components/riquadro.html" with fonti="hr" %}</div>
+
   <!-- CONFORMITÀ (semaforo idoneità alla mansione) -->
   <div class="dp-card" data-tab="riepilogo" id="conformita">
     <div class="dp-card-head">
@@ -1010,34 +1054,16 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- ANAGRAFICA AZIENDALE (spostata nella tab Anagrafica) -->
   {% if is_admin %}
-  <div class="dp-card" data-tab="anagrafica">
+  <div class="dp-card" data-tab="anagrafica" id="anagrafica-aziendale">
     <div class="dp-card-head">
       <div class="dp-card-title">🏢 Anagrafica aziendale</div>
-      <button type="button" onclick="toggleSection('az-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
+      <button type="button" data-dp-dialog="dp-az-pannello" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
     </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|parte_nome|default:"—" }}</div></div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Matricola
-            {% if is_admin %}<button type="button" onclick="toggleMatricolaForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia matricola">✏</button>{% endif %}
-          </div>
-          <div class="dp-info-value">{{ dip.matricola|default:"—" }}</div>
-          {% if is_admin %}
-          <div class="dp-mansione-form" id="matricola-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_matricola_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="text" name="matricola" class="dp-select" value="{{ dip.matricola|default:'' }}" maxlength="100" placeholder="Es. CNO 0001" style="min-width:180px;" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMatricolaForm()">Annulla</button>
-            </form>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              Utile per i preinserimenti (dipendente creato prima dell'assegnazione matricola) e per i candidati importati dal recruiting.
-            </div>
-          </div>
-          {% endif %}
-        </div>
+        <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Reparto</div>
@@ -1058,6 +1084,10 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           </div>
         </div>
         <div class="dp-info-item">
+          <div class="dp-info-label">Centro di costo</div>
+          <div class="dp-info-value">{% if aziendale.area_aziendale.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ aziendale.area_aziendale_id }}" style="color:#1f87cd;">{{ aziendale.area_aziendale.centro_di_costo.nome }}</a>{% else %}{{ aziendale.area_aziendale.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div>
+        </div>
+        <div class="dp-info-item">
           <div class="dp-info-label">Caporeparto</div>
           <div class="dp-info-value">
             {% if caporeparto_label %}
@@ -1068,22 +1098,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           </div>
         </div>
         <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Username
-            {% if is_admin %}<button type="button" onclick="toggleUsernameForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia username">✏</button>{% endif %}
-          </div>
-          <div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div>
-          {% if is_admin %}
-          <div class="dp-mansione-form" id="username-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_username_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="text" name="aliasusername" class="dp-select" value="{{ dip.aliasusername|default:'' }}" maxlength="150" placeholder="Username (es. m.rossi)" style="min-width:180px;" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleUsernameForm()">Annulla</button>
-            </form>
-          </div>
-          {% endif %}
-        </div>
+        <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f87cd;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
@@ -1091,48 +1106,70 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d-m-Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Conteggi organico</div><div class="dp-info-value">{% if aziendale.escluso_dai_conteggi %}<span class="dp-pill dp-pill-gray" title="Non entra in persone in forza, turnover, organico per reparto e indici infortuni">Escluso</span>{% if aziendale.motivo_esclusione_conteggi %} <span style="font-size:11px;color:#64748b;">{{ aziendale.motivo_esclusione_conteggi }}</span>{% endif %}{% else %}Conteggiato{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d-m-Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d-m-Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia pantalone</div><div class="dp-info-value">{{ aziendale.taglia_pantalone|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia maglia</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_taglia_maglia_display|default:"—" }}{% else %}—{% endif %}</div></div>
       </div>
-
-      <!-- Form modifica anagrafica aziendale -->
-      <div class="dp-edit-section" id="az-edit">
-        <div class="dp-form-section-title">Modifica dati aziendali</div>
-        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}">
-          {% csrf_token %}
-          <div class="dp-form-grid">
-            {% for field in form_aziendale %}
-            <div class="dp-form-field">
-              <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
-            </div>
-            {% endfor %}
-            <div class="dp-form-field">
-              <label class="dp-form-label">Reparto · Area · Mansione di rischio · Ruolo</label>
-              <input type="text" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;"
-                     value="{{ dip.reparto|default:'—' }}{% if aziendale.area_aziendale %} · {{ aziendale.area_aziendale.nome }}{% endif %} · {{ dip.mansione|default:'—' }} · {{ aziendale.ruolo_aziendale|default:'—' }}">
-              <span style="font-size:11px;color:#94a3b8;">
-                Si cambiano da <strong>Spostamenti organizzativi</strong>, con decorrenza e verifica di idoneità.
-              </span>
-            </div>
-            <div class="dp-form-field">
-              <label class="dp-form-label">Caporeparto</label>
-              <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
-              <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:14px;">
-            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
-            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('az-edit')">Annulla</button>
-          </div>
-        </form>
-      </div>
     </div>
   </div>
+
+  <!-- Pannello laterale «Modifica anagrafica aziendale»: un form, campi divisi in schede -->
+  <dialog id="dp-az-pannello" class="dp-pannello" aria-labelledby="dp-az-pannello-titolo">
+    <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}" class="dp-pannello-form">
+      {% csrf_token %}
+      <div class="dp-pannello-head">
+        <h2 class="dp-pannello-titolo" id="dp-az-pannello-titolo">Modifica · {{ dip.nome|parte_nome }} {{ dip.cognome|parte_nome }}</h2>
+        <button type="button" class="dp-pannello-x" data-dp-pannello-chiudi aria-label="Chiudi">✕</button>
+      </div>
+      <div class="dp-pannello-tabs" role="tablist" data-mnav-off>
+        <button type="button" role="tab" class="dp-pannello-tab" data-dp-scheda="identita" aria-selected="true">Identità</button>
+        {% for chiave, titolo, campi in schede_az %}
+        <button type="button" role="tab" class="dp-pannello-tab" data-dp-scheda="{{ chiave }}" aria-selected="false">{{ titolo }}</button>
+        {% endfor %}
+      </div>
+      <div class="dp-pannello-body">
+        <section class="dp-pannello-scheda" data-dp-scheda-pannello="identita">
+          <div class="dp-form-field"><label class="dp-form-label" for="az-nome">Nome</label><input type="text" id="az-nome" name="nome" class="dp-input" value="{{ dip.nome|default:'' }}" maxlength="100" required autocomplete="off"></div>
+          <div class="dp-form-field"><label class="dp-form-label" for="az-cognome">Cognome</label><input type="text" id="az-cognome" name="cognome" class="dp-input" value="{{ dip.cognome|default:'' }}" maxlength="100" required autocomplete="off"></div>
+          <span class="dp-pannello-hint">Nome e cognome si salvano in maiuscolo e vengono riportati sull'account portale collegato.</span>
+          <div class="dp-form-field"><label class="dp-form-label" for="az-matricola">Matricola</label><input type="text" id="az-matricola" name="matricola" class="dp-input" value="{{ dip.matricola|default:'' }}" maxlength="100" placeholder="Es. CNO 0001" autocomplete="off"><span class="dp-pannello-hint">Si può lasciare vuota per i preinserimenti.</span></div>
+          <div class="dp-form-field"><label class="dp-form-label" for="az-username">Username</label><input type="text" id="az-username" name="aliasusername" class="dp-input" value="{{ dip.aliasusername|default:'' }}" maxlength="150" placeholder="Es. m.rossi" required autocomplete="off"><span class="dp-pannello-hint">Vale anche per l'account portale collegato.</span></div>
+          <div class="dp-form-field"><label class="dp-form-label" for="az-email-notifica">Email per le notifiche</label><input type="email" id="az-email-notifica" name="email_notifica" class="dp-input" value="{{ dip.email_notifica|default:'' }}" maxlength="200" placeholder="nome@azienda.it" autocomplete="off"></div>
+          <div class="dp-form-field"><span class="dp-form-label">Email account</span><span class="dp-info-value">{{ dip.email|default:"—" }}</span><span class="dp-pannello-hint">È l'indirizzo di accesso: non si modifica da qui.</span></div>
+        </section>
+        {% for chiave, titolo, campi in schede_az %}
+        <section class="dp-pannello-scheda" data-dp-scheda-pannello="{{ chiave }}" hidden>
+          {% for field in campi %}
+          {% if field.field.widget.input_type == "checkbox" %}
+          <label class="dp-pannello-check" for="{{ field.id_for_label }}">{{ field }} {{ field.label }}</label>
+          {% else %}
+          <div class="dp-form-field"{% if field.name == "motivo_esclusione_conteggi" %} data-dp-motivo-esclusione{% endif %}>
+            <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<span class="dp-pannello-hint">{{ field.help_text }}</span>{% endif %}
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if chiave == "rapporto" %}
+          <div class="dp-pannello-nota">La data di cessazione non si scrive qui: la registra «Avvia uscita dipendente…» nel menu «Azioni ▾», che chiude anche account e assegnazioni.</div>
+          {% elif chiave == "organico" %}
+          <span class="dp-pannello-hint">Chi è escluso dai conteggi resta negli elenchi e in formazione, visite, DPI e scadenze.</span>
+          {% endif %}
+        </section>
+        {% endfor %}
+        <div class="dp-pannello-nota dp-pannello-nota-neutra">
+          Reparto, area, mansione di rischio e ruolo si cambiano da <a href="#spostamenti-organizzativi" data-dp-pannello-chiudi>Spostamenti organizzativi</a>; un capo diverso da quello dell'organigramma da <a href="{% url 'anagrafica:coerenza_capi' %}">Coerenza capi</a>.
+        </div>
+      </div>
+      <div class="dp-pannello-foot">
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" data-dp-pannello-chiudi>Annulla</button>
+        <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+      </div>
+    </form>
+  </dialog>
   {% endif %}
 
   <!-- ACCOUNT PORTALE (collega / scollega, solo amministrazione anagrafica) -->
@@ -1289,10 +1326,14 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           </thead>
           <tbody>
             {% for c in storico_contratti %}
-            <tr id="contr-row-{{ c.pk }}"{% if c.is_in_corso %} class="dp-contr-incorso"{% endif %}>
+            <tr id="contr-row-{{ c.pk }}" class="{% if c.is_in_corso %}dp-contr-incorso{% endif %}{% if contratto_rinnovo and c.pk == contratto_rinnovo.pk %} dp-contr-scade{% endif %}">
               <td style="white-space:nowrap;">
                 {{ c.data_inizio|date:"d-m-Y" }} –
                 {% if c.data_fine %}{{ c.data_fine|date:"d-m-Y" }}{% if c.is_in_corso %} · <strong>in corso</strong>{% endif %}{% elif c.is_programmato %}<strong>programmato</strong>{% else %}<strong>in corso</strong>{% endif %}
+                {% if contratto_rinnovo and c.pk == contratto_rinnovo.pk %}
+                  {% if contratto_rinnovo.scaduto %}<span class="dp-contr-badge dp-contr-badge-ko">Scaduto</span>{% else %}<span class="dp-contr-badge">Scade tra {{ contratto_rinnovo.giorni }}gg</span>{% endif %}
+                  {% if is_admin %}<button type="button" class="fmd-act" onclick="rinnovaContratto()" title="Registra il nuovo contratto: parte il giorno dopo la scadenza, con tipologia, livello e qualifica attuali">↻ Rinnova</button>{% endif %}
+                {% endif %}
               </td>
               <td>{{ c.tipologia_nome|default:"—" }}</td>
               <td>
@@ -1375,14 +1416,31 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% endif %}
 
       {% if is_admin %}
-      <details style="margin-top:4px;">
+      {% if contratto_rinnovo %}
+      <script>
+      // «↻ Rinnova» sull'ultimo contratto in scadenza: apre «Aggiungi riga manualmente»
+      // già compilata (inizio = fine+1, tipologia, livello, qualifica attuali).
+      function rinnovaContratto(){
+        var det=document.getElementById('contr-add-details'); if(det){ det.open=true; }
+        function set(id,val){ var el=document.getElementById(id); if(el){ el.value=val; } }
+        set('contr-add-inizio', '{{ contratto_rinnovo.data_inizio|date:"Y-m-d" }}');
+        set('contr-add-tipologia', '{{ contratto_rinnovo.tipologia|escapejs }}');
+        set('contr-add-livello', '{{ contratto_rinnovo.codice_livello|escapejs }}');
+        set('add-desc-livello', '{{ contratto_rinnovo.descrizione_livello|escapejs }}');
+        set('contr-add-qualifica', '{{ contratto_rinnovo.qualifica_nome|escapejs }}');
+        var ini=document.getElementById('contr-add-inizio');
+        if(ini){ ini.scrollIntoView({behavior:'smooth',block:'center'}); ini.focus(); }
+      }
+      </script>
+      {% endif %}
+      <details style="margin-top:4px;" id="contr-add-details">
         <summary style="font-size:12px;color:#64748b;cursor:pointer;padding:8px 16px;border-top:1px solid #f1f5f9;">+ Aggiungi riga manualmente</summary>
         <form method="post" action="{% url 'anagrafica:dipendente_contratto_add' legacy_id %}" style="padding:12px 16px 8px;">
           {% csrf_token %}
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">
             <div>
               <label class="dp-form-label">Data inizio *</label>
-              <input type="date" name="data_inizio" class="dp-input" required>
+              <input type="date" name="data_inizio" id="contr-add-inizio" class="dp-input" required>
             </div>
             <div>
               <label class="dp-form-label">Data fine</label>
@@ -1390,7 +1448,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Contratto</label>
-              <select name="tipologia_contratto" class="dp-input">
+              <select name="tipologia_contratto" id="contr-add-tipologia" class="dp-input">
                 <option value="">— Nessuno —</option>
                 {% for tc in tipologie_contratto %}
                 <option value="{{ tc.codice }}">{{ tc.nome }}</option>
@@ -1399,7 +1457,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Livello</label>
-              <select name="codice_livello" class="dp-input" onchange="onLivelloChange(this, 'add-desc-livello')">
+              <select name="codice_livello" id="contr-add-livello" class="dp-input" onchange="onLivelloChange(this, 'add-desc-livello')">
                 <option value="">— Nessuno —</option>
                 {% for lv in livelli_catalogo %}
                 <option value="{{ lv.codice }}">{{ lv }}</option>
@@ -1412,7 +1470,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Qualifica prof.</label>
-              <select name="qualifica_nome" class="dp-input">
+              <select name="qualifica_nome" id="contr-add-qualifica" class="dp-input">
                 <option value="">— Nessuna —</option>
                 {% for tq in tipi_qualifica_prof %}
                 <option value="{{ tq.nome }}">{{ tq.nome }}</option>
@@ -1685,12 +1743,20 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div><div class="dp-pos-l">Reparto / area</div><div class="dp-pos-v">
           {% if posizione.area %}{% if posizione.reparto %}<a href="{% url 'anagrafica:struttura_org' %}#scheda-reparto-{{ posizione.reparto.pk }}">{{ posizione.reparto.nome }}</a>{% else %}—{% endif %} / {{ posizione.area.nome }}{% else %}{{ posizione.reparto_testo|default:"—" }} <span class="dp-pos-warn">· area da indicare</span>{% endif %}
         </div></div>
+        <div><div class="dp-pos-l">Centro di costo</div><div class="dp-pos-v">{% if posizione.area.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ posizione.area.pk }}">{{ posizione.area.centro_di_costo.nome }}</a>{% else %}{{ posizione.area.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div></div>
         <div><div class="dp-pos-l">Responsabile (ruolo)</div><div class="dp-pos-v">{{ posizione.responsabile.etichetta|default:"—" }}</div></div>
         <div><div class="dp-pos-l">Processi</div><div class="dp-pos-v">{{ posizione.processi|join:", "|default:"—" }}</div></div>
         {% if posizione.incarichi %}
         <div><div class="dp-pos-l">Incarichi</div><div class="dp-pos-v">{% for a in posizione.incarichi %}{{ a.ruolo.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
         {% endif %}
       </div>
+
+      {% if carico_persona.n %}
+      <div class="dp-pos-sec">Carico sulle mansioni</div>
+      <p class="dp-pos-meta" style="margin:0 0 4px;">{{ carico_persona.n }} mansion{{ carico_persona.n|pluralize:"e,i" }}, {{ carico_persona.operative }} operativ{{ carico_persona.operative|pluralize:"a,e" }}{% if carico_persona.troppe %} · <strong style="color:#b45309;">oltre la soglia di {{ carico_persona.soglia }}</strong>{% endif %}. È un segnale dai coefficienti, non una misura di ore.</p>
+      {% if carico_persona.chiave %}<p class="dp-pos-meta" style="margin:0 0 4px;"><strong>Unico operativo su:</strong> {% for v in carico_persona.chiave %}<a href="{% url 'anagrafica:mansionario_mansione' v.id %}">{{ v.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% if carico_persona.concentrate %}<p class="dp-pos-meta" style="margin:0 0 4px;"><strong>Mansioni a carico concentrato:</strong> {% for v in carico_persona.concentrate %}<a href="{% url 'anagrafica:mansionario_mansione' v.id %}">{{ v.nome }}</a> ({{ v.carico }}%){% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% endif %}
 
       <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }}{% if posizione.abilitazioni %}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% endif %})</div>
       {% if posizione.abilitazioni and legacy_id %}
@@ -1747,7 +1813,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- SPOSTAMENTI ORGANIZZATIVI (assegnazioni a periodo) -->
   {% if is_admin %}
-  <div class="dp-card" data-tab="anagrafica">
+  <div class="dp-card" data-tab="anagrafica" id="spostamenti-organizzativi">
     <div class="dp-card-head">
       <div class="dp-card-title">🔀 Spostamenti organizzativi</div>
       <button type="button" onclick="toggleSection('spostamento-form')" class="dp-btn dp-btn-primary dp-btn-sm">+ Nuovo spostamento</button>
@@ -1948,6 +2014,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                     {% if ad.motivo %}<span class="sp-piano-motivo">{{ ad.motivo }}</span>{% endif %}
                     {% if ad.chiusura_nota %}<span class="sp-piano-motivo">{{ ad.chiusura_nota }}{% if not ad.chiusura_automatica and ad.chiuso_da %} — {{ ad.chiuso_da.get_full_name|default:ad.chiuso_da.username }}{% endif %}</span>{% endif %}
                   </span>
+                  {% if ad.aperto %}<span class="sp-piano-fai">{% include "anagrafica/partials/_azione_adempimento.html" with tipo=ad.tipo rif=ad.riferimento_id legacy_id=legacy_id back=piano_back %}</span>{% endif %}
                   {% if is_admin %}
                   {% if ad.aperto %}
                   <details class="sp-piano-azione">
@@ -2388,7 +2455,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
 
   <!-- QUALIFICHE PROFESSIONALI (scheda «Ruolo e competenze») -->
-  <div class="dp-card" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
+  <div class="dp-card" id="qualifiche" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
     <div class="dp-card-head">
       <div class="dp-card-title">📜 Qualifiche professionali</div>
       {% if is_admin %}
@@ -2508,6 +2575,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div id="qualifica-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
+          {% if rinnova_back %}<input type="hidden" name="back" value="{{ rinnova_back }}">{% endif %}
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
               <label class="dp-qual-label">Tipo qualifica *</label>
@@ -2583,7 +2651,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- DPI -->
   {% if dpi_richieste or is_admin %}
-  <div class="dp-card" data-tab="dotazioni">
+  <div class="dp-card" data-tab="dotazioni" id="dpi">
     <div class="dp-card-head">
       <div class="dp-card-title">🦺 DPI — Dispositivi di Protezione Individuale</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -2620,7 +2688,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               {% endif %}
             {% endif %}
             <div style="margin-top:4px;">
-              <a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f87cd;font-weight:600;">Dettaglio &rarr;</a>
+              {% if r.consegna.data_scadenza_stimata and r.consegna.data_scadenza_stimata <= oggi_plus60 %}<a class="fmd-act" href="{% url 'dpi:nuova' %}?per={{ legacy_id }}&amp;categoria_id={{ r.categoria.pk }}&amp;motivo=scadenza" title="Richiedi la sostituzione di questo DPI (richiesta già impostata)">Richiedi</a> {% endif %}<a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f87cd;font-weight:600;">Dettaglio &rarr;</a>
             </div>
           </div>
           {% endfor %}
@@ -2645,7 +2713,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             {% for r in dpi_richieste %}
             <tr class="dp-tr-line">
               <td style="padding:7px 8px;">
-                <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
+                <a href="{% if dpi_is_gestore and r.stato == "INVIATA" %}{% url 'dpi:gestione_detail' r.pk %}{% else %}{% url 'dpi:detail' r.pk %}{% endif %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
               </td>
               <td class="dp-td-strong" style="padding:7px 8px;">
                 <svg style="width:14px;height:14px;vertical-align:middle;margin-right:2px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>
@@ -2654,7 +2722,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               <td class="dp-td-mid" style="padding:7px 8px;">{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
               <td style="padding:7px 8px;">
                 {% if r.stato == "INVIATA" %}
-                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Inviata</span>
+                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Inviata</span>{% if dpi_is_gestore %} <a class="fmd-act" href="{% url 'dpi:gestione_detail' r.pk %}" title="Approva o rifiuta la richiesta">Gestisci</a>{% endif %}
                 {% elif r.stato == "APPROVATA" %}
                   <span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Approvata</span>
                 {% elif r.stato == "CONSEGNATA" %}
@@ -2709,6 +2777,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+              {% if is_admin and can_edit_visite and tipi_visita_attivi %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -2731,6 +2800,13 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                   <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">🟢 Valida</span>
                 {% endif %}
               </td>
+              {% if is_admin and can_edit_visite and tipi_visita_attivi %}
+              <td class="fmd-act-cell" style="padding:7px 8px;">
+                {% if row.stato == "mancante" or row.stato == "scaduta" or row.stato == "in_scadenza" %}
+                <button type="button" class="fmd-act" onclick="registraVisita({{ row.tipo.pk }})" title="Registra la visita di questo tipo (form già impostato)">Registra</button>
+                {% endif %}
+              </td>
+              {% endif %}
             </tr>
             {% endfor %}
           </tbody>
@@ -2789,15 +2865,26 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% endif %}
 
       {% if is_admin and can_edit_visite and tipi_visita_attivi %}
+      <script>
+      // «Registra» accanto a una visita mancante/scaduta: apre il form con il tipo già scelto
+      // (stesso schema di rinnovaQualifica()).
+      function registraVisita(tipoId){
+        var panel=document.getElementById('visita-form-panel');
+        if(panel){ panel.style.display='block'; }
+        var tg=document.getElementById('visita-form-toggle'); if(tg){ tg.textContent='− Chiudi form'; tg.style.color='#2563eb'; }
+        var sel=document.getElementById('visita-add-tipo'); if(sel){ sel.value=String(tipoId); }
+        if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
+      }
+      </script>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
-        <button type="button" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
+        <button type="button" id="visita-form-toggle" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
         <div id="visita-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_visita_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
               <label class="dp-qual-label">Tipo visita *</label>
-              <select name="tipo" class="dp-select" required style="width:100%;">
+              <select name="tipo" id="visita-add-tipo" class="dp-select" required style="width:100%;">
                 <option value="">— Seleziona —</option>
                 {% for t in tipi_visita_attivi %}
                   <option value="{{ t.id }}">{{ t.nome }} ({{ t.durata_mesi }} mesi)</option>
@@ -3289,15 +3376,42 @@ window.addEventListener('beforeunload', e => {
 {% endif %}
 
 <script>
-function toggleUsernameForm() {
-  const f = document.getElementById('username-form');
-  if (f) f.classList.toggle('open');
-}
-
-function toggleMatricolaForm() {
-  const f = document.getElementById('matricola-form');
-  if (f) f.classList.toggle('open');
-}
+// Pannello «Modifica anagrafica aziendale»: schede, chiusura, motivo esclusione.
+(function () {
+  var pannello = document.getElementById('dp-az-pannello');
+  if (!pannello) return;
+  var form = pannello.querySelector('form');
+  function mostraScheda(nome) {
+    pannello.querySelectorAll('[data-dp-scheda]').forEach(function (t) {
+      t.setAttribute('aria-selected', t.getAttribute('data-dp-scheda') === nome ? 'true' : 'false');
+    });
+    pannello.querySelectorAll('[data-dp-scheda-pannello]').forEach(function (s) {
+      s.hidden = s.getAttribute('data-dp-scheda-pannello') !== nome;
+    });
+  }
+  function sincronizzaMotivo() {
+    var chk = pannello.querySelector('input[name="escluso_dai_conteggi"]');
+    var motivo = pannello.querySelector('[data-dp-motivo-esclusione]');
+    if (chk && motivo) motivo.hidden = !chk.checked;
+  }
+  pannello.querySelectorAll('[data-dp-scheda]').forEach(function (t) {
+    t.addEventListener('click', function () { mostraScheda(t.getAttribute('data-dp-scheda')); });
+  });
+  pannello.querySelectorAll('[data-dp-pannello-chiudi]').forEach(function (el) {
+    el.addEventListener('click', function () { pannello.close(); });
+  });
+  // Chiuso senza salvare (Annulla, ✕, Esc, clic fuori): i campi tornano come prima.
+  pannello.addEventListener('close', function () { form.reset(); sincronizzaMotivo(); mostraScheda('identita'); });
+  pannello.addEventListener('click', function (e) { if (e.target === pannello) pannello.close(); });
+  // Un campo non valido in una scheda nascosta: apre quella scheda.
+  form.addEventListener('invalid', function (e) {
+    var scheda = e.target.closest('[data-dp-scheda-pannello]');
+    if (scheda && scheda.hidden) mostraScheda(scheda.getAttribute('data-dp-scheda-pannello'));
+  }, true);
+  var chk = pannello.querySelector('input[name="escluso_dai_conteggi"]');
+  if (chk) chk.addEventListener('change', sincronizzaMotivo);
+  sincronizzaMotivo();
+})();
 
 // Spostamenti organizzativi — verifica idoneità in anteprima.
 // Alla scelta della mansione chiede al server se la persona è abilitata
@@ -3596,6 +3710,8 @@ function toggleContrattoEdit(id) {
   page.addEventListener('click', function (e) {
     var a = e.target.closest('[data-tab-vai]');
     var vai = a ? (ALIAS[a.getAttribute('data-tab-vai')] || a.getAttribute('data-tab-vai')) : null;
+    // «auto»: la scheda è quella che contiene l'ancora del link (es. #qualifiche).
+    if (vai === 'auto' && a.hash) { var el = document.getElementById(a.hash.slice(1)); var c = el && el.closest('[data-tab]'); vai = c ? c.getAttribute('data-tab') : null; }
     if (!a || !present[vai]) return;
     e.preventDefault(); show(vai, true);
     var bersaglio = a.hash ? document.getElementById(a.hash.slice(1)) : null;

@@ -1,0 +1,53 @@
+{% extends "core/base.html" %}
+
+{% block title %}Uscite non timbrate · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Uscite non timbrate</h1>
+      <p>Giornate in cui le timbrature non tornano (si controllano tutte, non solo l'ultima): uscita mancante,
+        uscita timbrata come entrata, due entrate o due uscite di fila. Va regolarizzata la timbratura o inserita l'assenza.
+        I turni a cavallo della mezzanotte non sono segnalati.
+        {% if tutte %}Vedi tutta l'azienda.{% else %}Vedi le persone della tua squadra.{% endif %}</p>
+    </div>
+    <form class="pres-filtri" method="get" style="margin:0;">
+      <label for="pres-giorni" style="font-size:13px; font-weight:700;">Ultimi</label>
+      <select id="pres-giorni" name="giorni" onchange="this.form.submit()">
+        <option value="3"{% if giorni == 3 %} selected{% endif %}>3 giorni</option>
+        <option value="7"{% if giorni == 7 %} selected{% endif %}>7 giorni</option>
+        <option value="14"{% if giorni == 14 %} selected{% endif %}>14 giorni</option>
+        <option value="31"{% if giorni == 31 %} selected{% endif %}>31 giorni</option>
+      </select>
+    </form>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if errore %}<div class="pres-avviso is-err">{{ errore }}</div>{% endif %}
+  {% if squadra_vuota %}<div class="pres-avviso">Non risulti capo di nessuna persona nell'organigramma: qui non c'è niente da vedere.</div>{% endif %}
+  {% if avviso_attivo %}<div class="pres-avviso is-ok">Ogni mattina il capo riceve una notifica e una mail con le uscite non timbrate nuove della sua squadra. I problemi di timbratura (verso sbagliato, due entrate o uscite di fila) restano solo in questa pagina.</div>{% endif %}
+
+  <div class="pres-card" style="padding:0; overflow-x:auto;">
+    <table class="pres-tab">
+      <thead><tr><th>Giorno</th><th>Dipendente</th><th class="pres-hide-sm">Reparto</th><th>Problema e timbrature del giorno</th><th>Capo avvisato</th></tr></thead>
+      <tbody>
+        {% for r in righe %}
+        <tr>
+          <td class="pres-mono">{{ r.giorno|date:"D d-m-Y" }}</td>
+          <td class="pres-nome">{% if r.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.cognome|upper }} {{ r.nome }}</a>{% else %}{{ r.cognome|upper }} {{ r.nome }}{% endif %}<span class="pres-sub pres-mono">{{ r.matricola }}</span></td>
+          <td class="pres-hide-sm">{{ r.reparto|default:"—" }}</td>
+          <td>{{ r.problema|default:"manca l'uscita" }}<span class="pres-sub pres-mono">{{ r.timbrature }}</span></td>
+          <td>{% if r.avviso %}{{ r.avviso.inviato_il|date:"d-m H:i" }}<span class="pres-sub">{{ r.avviso.esito }}</span>{% elif r.tipo and r.tipo != "uscita_mancante" %}<span class="pres-sub">solo in questa pagina, nessun avviso</span>{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="pres-vuoto">{% if errore %}Elenco non disponibile.{% else %}Nessuna giornata da sistemare negli ultimi {{ giorni }} giorni.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

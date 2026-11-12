@@ -1,0 +1,24 @@
+{% if show %}
+<section class="af-card" id="asset-rischio" aria-labelledby="asset-rischio-title">
+  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-rischio-title">Rischio</h2></div>
+    <span class="af-pill{% if r.livello == 'alto' %} af-pill--danger{% elif r.livello == 'medio' %} af-pill--warn{% elif r.livello == 'nessuno' %} af-pill--ok{% endif %}">{{ r.etichetta }}</span>
+  </div>
+  <div class="cvp-card-stats cvp-card-stats--auto">
+    <div class="cvp-card-stat{% if r.gravi %} is-critical{% elif r.cve %} is-danger{% endif %}"><strong>{{ r.cve }}</strong><span>CVE colpiscono</span></div>
+    <div class="cvp-card-stat{% if r.sistema.fuori %} is-critical{% elif r.sistema.in_scadenza %} is-danger{% endif %}"><strong>{% if r.sistema.fine %}{{ r.sistema.fine|date:"d/m/Y" }}{% else %}—{% endif %}</strong><span>{% if r.sistema %}fine supporto {{ r.sistema.nome }}{% else %}sistema non riconosciuto{% endif %}</span></div>
+    <div class="cvp-card-stat{% if r.backup == 'ko' or r.backup == 'vecchio' %} is-danger{% elif r.backup == 'ok' %} is-ok{% endif %}"><strong>{% if r.backup == 'assente' %}—{% else %}{{ r.backup_data }}{% endif %}</strong><span>{% if r.backup == 'ko' %}ultimo backup fallito{% elif r.backup == 'vecchio' %}ultimo backup, troppo vecchio{% elif r.backup == 'ok' %}ultimo backup riuscito{% else %}nessun backup nei report{% endif %}</span></div>
+    {% if r.hardware and r.hardware.giudizio != "non_valutabile" %}<a class="cvp-card-stat cvp-card-stat--link{% if r.hardware.giudizio == 'sostituire' %} is-critical{% elif r.hardware.giudizio == 'pianificare' %} is-danger{% else %} is-ok{% endif %}" href="{% url 'assets:it_reconciliation' %}?vista=fine_vita" title="Apri Hardware a fine vita"><strong>{% if r.hardware.eta is not None %}{{ r.hardware.eta|floatformat:1 }} anni{% else %}{{ r.hardware.etichetta }}{% endif %}</strong><span>hardware {{ r.hardware.etichetta|lower }}{% if r.hardware.garanzia %} · garanzia {% if r.hardware.garanzia_stato == "scaduta" %}scaduta il{% else %}fino al{% endif %} {{ r.hardware.garanzia|date:"d/m/Y" }}{% endif %}</span></a>{% endif %}
+    {% if r.admin %}<a class="cvp-card-stat cvp-card-stat--link{% if r.admin.cessati %} is-critical{% elif r.admin.account %} is-danger{% else %} is-ok{% endif %}" href="{% url 'security:registro_log_account' %}{% if r.admin.account %}?q={{ r.admin.account.0.sam|urlencode }}{% endif %}" title="Apri gli account nel Registro log"><strong>{{ r.admin.account|length }}</strong><span>{% if r.admin.account|length == 1 %}account amministratore{% else %}account amministratori{% endif %} in {{ r.admin.giorni }} giorni{% if r.admin.accessi %} · {{ r.admin.accessi }} accessi{% endif %}</span></a>{% endif %}
+    <div class="cvp-card-stat"><strong>{{ asset.reparto|default:"—" }}</strong><span>reparto</span></div>
+  </div>
+  {% if r.alti or r.medi or r.note or r.admin.account %}
+  <ul class="ris-motivi">
+    {% for m in r.alti %}<li class="is-alto"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z" fill="var(--danger,#dc2626)"/><path d="M8 6v4M8 11.6v.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg><span><strong>{{ m }}</strong></span></li>{% endfor %}
+    {% for m in r.medi %}<li class="is-medio"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="var(--warning,#d97706)"/><path d="M8 4.5v4M8 11v.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg><span>{{ m }}</span></li>{% endfor %}
+    {% for m in r.note %}<li class="is-nota"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.5M8 4.6v.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>{{ m|capfirst }}</span></li>{% endfor %}
+    {% if r.admin and r.admin.account %}<li class="is-nota"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.5M8 4.6v.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Amministratori negli ultimi {{ r.admin.giorni }} giorni: {% for a in r.admin.account %}<strong>{{ a.sam }}</strong> ({{ a.accessi }}{% if a.gruppi %}, {{ a.gruppi|join:", " }}{% endif %}{% if a.cessato %}, persona cessata{% endif %}){% if not forloop.last %}; {% endif %}{% endfor %}. <a href="{% url 'security:registro_log_account' %}?q={{ r.admin.account.0.sam|urlencode }}">Account AD</a></span></li>{% endif %}
+  </ul>
+  {% endif %}
+  <p class="af-note"><a href="{% url 'assets:guida' %}#catalogo">? Come si calcola</a></p>
+</section>
+{% endif %}

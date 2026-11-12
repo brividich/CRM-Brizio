@@ -321,7 +321,7 @@ class CercaTests(_Pagina):
         async def leggi(credenziali):
             return await cerca._leggi_server("192.0.2.5", 4840, credenziali, asyncio.Semaphore(1))
 
-        with patch("asyncua.Client", FintoClient):
+        with patch("assets.collector_cnc.drivers.opcua.Client", FintoClient):
             esito = asyncio.run(leggi([("lettore", "pw", 7)]))
             negato = asyncio.run(leggi([]))
         self.assertEqual((esito["dmg"], esito["matricola"], esito["modello"], esito["credenziali"], esito["errore"]),

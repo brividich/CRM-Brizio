@@ -15,7 +15,7 @@
 
 /* Layout */
 .hn-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
-@media(max-width:900px){.hn-layout{grid-template-columns:1fr}}
+@media(max-width:900px){.hn-layout{grid-template-columns:minmax(0,1fr)}.hn-layout>*{min-width:0}}
 
 /* Card */
 .hn-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}

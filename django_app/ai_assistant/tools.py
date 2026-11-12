@@ -1894,7 +1894,7 @@ def _ruoli_utente_testo(request) -> str:
         if v["fonte"] == "organigramma":
             origine = "dall'organigramma: " + ", ".join(v["da"])
         elif v["fonte"] == "base":
-            origine = "ruolo base di tutti"
+            origine = "ruolo base (chi non ha altri ruoli)"
         else:
             origine = "assegnato a mano" + (f", valido fino al {v['scade_il']:%d/%m/%Y}" if v["scade_il"] else "")
         righe.append(f"- {v['nome']} ({origine})")
@@ -4075,10 +4075,10 @@ def _sicurezza_context(request, prompt: str) -> RuntimeContext:
     }
 
     if can_diario:
-        diario_qs = SegnalazionePreposto.objects.filter(data_segnalazione__date__gte=year_start)
+        diario_qs = SegnalazionePreposto.objects.attive().filter(data_segnalazione__date__gte=year_start)
         diario_year_count = diario_qs.count()
         diario_last30_count = diario_qs.filter(data_segnalazione__gte=last_30).count()
-        diario_with_attachments = diario_qs.filter(allegati__isnull=False).distinct().count()
+        diario_with_attachments = diario_qs.filter(allegati__isnull=False, allegati__rimosso_il__isnull=True).distinct().count()
         latest_diario = diario_qs.order_by("-data_segnalazione").values_list("data_segnalazione", flat=True).first()
         sections.append(
             "Diario Preposto:\n"

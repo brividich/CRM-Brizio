@@ -1,0 +1,15 @@
+{% comment %}
+Percorso del kickoff: le attività base (materiali, CAM, CMM, macchina, terzista, processi
+speciali, FAI). Niente <form> e campi senza name: può stare dentro altri form. Script tappe.js.
+Contesto: tappe_context (tasks/views/tappe.py).
+{% endcomment %}
+{% load static %}
+<section class="tp-block" id="percorso" data-tp-block
+         data-url="{% url 'tasks:tappa_azione' project.id %}"
+         data-anteprima="{% url 'tasks:tappa_anteprima' project.id %}"
+         data-utensili="{% url 'tasks:utensili_azione' project.id %}"
+         data-meeting="{{ tappe_meeting.id|default:'' }}"
+         aria-label="Percorso del kickoff">
+  {% include "tasks/_tappe_body.html" %}
+</section>
+<script src="{% static 'tasks/js/tappe.js' %}?v=20261111f" defer></script>

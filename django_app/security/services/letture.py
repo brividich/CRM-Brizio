@@ -68,7 +68,7 @@ LETTURE = (
             "ogni mattina alle 06:20", "security.services.defender_software:run", ("defender.software.attivo",), "graph",
             "security:vulnerabilities", "Vulnerabilità"),
     Lettura("defender_vuln", "CVE viste da Defender", "Microsoft 365",
-            "Le vulnerabilità che Defender vede su ogni PC, da confrontare con il calcolo del SOC nel pannello CVE.",
+            "Le vulnerabilità che Defender vede su ogni PC: entrano nel calcolo del SOC e nel confronto del pannello CVE.",
             "ogni mattina alle 06:25", "security.services.defender_vuln:run", ("defender.vulnerabilita.attivo",), "graph",
             "security:vulnerabilities", "Vulnerabilità"),
     Lettura("intune", "Dispositivi Intune", "Microsoft 365",
@@ -79,10 +79,15 @@ LETTURE = (
             "Abbonamenti, posti usati e scadenze nel modulo Licenze software.",
             "ogni mattina alle 06:40", "assets.tasks:_m365_licenze_sync", requisito="graph"),
     Lettura("watchguard", "WatchGuard Endpoint Security", "WatchGuard",
-            "PC con lo stato della protezione, dispositivi in rete senza agente, software dei PC e patch mancanti.",
+            "PC con lo stato della protezione, dispositivi in rete senza agente, software dei PC e patch mancanti; "
+            "se acceso, quali KB Microsoft ne sostituiscono altre (Security Update Guide).",
             "alle 06:10 e alle 13:10", "security.services.watchguard_api:run",
             ("watchguard.api.dispositivi", "watchguard.api.software", "watchguard.api.patch"), "watchguard",
             "security:watchguard_pc", "Patch e protezione", lunga=True),
+    Lettura("watchguard_task", "Installazioni da console WatchGuard", "WatchGuard",
+            "Task di installazione patch lanciati dalla console WatchGuard con l'esito per PC: lo storico resta nel SOC.",
+            "ogni ora dalle 07:40 alle 19:40, lun-ven", "security.services.watchguard_api:run_task",
+            ("watchguard.api.patch",), "watchguard", "security:watchguard_task", "Installazioni da console"),
     Lettura("veeam", "Backup da Veeam (API)", "Backup",
             "Sessioni di backup concluse con l'esito di ogni macchina e lo spazio dei repository, dall'API REST di Veeam.",
             "ogni 15 minuti", "security.services.veeam_api:run", ("veeam.api.attivo",), "veeam",
@@ -95,6 +100,16 @@ LETTURE = (
             "L'AI locale esamina i casi «da verificare» del calcolo CVE: propone il CPE fra quelli delle CVE note o l'esito per PC. Solo proposte, da accettare o rifiutare.",
             "ogni 6 ore", "security.services.cpe_ai:giro_lettura", ("ai.cpe.attivo",), "ollama",
             dati_url="security:software_mapping", dati_label="Software e CPE", manuale="security.services.cpe_ai:giro_manuale"),
+    Lettura("ai_proposte", "Proposte di chiusura dell'AI", "Motore del SOC",
+            "L'AI locale controlla gli alert aperti contro i report arrivati dopo e le decisioni passate, propone come chiuderli "
+            "e chiude da sola solo i tipi di alert che ha imparato dalle conferme.",
+            "ogni 15 minuti", "security.services.ai_proposte:giro_lettura", ("ai.proposte.attivo",), "ollama",
+            dati_url="security:alert_proposte", dati_label="Proposte AI", manuale="security.services.ai_proposte:giro_manuale"),
+    Lettura("dipendenze_portale", "Librerie Python del portale (OSV)", "Vulnerabilità",
+            "Le librerie installate nel portale confrontate con il database pubblico OSV (lo stesso di pip-audit): "
+            "vulnerabilità nuove, risolte dopo un aggiornamento, alert per libreria. Serve l'accesso a api.osv.dev.",
+            "ogni mattina alle 06:50", "security.services.dipendenze_portale:run", ("dipendenze.controllo.attivo",),
+            dati_url="security:dipendenze_portale", dati_label="Librerie del portale", lunga=True),
     Lettura("tabella_mac", "Tabella MAC degli switch", "Rete",
             "Su quale porta di ogni switch «Rete» sta ogni MAC: dice a quale porta è collegato ogni PC.",
             "ogni notte alle 05:30", "contatori.tabella_mac:run", ("apparati.tabella_mac.attivo",),
@@ -335,6 +350,9 @@ ETICHETTE = {
     # proposte AI su CPE ed esiti
     "cpe": "Collegamenti CPE", "esiti": "Esiti CVE su PC", "casi": "casi esaminati", "proposte": "proposte",
     "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta",
+    # librerie del portale
+    "pacchetti": "librerie controllate", "vulnerabili": "librerie vulnerabili", "vulnerabilita": "vulnerabilità aperte",
+    "risolte": "risolte", "alert_chiusi": "alert chiusi",
     # switch / caselle
     "switch": "switch", "mac": "MAC", "caselle": "caselle", "lette": "lette",
     # pacchetto ISO 27001

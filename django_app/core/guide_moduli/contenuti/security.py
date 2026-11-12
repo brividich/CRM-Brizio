@@ -23,6 +23,12 @@ GUIDA = {
                     "Apri il Security Center: la «Panoramica IT» dice in una riga se va tutto bene.",
                     "Guarda «Da guardare adesso»: le cose più gravi sono in cima.",
                     "Apri un allarme: «Spiega con l'AI» lo spiega in parole semplici, «Cosa sappiamo» mostra lo storico.",
+                    "«Proponi la soluzione» dà causa probabile, passi e verifica, e prepara il modulo di chiusura con esito e motivo: chiudi tu, dopo aver controllato.",
+                    "Per correggere una CVE: Vulnerabilità › scheda della CVE › «Apri il lavoro di correzione» crea un caso con un'attività per PC, che si spunta e si chiude da solo quando l'inventario vede la correzione.",
+                    "In Segnalazioni › «Tutte» seleziona più righe con le caselle (un tipo alla volta: alert, ticket o incidenti) e usa la barra in basso: prendi in carico, chiudi, falso positivo, apri un ticket; per i ticket assegna o cambia stato. Dall'anteprima di un alert il riquadro «Alert simili» dice quanti altri alert aperti hanno la stessa CVE, lo stesso software o lo stesso PC, e come sono già stati chiusi gli altri (esito, chi, quando, motivo): con «Chiudi insieme» li chiudi tutti con un motivo solo.",
+                    "Apri Segnalazioni › «Proposte AI»: gli alert aperti sono raggruppati per tipo e per PC, job o utente, e con «Chiudi i N alert» decidi una volta per tutto il gruppo, con il motivo. Ogni 15 minuti l'AI confronta gli alert aperti con i report arrivati dopo e con le vostre decisioni, "
+                    "e propone come chiuderli. «Conferma e chiudi» o «Scarta» (scrivendo perché): ogni decisione le insegna, e i tipi di alert "
+                    "con 5 conferme di fila li chiude da sola (mai critici, minacce o CVE sfruttate). Se ne chiude uno per sbaglio, «Riapri».",
                     "Decidi: prendi in carico, chiudi come risolto o scarta come falso allarme (scrivendo il perché).",
                 ]),
                 ("p", "La guida completa del Security Center ha un capitolo per ogni pagina: i collegamenti sono in cima."),
@@ -37,6 +43,24 @@ GUIDA = {
                     "Incidente risolto o chiuso: compila «Lezioni apprese» (causa, cosa ha funzionato, cosa migliorare) e le azioni correttive con responsabile e scadenza. Finché manca, l'incidente dice «Riesame mancante» e dopo 7 giorni arriva un promemoria; nessuna chiusura viene bloccata.",
                     "Evidenze di un alert: «Verifica integrità» ricalcola l'impronta SHA-256 e dice se sono integre o alterate; «Esporta» scarica tutto con la catena di custodia.",
                     "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria.",
+                    "Backup: clic su un PC o su un job apre il pannello laterale con gli alert di backup aperti, «Prendo in carico» e «Chiudi» (esito e motivo); "
+                    "seleziona più PC, job o righe del Log per aprire un ticket, prendere in carico o chiudere insieme i loro alert.",
+                    "Dispositivi e Installazioni non riuscite: seleziona più PC e «Apri un ticket per questi PC» (un'attività per PC). "
+                    "Soppressioni e Rischi accettati: seleziona e revoca insieme con un motivo unico. Accessi VPN: clic su una riga = pannello dell'utente; "
+                    "«Tutti i suoi accessi» filtra sul nome esatto.",
+                    "Dispositivi: «Collega gli asset proposti» collega all'asset proposto solo i PC selezionati (serve il permesso di configurazione). "
+                    "Tempi delle patch › Patch ferme e Vulnerabilità › Asset più esposti: seleziona e «Apri un ticket per questi PC».",
+                    "Scheda CVE, tabella «Esito per host»: clic sulla riga = pannello del PC; seleziona più PC per aprire un ticket, «Accetta il rischio» "
+                    "(stessi campi e permesso dell'accettazione singola) o «Conferma le proposte dell'AI».",
+                    "Alert: nella barra della selezione «Rimanda fino al…» rimanda gli alert al giorno scelto. Proposte AI › Chiusi dall'AI: "
+                    "«Riapri le selezionate» con il perché obbligatorio. Da fare: alert e ticket per gravità, clic sulla riga = pannello.",
+                    "Pannelli: nel ticket «Cambia stato» (per chiudere serve l'esito), nell'incidente «Assegna a me», nel PC «Apri un ticket per questo PC». "
+                    "Storico › Falsi positivi ricorrenti: «Crea soppressione» apre il modulo già compilato, da rivedere prima di salvare.",
+                    "«Scarica CSV» accanto ai filtri di Segnalazioni, Alert, Ticket, Incidenti, Eventi, Accessi VPN, Dispositivi, Backup › Log "
+                    "completo e Vulnerabilità (sul registro in Prove di ripristino): tutte le righe dei filtri scelti, anche oltre la pagina o il "
+                    "taglio a video, colonne in italiano, celle protette dalle formule di Excel; ogni scarico resta nell'audit.",
+                    "Soppressioni: 14 giorni prima della scadenza di una soppressione nasce un alert «Soppressione … in scadenza», uno per "
+                    "regola e scadenza. I giorni (Impostazioni › «Soppressioni in scadenza») valgono anche per il filtro «In scadenza» della pagina.",
                 ]),
                 ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],
@@ -47,9 +71,11 @@ GUIDA = {
             "blocchi": [
                 ("p", "«Dispositivi › Elenco» è l'elenco unico dei PC e dei server (prima erano due pagine, «PC e fonti» e «Asset»). "
                       "Ogni riga dice quali fonti vedono il dispositivo (Intune, WatchGuard, Defender), l'esito dell'ultimo backup, "
-                      "quante CVE lo colpiscono (e quante gravi) e a quale asset del registro è collegato."),
+                      "quante CVE uniche lo colpiscono (inventario più Defender, ogni CVE una volta; e quante gravi) e a quale asset del registro è collegato. "
+                      "Lo stesso numero di CVE compare nella scheda e nel pannello del PC; «Backup ko» guarda gli ultimi 90 giorni come il numero sul menu."),
                 ("passi", [
                     "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
+                    "La colonna «Sistema» dice la release di Windows (verde supportata, rosso fuori supporto, giallo in scadenza); la striscia gialla sotto i filtri «N PC con Windows da aggiornare» ha il pulsante «Apri il piano» e, a caso aperto, la barra «N su M PC aggiornati».",
                     "Se nella colonna «Asset del registro» c'è «Proposto», controlla e premi «Conferma» (serve il permesso di configurazione del SOC).",
                     "Il nome del dispositivo apre la sua scheda con backup, alert, vulnerabilità e protezione endpoint.",
                     "Sotto il nome c'è l'indirizzo IP letto dal DHCP/DNS e, se noto, lo switch e la porta: un clic apre «Rete (IP)».",
@@ -88,6 +114,34 @@ GUIDA = {
                 ("p", "Dispositivi › «Patch e protezione»: patch mancanti per PC lette da WatchGuard (prima quelle che correggono CVE "
                       "sfruttate), installazioni non riuscite, PC con la protezione da sistemare e dispositivi in rete senza agente. "
                       "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
+                ("p", "In «Patch e protezione» si cerca per KB, CVE, patch, programma o PC. Una patch Microsoft già compresa in un "
+                      "aggiornamento più recente che manca sullo stesso PC dice «Compresa in KB…» e va in fondo; quella più recente "
+                      "dice «Comprende anche» e quante CVE in più chiude. Si riconosce dal build di Windows nel nome e, con "
+                      "l'interruttore «Cerca le patch comprese in una più recente (Microsoft)», dal Security Update Guide di Microsoft."),
+                ("p", "Aprendo una patch e nel pannello di una CVE, «Spiega con l'AI» dice cosa corregge, quanto è urgente e come "
+                      "procedere. Con «Cerca anche sul web» (Impostazioni › «Ricerca sul web per l'AI», spenta di serie) l'AI legge anche "
+                      "l'articolo Microsoft della KB con i problemi noti e gli avvisi del produttore della CVE; escono solo codici pubblici "
+                      "(CVE, KB, codici d'errore), mai nomi di PC o utenti, e le fonti lette compaiono sotto la risposta."),
+                ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
+                      "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
+                      "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
+                ("p", "Dispositivi › «Installazioni da console»: lo storico dei task di installazione patch lanciati dalla console "
+                      "WatchGuard, con PC, riuscite, errori e in attesa; aprendo un task, l'esito per PC. Si legge ogni ora dalle 07:40 "
+                      "alle 19:40 (lun-ven) con l'interruttore «Patch»; i task restano nel SOC anche se cancellati dalla console. "
+                      "Quando un task finisce si rileggono subito patch e software: le CVE si ricalcolano e gli alert si chiudono "
+                      "con le solite prove. Aprendo il task, per ogni PC le CVE della patch: Corretta, Ancora vulnerabile, Da "
+                      "verificare, Non nel calcolo del SOC."),
+                ("p", "Dispositivi › «Tempi delle patch»: ogni patch mancante ha un termine da «pubblicata il» secondo la classe "
+                      "(corregge una CVE sfruttata 7 giorni, critica 14, importante 30, moderata e altre 90; si cambiano in Impostazioni › "
+                      "«Patch: tempi di installazione»). La pagina mostra il tempo medio di installazione e quante entro il termine per "
+                      "classe, l'andamento settimanale di installate e mancanti, e le patch ferme (oltre il termine o con l'installazione "
+                      "fallita) con CSV. Con l'interruttore acceso (spento di default) ogni patch oltre il termine apre un alert che si chiude "
+                      "da solo. Gli stessi numeri sono nel report periodico, nel controllo ISO 8.8 e nel riquadro «Patch» della scheda asset."),
+                ("p", "Dispositivi › «Librerie del portale»: le vulnerabilità note nelle librerie Python del portale, confrontate ogni "
+                      "mattina alle 06:50 con il database pubblico OSV (lo stesso di pip-audit). Per ogni libreria: versione installata, "
+                      "gravità, vulnerabilità e «Aggiornare almeno a». Si chiudono da sole dopo l'aggiornamento nell'ambiente del portale "
+                      "(pip install -r requirements.txt e riavvio); un alert per libreria, acceso di default. Se OSV non risponde la "
+                      "lettura va in errore, mai «nessuna vulnerabilità»."),
             ],
         },
         {
@@ -199,8 +253,12 @@ GUIDA = {
             "titolo": "Da dove arrivano i dati",
             "blocchi": [
                 ("ul", [
-                    "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico.",
-                    "Il ciclo di lettura gira ogni 15 minuti (lavoro «security_cycle»).",
+                    "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico. "
+                    "La colonna «Report» dice se ogni casella manda i report nei tempi attesi; il riquadro «sorgenti in ritardo» apre l'elenco filtrato «In ritardo».",
+                    "Un report arrivato per altra via si carica da Impostazioni › «Carica report».",
+                    "Le caselle si leggono ogni 15 minuti con il lavoro «security_caselle». Defender, Entra, Veeam, regole, battito e "
+                    "KPI girano nel lavoro «security_cycle», anch'esso ogni 15 minuti: se le letture esterne richiedono troppo "
+                    "tempo vengono rimandate al giro dopo, ma regole, battito e notifiche girano comunque.",
                     "Chi apre la voce «Impostazioni» (Configurazione, Avvisi e automatismi, Battito, Letture, Soppressioni, "
                     "Caselle mail, Inventario software, Autoconfigurazione): in Ruoli e permessi la sotto-riga «↳ Impostazioni e "
                     "configurazione del SOC». «Chiudere / gestire» non la apre più: resta la gestione operativa (CVE, rischi "
@@ -251,13 +309,103 @@ GUIDA = {
                     "l'interruttore per copiare il pacchetto mensile nella cartella SharePoint dell'audit (sottocartella soc-iso27001, "
                     "spento di serie). Schedule security_pacchetto_iso (1° del mese, 06:30), lettura «pacchetto_iso».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
-                    "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
+                    "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve; con il certificato autofirmato di Veeam «Fidati del certificato del server»), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
                 ]),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Tanti alert uguali: stesso PC (Endpoint Security «devices blocked»), stesso backup, stessa CVE",
+            "fare": [
+                "Ora i report via mail aprono un alert solo per PC (Endpoint Security) o per job di backup: le mail successive aggiornano lo stesso alert, con il conteggio dell'ultima mail; nel dettaglio, «Occorrenze» elenca tutte le mail.",
+                "Con Impostazioni › «Meno rumore» acceso (di serie) i dispositivi bloccati dalla policy (chiavette USB) non aprono alert: il conteggio per PC è in Dispositivi › Elenco, riquadro «Dispositivi bloccati dalla policy»; alert solo sopra la soglia scelta. Le minacce vere aprono sempre l'alert.",
+                "CVE oltre il termine: un alert per CVE (non per PC), oppure una riga nella timeline dell'alert «PC con versione vulnerabile» se c'è già; ogni PC corretto lascia «PC rientrato nel termine» e l'alert si chiude da solo quando non ne resta nessuno.",
+                "Un backup completato dopo i fallimenti chiude l'alert del suo job da solo, anche se è un nuovo tentativo («Job (Retry 2)»). Le mail di Veeam sul malware nei backup aprono un solo alert alto «Veeam: malware nei backup», separato dai job.",
+                "Modifiche di Entra fatte da amministratori del portale o dagli autori fidati scritti in «Meno rumore»: niente alert, restano negli eventi.",
+                "Alert senza nuove occorrenze da 30 giorni (impostabile): proposta «Risolto» da confermare in Segnalazioni › Proposte AI.",
+                "«Vulnerabilità critica esposta CVE-…» (mail di Defender) non si apre se la CVE è già seguita PC per PC dall'inventario («Oltre il termine di correzione», «PC con versione vulnerabile»); se era già aperta, il ciclo del SOC la chiude come doppione, con il rimando all'alert dell'inventario.",
+                "Per i doppioni aperti prima di questa regola: python manage.py security_unisci_doppioni (prova, mostra cosa farebbe), poi con --apply. Chiude il rumore già aperto (blocchi USB, «oltre il termine» di CVE già seguite, Entra di autori fidati: stato «Chiuso» con il motivo), tiene l'alert più recente di ogni PC, job o CVE e chiude gli altri come «Unito all'alert #…». Con --rinomina-fonte \"VECCHIO\" \"NUOVO\" rinomina anche una fonte mail (es. una casella che si chiama come una persona).",
+            ],
+        },
+        {
+            "sintomo": "Accessi VPN: lo stesso accesso compare due volte, a un'ora di distanza",
+            "fare": [
+                "Succede quando WatchGuard Cloud manda due report programmati dello stesso giorno, uno in ora italiana e uno in UTC. Il portale ricava il fuso di ogni report dal periodo scritto nella mail («Reports for Fireboxes … from … to …») e salva l'accesso una volta sola, all'ora vera.",
+                "Per lo storico salvato prima della correzione: python manage.py vpn_riallinea_fuso (prova a vuoto, mostra i doppioni) e poi con --apply; ricalcola anche i KPI VPN dei giorni toccati.",
+                "Se basta un report solo, eliminare in WatchGuard Cloud il report programmato in più.",
+            ],
+        },
+        {
+            "sintomo": "Il numero sul filtro è più alto delle righe dell'elenco",
+            "fare": [
+                "L'elenco di Segnalazioni mostra le 300 più recenti per tipo e, quando taglia, lo dice con l'avviso «Elenco tagliato: mostrate N di M»; i numeri dei filtri (calcolati con lo stato, la gravità e la ricerca scelti), «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere, o «Scarica CSV» per averle tutte. Alert, Ticket e Registro incidenti non tagliano: cento righe per pagina, con i numeri di pagina in fondo.",
+                "Proposte AI conta gli alert «da decidere» (senza rimandati e silenziati): può essere più basso degli alert aperti di Segnalazioni.",
+                '«PC con backup ko» guarda gli ultimi 90 giorni: un PC i cui backup si sono fermati da settimane resta tra i ko.',
+                '«Scadenze NIS2/GDPR» comprende anche gli incidenti chiusi con una notifica di legge ancora dovuta.',
+            ],
+        },
+        {
+            "sintomo": "Librerie del portale: la lettura è in errore «OSV non raggiungibile»",
+            "fare": [
+                "Il server del portale deve poter aprire https://api.osv.dev (porta 443): verificare firewall e proxy (variabile HTTPS_PROXY dell'utente del qcluster).",
+                "Poi Impostazioni › «Letture automatiche» › «Librerie Python del portale (OSV)» › «Esegui ora».",
+            ],
+        },
+        {
+            "sintomo": "Librerie del portale: ho aggiornato requirements.txt ma la vulnerabilità resta aperta",
+            "fare": [
+                "Il controllo guarda le librerie installate, non il file: in produzione pip install -r requirements.txt nel venv del portale, poi riavvio di sito e qcluster.",
+                "Al controllo successivo (06:50 o «Esegui ora») la vulnerabilità passa fra le risolte e l'alert si chiude.",
+            ],
+        },
+        {
+            "sintomo": "Patch e protezione: una patch .NET, SQL Server o Office non dice «Compresa in» anche se ce n'è una più recente",
+            "fare": [
+                "Per queste serve il Security Update Guide di Microsoft: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Cerca le patch comprese in una più recente (Microsoft)» acceso.",
+                "Il server deve poter uscire su HTTPS verso api.msrc.microsoft.com; l'esito è in «Letture automatiche» › WatchGuard (voce «msrc»).",
+                "La KB nel nome arriva alla lettura delle patch successiva (06:10 e 13:10). Gli aggiornamenti fuori ciclo non di sicurezza non sono nel Security Update Guide: per Windows vale il build nel nome.",
+                "Si leggono al massimo 2 documenti mensili per giro (pesano decine di MB): alla prima accensione servono alcuni giri per l'ultimo anno; l'esito dice «documenti_rimandati».",
+            ],
+        },
+        {
+            "sintomo": "Letture automatiche › WatchGuard: un passo è in errore «Lettura troncata» o «elenco … vuoto»",
+            "fare": [
+                "È voluto: se WatchGuard non restituisce tutte le pagine, o restituisce un elenco vuoto quando PC o patch sono già nel portale, il passo si salta e nessun PC viene segnato come sparito né alcuna patch chiusa. Al giro successivo (06:10 e 13:10) o con «Esegui ora» si riprova.",
+                "Se l'errore parla del proxy (407, «il proxy del server ha rifiutato», «certificato HTTPS non attendibile») o dice «La risposta non arriva dall'API di WatchGuard»: il proxy del server blocca o ispeziona *.cloud.watchguard.com; serve un'eccezione sul proxy, le credenziali API non c'entrano.",
+            ],
+        },
+        {
+            "sintomo": "CVE: le letture NVD dicono «NVD ha risposto 404 (o 403) con l'API key impostata»",
+            "fare": [
+                "La API key NVD salvata non è valida o è stata revocata: nella pagina «Software e CPE», riquadro «API key NVD», incolla quella della mail di NVD (è un codice come 1a2b3c4d-1a2b-1a2b-1a2b-1a2b3c4d5e6f) oppure «Rimuovi la key» per leggere senza chiave, più lentamente.",
+                "Una CVE la cui lettura va in errore si riprova dopo 24 ore, così non toglie posto alle altre a ogni giro.",
+            ],
+        },
+        {
+            "sintomo": "«Proposte AI» è vuota, oppure l'AI non chiude mai da sola un tipo di alert",
+            "fare": [
+                "Le proposte arrivano per gli alert aperti da almeno 2 ore (impostazione «Attesa prima di proporre»); un alert si riesamina solo quando arriva un report nuovo o una decisione nuova.",
+                "In Impostazioni › Letture automatiche › «Proposte di chiusura dell'AI» c'è l'esito di ogni giro: «AI locale non raggiungibile» vuol dire Ollama spento o modello non caricato.",
+                "Chiude da sola solo dopo 5 conferme di fila per quel tipo di alert ed esito (tabella «Cosa ha imparato»), con confidenza almeno 80%, mai per alert critici, minacce o CVE sfruttate. Una proposta scartata o un alert riaperto azzerano il conteggio.",
+            ],
+        },
+        {
+            "sintomo": "La casella «Cerca anche sul web» non c'è, oppure la risposta dice «Nessuna pagina utile letta»",
+            "fare": [
+                "La casella compare solo con Impostazioni › «Ricerca sul web per l'AI» › «Permetti all'AI di consultare le fonti ufficiali sul web» acceso.",
+                "«Nessuna pagina utile letta»: il server del portale deve poter uscire su HTTPS (porta 443) verso i siti ammessi (nvd.nist.gov, support.microsoft.com, cisa.gov…); verificare firewall e proxy. Il registro AI del SOC riporta l'errore per sito (azione «web_pagina»).",
+                "«Nessun identificativo pubblico»: l'alert non contiene codici CVE, KB o d'errore, quindi il web non viene consultato. Per cercare codici d'errore ed Event ID serve il motore di ricerca interno (campo SearXNG in Impostazioni).",
+            ],
+        },
+        {
+            "sintomo": "Tempi delle patch: il grafico «Patch mancanti a fine settimana» è vuoto o parte da poco",
+            "fare": [
+                "La fotografia si scrive a ogni lettura delle patch WatchGuard (06:10 e 13:10): prima dell'installazione della funzione non c'è.",
+                "Se resta vuoto: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Leggi le patch mancanti» acceso, poi «Letture automatiche» › WatchGuard › «Esegui ora».",
+            ],
+        },
         {
             "sintomo": "Un incidente mostra «Riesame mancante» o arrivano promemoria sul riesame",
             "fare": [
@@ -321,7 +469,7 @@ GUIDA = {
             "fare": [
                 "Nella Panoramica guarda la «freschezza» di ogni area: quale fonte è ferma?",
                 "«Caselle mail»: prova l'anteprima della casella di quella fonte.",
-                "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_cycle».",
+                "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_caselle» (caselle mail) e «security_cycle» (Defender, Entra, Veeam, regole).",
                 "Se la lettura della casella dà 401/403 il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
             ],
@@ -341,7 +489,8 @@ GUIDA = {
                 "il PIN si sblocca solo con uno nuovo (dalla postazione con la sua password, o «Azzera PIN» in admin-portale → Postazioni condivise).",
                 "«Sessione di una postazione condivisa usata da un altro PC»: la sessione è già chiusa. Nel titolo c'è l'IP da cui è arrivata: "
                 "se non è un PC aziendale noto, tratta l'account del PC condiviso come compromesso (cambio password).",
-                "«Accesso al portale bloccato per troppe password sbagliate»: blocco di un'ora per quel nome utente da quell'IP. "
+                "«Accesso al portale bloccato per troppe password sbagliate»: blocco di un'ora per quel nome utente da quell'IP "
+                "(si toglie da Amministrazione → «Accessi bloccati»). "
                 "Tanti blocchi da IP diversi o su molti nomi = tentativo a tappeto.",
                 "«Verifica in due passaggi bloccata»: la password era giusta, il codice no. Se non era la persona, la password è nota a qualcun altro.",
                 "Ogni tipo si può lasciare solo come evento (KPI) spegnendo il suo interruttore in Impostazioni → «Eventi di sicurezza del portale».",
@@ -377,7 +526,12 @@ GUIDA = {
             "fare": [
                 "Impostazioni › «Alert di Microsoft Defender»: «Leggi gli alert di Defender» deve essere acceso.",
                 "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
-                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
+                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID; «ha risposto 401» = token "
+                "rifiutato: segreto dell'app scaduto o sbagliato, oppure l'orologio del server fuori sincronia.",
+                "«alert_troncati» nell'esito: in un giro sono arrivati più alert del limite; il giro dopo riparte dall'ultimo letto, "
+                "nessuno si perde.",
+                "Software o vulnerabilità di Defender con «lettura troncata» nell'esito: Defender ha più pagine del limite e il giro "
+                "non ha toccato i dati (niente «non più rilevato», niente CVE cancellate); succede solo con inventari molto grandi.",
                 "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
             ],
         },
@@ -386,7 +540,9 @@ GUIDA = {
             "fare": [
                 "Il messaggio sotto il titolo dice cosa non va; Impostazioni › «Credenziali API Veeam» › «Prova la connessione» lo ripete.",
                 "«Server Veeam non raggiungibile»: controlla l'indirizzo nelle credenziali e che dal server del portale la porta 9419 sia aperta.",
-                "«Certificato del server Veeam non attendibile»: incolla nelle credenziali il certificato della CA interna (formato PEM).",
+                "«Non c'è l'API REST di Veeam Backup & Replication (404)»: l'indirizzo risponde ma non è l'API giusta. Va scritto solo https://<server>:9419, senza /api o altri percorsi; la porta 9398 è Enterprise Manager, non va bene. Se il messaggio aggiunge «la risposta non arriva dall'API di Veeam», a quell'indirizzo risponde un altro servizio (per esempio IIS): l'indirizzo o la porta sono sbagliati. Se l'indirizzo è giusto, sul server Veeam controlla che il servizio «Veeam Backup Server RESTful API» sia avviato. Il portale chiama Veeam direttamente, senza passare dal proxy di HTTPS_PROXY.",
+                "«Veeam non accetta la versione API»: nelle credenziali scrivi la versione che il server supporta (la mostra la pagina Swagger, https://<server>:9419/swagger).",
+                "«Certificato del server Veeam non attendibile»: se Veeam usa il suo certificato autofirmato (il caso di serie) premi «Fidati del certificato del server» e confronta l'identificazione personale (SHA-1) mostrata con quella del certificato sul server Veeam; se è firmato dalla CA interna, incolla il certificato della CA (formato PEM). Il messaggio dice il motivo: nome diverso da quello dell'indirizzo, scaduto, non firmato dal certificato incollato. «Il certificato del server Veeam è cambiato»: rinnovato o sostituito in Veeam; se è normale, premi di nuovo «Fidati del certificato del server».",
                 "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
             ],
         },

@@ -274,6 +274,62 @@ class FlessibilitaAbilitato(models.Model):
         return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
 
 
+class CambioCapoAbilitato(models.Model):
+    """Chi può cambiare il capo reparto proposto nella nuova richiesta.
+
+    Elenco vuoto = tutti possono cambiarlo. Con almeno un nome in elenco solo queste
+    persone possono farlo: per gli altri il campo resta sul capo assegnato. Identificato
+    per ``legacy_anagrafica_id`` di chi inserisce, come ``MalattiaAbilitato``.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Copia del nominativo al momento dell'abilitazione, per leggibilità dello storico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Abilitato al cambio del capo reparto"
+        verbose_name_plural = "Abilitati al cambio del capo reparto"
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+
+    def __str__(self):
+        return self.nominativo or str(self.legacy_anagrafica_id)
+
+
+class MalattiaAbilitato(models.Model):
+    """Chi vede il pulsante «Malattia» nella nuova richiesta e la inserisce per tutti.
+
+    Elenco vuoto = regola storica: tutti vedono «Malattia» e la inseriscono per
+    se' (e per gli altri solo chi gia' inserisce per conto altrui). Con almeno un
+    nome in elenco solo queste persone vedono il pulsante e possono scegliere
+    qualunque dipendente attivo. Identificato per ``legacy_anagrafica_id`` di chi
+    inserisce, come ``FlessibilitaAbilitato``.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Copia del nominativo al momento dell'abilitazione, per leggibilità dello storico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+        verbose_name = "Abilitato all'inserimento malattia"
+        verbose_name_plural = "Abilitati all'inserimento malattia"
+
+    def __str__(self):
+        return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
+
+
 # ─── HR: impostazioni, calendario aziendale, saldi, contatori, copertura ─────
 
 
@@ -300,6 +356,12 @@ class AssenzeImpostazioniHR(models.Model):
     )
     sollecito_ripeti_giorni = models.PositiveSmallIntegerField(
         default=2, verbose_name="Ripeti il sollecito ogni (giorni)",
+    )
+    certificato_avviso_attivo = models.BooleanField(
+        default=True, verbose_name="Avviso certificato medico mancante",
+    )
+    certificato_avviso_giorni = models.PositiveSmallIntegerField(
+        default=2, verbose_name="Avvisa se il certificato manca dopo (giorni dall'inizio della malattia)",
     )
     outlook_capo_attivo = models.BooleanField(
         default=False, verbose_name="Assenze approvate nel calendario Outlook del capo",
@@ -491,6 +553,21 @@ class AssenzaSollecito(models.Model):
 
     def __str__(self):
         return f"assenza {self.assenza_id}: {self.invii} solleciti"
+
+
+class AssenzaAvvisoCertificato(models.Model):
+    """Avviso ad assenza@ per una malattia ancora senza certificato: uno per richiesta."""
+
+    assenza_id = models.IntegerField(unique=True)
+    inviato_il = models.DateTimeField()
+    destinatari = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Avviso certificato medico mancante"
+        verbose_name_plural = "Avvisi certificato medico mancante"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id}: avviso certificato del {self.inviato_il:%d/%m/%Y}"
 
 
 class AssenzaOutlook(models.Model):

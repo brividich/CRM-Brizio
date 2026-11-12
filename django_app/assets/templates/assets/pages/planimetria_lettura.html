@@ -1,0 +1,377 @@
+{% extends "assets/base_shell.html" %}
+{% load l10n %}
+
+{% block title %}Leggi planimetria{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.pll-page{display:grid;gap:14px}
+.pll-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:14px 16px}
+.pll-card h2{margin:0 0 4px;font-size:var(--fs-lg);color:var(--text)}
+.pll-nota{color:var(--text-mid);font-size:var(--fs-sm);margin:0 0 10px}
+.pll-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:end}
+.pll-form label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-mid)}
+.pll-form label.pll-check{flex-direction:row;align-items:center;gap:8px;color:var(--text)}
+.pll-stato{display:flex;flex-wrap:wrap;gap:8px;font-size:var(--fs-sm);margin-top:10px}
+.pll-chip{padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--text-mid)}
+.pll-chip.ok{border-color:#86efac;color:#15803d}
+.pll-chip.no{border-color:#fca5a5;color:#b91c1c}
+.pll-avviso{border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:10px;padding:8px 12px;font-size:var(--fs-sm)}
+.pll-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(320px,2fr);gap:14px;align-items:start}
+@media (max-width:1100px){.pll-grid{grid-template-columns:1fr}}
+.pll-finestra{overflow:auto;max-height:640px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.pll-tela{position:relative;width:100%}
+.pll-tela img{display:block;width:100%;height:auto}
+.pll-pt{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 1px 3px rgba(15,23,42,.5);background:#0e7490;color:#fff;font-size:9px;font-weight:800;line-height:12px;text-align:center}
+.pll-pt.ai{background:#7c3aed}
+.pll-pt.sposta{background:#d97706}
+.pll-pt.invariato{background:#94a3b8}
+.pll-pt.evid{transform:scale(1.6);z-index:3;outline:2px solid #dc2626}
+.pll-pt.avviso{background:#dc2626}
+.pll-pt.nuovo{background:#16a34a;font-size:12px}
+.pll-pt.assoc{background:#ea580c;font-size:11px}
+.pll-pt.mano{background:#be185d;font-size:10px}
+.pll-tela.pll-clic{cursor:crosshair;outline:3px solid #be185d;outline-offset:-3px}
+.pll-scelto{font-size:11px;color:#15803d;font-weight:600;margin-top:2px}
+body.theme-dark .pll-scelto{color:#86efac}
+.pll-rep{position:absolute;border:2px dashed #2563eb;background:rgba(37,99,235,.08);border-radius:4px;pointer-events:none}
+.pll-rep b{position:absolute;left:2px;top:1px;font-size:10px;color:#1d4ed8;background:rgba(255,255,255,.85);padding:0 3px;border-radius:3px}
+.pll-rep.evid{border-color:#dc2626;background:rgba(220,38,38,.12)}
+.pll-colonna{overflow:auto;max-height:640px;display:grid;gap:8px;align-content:start}
+.pll-h3{margin:6px 0 0;font-size:var(--fs-md,15px);color:var(--text)}
+.pll-legenda{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:var(--fs-sm);color:var(--text)}
+.pll-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.pll-warn{margin-top:3px;font-size:11px;color:#b91c1c;font-weight:600}
+.pll-in{width:100%;min-width:140px;margin-bottom:3px;font-size:var(--fs-sm)}
+.pll-cat-tutte{display:flex;gap:8px;align-items:end}
+.pll-cat-tutte label{display:flex;flex-direction:column;gap:2px}
+body.theme-dark .pll-warn{color:#fca5a5}
+body.theme-dark .pll-rep b{background:rgba(15,23,42,.85);color:#93c5fd}
+.pll-tabella{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.pll-tabella th,.pll-tabella td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;color:var(--text)}
+.pll-tabella th{color:var(--text-mid);font-weight:700}
+.pll-tabella tr:hover td{background:var(--surface-alt,rgba(148,163,184,.08))}
+.pll-fonte{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
+.pll-fonte.ai{border-color:#c4b5fd;color:#6d28d9}
+.pll-sub{color:var(--text-mid);font-size:11px}
+.pll-azioni{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.pll-nonric{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.pll-nonric span{font-size:11px;padding:1px 6px;border:1px solid var(--border);border-radius:6px;color:var(--text-mid)}
+body.theme-dark .pll-avviso{background:rgba(217,119,6,.15);border-color:rgba(252,211,77,.4);color:#fcd34d}
+body.theme-dark .pll-chip.ok{color:#86efac}
+body.theme-dark .pll-chip.no{color:#fca5a5}
+body.theme-dark .pll-fonte.ai{color:#c4b5fd}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Leggi planimetria{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Legge le sigle sulla pianta (n. interno, tag, matricola, nome) e propone dove collocare gli asset. Niente cambia finché non confermi.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}{% if layout %}?layout={{ layout.id }}{% endif %}">Torna all'editor</a>
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="pll-page">
+  <article class="pll-card">
+    <h2>Cosa leggere</h2>
+    {% if ha_sorgente %}
+    <p class="pll-avviso">Questa pianta è nata da «Importa planimetrie» con il PDF «{{ layout.importazione.file|default:"" }}»: la lettura usa già quel PDF, non serve caricarlo. Controlla le proposte, togli la spunta a quelle sbagliate e premi «Valida e colloca».</p>
+    {% else %}
+    <p class="pll-nota">Il PDF stampato dal disegno (anche dal DWG) è la fonte migliore: i testi sono veri e le posizioni esatte. Senza PDF si legge l'immagine già caricata con il riconoscimento del testo.</p>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data" action="{% url 'assets:plant_layout_editor' %}?leggi=1" class="pll-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="leggi_planimetria">
+      <label>Planimetria
+        <select name="layout_id" class="input">
+          {% for l in layouts %}<option value="{{ l.id }}"{% if layout and l.id == layout.id %} selected{% endif %}>{{ l.category }} · {{ l.name }}{% if not l.is_active %} (bozza){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>{% if ha_sorgente %}Un altro PDF (facoltativo){% else %}PDF della pianta (facoltativo){% endif %}
+        <input type="file" name="pdf" accept="application/pdf,.pdf" class="input">
+      </label>
+      <label>Pagina del PDF
+        <input type="number" name="pagina" min="1" value="1" class="input" style="max-width:120px">
+      </label>
+      <label class="pll-check"><input type="checkbox" name="usa_pdf_immagine" value="1"> Usa questa pagina come immagine della planimetria (nasce una nuova versione, non attiva)</label>
+      <label class="pll-check"><input type="checkbox" name="usa_ai" value="1"{% if usa_ai %} checked{% endif %}{% if not ai_disponibile %} disabled{% endif %}> Chiedi all'AI locale le sigle non riconosciute</label>
+      <div><button class="btn btn-primary" type="submit">Leggi e proponi</button></div>
+    </form>
+    <div class="pll-stato">
+      <span class="pll-chip {% if ocr_disponibile %}ok{% else %}no{% endif %}">Riconoscimento del testo sull'immagine: {% if ocr_disponibile %}disponibile{% else %}non installato (serve il PDF){% endif %}</span>
+      <span class="pll-chip {% if ai_disponibile %}ok{% else %}no{% endif %}">AI locale: {% if ai_disponibile %}disponibile{% else %}non disponibile{% endif %}</span>
+    </div>
+  </article>
+
+  {% if risultato %}
+  <article class="pll-card">
+    <h2>Proposte per «{{ layout.name }}»</h2>
+    <p class="pll-nota">{{ risultato.fonte_testo }}: {{ risultato.parole_lette }} sigle e parole lette fuori dalla legenda, {{ risultato.proposte|length }} asset riconosciuti{% if risultato.da_creare %}, {{ risultato.da_creare|length }} sigle senza asset{% endif %}{% if risultato.reparti %}, {{ risultato.reparti|length }} reparti scritti sulla pianta{% endif %}. Sono preselezionate solo le proposte sicure.</p>
+    {% for a in risultato.avvisi %}<div class="pll-avviso">{{ a }}</div>{% endfor %}
+    {% if risultato.legenda and not risultato.legenda.vuota or risultato.categorie_note %}
+    <div class="pll-legenda">
+      <strong>Legenda letta</strong>
+      {% if risultato.legenda.servizio %}<span class="pll-chip">Servizio: {{ risultato.legenda.servizio|capfirst }}</span>{% endif %}
+      {% for t in tipi_legenda %}<span class="pll-chip"><i class="pll-sw" style="background:{{ t.colore }}"></i>{{ t.testo|capfirst }}</span>{% endfor %}
+      {% if risultato.legenda.costruttori %}<span class="pll-chip">{{ risultato.legenda.costruttori|length }} sigle con il costruttore</span>{% endif %}
+      {% if risultato.legenda.descrizioni %}<span class="pll-chip">{{ risultato.legenda.descrizioni|length }} sigle con la descrizione</span>{% endif %}
+      {% if risultato.categorie_note %}<span class="pll-sub" style="flex-basis:100%;">Cerco solo fra le categorie {% if risultato.categorie_nomi %}{{ risultato.categorie_nomi|join:", " }}{% else %}— nessuna corrisponde: le sigle diventano asset da creare{% endif %} ({{ risultato.categorie_note }}). Le categorie si scelgono in «Livello e scala».</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if not risultato.proposte and not risultato.da_creare and not risultato.reparti and not risultato.da_associare %}
+    <p class="pll-nota">Nessuna sigla riconosciuta. Prova con il PDF stampato dal disegno o con l'AI locale, oppure clicca sulla pianta per collocare gli asset a mano.</p>
+    {% endif %}
+    <form method="post" action="{% url 'assets:plant_layout_editor' %}?leggi=1">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="applica_proposte">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <input type="hidden" name="token_immagine" value="{{ token_immagine }}">
+      <div class="pll-grid" style="margin-top:10px;">
+        <div class="pll-finestra">
+          <div class="pll-tela">
+            {% if anteprima_url %}<img src="{{ anteprima_url }}" alt="Anteprima della planimetria">{% endif %}
+            {% localize off %}
+            {% for r in risultato.reparti %}<span class="pll-rep" id="rp-{{ forloop.counter }}" style="left:{{ r.x }}%;top:{{ r.y }}%;width:{{ r.w }}%;height:{{ r.h }}%"><b>{{ r.nome }}</b></span>{% endfor %}
+            {% for p in risultato.proposte %}
+            <span class="pll-pt {% if p.fonte == 'AI locale' %}ai{% elif p.avvisi %}avviso{% elif p.stato == 'sposta' %}sposta{% elif p.stato == 'invariato' %}invariato{% endif %}" id="pt-{{ forloop.counter }}" style="left:{{ p.x }}%;top:{{ p.y }}%" title="{{ p.nome }} · letto «{{ p.testo_letto }}»">{{ forloop.counter }}</span>
+            {% endfor %}
+            {% for d in risultato.da_associare %}<span class="pll-pt assoc" id="as-{{ forloop.counter }}" style="left:{{ d.x }}%;top:{{ d.y }}%" title="{{ d.sigla }}: da associare">?</span>{% endfor %}
+            {% for d in risultato.da_creare %}<span class="pll-pt nuovo" id="nc-{{ forloop.counter }}" style="left:{{ d.x }}%;top:{{ d.y }}%" title="{{ d.sigla }}: da creare">+</span>{% endfor %}
+            {% endlocalize %}
+          </div>
+        </div>
+        <div class="pll-colonna">
+          {% if risultato.proposte %}
+          <h3 class="pll-h3">Asset riconosciuti ({{ risultato.proposte|length }})</h3>
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" class="pll-tutte" data-gruppo="sel" aria-label="Seleziona tutti gli asset riconosciuti"></th><th>#</th><th>Asset</th><th>Letto</th><th>Esito</th></tr></thead>
+            <tbody>
+            {% for p in risultato.proposte %}
+            <tr data-pt="pt-{{ forloop.counter }}">
+              <td>{% localize off %}<input type="checkbox" name="sel" value="{{ p.asset_id }}:{{ p.x }}:{{ p.y }}"{% if p.preselezionata %} checked{% endif %} aria-label="Colloca {{ p.nome }}">{% endlocalize %}</td>
+              <td>{{ forloop.counter }}</td>
+              <td><strong>{{ p.nome }}</strong><div class="pll-sub">{% if p.numero_interno %}{{ p.numero_interno }} · {% endif %}{{ p.tag }}{% if p.categoria %} · {{ p.categoria }}{% endif %}{% if p.reparto %} · {{ p.reparto }}{% endif %}</div></td>
+              <td>«{{ p.testo_letto }}» <span class="pll-fonte {% if p.fonte == 'AI locale' %}ai{% endif %}">{{ p.fonte }}</span>
+                {% if p.tipo or p.costruttore_legenda or p.descrizione %}<div class="pll-sub">Legenda: {{ p.tipo|capfirst }}{% if p.costruttore_legenda %}{% if p.tipo %} · {% endif %}{{ p.costruttore_legenda }}{% endif %}{% if p.descrizione %} · {{ p.descrizione|capfirst }}{% endif %}</div>{% endif %}
+                {% if p.altri_punti %}<div class="pll-sub">letto anche in altri {{ p.altri_punti }} punti</div>{% endif %}</td>
+              <td>{% if p.stato == "nuovo" %}Da collocare{% elif p.stato == "sposta" %}Sposta (ora altrove){% if p.spostamento_grande %}<div class="pll-sub">molto lontano dalla posizione attuale: controlla</div>{% endif %}{% else %}Già qui{% endif %}
+                {% for a in p.avvisi %}<div class="pll-warn">{{ a }}</div>{% endfor %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if risultato.da_creare %}
+          <h3 class="pll-h3">Sulla pianta ma non in anagrafica ({{ risultato.da_creare|length }})</h3>
+          <p class="pll-sub" style="margin:0 0 6px;">Spunta per creare l'asset (n. interno «Int.» + sigla) già collocato in quel punto. Nome e categoria si possono correggere qui.</p>
+          <div class="pll-cat-tutte">
+            <label class="pll-sub">Categoria per tutte le righe
+              <select class="input" data-pll-cat-tutte><option value="">—</option>{% for c in categorie %}<option value="{{ c.id }}">{{ c.label }}</option>{% endfor %}</select>
+            </label>
+          </div>
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" class="pll-tutte" data-gruppo="crea" aria-label="Seleziona tutte le sigle da creare"></th><th>Sigla</th><th>Nome e categoria</th></tr></thead>
+            <tbody>
+            {% for d in risultato.da_creare %}
+            <tr data-pt="nc-{{ forloop.counter }}">
+              <td><input type="checkbox" name="crea" value="{{ forloop.counter }}"{% if d.preselezionata %} checked{% endif %} aria-label="Crea {{ d.sigla }}">
+                {% localize off %}<input type="hidden" name="crea_sigla_{{ forloop.counter }}" value="{{ d.sigla }}"><input type="hidden" name="crea_x_{{ forloop.counter }}" value="{{ d.x }}"><input type="hidden" name="crea_y_{{ forloop.counter }}" value="{{ d.y }}">{% endlocalize %}
+                <input type="hidden" name="crea_descrizione_{{ forloop.counter }}" value="{{ d.descrizione }}"><input type="hidden" name="crea_costruttore_{{ forloop.counter }}" value="{{ d.costruttore }}"></td>
+              <td><strong>{{ d.sigla }}</strong>{% if d.tipo %}<div class="pll-sub">{{ d.tipo|capfirst }}</div>{% endif %}{% if d.altri_punti %}<div class="pll-sub">letta anche in altri {{ d.altri_punti }} punti</div>{% endif %}</td>
+              <td><input type="text" name="crea_nome_{{ forloop.counter }}" value="{{ d.nome }}" class="input pll-in" aria-label="Nome dell'asset {{ d.sigla }}">
+                <select name="crea_categoria_{{ forloop.counter }}" class="input pll-in" data-pll-cat aria-label="Categoria dell'asset {{ d.sigla }}"><option value="">— categoria —</option>{% for c in categorie %}<option value="{{ c.id }}"{% if d.categoria_id == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</select>
+                {% if d.costruttore or d.descrizione %}<div class="pll-sub">{{ d.costruttore }}{% if d.costruttore and d.descrizione %} · {% endif %}{{ d.descrizione|capfirst }}</div>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          <h3 class="pll-h3">Da associare a mano ({{ risultato.da_associare|length }})</h3>
+          <p class="pll-sub" style="margin:0 0 6px;">Sigle lette ma non abbinate da sole (arancioni «?» sulla pianta): scegli l'asset fra quelli proposti o cercalo per nome, n. interno, tag o matricola. Per un asset che sulla pianta non è scritto usa «Aggiungi un asset a mano» e clicca nel punto giusto.</p>
+          <div class="pll-azioni" style="margin:0 0 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" data-pll-aggiungi>Aggiungi un asset a mano</button>
+            <span class="pll-sub" data-pll-aggiungi-nota hidden>Clicca sulla pianta nel punto dell'asset (Esc per annullare).</span>
+          </div>
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" class="pll-tutte" data-gruppo="assoc" aria-label="Seleziona tutte le associazioni"></th><th>Letto</th><th>Asset</th></tr></thead>
+            <tbody data-pll-assoc-corpo>
+            {% for d in risultato.da_associare %}
+            <tr data-pt="as-{{ forloop.counter }}">
+              <td><input type="checkbox" name="assoc" value="{{ forloop.counter }}" aria-label="Associa {{ d.sigla }}">
+                {% localize off %}<input type="hidden" name="assoc_x_{{ forloop.counter }}" value="{{ d.x }}"><input type="hidden" name="assoc_y_{{ forloop.counter }}" value="{{ d.y }}">{% endlocalize %}
+                <input type="hidden" name="assoc_asset_{{ forloop.counter }}" value="" data-pll-asset></td>
+              <td><strong>«{{ d.sigla }}»</strong><div class="pll-sub">{{ d.motivo }}</div>{% if d.altri_punti %}<div class="pll-sub">letta anche in altri {{ d.altri_punti }} punti</div>{% endif %}</td>
+              <td>{% if d.candidati %}<select class="input pll-in" data-pll-scelta aria-label="Asset per {{ d.sigla }}"><option value="">— scegli —</option>{% for c in d.candidati %}<option value="{{ c.id }}">{{ c.nome }}{% if c.sotto %} · {{ c.sotto }}{% endif %}</option>{% endfor %}</select>{% endif %}
+                <input type="search" class="input pll-in" data-pll-cerca list="pll-lista-asset" autocomplete="off" placeholder="Cerca un asset…" aria-label="Cerca l'asset per {{ d.sigla }}">
+                <div class="pll-scelto" data-pll-scelto></div></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <datalist id="pll-lista-asset"></datalist>
+          <template id="pll-riga-mano">
+            <tr>
+              <td><input type="checkbox" name="assoc" checked aria-label="Colloca l'asset aggiunto a mano">
+                <input type="hidden" data-campo="x"><input type="hidden" data-campo="y"><input type="hidden" data-campo="asset" data-pll-asset></td>
+              <td><strong data-pll-num></strong><div class="pll-sub">Punto scelto a mano</div><button type="button" class="btn btn-secondary btn-sm" data-pll-togli>Togli</button></td>
+              <td><input type="search" class="input pll-in" data-pll-cerca list="pll-lista-asset" autocomplete="off" placeholder="Cerca un asset…" aria-label="Cerca l'asset da collocare">
+                <div class="pll-scelto" data-pll-scelto></div></td>
+            </tr>
+          </template>
+
+          {% if risultato.reparti %}
+          <h3 class="pll-h3">Reparti scritti sulla pianta ({{ risultato.reparti|length }})</h3>
+          <p class="pll-sub" style="margin:0 0 6px;">Diventano riquadri da rifinire nell'editor (anche a forma libera). Preselezionati solo quelli con un contorno disegnato tutto loro.</p>
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" class="pll-tutte" data-gruppo="reparto" aria-label="Seleziona tutti i reparti"></th><th>Reparto</th><th>Riquadro</th></tr></thead>
+            <tbody>
+            {% for r in risultato.reparti %}
+            <tr data-pt="rp-{{ forloop.counter }}">
+              <td><input type="checkbox" name="reparto" value="{{ forloop.counter }}"{% if r.preselezionata %} checked{% endif %} aria-label="Disegna il reparto {{ r.nome }}">
+                {% localize off %}<input type="hidden" name="rep_x_{{ forloop.counter }}" value="{{ r.x }}"><input type="hidden" name="rep_y_{{ forloop.counter }}" value="{{ r.y }}"><input type="hidden" name="rep_w_{{ forloop.counter }}" value="{{ r.w }}"><input type="hidden" name="rep_h_{{ forloop.counter }}" value="{{ r.h }}">{% endlocalize %}</td>
+              <td><input type="text" name="rep_nome_{{ forloop.counter }}" value="{{ r.nome }}" class="input pll-in" aria-label="Nome del reparto"></td>
+              <td class="pll-sub">{% if r.contorno %}{% if r.condiviso %}contorno condiviso con altri nomi{% else %}dal contorno disegnato{% endif %}{% else %}riquadro di partenza{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+      </div>
+      <div class="pll-azioni">
+        <button class="btn btn-primary" type="submit">{% if ha_sorgente %}Valida e colloca{% else %}Applica le scelte{% endif %}</button>
+        {% if ha_sorgente %}<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}?importa=1">Torna alle piante importate</a>{% endif %}
+        <span class="pll-nota" style="margin:0;">Ogni collocazione finisce nella timeline dell'asset. Dopo puoi rifinire trascinando nell'editor.</span>
+      </div>
+    </form>
+
+    {% if risultato.non_riconosciute %}
+    <details style="margin-top:12px;">
+      <summary class="pll-nota" style="cursor:pointer;">Sigle lette ma non abbinate ({{ risultato.non_riconosciute|length }})</summary>
+      <div class="pll-nonric">{% for t in risultato.non_riconosciute %}<span>{{ t }}</span>{% endfor %}</div>
+      <p class="pll-nota" style="margin-top:6px;">Comprende quelle della tabella «Da associare a mano» e le scritte che non sembrano sigle. Se una di queste è il numero interno di un asset, puoi anche scriverlo nella scheda dell'asset e rileggere.</p>
+    </details>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  document.querySelectorAll(".pll-tutte").forEach(t => {
+    t.addEventListener("change", () => {
+      document.querySelectorAll('input[name="' + t.dataset.gruppo + '"]').forEach(c => { c.checked = t.checked; });
+    });
+  });
+  const catTutte = document.querySelector("[data-pll-cat-tutte]");
+  if (catTutte) catTutte.addEventListener("change", () => {
+    if (!catTutte.value) return;
+    document.querySelectorAll("[data-pll-cat]").forEach(s => { s.value = catTutte.value; });
+  });
+  function evidenzia(tr) {
+    const pt = document.getElementById(tr.dataset.pt);
+    if (!pt) return;
+    tr.addEventListener("mouseenter", () => pt.classList.add("evid"));
+    tr.addEventListener("mouseleave", () => pt.classList.remove("evid"));
+  }
+  document.querySelectorAll("tr[data-pt]").forEach(evidenzia);
+
+  // associazione a mano: scelta fra i candidati o ricerca per nome / n. interno / tag / matricola
+  const urlCerca = "{% url 'assets:plant_layout_editor' %}?leggi=1&cerca=";
+  const lista = document.getElementById("pll-lista-asset");
+  const etichette = new Map();
+  function scegli(tr, id, nome) {
+    tr.querySelector("[data-pll-asset]").value = id || "";
+    tr.querySelector("[data-pll-scelto]").textContent = id ? "Scelto: " + nome : "";
+    const box = tr.querySelector('input[name="assoc"]');
+    if (box) box.checked = !!id;
+  }
+  function collega(tr) {
+    const sel = tr.querySelector("[data-pll-scelta]");
+    if (sel) sel.addEventListener("change", () => scegli(tr, sel.value, sel.selectedOptions[0].textContent));
+    const cerca = tr.querySelector("[data-pll-cerca]");
+    if (!cerca) return;
+    let timer = null;
+    cerca.addEventListener("input", () => {
+      const v = cerca.value.trim();
+      if (etichette.has(v)) {
+        if (sel) sel.value = "";
+        scegli(tr, etichette.get(v), v);
+        return;
+      }
+      clearTimeout(timer);
+      if (v.length < 2) return;
+      timer = setTimeout(() => {
+        fetch(urlCerca + encodeURIComponent(v), {headers: {"X-Requested-With": "XMLHttpRequest"}})
+          .then(r => r.ok ? r.json() : {risultati: []})
+          .then(d => {
+            lista.replaceChildren();
+            (d.risultati || []).forEach(a => {
+              const testo = a.nome + (a.sotto ? " · " + a.sotto : "");
+              etichette.set(testo, String(a.id));
+              const o = document.createElement("option");
+              o.value = testo;
+              lista.appendChild(o);
+            });
+          }).catch(() => {});
+      }, 250);
+    });
+  }
+  document.querySelectorAll("[data-pll-assoc-corpo] tr").forEach(collega);
+
+  // «Aggiungi un asset a mano»: clic sulla pianta, nuova riga con il punto scelto
+  const bottone = document.querySelector("[data-pll-aggiungi]");
+  const nota = document.querySelector("[data-pll-aggiungi-nota]");
+  const tela = document.querySelector(".pll-tela");
+  const corpo = document.querySelector("[data-pll-assoc-corpo]");
+  const modello = document.getElementById("pll-riga-mano");
+  let indice = 1000, attivo = false;
+  function modo(on) {
+    attivo = on;
+    if (tela) tela.classList.toggle("pll-clic", on);
+    if (nota) nota.hidden = !on;
+  }
+  if (bottone && tela && corpo && modello) {
+    bottone.addEventListener("click", () => modo(!attivo));
+    document.addEventListener("keydown", e => { if (e.key === "Escape") modo(false); });
+    tela.addEventListener("click", e => {
+      if (!attivo) return;
+      const r = tela.getBoundingClientRect();
+      const x = Math.min(100, Math.max(0, (e.clientX - r.left) / r.width * 100)).toFixed(2);
+      const y = Math.min(100, Math.max(0, (e.clientY - r.top) / r.height * 100)).toFixed(2);
+      indice += 1;
+      const n = indice - 1000;
+      const pt = document.createElement("span");
+      pt.className = "pll-pt mano";
+      pt.id = "mn-" + n;
+      pt.style.left = x + "%";
+      pt.style.top = y + "%";
+      pt.textContent = "M" + n;
+      tela.appendChild(pt);
+      const tr = modello.content.firstElementChild.cloneNode(true);
+      tr.dataset.pt = pt.id;
+      tr.querySelector('input[name="assoc"]').value = indice;
+      tr.querySelectorAll("[data-campo]").forEach(h => { h.name = "assoc_" + h.dataset.campo + "_" + indice; });
+      tr.querySelector('[data-campo="x"]').value = x;
+      tr.querySelector('[data-campo="y"]').value = y;
+      tr.querySelector("[data-pll-num]").textContent = "M" + n;
+      tr.querySelector("[data-pll-togli]").addEventListener("click", () => { tr.remove(); pt.remove(); });
+      corpo.prepend(tr);
+      evidenzia(tr);
+      collega(tr);
+      modo(false);
+      tr.querySelector("[data-pll-cerca]").focus();
+    });
+  }
+})();
+</script>
+{% endblock %}

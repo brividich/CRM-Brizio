@@ -28,18 +28,21 @@
   <link rel="stylesheet" href="{% static 'core/css/layout.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/components.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/hub.css' %}">
-  <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}?v=20261101">
   <link rel="stylesheet" href="{% static 'core/css/fm-table-enhanced.css' %}?v=20261028a">
+  <link rel="stylesheet" href="{% static 'core/css/hub-bulk-pannello.css' %}?v=20261109b">
   <link rel="stylesheet" href="{% static 'core/vendor/tom-select/tom-select.min.css' %}">
   <link rel="stylesheet" href="{% static 'core/vendor/flatpickr/flatpickr.min.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/command-palette.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/hub-flash.css' %}">
-  <link rel="stylesheet" href="{% static 'core/css/mobile-nav.css' %}?v=20261025b">
+  <link rel="stylesheet" href="{% static 'core/css/mobile-nav.css' %}?v=20261102">
   <link rel="stylesheet" href="{% static 'core/css/hub-confirm.css' %}?v=2">
   {# Prima di ogni richiesta asincrona: intercetta fetch/XHR per i messaggi flash. #}
   <script src="{% static 'core/js/hub-flash.js' %}"></script>
   {# Prima di ogni invio: data-hub-confirm apre la finestra di conferma del portale. #}
   <script src="{% static 'core/js/hub-confirm.js' %}?v=2"></script>
+  {# Bozza dei form POST: se l'invio torna con un errore, i dati inseriti vengono rimessi nei campi. #}
+  <script src="{% static 'core/js/hub-form-bozza.js' %}?v=3"></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
@@ -65,6 +68,7 @@
   {% block notify_banner %}{% include "core/components/notifications_banner.html" %}{% endblock %}
 
   <div class="content">
+    {% block cnsgi_etichette %}{% load cnsgi %}{% cnsgi_etichette %}{% endblock %}
     {% block content %}{% endblock %}
   </div>
 </div>
@@ -83,71 +87,15 @@
   ></div>
 </div>
 {% endif %}{% endblock %}
-<script>
-window.portalReadJsonResponse = async function (response, opts) {
-  opts = opts || {};
-
-  var rawText = "";
-  try {
-    rawText = await response.text();
-  } catch (e) {
-    rawText = "";
-  }
-
-  var contentType = String(response.headers.get("Content-Type") || "").toLowerCase();
-  var trimmed = String(rawText || "").replace(/^\uFEFF/, "").trim();
-  var shouldParseJson = contentType.indexOf("application/json") !== -1;
-  var data = {};
-  var hasJson = false;
-
-  if (trimmed && (shouldParseJson || /^[\[{]/.test(trimmed))) {
-    try {
-      data = JSON.parse(trimmed);
-      hasJson = true;
-    } catch (e) {
-      hasJson = false;
-    }
-  }
-
-  var okFlagPresent = hasJson && data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, "ok");
-  var dataSignalsError = okFlagPresent && data.ok === false;
-
-  if (response.ok && hasJson && !dataSignalsError) {
-    return data;
-  }
-
-  var message = "";
-  if (hasJson && data && typeof data === "object") {
-    message = String(data.error || data.message || "").trim();
-  }
-
-  if (!message) {
-    if (response.status === 401) {
-      message = "Sessione scaduta o autenticazione richiesta. Ricarica la pagina ed effettua di nuovo il login.";
-    } else if (response.status === 403) {
-      message = "Non hai i permessi per eseguire questa operazione.";
-    } else if (!hasJson && trimmed && trimmed.charAt(0) === "<") {
-      message = "Il server ha restituito HTML invece di JSON. Probabile sessione scaduta o accesso negato.";
-    } else if (!response.ok) {
-      message = String(opts.fallbackError || ("Errore server (" + response.status + ")."));
-    } else {
-      message = String(opts.invalidJsonMessage || "Il server ha restituito una risposta non valida.");
-    }
-  }
-
-  var err = new Error(message);
-  err.status = response.status;
-  err.payload = hasJson ? data : null;
-  err.rawText = rawText;
-  throw err;
-};
-</script>
+<script src="{% static 'core/js/portal-json.js' %}?v=20261112"></script>
 {% block extra_scripts %}{% endblock %}
 {# Sistema tabelle personalizzabili: auto-bind su data-table-id e tabelle dati semplici. #}
-<script src="{% static 'core/js/fm-table-enhanced.js' %}?v=20261028a" defer></script>
+<script src="{% static 'core/js/fm-table-enhanced.js' %}?v=20261111a" defer></script>
+{# Selezione multipla (form[data-bulk]) e pannello laterale di anteprima ([data-preview]) per tutto il portale. #}
+<script src="{% static 'core/js/hub-bulk-pannello.js' %}?v=20261110a" defer></script>
 {# Tom Select: select ricercabili sui <select class="js-searchable"> (opt-in, fallback nativo). #}
 <script src="{% static 'core/vendor/tom-select/tom-select.complete.min.js' %}" defer></script>
-<script src="{% static 'core/js/tomselect-init.js' %}" defer></script>
+<script src="{% static 'core/js/tomselect-init.js' %}?v=6" defer></script>
 {# Flatpickr: date picker IT sui <input class="js-datepicker"> (opt-in, fallback nativo). #}
 <script src="{% static 'core/vendor/flatpickr/flatpickr.min.js' %}" defer></script>
 <script src="{% static 'core/vendor/flatpickr/l10n-it.js' %}" defer></script>
@@ -158,55 +106,12 @@ window.portalReadJsonResponse = async function (response, opts) {
 {# Smartphone: le barre dei moduli diventano «sezione corrente» + pannello dal basso. #}
 <script src="{% static 'core/js/mobile-nav.js' %}?v=20261025b" defer></script>
 {# Smartphone: le tabelle più larghe dello schermo diventano schede (una per riga). #}
-<script src="{% static 'core/js/mobile-tables.js' %}?v=20261025b" defer></script>
+<script src="{% static 'core/js/mobile-tables.js' %}?v=20261101" defer></script>
 {# Tour guidati (driver.js, lazy): pagine con [data-tour-start]/[data-tour-step]. #}
 <script>window.NHUB_TOUR={js:"{% static 'core/vendor/driver/driver.js.iife.js' %}",css:"{% static 'core/vendor/driver/driver.css' %}"};</script>
 <script src="{% static 'core/js/tour.js' %}" defer></script>
 <script src="{% static 'monitoring/js/report_problem.js' %}"></script>
-<script>
-(function () {
-  var pendingBtn = null;
-  var resetTimer = null;
-
-  document.addEventListener('mousedown', function (e) {
-    var btn = e.target.closest('button[type="submit"], input[type="submit"]');
-    if (btn && btn.classList.contains('btn') && !btn.disabled) pendingBtn = btn;
-  }, true);
-
-  document.addEventListener('submit', function (e) {
-    var form = e.target;
-    if (!form || form.tagName !== 'FORM') return;
-
-    var btn = (pendingBtn && form.contains(pendingBtn)) ? pendingBtn : null;
-    if (!btn) btn = form.querySelector('button[type="submit"].btn:not([disabled])');
-    pendingBtn = null;
-    if (!btn || btn.disabled) return;
-
-    btn.classList.add('btn-loading');
-    // Preserve the submitter name/value via hidden input: disabled controls are
-    // excluded from the form entry list, so without this the POST loses keys
-    // like `action` used by <button name="action" value="save_draft">.
-    if (btn.name) {
-      var hidden = form.querySelector('input[type="hidden"][data-submitter-shim="1"]');
-      if (!hidden) {
-        hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.setAttribute('data-submitter-shim', '1');
-        form.appendChild(hidden);
-      }
-      hidden.name = btn.name;
-      hidden.value = btn.value != null ? btn.value : '';
-    }
-    setTimeout(function () { btn.disabled = true; }, 0);
-
-    if (resetTimer) clearTimeout(resetTimer);
-    resetTimer = setTimeout(function () {
-      btn.disabled = false;
-      btn.classList.remove('btn-loading');
-    }, 10000);
-  });
-})();
-</script>
+<script src="{% static 'core/js/hub-invio-pulsanti.js' %}?v=20261112"></script>
 
 {% if user.is_authenticated %}
 <!-- ── Ricerca unificata (Ctrl+K): pagine + recenti + dati. Logica in core/js/command-palette.js ── -->
@@ -267,201 +172,8 @@ document.addEventListener("htmx:configRequest", function(evt) {
 });
 </script>
 {% if user.is_authenticated %}
-<script>
-(function () {
-  var shell = document.querySelector('[data-notification-shell]');
-  var panel = document.getElementById('notify-center-panel');
-  if (!shell || !panel) return;
-  var liveUrl = "{% url 'api_notifiche_live' %}";
-  var ackUrl = "{% url 'api_notifiche_popup_ack' %}";
-  var pollMs = 15000;
-  var pollTimer = null;
-  var seenPopupIds = {};
-
-  function csrf() {
-    var meta = document.querySelector("meta[name='csrf-token']");
-    return meta ? meta.getAttribute("content") : "";
-  }
-  function openPanel() { shell.classList.add('open'); }
-  function closePanel() { shell.classList.remove('open'); }
-  function displayCount(count) {
-    count = Number(count || 0);
-    return count > 99 ? "99+" : String(count);
-  }
-  function setNotificationBadges(count) {
-    count = Math.max(0, Number(count || 0));
-    document.querySelectorAll('[data-notification-badge-host]').forEach(function (host) {
-      var badge = host.querySelector('[data-notification-badge]');
-      if (count > 0) {
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.setAttribute('data-notification-badge', '');
-          badge.setAttribute('aria-hidden', 'true');
-          badge.className = host.classList.contains('sb-item') ? 'sb-item-badge' : 'nav-icon-badge';
-          host.appendChild(badge);
-        }
-        badge.textContent = displayCount(count);
-        host.setAttribute('aria-label', 'Notifiche: ' + count + ' non lette');
-        host.setAttribute('title', 'Notifiche (' + count + ' non lette)');
-      } else {
-        if (badge) badge.remove();
-        host.setAttribute('aria-label', 'Notifiche');
-        host.setAttribute('title', 'Notifiche');
-      }
-    });
-  }
-  function escapeHtml(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-  function toastStack() {
-    var stack = document.querySelector('[data-notification-live-stack]');
-    if (!stack) {
-      stack = document.createElement('div');
-      stack.className = 'notify-live-stack';
-      stack.setAttribute('data-notification-live-stack', '');
-      stack.setAttribute('aria-live', 'polite');
-      stack.setAttribute('aria-atomic', 'false');
-      document.body.appendChild(stack);
-    }
-    return stack;
-  }
-  function removeToast(toast) {
-    if (!toast) return;
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-8px)';
-    setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 180);
-  }
-  function ackPopupIds(ids) {
-    ids = (ids || []).filter(Boolean);
-    if (!ids.length) return;
-    fetch(ackUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrf(),
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify({ ids: ids })
-    }).catch(function () {});
-  }
-  function showLivePopups(items) {
-    items = Array.isArray(items) ? items : [];
-    var fresh = items.filter(function (item) {
-      var id = Number(item && item.id);
-      if (!id || seenPopupIds[id]) return false;
-      seenPopupIds[id] = true;
-      return true;
-    });
-    if (!fresh.length) return;
-
-    var stack = toastStack();
-    var ackIds = [];
-    fresh.forEach(function (item) {
-      var id = Number(item.id);
-      ackIds.push(id);
-      var typeClass = String(item.tipo || 'generico').replace(/[^a-z0-9_-]/gi, '_');
-      var toast = document.createElement('article');
-      toast.className = 'notify-live-toast notify-live-toast-' + typeClass;
-      toast.setAttribute('data-notification-live-id', String(id));
-      toast.innerHTML =
-        '<span class="notify-live-dot" aria-hidden="true">' + escapeHtml(item.tipo_icona || '') + '</span>' +
-        '<div class="notify-live-copy">' +
-          '<div class="notify-live-kicker">' + escapeHtml(item.tipo_label || 'Notifica') + '</div>' +
-          '<div class="notify-live-message">' + escapeHtml(item.messaggio || '') + '</div>' +
-          (item.created_label ? '<div class="notify-live-meta">' + escapeHtml(item.created_label) + '</div>' : '') +
-        '</div>' +
-        '<div class="notify-live-actions">' +
-          (item.url_azione ? '<a class="notify-live-open" data-notifica-open="' + id + '" href="' + escapeHtml(item.url_azione) + '">Apri</a>' : '') +
-          '<button type="button" class="notify-live-close" aria-label="Chiudi notifica">&times;</button>' +
-        '</div>';
-      var closeBtn = toast.querySelector('.notify-live-close');
-      if (closeBtn) closeBtn.addEventListener('click', function () { removeToast(toast); });
-      stack.prepend(toast);
-      setTimeout(function () { removeToast(toast); }, 14000);
-    });
-    ackPopupIds(ackIds);
-  }
-  function refreshPanel() {
-    if (window.htmx) window.htmx.trigger(panel, 'refresh');
-  }
-  function pollLiveNotifications() {
-    if (document.visibilityState === 'hidden') return;
-    fetch(liveUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      cache: 'no-store'
-    }).then(function (response) {
-      return response.ok ? response.json() : null;
-    }).then(function (data) {
-      if (!data || data.ok === false) return;
-      setNotificationBadges(data.unread_count || 0);
-      showLivePopups(data.popup_notifications || []);
-      if ((data.popup_notifications || []).length) refreshPanel();
-      if (data.poll_after_ms) pollMs = Math.max(5000, Number(data.poll_after_ms) || pollMs);
-    }).catch(function () {});
-  }
-  document.querySelectorAll('[data-notifica-id]').forEach(function (node) {
-    var id = Number(node.getAttribute('data-notifica-id'));
-    if (id) seenPopupIds[id] = true;
-  });
-
-  document.addEventListener('click', function (event) {
-    if (event.target.closest('[data-notification-toggle]')) {
-      event.preventDefault();
-      shell.classList.toggle('open');
-      refreshPanel();
-      return;
-    }
-    if (shell.classList.contains('open') && !event.target.closest('.notify-center-panel')) {
-      closePanel();
-    }
-  });
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') closePanel();
-  });
-  document.addEventListener('click', function (event) {
-    var btn = event.target.closest('[data-notification-mark-read]');
-    if (!btn) return;
-    btn.disabled = true;
-    fetch("{% url 'api_notifiche_mark_all_read' %}", {
-      method: "POST",
-      headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" }
-    }).then(function () {
-      setNotificationBadges(0);
-      refreshPanel();
-    }).finally(function () { btn.disabled = false; });
-  });
-  // «Apri» su una notifica (campanella, banner, popup, pagina) = letta.
-  // keepalive: la richiesta sopravvive alla navigazione verso url_azione.
-  var readUrlTpl = "{% url 'api_notifica_leggi' 0 %}";
-  document.addEventListener('click', function (event) {
-    var link = event.target.closest('[data-notifica-open]');
-    if (!link) return;
-    var id = Number(link.getAttribute('data-notifica-open'));
-    if (!id) return;
-    try {
-      fetch(readUrlTpl.replace('/0/', '/' + id + '/'), {
-        method: 'POST',
-        keepalive: true,
-        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
-      }).catch(function () {});
-    } catch (e) {}
-  });
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') pollLiveNotifications();
-  });
-
-  pollLiveNotifications();
-  pollTimer = setInterval(pollLiveNotifications, pollMs);
-})();
-</script>
+<script>window.NHUB_NOTIFY={live:"{% url 'api_notifiche_live' %}",ack:"{% url 'api_notifiche_popup_ack' %}",readAll:"{% url 'api_notifiche_mark_all_read' %}",readOne:"{% url 'api_notifica_leggi' 0 %}"};</script>
+<script src="{% static 'core/js/notify-center.js' %}?v=20261112"></script>
 {% endif %}
 {% if dev_git %}{% include "core/components/_dev_git_badge.html" %}{% endif %}
 {# Ultimo: mostra solo i messaggi che il template della pagina non ha già stampato. #}

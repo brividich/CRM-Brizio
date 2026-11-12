@@ -27,6 +27,13 @@ PUBLIC_VIEWS = frozenset({
     "monitoring.views.healthz",  # liveness (HEALTHZ_ALLOWED_IPS)
     "monitoring.views.readyz",  # readiness (HEALTHZ_ALLOWED_IPS, solo nome/stato)
     "suggestion_corner.views.nuova",  # form anonimo per scelta (§5)
+    "fornitori.views_chiosco.pagina",  # chiosco reception: il visitatore non ha un utente, allowlist IP nella view
+    "fornitori.views_chiosco.logo",  # logo del chiosco: stessa allowlist IP, solo l'immagine caricata in Reception
+    "fornitori.views_chiosco.foto_referente",  # miniatura foto del referente al chiosco: stessa allowlist IP
+    # Richiesta di appuntamento degli esterni: pubblica per scelta, 404 finché RECEPTION_RICHIESTE_PUBBLICHE
+    # è spento; email da confermare, limiti per IP e globali, campo trappola (reception/views_pubbliche.py).
+    "reception.views_pubbliche.richiesta",
+    "reception.views_pubbliche.conferma",
     # Aperto solo finche' SETUP_COMPLETED manca dal .env (audit M9): nei test
     # il flag non c'e'; in produzione il wizard risponde redirect/404.
     "setup_wizard.views.wizard_home",

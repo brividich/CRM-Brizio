@@ -120,7 +120,13 @@
   .ap-hero-stats { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 600px) {
-  .ap-section .modules-grid { grid-template-columns: 1fr; }
+  /* Telefono: strumenti su due colonne senza descrizione (visibile da PC), versioni affiancate.
+     La pagina passa da ~10.000px a meno della metà. */
+  .ap-section .modules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 8px; }
+  .ap-section .mod { padding: 10px; gap: 9px; min-height: 52px; }
+  .ap-section .mod-icon { width: 32px; height: 32px; }
+  .ap-section .mod-name { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+  .ap-section .mod-sub { display: none; }
   .ap-hero-stats { grid-template-columns: 1fr 1fr; }
 }
 
@@ -298,6 +304,18 @@ body.theme-dark .ap-mod-link.report{background:rgba(214,158,46,.16)}
 body.theme-dark .ap-mod-link.report:hover{background:rgba(214,158,46,.16)}
 body.theme-dark .ap-mod-link.django{color:var(--text-light);border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+/* Telefono (in fondo: le regole base di questi blocchi stanno più su). */
+@media (max-width: 600px) {
+  .hub-mods-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+  .hub-mod { min-width: 0; padding: 10px; gap: 9px; }
+  .hub-mod-icon { font-size: 1.5rem; }
+  .hub-mod-name { font-size: 13px; overflow-wrap: anywhere; }
+  .hub-mod-sub { display: none; }
+  .ap-modules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 8px; }
+  .ap-mod-link { min-height: 32px; }
+  .ap-qn-pill { min-height: 36px; }
+  .ap-version-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 </style>
 {% endblock %}
 
@@ -442,6 +460,13 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
         <div>
           <div class="mod-name">Autenticazione 2FA</div>
           <div class="mod-sub">Policy, ruoli soggetti, reti interne, OTP/TOTP per utente</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:accessi_bloccati' %}">
+        <div class="mod-icon">🔓</div>
+        <div>
+          <div class="mod-name">Accessi bloccati</div>
+          <div class="mod-sub">Login bloccati per troppe password sbagliate: chi, da quale IP, fino a quando, e «Sblocca»</div>
         </div>
       </a>
       <a class="mod" href="{% url 'admin_portale:postazioni_condivise' %}">
@@ -644,7 +669,7 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
     <div class="ap-section-head">
       <div class="ap-section-icon">⚙️</div>
       <div class="ap-section-title">Configurazione</div>
-      <span class="ap-section-count">6 strumenti</span>
+      <span class="ap-section-count">8 strumenti</span>
     </div>
     <div class="modules-grid">
 
@@ -688,6 +713,20 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
         <div>
           <div class="mod-name">Bacheca: Documenti &amp; Collegamenti</div>
           <div class="mod-sub">Categorie, link e documenti della home, con visibilità per ruolo</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:sapere_cataloghi' %}">
+        <div class="mod-icon">📚</div>
+        <div>
+          <div class="mod-name">Cataloghi Sapere</div>
+          <div class="mod-sub">Raccolte di guide, risorse e collegamenti con copertina, per la stanza «Sapere»</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:home_azioni_rapide' %}">
+        <div class="mod-icon">⚡</div>
+        <div>
+          <div class="mod-name">Azioni rapide della home</div>
+          <div class="mod-sub">Scorciatoie della home per tutti, per ruolo o per singole persone, anche in blocco</div>
         </div>
       </a>
     </div>

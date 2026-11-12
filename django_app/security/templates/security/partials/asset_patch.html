@@ -1,0 +1,53 @@
+{% if show %}{% load static %}
+<link rel="stylesheet" href="{% static 'security/soc-live.css' %}">{# contatori cvp-card-stat, anche senza il riquadro Vulnerabilità #}
+<section class="af-card" id="asset-patch" aria-labelledby="asset-patch-title">
+  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER · WATCHGUARD</div><h2 class="af-card-title" id="asset-patch-title">Patch</h2></div></div>
+  <div class="cvp-card-stats">
+    <div class="cvp-card-stat{% if aperte %} is-danger{% endif %}"><strong>{{ aperte|length }}</strong><span>mancanti</span></div>
+    <div class="cvp-card-stat{% if oltre_termine %} is-critical{% endif %}"><strong>{{ oltre_termine }}</strong><span>oltre il termine</span></div>
+    <div class="cvp-card-stat"><strong>{{ errori }}</strong><span>installazione fallita</span></div>
+    <div class="cvp-card-stat{% if storico %} is-ok{% endif %}" title="Patch che WatchGuard non segnala più negli ultimi {{ giorni_storico }} giorni"><strong>{{ storico|length }}</strong><span>chiuse ({{ giorni_storico }} gg) · {{ cve_corrette }} CVE</span></div>
+  </div>
+  {% if aperte %}
+  <div class="af-table-wrap">
+    <table class="af-table" data-table-enhanced="0">
+      <thead><tr><th>Patch mancante</th><th>Classe</th><th>Pubblicata il</th><th>Termine</th></tr></thead>
+      <tbody>
+      {% for v in aperte|slice:":10" %}
+        <tr>
+          <td><strong>{{ v.p.nome }}</strong>{% if v.p.programma or v.p.kb %}<br><span class="af-note">{% if v.p.kb %}{{ v.p.kb }}{% if v.p.programma %} · {% endif %}{% endif %}{{ v.p.programma }}</span>{% endif %}{% if v.compresa %}<br><span class="af-pill" title="{{ v.compresa.perche }}">Compresa in {{ v.compresa.in.kb|default:v.compresa.in.nome }}: si chiude installando quella</span>{% endif %}{% if v.errore %} <span class="af-pill af-pill--danger" title="{{ v.p.esito_label }}">Installazione fallita</span>{% endif %}</td>
+          <td>{{ v.etichetta }}{% if v.kev %} <span class="af-pill af-pill--danger" title="{{ v.kev|join:', ' }}">CVE sfruttata</span>{% endif %}</td>
+          <td>{{ v.p.rilasciata_il|date:"d/m/Y"|default:"—" }}</td>
+          <td>{% if not v.scadenza %}—{% elif v.scaduta %}<span class="af-pill af-pill--danger">scaduto da {{ v.giorni_ritardo }} gg</span>{% else %}<span class="af-pill af-pill--ok">entro il {{ v.scadenza|date:"d/m/Y" }}</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if aperte|length > 10 %}<p class="af-note">E altre {{ aperte|length|add:"-10" }}: <a href="{% url 'security:watchguard_pc' %}">tutte le patch mancanti</a>.</p>{% endif %}
+  {% endif %}
+  {% if storico %}
+  <details class="af-acc"{% if not aperte %} open{% endif %}>
+    <summary><span class="af-acc-label">Patch chiuse negli ultimi {{ giorni_storico }} giorni</span><span class="af-acc-count">{{ storico|length }}</span></summary>
+    <div class="af-table-wrap">
+      <table class="af-table" data-table-enhanced="0">
+        <thead><tr><th>Chiusa il</th><th>Patch</th><th>CVE corrette</th><th>Motivo</th></tr></thead>
+        <tbody>
+        {% for r in storico|slice:":20" %}
+          <tr>
+            <td>{{ r.p.chiusa_il|date:"d/m/Y" }}{% if r.giorni is not None %}<br><span class="af-note">{{ r.giorni }} gg dalla pubblicazione</span>{% endif %}</td>
+            <td><strong>{{ r.p.nome }}</strong>{% if r.p.programma %}<br><span class="af-note">{{ r.p.programma }}</span>{% endif %}</td>
+            <td>{% if r.kev %}<span class="af-pill af-pill--danger" title="{{ r.kev|join:', ' }}">CVE sfruttata</span> {% endif %}{{ r.cve|length }}{% if r.cve %} <span class="af-note">({{ r.cve|slice:":2"|join:", " }}{% if r.cve|length > 2 %}…{% endif %})</span>{% endif %}</td>
+            <td>{{ r.motivo_label }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+  <p class="af-note">Dall'API WatchGuard. Il termine parte da «pubblicata il» e dipende dalla classe della patch.
+    {% if host %}<a href="{% url 'security:watchguard_patch_installate' %}?periodo=tutto&amp;q={{ host|urlencode }}">Storico completo di questo PC</a> ·{% endif %}
+    <a href="{% url 'security:watchguard_patch_tempi' %}">Tempi delle patch</a></p>
+</section>
+{% endif %}

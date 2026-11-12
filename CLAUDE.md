@@ -1,6 +1,6 @@
 # CLAUDE.md - NOVICROM HUB
 
-Versione app corrente: **1.6.8** (2026-10-16)
+Versione app corrente: **1.9.1** (2026-11-09)
 
 Portale Django interno (SSR + HTMX) per flussi di lavoro, operatività, sicurezza/compliance, automazioni e permessi granulari. Marchio canonico **NOVICROM HUB**; «Portale Novicrom» resta solo in percorsi di deploy e riferimenti storici.
 

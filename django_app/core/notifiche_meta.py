@@ -39,6 +39,8 @@ TIPO_META: dict[str, dict[str, str]] = {
     "ticket_sla":           {"label": "SLA ticket scaduto",     "icona": "🎫", "tono": "danger", "categoria": "ticket"},
     "asset_scadenza":       {"label": "Scadenza asset",         "icona": "🔧", "tono": "warn",   "categoria": "scadenzari"},
     "formazione_promemoria": {"label": "Promemoria formazione", "icona": "🎓", "tono": "info",   "categoria": "scadenzari"},
+    "scadenza_assegnata":   {"label": "Scadenza assegnata",     "icona": "📅", "tono": "info", "categoria": "scadenzari"},
+    "scadenza_promemoria":  {"label": "Scadenza da gestire",    "icona": "📅", "tono": "warn", "categoria": "scadenzari"},
     "visita_scadenza":      {"label": "Visita medica",          "icona": "🩺", "tono": "warn",   "categoria": "scadenzari"},
     "presa_visione":        {"label": "Presa visione",          "icona": "📄", "tono": "info",   "categoria": "scadenzari"},
     "task":                 {"label": "Attività",               "icona": "🗒️", "tono": "info",   "categoria": "operativita"},

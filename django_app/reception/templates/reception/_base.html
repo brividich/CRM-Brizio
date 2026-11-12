@@ -1,0 +1,48 @@
+{% extends "core/base.html" %}
+
+{% block extra_head %}
+{% include "reception/_stile.html" %}
+{% endblock %}
+
+{% block subnav %}
+{% load static %}
+<nav class="subnav rc-nav" aria-label="Reception">
+  {% for v in menu %}
+  <a class="sub-a rc-nav-a{% if v.attiva %} active{% endif %}" href="{{ v.url }}"{% if v.attiva %} aria-current="page"{% endif %}>
+    {% if v.chiave == "oggi" %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>{% elif v.chiave == "inviti" %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>{% elif v.chiave == "storico" %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>{% endif %}
+    <span>{{ v.etichetta }}</span>
+    {% if v.chiave == "oggi" and n_presenti and not v.attiva %}<span class="rc-nav-n" title="Dentro adesso">{{ n_presenti }}</span>{% endif %}
+    {% if v.chiave == "inviti" and n_richieste and not v.attiva %}<span class="rc-nav-n rc-nav-n-rosso" title="Richieste da decidere">{{ n_richieste }}</span>{% endif %}
+  </a>
+  {% if v.attiva and schede %}
+  <span class="rc-nav-sep" aria-hidden="true">›</span>
+  {% for s in schede %}<a class="rc-nav-sub{% if s.nome == sezione %} on{% endif %}" href="{{ s.url }}"{% if s.nome == sezione %} aria-current="page"{% endif %}>{{ s.etichetta }}{% if s.nome == "richieste" and n_richieste %} <span class="rc-nav-n rc-nav-n-rosso">{{ n_richieste }}</span>{% endif %}</a>{% endfor %}
+  {% endif %}
+  {% endfor %}
+  <span class="rc-nav-spazio"></span>
+  {% if azione_invito %}<a class="rc-nav-azione rc-nav-azione-g" href="{% url 'reception:preregistrazioni' %}?nuovo=1" data-apri="#pannello-invito">+ Invito</a>{% endif %}
+  {% if azione_ingresso %}<a class="rc-nav-azione" href="{% url 'reception:cruscotto' %}?nuovo=1" data-apri="#pannello-ingresso">+ Ingresso</a>{% endif %}
+</nav>
+<script src="{% static 'reception/pannello.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="rc-page">
+  <div class="rc-top">
+    <h1 class="rc-title">{% block rc_titolo %}{% endblock %}</h1>
+    <div class="rc-top-azioni">
+      {% block rc_azioni %}{% endblock %}
+      <a class="rc-btn rc-btn-g" href="{% url 'guida_modulo' 'fornitori' %}#reception">? Guida</a>
+    </div>
+  </div>
+  {% if azione_ingresso or azione_invito %}
+  <div class="rc-azioni-mobile">
+    {% if azione_ingresso %}<a class="rc-nav-azione" href="{% url 'reception:cruscotto' %}?nuovo=1" data-apri="#pannello-ingresso">+ Ingresso</a>{% endif %}
+    {% if azione_invito %}<a class="rc-nav-azione rc-nav-azione-g" href="{% url 'reception:preregistrazioni' %}?nuovo=1" data-apri="#pannello-invito">+ Invito</a>{% endif %}
+  </div>
+  {% endif %}
+  {% include "fornitori/components/flash_messages.html" %}
+  {% if not nativa %}<div class="rc-avviso"><strong>Pannello non ancora in uso:</strong> fino al passaggio i dati veri restano nel GuestPortal.</div>{% endif %}
+  {% block rc_contenuto %}{% endblock %}
+</div>
+{% endblock %}

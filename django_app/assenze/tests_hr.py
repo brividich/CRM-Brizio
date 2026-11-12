@@ -1,4 +1,5 @@
 """Area HR delle assenze: calendario aziendale, saldi, contatori, copertura, storico, solleciti."""
+import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -153,6 +154,32 @@ class SaldiTests(TestCase):
         self.assertEqual(hr.avviso_saldo(2, "Ferie", datetime(2026, 6, 8), datetime(2026, 6, 30)), "")
 
 
+class OrePermessoCalendarioTests(TestCase):
+    def _eventi(self, *righe):
+        from .views import eventi
+
+        righe = [
+            {"id": i, "dipendente": "ROSSI MARIO", "tipo_assenza": t, "data_inizio": a, "data_fine": b,
+             "consenso": "Approvato", "moderation_status": 0, "motivazione_richiesta": "", "capo": ""}
+            for i, (t, a, b) in enumerate(righe, start=1)
+        ]
+        with patch.object(eventi._helpers, "_table_exists", return_value=True),                 patch.object(eventi._helpers, "_has_assenze_column", return_value=False),                 patch.object(eventi._helpers, "_fetch_all_dict", return_value=righe),                 patch.object(eventi._helpers, "_applica_nominativo", side_effect=lambda r: r),                 patch.object(eventi._helpers, "_sharepoint_managed_ids", return_value=set()):
+            return eventi._load_events()
+
+    def test_permesso_mostra_le_ore_ferie_no(self):
+        permesso, parziale, ferie = self._eventi(
+            ("Permesso", datetime(2026, 11, 6, 6), datetime(2026, 11, 6, 14)),
+            ("Permesso", datetime(2026, 11, 5, 8), datetime(2026, 11, 5, 10, 30)),
+            ("Ferie", datetime(2026, 11, 9), datetime(2026, 11, 10, 23, 59)),
+        )
+        self.assertEqual(permesso["extendedProps"]["ore_label"], "8h")
+        self.assertEqual(parziale["extendedProps"]["ore_label"], "2,5h")
+        self.assertNotIn("ore_label", ferie["extendedProps"])
+
+    def test_nessuna_riga(self):
+        self.assertEqual(self._eventi(), [])
+
+
 @patch("assenze.availability._resolve_identities", side_effect=lambda ids: {i: IDENTITA[i] for i in ids if i in IDENTITA})
 class ContatoriECoperturaTests(TestCase):
     def test_contatore_assemblea_oltre_il_limite(self, _ident):
@@ -294,13 +321,198 @@ class ModificaApprovataTests(TestCase):
         storico = self.client.get(reverse("assenze_api_storico", args=[42]))
         self.assertEqual(storico.json()["voci"][0]["motivo"], "Prolungate su richiesta")
 
+    def _malattia(self):
+        self.current.update(tipo_assenza="Malattia", data_fine=datetime(2026, 6, 10, 23, 59), capo_reparto_id=None)
+        return {"tipo": "Malattia", "fine": "2026-06-10T23:59"}
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                       DEFAULT_FROM_EMAIL="noreply@example.com")
+    def test_malattia_certificato_arrivato_vale_come_motivo(self):
+        from django.core import mail
+
+        resp, upd = self._post(certificato_medico="Arrivato", **self._malattia())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(upd.call_args[0][1]["certificato_medico"], "Arrivato")
+        voce = AssenzaModifica.objects.get(assenza_id=42)
+        self.assertEqual(voce.motivo, "Certificato medico arrivato")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("assenza@costruzioninovicrom.it", mail.outbox[0].to)
+        self.assertIn("Motivo della modifica: Certificato medico arrivato", mail.outbox[0].body)
+
+    def test_malattia_certificato_con_altri_cambi_chiede_motivo(self):
+        dati = self._malattia()
+        dati["fine"] = "2026-06-11T23:59"
+        resp, upd = self._post(certificato_medico="Arrivato", **dati)
+        self.assertEqual(resp.status_code, 400)
+        upd.assert_not_called()
+
+    def test_malattia_togliere_certificato_chiede_motivo(self):
+        dati = self._malattia()
+        self.current["certificato_medico"] = "Arrivato"
+        resp, upd = self._post(certificato_medico="", **dati)
+        self.assertEqual(resp.status_code, 400)
+        upd.assert_not_called()
+
     def test_salvataggio_senza_cambi_non_chiede_motivo(self):
         resp, _ = self._post(fine="2026-06-09T23:59")
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(AssenzaModifica.objects.filter(assenza_id=42).exists())
 
 
+class SollecitaRichiestaTests(TestCase):
+    """Pulsante «Sollecita» di «Le mie richieste»."""
+
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.user = get_user_model().objects.create_superuser(
+            username="mario.sollecito", email="mario.sollecito@example.com", password="x",
+        )
+        UserOnboarding.objects.update_or_create(user=self.user, defaults={"completed": True, "completed_at": timezone.now()})
+        self.client.force_login(self.user)
+        self.url = reverse("assenze_api_sollecita", args=[77])
+
+    def _riga(self, **extra):
+        fine = timezone.localtime().replace(tzinfo=None) + timedelta(days=3)
+        riga = {
+            "id": 77, "copia_nome": "Rossi Mario", "aliasusername": "mario.sollecito", "tipo_assenza": "Ferie",
+            "data_inizio": fine - timedelta(days=1), "data_fine": fine, "moderation_status": 2,
+            "created_datetime": fine - timedelta(days=5), "motivazione_richiesta": "",
+        }
+        riga.update(extra)
+        return riga
+
+    def _post(self, riga, capo="capo@example.com"):
+        with patch("assenze.views._helpers._get_assenza", return_value=riga), \
+                patch("assenze.views._helpers._legacy_identity", return_value=("Rossi Mario", "", None)), \
+                patch("assenze.views._helpers._sharepoint_managed_ids", return_value=set()), \
+                patch("assenze.views._helpers._capo_email_for_row", return_value=capo):
+            return self.client.post(self.url, content_type="application/json", data="{}")
+
+    def test_sollecito_al_capo(self):
+        resp = self._post(self._riga())
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ["capo@example.com"])
+        self.assertEqual(msg.subject, "Richiesta di assenza da approvare: ROSSI MARIO")
+        for testo in (msg.subject, msg.body, msg.alternatives[0][0]):
+            self.assertNotIn("sollecit", testo.lower())
+            self.assertNotIn("promemoria", testo.lower())
+        self.assertEqual(AssenzaSollecito.objects.get(assenza_id=77).invii, 1)
+
+    def test_richiesta_altrui_rifiutata(self):
+        resp = self._post(self._riga(aliasusername="altro.utente"))
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(mail.outbox, [])
+
+    def test_attesa_fra_due_solleciti_anche_col_promemoria_automatico(self):
+        AssenzaSollecito.objects.create(assenza_id=77, ultimo_invio=timezone.now() - timedelta(hours=5), invii=1)
+        resp = self._post(self._riga())
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("già stato sollecitato", resp.json()["error"])
+        self.assertEqual(mail.outbox, [])
+
+    def test_dopo_l_attesa_si_risollecita(self):
+        AssenzaSollecito.objects.create(assenza_id=77, ultimo_invio=timezone.now() - timedelta(days=3), invii=1)
+        self.assertEqual(self._post(self._riga()).status_code, 200)
+        self.assertEqual(AssenzaSollecito.objects.get(assenza_id=77).invii, 2)
+
+    def test_richiesta_gia_decisa(self):
+        self.assertEqual(self._post(self._riga(moderation_status=0)).status_code, 400)
+        self.assertEqual(mail.outbox, [])
+
+    def test_solleciti_spenti(self):
+        imp = AssenzeImpostazioniHR.get_solo()
+        imp.sollecito_attivo = False
+        imp.save()
+        self.assertEqual(self._post(self._riga()).status_code, 400)
+
+    def test_senza_capo_con_email(self):
+        resp = self._post(self._riga(), capo="")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("ufficio assenze", resp.json()["error"])
+
+    def test_gate_acl_come_le_mie_richieste(self):
+        from core.middleware import resolve_acl_gate_target_path
+
+        self.assertEqual(resolve_acl_gate_target_path(self.url), "/assenze/le-mie-richieste")
+
+    def test_pulsante_nell_elenco(self):
+        from . import solleciti
+
+        fine = (timezone.now() + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        righe = [
+            {"id": 1, "moderation_status": 2, "fine_iso": fine},
+            {"id": 2, "moderation_status": 2, "fine_iso": fine},
+            {"id": 3, "moderation_status": 0, "fine_iso": fine},
+            {"id": 4, "moderation_status": 2, "fine_iso": fine, "gestita_sp": True},
+        ]
+        AssenzaSollecito.objects.create(assenza_id=2, ultimo_invio=timezone.now(), invii=1)
+        solleciti.annota_richieste_personali(righe)
+        self.assertEqual([r["sollecito_visibile"] for r in righe], [True, True, False, False])
+        self.assertEqual(righe[0]["sollecito_prossimo"], "")
+        self.assertTrue(righe[1]["sollecito_prossimo"])
+
+
 class SollecitiTests(TestCase):
+    def _approval(self, record_id, approvatori=("capo@example.com",), **extra):
+        from automazioni.models import AutomationApproval, AutomationRunLog
+
+        run_log = AutomationRunLog.objects.create(
+            source_code="assenze", operation_type="INSERT", status="waiting_approval", payload_json={"id": record_id},
+        )
+        return AutomationApproval.objects.create(
+            run_log=run_log, approver_emails=list(approvatori), subject="Approva",
+            resume_payload={"id": record_id}, approved_actions=[], **extra,
+        )
+
+    def _righe(self, *ids):
+        return [
+            {"id": i, "copia_nome": f"PROVA {i}", "tipo_assenza": "Ferie", "data_inizio": datetime(2026, 6, 8),
+             "data_fine": datetime(2026, 6, 9), "created_datetime": datetime(2026, 6, 1)}
+            for i in ids
+        ]
+
+    @override_settings(SITE_URL="https://hub.example.com")
+    def test_pulsanti_solo_se_il_capo_e_approvatore_di_una_richiesta_aperta(self):
+        from automazioni.approval_links import decide_with_link
+        from automazioni.models import AutomationApprovalLink
+
+        from . import solleciti
+
+        valida = self._approval(1, approvatori=("Capo@Example.com",))
+        self._approval(2, approvatori=("altro@example.com",))
+        self._approval(3, expires_at=timezone.now() - timedelta(days=1))
+        self._approval(4, status="approved")
+        _, html, testo = solleciti._contenuto_mail(self._righe(1, 2, 3, 4, 5), "capo@example.com")
+
+        self.assertEqual(html.count(">Approva</a>"), 1)
+        self.assertEqual(html.count(">Rifiuta</a>"), 1)
+        link = AutomationApprovalLink.objects.get()
+        self.assertEqual(link.approval_id, valida.pk)
+        self.assertEqual(link.recipient_email, "capo@example.com")
+        self.assertNotIn(link.token_hash, html)
+
+        raw = re.search(r"/approval-actions/r/([^/]+)/approva/", html).group(1)
+        self.assertIn(f"Rifiuta: https://hub.example.com/approval-actions/r/{raw}/rifiuta/", testo)
+        self.assertTrue(decide_with_link(raw, "approved")["ok"])
+        valida.refresh_from_db()
+        self.assertEqual(valida.status, "approved")
+        self.assertEqual(valida.decided_by_email, "capo@example.com")
+
+    def test_senza_approvazione_resta_il_link_al_portale(self):
+        from automazioni.models import AutomationApprovalLink
+
+        from . import solleciti
+
+        oggetto, html, _ = solleciti._contenuto_mail(self._righe(9), "capo@example.com")
+        self.assertEqual(oggetto, "Richiesta di assenza da approvare: PROVA 9")
+        self.assertNotIn(">Approva</a>", html)
+        self.assertNotIn("Non inoltrare", html)
+        self.assertIn("per approvare o rifiutare", html)
+        self.assertFalse(AutomationApprovalLink.objects.exists())
+
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
                        DEFAULT_FROM_EMAIL="noreply@example.com")
     def test_una_mail_per_capo_e_niente_ripetizioni_ravvicinate(self):
@@ -316,7 +528,7 @@ class SollecitiTests(TestCase):
             esito = solleciti.invia_solleciti()
         self.assertEqual(esito["email_sent"], 1)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("2 richieste", mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].subject, "2 richieste di assenza da approvare")
         self.assertIn("Aggiungi a Outlook", mail.outbox[0].alternatives[0][0])
         self.assertEqual(AssenzaSollecito.objects.get(assenza_id=1).invii, 1)
 
@@ -411,7 +623,11 @@ class PermessoRipetutoTests(TestCase):
         with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102, 103]) as ins, \
                 patch("assenze.hr.avvisi_richiesta", return_value=[]):
             resp = self._invia(ripeti_fino_al="2026-11-02")
-        self.assertContains(resp, "3 permessi registrati")
+        # Dopo l'invio si torna alla pagina con la conferma (Post/Redirect/Get).
+        self.assertEqual(resp.status_code, 302)
+        conferma = self.client.session["assenze_conferma_invio"]
+        self.assertEqual(conferma["numero"], 3)
+        self.assertTrue(conferma["ripetuto"])
         giorni = [(c.args[0]["data_inizio"], c.args[0]["data_fine"]) for c in ins.call_args_list]
         self.assertEqual(giorni, [
             (datetime(2026, 10, 29, 8), datetime(2026, 10, 29, 10)),

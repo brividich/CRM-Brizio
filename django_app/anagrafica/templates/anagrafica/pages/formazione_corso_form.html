@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "anagrafica/components/_fmd_form_style.html" %}
 {% include "tasks/_percorso_assets.html" %}
 {% endblock %}
@@ -24,7 +24,7 @@
         <div class="fmd-crumb">
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span>
-          <span class="fmd-cur">{% if modo == "crea" %}Nuovo{% else %}Modifica{% endif %}</span>
+          {% if form.instance.pk %}<a href="{% url 'anagrafica:formazione_corso_detail' form.instance.pk %}">{{ form.instance.codice }}</a><span class="fmd-sep"> / </span>{% endif %}<span class="fmd-cur">{% if modo == "crea" %}Nuovo{% else %}Modifica{% endif %}</span>
         </div>
         <h1>
           <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>
@@ -53,7 +53,7 @@
         <aside class="kp-rail" aria-label="Percorso di creazione corso">
           <div class="kp-rail-title">Percorso</div>
           <div class="kp-rail-nodes"></div>
-          <div class="kp-progress">Tappe completate <span class="kp-progress-count">0/{% if sess_form %}6{% else %}5{% endif %}</span></div>
+          <div class="kp-progress">Tappe completate <span class="kp-progress-count">0/{% if sess_form %}7{% else %}6{% endif %}</span></div>
         </aside>
 
         <div class="kp-stations">
@@ -74,7 +74,11 @@
                     {% else %}Assegnato in automatico al salvataggio: le prime due cifre sono l’anno, le ultime tre il progressivo di quell’anno (es. <b>26066</b> = 66° corso del 2026). Le edizioni ne ereditano il codice: <b>26066-26E1</b>, e a gennaio <b>26066-27E1</b>.{% endif %}
                   </div>
                 </div>
-                {% include "anagrafica/partials/_fmd_field.html" with field=form.versione %}
+                <div class="fmd-field">
+                  <label>Versione</label>
+                  <div class="fmd-static">{% if form.instance.pk %}{{ form.instance.versione }}{% else %}1.0{% endif %}</div>
+                  <div class="fmd-fhelp">Automatica: cambia da sola quando si modificano titolo, durata, validità, qualifica, categoria o programma di un corso già frequentato.</div>
+                </div>
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.descrizione full=1 %}
               </div>
             </div>
@@ -102,9 +106,36 @@
             </div>
           </section>
 
-          <section class="kp-station" data-title="Durata e validità">
+          <section class="kp-station" data-title="A chi serve">
             <div class="kp-station-head">
               <span class="kp-num">3</span>
+              <div class="kp-station-titles"><h3>A chi serve</h3><p>Le mansioni, i ruoli o le mansioni di rischio di chi deve fare il corso. Facoltativo: si può completare dopo dalla scheda.</p></div>
+            </div>
+            <div class="kp-body">
+              <div class="acs-2col">
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.mansioni_obbligatorie %}
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.mansioni_consigliate %}
+              </div>
+              <details class="acs-altro"{% if form.ruoli_obbligatori.value or form.rischio_obbligatorie.value or form.ruoli_obbligatori.errors or form.rischio_obbligatorie.errors %} open{% endif %}>
+                <summary>Anche per ruoli o mansioni di rischio</summary>
+                <div class="acs-2col">
+                  {% include "anagrafica/partials/_fmd_field.html" with field=form.ruoli_obbligatori %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=form.rischio_obbligatorie %}
+                </div>
+              </details>
+              <style>
+                .acs-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+                @media(max-width:760px){.acs-2col{grid-template-columns:1fr;}}
+                .acs-altro{margin-top:10px;}
+                .acs-altro>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--fmd-cyan,#0369a1);margin-bottom:8px;}
+              </style>
+              <p class="kp-hint" style="margin:10px 0 0;">Obbligatorio = entra in scadenzario, copertura e onboarding. Consigliato = proposto, senza scadenze. Aree e singole persone si collegano dalla scheda del corso, «A chi serve questo corso».</p>
+            </div>
+          </section>
+
+          <section class="kp-station" data-title="Durata e validità">
+            <div class="kp-station-head">
+              <span class="kp-num">4</span>
               <div class="kp-station-titles"><h3>Durata, validità e costo</h3><p>La validità si preimposta dalla qualifica.</p></div>
             </div>
             <div class="kp-body">
@@ -119,7 +150,7 @@
           {% if sess_form %}
           <section class="kp-station" data-title="Programmazione" id="kp-programmazione">
             <div class="kp-station-head">
-              <span class="kp-num">4</span>
+              <span class="kp-num">5</span>
               <div class="kp-station-titles">
                 <h3>Programmazione (facoltativa)</h3>
                 <p>Il corso può nascere già con la sua sessione a calendario — anche divisa in più gruppi.</p>
@@ -174,7 +205,7 @@
 
           <section class="kp-station" data-title="E-learning">
             <div class="kp-station-head">
-              <span class="kp-num">{% if sess_form %}5{% else %}4{% endif %}</span>
+              <span class="kp-num">{% if sess_form %}6{% else %}5{% endif %}</span>
               <div class="kp-station-titles"><h3>E-learning</h3><p>Micro-corso interno con slide e quiz finale.</p></div>
             </div>
             <div class="kp-body">
@@ -196,7 +227,7 @@
 
           <section class="kp-station" data-title="Pubblicazione">
             <div class="kp-station-head">
-              <span class="kp-num">{% if sess_form %}6{% else %}5{% endif %}</span>
+              <span class="kp-num">{% if sess_form %}7{% else %}6{% endif %}</span>
               <div class="kp-station-titles"><h3>Pubblicazione e opzioni</h3><p>Stato, note e flag operativi.</p></div>
             </div>
             <div class="kp-body">
@@ -222,7 +253,7 @@
       <div class="fmd-form-foot" style="border:1px solid var(--fmd-line,#e7edf3);border-radius:14px;margin-top:16px;">
         <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
         <span class="fmd-spacer"></span>
-        <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        <a href="{% if form.instance.pk %}{% url 'anagrafica:formazione_corso_detail' form.instance.pk %}{% else %}{% url 'anagrafica:formazione_corsi_list' %}{% endif %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
         <button type="submit" class="fmd-btn fmd-btn-primary">
           <svg class="fmd-ico"><use href="#i-check"/></svg>{% if modo == "crea" %}Crea corso{% else %}Salva modifiche{% endif %}
         </button>

@@ -223,6 +223,9 @@ class TaskAntiIDORTests(TasksBaseTestCase):
 class TaskEditAndDueDatePermissionsTests(TasksBaseTestCase):
     def setUp(self):
         super().setUp()
+        # Comportamento senza approvazione degli spostamenti (coperto con approvazione in tests_spostamenti).
+        from tasks.models import TaskImpostazioni
+        TaskImpostazioni.objects.update_or_create(pk=TaskImpostazioni.get_singleton().pk, defaults={"spostamenti_con_approvazione": False})
         _ensure_role(2, "utente")
         _ensure_role(3, "manager")
         _grant_role_actions(2, ["tasks_view"])
@@ -512,6 +515,12 @@ class TaskScopedAccessRulesTests(TasksBaseTestCase):
             role_type=TaskRoleType.PROJECT_MANAGER,
             access_level=TaskAccessLevel.READ_ALL,
         )
+        # Il PM ha pieni poteri di default: qui la regola di sola lettura vale perché i poteri restano al capocommessa.
+        from tasks.models import TaskImpostazioni
+
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.poteri_ruoli = "CC"
+        cfg.save()
         self.client.force_login(self.pm_user)
 
         response_detail = self.client.get(reverse("tasks:detail", args=[self.task_other.id]))

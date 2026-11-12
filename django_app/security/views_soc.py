@@ -18,7 +18,7 @@ def assets_list(request):
     """Vecchio indirizzo «Asset»: ora i dispositivi e il collegamento al registro stanno in un elenco solo."""
     from django.urls import reverse
 
-    filtro = {"da_collegare": "da_collegare"}.get(request.GET.get("stato", ""), "tutti")
+    filtro = {"da_collegare": "da_collegare", "collegati": "collegati"}.get(request.GET.get("stato", ""), "tutti")
     target = reverse("security:pc_copertura") + f"?f={filtro}"
     if request.method == "POST":
         if not can_view_security_center(request.user):
@@ -110,6 +110,24 @@ def _vpn_day(value):
         return None
 
 
+def _vpn_csv(request, qs, filters, day_from, day_to):
+    """Tutti gli accessi del filtro e del periodo (non solo la pagina mostrata)."""
+    from security.services import esporta_csv
+
+    righe = (
+        [a.get_action_display(), a.username, a.source_ip, esporta_csv.data_ora(a.login_at), esporta_csv.data_ora(a.logout_at),
+         a.duration_seconds or "", a.method or a.kind, a.reason, a.firebox_name or a.source.name]
+        for a in qs.iterator(chunk_size=2000)
+    )
+    filtri = {k: v for k, v in filters.items() if v}
+    filtri.update({"dal": day_from, "al": day_to})
+    return esporta_csv.risposta(
+        request, "accessi-vpn",
+        ["Esito", "Utente", "IP origine", "Accesso", "Uscita", "Durata (secondi)", "Tipo", "Motivo", "Firewall"],
+        righe, azione="soc_vpn_export", filtri=filtri,
+    )
+
+
 def vpn_history(request):
     """Storico accessi VPN (consentiti/negati) letto dai report Firebox, con filtri e classifiche."""
     if not can_view_security_center(request.user):
@@ -117,12 +135,15 @@ def vpn_history(request):
 
         return _security_center_denied(request)
     qs = SecurityVpnAccess.objects.select_related("source")
-    filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "ip", "action", "from", "to")}
+    # «user» cerca una parte del nome; «utente» è il nome esatto (link «Tutti i suoi accessi» del pannello utente).
+    filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "utente", "ip", "action", "from", "to")}
     # Di default solo le VPN: il report Authentication contiene anche i login «Firewall».
     filters["kind"] = (request.GET.get("kind") or "vpn").strip()
     if filters["kind"] in ("vpn", "firewall", "guest", "other"):
         qs = qs.filter(kind=filters["kind"])
-    if filters["user"]:
+    if filters["utente"]:
+        qs = qs.filter(username=filters["utente"][:255])
+    elif filters["user"]:
         qs = qs.filter(username__icontains=filters["user"])
     if filters["ip"]:
         qs = qs.filter(source_ip__startswith=filters["ip"])
@@ -154,6 +175,10 @@ def vpn_history(request):
         qs = qs.filter(login_at__date=selected_day)
     else:
         day_from_eff, day_to_eff = day_from, day_to
+    from security.services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _vpn_csv(request, qs, filters, day_from_eff, day_to_eff)
     previous = None
     if day_from_eff and day_to_eff:
         span = (day_to_eff - day_from_eff).days + 1

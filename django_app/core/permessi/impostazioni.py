@@ -40,6 +40,13 @@ class PagineImpostazioni:
 
 
 IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
+    # Reception → Impostazioni (avviso al chiosco, cancellazione dei dati oltre il termine): reception 0006.
+    "portale_ospiti": PagineImpostazioni(
+        codici=("reception.impostazioni.manage",),
+        rotte=("reception:impostazioni", "reception:sale"),
+        nuovo="Reception · impostazioni",
+        modulo_acl="portale_esterno",
+    ),
     "assenze": PagineImpostazioni(
         codici=("assenze.impostazioni.manage",),
         rotte=("assenze_impostazioni",),
@@ -100,6 +107,12 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
             "assets:reporting_retry", "assets:maintenance_impostazioni",
         ),
         modulo_acl="assets",
+    ),
+    "produzione": PagineImpostazioni(
+        codici=("produzione.impostazioni.manage",),
+        rotte=("produzione:impostazioni",),
+        modulo_acl="produzione",
+        etichetta="Tipi di documento di produzione",
     ),
     "kickoff": PagineImpostazioni(
         codici=("tasks.impostazioni.manage",),

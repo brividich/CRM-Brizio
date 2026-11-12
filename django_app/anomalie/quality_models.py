@@ -13,6 +13,9 @@ id, senza toccare lo schema legacy.
   facoltative; lo stato e' calcolato da quello che e' compilato.
 - ``AnomaliaNCAzione`` / ``AnomaliaNCEvento`` / ``AnomaliaNCAllegato``: azioni,
   storico e allegati della NC.
+- ``AnomaliaEsito``: risposta del cliente e azione effettuata (rilavorazione,
+  scarto...) sulla singola anomalia, con i file allegati; le date degli eventi che
+  servono ai tempi di risposta e risoluzione stanno nella scheda qualita'.
 """
 from __future__ import annotations
 
@@ -166,6 +169,36 @@ class AnomaliaSchedaQualita(models.Model):
     # dell'anomalia; diventa False appena un utente la sceglie a mano.
     disposizione_auto = models.BooleanField(default=True)
 
+    # Date degli eventi per i tempi (anomalie/tempi_service.py): le scrive il
+    # salvataggio dell'anomalia, mai a mano. ``primo_avanzamento`` e' lo stato della
+    # prima decisione: con «Azione di recupero» la chiusura chiede l'azione effettuata.
+    prima_decisione_il = models.DateTimeField(null=True, blank=True)
+    primo_avanzamento = models.CharField(max_length=100, blank=True, default="")
+    attesa_cliente_dal = models.DateTimeField(null=True, blank=True)
+    risposta_cliente_il = models.DateTimeField(null=True, blank=True)
+    azione_effettuata_il = models.DateTimeField(null=True, blank=True)
+    chiusa_il = models.DateTimeField(null=True, blank=True)
+
+    # Decisione del capocommessa (Gestione anomalie): dove si trovano fisicamente i
+    # pezzi e se la non conformità va segnalata al terzista. Stanno qui e non nella
+    # tabella legacy ``anomalie`` (non gestita da Django).
+    dove_pezzi = models.CharField(max_length=200, blank=True, default="")
+    segnala_terzista = models.BooleanField(default=False)
+    # «Segnala a CAR»: i capi reparto scelti dal capocommessa (nominativi separati da
+    # «; ») ricevono una mail dedicata; ``car_segnalati_il`` = ultimo invio.
+    segnala_car = models.BooleanField(default=False)
+    car_segnalati = models.CharField(max_length=500, blank=True, default="")
+    car_segnalati_il = models.DateTimeField(null=True, blank=True)
+    # «Segnalato»: il capocommessa registra di aver già avvisato cliente / terzista
+    # (a mano, fuori dal portale). Solo registro: nessuna mail di aggiornamento.
+    segnalato_cliente_il = models.DateTimeField(null=True, blank=True)
+    segnalato_cliente_da = models.CharField(max_length=200, blank=True, default="")
+    segnalato_terzista_il = models.DateTimeField(null=True, blank=True)
+    segnalato_terzista_da = models.CharField(max_length=200, blank=True, default="")
+    # Dati strutturati scritti dal controllore (misure, difetto, documenti, riferimento):
+    # vedi anomalie/dettaglio_controllo.py. Facoltativi: la descrizione libera resta.
+    dettaglio_controllo = models.JSONField(default=dict, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -225,6 +258,15 @@ class AnomaliaControllo(models.Model):
     # quando il blocco viene salvato; «Riprendi» la rimette nell'editor.
     bozza = models.JSONField(default=dict, blank=True)
     bozza_at = models.DateTimeField(null=True, blank=True)
+    # Promemoria al controllore per una bozza ferma senza blocchi da inviare: uno per
+    # pausa (si rimanda quando la bozza cambia dopo l'ultimo promemoria).
+    promemoria_bozza_at = models.DateTimeField(null=True, blank=True)
+    # OP nuovo non ancora creato (dati del modulo «+ Nuovo OP»): l'OP si crea al primo
+    # «Salva blocco» e il campo torna vuoto. Finché è pieno, ``op_id`` è il titolo previsto.
+    op_nuovo = models.JSONField(default=dict, blank=True)
+    # Passaggi di mano fra colleghi del gruppo qualità («Prendi in carico»):
+    # [{"da": nome, "a": nome, "at": iso}] — chi ha iniziato resta tracciato.
+    passaggi = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -411,3 +453,36 @@ class AnomaliaNCAllegato(models.Model):
         ordering = ["-created_at", "-id"]
         verbose_name = "Allegato NC"
         verbose_name_plural = "Allegati NC"
+
+
+class AnomaliaEsito(models.Model):
+    """Risposta del cliente o azione effettuata su un'anomalia, con i suoi allegati.
+
+    I file stanno nella cartella allegati dell'anomalia (stessa validazione e stesso
+    download degli altri allegati): qui si tiene solo l'elenco dei ``file_id``.
+    """
+
+    class Tipo(models.TextChoices):
+        RISPOSTA_CLIENTE = "RISPOSTA_CLIENTE", "Risposta del cliente"
+        AZIONE = "AZIONE", "Azione effettuata"
+
+    anomalia_id = models.IntegerField(db_index=True)
+    tipo = models.CharField(max_length=16, choices=Tipo.choices)
+    azione = models.CharField(max_length=100, blank=True, default="")
+    testo = models.TextField(blank=True, default="")
+    riverificato = models.BooleanField(default=False)
+    chiusa = models.BooleanField(default=False)
+    allegati = models.JSONField(default=list, blank=True)
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    utente_display = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Esito anomalia"
+        verbose_name_plural = "Esiti anomalie"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} anomalia {self.anomalia_id}"

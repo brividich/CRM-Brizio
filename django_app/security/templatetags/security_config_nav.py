@@ -69,6 +69,7 @@ MENU = [
     ("Segnalazioni", "segnalazioni", [
         ("Tutte", "segnalazioni", ("segnalazioni",), False),
         ("Alert", "alerts_list", ("alerts_list", "alert_detail"), False),
+        ("Proposte AI", "alert_proposte", ("alert_proposte",), False),
         ("Ticket", "tickets_list", ("tickets_list", "case_detail", "case_create"), False),
         ("Incidenti", "incidents", ("incidents", "incident_create", "incident_detail", "incident_edit"), False),
         ("Eventi", "events", ("events", "event_detail"), False),
@@ -77,9 +78,13 @@ MENU = [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
         ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
+        ("Patch installate", "watchguard_patch_installate", ("watchguard_patch_installate",), False),
+        ("Installazioni da console", "watchguard_task", ("watchguard_task",), False),
+        ("Tempi delle patch", "watchguard_patch_tempi", ("watchguard_patch_tempi",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),
+        ("Librerie del portale", "dipendenze_portale", ("dipendenze_portale",), False),
         ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
@@ -107,6 +112,7 @@ MENU = [
         ("Battito del SOC", "battito", ("battito",), False),
         ("Avvisi e automatismi", "soc_settings", ("soc_settings",), False),
         ("Letture automatiche", "letture", ("letture",), False),
+        ("Carica report", "inbox", ("inbox",), False),
         ("Soppressioni", "suppressions", ("suppressions",), False),
         ("Guida", "help", ("help", "doc_detail"), False),
     ]),
@@ -143,6 +149,10 @@ def soc_menu(context, url_name):
     # Voce «Impostazioni»: ogni scheda tranne la Guida segue l'azione «impostazioni» della matrice.
     can_impostazioni = bool(user and can_configure_soc(request))
     badges = _badges(user)
+    if not can_impostazioni:
+        # Senza configurazione la voce contiene solo la Guida: il numero delle
+        # sorgenti in ritardo porterebbe a una pagina che non si apre.
+        badges.pop("Impostazioni", None)
     voci, sezione = [], None
     for label, entry, pagine in MENU:
         tabs = []

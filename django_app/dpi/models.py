@@ -83,6 +83,21 @@ class CategoriaDPI(models.Model):
         default=True,
         help_text="Alla consegna manda il report con il PDF anche all'Amministrazione",
     )
+    consegna_magazzino = models.BooleanField(
+        default=True,
+        help_text="La consegna la fa il magazzino: compare nel «Banco consegne» e la mail «Da consegnare» va al "
+                  "Magazzino. Senza spunta (es. scarpe) la mail va ai referenti DPI.",
+    )
+    si_ordina_al_negozio = models.BooleanField(
+        default=False,
+        help_text="Si ordina al negozio (scarpe): chi chiede sceglie convenzione, con riepilogo periodico e ritiro in "
+                  "ufficio, o fuori convenzione, con ritiro al negozio e chiusura con la fattura.",
+    )
+    consegna_diretta = models.BooleanField(
+        default=False,
+        help_text="Il magazzino la può consegnare al banco senza una richiesta approvata (consumabili: guanti, "
+                  "tappi, mascherine…). Il report di consegna va comunque al responsabile.",
+    )
     is_active = models.BooleanField(default=True)
     order_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -227,6 +242,14 @@ class DPIImpostazioni(models.Model):
         blank=True, default="",
         help_text="Indirizzi email aggiuntivi per notifiche, uno per riga",
     )
+    negozio_nome = models.CharField(max_length=120, default="PROTEGGI", help_text="Negozio delle scarpe")
+    negozio_email = models.CharField(max_length=254, blank=True, default="", help_text="Mail del negozio per l'ordine in convenzione")
+    negozio_operatore_emails = models.TextField(
+        blank=True, default="",
+        help_text="Operatore incaricato degli ordini di scarpe, uno per riga (vuoto: referenti DPI)",
+    )
+    negozio_giorni_riepilogo = models.PositiveSmallIntegerField(default=15, help_text="Ogni quanti giorni si manda il riepilogo")
+    negozio_promemoria_il = models.DateField(null=True, blank=True, editable=False)
     magazzino_emails = models.TextField(
         blank=True, default="",
         help_text="Avviso di consegna alla approvazione della richiesta, uno per riga",
@@ -234,6 +257,12 @@ class DPIImpostazioni(models.Model):
     amministrazione_emails = models.TextField(
         blank=True, default="",
         help_text="Report di consegna (per le categorie con l'avviso all'Amministrazione), uno per riga",
+    )
+    domini_email_aziendali = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Domini della mail aziendale (es. azienda.it), separati da virgola: la conferma di ricevuta va al "
+                  "dipendente solo se la sua mail di notifica e' di questi domini, altrimenti al caporeparto. "
+                  "Vuoto = qualunque mail di notifica.",
     )
     avviso_ritiro_all_approvazione = models.BooleanField(
         default=False,
@@ -261,6 +290,11 @@ class DPIImpostazioni(models.Model):
 # ---------------------------------------------------------------------------
 # Richiesta DPI
 # ---------------------------------------------------------------------------
+
+class ModalitaNegozio(models.TextChoices):
+    CONVENZIONE = "CONVENZIONE", "In convenzione"
+    FUORI = "FUORI", "Fuori convenzione"
+
 
 class StatoRichiesta(models.TextChoices):
     INVIATA = "INVIATA", "Inviata"
@@ -338,6 +372,15 @@ class RichiestaDPI(models.Model):
 
     note_gestione = models.TextField(blank=True, default="")
 
+    # Scarpe al negozio (vuoto per tutti gli altri DPI, che seguono il flusso del magazzino).
+    modalita_negozio = models.CharField(max_length=12, choices=ModalitaNegozio.choices, blank=True, default="", db_index=True)
+    ordine_negozio = models.ForeignKey(
+        "OrdineNegozioDPI", null=True, blank=True, on_delete=models.SET_NULL, related_name="richieste",
+    )
+    fattura_negozio = models.ForeignKey(
+        "FatturaNegozioDPI", null=True, blank=True, on_delete=models.SET_NULL, related_name="richieste",
+    )
+
     # Il magazzino ha preparato il DPI e ha avvisato il dipendente di ritirarlo
     # (lo stato resta APPROVATA fino alla consegna).
     pronta_ritiro_il = models.DateTimeField(null=True, blank=True)
@@ -379,7 +422,16 @@ class RichiestaDPI(models.Model):
     def label_stato(self) -> str:
         if self.is_pronta_ritiro:
             return "Pronta al ritiro"
+        if self.stato == StatoRichiesta.APPROVATA and self.ordine_negozio_id:
+            return "Ordinata"
         return dict(StatoRichiesta.choices).get(self.stato, self.stato)
+
+    @property
+    def da_gestire_in_negozio(self) -> bool:
+        """La consegna non passa dal banco: fuori convenzione, o convenzione non ancora ordinata."""
+        if self.modalita_negozio == ModalitaNegozio.FUORI:
+            return True
+        return self.modalita_negozio == ModalitaNegozio.CONVENZIONE and not self.ordine_negozio_id
 
     @property
     def is_pronta_ritiro(self) -> bool:
@@ -438,6 +490,25 @@ class ConsegnaDPI(models.Model):
         help_text="Consegna successiva dello stesso tipo DPI che ha rimpiazzato questa (storico, mai cancellata).",
     )
     data_sostituzione = models.DateField(null=True, blank=True)
+    conferma = models.ForeignKey(
+        "ConfermaConsegnaDPI",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="consegne",
+        help_text="Conferma di ricevuta via mail (al posto della firma al banco).",
+    )
+    confermata_badge_il = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Il dipendente ha confermato la ricevuta passando il proprio badge al banco. Il codice non si conserva.",
+    )
+    avvisi_in_sospeso_dal = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Consegna dal banco gia' registrata, con mail e PDF ancora da fare: finche' e' valorizzato si puo' annullare.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -468,6 +539,57 @@ class ConsegnaDPI(models.Model):
         if sc <= oggi + timedelta(days=30):
             return "arancione"
         return "verde"
+
+
+# ---------------------------------------------------------------------------
+# Conferma di ricevuta via mail (al posto della firma al banco)
+# ---------------------------------------------------------------------------
+
+class ConfermaConsegnaDPI(models.Model):
+    """Il magazzino registra la consegna; chi ha ricevuto i DPI (o, senza mail
+    aziendale, il suo caporeparto) conferma dal link personale della mail.
+    Una conferma copre tutte le consegne fatte insieme alla stessa persona."""
+
+    class Stato(models.TextChoices):
+        IN_ATTESA = "IN_ATTESA", "Da confermare"
+        CONFERMATA = "CONFERMATA", "Confermata"
+        CONTESTATA = "CONTESTATA", "Contestata"
+
+    class Destinatario(models.TextChoices):
+        DIPENDENTE = "DIPENDENTE", "Dipendente"
+        RESPONSABILE = "RESPONSABILE", "Caporeparto / responsabile"
+
+    richiedente_legacy_id = models.IntegerField(null=True, blank=True, db_index=True)
+    richiedente_nome = models.CharField(max_length=200)
+    destinatario_tipo = models.CharField(max_length=15, choices=Destinatario.choices)
+    stato = models.CharField(max_length=12, choices=Stato.choices, default=Stato.IN_ATTESA, db_index=True)
+    decisa_il = models.DateTimeField(null=True, blank=True)
+    decisa_da_email = models.CharField(max_length=200, blank=True, default="")
+    nota = models.CharField(max_length=500, blank=True, default="")
+    creata_da_nome = models.CharField(max_length=200, blank=True, default="")
+    sollecitata_il = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Conferma consegna DPI"
+        verbose_name_plural = "Conferme consegna DPI"
+
+    def __str__(self) -> str:
+        return f"Conferma {self.richiedente_nome} - {self.get_stato_display()}"
+
+
+class LinkConfermaDPI(models.Model):
+    """Link personale della mail di conferma: a DB solo l'hash del segreto."""
+
+    conferma = models.ForeignKey(ConfermaConsegnaDPI, on_delete=models.CASCADE, related_name="link")
+    email = models.CharField(max_length=200)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Link conferma DPI"
+        verbose_name_plural = "Link conferma DPI"
 
 
 # ---------------------------------------------------------------------------
@@ -553,6 +675,53 @@ class DocumentoDPI(models.Model):
 # ---------------------------------------------------------------------------
 # Magazzino DPI: giacenza come somma dei movimenti
 # ---------------------------------------------------------------------------
+
+def _fattura_negozio_upload_to(instance, filename: str) -> str:
+    import uuid
+    from pathlib import Path
+
+    return f"dpi/fatture/{uuid.uuid4().hex}{Path(filename or '').suffix.lower()[:10]}"
+
+
+class OrdineNegozioDPI(models.Model):
+    """Riepilogo mandato al negozio: raggruppa le richieste in convenzione."""
+
+    negozio_nome = models.CharField(max_length=120, blank=True, default="")
+    inviato_a = models.CharField(max_length=400, blank=True, default="", help_text="Vuoto: l'operatore ha scritto al negozio per conto suo.")
+    creato_da_nome = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Ordine scarpe al negozio"
+        verbose_name_plural = "Ordini scarpe al negozio"
+
+    def __str__(self) -> str:
+        return f"Ordine {self.pk} a {self.negozio_nome}"
+
+
+class FatturaNegozioDPI(models.Model):
+    """Fattura del negozio: chiude le richieste fuori convenzione che copre."""
+
+    numero = models.CharField(max_length=60)
+    data = models.DateField()
+    negozio_nome = models.CharField(max_length=120, blank=True, default="")
+    file = models.FileField(upload_to=_fattura_negozio_upload_to, storage=PrivateDpiDocumentStorage(), max_length=400)
+    nome_originale = models.CharField(max_length=255, blank=True, default="")
+    dimensione_bytes = models.PositiveBigIntegerField(default=0)
+    caricata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="fatture_negozio_dpi",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-id"]
+        verbose_name = "Fattura scarpe del negozio"
+        verbose_name_plural = "Fatture scarpe del negozio"
+
+    def __str__(self) -> str:
+        return f"Fattura {self.numero}"
+
 
 class MovimentoMagazzinoDPI(models.Model):
     """Movimento di magazzino di un modello DPI.

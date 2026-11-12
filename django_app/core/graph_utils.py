@@ -76,7 +76,7 @@ def acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> s
         result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
         token = result.get("access_token")
         if not token:
-            raise RuntimeError(f"Token Graph non ottenuto: {result}")
+            raise RuntimeError(f"Token Graph non ottenuto: {descrivi_errore_token(result)}")
 
         ttl = int(result.get("expires_in", 3600))
         # Scade in cache prima della scadenza reale, per garantire rinnovo
@@ -88,6 +88,31 @@ def acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> s
             logger.warning("Impossibile scrivere token Graph in cache: %s", exc)
         logger.debug("Token Graph rinnovato, scade in %ds (cache %ds)", ttl, cache_ttl)
         return str(token)
+
+
+def descrivi_errore_token(result) -> str:
+    """Errore di Entra in breve: ``error`` + codice AADSTS (es. «invalid_client, AADSTS7000215»).
+
+    Niente dump della risposta intera (contiene trace id, timestamp e descrizioni lunghe).
+    """
+    import re
+
+    if not isinstance(result, dict):
+        return str(result or "errore")[:200]
+    errore = str(result.get("error") or "").strip()
+    descrizione = str(result.get("error_description") or "")
+    codici = list(dict.fromkeys(re.findall(r"AADSTS\d+", descrizione)))
+    if not codici:
+        codici = [f"AADSTS{c}" for c in (result.get("error_codes") or []) if str(c).isdigit()][:3]
+    parti = [p for p in (errore, ", ".join(codici)) if p]
+    testo = ", ".join(parti) or "errore sconosciuto"
+    if "AADSTS7000215" in codici or "AADSTS7000222" in codici:
+        testo += " (segreto dell'app sbagliato o scaduto)"
+    elif "AADSTS700016" in codici:
+        testo += " (ID applicazione non trovato nel tenant)"
+    elif "AADSTS90002" in codici:
+        testo += " (tenant non trovato)"
+    return testo
 
 
 _ENC_PREFIX = "enc1:"

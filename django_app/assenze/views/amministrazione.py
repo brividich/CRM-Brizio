@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db import transaction
 from django.http import HttpResponseForbidden, JsonResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
@@ -128,6 +129,10 @@ def impostazioni_admin(request):
     if request.method == "POST":
         if str(request.POST.get("form") or "").strip() == "flessibilita":
             return _salva_impostazioni_flessibilita(request)
+        if str(request.POST.get("form") or "").strip() == "malattia":
+            return _salva_impostazioni_malattia(request)
+        if str(request.POST.get("form") or "").strip() == "cambio_capo":
+            return _salva_impostazioni_cambio_capo(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -151,6 +156,7 @@ def impostazioni_admin(request):
         per_page=request.GET.get("per_page") or ADMIN_PER_PAGE_DEFAULT,
         ordina=request.GET.get("ordina") or _helpers.ADMIN_ORDINAMENTO_DEFAULT,
         verso=request.GET.get("verso") or "desc",
+        certificato=request.GET.get("certificato") or "",
     )
     admin_audit_entries = list(
         AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
@@ -173,12 +179,15 @@ def impostazioni_admin(request):
             "admin_tipi_disponibili": admin_overview.get("tipi_disponibili"),
             "admin_mostra_creata": admin_overview.get("mostra_creata"),
             "admin_stati_disponibili": admin_overview.get("stati_disponibili"),
+            "admin_certificato_scelte": admin_overview.get("certificato_scelte"),
             "admin_per_page_scelte": admin_overview.get("per_page_scelte"),
             "admin_audit_entries": admin_audit_entries,
             "admin_can_moderate": perms.get("can_update_any", False),
             "admin_can_delete": perms.get("can_delete_any", False),
             **_visibilita_overview(),
             **_flessibilita_admin_context(),
+            **_malattia_admin_context(),
+            **_cambio_capo_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),
         },
@@ -220,6 +229,139 @@ def _flessibilita_admin_context() -> dict:
         "flessibilita_dipendenti": elenco,
         "flessibilita_abilitati_count": len(abilitati_ids),
     }
+
+
+def _elenco_abilitati(modello, abilitati_ids: set[int]) -> list[dict]:
+    """Dipendenti attivi con la spunta di abilitazione, per le sezioni di Impostazioni."""
+    elenco = [
+        {
+            "id": _helpers._as_int(d.get("id")),
+            "full_name": d.get("full_name") or "",
+            "abilitato": _helpers._as_int(d.get("id")) in abilitati_ids,
+        }
+        for d in _helpers._load_dipendenti_attivi_list()
+        if _helpers._as_int(d.get("id")) is not None
+    ]
+    # Abilitato ma non piu' fra gli attivi: resta visibile, altrimenti non si toglie.
+    noti = {row["id"] for row in elenco}
+    for orfano in modello.objects.exclude(legacy_anagrafica_id__in=noti):
+        elenco.append(
+            {
+                "id": orfano.legacy_anagrafica_id,
+                "full_name": orfano.nominativo or f"#{orfano.legacy_anagrafica_id}",
+                "abilitato": True,
+                "fuori_elenco": True,
+            }
+        )
+    elenco.sort(key=lambda row: str(row.get("full_name") or "").casefold())
+    return elenco
+
+
+def _aggiorna_abilitati(request, modello, campo: str, precedenti: set[int]) -> set[int]:
+    """Riallinea un elenco di abilitati alle spunte del form. Ritorna i selezionati."""
+    selezionati: set[int] = set()
+    for raw in request.POST.getlist(campo):
+        value = _helpers._as_int(raw)
+        if value is not None and value > 0:
+            selezionati.add(value)
+
+    nomi = {
+        _helpers._as_int(d.get("id")): str(d.get("full_name") or "")
+        for d in _helpers._load_dipendenti_attivi_list()
+    }
+    with transaction.atomic():
+        modello.objects.exclude(legacy_anagrafica_id__in=selezionati).delete()
+        for ana_id in sorted(selezionati - precedenti):
+            modello.objects.update_or_create(
+                legacy_anagrafica_id=ana_id,
+                defaults={
+                    "nominativo": (nomi.get(ana_id) or "")[:200],
+                    "created_by": (request.user.get_username() or "")[:200],
+                },
+            )
+    return selezionati
+
+
+def _cambio_capo_admin_context() -> dict:
+    """Dati della sezione «Cambio capo reparto» di Impostazioni."""
+    from ..models import CambioCapoAbilitato
+
+    abilitati_ids = _helpers._cambio_capo_abilitati_ids()
+    return {
+        "cambio_capo_dipendenti": _elenco_abilitati(CambioCapoAbilitato, abilitati_ids),
+        "cambio_capo_abilitati_count": len(abilitati_ids),
+    }
+
+
+def _salva_impostazioni_cambio_capo(request):
+    """Salva chi può cambiare il capo reparto proposto nella nuova richiesta."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import CambioCapoAbilitato
+
+    precedenti = _helpers._cambio_capo_abilitati_ids()
+    selezionati = _aggiorna_abilitati(request, CambioCapoAbilitato, "cambio_capo_abilitati", precedenti)
+    _helpers.log_action(
+        request,
+        "impostazioni_cambio_capo_salvate",
+        "assenze",
+        {
+            "abilitati": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    if selezionati:
+        messages.success(request, f"Cambio capo reparto aggiornato: solo {len(selezionati)} persone possono cambiarlo.")
+    else:
+        messages.success(request, "Cambio capo reparto aggiornato: elenco vuoto, tutti possono cambiarlo come prima.")
+    return redirect(f"{reverse('assenze_impostazioni')}#cambio-capo")
+
+
+def _malattia_admin_context() -> dict:
+    """Dati della sezione «Inserimento malattia» di Impostazioni."""
+    from ..models import MalattiaAbilitato
+
+    abilitati_ids = _helpers._malattia_abilitati_ids()
+    return {
+        "malattia_dipendenti": _elenco_abilitati(MalattiaAbilitato, abilitati_ids),
+        "malattia_abilitati_count": len(abilitati_ids),
+    }
+
+
+def _salva_impostazioni_malattia(request):
+    """Salva chi vede «Malattia» nella nuova richiesta (e la inserisce per tutti)."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import MalattiaAbilitato
+
+    precedenti = _helpers._malattia_abilitati_ids()
+    selezionati = _aggiorna_abilitati(request, MalattiaAbilitato, "malattia_abilitati", precedenti)
+
+    _helpers.log_action(
+        request,
+        "impostazioni_malattia_salvate",
+        "assenze",
+        {
+            "abilitati": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    if selezionati:
+        messages.success(
+            request,
+            f"Inserimento malattia aggiornato: solo {len(selezionati)} persone vedono «Malattia» "
+            "e possono inserirla per tutti i dipendenti.",
+        )
+    else:
+        messages.success(
+            request,
+            "Inserimento malattia aggiornato: elenco vuoto, tutti vedono «Malattia» come prima.",
+        )
+    return redirect(f"{reverse('assenze_impostazioni')}#malattia")
 
 
 def _salva_impostazioni_flessibilita(request):
@@ -432,6 +574,82 @@ def api_admin_bulk_consenso(request):
     })
 
 
+CERTIFICATO_BLOCCO_MOTIVO = "Certificato medico arrivato (registrato in blocco, senza mail)"
+
+
+def _certificato_arrivato(tipo, valore):
+    """True/False per la Malattia, None per gli altri tipi (regola unica in mail_certificato)."""
+    from ..mail_certificato import certificato_arrivato
+
+    return certificato_arrivato(tipo, valore)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_admin_bulk_certificato(request):
+    """Spunta «Certificato arrivato» su piu' malattie, **senza mandare mail**.
+
+    Serve per lo storico (es. malattie nate sul vecchio SharePoint, che il
+    certificato non lo registrava): la modifica singola avvisa assenza@ e il capo,
+    qui no. Resta tracciata nello storico della richiesta e nel log attivita'.
+    Vale anche sulle richieste nate su SharePoint: il certificato e' un dato solo
+    del portale, SharePoint non lo riceve e non lo sovrascrive.
+    """
+    perms = _helpers._assenze_permissions(request)
+    if not perms.get("can_update_any"):
+        return _helpers._json_error("Permessi insufficienti per modificare le assenze.", status=403)
+    if not _helpers._has_assenze_column("certificato_medico"):
+        return _helpers._json_error("La colonna del certificato medico non esiste nel database.", status=400)
+
+    payload = _helpers._request_json(request) or {}
+    ids_raw = payload.get("ids")
+    if ids_raw is None:
+        ids_raw = request.POST.getlist("ids")
+    ids: list[int] = []
+    for raw in ids_raw or []:
+        value = _helpers._as_int(raw)
+        if value is not None and value > 0 and value not in ids:
+            ids.append(value)
+    if not ids:
+        return _helpers._json_error("Nessuna assenza selezionata.", status=400)
+    if len(ids) > BULK_MAX:
+        return _helpers._json_error(f"Troppe assenze selezionate: massimo {BULK_MAX} per volta.", status=400)
+
+    utente = request.user.get_username()
+    fatte: list[int] = []
+    scartate: list[dict] = []
+    for item_id in ids:
+        current = _helpers._get_assenza(item_id)
+        if not current:
+            scartate.append({"id": item_id, "motivo": "record non trovato"})
+            continue
+        arrivato = _certificato_arrivato(current.get("tipo_assenza"), current.get("certificato_medico"))
+        if arrivato is None:
+            scartate.append({"id": item_id, "motivo": "non è una malattia"})
+            continue
+        if arrivato:
+            scartate.append({"id": item_id, "motivo": "certificato già arrivato"})
+            continue
+        if not _helpers._can_manage_record(request, current, require_delete=False):
+            scartate.append({"id": item_id, "motivo": "fuori dal tuo ambito"})
+            continue
+        updates = {"certificato_medico": _helpers.CERTIFICATO_ARRIVATO}
+        if not _helpers._update_assenza(item_id, updates):
+            scartate.append({"id": item_id, "motivo": "aggiornamento non eseguito"})
+            continue
+        calcoli_hr.registra(item_id, "modificata", utente=utente, prima=current, dopo=updates,
+                            motivo=CERTIFICATO_BLOCCO_MOTIVO)
+        fatte.append(item_id)
+
+    _helpers.log_action(request, "assenze_certificato_in_blocco", "assenze", {
+        "richieste": len(ids),
+        "applicate": len(fatte),
+        "ids_applicati": fatte,
+        "scartate": len(scartate),
+    })
+    return JsonResponse({"ok": True, "applicate": len(fatte), "ids_applicati": fatte, "scartate": scartate})
+
+
 @login_required
 @require_http_methods(["POST"])
 def api_admin_assenza_delete(request, item_id: int):
@@ -507,7 +725,7 @@ def export_gestione_assenze_csv(request):
         },
     )
 
-    headers = ["Tipo", "Inizio", "Fine", "Stato", "Motivazione", "Certificato medico", "Note"]
+    headers = ["Tipo", "Inizio", "Fine", "Stato", "Motivazione", "Certificato arrivato", "Note"]
 
     def row_iter():
         for r in rows_data:
@@ -517,7 +735,7 @@ def export_gestione_assenze_csv(request):
                 r.get("fine", ""),
                 r.get("stato", ""),
                 r.get("motivazione", ""),
-                r.get("certificato_medico", ""),
+                "Sì" if r.get("certificato_medico") else "",
                 r.get("note_gestione", ""),
             ]
 
@@ -537,6 +755,8 @@ ADMIN_PER_PAGE_DEFAULT = 25
 # per vedere l'intero storico.
 ADMIN_STATO_DEFAULT = "in_attesa"
 ADMIN_STATO_TUTTI = "tutti"
+# Filtro «Certificato» (solo Malattia): chiave -> etichetta del menu.
+ADMIN_CERTIFICATO_SCELTE = {"mancante": "Malattie senza certificato", "arrivato": "Malattie con certificato"}
 
 
 def _admin_assenze_overview(
@@ -550,6 +770,7 @@ def _admin_assenze_overview(
     per_page: int = ADMIN_PER_PAGE_DEFAULT,
     ordina: str = _helpers.ADMIN_ORDINAMENTO_DEFAULT,
     verso: str = "desc",
+    certificato: str = "",
 ) -> dict:
     """Panoramica admin del modulo assenze.
 
@@ -582,6 +803,10 @@ def _admin_assenze_overview(
     elif stato not in ADMIN_STATI:
         stato = ADMIN_STATO_DEFAULT
     tipo = str(tipo or "").strip()
+    certificato = str(certificato or "").strip().lower()
+    ha_col_certificato = tabella_ok and _helpers._has_assenze_column("certificato_medico")
+    if certificato not in ADMIN_CERTIFICATO_SCELTE or not ha_col_certificato:
+        certificato = ""
     ordina = str(ordina or "").strip().lower()
     if ordina not in _helpers.ADMIN_ORDINAMENTI:
         ordina = _helpers.ADMIN_ORDINAMENTO_DEFAULT
@@ -617,12 +842,16 @@ def _admin_assenze_overview(
             "per_page": per_page,
             "ordina": ordina,
             "verso": verso,
-            "attivi": bool(q or tipo or da or a) or stato != ADMIN_STATO_DEFAULT,
+            "certificato": certificato,
+            "attivi": bool(q or tipo or da or a or certificato) or stato != ADMIN_STATO_DEFAULT,
             "solo_in_attesa": stato == ADMIN_STATO_DEFAULT,
         },
         "tipi_disponibili": [],
         "mostra_creata": False,
         "stati_disponibili": [{"key": k, "label": v[0]} for k, v in ADMIN_STATI.items()],
+        "certificato_scelte": (
+            [{"key": k, "label": v} for k, v in ADMIN_CERTIFICATO_SCELTE.items()] if ha_col_certificato else []
+        ),
         "per_page_scelte": list(ADMIN_PER_PAGE_SCELTE),
         "paginazione": {
             "page": 1, "pages": 1, "per_page": per_page, "total": 0,
@@ -680,6 +909,12 @@ def _admin_assenze_overview(
             " OR UPPER(COALESCE(motivazione_richiesta,'')) LIKE UPPER(%s))"
         )
         params.extend([tipo, f"%{tipo}%"])
+    if certificato:
+        where_parts.append(
+            "UPPER(LTRIM(RTRIM(COALESCE(tipo_assenza,'')))) = 'MALATTIA'"
+            + (" AND LTRIM(RTRIM(COALESCE(certificato_medico,''))) = ''" if certificato == "mancante"
+               else " AND LTRIM(RTRIM(COALESCE(certificato_medico,''))) <> ''")
+        )
     if da_dt is not None:
         # Periodi che si intersecano: una richiesta iniziata prima della finestra
         # ma ancora in corso dentro la finestra va mostrata.
@@ -696,11 +931,12 @@ def _admin_assenze_overview(
     offset = (page - 1) * per_page
 
     creata_col = ", created_datetime" if _helpers._has_assenze_column("created_datetime") else ""
+    cert_col = ", certificato_medico" if ha_col_certificato else ""
     base_sql = f"""
         SELECT
             id, copia_nome AS dipendente, tipo_assenza,
             data_inizio, data_fine, consenso,
-            moderation_status, motivazione_richiesta{creata_col}{_helpers._col_utente_id("")}
+            moderation_status, motivazione_richiesta{creata_col}{cert_col}{_helpers._col_utente_id("")}
         FROM assenze
         {where_clause}
     """
@@ -727,6 +963,11 @@ def _admin_assenze_overview(
             "fine_label": _helpers._dt_label(row.get("data_fine")),
             "motivo": _helpers._strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
             "creata_label": _helpers._dt_label(row.get("created_datetime")) if creata_col else "",
+            # True/False solo per la Malattia (None per gli altri tipi).
+            "certificato": (
+                _certificato_arrivato(row.get("tipo_assenza"), row.get("certificato_medico"))
+                if cert_col else None
+            ),
         })
     _helpers._mark_sharepoint_managed(assenze)
 

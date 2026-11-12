@@ -543,7 +543,7 @@ class ViewTests(_Base):
         self.client.force_login(viewer)
         with patch("security.views_vuln.can_view_security_center", return_value=True), \
                 patch("core.middleware.ACLMiddleware.__call__", lambda self, r: self.get_response(r), create=True):
-            response = self.client.post(reverse("security:software_mapping"), {"action": "nvd_key", "nvd_key": "x"})
+            response = self.client.post(reverse("security:software_mapping"), {"action": "nvd_key", "nvd_key": "00000000-0000-4000-8000-000000000000"})
         self.assertEqual(response.status_code, 302)
         self.assertFalse(SecurityCenterSetting.objects.filter(key=cve_feeds.NVD_KEY_SETTING).exists())
 
@@ -657,7 +657,7 @@ class MappingTriageTests(_Base):
     def test_states_split_work_from_noise(self):
         page = self._page(stato="proposte")
         self.assertContains(page, "Da decidere (1)")
-        self.assertContains(page, "Senza CVE note (3)")
+        self.assertContains(page, "Senza CVE note (2)")
         self.assertContains(page, "demoviewer")
         self.assertNotContains(page, "demo graphics driver")
         self.assertContains(self._page(stato="senza_cve"), "demo graphics driver")
@@ -677,7 +677,7 @@ class MappingTriageTests(_Base):
         self.assertFalse(SoftwareCpeMapping.objects.filter(product__contains="redistributable").exists())
         self.client.post(reverse(self.URL), {"action": "cpe_na_search", "q": "redistributable", "stato": ""})
         self.assertEqual(SoftwareCpeMapping.objects.filter(product__contains="redistributable", not_applicable=True).count(), 2)
-        self.assertContains(self._page(stato="non_applicabili"), "Non applicabili (3)")
+        self.assertContains(self._page(stato="non_applicabili"), "Non applicabili (2)")
 
     def test_rule_applies_spares_proposals_and_reopens_on_delete(self):
         from security.models import SoftwareNaRule

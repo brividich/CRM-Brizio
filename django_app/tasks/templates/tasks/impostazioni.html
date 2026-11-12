@@ -1,4 +1,6 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
+{% block tasks_shell_guide_anchor %}#impostazioni{% endblock %}
 
 {% block tasks_shell_head %}
   {% include "core/components/module_settings_styles.html" %}
@@ -145,18 +147,10 @@
 
 {% block tasks_shell_eyebrow %}Amministrazione{% endblock %}
 {% block tasks_shell_title %}Impostazioni {{ module_branding_display_label }}{% endblock %}
-{% block tasks_shell_subtitle %}Punto unico per configurazione, riepilogo, record e log del modulo KICK-OFF.{% endblock %}
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">Admin</span>
-  <span class="ts-hero-pill">{{ total_tasks }} attivita</span>
-  <span class="ts-hero-pill">{{ total_projects }} kickoff</span>
-{% endblock %}
+{% block tasks_shell_subtitle %}Scegli a sinistra cosa configurare.{% endblock %}
+{% block tasks_shell_meta %}{% endblock %}
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
-  {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
-  {% endif %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Torna ai kickoff</a>
 {% endblock %}
 
 {% block tasks_shell_kpis %}
@@ -187,58 +181,40 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
-  <div class="ts-stack">
-    <section class="ts-panel">
-      <div class="ts-panel-body" style="padding-top:18px;">
-        <div class="admin-tabs">
-          <a href="?tab=config" class="admin-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
-          <a href="?tab=riepilogo" class="admin-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
-          <a href="?tab=ruoli" class="admin-tab {% if tab == 'ruoli' %}active{% endif %}">Ruoli operativi</a>
-          <a href="?tab=accessi" class="admin-tab {% if tab == 'accessi' %}active{% endif %}">Accessi</a>
-          <a href="?tab=promemoria" class="admin-tab {% if tab == 'promemoria' %}active{% endif %}">Promemoria</a>
-          <a href="?tab=tipi" class="admin-tab {% if tab == 'tipi' %}active{% endif %}">Tipi attivita</a>
-          <a href="?tab=modelli" class="admin-tab {% if tab == 'modelli' %}active{% endif %}">Modelli ODG</a>
-          <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
-          <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
+  <div class="imp-layout">
+    <nav class="imp-menu" aria-label="Sezioni delle impostazioni">
+      {% for gruppo, voci in impostazioni_menu %}
+        <div class="imp-gruppo">
+          <span class="imp-gruppo-titolo">{{ gruppo }}</span>
+          {% for codice, etichetta, spiegazione in voci %}
+            <a href="?tab={{ codice }}" class="imp-voce{% if tab == codice %} is-attiva{% endif %}"{% if tab == codice %} aria-current="page"{% endif %}>
+              <span>{{ etichetta }}</span><small>{{ spiegazione }}</small>
+            </a>
+          {% endfor %}
         </div>
-      </div>
-    </section>
+      {% endfor %}
+    </nav>
 
-    {# Il corpo di ogni tab vive in tasks/impostazioni/_tab_<nome>.html #}
-    {% if tab == "config" %}
-      {% include "tasks/impostazioni/_tab_config.html" %}
-    {% endif %}
-
-    {% if tab == "riepilogo" %}
-      {% include "tasks/impostazioni/_tab_riepilogo.html" %}
-    {% endif %}
-
-    {% if tab == "record" %}
-      {% include "tasks/impostazioni/_tab_record.html" %}
-    {% endif %}
-
-    {% if tab == "ruoli" %}
-      {% include "tasks/impostazioni/_tab_ruoli.html" %}
-    {% endif %}
-
-    {% if tab == "accessi" %}
-      {% include "tasks/impostazioni/_tab_accessi.html" %}
-    {% endif %}
-
-    {% if tab == "promemoria" %}
-      {% include "tasks/impostazioni/_tab_promemoria.html" %}
-    {% endif %}
-
-    {% if tab == "modelli" %}
-      {% include "tasks/impostazioni/_tab_modelli.html" %}
-    {% endif %}
-
-    {% if tab == "tipi" %}
-      {% include "tasks/impostazioni/_tab_tipi.html" %}
-    {% endif %}
-
-    {% if tab == "log" %}
-      {% include "tasks/impostazioni/_tab_log.html" %}
-    {% endif %}
+    <div class="imp-contenuto ts-stack">
+      {# Il corpo di ogni sezione vive in tasks/impostazioni/_tab_<nome>.html #}
+      {% if tab == "config" %}{% include "tasks/impostazioni/_tab_config.html" %}{% endif %}
+      {% if tab == "commesse" %}{% include "tasks/impostazioni/_tab_commesse.html" %}{% endif %}
+      {% if tab == "sale" %}{% include "tasks/impostazioni/_tab_sale.html" %}{% endif %}
+      {% if tab == "poteri" %}{% include "tasks/impostazioni/_tab_poteri.html" %}{% endif %}
+      {% if tab == "riepilogo" %}{% include "tasks/impostazioni/_tab_riepilogo.html" %}{% endif %}
+      {% if tab == "record" %}{% include "tasks/impostazioni/_tab_record.html" %}{% endif %}
+      {% if tab == "ruoli" %}{% include "tasks/impostazioni/_tab_ruoli.html" %}{% endif %}
+      {% if tab == "accessi" %}{% include "tasks/impostazioni/_tab_accessi.html" %}{% endif %}
+      {% if tab == "promemoria" %}{% include "tasks/impostazioni/_tab_promemoria.html" %}{% endif %}
+      {% if tab == "modelli" %}{% include "tasks/impostazioni/_tab_modelli.html" %}{% endif %}
+      {% if tab == "catalogo" %}{% include "tasks/impostazioni/_tab_catalogo.html" %}{% endif %}
+      {% if tab == "fai" %}{% include "tasks/impostazioni/_tab_fai.html" %}{% endif %}
+      {% if tab == "tipi" %}{% include "tasks/impostazioni/_tab_tipi.html" %}{% endif %}
+      {% if tab == "log" %}{% include "tasks/impostazioni/_tab_log.html" %}{% endif %}
+    </div>
   </div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script src="{% static 'tasks/js/impostazioni.js' %}?v=20261110a" defer></script>
 {% endblock %}

@@ -6,7 +6,7 @@ GUIDA = {
     "parole": "contatori mfc stampante stampanti copie toner snmp ups switch fattura copylab canon",
     "url": "contatori:dashboard",
     "prefissi": ("/contatori/",),
-    "dettaglio": [("Guida di Contatori IT", "contatori:riconciliazione_guida")],
+    "dettaglio": [("Guida di Contatori IT", "contatori:guida")],
     "uso": [
         {
             "id": "consultare",
@@ -15,9 +15,17 @@ GUIDA = {
                 ("ul", [
                     "Il cruscotto mostra le multifunzione (MFC) con le ultime letture, i toner e lo stato degli apparati monitorati.",
                     "Clicca una MFC per la scheda: letture trimestrali con le copie e i trimestri mancanti, letture mensili, fatture del contratto, consumabili, asset collegato; «Esporta storico» scarica tutto in Excel.",
-                    "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza. «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
+                    "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza; nel trimestre in corso senza lettura compare in grigio l'ultima lettura mensile, provvisoria. «Nuova lettura» precompila i contatori dalla lettura mensile SNMP (per un trimestre chiuso quella del primo giorno del trimestre dopo). «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
                     "Scheda di un dispositivo SNMP: uptime e «Risposte ultime 24 ore / 7 giorni», cioè quante interrogazioni hanno avuto risposta (sotto il 95% in rosso).",
-                    "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte, con un secondo tentativo alle 08:00 per le macchine spente.",
+                    "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte; le macchine spente vengono riprovate ogni 15 minuti fino al giorno 7.",
+                    "«Consumabili»: «Da ordinare» conta le MFC con un consumabile al 15% o meno, «Finiscono entro 30 giorni» quelle con un consumabile che si esaurisce a breve (stima), «Senza lettura recente» quelle mai lette o non lette da oltre 7 giorni; un clic sul riquadro mostra solo quelle.",
+                    "«Fabbisogno»: per ogni consumabile quante MFC lo usano, la durata media tra due sostituzioni, i pezzi stimati all'anno e quanti finiscono entro 30 e 60 giorni.",
+                    "«Mensili»: le letture mensili per mese (MFC × 12 mesi, o l'anno scelto), con i mesi mancanti in giallo, le copie del mese in fondo e, sotto ogni mese, l'Excel della mail mensile.",
+                    "«Scarica Excel» in Consumabili, Fabbisogno, Registro letture, Gestisci letture, Stampanti MFC, Monitor SNMP e Archivio fatture scarica tutte le righe con i filtri della pagina.",
+                    "«Apri ticket» nella scheda MFC e nel pannello laterale apre il form del nuovo ticket IT già compilato (MFC, asset, avviso critico, consumabili sotto soglia, stato SNMP): controlli e invii tu.",
+                    "Monitor SNMP: i riquadri Operativi, Attenzione, Errori e Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale e un clic mostra quegli apparati; il filtro «Stato» ha le stesse voci.",
+                    "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» apre il pannello laterale con stato, ultima lettura, consumabili, avvisi aperti e asset; ← → scorrono le righe, Esc chiude. «Raggruppa ▾» divide le righe per colonna.",
+                    "Azioni su più righe (caselle a sinistra, nessuna spuntata all'apertura): Consumabili «Leggi ora le selezionate» e «Prepara richiesta ordine» (CSV), Stampanti MFC «Collega gli asset proposti» (prima l'anteprima, poi «Conferma i collegamenti»), Discovery «Correggi gli IP selezionati», letture da confermare e «Elimina selezionate» in Gestisci letture.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
                 ]),
             ],
@@ -42,6 +50,7 @@ GUIDA = {
                     "Apri la scheda della MFC e scegli il trimestre.",
                     "Scrivi i contatori letti sul display della macchina e salva.",
                     "Se un contatore è più basso del precedente il portale si ferma e chiede conferma (azzeramento o sostituzione macchina).",
+                    "Il calo resta nei «Cali di lettura» della Centrale finché non lo segni: «Azzeramento o sostituzione? Segna come spiegato», scrivi il motivo e conferma.",
                 ]),
             ],
         },
@@ -60,6 +69,20 @@ GUIDA = {
         },
     ],
     "admin": [
+        {
+            "id": "storico-rilevazioni",
+            "titolo": "Quanto storico SNMP conservare",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Impostazioni», riquadro dei parametri SNMP.",
+                    "«TVCC - Storico rilevazioni (giorni)»: NVR e telecamere (predefinito 14).",
+                    "«Altri apparati - Storico rilevazioni (giorni)»: stampanti, switch, server e gli altri apparati. "
+                    "0 = conserva tutto (di serie); altrimenti minimo 60 giorni.",
+                ]),
+                ("nota", "La pulizia gira ogni notte alle 03:40 e tiene sempre l'ultima rilevazione di ogni apparato. "
+                         "I dati di una stampante si salvano solo quando cambiano: le interrogazioni uguali compaiono come «Invariati»."),
+            ],
+        },
         {
             "id": "dispositivo",
             "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
@@ -88,8 +111,37 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "mail-letture-mensili",
+            "titolo": "Mail delle letture mensili",
+            "blocchi": [
+                ("p", "Quando tutte le MFC attive con IP hanno la lettura del mese parte una mail con i quattro contatori, "
+                      "le copie del mese di ogni MFC, l'Excel allegato e il link alle letture mensili. Se il giorno 7 "
+                      "dalle 23:00 ne manca ancora qualcuna parte una mail con le mancanti e il motivo; se poi l'ultima "
+                      "rientra arriva anche quella completa."),
+                ("passi", [
+                    "Amministrazione → Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail».",
+                    "Scrivi i destinatari (virgola, punto e virgola o a capo) e salva. Oggetto, introduzione e nota sono facoltativi.",
+                ]),
+                ("nota", "Senza destinatari la mail non parte: non va agli amministratori di sistema."),
+            ],
+        },
     ],
     "problemi": [
+        {
+            "sintomo": "Un calo di lettura resta sempre in «Da fare»",
+            "perche": "un contatore più basso della lettura prima può essere un refuso o un azzeramento vero.",
+            "fare": [
+                "Clicca la MFC nei «Cali di lettura» della Centrale: si apre «Gestisci letture» filtrato sulla stampante; se è un refuso correggi la lettura.",
+                "Se il contatore è stato davvero azzerato o la macchina sostituita: «Azzeramento o sostituzione? Segna come spiegato», scrivi il motivo e premi «Segna come spiegato» (serve «Contatori - Gestione»).",
+            ],
+        },
+        {
+            "sintomo": 'Nella Centrale «ok» e «Operativi» danno numeri diversi',
+            "fare": [
+                "Ora sono lo stesso numero: un apparato non interrogato da oltre i giorni di soglia conta tra i «Non interrogati», anche se l'ultimo controllo era riuscito.",
+            ],
+        },
         {
             "sintomo": "Un apparato è in errore SNMP",
             "perche": "il codice dell'errore dice la causa.",
@@ -109,6 +161,7 @@ GUIDA = {
                 "L'interruttore è nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch». A mano: manage.py soc_api_sync --solo switch.",
                 "Un PC «non riconosciuto» ha un MAC che il portale non conosce: arriva da Intune, da WatchGuard o dal punto rete dell'asset.",
                 "Gli switch Cisco con tabella MAC separata per VLAN (community@vlan) non sono coperti.",
+                "Esito «lettura parziale»: lo switch ha smesso di rispondere a metà; restano le porte della lettura precedente e si riprova alla lettura dopo.",
             ],
         },
         {
@@ -125,7 +178,16 @@ GUIDA = {
             "fare": [
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla i lavori dei contatori.",
                 "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
+                "Stampanti MFC → filtro «Lettura» = «Mensile mm/aaaa mancante» elenca le MFC ancora senza la lettura del mese; «Mensili» mostra in giallo i mesi mancanti di ogni MFC.",
                 "Inserisci la lettura a mano dalla scheda MFC.",
+            ],
+        },
+        {
+            "sintomo": "La mail delle letture mensili non è arrivata",
+            "fare": [
+                "Controlla i destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: vuoti = nessun invio.",
+                "La mail parte solo quando tutte le MFC attive con IP sono lette, oppure il giorno 7 dalle 23:00 con le mancanti.",
+                "Se i destinatari sono stati aggiunti dopo, la mail parte al giro successivo del recupero (ogni 15 minuti fino al giorno 7).",
             ],
         },
     ],

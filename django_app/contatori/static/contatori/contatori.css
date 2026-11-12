@@ -13,7 +13,7 @@
 .contatori-module .discovery-choices > div { display:flex; flex-wrap:wrap; gap:10px 24px; }
 .contatori-module .discovery-choices > div label { display:flex; align-items:center; gap:8px; margin:0; }
 .contatori-module .discovery-choices input[type=checkbox] { width:auto; margin:0; }
-.contatori-module .discovery-table { overflow-x:auto; max-width:100%; }
+.contatori-module .discovery-descr { max-width:380px; }
 .contatori-module .discovery-page .panel { min-width:0; }
 .contatori-module .discovery-page progress { accent-color:var(--cm-accent); }
 /* Form a sezioni (dispositivo SNMP, stampante) */
@@ -280,6 +280,7 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 /* Registro letture, scheda MFC e import multiplo fatture */
 .contatori-module .registro-letture td.cella{white-space:nowrap;font-variant-numeric:tabular-nums}
 .contatori-module .registro-letture td.cella .muted{font-size:11px}
+.contatori-module .registro-letture td.provvisoria > .muted{font-style:italic}
 .contatori-module .registro-letture td.mancante{background:color-mix(in srgb,var(--cm-warn) 10%,transparent)}
 .contatori-module .registro-letture td.calo,.contatori-module tr.riga-calo td{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
 .contatori-module .registro-letture tr.dismessa td,.contatori-module tr.riga-mancante td{opacity:.75}
@@ -322,6 +323,10 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
   .contatori-module .lg-tabella td.lg-controllo .pill{white-space:normal;text-align:right}
   .contatori-module .lg-tabella td.empty{grid-column:1/-1}
   .contatori-module .lg-tabella tr.riga-calo{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
+  /* Il piede «Mostra tutte» del motore tabelle nasce nascosto: display:grid delle righe-scheda
+     batteva l'attributo hidden e lo mostrava vuoto anche con poche righe. */
+  .contatori-module .lg-tabella tr[hidden]{display:none}
+  .contatori-module .lg-tabella tr.fm-tbl-more-row:not([hidden]){display:block;padding:0}
   .contatori-module .lg-tabella tr.riga-calo td{background:transparent}
 }
 /* La regola generica degli input del modulo annullava lo spazio della lente nelle tabelle filtrabili. */
@@ -334,9 +339,12 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 @media(max-width:640px){.contatori-module .centrale-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:1/-1}.contatori-module .centrale-kpi{grid-auto-flow:row dense}.contatori-module .centrale-kpi>:last-child{grid-column:1/-1}}
 /* Integrazione Asset e SOC: allineamento con l'inventario, riquadro Sicurezza, Guida nella barra. */
 .contatori-module .cnav-guida{font-weight:650}
-/* Con Impostazioni e Guida la barra non sta piu' su una riga sotto i 1600px: via le etichette dei gruppi
+/* Con Impostazioni e Guida la barra non sta piu' su una riga sotto i 1920px: via le etichette dei gruppi
    (i separatori restano), cosi' «+ Nuovo» e «? Guida» restano in fondo alla stessa riga. */
-@media(max-width:1599px){.contatori-module .cnav-label{display:none}}
+@media(max-width:1919px){.contatori-module .cnav-label{display:none}}
+/* Con «Mensili» e «Fabbisogno» serve anche un po' meno spazio fra le voci per restare su una riga. */
+@media(min-width:761px) and (max-width:1599px){.contatori-module .cnav a{padding:7px 8px}.contatori-module .cnav-gruppo{padding-right:5px}}
+@media(min-width:761px) and (max-width:1439px){.contatori-module .cnav a{padding:7px 6px;font-size:13px}.contatori-module .cnav{gap:4px}}
 .contatori-module .allinea{margin-top:12px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--cm-warn) 45%,var(--cm-border));border-radius:13px;background:color-mix(in srgb,var(--cm-warn) 6%,var(--cm-surface))}
 .contatori-module .allinea-head{margin:0 0 8px;display:flex;flex-direction:column;gap:2px;font-size:13px}
 .contatori-module .allinea-head strong{color:var(--cm-text)}
@@ -352,6 +360,8 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .filtri-rapidi{margin:10px 0 0;font-size:13px}
 .contatori-module .imp-form>.actions{margin:0 0 18px}
 
+/* Consumabili a 390 px: la riga del consumabile non sfora la scheda (stima dei giorni sotto). */
+@media (max-width:600px){.contatori-module .cons-voci{min-width:0}.contatori-module .cons-voce{grid-template-columns:minmax(0,1fr) minmax(48px,80px) 40px;gap:4px 8px}.contatori-module .cons-giorni{grid-column:1/-1;text-align:right;font-size:12px}.contatori-module .cons-giorni:empty{display:none}}
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .contatori-module{--cm-surface:var(--surface);--cm-text:var(--text);--cm-muted:var(--text-light);--cm-border:var(--border)}
 body.theme-dark .contatori-module .btn.ghost.on-hero:hover{background:rgba(255,255,255,.06)}

@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v10"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v26"
 
 MODULE = "tasks"
 
@@ -111,6 +111,7 @@ _ROUTE_BINDINGS = {
     "tasks:incontri_lista": "tasks.kickoff.view",
     # Azioni e problemi assegnati a me: la view filtra sul responsabile.
     "tasks:mie_azioni": "tasks.kickoff.view",
+    "tasks:cruscotto_commesse": "tasks.kickoff.view",
     "tasks:mia_voce_stato": "tasks.kickoff.view",
     "tasks:guida": "tasks.kickoff.view",
     # Proporre un punto e' consentito ai convocati: la view verifica che
@@ -131,9 +132,12 @@ _ROUTE_BINDINGS = {
     "tasks:edit": "tasks.kickoff.edit",
     "tasks:change_status": "tasks.kickoff.edit",
     "tasks:project_set_phase": "tasks.kickoff.edit",
+    "tasks:project_edit": "tasks.kickoff.edit",
+    "tasks:project_quick_task": "tasks.kickoff.create",
     "tasks:update_due_date": "tasks.kickoff.edit",
     "tasks:project_gantt_update_task": "tasks.kickoff.edit",
     "tasks:project_gantt_shift_task": "tasks.kickoff.edit",
+    "tasks:project_gantt_move_task": "tasks.kickoff.edit",
     "tasks:project_meeting_edit": "tasks.kickoff.edit",
     "tasks:project_meeting_minutes": "tasks.kickoff.edit",
     "tasks:project_meeting_run": "tasks.kickoff.edit",
@@ -168,6 +172,29 @@ _ROUTE_BINDINGS = {
     "tasks:project_list": "tasks.kickoff.projects",
     "tasks:project_overview": "tasks.kickoff.projects",
     "tasks:project_actions": "tasks.kickoff.projects",
+    "tasks:project_tech_refs": "tasks.kickoff.projects",
+    "tasks:tech_ref_save": "tasks.kickoff.projects",
+    "tasks:programma_fase": "tasks.kickoff.projects",
+    "tasks:tech_ref_action": "tasks.kickoff.projects",
+    "tasks:fai_non_richiesto": "tasks.kickoff.projects",
+    "tasks:tappa_azione": "tasks.kickoff.projects",
+    "tasks:project_chiudi": "tasks.kickoff.projects",
+    "tasks:tappa_anteprima": "tasks.kickoff.projects",
+    "tasks:utensili_azione": "tasks.kickoff.projects",
+    "tasks:sale_disponibilita": "tasks.kickoff.projects",
+    "tasks:sala_verifica": "tasks.kickoff.projects",
+    "tasks:project_meeting_send_outlook": "tasks.kickoff.edit",
+    "tasks:spostamento_decidi": "tasks.kickoff.projects",
+    "tasks:task_azione_rapida": "tasks.kickoff.projects",
+    "tasks:spostamento_annulla": "tasks.kickoff.projects",
+    "tasks:programmi_registro": "tasks.kickoff.projects",
+    "tasks:task_programma": "tasks.kickoff.projects",
+    "tasks:fai_registro": "tasks.kickoff.projects",
+    "tasks:fai_report": "tasks.kickoff.projects",
+    "tasks:fai_report_scarica": "tasks.kickoff.projects",
+    "tasks:fai_nuovo": "tasks.kickoff.projects",
+    "tasks:fai_op": "tasks.kickoff.projects",
+    "tasks:fai_scheda": "tasks.kickoff.projects",
     "tasks:project_gantt": "tasks.kickoff.projects",
     "tasks:project_info_json": "tasks.kickoff.projects",
     "tasks:project_meetings": "tasks.kickoff.projects",

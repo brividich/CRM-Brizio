@@ -679,7 +679,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                         <div class="abs-row-title">{{ r.tipo }}</div>
                         {% if r.certificato_medico %}
                           <div class="abs-note-row">
-                            <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                            <span class="abs-note-pill cert">Certificato arrivato</span>
                           </div>
                         {% endif %}
                       </div>
@@ -754,7 +754,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                           <div class="abs-row-main">
                             <div class="abs-row-title">{{ r.tipo }}</div>
                             {% if r.certificato_medico %}
-                              <div class="abs-note-row"><span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span></div>
+                              <div class="abs-note-row"><span class="abs-note-pill cert">Certificato arrivato</span></div>
                             {% endif %}
                           </div>
                         </td>
@@ -857,7 +857,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                           <div class="abs-row-sub">ID richiesta #{{ r.id }}{% if r.creata_label %} &middot; inserita il {{ r.creata_label }}{% endif %}</div>
                           {% if r.certificato_medico %}
                             <div class="abs-note-row">
-                              <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                              <span class="abs-note-pill cert">Certificato arrivato</span>
                             </div>
                           {% endif %}
                         </div>
@@ -908,6 +908,23 @@ body.theme-dark #modal-error{color:#fca5a5}
                               title="Modifica questa richiesta"
                             >
                               Modifica
+                            </button>
+                            {% if r.sollecito_visibile %}
+                              <button
+                                class="btn btn-sm btn-sollecita"
+                                data-id="{{ r.id }}"
+                                {% if r.sollecito_prossimo %}disabled title="Capo già sollecitato il {{ r.sollecito_ultimo }}. Puoi sollecitare di nuovo dal {{ r.sollecito_prossimo }}."{% else %}title="Manda al capo una mail per ricordargli di decidere"{% endif %}
+                              >
+                                {% if r.sollecito_prossimo %}Sollecitata{% else %}Sollecita{% endif %}
+                              </button>
+                            {% endif %}
+                          {% elif 'approv' in stato_l and r.tipo_raw == 'Malattia' and not r.certificato_medico %}
+                            <button
+                              class="btn btn-sm btn-cert-arrivato"
+                              data-id="{{ r.id }}"
+                              title="Segna che il certificato medico è arrivato"
+                            >
+                              Certificato arrivato
                             </button>
                           {% endif %}
                           <button
@@ -968,8 +985,9 @@ body.theme-dark #modal-error{color:#fca5a5}
             </select>
           </div>
           <div class="modal-field" id="modal-certificato-wrap">
-            <label for="modal-certificato">Numero certificato medico</label>
-            <input type="text" id="modal-certificato" placeholder="Inserisci il numero del certificato">
+            <label for="modal-certificato" style="display:flex;align-items:center;gap:8px;cursor:pointer;min-height:42px;margin-top:22px;font-size:14px;">
+              <input type="checkbox" id="modal-certificato" value="Arrivato" style="width:18px;min-height:18px;height:18px;padding:0;margin:0;"> Certificato arrivato
+            </label>
           </div>
           <div class="modal-field">
             <label for="modal-inizio">Data e ora inizio</label>
@@ -1103,6 +1121,46 @@ body.theme-dark #modal-error{color:#fca5a5}
         });
       });
 
+      document.querySelectorAll(".btn-cert-arrivato").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          if (!(await hubConfirm("Il certificato medico è arrivato? La modifica viene comunicata all'ufficio assenze e al capo reparto."))) return;
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "Salvataggio...";
+          try {
+            const result = await postJsonWithCsrfRetry("/assenze/api/mia/" + btn.dataset.id + "/update", { certificato_medico: "Arrivato" });
+            if (!result.res.ok || !result.data.ok) {
+              throw new Error(result.data.error || ("HTTP " + result.res.status));
+            }
+            window.location.reload();
+          } catch (err) {
+            alert("Errore: " + err.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        });
+      });
+
+      document.querySelectorAll(".btn-sollecita").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          if (!(await hubConfirm("Mandare al capo una mail di sollecito per questa richiesta?"))) return;
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "Invio...";
+          try {
+            const result = await postJsonWithCsrfRetry("/assenze/api/sollecita/" + btn.dataset.id, {});
+            if (!result.res.ok || !result.data.ok) {
+              throw new Error(result.data.error || ("HTTP " + result.res.status));
+            }
+            window.location.reload();
+          } catch (err) {
+            alert("Errore: " + err.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        });
+      });
+
       const overlay = document.getElementById("modal-modifica-overlay");
       const modalItemId = document.getElementById("modal-item-id");
       const modalTipo = document.getElementById("modal-tipo");
@@ -1144,7 +1202,7 @@ body.theme-dark #modal-error{color:#fca5a5}
           modalInizio.value = isoToLocal(btn.dataset.inizioIso);
           modalFine.value = isoToLocal(btn.dataset.fineIso);
           modalMotivazione.value = btn.dataset.motivazione || "";
-          modalCertificato.value = btn.dataset.certificatoMedico || "";
+          modalCertificato.checked = !!(btn.dataset.certificatoMedico || "").trim();
           modalError.textContent = "";
           modalSave.disabled = false;
           syncCertificatoVisibility();
@@ -1186,7 +1244,7 @@ body.theme-dark #modal-error{color:#fca5a5}
             inizio: inizio,
             fine: fine,
             motivazione: modalMotivazione.value.trim(),
-            certificato_medico: modalCertificato.value.trim(),
+            certificato_medico: modalCertificato.checked ? "Arrivato" : "",
           });
           if (!result.res.ok || !result.data.ok) {
             throw new Error(result.data.error || ("HTTP " + result.res.status));

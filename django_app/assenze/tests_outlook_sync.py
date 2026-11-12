@@ -83,6 +83,25 @@ class SincronizzaTests(TestCase):
         esito = self._giro([_riga(data_fine=datetime(2026, 11, 6, 23, 59))], g3)
         self.assertEqual((esito["aggiornati"], g3.metodi()), (1, ["PATCH"]))
 
+    def test_post_con_transaction_id_stabile(self):
+        """Un retry dopo un timeout non crea un secondo evento: Graph riconosce il transactionId."""
+        if self.modo != "tutte":
+            self.skipTest("su richiesta senza richieste non si crea nulla")
+        g = FakeGraph()
+        self._giro([_riga()], g)
+        payload = [j for m, u, j in g.chiamate if m == "POST" and "/events" in u][0]
+        imp = outlook_sync.impronta({k: v for k, v in payload.items() if k != "transactionId"})
+        self.assertEqual(payload["transactionId"], outlook_sync.transaction_id(5, "capo@example.com", imp))
+        self.assertEqual(payload["transactionId"], outlook_sync.transaction_id(5, "CAPO@example.com", imp))
+        self.assertNotEqual(payload["transactionId"], outlook_sync.transaction_id(6, "capo@example.com", imp))
+
+    def test_budget_di_tempo_ferma_le_scritture(self):
+        g = FakeGraph()
+        with patch.object(outlook_sync, "BUDGET_SECONDI", -1):
+            esito = self._giro([_riga(), _riga(id=6)], g)
+        self.assertEqual(g.metodi(), [])
+        self.assertIn("interrotto", esito)
+
     def test_evento_tolto_dal_capo_non_si_ricrea(self):
         self._giro([_riga()], FakeGraph())
         g = FakeGraph(stati={"PATCH": 404})
@@ -136,6 +155,25 @@ class SuRichiestaTests(SincronizzaTests):
     def test_crea_poi_non_riscrive_poi_aggiorna(self):
         outlook_sync.richiedi(5, "capo@example.com")
         super().test_crea_poi_non_riscrive_poi_aggiorna()
+
+    def test_post_con_transaction_id_stabile(self):
+        """Un retry dopo un timeout non crea un secondo evento: Graph riconosce il transactionId."""
+        if self.modo != "tutte":
+            self.skipTest("su richiesta senza richieste non si crea nulla")
+        g = FakeGraph()
+        self._giro([_riga()], g)
+        payload = [j for m, u, j in g.chiamate if m == "POST" and "/events" in u][0]
+        imp = outlook_sync.impronta({k: v for k, v in payload.items() if k != "transactionId"})
+        self.assertEqual(payload["transactionId"], outlook_sync.transaction_id(5, "capo@example.com", imp))
+        self.assertEqual(payload["transactionId"], outlook_sync.transaction_id(5, "CAPO@example.com", imp))
+        self.assertNotEqual(payload["transactionId"], outlook_sync.transaction_id(6, "capo@example.com", imp))
+
+    def test_budget_di_tempo_ferma_le_scritture(self):
+        g = FakeGraph()
+        with patch.object(outlook_sync, "BUDGET_SECONDI", -1):
+            esito = self._giro([_riga(), _riga(id=6)], g)
+        self.assertEqual(g.metodi(), [])
+        self.assertIn("interrotto", esito)
 
     def test_evento_tolto_dal_capo_non_si_ricrea(self):
         outlook_sync.richiedi(5, "capo@example.com")

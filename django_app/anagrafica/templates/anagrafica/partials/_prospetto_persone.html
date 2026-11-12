@@ -1,0 +1,12 @@
+<div class="hub-field">
+  <label>Persone</label>
+  <input type="search" class="pr-filtro" placeholder="Filtra per nome o reparto…" aria-label="Filtra le persone">
+  <div class="pr-persone">
+    {% for g in scelte.persone_gruppi %}
+    <fieldset class="pr-gruppo">
+      <legend><label><input type="checkbox" class="pr-tutti"> {{ g.nome }} ({{ g.persone|length }})</label></legend>
+      {% for x in g.persone %}<label class="pr-persona"><input type="checkbox" name="persone" value="{{ x.id }}"> {{ x.nome }}</label>{% endfor %}
+    </fieldset>
+    {% endfor %}
+  </div>
+</div>

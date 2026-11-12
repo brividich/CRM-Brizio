@@ -1619,7 +1619,7 @@ def _global_search_module_allowed(request, path: str) -> bool:
 def api_global_search(request):
     """
     GET /api/search/?q=<query>
-    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, Procedure.
+    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, FAI, Procedure, DPI.
     Restituisce risultati raggruppati per tipo, max 5 per gruppo.
     Ogni blocco è eseguito solo se l'utente ha accesso ACL al modulo relativo.
     """
@@ -1642,6 +1642,16 @@ def api_global_search(request):
             | Q(mansione__icontains=q)
             | Q(reparto__icontains=q)
         ).order_by("cognome", "nome")[:5]
+        # Pallino «In azienda»: solo la fotografia già in cache, la ricerca non aspetta mai Solari.
+        # None = Solari non configurato/non risponde o modulo non visibile: nessun pallino.
+        presenti_ids = None
+        if dips and _global_search_module_allowed(request, "/presenti/"):
+            try:
+                from presenti.services import ids_presenti
+
+                presenti_ids = ids_presenti(attendi=False)
+            except Exception:
+                presenti_ids = None
         for d in dips:
             try:
                 url = reverse("anagrafica:dipendente_detail", args=[d.id])
@@ -1652,6 +1662,7 @@ def api_global_search(request):
                 "label": naming.nome_completo(d.nome, d.cognome),
                 "sub": d.mansione or d.reparto or "",
                 "url": url,
+                "presenza": None if presenti_ids is None else (d.id in presenti_ids),
             })
     except Exception:
         pass
@@ -1724,7 +1735,7 @@ def api_global_search(request):
             | Q(vrf_description__icontains=q)
         ).order_by("-id")[:5]
         for p in projects_qs:
-            url = f"/tasks/projects/"
+            url = reverse("tasks:project_overview", args=[p.id])
             results.append({
                 "tipo": "kickoff",
                 "label": p.name or f"KICK-OFF {p.kickoff_number}",
@@ -1760,26 +1771,28 @@ def api_global_search(request):
 
     # ── Procedure / Documenti ────────────────────────────────────────────────
     try:
-        if not _global_search_module_allowed(request, "/procedure-refresh/admin/documenti/"):
+        # CN-SGI: la scheda nella libreria, solo i documenti che l'utente può vedere.
+        if not _global_search_module_allowed(request, "/procedure-refresh/"):
             raise _ModuleHidden
-        from procedure_refresh.models import ProcedureDocument
-        docs_qs = ProcedureDocument.objects.filter(
-            Q(code__icontains=q)
-            | Q(title__icontains=q)
-            | Q(description__icontains=q)
-            | Q(owner_department__icontains=q)
-        ).filter(is_active=True).order_by("code")[:5]
-        for d in docs_qs:
-            try:
-                url = reverse("procedure_refresh:document_edit", args=[d.pk])
-            except Exception:
-                url = "/procedure-refresh/admin/documenti/"
+        # Stessa ricerca flessibile della libreria (parole in qualunque ordine, radici,
+        # numeri senza zeri), qui solo su codice e titolo.
+        from procedure_refresh import libreria as cnsgi
+        from procedure_refresh.libreria import etichetta_sezione, identita_da_cartella
+        vis = cnsgi.Visibilita(request)
+        visibili = vis.filtra(cnsgi.documenti_in_vigore())
+        trovati = 0
+        trovate = cnsgi.cerca(q, visibili, campo="titolo")
+        for r in ([] if trovate.approssimati else trovate):
+            d = r.doc
             results.append({
                 "tipo": "procedura",
-                "label": d.title,
-                "sub": d.code or "",
-                "url": url,
+                "label": f"{d.code} · {d.title}",
+                "sub": " › ".join(x for x in (identita_da_cartella(d.category)["nome"], etichetta_sezione(d.sezione)) if x),
+                "url": reverse("procedure_refresh:libreria_documento", args=[d.pk]),
             })
+            trovati += 1
+            if trovati >= 5:
+                break
     except Exception:
         pass
 
@@ -1814,13 +1827,53 @@ def api_global_search(request):
     except Exception:
         pass
 
+    # ── Ordini di produzione (tabella legacy ordini_produzione) ──────────────
+    try:
+        if not _global_search_module_allowed(request, "/produzione/"):
+            raise _ModuleHidden
+        from core import ordini_produzione
+
+        for o in ordini_produzione.cerca(q, limite=5):
+            results.append({
+                "tipo": "op",
+                "label": o["op"],
+                "sub": " · ".join(filter(None, [o.get("pn"), o.get("capocommessa"), o.get("stato")])),
+                "url": reverse("produzione:scheda", args=[o["id"]]),
+            })
+    except Exception:
+        pass
+
+    # ── FAI (Registro FAI, solo quelli che l'utente vede) ────────────────────
+    try:
+        if not _global_search_module_allowed(request, "/tasks/fai/"):
+            raise _ModuleHidden
+        from tasks.views.fai import _fai_visibili
+
+        fai_qs = _fai_visibili(request).filter(
+            Q(piano_numero__icontains=q)
+            | Q(op__icontains=q)
+            | Q(articolo__part_number__icontains=q)
+            | Q(articolo__client_name__icontains=q)
+        ).select_related("articolo", "stato").order_by("-id")[:5]
+        for f in fai_qs:
+            results.append({
+                "tipo": "fai",
+                "label": f.piano_numero or f"FAI {f.articolo.part_number}",
+                "sub": " · ".join(filter(None, [f.articolo.part_number, f.op, f.stato.etichetta if f.stato_id else ""])),
+                "url": reverse("tasks:fai_scheda", args=[f.id]),
+            })
+    except Exception:
+        pass
+
     module_labels = {
         "dipendente": "Anagrafica",
         "asset": "Asset",
         "ticket": "Ticket",
         "kickoff": "KICK-OFF",
         "task": "KICK-OFF",
-        "procedura": "Procedure",
+        "op": "Ordini di produzione",
+        "fai": "Registro FAI",
+        "procedura": "CN-SGI · Procedure",
         "dpi": "DPI",
     }
     module_filter = (request.GET.get("module") or "").strip().lower()

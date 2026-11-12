@@ -1,27 +1,44 @@
 """«Le mie azioni»: azioni e problemi d'incontro assegnati all'utente, e la guida."""
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from django.contrib import messages
 from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from ..access import can_manage_project, scoped_projects_queryset, task_permissions_required
+from ..services.fai import allinea_da_riga
+from ..access import (
+    can_manage_project,
+    can_manage_task,
+    scoped_projects_queryset,
+    scoped_tasks_queryset,
+    task_permissions_required,
+)
+from ..services.programmi import senza_attivita_aperta
 from ..models import (
     MeetingActionItem,
     MeetingActionStatus,
     MeetingIssue,
     MeetingIssueStatus,
+    ProjectTechRef,
+    TaskEventType,
+    TaskStatus,
+    TechRefStatus,
 )
-from ._shared import _safe_int, _tasks_shell_context
+from ._shared import _log_event, _safe_int, _tasks_shell_context
 
 KIND_ACTION = "azione"
 KIND_ISSUE = "problema"
+KIND_TECH = "programma"
+KIND_TASK = "attivita"
+TASK_OPEN = (TaskStatus.TODO, TaskStatus.IN_PROGRESS)
 
 
 def _row(item, kind: str, today) -> dict:
@@ -44,6 +61,38 @@ def _row(item, kind: str, today) -> dict:
     }
 
 
+def _tech_row(ref, today) -> dict:
+    return {
+        "kind": KIND_TECH,
+        "obj": ref,
+        "title": ref.label,
+        "description": "",
+        "project": ref.project,
+        "meeting": ref.source_meeting,
+        "due_date": ref.due_date,
+        "is_open": ref.is_open,
+        "is_overdue": bool(ref.is_open and ref.due_date and ref.due_date < today),
+        "linked_task": None,
+    }
+
+
+def _task_row(task, today) -> dict:
+    is_open = task.status in TASK_OPEN
+    return {
+        "kind": KIND_TASK,
+        "obj": task,
+        "title": task.title,
+        "description": task.description,
+        "project": task.project,
+        "meeting": None,
+        "start_date": task.next_step_due,
+        "due_date": task.due_date,
+        "is_open": is_open,
+        "is_overdue": bool(is_open and task.due_date and task.due_date < today),
+        "linked_task": None,
+    }
+
+
 def mie_voci_aperte_count(request) -> int:
     """Quante azioni e problemi aperti l'utente ha in carico (per i richiami)."""
     user = request.user
@@ -57,7 +106,17 @@ def mie_voci_aperte_count(request) -> int:
         + MeetingIssue.objects.filter(
             assigned_to=user, status=MeetingIssueStatus.OPEN, project_id__in=projects
         ).count()
+        + senza_attivita_aperta(ProjectTechRef.objects.filter(
+            assigned_to=user, status=TechRefStatus.OPEN, project_id__in=projects
+        )).count()
+        + scoped_tasks_queryset(request).filter(assigned_to=user, status__in=TASK_OPEN).count()
     )
+
+
+def _spostamenti_da_decidere(request, projects):
+    from ..services.spostamenti import richieste_da_decidere
+
+    return richieste_da_decidere(request, projects)
 
 
 @task_permissions_required("tasks_view")
@@ -74,41 +133,65 @@ def mie_azioni(request):
     common = {"assigned_to": request.user, "project_id__in": projects.values("id")}
     actions = MeetingActionItem.objects.filter(**common)
     issues = MeetingIssue.objects.filter(**common)
+    refs = senza_attivita_aperta(ProjectTechRef.objects.filter(**common))
+    # Le attivita' del piano: prima chi ne riceveva una non la trovava qui.
+    my_tasks = scoped_tasks_queryset(request).filter(assigned_to=request.user)
     if stato == "aperte":
         actions = actions.filter(status=MeetingActionStatus.OPEN)
         issues = issues.filter(status=MeetingIssueStatus.OPEN)
+        refs = refs.filter(status=TechRefStatus.OPEN)
+        my_tasks = my_tasks.filter(status__in=TASK_OPEN)
     elif stato == "chiuse":
         actions = actions.exclude(status=MeetingActionStatus.OPEN)
         issues = issues.exclude(status=MeetingIssueStatus.OPEN)
+        refs = refs.exclude(status=TechRefStatus.OPEN)
+        my_tasks = my_tasks.exclude(status__in=TASK_OPEN)
     if progetto:
         actions = actions.filter(project_id=progetto)
         issues = issues.filter(project_id=progetto)
+        refs = refs.filter(project_id=progetto)
+        my_tasks = my_tasks.filter(project_id=progetto)
     if scadenza == "scadute":
         actions = actions.filter(due_date__lt=today)
         issues = issues.filter(due_date__lt=today)
+        refs = refs.filter(due_date__lt=today)
+        my_tasks = my_tasks.filter(due_date__lt=today)
     elif scadenza == "settimana":
         window = Q(due_date__gte=today, due_date__lte=today + timedelta(days=7))
         actions = actions.filter(window)
         issues = issues.filter(window)
+        refs = refs.filter(window)
+        my_tasks = my_tasks.filter(window)
     elif scadenza == "senza":
         actions = actions.filter(due_date__isnull=True)
         issues = issues.filter(due_date__isnull=True)
+        refs = refs.filter(due_date__isnull=True)
+        my_tasks = my_tasks.filter(due_date__isnull=True)
     if q_text:
         text = Q(title__icontains=q_text) | Q(description__icontains=q_text) | Q(project__name__icontains=q_text)
         actions = actions.filter(text)
         issues = issues.filter(text)
+        refs = refs.filter(Q(code__icontains=q_text) | Q(path__icontains=q_text) | Q(project__name__icontains=q_text))
+        my_tasks = my_tasks.filter(text)
 
     related = ("project", "source_meeting", "linked_task")
     rows: list[dict] = []
+    if tipo in ("", KIND_TASK):
+        rows += [_task_row(t, today) for t in my_tasks.select_related("project")]
     if tipo in ("", KIND_ACTION):
         rows += [_row(a, KIND_ACTION, today) for a in actions.select_related(*related)]
     if tipo in ("", KIND_ISSUE):
         rows += [_row(i, KIND_ISSUE, today) for i in issues.select_related(*related)]
+    if tipo in ("", KIND_TECH):
+        rows += [_tech_row(r, today) for r in refs.select_related("project", "source_meeting")]
     # Aperte prima, poi per scadenza (le senza data in fondo).
     rows.sort(key=lambda r: (not r["is_open"], r["due_date"] is None, r["due_date"] or today, r["title"].casefold()))
 
     my_projects = projects.filter(
-        Q(meeting_actions__assigned_to=request.user) | Q(meeting_issues__assigned_to=request.user)
+        Q(meeting_actions__assigned_to=request.user)
+        | Q(meeting_issues__assigned_to=request.user)
+        | Q(tech_refs__assigned_to=request.user)
+        | Q(tasks__assigned_to=request.user)
     ).distinct().order_by("name")
     return render(
         request,
@@ -121,6 +204,8 @@ def mie_azioni(request):
             "overdue_count": sum(1 for r in rows if r["is_overdue"]),
             "filters": {"stato": stato, "tipo": tipo, "scadenza": scadenza, "progetto": progetto or "", "q": q_text},
             "my_projects": my_projects,
+            # Il capocommessa decide qui gli spostamenti chiesti dagli incaricati.
+            "spostamenti_da_decidere": _spostamenti_da_decidere(request, projects),
         },
     )
 
@@ -130,7 +215,9 @@ def mie_azioni(request):
 def mia_voce_stato(request, kind: str, pk: int):
     """Il responsabile chiude o riapre la propria azione o il proprio problema."""
     back = redirect("tasks:mie_azioni")
-    model = MeetingActionItem if kind == KIND_ACTION else MeetingIssue if kind == KIND_ISSUE else None
+    if kind == KIND_TASK:
+        return _mia_attivita_stato(request, pk, back)
+    model = {KIND_ACTION: MeetingActionItem, KIND_ISSUE: MeetingIssue, KIND_TECH: ProjectTechRef}.get(kind)
     if model is None:
         messages.error(request, "Voce non valida.")
         return back
@@ -140,7 +227,21 @@ def mia_voce_stato(request, kind: str, pk: int):
         return back
 
     verb = (request.POST.get("action") or "").strip()
-    if kind == KIND_ACTION:
+    if kind == KIND_TECH and item.attivita_aperta:
+        messages.error(request, "Questa voce si chiude con la sua attività.")
+        return back
+    if kind == KIND_TECH:
+        if verb == "done":
+            item.mark_done(user=request.user)
+        elif verb == "reopen":
+            item.reopen()
+        else:
+            messages.error(request, "Azione non valida.")
+            return back
+        item.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        allinea_da_riga(item)
+        etichetta = "Segnato come fatto." if verb == "done" else "Riaperto."
+    elif kind == KIND_ACTION:
         if verb == "done":
             item.mark_done(user=request.user)
         elif verb == "reopen":
@@ -166,6 +267,55 @@ def mia_voce_stato(request, kind: str, pk: int):
     log_action(request, f"kickoff_mia_voce_{verb}", "tasks", {
         "kind": kind, "id": item.pk, "project_id": item.project_id,
     })
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({"ok": True, "message": etichetta})
+    messages.success(request, etichetta)
+    next_url = request.POST.get("next") or ""
+    if next_url.startswith("/tasks/") and "//" not in next_url:
+        return redirect(next_url)
+    return back
+
+
+def _mia_attivita_stato(request, pk: int, back):
+    """Il responsabile prende in carico, chiude o riapre la propria attivita'.
+
+    Stesse regole delle azioni d'incontro: chi l'ha ricevuta la gestisce,
+    anche senza il permesso di modificare le attivita' altrui.
+    """
+    task = get_object_or_404(scoped_tasks_queryset(request).select_related("project"), pk=pk)
+    if not (task.assigned_to_id == request.user.pk or can_manage_task(request, task)):
+        messages.error(request, "Puoi aggiornare solo le attività di cui sei responsabile.")
+        return back
+    verb = (request.POST.get("action") or "").strip()
+    nuovo = {"start": TaskStatus.IN_PROGRESS, "done": TaskStatus.DONE, "reopen": TaskStatus.TODO}.get(verb)
+    if nuovo is None:
+        messages.error(request, "Azione non valida.")
+        return back
+    vecchio = task.status
+    task.status = nuovo
+    if nuovo == TaskStatus.DONE:
+        task.progress = 100
+    elif nuovo == TaskStatus.TODO and (task.progress or 0) >= 100:
+        task.progress = 0
+    task.save()
+    if vecchio != nuovo:
+        _log_event(task, request.user, TaskEventType.STATUS_CHANGE, {"from": vecchio, "to": nuovo})
+        if nuovo == TaskStatus.DONE:
+            from ..services.meeting_tasks import notify_task_completed
+
+            notify_task_completed(task, actor=request.user)
+        try:
+            from gestione_carichi_macchina.integrations import sync_kickoff_task_to_pianificazione
+
+            sync_kickoff_task_to_pianificazione(task, user=request.user)
+        except Exception:
+            logging.getLogger(__name__).warning('Sync Carichi (mie azioni) fallita task=%s', task.pk, exc_info=True)
+    log_action(request, f"kickoff_mia_attivita_{verb}", "tasks", {
+        "kind": KIND_TASK, "id": task.pk, "project_id": task.project_id,
+    })
+    etichetta = {"start": "Attività in corso.", "done": "Attività segnata come fatta.", "reopen": "Attività riaperta."}[verb]
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({"ok": True, "message": etichetta})
     messages.success(request, etichetta)
     next_url = request.POST.get("next") or ""
     if next_url.startswith("/tasks/") and "//" not in next_url:
@@ -175,15 +325,39 @@ def mia_voce_stato(request, kind: str, pk: int):
 
 @task_permissions_required("tasks_view")
 def guida(request):
-    """Guida d'uso del modulo KICK-OFF (pulsante «? Guida»)."""
-    from ..guida import SEZIONI
+    """Guida del modulo KICK-OFF: completa, rapida per ruolo (?per=), PDF (?pdf=1)."""
+    from ..guida import DOC_SOTTOTITOLO, DOC_TITOLO, SEZIONI
+    from ..guida_ruoli import GUIDE_RUOLI
+
+    per = str(request.GET.get("per") or "").strip().lower()
+    ruolo = GUIDE_RUOLI.get(per)
+    titolo = ruolo["titolo"] if ruolo else DOC_TITOLO
+    sezioni = ruolo["sezioni"] if ruolo else SEZIONI
+
+    if request.GET.get("pdf"):
+        from core.guida_pdf import render_guida_pdf
+
+        pdf = render_guida_pdf(
+            titolo=titolo,
+            sottotitolo=ruolo["sottotitolo"] if ruolo else DOC_SOTTOTITOLO,
+            sezioni=sezioni,
+            generato_da=(request.user.get_full_name() or request.user.get_username() or "").strip(),
+            generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        response = HttpResponse(pdf, content_type="application/pdf")
+        nome = ruolo["file"] if ruolo else "Guida_KickOff.pdf"
+        response["Content-Disposition"] = f'attachment; filename="{nome}"'
+        return response
 
     return render(
         request,
         "tasks/guida.html",
         {
             **_tasks_shell_context(request, active="guida"),
-            "page_title": "Guida KICK-OFF",
-            "sezioni": SEZIONI,
+            "page_title": titolo if ruolo else "Guida KICK-OFF",
+            "doc_titolo": titolo if ruolo else "Guida KICK-OFF",
+            "guida_per": per if ruolo else "",
+            "sezioni": sezioni,
+            "guide_ruoli": [{"chiave": k, "etichetta": g["etichetta"]} for k, g in GUIDE_RUOLI.items()],
         },
     )

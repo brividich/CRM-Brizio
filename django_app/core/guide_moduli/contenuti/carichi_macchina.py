@@ -66,6 +66,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'La saturazione non segue uno spostamento appena fatto',
+            "fare": [
+                'Ora si calcola a ogni apertura del Gantt: ricarica la pagina dopo lo spostamento.',
+            ],
+        },
+        {
             "sintomo": "Una persona vede il piano ma non può modificarlo",
             "fare": [
                 "Amministrazione → Accessi: dai il permesso di modifica del piano (piano.edit) al suo ruolo o a lei.",
