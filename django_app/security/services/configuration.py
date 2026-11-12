@@ -69,12 +69,43 @@ def require_security_config_access(user):
         raise PermissionDenied
 
 
+_IMPOSTAZIONI = {"letto": 0.0, "righe": None}
+
+
+def _impostazioni() -> dict:
+    """Tutte le impostazioni del SOC in una query, tenute ``SECURITY_SETTINGS_CACHE_SECONDS`` secondi.
+
+    Le pagine del SOC leggono le impostazioni migliaia di volte (una per riga, per interruttore): una
+    query ciascuna costava 3 ms in produzione, 17 s sulla pagina Vulnerabilità. Il salvataggio nello
+    stesso processo svuota la copia subito (segnali in ``SecurityConfig.ready``); gli altri processi
+    (qcluster) vedono il valore nuovo entro i secondi della copia. Nei test la copia è spenta (0).
+    """
+    import time
+
+    from django.conf import settings
+
+    durata = getattr(settings, "SECURITY_SETTINGS_CACHE_SECONDS", 30)
+    adesso = time.monotonic()
+    righe = _IMPOSTAZIONI["righe"]
+    if righe is None or durata <= 0 or adesso - _IMPOSTAZIONI["letto"] > durata:
+        righe = {k: (v, t) for k, v, t in SecurityCenterSetting.objects.values_list("key", "value", "value_type")}
+        if durata > 0:
+            _IMPOSTAZIONI.update(letto=adesso, righe=righe)
+    return righe
+
+
+def invalida_impostazioni(*args, **kwargs) -> None:
+    _IMPOSTAZIONI["righe"] = None
+
+
 def get_setting(key, default=None):
-    try:
-        setting = SecurityCenterSetting.objects.get(key=key)
-    except SecurityCenterSetting.DoesNotExist:
+    import copy
+
+    riga = _impostazioni().get(key)
+    if riga is None:
         return default
-    return _coerce_value(setting.value, setting.value_type, default)
+    # copia: un elenco o un dizionario modificato da chi legge non deve cambiare la copia condivisa
+    return _coerce_value(copy.deepcopy(riga[0]), riga[1], default)
 
 
 def set_setting(key, value, actor=None, **defaults):

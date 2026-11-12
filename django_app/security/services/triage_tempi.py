@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import timedelta
 from statistics import median
 
-from django.db.models import Min, Q
+from django.db.models import Min, Q, QuerySet
 from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, Severity
@@ -56,7 +56,9 @@ def prima_risposta(alert):
 
 def prime_risposte(alert_ids) -> dict:
     """``{alert_id: prima azione umana}`` per un gruppo di alert, in una sola interrogazione."""
-    rows = (SecurityAlertActionLog.objects.filter(alert_id__in=list(alert_ids)).filter(_filtro_umano())
+    # Un queryset resta una sottoquery: migliaia di id in IN passano da una tabella temporanea (7 s su SQL Server).
+    ids = alert_ids if isinstance(alert_ids, QuerySet) else list(alert_ids)
+    rows = (SecurityAlertActionLog.objects.filter(alert_id__in=ids).filter(_filtro_umano())
             .values("alert_id").annotate(m=Min("created_at")))
     return {row["alert_id"]: row["m"] for row in rows}
 
@@ -65,14 +67,17 @@ def _ore(delta) -> float:
     return round(delta.total_seconds() / 3600, 1)
 
 
-def stato(alert, presa_in_carico=None, now=None, targets=None) -> dict:
+_DAL_LOG = object()
+
+
+def stato(alert, presa_in_carico=_DAL_LOG, now=None, targets=None) -> dict:
     """Stato del triage di un alert: obiettivo, quando è stato preso in carico, se è in ritardo.
 
     ``presa_in_carico`` è la prima azione umana (``None`` = non ancora); se non viene passata
     si legge dal log.
     """
     now = now or timezone.now()
-    if presa_in_carico is None:
+    if presa_in_carico is _DAL_LOG:  # chi passa None l'ha già letta (prime_risposte): niente query per alert
         presa_in_carico = prima_risposta(alert)
     ore_target = target_per_alert(alert, targets)
     scadenza = alert.created_at + timedelta(hours=ore_target)
@@ -134,8 +139,9 @@ def alert_oltre_tempo(now=None):
 def riepilogo(dal, al) -> dict:
     """Numeri del periodo (alert creati fra ``dal`` e ``al``): presi in tempo, in ritardo, non presi, mediana."""
     targets = target_ore()
-    alerts = list(SecurityAlert.objects.filter(created_at__date__gte=dal, created_at__date__lte=al))
-    prime = prime_risposte([a.pk for a in alerts])
+    periodo = SecurityAlert.objects.filter(created_at__date__gte=dal, created_at__date__lte=al)
+    alerts = list(periodo)
+    prime = prime_risposte(periodo.values("pk"))
     now = timezone.now()
     in_tempo = ritardo = non_presi = 0
     ore = []

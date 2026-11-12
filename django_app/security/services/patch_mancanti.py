@@ -12,7 +12,7 @@ import hashlib
 from django.core.cache import cache
 from django.db.models import Count, Max
 
-from security.models import SecurityCveRecord, WatchGuardPatch
+from security.models import WatchGuardPatch
 
 CACHE_SECONDI = 600
 ORDINE_CRITICITA = {201: 0, 202: 1, 203: 2, 204: 3}
@@ -78,7 +78,9 @@ def _calcola() -> dict:
             gs["chiude_anche"].update(set(p.cve_lista))
             gs["comprende"][p.kb or p.nome] = gs["comprende"].get(p.kb or p.nome, 0) + 1
     tutte = {c for g in gruppi.values() for c in g["cve"] | g["chiude_anche"]}
-    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=list(tutte)[:2000]).values_list("cve_id", flat=True))
+    from security.services.kev import kev_tra
+
+    kev = kev_tra(tutte)
     for g in gruppi.values():
         g["chiude_anche"] -= g["cve"]
         g["kev"] = sorted((g["cve"] | g["chiude_anche"]) & kev)
