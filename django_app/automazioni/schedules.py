@@ -831,6 +831,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 600}},
     },
     {
+        # SOC — WatchGuard Cloud (API): solo i task di installazione patch, ogni ora in orario di lavoro,
+        # così l'esito di un'installazione lanciata dalla console arriva in giornata. Interruttore «Patch».
+        "name": "watchguard_task_sync",
+        "func": "security.tasks.run_watchguard_task_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 7-19 * * 1-5",  # ogni ora dalle 07:40 alle 19:40, lun-ven
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 300}},
+    },
+    {
         # SOC — pacchetto mensile di evidenze ISO/IEC 27001: il giorno 1 alle 06:30 genera il PDF del mese
         # prima (esito dei controlli dell'Annex A, CVE corrette, esposizioni scadute, incidenti con lezioni
         # apprese), lo archivia con l'impronta SHA-256 nell'audit e, se acceso in /soc/impostazioni/,

@@ -13,6 +13,7 @@ PAGE_HELP = {
     "pc_copertura": ("15-backup-vpn-kpi-asset", "dispositivi"),
     "watchguard_pc": ("12-automatismi-e-vulnerabilita", "patch-e-protezione-watchguard"),
     "watchguard_patch_installate": ("12-automatismi-e-vulnerabilita", "patch-installate"),
+    "watchguard_task": ("12-automatismi-e-vulnerabilita", "installazioni-da-console"),
     "watchguard_patch_tempi": ("12-automatismi-e-vulnerabilita", "tempi-delle-patch"),
     "dipendenze_portale": ("12-automatismi-e-vulnerabilita", "librerie-del-portale"),
     "rete_indirizzi": ("15-backup-vpn-kpi-asset", "rete-ip"),

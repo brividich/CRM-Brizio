@@ -111,6 +111,7 @@ urlpatterns = [
     path("dispositivi/patch/", views_work.watchguard_pc, name="watchguard_pc"),
     path("dispositivi/patch/ai/", views_work.watchguard_patch_ai, name="watchguard_patch_ai"),
     path("dispositivi/patch/installate/", views_work.watchguard_patch_installate, name="watchguard_patch_installate"),
+    path("dispositivi/patch/task/", views_work.watchguard_task, name="watchguard_task"),
     path("dispositivi/patch/tempi/", views_work.watchguard_patch_tempi, name="watchguard_patch_tempi"),
     path("dispositivi/librerie-portale/", views_work.dipendenze_portale, name="dipendenze_portale"),
     path("mio-lavoro/", views_work.my_work, name="my_work"),
