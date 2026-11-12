@@ -107,7 +107,7 @@ def pc_scheda(name, days=90):
     software = [s for s in SoftwareInstallation.objects.filter(still_detected=True, host__istartswith=key)
                 .exclude(source_kind="snmp_firmware").order_by("product_raw") if _norm(s.host) == key] if key else []
     sistema = stato_sistema([s for s in software if (s.product or "").lower().startswith("windows ")])
-    _cve_per_programma(software)
+    cve_per_programma(software)
     defender_visto = max((s.last_seen_at for s in software if "defender" in (s.fonti or [])), default=None)
 
     disco = None
@@ -219,7 +219,7 @@ def _produttori(software, quanti=8):
     return [{"nome": n, "n": c, "pct": round(100 * c / massimo)} for n, c in top]
 
 
-def _cve_per_programma(software):
+def cve_per_programma(software):
     """Su ogni installazione: ``cve_n`` (CVE che la colpiscono), ``cve_gravi`` (KEV o CVSS ≥ 9), ``iniziale`` per l'avatar."""
     from security.models import SecurityCveImpact
 

@@ -440,9 +440,8 @@ def anteprima_software(righe: list[dict]):
         if not host or not prodotto:
             preview.skipped.append((i, "nome PC o prodotto vuoto"))
             continue
-        if not versione:
-            preview.skipped.append((i, "versione vuota (non confrontabile con i range CVE)"))
-            continue
+        # Senza versione il programma entra comunque nell'inventario (come lo mostra WatchGuard):
+        # resta fuori solo dal confronto con le CVE (cve_impact.Contesto salta le versioni vuote).
         chiave = (host.casefold(), vendor.casefold(), prodotto.casefold(), versione.casefold())
         if chiave in visti:
             continue

@@ -1,0 +1,31 @@
+<div class="pcs cy-swp">
+  <div class="cy-swp-head">
+    <span class="pcs-avatar" data-l="{{ produttore|slice:':1'|upper }}">{{ produttore|slice:":1"|upper }}</span>
+    <div><h2>{{ nome }}</h2><small>{% if produttore != "Altro" %}{{ produttore }}{% else %}produttore non indicato{% endif %}</small></div>
+  </div>
+  <div class="pcs-checks">
+    <div><span>PC</span><strong class="pcs-mono">{{ pc }}</strong></div>
+    <div><span>Versioni</span><strong class="pcs-mono">{{ n_versioni }}</strong></div>
+    <div class="is-{% if cve %}critical{% else %}success{% endif %}"><span>Installazioni con CVE</span><strong class="pcs-mono">{{ cve }}</strong></div>
+  </div>
+  <h3 class="pcs-subhead">Versioni installate</h3>
+  <div class="cy-swp-vers">
+    {% for v in versioni %}<div><span class="pcs-mono">{{ v.v }}</span><i style="--w: {{ v.pct }}"></i><b class="pcs-mono">{{ v.n }}</b></div>{% endfor %}
+  </div>
+  <h3 class="pcs-subhead">PC che lo hanno</h3>
+  <table class="pcs-table" data-table-enhanced="0">
+    <thead><tr><th>PC</th><th>Versione</th><th>CVE</th><th>Fonti</th><th>Visto</th></tr></thead>
+    <tbody>
+      {% for x in installazioni %}{% with i=x.i %}
+        <tr>
+          <td><a class="pcs-mono" href="{% url 'security:pc_detail' %}?nome={{ x.nome_pc|urlencode }}#software">{{ x.nome_pc }}</a></td>
+          <td><span class="pcs-ver pcs-mono">{{ i.version_raw|default:"—" }}</span></td>
+          <td>{% if i.cve_n %}<span class="pcs-cvebadge is-{% if i.cve_gravi %}critical{% else %}warning{% endif %}">{{ i.cve_n }}{% if i.cve_gravi %} · {{ i.cve_gravi }} grav{{ i.cve_gravi|pluralize:"e,i" }}{% endif %}</span>{% else %}<span class="pcs-ok-dot">✓</span>{% endif %}</td>
+          <td class="pcs-nowrap">{% for f in i.fonti_set %}<span class="pcs-src pcs-src-{% if f == 'watchguard' %}wg{% elif f == 'defender' %}def{% else %}alt{% endif %}">{% if f == 'watchguard' %}WG{% elif f == 'defender' %}DEF{% else %}{{ f|slice:':3'|upper }}{% endif %}</span>{% endfor %}</td>
+          <td class="pcs-mono pcs-nowrap">{{ i.last_seen_at|date:"d/m/Y" }}</td>
+        </tr>
+      {% endwith %}{% endfor %}
+    </tbody>
+  </table>
+  {% if dettaglio_url %}<p class="pcs-note"><a class="pcs-link" href="{{ dettaglio_url }}">Decisione, licenza e versione minima nel catalogo di Asset</a></p>{% endif %}
+</div>
