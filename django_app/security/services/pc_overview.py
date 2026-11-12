@@ -66,7 +66,211 @@ def pc_overview(name, days=90):
         "events": list(events.order_by("-occurred_at")[:8]),
         "days": days,
         "rete": _rete(name, hub_asset),
+        "intune": intune,
+        "assets": assets,
+        "cve_all": cve_impacts,
+        "open_vulns_all": open_vulns,
     }
+
+
+PATCH_IN_SCHEDA = 25
+
+
+def pc_scheda(name, days=90):
+    """La scheda completa del PC: ``pc_overview`` più caratteristiche, protezione WatchGuard, patch e software.
+
+    Solo per la pagina ``/soc/pc/``: pannello laterale e controllo AI restano su ``pc_overview``, più leggero.
+    Niente manutenzione né altro del registro asset: solo quello che dicono le fonti del SOC.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from security.models import SoftwareInstallation, WatchGuardDispositivo, WatchGuardPatch
+    from security.services.rischio_asset import stato_sistema
+
+    data = pc_overview(name, days)
+    if data is None:
+        return None
+    key = _norm(name)
+    now = timezone.now()
+    intune = data["intune"]
+
+    wg = (WatchGuardDispositivo.objects.filter(host=key, presente=True).order_by("-gestito", "-ultima_connessione").first()
+          if key else None)
+    patch_qs = WatchGuardPatch.objects.filter(host=key, presente=True) if key else WatchGuardPatch.objects.none()
+    patch = sorted(patch_qs, key=lambda p: (p.criticita or 999, -(p.rilasciata_il.toordinal() if p.rilasciata_il else 0), p.nome))
+    patch_errori = list(WatchGuardPatch.objects.filter(host=key, esito__in=WatchGuardPatch.ESITI_ERRORE,
+                                                       esito_il__gte=now - timedelta(days=14)).order_by("-esito_il")[:10]) if key else []
+
+    software = [s for s in SoftwareInstallation.objects.filter(still_detected=True, host__istartswith=key)
+                .exclude(source_kind="snmp_firmware").order_by("product_raw") if _norm(s.host) == key] if key else []
+    sistema = stato_sistema([s for s in software if (s.product or "").lower().startswith("windows ")])
+    defender_visto = max((s.last_seen_at for s in software if "defender" in (s.fonti or [])), default=None)
+
+    disco = None
+    if intune and intune.disco_totale_bytes:
+        libero = intune.disco_libero_bytes or 0
+        usato_pct = round(100 * (intune.disco_totale_bytes - libero) / intune.disco_totale_bytes)
+        disco = {"totale": intune.disco_label, "libero": intune._gb(libero) or "0 GB", "usato_pct": usato_pct,
+                 "tono": "critical" if usato_pct >= 90 else ("warning" if usato_pct >= 80 else "success")}
+
+    b = data["backup"]
+    fonti = [
+        {"nome": "Intune", "visto": bool(intune), "quando": intune.ultima_sync if intune else None,
+         "nota": (", ".join(intune.problemi_label) or "nessun problema") if intune else "non registrato in Intune",
+         "tono": ("warning" if intune.problemi else "success") if intune else "muted"},
+        {"nome": "WatchGuard", "visto": bool(wg and wg.gestito), "quando": wg.ultima_connessione if wg else None,
+         "nota": (f"protezione {wg.protezione_label.lower()}" if wg.gestito else "visto in rete senza agente") if wg else "nessun agente",
+         "tono": ("success" if wg.protetto else "critical") if wg and wg.gestito else ("warning" if wg else "muted")},
+        {"nome": "Microsoft Defender", "visto": bool(defender_visto), "quando": defender_visto,
+         "nota": "inventario software e vulnerabilità" if defender_visto else "non visto da Defender",
+         "tono": "success" if defender_visto else "muted"},
+        {"nome": "Backup", "visto": bool(b), "quando": b["last_at"] if b else None,
+         "nota": b["last_label"] if b else f"nessun report negli ultimi {days} giorni",
+         "tono": b["last_tone"] if b else "muted"},
+        {"nome": "DHCP / DNS", "visto": bool(data["rete"]), "quando": None,
+         "nota": ", ".join(r.ip for r in data["rete"]) if data["rete"] else "nessun indirizzo attivo",
+         "tono": "success" if data["rete"] else "muted"},
+    ]
+
+    mac = [m for m in ((intune.mac_ethernet, "Ethernet") if intune else ("", ""), (intune.mac_wifi, "Wi-Fi") if intune else ("", "")) if m[0]]
+    wg_vecchio = bool(wg and wg.ultima_connessione and wg.ultima_connessione < now - timedelta(days=7))
+    patch_critiche = sum(1 for p in patch if p.criticita == 201)
+    rischio = _rischio(data, wg, wg_vecchio, intune, sistema, patch_critiche, len(patch))
+    asset = data["hub_asset"]
+    produttore = (intune.produttore if intune else "") or (getattr(asset, "manufacturer", "") or "")
+    modello = (intune.modello if intune else "") or (getattr(asset, "model", "") or "")
+    return {
+        **data,
+        "rischio": rischio,
+        "cve_gravita": _cve_gravita(data["cve_all"], data["open_vulns_all"]),
+        "patch_per_criticita": _patch_per_criticita(patch),
+        "produttori_sw": _produttori(software),
+        "timeline": _timeline(data, patch_errori, wg),
+        "wg": wg,
+        "wg_vecchio": wg_vecchio,
+        "patch": patch[:PATCH_IN_SCHEDA],
+        "patch_count": len(patch),
+        "patch_critiche": patch_critiche,
+        "patch_errori": patch_errori,
+        "software": software,
+        "sistema": sistema,
+        "disco": disco,
+        "fonti": fonti,
+        "fonti_viste": sum(1 for f in fonti[:4] if f["visto"]),
+        "mac": mac,
+        "produttore": produttore,
+        "modello": modello,
+        "produttore_modello": " ".join(x for x in (produttore, modello) if x),
+        "seriale": (intune.seriale if intune else "") or (getattr(asset, "serial_number", "") or ""),
+        "sistema_nome": (intune.sistema if intune else "") or (wg.sistema if wg else ""),
+    }
+
+
+def _rischio(data, wg, wg_vecchio, intune, sistema, patch_critiche, patch_tot):
+    """Indice di postura 0-100 (100 = nessun problema noto) con i motivi che lo abbassano, ciascuno con la sua scheda.
+
+    Solo una lettura sintetica dei fatti già in pagina: non apre alert né cambia altri numeri del SOC.
+    """
+    motivi = []
+
+    def togli(punti, testo, scheda):
+        if punti > 0:
+            motivi.append({"punti": punti, "testo": testo, "scheda": scheda})
+
+    b = data["backup"]
+    if b and b["last_status"] == "failed":
+        togli(25, "Ultimo backup fallito", "backup")
+    elif b and b["stale"]:
+        togli(10, "Backup non recente", "backup")
+    elif not b:
+        togli(10, "Nessun backup registrato", "backup")
+    critici = sum(1 for a in data["alerts"] if a.severity == "critical")
+    togli(min(30, 20 * critici + 5 * (data["alert_count"] - critici)), f"{data['alert_count']} alert apert{'o' if data['alert_count'] == 1 else 'i'}", "eventi")
+    togli(min(25, 5 * data["cve_gravi"]), f"{data['cve_gravi']} CVE gravi (KEV o CVSS ≥ 9)", "vulnerabilita")
+    togli(min(10, data["cve_uniche"] - data["cve_gravi"]), f"{data['cve_uniche'] - data['cve_gravi']} altre CVE", "vulnerabilita")
+    if wg is None or not wg.gestito:
+        togli(15, "Senza agente WatchGuard", "protezione")
+    elif not wg.protetto:
+        togli(20, f"Protezione WatchGuard: {wg.protezione_label.lower()}", "protezione")
+    elif wg_vecchio:
+        togli(5, "WatchGuard non si collega da più di 7 giorni", "protezione")
+    if intune:
+        for p in intune.problemi_label:
+            togli(10, f"Intune: {p}", "protezione")
+    if sistema and sistema["fuori"]:
+        togli(20, f"{sistema['nome']} fuori supporto", "caratteristiche")
+    elif sistema and sistema["in_scadenza"]:
+        togli(5, f"{sistema['nome']}: supporto in scadenza", "caratteristiche")
+    togli(min(15, 3 * patch_critiche + (patch_tot - patch_critiche) // 5), f"{patch_tot} patch mancanti ({patch_critiche} critiche)", "vulnerabilita")
+    punteggio = max(0, 100 - sum(m["punti"] for m in motivi))
+    tono = "success" if punteggio >= 80 else ("warning" if punteggio >= 50 else "critical")
+    return {"punteggio": punteggio, "tono": tono, "motivi": sorted(motivi, key=lambda m: -m["punti"]),
+            "etichetta": {"success": "Postura buona", "warning": "Da migliorare", "critical": "A rischio"}[tono]}
+
+
+def _cve_gravita(impacts, vulns):
+    """Conteggi per gravità (KEV, critica, alta, media/bassa) di tutte le CVE note del PC, una volta ciascuna."""
+    viste, out = set(), {"kev": 0, "critica": 0, "alta": 0, "altra": 0}
+    righe = [((i.cve.cve_id or "").upper(), i.cve.kev, i.cve.cvss or 0) for i in impacts]
+    righe += [((v.cve or "").upper(), False, v.cvss or 0) for v in vulns]
+    for cve, kev, cvss in righe:
+        if not cve or cve in viste:
+            continue
+        viste.add(cve)
+        out["kev" if kev else "critica" if cvss >= 9 else "alta" if cvss >= 7 else "altra"] += 1
+    tot = sum(out.values())
+    # Angoli del grafico ad anello (conic-gradient), in percentuale cumulata.
+    acc, fette = 0, []
+    for chiave, colore in (("kev", "var(--danger)"), ("critica", "#f97316"), ("alta", "var(--warning)"), ("altra", "#64748b")):
+        pct = round(100 * out[chiave] / tot, 1) if tot else 0
+        fette.append(f"{colore} {acc}% {acc + pct}%")
+        acc += pct
+    return {**out, "totale": tot, "anello": ", ".join(fette) if tot else "var(--border) 0% 100%"}
+
+
+def _patch_per_criticita(patch):
+    from collections import Counter
+
+    conta = Counter(p.criticita_label for p in patch)
+    tot = len(patch) or 1
+    ordine = ["Critica", "Importante", "Moderata", "Bassa", "Service pack", "Non specificata", "Altro"]
+    return [{"label": k, "n": conta[k], "pct": round(100 * conta[k] / tot)} for k in ordine if conta.get(k)]
+
+
+def _produttori(software, quanti=8):
+    from collections import Counter
+
+    conta = Counter((s.vendor or s.vendor_raw or "Altro").strip() or "Altro" for s in software)
+    top = conta.most_common(quanti)
+    massimo = top[0][1] if top else 1
+    return [{"nome": n, "n": c, "pct": round(100 * c / massimo)} for n, c in top]
+
+
+def _timeline(data, patch_errori, wg):
+    """Ultimi fatti del PC da tutte le fonti, in ordine di tempo: backup, alert, protezione, eventi, patch fallite."""
+    from django.urls import reverse
+
+    voci = []
+    for r in ((data["backup"] or {}).get("history") or [])[:12]:
+        voci.append({"quando": r["at"], "tipo": "backup", "fonte": "Backup", "titolo": f"{r['label']} · {r['job']}", "tono": r["tone"], "url": ""})
+    for a in data["alerts"]:
+        voci.append({"quando": a.created_at, "tipo": "alert", "fonte": a.source.name if a.source_id else "Alert", "titolo": a.title,
+                     "tono": "critical" if a.severity == "critical" else "warning", "url": reverse("security:alert_detail", args=[a.pk])})
+    for e in data["endpoint"]:
+        s = e["signal"]
+        voci.append({"quando": s.occurred_at, "tipo": "protezione", "fonte": e["label"], "titolo": s.title, "tono": "warning", "url": ""})
+    for ev in data["events"]:
+        voci.append({"quando": ev.occurred_at, "tipo": "evento", "fonte": ev.source.name, "titolo": ev.event_type, "tono": "muted",
+                     "url": reverse("security:event_detail", args=[ev.pk])})
+    for p in patch_errori:
+        voci.append({"quando": p.esito_il, "tipo": "patch", "fonte": "WatchGuard", "titolo": f"{p.esito_label}: {p.nome}", "tono": "critical", "url": ""})
+    if wg and wg.ultima_connessione:
+        voci.append({"quando": wg.ultima_connessione, "tipo": "protezione", "fonte": "WatchGuard", "titolo": "Ultima connessione dell'agente",
+                     "tono": "success" if wg.protetto else "warning", "url": ""})
+    voci = [v for v in voci if v["quando"]]
+    return sorted(voci, key=lambda v: v["quando"], reverse=True)[:30]
 
 
 def _norm(name):
