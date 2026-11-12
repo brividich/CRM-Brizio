@@ -28,6 +28,7 @@ import re
 import time
 from datetime import timedelta, timezone as dt_timezone
 
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
@@ -55,6 +56,8 @@ _URL_INCOLLATO_RE = re.compile(r"^(https://api\.[a-z0-9-]+\.cloud\.watchguard\.c
 ACCOUNT_RE = re.compile(r"^(ACC-\d+|WGC-\d-[0-9a-zA-Z]+)$")
 BASE = "/rest/endpoint-security/management/api/v1/accounts/{account}"
 TIMEOUT = 30
+TASK_ERRORI_MAX = 5  # task di fila in errore senza nessuno letto: WatchGuard è giù, il giro si ferma
+RIPROVA_SECONDI = 3  # pausa prima del secondo tentativo su 502/503/504 (gateway WatchGuard)
 PAGINA = 1000
 MAX_PAGINE = 60
 NOME_IMPORT = "WatchGuard Endpoint Security (API)"
@@ -246,7 +249,7 @@ class Client:
 
         cfg = self.cfg
         url = cfg["url_api"] + BASE.format(account=cfg["account_id"]) + percorso
-        rinnovato = False
+        rinnovato = riprovato = False
         while True:
             try:
                 resp = self.http.get(url, params=params, timeout=TIMEOUT, headers={
@@ -256,6 +259,10 @@ class Client:
                 raise _errore_rete(exc, percorso) from exc
             if resp.status_code == 401 and not rinnovato and not _chi_risponde(resp):
                 rinnovato = True  # token scaduto prima del previsto: un solo rinnovo e un solo nuovo tentativo
+                continue
+            if resp.status_code in (502, 503, 504) and not riprovato:
+                riprovato = True  # gateway di WatchGuard momentaneamente giù: un secondo tentativo dopo una pausa
+                time.sleep(RIPROVA_SECONDI)
                 continue
             break
         chi = _chi_risponde(resp)
@@ -629,17 +636,30 @@ def sincronizza_task(now=None, *, client=None) -> dict:
     noti = {x.task_id: x for x in WatchGuardTask.objects.filter(task_id__in=[str(t["id"])[:120] for t in recenti][:2000])}
     asset_di = _Asset()
     letti = saltati = esiti = 0
+    errori: list[str] = []
     for t in recenti[:TASK_MAX]:
         prima = noti.get(str(t["id"])[:120])
         ultimo = _quando((t.get("status") or {}).get("last_job_date"))
         if prima is not None and prima.completo and (ultimo is None or ultimo == prima.ultimo_job_il):
             saltati += 1
             continue
-        _, n = _salva_task(t, now, client, asset_di)
+        try:
+            with transaction.atomic():
+                _, n = _salva_task(t, now, client, asset_di)
+        except WatchGuardError as exc:
+            # Un task che WatchGuard non serve (502 su /jobs) non ferma gli altri: resta com'era e si riprova al giro dopo.
+            logger.warning("WatchGuard task %s: %s", t.get("id"), exc)
+            nome = str(_primo(t, "name", "task_name", "description") or t.get("id"))[:80]
+            errori.append(f"«{nome}»: {str(exc)[:160]}")
+            if len(errori) >= TASK_ERRORI_MAX and letti == 0:
+                raise WatchGuardError(f"I primi {len(errori)} task sono tutti in errore, giro fermato. Primo: {errori[0]}") from exc
+            continue
         letti += 1
         esiti += n
+    if errori and letti == 0:
+        raise WatchGuardError(f"Nessun task letto, {len(errori)} in errore. Primo: {errori[0]}")
     return {"task": len(recenti), "letti": letti, "invariati": saltati, "esiti": esiti,
-            "oltre_limite": max(0, len(recenti) - TASK_MAX)}
+            "oltre_limite": max(0, len(recenti) - TASK_MAX), "errori": errori[:10], "in_errore": len(errori)}
 
 
 def task_da_verificare():
