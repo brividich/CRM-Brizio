@@ -28,33 +28,33 @@ class AutomationRuleTriggerScope(models.TextChoices):
 
 
 class AutomationConditionOperator(models.TextChoices):
-    EQUALS = "equals", "Equals"
-    NOT_EQUALS = "not_equals", "Not equals"
-    CONTAINS = "contains", "Contains"
-    STARTSWITH = "startswith", "Starts with"
-    ENDSWITH = "endswith", "Ends with"
-    GT = "gt", "Greater than"
-    GTE = "gte", "Greater than or equal"
-    LT = "lt", "Less than"
-    LTE = "lte", "Less than or equal"
-    IS_TRUE = "is_true", "Is true"
-    IS_FALSE = "is_false", "Is false"
-    IN_CSV = "in_csv", "In CSV"
-    NOT_IN_CSV = "not_in_csv", "Not in CSV"
-    IS_EMPTY = "is_empty", "Is empty"
-    IS_NOT_EMPTY = "is_not_empty", "Is not empty"
-    CHANGED = "changed", "Changed"
-    CHANGED_TO = "changed_to", "Changed to"
-    CHANGED_FROM_TO = "changed_from_to", "Changed from to"
+    EQUALS = "equals", "è uguale a"
+    NOT_EQUALS = "not_equals", "non è uguale a"
+    CONTAINS = "contains", "contiene"
+    STARTSWITH = "startswith", "inizia con"
+    ENDSWITH = "endswith", "finisce con"
+    GT = "gt", "è maggiore di"
+    GTE = "gte", "è maggiore o uguale a"
+    LT = "lt", "è minore di"
+    LTE = "lte", "è minore o uguale a"
+    IS_TRUE = "is_true", "è vero"
+    IS_FALSE = "is_false", "è falso"
+    IN_CSV = "in_csv", "è uno di (elenco con virgole)"
+    NOT_IN_CSV = "not_in_csv", "non è uno di (elenco con virgole)"
+    IS_EMPTY = "is_empty", "è vuoto"
+    IS_NOT_EMPTY = "is_not_empty", "non è vuoto"
+    CHANGED = "changed", "è cambiato"
+    CHANGED_TO = "changed_to", "è cambiato in"
+    CHANGED_FROM_TO = "changed_from_to", "è cambiato da … a … (vecchio|nuovo)"
     # Operatori temporali. Il valore del campo deve essere una data/datetime.
     # DAYS_FROM_NOW_*: confronta (campo - oggi) in giorni con expected_value (intero).
     #   Positivo = data nel futuro. Es. data_scadenza entro 30gg => days_from_now_lte 30.
     # DAYS_SPAN_*: confronta (campo - altro_campo) in giorni con expected_value nel
     #   formato "altro_campo:N" (es. "data_inizio:10" => (data_fine - data_inizio) > 10).
-    DAYS_FROM_NOW_LTE = "days_from_now_lte", "Days from now ≤"
-    DAYS_FROM_NOW_GTE = "days_from_now_gte", "Days from now ≥"
-    DAYS_SPAN_GT = "days_span_gt", "Days span >"
-    DAYS_SPAN_GTE = "days_span_gte", "Days span ≥"
+    DAYS_FROM_NOW_LTE = "days_from_now_lte", "mancano al massimo N giorni"
+    DAYS_FROM_NOW_GTE = "days_from_now_gte", "mancano almeno N giorni"
+    DAYS_SPAN_GT = "days_span_gt", "durata in giorni maggiore di"
+    DAYS_SPAN_GTE = "days_span_gte", "durata in giorni almeno"
     # Debounce per gruppo. La condizione è una LETTURA PURA (nessun side-effect): ritorna True
     # (regola eseguibile) solo se NON esiste un invio recente per la coppia namespace+valore.
     # Il valore del gruppo viene da field_name; expected_value nel formato "namespace:minuti"
@@ -65,12 +65,12 @@ class AutomationConditionOperator(models.TextChoices):
 
 
 class AutomationConditionValueType(models.TextChoices):
-    STRING = "string", "String"
-    INT = "int", "Integer"
-    FLOAT = "float", "Float"
-    BOOL = "bool", "Boolean"
-    DATE = "date", "Date"
-    DATETIME = "datetime", "Datetime"
+    STRING = "string", "Testo"
+    INT = "int", "Numero intero"
+    FLOAT = "float", "Numero decimale"
+    BOOL = "bool", "Sì / No"
+    DATE = "date", "Data"
+    DATETIME = "datetime", "Data e ora"
 
 
 class AutomationActionType(models.TextChoices):
