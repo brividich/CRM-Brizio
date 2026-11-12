@@ -158,7 +158,8 @@ class Contesto:
             SoftwareCpeMapping.objects.filter(confirmed=True, origin=SoftwareCpeMapping.ORIGIN_AUTO).values_list("vendor", "product")
         )
         self.not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
-        self.installs = list(SoftwareInstallation.objects.filter(still_detected=True))
+        # Senza versione non c'è niente da confrontare con i range: il programma resta nell'inventario, non qui.
+        self.installs = list(SoftwareInstallation.objects.filter(still_detected=True).exclude(version_raw=""))
         # Esiti «da verificare» decisi da una persona accettando una proposta dell'AI (services.cpe_ai).
         self.verifiche = _verifiche_accettate()
         self.per_prodotto = defaultdict(list)
