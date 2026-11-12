@@ -77,6 +77,7 @@ GUIDA = {
                     "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
                     "La colonna «Sistema» dice la release di Windows (verde supportata, rosso fuori supporto, giallo in scadenza); la striscia gialla sotto i filtri «N PC con Windows da aggiornare» ha il pulsante «Apri il piano» e, a caso aperto, la barra «N su M PC aggiornati».",
                     "Se nella colonna «Asset del registro» c'è «Proposto», controlla e premi «Conferma» (serve il permesso di configurazione del SOC).",
+                    "«Dispositivi › Software»: ogni programma installato sui PC con ricerca (senza badare a spazi e trattini), filtri Con CVE / Non autorizzati / Versioni vecchie / Nuovi e, con un clic sulla riga, i PC che lo hanno con versione e CVE.",
                     "In «Da fare › Panoramica» il riquadro «Postura dei PC» mostra l'indice di ogni PC (stesso numero della scheda), dal peggiore, con filtri A rischio / Da migliorare / Postura buona: un clic apre la scheda.",
                     "Il nome del dispositivo apre la sua scheda: in testa identità (seriale, IP, MAC), «Indice di postura» da 0 a 100 e sei riquadri "
                     "(Backup, Alert aperti, CVE, Patch mancanti, Protezione EDR, Conformità Intune); ogni riquadro apre la sua sezione. "

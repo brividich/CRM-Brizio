@@ -208,3 +208,15 @@ Dall'elenco Dispositivi, da un risultato di ricerca, dalla pagina Backup o Vulne
 - **Timeline**: gli ultimi 30 fatti da tutte le fonti (backup, alert, protezione, patch fallite, eventi), raggruppati per giorno (Oggi, Ieri, data) con icona e colore per gravità. Sopra c'è il grafico dell'attività degli ultimi 14 giorni: l'altezza è il numero di fatti, il colore il fatto più grave del giorno; un clic porta a quel giorno. I filtri per tipo mostrano quanti fatti ci sono e sono spenti se zero. Un evento che ha già il suo alert compare una volta sola, come alert.
 
 La sezione aperta resta nell'indirizzo (es. `#software`): si può mandare il link già sulla sezione giusta.
+
+## Software
+
+Pagina **Dispositivi › Software**: tutti i programmi installati sui PC, una riga per programma. Le versioni e i nomi diversi dello stesso programma (es. «7-Zip 25.01 (x64)» e «7-Zip 26.05») sono una riga sola, come nel catalogo di Asset: stesse righe e stessi numeri. Le fonti sono WatchGuard (letto tre volte al giorno) e Microsoft Defender.
+
+- **Riquadri in alto** (un clic filtra): programmi installati, con CVE (e quante in tutto), non autorizzati o da rimuovere, sotto la versione minima, comparsi di recente.
+- **Ricerca**: scrivi una o più parole del nome o del produttore; trattini e spazi non contano («7zip» trova «7-Zip», «acro writer» trova «CutePDF Writer» di Acro Software). L'elenco si filtra mentre scrivi; con **Invio** la ricerca resta nell'indirizzo e si può mandare il link. Il tasto **/** porta alla ricerca.
+- **Filtri**: Tutti, Con CVE, CVE non controllate (programma non collegato a un CPE), Nuovi, Da classificare, Non autorizzati, Da rimuovere, Versioni vecchie, A pagamento senza licenza. Il numero accanto è uguale alle righe.
+- **Colonne**: programma e produttore, quanti PC lo hanno, quante versioni (e quante sotto la minima), CVE, decisione, licenza. Clic sull'intestazione di Programma, PC, Versioni o CVE per ordinare.
+- **Clic su una riga**: si apre il pannello laterale con le versioni installate (quanti PC per versione) e i PC che hanno il programma, con versione, CVE di quella installazione, fonti (WG, DEF) e ultimo avvistamento. Il nome del PC apre la sua scheda sulla sezione Software. In fondo il link al catalogo di Asset per decisione, licenza e versione minima.
+
+I programmi che WatchGuard elenca senza versione ora compaiono nell'inventario (prima venivano scartati), ma restano fuori dal confronto con le CVE: senza versione non c'è niente da confrontare. Gli aggiornamenti di sistema (KB) che WatchGuard elenca insieme ai programmi non sono programmi e non compaiono qui: le patch installate sono in **Dispositivi › Patch installate**.

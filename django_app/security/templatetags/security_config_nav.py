@@ -81,6 +81,7 @@ MENU = [
         ("Patch installate", "watchguard_patch_installate", ("watchguard_patch_installate",), False),
         ("Installazioni da console", "watchguard_task", ("watchguard_task",), False),
         ("Tempi delle patch", "watchguard_patch_tempi", ("watchguard_patch_tempi",), False),
+        ("Software", "software_soc", ("software_soc",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),

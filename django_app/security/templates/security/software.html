@@ -1,0 +1,83 @@
+{% extends "security/_base_soc.html" %}
+{% load static %}
+
+{% block title %}Software | Security Center AI{% endblock %}
+{% block extra_head %}{{ block.super }}
+<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261113">
+{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Software{% endblock %}
+
+{% block soc_content %}
+<div class="pcs cy-sw" data-cy-sw data-drawer-host>
+  <div class="pcs-sw-stats cy-sw-stats">
+    <a class="pcs-sw-stat{% if not codice %} is-active{% endif %}" href="?">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-monitor"/></svg></span>
+      <span><b>{{ stat.programmi }}</b><small>programmi installati sui PC</small></span>
+    </a>
+    <a class="pcs-sw-stat is-{% if stat.con_cve %}critical{% else %}success{% endif %}{% if codice == 'cve' %} is-active{% endif %}" href="?f=cve">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-flame"/></svg></span>
+      <span><b>{{ stat.con_cve }}</b><small>con CVE · {{ stat.cve }} in tutto</small></span>
+    </a>
+    <a class="pcs-sw-stat is-{% if stat.da_togliere %}warning{% else %}success{% endif %}{% if codice == 'non_autorizzato' %} is-active{% endif %}" href="?f=non_autorizzato">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-alert"/></svg></span>
+      <span><b>{{ stat.da_togliere }}</b><small>non autorizzati o da rimuovere</small></span>
+    </a>
+    <a class="pcs-sw-stat is-{% if stat.vecchi %}warning{% else %}muted{% endif %}{% if codice == 'vecchi' %} is-active{% endif %}" href="?f=vecchi">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-clock"/></svg></span>
+      <span><b>{{ stat.vecchi }}</b><small>sotto la versione minima</small></span>
+    </a>
+    <a class="pcs-sw-stat is-{% if stat.nuovi %}warning{% else %}muted{% endif %}{% if codice == 'nuovi' %} is-active{% endif %}" href="?f=nuovi">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-bell"/></svg></span>
+      <span><b>{{ stat.nuovi }}</b><small>comparsi di recente</small></span>
+    </a>
+  </div>
+
+  <div class="pcs-card pcs-sw-card">
+    <form method="get" class="pcs-sw-toolbar" role="search">
+      {% if codice %}<input type="hidden" name="f" value="{{ codice }}">{% endif %}
+      <div class="pcs-sw-searchbox">
+        <svg class="soc-ico" aria-hidden="true"><use href="#soc-i-search"/></svg>
+        <input type="search" name="q" value="{{ q }}" placeholder="Cerca un programma o un produttore (es. 7zip, acrobat, java)…" aria-label="Cerca software" data-cy-sw-search>
+        <kbd>/</kbd>
+      </div>
+      <span class="pcs-sw-count pcs-mono" data-cy-sw-count>{{ righe|length }} di {{ totale }} programmi</span>
+      {% if q or codice %}<a class="pcs-sw-reset" href="?">Togli i filtri</a>{% endif %}
+      {% if catalogo_url %}<a class="pcs-link" href="{{ catalogo_url }}{% if q %}?q={{ q|urlencode }}{% endif %}" title="Decisioni, licenze e versioni minime">Catalogo in Asset</a>{% endif %}
+    </form>
+    <div class="cy-sw-chips">
+      {% for f in filtri %}<a class="{% if f.attivo %}is-active{% endif %}{% if not f.n and f.codice %} is-zero{% endif %}" href="?{% if f.codice %}f={{ f.codice }}{% endif %}{% if q %}{% if f.codice %}&amp;{% endif %}q={{ q|urlencode }}{% endif %}">{{ f.label }} <b>{{ f.n }}</b></a>{% endfor %}
+    </div>
+    <div class="pcs-scroll pcs-scroll-lg">
+      <table class="pcs-table pcs-sw-table" data-table-enhanced="0" data-cy-sw-table>
+        <thead><tr>
+          <th><button type="button" data-cy-sort="nome">Programma</button></th>
+          <th class="pcs-num"><button type="button" data-cy-sort="pc">PC</button></th>
+          <th class="pcs-num"><button type="button" data-cy-sort="versioni">Versioni</button></th>
+          <th><button type="button" data-cy-sort="cve">CVE</button></th>
+          <th>Decisione</th>
+          <th>Licenza</th>
+        </tr></thead>
+        <tbody data-preview-scope>
+          {% for r in righe %}
+            <tr data-preview="{% url 'security:software_soc_pc' %}?key={{ r.key|urlencode }}&amp;nome={{ r.name|urlencode }}"
+                data-nome="{{ r.name|lower }} {{ r.vendor|default:''|lower }} {{ r.cerca|lower }}" data-pc="{{ r.hosts }}" data-versioni="{{ r.versions }}" data-cve="{{ r.cves }}"
+                title="Clic: i PC che hanno {{ r.name }}">
+              <td><div class="pcs-sw-name"><span class="pcs-avatar" data-l="{{ r.vendor|default:r.name|slice:':1'|upper }}">{{ r.vendor|default:r.name|slice:":1"|upper }}</span><span><strong>{{ r.name }}</strong><small>{{ r.vendor|default:"produttore non indicato" }}{% if r.nuovo_dal %} · <em class="cy-sw-new">nuovo</em>{% endif %}</small></span></div></td>
+              <td class="pcs-num pcs-mono"><b>{{ r.hosts }}</b></td>
+              <td class="pcs-num pcs-mono">{{ r.versions }}{% if r.outdated %} <span class="pcs-chip is-warning" title="Sotto la versione minima {{ r.min_version }}">{{ r.outdated }} vecchi{{ r.outdated|pluralize:"a,e" }}</span>{% endif %}</td>
+              <td>{% if r.cves %}<span class="pcs-cvebadge is-critical">{{ r.cves }} CVE</span>{% elif r.cve_stato == "non_controllato" %}<span class="pcs-chip is-muted" title="Programma non collegato a un CPE: le CVE non sono controllate">non controllate</span>{% else %}<span class="pcs-ok-dot">✓ nessuna</span>{% endif %}</td>
+              <td><span class="pcs-chip is-{% if r.classification == 'da_rimuovere' or r.classification == 'non_autorizzato' %}critical{% elif r.classification == 'da_classificare' %}muted{% else %}success{% endif %}">{{ r.classification_label }}</span>{% if r.da_regola %} <small class="pcs-sub">dal produttore</small>{% endif %}</td>
+              <td>{% if r.license_state == "coperta" %}<span class="pcs-chip is-success">coperta{% if r.seats %} · {{ r.seats }} posti{% endif %}</span>{% if r.over_seats %} <span class="pcs-chip is-critical">oltre i posti</span>{% endif %}{% elif r.paid_without_license %}<span class="pcs-chip is-critical">a pagamento, senza licenza</span>{% else %}<span class="pcs-sub">{{ r.licensing_label }}</span>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="pcs-empty">Nessun programma corrisponde{% if q %} a «{{ q }}»{% endif %}.</td></tr>
+          {% endfor %}
+          <tr class="pcs-noresult" data-cy-sw-none hidden><td colspan="6">Nessun programma corrisponde alla ricerca.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="pcs-note">Una riga per programma: le versioni e i nomi diversi dello stesso programma (es. «7-Zip 25.01 (x64)» e «7-Zip 26.05») sono raggruppati, come nel catalogo di Asset. Le fonti sono WatchGuard e Microsoft Defender; le decisioni e le licenze si gestiscono nel catalogo. Clic su una riga: i PC che hanno il programma, con versione e CVE.</p>
+</div>
+{% endblock %}

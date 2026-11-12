@@ -408,6 +408,89 @@ def pc_detail(request):
     return render(request, "security/pc_detail.html", {"pc": data})
 
 
+FILTRI_SOFTWARE = [
+    ("", "Tutti"), ("cve", "Con CVE"), ("non_controllato", "CVE non controllate"), ("nuovi", "Nuovi"),
+    ("da_classificare", "Da classificare"), ("non_autorizzato", "Non autorizzati"), ("da_rimuovere", "Da rimuovere"),
+    ("vecchi", "Versioni vecchie"), ("senza_licenza", "A pagamento senza licenza"),
+]
+
+
+def software_soc(request):
+    """Software: ogni programma installato sui PC, con ricerca. Stesse righe e numeri del catalogo di Asset
+    (``assets.views_software.catalog_rows``); il clic su una riga apre i PC che lo hanno nel pannello laterale."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from assets import views_software
+
+    tutte = views_software.catalog_rows(with_cve=True)
+    codice = request.GET.get("f", "") if request.GET.get("f", "") in {c for c, _l in FILTRI_SOFTWARE} else ""
+    q = (request.GET.get("q") or "").strip()[:100]
+    righe = views_software._filter(tutte, codice, q)
+    filtri = [{"codice": c, "label": label, "n": len(views_software._filter(tutte, c, "")), "attivo": c == codice}
+              for c, label in FILTRI_SOFTWARE]
+    catalogo_url = _url_se_permesso(request, reverse("assets:software_catalog"))
+    return render(request, "security/software.html", {
+        "righe": righe, "totale": len(tutte), "filtri": filtri, "codice": codice, "q": q,
+        "stat": {
+            "programmi": len(tutte),
+            "con_cve": sum(1 for r in tutte if r["cves"]),
+            "cve": sum(r["cves"] for r in tutte),
+            "nuovi": sum(1 for r in tutte if r["nuovo_dal"]),
+            "da_togliere": sum(1 for r in tutte if r["classification"] in ("non_autorizzato", "da_rimuovere")),
+            "vecchi": sum(1 for r in tutte if r["outdated"]),
+        },
+        "catalogo_url": catalogo_url,
+    })
+
+
+def software_soc_pc(request):
+    """Pannello laterale di un programma: i PC che lo hanno, con versione, fonti, ultimo avvistamento e CVE."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from collections import Counter
+
+    from django.db.models import Q
+
+    from assets import views_software
+
+    from .models import SoftwareInstallation
+    from .services import software_catalog as sc
+    from .services.pc_overview import cve_per_programma
+    from .services.pc_copertura import norm
+
+    key = (request.GET.get("key") or "")[:400]
+    if not key:
+        raise Http404("Programma non indicato.")
+    chiavi = sc.member_keys(key) or [key]
+    filtro = Q(pk__in=[])
+    for k in chiavi:
+        vendor, product = sc.split_key(k)
+        filtro |= Q(vendor=vendor, product=product)
+    installazioni = list(SoftwareInstallation.objects.filter(filtro, still_detected=True).order_by("host"))
+    if not installazioni:
+        raise Http404("Programma non più presente sui PC.")
+    cve_per_programma(installazioni)
+    # Un PC con più versioni dello stesso programma resta una riga per versione: è quello che dicono le fonti.
+    versioni = Counter(i.version_raw or "senza versione" for i in installazioni)
+    massimo = max(versioni.values())
+    return render(request, "security/partials/software_pc.html", {
+        "nome": request.GET.get("nome", "") or installazioni[0].product_raw,
+        "produttore": installazioni[0].produttore_nome,
+        "installazioni": [{"i": i, "pc": norm(i.host), "nome_pc": (i.host_display or i.host).split(".")[0].upper()} for i in installazioni],
+        "pc": len({norm(i.host) for i in installazioni}),
+        "versioni": [{"v": v, "n": n, "pct": round(100 * n / massimo)} for v, n in sorted(versioni.items(), key=lambda x: -x[1])[:12]],
+        "n_versioni": len(versioni),
+        "cve": sum(1 for i in installazioni if i.cve_n),
+        "dettaglio_url": _url_se_permesso(request, views_software._detail_url(key)),
+    })
+
+
+def _url_se_permesso(request, url):
+    from core.middleware import acl_allows_path
+
+    return url if acl_allows_path(url.split("?")[0], django_user=request.user, request=request) else ""
+
+
 def postura_mappa(request):
     """Mappa dei PC per indice di postura (riquadro di «Da fare», caricato a parte perché l'elenco è pesante)."""
     if not can_view_security_center(request.user):
