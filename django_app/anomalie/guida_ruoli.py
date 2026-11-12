@@ -180,7 +180,11 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ("img", (_IMG + "k2_decisione.jpg", "Decisione del capocommessa: flag, «A quale CAR?», «Dal controllore» e allegati")),
             ("ul", [
                 "Con una nota l'avanzamento non può restare «In attesa».",
-                "L'anomalia si chiude da sola con «Accetto lo stato», «Apertura ORE/RIPI» o aprendo un RDC.",
+                "L'anomalia si chiude da sola con «Accetto lo stato» o «Apertura ORE/RIPI». Con «Aprire RDC» o "
+                "«Segnalare al cliente» resta aperta, in carico ai referenti RDC, finché l'RDC non ha il numero e "
+                "«Segnalato al cliente» non è spuntato.",
+                "Se il referente RDC risponde «In attesa di ulteriori informazioni» l'anomalia torna a te con le spunte "
+                "aperte: rispondi nelle note e scegli un altro stato, torna al referente.",
                 "Stessa decisione su più anomalie: in «Applica la stessa decisione anche a» scegli stesso blocco, tutte "
                 "le aperte dell'OP o «Scelte a mano»; prima di salvare un riepilogo le mostra tutte. Le già decise "
                 "restano fuori, salvo spuntarle.",

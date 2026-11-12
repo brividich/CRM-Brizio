@@ -622,9 +622,15 @@
     return out;
   }
 
-  function shouldAutoClose(isAprireRdc, avanz) {
+  // Stessa regola del server (views.chiusura_automatica): «Aprire RDC» chiude solo con
+  // il numero RDC, «Segnalare al cliente» mai da qui (la segnalazione fatta si registra
+  // nel portale); gli stati d'attesa tengono aperta l'anomalia.
+  var STATI_ATTESA = ['in attesa risposta cliente', 'in attesa di ulteriori informazioni'];
+  function shouldAutoClose(isAprireRdc, avanz, numRdc, segnalare) {
     var a = String(avanz || '').trim().toLowerCase();
-    return Boolean(isAprireRdc || a === 'accetto lo stato' || a === 'apertura ore/ripi');
+    if (STATI_ATTESA.indexOf(a) >= 0 || segnalare) return false;
+    if (isAprireRdc) return !!String(numRdc || '').trim();
+    return a === 'accetto lo stato' || a === 'apertura ore/ripi';
   }
 
   // Popola le select avanzamento di ogni riga in base allo stato corrente dei toggle.
@@ -667,7 +673,8 @@
 
     rebuildSelect(id);
 
-    if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
+    var numEl = document.getElementById('num-' + id);
+    if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '', numEl ? numEl.value : '', !!(seg && seg.checked));
     var numWrap = document.getElementById('numwrap-' + id);
     if (numWrap) numWrap.hidden = !(rdc && rdc.checked);
 
@@ -844,8 +851,8 @@
 
     var aprireRdc = !!(rdc && rdc.checked);
     var segnalare = !!(seg && seg.checked);
-    var chiudere = shouldAutoClose(aprireRdc, av.value);
     var num = document.getElementById('num-' + id);
+    var chiudere = shouldAutoClose(aprireRdc, av.value, num ? num.value : '', segnalare);
     // «Azione di recupero» senza azione effettuata: la decisione copiata non la chiude.
     var rigaSel = document.getElementById('row-' + id);
     if (daBlocco && chiudere && !aprireRdc && rigaSel && rigaSel.dataset.serveAzione === '1') chiudere = false;

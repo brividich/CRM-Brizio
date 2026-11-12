@@ -91,18 +91,29 @@ const canUserEditOp = (opCapocommessa, opCar) => {
 // (resta aperta; il capocommessa cambia stato quando il cliente risponde).
 const AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
 
-// Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?"
-const buildAvanzamentoOptions = isAprireRdc => {
+// Risposta del referente RDC: rimanda l'anomalia al capocommessa con le spunte aperte.
+const AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni";
+const STATI_ATTESA = [AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase(), AVANZAMENTO_INFO_RICHIESTE.toLowerCase()];
+
+// Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?". Con RDC o
+// cliente spuntati c'è anche «In attesa di ulteriori informazioni».
+const buildAvanzamentoOptions = (isAprireRdc, conRdcOCliente = false) => {
   const dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
   const dynamicAlt = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
   const sanitizedBase = BASE_AVANZAMENTO_OPTIONS.filter(opt => normalizeChoice(opt).toLowerCase() !== dynamicAlt.toLowerCase());
-  return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE]);
+  return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE, ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
 };
 
-// Regola PowerApps: chiusura automatica in base ad avanzamento/apertura RDC.
-const shouldAutoClose = (isAprireRdc, avanzamentoValue) => {
+// Chiusura automatica al salvataggio, stessa regola del server
+// (views.chiusura_automatica): «Aprire RDC» chiude solo con il numero RDC,
+// «Segnalare al cliente» solo con «Segnalato al cliente» registrato; gli stati
+// d'attesa tengono aperta l'anomalia.
+const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false) => {
   const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
-  return Boolean(isAprireRdc || avanz === "accetto lo stato" || avanz === "apertura ore/ripi");
+  if (STATI_ATTESA.includes(avanz)) return false;
+  if (segnalare && !segnalatoFatto) return false;
+  if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
+  return avanz === "accetto lo stato" || avanz === "apertura ore/ripi";
 };
 const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
 
@@ -145,6 +156,7 @@ const snColor = avanz => {
   if (avanz === "In attesa") return "#f59e0b";
   if (avanz === "Finito trattato") return "#6366f1";
   if (avanz === "In attesa risposta cliente") return "#0ea5e9";
+  if (avanz === AVANZAMENTO_INFO_RICHIESTE) return "#f97316";
   return "#94a3b8";
 };
 
@@ -1765,8 +1777,7 @@ function GestioneAnomalie() {
     setScelteMano([]);
     setIncludiDecise(false);
   };
-  const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
-  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+  const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc, aprireRdc || segnalare), [aprireRdc, segnalare]);
   // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
   const [esitiInfo, setEsitiInfo] = useState(null);
   // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
@@ -1926,6 +1937,10 @@ function GestioneAnomalie() {
   const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap(g => g.items), [gruppiAnomalie]);
   const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
   const sn = useMemo(() => anomalie.find(a => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
+  // Dopo «sn» (TDZ): la chiusura con «Segnalare al cliente» dipende da «Segnalato al cliente».
+  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!sn.segnalato_cliente);
+  // Resta aperta con «Aprire RDC» / «Segnalare al cliente»: banner sotto la decisione.
+  const attesaReferente = (aprireRdc || segnalare) && !chiudereAuto;
   const posizione = ordineVisibile.findIndex(a => a.item_id === sn.item_id);
   const isSelectedClosed = Boolean(sn.chiudere);
   const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -1965,7 +1980,7 @@ function GestioneAnomalie() {
 
   // Valori «di partenza» della decisione: servono a capire se ci sono modifiche.
   const baseline = useMemo(() => {
-    const opts = buildAvanzamentoOptions(!!sn.aprire_rdc);
+    const opts = buildAvanzamentoOptions(!!sn.aprire_rdc, !!sn.aprire_rdc || !!sn.segnalare);
     const av = sn.avanzamento || DEFAULT_AVANZAMENTO;
     return {
       desc: sn.desc || "",
@@ -2064,7 +2079,7 @@ function GestioneAnomalie() {
   }, [ambito, stessoBlocco, altreAperte, scelteMano]);
   // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
   // la decisione si applica, l'anomalia resta aperta.
-  const chiudeBersaglio = x => chiudereAuto && !(x.serve_azione && !aprireRdc);
+  const chiudeBersaglio = x => shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!x.segnalato_cliente) && !(x.serve_azione && !aprireRdc);
   const gruppiPerSn = lista => {
     const out = [];
     lista.forEach(x => {
@@ -3428,9 +3443,7 @@ function GestioneAnomalie() {
     disabled: !canEditSelected
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
-  }, opt))), segnalare && avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE && /*#__PURE__*/React.createElement("div", {
-    className: "ga-hint"
-  }, "L'anomalia resta aperta in attesa del cliente: cambia lo stato quando risponde.")), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
+  }, opt)))), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
     className: "ga-input",
     placeholder: "Es. RDC-2026-014",
     value: rdcNum,
@@ -3449,7 +3462,9 @@ function GestioneAnomalie() {
     className: "ga-note ga-note--warn"
   }, "La prima decisione \xE8 stata \xABAzione di recupero\xBB: per chiudere registra l'azione effettuata in \xABTempi ed esiti\xBB.") : canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--ok"
-  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), attesaReferente && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--info"
+  }, normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE ? /*#__PURE__*/React.createElement(React.Fragment, null, "Servono ", /*#__PURE__*/React.createElement("b", null, "ulteriori informazioni"), ": l'anomalia torna in carico al capocommessa e le spunte restano. Quando risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement(React.Fragment, null, "L'anomalia ", /*#__PURE__*/React.createElement("b", null, "resta aperta"), ", in carico al referente RDC. Si chiude ", [aprireRdc && !String(rdcNum || "").trim() ? "con il numero RDC" : "", segnalare && !sn.segnalato_cliente ? "con «Segnalato al cliente» spuntato" : "", normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE ? "quando il cliente risponde e si sceglie lo stato definitivo" : ""].filter(Boolean).join(", ") || "con lo stato definitivo", ".")), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
     className: "ga-apply ga-apply--ambito"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-apply__t"

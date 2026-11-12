@@ -252,7 +252,8 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
                 "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
-                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, che possono "
+                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, tranne quelle "
+                "rimandate al capocommessa con «In attesa di ulteriori informazioni», che possono "
                 "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
                 "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Ogni riga mostra numero e P/N "
                 "dell'OP: il numero arancione indica le anomalie aperte ancora da decidere, quello blu le aperte già "
@@ -316,8 +317,14 @@ SEZIONI: list[dict] = [
                 "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
             ]),
             ("ul", [
-                "L'anomalia si chiude da sola al salvataggio quando apri un RDC o scegli «Accetto lo stato» o «Apertura "
-                "ORE/RIPI»: la pagina lo avvisa prima di salvare.",
+                "L'anomalia si chiude da sola al salvataggio quando scegli «Accetto lo stato» o «Apertura ORE/RIPI»: "
+                "la pagina lo avvisa prima di salvare.",
+                "«Aprire RDC» e «Segnalare al cliente» non la chiudono: resta aperta, in carico ai referenti RDC, "
+                "finché l'RDC non ha il numero e la segnalazione non è registrata con «Segnalato al cliente». Un "
+                "riquadro sotto la decisione dice cosa manca.",
+                "Il referente RDC può rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte restano, "
+                "l'anomalia torna in carico al capocommessa (notifica nel portale, conta fra le da decidere) e quando "
+                "lui sceglie un altro stato torna al referente.",
                 "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
                 "il salvataggio si ferma con l'avviso (anche dal link della mail).",
                 "Spuntando «Segnalare al cliente» l'avanzamento passa a «In attesa risposta cliente»: l'anomalia resta "
