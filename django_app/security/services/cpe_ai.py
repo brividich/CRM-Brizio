@@ -568,9 +568,11 @@ def _giro(*, limit, time_budget_seconds, confidenza_minima):
                               host="", versione="")
             continue
         tempi.append(proposta["ms"])
-        _salva(chiave, SecurityPropostaAi.TIPO_CPE, contesto_hash, proposta, vendor=caso["vendor"], product=caso["product"],
-               candidati=caso["candidati"], cve=None, host="", versione="")
+        riga = _salva(chiave, SecurityPropostaAi.TIPO_CPE, contesto_hash, proposta, vendor=caso["vendor"], product=caso["product"],
+                      candidati=caso["candidati"], cve=None, host="", versione="")
         esito["cpe"]["proposte"] += 1
+        if accetta_se_sicura(riga):
+            esito["cpe"]["accettate_auto"] = esito["cpe"].get("accettate_auto", 0) + 1
     casi = casi_esito(limit=limit * 3, esistenti=esistenti) if fatti < limit and not _tempo() and not fermo else []
     for impact in casi:
         if fatti >= limit or _tempo() or fermo:
@@ -630,6 +632,46 @@ def giro_manuale():
 
 
 # --- Decisioni e lettura per le pagine -----------------------------------------------------------
+
+def accetta_se_sicura(proposta) -> bool:
+    """Collegamento CPE accettato senza una persona quando l'AI è sicura (``ai.cpe.confidenza_auto``).
+
+    Solo i collegamenti a un CPE fra i candidati delle CVE note: mai «non applicabile» (spegnerebbe il controllo
+    delle CVE di quel programma) e mai gli esiti CVE per PC (un «non impatta» sbagliato nasconderebbe una
+    vulnerabilità). Stesso effetto della conferma a mano, con audit «accettata in automatico»; si annulla dalla
+    pagina Software e CPE come ogni altro collegamento.
+    """
+    from security.models import SoftwareCpeMapping
+    from security.services import soc_settings
+    from security.services.configuration import audit_config_change
+    from security.services.software_catalog import membri_automatici
+
+    if (proposta.tipo != SecurityPropostaAi.TIPO_CPE or proposta.stato != SecurityPropostaAi.APERTA
+            or not soc_settings.value("ai.cpe.accetta_auto")
+            or proposta.proposta in (SecurityPropostaAi.NON_APPLICABILE, SecurityPropostaAi.DA_VERIFICARE) or ":" not in proposta.proposta
+            or proposta.confidenza < int(soc_settings.value("ai.cpe.confidenza_auto") or 90)):
+        return False
+    cpe_vendor, cpe_product = proposta.proposta.split(":", 1)
+    nota = f"proposta AI #{proposta.pk} accettata in automatico (confidenza {proposta.confidenza}%)"
+    for vendor, product in sorted(membri_automatici(proposta.vendor[:120], proposta.product[:160])):
+        mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor, product=product)
+        if mapping.confirmed or mapping.not_applicable:
+            continue  # una decisione già presa (di una persona o di una regola) non si tocca
+        mapping.cpe_vendor, mapping.cpe_product = cpe_vendor, cpe_product
+        mapping.confirmed, mapping.not_applicable = True, False
+        mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
+        mapping.confirmed_by, mapping.confirmed_at = None, timezone.now()
+        mapping.save()
+        audit_config_change(None, "update", mapping, field_name="cpe", old_value="", new_value=f"{proposta.proposta} confermata {nota}")
+    segna_decisa(proposta, None, accettata=True)
+    try:
+        from security.services.cve_feeds import queue_recompute
+
+        queue_recompute()
+    except Exception:  # noqa: BLE001 - il ricalcolo orario lo recupera
+        logger.exception("Ricalcolo CVE non accodato dopo un CPE accettato dall'AI")
+    return True
+
 
 def segna_decisa(proposta, utente, *, accettata):
     proposta.stato = SecurityPropostaAi.ACCETTATA if accettata else SecurityPropostaAi.RIFIUTATA

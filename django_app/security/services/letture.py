@@ -100,6 +100,16 @@ LETTURE = (
             "L'AI locale esamina i casi «da verificare» del calcolo CVE: propone il CPE fra quelli delle CVE note o l'esito per PC. Solo proposte, da accettare o rifiutare.",
             "ogni 6 ore", "security.services.cpe_ai:giro_lettura", ("ai.cpe.attivo",), "ollama",
             dati_url="security:software_mapping", dati_label="Software e CPE", manuale="security.services.cpe_ai:giro_manuale"),
+    Lettura("software_doppioni", "Doppioni software tra le fonti (AI)", "Vulnerabilità",
+            "Lo stesso programma visto da WatchGuard e da Defender con nomi diversi diventa una riga: prima le unioni sicure "
+            "(stesso PC e stessa versione), poi le coppie dal nome simile decise dall'AI locale. Le incerte restano da decidere.",
+            "ogni ora", "security.services.software_doppioni:giro_lettura", ("ai.doppioni.attivo",),
+            dati_url="security:software_soc", dati_label="Software"),
+    Lettura("manutenzione", "Manutenzione notturna", "Motore del SOC",
+            "Pulizia dei registri tecnici (testo grezzo già letto, giri delle caselle, registro AI, cache), fotografia "
+            "dell'indice di postura di ogni PC e avviso per i PC che scendono sotto la soglia.",
+            "ogni notte alle 02:30", "security.services.manutenzione_soc:giro", (),
+            dati_url="security:dashboard", dati_label="Postura dei PC", lunga=True),
     Lettura("ai_proposte", "Proposte di chiusura dell'AI", "Motore del SOC",
             "L'AI locale controlla gli alert aperti contro i report arrivati dopo e le decisioni passate, propone come chiuderli "
             "e chiude da sola solo i tipi di alert che ha imparato dalle conferme.",
@@ -349,12 +359,22 @@ ETICHETTE = {
     "auto_linked": "software collegati da soli", "recompute": "ricalcolo",
     # proposte AI su CPE ed esiti
     "cpe": "Collegamenti CPE", "esiti": "Esiti CVE su PC", "casi": "casi esaminati", "proposte": "proposte",
-    "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta",
+    "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta", "accettate_auto": "accettate in automatico",
     # librerie del portale
     "pacchetti": "librerie controllate", "vulnerabili": "librerie vulnerabili", "vulnerabilita": "vulnerabilità aperte",
     "risolte": "risolte", "alert_chiusi": "alert chiusi",
     # switch / caselle
     "switch": "switch", "mac": "MAC", "caselle": "caselle", "lette": "lette",
+    # WatchGuard: aggiornamenti e scarti
+    "aggiornamenti_kb": "aggiornamenti (KB) salvati", "scartate_aggiornamenti": "aggiornamenti non contati come programmi",
+    "scartate_altro": "righe scartate",
+    # doppioni software
+    "unite_stesso_pc": "unite (stesso PC e versione)", "alias_automatici": "unite (stesso nome)", "alias_ai": "unite dall'AI",
+    "da_decidere": "da decidere", "non_stesso": "non sono lo stesso", "chieste_ai": "coppie chieste all'AI", "errori_ai": "risposte AI non valide",
+    # manutenzione
+    "pulizia": "Pulizia", "mail_svuotate": "mail svuotate", "file_svuotati": "file svuotati", "giri_caselle": "giri delle caselle eliminati",
+    "registro_ai": "richieste AI eliminate", "cache_esterna": "cache esterna eliminata", "dettagli_import": "dettagli di import ripuliti",
+    "postura_pc": "PC fotografati (postura)", "sotto_soglia": "PC scesi sotto soglia",
     # pacchetto ISO 27001
     "periodo": "periodo", "sha256": "impronta SHA-256", "non_conformi": "controlli non conformi", "attenzione": "da guardare",
     "non_disponibili": "non disponibili", "copia": "copia su SharePoint",
