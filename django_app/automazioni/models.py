@@ -294,6 +294,8 @@ class AutomationRunLog(models.Model):
         ordering = ["-started_at", "-id"]
         indexes = [
             models.Index(fields=["rule", "status"], name="automrunlog_rule_status_idx"),
+            # Chiesto da SQL Server in produzione (12/11/2026): esecuzioni per stato, fuori dai test, per data.
+            models.Index(fields=["status", "is_test", "started_at"], name="automrunlog_stato_test_idx"),
             models.Index(fields=["source_code", "operation_type"], name="automrunlog_src_optype_idx"),
         ]
 

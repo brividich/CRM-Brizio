@@ -5952,7 +5952,11 @@ class PeriodoStatoMacchina(models.Model):
 
     class Meta:
         ordering = ["-dal"]
-        indexes = [models.Index(fields=["collegamento", "dal"], name="assets_periodo_mtc_idx")]
+        indexes = [
+            models.Index(fields=["collegamento", "dal"], name="assets_periodo_mtc_idx"),
+            # Periodo aperto della macchina («al» vuoto): chiesto da SQL Server in produzione (12/11/2026).
+            models.Index(fields=["collegamento", "al"], name="assets_periodo_mtc_al_idx"),
+        ]
         verbose_name = "Periodo di stato della macchina"
         verbose_name_plural = "Periodi di stato delle macchine"
 
