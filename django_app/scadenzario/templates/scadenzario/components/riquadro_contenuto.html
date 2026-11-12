@@ -18,11 +18,12 @@
   {% for v in voci %}
   <div class="szr-riga">
     <span class="szr-testo">{{ v.kind_label|default:v.titolo }}{% if v.kind_label and v.titolo %}: {{ v.titolo }}{% endif %}
-      {% if v.presa %}<span class="szr-chi">👤 Se ne occupa {{ v.presa_nome }}{% if v.presa.nota %} · {{ v.presa.nota }}{% endif %}</span>{% endif %}</span>
+      {% if v.presa_nome %}<span class="szr-chi">{% if v.presa_esterna %}🏢{% else %}👤{% endif %} Se ne occupa {{ v.presa_nome }}{% if v.presa_esterna %} (fornitore esterno){% endif %}</span>{% endif %}
+      {% if v.presa.nota %}<span class="szr-chi">📝 {{ v.presa.nota }}</span>{% endif %}</span>
     <span class="szr-data{% if v.giorni is not None and v.giorni < 0 %} scaduta{% endif %}">{{ v.data_scadenza|date:"d/m/Y" }}</span>
     <form method="post" action="{% url 'scadenzario:presa_in_carico' %}">
       {% csrf_token %}<input type="hidden" name="next" value="{{ percorso }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="data" value="{{ v.data_scadenza|date:'Y-m-d' }}">
-      {% if v.presa_mia %}<input type="hidden" name="azione" value="lascia"><button type="submit">✕ Lascia</button>{% elif v.presa %}<button type="submit">👤 Subentro io</button>{% else %}<button type="submit">👤 Me ne occupo io</button>{% endif %}
+      {% if v.presa_mia %}<input type="hidden" name="azione" value="lascia"><button type="submit">✕ Lascia</button>{% elif v.presa_nome %}<button type="submit">👤 Subentro io</button>{% else %}<button type="submit">👤 Me ne occupo io</button>{% endif %}
     </form>
   </div>
   {% endfor %}

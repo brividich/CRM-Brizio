@@ -145,7 +145,7 @@ Context: dashboard/views_scadenze.py (scadenze_globali).
             {% if c.festa %}<span class="sc-festa">{{ c.festa }}</span>{% endif %}
             {% if c.n %}
             <span class="sc-chips">
-              {% for v in c.in_cella %}<span class="sc-chip src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }} · {{ v.kind_label }}: {{ v.principale }}{% if v.secondario %} ({{ v.secondario }}){% endif %}{% if v.presa %} — in carico a {{ v.presa_nome }}{% endif %}">{% if v.presa %}<span class="pr">👤</span>{% endif %}<span>{{ v.principale }}</span></span>{% endfor %}
+              {% for v in c.in_cella %}<span class="sc-chip src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }} · {{ v.kind_label }}: {{ v.principale }}{% if v.secondario %} ({{ v.secondario }}){% endif %}{% if v.presa_nome %} — in carico a {{ v.presa_nome }}{% endif %}{% if v.presa.nota %} — nota: {{ v.presa.nota }}{% endif %}">{% if v.presa_nome %}<span class="pr">{% if v.presa_esterna %}🏢{% else %}👤{% endif %}</span>{% endif %}<span>{{ v.principale }}</span></span>{% endfor %}
               <span class="sc-more"{% if not c.altre %} hidden{% endif %}>+{{ c.altre }} altr{{ c.altre|pluralize:"a,e" }}</span>
             </span>
             <span class="sc-dots" aria-hidden="true">{% for v in c.voci|slice:":6" %}<i class="src-{{ v.source }}"></i>{% endfor %}</span>

@@ -323,7 +323,10 @@ class RegolaVisibilita(models.Model):
 
 
 class PresaInCarico(models.Model):
-    """Qualcuno ha detto «me ne occupo io» per una scadenza dello scadenzario globale.
+    """Chi si occupa di una scadenza dello scadenzario globale, e la sua nota.
+
+    Se ne occupa un collega (``utente``) o un fornitore esterno (``fornitore``),
+    oppure nessuno: una riga con la sola nota non assegna la scadenza a chi l'ha scritta.
 
     La chiave identifica la singola scadenza (fonte, tipo, link al modulo e data,
     vedi ``scadenzario.calendario.chiave_scadenza``): quando la scadenza si sposta
@@ -333,8 +336,21 @@ class PresaInCarico(models.Model):
     chiave = models.CharField(max_length=64, unique=True)
     descrizione = models.CharField(max_length=400, blank=True, default="", help_text="Scadenza al momento della presa in carico")
     data_scadenza = models.DateField(null=True, blank=True)
-    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="scadenze_in_carico")
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="scadenze_in_carico",
+    )
+    fornitore = models.ForeignKey(
+        "anagrafica.Fornitore", null=True, blank=True, on_delete=models.SET_NULL, related_name="scadenze_in_carico",
+        help_text="Fornitore esterno a cui è affidata la scadenza",
+    )
+    assegnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="Chi l'ha affidata (può riprenderla o lasciarla)",
+    )
     nota = models.CharField(max_length=300, blank=True, default="")
+    nota_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
     creato_il = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -343,7 +359,21 @@ class PresaInCarico(models.Model):
         verbose_name_plural = "Scadenze prese in carico"
 
     def __str__(self) -> str:
-        return f"{self.descrizione} → {self.utente}"
+        return f"{self.descrizione} → {self.incaricato_nome or '—'}"
+
+    @property
+    def assegnata(self) -> bool:
+        return bool(self.utente_id or self.fornitore_id)
+
+    @property
+    def incaricato_nome(self) -> str:
+        if self.utente_id:
+            from .calendario import nome_utente
+
+            return nome_utente(self.utente)
+        if self.fornitore_id:
+            return self.fornitore.ragione_sociale
+        return ""
 
 
 class VistaSalvata(models.Model):
