@@ -58,6 +58,8 @@ API_ACL_GATE_PATHS = {
     "/assenze/api/sollecita/": "/assenze/le-mie-richieste/",
     # Controllo live della richiesta (saldo, contatori, chiusure): gate come il form.
     "/assenze/api/verifica-richiesta": "/assenze/richiesta_assenze",
+    # Pezzi HTMX del form di richiesta (campo capo, controlli): gate come il form.
+    "/assenze/richiesta/": "/assenze/richiesta_assenze",
     # API glossario tecnico: gate di consultazione come la lista. La gestione
     # (cambio stato) e' verificata nella view con il permesso dedicato, in JSON.
     "/glossario/api/": "/glossario/",

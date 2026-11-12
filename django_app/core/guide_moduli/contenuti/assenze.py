@@ -20,8 +20,10 @@ GUIDA = {
                     "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)», «Giornata lunga (08:00-18:00)» per chi fa il turno 8-18 o "
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
-                    "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando, con il nome del dipendente per cui fai la richiesta.",
-                    "Clicca «Conferma invio» una volta sola: il pulsante diventa «Invio in corso…».",
+                    "Controlla il riquadro «Riepilogo» (a destra; su telefono e schermi stretti in fondo al form): tipo, dipendente, periodo, durata e chi approva. "
+                    "Il bollino dice «Pronta» o «Da completare» e, finché manca qualcosa, sotto c'è «Manca: …».",
+                    "Clicca «Conferma invio» in fondo al riepilogo, una volta sola: il pulsante diventa «Invio in corso…». "
+                    "Se manca un dato non parte e l'errore compare in rosso accanto al campo da correggere.",
                     "Si apre il riquadro verde «Richiesta inviata» con dipendente, tipo, periodo, stato (per esempio "
                     "«In attesa di approvazione da …») e numero di riferimento: se lo vedi la richiesta è salvata e "
                     "il capo riceve la mail. Da lì vai a «Le mie richieste» oppure fai una «Nuova richiesta».",
@@ -44,7 +46,7 @@ GUIDA = {
                      "Le mail della malattia (al capo, ad assenza@, esito, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No». "
                      "Se dopo 2 giorni dall'inizio il certificato non risulta arrivato, l'ufficio assenze riceve un avviso."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
-                    ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
+                    ("Capo reparto", "è proposto in automatico dall'organigramma e cambia da solo quando scegli un altro dipendente. Puoi sceglierne un altro dall'elenco: "
                      "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
                      "tuo reparto sei tu, ti viene proposto chi ti sta sopra (es. l'Operations Manager)."),
                 ]),
@@ -57,10 +59,10 @@ GUIDA = {
             "id": "saldo",
             "titolo": "Il saldo di ferie e permessi e gli avvisi",
             "blocchi": [
-                ("p", "Se in Anagrafica c'è il tuo ultimo cedolino, nella «Bozza live» a destra compare «Saldo stimato»: "
+                ("p", "Se in Anagrafica c'è il tuo ultimo cedolino, nel «Riepilogo» compare «Saldo stimato» (del dipendente scelto, se la inserisci per un altro): "
                       "le ore di ferie e di permessi che ti restano, partendo dal cedolino e togliendo le richieste già inviate "
                       "e le chiusure aziendali."),
-                ("p", "Mentre compili, sotto la bozza possono comparire avvisi gialli. Non bloccano l'invio: servono a te e al capo."),
+                ("p", "Mentre compili, nel riepilogo possono comparire avvisi gialli, compreso «C'è 1 corso di formazione nei giorni richiesti» con il link al corso. Non bloccano l'invio: servono a te e al capo."),
                 ("def", [
                     ("Saldo ferie (o permessi) insufficiente", "la richiesta vale più ore di quelle che ti restano."),
                     ("Contatore oltre il limite", "per esempio «Assemblea sindacale» oltre le ore annue o «Legge 104» oltre i giorni del mese."),

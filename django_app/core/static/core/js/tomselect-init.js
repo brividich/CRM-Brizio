@@ -76,8 +76,11 @@
   document.addEventListener("DOMContentLoaded", function () {
     initAll(document);
   });
-  // I select caricati via HTMX (gli eventi bubblano fino a document).
-  document.addEventListener("htmx:afterSwap", function (evt) {
+  // I select caricati via HTMX (gli eventi bubblano fino a document). Si aspetta
+  // la fine del settle: con un elemento che mantiene lo stesso id, HTMX rimette
+  // le classi originali al termine dello swap e toglierebbe quelle di Tom Select
+  // (la tendina nativa ricompariva accanto a quella ricercabile).
+  document.addEventListener("htmx:afterSettle", function (evt) {
     var root = (evt.detail && evt.detail.elt) || evt.target || document;
     // Con hx-swap="outerHTML" elt e' il nodo sostituito, ormai fuori dal DOM: si
     // riparte dal documento (initOne salta i select gia' inizializzati).

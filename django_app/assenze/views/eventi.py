@@ -752,6 +752,48 @@ def api_evento_delete(request, item_id: int | None = None):
 # CHECK FORMAZIONE: avviso non bloccante se richiesta assenza copre date di corsi
 # ─────────────────────────────────────────────────────────────────────────────
 
+def corsi_nel_periodo(legacy_anagrafica_id, d_start, d_end) -> list[dict]:
+    """Sessioni di formazione (non annullate) del dipendente che toccano [d_start, d_end].
+
+    Usata dall'API JSON ``api_check_corsi`` e dai controlli HTMX del form di richiesta.
+    """
+    try:
+        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
+    except Exception:
+        return []
+    sess_ids = list(
+        TrainingEnrollment.objects
+        .filter(legacy_anagrafica_id=legacy_anagrafica_id)
+        .values_list("sessione_id", flat=True)
+    )
+    if not sess_ids:
+        return []
+    qs = (
+        TrainingSession.objects
+        .select_related("corso")
+        .filter(pk__in=sess_ids, data_inizio__lte=d_end, data_fine__gte=d_start)
+        .exclude(stato="ANNULLATA")
+        .order_by("data_inizio")
+    )
+    conflicts = []
+    for s in qs:
+        first_overlap = max(s.data_inizio, d_start)
+        conflicts.append({
+            "date":          first_overlap.strftime("%Y-%m-%d"),
+            "date_label":    first_overlap.strftime("%d-%m-%Y"),
+            "session_id":    s.pk,
+            "code":          s.codice_sessione,
+            "title":         s.corso.titolo,
+            "course_code":   s.corso.codice,
+            "data_inizio":   s.data_inizio.strftime("%Y-%m-%d"),
+            "data_fine":     s.data_fine.strftime("%Y-%m-%d"),
+            "stato":         s.stato,
+            "stato_display": s.get_stato_display(),
+            "url":           f"/anagrafica/formazione/sessioni/{s.pk}/",
+        })
+    return conflicts
+
+
 @login_required
 def api_check_corsi(request):
     """Ritorna corsi/sessioni del dipendente che intersecano il range
@@ -795,42 +837,5 @@ def api_check_corsi(request):
             return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
         legacy_id = int(my_legacy)
 
-    try:
-        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
-    except Exception:
-        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
-
-    sess_ids = list(
-        TrainingEnrollment.objects
-        .filter(legacy_anagrafica_id=legacy_id)
-        .values_list("sessione_id", flat=True)
-    )
-    if not sess_ids:
-        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
-
-    qs = (
-        TrainingSession.objects
-        .select_related("corso")
-        .filter(pk__in=sess_ids, data_inizio__lte=d_end, data_fine__gte=d_start)
-        .exclude(stato="ANNULLATA")
-        .order_by("data_inizio")
-    )
-
-    conflicts = []
-    for s in qs:
-        first_overlap = max(s.data_inizio, d_start)
-        conflicts.append({
-            "date":          first_overlap.strftime("%Y-%m-%d"),
-            "date_label":    first_overlap.strftime("%d-%m-%Y"),
-            "session_id":    s.pk,
-            "code":          s.codice_sessione,
-            "title":         s.corso.titolo,
-            "course_code":   s.corso.codice,
-            "data_inizio":   s.data_inizio.strftime("%Y-%m-%d"),
-            "data_fine":     s.data_fine.strftime("%Y-%m-%d"),
-            "stato":         s.stato,
-            "stato_display": s.get_stato_display(),
-            "url":           f"/anagrafica/formazione/sessioni/{s.pk}/",
-        })
-
+    conflicts = corsi_nel_periodo(legacy_id, d_start, d_end)
     return JsonResponse({"ok": True, "n_conflicts": len(conflicts), "conflicts": conflicts})

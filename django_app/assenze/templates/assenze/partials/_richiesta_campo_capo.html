@@ -1,0 +1,24 @@
+{% comment %}
+Campo «Capo reparto» del form di richiesta. Lo rende la pagina e, al cambio del
+dipendente, la vista HTMX assenze_richiesta_campo_capo (swap outerHTML).
+Chi non è abilitato («Cambio capo reparto» in Impostazioni) ha il campo bloccato
+sul capo ASSEGNATO; gli abilitati scelgono e il server accetta solo capi in elenco.
+{% endcomment %}
+<div class="abs-field" id="abs-campo-capo">
+  <label for="caporeparto">Capo reparto</label>
+  <select id="caporeparto" name="caporeparto" class="abs-select"{% if capo_bloccato %} disabled aria-readonly="true"{% endif %} aria-describedby="caporeparto-hint">
+    <option value="">-- Assegnato automaticamente --</option>
+    {% for capo in capi %}
+      {% with option_value=capo.Email|default:capo.LookupId %}
+        <option value="{{ option_value }}"{% if form_data.caporeparto == option_value %} selected{% endif %}>{{ capo.Value|upper }}{% if capo.Email %} - {{ capo.Email }}{% endif %}</option>
+      {% endwith %}
+    {% endfor %}
+  </select>
+  {% if assenze_can_choose_capo %}
+    <div class="abs-field-hint" id="caporeparto-hint">Proposto dall'organigramma (se il capo sei tu, è chi ti sta sopra). Se ne scegli un altro, la richiesta la vede e la approva solo lui; se resta quello proposto ed è assente quel giorno, l'approvazione passa al suo superiore.</div>
+  {% elif not capo_bloccato %}
+    <div class="abs-field-hint" id="caporeparto-hint">Non risulta un capo assegnato: scegli a chi inviare la richiesta.</div>
+  {% else %}
+    <div class="abs-field-hint" id="caporeparto-hint">Assegnato dall'area aziendale del dipendente. Se è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+  {% endif %}
+</div>
