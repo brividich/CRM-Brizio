@@ -79,6 +79,7 @@ MENU = [
         ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
         ("Patch installate", "watchguard_patch_installate", ("watchguard_patch_installate",), False),
+        ("Installazioni da console", "watchguard_task", ("watchguard_task",), False),
         ("Tempi delle patch", "watchguard_patch_tempi", ("watchguard_patch_tempi",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),

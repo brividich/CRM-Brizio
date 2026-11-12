@@ -627,6 +627,37 @@ def watchguard_patch_installate(request):
     return render(request, "security/watchguard_patch_installate.html", {"d": dati})
 
 
+def watchguard_task(request):
+    """Storico dei task di installazione patch lanciati dalla console WatchGuard, con l'esito per PC."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from django.db.models import Q, Sum
+
+    from .models import WatchGuardTask
+
+    q = (request.GET.get("q") or "").strip()[:100]
+    tasks = WatchGuardTask.objects.all()
+    if q:
+        tasks = tasks.filter(Q(nome__icontains=q) | Q(esiti__host__icontains=q) | Q(esiti__patch_nome__icontains=q)).distinct()
+    totali = WatchGuardTask.objects.aggregate(pc=Sum("pc"), riuscite=Sum("riuscite"), errori=Sum("errori"),
+                                              in_attesa=Sum("in_attesa"))
+    scelto, esiti = None, []
+    task_pk = request.GET.get("task") or ""
+    if task_pk.isdigit():
+        scelto = WatchGuardTask.objects.filter(pk=int(task_pk)).first()
+        if scelto is not None:
+            # l'ultimo esito per (PC, patch): un PC riprovato in un'esecuzione successiva compare una volta
+            ultimi = {}
+            for e in scelto.esiti.select_related("hub_asset").order_by("job_il", "pk"):
+                ultimi[(e.host, e.patch_nome)] = e
+            esiti = sorted(ultimi.values(), key=lambda e: (e.esito is not None and not e.esito_errore, e.esito is not None, e.host))
+    ultima = WatchGuardTask.objects.order_by("-letto_il").values_list("letto_il", flat=True).first()
+    return render(request, "security/watchguard_task.html", {
+        "tasks": tasks[:200], "conteggio": tasks.count(), "q": q, "totali": totali, "scelto": scelto, "esiti": esiti,
+        "ultima": ultima, "attivo": soc_settings.value("watchguard.api.patch"),
+    })
+
+
 def _patch_installate_csv(request, dati):
     """Tutte le righe del filtro (non solo quelle mostrate), con le celle protette dalle formule."""
     from core.audit import log_action

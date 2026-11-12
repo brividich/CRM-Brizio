@@ -344,6 +344,17 @@ Filtri: periodo (30, 90 giorni, un anno, tutto), motivo, ricerca per PC, patch, 
 
 Per sapere se la CVE è davvero chiusa sul PC conta la pagina **Correzioni CVE**, che guarda la versione del programma nell'inventario: la patch chiusa è il «perché», la correzione CVE è la verifica.
 
+### Installazioni da console
+
+Pagina **Dispositivi › Installazioni da console**: i task di installazione patch lanciati dalla console WatchGuard (Endpoints › Tasks, quelli come «Install Firefox patch on 37 computers»), l'ultima esecuzione in cima. Il SOC li conserva anche dopo che vengono cancellati dalla console.
+
+- **Quando si legge**: ogni ora dalle 07:40 alle 19:40, dal lunedì al venerdì, e insieme alla lettura completa delle 06:10 e 13:10. Serve l'interruttore «Patch» della sezione «WatchGuard Endpoint Security (API)». Si leggono i task con un'esecuzione negli ultimi 30 giorni, fino a 300 per giro, le ultime 10 esecuzioni di ciascuno.
+- **Per ogni task**: PC coinvolti, **Riuscite**, **Errori** (errore di download, di installazione, di disinstallazione) e **In attesa** (il PC non ha ancora risposto: il task in WatchGuard è «In progress»). Un PC riprovato in un'esecuzione successiva conta una volta, con l'ultimo esito.
+- **Aprendo un task**: l'esito per PC e patch, prima gli errori, poi i PC in attesa.
+- Un task con tutti gli esiti e l'ultima esecuzione più vecchia di 24 ore non si rilegge più: resta com'è nello storico.
+
+L'esito arriva anche sulla patch mancante («Errore di installazione il 12/11» in Patch e protezione). La patch esce dalle mancanti solo quando WatchGuard non la segnala più, alla lettura completa successiva.
+
 ### Tempi delle patch
 
 Pagina **Dispositivi › Tempi delle patch** (anche dall'avviso «patch ferme» di Patch e protezione): quanto ci mettiamo a installare le patch e quali sono ferme. È la prova che chiede l'audit ISO 27001 8.8 (e NIS2) per le patch, accanto ai tempi di correzione delle CVE.

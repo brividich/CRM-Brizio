@@ -16,6 +16,8 @@ from security.models import (
     SoftwareInstallation,
     WatchGuardDispositivo,
     WatchGuardPatch,
+    WatchGuardTask,
+    WatchGuardTaskEsito,
 )
 from security.services import cve_impact, cve_pannello, defender_vuln, soc_settings, watchguard_api
 
@@ -257,5 +259,62 @@ class TaskPatchTests(TestCase):
                     "total_items": None}
 
         with mock.patch.object(watchguard_api, "get", side_effect=finto_get):
-            self.assertEqual(watchguard_api.sincronizza_task(), {"task": 1, "patch_aggiornate": 1})
+            self.assertEqual(watchguard_api.sincronizza_task(),
+                             {"task": 1, "letti": 1, "invariati": 0, "esiti": 1, "oltre_limite": 0})
         self.assertEqual(WatchGuardPatch.objects.get().esito_label, "Errore di installazione")
+        task = WatchGuardTask.objects.get(task_id="t1")
+        self.assertEqual((task.pc, task.errori, task.riuscite, task.in_attesa, task.completo), (1, 1, 0, 0, True))  # esecuzione di ieri: oltre 24 h, non si rilegge
+
+    def _finto(self, quando, risultati, chiamate):
+        def finto_get(percorso, params=None, **kw):
+            chiamate.append(percorso)
+            if percorso == "/tasks":
+                return {"data": [{"id": "t9", "name": "Install Acme Viewer patch on 2 computers",
+                                  "status": {"last_job_date": quando}}], "total_items": 1}
+            if percorso.endswith("/jobs"):
+                return {"data": [{"id": "j1", "date": quando}]}
+            return {"data": risultati, "total_items": len(risultati)}
+        return finto_get
+
+    def test_storico_in_attesa_poi_completo_non_si_rilegge(self):
+        vecchio = (timezone.now() - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        chiamate: list = []
+        in_corso = [{"host_name": "PC-A", "patch_info": {"patch_name": "Acme Viewer 2.0", "result": 1}},
+                    {"host_name": "PC-B", "patch_info": {"patch_name": "Acme Viewer 2.0"}}]
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, in_corso, chiamate)):
+            watchguard_api.sincronizza_task()
+        task = WatchGuardTask.objects.get(task_id="t9")
+        self.assertEqual(task.nome, "Install Acme Viewer patch on 2 computers")
+        self.assertEqual((task.pc, task.riuscite, task.in_attesa, task.completo), (2, 1, 1, False))
+        # il PC in attesa risponde: il task diventa completo
+        finiti = [in_corso[0], {"host_name": "PC-B", "patch_info": {"patch_name": "Acme Viewer 2.0", "result": 3}}]
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, finiti, chiamate)):
+            watchguard_api.sincronizza_task()
+        task.refresh_from_db()
+        self.assertEqual((task.riuscite, task.errori, task.in_attesa, task.completo), (1, 1, 0, True))
+        self.assertEqual(WatchGuardTaskEsito.objects.filter(task=task).count(), 2)
+        # completo e senza nuove esecuzioni: al giro dopo solo l'elenco dei task
+        chiamate.clear()
+        with mock.patch.object(watchguard_api, "get", side_effect=self._finto(vecchio, finiti, chiamate)):
+            self.assertEqual(watchguard_api.sincronizza_task()["invariati"], 1)
+        self.assertEqual(chiamate, ["/tasks"])
+
+    def test_run_task_spento_senza_interruttore(self):
+        soc_settings.save({"watchguard.api.patch": False}, None)
+        self.assertEqual(watchguard_api.run_task(), {"attivo": False})
+
+
+class TaskPaginaTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create(username="wg_task", is_staff=True, is_superuser=True))
+
+    def test_pagina_installazioni_da_console(self):
+        task = WatchGuardTask.objects.create(task_id="t1", nome="Install Acme Viewer patch on 2 computers",
+                                             ultimo_job_il=timezone.now(), pc=2, riuscite=1, errori=1)
+        WatchGuardTaskEsito.objects.create(task=task, job_id="j1", host="pc-a", host_display="PC-A",
+                                           patch_nome="Acme Viewer 2.0", esito=4)
+        url = reverse("security:watchguard_task")
+        page = self.client.get(url)
+        self.assertContains(page, "Install Acme Viewer patch on 2 computers")
+        self.assertContains(self.client.get(url, {"task": task.pk}), "Errore di installazione")
+        self.assertContains(self.client.get(url, {"q": "zzz"}), "Nessun task")

@@ -125,6 +125,9 @@ GUIDA = {
                 ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
                       "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
                       "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
+                ("p", "Dispositivi › «Installazioni da console»: lo storico dei task di installazione patch lanciati dalla console "
+                      "WatchGuard, con PC, riuscite, errori e in attesa; aprendo un task, l'esito per PC. Si legge ogni ora dalle 07:40 "
+                      "alle 19:40 (lun-ven) con l'interruttore «Patch»; i task restano nel SOC anche se cancellati dalla console."),
                 ("p", "Dispositivi › «Tempi delle patch»: ogni patch mancante ha un termine da «pubblicata il» secondo la classe "
                       "(corregge una CVE sfruttata 7 giorni, critica 14, importante 30, moderata e altre 90; si cambiano in Impostazioni › "
                       "«Patch: tempi di installazione»). La pagina mostra il tempo medio di installazione e quante entro il termine per "
