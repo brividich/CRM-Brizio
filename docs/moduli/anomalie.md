@@ -12,6 +12,7 @@ Controllo dell'OP a blocchi di seriali (singoli, liste, range) con più anomalie
 
 Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
+- **Controllo anomalie compilato (12/11/2026)**: la pagina «Nuova segnalazione» (`apertura_segnalazione.html`) non usa più Babel nel browser. Il sorgente è `anomalie/static/anomalie/js/src/apertura_segnalazione.jsx`: dopo una modifica si ricompila con `node tools/build_anomalie_apertura.js` (usa `babel.min.js` del repo con le opzioni di prima) e si committa `apertura_segnalazione.bundle.js`. Prima di mergiare va montata headless con API finte (errori di rendering escono solo lì).
 - **Guida d'uso nel portale**: `?guida=1` su qualunque pagina del modulo apre la guida (stessi permessi della pagina), `?guida=pdf` la scarica. Ogni pagina ha il pulsante **«? Guida»** in basso a sinistra che apre il paragrafo della pagina; la pagina del link della mail mostra il suo paragrafo nel riquadro «Come funziona questa pagina». Contenuto unico in `anomalie/guida.py` (`SEZIONI`, mappa pagine `PAGINE`): **quando cambia un'etichetta o una funzione, aggiornare anche la guida**.
 
 - **Segnalazione rapida** con launcher dedicato `/anomalie-menu` (compat ACL con permessi operativi)
