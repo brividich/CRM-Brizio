@@ -80,7 +80,7 @@ GUIDA = {
                       "si spengono e per quelli con mail si configura il testo. Lo stato di salute di ognuno è in "
                       "Amministrazione → Monitoring → «Salute degli schedule»."),
                 ("p", "In cima c'è il raccoglitore «Digest e promemoria»: i riepiloghi e i solleciti che arrivano alle persone, "
-                      "in ordine di orario, con la colonna «A chi». «Sospendi» con una data li ferma fino a quel giorno "
+                      "in ordine di orario, con le colonne «Oggetto della mail» e «A chi». L'oggetto è quello che arriva in casella: «N» sta per un numero, ‹…› per un testo che cambia (reparto, codice, persona) e sotto, con «oppure:», ci sono le varianti; se l'oggetto è stato cambiato da «Configura mail» compare quello, con la scritta «personalizzato». Chi non manda mail ma solo una notifica nel portale lo dice nella stessa colonna. «Sospendi» con una data li ferma fino a quel giorno "
                       "compreso (al massimo 60 giorni) e il giorno dopo ripartono da soli; lo stato diventa «In pausa fino al …». "
                       "«Sospendi tutti fino al» ferma l'intero raccoglitore (ferie, chiusure), «Riprendi» e «Riprendi tutti» "
                       "tolgono la pausa subito. La pausa vale per tutti i destinatari; «Esegui ora» manda il digest comunque."),
