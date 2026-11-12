@@ -1214,8 +1214,6 @@
       const sn = useMemo(() => anomalie.find((a) => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
       // Dopo «sn» (TDZ): la chiusura con «Segnalare al cliente» dipende da «Segnalato al cliente».
       const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!sn.segnalato_cliente);
-      // Resta aperta con «Aprire RDC» / «Segnalare al cliente»: banner sotto la decisione.
-      const attesaReferente = (aprireRdc || segnalare) && !chiudereAuto;
       const posizione = ordineVisibile.findIndex((a) => a.item_id === sn.item_id);
       const isSelectedClosed = Boolean(sn.chiudere);
       const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -1777,8 +1775,8 @@
               <span className="ga-an__meta">
                 {/* «Per stato» lo dice già il titolo del gruppo */}
                 {raggruppa !== "stato" && <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>}
-                {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">RDC{a.numero_rdc ? ` ${a.numero_rdc}` : ""}</span>}
-                {a.segnalare && <span className="ga-pill ga-pill--cli">Cliente</span>}
+                {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">{a.numero_rdc ? `RDC ${a.numero_rdc}` : (a.chiudere ? "RDC" : "RDC · manca N°")}</span>}
+                {a.segnalare && <span className="ga-pill ga-pill--cli">{a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"}</span>}
                 {a.segnala_terzista && <span className="ga-pill ga-pill--ter">Terzista</span>}
                 {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
@@ -2135,6 +2133,41 @@
                         <FlagToggle label="Segnala a CAR" hint="I CAR scelti ricevono una mail con questa anomalia" checked={segnalaCar} disabled={!canEditSelected} onChange={toggleSegnalaCar} />
                         <FlagToggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
                       </div>
+                      {(aprireRdc || segnalare) && !sn.chiudere && (() => {
+                        const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
+                        const num = String(rdcNum || "").trim();
+                        const voci = [
+                          ...(aprireRdc ? [{ k: "rdc", fatto: !!num, testo: "Numero RDC", det: num || "da inserire nel campo «Numero RDC»" }] : []),
+                          ...(segnalare ? [{ k: "cli", fatto: !!sn.segnalato_cliente, testo: "Segnalato al cliente",
+                            det: sn.segnalato_cliente ? `il ${sn.segnalato_cliente.il}${sn.segnalato_cliente.da ? ` da ${sn.segnalato_cliente.da}` : ""}`
+                              : (baseline.segnalare ? "da spuntare qui sotto quando il cliente è avvisato" : "si spunta dopo aver salvato") }] : []),
+                          ...(normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE
+                            ? [{ k: "risp", fatto: false, testo: "Risposta del cliente", det: "poi scegli lo stato definitivo" }] : []),
+                        ];
+                        const variante = info ? "info" : (chiudereAuto ? "ok" : "aperta");
+                        return (
+                          <div className={`ga-chiusura ga-chiusura--${variante}`} role="status">
+                            <div className="ga-chiusura__t">
+                              {info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa"
+                                : chiudereAuto ? "✓ Tutto pronto: si chiude al salvataggio"
+                                : "⚠ Resta aperta · in carico al referente RDC"}
+                            </div>
+                            {info
+                              ? <div className="ga-chiusura__d">Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.</div>
+                              : (
+                                <ul className="ga-chiusura__l">
+                                  <li className="ga-chiusura__h">Si chiude solo con:</li>
+                                  {voci.map((v) => (
+                                    <li key={v.k} className={v.fatto ? "is-fatto" : ""}>
+                                      <span className="ga-chiusura__i" aria-hidden="true">{v.fatto ? "✓" : "○"}</span>
+                                      <b>{v.testo}</b> <span className="ga-chiusura__det">{v.det}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                          </div>
+                        );
+                      })()}
                       {(segnalare || terzista) && (
                         <div className="ga-segnalati">
                           {rigaSegnalato("cliente", segnalare, baseline.segnalare)}
@@ -2195,7 +2228,7 @@
                         {aprireRdc && (
                           <div>
                             <FieldLabel>Numero RDC</FieldLabel>
-                            <input className="ga-input" placeholder="Es. RDC-2026-014" value={rdcNum} onChange={(e) => setRdcNum(e.target.value)} disabled={!canEditSelected} />
+                            <input className={`ga-input${!String(rdcNum || "").trim() && !sn.chiudere ? " is-invalid" : ""}`} placeholder="Es. RDC-2026-014" value={rdcNum} onChange={(e) => setRdcNum(e.target.value)} disabled={!canEditSelected} />
                           </div>
                         )}
                       </div>
@@ -2211,16 +2244,6 @@
                         <div className="ga-note ga-note--warn">La prima decisione è stata «Azione di recupero»: per chiudere registra l'azione effettuata in «Tempi ed esiti».</div>
                       ) : canEditSelected && chiudereAuto && !sn.chiudere && (
                         <div className="ga-note ga-note--ok">Con questa decisione l'anomalia verrà <b>chiusa</b> al salvataggio.</div>
-                      )}
-                      {attesaReferente && !sn.chiudere && (
-                        <div className="ga-note ga-note--info">{normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE
-                          ? <>Servono <b>ulteriori informazioni</b>: l'anomalia torna in carico al capocommessa e le spunte restano. Quando risponde e sceglie un altro stato, torna al referente RDC.</>
-                          : <>L'anomalia <b>resta aperta</b>, in carico al referente RDC. Si chiude {[
-                            aprireRdc && !String(rdcNum || "").trim() ? "con il numero RDC" : "",
-                            segnalare && !sn.segnalato_cliente ? "con «Segnalato al cliente» spuntato" : "",
-                            normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE ? "quando il cliente risponde e si sceglie lo stato definitivo" : "",
-                          ].filter(Boolean).join(", ") || "con lo stato definitivo"}.</>}
-                        </div>
                       )}
                       {canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && (
                         <div className="ga-apply ga-apply--ambito">

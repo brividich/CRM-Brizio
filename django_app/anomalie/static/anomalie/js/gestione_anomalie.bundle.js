@@ -1939,8 +1939,6 @@ function GestioneAnomalie() {
   const sn = useMemo(() => anomalie.find(a => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
   // Dopo «sn» (TDZ): la chiusura con «Segnalare al cliente» dipende da «Segnalato al cliente».
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!sn.segnalato_cliente);
-  // Resta aperta con «Aprire RDC» / «Segnalare al cliente»: banner sotto la decisione.
-  const attesaReferente = (aprireRdc || segnalare) && !chiudereAuto;
   const posizione = ordineVisibile.findIndex(a => a.item_id === sn.item_id);
   const isSelectedClosed = Boolean(sn.chiudere);
   const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -2844,9 +2842,9 @@ function GestioneAnomalie() {
       className: `ga-pill ga-pill--${st.variant}`
     }, st.text), a.aprire_rdc && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--rdc"
-    }, "RDC", a.numero_rdc ? ` ${a.numero_rdc}` : ""), a.segnalare && /*#__PURE__*/React.createElement("span", {
+    }, a.numero_rdc ? `RDC ${a.numero_rdc}` : a.chiudere ? "RDC" : "RDC · manca N°"), a.segnalare && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--cli"
-    }, "Cliente"), a.segnala_terzista && /*#__PURE__*/React.createElement("span", {
+    }, a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"), a.segnala_terzista && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--ter"
     }, "Terzista"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--muted",
@@ -3381,7 +3379,47 @@ function GestioneAnomalie() {
     checked: pezziPrec,
     disabled: !canEditSelected,
     onChange: () => setPezziPrec(!pezziPrec)
-  })), (segnalare || terzista) && /*#__PURE__*/React.createElement("div", {
+  })), (aprireRdc || segnalare) && !sn.chiudere && (() => {
+    const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
+    const num = String(rdcNum || "").trim();
+    const voci = [...(aprireRdc ? [{
+      k: "rdc",
+      fatto: !!num,
+      testo: "Numero RDC",
+      det: num || "da inserire nel campo «Numero RDC»"
+    }] : []), ...(segnalare ? [{
+      k: "cli",
+      fatto: !!sn.segnalato_cliente,
+      testo: "Segnalato al cliente",
+      det: sn.segnalato_cliente ? `il ${sn.segnalato_cliente.il}${sn.segnalato_cliente.da ? ` da ${sn.segnalato_cliente.da}` : ""}` : baseline.segnalare ? "da spuntare qui sotto quando il cliente è avvisato" : "si spunta dopo aver salvato"
+    }] : []), ...(normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE ? [{
+      k: "risp",
+      fatto: false,
+      testo: "Risposta del cliente",
+      det: "poi scegli lo stato definitivo"
+    }] : [])];
+    const variante = info ? "info" : chiudereAuto ? "ok" : "aperta";
+    return /*#__PURE__*/React.createElement("div", {
+      className: `ga-chiusura ga-chiusura--${variante}`,
+      role: "status"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-chiusura__t"
+    }, info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa" : chiudereAuto ? "✓ Tutto pronto: si chiude al salvataggio" : "⚠ Resta aperta · in carico al referente RDC"), info ? /*#__PURE__*/React.createElement("div", {
+      className: "ga-chiusura__d"
+    }, "Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement("ul", {
+      className: "ga-chiusura__l"
+    }, /*#__PURE__*/React.createElement("li", {
+      className: "ga-chiusura__h"
+    }, "Si chiude solo con:"), voci.map(v => /*#__PURE__*/React.createElement("li", {
+      key: v.k,
+      className: v.fatto ? "is-fatto" : ""
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-chiusura__i",
+      "aria-hidden": "true"
+    }, v.fatto ? "✓" : "○"), /*#__PURE__*/React.createElement("b", null, v.testo), " ", /*#__PURE__*/React.createElement("span", {
+      className: "ga-chiusura__det"
+    }, v.det)))));
+  })(), (segnalare || terzista) && /*#__PURE__*/React.createElement("div", {
     className: "ga-segnalati"
   }, rigaSegnalato("cliente", segnalare, baseline.segnalare), rigaSegnalato("terzista", terzista, baseline.terzista)), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
@@ -3444,7 +3482,7 @@ function GestioneAnomalie() {
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
   }, opt)))), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
-    className: "ga-input",
+    className: `ga-input${!String(rdcNum || "").trim() && !sn.chiudere ? " is-invalid" : ""}`,
     placeholder: "Es. RDC-2026-014",
     value: rdcNum,
     onChange: e => setRdcNum(e.target.value),
@@ -3462,9 +3500,7 @@ function GestioneAnomalie() {
     className: "ga-note ga-note--warn"
   }, "La prima decisione \xE8 stata \xABAzione di recupero\xBB: per chiudere registra l'azione effettuata in \xABTempi ed esiti\xBB.") : canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--ok"
-  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), attesaReferente && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
-    className: "ga-note ga-note--info"
-  }, normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE ? /*#__PURE__*/React.createElement(React.Fragment, null, "Servono ", /*#__PURE__*/React.createElement("b", null, "ulteriori informazioni"), ": l'anomalia torna in carico al capocommessa e le spunte restano. Quando risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement(React.Fragment, null, "L'anomalia ", /*#__PURE__*/React.createElement("b", null, "resta aperta"), ", in carico al referente RDC. Si chiude ", [aprireRdc && !String(rdcNum || "").trim() ? "con il numero RDC" : "", segnalare && !sn.segnalato_cliente ? "con «Segnalato al cliente» spuntato" : "", normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE ? "quando il cliente risponde e si sceglie lo stato definitivo" : ""].filter(Boolean).join(", ") || "con lo stato definitivo", ".")), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
     className: "ga-apply ga-apply--ambito"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-apply__t"
