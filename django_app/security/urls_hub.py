@@ -89,6 +89,7 @@ urlpatterns = [
     path("anteprima/pc/", views_live.preview, {"kind": "pc"}, name="preview_pc"),
     path("anteprima/backup-job/", views_live.preview, {"kind": "backup_job"}, name="preview_backup_job"),
     path("anteprima/vpn-utente/", views_live.preview, {"kind": "vpn_utente"}, name="preview_vpn_user"),
+    path("anteprima/patch/", views_live.preview, {"kind": "patch"}, name="preview_patch"),
     path("anteprima/<slug:kind>/<int:pk>/", views_live.preview, name="preview"),
     path("incidenti/<int:pk>/ai/", views_live.incident_ai_check, name="incident_ai_check"),
     path("incidenti/<int:pk>/assegna-a-me/", views_live.incident_owner_me, name="incident_owner_me"),

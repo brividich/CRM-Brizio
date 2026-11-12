@@ -210,7 +210,8 @@ class CvePatchTests(_Base):
             WatchGuardPatch.objects.create(device_id=f"d{i}", patch_id=f"p{i}", host=host, nome=nome, programma="Windows 11", kb="KB9134133",
                                            cve="CVE-2099-0003", riavvio_automatico=True)
         page = self.client.get(reverse("security:watchguard_pc"))
-        self.assertContains(page, reverse("security:watchguard_patch_ai"))
+        pannello = self.client.get(reverse("security:preview_patch"), {"id": page.context["patch"][0]["id"]})
+        self.assertContains(pannello, reverse("security:watchguard_patch_ai"))
         with mock.patch(HTTP, return_value=_pagina("KB9134133", "Known issues in this update: none.")) as http, \
                 mock.patch(CHAT, return_value=SimpleNamespace(content="**Cosa corregge** x")) as chat:
             response = self.client.post(reverse("security:watchguard_patch_ai"), {"nome": nome, "programma": "Windows 11", "web": "1"},

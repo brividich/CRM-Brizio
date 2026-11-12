@@ -111,10 +111,12 @@ GUIDA = {
                       "sono correzioni; «PC non più nell'inventario» e «Rivalutata» no."),
                 ("p", "Ogni CVE ha una priorità: «Subito» se sfruttata (CISA KEV) o con probabilità di attacco alta (EPSS 10% o più), "
                       "«Presto» se CVSS 9 o più (o CVSS 7 con EPSS almeno 1%), altrimenti «Normale». Le CVE sono in quest'ordine."),
-                ("p", "Dispositivi › «Patch e protezione»: patch mancanti per PC lette da WatchGuard (prima quelle che correggono CVE "
-                      "sfruttate), installazioni non riuscite, PC con la protezione da sistemare e dispositivi in rete senza agente. "
-                      "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
-                ("p", "In «Patch e protezione» si cerca per KB, CVE, patch, programma o PC. Una patch Microsoft già compresa in un "
+                ("p", "Dispositivi › «Patch e protezione»: cinque riquadri (patch mancanti, PC da aggiornare, protezione da sistemare, "
+                      "in rete senza agente, installazioni fallite) e ognuno apre la sua tabella, con filtri, selezione multipla "
+                      "(«Apri un ticket per questi PC») ed «Esporta CSV». Il clic su una patch apre il pannello laterale con CVE, PC, "
+                      "«Spiega con l'AI» e il ticket. Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC "
+                      "la patch è pronta."),
+                ("p", "La ricerca della tabella trova anche KB, CVE e PC che non sono colonne. Una patch Microsoft già compresa in un "
                       "aggiornamento più recente che manca sullo stesso PC dice «Compresa in KB…» e va in fondo; quella più recente "
                       "dice «Comprende anche» e quante CVE in più chiude. Si riconosce dal build di Windows nel nome e, con "
                       "l'interruttore «Cerca le patch comprese in una più recente (Microsoft)», dal Security Update Guide di Microsoft."),

@@ -138,10 +138,22 @@ class WatchGuardSyncTests(TestCase):
         SecurityCveRecord.objects.create(cve_id="CVE-2099-0201", kev=True)
         admin = get_user_model().objects.create(username="wg_pag", is_staff=True, is_superuser=True)
         self.client.force_login(admin)
-        page = self.client.get(reverse("security:watchguard_pc"))
+        url = reverse("security:watchguard_pc")
+        page = self.client.get(url)
         self.assertContains(page, "Acme Viewer 2.0")
         self.assertContains(page, "CVE sfruttata")
         self.assertContains(page, "Credenziali API WatchGuard non configurate")
+        self.assertContains(page, 'data-bulk-all form="wgp-bulk"')
+        # vista per PC, con selezione multipla per il ticket
+        page = self.client.get(url, {"vista": "pc"})
+        self.assertEqual([(x["nome"], x["patch"], x["kev"]) for x in page.context["righe"]], [("PC-WG-01", 1, 1)])
+        self.assertContains(page, 'name="devices" value="PC-WG-01"')
+        for vista in ("protezione", "senza_agente", "errori"):
+            self.assertEqual(self.client.get(url, {"vista": vista}).status_code, 200)
+        csv = self.client.get(url, {"vista": "pc", "formato": "csv"})
+        self.assertIn("PC-WG-01;1;1", b"".join(csv).decode("utf-8-sig"))
+        csv = self.client.get(url, {"formato": "csv", "kev": "1"})
+        self.assertIn("CVE-2099-0201", b"".join(csv).decode("utf-8-sig"))
 
 
 class PannelloCveTests(TestCase):
