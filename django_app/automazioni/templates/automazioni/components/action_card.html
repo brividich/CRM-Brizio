@@ -34,9 +34,9 @@
     {% endfor %}
   </div>
 
-  {% if managed_binding.kind == "schedule" and entry.descriptor.action_type == "native_process" %}
+  {% if managed_binding and entry.descriptor.action_type == "native_process" %}
     <div class="amp-native">
-      <button type="button" class="btn btn-primary" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Modifica mail, destinatari e orario</button>
+      <button type="button" class="btn btn-primary" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Modifica il flusso (ricorrenza e mail)</button>
     </div>
   {% endif %}
   <div class="designer-help" data-suggestion-hint style="margin-top:8px;">

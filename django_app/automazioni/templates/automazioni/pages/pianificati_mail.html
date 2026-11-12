@@ -4,8 +4,8 @@
 {% block title %}{{ p.label }} | Admin Portale{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'automazioni/css/mail_panel.css' %}?v=20261112">
-<style>.amp-page { max-width:640px; } .amp-page .amp-close { display:none; }</style>
+<link rel="stylesheet" href="{% static 'automazioni/css/flusso_pa.css' %}?v=20261112">
+<style>.amp-page { max-width:680px; } .amp-page .pa-close { display:none; }</style>
 {% endblock %}
 
 {% block subnav %}
@@ -16,7 +16,8 @@
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
   <div class="amp-page">
-    {% include "automazioni/partials/mail_panel.html" %}
+    {% include "automazioni/partials/flusso_pa.html" %}
     <p><a href="{% url 'admin_portale:automazioni_pianificati' %}#digest">← Task pianificati</a></p>
   </div>
+  <script src="{% static 'automazioni/js/flusso_pa.js' %}?v=20261112" defer></script>
 {% endblock %}

@@ -65,7 +65,8 @@ body.theme-dark .evn-note{color:var(--text-light)}
           <td><span class="evn-mod">{{ r.module }}</span></td>
           <td class="evn-desc">{{ r.trigger }}</td>
           <td class="evn-desc">{{ r.destinatari }}</td>
-          <td>{% if r.rule_id %}<a href="{% url 'admin_portale:automazioni_rule_designer' rule_id=r.rule_id %}">Apri flusso</a><br>{% if r.enabled %}Attivo{% else %}Disattivo{% endif %}{% else %}Installazione richiesta{% endif %}</td>
+          <td><button type="button" class="btn btn-light btn-sm" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=r.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Modifica</button>
+            <br>{% if r.rule_id %}<a href="{% url 'admin_portale:automazioni_rule_designer' rule_id=r.rule_id %}">Apri flusso</a> · {% if r.enabled %}Attivo{% else %}Disattivo{% endif %}{% else %}Installazione richiesta{% endif %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="5" style="text-align:center;color:#64748b;padding:24px;">Nessuna notifica censita.</td></tr>
@@ -81,4 +82,5 @@ body.theme-dark .evn-note{color:var(--text-light)}
     {% include "anomalie/partials/notifiche_pannello.html" %}
   </section>
   {% endif %}
+  {% include "automazioni/components/mail_drawer.html" %}
 {% endblock %}

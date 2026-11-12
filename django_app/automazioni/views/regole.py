@@ -3891,9 +3891,11 @@ def _build_rule_designer_context(
     action_entries = _build_action_entries(action_formset)
     binding = getattr(rule, "managed_flow", None)
     native_preview = []
-    if binding and binding.kind == "schedule":
-        from ..mail_config import riepilogo_righe
+    managed_pa = None
+    if binding:
+        from ..mail_config import pannello, riepilogo_righe
         native_preview = riepilogo_righe(binding.code)
+        managed_pa = pannello(binding.code)
         for entry in action_entries:
             if entry["descriptor"].get("action_type") == AutomationActionType.NATIVE_PROCESS and native_preview:
                 entry["descriptor"]["preview_lines"] = list(native_preview)
@@ -3918,6 +3920,7 @@ def _build_rule_designer_context(
         "managed_binding": binding,
         "managed_info": managed_info,
         "managed_native_preview": native_preview,
+        "managed_pa": managed_pa,
         "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
         "enable_smart_field_panel": True,
         "rule": rule,
