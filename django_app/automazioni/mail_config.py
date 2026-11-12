@@ -197,7 +197,9 @@ def personalizza_invio(subject: str, body_text: str, fragment: str, footer_note:
         copia = _unici(copia, esclusi | {x.lower() for x in to})
     return {"blocca": not to, "motivo": "Nessun destinatario dopo le regole del flusso",
             "subject": subject, "body_text": body_text, "fragment": fragment,
-            "footer_note": footer_note, "recipients": to, "cc": copia}
+            "footer_note": footer_note, "recipients": to, "cc": copia,
+            "intro": (cfg.intro or "").strip(), "footer": (cfg.footer or "").strip(),
+            "testo_applicato": codice not in MAIL_TASKS or anteprima}
 
 
 def pannello(codice: str) -> dict | None:
