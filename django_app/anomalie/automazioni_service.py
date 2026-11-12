@@ -29,6 +29,8 @@ from urllib.parse import quote
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from anomalie.codice import codice_anomalia  # noqa: E402
+
 logger = logging.getLogger("anomalie.automazioni")
 
 TIPO_REMINDER_RDC = "anomalia_rdc_mancante"
@@ -219,16 +221,17 @@ def notify_ricorrenze_pn(*, soglia_n: int, giorni: int, now=None) -> int:
             continue
         subject = f"[Novicrom Hub] Difetto ricorrente: P/N {g['pn']} — {g['n']} anomalie in {giorni} giorni"
         rows = [[a["creata"], a["op_id"], a["seriale"] or "—", (a["descrizione"] or "—")[:120],
-                 "Chiusa" if a["chiusa"] else "Aperta"] for a in g["anomalie"]]
+                 "Chiusa" if a["chiusa"] else "Aperta", codice_anomalia(a.get("id")) or "—"] for a in g["anomalie"]]
         lines = [f"Il P/N {g['pn']} ha accumulato {g['n']} anomalie negli ultimi {giorni} giorni "
                  f"(soglia {soglia_n}). Valutare un'azione correttiva sulla causa comune.", ""]
-        lines += [f"  • {r[0]} · OP {r[1]} · S/N {r[2]} · {r[4]} · {r[3]}" for r in rows]
+        lines += [f"  • {r[5]} · {r[0]} · OP {r[1]} · S/N {r[2]} · {r[4]} · {r[3]}" for r in rows]
+        rows = [[r[5], *r[:5]] for r in rows]
         html = _render_mail(
             badge="Difetto ricorrente", eyebrow="Allarme qualità",
             title=f"P/N {g['pn']}: {g['n']} anomalie in {giorni} giorni",
             intro=(f"Superata la soglia di {soglia_n} anomalie sullo stesso P/N. "
                    "Valutare un'azione correttiva sulla causa comune."),
-            columns=["Data", "OP", "S/N", "Descrizione", "Stato"], rows=rows,
+            columns=["ID", "Data", "OP", "S/N", "Descrizione", "Stato"], rows=rows,
             cta_url=_portal_link("/gestione-anomalie/statistiche"),
             cta_label="Apri le statistiche",
         )
@@ -494,19 +497,19 @@ def notify_op_completati(op_ids: list[str] | None = None, *, now=None) -> int:
             _marker_set(M.Tipo.OP_COMPLETATO, chiave, {"inviata": False})
             continue
         pn = _fetch_pn_for_ops([op_id]).get(op_key, "")
-        table = [[str(r.get("seriale") or "—"), str(r.get("avanzamento") or "—"),
+        table = [[codice_anomalia(r.get("id")) or "—", str(r.get("seriale") or "—"), str(r.get("avanzamento") or "—"),
                   _local_label(r.get("modified_datetime"))] for r in sorted(rows, key=lambda r: r.get("id") or 0)]
         n = len(rows)
         subject = f"[Novicrom Hub] OP {op_id}: tutte le anomalie chiuse ({n})"
         lines = [f"Tutte le {n} anomalie dell'OP {op_id}{f' (P/N {pn})' if pn else ''} risultano chiuse.",
                  f"Report OP: {report_url(op_id)}", ""]
-        lines += [f"  • S/N {r[0]} · {r[1]} · {r[2]}" for r in table]
+        lines += [f"  • {r[0]} · S/N {r[1]} · {r[2]} · {r[3]}" for r in table]
         html = _render_mail(
             badge="OP completato", eyebrow=f"P/N {pn}" if pn else "Gestione anomalie",
             title=f"OP {op_id}: tutte le anomalie chiuse",
             intro=f"{'L' if n == 1 else 'Tutte le'} {n} anomali{'a registrata risulta chiusa' if n == 1 else 'e registrate risultano chiuse'}. "
                   "Il Report OP riepiloga descrizioni, note e allegati.",
-            columns=["S/N", "Avanzamento", "Ultima modifica"], rows=table,
+            columns=["ID", "S/N", "Avanzamento", "Ultima modifica"], rows=table,
             cta_url=report_url(op_id), cta_label="Apri il Report OP",
         )
         if _send(kind="op_completato", subject=subject, lines=lines, html=html, to=to, op_id=op_id,
@@ -611,6 +614,7 @@ def prepara_decisioni_operatore(op_id: str, updates: list[dict], *, deciso_da_le
             gruppo["deciso_da"].add(str(u["modified_by"]).strip())
         _stati, testo = separa_descrizione(row.get("descrizione"))
         gruppo["righe"].append([
+            codice_anomalia(row.get("id") or u.get("id")) or "—",
             str(row.get("seriale") or "").strip() or "—",
             (testo or "—")[:160],
             _etichetta_decisione(row),
@@ -658,7 +662,7 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
         subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — decisione su {cosa} che hai segnalato"
         lines = [f"{chi} ha registrato una decisione su {cosa} dell'OP {op_id}"
                  f"{f' (P/N {pn})' if pn else ''} che hai segnalato.", ""]
-        lines += [f"  • S/N {r[0]} · {r[2]}" + (f" · Note: {r[3]}" if r[3] != "—" else "") + f"\n      {r[1]}"
+        lines += [f"  • {r[0]} · S/N {r[1]} · {r[3]}" + (f" · Note: {r[4]}" if r[4] != "—" else "") + f"\n      {r[2]}"
                   for r in g["righe"]]
         if link:
             lines += ["", f"Gestione anomalie: {link}"]
@@ -667,7 +671,7 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
             title=f"Decisione su {cosa} che hai segnalato",
             intro=(f"{'Buongiorno ' + g['nome'] + ', ' if g.get('nome') else ''}{chi} ha deciso come procedere. "
                    "Lo stato e le note qui sotto sono quelli registrati nel portale."),
-            columns=["S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=g["righe"],
+            columns=["ID", "S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=g["righe"],
             cta_url=link, cta_label="Apri in Gestione anomalie",
         )
         if _send(kind="decisioni_operatore", subject=subject, lines=lines, html=html, to=[g["email"]],
@@ -719,6 +723,7 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
         logger.warning("segnala CAR: P/N non letto op=%s", op_id, exc_info=True)
     link = op_portal_link(op_id)
     chi = deciso_da or "Il capocommessa"
+    codice = codice_anomalia(anomalia_id) or "—"
     riga = [seriale or "—", (descrizione or "—")[:160], decisione or "—", (note or "—")[:300]]
     for nome in car:
         try:
@@ -732,7 +737,7 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
         try:
             Notifica.objects.create(
                 legacy_user_id=utente.id, tipo=TIPO_NOTIFICA_SEGNALA_CAR,
-                messaggio=f"OP {op_id}: {chi} ti segnala l'anomalia S/N {seriale or '—'}."[:500],
+                messaggio=f"OP {op_id}: {chi} ti segnala l'anomalia {codice} (S/N {seriale or '—'})."[:500],
                 url_azione=op_url(op_id),
             )
         except Exception:
@@ -742,7 +747,7 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
             continue
         subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — anomalia segnalata al CAR"
         lines = [f"{chi} ti segnala un'anomalia dell'OP {op_id}{f' (P/N {pn})' if pn else ''}.", "",
-                 f"  • S/N {riga[0]} · {riga[2]}", f"      {riga[1]}"]
+                 f"  • {codice} · S/N {riga[0]} · {riga[2]}", f"      {riga[1]}"]
         if note:
             lines.append(f"  Note: {riga[3]}")
         if dove_pezzi:
@@ -756,7 +761,7 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
         html = _render_mail(
             badge="Segnalazione al CAR", eyebrow=f"OP {op_id}{f' · P/N {pn}' if pn else ''}",
             title="Anomalia segnalata al CAR", intro=intro,
-            columns=["S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=[riga],
+            columns=["ID", "S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=[[codice, *riga]],
             cta_url=link, cta_label="Apri in Gestione anomalie",
         )
         if _send(kind="segnala_car", subject=subject, lines=lines, html=html, to=[email], op_id=op_id,

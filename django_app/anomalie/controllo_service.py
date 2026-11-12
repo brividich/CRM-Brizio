@@ -28,6 +28,8 @@ from datetime import timedelta
 from django.db import connections
 from django.utils import timezone
 
+from .codice import codice_anomalia  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 DEBOUNCE_MINUTI = 5
@@ -1171,7 +1173,7 @@ def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = N
                 righe_testo.append(f"  S/N {g.get('titolo') or '—'}")
                 for r in g.get("righe") or []:
                     _stati, testo = separa_descrizione(r.get("descrizione"))
-                    righe_testo.append(f"    • {testo or '—'}")
+                    righe_testo.append(f"    • {codice_anomalia(r.get('id')) + ' · ' if r.get('id') else ''}{testo or '—'}")
             from .escalation_config import durata_label, tempi_controllo
 
             minuti_auto = invio_auto_minuti or tempi_controllo()["invio_auto"]

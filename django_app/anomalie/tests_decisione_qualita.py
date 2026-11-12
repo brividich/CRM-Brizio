@@ -184,3 +184,19 @@ class CapocommessaChiudeConfigTests(_TabellaAnomalieMixin, TestCase):
 def connection_cursor():
     from django.db import connection
     return connection.cursor()
+
+
+class CodiceAnomaliaTests(SimpleTestCase):
+    def test_codice_e_ritorno(self):
+        from anomalie.codice import codice_anomalia, id_da_codice
+
+        self.assertEqual(codice_anomalia(123), "AN-00123")
+        self.assertEqual(codice_anomalia("local:7"), "AN-00007")
+        self.assertEqual(codice_anomalia(None), "")
+        for testo in ("AN-00123", "an123", "#123", "123"):
+            self.assertEqual(id_da_codice(testo), 123)
+
+    def test_filtro_template(self):
+        from django.template import Context, Template
+
+        self.assertEqual(Template("{% load anomalie_extra %}{{ x|codice_anomalia }}").render(Context({"x": 5})), "AN-00005")
