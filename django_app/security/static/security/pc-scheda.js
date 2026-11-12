@@ -48,23 +48,48 @@
       });
     });
 
-    // Software: ricerca e produttore.
+    // Software: ricerca + filtro (CVE, gravi, fonte, non recenti) + produttore, combinabili; ordinamento per colonna.
     var search = root.querySelector("[data-pcs-sw-search]");
-    var swRows = root.querySelectorAll("[data-pcs-sw-table] tbody tr[data-vendor]");
+    var tbody = root.querySelector("[data-pcs-sw-table] tbody");
+    var swRows = Array.prototype.slice.call(root.querySelectorAll("[data-pcs-sw-table] tbody tr[data-vendor]"));
     var vendors = root.querySelectorAll("[data-pcs-vendor]");
+    var swFilters = root.querySelectorAll("[data-pcs-sw-filter]");
     var count = root.querySelector("[data-pcs-sw-count]");
-    var vendor = "";
+    var none = root.querySelector("[data-pcs-sw-none]");
+    var reset = root.querySelector("[data-pcs-sw-reset]");
+    var vendor = "", swFiltro = "";
+    var prove = {
+      cve: function (r) { return +r.dataset.cve > 0; },
+      grave: function (r) { return +r.dataset.grave > 0; },
+      vecchio: function (r) { return r.dataset.vecchio === "1"; },
+      watchguard: function (r) { return (" " + r.dataset.fonti + " ").indexOf(" watchguard ") !== -1; },
+      defender: function (r) { return (" " + r.dataset.fonti + " ").indexOf(" defender ") !== -1; }
+    };
     function filtraSoftware() {
       var q = (search && search.value || "").trim().toLowerCase();
       var n = 0;
       swRows.forEach(function (r) {
-        var ok = (!vendor || r.dataset.vendor === vendor) && (!q || r.textContent.toLowerCase().indexOf(q) !== -1);
+        var ok = (!vendor || r.dataset.vendor === vendor) && (!swFiltro || prove[swFiltro](r)) &&
+                 (!q || r.textContent.toLowerCase().indexOf(q) !== -1);
         r.hidden = !ok;
         if (ok) n++;
       });
-      if (count) count.textContent = (q || vendor) ? n + " di " + swRows.length + " programmi" + (vendor ? " · " + vendor : "") : "";
+      var filtrato = !!(q || vendor || swFiltro);
+      if (count) count.textContent = filtrato ? n + " di " + swRows.length + " programmi" : swRows.length + " programmi";
+      if (none) none.hidden = n > 0 || !swRows.length;
+      if (reset) reset.hidden = !filtrato;
     }
-    if (search) search.addEventListener("input", filtraSoftware);
+    if (search) {
+      search.addEventListener("input", filtraSoftware);
+      search.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { search.value = ""; filtraSoftware(); } });
+    }
+    swFilters.forEach(function (b) {
+      b.addEventListener("click", function () {
+        swFiltro = swFiltro === b.dataset.pcsSwFilter ? "" : b.dataset.pcsSwFilter;
+        swFilters.forEach(function (x) { x.classList.toggle("is-active", x.dataset.pcsSwFilter === swFiltro); });
+        filtraSoftware();
+      });
+    });
     vendors.forEach(function (b) {
       b.addEventListener("click", function () {
         vendor = vendor === b.dataset.pcsVendor ? "" : b.dataset.pcsVendor;
@@ -72,15 +97,72 @@
         filtraSoftware();
       });
     });
+    if (reset) reset.addEventListener("click", function () {
+      vendor = ""; swFiltro = ""; if (search) search.value = "";
+      vendors.forEach(function (x) { x.classList.remove("is-active"); });
+      swFilters.forEach(function (x) { x.classList.toggle("is-active", !x.dataset.pcsSwFilter); });
+      filtraSoftware();
+    });
+    // «/» porta alla ricerca del software quando la sezione è aperta.
+    document.addEventListener("keydown", function (ev) {
+      var pane = root.querySelector('[data-pcs-pane="software"]');
+      if (ev.key !== "/" || !search || !pane || !pane.classList.contains("is-active")) return;
+      var t = ev.target.tagName;
+      if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || ev.target.isContentEditable) return;
+      ev.preventDefault(); search.focus();
+    });
+    var ordine = { col: "", su: true };
+    function chiave(r, col) {
+      if (col === "cve") return +r.dataset.grave * 10000 + +r.dataset.cve;
+      if (col === "visto") return +r.dataset.visto || 0;
+      if (col === "versione") return (r.dataset.versione || "").split(/[^0-9]+/).filter(Boolean).map(function (x) { return ("000000" + x).slice(-6); }).join(".");
+      return r.dataset.nome || "";
+    }
+    root.querySelectorAll("[data-pcs-sort]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var col = b.dataset.pcsSort;
+        // CVE e Visto partono dal valore più alto, nome e versione dal più basso.
+        ordine.su = ordine.col === col ? !ordine.su : !(col === "cve" || col === "visto");
+        ordine.col = col;
+        swRows.sort(function (a, c) {
+          var x = chiave(a, col), y = chiave(c, col);
+          return (x < y ? -1 : x > y ? 1 : 0) * (ordine.su ? 1 : -1);
+        });
+        swRows.forEach(function (r) { tbody.insertBefore(r, none || null); });
+        root.querySelectorAll("[data-pcs-sort]").forEach(function (x) {
+          x.classList.toggle("is-sorted", x === b);
+          x.dataset.dir = x === b ? (ordine.su ? "asc" : "desc") : "";
+        });
+      });
+    });
 
-    // Timeline per tipo.
+    // Timeline: filtro per tipo (i giorni senza fatti visibili spariscono) e salto al giorno dall'istogramma.
     var tlButtons = root.querySelectorAll("[data-pcs-tl]");
-    var tlRows = root.querySelectorAll(".pcs-timeline li[data-tipo]");
+    var tlDays = root.querySelectorAll("[data-pcs-tl-day]");
+    var tlNone = root.querySelector("[data-pcs-tl-none]");
     function filtraTimeline(tipo) {
+      var totale = 0;
       tlButtons.forEach(function (x) { x.classList.toggle("is-active", x.dataset.pcsTl === tipo); });
-      tlRows.forEach(function (r) { r.hidden = !!tipo && r.dataset.tipo !== tipo; });
+      tlDays.forEach(function (d) {
+        var n = 0;
+        d.querySelectorAll("li[data-tipo]").forEach(function (r) { var ok = !tipo || r.dataset.tipo === tipo; r.hidden = !ok; if (ok) n++; });
+        d.hidden = n === 0;
+        var c = d.querySelector("[data-pcs-tl-daycount]");
+        if (c) c.textContent = n;
+        totale += n;
+      });
+      if (tlNone) tlNone.hidden = totale > 0 || !tlDays.length;
     }
     tlButtons.forEach(function (b) { b.addEventListener("click", function () { filtraTimeline(b.dataset.pcsTl); }); });
+    root.querySelectorAll("[data-pcs-day]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var d = document.getElementById(b.dataset.pcsDay);
+        if (!d) return;
+        if (d.hidden) filtraTimeline("");
+        d.scrollIntoView({ behavior: "smooth", block: "start" });
+        d.classList.remove("pcs-flash"); void d.offsetWidth; d.classList.add("pcs-flash");
+      });
+    });
 
     // L'esito del controllo AI compare in Panoramica: ci si porta lì.
     var ai = root.querySelector("[data-pcs-ai]");

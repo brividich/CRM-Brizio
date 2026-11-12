@@ -115,3 +115,25 @@ class PcCoperturaTests(TestCase):
         for testo in ('data-pcs-tab="caratteristiche"', "Indice di postura", "Latitude 5440", "Aggiornamento cumulativo", "pc-scheda.js"):
             self.assertIn(testo, html)
         self.assertNotIn("Patch vecchia", html)
+
+    def test_scheda_software_con_cve_e_timeline_per_giorno(self):
+        from security.models import SecurityCveImpact, SecurityCveRecord
+        from security.services.pc_overview import pc_scheda
+
+        inst = SoftwareInstallation.objects.create(dedup_key="t-chrome", source_kind="watchguard", host="pc-due", product_raw="Google Chrome",
+                                                   product="google chrome", vendor_raw="Google", fonti=["watchguard", "defender"])
+        SoftwareInstallation.objects.create(dedup_key="t-zip", source_kind="defender", host="pc-due", product_raw="7-Zip", product="7-zip",
+                                            vendor_raw="Igor Pavlov", fonti=["defender"], last_seen_at=timezone.now() - timedelta(days=20))
+        for cve, cvss, kev in (("CVE-2099-7001", 9.8, True), ("CVE-2099-7002", 6.5, False)):
+            SecurityCveImpact.objects.create(cve=SecurityCveRecord.objects.create(cve_id=cve, cvss=cvss, kev=kev), host="pc-due",
+                                             installation=inst, outcome=SecurityCveImpact.IMPACTS, explanation="test")
+        pc = pc_scheda("PC-DUE")
+        chrome = next(s for s in pc["software"] if s.product_raw == "Google Chrome")
+        self.assertEqual((chrome.cve_n, chrome.cve_gravi, chrome.iniziale, chrome.fonti_set), (2, 1, "G", ["watchguard", "defender"]))
+        st = pc["software_stat"]
+        self.assertEqual((st["totale"], st["con_cve"], st["con_cve_gravi"], st["non_recenti"], st["defender"], st["watchguard"]), (2, 1, 1, 1, 2, 1))
+        self.assertEqual(len(pc["timeline_barre"]), 14)
+        self.assertEqual(sum(len(g["voci"]) for g in pc["timeline_giorni"]), len(pc["timeline"]))
+        html = self.client.get(reverse("security:pc_detail") + "?nome=PC-DUE").content.decode()
+        for testo in ("2 CVE · 1 grave", 'data-pcs-sw-filter="grave"', 'data-pcs-sort="cve"', "Attività ultimi 14 giorni"):
+            self.assertIn(testo, html)
