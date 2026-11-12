@@ -9,7 +9,7 @@ Due flussi, entrambi gestiti dal designer automazioni:
   ritardo e persone con stato operativo da segnalare.
 
 Destinatari: ``SiteConfig.cambio_mansione_emails`` (modificabili da Automazioni
-→ Task pianificati → «Configura mail» del digest). Senza destinatari
+→ Task pianificati → «Modifica» del digest). Senza destinatari
 configurati non parte nulla: niente ripiego su admin/superuser, perché la mail
 nomina persone e adempimenti di sicurezza.
 

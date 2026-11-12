@@ -8,7 +8,7 @@ Due livelli, entrambi editabili dalla scheda «Task pianificati» dell'area auto
 - **Cornice testuale** (oggetto/intro/nota): su ``ScheduledMailText`` (per task).
   I comandi la applicano prima dell'invio con :func:`apply_mail_overrides`.
 
-Solo i task elencati in ``MAIL_TASKS`` espongono la pagina «Configura mail».
+Solo i task elencati in ``MAIL_TASKS`` espongono destinatari e testo nel pannello «Modifica» (orario e info valgono per tutti).
 """
 from __future__ import annotations
 
@@ -124,3 +124,91 @@ def apply_mail_overrides(task_name: str, *, subject: str, body_text: str = "",
             )
             fragment = intro_html + fragment
     return new_subject, body_text, fragment, new_footer
+
+
+# ── Pannello unico «Mail, destinatari e orario» (Pianificati + designer) ───────
+
+def orario_da_cron(cron: str) -> str:
+    """«HH:MM» se minuto e ora del cron sono numeri singoli, altrimenti "" (non modificabile al volo)."""
+    parts = str(cron or "").split()
+    if len(parts) != 5 or not (parts[0].isdigit() and parts[1].isdigit()):
+        return ""
+    minuto, ora = int(parts[0]), int(parts[1])
+    if minuto > 59 or ora > 23:
+        return ""
+    return f"{ora:02d}:{minuto:02d}"
+
+
+def cron_con_orario(cron: str, orario: str) -> str:
+    """Stesso calendario (giorni/mesi) con un nuovo «HH:MM». ValueError se l'orario non è valido."""
+    if not orario_da_cron(cron):
+        raise ValueError("Questo flusso non ha un orario fisso: cambia il calendario dal flusso.")
+    try:
+        ora_s, minuto_s = str(orario).strip().split(":")[:2]
+        ora, minuto = int(ora_s), int(minuto_s)
+    except (TypeError, ValueError):
+        raise ValueError("Orario non valido: usa il formato HH:MM.")
+    if not (0 <= ora <= 23 and 0 <= minuto <= 59):
+        raise ValueError("Orario non valido: usa il formato HH:MM.")
+    parts = str(cron).split()
+    return " ".join([str(minuto), str(ora), *parts[2:]])
+
+
+def pannello(task_name: str) -> dict | None:
+    """Dati del pannello laterale per un task pianificato (None se il task non esiste)."""
+    from .models import ManagedFlow
+    from .schedules import DIGEST_E_PROMEMORIA, _oggetto_riga, describe_cadence, schedule_descriptions, spec_by_name
+
+    spec = spec_by_name(task_name)
+    if not spec:
+        return None
+    binding = ManagedFlow.objects.filter(code=task_name, kind="schedule").first()
+    effective = dict(spec)
+    if binding:
+        effective.update(schedule_type=binding.schedule_type, minutes=binding.minutes, cron=binding.cron)
+    meta = task_meta(task_name)
+    txt = get_text_overrides(task_name) if meta else None
+    orario = orario_da_cron(effective.get("cron")) if effective.get("schedule_type") == "C" else ""
+    giorni = describe_cadence(effective)
+    return {
+        "name": task_name,
+        "label": meta.get("label") or task_name.replace("_", " ").capitalize(),
+        "description": schedule_descriptions().get(task_name, ""),
+        "cadence": giorni,
+        "orario": orario,
+        "orario_modificabile": bool(binding and orario),
+        "rule_id": binding.rule_id if binding else None,
+        "configurable": bool(meta),
+        "config_key": meta.get("config_key") or "",
+        "solo_destinatari": bool(meta.get("solo_destinatari")),
+        "recipients": get_recipients_raw(task_name),
+        "a_chi": DIGEST_E_PROMEMORIA.get(task_name, ""),
+        "subject": getattr(txt, "subject", "") or "",
+        "intro": getattr(txt, "intro", "") or "",
+        "footer": getattr(txt, "footer", "") or "",
+        "oggetto_predefinito": _oggetto_riga(task_name)["oggetto"],
+    }
+
+
+def destinatari_elenco(task_name: str) -> list[str]:
+    """Indirizzi configurati del task, già divisi (virgola, punto e virgola o a capo)."""
+    import re
+
+    return [x.strip() for x in re.split(r"[,;\s]+", get_recipients_raw(task_name)) if x.strip()]
+
+
+def riepilogo_righe(task_name: str) -> list[str]:
+    """Righe brevi per la card del designer (al posto di «Configurazione non disponibile»)."""
+    p = pannello(task_name)
+    if not p:
+        return []
+    righe = [f"Quando: {p['cadence']}"]
+    if p["config_key"]:
+        destinatari = ", ".join(destinatari_elenco(task_name))
+        righe.append("Destinatari: " + (destinatari or ("nessuno, la mail non parte" if p["solo_destinatari"] else "amministratori di sistema")))
+    elif p["a_chi"]:
+        righe.append(f"A chi: {p['a_chi']}")
+    oggetto = p["subject"] or p["oggetto_predefinito"]
+    if oggetto:
+        righe.append(f"Oggetto: {oggetto}")
+    return righe

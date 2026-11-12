@@ -1,0 +1,25 @@
+/* Pannello laterale «Mail, destinatari e orario» (Pianificati + designer). */
+.amp-backdrop { position:fixed; inset:0; z-index:1200; background:rgba(15,23,42,.38); display:flex; justify-content:flex-end; }
+.amp-backdrop[hidden] { display:none; }
+.amp-drawer { width:min(480px, 100vw); height:100%; overflow:auto; background:var(--surface, #fff); color:var(--text, #0f172a); box-shadow:-12px 0 32px rgba(15,23,42,.18); padding:20px 22px 0; box-sizing:border-box; }
+.amp-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.amp-kicker { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--text-light, #64748b); }
+.amp-title { margin:2px 0 0; font-size:18px; }
+.amp-close { border:0; background:none; font-size:26px; line-height:1; cursor:pointer; color:inherit; padding:0 4px; }
+.amp-desc { font-size:13px; color:var(--text-mid, #475569); margin:8px 0 4px; }
+.amp-sec { border-top:1px solid var(--border, #e2e8f0); padding:14px 0 6px; }
+.amp-sec h3 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-mid, #475569); }
+.amp-row { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; }
+.amp-row .amp-hint { flex:1; min-width:180px; margin-bottom:14px; }
+.amp-field { display:grid; gap:5px; margin-bottom:10px; font-size:12px; font-weight:700; color:var(--text-mid, #475569); }
+.amp-field--short { width:130px; }
+.amp-field input, .amp-field textarea { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border, #cbd5e1); border-radius:9px; font:inherit; font-weight:400; font-size:14px; background:var(--surface, #fff); color:var(--text, #0f172a); }
+.amp-field textarea { resize:vertical; }
+.amp-hint { font-size:12.5px; color:var(--text-light, #64748b); margin:0 0 8px; }
+.amp-actions { display:flex; gap:10px; padding:12px 0 16px; border-top:1px solid var(--border, #e2e8f0); position:sticky; bottom:0; background:var(--surface, #fff); }
+.amp-native { margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+@media (max-width:600px) { .amp-drawer { padding:16px 16px 0; } }
+/* Card «Esegui processo del modulo»: niente preset né base suggerita, si modifica dal pannello. */
+.designer-action-card--native [data-suggestion-hint],
+.designer-action-card--native [data-preset-zone],
+.designer-action-card--native .designer-inline-banner { display:none !important; }
