@@ -26,7 +26,6 @@ import urllib.error
 import urllib.request
 
 from django.conf import settings
-from django.core.mail import send_mail
 from django.utils import timezone
 
 from security.models import (
@@ -35,6 +34,7 @@ from security.models import (
     Severity,
 )
 from security.services.configuration import get_setting
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -244,15 +244,12 @@ def _send_email(subject: str, body: str, recipients: list[str], attachment=None)
 
         message = EmailMessage(subject=subject, body=body, from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None), to=recipients)
         message.attach(*attachment)
-        message.send(fail_silently=False)
+        invia_con_regole_flusso(message)
         return
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=recipients,
-        fail_silently=False,
-    )
+    from django.core.mail import EmailMessage
+
+    invia_con_regole_flusso(EmailMessage(subject=subject, body=body,
+                                         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None), to=recipients))
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

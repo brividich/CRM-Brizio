@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'automazioni/css/pagine/rule_designer.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'automazioni/css/cn_automations.css' %}?v=20261112">
+<script src="{% static 'automazioni/js/cn_automations.js' %}?v=20261112" defer></script>
 {% endblock %}
 
 {% block subnav %}
@@ -43,7 +45,7 @@
   </script>
 {% endif %}
 <div id="designer-avanzato"{% if managed_pa %} hidden{% endif %}>
-  <div class="designer-shell">
+  <div class="designer-shell" data-cn-shell>
   <form method="post" class="designer-layout" id="rule-designer-form">
     {% csrf_token %}
     <div class="designer-main">
@@ -51,7 +53,7 @@
         <div class="designer-section-body">
           <div class="designer-header">
             <div>
-              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}| Nuova regola{% else %}| Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-summary-kicker"><span class="cn-hide">Designer visuale affiancato</span><span class="cn-only">CN Automations</span> {% if is_new_rule %}| Nuova regola{% else %}| Regola {{ rule.id }}{% endif %}</div>
               <div class="designer-section-title">{{ rule_name_value }}</div>
               <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
             </div>
@@ -60,6 +62,7 @@
                 <button type="button" class="designer-view-button is-active" data-view-mode="compact">Vista compatta</button>
                 <button type="button" class="designer-view-button" data-view-mode="flow">Vista flow</button>
               </div>
+              <button type="button" class="btn btn-light" data-cn-toggle aria-pressed="true"><span class="cn-only">Vista classica</span><span class="cn-hide">Vista CN Automations</span></button>
               <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">Diagramma di flusso</button>
               {% if not is_new_rule %}
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
@@ -229,7 +232,7 @@
         <section class="designer-section-card" id="conditions-section">
           <div class="designer-section-head">
             <div>
-              <div class="designer-section-title">Condizioni</div>
+              <div class="designer-section-title"><span class="cn-hide">Condizioni</span><span class="cn-only">Condizione · tutte vere</span></div>
               <div class="designer-section-subtitle">Tutte le condizioni devono essere vere. Riordino con drag-and-drop o pulsanti su/giu'.</div>
             </div>
             <div class="designer-pill-row">
@@ -268,7 +271,7 @@
         <section class="designer-section-card" id="actions-section">
           <div class="designer-section-head">
             <div>
-              <div class="designer-section-title">Azioni</div>
+              <div class="designer-section-title"><span class="cn-hide">Azioni</span><span class="cn-only">Poi esegui, in ordine</span></div>
               <div class="designer-section-subtitle">Le azioni vengono eseguite in sequenza. Il preview sintetico resta leggibile anche senza aprire l'editor della card.</div>
             </div>
             <div class="designer-pill-row">
@@ -1862,9 +1865,9 @@
       try { previewLines = JSON.parse(nativePreviewNode.textContent) || previewLines; } catch (e) { /* resta il testo di base */ }
     } else if (actionType === 'send_email') {
       previewLines = [
-        'Destinatari: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
-        'Subject: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
-        'Body: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
+        'A: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
+        'Oggetto: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
+        'Corpo: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
       ];
     } else if (actionType === 'write_log') {
       previewLines = ['Messaggio: ' + (String((getCardField(card, 'write_log_message_template') || {}).value || '').trim() || '-')];

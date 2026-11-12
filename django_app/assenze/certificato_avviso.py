@@ -18,6 +18,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def invia_avvisi(now=None) -> dict:
             to=[destinatario],
         )
         msg.attach_alternative(html, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning("assenze.certificato_avviso: invio a %s non riuscito", destinatario, exc_info=True)
         registra(origine="assenze_certificato", destinatari=[destinatario], oggetto=oggetto, sorgente="assenze",

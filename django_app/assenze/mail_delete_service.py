@@ -27,6 +27,8 @@ from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 
 from config.env_config import get_first_env_value
+from automazioni.managed_flows import event_flow
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,7 @@ def _dedup_recipients(candidates: list[Any]) -> list[str]:
     return out
 
 
+@event_flow("assenze_richiesta_eliminata", skipped_result=False)
 def send_assenza_deleted_notification(
     record: dict,
     *,
@@ -191,7 +194,7 @@ def send_assenza_deleted_notification(
             subject=subject, body=text_body, from_email=_from, to=to_list
         )
         msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning(
             "send_assenza_deleted_notification: invio fallito per assenza id=%s",

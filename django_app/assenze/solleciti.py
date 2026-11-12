@@ -27,6 +27,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -307,7 +308,7 @@ def sollecita_richiesta(riga: dict, now=None) -> tuple[bool, str]:
     try:
         msg = EmailMultiAlternatives(subject=oggetto, body=testo, from_email=from_email, to=[email])
         msg.attach_alternative(html, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning("assenze.solleciti: sollecito manuale della richiesta %s non riuscito", rid, exc_info=True)
         registra(origine="assenze_sollecito", destinatari=[email], oggetto=oggetto, sorgente="assenze",
@@ -346,7 +347,7 @@ def invia_solleciti(now=None) -> dict:
                 body=testo, from_email=from_email, to=[email],
             )
             msg.attach_alternative(html, "text/html")
-            msg.send(fail_silently=False)
+            invia_con_regole_flusso(msg)
         except Exception as exc:
             errori += 1
             logger.warning("assenze.solleciti: invio a %s non riuscito", email, exc_info=True)

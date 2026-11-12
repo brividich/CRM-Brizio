@@ -3385,6 +3385,9 @@ def _describe_action_values(
         "preview_lines": preview_lines,
         "badges": badges,
         "action_type": action_type,
+        "icon": _ACTION_NODE_STYLES.get(action_type, {}).get("icon", "⚡"),
+        "color": _ACTION_NODE_STYLES.get(action_type, {}).get("color", "#0f6cbd"),
+        "app": _ACTION_NODE_STYLES.get(action_type, {}).get("app", "Passaggio"),
     }
 
 
@@ -3396,9 +3399,9 @@ def _build_action_preview_from_form(form) -> list[str]:
         subject = _truncate_text(_bound_or_instance_value(form, "email_subject_template"), 80) or "-"
         body = _truncate_text(_bound_or_instance_value(form, "email_body_text_template"), 90) or "-"
         preview_lines = [
-            f"Destinatari: {recipients}",
-            f"Subject: {subject}",
-            f"Body: {body}",
+            f"A: {recipients}",
+            f"Oggetto: {subject}",
+            f"Corpo: {body}",
         ]
     elif action_type == AutomationActionType.WRITE_LOG:
         preview_lines = [f"Messaggio: {_truncate_text(_bound_or_instance_value(form, 'write_log_message_template'), 120) or '-'}"]

@@ -34,6 +34,15 @@ GUIDA = {
                     "Le regole importate dai pacchetti nascono in bozza e spente: vanno controllate e attivate a mano.",
                     "«Test» esegue la regola su un record vero o di esempio senza scrivere niente: usalo sempre prima di attivare.",
                 ]),
+                ("p", "CN Automations è la vista con cui si apre il designer di una regola: i passaggi uno sotto l'altro come in Power Automate. "
+                      "In alto «Quando un elemento …» (sorgente, quando, su quali modifiche), poi «Condizione · tutte vere» con le "
+                      "condizioni e il pulsante «+ Nuova condizione», poi «Poi esegui, in ordine» con un riquadro per ogni azione: "
+                      "icona e nome del tipo (es. «Invia un messaggio di posta», «Crea un record», «Pubblica in un canale Teams», "
+                      "«Condizione (Se / Altrimenti)»), riassunto e «Modifica card» per i campi (per la mail: Mittente, A, Oggetto, Corpo, "
+                      "e in «Opzioni avanzate» CC, CCN e HTML). «Esegui solo se…» limita un singolo passaggio. Il contenuto dinamico è "
+                      "il riquadro «Contenuti / Colonne disponibili» a destra: clic in un campo della card, poi «Usa nel target» sul campo "
+                      "del record da inserire ({nome_campo}). «Vista classica» torna al designer di prima (la scelta resta nel browser); "
+                      "dati, salvataggio e test sono gli stessi."),
             ],
         },
         {
@@ -106,8 +115,10 @@ GUIDA = {
                       "sostituisce i destinatari del modulo (serve almeno un indirizzo)."),
                 ("p", "«Salva» vale subito, senza riavvii. «Invia prova a me» manda un'anteprima con righe di esempio, «Esegui ora» "
                       "fa partire il lavoro pianificato, «Storico» apre le sue esecuzioni. Indirizzi separati da virgola, punto e "
-                      "virgola o a capo. Le regole valgono per ogni mail che il processo manda dentro il flusso; le mail che non "
-                      "partono per una regola («Invia la mail» spenta, nessun destinatario rimasto) compaiono in «Mail inviate» con il motivo."),
+                      "virgola o a capo. Le regole valgono per ogni mail che il processo manda dentro il flusso, anche le mail delle assenze (esito, "
+                      "richiesta modificata o eliminata, certificazione di presenza, solleciti, certificato mancante), del controllo RENTRI, "
+                      "del report scadenze settimanale e del SOC; restano fuori le mail delle anomalie, che si configurano in Gestione anomalie. "
+                      "Le mail che non partono per una regola («Invia la mail» spenta, nessun destinatario rimasto) compaiono in «Mail inviate» con il motivo."),
                 ("p", "«Apri flusso» mostra in cima la stessa vista; il designer tecnico con condizioni e azioni resta sotto "
                       "«Designer completo». Lì la card «Esegui processo del modulo» riassume quando parte, a chi arriva, CC e oggetto."),
                 ("nota", "L'orario di un lavoro già installato resta quello salvato nel flusso: se cambia nel codice "

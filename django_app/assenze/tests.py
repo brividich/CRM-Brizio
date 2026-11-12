@@ -1375,7 +1375,7 @@ class MiaAssenzaUpdateTests(TestCase):
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class CertificatoArrivatoMailTests(SimpleTestCase):
+class CertificatoArrivatoMailTests(TestCase):  # le mail passano dal flusso gestito (DB)
     def test_riga_solo_per_malattia(self):
         from assenze.mail_certificato import blocco_mail
         testo, html_blocco = blocco_mail("assenze", {"tipo_assenza": "Malattia", "certificato_medico": "Arrivato"})
