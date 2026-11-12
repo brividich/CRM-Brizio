@@ -295,7 +295,8 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Apri l'OP e scegli l'anomalia (filtro «Da decidere» per vedere solo quelle aperte).",
                 "Il dettaglio ha tre blocchi: «Controllore · segnalazione» (testo, «Dove sono i pezzi?», misure e "
-                "riferimenti del controllore, allegati), «Capocommessa» e «Decisione qualità».",
+                "riferimenti del controllore, allegati), «Capocommessa» e «Decisione qualità». Un clic sul titolo "
+                "chiude o riapre il blocco (anche «Tempi ed esiti»); la scelta resta per tutte le anomalie, nel browser.",
                 "In cima al blocco «Capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
                 "Segnalata, Decisa (con la decisione presa), Risposta del cliente se è stata segnalata, Azione "
                 "effettuata con «Azione di recupero», Chiusa; il passo arancione è quello in corso.",

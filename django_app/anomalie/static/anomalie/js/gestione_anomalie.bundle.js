@@ -398,6 +398,22 @@ const FileEsito = ({
     onClick: () => setFiles(prev => prev.filter((_, j) => j !== i))
   }, "\xD7")))));
 };
+
+// Titolo di una sezione del dettaglio: un clic la chiude o la riapre.
+const TitoloSezione = ({
+  chiusa,
+  onToggle,
+  children
+}) => /*#__PURE__*/React.createElement("button", {
+  type: "button",
+  className: "ga-card__title ga-sez-tg",
+  "aria-expanded": !chiusa,
+  onClick: onToggle,
+  title: chiusa ? "Apri la sezione" : "Chiudi la sezione"
+}, /*#__PURE__*/React.createElement("span", {
+  className: `ga-sez-tg__ico${chiusa ? "" : " is-aperta"}`,
+  "aria-hidden": "true"
+}, "\u203A"), children);
 const EsitiAnomalia = ({
   localId,
   avanzamento,
@@ -406,7 +422,9 @@ const EsitiAnomalia = ({
   versione,
   onSaved,
   onInfo,
-  flash
+  flash,
+  sezChiusa,
+  onToggleSez
 }) => {
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -489,11 +507,12 @@ const EsitiAnomalia = ({
     setSaving(false);
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "ga-card ga-card--esiti"
+    className: `ga-card ga-card--esiti${sezChiusa ? " is-chiusa" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-card__head"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "ga-card__title"
+  }, /*#__PURE__*/React.createElement(TitoloSezione, {
+    chiusa: sezChiusa,
+    onToggle: onToggleSez
   }, "Tempi ed esiti"), /*#__PURE__*/React.createElement("span", {
     className: "ga-hint"
   }, data.unita || "ore lavorate, giorni lavorativi")), data.tempi && data.tempi.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -1297,6 +1316,7 @@ const statoAnomalia = a => {
 // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
 const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
 const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
+const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
 const leggiPref = (k, def) => {
   try {
     const v = window.localStorage.getItem(k);
@@ -1733,6 +1753,18 @@ function GestioneAnomalie() {
   const [versioneEsiti, setVersioneEsiti] = useState(0);
   // «In carico a me»: di serie solo le anomalie che toccano a chi guarda.
   const [mostraTutte, setMostraTutte] = useState(false);
+  // Sezioni del dettaglio chiuse (controllore, capocommessa, qualità, esiti): restano
+  // così per tutte le anomalie finché non le riapri.
+  const [sezChiuse, setSezChiuse] = useState(() => {
+    const v = leggiPref(PREF_SEZIONI_CHIUSE, []);
+    return Array.isArray(v) ? v : [];
+  });
+  const sezChiusa = k => sezChiuse.includes(k);
+  const toggleSez = k => setSezChiuse(prev => {
+    const nuovo = prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k];
+    scriviPref(PREF_SEZIONI_CHIUSE, nuovo);
+    return nuovo;
+  });
   // Decisione qualità e richieste di informazioni.
   const [qNum, setQNum] = useState("");
   const [qAv, setQAv] = useState("");
@@ -3517,11 +3549,12 @@ function GestioneAnomalie() {
     onClick: riapri,
     disabled: saving
   }, saving ? "Riapertura…" : "Riapri anomalia")), /*#__PURE__*/React.createElement("div", {
-    className: "ga-card"
+    className: `ga-card${sezChiusa("ctrl") ? " is-chiusa" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-card__head"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "ga-card__title"
+  }, /*#__PURE__*/React.createElement(TitoloSezione, {
+    chiusa: sezChiusa("ctrl"),
+    onToggle: () => toggleSez("ctrl")
   }, "Controllore \xB7 segnalazione"), sn.stato_superficie && /*#__PURE__*/React.createElement("span", {
     className: "ga-pill ga-pill--sup"
   }, sn.stato_superficie), canEditSelected && !editDesc && /*#__PURE__*/React.createElement("button", {
@@ -3625,11 +3658,12 @@ function GestioneAnomalie() {
   }, "Caricamento allegati\u2026") : attAnomalia.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Nessun allegato.") : renderAttGrid(attAnomalia))), /*#__PURE__*/React.createElement("div", {
-    className: `ga-card ga-card--decision${dirty ? " is-dirty" : ""}`
+    className: `ga-card ga-card--decision${dirty ? " is-dirty" : ""}${sezChiusa("cc") ? " is-chiusa" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-card__head"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "ga-card__title"
+  }, /*#__PURE__*/React.createElement(TitoloSezione, {
+    chiusa: sezChiusa("cc"),
+    onToggle: () => toggleSez("cc")
   }, "Capocommessa")), /*#__PURE__*/React.createElement(PercorsoAnomalia, {
     passi: esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null
   }), /*#__PURE__*/React.createElement("div", {
@@ -3875,12 +3909,15 @@ function GestioneAnomalie() {
     const chiudeQ = !sn.chiudere && shouldAutoClose(!!sn.aprire_rdc, DESTINATARI.some(d => attesaQ(d.chi) && qRisp[d.chi].trim()) ? "In attesa" : sn.avanzamento, qNum, !!sn.segnalare, qSeg.cliente, !!sn.segnala_terzista, qSeg.terzista, richiestaAperta(sn));
     const esitiQ = tipo => (esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti || []).filter(e => e.tipo === tipo);
     return /*#__PURE__*/React.createElement("div", {
-      className: "ga-card ga-card--qualita"
+      className: `ga-card ga-card--qualita${sezChiusa("qualita") ? " is-chiusa" : ""}`
     }, /*#__PURE__*/React.createElement("div", {
       className: "ga-card__head"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "ga-card__title"
-    }, "Decisione qualit\xE0"), sn.qualita_da && /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(TitoloSezione, {
+      chiusa: sezChiusa("qualita"),
+      onToggle: () => toggleSez("qualita")
+    }, "Decisione qualit\xE0"), sezChiusa("qualita") && sn.avanzamento_qualita && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--muted"
+    }, sn.avanzamento_qualita), sn.qualita_da && /*#__PURE__*/React.createElement("span", {
       className: "ga-hint"
     }, sn.qualita_da, sn.qualita_il ? ` · ${sn.qualita_il}` : "")), !puo && !sn.avanzamento_qualita && !sn.note_qualita && !sn.numero_rdc && !attQualita.length && !(sn.richieste_info || []).length ? /*#__PURE__*/React.createElement("div", {
       className: "ga-hint"
@@ -4025,6 +4062,8 @@ function GestioneAnomalie() {
     chiusa: Boolean(sn.chiudere),
     segnalare: Boolean(sn.segnalare),
     versione: versioneEsiti,
+    sezChiusa: sezChiusa("esiti"),
+    onToggleSez: () => toggleSez("esiti"),
     flash: flash,
     onInfo: setEsitiInfo,
     onSaved: ({
