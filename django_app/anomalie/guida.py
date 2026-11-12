@@ -321,7 +321,9 @@ SEZIONI: list[dict] = [
                 "la pagina lo avvisa prima di salvare.",
                 "«Aprire RDC» e «Segnalare al cliente» non la chiudono: resta aperta, in carico ai referenti RDC, "
                 "finché l'RDC non ha il numero e la segnalazione non è registrata con «Segnalato al cliente». Un "
-                "riquadro sotto la decisione dice cosa manca.",
+                "riquadro in evidenza subito sotto le spunte elenca le due condizioni (✓ fatta, ○ da fare) e diventa "
+                "verde quando l'anomalia si chiuderà al salvataggio; il campo «Numero RDC» vuoto è evidenziato e "
+                "nell'elenco le anomalie mostrano «RDC · manca N°» e «Cliente · da segnalare».",
                 "Il referente RDC può rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte restano, "
                 "l'anomalia torna in carico al capocommessa (notifica nel portale, conta fra le da decidere) e quando "
                 "lui sceglie un altro stato torna al referente.",
