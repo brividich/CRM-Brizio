@@ -83,7 +83,7 @@ def cve_uniche(name=None):
     dispositivo SOC con lo stesso nome). Grave = in CISA KEV o CVSS ≥ 9. Con ``name`` si
     calcola solo quel PC.
     """
-    from security.models import SecurityCveImpact, SecurityCveRecord
+    from security.models import SecurityCveImpact
 
     key = _norm(name) if name is not None else None
     if name is not None and not key:
@@ -110,7 +110,9 @@ def cve_uniche(name=None):
     # KEV delle CVE viste solo da Defender: dal catalogo CVE, una query.
     solo_defender = {c for _k, c, _s in da_defender} - kev_ids
     if solo_defender:
-        kev_ids |= {c.upper() for c in SecurityCveRecord.objects.filter(cve_id__in=solo_defender, kev=True).values_list("cve_id", flat=True)}
+        from security.services.kev import kev_tra
+
+        kev_ids |= {c.upper() for c in kev_tra(solo_defender)}
     for k, cve_id, cvss in da_defender:
         cves = per_pc.setdefault(k, {})
         cves[cve_id] = cves.get(cve_id, False) or cve_id in kev_ids or (cvss or 0) >= 9

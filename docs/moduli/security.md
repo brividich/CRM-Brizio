@@ -374,3 +374,9 @@ Segnalazioni urgenti contate per intero (`segnalazioni.conta_urgenti`, «Solo ur
 ## Ciclo del SOC diviso (11/11/2026)
 
 Le caselle mail dei report si leggono nel lavoro `security_caselle` (`security.tasks.run_security_caselle_task`, ogni 15 minuti, timeout 300 s). Il `security_cycle` fa letture esterne (Defender, Entra, Veeam, Secure Score), regole, battito, KPI, rientri e notifiche; le letture esterne si rimandano al giro dopo oltre `CICLO_BUDGET_LETTURE_SECONDI` (50 s), i passi interni girano sempre.
+
+## Prestazioni
+
+- Impostazioni del SOC (`SecurityCenterSetting`) lette tutte in una query e tenute in memoria per processo `SECURITY_SETTINGS_CACHE_SECONDS` secondi (30; 0 in `config.settings.test`): il salvataggio nello stesso processo svuota la copia (`post_save`/`post_delete`), gli altri processi (qcluster) vedono il valore nuovo entro 30 s. Non scrivere `SecurityCenterSetting` con `queryset.update()`: salta i segnali.
+- CVE sfruttate: `services/kev.kev_tra(cve_ids)`, mai `SecurityCveRecord.objects.filter(kev=True, cve_id__in=<migliaia>)` (su SQL Server oltre 2.000 parametri mssql-django riempie una tabella temporanea riga per riga).
+- Liste lunghe di id in `__in`: passare un queryset (sottoquery), non una lista.

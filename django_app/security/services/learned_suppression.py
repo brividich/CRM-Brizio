@@ -141,9 +141,9 @@ def _is_kev(event):
     if not cves:
         return False
     try:
-        from security.models import SecurityCveRecord
+        from security.services.kev import kev_tra
 
-        if SecurityCveRecord.objects.filter(cve_id__in=cves, kev=True).exists():
+        if kev_tra(cves):
             return True
         # Fail-closed: senza un catalogo KEV recente non si può dire che la CVE non sia sfruttata.
         return not _kev_catalog_fresh()

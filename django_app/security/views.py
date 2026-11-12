@@ -1320,6 +1320,22 @@ def _alert_case(alert):
     )
 
 
+def _alert_cases(alerts) -> dict:
+    """``{alert_id: ticket più recente}`` per una pagina di alert, come ``_alert_case`` ma in tre query invece di una per riga."""
+    ids = [a.pk for a in alerts]
+    if not ids:
+        return {}
+    candidati = list(SecurityRemediationTicket.objects.filter(alert_id__in=ids).values_list("alert_id", "pk", "updated_at"))
+    candidati += list(SecurityRemediationTicket.linked_alerts.through.objects.filter(securityalert_id__in=ids).values_list(
+        "securityalert_id", "securityremediationticket_id", "securityremediationticket__updated_at"))
+    scelto: dict = {}
+    for alert_id, pk, quando in candidati:
+        if alert_id not in scelto or (quando, pk) > scelto[alert_id]:
+            scelto[alert_id] = (quando, pk)
+    tickets = SecurityRemediationTicket.objects.in_bulk([pk for _q, pk in scelto.values()])
+    return {alert_id: tickets[pk] for alert_id, (_q, pk) in scelto.items() if pk in tickets}
+
+
 def _open_cases():
     return SecurityRemediationTicket.objects.filter(status__in=[Status.NEW, Status.OPEN, Status.IN_PROGRESS]).order_by("-updated_at")[:100]
 
@@ -1327,10 +1343,12 @@ def _open_cases():
 def _decorate_alerts(alerts):
     from security.services import triage_tempi
 
+    alerts = list(alerts)
+    ticket_di = _alert_cases(alerts)
     decorated = []
     for alert in alerts:
         alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
-        alert.linked_ticket = _alert_case(alert)
+        alert.linked_ticket = ticket_di.get(alert.pk)
         alert.last_seen_at = alert.event.occurred_at if alert.event_id else alert.updated_at
         decorated.append(alert)
     # ISO 27001 5.25: «oltre il tempo di presa in carico» (alert.triage), una sola query sul log.
