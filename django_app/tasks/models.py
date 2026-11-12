@@ -1527,6 +1527,10 @@ class KickoffMeeting(models.Model):
             dati["sala"] = self.sala_id
         if self.durata_minuti:
             dati["durata"] = self.durata_minuti
+        # I CC ricevono anche l'invito Outlook: cambiarli aggiorna l'evento.
+        cc = sorted(self.get_all_cc_emails()) if self.pk else []
+        if cc:
+            dati["cc"] = cc
         return dati
 
     def firma_convocazione(self) -> str:
@@ -1628,6 +1632,13 @@ class KickoffMeeting(models.Model):
             righe.append(f"Esterni aggiunti: {', '.join(sorted(ora_est - prima_est))}")
         if prima_est - ora_est:
             righe.append(f"Esterni tolti: {', '.join(sorted(prima_est - ora_est))}")
+
+        prima_cc = set(prima.get("cc") or [])
+        ora_cc = set(ora.get("cc") or [])
+        if ora_cc - prima_cc:
+            righe.append(f"In copia aggiunti: {', '.join(sorted(ora_cc - prima_cc))}")
+        if prima_cc - ora_cc:
+            righe.append(f"In copia tolti: {', '.join(sorted(prima_cc - ora_cc))}")
 
         prima_odg = [tuple(item) for item in (prima.get("odg") or []) if isinstance(item, (list, tuple))]
         if prima_odg != ora["odg"]:

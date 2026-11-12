@@ -119,7 +119,7 @@ Menu «⋯» (`_azioni_rapide_btn.html`, `static/tasks/js/azioni_rapide.js`) nel
 
 ### Invito Outlook come convocazione (10/11/2026)
 
-`sync_meeting_outlook_event` registra l'invito riuscito come convocazione inviata (`_registra_invito`: `convocazione_inviata_at` + firma) e non aggiorna l'evento se la firma non è cambiata (niente aggiornamenti inutili ai partecipanti). La firma include `sala` e `durata` solo se valorizzate. «Invia invito Outlook» / «Reinvia» dal dettaglio (`POST .../incontri/<id>/invito-outlook/`, `project_meeting_send_outlook`, ACL `tasks.kickoff.edit`, bootstrap v20). Con l'evento Outlook la mail di convocazione (`send_meeting_invite`) esce senza .ics e la spunta «Invia la convocazione per mail» del form sparisce e viene ignorata.
+`sync_meeting_outlook_event` registra l'invito riuscito come convocazione inviata (`_registra_invito`: `convocazione_inviata_at` + firma) e non aggiorna l'evento se la firma non è cambiata (niente aggiornamenti inutili ai partecipanti). La firma include `sala`, `durata` e `cc` (destinatari in copia scelti a mano) solo se valorizzati. I destinatari in copia (stessa risoluzione della mail: CC dell'incontro → predefiniti → PM e capo commessa, senza doppioni con i convocati) sono invitati all'evento come attendees `optional` (12/11/2026). «Invia invito Outlook» / «Reinvia» dal dettaglio (`POST .../incontri/<id>/invito-outlook/`, `project_meeting_send_outlook`, ACL `tasks.kickoff.edit`, bootstrap v20). Con l'evento Outlook la mail di convocazione (`send_meeting_invite`) esce senza .ics e la spunta «Invia la convocazione per mail» del form sparisce e viene ignorata.
 
 ### Filo commessa → incontro → attività (09/11/2026)
 
