@@ -98,6 +98,9 @@ body.theme-dark .soc-module { --cy-kicker: var(--cy-cyan); }
 .soc-module .cy-tile[hidden] { display: none; }
 .soc-module .cy-tile-name { font: 600 11px/1.2 var(--cy-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .soc-module .cy-tile b { font: 700 18px/1 var(--cy-mono); color: var(--cy-tone); }
+.soc-module .cy-delta { margin-left: 6px; font-size: 10px; font-weight: 700; vertical-align: 3px; }
+.soc-module .cy-delta.is-down { color: var(--cy-bad); }
+.soc-module .cy-delta.is-up { color: var(--cy-ok); }
 .soc-module .cy-tile i { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--pct) * 1%); background: var(--cy-tone); box-shadow: 0 0 6px var(--cy-tone); }
 .soc-module .cy-map-note { margin: 0; color: var(--text-mid); font-size: var(--fs-sm, 12px); }
 
@@ -168,6 +171,12 @@ body.theme-dark .soc-module { --cy-kicker: var(--cy-cyan); }
 }
 
 /* ---------- Software (Dispositivi › Software) ---------- */
+.soc-module .cy-dup { border-top: 3px solid var(--cy-cyan); }
+.soc-module .cy-dup-form { display: inline-flex; gap: 8px; align-items: center; margin: 0; }
+.soc-module .cy-dup-form button { cursor: pointer; }
+.soc-module .cy-dup .pcs-cvebadge.is-success { --tone: var(--cy-ok); }
+.soc-module .cy-dup-uniti { margin-top: 10px; }
+.soc-module .cy-dup-uniti summary { cursor: pointer; font-weight: 700; color: var(--text-mid); margin-bottom: 6px; }
 .soc-module .cy-sw-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .soc-module .cy-sw a.pcs-sw-stat { text-decoration: none; }
 .soc-module .cy-sw-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); }

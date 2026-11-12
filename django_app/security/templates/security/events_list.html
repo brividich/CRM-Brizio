@@ -136,7 +136,7 @@
           <td><span class="sec-badge {{ e.severity }}">{{ e.severity|ui_label }}</span></td>
           <td><span class="ev-pill d-{{ e.decision_code }}">{{ e.decision_label }}</span></td>
           <td>{{ e.source.name }}</td>
-          <td>{% if e.decision_code == "alert" or e.has_alert %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}">Vedi</a>{% else %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}#promuovi" title="Il motore l'ha giudicato a posto: se è un allarme, crea l'alert">È un allarme?</a>{% endif %}</td>
+          <td>{% if e.alert_id %}<a class="sec-button sec-button-primary" href="{% url 'security:alert_detail' e.alert_id %}" title="Questo evento ha già il suo alert: si gestisce lì">Alert #{{ e.alert_id }}</a>{% elif e.decision_code == "alert" or e.has_alert %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}">Vedi</a>{% else %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}#promuovi" title="Il motore l'ha giudicato a posto: se è un allarme, crea l'alert">È un allarme?</a>{% endif %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="7" class="sec-empty">Nessun evento con questi filtri.</td></tr>

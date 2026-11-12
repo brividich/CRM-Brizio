@@ -3,7 +3,7 @@
 
 {% block title %}Software | Security Center AI{% endblock %}
 {% block extra_head %}{{ block.super }}
-<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261113">
+<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261113b">
 {% endblock %}
 {% block page_marker %}Dispositivi{% endblock %}
 {% block page_title %}Software{% endblock %}
@@ -32,6 +32,47 @@
       <span><b>{{ stat.nuovi }}</b><small>comparsi di recente</small></span>
     </a>
   </div>
+
+  {% if doppioni or doppioni_uniti %}
+  <div class="pcs-card cy-dup" id="doppioni">
+    <div class="pcs-card-head"><div><span class="pcs-card-kicker">WatchGuard ↔ Defender · decide l'AI locale, le incerte restano qui</span><h2>Doppioni tra le fonti</h2></div>
+      <a class="pcs-link" href="{% url 'security:letture' %}#lettura-software_doppioni">Giri e impostazioni</a></div>
+    {% if doppioni %}
+      <p class="pcs-note">Stesso programma con due nomi? «Unisci» fa usare a Defender il nome di WatchGuard (che ha già CPE e decisioni): le righe diventano una.</p>
+      <table class="pcs-table" data-table-enhanced="0">
+        <thead><tr><th>Defender</th><th>WatchGuard</th><th>Versioni (Defender / WatchGuard)</th><th>AI</th>{% if puo_decidere %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for d in doppioni %}
+            <tr>
+              <td><strong>{{ d.product }}</strong><small class="pcs-sub">{{ d.vendor }}</small></td>
+              <td><strong>{{ d.doppione_watchguard.1 }}</strong><small class="pcs-sub">{{ d.doppione_watchguard.0 }}</small></td>
+              <td class="pcs-mono">{{ d.candidati.0|join:", "|default:"—" }} / {{ d.candidati.1|join:", "|default:"—" }}<small class="pcs-sub">stessa versione su {{ d.candidati.3 }} PC di {{ d.candidati.2 }}</small></td>
+              <td><span class="pcs-chip is-{% if d.confidenza >= 80 %}success{% elif d.confidenza >= 60 %}warning{% else %}muted{% endif %}">{{ d.confidenza }}%</span><small class="pcs-sub">{{ d.motivazione|truncatechars:110 }}</small></td>
+              {% if puo_decidere %}<td class="pcs-nowrap">
+                <form method="post" action="{% url 'security:software_doppione' d.pk %}" class="cy-dup-form">{% csrf_token %}
+                  <button type="submit" name="azione" value="unisci" class="pcs-cvebadge is-success">Unisci</button>
+                  <button type="submit" name="azione" value="rifiuta" class="pcs-link">Sono diversi</button>
+                </form></td>{% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+    {% if doppioni_uniti %}
+      <details class="cy-dup-uniti"{% if not doppioni %} open{% endif %}>
+        <summary>Unite negli ultimi 30 giorni: {{ doppioni_uniti|length }}</summary>
+        <ul class="pcs-list">
+          {% for d in doppioni_uniti %}
+            <li class="is-success"><span><strong>{{ d.product }}</strong> → {{ d.doppione_watchguard.1 }}</span>
+              <small>{% if d.decisa_da %}da {{ d.decisa_da.get_full_name|default:d.decisa_da.username }}{% else %}in automatico{% if d.modello %} (AI {{ d.confidenza }}%){% endif %}{% endif %} · {{ d.decisa_il|date:"d/m H:i" }}</small>
+              {% if puo_decidere %}<form method="post" action="{% url 'security:software_doppione' d.pk %}" class="cy-dup-form">{% csrf_token %}<button type="submit" name="azione" value="annulla" class="pcs-link" data-hub-confirm="Annullare l'unione? Al prossimo giro delle due fonti le righe tornano separate.">Annulla</button></form>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="pcs-card pcs-sw-card">
     <form method="get" class="pcs-sw-toolbar" role="search">

@@ -453,8 +453,8 @@ SECTIONS = [
         "title": "Proposte AI su CPE ed esiti da verificare",
         "intro": "I casi che il calcolo CVE lascia «da verificare» (software senza CPE confermato, versioni non confrontabili, "
                  "CVE valide solo in una configurazione) vengono fatti esaminare all'AI locale, che propone il CPE fra quelli "
-                 "delle CVE già nel sistema oppure l'esito per PC, con motivazione e confidenza. È solo una proposta: si accetta "
-                 "o si rifiuta in «Software e CPE» e nella scheda CVE. Gira dalla lettura «cpe_ai» (Letture automatiche, ogni 6 ore) "
+                 "delle CVE già nel sistema oppure l'esito per PC, con motivazione e confidenza. I collegamenti CPE di cui è sicura (90% di base) "
+                 "si accettano da soli; il resto si accetta o si rifiuta in «Software e CPE» e nella scheda CVE. Gira dalla lettura «cpe_ai» (Letture automatiche, ogni 6 ore) "
                  "e con «Proponi con l'AI ora».",
         "channels_optional": True,
         "options": [
@@ -463,6 +463,48 @@ SECTIONS = [
                    "int", min_value=1, max_value=30, unit="casi"),
             Option("ai.cpe.confidenza_minima", 60, "Confidenza minima", "Sotto questa confidenza la risposta dell'AI viene scartata (resta «da verificare»).",
                    "int", min_value=0, max_value=100, unit="%"),
+            Option("ai.cpe.accetta_auto", True, "Accetta da sola i collegamenti CPE sicuri",
+                   "Solo il collegamento a un CPE fra quelli delle CVE note: «non applicabile» e gli esiti CVE per PC restano da decidere a mano."),
+            Option("ai.cpe.confidenza_auto", 90, "Confidenza per accettare da sola", "", "int", min_value=70, max_value=100, unit="%"),
+        ],
+    },
+    {
+        "code": "ai_doppioni",
+        "title": "Doppioni software tra le fonti",
+        "intro": "Lo stesso programma visto da WatchGuard e da Defender con nomi diversi («chrome» e «Google Chrome») diventa una riga sola. "
+                 "Ogni ora: prima si uniscono da sole le righe con stesso PC, stessa versione e nome equivalente; poi le coppie dal nome "
+                 "simile passano all'AI locale, che dice se sono lo stesso programma. Se è sicura almeno quanto la soglia e le versioni "
+                 "coincidono sui PC in comune, l'unione si fa da sola (si annulla da Dispositivi › Software); altrimenti resta da decidere lì. "
+                 "Lettura «software_doppioni».",
+        "channels_optional": True,
+        "options": [
+            Option("ai.doppioni.attivo", True, "Unisci i doppioni e fai decidere all'AI le coppie incerte"),
+            Option("ai.doppioni.confidenza_auto", 85, "Confidenza per unire da sola",
+                   "Sotto questa confidenza la coppia resta da decidere a mano in Dispositivi › Software.", "int", min_value=50, max_value=100, unit="%"),
+            Option("ai.doppioni.max_per_giro", 6, "Massimo per giro", "Coppie chieste all'AI a ogni esecuzione: ogni risposta impegna l'AI per 15-40 secondi.",
+                   "int", min_value=1, max_value=30, unit="coppie"),
+        ],
+    },
+    {
+        "code": "manutenzione",
+        "title": "Manutenzione notturna del SOC",
+        "intro": "Ogni notte: pulizia dei registri tecnici (il testo grezzo delle mail e dei file di report già letti, i giri delle caselle, "
+                 "il registro delle richieste all'AI, la cache dei siti esterni), fotografia dell'indice di postura di ogni PC per "
+                 "l'andamento e avviso per i PC che scendono sotto la soglia. Alert, incidenti, ticket, eventi, evidenze e audit non si "
+                 "toccano. Lettura «manutenzione».",
+        "channels_optional": True,
+        "options": [
+            Option("pulizia.attiva", True, "Pulisci i registri tecnici"),
+            Option("pulizia.grezzi_giorni", 120, "Testo grezzo delle mail e dei file già letti",
+                   "Dopo questi giorni si svuota il testo originale; restano oggetto, data, esito della lettura e i dati estratti.",
+                   "int", min_value=30, max_value=730, unit="giorni"),
+            Option("pulizia.giri_caselle_giorni", 60, "Giri di lettura delle caselle", "Righe del registro dei giri più vecchie di così.",
+                   "int", min_value=7, max_value=365, unit="giorni"),
+            Option("pulizia.ai_log_giorni", 365, "Registro delle richieste all'AI", "", "int", min_value=90, max_value=1095, unit="giorni"),
+            Option("postura.avviso.attivo", True, "Avvisa quando un PC scende sotto la soglia di postura"),
+            Option("postura.avviso.soglia", 50, "Soglia di postura", "Si avvisa solo quando un PC passa sotto la soglia, una volta.",
+                   "int", min_value=10, max_value=90, unit="punti"),
+            Option("postura.avviso.canali", [], "Canali", "Dove avvisare. Senza canali niente avviso: i PC sotto soglia si vedono comunque nella mappa «Postura dei PC».", "channels"),
         ],
     },
     {
