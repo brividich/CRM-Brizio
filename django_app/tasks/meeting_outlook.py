@@ -1,7 +1,8 @@
 """Integrazione Outlook Calendar per KickoffMeeting.
 
 Crea/aggiorna/elimina l'evento calendario sul profilo dell'organizzatore
-e aggiunge tutti i partecipanti (utenti portale + email extra) come attendees.
+e aggiunge tutti i partecipanti (utenti portale + email extra) come attendees,
+più i destinatari in copia come attendees facoltativi.
 Gli errori Graph non sono bloccanti: l'incontro resta salvato con un warning.
 """
 from __future__ import annotations
@@ -77,14 +78,30 @@ def _organizer_hint(organizer_email: str) -> str:
     )
 
 
-def _build_attendees(meeting) -> list[dict]:
-    return [
-        {
-            "emailAddress": {"address": email, "name": email},
-            "type": "required",
-        }
-        for email in meeting.get_all_attendee_emails()
+def _build_attendees(meeting, organizer_email: str = "") -> list[dict]:
+    """Convocati come «obbligatori», destinatari in copia come «facoltativi».
+
+    Chi è in copia riceve lo stesso invito di calendario dei convocati: i CC sono
+    gli stessi della mail di convocazione (scelti a mano, oppure i predefiniti,
+    oppure PM e capo commessa), senza doppioni con i convocati e senza
+    l'organizzatore, che la riunione l'ha già nel proprio calendario.
+    """
+    from .minute_email import _cc_management  # import locale: minute_email importa da qui
+
+    convocati = meeting.get_all_attendee_emails()
+    attendees = [
+        {"emailAddress": {"address": email, "name": email}, "type": "required"}
+        for email in convocati
     ]
+    gia = {e.lower() for e in convocati}
+    if organizer_email:
+        gia.add(organizer_email.strip().lower())
+    for email in _cc_management(meeting, exclude=convocati):
+        if email.lower() in gia:
+            continue
+        gia.add(email.lower())
+        attendees.append({"emailAddress": {"address": email, "name": email}, "type": "optional"})
+    return attendees
 
 
 def _agenda_items_html(meeting) -> str:
@@ -177,6 +194,13 @@ def _registra_invito(meeting) -> None:
     )
 
 
+def _testo_invitati(attendees: list[dict]) -> str:
+    n_att = sum(1 for a in attendees if a.get("type") == "required")
+    n_cc = sum(1 for a in attendees if a.get("type") == "optional")
+    testo = f"{n_att} partecipanti"
+    return f"{testo}, {n_cc} in copia" if n_cc else testo
+
+
 def _testo_sala(sala) -> str:
     if sala is None:
         return ""
@@ -259,7 +283,7 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     payload["end"]   = {"dateTime": end.strftime("%Y-%m-%dT%H:%M:%S"),   "timeZone": tz}
     payload["isOnlineMeeting"] = False
 
-    attendees = _build_attendees(meeting)
+    attendees = _build_attendees(meeting, organizer_email)
     # Sala con casella Microsoft 365: luogo «sala riunioni» + invitata come risorsa,
     # così Exchange la prenota (o la rifiuta se è già occupata).
     if sala is not None and sala.email:
@@ -294,8 +318,7 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
             meeting.outlook_event_web_link = web_link
             meeting.outlook_event_id = existing_id
             _registra_invito(meeting)
-            n_att = sum(1 for a in attendees if a.get("type") != "resource")
-            return ("success", f"Invito Outlook aggiornato: i partecipanti ricevono l'aggiornamento ({n_att} partecipanti){_testo_sala(sala)}.")
+            return ("success", f"Invito Outlook aggiornato: i partecipanti ricevono l'aggiornamento ({_testo_invitati(attendees)}){_testo_sala(sala)}.")
 
         graph_event = create_event(target_email=organizer_email, payload=payload)
         event_id = str(graph_event.get("id") or "")
@@ -309,8 +332,7 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
         meeting.outlook_event_id = event_id
         meeting.outlook_event_web_link = web_link
         _registra_invito(meeting)
-        n_att = sum(1 for a in attendees if a.get("type") != "resource")
-        return ("success", f"Invito Outlook inviato dal calendario di {organizer_email} ({n_att} partecipanti){_testo_sala(sala)}.")
+        return ("success", f"Invito Outlook inviato dal calendario di {organizer_email} ({_testo_invitati(attendees)}){_testo_sala(sala)}.")
 
     except Exception as exc:
         logger.warning("Meeting outlook sync fallita (meeting=%s): %s", meeting.id, exc)

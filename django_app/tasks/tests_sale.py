@@ -55,6 +55,20 @@ class OutlookPrenotazioneTests(SaleBase):
         self.assertIn("2 partecipanti", testo)
         self.assertIn("richiesta di prenotazione inviata alla sala Sala Prova", testo)
 
+    def test_cc_ricevono_invito_come_facoltativi(self):
+        m = self.incontro(sync_outlook=True, cc_email_extra="copia@example.com\ncollega@example.com")
+        m.partecipanti_utenti.add(self.collega)
+        from .meeting_outlook import sync_meeting_outlook_event
+
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), \
+                patch("tasks.meeting_outlook.create_event", return_value={"id": "EV1"}) as crea:
+            _livello, testo = sync_meeting_outlook_event(request=None, meeting=m)
+        att = crea.call_args.kwargs["payload"]["attendees"]
+        facoltativi = [a["emailAddress"]["address"] for a in att if a["type"] == "optional"]
+        self.assertEqual(facoltativi, ["copia@example.com"])  # il convocato non è ripetuto in copia
+        self.assertIn("1 partecipanti, 1 in copia", testo)
+        self.assertEqual(m.dati_convocazione()["cc"], ["collega@example.com", "copia@example.com"])
+
     def test_sala_senza_casella_non_si_prenota(self):
         m = self.incontro(sala=self.sala_locale, sync_outlook=True)
         from .meeting_outlook import sync_meeting_outlook_event
