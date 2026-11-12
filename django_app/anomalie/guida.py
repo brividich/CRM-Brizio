@@ -304,12 +304,18 @@ SEZIONI: list[dict] = [
                 "vengono dai capi reparto di Configurazione). Al salvataggio solo i CAR appena scelti ricevono la mail "
                 "«Segnala a CAR» con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già "
                 "ricevuta non la riceve di nuovo.",
-                "Con «Segnalare al cliente» o «Segnala a terzista» salvati compare la spunta «Segnalato al cliente» / "
-                "«Segnalato al terzista»: spuntala quando li hai avvisati. Si registra subito con data e nome (anche ad "
-                "anomalia chiusa) e non manda nessuna mail; resta nella cronologia e compare nel primo riepilogo delle "
-                "modifiche successivo, insieme a «Segnalare al terzista» e ai CAR segnalati.",
+                "Con «Aprire RDC», «Segnalare al cliente» o «Segnala a terzista» compare sotto le spunte il riquadro "
+                "«Resta aperta finché non completi questi passi», con i passi numerati: «Numero RDC», «Segnalato al "
+                "cliente» / «Segnalato al terzista» (si spuntano direttamente nel riquadro, anche prima di aver salvato) "
+                "e poi la risposta. Spuntando «Segnalato…» l'avanzamento passa da solo a «In attesa risposta cliente» "
+                "o «In attesa risposta terzista»; togliendo la spunta torna lo stato di prima. Data e nome di chi l'ha "
+                "spuntato si registrano al salvataggio e compaiono nel riepilogo delle modifiche.",
+                "Mentre l'anomalia aspetta la risposta, le note già scritte restano ferme in «Note già inviate» e sotto "
+                "compare il campo «Risposta del cliente» (o «Risposta del terzista»): scrivi cosa ha risposto, scegli lo "
+                "stato definitivo e salva. Le risposte registrate restano visibili sopra il campo e in «Tempi ed esiti».",
                 "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), per esempio "
-                "la comunicazione al cliente o al terzista: si possono caricare anche ad anomalia chiusa e restano "
+                "la comunicazione al cliente o al terzista o la mail salvata (.msg o .eml): si possono caricare anche "
+                "ad anomalia chiusa e restano "
                 "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "
                 "le misure e i riferimenti scritti dal controllore (in sola lettura).",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
@@ -319,19 +325,22 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "L'anomalia si chiude da sola al salvataggio quando scegli «Accetto lo stato» o «Apertura ORE/RIPI»: "
                 "la pagina lo avvisa prima di salvare.",
-                "«Aprire RDC» e «Segnalare al cliente» non la chiudono: resta aperta, in carico ai referenti RDC, "
-                "finché l'RDC non ha il numero e la segnalazione non è registrata con «Segnalato al cliente». Un "
-                "riquadro in evidenza subito sotto le spunte elenca le due condizioni (✓ fatta, ○ da fare) e diventa "
-                "verde quando l'anomalia si chiuderà al salvataggio; il campo «Numero RDC» vuoto è evidenziato e "
-                "nell'elenco le anomalie mostrano «RDC · manca N°» e «Cliente · da segnalare».",
+                "«Aprire RDC», «Segnalare al cliente» e «Segnala a terzista» non la chiudono: resta aperta (con RDC o "
+                "cliente in carico ai referenti RDC) finché l'RDC non ha il numero, le segnalazioni non sono spuntate "
+                "e non scegli uno stato definitivo dopo la risposta. Il riquadro dei passi diventa verde quando "
+                "l'anomalia si chiuderà al salvataggio; il campo «Numero RDC» vuoto è evidenziato e nell'elenco le "
+                "anomalie mostrano «RDC · manca N°», «Cliente · da segnalare» e «Terzista · da segnalare».",
+                "«Chiudi l'anomalia», sotto le note, c'è sempre: spuntalo per chiuderla al salvataggio anche se mancano "
+                "dei passi. Quando la decisione la chiude già da sola è spuntato e bloccato.",
                 "Il referente RDC può rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte restano, "
                 "l'anomalia torna in carico al capocommessa (notifica nel portale, conta fra le da decidere) e quando "
                 "lui sceglie un altro stato torna al referente.",
-                "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
-                "il salvataggio si ferma con l'avviso (anche dal link della mail).",
-                "Spuntando «Segnalare al cliente» l'avanzamento passa a «In attesa risposta cliente»: l'anomalia resta "
-                "aperta e puoi scrivere la nota. Quando il cliente risponde scegli lo stato definitivo; togliendo la "
-                "spunta torna lo stato di prima. Vale anche nella pagina del link della mail.",
+                "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa» (tranne con RDC, cliente o "
+                "terzista da segnalare): scegline un altro, altrimenti il salvataggio si ferma con l'avviso. Allo stesso "
+                "modo, scritta la risposta del cliente o del terzista serve lo stato definitivo (o «Chiudi l'anomalia»).",
+                "La pagina del link della mail fa le stesse cose: «Segnala a terzista», «Segnalato…», note ferme in "
+                "attesa di risposta, campo della risposta, «Chiudi l'anomalia» e allegati della decisione (anche .msg "
+                "ed .eml), che si caricano alla conferma finale.",
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
@@ -382,9 +391,9 @@ SEZIONI: list[dict] = [
                 ("Risoluzione", "dalla creazione alla chiusura (dopo una riapertura conta l'ultima chiusura)."),
             ]),
             ("passi", [
-                "Risposta del cliente: quando l'anomalia è segnalata al cliente compare «Risposta del cliente». Scrivi "
-                "cosa ha risposto, allega la mail (.msg o .eml, anche trascinandola da Outlook), foto o PDF e premi "
-                "«Registra risposta». Poi scegli lo stato definitivo nella decisione.",
+                "Risposta del cliente o del terzista: si scrive nella decisione, nel campo che compare dopo «Segnalato "
+                "al cliente» / «Segnalato al terzista»; la mail (.msg o .eml) si allega in «Allegati della decisione». "
+                "Qui restano le risposte registrate, con chi e quando.",
                 "Azione effettuata: con la decisione «Azione di recupero» il riquadro è già aperto; per le altre "
                 "anomalie aperte usa «+ Registra un'azione effettuata». Scegli l'azione (Rilavorato, Riparato, "
                 "Scartato, Reso al fornitore, Accettato in deroga), scrivi le note, allega foto o documenti.",

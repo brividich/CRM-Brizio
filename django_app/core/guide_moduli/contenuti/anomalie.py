@@ -70,10 +70,12 @@ GUIDA = {
                 ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
                       "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
                       "Gestione anomalie permette di mandarle subito con «Invia ora»."),
-                ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente» e spunta anche "
-                      "«Aprire RDC» (si può togliere): l'anomalia resta aperta finché il capocommessa non sceglie lo "
-                      "stato definitivo dopo la risposta del cliente. Con «Aprire RDC» la segnalazione al cliente resta "
-                      "facoltativa."),
+                ("p", "«Segnalare al cliente» spunta anche «Aprire RDC» (si può togliere). Sotto le spunte un riquadro "
+                      "elenca i passi per chiudere: «Numero RDC», «Segnalato al cliente» / «Segnalato al terzista» "
+                      "(si spuntano lì) e la risposta. Con «Segnalato…» l'avanzamento passa da solo a «In attesa "
+                      "risposta cliente» o «In attesa risposta terzista», la nota resta ferma e compare il campo "
+                      "della risposta; poi si sceglie lo stato definitivo. «Chiudi l'anomalia» chiude comunque. La "
+                      "pagina del link della mail fa lo stesso e accetta allegati, anche le mail .msg ed .eml."),
                 ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
                       "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
@@ -84,10 +86,8 @@ GUIDA = {
                       "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
                 ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "
                       "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
-                      "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»). Con "
-                      "«Segnalare al cliente» o «Segnala a terzista» salvati compare «Segnalato al cliente» / "
-                      "«Segnalato al terzista»: registra data e nome subito, senza mail di aggiornamento (lo "
-                      "riporta il riepilogo successivo). In «A quale CAR?» nessun CAR è scelto di serie: la mail va "
+                      "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»). Data e "
+                      "nome di «Segnalato…» li riporta il riepilogo successivo. In «A quale CAR?» nessun CAR è scelto di serie: la mail va "
                       "solo a quelli spuntati, il CAR dell'OP riceve già il riepilogo. Gli "
                       "allegati della decisione si caricano anche ad anomalia chiusa."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
@@ -114,7 +114,8 @@ GUIDA = {
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati). "
-                    "Quelle spunte non chiudono l'anomalia: si chiude con il numero RDC e «Segnalato al cliente». Con lo "
+                    "Quelle spunte non chiudono l'anomalia: si chiude con il numero RDC e «Segnalato al cliente» (o con "
+                    "«Chiudi l'anomalia»). Con lo "
                     "stato «In attesa di ulteriori informazioni» il referente la rimanda al capocommessa, spunte comprese.",
                     "La mail «Segnala a CAR» va al CAR solo se il nominativo corrisponde a un solo utente e ha l'email "
                     "di notifica in anagrafica; si spegne in Configurazione → Notifiche.",
