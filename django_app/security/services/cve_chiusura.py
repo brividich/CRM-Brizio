@@ -282,8 +282,12 @@ def analisi(alert, record=None, today=None):
         .values("host").order_by().annotate(ultimo=Max("last_inventory_date")).values_list("host", "ultimo")
     )
     patch = defaultdict(list)
-    for p in WatchGuardPatch.objects.filter(host__in=elenco, cve__contains=f"|{cve_id}|").order_by("nome"):
-        patch[p.host].append(p)
+    # Per PC (indice su host) e la CVE si cerca in Python: «cve LIKE '%|CVE|%'» sul testo leggeva tutta la
+    # tabella, 200 ms a ogni analisi (migliaia al giorno dal ricalcolo in background).
+    segno = f"|{cve_id}|"
+    for p in WatchGuardPatch.objects.filter(host__in=elenco).order_by("nome"):
+        if segno in (p.cve or ""):
+            patch[p.host].append(p)
     _task_delle_patch([p for righe in patch.values() for p in righe])
     defender = _defender(cve_id, elenco)
     escluse = esclusioni(alert)
