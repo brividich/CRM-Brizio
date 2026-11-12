@@ -80,6 +80,7 @@ ANOMALIE_LIST_KEYS = (
     "escalation_supervisori",
     "azioni_effettuate",
     "referenti_rdc",
+    "avanzamenti_qualita",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -108,8 +109,12 @@ ANOMALIE_LIST_DEFAULTS = {
     # Persone (nome o email) che seguono RDC e segnalazioni al cliente: in «In carico
     # a me» vedono gli OP con anomalie aperte da aprire RDC o da segnalare al cliente.
     "referenti_rdc": [],
+    # «Avanzamento qualità» della decisione qualità (il vuoto = nessuno stato c'è
+    # sempre); «In attesa chiarimenti» lo usa «Richiedi info aggiuntive».
+    "avanzamenti_qualita": ["In attesa", "In attesa chiarimenti"],
 }
-ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti", "azioni_effettuate"})
+ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti", "azioni_effettuate",
+                                             "avanzamenti_qualita"})
 # SEC: liste di sola configurazione (email notifica/escalation, destinatari RDC,
 # whitelist autorizzati alla modifica). Vanno esposte solo a chi gestisce la config,
 # non a tutti gli utenti del modulo via il GET di api_anomalie_config_liste.
@@ -614,10 +619,16 @@ def _attachment_dir_for_local(local_id: int, *, create: bool = False) -> Path:
 # Allegati caricati nel riquadro «Decisione del capocommessa»: stessa cartella
 # dell'anomalia, riconoscibili dal suffisso prima di «__» (``<uuid>-cc__nome``).
 ALLEGATI_DECISIONE_SUFFIX = "-cc"
+# Allegati della «Decisione qualità»: ``<uuid>-qa__nome``.
+ALLEGATI_QUALITA_SUFFIX = "-qa"
 
 
 def _is_allegato_decisione(file_id: str) -> bool:
     return "__" in file_id and file_id.split("__", 1)[0].endswith(ALLEGATI_DECISIONE_SUFFIX)
+
+
+def _is_allegato_qualita(file_id: str) -> bool:
+    return "__" in file_id and file_id.split("__", 1)[0].endswith(ALLEGATI_QUALITA_SUFFIX)
 
 
 def _attachment_display_name(file_id: str) -> str:
@@ -802,6 +813,7 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
                 "is_image": _is_image_attachment(path.name, mime),
                 "modified": mtime,
                 "decisione": _is_allegato_decisione(file_id),
+                "qualita": _is_allegato_qualita(file_id),
             }
         )
     from .quality_models import AnomaliaDescrizioneAllegato
@@ -1686,7 +1698,22 @@ def _anomalie_frontend_access_context(request) -> dict:
         "global_level": global_level,
         "can_edit_all": _access_level_at_least(global_level, AnomalieAccessLevel.EDIT_ALL),
         "role_access": role_access,
+        **_contesto_decisione_qualita(request),
     }
+
+
+def _contesto_decisione_qualita(request) -> dict:
+    """Per la pagina: chi decide la qualità, le scelte di «Avanzamento qualità» e se
+    il capocommessa può chiudere (Configurazione)."""
+    try:
+        from anomalie import decisione_qualita as dq
+        from anomalie.qualita_views import puo_decisione_qualita
+
+        return {"can_qualita": puo_decisione_qualita(request), "avanzamenti_qualita": dq.avanzamenti_qualita(),
+                "cc_puo_chiudere": dq.cc_puo_chiudere()}
+    except Exception:
+        logger.warning("anomalie: contesto decisione qualità non letto", exc_info=True)
+        return {"can_qualita": False, "avanzamenti_qualita": [], "cc_puo_chiudere": True}
 
 
 def _op_role_codes_for_current_user(request, op_id: str) -> list[str]:
@@ -1764,6 +1791,42 @@ def _op_ha_rdc_o_cliente(op_title: str) -> bool:
         return bool(rows and int(rows[0].get("n") or 0) > 0)
     except Exception:
         return False
+
+
+def _op_ha_anomalie(op_title: str) -> bool:
+    """L'OP ha almeno un'anomalia (la qualità le vede tutte)."""
+    if not op_title or not _has_table("anomalie"):
+        return False
+    try:
+        rows = _fetch_all_dict(
+            "SELECT COUNT(*) AS n FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) = LOWER(%s)",
+            [op_title],
+        )
+        return bool(rows and int(rows[0].get("n") or 0) > 0)
+    except Exception:
+        return False
+
+
+def _car_segnalato_su_op(request, op_title: str) -> bool:
+    """Chi guarda è fra i CAR a cui il capocommessa ha segnalato un'anomalia dell'OP."""
+    if not op_title or not _has_table("anomalie"):
+        return False
+    mie = {_chiave_persona(n) for n in _request_name_norms(request)}
+    if not mie:
+        return False
+    try:
+        from anomalie.automazioni_service import separa_car_scelti
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        ids = [int(r["id"]) for r in _fetch_all_dict(
+            "SELECT id FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) = LOWER(%s)", [op_title])]
+        for nomi in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids, segnala_car=True).values_list(
+                "car_segnalati", flat=True):
+            if mie & {_chiave_persona(n) for n in separa_car_scelti(nomi)}:
+                return True
+    except Exception:
+        logger.warning("anomalie: CAR segnalati dell'OP non letti", exc_info=True)
+    return False
 
 
 def _op_role_codes_da_persone(request, capocommessa, incaricato) -> list[str]:
@@ -2371,6 +2434,118 @@ def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
         logger.warning("anomalie: dove sono i pezzi / terzista non letti", exc_info=True)
 
 
+def _in_carico_per_op(request) -> dict:
+    """Anomalie aperte di tutti gli OP, con i dati di «in carico», per l'elenco OP.
+
+    ``{"per_op": {chiave: [(riga, info)]}, "car_ops": {titolo minuscolo}}``: la
+    chiave è ``id:<op_lookup_id>`` o ``t:<titolo minuscolo>``.
+    """
+    from anomalie import decisione_qualita as dq
+
+    out = {"per_op": {}, "car_ops": set()}
+    if not _has_table("anomalie"):
+        return out
+    cols = legacy_table_columns("anomalie") or set()
+    voluti = ("id", "op_lookup_id", "ex_op_nominativo", "chiudere", "aprire_rdc", "segnalare_cliente",
+              "note_capocommessa", "avanzamento", "created_by_user_id")
+    try:
+        righe = _fetch_all_dict(
+            f"SELECT {', '.join(c for c in voluti if c in cols)} FROM anomalie WHERE COALESCE(chiudere, 0) = 0")
+    except Exception:
+        logger.warning("anomalie: anomalie aperte per «in carico» non lette", exc_info=True)
+        return out
+    info = dq.info_per_anomalie([r["id"] for r in righe if r.get("id") is not None])
+    mie = {_chiave_persona(n) for n in _request_name_norms(request)}
+    for r in righe:
+        i = info.get(r.get("id"))
+        titolo = str(r.get("ex_op_nominativo") or "").strip().lower()
+        chiave = f"id:{r['op_lookup_id']}" if r.get("op_lookup_id") is not None else f"t:{titolo}"
+        out["per_op"].setdefault(chiave, []).append((r, i))
+        if i and i.get("car_assegnati") and mie & {_chiave_persona(n) for n in i["car_assegnati"]}:
+            out["car_ops"].add(titolo)
+    return out
+
+
+def _conta_in_carico(request, carico: dict, titolo_l: str, item_id: str, capo, car) -> int:
+    from anomalie import decisione_qualita as dq
+
+    coppie = list(carico["per_op"].get(f"t:{titolo_l}", []))
+    if item_id:
+        coppie += carico["per_op"].get(f"id:{item_id}", [])
+    if not coppie:
+        return 0
+    io = dq.chi_sono(request, capo, car)
+    return sum(1 for riga, info in coppie if dq.in_carico_a_me(io, riga, info))
+
+
+def _capo_car_di_op(op_title: str) -> tuple[str, str]:
+    if not op_title or not _has_table("ordini_produzione"):
+        return "", ""
+    try:
+        rows = _fetch_all_dict("SELECT TOP 1 capocomessa, incaricato FROM ordini_produzione WHERE title = %s", [op_title])
+    except Exception:
+        return "", ""
+    return (str(_row_capocommessa(rows[0]) or ""), str(rows[0].get("incaricato") or "")) if rows else ("", "")
+
+
+def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title: str) -> None:
+    """Decisione qualità, richieste di informazioni, «Segnalato» del CAR e «in carico
+    a me» (``in_carico_a_me``, ``ruoli_in_carico``) di ogni riga."""
+    from anomalie import decisione_qualita as dq
+    from anomalie.qualita_views import ruoli_risposta
+    from anomalie.quality_models import AnomaliaRichiestaInfo, AnomaliaSchedaQualita
+
+    for r in rows:
+        r.update({"avanzamento_qualita": "", "note_qualita": "", "qualita_da": "", "qualita_il": "",
+                  "richieste_info": [], "in_carico_a_me": False, "ruoli_in_carico": [], "ruoli_risposta": [],
+                  "segnalato_car": None})
+    ids = [int(r["local_id"]) for r in rows if r.get("local_id")]
+    if not ids:
+        return
+    try:
+        schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
+            "anomalia_id", "avanzamento_qualita", "note_qualita", "qualita_da", "qualita_il", "segnala_car",
+            "car_segnalati_il", "segnalato_cliente_ruolo", "segnalato_terzista_ruolo")}
+        richieste: dict[int, list] = {}
+        for q in AnomaliaRichiestaInfo.objects.filter(anomalia_id__in=ids):
+            richieste.setdefault(q.anomalia_id, []).append({
+                "id": q.pk, "destinatari": q.destinatari or [], "messaggio": q.messaggio, "da": q.richiesta_da_display,
+                "il": dj_tz.localtime(q.created_at).strftime("%d/%m/%Y %H:%M"), "aperta": q.aperta,
+                "risposta": q.risposta, "risposta_da": q.risposta_da_display,
+                "risposta_il": dj_tz.localtime(q.risposta_il).strftime("%d/%m/%Y %H:%M") if q.risposta_il else "",
+            })
+        info = dq.info_per_anomalie(ids)
+        capo, car = _capo_car_di_op(op_title)
+        io = dq.chi_sono(request, capo, car)
+    except Exception:
+        logger.warning("anomalie: decisione qualità / in carico non letti", exc_info=True)
+        return
+    for r in rows:
+        aid = int(r["local_id"]) if r.get("local_id") else None
+        if aid is None:
+            continue
+        sc = schede.get(aid) or {}
+        r["avanzamento_qualita"] = sc.get("avanzamento_qualita") or ""
+        r["note_qualita"] = sc.get("note_qualita") or ""
+        r["qualita_da"] = sc.get("qualita_da") or ""
+        r["qualita_il"] = dj_tz.localtime(sc["qualita_il"]).strftime("%d/%m/%Y %H:%M") if sc.get("qualita_il") else ""
+        if sc.get("segnala_car") and sc.get("car_segnalati_il"):
+            r["segnalato_car"] = {"il": dj_tz.localtime(sc["car_segnalati_il"]).strftime("%d/%m/%Y %H:%M"),
+                                  "da": "portale (mail automatica)"}
+        for chi in ("cliente", "terzista"):
+            if isinstance(r.get(f"segnalato_{chi}"), dict):
+                r[f"segnalato_{chi}"]["ruolo"] = sc.get(f"segnalato_{chi}_ruolo") or "cc"
+        r["richieste_info"] = richieste.get(aid, [])
+        raw = raw_by_id.get(aid) or {}
+        riga = {**raw, "chiudere": raw.get("chiudere"), "note_capocommessa": raw.get("note_capocommessa"),
+                "segnalare_cliente": raw.get("segnalare_cliente"), "aprire_rdc": raw.get("aprire_rdc"),
+                "avanzamento": raw.get("avanzamento")}
+        r["ruoli_in_carico"] = sorted(dq.ruoli_in_carico(riga, info.get(aid)))
+        r["in_carico_a_me"] = dq.in_carico_a_me(io, riga, info.get(aid))
+        if any(q["aperta"] for q in r["richieste_info"]):
+            r["ruoli_risposta"] = ruoli_risposta(request, riga)
+
+
 def _segna_serve_azione(rows: list[dict]) -> None:
     """``serve_azione`` sulle righe aperte la cui prima decisione è stata «Azione di
     recupero» senza azione effettuata: la chiusura per loro non è ammessa."""
@@ -2463,13 +2638,17 @@ def _can_view_anomalie_for_op(request, op_id: str) -> bool:
             return True
         if _vede_op_ruoli(request, *_dati_op_per_permessi(op_id)):
             return True
-        # Referenti RDC: vedono (non modificano) gli OP con RDC / segnalazioni al cliente.
-        return _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100))
+        # Qualità (referenti RDC): vedono gli OP con anomalie; il CAR quelli dove gli
+        # sono state segnalate. In lettura: la modifica resta a _can_edit_anomalie_for_op.
+        return ((_is_referente_rdc(request) and _op_ha_anomalie(_safe_text(op_id, 100)))
+                or _car_segnalato_su_op(request, _safe_text(op_id, 100)))
 
     scope = _request_anomalie_list_scope(request)
     if scope == AnomalieListScope.ALL:
         return True
-    if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
+    if _is_referente_rdc(request) and _op_ha_anomalie(_safe_text(op_id, 100)):
+        return True
+    if _car_segnalato_su_op(request, _safe_text(op_id, 100)):
         return True
 
     # Scope ristretto: consentito solo se l'utente ha titolo sull'OP.
@@ -2994,18 +3173,26 @@ def _ordini_payload(request, *, per_apertura: bool):
         ORDER BY op.title
     """
     referente_rdc = _is_referente_rdc(request)
-    if scope_where and referente_rdc:
-        # Scope ristretto: i referenti RDC vedono anche gli OP con anomalie aperte
-        # da aprire RDC o da segnalare al cliente.
-        scope_where += (
-            " OR EXISTS (SELECT 1 FROM anomalie ar"
-            f" WHERE (ar.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)"
-            " OR (ar.op_lookup_id IS NULL AND LOWER(CAST(ar.ex_op_nominativo AS NVARCHAR(200)))"
-            " = LOWER(CAST(op.title AS NVARCHAR(200)))))"
-            " AND COALESCE(ar.chiudere, 0) = 0"
-            " AND (COALESCE(ar.aprire_rdc, 0) = 1 OR COALESCE(ar.segnalare_cliente, 0) = 1))"
-        )
-        scope_where = "WHERE (" + scope_where[len("WHERE "):] + ")"
+    # «In carico» per singola anomalia (decisione_qualita.ruoli_in_carico): quante
+    # anomalie aperte di ogni OP toccano a chi guarda, e gli OP dove è CAR segnalato.
+    carico = _in_carico_per_op(request)
+    if scope_where and (referente_rdc or carico["car_ops"]):
+        # Scope ristretto: la qualità vede gli OP con anomalie aperte, il CAR quelli
+        # dove il capocommessa gliele ha segnalate.
+        extra = []
+        if referente_rdc:
+            extra.append(
+                " EXISTS (SELECT 1 FROM anomalie ar"
+                f" WHERE (ar.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)"
+                " OR (ar.op_lookup_id IS NULL AND LOWER(CAST(ar.ex_op_nominativo AS NVARCHAR(200)))"
+                " = LOWER(CAST(op.title AS NVARCHAR(200)))))"
+                " AND COALESCE(ar.chiudere, 0) = 0)"
+            )
+        if carico["car_ops"]:
+            extra.append(" LOWER(CAST(op.title AS NVARCHAR(200))) IN ("
+                         + ", ".join(["%s"] * len(carico["car_ops"])) + ")")
+            scope_params = list(scope_params) + sorted(carico["car_ops"])
+        scope_where = "WHERE (" + scope_where[len("WHERE "):] + " OR" + " OR".join(extra) + ")"
     rows = _fetch_all_dict(sql.replace("{SCOPE}", scope_where), scope_params or None)
 
     filtra = ruoli_attivi and not is_super
@@ -3042,8 +3229,11 @@ def _ordini_payload(request, *, per_apertura: bool):
         # al cliente; sono «in carico» a lui solo quelle che non ha rimandato al
         # capocommessa con «In attesa di ulteriori informazioni».
         vede_rdc = referente_rdc and rdc_cliente > 0
-        in_carico_rdc = referente_rdc and int(r.get("anomalie_rdc_in_carico_count") or 0) > 0
-        if filtra and not vede_rdc and not _vede_op_ruoli(request, capo, car, creatori):
+        titolo_l = str(r.get("op_title") or "").strip().lower()
+        n_carico = _conta_in_carico(request, carico, titolo_l, str(r.get("item_id") or ""), capo, car)
+        vede_qualita = referente_rdc and int(r.get("anomalie_aperte_count") or 0) > 0
+        if (filtra and not vede_rdc and not vede_qualita and titolo_l not in carico["car_ops"]
+                and not _vede_op_ruoli(request, capo, car, creatori)):
             continue
         item = {
             "item_id": r.get("item_id"),
@@ -3057,9 +3247,11 @@ def _ordini_payload(request, *, per_apertura: bool):
             # Aperte su cui il capocommessa non ha ancora deciso nulla (stessa regola
             # di controllo_service.riga_gestita): ordinano e segnalano gli OP in carico.
             "anomalie_da_decidere_count": int(r.get("anomalie_da_decidere_count") or 0),
-            # «In carico a me»: la persona è capocommessa o CAR dell'OP; poterlo
-            # modificare non basta.
-            "in_carico": bool(_op_role_codes_da_persone(request, capo, car)) or in_carico_rdc,
+            # «In carico a me»: almeno un'anomalia aperta dell'OP tocca a chi guarda
+            # (capocommessa, qualità, controllore, CAR segnalato); poterlo modificare
+            # non basta.
+            "in_carico": n_carico > 0,
+            "anomalie_in_carico_count": n_carico,
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
@@ -3511,6 +3703,7 @@ def api_anomalie(request):
         _segna_serve_azione(payload_rows)
         _segna_dove_pezzi_terzista(payload_rows)
         _segna_eliminabili(request, payload_rows, {r.get("id"): r for r in unique_rows}, autori, op_title)
+        _segna_qualita_e_carico(request, payload_rows, {r.get("id"): r for r in unique_rows}, op_title)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
@@ -3599,10 +3792,17 @@ def api_anomalie_allegati_upload(request):
         if not row:
             return _json_error("Anomalia non trovata", status=404)
         op_id = str(row.get("ex_op_nominativo") or "").strip()
-        if not _can_attach_anomalia(request, local_id, op_id):
+        ambito = str(request.POST.get("ambito") or "").strip().lower()
+        per_qualita = ambito == "qualita"
+        if per_qualita:
+            # Allegati della decisione qualità: solo chi decide la qualità.
+            from anomalie.qualita_views import puo_decisione_qualita
+            if not puo_decisione_qualita(request):
+                return _json_error("Permesso negato: allega alla decisione qualità solo la qualità", status=403)
+        elif not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
         # Allegati della decisione del capocommessa: solo chi decide (modifica l'OP).
-        per_decisione = str(request.POST.get("ambito") or "").strip().lower() == "decisione"
+        per_decisione = ambito == "decisione"
         if per_decisione and not _can_edit_anomalie_for_op(request, op_id):
             return _json_error("Permesso negato: solo chi decide può allegare alla decisione", status=403)
 
@@ -3640,7 +3840,8 @@ def api_anomalie_allegati_upload(request):
                 f"Cartella allegati non scrivibile sul server ({folder}): {writable_err}",
                 status=500,
             )
-        saved_file_ids, saved_names, errors = salva_file_allegati(local_id, folder, files, per_decisione=per_decisione)
+        saved_file_ids, saved_names, errors = salva_file_allegati(local_id, folder, files, per_decisione=per_decisione,
+                                                                  per_qualita=per_qualita)
         saved = len(saved_file_ids)
 
         logger.info(
@@ -3679,7 +3880,7 @@ def api_anomalie_allegati_upload(request):
         return _json_error(f"Errore upload allegati: {exc}", status=500)
 
 
-def salva_file_allegati(local_id: int, folder, files, *, per_decisione: bool = False):
+def salva_file_allegati(local_id: int, folder, files, *, per_decisione: bool = False, per_qualita: bool = False):
     """Scrive i file caricati nella cartella allegati dell'anomalia (stesse regole per
     pagina e link mail). Ritorna ``(file_id salvati, nomi, errori)``; non solleva."""
     saved_file_ids: list[str] = []
@@ -3701,7 +3902,8 @@ def salva_file_allegati(local_id: int, folder, files, *, per_decisione: bool = F
         if file_size > ALLEGATI_MAX_FILE_SIZE:
             errors.append(f"{original}: supera {DOCUMENT_MAX_MB} MB")
             continue
-        file_id = f"{uuid4().hex}{ALLEGATI_DECISIONE_SUFFIX if per_decisione else ''}__{safe_name}"
+        suffisso = ALLEGATI_QUALITA_SUFFIX if per_qualita else (ALLEGATI_DECISIONE_SUFFIX if per_decisione else "")
+        file_id = f"{uuid4().hex}{suffisso}__{safe_name}"
         target = folder / file_id
         try:
             with target.open("wb") as dest:
@@ -4476,17 +4678,21 @@ MSG_RISPOSTA_SENZA_STATO = ("Hai scritto la risposta: scegli lo stato definitivo
 
 
 def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento,
-                        terzista: bool = False, segnalato_terzista: bool = False) -> bool:
-    """Regola unica della chiusura automatica al salvataggio (pagina e form mail).
+                        terzista: bool = False, segnalato_terzista: bool = False, *,
+                        cc_chiude: bool = True, chiarimenti: bool = False) -> bool:
+    """Regola unica della chiusura automatica (pagina, link mail, decisione qualità).
 
-    «Aprire RDC», «Segnalare al cliente» e «Segnala a terzista» non chiudono da
-    soli: l'anomalia resta aperta finché l'RDC non ha un numero e le segnalazioni
-    non sono registrate («Segnalato al cliente/terzista»). Gli stati d'attesa
-    (risposta del cliente o del terzista, ulteriori informazioni) la tengono
-    aperta. «Chiudi» (chiusura a mano) non passa da qui.
+    - stati d'attesa (risposta del cliente / terzista, ulteriori informazioni) o
+      richiesta di chiarimenti aperta: resta aperta;
+    - «Segnalare al cliente» / «Segnala a terzista» non ancora «Segnalato»: aperta;
+    - con «Aprire RDC»: si chiude quando c'è il numero RDC (lo scrive la qualità);
+    - senza RDC, segnalazioni fatte: si chiude;
+    - senza spunte: «Accetto lo stato» / «Apertura ORE/RIPI», se in Configurazione il
+      capocommessa può chiudere (``cc_chiude``).
+    «Chiudi» (a mano) non passa da qui.
     """
     av = str(avanzamento or "").strip().lower()
-    if av in _STATI_ATTESA:
+    if av in _STATI_ATTESA or chiarimenti:
         return False
     if segnalare and not segnalato_fatto:
         return False
@@ -4494,7 +4700,9 @@ def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avan
         return False
     if aprire_rdc:
         return bool(str(numero_rdc or "").strip())
-    return av in _STATI_CHIUSURA
+    if segnalare or terzista:
+        return True
+    return cc_chiude and av in _STATI_CHIUSURA
 
 
 def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnalati, gia_segnalati, risposte) -> None:
@@ -4511,7 +4719,8 @@ def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnal
     }
     for chi in segn.DESTINATARI:
         try:
-            if segnalati[chi] != gia_segnalati[chi] and segn.registra_segnalato(local_id, chi, segnalati[chi], chi_utente):
+            if segnalati[chi] != gia_segnalati[chi] and segn.registra_segnalato(local_id, chi, segnalati[chi], chi_utente,
+                                                                                ruolo="cc"):
                 nota = (f"Segnalato {SEGNALATO_A[chi]}" if segnalati[chi]
                         else f"Tolta la spunta «Segnalato {SEGNALATO_A[chi]}»")
                 log_anomalia_portal_action(action="segnalato", note=nota, **comuni)
@@ -4640,13 +4849,14 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
     prev_chiuso = False
     prev_av = ""
     prev_note = ""
+    prev_numero_rdc = ""
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
                 pre_cur.execute(
-                    "SELECT avanzamento, chiudere, note_capocommessa FROM anomalie WHERE id = %s"
-                    if "note_capocommessa" in cols else
-                    "SELECT avanzamento, chiudere, NULL FROM anomalie WHERE id = %s",
+                    "SELECT avanzamento, chiudere, {nota}, {num} FROM anomalie WHERE id = %s".format(
+                        nota="note_capocommessa" if "note_capocommessa" in cols else "NULL",
+                        num="numero_rdc" if "numero_rdc" in cols else "NULL"),
                     [local_pk_id],
                 )
                 pre_row = pre_cur.fetchone()
@@ -4654,10 +4864,13 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 prev_av = str(pre_row[0] or "").strip()
                 prev_chiuso = bool(pre_row[1])
                 prev_note = str(pre_row[2] or "")
+                prev_numero_rdc = str(pre_row[3] or "")
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
                 # Prima decisione «Azione di recupero»: si chiude solo con l'azione
                 # effettuata (o aprendo un RDC, che porta la decisione al cliente).
-                if (not prev_chiuso and chiudere_val and not _as_bool_int(data.get("aprire_rdc"))
+                # Con segnalazioni la chiusura è automatica: lì resta aperta senza errore.
+                if (not prev_chiuso and (chiudere_val or chiudi_manuale) and not _as_bool_int(data.get("aprire_rdc"))
+                        and (chiudi_manuale or not (segnalare_val or _as_bool_int(data.get("segnala_terzista"))))
                         and _serve_azione_per_chiudere(local_pk_id)):
                     from anomalie.tempi_service import MSG_SERVE_AZIONE
                     return {"success": False, "error": MSG_SERVE_AZIONE, "status": 400}
@@ -4680,10 +4893,11 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         for chi in segn.DESTINATARI:
             if f"segnalato_{chi}" in data and richiesti[chi]:
                 segnalati[chi] = bool(_as_bool_int(data.get(f"segnalato_{chi}")))
-    appena = [chi for chi in segn.DESTINATARI if segnalati[chi] and not gia_segnalati[chi]]
-    if appena:
-        payload_map["avanzamento"] = _canonicalize_avanzamento(
-            segn.avanzamento_dopo_segnalato(payload_map["avanzamento"], appena, prev_av))
+    # Il numero RDC lo scrive la qualità: un salvataggio che non lo manda non lo tocca.
+    if "numero_rdc" not in data:
+        payload_map["numero_rdc"] = prev_numero_rdc
+        for d in (writable, insert_writable, update_writable):
+            d.pop("numero_rdc", None)
     # In attesa di risposta la nota già mandata resta com'era (bundle vecchi compresi).
     if segn.nota_congelata(prev_av, prev_note):
         payload_map["note_capocommessa"] = prev_note
@@ -4691,24 +4905,30 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         for k in ("avanzamento", "note_capocommessa"):
             if k in d:
                 d[k] = payload_map[k]
-    if chiudi_manuale and not prev_chiuso:
-        chiudere_val = 1
-        payload_map["chiudere"] = 1
-        for d in (writable, insert_writable, update_writable):
-            if "chiudere" in d:
-                d["chiudere"] = 1
+    # Chiusura decisa dal server con la regola unica (anche per pagine vecchie):
+    # «Chiudi» a mano solo se in Configurazione il capocommessa può chiudere; con
+    # «Azione di recupero» senza azione effettuata non si chiude da sola. Una già
+    # chiusa non si riapre da qui.
+    if puo_modificare and not da_controllo and not prev_chiuso:
+        from anomalie.decisione_qualita import cc_puo_chiudere, info_per_anomalie
 
-    # «Aprire RDC» / «Segnalare…» senza numero RDC o segnalazione registrata:
-    # l'anomalia resta aperta anche se il client chiede di chiuderla (bundle vecchi
-    # compresi), salvo «Chiudi» a mano. Una già chiusa non si riapre da qui.
-    if chiudere_val and not prev_chiuso and not chiudi_manuale and not chiusura_automatica(
-        payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val, segnalati["cliente"],
-        payload_map["avanzamento"], terzista_val, segnalati["terzista"],
-    ):
-        chiudere_val = 0
-        for d in (payload_map, writable, insert_writable, update_writable):
-            if "chiudere" in d:
-                d["chiudere"] = 0
+        cc_chiude = cc_puo_chiudere()
+        chiudi_manuale = chiudi_manuale and cc_chiude
+        info_q = info_per_anomalie([local_pk_id]).get(local_pk_id, {}) if local_pk_id else {}
+        regola = chiusura_automatica(
+            payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val, segnalati["cliente"],
+            payload_map["avanzamento"], terzista_val, segnalati["terzista"],
+            cc_chiude=cc_chiude, chiarimenti=bool(info_q.get("richiesta_aperta")),
+        )
+        if regola and not payload_map["aprire_rdc"] and local_pk_id and _serve_azione_per_chiudere(local_pk_id):
+            regola = False
+        chiudere_val = 1 if (chiudi_manuale or regola) else 0
+    elif prev_chiuso:
+        chiudere_val = 1 if chiudere_val else 0
+    payload_map["chiudere"] = chiudere_val
+    for d in (writable, insert_writable, update_writable):
+        if "chiudere" in d:
+            d["chiudere"] = chiudere_val
 
     try:
         with connections["default"].cursor() as cursor:
@@ -4861,6 +5081,9 @@ _TIMELINE_ACTION_LABELS = {
     "op_modificato": "Dati dell'OP modificati",
     "risposta_cliente": "Risposta del cliente registrata",
     "risposta_terzista": "Risposta del terzista registrata",
+    "qualita": "Decisione qualità",
+    "richiesta_info": "Richiesta di informazioni (qualità)",
+    "risposta_info": "Risposta alla richiesta di informazioni",
     "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
     "approva": "Approvata",
@@ -5654,6 +5877,8 @@ def api_anomalie_config_liste(request):
         }
         if _can_manage_anomalie_config(request):
             payload["derived_sources"] = _load_anomalie_derived_sources()
+        from anomalie.decisione_qualita import cc_puo_chiudere
+        payload["cc_puo_chiudere"] = cc_puo_chiudere()
         return JsonResponse(payload)
 
     if request.method != "POST":
@@ -5693,6 +5918,9 @@ def api_anomalie_config_liste(request):
                 payload[ANOMALIE_DERIVED_SOURCES_KEY]
             )
         saved_attachments_dir = _save_anomalie_attachments_dir(validated_attachments_dir)
+        if "cc_puo_chiudere" in payload:
+            from anomalie.decisione_qualita import salva_cc_puo_chiudere
+            salva_cc_puo_chiudere(bool(payload.get("cc_puo_chiudere")))
     except Exception as exc:
         logger.exception("[anomalie] salvataggio liste fallito")
         return JsonResponse({"success": False, "error": str(exc)}, status=500)

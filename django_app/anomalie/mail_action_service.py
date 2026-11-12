@@ -566,6 +566,13 @@ def righe_extra_decisione(u: dict) -> list[str]:
     car = [str(c).strip() for c in (u.get("car_segnalati") or []) if str(c).strip()]
     if car:
         out.append("Segnalata ai CAR: " + ", ".join(car))
+    if u.get("avanzamento_qualita") or u.get("note_qualita"):
+        riga = "Decisione qualità: " + (u.get("avanzamento_qualita") or "nessuno stato")
+        if u.get("note_qualita"):
+            riga += f" — {str(u['note_qualita'])[:300]}"
+        if u.get("qualita_da"):
+            riga += f" ({u['qualita_da']})"
+        out.append(riga)
     return out
 
 
@@ -807,9 +814,11 @@ def register_pending_update(
             },
         )
         snapshot = obj.updates_snapshot if isinstance(obj.updates_snapshot, list) else []
-        # Sostituisci l'eventuale update precedente per la stessa anomalia
+        # L'update precedente della stessa anomalia si aggiorna con i campi nuovi
+        # (capocommessa e qualità salvano parti diverse della decisione).
+        prima = next((u for u in snapshot if str(u.get("id")) == str(update_row.get("id"))), None)
         snapshot = [u for u in snapshot if str(u.get("id")) != str(update_row.get("id"))]
-        snapshot.append(update_row)
+        snapshot.append({**prima, **update_row} if isinstance(prima, dict) else update_row)
         obj.updates_snapshot = snapshot
         obj.op_nominativo = op_nominativo or obj.op_nominativo
         obj.last_modified_at = _tz.now()

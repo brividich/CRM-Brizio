@@ -251,11 +251,13 @@ SEZIONI: list[dict] = [
                   "Da telefono le tre colonne diventano le schede Ordini, Anomalie e Dettaglio in basso."),
             ("ul", [
                 "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
-                "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
-                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, tranne quelle "
-                "rimandate al capocommessa con «In attesa di ulteriori informazioni», che possono "
-                "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
-                "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Ogni riga mostra numero e P/N "
+                "e «Tutti» (anche gli OP con sole anomalie chiuse), con i conteggi. «In carico a me» guarda ogni "
+                "anomalia: compaiono solo gli OP con anomalie che toccano a te e, dentro l'OP, solo quelle (la casella "
+                "«Mostra tutte» fa vedere le altre). Al capocommessa toccano quelle senza la sua decisione o rimandate "
+                "con «In attesa di ulteriori informazioni»; alla qualità quelle già decise e ancora aperte; al CAR quelle "
+                "che il capocommessa gli ha segnalato con «Segnala a CAR»; al controllore (o al capocommessa) quelle su "
+                "cui la qualità ha chiesto informazioni; in attesa della risposta del cliente o del terzista, a chi ha "
+                "fatto la segnalazione. Con «Mostra tutte» le tue hanno l'etichetta «Tocca a te»; la ricerca trova OP, P/N, capocommessa e CAR. Ogni riga mostra numero e P/N "
                 "dell'OP: il numero arancione indica le anomalie aperte ancora da decidere, quello blu le aperte già "
                 "decise e in corso, la spunta verde un OP con tutte le anomalie chiuse.",
                 "In cima alla colonna Anomalie c'è la scheda dell'OP scelto: P/N, capocommessa, CAR, la barra "
@@ -292,55 +294,47 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Apri l'OP e scegli l'anomalia (filtro «Da decidere» per vedere solo quelle aperte).",
-                "Leggi la «Segnalazione» e guarda gli allegati: un clic su una foto la ingrandisce.",
-                "In cima alla «Decisione del capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
+                "Il dettaglio ha tre blocchi: «Controllore · segnalazione» (testo, «Dove sono i pezzi?», misure e "
+                "riferimenti del controllore, allegati), «Capocommessa» e «Decisione qualità».",
+                "In cima al blocco «Capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
                 "Segnalata, Decisa (con la decisione presa), Risposta del cliente se è stata segnalata, Azione "
                 "effettuata con «Azione di recupero», Chiusa; il passo arancione è quello in corso.",
-                "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Segnala a "
-                "terzista», «Segnala a CAR», «Pezzi precedenti al benestare». Spuntando «Segnalare al cliente» si spunta "
-                "anche «Aprire RDC» (puoi toglierla); con «Aprire RDC» la segnalazione al cliente resta facoltativa.",
+                "Spunta i flag: «Aprire RDC», «Segnalare al cliente», «Segnala a terzista», «Segnala a CAR», «Pezzi "
+                "precedenti al benestare». Spuntando «Segnalare al cliente» si spunta anche «Aprire RDC» (puoi toglierla).",
+                "Con uno dei tre «Segnalare…» compare «Segnalato»: spuntalo se la segnalazione l'hai fatta tu (cliente, "
+                "terzista). «Segnalato al CAR» si spunta da solo quando parte la mail del portale ai CAR scelti. Se non "
+                "spunti «Segnalato», la segnalazione la fa la qualità.",
                 "Con «Segnala a CAR» scegli in «A quale CAR?» uno o più capi reparto: nessuno è scelto di serie (il CAR "
                 "dell'OP è indicato con «· CAR dell'OP» e riceve comunque il riepilogo delle modifiche; le altre scelte "
                 "vengono dai capi reparto di Configurazione). Al salvataggio solo i CAR appena scelti ricevono la mail "
-                "«Segnala a CAR» con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già "
-                "ricevuta non la riceve di nuovo.",
-                "Con «Aprire RDC», «Segnalare al cliente» o «Segnala a terzista» compare sotto le spunte il riquadro "
-                "«Resta aperta finché non completi questi passi», con i passi numerati: «Numero RDC», «Segnalato al "
-                "cliente» / «Segnalato al terzista» (si spuntano direttamente nel riquadro, anche prima di aver salvato) "
-                "e poi la risposta. Spuntando «Segnalato…» l'avanzamento passa da solo a «In attesa risposta cliente» "
-                "o «In attesa risposta terzista»; togliendo la spunta torna lo stato di prima. Data e nome di chi l'ha "
-                "spuntato si registrano al salvataggio e compaiono nel riepilogo delle modifiche.",
-                "Mentre l'anomalia aspetta la risposta, le note già scritte restano ferme in «Note già inviate» e sotto "
-                "compare il campo «Risposta del cliente» (o «Risposta del terzista»): scrivi cosa ha risposto, scegli lo "
-                "stato definitivo e salva. Le risposte registrate restano visibili sopra il campo e in «Tempi ed esiti».",
-                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), per esempio "
-                "la comunicazione al cliente o al terzista o la mail salvata (.msg o .eml): si possono caricare anche "
-                "ad anomalia chiusa e restano "
-                "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "
-                "le misure e i riferimenti scritti dal controllore (in sola lettura).",
-                "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
-                "Scrivi la «Risposta / note per il reparto»: decisione, istruzioni di rilavorazione, riferimenti.",
-                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
+                "«Segnala a CAR» con l'anomalia, la decisione e il link, più una notifica nel portale.",
+                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), anche la mail "
+                "salvata (.msg o .eml): restano separati dagli allegati della segnalazione e da quelli della qualità.",
+                "Scegli l'«Avanzamento» e scrivi la «Risposta / note per il reparto». Il «Numero RDC» lo scrive la qualità.",
+                "Un riquadro dice cosa succede al salvataggio: «si chiude», «passa alla qualità» o «resta in attesa "
+                "della risposta».",
+                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
             ]),
             ("ul", [
-                "L'anomalia si chiude da sola al salvataggio quando scegli «Accetto lo stato» o «Apertura ORE/RIPI»: "
-                "la pagina lo avvisa prima di salvare.",
-                "«Aprire RDC», «Segnalare al cliente» e «Segnala a terzista» non la chiudono: resta aperta (con RDC o "
-                "cliente in carico ai referenti RDC) finché l'RDC non ha il numero, le segnalazioni non sono spuntate "
-                "e non scegli uno stato definitivo dopo la risposta. Il riquadro dei passi diventa verde quando "
-                "l'anomalia si chiuderà al salvataggio; il campo «Numero RDC» vuoto è evidenziato e nell'elenco le "
-                "anomalie mostrano «RDC · manca N°», «Cliente · da segnalare» e «Terzista · da segnalare».",
-                "«Chiudi l'anomalia», sotto le note, c'è sempre: spuntalo per chiuderla al salvataggio anche se mancano "
-                "dei passi. Quando la decisione la chiude già da sola è spuntato e bloccato.",
-                "Il referente RDC può rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte restano, "
-                "l'anomalia torna in carico al capocommessa (notifica nel portale, conta fra le da decidere) e quando "
-                "lui sceglie un altro stato torna al referente.",
+                "Chiusura automatica: senza RDC, «Segnalato al cliente» / «Segnalato al terzista» chiudono l'anomalia; "
+                "con «Aprire RDC» si chiude quando la qualità scrive il numero RDC (e le segnalazioni sono fatte). "
+                "Senza spunte chiudono «Accetto lo stato» e «Apertura ORE/RIPI», se in Configurazione «Il capocommessa "
+                "può chiudere le anomalie» è acceso (di serie); con lo stesso interruttore c'è «Chiudi l'anomalia». "
+                "Spento, chiude solo la qualità.",
+                "Per aspettare la risposta del cliente o del terzista scegli «In attesa risposta cliente» / «In attesa "
+                "risposta terzista»: l'anomalia resta aperta, in carico a chi ha fatto la segnalazione, le note già "
+                "scritte restano ferme in «Note già inviate» e compare il campo della risposta; poi si sceglie lo stato "
+                "definitivo.",
+                "Se la qualità ti chiede informazioni compare «Richieste della qualità» nel tuo blocco: scrivi la "
+                "risposta e premi «Invia risposta»; l'anomalia torna alla qualità.",
+                "Il referente RDC può ancora rispondere con lo stato «In attesa di ulteriori informazioni»: le spunte "
+                "restano, l'anomalia torna in carico al capocommessa e quando lui sceglie un altro stato torna alla "
+                "qualità.",
                 "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa» (tranne con RDC, cliente o "
-                "terzista da segnalare): scegline un altro, altrimenti il salvataggio si ferma con l'avviso. Allo stesso "
-                "modo, scritta la risposta del cliente o del terzista serve lo stato definitivo (o «Chiudi l'anomalia»).",
-                "La pagina del link della mail fa le stesse cose: «Segnala a terzista», «Segnalato…», note ferme in "
-                "attesa di risposta, campo della risposta, «Chiudi l'anomalia» e allegati della decisione (anche .msg "
-                "ed .eml), che si caricano alla conferma finale.",
+                "terzista da segnalare); scritta la risposta del cliente o del terzista serve lo stato definitivo.",
+                "La pagina del link della mail fa le stesse cose: flag (anche «Segnala al CAR» dell'OP), «Segnalato…», "
+                "risposta alle richieste della qualità, note ferme in attesa di risposta, «Chiudi l'anomalia» se "
+                "permesso e allegati della decisione (anche .msg ed .eml); la decisione qualità si vede in sola lettura.",
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
@@ -373,6 +367,32 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "qualita",
+        "titolo": "Decisione qualità",
+        "blocchi": [
+            ("p", "Dopo la decisione del capocommessa l'anomalia passa alla qualità: le persone della lista «Qualità "
+                  "(referenti RDC / segnalazione cliente)» di Configurazione. La trovano in «In carico a me»."),
+            ("passi", [
+                "Nel blocco «Decisione qualità» scrivi il «Numero RDC» (c'è solo con «Aprire RDC»).",
+                "Scegli l'«Avanzamento qualità» (lista di Configurazione, di serie «In attesa» e «In attesa "
+                "chiarimenti»; «— nessuno stato —» lascia vuoto) e scrivi le «Note della qualità».",
+                "Se il capocommessa non ha fatto la segnalazione, spunta tu «Segnalato al cliente» / «Segnalato al "
+                "terzista».",
+                "Carica gli allegati della qualità (anche mail .msg ed .eml).",
+                "«Salva» registra la decisione; «Chiudi l'anomalia» la chiude subito.",
+            ]),
+            ("ul", [
+                "Senza RDC le segnalazioni fatte chiudono l'anomalia; con RDC si chiude scrivendo il numero. Prima di "
+                "salvare la pagina avvisa «Al salvataggio l'anomalia si chiude».",
+                "«Richiedi info aggiuntive…»: scegli capocommessa e/o controllore e scrivi cosa serve. Ricevono una "
+                "notifica e una mail con un link per rispondere senza accesso; l'avanzamento qualità diventa «In attesa "
+                "chiarimenti» e l'anomalia è in carico a loro finché non rispondono. La risposta torna a te con notifica "
+                "e mail, e lo stato torna «In attesa». Le richieste restano nel blocco con chi e quando.",
+                "La decisione qualità entra nel riepilogo delle modifiche dell'OP.",
+            ]),
+        ],
+    },
+    {
         "id": "tempi",
         "titolo": "Tempi ed esiti: risposta del cliente e azione effettuata",
         "blocchi": [
@@ -391,9 +411,8 @@ SEZIONI: list[dict] = [
                 ("Risoluzione", "dalla creazione alla chiusura (dopo una riapertura conta l'ultima chiusura)."),
             ]),
             ("passi", [
-                "Risposta del cliente o del terzista: si scrive nella decisione, nel campo che compare dopo «Segnalato "
-                "al cliente» / «Segnalato al terzista»; la mail (.msg o .eml) si allega in «Allegati della decisione». "
-                "Qui restano le risposte registrate, con chi e quando.",
+                "Risposta del cliente o del terzista: con «In attesa risposta …» la scrive, nel suo blocco, chi ha fatto "
+                "la segnalazione (capocommessa o qualità). Qui restano le risposte registrate, con chi e quando.",
                 "Azione effettuata: con la decisione «Azione di recupero» il riquadro è già aperto; per le altre "
                 "anomalie aperte usa «+ Registra un'azione effettuata». Scegli l'azione (Rilavorato, Riparato, "
                 "Scartato, Reso al fornitore, Accettato in deroga), scrivi le note, allega foto o documenti.",

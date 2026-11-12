@@ -195,6 +195,17 @@ class AnomaliaSchedaQualita(models.Model):
     segnalato_cliente_da = models.CharField(max_length=200, blank=True, default="")
     segnalato_terzista_il = models.DateTimeField(null=True, blank=True)
     segnalato_terzista_da = models.CharField(max_length=200, blank=True, default="")
+    # Chi ha fatto la segnalazione: «cc» (capocommessa) o «qualita». In attesa della
+    # risposta l'anomalia è in carico a lui, che ne registra la risposta.
+    segnalato_cliente_ruolo = models.CharField(max_length=16, blank=True, default="")
+    segnalato_terzista_ruolo = models.CharField(max_length=16, blank=True, default="")
+    # Decisione qualità (dopo quella del capocommessa): avanzamento dalla lista
+    # configurabile «Avanzamento qualità» (vuoto = nessuno stato), note, chi e quando.
+    # Il numero RDC resta nella colonna legacy ``anomalie.numero_rdc``.
+    avanzamento_qualita = models.CharField(max_length=100, blank=True, default="")
+    note_qualita = models.TextField(blank=True, default="")
+    qualita_il = models.DateTimeField(null=True, blank=True)
+    qualita_da = models.CharField(max_length=200, blank=True, default="")
     # Dati strutturati scritti dal controllore (misure, difetto, documenti, riferimento):
     # vedi anomalie/dettaglio_controllo.py. Facoltativi: la descrizione libera resta.
     dettaglio_controllo = models.JSONField(default=dict, blank=True)
@@ -487,3 +498,35 @@ class AnomaliaEsito(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()} anomalia {self.anomalia_id}"
+
+
+class AnomaliaRichiestaInfo(models.Model):
+    """«Richiedi info aggiuntive»: la qualità chiede chiarimenti sulla segnalazione al
+    capocommessa e/o al controllore; finché non rispondono l'anomalia è in carico a loro."""
+
+    DESTINATARI = (("cc", "Capocommessa"), ("controllore", "Controllore"))
+
+    anomalia_id = models.IntegerField(db_index=True)
+    destinatari = models.JSONField(default=list, blank=True)
+    messaggio = models.TextField()
+    richiesta_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    richiesta_da_display = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    risposta = models.TextField(blank=True, default="")
+    risposta_da_display = models.CharField(max_length=200, blank=True, default="")
+    risposta_ruolo = models.CharField(max_length=16, blank=True, default="")
+    risposta_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Richiesta informazioni anomalia"
+        verbose_name_plural = "Richieste informazioni anomalie"
+
+    @property
+    def aperta(self) -> bool:
+        return self.risposta_il is None
+
+    def __str__(self) -> str:
+        return f"Richiesta info anomalia {self.anomalia_id}"

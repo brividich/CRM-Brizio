@@ -261,6 +261,22 @@
     .ga-risposta__gia { padding: 6px 10px; margin-bottom: 6px; border-left: 3px solid #0ea5e9; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: var(--fs-sm); }
     .ga-chiudi { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
     body.theme-dark .ga-chiusura--info .ga-chiusura__t { color: #fdba74; }
+    /* Tre blocchi: «Segnalato» del capocommessa, decisione qualità, richieste di informazioni */
+    .ga-segnalati-riga { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 10px; }
+    .ga-segnalati-riga > .ga-hint:first-child { flex-basis: 100%; }
+    .ga-segnalato-voce { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ga-card--qualita { border-top: 4px solid #7c3aed; }
+    .ga-qualita__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .ga-qualita__spacer { flex: 1; }
+    .ga-richieste { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); display: grid; gap: 8px; font-size: var(--fs-sm); }
+    .ga-richieste.is-aperta { border: 2px solid #f97316; border-left-width: 6px; background: var(--accent-light); }
+    .ga-richieste__t { font-weight: 800; }
+    .ga-richiesta__msg { white-space: pre-wrap; }
+    .ga-richiesta__risp { margin-top: 4px; padding-left: 8px; border-left: 3px solid var(--success); white-space: pre-wrap; }
+    .ga-richiesta__form { display: grid; gap: 6px; justify-items: start; }
+    .ga-mostra-tutte { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-mid); cursor: pointer; }
+    .ga-pill--tocca { background: #ede9fe; color: #5b21b6; }
+    body.theme-dark .ga-pill--tocca { background: #3b2a63; color: #ddd6fe; }
     /* Clona OP: pulsante sulla riga dell'ordine e selezione delle anomalie da copiare */
     /* Riga OP compatta: numero + contatori, P/N sotto */
     .ga-opr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-left: 3px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
@@ -423,6 +439,9 @@
       salva: "{% url 'api_anomalie_salva' %}",
       riapri: "{% url 'api_anomalie_riapri' %}",
       segnalato: "{% url 'api_anomalie_segnalato' %}",
+      qualita_salva: "{% url 'api_anomalie_qualita_salva' %}",
+      qualita_richiedi_info: "{% url 'api_anomalie_qualita_richiedi_info' %}",
+      qualita_rispondi_info: "{% url 'api_anomalie_qualita_rispondi_info' %}",
       elimina: "{% url 'api_anomalie_elimina' %}",
       sposta: "{% url 'api_anomalie_sposta' %}",
       op_modifica: "{% url 'api_anomalie_op_modifica' %}",
