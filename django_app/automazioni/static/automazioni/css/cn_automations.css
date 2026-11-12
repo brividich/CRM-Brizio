@@ -160,11 +160,12 @@ body.theme-dark .cn-lane--si strong { color:#86efac; } body.theme-dark .cn-lane-
 .cn-auto [data-condition-card] .designer-choice-helper { order:5; grid-column:1 / -1; padding:8px 10px; }
 .cn-auto [data-condition-card] .designer-field:has([name$="-expected_value"]) .designer-help { display:none; }
 
-/* Pulsanti «+ Log / + Email …» dentro i rami: piccoli, come il «+» di Power Automate */
-.cn-auto .designer-inline-toolbar { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px; }
-.cn-auto .designer-inline-toolbar .btn { background:var(--cn-card) !important; color:#0f6cbd !important; border:1px dashed #0f6cbd !important;
-  border-radius:999px; font-size:12px; font-weight:600; padding:3px 10px; height:auto; min-height:0; box-shadow:none; flex:none; }
-.cn-auto .designer-inline-toolbar [data-inline-json-clear],
-.cn-auto .designer-inline-toolbar [data-inline-json-copy-other] { color:var(--cn-sub) !important; border-color:var(--cn-border) !important; }
+/* Pulsanti «+ Log / + Email …» dentro i rami: piccoli, come il «+» di Power Automate (in tutte e due le viste) */
+.designer-inline-toolbar { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px; }
+.designer-inline-toolbar .btn { background:var(--surface, #fff) !important; color:#0f6cbd !important; border:1px dashed #0f6cbd !important;
+  border-radius:999px; font-size:12px; font-weight:600; line-height:1.3; padding:3px 10px; height:auto; min-height:0; width:auto; box-shadow:none; flex:none; }
+.designer-inline-toolbar [data-inline-json-clear],
+.designer-inline-toolbar [data-inline-json-copy-other] { color:var(--text-light, #605e5c) !important; border-color:var(--border, #e1dfdd) !important; }
+.designer-branch-column, .designer-inline-builder-grid > section { align-content:start; align-items:start; }
+body.theme-dark .designer-inline-toolbar .btn { color:#93c5fd !important; border-color:#60a5fa !important; }
 .cn-auto [data-action-config] > .designer-help { display:none; }
-.cn-auto .designer-branch-column { align-content:start; align-items:start; }
