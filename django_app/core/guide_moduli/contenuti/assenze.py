@@ -211,6 +211,13 @@ GUIDA = {
                                                        "non lo registravano. Le righe che non sono malattie o hanno già il certificato vengono saltate."),
                     ("Sincronizzazione SharePoint", "coda delle modifiche da mandare alla lista SharePoint, eventuali errori e pulsante «Sincronizza ora»."),
                 ]),
+                ("p", "Le mail del modulo si personalizzano in Automazioni (amministratori): in «Notifiche di sistema» le righe "
+                      "«Assenze - esito della richiesta al dipendente», «Assenze - richiesta modificata», «Assenze - richiesta eliminata» e "
+                      "«Assenze - certificazione di presenza confermata»; in «Pianificati» i solleciti ai capi (assenze_solleciti) e "
+                      "l'avviso del certificato mancante (assenze_certificato_avviso). «Modifica» apre il passaggio «Invia un messaggio "
+                      "di posta»: accendere o spegnere la mail, indirizzi in più in A o in CC, indirizzi da togliere, oggetto ({oggetto} = "
+                      "quello del modulo), testo prima e nota in fondo. I destinatari normali (dipendente, capo, casella assenze) restano "
+                      "decisi dal modulo."),
             ],
         },
         {
