@@ -332,4 +332,5 @@ class ProjectIdentitySuggestTests(TasksBaseTestCase):
         self.assertContains(response, 'id="project-client-datalist"')
         self.assertContains(response, 'id="project-part-number-datalist"')
         self.assertContains(response, reverse("tasks:identity_suggest"))
-        self.assertContains(response, "window.portalReadJsonResponse")
+        # window.portalReadJsonResponse sta in core/js/portal-json.js, caricato dalla base.
+        self.assertContains(response, "core/js/portal-json.js")
