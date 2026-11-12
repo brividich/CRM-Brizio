@@ -8,6 +8,8 @@ urlpatterns = [
     path("assenze/calendario/partial/", htmx_views.calendario_month_partial, name="assenze_calendario_partial"),
     path("assenze/", views.menu, name="assenze_menu"),
     path("assenze/richiesta_assenze", views.richiesta_assenze, name="assenze_richiesta"),
+    path("assenze/richiesta/campo-capo", views.richiesta_campo_capo, name="assenze_richiesta_campo_capo"),
+    path("assenze/richiesta/controlli", views.richiesta_controlli, name="assenze_richiesta_controlli"),
     path("assenze/le-mie-richieste/", views.gestione_assenze, name="assenze_gestione"),
     path("assenze/impostazioni/", views.impostazioni_admin, name="assenze_impostazioni"),
     path("assenze/gestione_assenze", RedirectView.as_view(pattern_name="assenze_gestione", permanent=False)),

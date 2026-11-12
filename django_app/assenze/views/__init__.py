@@ -82,6 +82,8 @@ from .richieste import (
     gestione_assenze,
     invio_placeholder,
     richiesta_assenze,
+    richiesta_campo_capo,
+    richiesta_controlli,
 )
 from .sharepoint import (
     api_sync_pull,

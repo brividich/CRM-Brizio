@@ -1080,6 +1080,120 @@ def richiesta_assenze(request):
     return _render_richiesta(request, conferma=conferma if isinstance(conferma, dict) else None)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Pezzi HTMX del form di richiesta: il server ridisegna il campo «Capo reparto»
+# al cambio del dipendente e il riquadro dei controlli (saldo, avvisi HR, corsi).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def richiesta_campo_capo(request):
+    """Campo «Capo reparto» per il dipendente scelto (vuoto = chi compila)."""
+    perms = _helpers._assenze_permissions(request)
+    if not perms.get("can_insert"):
+        return HttpResponseForbidden("Permessi insufficienti.")
+    capi = _helpers._load_capi_options()
+    dip_id = _helpers._as_int(request.GET.get("dipendente_id"))
+    if dip_id:
+        malattia_per_tutti = _helpers._malattia_permessi(request)["per_tutti"]
+        if not perms.get("can_insert_for_others") and not malattia_per_tutti:
+            return HttpResponseForbidden("Permessi insufficienti.")
+        if not malattia_per_tutti and not _helpers._can_insert_for_dipendente(request, dip_id):
+            return HttpResponseForbidden("Dipendente fuori dal tuo reparto.")
+        capo_value = ""
+        identity = _helpers._resolve_employee_identity_from_anagrafica(dip_id)
+        if identity:
+            emp_name, emp_email, emp_legacy_user_id = identity
+            capo_value = _helpers._resolve_default_capo_for_user(
+                name=emp_name, email=emp_email, username="", capi=capi,
+                legacy_user_id=emp_legacy_user_id,
+            )
+    else:
+        name, email, legacy_id = _helpers._legacy_identity(request)
+        display_name = _resolve_request_display_name(
+            legacy_user_id=legacy_id, email=email,
+            username=request.user.get_username(), fallback_name=name,
+        )
+        capo_value = _helpers._resolve_default_capo_for_user(
+            name=display_name, email=email, username=request.user.get_username(),
+            capi=capi, legacy_user_id=legacy_id,
+        )
+    # Stessa regola della pagina: chi non può cambiarlo lo trova fermo sul capo
+    # assegnato; senza capo assegnato il campo resta libero.
+    return _helpers.render(
+        request,
+        "assenze/partials/_richiesta_campo_capo.html",
+        {
+            "capi": capi,
+            "capo_bloccato": not perms.get("can_choose_capo") and bool(capo_value),
+            "assenze_can_choose_capo": perms.get("can_choose_capo", False),
+            "form_data": {"caporeparto": capo_value or ""},
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def richiesta_controlli(request):
+    """Controlli non bloccanti del form: saldo, avvisi HR (contatori, chiusure), corsi."""
+    from .eventi import corsi_nel_periodo
+
+    perms = _helpers._assenze_permissions(request)
+    if not perms.get("can_insert"):
+        return HttpResponseForbidden("Permessi insufficienti.")
+    tipo = _helpers._norm_tipo(request.GET.get("tipoassenza"))
+    dip_id = _helpers._as_int(request.GET.get("dipendente_id"))
+    solo_malattia = False
+    if dip_id is not None:
+        per_altri = perms.get("can_insert_for_others") and _helpers._can_insert_for_dipendente(request, dip_id)
+        if not per_altri:
+            # Abilitato alla sola malattia per tutti: niente saldi altrui.
+            if not (_helpers._malattia_permessi(request)["per_tutti"] and tipo == "Malattia"):
+                return HttpResponseForbidden("Permessi insufficienti per questo dipendente.")
+            solo_malattia = True
+        anagrafica_id = dip_id
+    else:
+        name, email, legacy_id = _helpers._legacy_identity(request)
+        anagrafica_id = _helpers._resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id, email=email, username=request.user.get_username(), name=name,
+        )
+
+    def _giorno(raw):
+        try:
+            return datetime.strptime(str(raw or "").strip(), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    d_start = _giorno(request.GET.get("date_start"))
+    d_end = _giorno(request.GET.get("date_end")) or d_start
+    avvisi, corsi = [], []
+    if d_start is not None and d_end is not None and d_end >= d_start:
+        ts = str(request.GET.get("time_start") or "00:00").strip() or "00:00"
+        te = str(request.GET.get("time_end") or "23:59").strip() or "23:59"
+        if tipo == "Ferie":
+            ts, te = "00:00", "23:59"
+        inizio = _helpers._parse_input_dt(f"{d_start.isoformat()}T{ts}")
+        fine = _helpers._parse_input_dt(f"{d_end.isoformat()}T{te}")
+        if inizio is not None and fine is not None:
+            avvisi = calcoli_hr.avvisi_richiesta(
+                anagrafica_id=anagrafica_id, tipo=tipo,
+                motivazione=request.GET.get("motivazione") or "", inizio=inizio, fine=fine,
+            )
+        # I corsi sono legati all'id anagrafica del dipendente (non all'utente).
+        if anagrafica_id:
+            corsi = corsi_nel_periodo(anagrafica_id, d_start, d_end)
+            for c in corsi:
+                gi = "/".join(reversed(c["data_inizio"].split("-")))
+                gf = "/".join(reversed(c["data_fine"].split("-")))
+                c["periodo"] = f"il {gi}" if gi == gf else f"dal {gi} al {gf}"
+    saldo = None if solo_malattia else calcoli_hr.riepilogo_saldo(anagrafica_id)
+    return _helpers.render(
+        request,
+        "assenze/partials/_richiesta_controlli.html",
+        {"saldo": saldo, "avvisi": avvisi, "corsi": corsi},
+    )
+
+
 @login_required
 @ensure_csrf_cookie
 def gestione_assenze(request):
