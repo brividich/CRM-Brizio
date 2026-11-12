@@ -1266,7 +1266,7 @@ DIGEST_E_PROMEMORIA: dict[str, str] = {
 
 # Oggetto delle mail dei digest, come lo compongono i comandi (N = numero, ‹…› = testo variabile).
 # Il primo è quello principale, gli altri sono le varianti; tupla vuota = solo notifica in-app.
-# Un oggetto personalizzato da «Configura mail» (ScheduledMailText) prevale: vedi schedule_rows.
+# Un oggetto personalizzato da «Modifica» (ScheduledMailText) prevale: vedi schedule_rows.
 # Se cambi l'oggetto in un comando, aggiornalo anche qui.
 DIGEST_OGGETTO: dict[str, tuple[str, ...]] = {
     "system_digest": ("[Portale] Digest stato sistema — tutto ok", "[Portale] Digest stato sistema — attenzioni presenti"),
@@ -1483,7 +1483,7 @@ def schedule_rows() -> list[dict]:
     except Exception:
         last_runs = {}
 
-    # Oggetti personalizzati da «Configura mail»: sostituiscono quello di serie.
+    # Oggetti personalizzati da «Modifica»: sostituiscono quello di serie.
     try:
         from .models import ScheduledMailText
 

@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 112
+**Totale automazioni disponibili:** 113
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -707,6 +707,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, (10 6,13)
 - **Task eseguito:** `security.tasks.run_watchguard_api_task`
 - **Cosa fa:** SOC — WatchGuard Cloud (API): PC e protezione, software, patch mancanti. Ogni parte gira solo con il suo interruttore in /soc/impostazioni/ e le credenziali API salvate.
+
+### `watchguard_task_sync`
+
+- **Quando gira:** da lun a ven, (40 7-19)
+- **Task eseguito:** `security.tasks.run_watchguard_task_task`
+- **Cosa fa:** SOC — WatchGuard Cloud (API): solo i task di installazione patch, ogni ora in orario di lavoro, così l'esito di un'installazione lanciata dalla console arriva in giornata. Interruttore «Patch».
 
 ---
 

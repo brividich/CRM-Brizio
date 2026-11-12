@@ -23,7 +23,7 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
             "o per una modifica delle mansioni di rischio) crea nuovi adempimenti: visita, "
             "formazione, DPI, schede di sicurezza. Parte dopo il commit; nessun dato clinico."
         ),
-        "destinatari": "SiteConfig cambio_mansione_emails (Task pianificati → cambio_mansione_digest → Configura mail)",
+        "destinatari": "SiteConfig cambio_mansione_emails (Task pianificati → cambio_mansione_digest → Modifica)",
         "source": "anagrafica/services/notifiche_cambio_mansione.py",
         "func": "notifica_piano_cambio_mansione",
     },

@@ -658,8 +658,10 @@ def pianificati_page(request):
     from ..schedules import SOSPENSIONE_MAX_GIORNI
 
     rows = schedule_rows()
+    from ..mail_config import destinatari_elenco
     for r in rows:
         r["configurable"] = is_configurable(r["name"])
+        r["destinatari"] = ", ".join(destinatari_elenco(r["name"])) if r["configurable"] else ""
     enabled_n = sum(1 for r in rows if r["enabled"])
     # Raccoglitore «Digest e promemoria» in ordine di orario; il resto nell'elenco generale.
     digest_rows = sorted((r for r in rows if r["digest"]), key=lambda r: (r["orario"] or "99", r["name"]))
@@ -795,63 +797,91 @@ def _pianificati_sospensione(request, action, name):
     return redirect(reverse("admin_portale:automazioni_pianificati") + "#digest")
 
 
+def _pianificati_next(request, name):
+    """Dove tornare dopo salvataggio/prova: designer o Task pianificati (solo URL interni)."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    nxt = (request.POST.get("next") or request.GET.get("next") or "").strip()
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
+                                               require_https=request.is_secure()):
+        return nxt
+    return reverse("admin_portale:automazioni_pianificati") + "#digest"
+
+
 @legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_page")
 @require_GET
 def pianificati_mail_config_page(request, name):
-    """Configura destinatari + cornice testuale (oggetto/intro/nota) di un task mail."""
-    from ..mail_config import get_recipients_raw, get_text_overrides, is_configurable, task_meta
-    from ..schedules import describe_cadence, schedule_descriptions, spec_by_name
+    """Pannello «Mail, destinatari e orario» di un task pianificato.
 
-    spec = spec_by_name(name)
-    if not spec or not is_configurable(name):
-        messages.error(request, "Questo task non è configurabile.")
+    Con HTMX restituisce solo il pannello (aperto di lato da Pianificati e dal designer),
+    altrimenti la pagina intera con lo stesso contenuto.
+    """
+    from ..mail_config import pannello
+
+    p = pannello(name)
+    if p is None:
+        messages.error(request, "Task pianificato sconosciuto.")
         return redirect("admin_portale:automazioni_pianificati")
-
-    txt = get_text_overrides(name)
-    context = {
-        **_helpers._base_context(),
-        "name": name,
-        "meta": task_meta(name),
-        "cadence": describe_cadence(spec),
-        "description": schedule_descriptions().get(name, ""),
-        "recipients": get_recipients_raw(name),
-        "subject": getattr(txt, "subject", ""),
-        "intro": getattr(txt, "intro", ""),
-        "footer": getattr(txt, "footer", ""),
-    }
+    context = {**_helpers._base_context(), "p": p, "next_url": _pianificati_next(request, name)}
+    if request.headers.get("HX-Request"):
+        return render(request, "automazioni/partials/mail_panel.html", context)
     return render(request, "automazioni/pages/pianificati_mail.html", context)
 
 
 @legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_save")
 @require_POST
 def pianificati_mail_config_save(request, name):
-    """Salva destinatari (SiteConfig) + testo (ScheduledMailText) di un task mail."""
-    from ..mail_config import is_configurable, set_recipients_raw, task_meta
-    from ..models import ScheduledMailText
-    from ..schedules import spec_by_name
+    """Salva orario (calendario del flusso), destinatari (SiteConfig) e testo (ScheduledMailText)."""
+    from ..managed_flows import synchronize_schedule
+    from ..mail_config import cron_con_orario, pannello, set_recipients_raw
+    from ..models import ManagedFlow, ScheduledMailText
 
-    spec = spec_by_name(name)
-    if not spec or not is_configurable(name):
-        messages.error(request, "Questo task non è configurabile.")
+    p = pannello(name)
+    nxt = _pianificati_next(request, name)
+    if p is None:
+        messages.error(request, "Task pianificato sconosciuto.")
         return redirect("admin_portale:automazioni_pianificati")
 
-    if task_meta(name).get("config_key"):
-        set_recipients_raw(name, request.POST.get("recipients") or "")
+    cambiati = []
+    orario = (request.POST.get("orario") or "").strip()
+    if orario and p["orario_modificabile"] and orario != p["orario"]:
+        binding = ManagedFlow.objects.select_related("rule").get(code=name, kind="schedule")
+        try:
+            binding.cron = cron_con_orario(binding.cron, orario)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect(nxt)
+        with transaction.atomic():
+            binding.save(update_fields=["cron"])
+            synchronize_schedule(binding)
+        cambiati.append(f"orario {orario}")
 
-    subject = (request.POST.get("subject") or "").strip()
-    intro = (request.POST.get("intro") or "").strip()
-    footer = (request.POST.get("footer") or "").strip()
-    if subject or intro or footer:
-        obj, _ = ScheduledMailText.objects.get_or_create(task_name=name)
-        obj.subject, obj.intro, obj.footer = subject, intro, footer
-        obj.updated_by = request.user if request.user.is_authenticated else None
-        obj.save()
+    if p["config_key"] and "recipients" in request.POST:
+        nuovi = (request.POST.get("recipients") or "").strip()
+        if nuovi != p["recipients"].strip():
+            set_recipients_raw(name, nuovi)
+            cambiati.append("destinatari")
+
+    if p["configurable"] and "subject" in request.POST:
+        subject = (request.POST.get("subject") or "").strip()
+        intro = (request.POST.get("intro") or "").strip()
+        footer = (request.POST.get("footer") or "").strip()
+        if (subject, intro, footer) != (p["subject"], p["intro"], p["footer"]):
+            if subject or intro or footer:
+                obj, _ = ScheduledMailText.objects.get_or_create(task_name=name)
+                obj.subject, obj.intro, obj.footer = subject, intro, footer
+                obj.updated_by = request.user if request.user.is_authenticated else None
+                obj.save()
+            else:
+                ScheduledMailText.objects.filter(task_name=name).delete()
+            cambiati.append("testo della mail")
+
+    if cambiati:
+        _helpers.log_action(request, "automazioni_mail_config_save", "automazioni", {"name": name, "cambiati": cambiati})
+        messages.success(request, f"{p['label']}: salvati {', '.join(cambiati)}.")
     else:
-        ScheduledMailText.objects.filter(task_name=name).delete()
-
-    _helpers.log_action(request, "automazioni_mail_config_save", "automazioni", {"name": name})
-    messages.success(request, f"Configurazione mail di '{name}' salvata.")
-    return redirect("admin_portale:automazioni_pianificati_mail", name=name)
+        messages.info(request, "Nessuna modifica da salvare.")
+    return redirect(nxt)
 
 
 @legacy_admin_or_acl_required("automazioni", "pianificati_mail_test")
@@ -873,7 +903,7 @@ def pianificati_mail_test(request, name):
     destinatario = (getattr(request.user, "email", "") or "").strip()
     if not destinatario:
         messages.error(request, "Il tuo utente non ha un'email: impossibile inviare l'anteprima.")
-        return redirect("admin_portale:automazioni_pianificati_mail", name=name)
+        return redirect(_pianificati_next(request, name))
 
     from core.email_utils import email_item_cards, send_hub_mail
 
@@ -900,4 +930,4 @@ def pianificati_mail_test(request, name):
         messages.success(request, f"Anteprima inviata a {destinatario}.")
     except Exception as exc:
         messages.error(request, f"Invio anteprima non riuscito: {exc}")
-    return redirect("admin_portale:automazioni_pianificati_mail", name=name)
+    return redirect(_pianificati_next(request, name))

@@ -5,7 +5,7 @@ giro finale del recupero (giorno ``GIORNI_RECUPERO_MENSILE`` dalle 23:00) ne
 manca ancora qualcuna, parte una mail con le mancanti e il motivo. La mail
 «completa» parte anche dopo quella con le mancanti, se l'ultima MFC rientra.
 
-Destinatari: solo quelli scritti in «Configura mail» del lavoro pianificato
+Destinatari: solo quelli scritti in «Modifica» del lavoro pianificato
 (``SiteConfig`` ``contatori_letture_mensili_emails``). Nessun ripiego su
 amministratori o superuser: lista vuota = nessun invio.
 """
