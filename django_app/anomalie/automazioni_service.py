@@ -549,7 +549,11 @@ def contatto_operatore(legacy_uid) -> tuple[str, str]:
 
 
 def _etichetta_decisione(row: dict) -> str:
-    parti = ["Chiusa" if row.get("chiudere") else (str(row.get("avanzamento") or "").strip() or "In attesa")]
+    avanzamento = str(row.get("avanzamento") or "").strip()
+    if row.get("chiudere"):
+        parti = [f"{avanzamento} · Chiusa" if avanzamento and avanzamento.lower() != "chiusa" else "Chiusa"]
+    else:
+        parti = [avanzamento or "In attesa"]
     if row.get("aprire_rdc"):
         numero = str(row.get("numero_rdc") or "").strip()
         parti.append(f"Aprire RDC{f' n° {numero}' if numero else ''}")
@@ -609,7 +613,7 @@ def prepara_decisioni_operatore(op_id: str, updates: list[dict], *, deciso_da_le
             if deciso_da_email and email.lower() == deciso_da_email.strip().lower():
                 continue
             gruppo = gruppi[autore] = {"legacy_uid": autore, "email": email, "nome": nome,
-                                       "deciso_da": set(), "righe": []}
+                                       "deciso_da": set(), "righe": [], "schede": []}
         if str(u.get("modified_by") or "").strip():
             gruppo["deciso_da"].add(str(u["modified_by"]).strip())
         _stati, testo = separa_descrizione(row.get("descrizione"))
@@ -620,6 +624,19 @@ def prepara_decisioni_operatore(op_id: str, updates: list[dict], *, deciso_da_le
             _etichetta_decisione(row),
             str(row.get("note_capocommessa") or "").strip()[:300] or "—",
         ])
+        # Scheda della mail: stato di avanzamento e note in primo piano.
+        gruppo["schede"].append({
+            "id": row.get("id") or u.get("id"),
+            "seriale": str(row.get("seriale") or "").strip(),
+            "avanzamento": (str(row.get("avanzamento") or "").strip()
+                            or ("Chiusa" if row.get("chiudere") else "In attesa")),
+            "chiudere": bool(row.get("chiudere")),
+            "aprire_rdc": bool(row.get("aprire_rdc")),
+            "numero_rdc": str(row.get("numero_rdc") or "").strip(),
+            "segnalare": bool(row.get("segnalare_cliente")),
+            "note": str(row.get("note_capocommessa") or "").strip()[:600],
+            "descrizione": (testo or "").strip()[:300],
+        })
     for g in gruppi.values():
         g["deciso_da"] = sorted(g["deciso_da"])
     return list(gruppi.values())
@@ -662,16 +679,19 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
         subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — decisione su {cosa} che hai segnalato"
         lines = [f"{chi} ha registrato una decisione su {cosa} dell'OP {op_id}"
                  f"{f' (P/N {pn})' if pn else ''} che hai segnalato.", ""]
-        lines += [f"  • {r[0]} · S/N {r[1]} · {r[3]}" + (f" · Note: {r[4]}" if r[4] != "—" else "") + f"\n      {r[2]}"
-                  for r in g["righe"]]
+        for r in g["righe"]:
+            lines += [f"  • {r[0]} · S/N {r[1]}", f"      STATO DI AVANZAMENTO: {r[3]}"]
+            if r[4] != "—":
+                lines.append(f"      NOTE DEL CAPOCOMMESSA: {r[4]}")
+            lines.append(f"      Descrizione: {r[2]}")
         if link:
             lines += ["", f"Gestione anomalie: {link}"]
         html = _render_mail(
             badge="Decisione capocommessa", eyebrow=f"OP {op_id}{f' · P/N {pn}' if pn else ''}",
             title=f"Decisione su {cosa} che hai segnalato",
             intro=(f"{'Buongiorno ' + g['nome'] + ', ' if g.get('nome') else ''}{chi} ha deciso come procedere. "
-                   "Lo stato e le note qui sotto sono quelli registrati nel portale."),
-            columns=["ID", "S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=g["righe"],
+                   "Lo stato di avanzamento e le note qui sotto sono quelli registrati nel portale."),
+            schede=g.get("schede") or [], note_label="Note del capocommessa",
             cta_url=link, cta_label="Apri in Gestione anomalie",
         )
         if _send(kind="decisioni_operatore", subject=subject, lines=lines, html=html, to=[g["email"]],

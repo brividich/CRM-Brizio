@@ -211,11 +211,25 @@ class DecisioniOperatoreTests(TestCase):
         self.assertIn("OP/A", mail.outbox[0].subject)
         self.assertIn("Rilavorare", mail.outbox[0].body)
         self.assertIn("/gestione-anomalie?op=OP/A", mail.outbox[0].body)
+        self.assertIn("STATO DI AVANZAMENTO: Rilavorare", mail.outbox[0].body)
+        self.assertIn("NOTE DEL CAPOCOMMESSA: sostituire", mail.outbox[0].body)
+        # Mail HTML a schede: stato di avanzamento e note in primo piano.
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn("Stato di avanzamento", html)
+        self.assertIn("Note del capocommessa", html)
+        self.assertIn("sostituire", html)
         # Senza email di notifica resta la notifica nel portale.
         self.assertEqual(
             sorted(Notifica.objects.filter(tipo=auto.TIPO_NOTIFICA_DECISIONE).values_list("legacy_user_id", flat=True)),
             [11, 12],
         )
+
+    def test_chiusa_mostra_anche_lo_stato_di_avanzamento(self):
+        self.add(1, 11, avanzamento="Azione di recupero", chiusa=True)
+        piano = auto.prepara_decisioni_operatore("OP/A", [{"id": 1}], deciso_da_legacy_id=99)
+        self.assertEqual(piano[0]["righe"][0][3], "Azione di recupero · Chiusa")
+        self.assertEqual(piano[0]["schede"][0]["avanzamento"], "Azione di recupero")
+        self.assertTrue(piano[0]["schede"][0]["chiudere"])
 
     def test_capocommessa_autore_non_si_autonotifica(self):
         self.add(1, 99, avanzamento="Rilavorare")

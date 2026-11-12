@@ -1,0 +1,43 @@
+{% load anomalie_extra %}{% comment %}
+Scheda di un'anomalia nelle mail (aggiornamento OP, decisione all'operatore).
+In primo piano lo stato di avanzamento e le note; la descrizione sotto, più piccola.
+Parametri: s (dict: id, seriale, avanzamento, chiudere, aprire_rdc, numero_rdc, segnalare,
+pezzi_recuperato, descrizione, dove_pezzi, extra_decisione, note), accent (colore della barra),
+note_label (default «Note»).
+{% endcomment %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="border-collapse:collapse;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+  <tr>
+    <td style="width:6px;background:{{ accent|default:'#1f5c91' }};">&nbsp;</td>
+    <td style="padding:13px 16px;">
+      <div style="font-size:11px;color:#64748b;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">
+        Anomalia <span style="font-family:Consolas,monospace;">{{ s.id|codice_anomalia }}</span>{% if s.seriale %} &middot; S/N {{ s.seriale }}{% endif %}
+      </div>
+      <div style="font-size:10px;color:#64748b;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">Stato di avanzamento</div>
+      <div>
+        <span style="display:inline-block;{% if s.chiudere %}background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;{% elif not s.avanzamento or s.avanzamento|lower == 'in attesa' %}background:#fef3c7;color:#92400e;border:1px solid #fcd34d;{% else %}background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;{% endif %}font-size:16px;font-weight:800;border-radius:8px;padding:6px 12px;margin:0 6px 4px 0;">{{ s.avanzamento|default:"(invariato)" }}</span>
+        {% if s.chiudere and s.avanzamento|lower != 'chiusa' %}<span style="display:inline-block;background:#065f46;color:#ffffff;font-size:12px;font-weight:800;border-radius:999px;padding:4px 10px;margin:0 5px 4px 0;">&#10003; Chiusa</span>{% endif %}
+        {% if s.aprire_rdc %}<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:12px;font-weight:800;border-radius:999px;padding:4px 10px;margin:0 5px 4px 0;">Aprire RDC{% if s.numero_rdc %} n° {{ s.numero_rdc }}{% endif %}</span>{% endif %}
+        {% if s.segnalare %}<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:800;border-radius:999px;padding:4px 10px;margin:0 5px 4px 0;">Segnalare a cliente</span>{% endif %}
+      </div>
+      {% if s.note %}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
+        <tr>
+          <td style="background:#fff7ed;border-left:4px solid #ff6b00;border-radius:0 8px 8px 0;padding:10px 14px;">
+            <div style="font-size:10px;color:#c2410c;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">{{ note_label|default:"Note" }}</div>
+            <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.45;white-space:pre-line;">{{ s.note }}</div>
+          </td>
+        </tr>
+      </table>
+      {% endif %}
+      {% if s.dove_pezzi %}<div style="margin-top:8px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ s.dove_pezzi }}</strong></div>{% endif %}
+      {% if s.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in s.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+      {% if s.pezzi_recuperato or s.numero_rdc and not s.aprire_rdc %}
+      <div style="margin-top:6px;font-size:12px;color:#475569;">
+        {% if s.numero_rdc and not s.aprire_rdc %}<strong style="color:#64748b;">N° RDC:</strong> {{ s.numero_rdc }}{% endif %}{% if s.numero_rdc and not s.aprire_rdc and s.pezzi_recuperato %} &nbsp;·&nbsp; {% endif %}{% if s.pezzi_recuperato %}<strong style="color:#64748b;">Pezzo recuperato:</strong> sì{% endif %}
+      </div>
+      {% endif %}
+      {% if s.descrizione %}<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:12px;color:#64748b;line-height:1.5;"><strong>Descrizione:</strong> {{ s.descrizione }}</div>{% endif %}
+    </td>
+  </tr>
+</table>

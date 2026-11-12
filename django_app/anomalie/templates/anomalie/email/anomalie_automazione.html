@@ -70,6 +70,14 @@
         </tr>
         {% endif %}
 
+        {% if schede %}
+        <tr>
+          <td class="ep" style="padding:14px 34px 8px;background:#ffffff;">
+            {% for s in schede %}{% include "anomalie/email/_scheda_anomalia.html" with s=s accent="#1f5c91" %}{% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+
         {% if columns and rows %}
         <tr>
           <td class="ep" style="padding:14px 34px 8px;background:#ffffff;">
