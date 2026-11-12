@@ -301,6 +301,13 @@ def run_watchguard_api_task() -> dict:
     return letture.esegui("watchguard")
 
 
+def run_watchguard_task_task() -> dict:
+    """Task di installazione patch da WatchGuard Cloud, ogni ora (``watchguard_api.run_task``)."""
+    from security.services import letture
+
+    return letture.esegui("watchguard_task")
+
+
 def run_defender_vulnerabilita_task() -> dict:
     """CVE viste da Defender per il confronto nel pannello CVE (``services.defender_vuln``)."""
     from security.services import letture

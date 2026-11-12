@@ -11,7 +11,8 @@ Tre letture, ognuna con il suo interruttore (sezione «WatchGuard Endpoint Secur
 * **Software dei PC** (``softwareinventory``) → inventario del SOC come fonte WatchGuard, con la stessa
   procedura dell'export caricato a mano (``software_inventory.run_import``): sostituisce l'export.
 * **Patch** (``patchavailability`` + task di tipo 6 ``tasks/…/jobs/…/results``) → ``WatchGuardPatch``:
-  patch mancanti per PC con le CVE che correggono, KB, link di download, esito delle installazioni.
+  patch mancanti per PC con le CVE che correggono, KB, link di download, esito delle installazioni;
+  i task di installazione restano nello storico ``WatchGuardTask`` (anche ogni ora con ``run_task``).
   Con ``watchguard.api.msrc`` anche le sostituzioni fra KB dal Security Update Guide di Microsoft
   (``services/patch_kb.py``): quale patch mancante è già compresa in una più recente.
 
@@ -36,6 +37,7 @@ from security.models import (
     SoftwareSourceKind,
     WatchGuardDispositivo,
     WatchGuardPatch,
+    WatchGuardTask,
 )
 from security.services import secret_box, soc_settings
 from security.services.patch_kb import kb_da_testo
@@ -57,8 +59,10 @@ PAGINA = 1000
 MAX_PAGINE = 60
 NOME_IMPORT = "WatchGuard Endpoint Security (API)"
 TASK_PATCH = 6
-TASK_GIORNI = 14
-TASK_MAX = 20
+TASK_GIORNI = 30   # task con un'esecuzione negli ultimi 30 giorni; quelli già letti restano nello storico
+TASK_MAX = 300     # task letti per giro (i completi non costano chiamate: si saltano)
+TASK_JOB_MAX = 10  # esecuzioni per task (le ultime)
+TASK_ORE_STABILE = 24  # un task con tutti gli esiti e l'ultima esecuzione più vecchia di così non si rilegge
 
 
 class WatchGuardError(RuntimeError):
@@ -538,26 +542,122 @@ def sincronizza_patch(now=None, *, righe: list[dict] | None = None, client=None)
     return {"patch": len(lette), "chiuse": chiuse}
 
 
+def _primo(d: dict, *chiavi):
+    """Primo valore non vuoto fra più nomi di campo (l'API non è documentata su tutti i campi dei task)."""
+    for k in chiavi:
+        v = d.get(k)
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _esito(valore):
+    try:
+        n = int(valore)
+    except (TypeError, ValueError):
+        return None
+    return n if n in WatchGuardPatch.ESITI else None
+
+
+def _jobs(task_id, client):
+    dati = get(f"/tasks/{TASK_PATCH}/{task_id}/jobs", client=client) or []
+    righe = dati.get("data") if isinstance(dati, dict) else dati
+    righe = [j for j in righe or [] if isinstance(j, dict) and j.get("id") not in (None, "")]
+    return sorted(righe, key=lambda j: str(_primo(j, "date", "start_date", "creation_date") or ""))[-TASK_JOB_MAX:]
+
+
+def _salva_task(t: dict, now, client, asset_di) -> tuple[WatchGuardTask, int]:
+    """Legge le esecuzioni di un task e ne salva gli esiti per PC; restituisce (task, esiti salvati)."""
+    from security.models import WatchGuardTaskEsito
+
+    task_id = str(t.get("id"))[:120]
+    stato = t.get("status") if isinstance(t.get("status"), dict) else {}
+    task, _ = WatchGuardTask.objects.get_or_create(task_id=task_id)
+    task.nome = str(_primo(t, "name", "task_name", "description") or "")[:500]
+    task.creato_il = _quando(_primo(t, "creation_date", "created_date", "date")) or task.creato_il
+    task.ultimo_job_il = _quando(stato.get("last_job_date")) or task.ultimo_job_il
+    salvati = 0
+    for job in _jobs(task_id, client):  # dal più vecchio: l'ultimo esito vince
+        job_id = str(job["id"])[:120]
+        job_il = _quando(_primo(job, "date", "start_date", "creation_date"))
+        for r in get_all(f"/tasks/{TASK_PATCH}/{task_id}/jobs/{job_id}/results", client=client):
+            info = r.get("patch_info") if isinstance(r.get("patch_info"), dict) else {}
+            host = _host(r.get("host_name"))
+            if not host:
+                continue
+            esito = _esito(info.get("result"))
+            patch_nome = str(info.get("patch_name") or "")[:500]
+            WatchGuardTaskEsito.objects.update_or_create(
+                task=task, job_id=job_id, host=host, patch_nome=patch_nome,
+                defaults={"job_il": job_il, "device_id": str(r.get("device_id") or "")[:120],
+                          "host_display": str(r.get("host_name") or "")[:255], "hub_asset": asset_di(host),
+                          "esito": esito,
+                          "esito_il": _quando(info.get("installation_date") or r.get("date")) if esito else None,
+                          "letto_il": now})
+            salvati += 1
+            if esito and patch_nome:
+                WatchGuardPatch.objects.filter(host=host, nome=patch_nome).update(
+                    esito=esito, esito_il=_quando(info.get("installation_date") or r.get("date")) or now)
+    # Conteggi sull'ultimo esito per (PC, patch): un PC riprovato in un'esecuzione successiva conta una volta.
+    ultimi: dict = {}
+    for host, nome, esito in task.esiti.order_by("job_il", "pk").values_list("host", "patch_nome", "esito"):
+        ultimi[(host, nome)] = esito
+    task.pc = len({h for h, _ in ultimi})
+    task.errori = sum(1 for e in ultimi.values() if e in WatchGuardPatch.ESITI_ERRORE)
+    task.in_attesa = sum(1 for e in ultimi.values() if e is None)
+    task.riuscite = len(ultimi) - task.errori - task.in_attesa
+    vecchio = task.ultimo_job_il is not None and task.ultimo_job_il < now - timedelta(hours=TASK_ORE_STABILE)
+    task.completo = bool(ultimi) and task.in_attesa == 0 and vecchio
+    task.letto_il = now
+    task.save()
+    return task, salvati
+
+
 def sincronizza_task(now=None, *, client=None) -> dict:
-    """Esito delle installazioni di patch (task di tipo 6) degli ultimi ``TASK_GIORNI`` giorni."""
+    """Task di installazione patch (tipo 6) degli ultimi ``TASK_GIORNI`` giorni → storico ``WatchGuardTask``.
+
+    Si rileggono solo i task nuovi, cambiati (altra esecuzione) o con PC ancora in attesa: quelli
+    completi restano come sono, così il giro orario fa poche chiamate anche con molti task.
+    """
     now = now or timezone.now()
     dal = now - timedelta(days=TASK_GIORNI)
     tasks = get_all("/tasks", {"$filter": f"41003 Eq {TASK_PATCH}"}, client=client)
-    recenti = [t for t in tasks if (_quando((t.get("status") or {}).get("last_job_date")) or dal) > dal][:TASK_MAX]
-    aggiornate = 0
-    for t in recenti:
-        jobs = get(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs", client=client) or []
-        jobs = sorted((j for j in jobs if isinstance(j, dict)), key=lambda j: str(j.get("date") or ""), reverse=True)[:3]
-        for job in reversed(jobs):  # dal più vecchio: l'ultimo esito vince
-            for r in get_all(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs/{job.get('id')}/results", client=client):
-                info = r.get("patch_info") or {}
-                if not info.get("patch_name") or not info.get("result"):
-                    continue
-                quando = _quando(info.get("installation_date") or r.get("date")) or now
-                aggiornate += WatchGuardPatch.objects.filter(
-                    host=_host(r.get("host_name")), nome=str(info["patch_name"])[:500],
-                ).update(esito=info["result"], esito_il=quando)
-    return {"task": len(recenti), "patch_aggiornate": aggiornate}
+    recenti = [t for t in tasks if t.get("id") not in (None, "")
+               and (_quando((t.get("status") or {}).get("last_job_date")) or now) > dal]
+    recenti.sort(key=lambda t: str((t.get("status") or {}).get("last_job_date") or ""), reverse=True)
+    noti = {x.task_id: x for x in WatchGuardTask.objects.filter(task_id__in=[str(t["id"])[:120] for t in recenti][:2000])}
+    asset_di = _Asset()
+    letti = saltati = esiti = 0
+    for t in recenti[:TASK_MAX]:
+        prima = noti.get(str(t["id"])[:120])
+        ultimo = _quando((t.get("status") or {}).get("last_job_date"))
+        if prima is not None and prima.completo and (ultimo is None or ultimo == prima.ultimo_job_il):
+            saltati += 1
+            continue
+        _, n = _salva_task(t, now, client, asset_di)
+        letti += 1
+        esiti += n
+    return {"task": len(recenti), "letti": letti, "invariati": saltati, "esiti": esiti,
+            "oltre_limite": max(0, len(recenti) - TASK_MAX)}
+
+
+def run_task() -> dict:
+    """Giro orario solo dei task di installazione (interruttore delle patch): esiti vicini a quando si lanciano."""
+    if not soc_settings.value("watchguard.api.patch"):
+        return {"attivo": False}
+    if not configurato():
+        return {"ok": False, "motivo": "credenziali API WatchGuard non configurate"}
+    try:
+        client = Client()
+    except WatchGuardError as exc:
+        return {"ok": False, "motivo": str(exc)[:300]}
+    try:
+        return {"ok": True, "task": sincronizza_task(client=client)}
+    except WatchGuardError as exc:
+        logger.warning("WatchGuard API task: %s", exc)
+        return {"ok": False, "motivo": str(exc)[:300]}
+    finally:
+        client.close()
 
 
 # --- Lettura per pannelli ----------------------------------------------------------------------

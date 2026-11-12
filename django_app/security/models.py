@@ -1859,6 +1859,64 @@ class WatchGuardPatchGiorno(models.Model):
         return f"{self.giorno}: {self.mancanti} patch mancanti"
 
 
+class WatchGuardTask(models.Model):
+    """Task di installazione patch lanciato dalla console WatchGuard (``tasks`` di tipo 6): lo storico resta qui.
+
+    WatchGuard tiene i task finché qualcuno non li cancella dalla console; il SOC li conserva comunque,
+    con l'esito per PC in ``WatchGuardTaskEsito``. ``completo`` = tutti i PC hanno un esito e l'ultima
+    esecuzione è abbastanza vecchia da non cambiare più: il task non si rilegge.
+    """
+
+    task_id = models.CharField(max_length=120, unique=True)
+    nome = models.CharField(max_length=500, blank=True, default="")
+    creato_il = models.DateTimeField(null=True, blank=True)
+    ultimo_job_il = models.DateTimeField(null=True, blank=True, db_index=True)
+    pc = models.PositiveIntegerField(default=0)
+    riuscite = models.PositiveIntegerField(default=0)
+    errori = models.PositiveIntegerField(default=0)
+    in_attesa = models.PositiveIntegerField(default=0)
+    completo = models.BooleanField(default=False)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-ultimo_job_il", "-pk"]
+
+    def __str__(self):
+        return self.nome or self.task_id
+
+
+class WatchGuardTaskEsito(models.Model):
+    """Esito di un task di installazione su un PC per una patch (``tasks/6/{id}/jobs/{job}/results``)."""
+
+    task = models.ForeignKey(WatchGuardTask, on_delete=models.CASCADE, related_name="esiti")
+    job_id = models.CharField(max_length=120)
+    job_il = models.DateTimeField(null=True, blank=True)
+    device_id = models.CharField(max_length=120, blank=True, default="")
+    host = models.CharField(max_length=255, db_index=True)
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="watchguard_task_esiti")
+    patch_nome = models.CharField(max_length=500, blank=True, default="")
+    esito = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Vuoto = il PC non ha ancora risposto.")
+    esito_il = models.DateTimeField(null=True, blank=True)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["host", "patch_nome"]
+        constraints = [models.UniqueConstraint(fields=["task", "job_id", "host", "patch_nome"], name="sec_wg_task_esito_uniq")]
+
+    def __str__(self):
+        return f"{self.host}: {self.patch_nome} ({self.esito_label or 'in attesa'})"
+
+    @property
+    def esito_label(self):
+        return WatchGuardPatch.ESITI.get(self.esito, "")
+
+    @property
+    def esito_errore(self):
+        return self.esito in WatchGuardPatch.ESITI_ERRORE
+
+
 class DefenderVulnerabilita(models.Model):
     """CVE che Microsoft Defender vede su un PC (``vulnerabilities/machinesVulnerabilities``).
 
