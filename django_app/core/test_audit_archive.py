@@ -78,6 +78,35 @@ class AuditArchiveTests(TestCase):
         self.assertEqual(cats[self.d_null_id], "update_nullo")
         self.assertEqual(cats[self.d_empty_id], "update_nullo")
 
+    def test_classify_row_v4_battiti_e_cursori_storici(self):
+        """Le righe scritte prima della v3/v4 per battiti e cursori di SiteConfig si archiviano e tolgono."""
+        def cat(modulo, det):
+            return svc.classify_row({"azione": "auto_update", "modulo": modulo, "dettaglio": det})
+
+        modifica = {"valore": {"old": "1", "new": "2"}}
+        self.assertEqual(cat("core", {"model": "SiteConfig", "oggetto": "SiteConfig<assets.collector_cnc.battito>",
+                                      "modifiche": modifica}), "update_nullo")
+        self.assertEqual(cat("core", {"model": "SiteConfig", "oggetto": "SiteConfig<assenze:sp_delta_link>",
+                                      "modifiche": modifica}), "update_nullo")
+        self.assertEqual(cat("core", {"model": "SiteConfig", "oggetto": "SiteConfig<login_titolo>",
+                                      "modifiche": modifica}), "keep")
+        self.assertEqual(cat("security", {"model": "SecurityCenterSetting", "oggetto": "defender.cursore",
+                                          "modifiche": modifica}), "update_nullo")
+        self.assertEqual(cat("assets", {"model": "CollegamentoMTConnect", "oggetto": "CNC-1",
+                                        "modifiche": {"ultimo_evento": {"old": "a", "new": "b"}}}), "update_nullo")
+        self.assertEqual(cat("assets", {"model": "CollegamentoMTConnect", "oggetto": "CNC-1",
+                                        "modifiche": {"indirizzo": {"old": "a", "new": "b"}}}), "keep")
+        self.assertEqual(svc.classify_row({"azione": "auto_update", "modulo": "registro_log",
+                                           "dettaglio": {"model": "StatoRaccoglitore"}}), "tecnico")
+        # modelli qualsiasi: solo updated_at = nulla; un campo vero o nessuna modifica = resta
+        self.assertEqual(cat("core", {"model": "NavigationItem", "modifiche": {"updated_at": {"old": "a", "new": "b"}}}),
+                         "update_nullo")
+        self.assertEqual(cat("core", {"model": "NavigationItem", "modifiche": {
+            "updated_at": {"old": "a", "new": "b"}, "is_visible": {"old": True, "new": False}}}), "keep")
+        self.assertEqual(cat("core", {"model": "RoutePermissionBinding", "modifiche": {
+            "permission_id": {"old": "a", "new": "b"}, "updated_at": {"old": "a", "new": "b"}}}), "keep")
+        self.assertEqual(cat("core", {"model": "NavigationItem"}), "keep")
+
     def test_plan_non_modifica_nulla(self):
         prima = _checksum(AuditLog.objects.all())
         out = io.StringIO()
