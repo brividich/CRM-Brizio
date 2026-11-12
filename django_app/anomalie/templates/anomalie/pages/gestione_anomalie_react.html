@@ -266,6 +266,70 @@
     .ga-segnalati-riga > .ga-hint:first-child { flex-basis: 100%; }
     .ga-segnalato-voce { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .ga-card--qualita { border-top: 4px solid #7c3aed; }
+    /* Viste delle colonne: selettore, coda, tabelle, «Per fase», pezzi */
+    .ga-col__titlerow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ga-vista { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-mid); }
+    .ga-vista select { font: inherit; font-size: var(--fs-xs); padding: 3px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); }
+    .ga-seg-ctl--viste { flex-wrap: wrap; }
+    .ga-coda { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 1px 8px; width: 100%; text-align: left; padding: 9px 10px; border: 0; border-left: 3px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+    .ga-coda:hover { background: var(--bg); }
+    .ga-coda.is-sel { background: var(--accent-light); border-left-color: var(--accent); }
+    .ga-coda__id { font-weight: 800; }
+    .ga-coda__sub { grid-column: 1; font-size: var(--fs-xs); color: var(--text-mid); }
+    .ga-coda__eta { grid-row: 1 / 3; grid-column: 2; align-self: center; text-align: right; line-height: 1.1; }
+    .ga-coda__eta b { display: block; font-family: ui-monospace, Consolas, monospace; font-size: 18px; }
+    .ga-coda__eta small { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mid); }
+    .ga-coda__eta.is-hot b { color: #c2410c; }
+    .ga-tabwrap { overflow-x: auto; }
+    .ga-tab { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); background: var(--surface); }
+    .ga-tab th, .ga-tab td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    .ga-tab th { position: sticky; top: 0; background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mid); }
+    .ga-tab th.r, .ga-tab td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    .ga-tab tbody tr { cursor: pointer; }
+    .ga-tab tbody tr:hover { background: var(--bg); }
+    .ga-tab tbody tr.is-sel { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+    .ga-tab__txt { white-space: normal !important; min-width: 220px; }
+    .ga-tab__sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+    .ga-kanban { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 8px; min-width: 680px; }
+    .ga-col--sn .ga-col__body:has(.ga-kanban) { overflow-x: auto; }
+    .ga-kcol { display: grid; gap: 6px; align-content: start; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+    .ga-kcol__t { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mid); }
+    .ga-kcard { display: grid; gap: 4px; justify-items: start; width: 100%; text-align: left; padding: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+    .ga-kcard:hover { border-color: var(--accent); }
+    .ga-kcard.is-tua { box-shadow: inset 4px 0 0 var(--accent); }
+    .ga-kcard.is-sel { border-color: var(--accent); background: var(--accent-light); }
+    .ga-kcard__row { display: flex; justify-content: space-between; gap: 6px; width: 100%; }
+    .ga-kcard__cod { font-family: ui-monospace, Consolas, monospace; font-weight: 800; font-size: 12px; white-space: nowrap; }
+    .ga-kcard__pills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ga-pezzi { display: grid; gap: 4px; min-width: 480px; }
+    .ga-pezzi__h { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mid); padding: 4px; }
+    .ga-pezzi__sn { padding: 8px 4px; }
+    .ga-pezzi__cella { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); min-height: 36px; }
+    .ga-pezzo { border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 11px; font-weight: 800; font-family: ui-monospace, Consolas, monospace; cursor: pointer; }
+    .ga-pezzo--dec { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .ga-pezzo--corso { background: #eef4ff; color: #1d4ed8; border-color: #c7d7fe; }
+    .ga-pezzo--ok { background: #e8f6ed; color: #15803d; border-color: #bbe5c8; }
+    .ga-pezzo.is-sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+    body.theme-dark .ga-pezzo--dec { background: #3a2414; color: #fdba74; border-color: #7c3d12; }
+    body.theme-dark .ga-pezzo--corso { background: #182a4d; color: #93b4ff; border-color: #2b4a85; }
+    body.theme-dark .ga-pezzo--ok { background: #12301f; color: #4ade80; border-color: #1f5a37; }
+    /* Registro attività (supervisore) */
+    .ga-reg { flex: 1; overflow: auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 10px; align-content: start; max-width: 1100px; width: 100%; margin: 0 auto; }
+    .ga-reg__filtri { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+    .ga-reg__filtri label { display: grid; gap: 3px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-mid); }
+    .ga-reg__filtri .ga-input { min-width: 140px; }
+    .ga-reg__grp { display: grid; gap: 8px; }
+    .ga-reg__giorno { margin: 10px 0 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-mid); }
+    .ga-reg__ev { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-left: 5px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .ga-reg__ev--ok { border-left-color: var(--success); } .ga-reg__ev--info { border-left-color: #2563eb; } .ga-reg__ev--acc { border-left-color: var(--accent); }
+    .ga-reg__ev--qa { border-left-color: #7c3aed; } .ga-reg__ev--warn { border-left-color: var(--warning); }
+    .ga-reg__ora { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--text-mid); }
+    .ga-reg__c { min-width: 0; display: grid; gap: 5px; }
+    .ga-reg__cod { font-family: ui-monospace, Consolas, monospace; font-weight: 800; }
+    .ga-reg__diff { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ga-reg__diff span { padding: 2px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); font-size: var(--fs-sm); }
+    .ga-reg__diff s { color: var(--text-mid); }
+    .ga-reg__nota { white-space: pre-wrap; font-size: var(--fs-sm); color: var(--text-mid); }
     /* Sezioni richiudibili del dettaglio: il titolo apre e chiude */
     .ga-sez-tg { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font-family: inherit; cursor: pointer; text-align: left; }
     .ga-sez-tg:hover { color: var(--accent); }
@@ -448,6 +512,7 @@
       riapri: "{% url 'api_anomalie_riapri' %}",
       segnalato: "{% url 'api_anomalie_segnalato' %}",
       qualita_salva: "{% url 'api_anomalie_qualita_salva' %}",
+      registro: "{% url 'api_anomalie_registro' %}",
       qualita_richiedi_info: "{% url 'api_anomalie_qualita_richiedi_info' %}",
       qualita_rispondi_info: "{% url 'api_anomalie_qualita_rispondi_info' %}",
       elimina: "{% url 'api_anomalie_elimina' %}",

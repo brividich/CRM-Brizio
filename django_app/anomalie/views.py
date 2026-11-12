@@ -1710,8 +1710,10 @@ def _contesto_decisione_qualita(request) -> dict:
         from anomalie import decisione_qualita as dq
         from anomalie.qualita_views import puo_decisione_qualita
 
+        from anomalie.registro_views import puo_vedere_registro
+
         return {"can_qualita": puo_decisione_qualita(request), "avanzamenti_qualita": dq.avanzamenti_qualita(),
-                "cc_puo_chiudere": dq.cc_puo_chiudere()}
+                "cc_puo_chiudere": dq.cc_puo_chiudere(), "can_registro": puo_vedere_registro(request)}
     except Exception:
         logger.warning("anomalie: contesto decisione qualità non letto", exc_info=True)
         return {"can_qualita": False, "avanzamenti_qualita": [], "cc_puo_chiudere": True}
@@ -2448,7 +2450,7 @@ def _in_carico_per_op(request) -> dict:
         return out
     cols = legacy_table_columns("anomalie") or set()
     voluti = ("id", "op_lookup_id", "ex_op_nominativo", "chiudere", "aprire_rdc", "segnalare_cliente",
-              "note_capocommessa", "avanzamento", "created_by_user_id")
+              "note_capocommessa", "avanzamento", "created_by_user_id", "modified_datetime")
     try:
         righe = _fetch_all_dict(
             f"SELECT {', '.join(c for c in voluti if c in cols)} FROM anomalie WHERE COALESCE(chiudere, 0) = 0")
@@ -2467,16 +2469,32 @@ def _in_carico_per_op(request) -> dict:
     return out
 
 
-def _conta_in_carico(request, carico: dict, titolo_l: str, item_id: str, capo, car) -> int:
+def _conta_in_carico(request, carico: dict, titolo_l: str, item_id: str, capo, car) -> tuple[int, int | None]:
+    """(anomalie in carico a chi guarda, giorni da cui la più vecchia è ferma)."""
     from anomalie import decisione_qualita as dq
 
     coppie = list(carico["per_op"].get(f"t:{titolo_l}", []))
     if item_id:
         coppie += carico["per_op"].get(f"id:{item_id}", [])
     if not coppie:
-        return 0
+        return 0, None
     io = dq.chi_sono(request, capo, car)
-    return sum(1 for riga, info in coppie if dq.in_carico_a_me(io, riga, info))
+    mie = [riga for riga, info in coppie if dq.in_carico_a_me(io, riga, info)]
+    oggi = dj_tz.now()
+    giorni = []
+    for riga in mie:
+        m = riga.get("modified_datetime")
+        if m is None:
+            continue
+        if isinstance(m, str):
+            try:
+                m = datetime.fromisoformat(m)
+            except ValueError:
+                continue
+        if dj_tz.is_naive(m):
+            m = m.replace(tzinfo=timezone.utc)
+        giorni.append(max(0, (oggi - m).days))
+    return len(mie), (max(giorni) if giorni else None)
 
 
 def _capo_car_di_op(op_title: str) -> tuple[str, str]:
@@ -3231,7 +3249,7 @@ def _ordini_payload(request, *, per_apertura: bool):
         # capocommessa con «In attesa di ulteriori informazioni».
         vede_rdc = referente_rdc and rdc_cliente > 0
         titolo_l = str(r.get("op_title") or "").strip().lower()
-        n_carico = _conta_in_carico(request, carico, titolo_l, str(r.get("item_id") or ""), capo, car)
+        n_carico, ferma_da = _conta_in_carico(request, carico, titolo_l, str(r.get("item_id") or ""), capo, car)
         vede_qualita = referente_rdc and int(r.get("anomalie_aperte_count") or 0) > 0
         if (filtra and not vede_rdc and not vede_qualita and titolo_l not in carico["car_ops"]
                 and not _vede_op_ruoli(request, capo, car, creatori)):
@@ -3253,6 +3271,7 @@ def _ordini_payload(request, *, per_apertura: bool):
             # non basta.
             "in_carico": n_carico > 0,
             "anomalie_in_carico_count": n_carico,
+            "ferma_da_giorni": ferma_da,
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
@@ -4706,6 +4725,42 @@ def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avan
     return cc_chiude and av in _STATI_CHIUSURA
 
 
+_CAMPI_REGISTRO_EXTRA = ("descrizione", "seriale", "aprire_rdc", "segnalare_cliente", "pezzo_recuperato")
+# Campi della riga legacy riportati nel registro attività, con il nome che vede l'utente.
+_CAMPI_REGISTRO = (
+    ("seriale", "S/N"), ("descrizione", "Testo"), ("avanzamento", "Avanzamento"),
+    ("note_capocommessa", "Note"), ("aprire_rdc", "Aprire RDC"), ("numero_rdc", "N° RDC"),
+    ("segnalare_cliente", "Segnalare al cliente"), ("pezzo_recuperato", "Pezzi precedenti al benestare"),
+    ("chiudere", "Chiusa"),
+)
+_CAMPI_SI_NO = {"aprire_rdc", "segnalare_cliente", "pezzo_recuperato", "chiudere"}
+
+
+def _valore_registro(campo, valore) -> str:
+    if campo in _CAMPI_SI_NO:
+        return "sì" if valore and str(valore) not in ("0", "False") else "no"
+    testo = str(valore or "").strip()
+    return testo[:300]
+
+
+def modifiche_registro(prima: dict, dopo: dict, *, nuova: bool = False) -> list:
+    """``[[campo leggibile, prima, dopo], ...]`` dei campi cambiati (per una nuova
+    anomalia solo quelli compilati, con «prima» vuoto)."""
+    out = []
+    for campo, nome in _CAMPI_REGISTRO:
+        if campo not in dopo:
+            continue
+        nuovo = _valore_registro(campo, dopo.get(campo))
+        if nuova:
+            if nuovo and nuovo != "no":
+                out.append([nome, "", nuovo])
+            continue
+        vecchio = _valore_registro(campo, prima.get(campo))
+        if vecchio != nuovo:
+            out.append([nome, vecchio, nuovo])
+    return out
+
+
 def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnalati, gia_segnalati, risposte) -> None:
     """«Segnalato al cliente/terzista» e risposte del destinatario salvati con la decisione."""
     from anomalie import segnalato_service as segn
@@ -4851,13 +4906,15 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
     prev_av = ""
     prev_note = ""
     prev_numero_rdc = ""
+    prev_valori: dict = {}
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
                 pre_cur.execute(
-                    "SELECT avanzamento, chiudere, {nota}, {num} FROM anomalie WHERE id = %s".format(
+                    "SELECT avanzamento, chiudere, {nota}, {num}, {extra} FROM anomalie WHERE id = %s".format(
                         nota="note_capocommessa" if "note_capocommessa" in cols else "NULL",
-                        num="numero_rdc" if "numero_rdc" in cols else "NULL"),
+                        num="numero_rdc" if "numero_rdc" in cols else "NULL",
+                        extra=", ".join(c if c in cols else "NULL" for c in _CAMPI_REGISTRO_EXTRA)),
                     [local_pk_id],
                 )
                 pre_row = pre_cur.fetchone()
@@ -4866,6 +4923,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 prev_chiuso = bool(pre_row[1])
                 prev_note = str(pre_row[2] or "")
                 prev_numero_rdc = str(pre_row[3] or "")
+                prev_valori = {"avanzamento": prev_av, "chiudere": prev_chiuso, "note_capocommessa": prev_note,
+                               "numero_rdc": prev_numero_rdc,
+                               **{c: pre_row[4 + i] for i, c in enumerate(_CAMPI_REGISTRO_EXTRA)}}
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
                 # Prima decisione «Azione di recupero»: si chiude solo con l'azione
                 # effettuata (o aprendo un RDC, che porta la decisione al cliente).
@@ -5010,6 +5070,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
             new_status=new_status,
             ip_address=_client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"modifiche": modifiche_registro(prev_valori if updated > 0 else {}, payload_map,
+                                                     nuova=updated <= 0),
+                     **({"clonata_da": int(data["clonata_da"])} if str(data.get("clonata_da") or "").isdigit() else {})},
         )
     except Exception:
         logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)

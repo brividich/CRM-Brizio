@@ -1357,8 +1357,11 @@ def log_anomalia_portal_action(
     note: str = "",
     ip_address: str | None = None,
     user_agent: str = "",
+    payload: dict | None = None,
 ) -> None:
     """Registra un'azione su anomalia eseguita dal portale (source=PORTAL).
+
+    ``payload["modifiche"]``: ``[[campo, prima, dopo], ...]`` per il registro attività.
 
     Fire-and-forget: ogni errore viene assorbito e loggato, non deve mai far
     fallire il salvataggio dell'anomalia. Speculare a _write_action_log del
@@ -1384,6 +1387,7 @@ def log_anomalia_portal_action(
             source=AnomaliaActionLog.Source.PORTAL,
             ip_address=ip_address,
             user_agent=str(user_agent or "")[:500],
+            payload=payload or {},
         )
     except Exception:
         logger.warning("log_anomalia_portal_action: scrittura log fallita op=%s id=%s", op_id, anomalia_id, exc_info=True)
