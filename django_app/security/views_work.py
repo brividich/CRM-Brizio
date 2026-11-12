@@ -408,6 +408,15 @@ def pc_detail(request):
     return render(request, "security/pc_detail.html", {"pc": data})
 
 
+def postura_mappa(request):
+    """Mappa dei PC per indice di postura (riquadro di «Da fare», caricato a parte perché l'elenco è pesante)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import postura
+
+    return render(request, "security/partials/postura_mappa.html", {"m": postura.mappa(refresh=request.GET.get("refresh") == "1")})
+
+
 # --- WatchGuard (API): credenziali, patch e protezione ------------------------------------
 
 @require_POST

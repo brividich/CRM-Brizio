@@ -1,0 +1,29 @@
+{% if m.pcs %}
+<div class="cy-map" data-cy-map>
+  <div class="cy-map-head">
+    <div class="cy-map-avg is-{{ m.tono_media }}" style="--pct: {{ m.media }}" title="Media dell'indice di postura dei {{ m.pcs|length }} PC">
+      <span class="cy-map-ring"><b>{{ m.media }}</b></span>
+      <span><strong>Indice medio</strong><small>{{ m.pcs|length }} PC · calcolato alle {{ m.calcolata|date:"H:i" }}</small></span>
+    </div>
+    <div class="cy-map-filters">
+      <button type="button" class="is-active" data-cy-map-tono="">Tutti <b>{{ m.pcs|length }}</b></button>
+      <button type="button" class="is-critical" data-cy-map-tono="critical"{% if not m.conta.critical %} disabled{% endif %}>A rischio <b>{{ m.conta.critical }}</b></button>
+      <button type="button" class="is-warning" data-cy-map-tono="warning"{% if not m.conta.warning %} disabled{% endif %}>Da migliorare <b>{{ m.conta.warning }}</b></button>
+      <button type="button" class="is-success" data-cy-map-tono="success"{% if not m.conta.success %} disabled{% endif %}>Postura buona <b>{{ m.conta.success }}</b></button>
+    </div>
+    <input type="search" class="cy-map-search" placeholder="Cerca PC…" aria-label="Cerca PC nella mappa" data-cy-map-search>
+  </div>
+  <div class="cy-map-grid">
+    {% for p in m.pcs %}
+      <a class="cy-tile is-{{ p.tono }}" href="{{ p.url }}" data-tono="{{ p.tono }}" data-nome="{{ p.nome|lower }}" title="{{ p.nome }} · {{ p.punteggio }}/100 · {{ p.motivo }}" style="--pct: {{ p.punteggio }}">
+        <span class="cy-tile-name">{{ p.nome }}</span>
+        <b>{{ p.punteggio }}</b>
+        <i></i>
+      </a>
+    {% endfor %}
+  </div>
+  <p class="cy-map-note">Stessa regola della scheda del dispositivo: si parte da 100 e si toglie per backup, alert, CVE, protezione, Intune, sistema e patch. Un riquadro apre la scheda; passandoci sopra si vede il motivo principale. <a href="{% url 'security:postura_mappa' %}?refresh=1" data-cy-map-refresh>Ricalcola</a></p>
+</div>
+{% else %}
+<p class="sec-empty">Nessun PC nell'elenco Dispositivi.</p>
+{% endif %}
