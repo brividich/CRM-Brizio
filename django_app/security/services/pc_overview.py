@@ -106,6 +106,7 @@ def pc_scheda(name, days=90):
     software = [s for s in SoftwareInstallation.objects.filter(still_detected=True, host__istartswith=key)
                 .exclude(source_kind="snmp_firmware").order_by("product_raw") if _norm(s.host) == key] if key else []
     sistema = stato_sistema([s for s in software if (s.product or "").lower().startswith("windows ")])
+    _cve_per_programma(software)
     defender_visto = max((s.last_seen_at for s in software if "defender" in (s.fonti or [])), default=None)
 
     disco = None
@@ -147,7 +148,9 @@ def pc_scheda(name, days=90):
         "cve_gravita": _cve_gravita(data["cve_all"], data["open_vulns_all"]),
         "patch_per_criticita": _patch_per_criticita(patch),
         "produttori_sw": _produttori(software),
-        "timeline": _timeline(data, patch_errori, wg),
+        "software_stat": _software_stat(software),
+        "software_soglia": now - timedelta(days=7),
+        **_timeline_giorni(_timeline(data, patch_errori, wg)),
         "wg": wg,
         "wg_vecchio": wg_vecchio,
         "patch": patch[:PATCH_IN_SCHEDA],
@@ -242,10 +245,81 @@ def _patch_per_criticita(patch):
 def _produttori(software, quanti=8):
     from collections import Counter
 
-    conta = Counter((s.vendor or s.vendor_raw or "Altro").strip() or "Altro" for s in software)
+    conta = Counter(s.produttore_nome for s in software)
     top = conta.most_common(quanti)
     massimo = top[0][1] if top else 1
     return [{"nome": n, "n": c, "pct": round(100 * c / massimo)} for n, c in top]
+
+
+def _cve_per_programma(software):
+    """Su ogni installazione: ``cve_n`` (CVE che la colpiscono), ``cve_gravi`` (KEV o CVSS ≥ 9), ``iniziale`` per l'avatar."""
+    from security.models import SecurityCveImpact
+
+    per = {}
+    ids = [s.pk for s in software]
+    if ids:
+        for inst_id, cve_id, kev, cvss in (SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS, installation_id__in=ids)
+                                           .values_list("installation_id", "cve_id", "cve__kev", "cve__cvss")):
+            per.setdefault(inst_id, {})[cve_id] = bool(kev or (cvss or 0) >= 9)
+    for s in software:
+        cves = per.get(s.pk, {})
+        s.cve_n = len(cves)
+        s.cve_gravi = sum(1 for g in cves.values() if g)
+        s.produttore_nome = (s.vendor_raw or s.vendor or "").strip() or "Altro"
+        nome = s.produttore_nome if s.produttore_nome != "Altro" else (s.product_raw or "?")
+        s.iniziale = (nome.strip()[:1] or "?").upper()
+        s.fonti_set = sorted(set(s.fonti or [s.source_kind]), key=lambda f: ("watchguard", "defender").index(f) if f in ("watchguard", "defender") else 9)
+
+
+def _software_stat(software):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    vecchio = timezone.now() - timedelta(days=7)
+    return {
+        "totale": len(software),
+        "produttori": len({s.produttore_nome.lower() for s in software} - {"altro"}),
+        "con_cve": sum(1 for s in software if s.cve_n),
+        "con_cve_gravi": sum(1 for s in software if s.cve_gravi),
+        "watchguard": sum(1 for s in software if "watchguard" in s.fonti_set),
+        "defender": sum(1 for s in software if "defender" in s.fonti_set),
+        "non_recenti": sum(1 for s in software if s.last_seen_at and s.last_seen_at < vecchio),  # stessa soglia di software_soglia
+    }
+
+
+TONO_PESO = {"critical": 3, "danger": 3, "warning": 2, "success": 1, "muted": 0}
+
+
+def _timeline_giorni(voci, giorni=14):
+    """Timeline raggruppata per giorno (Oggi, Ieri, data) + istogramma degli ultimi ``giorni`` giorni e conteggi per tipo."""
+    from collections import Counter
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
+    gruppi = []
+    for v in voci:
+        quando = timezone.localtime(v["quando"])
+        v["ora"] = quando.strftime("%H:%M")
+        giorno = quando.date()
+        if not gruppi or gruppi[-1]["giorno"] != giorno:
+            delta = (oggi - giorno).days
+            gruppi.append({"giorno": giorno, "id": giorno.strftime("g%Y%m%d"),
+                           "label": "Oggi" if delta == 0 else "Ieri" if delta == 1 else quando.strftime("%d/%m/%Y"),
+                           "voci": []})
+        gruppi[-1]["voci"].append(v)
+    per_giorno = {g["giorno"]: g for g in gruppi}
+    massimo = max((len(g["voci"]) for g in gruppi), default=1)
+    barre = []
+    for i in range(giorni - 1, -1, -1):
+        d = oggi - timedelta(days=i)
+        g = per_giorno.get(d)
+        n = len(g["voci"]) if g else 0
+        tono = max((v["tono"] for v in g["voci"]), key=lambda t: TONO_PESO.get(t, 0)) if g else "muted"
+        barre.append({"giorno": d, "n": n, "pct": round(100 * n / massimo) if n else 0, "tono": tono, "id": g["id"] if g else ""})
+    return {"timeline": voci, "timeline_giorni": gruppi, "timeline_barre": barre, "timeline_tipi": Counter(v["tipo"] for v in voci)}
 
 
 def _timeline(data, patch_errori, wg):
@@ -261,8 +335,16 @@ def _timeline(data, patch_errori, wg):
     for e in data["endpoint"]:
         s = e["signal"]
         voci.append({"quando": s.occurred_at, "tipo": "protezione", "fonte": e["label"], "titolo": s.title, "tono": "warning", "url": ""})
+    from security.templatetags.security_i18n import ui_label
+
+    con_alert = {a.event_id for a in data["alerts"] if a.event_id}
     for ev in data["events"]:
-        voci.append({"quando": ev.occurred_at, "tipo": "evento", "fonte": ev.source.name, "titolo": ev.event_type, "tono": "muted",
+        if ev.pk in con_alert:
+            continue  # l'evento ha già la sua riga come alert
+        titolo = ui_label(ev.event_type)
+        if titolo == ev.event_type:
+            titolo = ev.event_type.replace("_", " ").strip().capitalize()
+        voci.append({"quando": ev.occurred_at, "tipo": "evento", "fonte": ev.source.name, "titolo": titolo, "tono": "muted",
                      "url": reverse("security:event_detail", args=[ev.pk])})
     for p in patch_errori:
         voci.append({"quando": p.esito_il, "tipo": "patch", "fonte": "WatchGuard", "titolo": f"{p.esito_label}: {p.nome}", "tono": "critical", "url": ""})
