@@ -63,3 +63,27 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", avvio); else avvio();
   document.addEventListener("htmx:afterSettle", avvio);
 })();
+
+/* Topologia: apri/chiudi tutti i rami. Editor porte: applica le proposte della tabella MAC alle righe vuote. */
+(function () {
+  "use strict";
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-cc-tree-tutti]");
+    if (b) {
+      var apri = b.getAttribute("data-cc-tree-tutti") === "1";
+      document.querySelectorAll(".cc-tree-ramo").forEach(function (d) { d.open = apri; });
+      return;
+    }
+    var p = ev.target.closest("[data-cc-proposte]");
+    if (!p) return;
+    var n = 0;
+    document.querySelectorAll("select[data-proposta]").forEach(function (s) {
+      if (!s.value && s.querySelector("option[value='" + s.dataset.proposta + "']")) { s.value = s.dataset.proposta; n++; }
+    });
+    document.querySelectorAll("input[data-proposta-testo]").forEach(function (i) {
+      if (!i.value) { i.value = i.dataset.propostaTesto; n++; }
+    });
+    p.textContent = n ? n + " proposte applicate: controlla e salva" : "Nessuna riga vuota da completare";
+    p.disabled = true;
+  });
+})();

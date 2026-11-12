@@ -1,0 +1,58 @@
+{# L'apparato disegnato, per tipo: pannello delle porte (firewall, switch), stampante, UPS, NAS, server, NVR, telecamera, sensore. #}
+{% load contatori_acl %}{% puo_gestire as g %}
+<section class="panel cc-disegno" id="disegno" aria-label="L'apparato disegnato">
+  <div class="panel-head">
+    <div><span class="cc-kicker">{% if vista %}{{ vista.sigla }}{% else %}MFC{% endif %} · come è fatto e cosa c'è collegato</span><h2>{{ nome_disegno }}</h2></div>
+    <div class="spacer"></div>
+    <div class="actions">
+      {% if porte_pannello is not None and g and dispositivo %}<a class="btn ghost small" href="{% url 'contatori:dispositivo_porte' dispositivo.pk %}">Modifica porte</a>{% endif %}
+      <a class="btn ghost small" href="{% url 'contatori:topologia' %}{% if dispositivo %}#nodo-d{{ dispositivo.pk }}{% elif macchina %}#nodo-m{{ macchina.pk }}{% endif %}">Vedi nella topologia</a>
+    </div>
+  </div>
+
+  {% if porte_pannello is not None %}
+    <div class="cc-face cc-face-{{ dispositivo.categoria|lower }} is-{{ vista.tipo|default:''|lower }}">
+      <div class="cc-face-id"><span class="cc-face-led is-{% if dispositivo.snmp_stato == 'OK' %}ok{% elif dispositivo.snmp_stato == 'ERROR' %}danger{% elif dispositivo.snmp_stato == 'WARNING' %}warn{% else %}muted{% endif %}"></span><strong>{{ dispositivo.nome }}</strong><small class="cc-mono">{{ dispositivo.host }}</small></div>
+      <div class="cc-ports{% if porte_pannello|length > 12 %} is-due-file{% endif %}">
+        {% for p in porte_pannello %}
+          <a class="cc-port is-{{ p.tono }}" href="{% if p.url %}{{ p.url }}{% elif g %}{% url 'contatori:dispositivo_porte' dispositivo.pk %}#porta-{{ p.numero }}{% else %}#porta-{{ p.numero }}{% endif %}"
+             title="Porta {{ p.numero }}{% if p.nome %} · {{ p.nome }}{% endif %}{% if p.tipo != 'LAN' %} · {{ p.tipo }}{% endif %}{% if p.vlan %} · VLAN {{ p.vlan }}{% endif %}{% if p.collegato %} → {{ p.collegato }}{% else %} · libera{% endif %}">
+            <span class="cc-port-led"></span><span class="cc-port-jack"></span><span class="cc-port-n">{{ p.numero }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="cc-port-legenda"><span><i class="is-on"></i>collegata</span><span><i class="is-wan"></i>WAN</span><span><i class="is-danger"></i>apparato in errore</span><span><i class="is-off"></i>libera</span></div>
+    {% with descritte=porte_pannello|dictsort:"numero" %}
+    <ul class="cc-port-elenco">
+      {% for p in descritte %}{% if p.occupata %}<li id="porta-{{ p.numero }}"><span class="cc-port-num is-{{ p.tono }}">{{ p.numero }}</span><span>{% if p.nome %}<strong>{{ p.nome }}</strong>{% endif %}{% if p.tipo != "LAN" %} <span class="pill">{{ p.tipo }}</span>{% endif %}{% if p.vlan %} <span class="muted">VLAN {{ p.vlan }}</span>{% endif %}</span><span class="cc-port-freccia">→</span><span>{% if p.url %}<a class="plain" href="{{ p.url }}">{{ p.collegato }}</a>{% else %}{{ p.collegato|default:"—" }}{% endif %}{% if p.nota %} <small class="muted">{{ p.nota }}</small>{% endif %}</span></li>{% endif %}{% endfor %}
+    </ul>
+    {% endwith %}
+    {% if not dispositivo.porte_totali and not porte_pannello.0.occupata %}<p class="muted cc-draw-nota">Porte non ancora descritte: {% if g %}<a class="plain" href="{% url 'contatori:dispositivo_porte' dispositivo.pk %}">indica quante sono e cosa c'è collegato</a>{% else %}chi gestisce può indicarle{% endif %}. Diventano i rami della topologia.</p>{% endif %}
+
+  {% elif disegno_mfc %}
+    {% include "contatori/_disegno_mfc.html" %}
+
+  {% elif vista %}{% with i=vista.ind %}
+    <div class="cc-hw cc-hw-{{ vista.tipo|lower }}">
+      {% if vista.tipo == "UPS" %}
+        <div class="cc-ups"><div class="cc-ups-batt is-{{ i.carica_batteria.tono|default:'muted' }}" style="--pct: {{ i.carica_batteria.pct|default:0 }}"><i></i><span>{{ i.carica_batteria.pct|default:"?" }}%</span></div>
+          <div class="cc-hw-dati"><strong>{{ i.autonomia.valore|default:"—" }}</strong><small>autonomia</small><span class="pill">{{ i.stato_batteria.valore|default:"stato n.d." }}</span></div></div>
+      {% elif vista.tipo == "STORAGE" %}
+        <div class="cc-chassis"><span class="cc-face-led is-{{ i.stato_sistema.tono|default:'muted' }}"></span>{% for _ in "1234" %}<span class="cc-bay is-{{ i.dischi.tono|default:'muted' }}"><i></i></span>{% endfor %}
+          <div class="cc-hw-dati"><strong>{{ i.volumi_raid.valore|default:"RAID n.d." }}</strong><small>volumi / RAID</small></div></div>
+      {% elif vista.tipo == "SERVER" %}
+        <div class="cc-chassis cc-chassis-2u">{% for x in "123456" %}<span class="cc-vent"></span>{% endfor %}
+          <div class="cc-hw-leds"><span class="is-{{ i.salute_generale.tono|default:'muted' }}">salute</span><span class="is-{{ i.ventole.tono|default:'muted' }}">ventole</span><span class="is-{{ i.alimentatori.tono|default:'muted' }}">alimentatori</span><span class="is-{{ i.dischi_controller.tono|default:'muted' }}">dischi</span></div></div>
+      {% elif vista.tipo == "TVCC_CAMERA" %}
+        <svg class="cc-cam is-{{ vista.base.0.tono|default:'muted' }}" viewBox="0 0 220 120" aria-hidden="true"><rect x="20" y="30" width="140" height="56" rx="12"/><circle cx="160" cy="58" r="22"/><circle cx="160" cy="58" r="10" class="cc-cam-lente"/><rect x="70" y="86" width="20" height="22"/><rect x="40" y="104" width="80" height="8" rx="4"/><circle cx="40" cy="44" r="4" class="cc-cam-led"/></svg>
+      {% elif vista.tipo == "TVCC_NVR" %}
+        <div class="cc-chassis">{% for x in "12345678" %}<span class="cc-hdd is-{{ i.dischi.tono|default:'muted' }}"></span>{% endfor %}<div class="cc-hw-dati"><strong>{{ i.canali.valore|default:"—" }}</strong><small>canali</small></div></div>
+      {% elif vista.tipo == "AMBIENTE" %}
+        <div class="cc-termo is-{{ i.temperatura.tono|default:'muted' }}"><div class="cc-termo-tubo"><i></i></div><div class="cc-hw-dati"><strong>{{ i.temperatura.valore|default:"—" }}</strong><small>temperatura</small>{% if i.umidit %}<span>{{ i.umidit.pct }}% umidità</span>{% endif %}</div></div>
+      {% else %}
+        <div class="cc-chassis"><span class="cc-face-led is-{% if dispositivo.snmp_stato == 'OK' %}ok{% elif dispositivo.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"></span><div class="cc-hw-dati"><strong>{{ dispositivo.get_categoria_display }}</strong><small class="cc-mono">{{ dispositivo.host }}</small></div></div>
+      {% endif %}
+    </div>
+  {% endwith %}{% endif %}
+</section>

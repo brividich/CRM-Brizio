@@ -1,0 +1,35 @@
+{# Disegno della MFC dai dati salvati (presentazione.disegno_stampante): toner, cassetti, display, sportelli. #}
+{% with d=disegno_mfc %}{% if d %}
+<div class="cc-draw cc-draw-mfc is-{{ d.tono }}">
+  <svg viewBox="0 0 340 {{ d.altezza|add:20 }}" role="img" aria-label="Disegno della stampante">
+    <ellipse cx="170" cy="{{ d.altezza|add:12 }}" rx="150" ry="7" class="cc-svg-ombra"/>
+    <rect x="44" y="10" width="252" height="30" rx="7" class="cc-svg-scanner"/>
+    <rect x="70" y="18" width="150" height="6" rx="3" class="cc-svg-fessura"/>
+    <rect x="30" y="38" width="280" height="{{ d.altezza|add:-30 }}" rx="12" class="cc-svg-corpo"/>
+    <rect x="198" y="46" width="100" height="34" rx="5" class="cc-svg-display"/>
+    {% for riga in d.display %}<text x="204" y="{% if forloop.first %}60{% else %}73{% endif %}" class="cc-svg-display-testo">{{ riga|truncatechars:17 }}</text>{% empty %}<text x="204" y="66" class="cc-svg-display-testo">{{ d.stato|default:"—"|truncatechars:17 }}</text>{% endfor %}
+    <circle cx="54" cy="58" r="5" class="cc-svg-led"/>
+    <text x="64" y="61" class="cc-svg-mini">stato</text>
+    {% if d.toner %}<rect x="58" y="88" width="{% widthratio d.toner|length 1 36 %}" height="80" rx="6" class="cc-svg-vano"/>{% endif %}
+    {% for t in d.toner %}
+      <g class="cc-svg-toner{% if t.basso %} is-basso{% endif %}"><title>{{ t.nome }}: {% if t.pct is not None %}{{ t.pct }}%{% else %}livello non comunicato{% endif %}</title>
+        <rect x="{{ t.x }}" y="94" width="26" height="56" rx="4" class="cc-svg-tubo"/>
+        <rect x="{{ t.x }}" y="{{ t.y }}" width="26" height="{{ t.h }}" rx="4" fill="{{ t.hex }}"/>
+        <text x="{{ t.x|add:13 }}" y="162" text-anchor="middle" class="cc-svg-mini">{% if t.pct is not None %}{{ t.pct }}%{% else %}?{% endif %}</text>
+      </g>
+    {% endfor %}
+    {% for c in d.cassetti %}
+      <g class="cc-svg-cassetto{% if c.problema %} is-problema{% endif %}"><title>{{ c.nome }}: {% if c.pct is not None %}{{ c.pct }}%{% else %}{{ c.nota|default:"livello non comunicato" }}{% endif %}</title>
+        <rect x="48" y="{{ c.y }}" width="244" height="18" rx="4" class="cc-svg-cassetto-corpo"/>
+        <rect x="58" y="{{ c.y|add:5 }}" width="150" height="8" rx="4" class="cc-svg-cassetto-vuoto"/>
+        <rect x="58" y="{{ c.y|add:5 }}" width="{{ c.w }}" height="8" rx="4" class="cc-svg-cassetto-carta"/>
+        <text x="216" y="{{ c.y|add:13 }}" class="cc-svg-mini">{{ c.nome|truncatechars:12 }}{% if c.pct is not None %} {{ c.pct }}%{% endif %}</text>
+      </g>
+    {% empty %}
+      <rect x="48" y="182" width="244" height="18" rx="4" class="cc-svg-cassetto-corpo"/><text x="60" y="195" class="cc-svg-mini">cassetti non comunicati</text>
+    {% endfor %}
+    {% if d.sportello_aperto %}<rect x="30" y="38" width="280" height="{{ d.altezza|add:-30 }}" rx="12" class="cc-svg-allarme"/><text x="170" y="34" text-anchor="middle" class="cc-svg-allarme-testo">Sportello aperto</text>{% endif %}
+  </svg>
+  {% if d.vuoto %}<p class="muted cc-draw-nota">Il disegno si completa alla prima lettura dei dati della stampante (toner, cassetti, display).</p>{% endif %}
+</div>
+{% endif %}{% endwith %}

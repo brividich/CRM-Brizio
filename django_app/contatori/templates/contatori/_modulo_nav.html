@@ -10,6 +10,7 @@
     <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' or n == 'consumabili_riepilogo' or n == 'macchina_consumabili' %}active{% endif %}">Consumabili</a>
     <a href="{% url 'contatori:consumabili_fabbisogno' %}" class="{% if n == 'consumabili_fabbisogno' %}active{% endif %}" title="Pezzi per anno e consumabili in esaurimento per modello">Fabbisogno</a>
     <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit snmp_dispositivo_verifica_oid' or t == 'sonda' %}active{% endif %}">Monitor SNMP</a>
+    <a href="{% url 'contatori:topologia' %}" class="{% if n == 'topologia' or n == 'dispositivo_porte' %}active{% endif %}" title="Albero della rete: firewall, switch e apparati collegati">Topologia</a>
   </div>
   <div class="cnav-gruppo">
     <span class="cnav-label">Economico</span>

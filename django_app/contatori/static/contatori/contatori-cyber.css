@@ -195,3 +195,143 @@ body.theme-dark .contatori-module { --cc-kicker: var(--cc-cyan); }
 body.theme-dark .contatori-module .cc-links a { color: #e0f2fe; }
 .contatori-module .cc-links-bar { margin: -6px 0 18px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--cm-border); background: var(--cc-soft); }
 .contatori-module .cc-links-bar .cc-kicker { margin-right: 6px; }
+
+/* ======================= Apparato disegnato ======================= */
+.contatori-module .cc-disegno { border-top: 3px solid var(--cc-cyan); overflow: hidden; }
+.contatori-module .cc-draw-nota { margin: 10px 0 0; font-size: 12px; }
+.contatori-module .is-ok { --led: #22c55e; }
+.contatori-module .is-warn { --led: #f59e0b; }
+.contatori-module .is-danger { --led: #ef4444; }
+.contatori-module .is-muted { --led: #64748b; }
+
+/* Pannello frontale (firewall, switch) */
+.contatori-module .cc-face {
+  position: relative; padding: 16px 18px 14px; border-radius: 10px; color: #cbd5e1;
+  background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid #334155;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 24px rgba(2,6,23,.35);
+}
+.contatori-module .cc-face::before, .contatori-module .cc-face::after { content: ""; position: absolute; top: 50%; width: 10px; height: 26px; margin-top: -13px; border-radius: 3px; background: #475569; }
+.contatori-module .cc-face::before { left: 4px; }
+.contatori-module .cc-face::after { right: 4px; }
+.contatori-module .cc-face-firewall { background: linear-gradient(180deg, #3b1d1d, #1a0b0b); border-color: #7f1d1d; }
+.contatori-module .cc-face-id { display: flex; align-items: baseline; gap: 10px; margin: 0 8px 12px; }
+.contatori-module .cc-face-id strong { font: 700 13px/1 var(--cc-mono); color: #f1f5f9; letter-spacing: .08em; text-transform: uppercase; }
+.contatori-module .cc-face-id small { color: #94a3b8; }
+.contatori-module .cc-face-led { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--led, #64748b); box-shadow: 0 0 8px var(--led, transparent); }
+.contatori-module .cc-ports { display: grid; grid-auto-flow: column; grid-template-rows: 1fr; gap: 8px; justify-content: start; margin: 0 8px; overflow-x: auto; padding-bottom: 4px; }
+.contatori-module .cc-ports.is-due-file { grid-template-rows: 1fr 1fr; }
+.contatori-module .cc-port { position: relative; display: grid; justify-items: center; gap: 3px; width: 34px; text-decoration: none; color: #94a3b8; }
+.contatori-module .cc-port-jack { position: relative; width: 30px; height: 24px; border-radius: 3px; background: #020617; border: 2px solid #475569; box-shadow: inset 0 3px 6px rgba(0,0,0,.6); transition: transform .12s; }
+.contatori-module .cc-port-jack::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 6px; background: #020617; border: 2px solid #475569; border-top: 0; }
+.contatori-module .cc-port-led { width: 6px; height: 6px; border-radius: 50%; background: #1e293b; }
+.contatori-module .cc-port-n { font: 600 9px/1 var(--cc-mono); }
+.contatori-module .cc-port.is-on .cc-port-jack { border-color: var(--cc-cyan); box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(34,211,238,.45); }
+.contatori-module .cc-port.is-on .cc-port-led { background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: cc-blink 1.4s steps(2, start) infinite; }
+.contatori-module .cc-port.is-wan .cc-port-jack { border-color: #f97316; box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(249,115,22,.5); }
+.contatori-module .cc-port.is-wan .cc-port-led { background: #f97316; box-shadow: 0 0 6px #f97316; }
+.contatori-module .cc-port.is-danger .cc-port-jack { border-color: #ef4444; box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(239,68,68,.55); }
+.contatori-module .cc-port.is-danger .cc-port-led { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+.contatori-module .cc-port:hover .cc-port-jack { transform: translateY(-1px); border-color: #e2e8f0; }
+.contatori-module .cc-port:hover { color: #f8fafc; }
+@keyframes cc-blink { to { opacity: .35; } }
+.contatori-module .cc-port-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 2px; font-size: 11px; color: var(--cm-muted); }
+.contatori-module .cc-port-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; border: 2px solid #475569; background: #020617; }
+.contatori-module .cc-port-legenda i.is-on { border-color: var(--cc-cyan); }
+.contatori-module .cc-port-legenda i.is-wan { border-color: #f97316; }
+.contatori-module .cc-port-legenda i.is-danger { border-color: #ef4444; }
+.contatori-module .cc-port-elenco { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.contatori-module .cc-port-elenco li { display: grid; grid-template-columns: auto auto auto 1fr; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 8px; background: var(--cc-soft); border: 1px solid var(--cm-border); }
+.contatori-module .cc-port-num { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; border-radius: 4px; font: 700 11px/1 var(--cc-mono); color: #e2e8f0; background: #0b1220; border: 2px solid #475569; }
+.contatori-module .cc-port-num.is-on { border-color: var(--cc-cyan); }
+.contatori-module .cc-port-num.is-wan { border-color: #f97316; }
+.contatori-module .cc-port-num.is-danger { border-color: #ef4444; }
+.contatori-module .cc-port-freccia { color: var(--cc-cyan); font-weight: 700; }
+
+/* MFC */
+.contatori-module .cc-draw-mfc { display: grid; place-items: center; }
+.contatori-module .cc-draw-mfc svg { width: min(420px, 100%); height: auto; filter: drop-shadow(0 10px 18px rgba(2,6,23,.18)); }
+.contatori-module .cc-svg-ombra { fill: rgba(15,23,42,.18); }
+.contatori-module .cc-svg-scanner { fill: #cbd5e1; stroke: #94a3b8; }
+.contatori-module .cc-svg-fessura { fill: #64748b; }
+.contatori-module .cc-svg-corpo { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1.5; }
+.contatori-module .cc-svg-display { fill: #052e16; stroke: #22c55e; }
+.contatori-module .cc-svg-display-testo { fill: #4ade80; font: 600 8.5px var(--cc-mono); }
+.contatori-module .cc-svg-led { fill: var(--led, #64748b); }
+.contatori-module .cc-svg-mini { fill: #334155; font: 600 8px var(--cc-mono); }
+.contatori-module .cc-svg-vano { fill: #0f172a; }
+.contatori-module .cc-svg-tubo { fill: #1e293b; stroke: #334155; }
+.contatori-module .cc-svg-toner.is-basso .cc-svg-tubo { stroke: #ef4444; stroke-width: 2; }
+.contatori-module .cc-svg-toner text { fill: #e2e8f0; }
+.contatori-module .cc-svg-cassetto-corpo { fill: #f1f5f9; stroke: #94a3b8; }
+.contatori-module .cc-svg-cassetto-vuoto { fill: #cbd5e1; }
+.contatori-module .cc-svg-cassetto-carta { fill: #22d3ee; }
+.contatori-module .cc-svg-cassetto.is-problema .cc-svg-cassetto-corpo { stroke: #ef4444; stroke-width: 2; }
+.contatori-module .cc-svg-cassetto.is-problema .cc-svg-cassetto-carta { fill: #ef4444; }
+.contatori-module .cc-svg-allarme { fill: none; stroke: #ef4444; stroke-width: 3; stroke-dasharray: 8 5; animation: cc-breathe 1.4s ease-in-out infinite; }
+.contatori-module .cc-svg-allarme-testo { fill: #ef4444; font: 700 10px var(--cc-mono); }
+
+/* Altri apparati */
+.contatori-module .cc-hw { display: grid; place-items: center; padding: 6px 0; }
+.contatori-module .cc-hw-dati { display: grid; gap: 4px; justify-items: start; }
+.contatori-module .cc-hw-dati strong { font: 700 20px/1.1 var(--cc-mono); color: var(--cm-text); }
+.contatori-module .cc-hw-dati small { font: 600 10px var(--cc-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--cm-muted); }
+.contatori-module .cc-ups { display: flex; gap: 22px; align-items: center; padding: 18px 24px; border-radius: 14px; background: linear-gradient(180deg, #1e293b, #0b1220); color: #e2e8f0; }
+.contatori-module .cc-ups .cc-hw-dati strong { color: #f8fafc; }
+.contatori-module .cc-ups-batt { position: relative; width: 70px; height: 120px; border-radius: 10px; border: 3px solid #94a3b8; overflow: hidden; --tone: var(--cc-ok); }
+.contatori-module .cc-ups-batt.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-ups-batt.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-ups-batt i { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--pct) * 1%); background: linear-gradient(0deg, var(--tone), color-mix(in srgb, var(--tone) 60%, #fff)); box-shadow: 0 0 14px var(--tone); }
+.contatori-module .cc-ups-batt span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 15px var(--cc-mono); color: #fff; text-shadow: 0 1px 3px #000; }
+.contatori-module .cc-chassis { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 16px 20px; border-radius: 10px; background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid #334155; color: #e2e8f0; }
+.contatori-module .cc-chassis .cc-hw-dati strong { color: #f8fafc; margin-left: 10px; }
+.contatori-module .cc-bay { width: 34px; height: 70px; border-radius: 4px; background: repeating-linear-gradient(0deg, #0f172a 0 4px, #1e293b 4px 7px); border: 1px solid #475569; position: relative; }
+.contatori-module .cc-bay i { position: absolute; top: 6px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--led); box-shadow: 0 0 6px var(--led); }
+.contatori-module .cc-chassis-2u { padding: 18px 22px; }
+.contatori-module .cc-vent { width: 46px; height: 46px; border-radius: 50%; background: repeating-radial-gradient(circle, #0f172a 0 3px, #334155 3px 5px); border: 2px solid #475569; }
+.contatori-module .cc-hw-leds { display: grid; gap: 6px; margin-left: 12px; }
+.contatori-module .cc-hw-leds span { display: flex; align-items: center; gap: 8px; font: 600 10px var(--cc-mono); text-transform: uppercase; color: #cbd5e1; }
+.contatori-module .cc-hw-leds span::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--led); box-shadow: 0 0 6px var(--led); }
+.contatori-module .cc-hdd { width: 22px; height: 40px; border-radius: 3px; background: #0f172a; border: 1px solid #475569; position: relative; }
+.contatori-module .cc-hdd::after { content: ""; position: absolute; bottom: 5px; left: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--led); box-shadow: 0 0 5px var(--led); }
+.contatori-module .cc-cam { width: min(260px, 100%); }
+.contatori-module .cc-cam rect, .contatori-module .cc-cam circle { fill: #334155; stroke: #64748b; }
+.contatori-module .cc-cam .cc-cam-lente { fill: #0b1220; stroke: var(--cc-cyan); stroke-width: 2; }
+.contatori-module .cc-cam .cc-cam-led { fill: var(--led); stroke: none; }
+.contatori-module .cc-termo { display: flex; gap: 20px; align-items: center; }
+.contatori-module .cc-termo-tubo { position: relative; width: 22px; height: 120px; border-radius: 11px; border: 3px solid #94a3b8; overflow: hidden; background: var(--cm-surface); }
+.contatori-module .cc-termo-tubo i { position: absolute; left: 0; right: 0; bottom: 0; height: 70%; background: var(--led); box-shadow: 0 0 10px var(--led); }
+
+/* ======================= Topologia ======================= */
+.contatori-module .cc-topo { overflow-x: auto; }
+.contatori-module .cc-tree { list-style: none; margin: 0; padding: 0 0 0 26px; position: relative; }
+.contatori-module .cc-topo > .cc-tree { padding-left: 0; }
+.contatori-module .cc-tree-li { position: relative; padding: 6px 0 6px 18px; }
+.contatori-module .cc-tree .cc-tree .cc-tree-li::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid color-mix(in srgb, var(--cc-cyan) 55%, transparent); }
+.contatori-module .cc-tree .cc-tree .cc-tree-li:last-child::before { bottom: auto; height: 30px; }
+.contatori-module .cc-tree .cc-tree .cc-tree-li::after { content: ""; position: absolute; left: 0; top: 30px; width: 18px; height: 2px; background: repeating-linear-gradient(90deg, var(--cc-cyan) 0 5px, transparent 5px 9px); background-size: 18px 2px; animation: cc-flow 1s linear infinite; }
+.contatori-module .cc-tree-porta { display: block; margin: 0 0 3px 2px; font-size: 10px; color: var(--cc-kicker); }
+.contatori-module .cc-tree-ramo > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.contatori-module .cc-tree-ramo > summary::-webkit-details-marker { display: none; }
+.contatori-module .cc-tree-ramo > summary::before { content: "▸"; color: var(--cc-cyan); font-size: 12px; transition: transform .15s; }
+.contatori-module .cc-tree-ramo[open] > summary::before { transform: rotate(90deg); }
+.contatori-module .cc-tnode { display: inline-flex; align-items: center; gap: 10px; padding: 7px 12px 7px 8px; border-radius: 10px; text-decoration: none; color: var(--cm-text); --tone: var(--cc-mute); border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 7%, var(--cm-surface)); transition: transform .12s, box-shadow .12s; }
+.contatori-module .cc-tnode.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-tnode.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-tnode.is-danger { --tone: var(--cc-bad); }
+.contatori-module a.cc-tnode:hover { transform: translateX(2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent); color: var(--cm-text); }
+.contatori-module .cc-tnode:target { box-shadow: 0 0 0 3px var(--cc-cyan); }
+.contatori-module .cc-tnode.is-testo { border-style: dashed; background: var(--cc-soft); }
+.contatori-module .cc-tnode-ico { display: grid; place-items: center; min-width: 38px; height: 30px; padding: 0 4px; border-radius: 7px; font: 700 10px var(--cc-mono); color: #e2e8f0; background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid var(--tone); box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 40%, transparent); }
+.contatori-module .cc-tnode-txt { display: grid; line-height: 1.2; }
+.contatori-module .cc-tnode-txt strong { font-size: 13px; }
+.contatori-module .cc-tnode-txt small { font-size: 10.5px; color: var(--cm-muted); }
+.contatori-module .cc-tnode-n { font: 700 10px var(--cc-mono); padding: 2px 6px; border-radius: 999px; background: var(--cc-soft); color: var(--cm-muted); }
+.contatori-module .cc-topo-sciolti { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Editor delle porte */
+.contatori-module .cc-porte-tab td { padding: 6px; }
+.contatori-module .cc-porte-tab input, .contatori-module .cc-porte-tab select { padding: 6px 8px; font-size: 13px; }
+.contatori-module .cc-input-corto { width: 80px; }
+.contatori-module .cc-proposta { display: block; margin-top: 3px; font-size: 11px; color: var(--cc-kicker); }
+.contatori-module .cc-porte-tab tr:target td { background: var(--cc-soft); }
+.contatori-module .cc-ups .pill, .contatori-module .cc-chassis .pill { color: #e2e8f0; background: rgba(255, 255, 255, .12); }

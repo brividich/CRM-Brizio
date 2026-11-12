@@ -1,0 +1,39 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Porte · {{ dispositivo.nome }}{% endblock %}
+{% block modulo %}
+<section class="hero cc-hero"><div class="row"><div><div class="eyebrow">{{ dispositivo.get_categoria_display }} · porte</div><h1>{{ dispositivo.nome }}</h1>
+  <p class="sub">Per ogni porta: nome, tipo, VLAN e cosa c'è collegato. Le porte collegate a un apparato diventano i rami della topologia; le righe lasciate vuote restano porte libere.</p></div>
+  <div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}#disegno">Torna alla scheda</a></div></div></section>
+
+<form method="post" class="panel cc-porte-form" data-no-search>{% csrf_token %}
+  <div class="panel-head">
+    <div class="form-field"><label for="porte_totali">Porte del pannello</label><input id="porte_totali" type="number" name="porte_totali" min="0" max="96" value="{{ totale_mostrato }}"><span class="helptext">Cambia il numero e salva per aggiungere o togliere righe.</span></div>
+    <div class="spacer"></div>
+    {% if n_proposte %}<button type="button" class="btn ghost small" data-cc-proposte>Usa le {{ n_proposte }} proposte della tabella MAC</button>{% endif %}
+  </div>
+  <div class="table-wrap">
+    <table class="cc-porte-tab" data-table-enhanced="0" data-fm-table-skip="1">
+      <thead><tr><th class="num">Porta</th><th>Nome</th><th>Tipo</th><th>VLAN</th><th>Collegato a</th><th>Oppure (testo)</th><th>Nota</th></tr></thead>
+      <tbody>
+        {% for p in porte %}
+          <tr id="porta-{{ p.numero }}">
+            <td class="num"><span class="cc-port-num is-{{ p.tono }}">{{ p.numero }}</span></td>
+            <td><input name="nome_{{ p.numero }}" value="{{ p.nome }}" maxlength="60"{% if forloop.first %} placeholder="es. Uplink core"{% endif %}></td>
+            <td><select name="tipo_{{ p.numero }}">{% for v, l in tipi %}<option value="{{ v }}"{% if p.tipo == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+            <td><input name="vlan_{{ p.numero }}" value="{{ p.vlan }}" maxlength="40" class="cc-input-corto"></td>
+            <td><select name="coll_{{ p.numero }}"{% if p.proposta.valore %} data-proposta="{{ p.proposta.valore }}"{% endif %}>
+                <option value="">—</option>
+                <optgroup label="Apparati">{% for c in candidati_d %}<option value="{{ c.valore }}"{% if p.coll == c.valore %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</optgroup>
+                <optgroup label="Stampanti MFC">{% for c in candidati_m %}<option value="{{ c.valore }}"{% if p.coll == c.valore %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</optgroup>
+              </select>
+              {% if p.proposta %}<small class="cc-proposta" title="Visto dalla tabella MAC dello switch">rilevato: {{ p.proposta.testo }}{% if p.proposta.vlan %} · VLAN {{ p.proposta.vlan }}{% endif %}</small>{% endif %}</td>
+            <td><input name="testo_{{ p.numero }}" value="{{ p.testo }}" maxlength="120"{% if forloop.first %} placeholder="es. Internet"{% endif %}{% if p.proposta and not p.proposta.valore %} data-proposta-testo="{{ p.proposta.testo }}"{% endif %}></td>
+            <td><input name="nota_{{ p.numero }}" value="{{ p.nota }}" maxlength="200"></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="form-actions"><a class="btn ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Annulla</a><button class="btn" type="submit">Salva le porte</button></div>
+</form>
+{% endblock %}
