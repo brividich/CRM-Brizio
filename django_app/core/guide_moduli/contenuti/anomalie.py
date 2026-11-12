@@ -113,7 +113,9 @@ GUIDA = {
                     "controllore scelto in «Vedi come»; vale subito, senza rilasci.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
-                    "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",
+                    "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati). "
+                    "Quelle spunte non chiudono l'anomalia: si chiude con il numero RDC e «Segnalato al cliente». Con lo "
+                    "stato «In attesa di ulteriori informazioni» il referente la rimanda al capocommessa, spunte comprese.",
                     "La mail «Segnala a CAR» va al CAR solo se il nominativo corrisponde a un solo utente e ha l'email "
                     "di notifica in anagrafica; si spegne in Configurazione → Notifiche.",
                     "Con «Ruoli e permessi» acceso l'ambito delle celle anomalie decide chi vede e modifica: «Tutti» "
