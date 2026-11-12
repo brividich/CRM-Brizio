@@ -1,0 +1,29 @@
+{# Quadro del tipo di apparato (contatori/presentazione.py): indicatori riconosciuti dalle sonde, collegamenti. Solo dati salvati. #}
+{% if vista %}
+<section class="panel cc-vista cc-vista-{{ vista.tipo|lower }}" aria-label="Quadro {{ vista.titolo }}">
+  <div class="panel-head">
+    <div><span class="cc-kicker">{{ vista.sigla }} · dati dell'ultima interrogazione</span><h2>{{ vista.titolo }}</h2></div>
+    <div class="spacer"></div>
+    {% if vista.collegamenti %}<nav class="cc-links" aria-label="Collegamenti">{% for c in vista.collegamenti %}<a href="{{ c.url }}">{{ c.label }} →</a>{% endfor %}</nav>{% endif %}
+  </div>
+  {% if vista.indicatori or vista.base %}
+  <div class="cc-ind-grid">
+    {% for i in vista.indicatori %}
+      <div class="cc-ind is-{{ i.tono }}" title="Sonda «{{ i.sonda }}»: {{ i.valore }}">
+        {% if i.forma == "pct" %}<span class="cc-ring" style="--pct: {{ i.pct }}"><b>{{ i.pct }}%</b></span>{% endif %}
+        <span class="cc-ind-body"><span class="cc-ind-label">{{ i.label }}</span>{% if i.forma != "pct" %}<strong>{{ i.valore }}</strong>{% endif %}</span>
+      </div>
+    {% endfor %}
+    {% for i in vista.base %}
+      <div class="cc-ind is-{{ i.tono }}">
+        {% if i.pct is not None %}<span class="cc-ring" style="--pct: {{ i.pct }}"><b>{{ i.pct }}%</b></span>{% endif %}
+        <span class="cc-ind-body"><span class="cc-ind-label">{{ i.label }}</span><strong>{{ i.valore }}</strong></span>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="muted">Nessun indicatore ancora: compaiono dopo la prima interrogazione riuscita con un profilo che legge {{ vista.titolo|lower }}.</p>
+  {% endif %}
+  {% if vista.sonde_totali > vista.riconosciute %}<p class="muted cc-vista-nota">{{ vista.riconosciute }} sond{{ vista.riconosciute|pluralize:"a,e" }} in evidenza qui; tutte le {{ vista.sonde_totali }} con soglie e valori sono nella tabella «Sonde» più sotto.</p>{% endif %}
+</section>
+{% endif %}

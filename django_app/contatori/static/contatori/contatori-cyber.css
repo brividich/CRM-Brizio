@@ -164,3 +164,34 @@ body.theme-dark .contatori-module { --cc-kicker: var(--cc-cyan); }
 .contatori-module .card:has(.pill.ok) { --tone: var(--cc-ok); }
 .contatori-module .card:has(.pill.warn) { --tone: var(--cc-warn); }
 .contatori-module .card:has(.pill.danger) { --tone: var(--cc-bad); }
+
+/* ---------- Quadro per tipo di apparato e collegamenti (contatori/presentazione.py) ---------- */
+.contatori-module .cc-vista { border-top: 3px solid var(--cc-cyan); }
+.contatori-module .cc-ind-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.contatori-module .cc-ind {
+  display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; --tone: var(--cc-mute);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 6%, var(--cm-surface));
+}
+.contatori-module .cc-ind.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-ind.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-ind.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-ind-body { display: grid; gap: 2px; min-width: 0; }
+.contatori-module .cc-ind-label { font: 600 10.5px/1.3 var(--cc-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--cm-muted); }
+.contatori-module .cc-ind strong { font: 700 16px/1.25 var(--cc-mono); color: var(--tone); overflow-wrap: anywhere; }
+.contatori-module .cc-ind.is-muted strong { color: var(--cm-text); }
+.contatori-module .cc-ring {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--tone) calc(var(--pct) * 1%), var(--cm-border) 0); box-shadow: 0 0 12px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+.contatori-module .cc-ring b { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--cm-surface); font: 700 12px/1 var(--cc-mono); color: var(--cm-text); }
+.contatori-module .cc-ind:has(.cc-ring) strong { font-size: 13px; color: var(--cm-muted); }
+.contatori-module .cc-vista-nota { margin: 10px 0 0; font-size: 12px; }
+.contatori-module .cc-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.contatori-module .cc-links a {
+  padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; text-decoration: none;
+  color: var(--cm-primary-mid); border: 1px solid var(--cm-border); background: var(--cm-surface); transition: border-color .15s, box-shadow .15s;
+}
+.contatori-module .cc-links a:hover { border-color: var(--cc-cyan); box-shadow: 0 0 0 3px rgba(34, 211, 238, .15); }
+body.theme-dark .contatori-module .cc-links a { color: #e0f2fe; }
+.contatori-module .cc-links-bar { margin: -6px 0 18px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--cm-border); background: var(--cc-soft); }
+.contatori-module .cc-links-bar .cc-kicker { margin-right: 6px; }

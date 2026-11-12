@@ -549,6 +549,26 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "quadro-per-tipo",
+        "titolo": "Il quadro di ogni tipo di apparato",
+        "blocchi": [
+            ("p", "La scheda di un dispositivo SNMP ha, subito sotto i riquadri in alto, il quadro del suo tipo: gli indicatori "
+                  "che contano per quell'apparato e i collegamenti alle pagine che lo riguardano. Usa solo i dati dell'ultima "
+                  "interrogazione già salvata: aprire la scheda non interroga l'apparato e non la rallenta."),
+            ("ul", [
+                "UPS (Alimentazione): carica della batteria (anello), autonomia, stato della batteria, da quanto è su batteria, carico, temperatura; collegamento al Backup.",
+                "Firewall (Sicurezza perimetrale): CPU e memoria (anelli), sessioni, tunnel VPN, traffico; collegamenti ad Accessi VPN e Rete (IP) del SOC e al Registro accessi.",
+                "Switch e rete: CPU, memoria, temperatura, traffico; collegamenti a Rete (IP) nel SOC e agli indirizzi IP in Asset. Resta il riquadro «Chi è collegato alle porte».",
+                "Server: salute generale, CPU, memoria, temperatura, ventole, alimentatori, dischi e controller; collegamenti a «Server e virtualizzazione» del Registro accessi e al Backup.",
+                "NAS e storage: stato del sistema, volumi/RAID, dischi, temperature, aggiornamento disponibile; collegamenti al Backup e al suo log.",
+                "Videoregistratore e telecamere: dischi, canali, registrazione, temperatura; collegamento a tutta la videosorveglianza. Sensori ambiente: temperatura, umidità, allarme. Lettori: stato.",
+                "Per tutti: tempo di risposta, da quanto è acceso e disponibilità nelle ultime 24 ore (anello e «N su M riuscite»).",
+                "Il colore segue le soglie della sonda (verde, giallo, rosso). Gli indicatori si riconoscono dal nome della sonda (quelli dei profili: «Carica residua», «Temperatura sistema», «Stato peggiore volumi/RAID»…); una sonda aggiunta a mano con un nome simile compare da sola. Le altre restano nella tabella «Sonde».",
+                "I collegamenti compaiono solo se puoi aprire la pagina. Le stampanti hanno il loro pannello; la scheda di una MFC a contratto ha sotto la testata la barra «MFC · vai a» (letture di quella MFC, mensili, consumabili, fabbisogno, fatture, riconciliazione, analisi).",
+            ]),
+        ],
+    },
+    {
         "id": "nuovo-apparato",
         "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
         "blocchi": [

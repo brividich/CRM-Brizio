@@ -471,7 +471,10 @@ def macchina_detail(request, pk):
     from .ticket_stampante import url_apri_ticket
 
     consumabili_stato = services.stato_consumabili([macchina]).get(macchina.pk)
+    from .presentazione import collegamenti_mfc
+
     return render(request, "contatori/macchina.html", {
+        "collegamenti": collegamenti_mfc(macchina, request),
         "url_ticket": url_apri_ticket(request, macchina, consumabili_stato),
         "macchina": macchina, "dati": dati, "info_snmp": services.info_snmp(macchina),
         "ultima_mensile": macchina.letture_mensili.order_by("-rilevata_il").first(),
@@ -1266,8 +1269,13 @@ def dispositivo_snmp_detail(request, pk):
         per_indice = {r["indice"]: r for r in dati_extra["stime_stampante"]["consumabili"]}
         for c in ((ultima.dati_stampante or {}).get("consumabili") or []) if ultima else []:
             c["stima"] = per_indice.get(c.get("indice"))  # solo in memoria, non si salva
+    disponibilita = services.disponibilita_dispositivo(dispositivo)
+    from .presentazione import vista as vista_apparato
+
     return render(request, "contatori/snmp_dispositivo_detail.html", {
         **dati_extra,
+        # Layout del suo tipo (UPS, firewall, switch, server, NAS, NVR…): solo dati già in memoria, nessuna query in più.
+        "vista": vista_apparato(dispositivo, sonde, ultima=ultima_rilevazione, disponibilita=disponibilita, request=request),
         "dispositivo": dispositivo,
         "sonde": sonde,
         "rilevazioni": rilevazioni_pagina.object_list,
@@ -1282,7 +1290,7 @@ def dispositivo_snmp_detail(request, pk):
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
         **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp", request),
         "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
-        "disponibilita": services.disponibilita_dispositivo(dispositivo),
+        "disponibilita": disponibilita,
         "periodi_disponibilita": (("24h", "ultime 24 ore"), ("7g", "ultimi 7 giorni")),
         **_porte_switch(dispositivo),
     })
