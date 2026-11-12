@@ -234,6 +234,21 @@
     .ga-note--row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .ga-btn--xs { padding: 5px 11px; font-size: var(--fs-sm); }
     .ga-note--info { background: var(--accent-light); color: var(--text); border: 1px solid rgba(249,115,22,.3); font-weight: 500; }
+    /* Condizioni di chiusura con «Aprire RDC» / «Segnalare al cliente»: in evidenza sotto le spunte */
+    .ga-chiusura { padding: 12px 14px; border-radius: 10px; border: 2px solid var(--warning); border-left-width: 6px; background: var(--warning-bg); color: var(--text); }
+    .ga-chiusura--ok { border-color: var(--success); background: var(--success-bg); }
+    .ga-chiusura--info { border-color: #f97316; background: var(--accent-light); }
+    .ga-chiusura__t { font-weight: 800; font-size: var(--fs-md, 15px); color: var(--warning); }
+    .ga-chiusura--ok .ga-chiusura__t { color: var(--success); }
+    .ga-chiusura--info .ga-chiusura__t { color: #c2410c; }
+    .ga-chiusura__d { margin-top: 4px; font-size: var(--fs-sm); }
+    .ga-chiusura__l { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
+    .ga-chiusura__h { color: var(--text-muted, #64748b); font-weight: 600; }
+    .ga-chiusura__i { display: inline-block; width: 1.2em; font-weight: 800; color: var(--warning); }
+    .ga-chiusura__l .is-fatto .ga-chiusura__i { color: var(--success); }
+    .ga-chiusura__l .is-fatto b { text-decoration: line-through; opacity: .7; }
+    .ga-chiusura__det { color: var(--text-muted, #64748b); }
+    body.theme-dark .ga-chiusura--info .ga-chiusura__t { color: #fdba74; }
     /* Clona OP: pulsante sulla riga dell'ordine e selezione delle anomalie da copiare */
     /* Riga OP compatta: numero + contatori, P/N sotto */
     .ga-opr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-left: 3px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
