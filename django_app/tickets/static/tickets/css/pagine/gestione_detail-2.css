@@ -1,0 +1,44 @@
+/* NOVICROM HUB — da tickets/pages/gestione_detail.html (blocco 2), spostato dall'inline il 12/11/2026: stesso punto, ora in cache. */
+.tkt-sez{display:flex;flex-direction:column;gap:16px}
+.tkt-apri{background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:16px;padding:6px 22px}
+.tkt-apri>summary{min-height:44px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-light,#64748b);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;list-style-position:inside}
+.tkt-apri>summary::before{content:"▸";font-size:13px}
+.tkt-apri[open]>summary::before{content:"▾"}
+.tkt-apri[open]{padding-bottom:18px}
+.tkt-apri>.tkt-card,.tkt-apri>.tka-card{border:0;padding:8px 0 0;background:transparent}
+.tkt-rapide{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.tkt-rapida{min-height:36px;padding:0 12px;border:1px solid var(--border,#cbd5e1);border-radius:999px;background:var(--surface,#fff);font-size:13px;color:var(--text-mid,#334155);cursor:pointer}
+.tkt-rapida:hover{background:var(--hover-bg,#f1f5f9)}
+.tkt-az-sec.tkt-solo-tel{display:none}
+@media(max-width:720px){
+  .tkt-az-sec.tkt-solo-tel{display:inline-flex}
+  .tkt-az-sec.tkt-solo-pc{display:none}
+  .tkt-barra-scheda{position:fixed;left:0;right:0;bottom:calc(61px + env(safe-area-inset-bottom,0px));z-index:80;margin:0;padding:10px 16px;background:var(--surface,#fff);border-top:1px solid var(--border,#cbd5e1);box-shadow:0 -4px 14px rgba(15,23,42,.08)}
+  .tkt-barra-scheda .tkt-az-prim{flex:1 1 auto;min-height:48px}
+  .tkt-barra-scheda.is-pannello{display:none}
+  #tkt-root{padding-bottom:84px}
+  .tkt-risolvi .tkt-barra-az{position:sticky;bottom:calc(61px + env(safe-area-inset-bottom,0px));padding:10px 0;background:var(--surface,#fff)}
+  .tkt-risolvi .tkt-az-prim{flex:1 1 auto;min-height:48px}
+}
+.tkt-barra-az{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.tkt-barra-scheda{margin:0 0 16px}
+.tkt-az-prim,.tkt-az-sec{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer}
+.tkt-az-prim{border:0;background:#0369a1;color:#fff}
+.tkt-az-prim:hover{background:#075985;color:#fff}
+.tkt-az-sec{border:1px solid var(--border,#cbd5e1);background:var(--surface,#fff);color:var(--text-mid,#334155)}
+.tkt-az-sec:hover{background:var(--hover-bg,#f1f5f9)}
+.tkt-chiuso-ok{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:14px 18px;border:1px solid #6ee7b7;border-radius:14px;background:#ecfdf5;color:#065f46}
+.tkt-risolvi{display:flex;flex-direction:column;gap:14px;margin-bottom:16px;padding:18px 20px;border:2px solid #0369a1;border-radius:14px;background:var(--surface,#fff)}
+.tkt-risolvi[hidden]{display:none}
+.tkt-risolvi-tit{margin:0;font-size:18px;font-weight:800;color:var(--text,#0f172a)}
+.tkt-risolvi-riga{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.tkt-risolvi-nota{font-size:12px;color:var(--text-light,#64748b)}
+.tkt-risolvi-altri summary{min-height:32px;font-size:14px;font-weight:700;color:#0369a1;cursor:pointer}
+.tkt-risolvi-altri[open] summary{margin-bottom:12px}
+.tkt-risolvi-check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;color:var(--text,#0f172a)}
+.tkt-risolvi-errore{font-size:13px;font-weight:600;color:#b91c1c}
+body.theme-dark .tkt-chiuso-ok{background:rgba(6,95,70,.25);color:#6ee7b7}
+body.theme-dark .tkt-risolvi-altri summary{color:#7dd3fc}
+body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
+.tkt-data-corr{display:inline-block;margin-left:6px}.tkt-data-corr summary{cursor:pointer;color:#0369a1;font-size:11px;font-weight:700;list-style:none}.tkt-data-corr summary::-webkit-details-marker{display:none}.tkt-data-corr form{display:flex;gap:6px;margin-top:6px;justify-content:flex-end}.tkt-data-corr input{font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;padding:3px 6px}.tkt-data-corr button{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:6px;padding:3px 10px;background:#0369a1;color:#fff;cursor:pointer}
+body.theme-dark .tkt-data-corr input{background:var(--surface);border-color:var(--border);color:var(--text)}

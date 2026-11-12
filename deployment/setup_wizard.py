@@ -4153,7 +4153,9 @@ Write-Host "OK $taskName"
     <system.webServer>
       <handlers><clear /><add name="SF" path="*" verb="GET,HEAD"
           modules="StaticFileModule,DefaultDocumentModule" resourceType="Either" /></handlers>
-      <staticContent><clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00"/></staticContent>
+      <!-- 365 giorni: con ManifestStaticFilesStorage ogni file modificato cambia nome (hash), quindi non resta vecchio. -->
+      <staticContent><clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="365.00:00:00"/></staticContent>
+      <urlCompression doStaticCompression="true" doDynamicCompression="false" />
     </system.webServer>
   </location>
   <location path="media">
