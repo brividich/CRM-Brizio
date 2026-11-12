@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from anomalie.guida import con_guida
+from anomalie.segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA, STATI_RISPOSTA
 import json
 import logging
 import mimetypes
@@ -150,10 +151,13 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
     ".xlsx",
     ".xlsm",
     ".csv",
+    # Mail salvate (Outlook .msg, .eml): si scaricano sempre, mai aperte nel browser.
+    ".msg",
+    ".eml",
 }
 ALLEGATI_MAX_FILE_SIZE = DOCUMENT_MAX_BYTES
-# Allegati di «Risposta del cliente» e «Azione effettuata»: anche le mail salvate
-# (Outlook .msg, .eml) e i testi; si scaricano sempre, mai aperti nel browser.
+# Allegati di «Risposta del cliente» e «Azione effettuata»: anche i testi.
+# Mail e testi si scaricano sempre, mai aperti nel browser.
 ESITI_SOLO_DOWNLOAD = {".msg", ".eml", ".txt"}
 ESITI_ALLOWED_EXTENSIONS = ALLEGATI_ALLOWED_EXTENSIONS | ESITI_SOLO_DOWNLOAD
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -1499,7 +1503,7 @@ def _canonicalize_avanzamento(value: str) -> str:
     for c in choices:
         if str(c).strip().lower() == raw.lower():
             return str(c).strip()
-    for fisso in (AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_INFO_RICHIESTE):
+    for fisso in (AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA, AVANZAMENTO_INFO_RICHIESTE):
         if raw.lower() == fisso.lower():
             return fisso
     if choices:
@@ -3636,44 +3640,8 @@ def api_anomalie_allegati_upload(request):
                 f"Cartella allegati non scrivibile sul server ({folder}): {writable_err}",
                 status=500,
             )
-        saved = 0
-        saved_file_ids: list[str] = []
-        saved_names: list[str] = []
-        errors: list[str] = []
-        for f in files:
-            original = str(getattr(f, "name", "") or "").strip()
-            safe_name = _safe_attachment_filename(original)
-            if not safe_name:
-                errors.append(f"{original or 'file'}: nome non valido")
-                continue
-            if not _is_allowed_attachment(safe_name):
-                errors.append(f"{original}: formato non supportato")
-                continue
-            file_size = int(getattr(f, "size", 0) or 0)
-            if file_size <= 0:
-                errors.append(f"{original}: file vuoto")
-                continue
-            if file_size > ALLEGATI_MAX_FILE_SIZE:
-                errors.append(f"{original}: supera {DOCUMENT_MAX_MB} MB")
-                continue
-            file_id = f"{uuid4().hex}{ALLEGATI_DECISIONE_SUFFIX if per_decisione else ''}__{safe_name}"
-            target = folder / file_id
-            try:
-                with target.open("wb") as dest:
-                    for chunk in f.chunks():
-                        dest.write(chunk)
-            except OSError as wexc:
-                # Es. cartella non scrivibile da IIS_IUSRS in prod: non abbattere
-                # l'intero upload, registra l'errore per-file e prosegui.
-                logger.error(
-                    "[anomalie] allegati_upload scrittura fallita local_id=%s file=%s target=%s: %s",
-                    local_id, safe_name, target, wexc,
-                )
-                errors.append(f"{original}: scrittura fallita ({wexc})")
-                continue
-            saved += 1
-            saved_file_ids.append(file_id)
-            saved_names.append(safe_name)
+        saved_file_ids, saved_names, errors = salva_file_allegati(local_id, folder, files, per_decisione=per_decisione)
+        saved = len(saved_file_ids)
 
         logger.info(
             "[anomalie] allegati_upload done local_id=%s op=%s saved=%s errors=%s",
@@ -3681,7 +3649,6 @@ def api_anomalie_allegati_upload(request):
         )
 
         if saved_file_ids:
-            _mark_attachment_pending(local_id, saved_file_ids)
             try:
                 log_action(
                     request,
@@ -3710,6 +3677,50 @@ def api_anomalie_allegati_upload(request):
     except Exception as exc:
         logger.exception("[anomalie] errore api_anomalie_allegati_upload")
         return _json_error(f"Errore upload allegati: {exc}", status=500)
+
+
+def salva_file_allegati(local_id: int, folder, files, *, per_decisione: bool = False):
+    """Scrive i file caricati nella cartella allegati dell'anomalia (stesse regole per
+    pagina e link mail). Ritorna ``(file_id salvati, nomi, errori)``; non solleva."""
+    saved_file_ids: list[str] = []
+    saved_names: list[str] = []
+    errors: list[str] = []
+    for f in files:
+        original = str(getattr(f, "name", "") or "").strip()
+        safe_name = _safe_attachment_filename(original)
+        if not safe_name:
+            errors.append(f"{original or 'file'}: nome non valido")
+            continue
+        if not _is_allowed_attachment(safe_name):
+            errors.append(f"{original}: formato non supportato")
+            continue
+        file_size = int(getattr(f, "size", 0) or 0)
+        if file_size <= 0:
+            errors.append(f"{original}: file vuoto")
+            continue
+        if file_size > ALLEGATI_MAX_FILE_SIZE:
+            errors.append(f"{original}: supera {DOCUMENT_MAX_MB} MB")
+            continue
+        file_id = f"{uuid4().hex}{ALLEGATI_DECISIONE_SUFFIX if per_decisione else ''}__{safe_name}"
+        target = folder / file_id
+        try:
+            with target.open("wb") as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+        except OSError as wexc:
+            # Es. cartella non scrivibile da IIS_IUSRS in prod: non abbattere
+            # l'intero upload, registra l'errore per-file e prosegui.
+            logger.error(
+                "[anomalie] allegati_upload scrittura fallita local_id=%s file=%s target=%s: %s",
+                local_id, safe_name, target, wexc,
+            )
+            errors.append(f"{original}: scrittura fallita ({wexc})")
+            continue
+        saved_file_ids.append(file_id)
+        saved_names.append(safe_name)
+    if saved_file_ids:
+        _mark_attachment_pending(local_id, saved_file_ids)
+    return saved_file_ids, saved_names, errors
 
 
 @login_required
@@ -4293,9 +4304,10 @@ def api_anomalie_esito(request):
     gia_chiusa = bool(rows[0].get("chiudere"))
     if gia_chiusa:
         return _json_error("L'anomalia è chiusa: riaprila prima di registrare un esito", status=400)
-    if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE:
+    risposte_tipi = (AnomaliaEsito.Tipo.RISPOSTA_CLIENTE, AnomaliaEsito.Tipo.RISPOSTA_TERZISTA)
+    if tipo in risposte_tipi:
         if not testo and not files:
-            return _json_error("Scrivi la risposta del cliente o allega la mail.", status=400)
+            return _json_error("Scrivi la risposta o allega la mail.", status=400)
         azione, riverificato, chiudi = "", False, False
     else:
         if not azione:
@@ -4316,7 +4328,7 @@ def api_anomalie_esito(request):
     )
     from anomalie.qualita_service import get_or_create_scheda
     scheda, _ = get_or_create_scheda(local_id)
-    if scheda is not None:
+    if scheda is not None and tipo != AnomaliaEsito.Tipo.RISPOSTA_TERZISTA:
         campo = "risposta_cliente_il" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione_effettuata_il"
         if tipo == AnomaliaEsito.Tipo.AZIONE or getattr(scheda, campo) is None:
             AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**{campo: esito.created_at})
@@ -4348,7 +4360,8 @@ def api_anomalie_esito(request):
         log_anomalia_portal_action(
             anomalia_id=local_id,
             op_id=op_id,
-            action="risposta_cliente" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione",
+            action={AnomaliaEsito.Tipo.RISPOSTA_CLIENTE: "risposta_cliente",
+                    AnomaliaEsito.Tipo.RISPOSTA_TERZISTA: "risposta_terzista"}.get(tipo, "azione"),
             user=request.user,
             legacy_user_id=int(legacy_user.id) if legacy_user else None,
             user_display=nome_utente,
@@ -4453,55 +4466,60 @@ MSG_NOTA_STATO_IN_ATTESA = (
     "l'anomalia non può restare «In attesa»."
 )
 
-AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente"
 # Risposta del referente RDC: rimanda l'anomalia al capocommessa, spunte comprese.
 AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni"
 _SQL_INFO = AVANZAMENTO_INFO_RICHIESTE.lower()  # costante, mai input: sicuro nelle query
-_STATI_ATTESA = {AVANZAMENTO_RISPOSTA_CLIENTE.lower(), _SQL_INFO}
+_STATI_ATTESA = {*STATI_RISPOSTA, _SQL_INFO}
 _STATI_CHIUSURA = {"accetto lo stato", "apertura ore/ripi"}
+MSG_RISPOSTA_SENZA_STATO = ("Hai scritto la risposta: scegli lo stato definitivo "
+                            "(oppure spunta «Chiudi»).")
 
 
-def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento) -> bool:
+def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento,
+                        terzista: bool = False, segnalato_terzista: bool = False) -> bool:
     """Regola unica della chiusura automatica al salvataggio (pagina e form mail).
 
-    «Aprire RDC» e «Segnalare al cliente» non chiudono da soli: l'anomalia resta
-    aperta, in carico al referente RDC, finché l'RDC non ha un numero e la
-    segnalazione al cliente non è registrata («Segnalato al cliente»). Gli stati
-    d'attesa (risposta del cliente, ulteriori informazioni) la tengono aperta.
+    «Aprire RDC», «Segnalare al cliente» e «Segnala a terzista» non chiudono da
+    soli: l'anomalia resta aperta finché l'RDC non ha un numero e le segnalazioni
+    non sono registrate («Segnalato al cliente/terzista»). Gli stati d'attesa
+    (risposta del cliente o del terzista, ulteriori informazioni) la tengono
+    aperta. «Chiudi» (chiusura a mano) non passa da qui.
     """
     av = str(avanzamento or "").strip().lower()
     if av in _STATI_ATTESA:
         return False
     if segnalare and not segnalato_fatto:
         return False
+    if terzista and not segnalato_terzista:
+        return False
     if aprire_rdc:
         return bool(str(numero_rdc or "").strip())
     return av in _STATI_CHIUSURA
 
 
-def segnalato_cliente_registrato(anomalia_id) -> bool:
-    """«Segnalato al cliente» spuntato sulla scheda qualità dell'anomalia."""
-    if not anomalia_id:
-        return False
-    try:
-        from anomalie.quality_models import AnomaliaSchedaQualita
+def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnalati, gia_segnalati, risposte) -> None:
+    """«Segnalato al cliente/terzista» e risposte del destinatario salvati con la decisione."""
+    from anomalie import segnalato_service as segn
+    from anomalie.mail_action_service import log_anomalia_portal_action
 
-        return AnomaliaSchedaQualita.objects.filter(
-            anomalia_id=int(anomalia_id), segnalato_cliente_il__isnull=False,
-        ).exists()
-    except Exception:
-        logger.warning("anomalie: lettura «Segnalato al cliente» fallita id=%s", anomalia_id, exc_info=True)
-        return False
-
-
-def avanzamento_dopo_segnalazione(segnalare, avanzamento, attuale: str = "") -> str:
-    """«Segnalare al cliente» senza uno stato scelto (vuoto o «In attesa»): l'anomalia
-    resta aperta «In attesa risposta cliente». ``attuale`` vale se ``avanzamento`` è vuoto."""
-    from anomalie.controllo_service import _STATI_LIBERI
-
-    if segnalare and str(avanzamento or attuale or "").strip().lower() in _STATI_LIBERI:
-        return AVANZAMENTO_RISPOSTA_CLIENTE
-    return avanzamento
+    identity = _current_user_identity(request)
+    chi_utente = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200) or ""
+    comuni = {
+        "anomalia_id": local_id, "op_id": op_id, "user": request.user, "user_display": chi_utente,
+        "legacy_user_id": int(legacy_user.id) if legacy_user else None,
+        "ip_address": _client_ip(request), "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+    }
+    for chi in segn.DESTINATARI:
+        try:
+            if segnalati[chi] != gia_segnalati[chi] and segn.registra_segnalato(local_id, chi, segnalati[chi], chi_utente):
+                nota = (f"Segnalato {SEGNALATO_A[chi]}" if segnalati[chi]
+                        else f"Tolta la spunta «Segnalato {SEGNALATO_A[chi]}»")
+                log_anomalia_portal_action(action="segnalato", note=nota, **comuni)
+            if risposte.get(chi) and segn.registra_risposta(local_id, chi, risposte[chi], user=request.user,
+                                                            utente_display=chi_utente):
+                log_anomalia_portal_action(action=f"risposta_{chi}", note=risposte[chi][:500], **comuni)
+        except Exception:
+            logger.warning("api_salva: segnalato/risposta %s non registrati id=%s", chi, local_id, exc_info=True)
 
 
 def _serve_azione_per_chiudere(anomalia_id: int) -> bool:
@@ -4539,10 +4557,17 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         # Chi apre soltanto la segnalazione non ne decide la disposizione.
         data = {**data, "note": "", "aprire_rdc": False, "numero_rdc": "", "segnalare": False, "chiudere": False,
                 "avanzamento": "In attesa"}
-    if _as_bool_int(data.get("segnalare")):
-        data = {**data, "avanzamento": avanzamento_dopo_segnalazione(True, data.get("avanzamento"))}
-    if not da_controllo and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento")):
+    # Con RDC, cliente o terzista da segnalare la nota può restare «In attesa»:
+    # l'anomalia aspetta la segnalazione, non una decisione.
+    in_attesa_di_segnalazione = any(_as_bool_int(data.get(k)) for k in ("aprire_rdc", "segnalare", "segnala_terzista"))
+    if (not da_controllo and not in_attesa_di_segnalazione
+            and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento"))):
         return {"success": False, "error": MSG_NOTA_STATO_IN_ATTESA, "status": 400}
+    chiudi_manuale = bool(_as_bool_int(data.get("chiudi_manuale"))) and puo_modificare
+    risposte = {chi: _safe_text(data.get(f"risposta_{chi}"), 4000) or "" for chi in ("cliente", "terzista")}
+    if (puo_modificare and any(risposte.values()) and not chiudi_manuale
+            and str(data.get("avanzamento") or "").strip().lower() in STATI_RISPOSTA):
+        return {"success": False, "error": MSG_RISPOSTA_SENZA_STATO, "status": 400}
 
     cols = legacy_table_columns("anomalie")
     if not cols:
@@ -4614,17 +4639,21 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
     previous_status = ""
     prev_chiuso = False
     prev_av = ""
+    prev_note = ""
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
                 pre_cur.execute(
-                    "SELECT avanzamento, chiudere FROM anomalie WHERE id = %s",
+                    "SELECT avanzamento, chiudere, note_capocommessa FROM anomalie WHERE id = %s"
+                    if "note_capocommessa" in cols else
+                    "SELECT avanzamento, chiudere, NULL FROM anomalie WHERE id = %s",
                     [local_pk_id],
                 )
                 pre_row = pre_cur.fetchone()
             if pre_row is not None:
                 prev_av = str(pre_row[0] or "").strip()
                 prev_chiuso = bool(pre_row[1])
+                prev_note = str(pre_row[2] or "")
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
                 # Prima decisione «Azione di recupero»: si chiude solo con l'azione
                 # effettuata (o aprendo un RDC, che porta la decisione al cliente).
@@ -4638,13 +4667,43 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         if errore:
             return {"success": False, "error": errore, "status": 403}
 
-    # «Aprire RDC» / «Segnalare al cliente» senza numero RDC o segnalazione registrata:
+    # «Segnalato al cliente/terzista» della decisione: dal payload se c'è (pagina e
+    # mail nuove), altrimenti quello già registrato sulla scheda.
+    from anomalie import segnalato_service as segn
+
+    gia_segnalati = segn.stato_segnalati(local_pk_id)
+    terzista_val = (bool(_as_bool_int(data.get("segnala_terzista"))) if "segnala_terzista" in data
+                    else gia_segnalati["segnala_terzista"])
+    richiesti = {"cliente": bool(segnalare_val), "terzista": terzista_val}
+    segnalati = {"cliente": gia_segnalati["cliente"], "terzista": gia_segnalati["terzista"]}
+    if puo_modificare:
+        for chi in segn.DESTINATARI:
+            if f"segnalato_{chi}" in data and richiesti[chi]:
+                segnalati[chi] = bool(_as_bool_int(data.get(f"segnalato_{chi}")))
+    appena = [chi for chi in segn.DESTINATARI if segnalati[chi] and not gia_segnalati[chi]]
+    if appena:
+        payload_map["avanzamento"] = _canonicalize_avanzamento(
+            segn.avanzamento_dopo_segnalato(payload_map["avanzamento"], appena, prev_av))
+    # In attesa di risposta la nota già mandata resta com'era (bundle vecchi compresi).
+    if segn.nota_congelata(prev_av, prev_note):
+        payload_map["note_capocommessa"] = prev_note
+    for d in (writable, insert_writable, update_writable):
+        for k in ("avanzamento", "note_capocommessa"):
+            if k in d:
+                d[k] = payload_map[k]
+    if chiudi_manuale and not prev_chiuso:
+        chiudere_val = 1
+        payload_map["chiudere"] = 1
+        for d in (writable, insert_writable, update_writable):
+            if "chiudere" in d:
+                d["chiudere"] = 1
+
+    # «Aprire RDC» / «Segnalare…» senza numero RDC o segnalazione registrata:
     # l'anomalia resta aperta anche se il client chiede di chiuderla (bundle vecchi
-    # compresi). Una già chiusa non si riapre da qui.
-    if chiudere_val and not prev_chiuso and not chiusura_automatica(
-        payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val,
-        segnalato_cliente_registrato(local_pk_id) if segnalare_val else False,
-        payload_map["avanzamento"],
+    # compresi), salvo «Chiudi» a mano. Una già chiusa non si riapre da qui.
+    if chiudere_val and not prev_chiuso and not chiudi_manuale and not chiusura_automatica(
+        payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val, segnalati["cliente"],
+        payload_map["avanzamento"], terzista_val, segnalati["terzista"],
     ):
         chiudere_val = 0
         for d in (payload_map, writable, insert_writable, update_writable):
@@ -4695,6 +4754,11 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         return {"success": False, "error": str(exc), "status": 500}
 
     returned_item_id = f"local:{local_id}" if local_id is not None else None
+
+    # «Segnalato» e risposte del destinatario (scheda qualità ed esiti): prima della
+    # mail di riepilogo, che li legge dalla scheda. Mai bloccanti.
+    if local_id is not None and puo_modificare:
+        _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnalati, gia_segnalati, risposte)
 
     # Audit log (fire-and-forget)
     try:
@@ -4759,7 +4823,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
                 "dove_pezzi": _dove_pezzi_di(local_id),
                 **_extra_decisione_per_mail(local_id, data),
-                "note": _safe_text(data.get("note")) or "",
+                "note": payload_map.get("note_capocommessa") or "",
                 "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                 "segnalare": bool(segnalare_val),
                 "chiudere": bool(chiudere_val),
@@ -4796,6 +4860,7 @@ _TIMELINE_ACTION_LABELS = {
     "spostata": "Spostata («Taglia»)",
     "op_modificato": "Dati dell'OP modificati",
     "risposta_cliente": "Risposta del cliente registrata",
+    "risposta_terzista": "Risposta del terzista registrata",
     "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
     "approva": "Approvata",

@@ -53,7 +53,9 @@ class ChiusuraAutomaticaTests(SimpleTestCase):
             self.assertEqual(av._canonicalize_avanzamento("in attesa di ulteriori informazioni"), INFO)
 
 
-class SalvaRdcTests(TestCase):
+class _TabellaAnomalieMixin:
+    """Tabella legacy ``anomalie`` in SQLite e ``_salva`` sulla riga di prova."""
+
     def setUp(self):
         with connection.cursor() as cur:
             cur.execute(
@@ -94,6 +96,9 @@ class SalvaRdcTests(TestCase):
         self.assertTrue(esito["success"], esito)
         return _fetch_sqlite("SELECT * FROM anomalie WHERE id = %s", [self.aid])[0]
 
+
+
+class SalvaRdcTests(_TabellaAnomalieMixin, TestCase):
     def test_aprire_rdc_non_chiude_anche_se_il_client_lo_chiede(self):
         riga = self._salva(aprire_rdc=True, avanzamento="Apertura ORE/RIPI", chiudere=True)
         self.assertEqual((riga["aprire_rdc"], riga["chiudere"]), (1, 0))
@@ -119,3 +124,84 @@ class SalvaRdcTests(TestCase):
         self.notifiche.clear()
         self._salva(aprire_rdc=True, segnalare=True, avanzamento=INFO, note="ancora")
         self.assertNotIn("info_richieste", self.notifiche)
+
+
+class TerzistaRegolaTests(SimpleTestCase):
+    def test_terzista_chiude_solo_dopo_segnalato(self):
+        self.assertFalse(av.chiusura_automatica(False, "", False, False, "Accetto lo stato", True, False))
+        self.assertTrue(av.chiusura_automatica(False, "", False, False, "Accetto lo stato", True, True))
+
+    def test_attesa_risposta_terzista_resta_aperta(self):
+        self.assertFalse(av.chiusura_automatica(False, "", False, False, av.AVANZAMENTO_RISPOSTA_TERZISTA, True, True))
+
+    def test_stato_terzista_canonico(self):
+        with patch.object(av, "_load_anomalie_lists", return_value={"avanzamenti": ["In attesa"]}):
+            self.assertEqual(av._canonicalize_avanzamento("in attesa risposta terzista"), av.AVANZAMENTO_RISPOSTA_TERZISTA)
+
+
+class SegnalatoRispostaChiudiTests(_TabellaAnomalieMixin, TestCase):
+    """«Segnalato…» salvato con la decisione, nota congelata, risposta, «Chiudi»."""
+
+    def setUp(self):
+        super().setUp()
+        self.scheda = AnomaliaSchedaQualita.objects.create(anomalia_id=self.aid, op_titolo=OP)
+
+    def _salva_err(self, **dati):
+        request = RequestFactory().post("/api/anomalie/salva")
+        request.user = self.user
+        return av._salva_riga_anomalia(request, {"item_id": f"local:{self.aid}", "op_id": OP, **dati},
+                                       notifica_debounce=False)
+
+    def test_segnalare_da_solo_non_cambia_stato(self):
+        riga = self._salva(segnalare=True, avanzamento="In attesa", note="Da comunicare al cliente")
+        self.assertEqual(riga["avanzamento"], "In attesa")
+        self.assertEqual(riga["chiudere"], 0)
+
+    def test_segnalato_porta_in_attesa_risposta_e_registra(self):
+        riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Mandata foto")
+        self.assertEqual(riga["avanzamento"], av.AVANZAMENTO_RISPOSTA_CLIENTE)
+        self.scheda.refresh_from_db()
+        self.assertIsNotNone(self.scheda.segnalato_cliente_il)
+
+    def test_segnalato_terzista(self):
+        riga = self._salva(segnala_terzista=True, segnalato_terzista=True, avanzamento="In attesa")
+        self.assertEqual(riga["avanzamento"], av.AVANZAMENTO_RISPOSTA_TERZISTA)
+        self.scheda.refresh_from_db()
+        self.assertIsNotNone(self.scheda.segnalato_terzista_il)
+
+    def test_segnalato_senza_segnalare_ignorato(self):
+        self._salva(segnalare=False, segnalato_cliente=True, avanzamento="Finito trattato")
+        self.scheda.refresh_from_db()
+        self.assertIsNone(self.scheda.segnalato_cliente_il)
+
+    def test_nota_congelata_in_attesa_di_risposta(self):
+        self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Nota mandata")
+        riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="Accetto lo stato", note="Riscritta")
+        self.assertEqual(riga["note_capocommessa"], "Nota mandata")
+
+    def test_risposta_registrata_e_chiusura(self):
+        from anomalie.quality_models import AnomaliaEsito
+
+        self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Nota mandata")
+        riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="Accetto lo stato", chiudere=True,
+                           risposta_cliente="Il cliente accetta in deroga")
+        self.assertEqual(riga["chiudere"], 1)
+        esito = AnomaliaEsito.objects.get(anomalia_id=self.aid)
+        self.assertEqual((esito.tipo, esito.testo), (AnomaliaEsito.Tipo.RISPOSTA_CLIENTE, "Il cliente accetta in deroga"))
+
+    def test_risposta_senza_stato_definitivo_rifiutata(self):
+        esito = self._salva_err(segnalare=True, segnalato_cliente=True, avanzamento=av.AVANZAMENTO_RISPOSTA_CLIENTE,
+                                risposta_cliente="Risposto")
+        self.assertFalse(esito["success"])
+        self.assertEqual(esito["error"], av.MSG_RISPOSTA_SENZA_STATO)
+
+    def test_risposta_terzista(self):
+        from anomalie.quality_models import AnomaliaEsito
+
+        self._salva(segnala_terzista=True, segnalato_terzista=True, avanzamento="Finito trattato",
+                    risposta_terzista="Ripassano il lotto")
+        self.assertTrue(AnomaliaEsito.objects.filter(anomalia_id=self.aid, tipo=AnomaliaEsito.Tipo.RISPOSTA_TERZISTA).exists())
+
+    def test_chiudi_manuale_chiude_comunque(self):
+        riga = self._salva(aprire_rdc=True, segnalare=True, avanzamento="In attesa", chiudi_manuale=True)
+        self.assertEqual(riga["chiudere"], 1)

@@ -87,35 +87,57 @@ const canUserEditOp = (opCapocommessa, opCar) => {
   return false;
 };
 
-// «Segnalare al cliente» porta l'anomalia in attesa della risposta del cliente
-// (resta aperta; il capocommessa cambia stato quando il cliente risponde).
+// «Segnalato al cliente/terzista» porta l'anomalia in attesa della risposta
+// (resta aperta; quando arriva la risposta si sceglie lo stato definitivo).
 const AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
+const AVANZAMENTO_RISPOSTA_TERZISTA = "In attesa risposta terzista";
+const AVANZAMENTO_RISPOSTA = {
+  cliente: AVANZAMENTO_RISPOSTA_CLIENTE,
+  terzista: AVANZAMENTO_RISPOSTA_TERZISTA
+};
+const STATI_RISPOSTA = [AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase(), AVANZAMENTO_RISPOSTA_TERZISTA.toLowerCase()];
+const DESTINATARI = [{
+  chi: "cliente",
+  segnalato: "Segnalato al cliente",
+  risposta: "Risposta del cliente",
+  tipo: "RISPOSTA_CLIENTE",
+  a: "il cliente"
+}, {
+  chi: "terzista",
+  segnalato: "Segnalato al terzista",
+  risposta: "Risposta del terzista",
+  tipo: "RISP_TERZISTA",
+  a: "il terzista"
+}];
 
 // Risposta del referente RDC: rimanda l'anomalia al capocommessa con le spunte aperte.
 const AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni";
-const STATI_ATTESA = [AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase(), AVANZAMENTO_INFO_RICHIESTE.toLowerCase()];
+const STATI_ATTESA = [...STATI_RISPOSTA, AVANZAMENTO_INFO_RICHIESTE.toLowerCase()];
 
 // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?". Con RDC o
-// cliente spuntati c'è anche «In attesa di ulteriori informazioni».
-const buildAvanzamentoOptions = (isAprireRdc, conRdcOCliente = false) => {
+// cliente spuntati c'è anche «In attesa di ulteriori informazioni»; con il
+// terzista «In attesa risposta terzista».
+const buildAvanzamentoOptions = (isAprireRdc, conRdcOCliente = false, conTerzista = false) => {
   const dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
   const dynamicAlt = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
   const sanitizedBase = BASE_AVANZAMENTO_OPTIONS.filter(opt => normalizeChoice(opt).toLowerCase() !== dynamicAlt.toLowerCase());
-  return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE, ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
+  return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE, ...(conTerzista ? [AVANZAMENTO_RISPOSTA_TERZISTA] : []), ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
 };
 
 // Chiusura automatica al salvataggio, stessa regola del server
 // (views.chiusura_automatica): «Aprire RDC» chiude solo con il numero RDC,
-// «Segnalare al cliente» solo con «Segnalato al cliente» registrato; gli stati
-// d'attesa tengono aperta l'anomalia.
-const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false) => {
+// «Segnalare al cliente» / «Segnala a terzista» solo con «Segnalato…»; gli stati
+// d'attesa tengono aperta l'anomalia. «Chiudi l'anomalia» (a mano) non passa da qui.
+const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false, terzista = false, segnalatoTerzista = false) => {
   const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
   if (STATI_ATTESA.includes(avanz)) return false;
   if (segnalare && !segnalatoFatto) return false;
+  if (terzista && !segnalatoTerzista) return false;
   if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
   return avanz === "accetto lo stato" || avanz === "apertura ore/ripi";
 };
 const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
+const RISPOSTA_STATO_MSG = "Hai scritto la risposta: scegli lo stato definitivo (oppure spunta «Chiudi l'anomalia»).";
 
 // --- CSRF helper ---
 const getCsrfToken = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -155,7 +177,8 @@ const snColor = avanz => {
   if (avanz === "Accetto lo stato") return "#10b981";
   if (avanz === "In attesa") return "#f59e0b";
   if (avanz === "Finito trattato") return "#6366f1";
-  if (avanz === "In attesa risposta cliente") return "#0ea5e9";
+  if (avanz === AVANZAMENTO_RISPOSTA_CLIENTE) return "#0ea5e9";
+  if (avanz === AVANZAMENTO_RISPOSTA_TERZISTA) return "#0891b2";
   if (avanz === AVANZAMENTO_INFO_RICHIESTE) return "#f97316";
   return "#94a3b8";
 };
@@ -368,14 +391,13 @@ const EsitiAnomalia = ({
   avanzamento,
   chiusa,
   segnalare,
+  versione,
   onSaved,
   onInfo,
   flash
 }) => {
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [risposta, setRisposta] = useState("");
-  const [filesRisposta, setFilesRisposta] = useState([]);
   const [azioneAperta, setAzioneAperta] = useState(false);
   const [azione, setAzione] = useState("");
   const [notaAzione, setNotaAzione] = useState("");
@@ -396,8 +418,6 @@ const EsitiAnomalia = ({
     }).catch(() => setData(null));
   };
   useEffect(() => {
-    setRisposta("");
-    setFilesRisposta([]);
     setAzione("");
     setNotaAzione("");
     setFilesAzione([]);
@@ -405,29 +425,23 @@ const EsitiAnomalia = ({
     setChiudi(true);
     setAzioneAperta(false);
     carica();
-  }, [localId, avanzamento, chiusa, segnalare]);
+  }, [localId, avanzamento, chiusa, segnalare, versione]);
   if (!data) return null;
   const urlFile = fileId => `${API.allegati_file}?local_id=${encodeURIComponent(localId)}&file_id=${encodeURIComponent(fileId)}`;
   const soglia = k => (data.soglie || {})[k];
   const oltre = t => t.in_corso && soglia(t.chiave) && t.giorni > soglia(t.chiave);
   const puoi = data.can_registrare && !data.chiusa;
-  const mostraRisposta = puoi && (data.in_attesa_cliente || data.segnalata_cliente);
   const mostraAzione = puoi && (data.recupero || azioneAperta);
   const serveRiverifica = chiudi && chiedeRiverifica(azione) && !riverificato;
   const invia = async tipo => {
     const form = new FormData();
     form.append("local_id", String(localId));
     form.append("tipo", tipo);
-    if (tipo === "RISPOSTA_CLIENTE") {
-      form.append("testo", risposta);
-      filesRisposta.forEach(f => form.append("files", f));
-    } else {
-      form.append("azione", azione);
-      form.append("testo", notaAzione);
-      form.append("riverificato", riverificato ? "1" : "");
-      form.append("chiudi", chiudi ? "1" : "");
-      filesAzione.forEach(f => form.append("files", f));
-    }
+    form.append("azione", azione);
+    form.append("testo", notaAzione);
+    form.append("riverificato", riverificato ? "1" : "");
+    form.append("chiudi", chiudi ? "1" : "");
+    filesAzione.forEach(f => form.append("files", f));
     setSaving(true);
     try {
       const r = await fetch(API.esito, {
@@ -443,22 +457,17 @@ const EsitiAnomalia = ({
       const avvisi = (d.errors || []).length ? ` · file non salvati: ${d.errors.join("; ")}` : "";
       flash({
         ok: !avvisi,
-        text: (tipo === "RISPOSTA_CLIENTE" ? "Risposta del cliente registrata: ora scegli lo stato definitivo" : d.chiusa ? "Azione effettuata registrata · anomalia chiusa" : "Azione effettuata registrata") + avvisi
+        text: (d.chiusa ? "Azione effettuata registrata · anomalia chiusa" : "Azione effettuata registrata") + avvisi
       }, avvisi ? 8000 : 4500);
       if (onSaved) onSaved({
         chiusa: !!d.chiusa
       });
       carica();
-      if (tipo === "RISPOSTA_CLIENTE") {
-        setRisposta("");
-        setFilesRisposta([]);
-      } else {
-        setAzione("");
-        setNotaAzione("");
-        setFilesAzione([]);
-        setRiverificato(false);
-        setAzioneAperta(false);
-      }
+      setAzione("");
+      setNotaAzione("");
+      setFilesAzione([]);
+      setRiverificato(false);
+      setAzioneAperta(false);
     } catch (e) {
       flash({
         ok: false,
@@ -492,7 +501,7 @@ const EsitiAnomalia = ({
     className: "ga-esito"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-esito__head"
-  }, /*#__PURE__*/React.createElement("b", null, e.tipo === "AZIONE" ? `Azione effettuata: ${e.azione}` : "Risposta del cliente"), e.riverificato && /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("b", null, e.tipo === "AZIONE" ? `Azione effettuata: ${e.azione}` : e.tipo === "RISP_TERZISTA" ? "Risposta del terzista" : "Risposta del cliente"), e.riverificato && /*#__PURE__*/React.createElement("span", {
     className: "ga-pill ga-pill--chiuso"
   }, "Riverificato conforme"), e.chiusa && /*#__PURE__*/React.createElement("span", {
     className: "ga-pill ga-pill--muted"
@@ -514,27 +523,7 @@ const EsitiAnomalia = ({
     href: urlFile(f.file_id),
     target: "_blank",
     rel: "noopener"
-  }, Ico.clip, " ", f.name)))))), mostraRisposta && /*#__PURE__*/React.createElement("div", {
-    className: "ga-esito-form"
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Risposta del cliente"), /*#__PURE__*/React.createElement("textarea", {
-    className: "ga-input",
-    rows: 2,
-    value: risposta,
-    onChange: e => setRisposta(e.target.value),
-    disabled: saving,
-    placeholder: "Cosa ha risposto il cliente (riferimento della mail, decisione\u2026)"
-  }), /*#__PURE__*/React.createElement(FileEsito, {
-    files: filesRisposta,
-    setFiles: setFilesRisposta,
-    disabled: saving
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "ga-esito-form__acts"
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "ga-btn ga-btn--outline",
-    disabled: saving || !risposta.trim() && !filesRisposta.length,
-    onClick: () => invia("RISPOSTA_CLIENTE")
-  }, saving ? "Salvataggio…" : "Registra risposta"))), puoi && !mostraAzione && /*#__PURE__*/React.createElement("button", {
+  }, Ico.clip, " ", f.name)))))), puoi && !mostraAzione && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ga-link ga-esito-apri",
     onClick: () => setAzioneAperta(true)
@@ -1374,7 +1363,7 @@ const fmtData = iso => {
     year: "2-digit"
   });
 };
-const ALLEGATI_ACCEPT = ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv";
+const ALLEGATI_ACCEPT = ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.msg,.eml";
 const nomeAppunti = files => files.map((f, i) => {
   if (f.name && !/^image\.\w+$/i.test(f.name)) return f;
   const d = new Date();
@@ -1717,6 +1706,18 @@ function GestioneAnomalie() {
   const [dovePezzi, setDovePezzi] = useState("");
   const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
   const [rdcNum, setRdcNum] = useState("");
+  // «Segnalato al cliente/terzista» e risposta: si salvano con la decisione.
+  const [segnalati, setSegnalati] = useState({
+    cliente: false,
+    terzista: false
+  });
+  const [risposte, setRisposte] = useState({
+    cliente: "",
+    terzista: ""
+  });
+  // «Chiudi l'anomalia»: chiude al salvataggio anche se mancano i passi.
+  const [chiudiManuale, setChiudiManuale] = useState(false);
+  const [versioneEsiti, setVersioneEsiti] = useState(0);
   // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
   // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
   // in un popup prima di salvare.
@@ -1777,26 +1778,42 @@ function GestioneAnomalie() {
     setScelteMano([]);
     setIncludiDecise(false);
   };
-  const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc, aprireRdc || segnalare), [aprireRdc, segnalare]);
+  const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc, aprireRdc || segnalare, terzista), [aprireRdc, segnalare, terzista]);
   // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
   const [esitiInfo, setEsitiInfo] = useState(null);
-  // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
-  const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
+  // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa», tranne
+  // quando aspetta una segnalazione (RDC, cliente, terzista).
+  const notaSenzaStato = !!note.trim() && !(aprireRdc || segnalare || terzista) && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
+  // La risposta del destinatario chiede lo stato definitivo (o «Chiudi l'anomalia»).
+  const rispostaSenzaStato = !chiudiManuale && DESTINATARI.some(d => (risposte[d.chi] || "").trim()) && STATI_RISPOSTA.includes(normalizeChoice(avanzamento).toLowerCase());
 
-  // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»
-  // e spunta anche «Aprire RDC» (si può togliere); togliere la spunta riporta lo
-  // stato di partenza e lascia «Aprire RDC» com'è. Con «Aprire RDC» la segnalazione
-  // al cliente resta facoltativa.
+  // Lo stato «di partenza» quando si toglie una spunta che l'aveva cambiato.
+  const statoDiPartenza = () => {
+    const base = baseline.avanzamento; // dichiarato più sotto: letto solo al clic
+    return base && !STATI_RISPOSTA.includes(base.toLowerCase()) ? base : "In attesa";
+  };
+  // «Segnalare al cliente» spunta anche «Aprire RDC» (si può togliere); lo stato
+  // cambia solo con «Segnalato al cliente».
   const toggleSegnalare = () => {
     const on = !segnalare;
     setSegnalare(on);
-    if (on) {
-      setAvanzamento(AVANZAMENTO_RISPOSTA_CLIENTE);
-      setAprireRdc(true);
-    } else if (avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE) {
-      const base = baseline.avanzamento; // dichiarato più sotto: letto solo al clic
-      setAvanzamento(base && base !== AVANZAMENTO_RISPOSTA_CLIENTE ? base : "In attesa");
-    }
+    if (on) setAprireRdc(true);else if (avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE) setAvanzamento(statoDiPartenza());
+  };
+  const toggleTerzista = () => {
+    const on = !terzista;
+    setTerzista(on);
+    if (!on && avanzamento === AVANZAMENTO_RISPOSTA_TERZISTA) setAvanzamento(statoDiPartenza());
+  };
+  // «Segnalato…»: lo stato passa da solo «In attesa risposta …»; togliere la spunta
+  // lo riporta com'era.
+  const toggleSegnalato = chi => {
+    const on = !segnalati[chi];
+    setSegnalati(prev => ({
+      ...prev,
+      [chi]: on
+    }));
+    const stato = normalizeChoice(avanzamento).toLowerCase();
+    if (on && (["", "in attesa"].includes(stato) || STATI_RISPOSTA.includes(stato))) setAvanzamento(AVANZAMENTO_RISPOSTA[chi]);else if (!on && avanzamento === AVANZAMENTO_RISPOSTA[chi]) setAvanzamento(statoDiPartenza());
   };
   const flash = (msg, ms = 4500) => {
     setSaveMsg(msg);
@@ -1815,6 +1832,15 @@ function GestioneAnomalie() {
     setCarScelti([]);
     setAvanzamento(DEFAULT_AVANZAMENTO);
     setRdcNum("");
+    setSegnalati({
+      cliente: false,
+      terzista: false
+    });
+    setRisposte({
+      cliente: "",
+      terzista: ""
+    });
+    setChiudiManuale(false);
     setCurrentItemId(null);
     setCurrentLocalId(null);
     setAttachments([]);
@@ -1937,8 +1963,9 @@ function GestioneAnomalie() {
   const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap(g => g.items), [gruppiAnomalie]);
   const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
   const sn = useMemo(() => anomalie.find(a => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
-  // Dopo «sn» (TDZ): la chiusura con «Segnalare al cliente» dipende da «Segnalato al cliente».
-  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!sn.segnalato_cliente);
+  // Dopo «sn» (TDZ): la chiusura con «Segnalare…» dipende da «Segnalato…».
+  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista);
+  const chiudere = chiudereAuto || chiudiManuale;
   const posizione = ordineVisibile.findIndex(a => a.item_id === sn.item_id);
   const isSelectedClosed = Boolean(sn.chiudere);
   const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -1978,7 +2005,7 @@ function GestioneAnomalie() {
 
   // Valori «di partenza» della decisione: servono a capire se ci sono modifiche.
   const baseline = useMemo(() => {
-    const opts = buildAvanzamentoOptions(!!sn.aprire_rdc, !!sn.aprire_rdc || !!sn.segnalare);
+    const opts = buildAvanzamentoOptions(!!sn.aprire_rdc, !!sn.aprire_rdc || !!sn.segnalare, !!sn.segnala_terzista);
     const av = sn.avanzamento || DEFAULT_AVANZAMENTO;
     return {
       desc: sn.desc || "",
@@ -1992,9 +2019,15 @@ function GestioneAnomalie() {
       segnalaCar: !!sn.segnala_car,
       carScelti: Array.isArray(sn.car_segnalati) ? sn.car_segnalati : [],
       avanzamento: opts.some(o => o.toLowerCase() === av.toLowerCase()) ? av : opts[0] || DEFAULT_AVANZAMENTO,
-      risposte: Object.fromEntries((sn.descrizioni || []).map(d => [String(d.id), d.risposta || ""]))
+      risposte: Object.fromEntries((sn.descrizioni || []).map(d => [String(d.id), d.risposta || ""])),
+      segnalati: {
+        cliente: !!sn.segnalato_cliente,
+        terzista: !!sn.segnalato_terzista
+      }
     };
-  }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.segnala_terzista, sn.dove_pezzi, sn.segnala_car, sn.car_segnalati, sn.avanzamento, sn.descrizioni]);
+  }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.segnala_terzista, sn.dove_pezzi, sn.segnala_car, sn.car_segnalati, sn.avanzamento, sn.descrizioni, sn.segnalato_cliente, sn.segnalato_terzista]);
+  // In attesa di risposta la nota già mandata resta congelata (anche dal server).
+  const notaCongelata = STATI_RISPOSTA.includes(normalizeChoice(baseline.avanzamento).toLowerCase()) && !!baseline.note.trim();
   useEffect(() => {
     if (!sn.item_id) {
       clearForm();
@@ -2014,10 +2047,16 @@ function GestioneAnomalie() {
     setSegnalaCar(baseline.segnalaCar);
     setCarScelti(baseline.carScelti);
     setAvanzamento(baseline.avanzamento);
+    setSegnalati(baseline.segnalati);
+    setRisposte({
+      cliente: "",
+      terzista: ""
+    });
+    setChiudiManuale(false);
     resetAmbito();
     setEditDesc(false);
   }, [sn.item_id]);
-  const dirty = !!sn.item_id && canEditSelected && (desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare || terzista !== baseline.terzista || segnalaCar !== baseline.segnalaCar || segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|") || aprireRdc && rdcNum !== baseline.rdcNum || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase() || Object.keys(descrizioneAnswers).some(k => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || "")));
+  const dirty = !!sn.item_id && canEditSelected && (desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare || terzista !== baseline.terzista || segnalaCar !== baseline.segnalaCar || segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|") || aprireRdc && rdcNum !== baseline.rdcNum || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase() || Object.keys(descrizioneAnswers).some(k => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || "")) || segnalare && segnalati.cliente !== baseline.segnalati.cliente || terzista && segnalati.terzista !== baseline.segnalati.terzista || DESTINATARI.some(d => !!(risposte[d.chi] || "").trim()) || chiudiManuale);
 
   // Cambio di anomalia/OP con modifiche non salvate: si chiede cosa fare.
   const guard = action => {
@@ -2077,7 +2116,8 @@ function GestioneAnomalie() {
   }, [ambito, stessoBlocco, altreAperte, scelteMano]);
   // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
   // la decisione si applica, l'anomalia resta aperta.
-  const chiudeBersaglio = x => shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, !!x.segnalato_cliente) && !(x.serve_azione && !aprireRdc);
+  // «Segnalato…» vale anche per loro: è la stessa decisione.
+  const chiudeBersaglio = x => (chiudiManuale || shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista)) && !(x.serve_azione && !aprireRdc);
   const gruppiPerSn = lista => {
     const out = [];
     lista.forEach(x => {
@@ -2274,6 +2314,13 @@ function GestioneAnomalie() {
       }, 7000);
       return false;
     }
+    if (rispostaSenzaStato) {
+      flash({
+        ok: false,
+        text: RISPOSTA_STATO_MSG
+      }, 7000);
+      return false;
+    }
     if (ambito === "mano" && !bersagli.length) {
       flash({
         ok: false,
@@ -2310,7 +2357,12 @@ function GestioneAnomalie() {
           segnala_terzista: terzista,
           segnala_car: segnalaCar,
           car_segnalati: segnalaCar ? carScelti : [],
-          chiudere: chiudereAuto,
+          segnalato_cliente: segnalare && segnalati.cliente,
+          segnalato_terzista: terzista && segnalati.terzista,
+          risposta_cliente: segnalare ? risposte.cliente.trim() : "",
+          risposta_terzista: terzista ? risposte.terzista.trim() : "",
+          chiudi_manuale: chiudiManuale,
+          chiudere,
           avanzamento
         }),
         credentials: "same-origin"
@@ -2318,9 +2370,25 @@ function GestioneAnomalie() {
       const data = await readJsonOrThrow(r, "Salvataggio anomalia");
       if (!data.success) throw new Error(data.error || "risposta non valida");
       ok = true;
+      const oraIt = new Date().toLocaleString("it-IT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).replace(",", "");
+      // «Segnalato»: resta quello già registrato (data e autore); uno nuovo vale da adesso.
+      const segnalatoDi = (chi, richiesto, prima) => richiesto && segnalati[chi] ? prima || {
+        il: oraIt,
+        da: ""
+      } : richiesto ? null : prima || null;
+      const segnalatiSalvati = x => ({
+        segnalato_cliente: segnalatoDi("cliente", segnalare, x.segnalato_cliente),
+        segnalato_terzista: segnalatoDi("terzista", terzista, x.segnalato_terzista)
+      });
       const aggiornato = {
         desc,
-        note,
+        note: notaCongelata ? baseline.note : note,
         pezzi_prec: pezziPrec,
         aprire_rdc: aprireRdc,
         numero_rdc: aprireRdc ? rdcNum : "",
@@ -2328,8 +2396,9 @@ function GestioneAnomalie() {
         segnala_terzista: terzista,
         segnala_car: segnalaCar && carScelti.length > 0,
         car_segnalati: segnalaCar ? carScelti : [],
-        chiudere: chiudereAuto,
+        chiudere,
         avanzamento,
+        ...segnalatiSalvati(sn),
         descrizioni: (sn.descrizioni || []).map(d => ({
           ...d,
           risposta: descrizioneAnswers[String(d.id)] || ""
@@ -2339,7 +2408,13 @@ function GestioneAnomalie() {
         ...a,
         ...aggiornato
       } : a));
-      let testo = chiudereAuto ? "Decisione salvata · anomalia chiusa" : "Decisione salvata";
+      setRisposte({
+        cliente: "",
+        terzista: ""
+      });
+      setChiudiManuale(false);
+      setVersioneEsiti(v => v + 1);
+      let testo = chiudere ? "Decisione salvata · anomalia chiusa" : "Decisione salvata";
       if (bersagli.length) {
         let n = 0;
         const errori = [];
@@ -2364,7 +2439,10 @@ function GestioneAnomalie() {
                 segnalare,
                 segnala_terzista: terzista,
                 chiudere: chiudeF,
-                avanzamento
+                avanzamento,
+                segnalato_cliente: segnalare && segnalati.cliente,
+                segnalato_terzista: terzista && segnalati.terzista,
+                chiudi_manuale: chiudiManuale
               }),
               credentials: "same-origin"
             });
@@ -2379,7 +2457,8 @@ function GestioneAnomalie() {
               segnalare,
               segnala_terzista: terzista,
               chiudere: chiudeF,
-              avanzamento
+              avanzamento,
+              ...segnalatiSalvati(a)
             } : a));
           } catch (err) {
             errori.push(`#${f.local_id}: ${err.message}`);
@@ -2443,70 +2522,12 @@ function GestioneAnomalie() {
     setAvanzamento(baseline.avanzamento);
     setDescrizioneAnswers(baseline.risposte);
     setEditDesc(false);
-  };
-
-  // «Segnalato» (cliente/terzista): si registra subito, senza mail di aggiornamento.
-  const [segnalatoInCorso, setSegnalatoInCorso] = useState("");
-  const toggleSegnalato = async chi => {
-    if (!sn.local_id || !API.segnalato || segnalatoInCorso) return;
-    const campo = `segnalato_${chi}`;
-    const acceso = !sn[campo];
-    setSegnalatoInCorso(chi);
-    try {
-      const r = await fetch(API.segnalato, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken()
-        },
-        body: JSON.stringify({
-          local_id: sn.local_id,
-          chi,
-          segnalato: acceso
-        }),
-        credentials: "same-origin"
-      });
-      const data = await readJsonOrThrow(r, "Segnalato");
-      if (!data.success) throw new Error(data.error || "risposta non valida");
-      setAnomalie(prev => prev.map(a => a.item_id === sn.item_id ? {
-        ...a,
-        [campo]: data.segnalato || null
-      } : a));
-      flash({
-        ok: true,
-        text: acceso ? `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"} · registrato, nessuna mail inviata` : "Spunta «Segnalato» tolta"
-      });
-    } catch (e) {
-      flash({
-        ok: false,
-        text: "Errore: " + e.message
-      }, 7000);
-    }
-    setSegnalatoInCorso("");
-  };
-  const rigaSegnalato = (chi, richiesto, salvato) => {
-    if (!richiesto) return null;
-    const campo = `segnalato_${chi}`;
-    const fatto = sn[campo];
-    const label = `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"}`;
-    if (!salvato) {
-      return /*#__PURE__*/React.createElement("div", {
-        key: chi,
-        className: "ga-hint"
-      }, "Salva la decisione per poter spuntare \xAB", label, "\xBB.");
-    }
-    return /*#__PURE__*/React.createElement("div", {
-      key: chi,
-      className: "ga-segnalato"
-    }, /*#__PURE__*/React.createElement(FlagToggle, {
-      label: segnalatoInCorso === chi ? "Salvataggio…" : label,
-      hint: "Registra che l'hai gi\xE0 avvisato: non parte nessuna mail",
-      checked: !!fatto,
-      disabled: !canEditCurrentOp || !!segnalatoInCorso,
-      onChange: () => toggleSegnalato(chi)
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "ga-hint"
-    }, fatto ? `il ${fatto.il}${fatto.da ? ` da ${fatto.da}` : ""} · nessuna mail inviata` : "Si registra subito, senza mail."));
+    setSegnalati(baseline.segnalati);
+    setRisposte({
+      cliente: "",
+      terzista: ""
+    });
+    setChiudiManuale(false);
   };
 
   // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
@@ -2846,7 +2867,7 @@ function GestioneAnomalie() {
       className: "ga-pill ga-pill--cli"
     }, a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"), a.segnala_terzista && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--ter"
-    }, "Terzista"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
+    }, a.chiudere || a.segnalato_terzista ? "Terzista" : "Terzista · da segnalare"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--muted",
       title: `Solo sui S/N: ${a.seriali_parziali}`
     }, "Solo ", a.seriali_parziali), !a.blocco_id && (a.testo || a.desc) && /*#__PURE__*/React.createElement("span", {
@@ -3367,7 +3388,7 @@ function GestioneAnomalie() {
     label: "Segnala a terzista",
     checked: terzista,
     disabled: !canEditSelected,
-    onChange: () => setTerzista(!terzista)
+    onChange: toggleTerzista
   }), /*#__PURE__*/React.createElement(FlagToggle, {
     label: "Segnala a CAR",
     hint: "I CAR scelti ricevono una mail con questa anomalia",
@@ -3379,49 +3400,71 @@ function GestioneAnomalie() {
     checked: pezziPrec,
     disabled: !canEditSelected,
     onChange: () => setPezziPrec(!pezziPrec)
-  })), (aprireRdc || segnalare) && !sn.chiudere && (() => {
+  })), (aprireRdc || segnalare || terzista) && !sn.chiudere && (() => {
+    // Passi per chiudere, nell'ordine in cui si fanno; «Segnalato…» si spunta qui.
     const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
     const num = String(rdcNum || "").trim();
-    const voci = [...(aprireRdc ? [{
-      k: "rdc",
-      fatto: !!num,
-      testo: "Numero RDC",
-      det: num || "da inserire nel campo «Numero RDC»"
-    }] : []), ...(segnalare ? [{
-      k: "cli",
-      fatto: !!sn.segnalato_cliente,
-      testo: "Segnalato al cliente",
-      det: sn.segnalato_cliente ? `il ${sn.segnalato_cliente.il}${sn.segnalato_cliente.da ? ` da ${sn.segnalato_cliente.da}` : ""}` : baseline.segnalare ? "da spuntare qui sotto quando il cliente è avvisato" : "si spunta dopo aver salvato"
-    }] : []), ...(normalizeChoice(avanzamento) === AVANZAMENTO_RISPOSTA_CLIENTE ? [{
-      k: "risp",
-      fatto: false,
-      testo: "Risposta del cliente",
-      det: "poi scegli lo stato definitivo"
-    }] : [])];
-    const variante = info ? "info" : chiudereAuto ? "ok" : "aperta";
+    const statoDefinitivo = !STATI_ATTESA.includes(normalizeChoice(avanzamento).toLowerCase());
+    const passi = [];
+    if (aprireRdc) {
+      passi.push({
+        k: "rdc",
+        fatto: !!num,
+        testo: "Numero RDC",
+        det: num || "scrivilo nel campo «Numero RDC» qui sotto"
+      });
+    }
+    DESTINATARI.filter(d => d.chi === "cliente" ? segnalare : terzista).forEach(d => {
+      const fatto = segnalati[d.chi];
+      const reg = sn[`segnalato_${d.chi}`];
+      passi.push({
+        k: `seg-${d.chi}`,
+        fatto,
+        testo: d.segnalato,
+        spunta: d.chi,
+        det: fatto ? reg && baseline.segnalati[d.chi] ? `il ${reg.il}${reg.da ? ` da ${reg.da}` : ""}` : `al salvataggio lo stato passa a «${AVANZAMENTO_RISPOSTA[d.chi]}»` : `spunta quando hai avvisato ${d.a}`
+      });
+      if (fatto) {
+        passi.push({
+          k: `risp-${d.chi}`,
+          fatto: statoDefinitivo,
+          testo: d.risposta,
+          det: statoDefinitivo ? `stato scelto: ${avanzamento}` : baseline.segnalati[d.chi] ? `scrivila nel campo «${d.risposta}» qui sotto, poi scegli lo stato definitivo` : "dopo il salvataggio compare il campo per scriverla"
+        });
+      }
+    });
+    const variante = info ? "info" : chiudere ? "ok" : "aperta";
     return /*#__PURE__*/React.createElement("div", {
       className: `ga-chiusura ga-chiusura--${variante}`,
       role: "status"
     }, /*#__PURE__*/React.createElement("div", {
       className: "ga-chiusura__t"
-    }, info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa" : chiudereAuto ? "✓ Tutto pronto: si chiude al salvataggio" : "⚠ Resta aperta · in carico al referente RDC"), info ? /*#__PURE__*/React.createElement("div", {
+    }, info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa" : chiudiManuale && !chiudereAuto ? "✓ «Chiudi l'anomalia» spuntato: si chiude al salvataggio" : chiudereAuto ? "✓ Passi completati: si chiude al salvataggio" : "Resta aperta finché non completi questi passi"), info ? /*#__PURE__*/React.createElement("div", {
       className: "ga-chiusura__d"
-    }, "Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement("ul", {
-      className: "ga-chiusura__l"
-    }, /*#__PURE__*/React.createElement("li", {
-      className: "ga-chiusura__h"
-    }, "Si chiude solo con:"), voci.map(v => /*#__PURE__*/React.createElement("li", {
+    }, "Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement("ol", {
+      className: "ga-passi"
+    }, passi.map((v, i) => /*#__PURE__*/React.createElement("li", {
       key: v.k,
       className: v.fatto ? "is-fatto" : ""
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "ga-chiusura__i",
+    }, v.spunta ? /*#__PURE__*/React.createElement("label", {
+      className: "ga-passi__spunta"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: v.fatto,
+      disabled: !canEditSelected,
+      onChange: () => toggleSegnalato(v.spunta)
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "ga-passi__box",
       "aria-hidden": "true"
-    }, v.fatto ? "✓" : "○"), /*#__PURE__*/React.createElement("b", null, v.testo), " ", /*#__PURE__*/React.createElement("span", {
-      className: "ga-chiusura__det"
-    }, v.det)))));
-  })(), (segnalare || terzista) && /*#__PURE__*/React.createElement("div", {
-    className: "ga-segnalati"
-  }, rigaSegnalato("cliente", segnalare, baseline.segnalare), rigaSegnalato("terzista", terzista, baseline.terzista)), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    }, v.fatto ? "✓" : ""), /*#__PURE__*/React.createElement("b", null, v.testo)) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+      className: "ga-passi__n",
+      "aria-hidden": "true"
+    }, v.fatto ? "✓" : i + 1), /*#__PURE__*/React.createElement("b", null, v.testo)), /*#__PURE__*/React.createElement("span", {
+      className: "ga-passi__det"
+    }, v.det)))), !info && (aprireRdc || segnalare) && !chiudere && /*#__PURE__*/React.createElement("div", {
+      className: "ga-chiusura__d"
+    }, "In carico al referente RDC finch\xE9 resta aperta."));
+  })(), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Nessun CAR sull'OP e nessun capo reparto in Configurazione.") : /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
@@ -3475,7 +3518,7 @@ function GestioneAnomalie() {
   }, "Nessun allegato alla decisione.") : renderAttGrid(attDecisione)), /*#__PURE__*/React.createElement("div", {
     className: "ga-grid2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement("select", {
-    className: `ga-input${canEditSelected && notaSenzaStato ? " is-invalid" : ""}`,
+    className: `ga-input${canEditSelected && (notaSenzaStato || rispostaSenzaStato) ? " is-invalid" : ""}`,
     value: avanzamento,
     onChange: e => setAvanzamento(e.target.value),
     disabled: !canEditSelected
@@ -3487,7 +3530,13 @@ function GestioneAnomalie() {
     value: rdcNum,
     onChange: e => setRdcNum(e.target.value),
     disabled: !canEditSelected
-  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Risposta / note per il reparto"), /*#__PURE__*/React.createElement("textarea", {
+  }))), notaCongelata ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-nota-ferma"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Note gi\xE0 inviate"), /*#__PURE__*/React.createElement("div", {
+    className: "ga-nota-ferma__testo"
+  }, baseline.note), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Congelate mentre si aspetta la risposta: scrivi la risposta nel campo qui sotto.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Risposta / note per il reparto"), /*#__PURE__*/React.createElement("textarea", {
     className: "ga-input",
     rows: 3,
     value: note,
@@ -3496,11 +3545,46 @@ function GestioneAnomalie() {
     placeholder: "Decisione, istruzioni di rilavorazione, riferimenti\u2026"
   })), canEditSelected && notaSenzaStato && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, NOTA_STATO_MSG), canEditSelected && chiudereAuto && !sn.chiudere && !aprireRdc && esitiInfo && esitiInfo.serve_azione ? /*#__PURE__*/React.createElement("div", {
+  }, NOTA_STATO_MSG), DESTINATARI.filter(d => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi]).map(d => {
+    const gia = (esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti || []).filter(e => e.tipo === d.tipo);
+    return /*#__PURE__*/React.createElement("div", {
+      key: d.chi,
+      className: "ga-risposta"
+    }, /*#__PURE__*/React.createElement(FieldLabel, null, d.risposta), gia.map(e => /*#__PURE__*/React.createElement("div", {
+      key: e.id,
+      className: "ga-risposta__gia"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, e.utente, e.data ? ` · ${new Date(e.data).toLocaleString("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })}` : ""), /*#__PURE__*/React.createElement("div", null, e.testo))), canEditSelected && /*#__PURE__*/React.createElement("textarea", {
+      className: `ga-input${rispostaSenzaStato && (risposte[d.chi] || "").trim() ? " is-invalid" : ""}`,
+      rows: 2,
+      value: risposte[d.chi],
+      onChange: e => setRisposte(prev => ({
+        ...prev,
+        [d.chi]: e.target.value
+      })),
+      placeholder: gia.length ? "Un'altra risposta…" : `Cosa ha risposto ${d.a} (riferimento della mail, decisione…)`
+    }));
+  }), canEditSelected && rispostaSenzaStato && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, "La prima decisione \xE8 stata \xABAzione di recupero\xBB: per chiudere registra l'azione effettuata in \xABTempi ed esiti\xBB.") : canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
-    className: "ga-note ga-note--ok"
-  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
+  }, RISPOSTA_STATO_MSG), canEditSelected && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+    className: "ga-chiudi"
+  }, /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Chiudi l'anomalia",
+    checked: chiudere,
+    disabled: chiudereAuto,
+    onChange: () => setChiudiManuale(!chiudiManuale)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, chiudereAuto ? "Si chiude da sola con questa decisione." : "Chiude al salvataggio anche se mancano dei passi.")), canEditSelected && chiudere && !sn.chiudere && !aprireRdc && esitiInfo && esitiInfo.serve_azione && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, "La prima decisione \xE8 stata \xABAzione di recupero\xBB: per chiudere registra l'azione effettuata in \xABTempi ed esiti\xBB."), canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && /*#__PURE__*/React.createElement("div", {
     className: "ga-apply ga-apply--ambito"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-apply__t"
@@ -3564,6 +3648,7 @@ function GestioneAnomalie() {
     avanzamento: sn.avanzamento,
     chiusa: Boolean(sn.chiudere),
     segnalare: Boolean(sn.segnalare),
+    versione: versioneEsiti,
     flash: flash,
     onInfo: setEsitiInfo,
     onSaved: ({
