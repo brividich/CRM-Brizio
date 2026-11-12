@@ -10,8 +10,10 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
 | **Segnalazioni** | Tutte, Alert, Proposte AI, Ticket, Incidenti, Eventi |
-| **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Patch e protezione, Vulnerabilità, Accessi VPN |
+| **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Patch, Software, Rete (IP), Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
+
+Due pagine di Dispositivi raccolgono più pagine, che si scelgono da una terza riga sotto il menu: **Patch** (Da installare e protezione, Installate, Installazioni da console, Tempi) e **Vulnerabilità** (CVE sui PC, Correzioni, Rischi accettati, Librerie del portale).
 | **Impostazioni** | Panoramica, Avvisi e automatismi, Letture automatiche, Soppressioni, Guida |
 
 La **Panoramica** delle impostazioni (solo con il permesso di configurazione) apre tutte le altre pagine, divise per compito: *Da dove arrivano i dati* (caselle mail, letture automatiche, sorgenti e parser, inventario software, software e CVE), *Cosa diventa un alert* (regole, soppressioni, automatismi di rientro, backup attesi), *Chi viene avvisato* (avvisi e automatismi, canali di notifica, ticket), *Controllo e manutenzione* (diagnostica, autoconfigurazione, elaborazione, registro modifiche, impostazioni tecniche). Ogni voce dice a cosa serve e com'è messa («2 caselle attive · ultima lettura oggi alle 12:10»; pallino verde, arancione o rosso). In cima **Da sistemare** elenca solo le cose concrete da fare (nessuna casella attiva, letture con errore, nessun canale di notifica, software da collegare alle CVE, sorgenti in ritardo, job di backup non configurati), ognuna con il link. Nelle pagine aperte dalla Panoramica, sotto il menu, «← Configurazione» riporta indietro.
@@ -219,4 +221,4 @@ Pagina **Dispositivi › Software**: tutti i programmi installati sui PC, una ri
 - **Colonne**: programma e produttore, quanti PC lo hanno, quante versioni (e quante sotto la minima), CVE, decisione, licenza. Clic sull'intestazione di Programma, PC, Versioni o CVE per ordinare.
 - **Clic su una riga**: si apre il pannello laterale con le versioni installate (quanti PC per versione) e i PC che hanno il programma, con versione, CVE di quella installazione, fonti (WG, DEF) e ultimo avvistamento. Il nome del PC apre la sua scheda sulla sezione Software. In fondo il link al catalogo di Asset per decisione, licenza e versione minima.
 
-I programmi che WatchGuard elenca senza versione ora compaiono nell'inventario (prima venivano scartati), ma restano fuori dal confronto con le CVE: senza versione non c'è niente da confrontare. Gli aggiornamenti di sistema (KB) che WatchGuard elenca insieme ai programmi non sono programmi e non compaiono qui: le patch installate sono in **Dispositivi › Patch installate**.
+I programmi che WatchGuard elenca senza versione ora compaiono nell'inventario (prima venivano scartati), ma restano fuori dal confronto con le CVE: senza versione non c'è niente da confrontare. Gli aggiornamenti di sistema (KB) che WatchGuard elenca insieme ai programmi non sono programmi e non compaiono qui: le patch installate sono in **Dispositivi › Patch › Installate**.
