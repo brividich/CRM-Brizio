@@ -176,6 +176,13 @@
   function applyFlessibilita() {
     var on = isFlessibilita();
     if (flessOrari) flessOrari.hidden = !on;
+    // Orari fissi e un solo giorno: niente «Durata rapida», «Ora inizio/fine» e «Data fine» doppi.
+    var orariLiberi = $("abs-orari-liberi");
+    var campoDataFine = $("abs-campo-data-fine");
+    var shortcutWrap = $("abs-shortcut-wrap");
+    if (orariLiberi) orariLiberi.hidden = on;
+    if (campoDataFine) campoDataFine.hidden = on;
+    if (shortcutWrap && on) shortcutWrap.hidden = true;
     if (startInput) startInput.readOnly = on || startInput.readOnly;
     if (endInput) endInput.readOnly = on || endInput.readOnly;
     if (flessNota) {
@@ -194,7 +201,7 @@
 
   function applyTypeDefaults() {
     var shortcutWrap = $("abs-shortcut-wrap");
-    if (shortcutWrap) shortcutWrap.hidden = isFerie();
+    if (shortcutWrap) shortcutWrap.hidden = isFerie() || isFlessibilita();
     if (isFerie()) {
       var custom = document.querySelector('input[name="shortcut"][value="custom"]');
       if (custom) custom.checked = true;
@@ -468,8 +475,8 @@
     if (end <= start) return segnalaErrore(de && de !== ds ? dateEndInput : endInput, "La fine deve essere successiva all'inizio."), false;
     if (t === "flessibilita") {
       var ore = (end - start) / 3600000;
-      if (ore < 9) return segnalaErrore(endInput, "Per la flessibilità servono almeno 8 ore di lavoro più 1 di pausa; altrimenti usa Permesso."), false;
-      if (ore > 10) return segnalaErrore(endInput, "Flessibilità: massimo 10 ore."), false;
+      if (ore < 9) return segnalaErrore(flessUscita || endInput, "Per la flessibilità servono almeno 8 ore di lavoro più 1 di pausa; altrimenti usa Permesso."), false;
+      if (ore > 10) return segnalaErrore(flessUscita || endInput, "Flessibilità: massimo 10 ore."), false;
     }
     return true;
   }
@@ -495,6 +502,7 @@
       if ((isPermesso() || isFerie()) && dateEndInput && (!dateEndInput.value || dateEndInput.value < dateStartInput.value)) {
         dateEndInput.value = dateStartInput.value;
       }
+      if (isFlessibilita() && dateEndInput) dateEndInput.value = dateStartInput.value;
       syncFeriePermesso();
     });
   }
