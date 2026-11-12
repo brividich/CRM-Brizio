@@ -1,0 +1,44 @@
+/* NOVICROM HUB — da anomalie/pages/anomalie_configurazione.html (blocco 1), spostato dall'inline il 12/11/2026: stesso punto, ora in cache. */
+/* stato feedback (mostrato/nascosto via JS) */
+.status { display:none; padding:11px 14px; border-radius:10px; font-size:var(--fs-base); font-weight:700; }
+.status.ok  { display:block; border:1px solid #86efac; background:var(--success-bg); color:var(--success); }
+.status.err { display:block; border:1px solid #fca5a5; background:var(--danger-bg); color:var(--danger); }
+/* lista readonly capi reparto */
+.field-readonly-list { margin:4px 0 0; padding:0 0 0 18px; font-size:var(--fs-base); color:var(--text); list-style:disc; }
+.field-readonly-list li.empty { color:var(--text-light); font-style:italic; }
+/* log activity */
+.log-row > span { min-width:0; overflow-wrap:anywhere; }
+.log-detail { display:flex; flex-wrap:wrap; gap:4px 6px; color:var(--text-mid); }
+.log-kv { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:1px 7px; line-height:1.5; }
+.log-kv b { color:var(--text); font-weight:700; }
+.log-row { display:grid; grid-template-columns:120px 150px 160px minmax(0,1fr); gap:12px; padding:8px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
+.log-row:last-child { border-bottom:none; }
+.log-head { font-size:var(--fs-xs); text-transform:uppercase; color:var(--text-light); font-weight:700; background:var(--bg); border-radius:6px; padding:6px 0; }
+/* select nelle card permessi */
+.ga-select { width:100%; min-height:var(--control-h); padding:0 10px; border:1px solid var(--border); border-radius:8px; font-size:var(--fs-input); background:var(--surface); color:var(--text); }
+/* sub-tab permessi */
+.subtab-bar { display:flex; gap:6px; margin-bottom:16px; padding:6px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); }
+/* validazione template upload */
+#tpl-validation-result { display:none; margin-top:12px; padding:12px 14px; border-radius:10px; }
+/* liste derivate configurabili (ruoli + override persona) */
+.derived-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:8px; }
+.derived-sub { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.03em; font-weight:800; color:var(--text-light); margin-bottom:6px; }
+.derived-roles { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surface); }
+.derived-roles label { display:flex; align-items:center; gap:8px; font-weight:600; font-size:var(--fs-sm); color:var(--text); cursor:pointer; }
+.derived-roles .empty { color:var(--text-light); font-style:italic; font-size:var(--fs-sm); }
+.derived-picker { display:flex; gap:6px; margin-bottom:6px; }
+.derived-picker .ga-select { flex:1; min-width:0; }
+@media (max-width:900px) { .derived-grid { grid-template-columns:1fr; } }
+/* tabelle comprimibili (tab Permessi) */
+.collapse-block { border:1px solid var(--border); border-radius:10px; margin-bottom:14px; background:var(--surface); }
+.collapse-head { width:100%; display:flex; align-items:center; gap:10px; padding:12px 14px; background:none; border:none; cursor:pointer; font:inherit; font-weight:800; color:var(--text); text-align:left; }
+.collapse-head:hover { background:var(--bg); border-radius:10px; }
+.collapse-head .chev { transition:transform .15s ease; color:var(--text-light); }
+.collapse-block.open .collapse-head .chev { transform:rotate(90deg); }
+.collapse-head .count { margin-left:auto; font-weight:700; font-size:var(--fs-sm); color:var(--text-light); }
+.collapse-body { padding:0 14px 14px; }
+/* log email */
+/* tab qualita: form nuovo tipo difetto */
+.qd-new { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr) 110px auto; gap:8px; align-items:end; margin-bottom:14px; }
+@media (max-width:760px) { .qd-new { grid-template-columns:1fr; } }
+.maillog-detail { margin-top:8px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--bg); white-space:pre-wrap; font-size:var(--fs-sm); color:var(--text-mid); max-height:280px; overflow:auto; }

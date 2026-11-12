@@ -79,7 +79,7 @@
              modules="StaticFileModule,DefaultDocumentModule" resourceType="Either" />
       </handlers>
       <staticContent>
-        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="365.00:00:00" />
       </staticContent>
     </system.webServer>
   </location>

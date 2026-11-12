@@ -1116,7 +1116,10 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Nuova regola")
         self.assertContains(response, "Contenuti / Colonne disponibili")
         self.assertContains(response, 'id="diagramActionGrid"', html=False)
-        self.assertContains(response, ".diagram-modal-overlay[hidden] { display: none !important; }", html=False)
+        # Gli stili della pagina stanno in automazioni/css/pagine/rule_designer.css (12/11/2026).
+        self.assertContains(response, "automazioni/css/pagine/rule_designer.css", html=False)
+        css = Path(__file__).resolve().parent / "static" / "automazioni" / "css" / "pagine" / "rule_designer.css"
+        self.assertIn(".diagram-modal-overlay[hidden] { display: none !important; }", css.read_text(encoding="utf-8"))
         self.assertContains(response, 'data-action-type="send_email"', html=False)
         self.assertContains(response, 'data-action-type="send_approval"', html=False)
         self.assertContains(response, 'data-action-type="branch"', html=False)

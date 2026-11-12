@@ -1,0 +1,56 @@
+/* NOVICROM HUB — da assets/pages/asset_detail.html (blocco 4), spostato dall'inline il 12/11/2026: stesso punto, ora in cache. */
+  .af-targhetta-trigger {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    line-height: 0;
+    display: inline-block;
+    cursor: zoom-in;
+  }
+  .af-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: rgba(2, 6, 23, .82);
+    cursor: zoom-out;
+  }
+  .af-lightbox[hidden] { display: none; }
+  .af-lightbox-img {
+    max-width: min(92vw, 1100px);
+    max-height: calc(90 * var(--vh, 1vh));
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .af-open{color:#fca5a5}
+body.theme-dark .af-doc-file-status{color:var(--text-light)}
+body.theme-dark .af-kpi-tile--warn{background:rgba(214,158,46,.16)}
+body.theme-dark .af-kpi-tile--warn .af-kpi-tile-value,body.theme-dark .af-kpi-tile--warn .af-kpi-tile-label{color:#fcd34d}
+body.theme-dark .af-kpi-tile--ok{background:rgba(56,161,105,.18)}
+body.theme-dark .af-kpi-tile--ok .af-kpi-tile-value,body.theme-dark .af-kpi-tile--ok .af-kpi-tile-label{color:#86efac}
+body.theme-dark .af-kpi-tile--info{background:rgba(59,130,246,.18)}
+body.theme-dark .af-kpi-tile--info .af-kpi-tile-value,body.theme-dark .af-kpi-tile--info .af-kpi-tile-label{color:#93c5fd}
+body.theme-dark .af-kpi-tile--danger{background:rgba(229,62,62,.16)}
+body.theme-dark .af-kpi-tile--danger .af-kpi-tile-value,body.theme-dark .af-kpi-tile--danger .af-kpi-tile-label{color:#fca5a5}
+body.theme-dark .af-kpi-tile--green{background:rgba(56,161,105,.18)}
+body.theme-dark .af-kpi-tile--green .af-kpi-tile-value,body.theme-dark .af-kpi-tile--green .af-kpi-tile-label{color:#86efac}
+body.theme-dark .af-tco{background:rgba(59,130,246,.18)}
+body.theme-dark .af-qa-link--it{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .af-qa-link--man{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .af-qa-link--ext{background:rgba(214,158,46,.16);color:#fdba74}
+body.theme-dark .af-qa-count{color:#fcd34d;background:rgba(214,158,46,.16)}
+body.theme-dark .af-chip--ticket{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .af-export-pop a{color:#93c5fd}
+body.theme-dark .af-tab[aria-selected="true"] .af-tab-count{background:rgba(255,255,255,.06)}
+body.theme-dark .af-qr-frame{background:var(--surface)}
+body.theme-dark .af-map-zone{background:var(--surface)}
+body.theme-dark .af-map-whole summary{color:#93c5fd}
+body.theme-dark .af-map-full{background:var(--surface)}
+body.theme-dark .af-lightbox-img{background:var(--surface)}
