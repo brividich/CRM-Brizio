@@ -151,7 +151,8 @@ def vista(dispositivo, sonde, *, ultima=None, disponibilita=None, request=None):
         pct = int(round(float(d24["pct"])))
         base.append({"label": "Disponibilità 24 h", "valore": f"{d24.get('ok', 0)} su {d24.get('totale', 0)} riuscite", "pct": pct,
                      "tono": "ok" if pct >= 99 else ("warn" if pct >= 90 else "danger")})
-    return {"tipo": dispositivo.categoria, "titolo": cfg["titolo"], "sigla": cfg["sigla"], "indicatori": indicatori,
+    ind = {re.sub(r"[^a-z0-9]+", "_", i["label"].lower()).strip("_"): i for i in indicatori}
+    return {"tipo": dispositivo.categoria, "titolo": cfg["titolo"], "sigla": cfg["sigla"], "indicatori": indicatori, "ind": ind,
             "base": base, "collegamenti": _collegamenti(cfg, request, dispositivo),
             "riconosciute": len(usate), "sonde_totali": len(sonde)}
 
@@ -173,3 +174,36 @@ def collegamenti_mfc(macchina, request=None):
     ]
     return [{"label": label, "url": url} for label, url in voci
             if request is None or acl_allows_path(url.split("?")[0], django_user=request.user, request=request)]
+
+
+# --- Disegno della stampante (scheda MFC e stampanti del Monitor) --------------------------------
+
+COLORE_HEX = {"nero": "#111827", "black": "#111827", "ciano": "#06b6d4", "cyan": "#06b6d4", "magenta": "#d946ef",
+              "giallo": "#facc15", "yellow": "#facc15"}
+
+
+def disegno_stampante(dati, stato_snmp=""):
+    """Geometria del disegno della MFC dai dati salvati: toner (colore e livello), cassetti, display, sportelli aperti."""
+    dati = dati or {}
+    toner = []
+    for c in (dati.get("consumabili") or [])[:6]:
+        pct = c.get("pct") if isinstance(c.get("pct"), int) and 0 <= c.get("pct") <= 100 else None
+        nome = (c.get("nome") or "").lower()
+        colore = (c.get("colore") or "").lower()
+        hex_ = next((v for k, v in COLORE_HEX.items() if k in colore or k in nome), "#64748b")
+        altezza = round(56 * (pct or 0) / 100)
+        toner.append({"nome": c.get("nome") or "Consumabile", "pct": pct, "hex": hex_, "h": altezza, "y": 150 - altezza,
+                      "basso": pct is not None and pct <= 15})
+    for i, t in enumerate(toner):
+        t["x"] = 66 + i * 36
+    cassetti = []
+    for i, c in enumerate((dati.get("cassetti") or [])[:4]):
+        pct = c.get("pct") if isinstance(c.get("pct"), int) else None
+        cassetti.append({"nome": c.get("nome") or f"Cassetto {i + 1}", "pct": pct, "nota": c.get("nota") or "", "y": 182 + i * 22,
+                         "w": round(150 * (pct or 0) / 100), "problema": bool(c.get("problema"))})
+    stato = dati.get("stato") or {}
+    display = [r for r in (stato.get("display") or []) if r][:2]
+    return {"toner": toner, "cassetti": cassetti, "display": display, "stato": stato.get("stato") or "",
+            "sportello_aperto": any(s.get("aperto") for s in dati.get("sportelli") or []),
+            "altezza": 190 + 22 * max(len(cassetti), 1), "tono": TONI.get(stato_snmp, "muted"),
+            "vuoto": not toner and not cassetti and not display}

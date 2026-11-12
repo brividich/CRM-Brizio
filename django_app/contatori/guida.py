@@ -569,6 +569,31 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "topologia",
+        "titolo": "Apparato disegnato, porte e topologia",
+        "blocchi": [
+            ("p", "Ogni scheda ha in alto l'apparato disegnato con i dati già salvati (aprirla non lo interroga): la MFC con i toner "
+                  "a colori e il loro livello (bordo rosso sotto il 15%), i cassetti con la carta, il display e la luce di stato; firewall "
+                  "e switch con il pannello frontale e le porte; l'UPS con la batteria e l'autonomia; il NAS con i dischi; il server "
+                  "con ventole e spie; la telecamera; il sensore."),
+            ("ul", [
+                "Porte di firewall e switch: azzurra = collegata, arancione = WAN, rossa = l'apparato collegato è in errore, scura = libera. "
+                "Passando sopra una porta si leggono nome, tipo, VLAN e cosa c'è collegato; un clic apre l'apparato collegato. Sotto il "
+                "pannello l'elenco delle porte descritte.",
+                "«Modifica porte» (solo con la gestione): quante porte ha il pannello e, per ognuna, nome, tipo (LAN, WAN, fibra, PoE, gestione), "
+                "VLAN, a cosa è collegata (un apparato del modulo o una MFC) oppure un testo libero come «Internet» o «Access point», e una nota. "
+                "Le righe lasciate vuote restano porte libere. Per gli switch con la tabella MAC, accanto alle porte c'è «rilevato: …» "
+                "e il pulsante «Usa le proposte della tabella MAC» riempie le righe vuote: si controlla e si salva.",
+                "«Topologia» (nella barra del modulo): l'albero della rete costruito dalle porte. Una porta WAN collegata a «Internet» mette "
+                "Internet in cima con il firewall sotto; poi switch e apparati, con la porta e la VLAN su ogni ramo. Ogni apparato ha il "
+                "colore del suo stato e il numero di apparati che ha sotto; un clic apre il pannello laterale, la freccia apre o chiude il "
+                "ramo, «Apri tutto» / «Chiudi tutto» in alto. In fondo «Non ancora collegati»: gli apparati che non compaiono su nessuna porta.",
+                "Un cavo «di ritorno» (lo switch che indica il firewall sulla sua porta di uplink) non ribalta l'albero: chi sta a monte "
+                "(firewall, poi switch) resta sopra. «Vedi nella topologia» in ogni scheda porta all'apparato nell'albero.",
+            ]),
+        ],
+    },
+    {
         "id": "nuovo-apparato",
         "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
         "blocchi": [
