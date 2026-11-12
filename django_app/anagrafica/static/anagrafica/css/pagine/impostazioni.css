@@ -1,0 +1,427 @@
+/* NOVICROM HUB — da anagrafica/pages/impostazioni.html (blocco 1), spostato dall'inline il 12/11/2026: stesso punto, ora in cache. */
+/* ============================================================
+   Pannello impostazioni anagrafica — barra laterale a gruppi + schede.
+   Colori solo dai token `--imp-*` qui sotto: il tema scuro li ridefinisce
+   una volta (body.theme-dark #imp-root) invece di inseguire ogni regola.
+   ============================================================ */
+#imp-root {
+  --imp-navy:#0c2545; --imp-navy-deep:#08142d; --imp-cyan:#1f87cd; --imp-orange:#ff8a1f;
+  --imp-surface:#fff; --imp-soft:#f8fafc; --imp-soft-2:#f1f5f9; --imp-tint:#eef6fc; --imp-tint-line:#bcd7ee;
+  --imp-line:#e6ebf3; --imp-line-2:#d7dee8; --imp-line-soft:#eef2f7;
+  --imp-ink:#0f172a; --imp-text:#334155; --imp-muted:#64748b; --imp-faint:#94a3b8;
+  --imp-accent:#0c2545; --imp-link:#1f87cd; --imp-ok:#15803d; --imp-ko:#b91c1c; --imp-ko-line:#fecaca; --imp-ko-bg:#fef2f2;
+  --imp-sh:0 1px 3px rgba(12,37,69,.05), 0 6px 18px rgba(12,37,69,.045);
+  --imp-sh-hover:0 10px 22px -14px rgba(12,37,69,.35);
+  --imp-mono:ui-monospace, SFMono-Regular, Consolas, monospace;
+  display:flex; flex-direction:column; gap:16px; color:var(--imp-text);
+  font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body.theme-dark #imp-root {
+  --imp-navy:#1f87cd; --imp-navy-deep:#1a74b0;
+  --imp-surface:var(--surface); --imp-soft:var(--surface-alt); --imp-soft-2:var(--surface-alt);
+  --imp-tint:rgba(59,130,246,.12); --imp-tint-line:rgba(147,197,253,.35);
+  --imp-line:var(--border); --imp-line-2:var(--border); --imp-line-soft:var(--border);
+  --imp-ink:var(--text); --imp-text:var(--text-mid); --imp-muted:var(--text-light); --imp-faint:var(--text-light);
+  --imp-accent:#1f87cd; --imp-link:#93c5fd; --imp-ok:#86efac; --imp-ko:#fca5a5; --imp-ko-line:rgba(252,165,165,.35); --imp-ko-bg:rgba(185,28,28,.16);
+  --imp-sh:none; --imp-sh-hover:none;
+}
+/* Il CSS globale dà min-height:40px a ogni input: caselle e radio restano della loro misura. */
+#imp-root input[type=checkbox], #imp-root input[type=radio] { min-height:0; height:auto; width:auto; margin:0; flex:0 0 auto; accent-color:#1f87cd; }
+#imp-root svg.imp-i { width:1em; height:1em; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:0 0 auto; }
+
+/* ── Testata ─────────────────────────────────────────────────────────── */
+.imp-hero {
+  position:relative; overflow:hidden; color:#fff;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,138,31,.28), transparent 42%),
+    radial-gradient(circle at 2% 100%, rgba(31,135,205,.30), transparent 52%),
+    linear-gradient(135deg,#08142d 0%,#0c2545 55%,#1a3a66 100%);
+  padding:12px 18px 12px 22px;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px;
+}
+.imp-hero-main { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 14px; min-width:0; }
+.imp-hero::after { content:""; position:absolute; top:0; left:0; width:26px; height:5px;
+  background:#ff8a1f; transform:translate(-3px,5px) rotate(-45deg); transform-origin:left center; }
+.imp-hero > * { position:relative; }
+.imp-hero-title { margin:0; line-height:1.3; font-size:19px; font-weight:800; letter-spacing:-.015em; display:flex; align-items:center; gap:9px; color:#fff; }
+.imp-hero-title svg.imp-i { font-size:18px; color:#7cc4f2; align-self:center; }
+.imp-hero-sub { font-size:12.5px; line-height:1.4; color:rgba(255,255,255,.72); }
+.imp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.imp-hero-btn { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:8px; font-size:12.5px; font-weight:700; text-decoration:none; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); transition:background .15s; }
+.imp-hero-btn:hover { background:rgba(255,255,255,.2); color:#fff; }
+/* La testata è scura in entrambi i temi: stessi valori anche col tema scuro. */
+body.theme-dark .imp-hero-btn { background:rgba(255,255,255,.10); }
+body.theme-dark .imp-hero-btn:hover { background:rgba(255,255,255,.2); }
+.imp-hero-btn svg.imp-i { font-size:15px; color:#ffb067; }
+.imp-hero-pill { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; background:rgba(255,176,103,.16); border:1px solid rgba(255,176,103,.4); color:#ffd9b3; }
+
+.imp-noperm { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:12px; padding:11px 16px; font-size:13px; font-weight:600; }
+body.theme-dark .imp-noperm { background:rgba(146,64,14,.2); color:#fcd34d; border-color:rgba(253,230,138,.3); }
+
+/* ── Impaginazione: barra laterale + contenuto ───────────────────────── */
+.imp-layout { display:grid; grid-template-columns:262px minmax(0,1fr); gap:18px; align-items:start; }
+.imp-tabs {
+  position:sticky; top:14px; max-height:calc(100 * var(--vh, 1vh) - 28px); overflow-y:auto;
+  display:flex; flex-direction:column; gap:2px;
+  background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; padding:10px; box-shadow:var(--imp-sh);
+}
+.imp-nav-search { position:relative; margin:0 0 6px; }
+.imp-nav-search svg.imp-i { position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--imp-faint); pointer-events:none; }
+.imp-nav-search input {
+  width:100%; height:34px; box-sizing:border-box; padding:0 10px 0 31px; font:inherit; font-size:12.5px;
+  border:1px solid var(--imp-line); border-radius:9px; background:var(--imp-soft); color:var(--imp-ink); outline:none;
+}
+.imp-nav-search input:focus { border-color:var(--imp-cyan); background:var(--imp-surface); box-shadow:0 0 0 3px rgba(31,135,205,.14); }
+.imp-nav-group { display:flex; flex-direction:column; gap:2px; }
+.imp-nav-h { padding:10px 10px 3px; font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--imp-faint); }
+.imp-nav-empty { display:none; padding:10px; font-size:12px; color:var(--imp-faint); }
+.imp-tab {
+  position:relative; display:flex; align-items:center; gap:10px; width:100%; padding:7px 10px;
+  border:none; border-radius:9px; background:transparent; color:var(--imp-text);
+  font:inherit; font-size:13px; font-weight:600; text-align:left; text-decoration:none; cursor:pointer;
+  transition:background .12s, color .12s;
+}
+.imp-tab:hover { background:var(--imp-soft-2); color:var(--imp-ink); }
+.imp-tab:focus-visible { outline:2px solid var(--imp-cyan); outline-offset:1px; }
+.imp-tab.active { background:var(--imp-accent); color:#fff; box-shadow:0 6px 14px -8px rgba(12,37,69,.6); }
+.imp-tab .imp-tab-icon { display:inline-flex; font-size:17px; color:var(--imp-muted); }
+.imp-tab:hover .imp-tab-icon { color:var(--imp-cyan); }
+.imp-tab.active .imp-tab-icon { color:#fff; }
+.imp-tab-lbl { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.imp-tab .imp-tab-count { margin-left:auto; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; background:var(--imp-soft-2); color:var(--imp-muted); }
+.imp-tab.active .imp-tab-count, body.theme-dark .imp-tab.active .imp-tab-count { background:rgba(255,255,255,.22); color:#fff; }
+.imp-tab .imp-tab-count.alert { background:var(--imp-ko-bg); color:var(--imp-ko); }
+.imp-tab .imp-tab-go { margin-left:auto; font-size:13px; color:var(--imp-faint); }
+.imp-tab:hover .imp-tab-go { color:var(--imp-cyan); }
+.imp-tab.hidden, .imp-nav-group.hidden { display:none; }
+
+.imp-content { display:flex; flex-direction:column; gap:16px; min-width:0; }
+#imp-root [hidden] { display:none !important; }
+/* Una scheda = un solo riquadro: le card interne diventano sezioni separate da un filo. */
+.imp-panel { display:none; flex-direction:column; }
+.imp-panel.active {
+  display:flex; animation:imp-in .18s ease-out;
+  background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; box-shadow:var(--imp-sh); overflow:clip;
+}
+.imp-panel > :first-child { margin-top:-1px; }
+@keyframes imp-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+/* ── Card (sezioni della scheda) e testate ───────────────────────────── */
+.imp-card { background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; padding:16px 20px; box-shadow:var(--imp-sh); }
+#imp-root .imp-panel .imp-card { background:transparent; border:0; border-top:1px solid var(--imp-line-soft); border-radius:0; box-shadow:none; }
+/* L'elenco che segue la sua testata fa parte della stessa sezione: niente filo in mezzo. */
+#imp-root .imp-panel .imp-card:has(> .imp-card-head) + .imp-card:not(details):not(:has(> .imp-card-head)) { border-top:0; padding-top:0; }
+.imp-card-head { display:flex; align-items:center; justify-content:space-between; gap:10px 14px; flex-wrap:wrap; margin-bottom:12px; }
+.imp-card-head:last-child { margin-bottom:0; }
+.imp-card-head > :first-child { min-width:0; flex:1 1 320px; }
+.imp-card-head-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+.imp-card-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:15px; font-weight:800; letter-spacing:-.01em; color:var(--imp-ink); }
+.imp-card-sub, .imp-card-desc { margin-top:2px; max-width:96ch; font-size:12px; line-height:1.45; color:var(--imp-muted); }
+/* Filtro dell'elenco e «+ Nuovo …» stanno nella testata della sezione. */
+.imp-head-search { position:relative; display:inline-flex; align-items:center; }
+.imp-head-search svg.imp-i { position:absolute; left:9px; font-size:13px; color:var(--imp-faint); pointer-events:none; }
+#imp-root .imp-head-search input {
+  width:190px; height:30px; min-height:30px; box-sizing:border-box; padding:0 9px 0 28px; font:inherit; font-size:12.5px;
+  border:1px solid var(--imp-line-2); border-radius:8px; background:var(--imp-soft); color:var(--imp-ink); outline:none;
+}
+#imp-root .imp-head-search input:focus { border-color:var(--imp-cyan); background:var(--imp-surface); box-shadow:0 0 0 3px rgba(31,135,205,.14); }
+.imp-head-search .imp-search-info { margin-left:6px; }
+.imp-add-toggle[aria-expanded="true"] { background:var(--imp-soft-2); color:var(--imp-ink); border-color:var(--imp-line-2); }
+.imp-add-toggle[aria-expanded="true"]:hover { background:var(--imp-line); color:var(--imp-ink); }
+.imp-add-toggle[aria-expanded="true"] svg.imp-i { transform:rotate(45deg); }
+.imp-add-toggle svg.imp-i { transition:transform .15s; }
+.imp-sec-title { font-size:13px; font-weight:800; color:var(--imp-ink); margin:0 0 4px; }
+.imp-subsec { margin-top:18px; padding-top:16px; border-top:1px solid var(--imp-line-soft); }
+.imp-kicker { margin-bottom:10px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--imp-cyan); }
+body.theme-dark .imp-kicker { color:#93c5fd; }
+
+/* ── Form ─────────────────────────────────────────────────────────────── */
+.imp-add-form, .imp-workflow-form {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px 12px; align-items:end;
+  padding:14px; background:var(--imp-soft); border:1px dashed var(--imp-line-2); border-radius:12px;
+}
+/* Form «nuovo» aperto dal bottone in testata: sta subito sotto, staccato dall'elenco. */
+.imp-add-box { margin-bottom:14px; }
+.imp-add-box.imp-subsec { margin-top:0; padding-top:0; border-top:0; }
+.imp-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px 12px; align-items:end; }
+.imp-grid-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px 12px; }
+.imp-col-full { grid-column:1 / -1; }
+.imp-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.imp-label { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--imp-muted); }
+.imp-label .imp-perm-hint, .imp-label-note { font-weight:500; text-transform:none; letter-spacing:0; color:var(--imp-faint); }
+.imp-input, .imp-select, .imp-textarea {
+  width:100%; min-height:36px; box-sizing:border-box; padding:7px 10px;
+  border:1px solid var(--imp-line-2); border-radius:9px; background:var(--imp-surface); color:var(--imp-ink);
+  font:inherit; font-size:13px; outline:none; transition:border-color .12s, box-shadow .12s;
+}
+.imp-select[multiple] { padding:4px; }
+.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:var(--imp-cyan); box-shadow:0 0 0 3px rgba(31,135,205,.14); }
+.imp-input[type=file] { padding:5px 8px; }
+.imp-input-code { font-family:var(--imp-mono); font-size:12.5px; }
+.imp-textarea { min-height:64px; resize:vertical; }
+.imp-help { margin:0; font-size:11.5px; line-height:1.4; color:var(--imp-faint); }
+.imp-color { width:44px; height:36px; padding:3px; border:1px solid var(--imp-line-2); border-radius:9px; background:var(--imp-surface); cursor:pointer; }
+.imp-check { display:inline-flex; align-items:center; gap:7px; min-height:36px; font-size:13px; font-weight:600; color:var(--imp-text); cursor:pointer; }
+.imp-checks { display:flex; gap:6px 18px; flex-wrap:wrap; align-items:center; }
+.imp-readonly { display:flex; align-items:center; min-height:36px; padding:7px 10px; border-radius:9px; background:var(--imp-soft-2); color:var(--imp-muted); font-family:var(--imp-mono); font-size:12px; word-break:break-all; }
+
+/* ── Bottoni ─────────────────────────────────────────────────────────── */
+.imp-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 14px;
+  border:1px solid transparent; border-radius:9px; font:inherit; font-size:12.5px; font-weight:700;
+  white-space:nowrap; text-decoration:none; cursor:pointer; transition:background .12s, border-color .12s, color .12s;
+}
+.imp-btn:focus-visible { outline:2px solid var(--imp-cyan); outline-offset:2px; }
+.imp-btn:disabled { opacity:.5; cursor:not-allowed; }
+.imp-btn svg.imp-i { font-size:14px; }
+.imp-btn-primary { background:var(--imp-navy); color:#fff; }
+.imp-btn-primary:hover { background:var(--imp-navy-deep); color:#fff; }
+.imp-btn-green { background:#16a34a; color:#fff; }
+.imp-btn-green:hover { background:#15803d; color:#fff; }
+.imp-btn-ghost { background:var(--imp-surface); color:var(--imp-text); border-color:var(--imp-line-2); }
+.imp-btn-ghost:hover { background:var(--imp-soft); border-color:var(--imp-tint-line); color:var(--imp-ink); }
+.imp-btn-danger { background:transparent; color:var(--imp-ko); border-color:var(--imp-ko-line); }
+.imp-btn-danger:hover { background:var(--imp-ko-bg); }
+.imp-btn-sm { min-height:30px; padding:4px 10px; font-size:12px; border-radius:8px; }
+
+/* ── Elenchi ─────────────────────────────────────────────────────────── */
+.imp-cat-title { display:flex; align-items:center; gap:10px; margin:14px 0 6px; font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--imp-muted); }
+.imp-cat-title::after { content:""; flex:1; height:1px; background:var(--imp-line-soft); }
+.imp-card > .imp-cat-title:first-child { margin-top:0; }
+/* Elenco compatto: righe in un unico riquadro, separate da un filo. */
+.imp-list { display:flex; flex-direction:column; border:1px solid var(--imp-line); border-radius:11px; overflow:hidden; }
+.imp-list .imp-empty { border:0; border-radius:0; }
+.imp-row {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 10px 7px 14px; min-height:42px; box-sizing:border-box;
+  background:var(--imp-surface); transition:background .12s;
+}
+.imp-row ~ .imp-row { border-top:1px solid var(--imp-line-soft); }
+.imp-row:hover { background:var(--imp-soft); }
+.imp-row.inactive { background:var(--imp-soft); }
+.imp-row.inactive > :not(.imp-row-actions) { opacity:.6; }
+/* Nome e dettagli sulla stessa riga; vanno a capo solo se non ci stanno. */
+.imp-row-main { flex:1; min-width:180px; display:flex; align-items:baseline; flex-wrap:wrap; gap:1px 12px; }
+.imp-row-name { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:13.5px; font-weight:700; color:var(--imp-ink); }
+.imp-row-meta { font-size:12px; line-height:1.55; color:var(--imp-muted); }
+.imp-row-actions { display:flex; gap:2px; align-items:center; flex-shrink:0; margin-left:auto; }
+.imp-row-actions form { display:inline; margin:0; }
+/* Azioni di riga leggere: testo, senza riquadro; «Elimina» si colora solo al passaggio. */
+.imp-row-actions .imp-btn-ghost, .imp-table .r .imp-btn-ghost { background:transparent; border-color:transparent; color:var(--imp-link); }
+.imp-row-actions .imp-btn-ghost:hover, .imp-table .r .imp-btn-ghost:hover { background:var(--imp-tint); border-color:transparent; color:var(--imp-link); }
+.imp-row-actions .imp-btn-danger, .imp-table .r .imp-btn-danger { background:transparent; border-color:transparent; color:var(--imp-faint); }
+.imp-row-actions .imp-btn-danger:hover, .imp-table .r .imp-btn-danger:hover { background:var(--imp-ko-bg); color:var(--imp-ko); }
+.imp-row-actions .imp-btn-sm, .imp-table .r .imp-btn-sm { min-height:28px; padding:3px 9px; }
+.imp-dot { display:inline-block; flex:0 0 auto; width:12px; height:12px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(15,23,42,.1); }
+.imp-ico-tile { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; }
+.imp-ico-tile svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+body.theme-dark .imp-ico-tile { background:rgba(56,161,105,.16); border-color:rgba(134,239,172,.3); color:#86efac; }
+.imp-link { color:var(--imp-link); font-weight:600; text-decoration:none; }
+.imp-link:hover { text-decoration:underline; }
+.imp-muted { color:var(--imp-faint); }
+.imp-warn-text { color:#b45309; font-weight:600; }
+body.theme-dark .imp-warn-text { color:#fcd34d; }
+.imp-code { font-family:var(--imp-mono); font-size:11.5px; color:var(--imp-muted); }
+
+.imp-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; line-height:1.5; white-space:nowrap; background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
+.imp-badge-blue { background:var(--hr-info-bg,#dbeafe); color:var(--hr-info-fg,#1f87cd); }
+.imp-badge-green { background:var(--hr-ok-bg,#dcfce7); color:var(--hr-ok-fg,#166534); }
+.imp-badge-gray { background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
+.imp-badge-orange { background:var(--hr-alert-bg,#ffedd5); color:var(--hr-alert-fg,#c2410c); }
+.imp-badge-red { background:var(--hr-ko-bg,#fee2e2); color:var(--hr-ko-fg,#b91c1c); }
+.imp-badge-code { font-family:var(--imp-mono); font-size:11px; letter-spacing:.02em; }
+
+.imp-empty { padding:18px; text-align:center; font-size:13px; color:var(--imp-muted); background:var(--imp-soft); border:1px dashed var(--imp-line-2); border-radius:12px; }
+
+/* ── Tabelle (cartelle documenti, menu) ──────────────────────────────── */
+.imp-table-wrap { overflow-x:auto; border:1px solid var(--imp-line); border-radius:12px; }
+.imp-table { width:100%; border-collapse:collapse; font-size:13px; }
+#imp-root .imp-table th { padding:8px 12px; text-align:left; white-space:nowrap; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--imp-muted); background:var(--imp-soft); border-bottom:1px solid var(--imp-line); }
+#imp-root .imp-table td { padding:6px 12px; height:40px; vertical-align:middle; color:var(--imp-text); border-bottom:1px solid var(--imp-line-soft); }
+.imp-table tbody tr:last-child td { border-bottom:none; }
+.imp-table tbody tr:hover td { background:var(--imp-soft); }
+.imp-table .c { text-align:center; }
+.imp-table .r { text-align:right; white-space:nowrap; }
+.imp-table .r form { display:inline; margin:0; }
+.imp-table .strong { font-weight:700; color:var(--imp-ink); }
+.imp-table .num { text-align:center; font-variant-numeric:tabular-nums; color:var(--imp-muted); }
+.imp-tree-pad { display:inline-block; }
+.imp-tree-arrow { color:var(--imp-faint); margin-right:4px; }
+
+/* ── Barre di comando ────────────────────────────────────────────────── */
+.imp-seg { display:inline-flex; gap:4px; flex-wrap:wrap; padding:4px; background:var(--imp-soft-2); border:1px solid var(--imp-line); border-radius:11px; }
+.imp-seg-btn { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:none; border-radius:8px; background:transparent; color:var(--imp-muted); font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
+.imp-seg-btn:hover { color:var(--imp-ink); }
+.imp-seg-btn.active { background:var(--imp-surface); color:var(--imp-ink); box-shadow:0 1px 3px rgba(12,37,69,.12); }
+.imp-seg-btn .imp-tab-count { padding:0 7px; border-radius:999px; font-size:11px; background:var(--imp-line); color:var(--imp-muted); }
+.imp-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.imp-bulkbar { position:sticky; top:8px; z-index:20; display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end; border-left:4px solid var(--imp-cyan); }
+.imp-bulkbar .imp-field { width:auto; min-width:150px; }
+.imp-bulk-count { font-size:12px; color:var(--imp-muted); }
+
+/* ── Modali ──────────────────────────────────────────────────────────── */
+.imp-modal-overlay { display:none; position:fixed; inset:0; z-index:9000; align-items:center; justify-content:center; padding:16px; background:rgba(8,20,45,.5); backdrop-filter:blur(2px); }
+.imp-modal-overlay.open { display:flex; }
+.imp-modal {
+  position:relative; width:min(560px, 100%); max-height:calc(90 * var(--vh, 1vh)); overflow-y:auto;
+  padding:22px 24px; background:var(--imp-surface); border-top:4px solid var(--imp-orange); border-radius:14px;
+  box-shadow:0 30px 60px -20px rgba(8,20,45,.55); color:var(--imp-text);
+}
+.imp-modal-wide { width:min(760px, 100%); }
+.imp-modal-title { margin:0 34px 16px 0; font-size:17px; font-weight:800; color:var(--imp-ink); }
+.imp-modal-close { position:absolute; top:12px; right:12px; width:32px; height:32px; border:none; border-radius:8px; background:transparent; color:var(--imp-muted); font-size:20px; line-height:1; cursor:pointer; }
+.imp-modal-close:hover { background:var(--imp-soft-2); color:var(--imp-ink); }
+.imp-modal-body { display:flex; flex-direction:column; gap:12px; }
+.imp-modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; padding-top:14px; border-top:1px solid var(--imp-line-soft); }
+body.theme-dark .imp-modal-overlay { background:rgba(0,0,0,.65); }
+
+/* ── Permessi ─────────────────────────────────────────────────────────── */
+/* Una riga per sezione riservata: a sinistra cosa protegge, a destra chi la vede. */
+.imp-perm-grid { display:flex; flex-direction:column; border:1px solid var(--imp-line); border-radius:12px; overflow:hidden; }
+.imp-perm-card { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:8px 28px; align-items:start; padding:14px 16px; }
+.imp-perm-card + .imp-perm-card { border-top:1px solid var(--imp-line-soft); }
+.imp-perm-title { font-size:13.5px; font-weight:800; color:var(--imp-ink); }
+.imp-perm-desc { margin:2px 0 0; font-size:12px; line-height:1.45; color:var(--imp-muted); }
+.imp-perm-note { margin:6px 0 0; font-size:11.5px; line-height:1.45; color:var(--imp-faint); }
+.imp-perm-ctrl { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; }
+/* Scelta a selettore: il pallino resta per tastiera e lettori di schermo, ma non si vede. */
+.imp-perm-seg { display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--imp-soft-2); border:1px solid var(--imp-line); border-radius:10px; }
+.imp-perm-row { position:relative; display:inline-flex; align-items:center; padding:5px 12px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--imp-muted); white-space:nowrap; cursor:pointer; }
+#imp-root .imp-perm-row input { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+.imp-perm-row:hover { color:var(--imp-ink); }
+.imp-perm-row:has(input:checked) { background:var(--imp-surface); color:var(--imp-ink); font-weight:800; box-shadow:0 1px 3px rgba(12,37,69,.14); }
+.imp-perm-row:has(input:focus-visible) { outline:2px solid var(--imp-cyan); outline-offset:1px; }
+/* Col tema scuro la superficie è uguale al fondo del selettore: la voce scelta si colora. */
+body.theme-dark .imp-perm-row:has(input:checked), body.theme-dark .imp-seg-btn.active { background:rgba(59,130,246,.24); color:#fff; box-shadow:none; }
+.imp-perm-row:has(input:disabled) { cursor:default; }
+.imp-perm-ruoli, .imp-perm-utenti { display:flex; flex-direction:column; gap:2px; max-height:190px; overflow-y:auto; padding:8px; background:var(--imp-soft); border:1px solid var(--imp-line); border-radius:9px; }
+.imp-perm-ruoli { display:none; width:100%; box-sizing:border-box; }
+.imp-perm-ruoli.open { display:flex; }
+.imp-perm-extra { width:100%; }
+.imp-perm-extra > summary { display:inline-flex; align-items:center; gap:6px; list-style:none; font-size:12px; font-weight:600; color:var(--imp-link); cursor:pointer; }
+.imp-perm-extra > summary::-webkit-details-marker { display:none; }
+.imp-perm-extra > summary::after { content:"›"; font-size:15px; line-height:1; transition:transform .15s; }
+.imp-perm-extra[open] > summary { margin-bottom:6px; }
+.imp-perm-extra[open] > summary::after { transform:rotate(90deg); }
+.imp-perm-extra .imp-empty { padding:10px; }
+.imp-perm-ruoli label, .imp-perm-utenti label { display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; font-size:12.5px; color:var(--imp-text); cursor:pointer; }
+.imp-perm-ruoli label:hover, .imp-perm-utenti label:hover { background:var(--imp-surface); }
+.imp-perm-utenti label.hidden { display:none; }
+.imp-perm-utenti-head { margin:14px 0 6px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--imp-muted); }
+.imp-perm-hint { font-weight:500; text-transform:none; letter-spacing:0; color:var(--imp-faint); }
+.imp-perm-search { width:100%; box-sizing:border-box; margin-bottom:6px; padding:6px 9px; font:inherit; font-size:12.5px; border:1px solid var(--imp-line-2); border-radius:8px; background:var(--imp-surface); color:var(--imp-ink); outline:none; }
+.imp-perm-search:focus { border-color:var(--imp-cyan); }
+.imp-form-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+.imp-form-foot-split { justify-content:space-between; align-items:center; flex-wrap:wrap; margin-top:4px; }
+/* Matrice permessi canonici ACL v2 (write-through) */
+.imp-acl-scroll { overflow-x:auto; border:1px solid var(--imp-line); border-radius:12px; }
+.imp-acl-table { width:100%; border-collapse:collapse; font-size:12px; }
+.imp-acl-table th, .imp-acl-table td { padding:8px 10px; text-align:center; border-bottom:1px solid var(--imp-line-soft); }
+.imp-acl-table thead th { position:sticky; top:0; background:var(--imp-soft); color:var(--imp-muted); font-weight:700; }
+.imp-acl-table tbody tr:hover td { background:var(--imp-soft); }
+.imp-acl-table th:first-child, .imp-acl-role { text-align:left; }
+.imp-acl-role { font-weight:600; white-space:nowrap; color:var(--imp-ink); }
+.imp-acl-cell input { transform:scale(1.15); cursor:pointer; }
+.imp-acl-users { margin-top:20px; padding-top:16px; border-top:1px solid var(--imp-line-soft); }
+.imp-acl-ov-form { display:flex; flex-direction:column; gap:10px; max-width:680px; }
+.imp-acl-ov-perms { display:flex; flex-direction:column; gap:6px; }
+.imp-acl-ov-perm { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:7px 10px; background:var(--imp-soft); border:1px solid var(--imp-line); border-radius:9px; }
+.imp-acl-ov-code { flex:1 1 220px; font-weight:600; color:var(--imp-ink); }
+.imp-acl-ov-opt { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--imp-text); cursor:pointer; }
+.imp-acl-ov-list { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.imp-acl-ov-user { padding:10px 12px; border:1px solid var(--imp-line); border-radius:10px; }
+.imp-acl-ov-user-head { display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--imp-ink); }
+.imp-acl-ov-badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.imp-acl-ov-badge { padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; }
+.imp-acl-ov-badge.ok { background:#dcfce7; color:#166534; }
+.imp-acl-ov-badge.no { background:#fee2e2; color:#991b1b; }
+body.theme-dark .imp-acl-ov-badge.ok { background:rgba(56,161,105,.18); color:#86efac; }
+body.theme-dark .imp-acl-ov-badge.no { background:rgba(229,62,62,.16); color:#fca5a5; }
+
+/* ── Onboarding / offboarding ─────────────────────────────────────────── */
+.imp-workflow-form { grid-template-columns:minmax(220px,2fr) repeat(3, minmax(120px,1fr)) auto; }
+.imp-workflow-checks { display:flex; gap:6px 18px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--imp-text); }
+.imp-workflow-checks label { display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+.imp-workflow-note { grid-column:1 / -1; }
+.imp-workflow-source { font-family:var(--imp-mono); font-size:11px; color:var(--imp-faint); }
+
+/* ── Ricerca nell'elenco di una scheda ───────────────────────────────── */
+.imp-search-wrap { display:flex; align-items:center; gap:10px; }
+.imp-search-input { max-width:340px; }
+.imp-search-info { font-size:12px; color:var(--imp-muted); }
+
+.imp-search-wrap + .imp-cat-title { margin-top:0; }
+.imp-row-meta .imp-badge, .imp-warn-text { margin-right:4px; }
+
+/* ── Gruppi richiudibili (tipi di visita per categoria) e scelte a pastiglia ── */
+#imp-root details.imp-card { padding:0; overflow:hidden; }
+.imp-acc-sum { display:flex; align-items:center; gap:10px; padding:13px 18px; cursor:pointer; list-style:none; font-size:13.5px; font-weight:700; color:var(--imp-ink); }
+.imp-acc-sum::-webkit-details-marker { display:none; }
+.imp-acc-sum::before { content:"›"; display:inline-block; width:10px; font-size:18px; line-height:1; color:var(--imp-faint); transition:transform .15s; }
+details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
+.imp-acc-sum:hover { background:var(--imp-soft); }
+.imp-acc-title { flex:1; }
+.imp-acc-sum .imp-tab-count { padding:1px 8px; border-radius:999px; font-size:11px; background:var(--imp-soft-2); color:var(--imp-muted); }
+.imp-acc-body { padding:2px 16px 14px; }
+.imp-list.imp-acc-body { margin:0 20px 14px; padding:0; }
+#imp-root details.imp-card > .imp-acc-sum { padding:11px 20px; }
+/* Barra «modifica in blocco»: finché non si spunta nulla resta una riga sola. */
+.imp-bulkbar:not(.has-sel) > div.imp-field ~ div.imp-field, .imp-bulkbar:not(.has-sel) > #vm-bulk-submit { display:none; }
+#imp-root .imp-panel .imp-bulkbar { padding:8px 20px; border-top:0; background:var(--imp-soft); border-bottom:1px solid var(--imp-line-soft); }
+#imp-root .imp-panel .imp-bulkbar.has-sel { padding:10px 20px 12px; box-shadow:0 8px 16px -12px rgba(12,37,69,.35); }
+.imp-bulkbar > .imp-field:first-of-type { flex-direction:row; align-items:center; gap:12px; min-height:30px; }
+/* La barra sta fuori dal contenitore che l'HTMX rimpiazza: con display:contents
+   il contenitore non fa scatola e la barra si mette fra la testata e i gruppi. */
+#tab-visite-mediche > #visite-mediche-panel-content { display:contents; }
+#tab-visite-mediche #visite-mediche-panel-content > * { order:2; }
+#tab-visite-mediche #visite-mediche-panel-content > .imp-card:first-child { order:0; border-top:0; }
+#tab-visite-mediche > #vm-bulk-form { order:1; margin-top:0; border-top:1px solid var(--imp-line-soft); }
+.imp-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.imp-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--imp-line-2); border-radius:999px; background:var(--imp-surface); font-size:12px; color:var(--imp-text); cursor:pointer; }
+.imp-chip:hover { border-color:var(--imp-tint-line); }
+.imp-chip:has(input:checked) { background:var(--imp-tint); border-color:var(--imp-tint-line); color:var(--imp-ink); font-weight:600; }
+.imp-chip-all { font-weight:700; color:var(--imp-link); border-style:dashed; }
+
+/* ── DPI: tipo con i suoi modelli ────────────────────────────────────── */
+.imp-dpi-tipo { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.imp-list.imp-sublist { margin:8px 0 0 14px; border:0; border-left:3px solid var(--imp-line); border-radius:0; }
+.imp-sublist-empty { margin-top:8px; padding-left:14px; font-size:12px; color:var(--imp-faint); }
+
+/* ── Permessi avanzati: intestazioni compatte ed eccezioni ───────────── */
+.imp-acl-table thead th.imp-acl-th { min-width:96px; max-width:130px; white-space:normal; line-height:1.3; font-size:11px; vertical-align:bottom; }
+.imp-acl-ov-new > summary { list-style:none; display:inline-flex; }
+.imp-acl-ov-new > summary::-webkit-details-marker { display:none; }
+.imp-acl-ov-new[open] > summary { margin-bottom:12px; }
+.imp-acl-ov-perms { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); gap:6px; }
+.imp-acl-ov-form { max-width:none; }
+
+/* ── Pannello Ruoli (partial condiviso con la pagina Ruoli): solo allineamento visivo ── */
+#imp-root .ro-page { gap:0; }
+#imp-root .ro-card { background:transparent; border:0; border-top:1px solid var(--imp-line-soft); border-radius:0; box-shadow:none; }
+#imp-root .ro-card-head { padding:14px 20px 0; border-bottom:0; background:transparent; }
+#imp-root .ro-card-body { padding:12px 20px 16px; }
+#imp-root details.ro-acc > summary { padding:12px 20px; }
+#imp-root .ro-item { border-color:var(--imp-line); transition:border-color .12s, box-shadow .12s; }
+#imp-root .ro-item:hover { border-color:var(--imp-tint-line); box-shadow:var(--imp-sh-hover); }
+#imp-root .ro-item-actions { gap:2px; margin-left:-8px; }
+#imp-root .ro-item-actions .ro-btn-ghost { background:transparent; border-color:transparent; color:var(--imp-link); }
+#imp-root .ro-item-actions .ro-btn-ghost:hover { background:var(--imp-tint); }
+#imp-root .ro-item-actions .ro-btn-danger { background:transparent; border-color:transparent; color:var(--imp-faint); }
+#imp-root .ro-item-actions .ro-btn-danger:hover { background:var(--imp-ko-bg); color:var(--imp-ko); }
+
+@media (max-width:900px) {
+  .imp-layout { grid-template-columns:1fr; }
+  .imp-tabs { position:static; max-height:none; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; padding:6px; gap:4px; }
+  .imp-nav-group { display:contents; }
+  .imp-nav-h, .imp-nav-search, .imp-nav-empty { display:none !important; }
+  .imp-tab { width:auto; flex:0 0 auto; }
+  .imp-tab-lbl { overflow:visible; }
+  .imp-workflow-form, .imp-grid-2 { grid-template-columns:1fr; }
+  .imp-hero-sub { display:none; }
+  .imp-perm-card { grid-template-columns:1fr; }
+  #imp-root .imp-panel .imp-card { padding:14px 14px; }
+  .imp-list.imp-acc-body { margin:0 14px 12px; }
+  .imp-card-head-actions { width:100%; justify-content:flex-start; }
+  .imp-head-search { flex:1 1 160px; }
+  #imp-root .imp-head-search input { width:100%; }
+}
