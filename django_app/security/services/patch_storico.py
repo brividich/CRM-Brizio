@@ -17,7 +17,7 @@ from datetime import timedelta
 from django.db.models import Q
 from django.utils import timezone
 
-from security.models import SecurityCveRecord, WatchGuardDispositivo, WatchGuardPatch
+from security.models import WatchGuardDispositivo, WatchGuardPatch
 
 PERIODI = {"30": 30, "90": 90, "365": 365, "tutto": None}
 PERIODI_LABEL = {"30": "Ultimi 30 giorni", "90": "Ultimi 90 giorni", "365": "Ultimo anno", "tutto": "Tutto lo storico"}
@@ -73,7 +73,9 @@ def installate(periodo=PERIODO_DEFAULT, motivo_filtro="", q="") -> dict:
         righe.append({"p": p, "motivo": m, "motivo_label": MOTIVI[m], "cve": p.cve_lista})
 
     tutte_cve = {c for r in righe for c in r["cve"]}
-    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=tutte_cve).values_list("cve_id", flat=True)) if tutte_cve else set()
+    from security.services.kev import kev_tra
+
+    kev = kev_tra(tutte_cve)
     for r in righe:
         r["kev"] = [c for c in r["cve"] if c in kev]
 

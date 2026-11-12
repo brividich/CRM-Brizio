@@ -40,6 +40,8 @@ CACHES = {
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+# Impostazioni SOC sempre lette dal DB: la copia in memoria sopravviverebbe al rollback fra un test e l'altro.
+SECURITY_SETTINGS_CACHE_SECONDS = 0
 # Assistente AI: niente thread in background nei test (indice ricostruito in modo
 # sincrono, nessun preriscaldamento verso Ollama all'apertura della pagina).
 OLLAMA_RAG_BACKGROUND_REBUILD = False

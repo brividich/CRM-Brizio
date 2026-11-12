@@ -30,7 +30,6 @@ from django.utils import timezone
 
 from security.models import (
     SecurityAlert,
-    SecurityCveRecord,
     SecurityEventRecord,
     Severity,
     WatchGuardDispositivo,
@@ -68,7 +67,9 @@ def kev_di(patch_rows) -> set:
     tutte = {c for p in patch_rows for c in p.cve_lista}
     if not tutte:
         return set()
-    return set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=tutte).values_list("cve_id", flat=True))
+    from security.services.kev import kev_tra
+
+    return kev_tra(tutte)
 
 
 def classe(p: WatchGuardPatch, kev: set) -> str:
