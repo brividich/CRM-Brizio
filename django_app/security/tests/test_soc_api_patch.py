@@ -260,10 +260,61 @@ class TaskPatchTests(TestCase):
 
         with mock.patch.object(watchguard_api, "get", side_effect=finto_get):
             self.assertEqual(watchguard_api.sincronizza_task(),
-                             {"task": 1, "letti": 1, "invariati": 0, "esiti": 1, "oltre_limite": 0})
+                             {"task": 1, "letti": 1, "invariati": 0, "esiti": 1, "oltre_limite": 0,
+                              "errori": [], "in_errore": 0})
         self.assertEqual(WatchGuardPatch.objects.get().esito_label, "Errore di installazione")
         task = WatchGuardTask.objects.get(task_id="t1")
         self.assertEqual((task.pc, task.errori, task.riuscite, task.in_attesa, task.completo), (1, 1, 0, 0, True))  # esecuzione di ieri: oltre 24 h, non si rilegge
+
+    def test_un_task_in_errore_non_ferma_gli_altri(self):
+        quando = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        def finto_get(percorso, params=None, **kw):
+            if percorso == "/tasks":
+                return {"data": [{"id": "rotto", "name": "Install Rotto patch", "status": {"last_job_date": quando}},
+                                 {"id": "buono", "name": "Install Buono patch", "status": {"last_job_date": quando}}],
+                        "total_items": 2}
+            if percorso == "/tasks/6/rotto/jobs":
+                raise watchguard_api.WatchGuardError("Risposta 502 su /tasks/6/rotto/jobs.", 502)
+            if percorso.endswith("/jobs"):
+                return [{"id": "j1", "date": quando}]
+            return {"data": [{"host_name": "PC-A", "patch_info": {"patch_name": "Buono 1.0", "result": 1}}],
+                    "total_items": 1}
+
+        with mock.patch.object(watchguard_api, "get", side_effect=finto_get):
+            out = watchguard_api.sincronizza_task()
+        self.assertEqual((out["letti"], out["in_errore"]), (1, 1))
+        self.assertIn("Install Rotto patch", out["errori"][0])
+        self.assertTrue(WatchGuardTask.objects.filter(task_id="buono", riuscite=1).exists())
+        from security.models import SecurityLetturaLog
+        from security.services import letture
+
+        self.assertEqual(letture.esito({"ok": True, "task": out})[0], SecurityLetturaLog.PARZIALE)
+
+    def test_tutti_in_errore_il_giro_si_ferma(self):
+        def finto_get(percorso, params=None, **kw):
+            if percorso == "/tasks":
+                return {"data": [{"id": f"t{i}", "status": {}} for i in range(8)], "total_items": 8}
+            raise watchguard_api.WatchGuardError("Risposta 502.", 502)
+
+        with mock.patch.object(watchguard_api, "get", side_effect=finto_get) as g:
+            with self.assertRaisesMessage(watchguard_api.WatchGuardError, "giro fermato"):
+                watchguard_api.sincronizza_task()
+        self.assertEqual(g.call_count, 1 + watchguard_api.TASK_ERRORI_MAX)
+
+    def test_gateway_502_riprova_una_volta(self):
+        risposte = [mock.Mock(status_code=502, headers={"Content-Type": "application/json"}),
+                    mock.Mock(status_code=200, headers={"Content-Type": "application/json"},
+                              **{"json.return_value": {"data": []}})]
+        client = watchguard_api.Client.__new__(watchguard_api.Client)
+        client.cfg = {"url_api": "https://api.example.test", "account_id": "ACC-1", "api_key": "k", "access_id": "a"}
+        client.http = mock.Mock(**{"get.side_effect": risposte})
+        client._token = lambda rinnova=False: "tok"
+        with mock.patch.object(watchguard_api, "RIPROVA_SECONDI", 0), \
+                mock.patch.object(watchguard_api, "_chi_risponde", return_value=""), \
+                mock.patch.object(watchguard_api, "_json", side_effect=lambda r, p: r.json()):
+            self.assertEqual(client.get("/tasks"), {"data": []})
+        self.assertEqual(client.http.get.call_count, 2)
 
     def _finto(self, quando, risultati, chiamate):
         def finto_get(percorso, params=None, **kw):
