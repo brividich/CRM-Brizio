@@ -28,6 +28,15 @@ def events_list(request):
         return _events_csv(request, qs, result)
     page = Paginator(qs, 50).get_page(request.GET.get("page"))
     events = triage.decorate(page.object_list)
+    # L'evento che ha già un alert porta a quello: una cosa sola da gestire, non due righe da guardare.
+    from security.models import SecurityAlert
+
+    primo_alert = {}
+    for event_id, alert_id in (SecurityAlert.objects.filter(event_id__in=[e.pk for e in events])
+                               .order_by("event_id", "pk").values_list("event_id", "pk")):
+        primo_alert.setdefault(event_id, alert_id)
+    for e in events:
+        e.alert_id = primo_alert.get(e.pk)
     query = request.GET.copy()
     query.pop("page", None)
     day_query = query.copy()

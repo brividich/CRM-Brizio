@@ -122,6 +122,7 @@ urlpatterns = [
     path("postura/mappa/", views_work.postura_mappa, name="postura_mappa"),
     path("dispositivi/software/", views_work.software_soc, name="software_soc"),
     path("dispositivi/software/pc/", views_work.software_soc_pc, name="software_soc_pc"),
+    path("dispositivi/software/doppioni/<int:pk>/", views_work.software_doppione, name="software_doppione"),
     path("dispositivi/pc/", views_work.pc_copertura, name="pc_copertura"),
     path("dispositivi/rete/", views_work.rete_indirizzi, name="rete_indirizzi"),
     path("backup/", views_backup.backup_overview, name="backup"),

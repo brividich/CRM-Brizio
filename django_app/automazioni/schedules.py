@@ -176,6 +176,26 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — doppioni software tra WatchGuard e Defender: unioni sicure, poi l'AI per le coppie
+        # dal nome simile (alias automatico solo sopra soglia e con versioni coincidenti). Lettura «software_doppioni».
+        "name": "security_software_doppioni",
+        "func": "security.tasks.software_doppioni_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 60,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SECURITY CENTER — manutenzione notturna: pulizia dei registri tecnici, fotografia dell'indice di
+        # postura dei PC, avviso per chi scende sotto soglia. Lettura «manutenzione».
+        "name": "security_manutenzione",
+        "func": "security.tasks.manutenzione_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 2 * * *",       # ogni notte alle 02:30
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 600}},
+    },
+    {
         # SECURITY CENTER — proposte di chiusura dell'AI locale sugli alert aperti, con apprendimento
         # dalle decisioni delle persone; chiude da sola solo i tipi di alert imparati. Lettura «ai_proposte».
         "name": "security_ai_proposte",

@@ -5,7 +5,7 @@ from urllib.parse import quote, urlencode
 from django.contrib import messages
 from django.db.models import Q
 from django.http import Http404
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -19,6 +19,7 @@ from .models import (
     SecurityNotificationLog,
     SecurityRemediationTicket,
     SecurityVulnerabilityFinding,
+    SoftwareInstallation,
 )
 from .permissions import can_view_security_center
 from .services import soc_settings
@@ -364,7 +365,8 @@ def search(request):
             ("PC e server", [
                 {"title": name, "meta": "scheda del dispositivo", "url": f"/soc/pc/?nome={quote(name)}"}
                 for name in _device_names(query)
-            ]),
+            ] + _pc_per_identificativo(query)),
+            ("Programmi installati", _programmi(query)),
             ("Vulnerabilità", [
                 {"title": f"{f.cve} · {f.affected_product}", "meta": f"CVSS {f.cvss:.1f} · {f.exposed_devices} dispositivi".replace(".", ","), "url": f"/soc/tickets/?q={quote(f.cve)}"}
                 for f in SecurityVulnerabilityFinding.objects.filter(Q(cve__icontains=query) | Q(affected_product__icontains=query)).order_by("-last_seen_at")[:SEARCH_LIMIT]
@@ -372,6 +374,40 @@ def search(request):
         ]
         groups = [(label, rows) for label, rows in groups if rows]
     return render(request, "security/search.html", {"query": query, "groups": groups, "too_short": 0 < len(query) < 2})
+
+
+def _programmi(query):
+    """Programmi installati il cui nome o produttore contiene il testo: portano a Dispositivi › Software filtrato."""
+    from django.db.models import Count
+
+    righe = (SoftwareInstallation.objects.filter(still_detected=True).filter(Q(product_raw__icontains=query) | Q(vendor_raw__icontains=query))
+             .exclude(source_kind="snmp_firmware").values("product_raw").annotate(pc=Count("host", distinct=True)).order_by("-pc")[:SEARCH_LIMIT])
+    return [{"title": r["product_raw"], "meta": f"installato su {r['pc']} PC", "url": f"{reverse('security:software_soc')}?q={quote(r['product_raw'][:60])}"}
+            for r in righe]
+
+
+def _pc_per_identificativo(query):
+    """PC trovati per indirizzo IP, MAC o seriale (DHCP/DNS, Intune, WatchGuard)."""
+    from assets.models import DispositivoIntune, IndirizzoRete
+
+    from .models import WatchGuardDispositivo
+
+    trovati = {}
+
+    def aggiungi(nome, come):
+        nome = (nome or "").split(".")[0].upper()
+        if nome:
+            trovati.setdefault(nome, come)
+
+    compatto = query.replace("-", ":").lower()
+    for r in IndirizzoRete.objects.filter(Q(ip__startswith=query) | Q(mac__icontains=compatto)).exclude(nome_dhcp="")[:SEARCH_LIMIT]:
+        aggiungi(r.nome_dhcp, f"IP {r.ip}" + (f" · MAC {r.mac}" if r.mac else ""))
+    for d in DispositivoIntune.objects.filter(presente=True).filter(
+            Q(seriale__iexact=query) | Q(mac_ethernet__icontains=compatto) | Q(mac_wifi__icontains=compatto))[:SEARCH_LIMIT]:
+        aggiungi(d.nome, f"seriale {d.seriale}" if d.seriale.lower() == query.lower() else "MAC da Intune")
+    for w in WatchGuardDispositivo.objects.filter(presente=True, ip__startswith=query)[:SEARCH_LIMIT]:
+        aggiungi(w.host_display or w.host, f"IP {w.ip} (WatchGuard)")
+    return [{"title": nome, "meta": come, "url": f"/soc/pc/?nome={quote(nome)}"} for nome, come in list(trovati.items())[:SEARCH_LIMIT]]
 
 
 def _device_names(query):
@@ -415,21 +451,35 @@ FILTRI_SOFTWARE = [
 ]
 
 
+CACHE_SOFTWARE = "security:software_soc:righe:v1"
+
+
 def software_soc(request):
     """Software: ogni programma installato sui PC, con ricerca. Stesse righe e numeri del catalogo di Asset
     (``assets.views_software.catalog_rows``); il clic su una riga apre i PC che lo hanno nel pannello laterale."""
     if not can_view_security_center(request.user):
         return _denied(request)
+    from django.core.cache import cache
+
     from assets import views_software
 
-    tutte = views_software.catalog_rows(with_cve=True)
+    # Il catalogo si ricalcola al più ogni 5 minuti (è pesante); «Unisci» e «Annulla» lo rinfrescano subito.
+    tutte = cache.get(CACHE_SOFTWARE)
+    if tutte is None:
+        tutte = views_software.catalog_rows(with_cve=True)
+        cache.set(CACHE_SOFTWARE, tutte, 300)
     codice = request.GET.get("f", "") if request.GET.get("f", "") in {c for c, _l in FILTRI_SOFTWARE} else ""
     q = (request.GET.get("q") or "").strip()[:100]
     righe = views_software._filter(tutte, codice, q)
     filtri = [{"codice": c, "label": label, "n": len(views_software._filter(tutte, c, "")), "attivo": c == codice}
               for c, label in FILTRI_SOFTWARE]
     catalogo_url = _url_se_permesso(request, reverse("assets:software_catalog"))
+    from .services import software_doppioni
+
     return render(request, "security/software.html", {
+        "doppioni": software_doppioni.da_decidere(),
+        "doppioni_uniti": software_doppioni.unite_di_recente(),
+        "puo_decidere": can_configure_soc(request),
         "righe": righe, "totale": len(tutte), "filtri": filtri, "codice": codice, "q": q,
         "stat": {
             "programmi": len(tutte),
@@ -443,6 +493,31 @@ def software_soc(request):
     })
 
 
+@require_POST
+def software_doppione(request, pk):
+    """Unisci, «non sono lo stesso» o annulla un'unione tra un nome di Defender e uno di WatchGuard."""
+    if not can_configure_soc(request):
+        return _denied(request)
+    from .models import SecurityPropostaAi
+    from .services import software_doppioni
+
+    proposta = get_object_or_404(SecurityPropostaAi, pk=pk, tipo=SecurityPropostaAi.TIPO_DOPPIONE)
+    azione = request.POST.get("azione", "")
+    if azione == "unisci" and proposta.stato == SecurityPropostaAi.APERTA:
+        righe = software_doppioni.applica(proposta, utente=request.user, request=request)
+        messages.success(request, f"«{proposta.product}» di Defender ora è «{proposta.proposta.split('|', 1)[1]}»: {righe} righe allineate.")
+    elif azione == "rifiuta" and proposta.stato == SecurityPropostaAi.APERTA:
+        software_doppioni.rifiuta(proposta, utente=request.user, request=request)
+        messages.success(request, "Segnati come programmi diversi: la coppia non verrà riproposta.")
+    elif azione == "annulla" and proposta.stato == SecurityPropostaAi.ACCETTATA:
+        software_doppioni.annulla(proposta, utente=request.user, request=request)
+        messages.success(request, "Unione annullata: al prossimo giro di WatchGuard e Defender le righe tornano separate.")
+    from django.core.cache import cache
+
+    cache.delete(CACHE_SOFTWARE)
+    return redirect(reverse("security:software_soc") + "#doppioni")
+
+
 def software_soc_pc(request):
     """Pannello laterale di un programma: i PC che lo hanno, con versione, fonti, ultimo avvistamento e CVE."""
     if not can_view_security_center(request.user):
@@ -453,7 +528,7 @@ def software_soc_pc(request):
 
     from assets import views_software
 
-    from .models import SoftwareInstallation
+
     from .services import software_catalog as sc
     from .services.pc_overview import cve_per_programma
     from .services.pc_copertura import norm
@@ -496,8 +571,12 @@ def postura_mappa(request):
     if not can_view_security_center(request.user):
         return _denied(request)
     from .services import postura
+    from .services.manutenzione_soc import variazioni
 
-    return render(request, "security/partials/postura_mappa.html", {"m": postura.mappa(refresh=request.GET.get("refresh") == "1")})
+    m = postura.mappa(refresh=request.GET.get("refresh") == "1")
+    delta = variazioni({p["key"]: p["punteggio"] for p in m["pcs"]}, 7)
+    pcs = [{**p, "delta": delta.get(p["key"])} for p in m["pcs"]]
+    return render(request, "security/partials/postura_mappa.html", {"m": {**m, "pcs": pcs}})
 
 
 # --- WatchGuard (API): credenziali, patch e protezione ------------------------------------

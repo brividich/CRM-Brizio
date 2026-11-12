@@ -7,6 +7,10 @@ Sola lettura, a numero di query limitato.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
+from django.utils import timezone
+
 from security.models import (
     SecurityAlert,
     SecurityAsset,
@@ -160,6 +164,9 @@ def pc_scheda(name, days=90):
         "produttori_sw": _produttori(software),
         "software_stat": _software_stat(software),
         "software_soglia": now - timedelta(days=7),
+        "aggiornamenti": _aggiornamenti(key),
+        "storico_versioni": _storico_versioni(key),
+        "andamento": _andamento(key, rischio["punteggio"]),
         **_timeline_giorni(_timeline(data, patch_errori, wg)),
         "wg": wg,
         "wg_vecchio": wg_vecchio,
@@ -217,6 +224,64 @@ def _produttori(software, quanti=8):
     top = conta.most_common(quanti)
     massimo = top[0][1] if top else 1
     return [{"nome": n, "n": c, "pct": round(100 * c / massimo)} for n, c in top]
+
+
+def _aggiornamenti(key, limite=200):
+    """Aggiornamenti di sistema (KB) installati sul PC secondo WatchGuard: non sono programmi."""
+    from security.models import WatchGuardAggiornamento
+
+    return list(WatchGuardAggiornamento.objects.filter(host=key)[:limite]) if key else []
+
+
+def _storico_versioni(key, giorni=180, quanti=30):
+    """Per ogni programma con più versioni viste sul PC: le versioni in ordine, con la prima e l'ultima volta che si è vista.
+
+    Le righe «non più rilevate» restano nell'inventario: sono la storia degli aggiornamenti del PC.
+    """
+    from collections import defaultdict
+
+    from security.models import SoftwareInstallation
+
+    if not key:
+        return []
+    da = timezone.now() - timedelta(days=giorni)
+    gruppi = defaultdict(list)
+    for r in SoftwareInstallation.objects.filter(host__istartswith=key, last_seen_at__gte=da).exclude(source_kind="snmp_firmware").order_by("seen_at"):
+        if _norm(r.host) == key:
+            gruppi[(r.vendor, r.product)].append(r)
+    out = []
+    for righe in gruppi.values():
+        versioni = []
+        for r in righe:
+            if versioni and versioni[-1]["versione"] == (r.version_raw or "—"):
+                versioni[-1]["fino"] = max(versioni[-1]["fino"], r.last_seen_at)
+                versioni[-1]["attiva"] = versioni[-1]["attiva"] or r.still_detected
+                continue
+            versioni.append({"versione": r.version_raw or "—", "dal": r.seen_at, "fino": r.last_seen_at, "attiva": r.still_detected})
+        if len(versioni) < 2:
+            continue
+        out.append({"nome": righe[-1].product_raw, "versioni": versioni, "ultimo": max(v["dal"] for v in versioni),
+                    "rimosso": not any(v["attiva"] for v in versioni)})
+    out.sort(key=lambda g: g["ultimo"], reverse=True)
+    return out[:quanti]
+
+
+def _andamento(key, oggi_punteggio, giorni=30):
+    """Punti per la linea dell'andamento dell'indice (fotografie notturne + il valore di adesso)."""
+    from security.services.manutenzione_soc import andamento
+
+    punti = [(g, p) for g, p in andamento(key, giorni)] if key else []
+    oggi = timezone.localdate()
+    if not punti or punti[-1][0] != oggi:
+        punti.append((oggi, oggi_punteggio))
+    if len(punti) < 2:
+        return None
+    w, h = 220, 44
+    n = len(punti) - 1
+    coordinate = " ".join(f"{round(i * w / n, 1)},{round(h - p * h / 100, 1)}" for i, (_g, p) in enumerate(punti))
+    sette = next((p for g, p in punti if g >= oggi - timedelta(days=7)), punti[0][1])
+    return {"punti": coordinate, "dal": punti[0][0], "min": min(p for _g, p in punti), "max": max(p for _g, p in punti),
+            "variazione_7": oggi_punteggio - sette, "giorni": len(punti)}
 
 
 def cve_per_programma(software):

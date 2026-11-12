@@ -3,7 +3,7 @@
 
 {% block title %}{{ pc.name }} | Security Center AI{% endblock %}
 {% block extra_head %}{{ block.super }}
-<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261112b">
+<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261113b">
 <script src="{% static 'security/pc-scheda.js' %}?v=20261112b" defer></script>
 {% endblock %}
 {% block page_icon %}P{% endblock %}
@@ -50,6 +50,10 @@
     {% if pc.hub_asset %}<a class="pcs-btn" href="{% url 'assets:asset_view' pc.hub_asset.pk %}">Scheda asset</a>{% endif %}
     <a class="pcs-btn" href="{% url 'security:watchguard_pc' %}?vista=pc&amp;q={{ pc.name|urlencode }}">Patch e protezione</a>
     {% if b %}<a class="pcs-btn" href="{% url 'security:backup_log' %}?q={{ pc.name|urlencode }}">Log backup</a>{% endif %}
+    <form method="post" action="{% url 'security:pc_bulk' %}">
+      {% csrf_token %}<input type="hidden" name="devices" value="{{ pc.name }}"><input type="hidden" name="pagina" value="Scheda PC"><input type="hidden" name="action" value="case">
+      <button type="submit" class="pcs-btn">Apri un ticket per questo PC</button>
+    </form>
   </div>
 </section>
 
@@ -120,6 +124,12 @@
   <div class="pcs-grid-2">
     <div class="pcs-card" id="pcs-motivi">
       <div class="pcs-card-head"><div><span class="pcs-card-kicker">Indice di postura {{ r.punteggio }}/100</span><h2>Cosa abbassa il punteggio</h2></div></div>
+      {% with a=pc.andamento %}{% if a %}
+        <div class="pcs-trend is-{{ r.tono }}" title="Andamento dell'indice: una fotografia per notte">
+          <svg viewBox="0 0 220 44" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ a.punti }}"/></svg>
+          <span class="pcs-mono">dal {{ a.dal|date:"d/m" }} · min {{ a.min }} · max {{ a.max }} · 7 giorni: <b class="{% if a.variazione_7 < 0 %}is-down{% elif a.variazione_7 > 0 %}is-up{% endif %}">{% if a.variazione_7 > 0 %}+{% endif %}{{ a.variazione_7 }}</b></span>
+        </div>
+      {% endif %}{% endwith %}
       <ul class="pcs-reasons">
         {% for m in r.motivi %}
           <li><button type="button" data-pcs-go="{{ m.scheda }}"><b>−{{ m.punti }}</b><span>{{ m.testo }}</span><i style="--w: {{ m.punti }}"></i></button></li>
@@ -355,6 +365,33 @@
           <tr class="pcs-noresult" data-pcs-sw-none hidden><td colspan="5">Nessun programma corrisponde ai filtri.</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <div class="pcs-grid-2">
+    <div class="pcs-card" id="pcs-versioni">
+      <div class="pcs-card-head"><div><span class="pcs-card-kicker">Ultimi 6 mesi</span><h2>Storico delle versioni</h2></div></div>
+      {% if pc.storico_versioni %}
+        <ul class="pcs-vstory pcs-scroll">
+          {% for g in pc.storico_versioni %}
+            <li>
+              <strong>{{ g.nome }}</strong>{% if g.rimosso %} <span class="pcs-chip is-muted">non più installato</span>{% endif %}
+              <ol>{% for v in g.versioni %}<li class="{% if v.attiva %}is-success{% else %}is-muted{% endif %}" title="vista dal {{ v.dal|date:'d/m/Y' }} al {{ v.fino|date:'d/m/Y' }}"><span class="pcs-mono">{{ v.versione }}</span><small>{{ v.dal|date:"d/m" }}</small></li>{% endfor %}</ol>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="pcs-empty">Nessun programma ha cambiato versione negli ultimi 6 mesi.</p>{% endif %}
+    </div>
+    <div class="pcs-card" id="pcs-kb">
+      <div class="pcs-card-head"><div><span class="pcs-card-kicker">WatchGuard · non sono programmi</span><h2>Aggiornamenti installati (KB)</h2></div>{% if pc.aggiornamenti %}<span class="pcs-chip">{{ pc.aggiornamenti|length }}</span>{% endif %}</div>
+      {% if pc.aggiornamenti %}
+        <div class="pcs-scroll">
+          <table class="pcs-table" data-table-enhanced="0">
+            <thead><tr><th>Aggiornamento</th><th>Installato</th></tr></thead>
+            <tbody>{% for a in pc.aggiornamenti %}<tr><td>{{ a.nome|truncatechars:90 }}{% if a.produttore %}<small class="pcs-sub">{{ a.produttore }}</small>{% endif %}</td><td class="pcs-mono pcs-nowrap">{{ a.installato_il|date:"d/m/Y"|default:"—" }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      {% else %}<p class="pcs-empty">WatchGuard non ha ancora elencato aggiornamenti per questo PC (si leggono a ogni giro dell'inventario).</p>{% endif %}
     </div>
   </div>
 </section>

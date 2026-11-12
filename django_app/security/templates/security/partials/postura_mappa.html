@@ -15,9 +15,9 @@
   </div>
   <div class="cy-map-grid">
     {% for p in m.pcs %}
-      <a class="cy-tile is-{{ p.tono }}" href="{{ p.url }}" data-tono="{{ p.tono }}" data-nome="{{ p.nome|lower }}" title="{{ p.nome }} · {{ p.punteggio }}/100 · {{ p.motivo }}" style="--pct: {{ p.punteggio }}">
+      <a class="cy-tile is-{{ p.tono }}" href="{{ p.url }}" data-tono="{{ p.tono }}" data-nome="{{ p.nome|lower }}" title="{{ p.nome }} · {{ p.punteggio }}/100{% if p.delta %} ({% if p.delta > 0 %}+{% endif %}{{ p.delta }} in 7 giorni){% endif %} · {{ p.motivo }}" style="--pct: {{ p.punteggio }}">
         <span class="cy-tile-name">{{ p.nome }}</span>
-        <b>{{ p.punteggio }}</b>
+        <b>{{ p.punteggio }}{% if p.delta %}<small class="cy-delta {% if p.delta < 0 %}is-down{% else %}is-up{% endif %}" title="Differenza rispetto a 7 giorni fa">{% if p.delta < 0 %}▼{{ p.delta|stringformat:"d"|slice:"1:" }}{% else %}▲{{ p.delta }}{% endif %}</small>{% endif %}</b>
         <i></i>
       </a>
     {% endfor %}

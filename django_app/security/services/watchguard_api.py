@@ -26,6 +26,7 @@ import json
 import logging
 import re
 import time
+from collections import Counter
 from datetime import timedelta, timezone as dt_timezone
 
 from django.db import transaction
@@ -430,10 +431,17 @@ def anteprima_software(righe: list[dict]):
     from security.services.software_inventory import RowPreview
 
     preview = RowPreview(total=len(righe))
+    preview.aggiornamenti = []  # KB e service pack: non programmi, vanno in WatchGuardAggiornamento
     visti = set()
     for i, r in enumerate(righe, start=1):
         if r.get("is_patch"):
             preview.skipped.append((i, "aggiornamento, non programma"))
+            host = str(r.get("host_name") or "").strip()
+            if host and r.get("name"):
+                preview.aggiornamenti.append({"host": _host(host), "nome": str(r.get("name"))[:500],
+                                              "versione": str(r.get("version") or "")[:120],
+                                              "produttore": str(r.get("publisher") or "")[:255],
+                                              "installato_il": _giorno(r.get("installation_date"))})
             continue
         host, prodotto = str(r.get("host_name") or "").strip(), str(r.get("name") or "").strip()
         versione, vendor = str(r.get("version") or "").strip(), str(r.get("publisher") or "").strip()
@@ -471,8 +479,36 @@ def sincronizza_software(*, righe: list[dict] | None = None, client=None) -> dic
         _dopo_import()
     except Exception:  # noqa: BLE001 - l'import è fatto; i passi successivi hanno il loro job orario
         logger.exception("WatchGuard software: passi dopo l'import non riusciti")
+    aggiornamenti = _salva_aggiornamenti(preview.aggiornamenti, {_host(v["host"]) for v in preview.valid})
+    # Scarti per motivo, tutti (il dettaglio dell'import tiene solo le prime righe).
+    scarti = Counter(motivo for _riga, motivo in preview.skipped)
     return {"righe": item.rows_total, "importate": item.rows_imported, "nuove": item.rows_new,
-            "pc": item.hosts_count, "non_piu_rilevate": item.rows_marked_missing}
+            "pc": item.hosts_count, "non_piu_rilevate": item.rows_marked_missing,
+            "aggiornamenti_kb": aggiornamenti, "scartate_aggiornamenti": scarti.pop("aggiornamento, non programma", 0),
+            "scartate_altro": sum(scarti.values())}
+
+
+def _salva_aggiornamenti(righe: list[dict], host_letti: set) -> int:
+    """Sostituisce gli aggiornamenti dei PC letti in questo giro (gli altri PC restano com'erano)."""
+    from security.models import WatchGuardAggiornamento
+
+    host = host_letti | {r["host"] for r in righe}
+    if not host:
+        return 0
+    adesso = timezone.now()
+    visti, nuovi = set(), []
+    for r in righe:
+        k = (r["host"], r["nome"].casefold(), r["versione"].casefold())
+        if k in visti:
+            continue
+        visti.add(k)
+        nuovi.append(WatchGuardAggiornamento(letto_il=adesso, **r))
+    with transaction.atomic():
+        elenco = sorted(host)
+        for i in range(0, len(elenco), 500):
+            WatchGuardAggiornamento.objects.filter(host__in=elenco[i:i + 500]).delete()
+        WatchGuardAggiornamento.objects.bulk_create(nuovi, batch_size=500)
+    return len(nuovi)
 
 
 # --- Patch -------------------------------------------------------------------------------------

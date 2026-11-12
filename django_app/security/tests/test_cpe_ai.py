@@ -44,6 +44,10 @@ class _Base(TestCase):
         cache.clear()
         self.imp = SoftwareInventoryImport.objects.create(original_name="inv.csv", file_sha256="z", status="imported", imported_at=timezone.now())
         self.user = get_user_model().objects.create(username="soc_cpe_ai", is_staff=True, is_superuser=True)
+        # Qui si prova il meccanismo delle proposte: l'accettazione automatica ha i suoi test (test_soc_automatismi).
+        from security.services import soc_settings
+
+        soc_settings.save({"ai.cpe.accetta_auto": False}, None)
 
     def _install(self, host, vendor, product, version, product_raw=None):
         return SoftwareInstallation.objects.create(
