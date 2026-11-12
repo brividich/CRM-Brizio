@@ -507,17 +507,6 @@ def rete_indirizzi(request):
     })
 
 
-def _patch_cerca(g: dict, q: str) -> bool:
-    """Ricerca nelle patch mancanti: KB, nome, programma, CVE corrette (anche tramite le patch comprese) o PC."""
-    if q in g["nome"].upper() or q in (g["programma"] or "").upper() or (g["kb"] and q in g["kb"]):
-        return True
-    if any(q in c for c in g["cve"]) or any(q in c for c in g["chiude_anche"]):
-        return True
-    if any(q in kb.upper() for kb, _ in g["comprende"]) or any(q in kb.upper() for kb, _ in g["compresa_in"]):
-        return True
-    return any(q in (p.host_display or p.host).upper() for p in g["pc"])
-
-
 @require_POST
 def watchguard_patch_ai(request):
     """Spiegazione di una patch mancante dall'AI locale (con i problemi noti dal web se chiesti)."""
@@ -530,16 +519,30 @@ def watchguard_patch_ai(request):
     return render(request, "security/partials/ai_explanation.html", {"ai": ai})
 
 
+VISTE_PATCH = ("patch", "pc", "protezione", "senza_agente", "errori")
+PATCH_PER_PAGINA = 200  # la ricerca live della tabella vede solo la pagina: di solito tutto sta in una
+
+
 def watchguard_pc(request):
-    """Patch e protezione: quello che l'API WatchGuard dice dei PC (patch mancanti, agenti, dispositivi senza agente)."""
+    """Patch e protezione: quello che l'API WatchGuard dice dei PC, una vista alla volta.
+
+    I riquadri in alto scelgono la vista (patch mancanti, PC, protezione, senza agente, installazioni
+    fallite); ogni vista è una tabella filtrabile con selezione multipla (ticket per i PC) ed export CSV.
+    Il dettaglio di una patch si apre nel pannello laterale (``preview`` kind «patch»). Il raggruppamento
+    delle patch è in cache (``services/patch_mancanti.py``).
+    """
     if not can_view_security_center(request.user):
         return _denied(request)
     from datetime import timedelta
 
+    from django.core.paginator import Paginator
+
     from .models import WatchGuardDispositivo, WatchGuardPatch
+    from .services import patch_mancanti
     from .services import watchguard_api as wg
 
     now = timezone.now()
+    vista = request.GET.get("vista") if request.GET.get("vista") in VISTE_PATCH else "patch"
     dispositivi = list(WatchGuardDispositivo.objects.filter(presente=True).select_related("hub_asset"))
     gestiti = [d for d in dispositivi if d.gestito]
     vecchi = now - timedelta(days=7)
@@ -547,68 +550,97 @@ def watchguard_pc(request):
         (d for d in gestiti if not d.protetto or d.riavvio_richiesto or (d.ultima_connessione and d.ultima_connessione < vecchi)),
         key=lambda d: (d.protetto, not d.riavvio_richiesto, d.host))
     senza_agente = sorted((d for d in dispositivi if not d.gestito), key=lambda d: (d.hub_asset_id is None, d.host))
+    dati = patch_mancanti.dati()
+    patch, per_pc = dati["patch"], dati["pc"]
+    errori_qs = (WatchGuardPatch.objects.filter(esito__in=WatchGuardPatch.ESITI_ERRORE, esito_il__gte=now - timedelta(days=14))
+                 .select_related("hub_asset").order_by("-esito_il"))
 
-    from .services import patch_kb
-
-    aperte = list(WatchGuardPatch.objects.filter(presente=True).select_related("hub_asset").order_by("host"))
-    comprese = patch_kb.comprese(aperte)
-    gruppi = {}
-    for p in aperte:
-        g = gruppi.setdefault((p.nome, p.programma), {"nome": p.nome, "programma": p.programma, "criticita": p.criticita,
-                                                     "criticita_label": p.criticita_label, "rilasciata_il": p.rilasciata_il,
-                                                     "cve": set(), "pc": [], "errori": 0, "di_sistema": p.di_sistema,
-                                                     "kb": p.kb, "download_url": p.download_url, "nome_file": p.nome_file,
-                                                     "riavvio_automatico": p.riavvio_automatico,
-                                                     "compresa_in": {}, "chiude_anche": set(), "comprende": {}})
-        g["cve"].update(p.cve_lista)
-        g["pc"].append(p)
-        g["errori"] += int(p.esito_errore)
-        p.compresa = comprese.get(p.pk)
-    for p in aperte:
-        if not p.compresa:
-            continue
-        sopra = p.compresa["in"]
-        etichetta = sopra.kb or sopra.nome
-        g, gs = gruppi[(p.nome, p.programma)], gruppi[(sopra.nome, sopra.programma)]
-        g["compresa_in"][etichetta] = g["compresa_in"].get(etichetta, 0) + 1
-        gs["chiude_anche"].update(set(p.cve_lista) - gs["cve"])
-        gs["comprende"][p.kb or p.nome] = gs["comprende"].get(p.kb or p.nome, 0) + 1
-    from .models import SecurityCveRecord
-
-    tutte_cve = {c for g in gruppi.values() for c in g["cve"] | g["chiude_anche"]}
-    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=list(tutte_cve)[:2000]).values_list("cve_id", flat=True))
-    ordine = {201: 0, 202: 1, 203: 2, 204: 3}
-    for g in gruppi.values():
-        # compresa su tutti i suoi PC: si chiude installando l'altra, quindi va in fondo
-        g["tutta_compresa"] = sum(g["compresa_in"].values()) == len(g["pc"])
-    patch = sorted(gruppi.values(), key=lambda g: (g["tutta_compresa"], not ((g["cve"] | g["chiude_anche"]) & kev),
-                                                   ordine.get(g["criticita"], 4), -len(g["pc"]), g["nome"]))
-    for g in patch:
-        g["kev"] = sorted((g["cve"] | g["chiude_anche"]) & kev)
-        g["cve"] = sorted(g["cve"])
-        g["chiude_anche"] = sorted(g["chiude_anche"])
-        g["compresa_in"] = sorted(g["compresa_in"].items(), key=lambda x: -x[1])
-        g["comprende"] = sorted(g["comprende"].items(), key=lambda x: -x[1])
     q = (request.GET.get("q") or "").strip()[:100]
-    trovate = [g for g in patch if _patch_cerca(g, q.upper())] if q else patch
-    errori = list(WatchGuardPatch.objects.filter(esito__in=WatchGuardPatch.ESITI_ERRORE, esito_il__gte=now - timedelta(days=14))
-                  .select_related("hub_asset").order_by("-esito_il")[:50])
-    from .services import patch_storico
+    criticita = request.GET.get("criticita", "")
+    filtri = {"criticita": criticita if criticita in patch_mancanti.CRITICITA_FILTRO else "",
+              "kev": request.GET.get("kev") == "1", "errori": request.GET.get("errori") == "1",
+              "nascondi_comprese": request.GET.get("comprese") == "0"}
+    Q_ = q.upper()
+    if vista == "patch":
+        righe = patch_mancanti.filtra_patch(patch, q=q, **filtri)
+        totale = len(patch)
+    elif vista == "pc":
+        righe = [x for x in per_pc if (not q or Q_ in x["nome"].upper()) and (not filtri["kev"] or x["kev"])
+                 and (not filtri["errori"] or x["errori"])]
+        totale = len(per_pc)
+    elif vista == "protezione":
+        righe = [d for d in protezione if not q or Q_ in f"{d.host_display or d.host} {d.sistema}".upper()]
+        totale = len(protezione)
+    elif vista == "senza_agente":
+        righe = [d for d in senza_agente if not q or Q_ in f"{d.host_display} {d.host} {d.ip} {d.mac} {d.produttore_scheda}".upper()]
+        totale = len(senza_agente)
+    else:
+        qs = errori_qs
+        if q:
+            qs = qs.filter(Q(host__icontains=q) | Q(host_display__icontains=q) | Q(nome__icontains=q))
+        righe = list(qs[:500])
+        totale = errori_qs.count()
+    if request.GET.get("formato") == "csv":
+        return _patch_pc_csv(vista, righe)
 
-    chiuse = patch_storico.conta_chiuse(30)
-    from .services import patch_sla
-
-    ferme = patch_sla.ferme()["kpi"]
-    ultima = max((d.letto_il for d in dispositivi), default=None)
+    pagina = Paginator(righe, PATCH_PER_PAGINA).get_page(request.GET.get("page"))
+    parametri = {"vista": vista if vista != "patch" else "", "q": q, "criticita": filtri["criticita"],
+                 "kev": "1" if filtri["kev"] else "", "errori": "1" if filtri["errori"] else "",
+                 "comprese": "0" if filtri["nascondi_comprese"] else ""}
+    query = urlencode({k: v for k, v in parametri.items() if v})
+    filtrato = bool(q or filtri["criticita"] or filtri["kev"] or filtri["errori"] or filtri["nascondi_comprese"])
     attivi = {k: soc_settings.value(f"watchguard.api.{k}") for k in ("dispositivi", "software", "patch")}
     return render(request, "security/watchguard_pc.html", {
-        "configurato": wg.configurato(), "attivi": attivi, "ultima": ultima,
-        "gestiti": len(gestiti), "protezione": protezione, "senza_agente": senza_agente,
-        "patch": trovate[:150], "trovate": len(trovate), "patch_totale": len(patch), "pc_con_patch": len({p.host for g in patch for p in g["pc"]}),
-        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori,
-        "comprese_totale": len(comprese), "q": q, "chiuse": chiuse, "ferme": ferme,
-        "can_edit": can_manage_security_config(request.user),
+        "configurato": wg.configurato(), "attivi": attivi,
+        "ultima": max((d.letto_il for d in dispositivi), default=None),
+        "vista": vista, "pagina": pagina, "righe": list(pagina.object_list), "trovate": len(righe), "totale": totale,
+        "patch": list(pagina.object_list) if vista == "patch" else [],
+        "q": q, "filtri": filtri, "filtrato": filtrato, "query": query, "criticita_scelte": patch_mancanti.CRITICITA_FILTRO,
+        "conta": {"patch": len(patch), "pc": len(per_pc), "protezione": len(protezione), "senza_agente": len(senza_agente),
+                  "errori": errori_qs.count(), "kev": sum(1 for g in patch if g["kev"]),
+                  "pc_kev": sum(1 for x in per_pc if x["kev"]), "gestiti": len(gestiti)},
+        "ferme": dati["ferme"], "can_edit": can_manage_security_config(request.user),
     })
+
+
+def _patch_pc_csv(vista: str, righe: list):
+    """Export della vista di Patch e protezione, con i filtri applicati."""
+    import csv
+
+    from django.http import HttpResponse
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="patch-e-protezione-{vista}.csv"'
+    resp.write("﻿")
+    w = csv.writer(resp, delimiter=";")
+    if vista == "patch":
+        w.writerow(["Patch", "KB", "Programma", "Criticità", "Pubblicata il", "PC", "Installazioni fallite",
+                    "CVE corrette", "CVE sfruttate", "Compresa in", "PC coinvolti"])
+        for g in righe:
+            w.writerow([g["nome"], g["kb"], g["programma"], g["criticita_label"],
+                        g["rilasciata_il"].strftime("%d/%m/%Y") if g["rilasciata_il"] else "", len(g["pc"]), g["errori"],
+                        " ".join(g["cve"]), " ".join(g["kev"]), " ".join(kb for kb, _ in g["compresa_in"]),
+                        " ".join(r["nome"] for r in g["pc"])])
+    elif vista == "pc":
+        w.writerow(["PC", "Patch mancanti", "Con CVE sfruttate", "Critiche", "Installazioni fallite", "Già comprese", "CVE"])
+        for x in righe:
+            w.writerow([x["nome"], x["patch"], x["kev"], x["critiche"], x["errori"], x["comprese"], x["cve"]])
+    elif vista == "protezione":
+        w.writerow(["PC", "Sistema", "Agente", "Protezione", "Riavvio richiesto", "Ultima connessione"])
+        for d in righe:
+            w.writerow([d.host_display or d.host, d.sistema, d.agente, "" if d.protetto else d.protezione_label,
+                        "sì" if d.riavvio_richiesto else "", d.ultima_connessione.strftime("%d/%m/%Y") if d.ultima_connessione else ""])
+    elif vista == "senza_agente":
+        w.writerow(["Nome", "IP", "MAC", "Scheda di rete", "Asset", "Visto il"])
+        for d in righe:
+            w.writerow([d.host_display, d.ip, d.mac, d.produttore_scheda, "sì" if d.hub_asset_id else "",
+                        d.ultima_connessione.strftime("%d/%m/%Y") if d.ultima_connessione else ""])
+    else:
+        w.writerow(["PC", "Patch", "Esito", "Quando"])
+        for p in righe:
+            w.writerow([p.host_display or p.host, p.nome, p.esito_label,
+                        timezone.localtime(p.esito_il).strftime("%d/%m/%Y %H:%M") if p.esito_il else ""])
+    return resp
 
 
 def watchguard_patch_installate(request):

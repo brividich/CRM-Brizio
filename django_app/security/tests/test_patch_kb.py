@@ -149,21 +149,34 @@ class SincronizzazioneEPagineTests(TestCase):
         SecurityCveRecord.objects.create(cve_id="CVE-2099-0001", kev=True)
         url = reverse("security:watchguard_pc")
         page = self.client.get(url)
-        self.assertContains(page, "Già compresa in <a href=\"?q=KB9134133\">KB9134133</a> (1 PC)")
         self.assertContains(page, "+1 CVE delle precedenti")
-        self.assertContains(page, "Comprende anche: <a href=\"?q=KB9127648\">KB9127648</a> (1 PC)")
-        self.assertContains(page, "Scarica a mano (x.msu)")
+        self.assertContains(page, "Compresa in KB9134133")
         # la nuova eredita la CVE sfruttata della vecchia: è la prima da installare
         nomi = [g["nome"] for g in page.context["patch"]]
         self.assertEqual(nomi[0], NUOVA)
         self.assertEqual(nomi[-1], VECCHIA)
+        # il dettaglio è nel pannello laterale
+        pannello = reverse("security:preview_patch")
+        vecchia, nuova = page.context["patch"][-1], page.context["patch"][0]
+        self.assertContains(page, f'{pannello}?id={nuova["id"]}')
+        dettaglio = self.client.get(pannello, {"id": vecchia["id"]})
+        self.assertContains(dettaglio, "Già compresa in <a href=\"?q=KB9134133\">KB9134133</a> (1 PC)")
+        dettaglio = self.client.get(pannello, {"id": nuova["id"]})
+        self.assertContains(dettaglio, "Comprende anche: <a href=\"?q=KB9127648\">KB9127648</a> (1 PC)")
+        self.assertContains(dettaglio, "Scarica a mano (x.msu)")
+        self.assertContains(dettaglio, "Apri un ticket per 1 PC")
+        self.assertEqual(self.client.get(pannello, {"id": "inesistente"}).status_code, 404)
+        # filtri: solo CVE sfruttate, nascondi le già comprese
+        self.assertEqual({g["nome"] for g in self.client.get(url, {"kev": "1"}).context["patch"]}, {NUOVA, VECCHIA})
+        self.assertEqual([g["nome"] for g in self.client.get(url, {"criticita": "204"}).context["patch"]], [])
+        self.assertNotIn(VECCHIA, [g["nome"] for g in self.client.get(url, {"comprese": "0"}).context["patch"]])
         # ricerca per CVE: trova la patch che la corregge e quella che la comprende
         page = self.client.get(url, {"q": "cve-2099-0001"})
         self.assertEqual({g["nome"] for g in page.context["patch"]}, {VECCHIA, NUOVA})
         page = self.client.get(url, {"q": "KB9127648"})
         self.assertEqual({g["nome"] for g in page.context["patch"]}, {VECCHIA, NUOVA})
         page = self.client.get(url, {"q": "nessuna"})
-        self.assertContains(page, "Nessuna patch mancante per «nessuna».")
+        self.assertContains(page, "Nessun risultato per «nessuna».")
 
     def test_scheda_asset_e_pannello_cve(self):
         vecchia = _patch("pc-kb-01", VECCHIA, "p1", cve="|CVE-2099-0001|", hub_asset=self.pc, disponibilita=1)

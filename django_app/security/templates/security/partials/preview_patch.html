@@ -1,0 +1,38 @@
+{# Pannello laterale di una patch mancante (Patch e protezione): CVE, patch comprese, PC con l'esito, AI e ticket. #}
+<header class="pv-head">
+  <h2>{{ g.nome }}</h2>
+  <p class="pv-sub">{% if g.kb %}{{ g.kb }}{% if g.programma %} · {% endif %}{% endif %}{{ g.programma }}{% if g.di_sistema %} · sistema operativo{% endif %}</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>PC</dt><dd>{{ g.pc|length }}</dd></div>
+  <div><dt>Criticità</dt><dd>{{ g.criticita_label|default:"—" }}</dd></div>
+  <div><dt>CVE corrette</dt><dd>{{ g.cve_totale }}{% if g.kev %} <span class="sec-badge critical" title="{{ g.kev|join:', ' }}">{{ g.kev|length }} sfruttat{{ g.kev|length|pluralize:"a,e" }}</span>{% endif %}</dd></div>
+  <div><dt>Pubblicata il</dt><dd>{{ g.rilasciata_il|date:"d/m/Y"|default:"—" }}</dd></div>
+</dl>
+{% if g.errori %}<p class="sec-callout sec-callout-warning sec-small"><strong>{{ g.errori }} installazion{{ g.errori|pluralize:"e,i" }} fallit{{ g.errori|pluralize:"a,e" }}</strong> dalla console WatchGuard: i PC sono in cima all'elenco.</p>{% endif %}
+{% if g.compresa_in %}<p class="sec-small">Già compresa in {% for kb, n in g.compresa_in %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}: installa quella, questa si chiude da sola.</p>{% endif %}
+{% if g.comprende %}<p class="sec-small">Comprende anche: {% for kb, n in g.comprende %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}{% if g.chiude_anche %} · +{{ g.chiude_anche|length }} CVE delle precedenti{% endif %}.</p>{% endif %}
+{% if g.cve or g.chiude_anche %}
+<h3 class="pv-h">CVE corrette</h3>
+<p class="sec-small">{% for c in g.cve %}<a href="{% url 'security:cve_detail' c %}"{% if c in g.kev %} class="wgp-ko" title="Sfruttata (CISA KEV)"{% endif %}>{{ c }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if g.chiude_anche %}{% if g.cve %} · {% endif %}dalle precedenti: {% for c in g.chiude_anche %}<a href="{% url 'security:cve_detail' c %}"{% if c in g.kev %} class="wgp-ko" title="Sfruttata (CISA KEV)"{% endif %}>{{ c }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+{% endif %}
+{% if g.download_url or g.riavvio_automatico %}<p class="sec-small">{% if g.download_url %}<a href="{{ g.download_url }}" target="_blank" rel="noopener noreferrer">Scarica a mano{% if g.nome_file %} ({{ g.nome_file }}){% endif %}</a>{% endif %}{% if g.download_url and g.riavvio_automatico %} · {% endif %}{% if g.riavvio_automatico %}può riavviare il PC da sola{% endif %}</p>{% endif %}
+<form class="ai-ask wgp-ai" method="post" action="{% url 'security:watchguard_patch_ai' %}" hx-post="{% url 'security:watchguard_patch_ai' %}" hx-target="#wgp-ai-pv">
+  {% csrf_token %}<input type="hidden" name="nome" value="{{ g.nome }}"><input type="hidden" name="programma" value="{{ g.programma }}">
+  <button class="sec-btn-link" type="submit" data-busy-label="Sto chiedendo all'AI locale…">Spiega con l'AI</button>{% include "security/partials/ai_casella_web.html" %}
+</form>
+<div class="ai-panel wgp-ai-body" id="wgp-ai-pv"></div>
+<h3 class="pv-h">PC ({{ g.pc|length }})</h3>
+<ul class="pv-list">{% for r in g.pc %}
+  <li><span>{% if r.asset_id %}<a href="{% url 'assets:asset_view' r.asset_id %}">{{ r.nome }}</a>{% else %}<a href="{% url 'security:pc_detail' %}?nome={{ r.nome|urlencode }}">{{ r.nome }}</a>{% endif %}{% if r.versione %} <small class="sec-muted">versione {{ r.versione }}</small>{% endif %}{% if r.compresa %}<br><small class="sec-muted" title="{{ r.compresa_perche }}">compresa in {{ r.compresa }}</small>{% endif %}</span>
+    <span class="sec-badge {% if r.esito_errore %}high{% elif r.esito %}info{% else %}muted{% endif %}">{{ r.stato }}{% if r.esito_il %} {{ r.esito_il|date:"d/m" }}{% endif %}</span></li>
+{% endfor %}</ul>
+<footer class="pv-foot">
+  <form method="post" action="{% url 'security:pc_bulk' %}">{% csrf_token %}
+    <input type="hidden" name="action" value="case"><input type="hidden" name="pagina" value="Patch e protezione">
+    <input type="hidden" name="devices_gruppo" value="{{ g.hosts }}"><input type="hidden" name="title" value="Installare {{ g.kb|default:g.nome|truncatechars:120 }}">
+    <input type="hidden" name="next" value="{% url 'security:watchguard_pc' %}">
+    <button type="submit" class="sec-button sec-button-primary">Apri un ticket per {{ g.pc|length }} PC</button>
+  </form>
+  {% if g.errori %}<a class="sec-button" href="{% url 'security:watchguard_pc' %}?vista=errori&amp;q={{ g.nome|urlencode }}">Installazioni fallite</a>{% endif %}
+</footer>
