@@ -313,7 +313,15 @@
       );
     };
 
-    const EsitiAnomalia = ({ localId, avanzamento, chiusa, segnalare, versione, onSaved, onInfo, flash }) => {
+    // Titolo di una sezione del dettaglio: un clic la chiude o la riapre.
+    const TitoloSezione = ({ chiusa, onToggle, children }) => (
+      <button type="button" className="ga-card__title ga-sez-tg" aria-expanded={!chiusa} onClick={onToggle}
+        title={chiusa ? "Apri la sezione" : "Chiudi la sezione"}>
+        <span className={`ga-sez-tg__ico${chiusa ? "" : " is-aperta"}`} aria-hidden="true">›</span>{children}
+      </button>
+    );
+
+    const EsitiAnomalia = ({ localId, avanzamento, chiusa, segnalare, versione, onSaved, onInfo, flash, sezChiusa, onToggleSez }) => {
       const [data, setData] = useState(null);
       const [saving, setSaving] = useState(false);
       const [azioneAperta, setAzioneAperta] = useState(false);
@@ -370,9 +378,9 @@
       };
 
       return (
-        <div className="ga-card ga-card--esiti">
+        <div className={`ga-card ga-card--esiti${sezChiusa ? " is-chiusa" : ""}`}>
           <div className="ga-card__head">
-            <span className="ga-card__title">Tempi ed esiti</span>
+            <TitoloSezione chiusa={sezChiusa} onToggle={onToggleSez}>Tempi ed esiti</TitoloSezione>
             <span className="ga-hint">{data.unita || "ore lavorate, giorni lavorativi"}</span>
           </div>
           {data.tempi && data.tempi.length > 0 && (
@@ -824,6 +832,7 @@
     // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
     const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
     const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
+    const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
     const leggiPref = (k, def) => {
       try { const v = window.localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (_) { return def; }
     };
@@ -1022,6 +1031,18 @@
       const [versioneEsiti, setVersioneEsiti] = useState(0);
       // «In carico a me»: di serie solo le anomalie che toccano a chi guarda.
       const [mostraTutte, setMostraTutte] = useState(false);
+      // Sezioni del dettaglio chiuse (controllore, capocommessa, qualità, esiti): restano
+      // così per tutte le anomalie finché non le riapri.
+      const [sezChiuse, setSezChiuse] = useState(() => {
+        const v = leggiPref(PREF_SEZIONI_CHIUSE, []);
+        return Array.isArray(v) ? v : [];
+      });
+      const sezChiusa = (k) => sezChiuse.includes(k);
+      const toggleSez = (k) => setSezChiuse((prev) => {
+        const nuovo = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k];
+        scriviPref(PREF_SEZIONI_CHIUSE, nuovo);
+        return nuovo;
+      });
       // Decisione qualità e richieste di informazioni.
       const [qNum, setQNum] = useState("");
       const [qAv, setQAv] = useState("");
@@ -2200,9 +2221,9 @@
                     )}
 
                     {/* 1. Controllore: segnalazione, dove sono i pezzi, richieste della qualità */}
-                    <div className="ga-card">
+                    <div className={`ga-card${sezChiusa("ctrl") ? " is-chiusa" : ""}`}>
                       <div className="ga-card__head">
-                        <span className="ga-card__title">Controllore · segnalazione</span>
+                        <TitoloSezione chiusa={sezChiusa("ctrl")} onToggle={() => toggleSez("ctrl")}>Controllore · segnalazione</TitoloSezione>
                         {sn.stato_superficie && <span className="ga-pill ga-pill--sup">{sn.stato_superficie}</span>}
                         {canEditSelected && !editDesc && <button type="button" className="ga-link" onClick={() => setEditDesc(true)}>Modifica testo</button>}
                         {sn.can_sposta && <button type="button" className="ga-link" title="Sposta su un altro S/N dello stesso OP o di un altro OP" onClick={apriTaglia}>✂ Taglia</button>}
@@ -2267,9 +2288,9 @@
                     </div>
 
                     {/* Decisione */}
-                    <div className={`ga-card ga-card--decision${dirty ? " is-dirty" : ""}`}>
+                    <div className={`ga-card ga-card--decision${dirty ? " is-dirty" : ""}${sezChiusa("cc") ? " is-chiusa" : ""}`}>
                       <div className="ga-card__head">
-                        <span className="ga-card__title">Capocommessa</span>
+                        <TitoloSezione chiusa={sezChiusa("cc")} onToggle={() => toggleSez("cc")}>Capocommessa</TitoloSezione>
                       </div>
                       <PercorsoAnomalia passi={esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null} />
                       <div className="ga-flags">
@@ -2477,9 +2498,10 @@
                         qNum, !!sn.segnalare, qSeg.cliente, !!sn.segnala_terzista, qSeg.terzista, richiestaAperta(sn));
                       const esitiQ = (tipo) => ((esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti) || []).filter((e) => e.tipo === tipo);
                       return (
-                        <div className="ga-card ga-card--qualita">
+                        <div className={`ga-card ga-card--qualita${sezChiusa("qualita") ? " is-chiusa" : ""}`}>
                           <div className="ga-card__head">
-                            <span className="ga-card__title">Decisione qualità</span>
+                            <TitoloSezione chiusa={sezChiusa("qualita")} onToggle={() => toggleSez("qualita")}>Decisione qualità</TitoloSezione>
+                            {sezChiusa("qualita") && sn.avanzamento_qualita && <span className="ga-pill ga-pill--muted">{sn.avanzamento_qualita}</span>}
                             {sn.qualita_da && <span className="ga-hint">{sn.qualita_da}{sn.qualita_il ? ` · ${sn.qualita_il}` : ""}</span>}
                           </div>
                           {!puo && !sn.avanzamento_qualita && !sn.note_qualita && !sn.numero_rdc && !attQualita.length && !(sn.richieste_info || []).length
@@ -2575,6 +2597,7 @@
 
                     {sn.local_id && (
                       <EsitiAnomalia localId={sn.local_id} avanzamento={sn.avanzamento} chiusa={Boolean(sn.chiudere)} segnalare={Boolean(sn.segnalare)} versione={versioneEsiti}
+                        sezChiusa={sezChiusa("esiti")} onToggleSez={() => toggleSez("esiti")}
                         flash={flash} onInfo={setEsitiInfo}
                         onSaved={({ chiusa }) => {
                           if (chiusa) {
