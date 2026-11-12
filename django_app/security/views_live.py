@@ -73,6 +73,13 @@ def preview(request, kind, pk=None):
         return render(request, "security/partials/preview_pc.html", _preview_pc_context(data))
     if kind == "vpn_utente":
         return _preview_vpn_user(request)
+    if kind == "patch":
+        from .services import patch_mancanti
+
+        g = patch_mancanti.trova(request.GET.get("id", "").strip()[:16])
+        if g is None:
+            raise Http404("Patch non più mancante.")
+        return render(request, "security/partials/preview_patch.html", {"g": g})
     if kind == "backup_job":
         context = _preview_job_context(request.GET.get("nome", "").strip(), request.GET.get("giorni", ""))
         if context is None:
