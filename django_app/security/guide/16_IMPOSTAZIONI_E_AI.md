@@ -88,6 +88,8 @@ Come si comportano:
 
 Pagina **Impostazioni › Letture automatiche**: tutte le letture che il SOC fa da solo, una scheda per lettura, raggruppate per fonte (Report via mail, Microsoft 365, WatchGuard, Backup, Vulnerabilità, Rete). Ci sono anche **Backup da Veeam (API)** e **DHCP e DNS di Windows Server** (Rete): «Da configurare» finché mancano i dati nel file .env del server.
 
+In cima c'è il **flusso delle letture**: un riquadro per lettura collegato alla barra **Security Center**. Linea animata = lettura accesa; tratteggiata = spenta o in errore; colore come la scheda (verde riuscita, giallo da controllare, rosso da sistemare, azzurro in corso, grigio spenta). Un clic porta alla scheda della lettura.
+
 Ogni scheda dice:
 
 - **cosa legge** e **quando gira** (ogni 15 minuti, ogni mattina alle 06:20…);

@@ -1,0 +1,168 @@
+/* SOC · tocco «cyber» comune a tutte le pagine del Security Center.
+   Caricato dopo security.css, soc-live.css e soc-design.css: aggiunge, non cambia comportamenti.
+   Token: --cy-*. Toni: is-success/is-warning/is-critical/is-muted (e tone-* della barra di stato). Tema scuro: body.theme-dark. */
+
+.soc-module {
+  --cy-cyan: #22d3ee;
+  --cy-blue: #2563eb;
+  --cy-ok: var(--success, #16a34a);
+  --cy-warn: var(--warning, #d97706);
+  --cy-bad: var(--danger, #dc2626);
+  --cy-mute: var(--text-light, #94a3b8);
+  --cy-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --cy-soft: color-mix(in srgb, var(--surface, #fff) 92%, var(--cy-cyan));
+  --cy-kicker: #0891b2;
+}
+body.theme-dark .soc-module { --cy-kicker: var(--cy-cyan); }
+.soc-module .cy-mono, .soc-module td.cy-mono a { font-family: var(--cy-mono); font-size: 0.92em; letter-spacing: 0.2px; }
+
+/* ---------- Testata: scansione lenta e titoletto a spaziatura fissa ---------- */
+.soc-module .soc-head::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 45%; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.12) 50%, transparent);
+  animation: cy-scan 7s linear infinite;
+}
+@keyframes cy-scan { from { transform: translateY(-100%); } to { transform: translateY(240%); } }
+.soc-module .soc-head-kicker { font-family: var(--cy-mono); letter-spacing: 1.2px; color: #7dd3fc; }
+.soc-module .soc-head-mark { box-shadow: 0 0 18px rgba(34, 211, 238, 0.28) inset; border-color: rgba(125, 211, 252, 0.45); }
+.soc-module .soc-count.tone-critical { animation: cy-pulse-red 2s ease-in-out infinite; }
+@keyframes cy-pulse-red { 50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.08), 0 0 12px rgba(239, 68, 68, 0.6); } }
+
+/* ---------- Riquadri numerici: barra laterale, numeri a spaziatura fissa, luce di stato ---------- */
+.soc-module .soc-kpi, .soc-module .wgp-stat, .soc-module .lt-sum, .soc-module .ov-stat { position: relative; overflow: hidden; }
+.soc-module .soc-kpi::before, .soc-module .wgp-stat::before, .soc-module .lt-sum::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--cy-tone, var(--cy-ok)); box-shadow: 0 0 10px var(--cy-tone, var(--cy-ok));
+}
+.soc-module .soc-kpi { --cy-tone: var(--cy-ok); }
+.soc-module .soc-kpi.tone-warning, .soc-module .wgp-stat.is-warn, .soc-module .lt-sum.is-warn { --cy-tone: var(--cy-warn); }
+.soc-module .soc-kpi.tone-critical, .soc-module .wgp-stat.is-danger, .soc-module .lt-sum.is-ko { --cy-tone: var(--cy-bad); }
+.soc-module .wgp-stat, .soc-module .lt-sum { --cy-tone: var(--cy-mute); }
+.soc-module .wgp-stat.is-ok, .soc-module .lt-sum.is-ok { --cy-tone: var(--cy-ok); }
+.soc-module .lt-sum.is-run { --cy-tone: var(--cy-cyan); }
+.soc-module .soc-kpi:hover, .soc-module .wgp-stat:hover { border-color: var(--cy-tone); box-shadow: 0 6px 18px color-mix(in srgb, var(--cy-tone) 22%, transparent); }
+.soc-module .soc-kpi-body strong, .soc-module .wgp-stat strong, .soc-module .lt-sum strong, .soc-module .ov-stat strong { font-family: var(--cy-mono); letter-spacing: 0; }
+.soc-module .soc-kpi-body > span, .soc-module .wgp-stat > span { font-family: var(--cy-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; }
+.soc-module .soc-kpi.tone-critical .soc-kpi-ico { position: relative; }
+.soc-module .soc-kpi.tone-critical .soc-kpi-ico::after {
+  content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--cy-bad);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); animation: cy-led 1.6s ease-out infinite;
+}
+@keyframes cy-led { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); } 100% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } }
+.soc-module .soc-live-dot { box-shadow: 0 0 8px var(--cy-ok); animation: cy-breathe 2.4s ease-in-out infinite; }
+@keyframes cy-breathe { 50% { opacity: 0.45; } }
+
+/* ---------- Tabelle ---------- */
+.soc-module table thead th { font-family: var(--cy-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; }
+.soc-module .cy-mono { font-family: var(--cy-mono); }
+.soc-module .sec-table th { font-family: var(--cy-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.9px; }
+.soc-module .sec-table tbody tr { transition: background 0.12s, box-shadow 0.12s; }
+.soc-module .sec-table tbody tr:hover { box-shadow: inset 3px 0 0 var(--cy-cyan); background: var(--cy-soft); }
+.soc-module .sec-table td.cy-mono { white-space: nowrap; }
+.soc-module .sec-badge.critical, .soc-module .sec-badge-critical { box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
+.soc-module .sec-badge.high { box-shadow: 0 0 8px rgba(249, 115, 22, 0.3); }
+.soc-module .sec-badge.critical::before, .soc-module .sec-badge.high::before, .soc-module .sec-badge-critical::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: 1px;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* ---------- Mappa dei PC (Da fare) ---------- */
+.soc-module .cy-map-panel { min-height: 120px; }
+.soc-module .cy-loading { display: flex; align-items: center; gap: 8px; margin: 0; }
+.soc-module .cy-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(34, 211, 238, 0.3); border-top-color: var(--cy-cyan); animation: cy-rot 0.9s linear infinite; }
+@keyframes cy-rot { to { transform: rotate(360deg); } }
+.soc-module .cy-map { display: grid; gap: 12px; }
+.soc-module .cy-map .is-success { --cy-tone: var(--cy-ok); }
+.soc-module .cy-map .is-warning { --cy-tone: var(--cy-warn); }
+.soc-module .cy-map .is-critical { --cy-tone: var(--cy-bad); }
+.soc-module .cy-map .is-muted { --cy-tone: var(--cy-mute); }
+.soc-module .cy-map-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.soc-module .cy-map-avg { display: flex; align-items: center; gap: 10px; }
+.soc-module .cy-map-ring { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--cy-tone) calc(var(--pct) * 1%), var(--border) 0); box-shadow: 0 0 14px color-mix(in srgb, var(--cy-tone) 35%, transparent); }
+.soc-module .cy-map-ring b { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); font: 700 16px/1 var(--cy-mono); color: var(--text); }
+.soc-module .cy-map-avg strong { display: block; }
+.soc-module .cy-map-avg small { color: var(--text-mid); font-family: var(--cy-mono); font-size: 11px; }
+.soc-module .cy-map-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.soc-module .cy-map-filters button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.soc-module .cy-map-filters button b { font-family: var(--cy-mono); color: var(--cy-tone, var(--text)); }
+.soc-module .cy-map-filters button.is-active { border-color: var(--cy-cyan); color: var(--text); background: var(--cy-soft); }
+.soc-module .cy-map-filters button:disabled { opacity: 0.4; cursor: default; }
+.soc-module .cy-map-search { margin-left: auto; min-width: 180px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.soc-module .cy-map-search:focus { outline: none; border-color: var(--cy-cyan); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2); }
+.soc-module .cy-map-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); max-height: 420px; overflow: auto; padding: 2px; }
+.soc-module .cy-tile {
+  position: relative; display: grid; gap: 2px; padding: 8px 10px 10px; border-radius: 8px; overflow: hidden; text-decoration: none;
+  color: var(--text); border: 1px solid color-mix(in srgb, var(--cy-tone) 40%, var(--border)); background: color-mix(in srgb, var(--cy-tone) 9%, var(--surface));
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.soc-module .cy-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px color-mix(in srgb, var(--cy-tone) 30%, transparent); text-decoration: none; color: var(--text); }
+.soc-module .cy-tile[hidden] { display: none; }
+.soc-module .cy-tile-name { font: 600 11px/1.2 var(--cy-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soc-module .cy-tile b { font: 700 18px/1 var(--cy-mono); color: var(--cy-tone); }
+.soc-module .cy-tile i { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--pct) * 1%); background: var(--cy-tone); box-shadow: 0 0 6px var(--cy-tone); }
+.soc-module .cy-map-note { margin: 0; color: var(--text-mid); font-size: var(--fs-sm, 12px); }
+
+/* ---------- Flusso delle letture (Impostazioni) ---------- */
+.soc-module .cy-bus { margin: 0 0 18px; padding: 14px; border-radius: 14px; border: 1px solid var(--border);
+  background: linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px) 0 0 / 20px 20px, linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px) 0 0 / 20px 20px, var(--surface); }
+.soc-module .cy-bus .cy-bus-node.is-ok, .soc-module .cy-bus .is-ok { --cy-tone: var(--cy-ok); }
+.soc-module .cy-bus .cy-bus-node.is-warn, .soc-module .cy-bus .is-warn { --cy-tone: var(--cy-warn); }
+.soc-module .cy-bus .cy-bus-node.is-ko, .soc-module .cy-bus .is-ko { --cy-tone: var(--cy-bad); }
+.soc-module .cy-bus .cy-bus-node.is-run, .soc-module .cy-bus .is-run { --cy-tone: var(--cy-cyan); }
+.soc-module .cy-bus .is-muted { --cy-tone: var(--cy-mute); }
+.soc-module .cy-bus-nodes { display: grid; gap: 8px 10px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.soc-module .cy-bus-node {
+  --cy-tone: var(--cy-mute);
+  position: relative; display: grid; grid-template-columns: 10px 1fr; column-gap: 8px; align-items: center; margin-bottom: 22px; padding: 8px 10px;
+  border-radius: 10px; text-decoration: none; color: var(--text); border: 1px solid color-mix(in srgb, var(--cy-tone) 45%, var(--border));
+  background: color-mix(in srgb, var(--cy-tone) 7%, var(--surface)); transition: transform 0.12s, box-shadow 0.12s;
+}
+.soc-module .cy-bus-node:hover { transform: translateY(-2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cy-tone) 20%, transparent); text-decoration: none; color: var(--text); }
+.soc-module .cy-bus-node::after {  /* linea verso il Security Center, con «pacchetti» che scendono */
+  content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 22px;
+  background: repeating-linear-gradient(180deg, var(--cy-tone) 0 5px, transparent 5px 10px); background-size: 2px 20px; animation: cy-down 0.9s linear infinite;
+}
+.soc-module .cy-bus-node.is-off, .soc-module .cy-bus-node.is-ko { border-style: dashed; }
+.soc-module .cy-bus-node.is-off { opacity: 0.6; }
+.soc-module .cy-bus-node.is-off::after, .soc-module .cy-bus-node.is-ko::after { animation: none; background: repeating-linear-gradient(180deg, var(--cy-tone) 0 3px, transparent 3px 8px); opacity: 0.6; }
+@keyframes cy-down { from { background-position: 0 0; } to { background-position: 0 20px; } }
+.soc-module .cy-bus-led { width: 9px; height: 9px; border-radius: 50%; background: var(--cy-tone); box-shadow: 0 0 8px var(--cy-tone); grid-row: span 2; }
+.soc-module .cy-bus-node.is-run .cy-bus-led { animation: cy-breathe 1s ease-in-out infinite; }
+.soc-module .cy-bus-name { font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soc-module .cy-bus-node small { grid-column: 2; font-family: var(--cy-mono); font-size: 10.5px; color: var(--text-mid); }
+.soc-module .cy-bus-core {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px; padding: 12px 16px; border-radius: 12px; color: #e2e8f0;
+  background: linear-gradient(90deg, #020617, #0b1a33 50%, #020617); border: 1px solid rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.18), inset 0 0 30px rgba(34, 211, 238, 0.08);
+}
+.soc-module .cy-bus-core .soc-ico { width: 20px; height: 20px; color: var(--cy-cyan); }
+.soc-module .cy-bus-core strong { font: 700 13px/1 var(--cy-mono); letter-spacing: 1.5px; text-transform: uppercase; color: #fff; }
+.soc-module .cy-bus-stats { font-family: var(--cy-mono); font-size: 12px; color: #94a3b8; }
+.soc-module .cy-bus-stats b { color: #e2e8f0; }
+.soc-module .cy-bus-stats b.is-ok { color: #4ade80; }
+.soc-module .cy-bus-stats b.is-ko { color: #f87171; }
+
+/* ---------- Timeline di alert, ticket e incidenti: stesso aspetto della scheda PC ---------- */
+.soc-module .sec-timeline { position: relative; gap: 8px; padding-left: 26px; }
+.soc-module .sec-timeline::before { content: ""; position: absolute; left: 9px; top: 6px; bottom: 6px; width: 2px; background: linear-gradient(var(--cy-cyan), color-mix(in srgb, var(--cy-cyan) 10%, transparent)); opacity: 0.6; }
+.soc-module .sec-timeline-item {
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); border-left: 3px solid var(--cy-cyan);
+  background: var(--cy-soft); transition: transform 0.12s, box-shadow 0.12s;
+}
+.soc-module .sec-timeline-item:hover { transform: translateX(2px); box-shadow: 0 4px 14px rgba(34, 211, 238, 0.15); }
+.soc-module .sec-timeline-item:before {
+  left: -24px !important; top: 12px !important; width: 12px !important; height: 12px !important; border-radius: 50% !important;
+  background: var(--surface) !important; border: 2px solid var(--cy-cyan) !important; box-shadow: 0 0 8px rgba(34, 211, 238, 0.5) !important;
+}
+.soc-module .sec-timeline-item > strong:first-child { font-family: var(--cy-mono); font-size: 12px; color: var(--cy-kicker); }
+.soc-module .sec-timeline-item.is-note { border-left-color: var(--cy-warn); }
+.soc-module .sec-timeline-item.is-note:before { border-color: var(--cy-warn) !important; box-shadow: 0 0 8px color-mix(in srgb, var(--cy-warn) 50%, transparent) !important; }
+
+@media (max-width: 720px) {
+  .soc-module .cy-map-search { margin-left: 0; width: 100%; }
+  .soc-module .cy-map-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .soc-module .cy-bus-nodes { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soc-module .soc-head::before, .soc-module .soc-count.tone-critical, .soc-module .soc-kpi.tone-critical .soc-kpi-ico::after,
+  .soc-module .soc-live-dot, .soc-module .cy-bus-node::after, .soc-module .cy-bus-led, .soc-module .cy-spin { animation: none !important; }
+}

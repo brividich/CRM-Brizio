@@ -6,6 +6,24 @@
   {% if in_corso %}<div class="lt-sum is-run"><span class="lt-spin" aria-hidden="true"></span><span>giro in corso: la pagina si aggiorna da sola</span></div>{% endif %}
 </div>
 
+{# Flusso: ogni lettura porta i suoi dati al Security Center. Linea animata = lettura accesa e riuscita; tratteggiata = spenta o in errore. #}
+<section class="cy-bus" aria-label="Flusso delle letture verso il Security Center">
+  <div class="cy-bus-nodes">
+    {% for g in gruppi %}{% for s in g.schede %}{% with l=s.lettura u=s.ultimo %}
+      <a class="cy-bus-node is-{{ s.tono }}{% if not s.accesa %} is-off{% endif %}" href="#lettura-{{ l.codice }}" title="{{ g.nome }} · {{ l.nome }}">
+        <span class="cy-bus-led"></span>
+        <span class="cy-bus-name">{{ l.nome }}</span>
+        <small>{% if not s.accesa %}spenta{% elif s.corre %}in corso…{% elif u %}{{ u.avviata_il|date:"d/m H:i" }}{% else %}mai eseguita{% endif %}</small>
+      </a>
+    {% endwith %}{% endfor %}{% endfor %}
+  </div>
+  <div class="cy-bus-core">
+    <svg class="soc-ico" aria-hidden="true"><use href="#soc-i-shield"/></svg>
+    <strong>Security Center</strong>
+    <span class="cy-bus-stats"><b class="is-ok">{{ conteggi.accese }}</b> attive · <b class="{% if conteggi.errori %}is-ko{% endif %}">{{ conteggi.errori }}</b> da sistemare · <b>{{ conteggi.spente }}</b> spente</span>
+  </div>
+</section>
+
 {% for g in gruppi %}
 <section class="lt-group">
   <h2 class="lt-group-title">{{ g.nome }}</h2>
