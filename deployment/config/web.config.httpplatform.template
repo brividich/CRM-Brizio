@@ -162,8 +162,8 @@
              resourceType="Either" />
       </handlers>
       <staticContent>
-        <!-- Cache browser 7 giorni per file statici -->
-        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />
+        <!-- Cache browser 365 giorni: con ManifestStaticFilesStorage ogni file modificato cambia nome (hash) -->
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="365.00:00:00" />
       </staticContent>
       <!-- Disabilita autenticazione IIS per /static/ (è pubblica) -->
       <security>
