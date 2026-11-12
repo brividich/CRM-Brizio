@@ -505,6 +505,17 @@
         <textarea id="avanzamenti" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label for="avanzamenti_qualita">Scelte Avanzamento qualità</label>
+        <small>Menu «Avanzamento qualità» della decisione qualità; c'è sempre anche «nessuno stato». «In attesa chiarimenti» viene aggiunto se manca: lo usa «Richiedi info aggiuntive».</small>
+        <textarea id="avanzamenti_qualita" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label class="checkbox-inline" for="cc_puo_chiudere" style="display:flex;gap:8px;align-items:center;">
+          <input type="checkbox" id="cc_puo_chiudere"> Il capocommessa può chiudere le anomalie
+        </label>
+        <small>Acceso: senza spunte il capocommessa chiude con «Accetto lo stato» o «Apertura ORE/RIPI» e ha «Chiudi l'anomalia». Spento: chiude solo la qualità. Le segnalazioni fatte senza RDC chiudono sempre.</small>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label for="azioni_effettuate">Scelte Azione effettuata</label>
         <small>Usate nel riquadro «Tempi ed esiti» della gestione anomalie (rilavorazione, scarto...). Le voci con «rilavor» o «ripar» chiedono «Pezzo riverificato conforme» per chiudere.</small>
         <textarea id="azioni_effettuate" class="input" spellcheck="false"></textarea>
@@ -515,8 +526,8 @@
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
-        <label for="referenti_rdc">Referenti RDC / segnalazione cliente</label>
-        <small>Un nome o email per riga. In Gestione anomalie, sotto «In carico a me», vedono gli OP con anomalie aperte da aprire RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).</small>
+        <label for="referenti_rdc">Qualità (referenti RDC / segnalazione cliente)</label>
+        <small>Un nome o email per riga. Prendono la «Decisione qualità» (numero RDC, avanzamento qualità, chiusura, richiesta di informazioni) e in «In carico a me» trovano le anomalie già decise dal capocommessa e ancora aperte.</small>
         <div style="display:flex;gap:8px;margin:4px 0 6px;flex-wrap:wrap;">
           <select id="referenti_rdc_picker" class="input" style="max-width:320px;"></select>
           <button id="referenti_rdc_add" class="btn btn-secondary btn-sm" type="button">Aggiungi</button>

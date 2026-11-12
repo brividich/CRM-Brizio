@@ -18,6 +18,7 @@
     escalation_supervisori: [],
     azioni_effettuate: ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
     referenti_rdc: [],
+    avanzamenti_qualita: ["In attesa", "In attesa chiarimenti"],
     attachments_dir: "media\\anomalie_allegati",
   };
 
@@ -28,7 +29,9 @@
     "azioni_effettuate",
     "autorizzati_modifica",
     "referenti_rdc",
+    "avanzamenti_qualita",
   ];
+  const ccChiudeEl = document.getElementById("cc_puo_chiudere");
   const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
   // Liste derivate: la composizione (ruoli + override persona) e' modificabile,
   // l'elenco risultante resta calcolato dal server.
@@ -174,6 +177,7 @@
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.error || "Errore caricamento configurazione");
       fill(j.lists || {}, j.attachments_dir || defaults.attachments_dir);
+      if (ccChiudeEl) ccChiudeEl.checked = j.cc_puo_chiudere !== false;
       fillDerivedSources(j.derived_sources || window._CFG_DERIVED_SOURCES);
     } catch (e) {
       fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
@@ -191,6 +195,7 @@
     const payload = Object.fromEntries(ids.map((id) => [id, fromText(fields[id].value)]));
     payload.attachments_dir = String(attachmentsDirEl.value || "").trim();
     payload.derived_sources = readDerivedSources();
+    if (ccChiudeEl) payload.cc_puo_chiudere = ccChiudeEl.checked;
     btnSave.disabled = true;
     btnDefault.disabled = true;
     try {

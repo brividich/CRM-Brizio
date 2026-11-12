@@ -1,7 +1,8 @@
 """Gestione anomalie con il sistema dei ruoli: chi vede e chi modifica ogni OP.
 
-Ambito della matrice (tutti / team / propri), «In carico a me» = capocommessa o
-CAR, nota che non può lasciare l'anomalia «In attesa», id OP negativi.
+Ambito della matrice (tutti / team / propri), «In carico a me» per singola
+anomalia (qui: capocommessa con anomalie da decidere), nota che non può lasciare
+l'anomalia «In attesa», id OP negativi.
 """
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -27,6 +28,15 @@ _OP_ROWS = [
      "stato": "Aperto", "anomalie_count": 1, "anomalie_aperte_count": 0, "anomalie_da_decidere_count": 0},
 ]
 _CREATORI = [{"op": "op/3", "uid": 5}, {"op": "op/4", "uid": 99}]
+# Anomalie aperte senza decisione: in carico al capocommessa dell'OP.
+_APERTE = [
+    {"id": 11, "op_lookup_id": None, "ex_op_nominativo": "OP/1", "chiudere": 0, "avanzamento": "In attesa",
+     "note_capocommessa": "", "aprire_rdc": 0, "segnalare_cliente": 0, "created_by_user_id": 7},
+    {"id": 12, "op_lookup_id": None, "ex_op_nominativo": "OP/2", "chiudere": 0, "avanzamento": "In attesa",
+     "note_capocommessa": "", "aprire_rdc": 0, "segnalare_cliente": 0, "created_by_user_id": 7},
+    {"id": 13, "op_lookup_id": None, "ex_op_nominativo": "OP/3", "chiudere": 0, "avanzamento": "In attesa",
+     "note_capocommessa": "", "aprire_rdc": 0, "segnalare_cliente": 0, "created_by_user_id": 5},
+]
 _NOMI = {5: {"MARIO ROSSI", "ROSSI MARIO"}, 7: {"LUCA BIANCHI", "BIANCHI LUCA"}}
 
 
@@ -35,6 +45,8 @@ def _fetch(sql, params=None):
         return [dict(r) for r in _OP_ROWS]
     if "SELECT DISTINCT LOWER" in sql:
         return list(_CREATORI)
+    if "COALESCE(chiudere, 0) = 0" in sql and "FROM anomalie" in sql:
+        return [dict(r) for r in _APERTE]
     return []
 
 

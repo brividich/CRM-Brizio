@@ -649,11 +649,38 @@ class MailActionDecisioneTests(LegacyTableMixin, TestCase):
             salvati = [f.name for f in Path(cartella).iterdir()]
         self.assertTrue(any(n.endswith("__risposta.eml") for n in salvati), salvati)
         row = self.riga(aid)
-        self.assertEqual(row["avanzamento"], "In attesa risposta cliente")
+        self.assertEqual(row["avanzamento"], "In attesa")
         with connection.cursor() as cur:
             cur.execute("SELECT chiudere FROM anomalie WHERE id = %s", [aid])
             self.assertEqual(cur.fetchone()[0], 1)
         self.assertIsNotNone(AnomaliaSchedaQualita.objects.get(anomalia_id=aid).segnalato_cliente_il)
+
+
+    def test_link_rispondi_info(self):
+        """Il link della mail «la qualità chiede informazioni» registra la risposta, una volta sola."""
+        from anomalie.mail_action_models import AnomaliaMailActionToken
+        from anomalie.quality_models import AnomaliaRichiestaInfo
+
+        aid = self.ids[0]
+        richiesta = AnomaliaRichiestaInfo.objects.create(anomalia_id=aid, destinatari=["cc"], messaggio="Foto del lotto?")
+        token = AnomaliaMailActionToken.objects.create(
+            recipient_email="cc@example.local", recipient_display="Capocommessa Test", op_id=OP,
+            anomalie_ids=[aid], anomalie_snapshot=[], action="rispondi_info",
+            expires_at=timezone.now() + timedelta(hours=24),
+        )
+        url = reverse("anomalie_mail_action", kwargs={"token": token.token})
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Foto del lotto?", r.content.decode())
+        with patch("anomalie.qualita_mail.invia_risposta_info") as avviso:
+            r = self.client.post(url, {f"risposta_{aid}": "Eccola in allegato"})
+        self.assertIn(r.status_code, (301, 302))
+        richiesta.refresh_from_db()
+        self.assertEqual((richiesta.risposta, richiesta.risposta_ruolo), ("Eccola in allegato", "cc"))
+        avviso.assert_called_once()
+        r = self.client.post(url, {f"risposta_{aid}": "di nuovo"})
+        richiesta.refresh_from_db()
+        self.assertEqual(richiesta.risposta, "Eccola in allegato")
 
 
 class AutomazioniNonDuplicanoLaMailTests(TestCase):

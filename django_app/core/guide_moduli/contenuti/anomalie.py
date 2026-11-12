@@ -70,12 +70,15 @@ GUIDA = {
                 ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
                       "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
                       "Gestione anomalie permette di mandarle subito con «Invia ora»."),
-                ("p", "«Segnalare al cliente» spunta anche «Aprire RDC» (si può togliere). Sotto le spunte un riquadro "
-                      "elenca i passi per chiudere: «Numero RDC», «Segnalato al cliente» / «Segnalato al terzista» "
-                      "(si spuntano lì) e la risposta. Con «Segnalato…» l'avanzamento passa da solo a «In attesa "
-                      "risposta cliente» o «In attesa risposta terzista», la nota resta ferma e compare il campo "
-                      "della risposta; poi si sceglie lo stato definitivo. «Chiudi l'anomalia» chiude comunque. La "
-                      "pagina del link della mail fa lo stesso e accetta allegati, anche le mail .msg ed .eml."),
+                ("p", "Il dettaglio dell'anomalia ha tre blocchi: «Controllore · segnalazione» (con «Dove sono i "
+                      "pezzi?»), «Capocommessa» (flag RDC, cliente, terzista, CAR, pezzi precedenti; «Segnalato» se la "
+                      "segnalazione l'ha fatta lui, automatico per il CAR; avanzamento, note, allegati) e «Decisione "
+                      "qualità» (numero RDC, «Avanzamento qualità» configurabile, note, allegati, «Segnalato» se il "
+                      "capocommessa non l'ha fatto, «Chiudi l'anomalia», «Richiedi info aggiuntive»). Senza RDC le "
+                      "segnalazioni fatte chiudono l'anomalia; con RDC la chiude il numero RDC. «In carico a me» mostra "
+                      "solo gli OP e le anomalie che toccano a te (capocommessa, qualità, CAR segnalato, controllore a "
+                      "cui sono chieste informazioni). Il link della mail fa lo stesso e accetta allegati, anche .msg ed "
+                      ".eml; un secondo link permette di rispondere alle richieste della qualità senza accesso."),
                 ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
                       "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
@@ -114,8 +117,8 @@ GUIDA = {
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati). "
-                    "Quelle spunte non chiudono l'anomalia: si chiude con il numero RDC e «Segnalato al cliente» (o con "
-                    "«Chiudi l'anomalia»). Con lo "
+                    "Sono la «Qualità»: prendono la decisione qualità e chiudono. «Avanzamento qualità» e «Il "
+                    "capocommessa può chiudere le anomalie» si impostano nella stessa pagina. Con lo "
                     "stato «In attesa di ulteriori informazioni» il referente la rimanda al capocommessa, spunte comprese.",
                     "La mail «Segnala a CAR» va al CAR solo se il nominativo corrisponde a un solo utente e ha l'email "
                     "di notifica in anagrafica; si spegne in Configurazione → Notifiche.",
