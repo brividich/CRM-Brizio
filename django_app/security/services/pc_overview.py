@@ -86,7 +86,7 @@ def pc_scheda(name, days=90):
 
     from django.utils import timezone
 
-    from security.models import SoftwareInstallation, WatchGuardDispositivo, WatchGuardPatch
+    from security.models import SoftwareInstallation, WatchGuardPatch
     from security.services.rischio_asset import stato_sistema
 
     data = pc_overview(name, days)
@@ -96,8 +96,9 @@ def pc_scheda(name, days=90):
     now = timezone.now()
     intune = data["intune"]
 
-    wg = (WatchGuardDispositivo.objects.filter(host=key, presente=True).order_by("-gestito", "-ultima_connessione").first()
-          if key else None)
+    from security.services import postura
+
+    wg = postura.wg_per_pc(key).get(key) if key else None
     patch_qs = WatchGuardPatch.objects.filter(host=key, presente=True) if key else WatchGuardPatch.objects.none()
     patch = sorted(patch_qs, key=lambda p: (p.criticita or 999, -(p.rilasciata_il.toordinal() if p.rilasciata_il else 0), p.nome))
     patch_errori = list(WatchGuardPatch.objects.filter(host=key, esito__in=WatchGuardPatch.ESITI_ERRORE,
@@ -136,9 +137,18 @@ def pc_scheda(name, days=90):
     ]
 
     mac = [m for m in ((intune.mac_ethernet, "Ethernet") if intune else ("", ""), (intune.mac_wifi, "Wi-Fi") if intune else ("", "")) if m[0]]
-    wg_vecchio = bool(wg and wg.ultima_connessione and wg.ultima_connessione < now - timedelta(days=7))
+    wg_vecchio = bool(wg and wg.ultima_connessione and wg.ultima_connessione < now - timedelta(days=postura.GIORNI_WG_VECCHIO))
     patch_critiche = sum(1 for p in patch if p.criticita == 201)
-    rischio = _rischio(data, wg, wg_vecchio, intune, sistema, patch_critiche, len(patch))
+    # Stessa regola e stessi fatti della mappa dei PC (services/postura.py).
+    rischio = postura.punteggio({
+        "backup": postura.stato_backup(data["backup"]),
+        "alert": postura.alert_per_pc(key).get(key, (0, 0)) if key else (0, 0),
+        "cve": (data["cve_uniche"], data["cve_gravi"]),
+        "wg": postura.stato_wg(wg, now),
+        "intune": intune.problemi_label if intune else [],
+        "sistema": sistema,
+        "patch": (patch_critiche, len(patch)),
+    })
     asset = data["hub_asset"]
     produttore = (intune.produttore if intune else "") or (getattr(asset, "manufacturer", "") or "")
     modello = (intune.modello if intune else "") or (getattr(asset, "model", "") or "")
@@ -169,48 +179,6 @@ def pc_scheda(name, days=90):
         "seriale": (intune.seriale if intune else "") or (getattr(asset, "serial_number", "") or ""),
         "sistema_nome": (intune.sistema if intune else "") or (wg.sistema if wg else ""),
     }
-
-
-def _rischio(data, wg, wg_vecchio, intune, sistema, patch_critiche, patch_tot):
-    """Indice di postura 0-100 (100 = nessun problema noto) con i motivi che lo abbassano, ciascuno con la sua scheda.
-
-    Solo una lettura sintetica dei fatti già in pagina: non apre alert né cambia altri numeri del SOC.
-    """
-    motivi = []
-
-    def togli(punti, testo, scheda):
-        if punti > 0:
-            motivi.append({"punti": punti, "testo": testo, "scheda": scheda})
-
-    b = data["backup"]
-    if b and b["last_status"] == "failed":
-        togli(25, "Ultimo backup fallito", "backup")
-    elif b and b["stale"]:
-        togli(10, "Backup non recente", "backup")
-    elif not b:
-        togli(10, "Nessun backup registrato", "backup")
-    critici = sum(1 for a in data["alerts"] if a.severity == "critical")
-    togli(min(30, 20 * critici + 5 * (data["alert_count"] - critici)), f"{data['alert_count']} alert apert{'o' if data['alert_count'] == 1 else 'i'}", "eventi")
-    togli(min(25, 5 * data["cve_gravi"]), f"{data['cve_gravi']} CVE gravi (KEV o CVSS ≥ 9)", "vulnerabilita")
-    togli(min(10, data["cve_uniche"] - data["cve_gravi"]), f"{data['cve_uniche'] - data['cve_gravi']} altre CVE", "vulnerabilita")
-    if wg is None or not wg.gestito:
-        togli(15, "Senza agente WatchGuard", "protezione")
-    elif not wg.protetto:
-        togli(20, f"Protezione WatchGuard: {wg.protezione_label.lower()}", "protezione")
-    elif wg_vecchio:
-        togli(5, "WatchGuard non si collega da più di 7 giorni", "protezione")
-    if intune:
-        for p in intune.problemi_label:
-            togli(10, f"Intune: {p}", "protezione")
-    if sistema and sistema["fuori"]:
-        togli(20, f"{sistema['nome']} fuori supporto", "caratteristiche")
-    elif sistema and sistema["in_scadenza"]:
-        togli(5, f"{sistema['nome']}: supporto in scadenza", "caratteristiche")
-    togli(min(15, 3 * patch_critiche + (patch_tot - patch_critiche) // 5), f"{patch_tot} patch mancanti ({patch_critiche} critiche)", "vulnerabilita")
-    punteggio = max(0, 100 - sum(m["punti"] for m in motivi))
-    tono = "success" if punteggio >= 80 else ("warning" if punteggio >= 50 else "critical")
-    return {"punteggio": punteggio, "tono": tono, "motivi": sorted(motivi, key=lambda m: -m["punti"]),
-            "etichetta": {"success": "Postura buona", "warning": "Da migliorare", "critical": "A rischio"}[tono]}
 
 
 def _cve_gravita(impacts, vulns):

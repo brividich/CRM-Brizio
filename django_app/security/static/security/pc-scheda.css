@@ -1,6 +1,6 @@
 /* Scheda PC del SOC (/soc/pc/): stile «cyber», schede, flusso, grafici. Comportamento in pc-scheda.js. */
 .soc-module .pcs {
-  --pcs-cyan: #22d3ee;
+  --pcs-cyan: var(--cy-cyan, #22d3ee);
   --pcs-ok: var(--success, #16a34a);
   --pcs-warn: var(--warning, #d97706);
   --pcs-bad: var(--danger, #dc2626);
@@ -8,7 +8,7 @@
   --pcs-line: var(--border, #e2e8f0);
   --pcs-card: var(--surface, #fff);
   --pcs-soft: color-mix(in srgb, var(--pcs-card) 92%, var(--pcs-cyan));
-  --pcs-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --pcs-mono: var(--cy-mono, Consolas, monospace);
   display: grid; gap: 14px; margin-top: 12px;
 }
 .soc-module .pcs .is-success { --tone: var(--pcs-ok); }

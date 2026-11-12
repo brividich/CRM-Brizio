@@ -66,6 +66,11 @@
   </div>
 </section>
 
+<div class="ov-section-head"><h2>Postura dei PC</h2><a class="sec-small" href="{% url 'security:pc_copertura' %}">Elenco Dispositivi</a></div>
+<section class="sec-panel cy-map-panel" data-cy-lazy="{% url 'security:postura_mappa' %}" aria-live="polite">
+  <p class="sec-muted sec-small cy-loading"><span class="cy-spin" aria-hidden="true"></span>Calcolo dell'indice di ogni PC…</p>
+</section>
+
 <div class="ov-section-head"><h2>Le aree</h2><span class="sec-muted sec-small">ogni numero dice se è l'ultimo valore letto o il totale degli ultimi 7 giorni</span></div>
 <section class="ov-cards" id="ov-cards" data-autorefresh="300">
   {% for c in cards %}

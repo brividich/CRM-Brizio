@@ -119,6 +119,7 @@ urlpatterns = [
     path("segnalazioni/", _guard(views_work.segnalazioni), name="segnalazioni"),
     path("cerca/", views_work.search, name="search"),
     path("pc/", views_work.pc_detail, name="pc_detail"),
+    path("postura/mappa/", views_work.postura_mappa, name="postura_mappa"),
     path("dispositivi/pc/", views_work.pc_copertura, name="pc_copertura"),
     path("dispositivi/rete/", views_work.rete_indirizzi, name="rete_indirizzi"),
     path("backup/", views_backup.backup_overview, name="backup"),
