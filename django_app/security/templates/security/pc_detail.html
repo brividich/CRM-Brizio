@@ -3,8 +3,8 @@
 
 {% block title %}{{ pc.name }} | Security Center AI{% endblock %}
 {% block extra_head %}{{ block.super }}
-<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261112">
-<script src="{% static 'security/pc-scheda.js' %}?v=20261112" defer></script>
+<link rel="stylesheet" href="{% static 'security/pc-scheda.css' %}?v=20261112b">
+<script src="{% static 'security/pc-scheda.js' %}?v=20261112b" defer></script>
 {% endblock %}
 {% block page_icon %}P{% endblock %}
 {% block page_marker %}Dispositivo{% endblock %}
@@ -289,30 +289,72 @@
 </section>
 
 {# ── Software ───────────────────────────────────────────────────────────────────────────── #}
-<section class="pcs-pane" data-pcs-pane="software" role="tabpanel">
-  <div class="pcs-grid-side">
-    <div class="pcs-card">
-      <div class="pcs-card-head"><div><span class="pcs-card-kicker">Clic per filtrare</span><h2>Produttori</h2></div></div>
-      <div class="pcs-bars">
-        {% for v in pc.produttori_sw %}<button type="button" data-pcs-vendor="{{ v.nome }}"><span>{{ v.nome|truncatechars:24 }}</span><i style="--w: {{ v.pct }}"></i><b>{{ v.n }}</b></button>
-        {% empty %}<p class="pcs-empty">Nessun software rilevato.</p>{% endfor %}
-      </div>
+<section class="pcs-pane" data-pcs-pane="software" role="tabpanel" data-pcs-sw>
+  {% with st=pc.software_stat %}
+  <div class="pcs-sw-stats">
+    <button type="button" class="pcs-sw-stat is-active" data-pcs-sw-filter="">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-monitor"/></svg></span>
+      <span><b>{{ st.totale }}</b><small>programmi · {{ st.produttori }} produttori</small></span>
+    </button>
+    <button type="button" class="pcs-sw-stat is-{% if st.con_cve %}warning{% else %}success{% endif %}" data-pcs-sw-filter="cve">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-alert"/></svg></span>
+      <span><b>{{ st.con_cve }}</b><small>con vulnerabilità note</small></span>
+    </button>
+    <button type="button" class="pcs-sw-stat is-{% if st.con_cve_gravi %}critical{% else %}success{% endif %}" data-pcs-sw-filter="grave">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-flame"/></svg></span>
+      <span><b>{{ st.con_cve_gravi }}</b><small>con CVE gravi (KEV o ≥ 9)</small></span>
+    </button>
+    <button type="button" class="pcs-sw-stat is-{% if st.non_recenti %}warning{% else %}muted{% endif %}" data-pcs-sw-filter="vecchio">
+      <span class="pcs-sw-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-clock"/></svg></span>
+      <span><b>{{ st.non_recenti }}</b><small>non visti da 7+ giorni</small></span>
+    </button>
+    <div class="pcs-sw-fonti" title="Programmi visti da ciascuna fonte (uno stesso programma può averle entrambe)">
+      <span class="pcs-sw-fonti-label">Fonti dell'inventario</span>
+      <button type="button" data-pcs-sw-filter="watchguard"><i class="pcs-sw pcs-src-wg"></i>WatchGuard <b>{{ st.watchguard }}</b></button>
+      <button type="button" data-pcs-sw-filter="defender"><i class="pcs-sw pcs-src-def"></i>Defender <b>{{ st.defender }}</b></button>
     </div>
-    <div class="pcs-card">
-      <div class="pcs-card-head"><div><span class="pcs-card-kicker">WatchGuard · Defender · altri inventari</span><h2>Software installato</h2></div>
-        <input type="search" class="pcs-search" placeholder="Filtra programmi…" aria-label="Filtra programmi" data-pcs-sw-search>
+  </div>
+  {% endwith %}
+
+  <div class="pcs-card pcs-sw-card">
+    <div class="pcs-sw-toolbar">
+      <div class="pcs-sw-searchbox">
+        <svg class="soc-ico" aria-hidden="true"><use href="#soc-i-search"/></svg>
+        <input type="search" placeholder="Cerca programma, versione o produttore…" aria-label="Cerca nel software" data-pcs-sw-search>
+        <kbd>/</kbd>
       </div>
-      <div class="pcs-scroll pcs-scroll-lg">
-        <table class="pcs-table" data-table-enhanced="0" data-pcs-sw-table>
-          <thead><tr><th>Programma</th><th>Versione</th><th>Produttore</th><th>Fonti</th><th>Visto</th></tr></thead>
-          <tbody>
-            {% for x in pc.software %}
-              <tr data-vendor="{{ x.vendor|default:x.vendor_raw|default:'Altro' }}"><td>{{ x.product_raw }}</td><td class="pcs-mono">{{ x.version_raw|default:"—" }}</td><td>{{ x.vendor_raw|default:x.vendor|default:"—" }}</td><td>{{ x.fonti_etichette|join:", " }}</td><td class="pcs-nowrap">{{ x.last_seen_at|date:"d/m/Y" }}</td></tr>
-            {% empty %}<tr><td colspan="5" class="pcs-empty">Nessun software rilevato per questo dispositivo.</td></tr>{% endfor %}
-          </tbody>
-        </table>
+      <span class="pcs-sw-count pcs-mono" data-pcs-sw-count>{{ pc.software|length }} programmi</span>
+      <button type="button" class="pcs-sw-reset" data-pcs-sw-reset hidden>Togli i filtri</button>
+    </div>
+    {% if pc.produttori_sw %}
+      <div class="pcs-sw-vendors" aria-label="Produttori">
+        {% for v in pc.produttori_sw %}<button type="button" data-pcs-vendor="{{ v.nome }}" style="--w: {{ v.pct }}"><span>{{ v.nome|truncatechars:22 }}</span><b>{{ v.n }}</b></button>{% endfor %}
       </div>
-      <p class="pcs-note" data-pcs-sw-count></p>
+    {% endif %}
+    <div class="pcs-scroll pcs-scroll-lg">
+      <table class="pcs-table pcs-sw-table" data-table-enhanced="0" data-pcs-sw-table>
+        <thead><tr>
+          <th><button type="button" data-pcs-sort="nome">Programma</button></th>
+          <th><button type="button" data-pcs-sort="versione">Versione</button></th>
+          <th><button type="button" data-pcs-sort="cve">CVE</button></th>
+          <th>Fonti</th>
+          <th><button type="button" data-pcs-sort="visto">Visto</button></th>
+        </tr></thead>
+        <tbody>
+          {% for x in pc.software %}
+            <tr data-vendor="{{ x.produttore_nome }}" data-nome="{{ x.product_raw|lower }}" data-versione="{{ x.version_raw }}"
+                data-cve="{{ x.cve_n }}" data-grave="{{ x.cve_gravi }}" data-fonti="{{ x.fonti_set|join:' ' }}" data-visto="{{ x.last_seen_at|date:'U' }}"
+                data-vecchio="{% if x.last_seen_at and x.last_seen_at < pc.software_soglia %}1{% endif %}">
+              <td><div class="pcs-sw-name"><span class="pcs-avatar" data-l="{{ x.iniziale }}">{{ x.iniziale }}</span><span><strong>{{ x.product_raw }}</strong><small>{% if x.produttore_nome == "Altro" %}produttore non indicato{% else %}{{ x.produttore_nome }}{% endif %}</small></span></div></td>
+              <td><span class="pcs-ver pcs-mono">{{ x.version_raw|default:"—" }}</span></td>
+              <td>{% if x.cve_n %}<button type="button" class="pcs-cvebadge is-{% if x.cve_gravi %}critical{% else %}warning{% endif %}" data-pcs-go="vulnerabilita" title="Apri Vulnerabilità e patch">{{ x.cve_n }} CVE{% if x.cve_gravi %} · {% if x.cve_gravi == x.cve_n %}grav{{ x.cve_n|pluralize:"e,i" }}{% else %}{{ x.cve_gravi }} grav{{ x.cve_gravi|pluralize:"e,i" }}{% endif %}{% endif %}</button>{% else %}<span class="pcs-ok-dot" title="Nessuna CVE nota">✓ nessuna</span>{% endif %}</td>
+              <td class="pcs-nowrap">{% for f in x.fonti_set %}<span class="pcs-src pcs-src-{% if f == 'watchguard' %}wg{% elif f == 'defender' %}def{% else %}alt{% endif %}" title="{{ f }}">{% if f == 'watchguard' %}WG{% elif f == 'defender' %}DEF{% else %}{{ f|slice:':3'|upper }}{% endif %}</span>{% endfor %}</td>
+              <td class="pcs-nowrap pcs-mono{% if x.last_seen_at and x.last_seen_at < pc.software_soglia %} pcs-old{% endif %}">{{ x.last_seen_at|date:"d/m/Y" }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="5" class="pcs-empty">Nessun software rilevato per questo dispositivo.</td></tr>{% endfor %}
+          <tr class="pcs-noresult" data-pcs-sw-none hidden><td colspan="5">Nessun programma corrisponde ai filtri.</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </section>
@@ -345,24 +387,49 @@
 {# ── Timeline ───────────────────────────────────────────────────────────────────────────── #}
 <section class="pcs-pane" data-pcs-pane="timeline" role="tabpanel">
   <div class="pcs-card">
+    {% with t=pc.timeline_tipi %}
     <div class="pcs-card-head"><div><span class="pcs-card-kicker">Tutte le fonti, dal più recente</span><h2>Timeline del dispositivo</h2></div>
       <div class="pcs-filters" data-pcs-tl-filters>
-        <button type="button" class="is-active" data-pcs-tl="">Tutto</button>
-        <button type="button" data-pcs-tl="alert">Alert</button>
-        <button type="button" data-pcs-tl="protezione">Protezione</button>
-        <button type="button" data-pcs-tl="backup">Backup</button>
-        <button type="button" data-pcs-tl="patch">Patch</button>
-        <button type="button" data-pcs-tl="evento">Eventi</button>
+        <button type="button" class="is-active" data-pcs-tl="">Tutto <b>{{ pc.timeline|length }}</b></button>
+        <button type="button" class="pcs-tl-f-alert" data-pcs-tl="alert"{% if not t.alert %} disabled{% endif %}><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-alert"/></svg>Alert <b>{{ t.alert|default:0 }}</b></button>
+        <button type="button" class="pcs-tl-f-protezione" data-pcs-tl="protezione"{% if not t.protezione %} disabled{% endif %}><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-shield"/></svg>Protezione <b>{{ t.protezione|default:0 }}</b></button>
+        <button type="button" class="pcs-tl-f-backup" data-pcs-tl="backup"{% if not t.backup %} disabled{% endif %}><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-disk"/></svg>Backup <b>{{ t.backup|default:0 }}</b></button>
+        <button type="button" class="pcs-tl-f-patch" data-pcs-tl="patch"{% if not t.patch %} disabled{% endif %}><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-gear"/></svg>Patch <b>{{ t.patch|default:0 }}</b></button>
+        <button type="button" class="pcs-tl-f-evento" data-pcs-tl="evento"{% if not t.evento %} disabled{% endif %}><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-signal"/></svg>Eventi <b>{{ t.evento|default:0 }}</b></button>
       </div>
     </div>
-    <ol class="pcs-timeline">
-      {% for v in pc.timeline %}
-        <li class="is-{{ v.tono }}" data-tipo="{{ v.tipo }}">
-          <time class="pcs-mono">{{ v.quando|date:"d/m/Y H:i" }}</time>
-          <div><span class="pcs-tl-src">{{ v.fonte }}</span>{% if v.url %}<a href="{{ v.url }}">{{ v.titolo|ui_label|truncatechars:110 }}</a>{% else %}<span>{{ v.titolo|ui_label|truncatechars:110 }}</span>{% endif %}</div>
-        </li>
-      {% empty %}<li class="pcs-empty">Nessun fatto registrato.</li>{% endfor %}
-    </ol>
+    {% endwith %}
+
+    <div class="pcs-activity" aria-label="Attività degli ultimi 14 giorni">
+      <div class="pcs-activity-bars">
+        {% for g in pc.timeline_barre %}
+          <button type="button" class="is-{{ g.tono }}{% if not g.n %} is-zero{% endif %}" {% if g.id %}data-pcs-day="{{ g.id }}"{% else %}disabled{% endif %}
+                  title="{{ g.giorno|date:'D d/m' }}: {{ g.n }} fatt{{ g.n|pluralize:'o,i' }}"><i style="--h: {{ g.pct }}"></i></button>
+        {% endfor %}
+      </div>
+      <div class="pcs-activity-axis pcs-mono"><span>{{ pc.timeline_barre.0.giorno|date:"d/m" }}</span><span>Attività ultimi 14 giorni · colore = fatto più grave del giorno</span><span>oggi</span></div>
+    </div>
+
+    <div class="pcs-tl" data-pcs-tl-list>
+      {% for g in pc.timeline_giorni %}
+        <div class="pcs-tl-day" id="{{ g.id }}" data-pcs-tl-day>
+          <h3 class="pcs-tl-dayhead"><span>{{ g.label }}</span>{% if g.label == "Oggi" or g.label == "Ieri" %}<small class="pcs-mono">{{ g.giorno|date:"d/m/Y" }}</small>{% endif %}<em data-pcs-tl-daycount>{{ g.voci|length }}</em></h3>
+          <ol>
+            {% for v in g.voci %}
+              <li class="pcs-tl-item is-{{ v.tono }}" data-tipo="{{ v.tipo }}">
+                <time class="pcs-mono">{{ v.ora }}</time>
+                <span class="pcs-tl-ico"><svg class="soc-ico" aria-hidden="true"><use href="#{% if v.tipo == 'alert' %}soc-i-alert{% elif v.tipo == 'backup' %}soc-i-disk{% elif v.tipo == 'patch' %}soc-i-gear{% elif v.tipo == 'protezione' %}soc-i-shield{% else %}soc-i-signal{% endif %}"/></svg></span>
+                <div class="pcs-tl-body">
+                  <span class="pcs-tl-src">{{ v.fonte }}</span>
+                  {% if v.url %}<a href="{{ v.url }}">{{ v.titolo|ui_label|truncatechars:140 }}</a>{% else %}<span class="pcs-tl-title">{{ v.titolo|ui_label|truncatechars:140 }}</span>{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
+      {% empty %}<p class="pcs-empty">Nessun fatto registrato per questo dispositivo.</p>{% endfor %}
+      <p class="pcs-empty" data-pcs-tl-none hidden>Nessun fatto di questo tipo.</p>
+    </div>
   </div>
 </section>
 
