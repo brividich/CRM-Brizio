@@ -651,10 +651,13 @@ def watchguard_task(request):
             for e in scelto.esiti.select_related("hub_asset").order_by("job_il", "pk"):
                 ultimi[(e.host, e.patch_nome)] = e
             esiti = sorted(ultimi.values(), key=lambda e: (e.esito is not None and not e.esito_errore, e.esito is not None, e.host))
+    from .services import watchguard_api
+
+    evidenza = watchguard_api.evidenza_cve(scelto, esiti) if scelto is not None and esiti else None
     ultima = WatchGuardTask.objects.order_by("-letto_il").values_list("letto_il", flat=True).first()
     return render(request, "security/watchguard_task.html", {
         "tasks": tasks[:200], "conteggio": tasks.count(), "q": q, "totali": totali, "scelto": scelto, "esiti": esiti,
-        "ultima": ultima, "attivo": soc_settings.value("watchguard.api.patch"),
+        "evidenza": evidenza, "ultima": ultima, "attivo": soc_settings.value("watchguard.api.patch"),
     })
 
 

@@ -201,7 +201,9 @@ def _riga(host, impatto, ris, esclusione, inventario_il, patch, defender, stale_
         riga["contro"].append(f"patch WatchGuard «{mancanti[0].nome}» ancora mancante")
     elif fatte:
         p = fatte[0]
-        riga["prove"].append(f"patch WatchGuard «{p.nome}» installata{_quando(p.esito_il if p.esito in WG_INSTALLATA else p.chiusa_il)}")
+        task = getattr(p, "task_nome", "")
+        riga["prove"].append(f"patch WatchGuard «{p.nome}» installata{_quando(p.esito_il if p.esito in WG_INSTALLATA else p.chiusa_il)}"
+                             + (f" dal task «{task}» della console" if task else ""))
     if defender is not None and host in defender["noti"]:
         if host in defender["vede"]:
             riga["contro"].append("Defender la vede ancora su questo PC")
@@ -237,6 +239,21 @@ def _verdetto(conteggi, totale, richieste):
     return True, testo + "."
 
 
+def _task_delle_patch(patches):
+    """``p.task_nome``: il task della console che ha installato la patch sul PC (evidenza nella prova)."""
+    from security.models import WatchGuardTaskEsito
+
+    if not patches:
+        return
+    nomi = {}
+    for host, nome, task in (WatchGuardTaskEsito.objects
+                             .filter(host__in={p.host for p in patches}, patch_nome__in={p.nome for p in patches}, esito__in=WG_INSTALLATA)
+                             .order_by("esito_il").values_list("host", "patch_nome", "task__nome")):
+        nomi[(host, nome)] = task  # l'ultimo vince
+    for p in patches:
+        p.task_nome = nomi.get((p.host, p.nome), "")
+
+
 def analisi(alert, record=None, today=None):
     """Stato PC per PC dell'alert e verdetto: chiudibile o perché no.
 
@@ -267,6 +284,7 @@ def analisi(alert, record=None, today=None):
     patch = defaultdict(list)
     for p in WatchGuardPatch.objects.filter(host__in=elenco, cve__contains=f"|{cve_id}|").order_by("nome"):
         patch[p.host].append(p)
+    _task_delle_patch([p for righe in patch.values() for p in righe])
     defender = _defender(cve_id, elenco)
     escluse = esclusioni(alert)
     richieste = PROVE_RICHIESTE_CRITICA if alert_worthy(record) else PROVE_RICHIESTE

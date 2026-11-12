@@ -1877,9 +1877,18 @@ class WatchGuardTask(models.Model):
     in_attesa = models.PositiveIntegerField(default=0)
     completo = models.BooleanField(default=False)
     letto_il = models.DateTimeField(default=timezone.now)
+    # Verifica dopo la fine del task: patch e software riletti da WatchGuard → ricalcolo CVE e chiusura con prove.
+    verifica_il = models.DateTimeField(null=True, blank=True)
+    verifica = models.JSONField(default=dict, blank=True,
+                                help_text="{stato: fatta|saltata|errore, motivo, software: {...}, patch: {...}}")
 
     class Meta:
         ordering = ["-ultimo_job_il", "-pk"]
+
+    @property
+    def verifica_label(self):
+        stato = (self.verifica or {}).get("stato")
+        return {"fatta": "Patch e software riletti", "saltata": "Verifica saltata", "errore": "Verifica non riuscita"}.get(stato, "")
 
     def __str__(self):
         return self.nome or self.task_id
