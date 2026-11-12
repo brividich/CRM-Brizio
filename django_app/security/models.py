@@ -365,6 +365,7 @@ class SecurityEventRecord(models.Model):
             models.Index(fields=["severity", "occurred_at"]),
             models.Index(fields=["asset", "occurred_at"]),
             models.Index(fields=["dedup_hash", "event_type"]),
+            models.Index(fields=["event_type", "occurred_at"], name="sec_event_tipo_quando_idx"),
         ]
 
     def __str__(self):
@@ -1143,6 +1144,7 @@ class SecurityVpnAccess(models.Model):
         indexes = [
             models.Index(fields=["source", "login_at"]),
             models.Index(fields=["username", "login_at"]),
+            models.Index(fields=["action", "login_at"], name="sec_vpn_azione_quando_idx"),
         ]
 
     def __str__(self):
@@ -1414,6 +1416,9 @@ class SoftwareInstallation(models.Model):
         indexes = [
             models.Index(fields=["vendor", "product", "still_detected"], name="sec_sw_product_idx"),
             models.Index(fields=["source_kind", "host"], name="sec_sw_source_host_idx"),
+            # Ultimo inventario dei PC rilevati (cve_chiusura.analisi, migliaia di volte al giorno):
+            # indice chiesto da SQL Server in produzione (sys.dm_db_missing_index_*, 13.930 usi).
+            models.Index(fields=["still_detected", "host", "last_inventory_date"], name="sec_sw_rilevato_host_idx"),
         ]
 
     def __str__(self):
@@ -1913,6 +1918,7 @@ class WatchGuardTaskEsito(models.Model):
     class Meta:
         ordering = ["host", "patch_nome"]
         constraints = [models.UniqueConstraint(fields=["task", "job_id", "host", "patch_nome"], name="sec_wg_task_esito_uniq")]
+        indexes = [models.Index(fields=["host", "patch_nome", "esito"], name="sec_wg_esito_pc_patch_idx")]
 
     def __str__(self):
         return f"{self.host}: {self.patch_nome} ({self.esito_label or 'in attesa'})"

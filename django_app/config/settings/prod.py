@@ -94,7 +94,8 @@ _CACHE_TABLE = env("DJANGO_CACHE_TABLE", "django_cache")
 _CACHE_MAX_ENTRIES = int(env("DJANGO_CACHE_MAX_ENTRIES", "50000") or "50000")
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        # DatabaseCache senza il COUNT(*) della tabella a ogni scrittura (core/cache_db.py).
+        "BACKEND": "core.cache_db.DatabaseCacheLeggera",
         "LOCATION": _CACHE_TABLE,
         "OPTIONS": {
             "MAX_ENTRIES": _CACHE_MAX_ENTRIES,
