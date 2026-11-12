@@ -985,6 +985,14 @@ class ScheduledMailText(models.Model):
         blank=True, default="",
         help_text="Nota a piè di pagina. Vuoto = nessuna nota.",
     )
+    # Passaggio «Invia mail» del flusso (stile Power Automate): valgono per ogni mail
+    # che il processo manda con send_hub_mail mentre gira dentro il flusso gestito.
+    aggiungi_a = models.TextField(blank=True, default="", help_text="Indirizzi aggiunti in A a ogni mail del flusso.")
+    aggiungi_cc = models.TextField(blank=True, default="", help_text="Indirizzi aggiunti in CC a ogni mail del flusso.")
+    escludi = models.TextField(blank=True, default="", help_text="Indirizzi tolti da A e CC.")
+    sostituisci_destinatari = models.BooleanField(
+        default=False, help_text="Se vero, le mail vanno solo agli indirizzi di «aggiungi_a» (i destinatari del modulo non ricevono).")
+    mail_disattivata = models.BooleanField(default=False, help_text="Se vero, il flusso gira ma non manda mail.")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,

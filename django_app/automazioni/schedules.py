@@ -1440,7 +1440,9 @@ def _oggetto_riga(name: str, personalizzato: str = "") -> dict:
     """Oggetto mail da mostrare: quello personalizzato, se c'è, altrimenti il primo di serie."""
     serie = DIGEST_OGGETTO.get(name, ())
     if personalizzato:
-        return {"oggetto": personalizzato, "oggetto_varianti": (), "oggetto_personalizzato": True}
+        from .mail_config import componi_oggetto
+        return {"oggetto": componi_oggetto(personalizzato, serie[0] if serie else ""), "oggetto_varianti": (),
+                "oggetto_personalizzato": True}
     return {"oggetto": serie[0] if serie else "", "oggetto_varianti": serie[1:], "oggetto_personalizzato": False}
 
 

@@ -234,7 +234,7 @@ body.theme-dark .pian-note{color:var(--text-light)}
                 <input type="hidden" name="action" value="run_now">
                 <button class="pian-btn run" type="submit">Esegui ora</button>
               </form>
-              {% if r.configurable %}<button type="button" class="pian-btn" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}" hx-target="#amp-drawer-body">Modifica</button>{% endif %}
+              <button type="button" class="pian-btn" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}" hx-target="#amp-drawer-body">Modifica</button>
             </div>
           </td>
         </tr>

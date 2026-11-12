@@ -69,7 +69,7 @@ class ManagedFlowsTests(TestCase):
         admin = get_user_model().objects.create_superuser("flow_admin", "flow@example.com", "synthetic")
         self.client.force_login(admin)
         designer = reverse("admin_portale:automazioni_rule_designer", args=[self.binding.rule_id])
-        self.assertContains(self.client.get(designer), "Salva pianificazione")
+        self.assertContains(self.client.get(designer), 'name="frequenza"')
         self.assertContains(self.client.get(reverse("admin_portale:automazioni_rule_list")), "Processi del modulo")
         response = self.client.post(reverse("admin_portale:automazioni_pianificati_action"),
             {"name": self.binding.code, "action": "save_schedule", "schedule_type": "I", "minutes": "7", "cron": ""})
@@ -94,7 +94,7 @@ class ManagedFlowsTests(TestCase):
         # La copia salvata resta modificabile nel modulo della regola più in basso, non nella scheda.
         self.assertNotContains(response, '<p class="mf-desc">snapshot alle 08:00')
         self.assertContains(response, "Prossima esecuzione")
-        self.assertContains(response, 'data-mf-type="C"')
+        self.assertContains(response, 'value="0 0 1 * *"')
 
     def setUp(self):
         install_flows()

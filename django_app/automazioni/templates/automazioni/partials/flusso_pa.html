@@ -1,0 +1,138 @@
+{# Flusso in stile Power Automate di un'automazione: Ricorrenza/evento → processo del modulo → Invia mail. Usato nel pannello laterale, nel designer e nella pagina intera. #}
+<div class="pa" data-amp-panel>
+  <header class="pa-head">
+    <div>
+      <div class="pa-kicker">{{ p.module|default:"Automazione" }} · {{ p.name }}</div>
+      <h2 class="pa-title" id="amp-title">{{ p.label|capfirst }}</h2>
+    </div>
+    <div class="pa-head-right">
+      {% if p.attivo %}<span class="pa-pill pa-pill--on">Attivo</span>{% else %}<span class="pa-pill pa-pill--off">Disattivato</span>{% endif %}
+      <button type="button" class="pa-close" data-amp-close aria-label="Chiudi">×</button>
+    </div>
+  </header>
+
+  <form method="post" action="{% url 'admin_portale:automazioni_pianificati_mail_save' name=p.name %}" class="pa-form" data-pa-form>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+
+    <ol class="pa-steps">
+      {# ── 1. Trigger ── #}
+      <li>
+        {% if p.pianificato %}
+        <details class="pa-card pa-card--trigger" open>
+          <summary class="pa-card-head"><span class="pa-ico" aria-hidden="true">⏰</span><span class="pa-name">Ricorrenza</span><span class="pa-sum">{{ p.cadence }}</span></summary>
+          <div class="pa-card-body">
+            {% if p.modificabile %}
+            <label class="pa-field"><span>Frequenza</span>
+              <select name="frequenza" data-pa-freq>
+                {% for val, lab in p.frequenze %}<option value="{{ val }}"{% if p.ric.frequenza == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="pa-field pa-field--short" data-pa-show="minuti"><span>Ogni quanti minuti</span>
+              <input type="number" name="minuti" min="1" max="10080" value="{{ p.ric.minuti }}"></label>
+            <label class="pa-field pa-field--short" data-pa-show="giorno mese"><span>Alle ore</span>
+              <input type="time" name="orario" value="{{ p.ric.orario }}"></label>
+            <fieldset class="pa-field" data-pa-show="giorno"><legend>Nei giorni</legend>
+              <div class="pa-days">
+                {% for val, lab in p.giorni_settimana %}<label class="pa-day"><input type="checkbox" name="giorni" value="{{ val }}"{% if val in p.ric.giorni %} checked{% endif %}><span>{{ lab }}</span></label>{% endfor %}
+              </div>
+            </fieldset>
+            <label class="pa-field pa-field--short" data-pa-show="mese"><span>Giorno del mese</span>
+              <input type="number" name="giorno_mese" min="1" max="31" value="{{ p.ric.giorno_mese }}"></label>
+            <label class="pa-field" data-pa-show="personalizzato"><span>Calendario (minuto ora giorno mese giorno-settimana)</span>
+              <input type="text" name="cron" value="{{ p.ric.cron }}" placeholder="0 7 * * 1-5" spellcheck="false">
+              <small class="pa-hint">Es. <code>40 7-19 * * 1-5</code> = ai minuti 40 dalle 7 alle 19, da lunedì a venerdì. Fuso del portale.</small></label>
+            <small class="pa-hint">Prossima esecuzione: {% if p.next_run %}{{ p.next_run|date:"d/m/Y H:i" }}{% elif p.attivo %}in attesa del pianificatore{% else %}nessuna, flusso disattivato{% endif %}.</small>
+            {% else %}
+            <p class="pa-hint">Il flusso non è ancora installato: il calendario si cambia dopo <code>setup_q_schedules</code>.</p>
+            {% endif %}
+          </div>
+        </details>
+        {% else %}
+        <details class="pa-card pa-card--event" open>
+          <summary class="pa-card-head"><span class="pa-ico" aria-hidden="true">⚡</span><span class="pa-name">Quando accade nel modulo</span></summary>
+          <div class="pa-card-body"><p class="pa-text">{{ p.quando_evento }}</p></div>
+        </details>
+        {% endif %}
+      </li>
+      <li class="pa-arrow" aria-hidden="true"></li>
+
+      {# ── 2. Processo del modulo ── #}
+      <li>
+        <details class="pa-card pa-card--process">
+          <summary class="pa-card-head"><span class="pa-ico" aria-hidden="true">⚙</span><span class="pa-name">Esegui processo del modulo</span><span class="pa-sum">{{ p.module }}</span></summary>
+          <div class="pa-card-body"><p class="pa-text">{{ p.description|default:"Processo del modulo." }}</p>
+            <p class="pa-hint">Raccoglie i dati e decide cosa mandare con le regole del modulo.</p></div>
+        </details>
+      </li>
+      <li class="pa-arrow" aria-hidden="true"></li>
+
+      {# ── 3. Invia mail ── #}
+      <li>
+        {% if p.manda_mail == "no" %}
+        <div class="pa-card pa-card--bell">
+          <div class="pa-card-head"><span class="pa-ico" aria-hidden="true">🔔</span><span class="pa-name">Notifica nel portale</span><span class="pa-sum">nessuna mail</span></div>
+          <div class="pa-card-body"><p class="pa-hint">{{ p.a_chi|default:"I destinatari li sceglie il modulo." }}</p></div>
+        </div>
+        {% else %}
+        <details class="pa-card pa-card--mail"{% if p.manda_mail == "si" %} open{% endif %}>
+          <summary class="pa-card-head"><span class="pa-ico" aria-hidden="true">✉</span><span class="pa-name">Invia un messaggio di posta</span>
+            <span class="pa-sum">{% if p.mail_disattivata %}spenta{% elif p.manda_mail == "forse" %}se il processo manda mail{% endif %}</span></summary>
+          <div class="pa-card-body">
+            <input type="hidden" name="mail_step" value="1">
+            <label class="pa-switch"><input type="checkbox" name="invia_mail" value="1"{% if not p.mail_disattivata %} checked{% endif %}><span>Invia la mail</span></label>
+
+            <div class="pa-field"><span class="pa-label">A</span>
+              {% if p.config_key %}
+                <textarea name="recipients" rows="2" placeholder="rspp@azienda.it, hr@azienda.it">{{ p.recipients }}</textarea>
+                <small class="pa-hint">{% if p.solo_destinatari %}Vuoto: la mail non parte.{% else %}Vuoto: arriva agli amministratori di sistema.{% endif %}</small>
+                <input type="hidden" name="aggiungi_a" value="{{ p.aggiungi_a }}">
+              {% else %}
+                <div class="pa-chips"><span class="pa-chip" title="Contenuto dinamico: li calcola il modulo">👥 {{ p.a_chi|default:"Destinatari del modulo" }}</span></div>
+                <textarea name="aggiungi_a" rows="2" placeholder="Aggiungi altri indirizzi in A">{{ p.aggiungi_a }}</textarea>
+              {% endif %}
+            </div>
+            <label class="pa-field"><span class="pa-label">CC</span>
+              <textarea name="aggiungi_cc" rows="2" placeholder="Indirizzi in copia">{{ p.aggiungi_cc }}</textarea></label>
+            <div class="pa-field"><label class="pa-label" for="pa-subj-{{ p.name }}">Oggetto</label>
+              <input type="text" id="pa-subj-{{ p.name }}" name="subject" maxlength="300" value="{{ p.subject }}" placeholder="{{ p.oggetto_predefinito|default:'Oggetto del modulo' }}" data-pa-subject>
+              <div class="pa-chips"><button type="button" class="pa-chip pa-chip--btn" data-pa-token="{{ p.token_oggetto }}">＋ Oggetto del modulo</button></div>
+              <small class="pa-hint">Vuoto: oggetto del modulo. «{{ p.token_oggetto }}» lo riprende dentro il tuo, es. «[HR] {{ p.token_oggetto }}».</small>
+            </div>
+            <div class="pa-field"><span class="pa-label">Corpo</span>
+              <textarea name="intro" rows="2" placeholder="Testo prima del contenuto">{{ p.intro }}</textarea>
+              <div class="pa-chips"><span class="pa-chip pa-chip--block" title="Contenuto dinamico">📋 Contenuto generato dal modulo</span></div>
+              <textarea name="footer" rows="2" placeholder="Nota in fondo">{{ p.footer }}</textarea>
+            </div>
+            <details class="pa-adv"{% if p.escludi or p.sostituisci %} open{% endif %}>
+              <summary>Mostra opzioni avanzate</summary>
+              <label class="pa-field"><span class="pa-label">Non inviare a</span>
+                <textarea name="escludi" rows="2" placeholder="Indirizzi da togliere da A e CC">{{ p.escludi }}</textarea></label>
+              {% if not p.config_key %}
+              <label class="pa-switch"><input type="checkbox" name="sostituisci" value="1"{% if p.sostituisci %} checked{% endif %}><span>Manda solo agli indirizzi scritti in A: i destinatari del modulo non ricevono</span></label>
+              {% endif %}
+            </details>
+          </div>
+        </details>
+        {% endif %}
+      </li>
+    </ol>
+
+    <div class="pa-actions">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      {% if p.manda_mail != "no" %}<button type="submit" class="btn btn-light" form="pa-test-{{ p.name }}">Invia prova a me</button>{% endif %}
+      {% if p.pianificato %}<button type="submit" class="btn btn-light" form="pa-run-{{ p.name }}">Esegui ora</button>{% endif %}
+      {% if p.rule_id %}<a class="btn btn-light" href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ p.rule_id }}">Storico</a>{% endif %}
+    </div>
+  </form>
+  {% if p.manda_mail != "no" %}
+  <form method="post" id="pa-test-{{ p.name }}" action="{% url 'admin_portale:automazioni_pianificati_mail_test' name=p.name %}" hidden>
+    {% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}">
+  </form>
+  {% endif %}
+  {% if p.pianificato %}
+  <form method="post" id="pa-run-{{ p.name }}" action="{% url 'admin_portale:automazioni_pianificati_action' %}" hidden>
+    {% csrf_token %}<input type="hidden" name="name" value="{{ p.name }}"><input type="hidden" name="action" value="run_now">
+  </form>
+  {% endif %}
+</div>

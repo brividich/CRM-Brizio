@@ -1,0 +1,81 @@
+/* Flusso in stile Power Automate (Pianificati, Notifiche di sistema, designer). */
+.amp-backdrop { position:fixed; inset:0; z-index:1200; background:rgba(15,23,42,.38); display:flex; justify-content:flex-end; }
+.amp-backdrop[hidden] { display:none; }
+.amp-drawer { width:min(600px, 100vw); height:100%; overflow:auto; background:var(--pa-canvas); box-shadow:-12px 0 32px rgba(15,23,42,.18); box-sizing:border-box; }
+.amp-hint { font-size:12.5px; color:var(--text-light, #64748b); margin:16px; }
+
+.pa { --pa-canvas:#f3f2f1; --pa-card:#fff; --pa-line:#8a8886; --pa-border:#e1dfdd; --pa-text:#201f1e; --pa-sub:#605e5c;
+      background:var(--pa-canvas); color:var(--pa-text); padding:18px 20px 0; min-height:100%; box-sizing:border-box; }
+.amp-drawer { --pa-canvas:#f3f2f1; }
+body.theme-dark .pa, body.theme-dark .amp-drawer { --pa-canvas:#11161f; --pa-card:#1b2230; --pa-line:#4b5563; --pa-border:#2b3444; --pa-text:#e5e7eb; --pa-sub:#9ca3af; }
+
+.pa-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px; }
+.pa-kicker { font-size:11px; color:var(--pa-sub); font-family:ui-monospace,Menlo,Consolas,monospace; }
+.pa-title { margin:2px 0 0; font-size:18px; color:var(--pa-text); }
+.pa-head-right { display:flex; gap:8px; align-items:center; }
+.pa-pill { font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px; }
+.pa-pill--on { background:#dff6dd; color:#107c10; }
+.pa-pill--off { background:#fde7e9; color:#a4262c; }
+.pa-close { border:0; background:none; font-size:26px; line-height:1; cursor:pointer; color:inherit; padding:0 4px; }
+
+.pa-steps { list-style:none; margin:0 auto; padding:0; max-width:560px; }
+.pa-arrow { height:28px; position:relative; }
+.pa-arrow::before { content:""; position:absolute; left:50%; top:0; bottom:6px; border-left:1.5px solid var(--pa-line); }
+.pa-arrow::after { content:""; position:absolute; left:calc(50% - 5px); bottom:0; border:5px solid transparent; border-top:6px solid var(--pa-line); border-bottom:0; }
+
+.pa-card { --pa-c:#0f6cbd; background:var(--pa-card); border:1px solid var(--pa-border); border-radius:6px; box-shadow:0 1.6px 3.6px rgba(0,0,0,.08), 0 .3px .9px rgba(0,0,0,.06); overflow:hidden; }
+.pa-card--trigger { --pa-c:#0f6cbd; }
+.pa-card--event { --pa-c:#8764b8; }
+.pa-card--process { --pa-c:#5c6b7a; }
+.pa-card--mail { --pa-c:#0078d4; }
+.pa-card--bell { --pa-c:#c19c00; }
+.pa-card-head { display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; list-style:none; border-top:3px solid var(--pa-c); }
+.pa-card-head::-webkit-details-marker { display:none; }
+details.pa-card > .pa-card-head::after { content:"⌄"; margin-left:auto; color:var(--pa-sub); transition:transform .15s; }
+details.pa-card[open] > .pa-card-head::after { transform:rotate(180deg); }
+.pa-ico { width:28px; height:28px; border-radius:4px; background:var(--pa-c); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:15px; flex:none; }
+.pa-name { font-weight:700; font-size:14px; }
+.pa-sum { font-size:12px; color:var(--pa-sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.pa-card-body { padding:4px 14px 14px; border-top:1px solid var(--pa-border); }
+.pa-text { font-size:13px; margin:10px 0 6px; }
+.pa-hint { display:block; font-size:12px; color:var(--pa-sub); margin:4px 0 0; }
+
+.pa-field { display:grid; gap:4px; margin:12px 0 0; border:0; padding:0; font-size:12px; font-weight:600; color:var(--pa-sub); }
+.pa-field legend { padding:0; margin-bottom:4px; }
+.pa-field--short { max-width:180px; }
+.pa-label { font-weight:700; color:var(--pa-text); }
+.pa-field input[type=text], .pa-field input[type=number], .pa-field input[type=time], .pa-field select, .pa-field textarea {
+  width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid #8a8886; border-radius:2px; font:inherit; font-weight:400; font-size:14px;
+  background:var(--pa-card); color:var(--pa-text); }
+body.theme-dark .pa-field input, body.theme-dark .pa-field select, body.theme-dark .pa-field textarea { border-color:var(--pa-border); }
+.pa-field input:focus, .pa-field select:focus, .pa-field textarea:focus { outline:2px solid #0f6cbd; outline-offset:-1px; }
+.pa-field textarea { resize:vertical; }
+.pa-field [hidden], [data-pa-show][hidden] { display:none !important; }
+.pa-days { display:flex; flex-wrap:wrap; gap:6px; }
+.pa-day input { position:absolute; opacity:0; }
+.pa-day span { display:inline-block; min-width:42px; text-align:center; padding:5px 8px; border:1px solid #8a8886; border-radius:2px; cursor:pointer; color:var(--pa-text); font-weight:600; }
+.pa-day input:checked + span { background:#0f6cbd; border-color:#0f6cbd; color:#fff; }
+.pa-day input:focus-visible + span { outline:2px solid #0f6cbd; outline-offset:1px; }
+
+.pa-chips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0; }
+.pa-chip { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; border-radius:2px; padding:3px 8px; background:#deecf9; color:#004578; border:0; }
+.pa-chip--btn { cursor:pointer; }
+.pa-chip--btn:hover { background:#c7e0f4; }
+.pa-chip--block { width:100%; box-sizing:border-box; padding:8px; background:#f3f9fd; border:1px dashed #71afe5; }
+body.theme-dark .pa-chip { background:rgba(96,165,250,.16); color:#bfdbfe; }
+body.theme-dark .pa-chip--block { background:rgba(96,165,250,.08); border-color:rgba(96,165,250,.4); }
+
+.pa-switch { display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px; font-weight:600; color:var(--pa-text); cursor:pointer; }
+.pa-adv { margin-top:14px; }
+.pa-adv > summary { font-size:13px; font-weight:600; color:#0f6cbd; cursor:pointer; }
+
+.pa-actions { display:flex; flex-wrap:wrap; gap:8px; max-width:560px; margin:18px auto 0; padding:12px 0 16px; position:sticky; bottom:0; background:var(--pa-canvas); border-top:1px solid var(--pa-border); }
+.pa-embed { margin:0 0 18px; border:1px solid var(--pa-border, #e1dfdd); border-radius:10px; overflow:hidden; }
+.pa-embed .pa-close { display:none; }
+@media (max-width:600px) { .pa { padding:14px 12px 0; } .pa-sum { display:none; } }
+
+/* Card «Esegui processo del modulo» nel designer completo: niente preset né base suggerita. */
+.designer-action-card--native [data-suggestion-hint],
+.designer-action-card--native [data-preset-zone],
+.designer-action-card--native .designer-inline-banner { display:none !important; }
+.amp-native { margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
