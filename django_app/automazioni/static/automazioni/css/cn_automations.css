@@ -1,0 +1,100 @@
+/* CN Automations: il designer delle regole in stile Power Automate.
+   Stessi campi e stesso salvataggio del designer classico: cambia solo come si legge.
+   La classe .cn-auto sta su [data-cn-shell]; senza JavaScript resta la vista classica. */
+.cn-only { display:none; }
+.cn-auto .cn-only { display:inline-flex; }
+.cn-auto .cn-hide { display:none !important; }
+
+.cn-auto { --cn-canvas:#f3f2f1; --cn-card:#fff; --cn-border:#e1dfdd; --cn-line:#8a8886; --cn-sub:#605e5c; --cn-text:#201f1e; }
+body.theme-dark .cn-auto { --cn-canvas:#11161f; --cn-card:#1b2230; --cn-border:#2b3444; --cn-line:#4b5563; --cn-sub:#9ca3af; --cn-text:#e5e7eb; }
+
+.cn-auto .designer-main { background:var(--cn-canvas); border-radius:12px; padding:14px; }
+.cn-auto .designer-section-subtitle,
+.cn-auto .designer-section-head > .designer-pill-row,
+.cn-auto .designer-section-body > .designer-note,
+.cn-auto [data-action-card] > .designer-pill-row,
+.cn-auto [data-condition-card] > .designer-pill-row,
+.cn-auto [data-apply-suggestion],
+.cn-auto [data-apply-condition-suggestion],
+.cn-auto [data-move],
+.cn-auto [data-preset-zone],
+.cn-auto [data-condition-preset-zone],
+.cn-auto .designer-inline-banner,
+.cn-auto [data-suggestion-hint] { display:none !important; }
+
+/* In CN Automations i riquadri «Step 1-2-3» e il selettore compatta/flow ripetono i passaggi qui sotto */
+.cn-auto .designer-flow,
+.cn-auto .designer-view-switch { display:none !important; }
+.cn-auto #actions-section .designer-sortable,
+.cn-auto #actions-section .designer-add-stack,
+.cn-auto #conditions-section .designer-sortable { display:block; }
+.cn-auto #actions-section > .designer-section-head { padding-bottom:0; margin-bottom:-8px; }
+
+/* Colonna centrale con i passaggi uno sotto l'altro */
+.cn-auto #trigger-section,
+.cn-auto #conditions-section,
+.cn-auto #actions-section { width:100%; max-width:760px; box-sizing:border-box; margin-left:auto; margin-right:auto; position:relative; }
+.cn-auto #trigger-section,
+.cn-auto #conditions-section { margin-bottom:34px; }
+.cn-auto #trigger-section::after,
+.cn-auto #conditions-section::after,
+.cn-auto .designer-action-card + .designer-action-card::before,
+.cn-auto .designer-add-stack > [data-action-card]::before {
+  content:""; position:absolute; left:50%; top:-28px; height:22px; border-left:1.5px solid var(--cn-line);
+}
+.cn-auto #trigger-section::after,
+.cn-auto #conditions-section::after { top:auto; bottom:-30px; }
+.cn-auto .designer-action-card + .designer-action-card,
+.cn-auto .designer-add-stack > [data-action-card] { margin-top:34px; position:relative; }
+
+/* Card dei passaggi */
+.cn-auto #trigger-section .designer-section-card,
+.cn-auto #conditions-section,
+.cn-auto [data-action-card],
+.cn-auto [data-condition-card] {
+  background:var(--cn-card); border:1px solid var(--cn-border); border-radius:6px;
+  box-shadow:0 1.6px 3.6px rgba(0,0,0,.08), 0 .3px .9px rgba(0,0,0,.06);
+}
+.cn-auto #trigger-section .designer-section-card { border-top:3px solid #0f6cbd; }
+.cn-auto #conditions-section { border-top:3px solid #8764b8; }
+.cn-auto #actions-section { background:transparent; border:0; box-shadow:none; }
+.cn-auto #actions-section > .designer-section-head { justify-content:center; text-align:center; }
+.cn-auto [data-action-card] { border-top:3px solid var(--cn-c, #0f6cbd); padding:12px 14px; }
+.cn-auto [data-condition-card] { box-shadow:none; }
+
+.cn-auto .designer-section-title { display:flex; align-items:center; gap:10px; font-size:15px; }
+.cn-auto #trigger-section .designer-section-title::before,
+.cn-auto #conditions-section .designer-section-title::before {
+  width:28px; height:28px; border-radius:4px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:15px; flex:none;
+}
+.cn-auto #trigger-section .designer-section-title::before { content:"⚡"; background:#0f6cbd; }
+.cn-auto #conditions-section .designer-section-title::before { content:"⑂"; background:#8764b8; }
+
+.cn-auto [data-action-card] > .designer-header { align-items:center; gap:10px; }
+.cn-step-ico { width:28px; height:28px; border-radius:4px; background:var(--cn-c, #0f6cbd); color:#fff; align-items:center; justify-content:center; font-size:15px; flex:none; }
+.cn-auto [data-action-card] .designer-summary-kicker { text-transform:none; letter-spacing:0; color:var(--cn-sub); }
+.cn-auto [data-action-card] [data-action-label] { font-weight:700; }
+.cn-auto [data-action-card] [data-action-preview] { background:transparent; border:0; padding:6px 0 0 38px; color:var(--cn-sub); font-size:12.5px; }
+.cn-auto [data-action-card] > .designer-header .designer-actions { margin-left:auto; }
+
+/* Editor della card: come la scheda di un'azione Power Automate */
+.cn-auto .designer-editor-summary { color:#0f6cbd; font-weight:600; }
+.cn-auto .designer-editor-panel { border:0; background:transparent; padding:0; }
+.cn-auto .designer-editor-panel-title { font-size:12px; color:var(--cn-sub); text-transform:none; letter-spacing:0; }
+.cn-auto .designer-field label { text-transform:none; letter-spacing:0; font-size:12.5px; color:var(--cn-text); }
+.cn-auto .designer-field input:not([type=checkbox]):not([type=radio]),
+.cn-auto .designer-field select,
+.cn-auto .designer-field textarea { border-radius:2px; border-color:#8a8886; }
+.cn-auto .designer-subeditor-summary { color:#0f6cbd; }
+
+/* Pulsanti «+» tra i passaggi */
+.cn-auto [data-add-condition],
+.cn-auto #actions-section .designer-section-body > .btn,
+.cn-auto #actions-section [data-add-action] {
+  display:block; margin:18px auto 0; border-radius:999px; border:1px dashed #0f6cbd; color:#0f6cbd; background:var(--cn-card);
+}
+
+/* Contenuto dinamico: il catalogo dei campi accanto ai passaggi */
+.cn-auto .designer-source-panel { border-top:3px solid #0078d4; }
+
+@media (max-width:760px) { .cn-auto .designer-main { padding:8px; } }

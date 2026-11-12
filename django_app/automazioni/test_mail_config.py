@@ -276,3 +276,49 @@ class FlussoPowerAutomateTests(TestCase):
         self.assertContains(r, 'id="designer-avanzato" hidden')
         self.assertContains(r, "A: rspp@x.local")
         self.assertContains(r, 'id="native-preview"')
+
+
+class MailFuoriCanaleTests(TestCase):
+    """Le mail costruite a mano (assenze, RENTRI, SOC) seguono il passaggio «Invia mail» del flusso."""
+
+    def _invia(self, codice, msg):
+        from automazioni import managed_flows
+        from core.email_utils import invia_con_regole_flusso
+        token = managed_flows._invocation.set({"code": codice, "call": None, "used": True, "result": None})
+        try:
+            return invia_con_regole_flusso(msg)
+        finally:
+            managed_flows._invocation.reset(token)
+
+    def _msg(self):
+        from django.core.mail import EmailMultiAlternatives
+        m = EmailMultiAlternatives(subject="Esito assenza", body="Corpo", to=["dip@x.local"])
+        m.attach_alternative("<html><body><p>Corpo</p></body></html>", "text/html")
+        return m
+
+    def test_cc_oggetto_e_testo_su_mail_costruita_a_mano(self):
+        ScheduledMailText.objects.create(task_name="assenze_esito_dipendente", aggiungi_cc="hr@x.local",
+                                         subject="[HR] {oggetto}", intro="Buongiorno", footer="Ufficio HR")
+        self.assertEqual(self._invia("assenze_esito_dipendente", self._msg()), 1)
+        m = mail.outbox[0]
+        self.assertEqual((m.subject, m.cc), ("[HR] Esito assenza", ["hr@x.local"]))
+        self.assertTrue(m.body.startswith("Buongiorno"))
+        html = m.alternatives[0][0]
+        self.assertIn("<body><p style='margin:0 0 12px'>Buongiorno</p>", html)
+        self.assertIn("Ufficio HR</p></body>", html)
+
+    def test_mail_spenta_non_parte(self):
+        ScheduledMailText.objects.create(task_name="assenze_esito_dipendente", mail_disattivata=True)
+        self.assertEqual(self._invia("assenze_esito_dipendente", self._msg()), 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_fuori_dal_flusso_invariata(self):
+        from core.email_utils import invia_con_regole_flusso
+        ScheduledMailText.objects.create(task_name="assenze_esito_dipendente", aggiungi_cc="hr@x.local")
+        invia_con_regole_flusso(self._msg())
+        self.assertEqual(mail.outbox[0].cc, [])
+
+    def test_assenze_esito_registrato_come_flusso(self):
+        from automazioni.managed_flows import catalog
+        self.assertIn("assenze_esito_dipendente", catalog())
+        self.assertEqual(catalog()["assenze_esito_dipendente"]["kind"], "event")

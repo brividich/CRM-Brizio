@@ -18,6 +18,8 @@ from core import naming
 
 from .mail_delete_service import _dedup_recipients
 from .mail_modifica_service import _assenze_mailbox
+from automazioni.managed_flows import event_flow
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,7 @@ def _ora(t) -> str:
     return t.strftime("%H:%M") if t else ""
 
 
+@event_flow("assenze_certificazione_presenza", skipped_result=False)
 def send_certificazione_confermata(cert, *, inserito_da_email: str = "", inserito_da_nome: str = "") -> bool:
     """Ritorna True se la mail è partita. Non solleva mai."""
     from automazioni.mail_inviate import registra
@@ -122,7 +125,7 @@ def send_certificazione_confermata(cert, *, inserito_da_email: str = "", inserit
             cc=cc_list,
         )
         msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning("send_certificazione_confermata: invio fallito per certificazione id=%s", cert.pk, exc_info=True)
         registra(origine="assenze_certificazione", destinatari=to_list, copia=cc_list, oggetto=subject,

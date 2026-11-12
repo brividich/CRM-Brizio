@@ -332,3 +332,43 @@ def _registra_invio(subject, recipients, cc, email_type: str, *, errore: str = "
         registra(origine="hub", destinatari=recipients, copia=cc, oggetto=subject, sorgente=email_type, errore=errore)
     except Exception:
         logger.warning("Mail non scritta nel registro", exc_info=True)
+
+
+def invia_con_regole_flusso(msg, *, fail_silently: bool = False) -> int:
+    """Invia un ``EmailMessage`` già costruito applicando il passaggio «Invia mail» del flusso gestito.
+
+    Per le mail che non passano da :func:`send_hub_mail` (assenze, RENTRI, report scadenze, SOC):
+    dentro un flusso valgono A/CC aggiunti, esclusi, oggetto, testo prima/nota e mail spenta;
+    fuori da un flusso è un normale ``msg.send``. Ritorna 0 se una regola ferma la mail.
+    """
+    import re
+    from html import escape
+
+    try:
+        from automazioni.mail_config import personalizza_invio
+
+        regole = personalizza_invio(msg.subject, "", "", "", list(msg.to or []), list(msg.cc or []))
+    except Exception:
+        logger.warning("Regole mail del flusso non applicate", exc_info=True)
+        regole = None
+    if regole:
+        if regole["blocca"]:
+            _registra_invio(msg.subject, msg.to, msg.cc, "Flusso", errore=f"Non inviata: {regole['motivo']}.")
+            return 0
+        msg.subject, msg.to, msg.cc = regole["subject"], list(regole["recipients"]), list(regole["cc"])
+        intro, footer = (regole["intro"], regole["footer"]) if regole["testo_applicato"] else ("", "")
+        if intro or footer:
+            msg.body = "\n\n".join(x for x in (intro, msg.body, footer) if x)
+            p_intro = "".join(f"<p style='margin:0 0 12px'>{escape(r)}</p>" for r in intro.splitlines() if r.strip())
+            p_footer = "".join(f"<p style='margin:12px 0 0;color:#64748b'>{escape(r)}</p>" for r in footer.splitlines() if r.strip())
+            alternative = list(getattr(msg, "alternatives", []) or [])
+            if alternative:
+                msg.alternatives = []
+                for contenuto, tipo in alternative:
+                    if tipo == "text/html" and isinstance(contenuto, str):
+                        m = re.search(r"<body[^>]*>", contenuto, flags=re.I)
+                        contenuto = (contenuto[:m.end()] + p_intro + contenuto[m.end():]) if m else p_intro + contenuto
+                        i = contenuto.lower().rfind("</body>")
+                        contenuto = (contenuto[:i] + p_footer + contenuto[i:]) if i != -1 else contenuto + p_footer
+                    msg.attach_alternative(contenuto, tipo)
+    return msg.send(fail_silently=fail_silently)

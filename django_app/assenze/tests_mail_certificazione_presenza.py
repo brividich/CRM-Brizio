@@ -3,7 +3,7 @@ from datetime import date, time
 from unittest import mock
 
 from django.core import mail
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from assenze import mail_certificazione_presenza as svc
 from assenze.models import CertificazionePresenza
@@ -20,7 +20,7 @@ def _cert(**kw):
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 @mock.patch("automazioni.mail_inviate.registra")
 @mock.patch.object(svc, "_assenze_mailbox", return_value="assenza@example.com")
-class CertificazioneConfermataTests(SimpleTestCase):
+class CertificazioneConfermataTests(TestCase):  # le mail passano dal flusso gestito (DB)
     def test_dipendente_e_chi_inserisce_con_ufficio_in_copia(self, _mb, registra):
         with mock.patch.object(svc, "email_dipendente_per_nome", return_value="mario.rossi@example.com"):
             self.assertTrue(svc.send_certificazione_confermata(
