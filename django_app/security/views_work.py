@@ -397,12 +397,12 @@ def _device_names(query):
 def pc_detail(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    from .services.pc_overview import pc_overview
+    from .services.pc_overview import pc_scheda
 
     name = request.GET.get("nome", "").strip()
     if not name:
         raise Http404("Dispositivo non indicato.")
-    data = pc_overview(name)
+    data = pc_scheda(name)
     if data is None:
         raise Http404("Nessun dato SOC per questo dispositivo.")
     return render(request, "security/pc_detail.html", {"pc": data})

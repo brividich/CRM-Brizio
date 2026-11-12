@@ -78,7 +78,10 @@ class CveUnichePerPcTests(_Base):
         rows = {r["key"]: r for r in pc_copertura.righe(proposte=False)}
         self.assertEqual(rows["pc-cve"]["cve"]["cves"], 3)
         scheda = self.client.get(reverse("security:pc_detail") + "?nome=PC-CVE").content.decode()
-        self.assertIn('<span class="sec-badge">3</span>', scheda)
+        self.assertIn("<span>CVE</span><strong>3</strong>", scheda)  # KPI in testata
+        self.assertIn("<span><strong>3</strong>CVE</span>", scheda)  # anello per gravità
+        for cve in ("CVE-2099-1001", "CVE-2099-1002", "CVE-2099-1003"):
+            self.assertEqual(scheda.count(f"<strong>{cve}</strong>"), 1, cve)
         pannello = self.client.get(reverse("security:preview_pc") + "?nome=PC-CVE")
         self.assertContains(pannello, "3 CVE, 2 gravi")
         for cve in ("CVE-2099-1001", "CVE-2099-1002", "CVE-2099-1003"):  # inventario e Defender, ognuna una volta
