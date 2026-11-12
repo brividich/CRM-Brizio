@@ -1,3 +1,4 @@
+{% load anomalie_extra %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -94,7 +95,7 @@
                       <td style="width:6px;background:#dc2626;">&nbsp;</td>
                       <td style="padding:12px 15px;">
                         <div style="font-size:11px;color:#991b1b;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
-                          Anomalia #{{ u.id }}{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
+                          Anomalia <span style="font-family:Consolas,monospace;">{{ u.id|codice_anomalia }}</span>{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
                         </div>
                         <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                           Avanzamento: {{ u.avanzamento|default:"(invariato)" }}
@@ -148,7 +149,7 @@
                       <td style="width:6px;background:#2563eb;">&nbsp;</td>
                       <td style="padding:12px 15px;">
                         <div style="font-size:11px;color:#1e40af;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
-                          Anomalia #{{ u.id }}{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
+                          Anomalia <span style="font-family:Consolas,monospace;">{{ u.id|codice_anomalia }}</span>{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
                         </div>
                         <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                           Avanzamento: {{ u.avanzamento|default:"(invariato)" }}
@@ -188,7 +189,7 @@
                 <td style="width:6px;background:#1f5c91;">&nbsp;</td>
                 <td style="padding:13px 16px;">
                   <div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
-                    Anomalia #{{ u.id }}{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
+                    Anomalia <span style="font-family:Consolas,monospace;">{{ u.id|codice_anomalia }}</span>{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
                   </div>
                   <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                     Avanzamento: {{ u.avanzamento|default:"(invariato)" }}

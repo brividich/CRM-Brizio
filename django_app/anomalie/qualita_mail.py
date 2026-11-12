@@ -12,6 +12,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from .codice import codice_anomalia  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 AZIONE_RISPONDI = "rispondi_info"
@@ -57,11 +59,12 @@ def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: st
 
     esito = {"inviate": 0, "notificati": 0, "senza_email": []}
     chi = richiesta.richiesta_da_display or "La qualità"
+    codice = codice_anomalia(richiesta.anomalia_id)
     for ruolo, utente in _destinatari_legacy(richiesta.anomalia_id, op_id, richiesta.destinatari or []):
         try:
             Notifica.objects.create(
                 legacy_user_id=utente.pk, tipo="anomalia_da_gestire",
-                messaggio=f"OP {op_id}, S/N {seriale or '—'}: {chi} chiede informazioni sulla segnalazione."[:500],
+                messaggio=f"OP {op_id}, {codice} (S/N {seriale or '—'}): {chi} chiede informazioni sulla segnalazione."[:500],
                 url_azione=op_url(op_id),
             )
             esito["notificati"] += 1
@@ -85,9 +88,9 @@ def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: st
             logger.warning("richiesta info: link di risposta non creato", exc_info=True)
         portale = op_portal_link(op_id)
         ruolo_txt = "capocommessa" if ruolo == "cc" else "controllore"
-        subject = f"[Novicrom Hub] OP {op_id} — la qualità chiede informazioni (S/N {seriale or '—'})"
+        subject = f"[Novicrom Hub] OP {op_id} — la qualità chiede informazioni su {codice} (S/N {seriale or '—'})"
         lines = [f"{chi} chiede informazioni aggiuntive sulla segnalazione (sei il {ruolo_txt}).", "",
-                 f"  • OP {op_id} · S/N {seriale or '—'}", f"      {(descrizione or '—')[:200]}", "",
+                 f"  • {codice} · OP {op_id} · S/N {seriale or '—'}", f"      {(descrizione or '—')[:200]}", "",
                  "Richiesta:", f"  {richiesta.messaggio}", ""]
         if link:
             lines.append(f"Rispondi qui (senza accesso): {link}")
@@ -98,7 +101,7 @@ def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: st
             title="La qualità chiede informazioni sulla segnalazione",
             intro=f"{'Buongiorno ' + nome + ', ' if nome else ''}{chi} chiede informazioni aggiuntive: "
                   f"«{richiesta.messaggio[:500]}»",
-            columns=["S/N", "Anomalia"], rows=[[seriale or "—", (descrizione or "—")[:200]]],
+            columns=["ID", "S/N", "Anomalia"], rows=[[codice, seriale or "—", (descrizione or "—")[:200]]],
             cta_url=link or portale, cta_label="Rispondi",
         )
         if _send(kind="richiesta_info", subject=subject, lines=lines, html=html, to=[email], op_id=op_id,
@@ -125,10 +128,11 @@ def invia_risposta_info(*, richiesta, op_id: str, seriale: str) -> None:
     if legacy is None:
         return
     chi = richiesta.risposta_da_display or "Il capocommessa"
+    codice = codice_anomalia(richiesta.anomalia_id)
     try:
         Notifica.objects.create(
             legacy_user_id=legacy.pk, tipo="anomalia_da_gestire",
-            messaggio=f"OP {op_id}, S/N {seriale or '—'}: {chi} ha risposto alla tua richiesta di informazioni."[:500],
+            messaggio=f"OP {op_id}, {codice} (S/N {seriale or '—'}): {chi} ha risposto alla tua richiesta di informazioni."[:500],
             url_azione=op_url(op_id),
         )
     except Exception:
@@ -138,16 +142,16 @@ def invia_risposta_info(*, richiesta, op_id: str, seriale: str) -> None:
         return
     portale = op_portal_link(op_id)
     lines = [f"{chi} ha risposto alla tua richiesta di informazioni.", "",
-             f"  • OP {op_id} · S/N {seriale or '—'}", "", "Richiesta:", f"  {richiesta.messaggio}", "",
+             f"  • {codice} · OP {op_id} · S/N {seriale or '—'}", "", "Richiesta:", f"  {richiesta.messaggio}", "",
              "Risposta:", f"  {richiesta.risposta}", ""]
     if portale:
         lines.append(f"Gestione anomalie: {portale}")
     html = _render_mail(
         badge="Risposta ricevuta", eyebrow=f"OP {op_id}", title="Risposta alla richiesta di informazioni",
         intro=f"{'Buongiorno ' + nome + ', ' if nome else ''}{chi} ha risposto: «{richiesta.risposta[:800]}»",
-        columns=["S/N", "Richiesta"], rows=[[seriale or "—", richiesta.messaggio[:300]]],
+        columns=["ID", "S/N", "Richiesta"], rows=[[codice, seriale or "—", richiesta.messaggio[:300]]],
         cta_url=portale, cta_label="Apri in Gestione anomalie",
     )
-    _send(kind="risposta_info", subject=f"[Novicrom Hub] OP {op_id} — risposta alla richiesta di informazioni",
+    _send(kind="risposta_info", subject=f"[Novicrom Hub] OP {op_id} — risposta su {codice}",
           lines=lines, html=html, to=[email], op_id=op_id,
           context={"anomalia_id": richiesta.anomalia_id, "richiesta": richiesta.pk})

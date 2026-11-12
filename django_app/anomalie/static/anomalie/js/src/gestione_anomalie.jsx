@@ -4,6 +4,8 @@
    con @babel/preset-react in ../gestione_anomalie.bundle.js (committato).
    Per rigenerare: vedi tools/build_anomalie_ui.ps1. NON modificare il bundle a mano. */
     const { useState, useEffect, useMemo, useRef } = React;
+    // Codice dell'anomalia («AN-00123»), stesso di mail e link (anomalie/codice.py).
+    const codiceAnomalia = (id) => { const n = parseInt(String(id || "").split(":").pop(), 10); return n > 0 ? `AN-${String(n).padStart(5, "0")}` : ""; };
     const IS_ADMIN = window.IS_ADMIN;
     const ADMIN_URL = window.ADMIN_URL || "";
     const CONFIG_LISTS = window.ANOMALIE_CONFIG_LISTS || {};
@@ -506,7 +508,7 @@
                         <span className="text-2xs" style={{ marginLeft: "auto", color: "#94a3b8" }}>{it.created_at}</span>
                       </div>
                       <div className="text-2xs" style={{ color: "#94a3b8", marginTop: 2 }}>
-                        {it.user}{it.source_label ? ` · ${it.source_label}` : ""}{it.anomalia_id ? ` · #${it.anomalia_id}` : ""}
+                        {it.user}{it.source_label ? ` · ${it.source_label}` : ""}{it.anomalia_id ? ` · ${codiceAnomalia(it.anomalia_id)}` : ""}
                       </div>
                       {it.note && <div className="text-2xs" style={{ color: "var(--text-mid)", marginTop: 2 }}>{it.note}</div>}
                     </div>
@@ -1260,7 +1262,10 @@
           // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
           if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
           if (!q) return true;
-          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`]
+          // Codice «AN-00123», «an123», «#123» o «123»: cerca per numero dell'anomalia.
+          const m = /^(?:an-?|#)\s*0*(\d+)$/i.exec(q);
+          if (m && String(a.local_id) === m[1]) return true;
+          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && codiceAnomalia(a.local_id).toLowerCase()]
             .some((v) => String(v || "").toLowerCase().includes(q));
         });
       }, [anomalie, searchSn, snFilter, raggruppa, pageFilter, mostraTutte]);
@@ -1598,7 +1603,7 @@
                   segnala_terzista: terzista, chiudere: chiudeF, avanzamento, ...segnalatiSalvati(a),
                 } : a)));
               } catch (err) {
-                errori.push(`#${f.local_id}: ${err.message}`);
+                errori.push(`${codiceAnomalia(f.local_id)}: ${err.message}`);
               }
             }
             resetAmbito();
@@ -1757,7 +1762,7 @@
           setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id
             ? { ...a, chiudere: false, avanzamento: "In attesa", can_riaprire: false } : a)));
           setAvanzamento("In attesa");
-          flash({ ok: true, text: `Anomalia #${sn.local_id} riaperta · in attesa di decisione` });
+          flash({ ok: true, text: `Anomalia ${codiceAnomalia(sn.local_id)} riaperta · in attesa di decisione` });
           loadOrdini();
         } catch (e) {
           flash({ ok: false, text: "Errore: " + e.message }, 7000);
@@ -1811,14 +1816,14 @@
         try {
           if (azAnom.tipo === "elimina") {
             await postAzione(API.elimina, { local_id: id }, "Elimina anomalia");
-            flash({ ok: true, text: `Anomalia #${id} eliminata` });
+            flash({ ok: true, text: `Anomalia ${codiceAnomalia(id)} eliminata` });
           } else {
             const dest = ordini.find((o) => String(o.id || "").toLowerCase() === String(azAnom.op).trim().toLowerCase());
             const seriali = String(azAnom.sn).split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
             const data = await postAzione(API.sposta, {
               local_id: id, op_id: String(azAnom.op).trim(), op_item_id: dest ? dest.item_id : null, seriali,
             }, "Taglia");
-            flash({ ok: true, text: `Anomalia #${id}: ${data.nota || "spostata"}` }, 6000);
+            flash({ ok: true, text: `Anomalia ${codiceAnomalia(id)}: ${data.nota || "spostata"}` }, 6000);
           }
           setAzAnom(null);
           setCurrentItemId(null);
@@ -1931,7 +1936,7 @@
                 {a.in_carico_a_me && pageFilter !== "in_carico" && <span className="ga-pill ga-pill--tocca">Tocca a te</span>}
                 {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
-                <span className="ga-an__id">#{a.local_id}</span>
+                <span className="ga-an__id">{codiceAnomalia(a.local_id)}</span>
               </span>
             </span>
           </button>
@@ -2133,7 +2138,7 @@
                 </div>
                 <div className="ga-search">
                   {Ico.search}
-                  <input value={searchSn} onChange={(e) => setSearchSn(e.target.value)} placeholder="Cerca S/N, testo, #numero…" />
+                  <input value={searchSn} onChange={(e) => setSearchSn(e.target.value)} placeholder="Cerca S/N, testo, codice AN-…" />
                 </div>
               </div>
               <div className="ga-col__body">
@@ -2194,7 +2199,7 @@
                       <span className={`ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`}>{isBenestare ? "Collaudo di benestare" : "Altro controllo"}</span>
                     </div>
                     <div className="ga-det__titlerow">
-                      <h2 className="ga-det__title">Anomalia #{sn.local_id}</h2>
+                      <h2 className="ga-det__title">Anomalia {codiceAnomalia(sn.local_id)}</h2>
                       <span className={`ga-pill ga-pill--${statoSel.variant} ga-pill--lg`}>{statoSel.text}</span>
                       <div className="ga-det__nav">
                         <button type="button" className="ga-iconbtn ga-iconbtn--light" disabled={posizione <= 0} onClick={() => vaiA(-1)} title="Anomalia precedente (Alt+↑)">{Ico.prev}</button>
@@ -2473,7 +2478,7 @@
                                       <input type="checkbox" checked={scelteMano.includes(x.item_id)}
                                         onChange={(e) => setScelteMano((prev) => (e.target.checked ? [...prev, x.item_id] : prev.filter((id) => id !== x.item_id)))} />
                                       <span className="ga-apply__txt">{x.testo || x.desc || "—"}</span>
-                                      <span className="ga-hint">#{x.local_id}{isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`}</span>
+                                      <span className="ga-hint">{codiceAnomalia(x.local_id)}{isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -2627,7 +2632,7 @@
           {azAnom && sn.local_id && (
             <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-az-t">
               <div className="ga-modal__box">
-                <div className="ga-modal__title" id="ga-az-t">{azAnom.tipo === "elimina" ? `Eliminare l'anomalia #${sn.local_id}?` : `✂ Taglia l'anomalia #${sn.local_id}`}</div>
+                <div className="ga-modal__title" id="ga-az-t">{azAnom.tipo === "elimina" ? `Eliminare l'anomalia ${codiceAnomalia(sn.local_id)}?` : `✂ Taglia l'anomalia ${codiceAnomalia(sn.local_id)}`}</div>
                 <div className="ga-hint ga-az__ctx">S/N {sn.sn || "—"} · {sn.testo || sn.desc || "(nessuna descrizione)"}</div>
                 {azAnom.tipo === "elimina" ? (
                   <div className="ga-note ga-note--warn">Sparisce dall'OP con i suoi dati; gli allegati restano recuperabili dall'amministratore. Non si può annullare.</div>
@@ -2665,7 +2670,7 @@
           {infoModal && (
             <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-info-t">
               <div className="ga-modal__box">
-                <div className="ga-modal__title" id="ga-info-t">Richiedi info aggiuntive · #{sn.local_id}</div>
+                <div className="ga-modal__title" id="ga-info-t">Richiedi info aggiuntive · {codiceAnomalia(sn.local_id)}</div>
                 <div className="ga-hint">Arriva una notifica e una mail con il link per rispondere; finché non rispondono l'anomalia è in carico a loro («{AVANZAMENTO_CHIARIMENTI}»).</div>
                 <div className="ga-flags">
                   <FlagToggle label="Capocommessa" checked={infoModal.cc} onChange={() => setInfoModal({ ...infoModal, cc: !infoModal.cc })} />
@@ -2764,7 +2769,7 @@
                         const chiude = x.item_id === sn.item_id ? chiudereAuto : chiudeBersaglio(x);
                         return (
                           <div key={x.item_id} className="ga-riep__row">
-                            <span className="ga-apply__txt">#{x.local_id} {x.testo || x.desc || "—"}{x.item_id === sn.item_id ? " (questa)" : ""}</span>
+                            <span className="ga-apply__txt">{codiceAnomalia(x.local_id)} {x.testo || x.desc || "—"}{x.item_id === sn.item_id ? " (questa)" : ""}</span>
                             <span className="ga-riep__stato">{x.avanzamento || "In attesa"} → {avanzamento}</span>
                             {chiude ? <span className="ga-pill ga-pill--chiuso">Si chiude</span>
                               : (chiudereAuto && x.serve_azione ? <span className="ga-pill ga-pill--attesa" title="Prima decisione «Azione di recupero»: serve l'azione effettuata">Resta aperta</span> : null)}
@@ -2795,7 +2800,7 @@
             <div className="ga-modal" role="dialog" aria-modal="true">
               <div className="ga-modal__box">
                 <div className="ga-modal__title">Modifiche non salvate</div>
-                <p>Hai cambiato la decisione sull'anomalia #{sn.local_id} senza salvarla.</p>
+                <p>Hai cambiato la decisione sull'anomalia {codiceAnomalia(sn.local_id)} senza salvarla.</p>
                 <div className="ga-modal__acts">
                   <button type="button" className="ga-btn ga-btn--ghost-dark" onClick={() => setPendingNav(null)}>Resta qui</button>
                   <button type="button" className="ga-btn ga-btn--outline" onClick={() => { const nav = pendingNav; setPendingNav(null); annullaModifiche(); nav(); }}>Scarta</button>

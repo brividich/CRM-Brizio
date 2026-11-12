@@ -35,6 +35,8 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
+from .codice import codice_anomalia  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 # Soglia oltre la quale la mail tronca l'elenco a MAX_ANOMALIE_IN_EMAIL
@@ -441,7 +443,7 @@ def _build_plain_text(
         for a in gruppo.get("righe") or []:
             stato = a.get("avanzamento") or ""
             testo = a.get("testo") or a.get("descrizione") or "(nessuna descrizione)"
-            lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else "") + f": {str(testo)[:500]}")
+            lines.append(f"  • {codice_anomalia(a.get('id')) or '?'}" + (f" [{stato}]" if stato else "") + f": {str(testo)[:500]}")
             for riga in a.get("dettaglio_righe") or []:
                 lines.append(f"    {riga}")
             if a.get("stato_superficie"):
@@ -685,7 +687,7 @@ def send_anomalie_update_confirmation(
         flag_str = (" [" + ", ".join(flags) + "]") if flags else ""
         av = u.get("avanzamento") or "(invariato)"
         sn = u.get("seriale") or ""
-        out = [prefix + f"#{u.get('id', '?')}" + (f" S/N {sn}" if sn else "") + f" → {av}{flag_str}"]
+        out = [prefix + (codice_anomalia(u.get('id')) or "?") + (f" S/N {sn}" if sn else "") + f" → {av}{flag_str}"]
         out += _detail_lines(u)
         return out
 
