@@ -97,12 +97,14 @@ class PaginaTests(TestCase):
         resp = self._get([_voce()], "?vista=elenco&mie=1")
         self.assertEqual(len(resp.context["page_obj"].object_list), 1)
         resp = self._get([_voce()], "?vista=agenda")
-        self.assertContains(resp, "· chiamato il fornitore</span>")
+        self.assertContains(resp, "📝 chiamato il fornitore</span>")
         self.assertContains(resp, "✕ Lascia")
         # next fuori dallo scadenzario: si torna comunque a /scadenze.
         resp = self.client.post(url, {"chiave": chiave, "azione": "lascia", "next": "https://esempio.test/"})
         self.assertRedirects(resp, reverse("scadenze_globali"), fetch_redirect_response=False)
-        self.assertFalse(PresaInCarico.objects.exists())
+        # Lasciata la scadenza, la nota resta senza nessuno che se ne occupa.
+        p = PresaInCarico.objects.get(chiave=chiave)
+        self.assertEqual((p.utente_id, p.nota), (None, "chiamato il fornitore"))
 
     def test_solo_le_mie_per_nome_e_responsabile(self):
         mia_nome = _voce(titolo="Visita medica", soggetto="ROSSI Mario", source="hr", url="/a/")
