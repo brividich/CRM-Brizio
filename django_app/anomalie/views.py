@@ -1499,8 +1499,9 @@ def _canonicalize_avanzamento(value: str) -> str:
     for c in choices:
         if str(c).strip().lower() == raw.lower():
             return str(c).strip()
-    if raw.lower() == AVANZAMENTO_RISPOSTA_CLIENTE.lower():
-        return AVANZAMENTO_RISPOSTA_CLIENTE
+    for fisso in (AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_INFO_RICHIESTE):
+        if raw.lower() == fisso.lower():
+            return fisso
     if choices:
         logger.warning(
             "anomalie: avanzamento fuori catalogo: %r (catalogo=%s)", raw, list(choices)
@@ -2789,9 +2790,10 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
 
     event="segnalare": notifica capocommessa OP
     event="chiudere":  notifica autore anomalia
+    event="info_richieste": notifica capocommessa OP (il referente RDC chiede altre informazioni)
     """
     try:
-        if event == "segnalare":
+        if event in ("segnalare", "info_richieste"):
             # Tenta di trovare la capocommessa per l'OP e notificarla
             if not op_id or not _has_table("ordini_produzione"):
                 return
@@ -2815,7 +2817,15 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                     capo_user = find_legacy_user_by_name(capo_val)
             except Exception:
                 pass
-            if capo_user:
+            if capo_user and event == "info_richieste":
+                Notifica.objects.create(
+                    legacy_user_id=capo_user.id,
+                    tipo="anomalia_da_gestire",
+                    messaggio=(f"Anomalia S/N {sn or '—'} (OP {op_id}): servono ulteriori informazioni, "
+                               "l'anomalia torna in carico a te."),
+                    url_azione="/gestione-anomalie",
+                )
+            elif capo_user:
                 Notifica.objects.create(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_segnalata",
@@ -2957,10 +2967,17 @@ def _ordini_payload(request, *, per_apertura: bool):
                       AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
                       AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
                       AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
+                 THEN 1
+                 WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) = '{_SQL_INFO}'
                  THEN 1 ELSE 0 END) AS anomalie_da_decidere_count,
             SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
                       AND (COALESCE(a.aprire_rdc, 0) = 1 OR COALESCE(a.segnalare_cliente, 0) = 1)
-                 THEN 1 ELSE 0 END) AS anomalie_rdc_cliente_count
+                 THEN 1 ELSE 0 END) AS anomalie_rdc_cliente_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND (COALESCE(a.aprire_rdc, 0) = 1 OR COALESCE(a.segnalare_cliente, 0) = 1)
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) <> '{_SQL_INFO}'
+                 THEN 1 ELSE 0 END) AS anomalie_rdc_in_carico_count
         FROM ordini_produzione op
         LEFT JOIN anomalie a
             ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
@@ -3017,9 +3034,12 @@ def _ordini_payload(request, *, per_apertura: bool):
         car = r.get("incaricato")
         creatori = creatori_per_op.get(str(r.get("op_title") or "").lower(), set())
         rdc_cliente = int(r.get("anomalie_rdc_cliente_count") or 0)
-        # Referente RDC: l'OP è «in carico» se ha anomalie aperte RDC / da segnalare al cliente.
-        in_carico_rdc = referente_rdc and rdc_cliente > 0
-        if filtra and not in_carico_rdc and not _vede_op_ruoli(request, capo, car, creatori):
+        # Referente RDC: vede e modifica gli OP con anomalie aperte RDC / da segnalare
+        # al cliente; sono «in carico» a lui solo quelle che non ha rimandato al
+        # capocommessa con «In attesa di ulteriori informazioni».
+        vede_rdc = referente_rdc and rdc_cliente > 0
+        in_carico_rdc = referente_rdc and int(r.get("anomalie_rdc_in_carico_count") or 0) > 0
+        if filtra and not vede_rdc and not _vede_op_ruoli(request, capo, car, creatori):
             continue
         item = {
             "item_id": r.get("item_id"),
@@ -3039,8 +3059,8 @@ def _ordini_payload(request, *, per_apertura: bool):
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
-            item["can_edit"] = is_super or in_carico_rdc or _modifica_op_ruoli(request, capo, car, creatori)
-        elif in_carico_rdc:
+            item["can_edit"] = is_super or vede_rdc or _modifica_op_ruoli(request, capo, car, creatori)
+        elif vede_rdc:
             item["can_edit"] = True
         if not per_apertura:
             item["can_modifica_op"] = str(r.get("item_id") or "").strip() in modificabili
@@ -4434,6 +4454,44 @@ MSG_NOTA_STATO_IN_ATTESA = (
 )
 
 AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente"
+# Risposta del referente RDC: rimanda l'anomalia al capocommessa, spunte comprese.
+AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni"
+_SQL_INFO = AVANZAMENTO_INFO_RICHIESTE.lower()  # costante, mai input: sicuro nelle query
+_STATI_ATTESA = {AVANZAMENTO_RISPOSTA_CLIENTE.lower(), _SQL_INFO}
+_STATI_CHIUSURA = {"accetto lo stato", "apertura ore/ripi"}
+
+
+def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento) -> bool:
+    """Regola unica della chiusura automatica al salvataggio (pagina e form mail).
+
+    «Aprire RDC» e «Segnalare al cliente» non chiudono da soli: l'anomalia resta
+    aperta, in carico al referente RDC, finché l'RDC non ha un numero e la
+    segnalazione al cliente non è registrata («Segnalato al cliente»). Gli stati
+    d'attesa (risposta del cliente, ulteriori informazioni) la tengono aperta.
+    """
+    av = str(avanzamento or "").strip().lower()
+    if av in _STATI_ATTESA:
+        return False
+    if segnalare and not segnalato_fatto:
+        return False
+    if aprire_rdc:
+        return bool(str(numero_rdc or "").strip())
+    return av in _STATI_CHIUSURA
+
+
+def segnalato_cliente_registrato(anomalia_id) -> bool:
+    """«Segnalato al cliente» spuntato sulla scheda qualità dell'anomalia."""
+    if not anomalia_id:
+        return False
+    try:
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        return AnomaliaSchedaQualita.objects.filter(
+            anomalia_id=int(anomalia_id), segnalato_cliente_il__isnull=False,
+        ).exists()
+    except Exception:
+        logger.warning("anomalie: lettura «Segnalato al cliente» fallita id=%s", anomalia_id, exc_info=True)
+        return False
 
 
 def avanzamento_dopo_segnalazione(segnalare, avanzamento, attuale: str = "") -> str:
@@ -4554,6 +4612,8 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
 
     # Stato precedente (solo per UPDATE), per la timeline AnomaliaActionLog.
     previous_status = ""
+    prev_chiuso = False
+    prev_av = ""
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
@@ -4577,6 +4637,19 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         errore = _decisione_su_propria_anomalia(local_pk_id, cols, writable, legacy_user)
         if errore:
             return {"success": False, "error": errore, "status": 403}
+
+    # «Aprire RDC» / «Segnalare al cliente» senza numero RDC o segnalazione registrata:
+    # l'anomalia resta aperta anche se il client chiede di chiuderla (bundle vecchi
+    # compresi). Una già chiusa non si riapre da qui.
+    if chiudere_val and not prev_chiuso and not chiusura_automatica(
+        payload_map["aprire_rdc"], payload_map["numero_rdc"], segnalare_val,
+        segnalato_cliente_registrato(local_pk_id) if segnalare_val else False,
+        payload_map["avanzamento"],
+    ):
+        chiudere_val = 0
+        for d in (payload_map, writable, insert_writable, update_writable):
+            if "chiudere" in d:
+                d["chiudere"] = 0
 
     try:
         with connections["default"].cursor() as cursor:
@@ -4662,6 +4735,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         _notify_anomalia_event(request, "segnalare", local_id, op_id, sn_val)
     if chiudere_val:
         _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
+    if (str(payload_map.get("avanzamento") or "").lower() == AVANZAMENTO_INFO_RICHIESTE.lower()
+            and prev_av.lower() != AVANZAMENTO_INFO_RICHIESTE.lower()):
+        _notify_anomalia_event(request, "info_richieste", local_id, op_id, sn_val)
 
     # Mail di conferma post-salvataggio: parte SEMPRE, su qualsiasi salvataggio
     # (INSERT di nuova anomalia o UPDATE), da qualsiasi pulsante. Per evitare di

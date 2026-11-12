@@ -272,6 +272,16 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                 from .views import avanzamento_dopo_segnalazione
 
                 riga_avanzamento = avanzamento_dopo_segnalazione(True, riga_avanzamento, anomalia.get(_STATO_FIELD) or "")
+            # Stessa regola della pagina: RDC senza numero o cliente non ancora avvisato
+            # lasciano l'anomalia aperta, in carico al referente RDC.
+            if riga_chiudere and action != "chiudi":
+                from .views import chiusura_automatica, segnalato_cliente_registrato
+
+                riga_chiudere = chiusura_automatica(
+                    riga_aprire_rdc, riga_numero_rdc, riga_segnalare,
+                    segnalato_cliente_registrato(anomalia_id) if riga_segnalare else False,
+                    riga_avanzamento or anomalia.get(_STATO_FIELD) or "",
+                )
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
             riga_aprire_rdc = riga_segnalare = riga_chiudere = None
