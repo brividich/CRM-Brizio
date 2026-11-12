@@ -168,9 +168,9 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ("passi", [
                 "Leggi la «Segnalazione» e guarda le foto (un clic le ingrandisce). Il riquadro «Dal controllore» "
                 "mostra dove sono i pezzi e le misure.",
-                "Spunta se serve «Aprire RDC» (con il «Numero RDC»), «Segnalare al cliente» (spunta anche «Aprire "
-                "RDC», che puoi togliere), «Segnala a terzista», «Pezzi precedenti al benestare». Sotto le spunte il "
-                "riquadro dei passi dice cosa manca per chiuderla.",
+                "Spunta se serve «Aprire RDC», «Segnalare al cliente» (spunta anche «Aprire RDC», che puoi togliere), "
+                "«Segnala a terzista», «Segnala a CAR», «Pezzi precedenti al benestare». Se una segnalazione l'hai "
+                "fatta tu spunta «Segnalato»; altrimenti la fa la qualità. Il numero RDC lo scrive la qualità.",
                 "«Segnala a CAR»: in «A quale CAR?» spunta i capi reparto da avvisare (nessuno è scelto di serie). Al "
                 "salvataggio solo loro ricevono la mail; il CAR dell'OP riceve comunque il riepilogo delle modifiche.",
                 "Documenti o foto della decisione: «Allegati della decisione» (si caricano anche ad anomalia chiusa).",
@@ -181,9 +181,11 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ("img", (_IMG + "k2_decisione.jpg", "Decisione del capocommessa: flag, «A quale CAR?», «Dal controllore» e allegati")),
             ("ul", [
                 "Con una nota l'avanzamento non può restare «In attesa», tranne con RDC, cliente o terzista da segnalare.",
-                "L'anomalia si chiude da sola con «Accetto lo stato» o «Apertura ORE/RIPI». Con «Aprire RDC», "
-                "«Segnalare al cliente» o «Segnala a terzista» resta aperta finché l'RDC non ha il numero e le "
-                "segnalazioni non sono spuntate. «Chiudi l'anomalia» la chiude comunque al salvataggio.",
+                "Senza RDC «Segnalato» chiude l'anomalia; con RDC passa alla qualità, che la chiude col numero RDC. "
+                "Senza spunte chiudono «Accetto lo stato» e «Apertura ORE/RIPI», se in Configurazione il capocommessa "
+                "può chiudere (allora c'è anche «Chiudi l'anomalia»). Tutto il resto passa alla qualità.",
+                "Se la qualità ti chiede informazioni, nel tuo blocco compare «Richieste della qualità»: rispondi con "
+                "«Invia risposta» (o dal link della mail).",
                 "Se il referente RDC risponde «In attesa di ulteriori informazioni» l'anomalia torna a te con le spunte "
                 "aperte: rispondi nelle note e scegli un altro stato, torna al referente.",
                 "Stessa decisione su più anomalie: in «Applica la stessa decisione anche a» scegli stesso blocco, tutte "
@@ -199,14 +201,11 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
         "titolo": "Segnalare al cliente",
         "blocchi": [
             ("passi", [
-                "Spunta «Segnalare al cliente» (o «Segnala a terzista») e scrivi nella nota cosa chiedi: l'anomalia "
-                "resta aperta.",
-                "Quando l'hai avvisato spunta «Segnalato al cliente» nel riquadro dei passi: l'avanzamento passa da solo "
-                "a «In attesa risposta cliente» (per il terzista «In attesa risposta terzista»). Salva: data e nome "
-                "restano registrati. Puoi allegare la comunicazione, anche la mail .msg o .eml, in «Allegati della "
-                "decisione».",
-                "Da qui la nota è ferma («Note già inviate»). Quando arriva la risposta scrivila nel campo «Risposta del "
-                "cliente», scegli lo stato definitivo e salva; per chiuderla subito spunta «Chiudi l'anomalia».",
+                "Spunta «Segnalare al cliente» (o «Segnala a terzista») e scrivi nella nota cosa chiedi.",
+                "Se l'hai avvisato tu spunta «Segnalato al cliente»: senza RDC l'anomalia si chiude al salvataggio. "
+                "Se non lo spunti, la segnalazione la fa la qualità.",
+                "Per aspettare la risposta scegli «In attesa risposta cliente» (o «… terzista»): la nota resta ferma e, "
+                "quando arriva, scrivi la risposta nel campo «Risposta del cliente» e scegli lo stato definitivo.",
             ]),
             ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente», «Segnalato al cliente» e stato «In attesa risposta cliente»")),
         ],

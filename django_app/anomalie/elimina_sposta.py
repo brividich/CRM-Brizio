@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Azioni di timeline che vogliono dire «qualcuno ci ha già lavorato».
 AZIONI_AVANZAMENTO = frozenset({
     "prendi_in_carico", "approva", "respingi", "richiedi_modifica", "chiudi",
-    "riapri", "risposta_cliente", "risposta_terzista", "azione", "segnalato", "aggiorna_avanzamento",
+    "riapri", "risposta_cliente", "risposta_terzista", "qualita", "richiesta_info", "risposta_info", "azione", "segnalato", "aggiorna_avanzamento",
 })
 
 

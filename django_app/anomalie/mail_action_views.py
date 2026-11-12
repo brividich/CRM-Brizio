@@ -85,15 +85,23 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     else:
         anomalie_live = _load_anomalie_live(token_obj.anomalie_ids, op_id)
 
+    if request.method == "POST" and action == "rispondi_info":
+        return _rispondi_info_view(request, token_obj, anomalie_live)
     if request.method == "POST":
         return _handle_post(request, token_obj, anomalie_live)
 
+    if action == "rispondi_info":
+        return _rispondi_info_view(request, token_obj, anomalie_live)
+
     gruppi = _raggruppa(token_obj, anomalie_live)
+    from .decisione_qualita import cc_puo_chiudere
 
     return render(
         request,
         "anomalie/pages/mail_action_form.html",
         {
+            "op_car": _car_di_op(op_id),
+            "cc_puo_chiudere": cc_puo_chiudere(),
             "token": token_obj,
             "anomalie": anomalie_live,
             "gruppi": gruppi,
@@ -175,7 +183,9 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                     request, f"Anomalia #{anomalia_id}: {MSG_RISPOSTA_SENZA_STATO} Torna indietro e correggi.", "invalid",
                 )
             # Prima decisione «Azione di recupero»: si chiude solo con l'azione effettuata.
-            if (per_riga.get("chiudere") or per_riga.get("chiudi_manuale")) and not per_riga.get("aprire_rdc"):
+            # Con segnalazioni la chiusura è automatica: lì resta aperta senza errore.
+            if (not per_riga.get("aprire_rdc") and (per_riga.get("chiudi_manuale") or (
+                    per_riga.get("chiudere") and not (per_riga.get("segnalare") or per_riga.get("segnala_terzista"))))):
                 from .tempi_service import MSG_SERVE_AZIONE, serve_azione_per_chiudere
                 if serve_azione_per_chiudere(int(anomalia_id)):
                     return _render_error(
@@ -250,6 +260,112 @@ def _segna_decise_e_azioni(anomalie_live) -> None:
         a["serve_azione"] = int(a.get("id") or 0) in serve
 
 
+def _car_di_op(op_id: str) -> str:
+    """CAR (incaricato) dell'OP, per «Segnala al CAR» dal link."""
+    if not op_id:
+        return ""
+    try:
+        from .automazioni_service import _fetch
+
+        rows = _fetch("SELECT incaricato FROM ordini_produzione WHERE title = %s", [op_id])
+        return str(rows[0].get("incaricato") or "").strip()[:200] if rows else ""
+    except Exception:
+        return ""
+
+
+def _arricchisci_qualita(righe: list[dict]) -> None:
+    """Decisione qualità, richieste al capocommessa e «Segnalato al CAR» per il form."""
+    from .decisione_qualita import richieste_payload
+
+    for a in righe:
+        a.update({"avanzamento_qualita": "", "note_qualita": "", "segnala_car": False, "segnalato_car": None,
+                  "richieste_cc": [], "richiesta_cc_aperta": False, "chiarimenti_aperti": False})
+    try:
+        from .quality_models import AnomaliaSchedaQualita
+
+        ids = [int(a["id"]) for a in righe if a.get("id")]
+        schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
+            "anomalia_id", "avanzamento_qualita", "note_qualita", "segnala_car", "car_segnalati_il")}
+        for a in righe:
+            sc = schede.get(int(a.get("id") or 0)) or {}
+            a["avanzamento_qualita"] = sc.get("avanzamento_qualita") or ""
+            a["note_qualita"] = sc.get("note_qualita") or ""
+            a["segnala_car"] = bool(sc.get("segnala_car"))
+            if sc.get("segnala_car") and sc.get("car_segnalati_il"):
+                a["segnalato_car"] = {"il": timezone.localtime(sc["car_segnalati_il"]).strftime("%d/%m/%Y %H:%M")}
+            richieste = richieste_payload(a["id"]) if a.get("id") else []
+            a["chiarimenti_aperti"] = any(r["aperta"] for r in richieste)
+            a["richieste_cc"] = [r for r in richieste if "cc" in r["destinatari"]]
+            a["richiesta_cc_aperta"] = any(r["aperta"] for r in a["richieste_cc"])
+    except Exception:
+        logger.warning("mail_action: decisione qualità non letta", exc_info=True)
+
+
+def _rispondi_info_view(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> HttpResponse:
+    """Link della mail «la qualità chiede informazioni»: solo le richieste aperte
+    rivolte al destinatario, con il campo della risposta. Monouso."""
+    from .decisione_qualita import registra_risposta_info, richieste_payload
+    from .qualita_mail import invia_risposta_info
+
+    ids = {int(i) for i in (token_obj.anomalie_ids or []) if str(i).isdigit()}
+    righe = [a for a in anomalie_live if int(a.get("id") or 0) in ids]
+    if not righe:
+        righe = _load_anomalie_live(list(ids), token_obj.op_id)
+    # Il destinatario risponde come controllore se è l'autore dell'anomalia, altrimenti
+    # come capocommessa.
+    def _ruolo(a):
+        try:
+            return "controllore" if int(token_obj.recipient_legacy_user_id or 0) == int(_autore(a["id"]) or -1) else "cc"
+        except (TypeError, ValueError):
+            return "cc"
+    voci = []
+    for a in righe:
+        aperte = [r for r in richieste_payload(a["id"]) if r["aperta"] and _ruolo(a) in r["destinatari"]]
+        if aperte:
+            voci.append({"a": a, "richieste": aperte})
+    if request.method == "POST":
+        token_obj.refresh_from_db()
+        if token_obj.is_used:
+            return _render_error(request, "Questa risposta è già stata registrata.", "already_used")
+        if not _claim_token(token_obj, request):
+            return _render_error(request, "Questa risposta è già stata registrata.", "already_used")
+        chi = token_obj.recipient_display or token_obj.recipient_email or "Destinatario"
+        risposte = 0
+        try:
+            for v in voci:
+                testo = (request.POST.get(f"risposta_{v['a']['id']}") or "").strip()[:4000]
+                if not testo:
+                    continue
+                for r in registra_risposta_info(int(v["a"]["id"]), testo, ruolo=_ruolo(v["a"]), chi=chi):
+                    risposte += 1
+                    invia_risposta_info(richiesta=r, op_id=token_obj.op_id, seriale=str(v["a"].get("seriale") or ""))
+                _salva_allegati_mail(request, token_obj, int(v["a"]["id"]))
+        except Exception:
+            _release_token(token_obj)
+            raise
+        if not risposte:
+            _release_token(token_obj)
+            return _render_error(request, "Scrivi almeno una risposta.", "invalid")
+        from .mail_action_models import AnomaliaActionLog
+        _write_action_log(request=request, token_obj=token_obj, anomalie=righe, action="risposta_info",
+                          note="", previous_status="In attesa chiarimenti", new_status="Torna alla qualità",
+                          source=AnomaliaActionLog.Source.MAIL_ACTION)
+        return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
+    return render(request, "anomalie/pages/mail_action_rispondi.html", {
+        "token": token_obj, "voci": voci, "op_id": token_obj.op_id,
+    })
+
+
+def _autore(anomalia_id) -> int | None:
+    try:
+        from .automazioni_service import _fetch
+
+        rows = _fetch("SELECT created_by_user_id FROM anomalie WHERE id = %s", [int(anomalia_id)])
+        return rows[0].get("created_by_user_id") if rows else None
+    except Exception:
+        return None
+
+
 def _salva_allegati_mail(request, token_obj, anomalia_id: int) -> None:
     """Allegati della decisione caricati dal link mail (foto, PDF, mail .msg/.eml).
 
@@ -285,9 +401,27 @@ def _salva_segnalati_mail(token_obj, anomalia_id: int, stato: dict) -> None:
         if scheda is not None and scheda.segnala_terzista != stato["terzista"]:
             AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(
                 segnala_terzista=stato["terzista"], updated_at=timezone.now())
+        # «Segnala al CAR» dal link: il CAR dell'OP; la mail parte solo la prima volta.
+        car = _car_di_op(token_obj.op_id)
+        if scheda is not None and stato.get("car") is not None and car:
+            prima = bool(scheda.segnala_car)
+            valori = {"segnala_car": stato["car"], "car_segnalati": car if stato["car"] else "", "updated_at": timezone.now()}
+            if stato["car"] and not prima:
+                valori["car_segnalati_il"] = timezone.now()
+            AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**valori)
+            if stato["car"] and not prima:
+                from .automazioni_service import invia_segnalazione_car
+                invia_segnalazione_car(anomalia_id=anomalia_id, op_id=token_obj.op_id, car=[car],
+                                       seriale=stato.get("seriale", ""), descrizione=stato.get("descrizione", ""),
+                                       note=stato.get("note", ""), dove_pezzi=scheda.dove_pezzi, deciso_da=chi_utente)
+        if stato.get("risposta_info"):
+            from .decisione_qualita import registra_risposta_info
+            from .qualita_mail import invia_risposta_info
+            for r in registra_risposta_info(anomalia_id, stato["risposta_info"], ruolo="cc", chi=chi_utente):
+                invia_risposta_info(richiesta=r, op_id=token_obj.op_id, seriale=stato.get("seriale", ""))
         for chi in segn.DESTINATARI:
             if stato["segnalati"][chi] != stato["gia"][chi]:
-                segn.registra_segnalato(anomalia_id, chi, stato["segnalati"][chi], chi_utente)
+                segn.registra_segnalato(anomalia_id, chi, stato["segnalati"][chi], chi_utente, ruolo="cc")
             if stato["risposte"][chi]:
                 segn.registra_risposta(anomalia_id, chi, stato["risposte"][chi], utente_display=chi_utente)
     except Exception:
@@ -324,29 +458,39 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
-            riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
+            # Il numero RDC lo scrive la qualità: dal link si tocca solo se arriva.
+            riga_numero_rdc = (str(per_riga.get("numero_rdc") or "").strip()[:100]
+                               if "numero_rdc" in per_riga else None)
             gia = segn.stato_segnalati(anomalia_id)
             riga_terzista = bool(per_riga["segnala_terzista"]) if "segnala_terzista" in per_riga else gia["segnala_terzista"]
             richiesti = {"cliente": riga_segnalare, "terzista": riga_terzista}
             segnalati = {chi: (bool(per_riga.get(f"segnalato_{chi}")) if f"segnalato_{chi}" in per_riga and richiesti[chi]
                                else gia[chi]) for chi in segn.DESTINATARI}
-            appena = [chi for chi in segn.DESTINATARI if segnalati[chi] and not gia[chi]]
-            if appena:
-                riga_avanzamento = segn.avanzamento_dopo_segnalato(riga_avanzamento, appena, anomalia.get(_STATO_FIELD) or "")
             segn_stato = {"terzista": riga_terzista, "segnalati": segnalati, "gia": gia,
+                          "car": bool(per_riga.get("segnala_car")) if "segnala_car" in per_riga else None,
+                          "risposta_info": str(per_riga.get("risposta_info") or "").strip()[:4000],
+                          "seriale": str(anomalia.get("seriale") or ""), "descrizione": str(anomalia.get("descrizione") or ""),
+                          "note": riga_note if riga_note is not None else str(anomalia.get("note_capocommessa") or ""),
                           "risposte": {chi: str(per_riga.get(f"risposta_{chi}") or "").strip()[:4000]
                                        for chi in segn.DESTINATARI}}
-            # Stessa regola della pagina: RDC senza numero o cliente/terzista non ancora
-            # avvisati lasciano l'anomalia aperta; «Chiudi» a mano chiude comunque.
-            if per_riga.get("chiudi_manuale"):
-                riga_chiudere = True
-            elif riga_chiudere and action != "chiudi":
+            # Stessa regola della pagina, decisa qui: segnalazioni fatte senza RDC
+            # chiudono; «Chiudi» a mano solo se il capocommessa può chiudere.
+            if action != "chiudi":
+                from .decisione_qualita import cc_puo_chiudere, info_per_anomalie
+                from .tempi_service import serve_azione_per_chiudere
                 from .views import chiusura_automatica
 
-                riga_chiudere = chiusura_automatica(
-                    riga_aprire_rdc, riga_numero_rdc, riga_segnalare, segnalati["cliente"],
+                cc_chiude = cc_puo_chiudere()
+                numero_eff = riga_numero_rdc if riga_numero_rdc is not None else str(anomalia.get("numero_rdc") or "")
+                regola = chiusura_automatica(
+                    riga_aprire_rdc, numero_eff, riga_segnalare, segnalati["cliente"],
                     riga_avanzamento or anomalia.get(_STATO_FIELD) or "", riga_terzista, segnalati["terzista"],
+                    cc_chiude=cc_chiude,
+                    chiarimenti=bool(info_per_anomalie([anomalia_id]).get(int(anomalia_id), {}).get("richiesta_aperta")),
                 )
+                if regola and not riga_aprire_rdc and serve_azione_per_chiudere(int(anomalia_id)):
+                    regola = False
+                riga_chiudere = regola or (bool(per_riga.get("chiudi_manuale")) and cc_chiude)
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
             riga_aprire_rdc = riga_segnalare = riga_chiudere = None
@@ -709,10 +853,14 @@ def _raggruppa(token_obj, anomalie_live: list[dict]) -> list[dict]:
             for a in anomalie_live
         ]
     _segna_decise_e_azioni(anomalie_live)
-    from .segnalato_service import arricchisci_righe, nota_congelata
+    from .segnalato_service import AVANZAMENTO_RISPOSTA, arricchisci_righe, nota_congelata
     arricchisci_righe(anomalie_live)
+    _arricchisci_qualita(anomalie_live)
     for a in anomalie_live:
         a["nota_congelata"] = nota_congelata(a.get(_STATO_FIELD), a.get("note_capocommessa"))
+        stato = str(a.get(_STATO_FIELD) or "").strip().lower()
+        for chi in ("cliente", "terzista"):
+            a[f"attesa_risposta_{chi}"] = stato == AVANZAMENTO_RISPOSTA[chi].lower()
     for gruppo in gruppi:
         gruppo["nuovo"] = any(r.get("nuova") for r in gruppo["righe"])
     gruppi.sort(key=lambda g: 0 if g["nuovo"] else 1)

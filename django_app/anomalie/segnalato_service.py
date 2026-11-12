@@ -3,11 +3,12 @@
 Flusso della decisione con «Segnalare al cliente» / «Segnala a terzista»:
 
 1. la spunta «Segnalare…» chiede la segnalazione: l'anomalia resta aperta;
-2. «Segnalato…» registra che il destinatario è stato avvisato: l'avanzamento passa
-   da solo a «In attesa risposta cliente» / «In attesa risposta terzista» e la
-   nota già scritta resta congelata;
-3. la risposta si scrive in un campo suo (``AnomaliaEsito``), poi si sceglie lo
-   stato definitivo. «Chiudi» chiude comunque, in qualsiasi momento.
+2. «Segnalato…» (capocommessa o qualità) registra che il destinatario è stato
+   avvisato: senza RDC l'anomalia si chiude (``views.chiusura_automatica``);
+3. per aspettare la risposta si sceglie «In attesa risposta cliente» / «In attesa
+   risposta terzista»: la nota già scritta resta congelata, la risposta si scrive
+   in un campo suo (``AnomaliaEsito``) da chi ha fatto la segnalazione, poi si
+   sceglie lo stato definitivo.
 
 Nessuna dipendenza dalle view: le usano ``views`` e ``mail_action_views``.
 """
@@ -54,26 +55,16 @@ def stato_segnalati(anomalia_id) -> dict:
     return out
 
 
-def avanzamento_dopo_segnalato(avanzamento: str, appena_segnalati: list[str], attuale: str = "") -> str:
-    """Appena spuntato «Segnalato…»: se lo stato non è già definitivo l'anomalia
-    passa «In attesa risposta …» (l'ultimo destinatario della lista vince)."""
-    if not appena_segnalati:
-        return avanzamento
-    av = str(avanzamento or attuale or "").strip().lower()
-    if av in _STATI_LIBERI or av in STATI_RISPOSTA:
-        return AVANZAMENTO_RISPOSTA[appena_segnalati[-1]]
-    return avanzamento
-
-
 def nota_congelata(avanzamento_salvato: str, nota_salvata: str) -> bool:
     """In attesa di risposta la nota già scritta (quella mandata al destinatario) non si modifica."""
     return str(avanzamento_salvato or "").strip().lower() in STATI_RISPOSTA and bool(str(nota_salvata or "").strip())
 
 
-def registra_segnalato(anomalia_id: int, chi: str, acceso: bool, chi_utente: str) -> bool:
+def registra_segnalato(anomalia_id: int, chi: str, acceso: bool, chi_utente: str, *, ruolo: str = "cc") -> bool:
     """Scrive «Segnalato al cliente/terzista» sulla scheda. Ritorna True se è cambiato.
 
-    Una spunta già registrata non si riscrive: data e autore restano i primi.
+    Una spunta già registrata non si riscrive: data, autore e ruolo («cc» o
+    «qualita») restano i primi.
     """
     if chi not in DESTINATARI:
         return False
@@ -87,7 +78,8 @@ def registra_segnalato(anomalia_id: int, chi: str, acceso: bool, chi_utente: str
     gia = getattr(scheda, campo_il) is not None
     if gia == bool(acceso):
         return False
-    valori = {campo_il: timezone.now() if acceso else None, campo_da: (chi_utente or "")[:200] if acceso else ""}
+    valori = {campo_il: timezone.now() if acceso else None, campo_da: (chi_utente or "")[:200] if acceso else "",
+              f"segnalato_{chi}_ruolo": (ruolo or "")[:16] if acceso else ""}
     AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**valori, updated_at=timezone.now())
     return True
 
@@ -138,7 +130,7 @@ def arricchisci_righe(righe: list[dict], *, chiave_id: str = "id") -> None:
 
         schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
             "anomalia_id", "segnala_terzista", "segnalato_cliente_il", "segnalato_cliente_da",
-            "segnalato_terzista_il", "segnalato_terzista_da",
+            "segnalato_terzista_il", "segnalato_terzista_da", "segnalato_cliente_ruolo", "segnalato_terzista_ruolo",
         )}
         risposte: dict[int, list[dict]] = {}
         tipi = {AnomaliaEsito.Tipo.RISPOSTA_CLIENTE: "cliente", AnomaliaEsito.Tipo.RISPOSTA_TERZISTA: "terzista"}
@@ -160,4 +152,7 @@ def arricchisci_righe(righe: list[dict], *, chiave_id: str = "id") -> None:
             r["segnala_terzista"] = bool(s["segnala_terzista"])
             r["segnalato_cliente"] = _payload_segnalato(s["segnalato_cliente_il"], s["segnalato_cliente_da"])
             r["segnalato_terzista"] = _payload_segnalato(s["segnalato_terzista_il"], s["segnalato_terzista_da"])
+            for chi in DESTINATARI:
+                if r[f"segnalato_{chi}"]:
+                    r[f"segnalato_{chi}"]["ruolo"] = s[f"segnalato_{chi}_ruolo"] or "cc"
         r["risposte"] = risposte.get(aid, [])

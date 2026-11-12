@@ -25,10 +25,20 @@
       sposta: "/api/anomalie/sposta",
       seriali_op: "/api/anomalie/seriali-op",
     };
+    API.qualita_salva = API.qualita_salva || "/api/anomalie/qualita/salva";
+    API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
+    API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
       : [];
     const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
+    // Decisione qualità (Configurazione): chi decide, scelte di «Avanzamento qualità»
+    // (più «nessuno stato») e se il capocommessa può chiudere da solo.
+    const CAN_QUALITA = !!ACCESS_CONTEXT.can_qualita;
+    const AVANZAMENTO_CHIARIMENTI = "In attesa chiarimenti";
+    const AVANZAMENTI_QUALITA = Array.isArray(ACCESS_CONTEXT.avanzamenti_qualita) && ACCESS_CONTEXT.avanzamenti_qualita.length
+      ? ACCESS_CONTEXT.avanzamenti_qualita : ["In attesa", AVANZAMENTO_CHIARIMENTI];
+    const CC_PUO_CHIUDERE = ACCESS_CONTEXT.cc_puo_chiudere !== false;
     const ROLE_ACCESS = ACCESS_CONTEXT.role_access || {};
     const ACCESS_ORDER = { NONE: 0, READ_ALL: 1, EDIT_ASSIGNED: 2, EDIT_ALL: 3 };
     const BASE_AVANZAMENTO_OPTIONS =
@@ -126,19 +136,22 @@
         ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
     };
 
-    // Chiusura automatica al salvataggio, stessa regola del server
-    // (views.chiusura_automatica): «Aprire RDC» chiude solo con il numero RDC,
-    // «Segnalare al cliente» / «Segnala a terzista» solo con «Segnalato…»; gli stati
-    // d'attesa tengono aperta l'anomalia. «Chiudi l'anomalia» (a mano) non passa da qui.
+    // Chiusura automatica, stessa regola del server (views.chiusura_automatica):
+    // attese e chiarimenti aperti la tengono aperta; «Segnalare…» chiede «Segnalato…»;
+    // con RDC si chiude col numero (lo scrive la qualità); senza RDC le segnalazioni
+    // fatte chiudono; senza spunte chiude lo stato, se il capocommessa può chiudere.
     const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false,
-      terzista = false, segnalatoTerzista = false) => {
+      terzista = false, segnalatoTerzista = false, chiarimenti = false) => {
       const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
-      if (STATI_ATTESA.includes(avanz)) return false;
+      if (STATI_ATTESA.includes(avanz) || chiarimenti) return false;
       if (segnalare && !segnalatoFatto) return false;
       if (terzista && !segnalatoTerzista) return false;
       if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
-      return avanz === "accetto lo stato" || avanz === "apertura ore/ripi";
+      if (segnalare || terzista) return true;
+      return CC_PUO_CHIUDERE && (avanz === "accetto lo stato" || avanz === "apertura ore/ripi");
     };
+    const richiestaAperta = (a, ruolo) => (a.richieste_info || []).some((r) => r.aperta && (!ruolo || (r.destinatari || []).includes(ruolo)));
+    const ruoloSegnalato = (a, chi) => ((a && a[`segnalato_${chi}`] && a[`segnalato_${chi}`].ruolo) || "cc");
 
     const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
     const RISPOSTA_STATO_MSG = "Hai scritto la risposta: scegli lo stato definitivo (oppure spunta «Chiudi l'anomalia»).";
@@ -930,6 +943,7 @@
 
     function GestioneAnomalie() {
       // ── Dati ──
+      const fileInputQRef = useRef(null);
       const [ordini, setOrdini] = useState([]);
       const [anomalie, setAnomalie] = useState([]);
       const [loadingOrdini, setLoadingOrdini] = useState(true);
@@ -1006,6 +1020,17 @@
       // «Chiudi l'anomalia»: chiude al salvataggio anche se mancano i passi.
       const [chiudiManuale, setChiudiManuale] = useState(false);
       const [versioneEsiti, setVersioneEsiti] = useState(0);
+      // «In carico a me»: di serie solo le anomalie che toccano a chi guarda.
+      const [mostraTutte, setMostraTutte] = useState(false);
+      // Decisione qualità e richieste di informazioni.
+      const [qNum, setQNum] = useState("");
+      const [qAv, setQAv] = useState("");
+      const [qNote, setQNote] = useState("");
+      const [qSeg, setQSeg] = useState({ cliente: false, terzista: false });
+      const [qRisp, setQRisp] = useState({ cliente: "", terzista: "" });
+      const [qBusy, setQBusy] = useState(false);
+      const [infoModal, setInfoModal] = useState(null);  // null | { cc, controllore, messaggio, busy, err }
+      const [rispInfo, setRispInfo] = useState("");
       // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
       // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
       // in un popup prima di salvare.
@@ -1078,15 +1103,9 @@
         setTerzista(on);
         if (!on && avanzamento === AVANZAMENTO_RISPOSTA_TERZISTA) setAvanzamento(statoDiPartenza());
       };
-      // «Segnalato…»: lo stato passa da solo «In attesa risposta …»; togliere la spunta
-      // lo riporta com'era.
-      const toggleSegnalato = (chi) => {
-        const on = !segnalati[chi];
-        setSegnalati((prev) => ({ ...prev, [chi]: on }));
-        const stato = normalizeChoice(avanzamento).toLowerCase();
-        if (on && (["", "in attesa"].includes(stato) || STATI_RISPOSTA.includes(stato))) setAvanzamento(AVANZAMENTO_RISPOSTA[chi]);
-        else if (!on && avanzamento === AVANZAMENTO_RISPOSTA[chi]) setAvanzamento(statoDiPartenza());
-      };
+      // «Segnalato…»: il capocommessa ha già avvisato lui. Senza RDC l'anomalia si
+      // chiude; per aspettare la risposta si sceglie «In attesa risposta …».
+      const toggleSegnalato = (chi) => setSegnalati((prev) => ({ ...prev, [chi]: !prev[chi] }));
 
       const flash = (msg, ms = 4500) => {
         setSaveMsg(msg);
@@ -1216,13 +1235,15 @@
       const filteredSeriali = useMemo(() => {
         const q = searchSn.trim().toLowerCase();
         return anomalie.filter((a) => {
+          if (pageFilter === "in_carico" && !mostraTutte && !a.in_carico_a_me) return false;
           // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
           if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
           if (!q) return true;
           return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`]
             .some((v) => String(v || "").toLowerCase().includes(q));
         });
-      }, [anomalie, searchSn, snFilter, raggruppa]);
+      }, [anomalie, searchSn, snFilter, raggruppa, pageFilter, mostraTutte]);
+      const nInCarico = useMemo(() => anomalie.filter((a) => a.in_carico_a_me).length, [anomalie]);
       const gruppiAnomalie = useMemo(() => raggruppaAnomalie(filteredSeriali, raggruppa), [filteredSeriali, raggruppa]);
       // Ordine di «precedente/successiva»: quello dei gruppi a video.
       const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap((g) => g.items), [gruppiAnomalie]);
@@ -1230,8 +1251,15 @@
 
       const sn = useMemo(() => anomalie.find((a) => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
       // Dopo «sn» (TDZ): la chiusura con «Segnalare…» dipende da «Segnalato…».
-      const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista);
-      const chiudere = chiudereAuto || chiudiManuale;
+      const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista,
+        richiestaAperta(sn));
+      const chiudere = chiudereAuto || (chiudiManuale && CC_PUO_CHIUDERE);
+      // Decisione qualità: valori dell'anomalia aperta (dopo «sn», TDZ).
+      useEffect(() => {
+        setQNum(sn.numero_rdc || ""); setQAv(sn.avanzamento_qualita || ""); setQNote(sn.note_qualita || "");
+        setQSeg({ cliente: !!sn.segnalato_cliente, terzista: !!sn.segnalato_terzista });
+        setQRisp({ cliente: "", terzista: "" }); setRispInfo(""); setInfoModal(null);
+      }, [sn.item_id, sn.numero_rdc, sn.avanzamento_qualita, sn.note_qualita, sn.segnalato_cliente, sn.segnalato_terzista]);
       const posizione = ordineVisibile.findIndex((a) => a.item_id === sn.item_id);
       const isSelectedClosed = Boolean(sn.chiudere);
       const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -1253,7 +1281,7 @@
             const list = Array.isArray(data) ? data : [];
             setAnomalie(list);
             // Si apre la prima anomalia che aspetta una decisione.
-            const first = list.find(isDaDecidere) || list.find((a) => !a.chiudere);
+            const first = list.find((a) => a.in_carico_a_me) || list.find(isDaDecidere) || list.find((a) => !a.chiudere);
             setSelectedSnId(first ? first.item_id : "");
             setLoadingAnom(false);
           })
@@ -1366,8 +1394,8 @@
       // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
       // la decisione si applica, l'anomalia resta aperta.
       // «Segnalato…» vale anche per loro: è la stessa decisione.
-      const chiudeBersaglio = (x) => (chiudiManuale || shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente,
-        terzista, segnalati.terzista)) && !(x.serve_azione && !aprireRdc);
+      const chiudeBersaglio = (x) => ((chiudiManuale && CC_PUO_CHIUDERE) || shouldAutoClose(aprireRdc, avanzamento, x.numero_rdc || "",
+        segnalare, segnalati.cliente, terzista, segnalati.terzista, richiestaAperta(x))) && !(x.serve_azione && !aprireRdc);
       const gruppiPerSn = (lista) => {
         const out = [];
         lista.forEach((x) => {
@@ -1402,7 +1430,7 @@
 
       const uploadFiles = async (files, ambito = "") => {
         if (!files.length) return;
-        if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati su questo OP" }); return; }
+        if (!(ambito === "qualita" ? CAN_QUALITA : canEditCurrentOp)) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati qui" }); return; }
         if (!currentLocalId) { flash({ ok: false, text: "Seleziona un'anomalia salvata per caricare allegati." }); return; }
         setUploadingAttachments(true);
         try {
@@ -1444,8 +1472,9 @@
         `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
       const immagini = attachments.filter((f) => f.is_image);
       // Gli allegati della decisione del capocommessa stanno nel suo riquadro.
-      const attAnomalia = attachments.filter((f) => !f.decisione);
+      const attAnomalia = attachments.filter((f) => !f.decisione && !f.qualita);
       const attDecisione = attachments.filter((f) => f.decisione);
+      const attQualita = attachments.filter((f) => f.qualita);
       const renderAttGrid = (list) => (
         <div className="ga-att__grid">
           {list.map((file) => (
@@ -1491,7 +1520,7 @@
             body: JSON.stringify({
               item_id: currentItemId, op_id: op.id, sn: sn.sn || "", desc,
               descrizioni_risposte: descrizioneAnswers, note, pezzi_prec: pezziPrec,
-              aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+              aprire_rdc: aprireRdc, segnalare,
               segnala_terzista: terzista,
               segnala_car: segnalaCar, car_segnalati: segnalaCar ? carScelti : [],
               segnalato_cliente: segnalare && segnalati.cliente, segnalato_terzista: terzista && segnalati.terzista,
@@ -1511,7 +1540,7 @@
             segnalato_terzista: segnalatoDi("terzista", terzista, x.segnalato_terzista),
           });
           const aggiornato = {
-            desc, note: notaCongelata ? baseline.note : note, pezzi_prec: pezziPrec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
+            desc, note: notaCongelata ? baseline.note : note, pezzi_prec: pezziPrec, aprire_rdc: aprireRdc,
             segnalare, segnala_terzista: terzista,
             segnala_car: segnalaCar && carScelti.length > 0, car_segnalati: segnalaCar ? carScelti : [],
             chiudere, avanzamento, ...segnalatiSalvati(sn),
@@ -1533,7 +1562,7 @@
                   headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
                   body: JSON.stringify({
                     item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
-                    note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
+                    note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc,
                     segnalare, segnala_terzista: terzista, chiudere: chiudeF, avanzamento,
                     segnalato_cliente: segnalare && segnalati.cliente, segnalato_terzista: terzista && segnalati.terzista,
                     chiudi_manuale: chiudiManuale,
@@ -1544,7 +1573,7 @@
                 if (!df.success) throw new Error(df.error || "errore");
                 n += 1;
                 setAnomalie((prev) => prev.map((a) => (a.item_id === f.item_id ? {
-                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+                  ...a, note, aprire_rdc: aprireRdc, segnalare,
                   segnala_terzista: terzista, chiudere: chiudeF, avanzamento, ...segnalatiSalvati(a),
                 } : a)));
               } catch (err) {
@@ -1594,6 +1623,101 @@
         setSegnalaCar(baseline.segnalaCar); setCarScelti(baseline.carScelti);
         setAvanzamento(baseline.avanzamento); setDescrizioneAnswers(baseline.risposte); setEditDesc(false);
         setSegnalati(baseline.segnalati); setRisposte({ cliente: "", terzista: "" }); setChiudiManuale(false);
+      };
+
+      // ── Decisione qualità ──
+      const postJson = async (url, body, label) => {
+        const r = await fetch(url, {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+          body: JSON.stringify(body),
+        });
+        const d = await readJsonOrThrow(r, label);
+        if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+        return d;
+      };
+      const aggiornaSn = (campi) => setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id ? { ...a, ...campi } : a)));
+      const oraBreve = () => new Date().toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+      const salvaQualita = async (chiudi = false) => {
+        if (!sn.local_id || qBusy) return;
+        setQBusy(true);
+        try {
+          const body = { local_id: sn.local_id, avanzamento_qualita: qAv, note_qualita: qNote, chiudi };
+          if (sn.aprire_rdc) body.numero_rdc = qNum;
+          if (sn.segnalare) { body.segnalato_cliente = qSeg.cliente; body.risposta_cliente = qRisp.cliente.trim(); }
+          if (sn.segnala_terzista) { body.segnalato_terzista = qSeg.terzista; body.risposta_terzista = qRisp.terzista.trim(); }
+          const d = await postJson(API.qualita_salva, body, "Decisione qualità");
+          const segnalatoNuovo = (chi) => (qSeg[chi] ? (sn[`segnalato_${chi}`] || { il: oraBreve(), da: CURRENT_USER_NAME, ruolo: "qualita" }) : null);
+          aggiornaSn({
+            numero_rdc: d.numero_rdc || "", avanzamento_qualita: qAv, note_qualita: qNote, chiudere: !!d.chiusa,
+            avanzamento: d.avanzamento || sn.avanzamento, qualita_da: CURRENT_USER_NAME, qualita_il: oraBreve(),
+            ...(sn.segnalare ? { segnalato_cliente: segnalatoNuovo("cliente") } : {}),
+            ...(sn.segnala_terzista ? { segnalato_terzista: segnalatoNuovo("terzista") } : {}),
+            ...(d.chiusa ? { can_riaprire: true, in_carico_a_me: false } : {}),
+          });
+          setQRisp({ cliente: "", terzista: "" });
+          setVersioneEsiti((v) => v + 1);
+          flash({ ok: true, text: d.chiusa ? "Decisione qualità salvata · anomalia chiusa" : "Decisione qualità salvata" });
+          loadOrdini();
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setQBusy(false);
+      };
+      const inviaRichiestaInfo = async () => {
+        if (!infoModal || infoModal.busy) return;
+        const destinatari = [infoModal.cc && "cc", infoModal.controllore && "controllore"].filter(Boolean);
+        if (!destinatari.length) { setInfoModal({ ...infoModal, err: "Scegli a chi chiedere." }); return; }
+        if (!infoModal.messaggio.trim()) { setInfoModal({ ...infoModal, err: "Scrivi cosa ti serve sapere." }); return; }
+        setInfoModal({ ...infoModal, busy: true, err: "" });
+        try {
+          const d = await postJson(API.qualita_richiedi_info, { local_id: sn.local_id, destinatari, messaggio: infoModal.messaggio.trim() }, "Richiesta informazioni");
+          aggiornaSn({ richieste_info: d.richieste || [], avanzamento_qualita: d.avanzamento_qualita || AVANZAMENTO_CHIARIMENTI, in_carico_a_me: false });
+          setInfoModal(null);
+          const inv = d.invio || {};
+          flash({ ok: true, text: `Richiesta inviata${inv.inviate ? ` · ${inv.inviate} mail` : ""}${(inv.senza_email || []).length ? ` · senza email: ${inv.senza_email.join(", ")}` : ""}` }, 6000);
+          loadOrdini();
+        } catch (e) {
+          setInfoModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
+        }
+      };
+      const rispondiRichiesta = async () => {
+        if (!rispInfo.trim() || !sn.local_id) return;
+        try {
+          const d = await postJson(API.qualita_rispondi_info, { local_id: sn.local_id, testo: rispInfo.trim() }, "Risposta alla qualità");
+          aggiornaSn({ richieste_info: d.richieste || [], ruoli_risposta: [], in_carico_a_me: false,
+            ...(sn.avanzamento_qualita === AVANZAMENTO_CHIARIMENTI && !(d.richieste || []).some((r) => r.aperta) ? { avanzamento_qualita: "In attesa" } : {}) });
+          setRispInfo("");
+          flash({ ok: true, text: "Risposta inviata · l'anomalia torna alla qualità" });
+          loadOrdini();
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+      };
+      // Riquadro delle richieste della qualità, con la risposta per chi ne ha una aperta.
+      const renderRichieste = (ruolo) => {
+        const tutte = sn.richieste_info || [];
+        const mie = tutte.filter((r) => (r.destinatari || []).includes(ruolo));
+        if (!mie.length) return null;
+        const puoRispondere = (sn.ruoli_risposta || []).includes(ruolo) && mie.some((r) => r.aperta);
+        return (
+          <div className={`ga-richieste${mie.some((r) => r.aperta) ? " is-aperta" : ""}`}>
+            <div className="ga-richieste__t">Richieste della qualità</div>
+            {mie.map((r) => (
+              <div key={r.id} className="ga-richiesta">
+                <div className="ga-hint">{r.da} · {r.il}{r.aperta ? " · in attesa di risposta" : ""}</div>
+                <div className="ga-richiesta__msg">{r.messaggio}</div>
+                {!r.aperta && <div className="ga-richiesta__risp"><span className="ga-hint">Risposta di {r.risposta_da} · {r.risposta_il}</span><div>{r.risposta}</div></div>}
+              </div>
+            ))}
+            {puoRispondere && (
+              <div className="ga-richiesta__form">
+                <textarea className="ga-input" rows={2} value={rispInfo} onChange={(e) => setRispInfo(e.target.value)} placeholder="Scrivi le informazioni richieste…" />
+                <button type="button" className="ga-btn ga-btn--accent ga-btn--sm" disabled={!rispInfo.trim()} onClick={rispondiRichiesta}>Invia risposta</button>
+              </div>
+            )}
+          </div>
+        );
       };
 
       // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
@@ -1782,6 +1906,8 @@
                 {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">{a.numero_rdc ? `RDC ${a.numero_rdc}` : (a.chiudere ? "RDC" : "RDC · manca N°")}</span>}
                 {a.segnalare && <span className="ga-pill ga-pill--cli">{a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"}</span>}
                 {a.segnala_terzista && <span className="ga-pill ga-pill--ter">{a.chiudere || a.segnalato_terzista ? "Terzista" : "Terzista · da segnalare"}</span>}
+                {a.avanzamento_qualita && !a.chiudere && <span className="ga-pill ga-pill--muted" title="Avanzamento qualità">Qualità · {a.avanzamento_qualita}</span>}
+                {a.in_carico_a_me && pageFilter !== "in_carico" && <span className="ga-pill ga-pill--tocca">Tocca a te</span>}
                 {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
                 <span className="ga-an__id">#{a.local_id}</span>
@@ -1971,6 +2097,12 @@
                     <button type="button" className={raggruppa === "sn" ? "is-on" : ""} aria-pressed={raggruppa === "sn"} onClick={() => setRaggruppa("sn")}>Per S/N</button>
                     <button type="button" className={raggruppa === "stato" ? "is-on" : ""} aria-pressed={raggruppa === "stato"} onClick={() => setRaggruppa("stato")}>Per stato</button>
                   </div>
+                  {pageFilter === "in_carico" && anomalie.length > 0 && (
+                    <label className="ga-mostra-tutte" title="In «In carico a me» compaiono solo le anomalie che toccano a te">
+                      <input type="checkbox" checked={mostraTutte} onChange={(e) => setMostraTutte(e.target.checked)} />
+                      <span>Mostra tutte ({anomalie.length}) · tue {nInCarico}</span>
+                    </label>
+                  )}
                   {raggruppa === "sn" && (
                     <div className="ga-chips">
                       <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
@@ -1988,7 +2120,8 @@
                   : !op.id ? <div className="ga-empty">Seleziona un ordine.</div>
                   : filteredSeriali.length === 0 ? (
                     <div className="ga-empty">
-                      {raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ?"Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
+                      {pageFilter === "in_carico" && !mostraTutte && anomalie.length ? "Nessuna anomalia di questo OP tocca a te. «Mostra tutte» per vederle."
+                        : raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ?"Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
                       {canEditCurrentOp && !anomalie.length && <a className="ga-btn ga-btn--accent ga-btn--sm" href={nuovaAnomaliaUrl}>{Ico.plus}Nuova segnalazione</a>}
                     </div>
                   ) : (
@@ -2066,10 +2199,10 @@
                       </div>
                     )}
 
-                    {/* Segnalazione */}
+                    {/* 1. Controllore: segnalazione, dove sono i pezzi, richieste della qualità */}
                     <div className="ga-card">
                       <div className="ga-card__head">
-                        <span className="ga-card__title">Segnalazione</span>
+                        <span className="ga-card__title">Controllore · segnalazione</span>
                         {sn.stato_superficie && <span className="ga-pill ga-pill--sup">{sn.stato_superficie}</span>}
                         {canEditSelected && !editDesc && <button type="button" className="ga-link" onClick={() => setEditDesc(true)}>Modifica testo</button>}
                         {sn.can_sposta && <button type="button" className="ga-link" title="Sposta su un altro S/N dello stesso OP o di un altro OP" onClick={apriTaglia}>✂ Taglia</button>}
@@ -2095,6 +2228,15 @@
                           ))}
                         </div>
                       )}
+
+                      {(sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && (
+                        <div className="ga-ctrl">
+                          {sn.dove_pezzi && <div>📦 Dove sono i pezzi: <b>{sn.dove_pezzi}</b></div>}
+                          {(sn.dettaglio_righe || []).map((r, ri) => <div key={ri} className="ga-ctrl__r">{r}</div>)}
+                          {sn.tipo_difetto && <div className="ga-hint">Tipo di difetto: {sn.tipo_difetto}</div>}
+                        </div>
+                      )}
+                      {renderRichieste("controllore")}
 
                       {/* Allegati: griglia, trascina, incolla */}
                       <div
@@ -2127,7 +2269,7 @@
                     {/* Decisione */}
                     <div className={`ga-card ga-card--decision${dirty ? " is-dirty" : ""}`}>
                       <div className="ga-card__head">
-                        <span className="ga-card__title">Decisione del capocommessa</span>
+                        <span className="ga-card__title">Capocommessa</span>
                       </div>
                       <PercorsoAnomalia passi={esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null} />
                       <div className="ga-flags">
@@ -2137,63 +2279,49 @@
                         <FlagToggle label="Segnala a CAR" hint="I CAR scelti ricevono una mail con questa anomalia" checked={segnalaCar} disabled={!canEditSelected} onChange={toggleSegnalaCar} />
                         <FlagToggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
                       </div>
-                      {(aprireRdc || segnalare || terzista) && !sn.chiudere && (() => {
-                        // Passi per chiudere, nell'ordine in cui si fanno; «Segnalato…» si spunta qui.
+                      {(segnalare || terzista || segnalaCar) && (
+                        <div className="ga-segnalati-riga">
+                          <span className="ga-hint">Hai già fatto tu la segnalazione? Spunta «Segnalato».</span>
+                          {[["cliente", segnalare, "Segnalato al cliente"], ["terzista", terzista, "Segnalato al terzista"]].filter(([, on]) => on).map(([chi, , label]) => {
+                            const reg = sn[`segnalato_${chi}`];
+                            return (
+                              <span key={chi} className="ga-segnalato-voce">
+                                <FlagToggle label={label} checked={segnalati[chi]} disabled={!canEditSelected || (!!reg && ruoloSegnalato(sn, chi) === "qualita")}
+                                  onChange={() => toggleSegnalato(chi)} />
+                                {reg && <span className="ga-hint">il {reg.il}{reg.da ? ` da ${reg.da}` : ""}{ruoloSegnalato(sn, chi) === "qualita" ? " (qualità)" : ""}</span>}
+                              </span>
+                            );
+                          })}
+                          {segnalaCar && (
+                            <span className="ga-segnalato-voce">
+                              <FlagToggle label="Segnalato al CAR" checked={!!sn.segnalato_car} disabled onChange={() => {}} />
+                              <span className="ga-hint">{sn.segnalato_car ? `il ${sn.segnalato_car.il} · mail dal portale` : "si spunta da solo quando parte la mail ai CAR scelti"}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {!sn.chiudere && sn.item_id && (() => {
+                        // Cosa succede al salvataggio della decisione del capocommessa.
                         const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
-                        const num = String(rdcNum || "").trim();
-                        const statoDefinitivo = !STATI_ATTESA.includes(normalizeChoice(avanzamento).toLowerCase());
-                        const passi = [];
-                        if (aprireRdc) {
-                          passi.push({ k: "rdc", fatto: !!num, testo: "Numero RDC", det: num || "scrivilo nel campo «Numero RDC» qui sotto" });
-                        }
-                        DESTINATARI.filter((d) => (d.chi === "cliente" ? segnalare : terzista)).forEach((d) => {
-                          const fatto = segnalati[d.chi];
-                          const reg = sn[`segnalato_${d.chi}`];
-                          passi.push({
-                            k: `seg-${d.chi}`, fatto, testo: d.segnalato, spunta: d.chi,
-                            det: fatto
-                              ? (reg && baseline.segnalati[d.chi] ? `il ${reg.il}${reg.da ? ` da ${reg.da}` : ""}` : `al salvataggio lo stato passa a «${AVANZAMENTO_RISPOSTA[d.chi]}»`)
-                              : `spunta quando hai avvisato ${d.a}`,
-                          });
-                          if (fatto) {
-                            passi.push({
-                              k: `risp-${d.chi}`, fatto: statoDefinitivo, testo: d.risposta,
-                              det: statoDefinitivo ? `stato scelto: ${avanzamento}`
-                                : (baseline.segnalati[d.chi] ? `scrivila nel campo «${d.risposta}» qui sotto, poi scegli lo stato definitivo`
-                                  : "dopo il salvataggio compare il campo per scriverla"),
-                            });
-                          }
-                        });
+                        const attesa = STATI_RISPOSTA.includes(normalizeChoice(avanzamento).toLowerCase());
+                        const manca = [];
+                        if (aprireRdc && !String(rdcNum || "").trim()) manca.push("il numero RDC");
+                        if (segnalare && !segnalati.cliente) manca.push("la segnalazione al cliente");
+                        if (terzista && !segnalati.terzista) manca.push("la segnalazione al terzista");
                         const variante = info ? "info" : (chiudere ? "ok" : "aperta");
+                        const testo = info ? "⏸ Rimandata al capocommessa: servono ulteriori informazioni"
+                          : chiudere ? "✓ Al salvataggio l'anomalia si chiude"
+                          : attesa ? "Al salvataggio resta in attesa della risposta: la registra chi ha fatto la segnalazione"
+                          : richiestaAperta(sn) ? "In attesa dei chiarimenti chiesti dalla qualità"
+                          : (aprireRdc || segnalare || terzista || segnalaCar || baseline.avanzamento !== DEFAULT_AVANZAMENTO || note.trim())
+                            ? "Al salvataggio passa alla qualità" : "";
+                        if (!testo) return null;
                         return (
                           <div className={`ga-chiusura ga-chiusura--${variante}`} role="status">
-                            <div className="ga-chiusura__t">
-                              {info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa"
-                                : chiudiManuale && !chiudereAuto ? "✓ «Chiudi l'anomalia» spuntato: si chiude al salvataggio"
-                                : chiudereAuto ? "✓ Passi completati: si chiude al salvataggio"
-                                : "Resta aperta finché non completi questi passi"}
-                            </div>
-                            {info
-                              ? <div className="ga-chiusura__d">Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.</div>
-                              : (
-                                <ol className="ga-passi">
-                                  {passi.map((v, i) => (
-                                    <li key={v.k} className={v.fatto ? "is-fatto" : ""}>
-                                      {v.spunta
-                                        ? (
-                                          <label className="ga-passi__spunta">
-                                            <input type="checkbox" checked={v.fatto} disabled={!canEditSelected} onChange={() => toggleSegnalato(v.spunta)} />
-                                            <span className="ga-passi__box" aria-hidden="true">{v.fatto ? "✓" : ""}</span>
-                                            <b>{v.testo}</b>
-                                          </label>
-                                        )
-                                        : <><span className="ga-passi__n" aria-hidden="true">{v.fatto ? "✓" : i + 1}</span><b>{v.testo}</b></>}
-                                      <span className="ga-passi__det">{v.det}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              )}
-                            {!info && (aprireRdc || segnalare) && !chiudere && <div className="ga-chiusura__d">In carico al referente RDC finché resta aperta.</div>}
+                            <div className="ga-chiusura__t">{testo}</div>
+                            {!chiudere && !info && !attesa && manca.length > 0 && (
+                              <div className="ga-chiusura__d">La qualità completa {manca.join(", ")}; senza RDC le segnalazioni fatte chiudono l'anomalia.</div>
+                            )}
                           </div>
                         );
                       })()}
@@ -2214,14 +2342,6 @@
                             ? `Al salvataggio la mail «Segnala a CAR» va solo a: ${carScelti.join(", ")} (chi l'ha già ricevuta non la riceve di nuovo).`
                             : "Scegli almeno un CAR: senza scelta la segnalazione non parte."}
                             {" "}Il CAR dell'OP riceve comunque il riepilogo delle modifiche, come sempre.</div>
-                        </div>
-                      )}
-                      {(sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && (
-                        <div className="ga-ctrl">
-                          <div className="ga-ctrl__t">Dal controllore</div>
-                          {sn.dove_pezzi && <div>📦 Dove sono i pezzi: <b>{sn.dove_pezzi}</b></div>}
-                          {(sn.dettaglio_righe || []).map((r, ri) => <div key={ri} className="ga-ctrl__r">{r}</div>)}
-                          {sn.tipo_difetto && <div className="ga-hint">Tipo di difetto: {sn.tipo_difetto}</div>}
                         </div>
                       )}
                       <div className="ga-att ga-att--dec"
@@ -2248,12 +2368,6 @@
                             {avanzamentoOptions.map((opt) => <option key={opt}>{opt}</option>)}
                           </select>
                         </div>
-                        {aprireRdc && (
-                          <div>
-                            <FieldLabel>Numero RDC</FieldLabel>
-                            <input className={`ga-input${!String(rdcNum || "").trim() && !sn.chiudere ? " is-invalid" : ""}`} placeholder="Es. RDC-2026-014" value={rdcNum} onChange={(e) => setRdcNum(e.target.value)} disabled={!canEditSelected} />
-                          </div>
-                        )}
                       </div>
                       {notaCongelata ? (
                         <div className="ga-nota-ferma">
@@ -2271,7 +2385,8 @@
                       {canEditSelected && notaSenzaStato && (
                         <div className="ga-note ga-note--warn">{NOTA_STATO_MSG}</div>
                       )}
-                      {DESTINATARI.filter((d) => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi]).map((d) => {
+                      {DESTINATARI.filter((d) => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi]
+                        && ruoloSegnalato(sn, d.chi) === "cc" && STATI_RISPOSTA.includes(normalizeChoice(baseline.avanzamento).toLowerCase())).map((d) => {
                         const gia = ((esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti) || []).filter((e) => e.tipo === d.tipo);
                         return (
                           <div key={d.chi} className="ga-risposta">
@@ -2293,7 +2408,8 @@
                       {canEditSelected && rispostaSenzaStato && (
                         <div className="ga-note ga-note--warn">{RISPOSTA_STATO_MSG}</div>
                       )}
-                      {canEditSelected && !sn.chiudere && (
+                      {renderRichieste("cc")}
+                      {canEditSelected && !sn.chiudere && CC_PUO_CHIUDERE && (
                         <div className="ga-chiudi">
                           <FlagToggle label="Chiudi l'anomalia" checked={chiudere} disabled={chiudereAuto}
                             onChange={() => setChiudiManuale(!chiudiManuale)} />
@@ -2352,6 +2468,110 @@
                         </div>
                       )}
                     </div>
+
+                    {sn.local_id && (() => {
+                      const puo = CAN_QUALITA && !sn.chiudere;
+                      const attesaQ = (chi) => ruoloSegnalato(sn, chi) === "qualita" && !!sn[`segnalato_${chi}`]
+                        && normalizeChoice(sn.avanzamento).toLowerCase() === AVANZAMENTO_RISPOSTA[chi].toLowerCase();
+                      const chiudeQ = !sn.chiudere && shouldAutoClose(!!sn.aprire_rdc, (DESTINATARI.some((d) => attesaQ(d.chi) && qRisp[d.chi].trim()) ? "In attesa" : sn.avanzamento),
+                        qNum, !!sn.segnalare, qSeg.cliente, !!sn.segnala_terzista, qSeg.terzista, richiestaAperta(sn));
+                      const esitiQ = (tipo) => ((esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti) || []).filter((e) => e.tipo === tipo);
+                      return (
+                        <div className="ga-card ga-card--qualita">
+                          <div className="ga-card__head">
+                            <span className="ga-card__title">Decisione qualità</span>
+                            {sn.qualita_da && <span className="ga-hint">{sn.qualita_da}{sn.qualita_il ? ` · ${sn.qualita_il}` : ""}</span>}
+                          </div>
+                          {!puo && !sn.avanzamento_qualita && !sn.note_qualita && !sn.numero_rdc && !attQualita.length && !(sn.richieste_info || []).length
+                            ? <div className="ga-hint">{sn.chiudere ? "Nessuna decisione qualità." : "La decide la qualità (Configurazione → «Qualità»)."}</div>
+                            : (
+                              <>
+                                <div className="ga-grid2">
+                                  {sn.aprire_rdc && (
+                                    <div>
+                                      <FieldLabel>Numero RDC</FieldLabel>
+                                      <input className={`ga-input${puo && !qNum.trim() ? " is-invalid" : ""}`} placeholder="Es. RDC-2026-014"
+                                        value={qNum} onChange={(e) => setQNum(e.target.value)} disabled={!puo} />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <FieldLabel>Avanzamento qualità</FieldLabel>
+                                    <select className="ga-input" value={qAv} onChange={(e) => setQAv(e.target.value)} disabled={!puo}>
+                                      <option value="">— nessuno stato —</option>
+                                      {[...AVANZAMENTI_QUALITA, ...(qAv && !AVANZAMENTI_QUALITA.includes(qAv) ? [qAv] : [])].map((o) => <option key={o}>{o}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                                {(sn.segnalare || sn.segnala_terzista) && (
+                                  <div className="ga-segnalati-riga">
+                                    {DESTINATARI.filter((d) => (d.chi === "cliente" ? sn.segnalare : sn.segnala_terzista)).map((d) => {
+                                      const reg = sn[`segnalato_${d.chi}`];
+                                      const delCc = !!reg && ruoloSegnalato(sn, d.chi) === "cc";
+                                      return (
+                                        <span key={d.chi} className="ga-segnalato-voce">
+                                          <FlagToggle label={d.segnalato} checked={qSeg[d.chi]} disabled={!puo || delCc}
+                                            onChange={() => setQSeg((p) => ({ ...p, [d.chi]: !p[d.chi] }))} />
+                                          <span className="ga-hint">{reg ? `il ${reg.il}${reg.da ? ` da ${reg.da}` : ""}${delCc ? " (capocommessa)" : ""}` : "se il capocommessa non l'ha fatto"}</span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                                {DESTINATARI.filter((d) => attesaQ(d.chi)).map((d) => (
+                                  <div key={d.chi} className="ga-risposta">
+                                    <FieldLabel>{d.risposta}</FieldLabel>
+                                    {esitiQ(d.tipo).map((e) => (
+                                      <div key={e.id} className="ga-risposta__gia"><span className="ga-hint">{e.utente}</span><div>{e.testo}</div></div>
+                                    ))}
+                                    {puo && <textarea className="ga-input" rows={2} value={qRisp[d.chi]} onChange={(e) => setQRisp((p) => ({ ...p, [d.chi]: e.target.value }))}
+                                      placeholder={`Cosa ha risposto ${d.a}`} />}
+                                  </div>
+                                ))}
+                                <div>
+                                  <FieldLabel>Note della qualità</FieldLabel>
+                                  <textarea className="ga-input" rows={3} value={qNote} onChange={(e) => setQNote(e.target.value)} disabled={!puo}
+                                    placeholder="Valutazione, riferimenti RDC, indicazioni…" />
+                                </div>
+                                <div className="ga-att ga-att--dec"
+                                  onDragOver={(e) => { if (puo) e.preventDefault(); }}
+                                  onDrop={(e) => { e.preventDefault(); if (puo) uploadFiles(Array.from(e.dataTransfer.files || []), "qualita"); }}>
+                                  <input ref={fileInputQRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
+                                    onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f, "qualita"); }} />
+                                  <div className="ga-att__head">
+                                    <span className="ga-card__sub">{Ico.clip} Allegati della qualità {attQualita.length ? `(${attQualita.length})` : ""}</span>
+                                    {puo && <span className="ga-hint">{uploadingAttachments ? "Caricamento…" : <>Trascina qui o <button type="button" className="ga-link" onClick={() => fileInputQRef.current && fileInputQRef.current.click()}>sfoglia</button></>}</span>}
+                                  </div>
+                                  {attQualita.length === 0 ? <div className="ga-hint">Nessun allegato della qualità.</div> : renderAttGrid(attQualita)}
+                                </div>
+                                {(sn.richieste_info || []).length > 0 && (
+                                  <div className="ga-richieste">
+                                    <div className="ga-richieste__t">Informazioni chieste</div>
+                                    {sn.richieste_info.map((r) => (
+                                      <div key={r.id} className="ga-richiesta">
+                                        <div className="ga-hint">{r.il} · a {(r.destinatari || []).map((x) => (x === "cc" ? "capocommessa" : "controllore")).join(" e ")}{r.aperta ? " · in attesa" : ""}</div>
+                                        <div className="ga-richiesta__msg">{r.messaggio}</div>
+                                        {!r.aperta && <div className="ga-richiesta__risp"><span className="ga-hint">{r.risposta_da} · {r.risposta_il}</span><div>{r.risposta}</div></div>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {puo && (
+                                  <>
+                                    {chiudeQ && <div className="ga-note ga-note--ok">Al salvataggio l'anomalia si chiude.</div>}
+                                    <div className="ga-qualita__acts">
+                                      <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={qBusy}
+                                        onClick={() => setInfoModal({ cc: true, controllore: false, messaggio: "", busy: false, err: "" })}>Richiedi info aggiuntive…</button>
+                                      <span className="ga-qualita__spacer" />
+                                      <button type="button" className="ga-btn ga-btn--outline" disabled={qBusy} onClick={() => salvaQualita(false)}>{qBusy ? "Salvataggio…" : "Salva"}</button>
+                                      <button type="button" className="ga-btn ga-btn--accent" disabled={qBusy} onClick={() => salvaQualita(true)}>Chiudi l'anomalia</button>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                        </div>
+                      );
+                    })()}
 
                     {sn.local_id && (
                       <EsitiAnomalia localId={sn.local_id} avanzamento={sn.avanzamento} chiusa={Boolean(sn.chiudere)} segnalare={Boolean(sn.segnalare)} versione={versioneEsiti}
@@ -2413,6 +2633,27 @@
                   <button type="button" className={`ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`} disabled={azAnom.busy} onClick={confermaAzione}>
                     {azAnom.busy ? "Attendere…" : (azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Richiedi info aggiuntive (qualità) */}
+          {infoModal && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-info-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-info-t">Richiedi info aggiuntive · #{sn.local_id}</div>
+                <div className="ga-hint">Arriva una notifica e una mail con il link per rispondere; finché non rispondono l'anomalia è in carico a loro («{AVANZAMENTO_CHIARIMENTI}»).</div>
+                <div className="ga-flags">
+                  <FlagToggle label="Capocommessa" checked={infoModal.cc} onChange={() => setInfoModal({ ...infoModal, cc: !infoModal.cc })} />
+                  <FlagToggle label="Controllore" checked={infoModal.controllore} onChange={() => setInfoModal({ ...infoModal, controllore: !infoModal.controllore })} />
+                </div>
+                <textarea className="ga-input" rows={4} autoFocus value={infoModal.messaggio} placeholder="Cosa ti serve sapere?"
+                  onChange={(e) => setInfoModal({ ...infoModal, messaggio: e.target.value })} />
+                {infoModal.err && <div className="ga-note ga-note--warn">{infoModal.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={infoModal.busy} onClick={() => setInfoModal(null)}>Annulla</button>
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={infoModal.busy} onClick={inviaRichiestaInfo}>{infoModal.busy ? "Invio…" : "Invia richiesta"}</button>
                 </div>
               </div>
             </div>

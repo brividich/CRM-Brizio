@@ -151,24 +151,29 @@
                   <input type="checkbox" id="ter-{{ a.id }}" {% if a.segnala_terzista %}checked{% endif %} onchange="onTerzistaChange({{ a.id }})">
                   <span>Segnala a terzista?</span>
                 </label>
+                {% if op_car %}
+                <label class="toggle-row">
+                  <input type="checkbox" id="car-{{ a.id }}" {% if a.segnala_car %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
+                  <span>Segnala al CAR ({{ op_car }})?</span>
+                </label>
+                {% endif %}
               </div>
 
-              <div class="passi-box" id="passi-{{ a.id }}" data-stato-salvato="{{ a.avanzamento|default:'' }}" hidden>
-                <div class="passi-t" id="passi-t-{{ a.id }}">Resta aperta finché non completi questi passi</div>
+              <div class="passi-box" id="passi-{{ a.id }}" data-stato-salvato="{{ a.avanzamento|default:'' }}"
+                   data-numero-rdc="{{ a.numero_rdc|default:'' }}" data-chiarimenti="{% if a.chiarimenti_aperti %}1{% endif %}" hidden>
+                <div class="passi-t" id="passi-t-{{ a.id }}"></div>
+                <div class="passi-det">Hai già fatto tu la segnalazione? Spunta «Segnalato».</div>
                 <ol>
-                  <li id="passo-rdc-{{ a.id }}">
-                    <b>Numero RDC</b><span class="passi-det" id="passo-rdc-det-{{ a.id }}">scrivilo nel campo «N° RDC» qui sotto</span>
-                  </li>
                   <li id="passo-segc-{{ a.id }}">
-                    <label><input type="checkbox" id="segc-{{ a.id }}" {% if a.segnalato_cliente %}checked data-registrato="1"{% endif %} onchange="onSegnalatoChange({{ a.id }}, 'cliente')"> Segnalato al cliente</label>
-                    <span class="passi-det">{% if a.segnalato_cliente %}il {{ a.segnalato_cliente.il }}{% if a.segnalato_cliente.da %} da {{ a.segnalato_cliente.da }}{% endif %}{% else %}spunta quando hai avvisato il cliente: lo stato passa a «In attesa risposta cliente»{% endif %}</span>
+                    <label><input type="checkbox" id="segc-{{ a.id }}" {% if a.segnalato_cliente %}checked data-registrato="1"{% endif %}{% if a.segnalato_cliente.ruolo == "qualita" %} disabled{% endif %} onchange="onToggleChange({{ a.id }})"> Segnalato al cliente</label>
+                    <span class="passi-det">{% if a.segnalato_cliente %}il {{ a.segnalato_cliente.il }}{% if a.segnalato_cliente.da %} da {{ a.segnalato_cliente.da }}{% endif %}{% if a.segnalato_cliente.ruolo == "qualita" %} (qualità){% endif %}{% else %}senza RDC l'anomalia si chiude{% endif %}</span>
                   </li>
                   <li id="passo-segt-{{ a.id }}">
-                    <label><input type="checkbox" id="segt-{{ a.id }}" {% if a.segnalato_terzista %}checked data-registrato="1"{% endif %} onchange="onSegnalatoChange({{ a.id }}, 'terzista')"> Segnalato al terzista</label>
-                    <span class="passi-det">{% if a.segnalato_terzista %}il {{ a.segnalato_terzista.il }}{% if a.segnalato_terzista.da %} da {{ a.segnalato_terzista.da }}{% endif %}{% else %}spunta quando hai avvisato il terzista: lo stato passa a «In attesa risposta terzista»{% endif %}</span>
+                    <label><input type="checkbox" id="segt-{{ a.id }}" {% if a.segnalato_terzista %}checked data-registrato="1"{% endif %}{% if a.segnalato_terzista.ruolo == "qualita" %} disabled{% endif %} onchange="onToggleChange({{ a.id }})"> Segnalato al terzista</label>
+                    <span class="passi-det">{% if a.segnalato_terzista %}il {{ a.segnalato_terzista.il }}{% if a.segnalato_terzista.da %} da {{ a.segnalato_terzista.da }}{% endif %}{% if a.segnalato_terzista.ruolo == "qualita" %} (qualità){% endif %}{% else %}senza RDC l'anomalia si chiude{% endif %}</span>
                   </li>
-                  <li id="passo-risp-{{ a.id }}">
-                    <b>Risposta</b><span class="passi-det">quando arriva, scrivila nel campo «Risposta» e scegli lo stato definitivo</span>
+                  <li id="passo-car-{{ a.id }}" class="{% if a.segnalato_car %}is-fatto{% endif %}">
+                    <b>Segnalato al CAR</b><span class="passi-det">{% if a.segnalato_car %}il {{ a.segnalato_car.il }} · mail dal portale{% else %}si spunta da solo quando parte la mail al CAR{% endif %}</span>
                   </li>
                 </ol>
               </div>
@@ -186,10 +191,12 @@
                     <option value="">— invariato —</option>
                   </select>
                 </div>
-                <div class="rdc-num-wrap" id="numwrap-{{ a.id }}" {% if not a.aprire_rdc %}hidden{% endif %}>
-                  <div class="field-label">N° RDC</div>
-                  <input class="field-input" type="text" id="num-{{ a.id }}" maxlength="100" value="{{ a.numero_rdc|default:'' }}" placeholder="Numero RDC">
+                {% if a.numero_rdc %}
+                <div>
+                  <div class="field-label">N° RDC (qualità)</div>
+                  <div class="nota-ferma">{{ a.numero_rdc }}</div>
                 </div>
+                {% endif %}
                 {% if a.nota_congelata %}
                 <div class="field-wide">
                   <div class="field-label">Note già inviate (congelate mentre si aspetta la risposta)</div>
@@ -201,14 +208,14 @@
                   <textarea class="field-textarea" id="note-{{ a.id }}" oninput="onToggleChange({{ a.id }})" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
                 </div>
                 {% endif %}
-                {% if a.segnalare_cliente and a.segnalato_cliente %}
+                {% if a.segnalare_cliente and a.segnalato_cliente and a.segnalato_cliente.ruolo != "qualita" and a.attesa_risposta_cliente %}
                 <div class="field-wide">
                   <div class="field-label">Risposta del cliente</div>
                   {% for r in a.risposte %}{% if r.chi == "cliente" %}<div class="risposte-gia">{{ r.il }}{% if r.da %} · {{ r.da }}{% endif %}<br>{{ r.testo }}</div>{% endif %}{% endfor %}
                   <textarea class="field-textarea" id="rispc-{{ a.id }}" oninput="onToggleChange({{ a.id }})" placeholder="Cosa ha risposto il cliente (riferimento della mail, decisione...)"></textarea>
                 </div>
                 {% endif %}
-                {% if a.segnala_terzista and a.segnalato_terzista %}
+                {% if a.segnala_terzista and a.segnalato_terzista and a.segnalato_terzista.ruolo != "qualita" and a.attesa_risposta_terzista %}
                 <div class="field-wide">
                   <div class="field-label">Risposta del terzista</div>
                   {% for r in a.risposte %}{% if r.chi == "terzista" %}<div class="risposte-gia">{{ r.il }}{% if r.da %} · {{ r.da }}{% endif %}<br>{{ r.testo }}</div>{% endif %}{% endfor %}
@@ -221,6 +228,24 @@
                   <input type="file" name="allegati_{{ a.id }}" form="form-globale" multiple
                          accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.msg,.eml">
                 </div>
+                {% if a.richieste_cc %}
+                <div class="field-wide richieste-box{% if a.richiesta_cc_aperta %} is-aperta{% endif %}">
+                  <div class="field-label">Richieste della qualità</div>
+                  {% for r in a.richieste_cc %}
+                  <div class="risposte-gia">{{ r.il }} · {{ r.da }}<br>{{ r.messaggio }}{% if not r.aperta %}<br><em>Risposta di {{ r.risposta_da }} ({{ r.risposta_il }}): {{ r.risposta }}</em>{% endif %}</div>
+                  {% endfor %}
+                  {% if a.richiesta_cc_aperta %}
+                  <textarea class="field-textarea" id="rispinfo-{{ a.id }}" placeholder="Scrivi le informazioni richieste..."></textarea>
+                  {% endif %}
+                </div>
+                {% endif %}
+                {% if a.avanzamento_qualita or a.note_qualita %}
+                <div class="field-wide">
+                  <div class="field-label">Decisione qualità</div>
+                  <div class="nota-ferma">{{ a.avanzamento_qualita|default:"nessuno stato" }}{% if a.note_qualita %} — {{ a.note_qualita }}{% endif %}</div>
+                </div>
+                {% endif %}
+                {% if cc_puo_chiudere %}
                 <div class="field-wide">
                   <label class="toggle-row">
                     <input type="checkbox" id="chiudi-{{ a.id }}" onchange="onChiudiChange({{ a.id }})">
@@ -228,6 +253,7 @@
                   </label>
                   <div class="passi-det" id="chiudi-det-{{ a.id }}"></div>
                 </div>
+                {% endif %}
                 {% if anomalie|length > 1 %}
                 <div class="applica-blocco applica-ambito field-wide">
                   <label class="applica-t" for="ambito-{{ a.id }}">Applica la stessa decisione anche a</label>
@@ -379,13 +405,15 @@
   // Stessa regola del server (views.chiusura_automatica): «Aprire RDC» chiude solo con
   // il numero RDC, «Segnalare…» solo con «Segnalato…»; gli stati d'attesa tengono
   // aperta l'anomalia. «Chiudi l'anomalia» (a mano) chiude comunque.
-  function shouldAutoClose(isAprireRdc, avanz, numRdc, segnalare, segnalatoCli, terzista, segnalatoTer) {
+  var CC_PUO_CHIUDERE = {{ cc_puo_chiudere|yesno:"true,false" }};
+  function shouldAutoClose(isAprireRdc, avanz, numRdc, segnalare, segnalatoCli, terzista, segnalatoTer, chiarimenti) {
     var a = String(avanz || '').trim().toLowerCase();
-    if (STATI_ATTESA.indexOf(a) >= 0) return false;
+    if (STATI_ATTESA.indexOf(a) >= 0 || chiarimenti) return false;
     if (segnalare && !segnalatoCli) return false;
     if (terzista && !segnalatoTer) return false;
     if (isAprireRdc) return !!String(numRdc || '').trim();
-    return a === 'accetto lo stato' || a === 'apertura ore/ripi';
+    if (segnalare || terzista) return true;
+    return CC_PUO_CHIUDERE && (a === 'accetto lo stato' || a === 'apertura ore/ripi');
   }
   function el(prefix, id) { return document.getElementById(prefix + id); }
   function spunta(prefix, id) { var e = el(prefix, id); return !!(e && e.checked); }
@@ -395,9 +423,9 @@
     return String((av && av.value) || (box ? box.dataset.statoSalvato : '') || '').trim();
   }
   function chiusuraAuto(id) {
-    var num = el('num-', id);
-    return shouldAutoClose(spunta('rdc-', id), statoEffettivoDi(id), num ? num.value : '',
-      spunta('seg-', id), spunta('segc-', id), spunta('ter-', id), spunta('segt-', id));
+    var box = el('passi-', id);
+    return shouldAutoClose(spunta('rdc-', id), statoEffettivoDi(id), box ? box.dataset.numeroRdc : '',
+      spunta('seg-', id), spunta('segc-', id), spunta('ter-', id), spunta('segt-', id), !!(box && box.dataset.chiarimenti));
   }
 
   // Popola le select avanzamento di ogni riga in base allo stato corrente dei toggle.
@@ -430,17 +458,6 @@
     if (!spunta('ter-', id) && av && av.value === AVANZAMENTO_RISPOSTA.terzista) av.value = '';
     onToggleChange(id);
   }
-  // «Segnalato…»: lo stato passa da solo «In attesa risposta …»; togliere la spunta
-  // torna a «invariato».
-  function onSegnalatoChange(id, chi) {
-    var av = el('av-', id);
-    var on = spunta(chi === 'cliente' ? 'segc-' : 'segt-', id);
-    rebuildSelect(id);
-    var stato = statoEffettivoDi(id).toLowerCase();
-    if (av && on && (stato === '' || stato === 'in attesa' || STATI_RISPOSTA.indexOf(stato) >= 0)) av.value = AVANZAMENTO_RISPOSTA[chi];
-    else if (av && !on && av.value === AVANZAMENTO_RISPOSTA[chi]) av.value = '';
-    onToggleChange(id);
-  }
   function onChiudiChange(id) {
     var chk = el('chiudi-', id);
     if (chk) chk.dataset.manuale = chk.checked ? '1' : '';
@@ -461,27 +478,21 @@
     if (chk) { chk.checked = auto || manuale; chk.disabled = auto; }
     var cdet = el('chiudi-det-', id);
     if (cdet) cdet.textContent = auto ? 'Si chiude da sola con questa decisione.' : 'Chiude anche se mancano dei passi.';
-    var numEl = el('num-', id);
-    var numWrap = document.getElementById('numwrap-' + id);
-    if (numWrap) numWrap.hidden = !(rdc && rdc.checked);
 
-    // Passi per chiudere
-    var conRdc = !!(rdc && rdc.checked), conCli = !!(seg && seg.checked), conTer = spunta('ter-', id);
+    // «Segnalato» e cosa succede alla conferma
+    var conCli = !!(seg && seg.checked), conTer = spunta('ter-', id), conCar = spunta('car-', id);
     var box = el('passi-', id);
     if (box) {
-      box.hidden = !(conRdc || conCli || conTer);
+      box.hidden = !(conCli || conTer || conCar);
       box.classList.toggle('is-ok', auto || manuale);
-      var num = numEl ? numEl.value.trim() : '';
       var mostra = function(pref, vis, fatto) { var li = el(pref, id); if (li) { li.hidden = !vis; li.classList.toggle('is-fatto', !!fatto); } };
-      var definitivo = STATI_ATTESA.indexOf(statoEffettivoDi(id).toLowerCase()) < 0;
-      mostra('passo-rdc-', conRdc, !!num);
-      var rdet = el('passo-rdc-det-', id); if (rdet) rdet.textContent = num ? num : 'scrivilo nel campo «N° RDC» qui sotto';
       mostra('passo-segc-', conCli, spunta('segc-', id));
       mostra('passo-segt-', conTer, spunta('segt-', id));
-      mostra('passo-risp-', (conCli && spunta('segc-', id)) || (conTer && spunta('segt-', id)), definitivo);
+      var liCar = el('passo-car-', id); if (liCar) liCar.hidden = !conCar;
+      var attesa = STATI_RISPOSTA.indexOf(statoEffettivoDi(id).toLowerCase()) >= 0;
       var t = el('passi-t-', id);
-      if (t) t.textContent = manuale && !auto ? "✓ «Chiudi l'anomalia» spuntato: si chiude alla conferma"
-        : (auto ? '✓ Passi completati: si chiude alla conferma' : 'Resta aperta finché non completi questi passi');
+      if (t) t.textContent = (auto || manuale) ? '✓ Alla conferma l\'anomalia si chiude'
+        : (attesa ? 'Alla conferma resta in attesa della risposta' : 'Alla conferma passa alla qualità');
     }
 
     // Badge di risalto sulla riga
@@ -635,14 +646,12 @@
       var r = document.getElementById('rdc-' + aid), s = document.getElementById('seg-' + aid);
       if (r) r.checked = !!(rdc && rdc.checked);
       if (s) s.checked = !!(seg && seg.checked);
-      ['ter-', 'segc-', 'segt-'].forEach(function(pref){ var x = el(pref, aid); if (x) x.checked = spunta(pref, id); });
+      ['ter-', 'car-', 'segc-', 'segt-'].forEach(function(pref){ var x = el(pref, aid); if (x) x.checked = spunta(pref, id); });
       var cx = el('chiudi-', aid), c0 = el('chiudi-', id);
       if (cx && c0) cx.dataset.manuale = c0.dataset.manuale || '';
       onToggleChange(aid);
       var a = document.getElementById('av-' + aid);
       if (a && av) a.value = av.value;
-      var nn = document.getElementById('num-' + aid);
-      if (nn) nn.value = (num && rdc && rdc.checked) ? num.value.trim() : nn.value;
       var t = document.getElementById('note-' + aid);
       if (t && note) t.value = note.value.trim();
       onToggleChange(aid);
@@ -705,10 +714,12 @@
     aggiornamenti[id] = {
       avanzamento: av.disabled ? '' : av.value,
       note: note ? note.value.trim() : '',
-      numero_rdc: (num && aprireRdc) ? num.value.trim() : "",
+
       aprire_rdc: aprireRdc,
       segnalare: segnalare,
       segnala_terzista: terzista,
+      segnala_car: spunta('car-', id),
+      risposta_info: (el('rispinfo-', id) || { value: '' }).value.trim(),
       segnalato_cliente: segnalare && spunta('segc-', id),
       segnalato_terzista: terzista && spunta('segt-', id),
       risposta_cliente: rispc ? rispc.value.trim() : '',

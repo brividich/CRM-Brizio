@@ -157,15 +157,24 @@ class SegnalatoRispostaChiudiTests(_TabellaAnomalieMixin, TestCase):
         self.assertEqual(riga["avanzamento"], "In attesa")
         self.assertEqual(riga["chiudere"], 0)
 
-    def test_segnalato_porta_in_attesa_risposta_e_registra(self):
+    def test_segnalato_senza_rdc_chiude_e_registra(self):
         riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Mandata foto")
-        self.assertEqual(riga["avanzamento"], av.AVANZAMENTO_RISPOSTA_CLIENTE)
+        self.assertEqual((riga["avanzamento"], riga["chiudere"]), ("In attesa", 1))
         self.scheda.refresh_from_db()
         self.assertIsNotNone(self.scheda.segnalato_cliente_il)
+        self.assertEqual(self.scheda.segnalato_cliente_ruolo, "cc")
+
+    def test_segnalato_con_attesa_risposta_resta_aperta(self):
+        riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento=av.AVANZAMENTO_RISPOSTA_CLIENTE)
+        self.assertEqual(riga["chiudere"], 0)
+
+    def test_segnalato_con_rdc_senza_numero_resta_aperta(self):
+        riga = self._salva(aprire_rdc=True, segnalare=True, segnalato_cliente=True, avanzamento="In attesa")
+        self.assertEqual(riga["chiudere"], 0)
 
     def test_segnalato_terzista(self):
         riga = self._salva(segnala_terzista=True, segnalato_terzista=True, avanzamento="In attesa")
-        self.assertEqual(riga["avanzamento"], av.AVANZAMENTO_RISPOSTA_TERZISTA)
+        self.assertEqual(riga["chiudere"], 1)
         self.scheda.refresh_from_db()
         self.assertIsNotNone(self.scheda.segnalato_terzista_il)
 
@@ -175,14 +184,14 @@ class SegnalatoRispostaChiudiTests(_TabellaAnomalieMixin, TestCase):
         self.assertIsNone(self.scheda.segnalato_cliente_il)
 
     def test_nota_congelata_in_attesa_di_risposta(self):
-        self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Nota mandata")
+        self._salva(segnalare=True, segnalato_cliente=True, avanzamento=av.AVANZAMENTO_RISPOSTA_CLIENTE, note="Nota mandata")
         riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="Accetto lo stato", note="Riscritta")
         self.assertEqual(riga["note_capocommessa"], "Nota mandata")
 
     def test_risposta_registrata_e_chiusura(self):
         from anomalie.quality_models import AnomaliaEsito
 
-        self._salva(segnalare=True, segnalato_cliente=True, avanzamento="In attesa", note="Nota mandata")
+        self._salva(segnalare=True, segnalato_cliente=True, avanzamento=av.AVANZAMENTO_RISPOSTA_CLIENTE, note="Nota mandata")
         riga = self._salva(segnalare=True, segnalato_cliente=True, avanzamento="Accetto lo stato", chiudere=True,
                            risposta_cliente="Il cliente accetta in deroga")
         self.assertEqual(riga["chiudere"], 1)

@@ -5,6 +5,7 @@ from . import mail_action_views
 from . import silenzia_views
 from . import nc_views
 from . import controllo_views
+from . import qualita_views
 
 
 urlpatterns = [
@@ -51,6 +52,11 @@ urlpatterns = [
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
     path("api/anomalie/riapri", views.api_riapri, name="api_anomalie_riapri"),
     path("api/anomalie/segnalato", views.api_segnalato, name="api_anomalie_segnalato"),
+    path("api/anomalie/qualita/salva", qualita_views.api_qualita_salva, name="api_anomalie_qualita_salva"),
+    path("api/anomalie/qualita/richiedi-info", qualita_views.api_qualita_richiedi_info,
+         name="api_anomalie_qualita_richiedi_info"),
+    path("api/anomalie/qualita/rispondi-info", qualita_views.api_qualita_rispondi_info,
+         name="api_anomalie_qualita_rispondi_info"),
     path("api/anomalie/elimina", views.api_anomalie_elimina, name="api_anomalie_elimina"),
     path("api/anomalie/sposta", views.api_anomalie_sposta, name="api_anomalie_sposta"),
     path("api/anomalie/esiti", views.api_anomalie_esiti, name="api_anomalie_esiti"),

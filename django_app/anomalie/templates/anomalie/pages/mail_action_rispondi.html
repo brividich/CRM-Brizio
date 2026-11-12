@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Informazioni richieste — NOVICROM HUB</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; font-family: "Outfit", Arial, sans-serif; font-size: 15px; line-height: 1.55; background: var(--bg, #eef3f8); color: #1e293b; }
+    .topbar { background: #002b5c; color: #fff; padding: 14px 24px; border-bottom: 4px solid #ff6b00; font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+    .main { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 16px; }
+    h1 { font-size: 22px; margin: 0; }
+    .card { background: #fff; border: 1px solid #dbe3ec; border-radius: 14px; padding: 16px; display: grid; gap: 10px; }
+    .meta { font-size: 12px; color: #64748b; }
+    .desc { white-space: pre-wrap; }
+    .richiesta { border: 2px solid #f97316; border-left-width: 6px; background: #fff7ed; border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
+    label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #475569; }
+    textarea { width: 100%; min-height: 90px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+    input[type=file] { font-size: 13px; }
+    .btn { justify-self: start; background: #ff6b00; color: #fff; border: 0; border-radius: 10px; padding: 11px 20px; font-weight: 800; font-size: 15px; cursor: pointer; }
+    .vuoto { text-align: center; color: #64748b; }
+    .scade { font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="topbar">NOVICROM HUB · Gestione anomalie</div>
+  <main class="main">
+    <h1>La qualità chiede informazioni · OP {{ op_id }}</h1>
+    {% if voci %}
+    <form method="post" enctype="multipart/form-data" class="main" style="padding:0">
+      {% csrf_token %}
+      {% for v in voci %}
+      <section class="card">
+        <div class="meta">#{{ v.a.id }} · S/N {{ v.a.seriale|default:"—" }}</div>
+        <div class="desc">{{ v.a.descrizione|default:"(nessuna descrizione)" }}</div>
+        {% for r in v.richieste %}
+        <div class="richiesta"><div class="meta">{{ r.da }} · {{ r.il }}</div>{{ r.messaggio }}</div>
+        {% endfor %}
+        <label for="risposta_{{ v.a.id }}">La tua risposta</label>
+        <textarea id="risposta_{{ v.a.id }}" name="risposta_{{ v.a.id }}" placeholder="Scrivi le informazioni richieste..."></textarea>
+        <label for="allegati_{{ v.a.id }}">Allegati (foto, PDF, mail .msg / .eml)</label>
+        <input id="allegati_{{ v.a.id }}" type="file" name="allegati_{{ v.a.id }}" multiple
+               accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.msg,.eml">
+      </section>
+      {% endfor %}
+      <button type="submit" class="btn">Invia la risposta</button>
+      <p class="scade">Link valido fino al {{ token.expires_at|date:"d/m/Y H:i" }}, monouso: dopo l'invio non si può riusare.</p>
+    </form>
+    {% else %}
+    <p class="vuoto">Nessuna richiesta aperta: qualcuno ha già risposto, oppure la richiesta è stata chiusa.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

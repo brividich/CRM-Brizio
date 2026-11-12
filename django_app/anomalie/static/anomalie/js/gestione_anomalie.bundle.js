@@ -28,8 +28,17 @@ const API = window.ANOMALIE_API || {
   sposta: "/api/anomalie/sposta",
   seriali_op: "/api/anomalie/seriali-op"
 };
+API.qualita_salva = API.qualita_salva || "/api/anomalie/qualita/salva";
+API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
+API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
 const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica) ? CONFIG_LISTS.autorizzati_modifica : [];
 const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
+// Decisione qualità (Configurazione): chi decide, scelte di «Avanzamento qualità»
+// (più «nessuno stato») e se il capocommessa può chiudere da solo.
+const CAN_QUALITA = !!ACCESS_CONTEXT.can_qualita;
+const AVANZAMENTO_CHIARIMENTI = "In attesa chiarimenti";
+const AVANZAMENTI_QUALITA = Array.isArray(ACCESS_CONTEXT.avanzamenti_qualita) && ACCESS_CONTEXT.avanzamenti_qualita.length ? ACCESS_CONTEXT.avanzamenti_qualita : ["In attesa", AVANZAMENTO_CHIARIMENTI];
+const CC_PUO_CHIUDERE = ACCESS_CONTEXT.cc_puo_chiudere !== false;
 const ROLE_ACCESS = ACCESS_CONTEXT.role_access || {};
 const ACCESS_ORDER = {
   NONE: 0,
@@ -124,18 +133,21 @@ const buildAvanzamentoOptions = (isAprireRdc, conRdcOCliente = false, conTerzist
   return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE, ...(conTerzista ? [AVANZAMENTO_RISPOSTA_TERZISTA] : []), ...(conRdcOCliente ? [AVANZAMENTO_INFO_RICHIESTE] : [])]);
 };
 
-// Chiusura automatica al salvataggio, stessa regola del server
-// (views.chiusura_automatica): «Aprire RDC» chiude solo con il numero RDC,
-// «Segnalare al cliente» / «Segnala a terzista» solo con «Segnalato…»; gli stati
-// d'attesa tengono aperta l'anomalia. «Chiudi l'anomalia» (a mano) non passa da qui.
-const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false, terzista = false, segnalatoTerzista = false) => {
+// Chiusura automatica, stessa regola del server (views.chiusura_automatica):
+// attese e chiarimenti aperti la tengono aperta; «Segnalare…» chiede «Segnalato…»;
+// con RDC si chiude col numero (lo scrive la qualità); senza RDC le segnalazioni
+// fatte chiudono; senza spunte chiude lo stato, se il capocommessa può chiudere.
+const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false, terzista = false, segnalatoTerzista = false, chiarimenti = false) => {
   const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
-  if (STATI_ATTESA.includes(avanz)) return false;
+  if (STATI_ATTESA.includes(avanz) || chiarimenti) return false;
   if (segnalare && !segnalatoFatto) return false;
   if (terzista && !segnalatoTerzista) return false;
   if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
-  return avanz === "accetto lo stato" || avanz === "apertura ore/ripi";
+  if (segnalare || terzista) return true;
+  return CC_PUO_CHIUDERE && (avanz === "accetto lo stato" || avanz === "apertura ore/ripi");
 };
+const richiestaAperta = (a, ruolo) => (a.richieste_info || []).some(r => r.aperta && (!ruolo || (r.destinatari || []).includes(ruolo)));
+const ruoloSegnalato = (a, chi) => a && a[`segnalato_${chi}`] && a[`segnalato_${chi}`].ruolo || "cc";
 const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
 const RISPOSTA_STATO_MSG = "Hai scritto la risposta: scegli lo stato definitivo (oppure spunta «Chiudi l'anomalia»).";
 
@@ -1630,6 +1642,7 @@ const PezziInteressati = ({
 };
 function GestioneAnomalie() {
   // ── Dati ──
+  const fileInputQRef = useRef(null);
   const [ordini, setOrdini] = useState([]);
   const [anomalie, setAnomalie] = useState([]);
   const [loadingOrdini, setLoadingOrdini] = useState(true);
@@ -1718,6 +1731,23 @@ function GestioneAnomalie() {
   // «Chiudi l'anomalia»: chiude al salvataggio anche se mancano i passi.
   const [chiudiManuale, setChiudiManuale] = useState(false);
   const [versioneEsiti, setVersioneEsiti] = useState(0);
+  // «In carico a me»: di serie solo le anomalie che toccano a chi guarda.
+  const [mostraTutte, setMostraTutte] = useState(false);
+  // Decisione qualità e richieste di informazioni.
+  const [qNum, setQNum] = useState("");
+  const [qAv, setQAv] = useState("");
+  const [qNote, setQNote] = useState("");
+  const [qSeg, setQSeg] = useState({
+    cliente: false,
+    terzista: false
+  });
+  const [qRisp, setQRisp] = useState({
+    cliente: "",
+    terzista: ""
+  });
+  const [qBusy, setQBusy] = useState(false);
+  const [infoModal, setInfoModal] = useState(null); // null | { cc, controllore, messaggio, busy, err }
+  const [rispInfo, setRispInfo] = useState("");
   // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
   // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
   // in un popup prima di salvare.
@@ -1804,17 +1834,12 @@ function GestioneAnomalie() {
     setTerzista(on);
     if (!on && avanzamento === AVANZAMENTO_RISPOSTA_TERZISTA) setAvanzamento(statoDiPartenza());
   };
-  // «Segnalato…»: lo stato passa da solo «In attesa risposta …»; togliere la spunta
-  // lo riporta com'era.
-  const toggleSegnalato = chi => {
-    const on = !segnalati[chi];
-    setSegnalati(prev => ({
-      ...prev,
-      [chi]: on
-    }));
-    const stato = normalizeChoice(avanzamento).toLowerCase();
-    if (on && (["", "in attesa"].includes(stato) || STATI_RISPOSTA.includes(stato))) setAvanzamento(AVANZAMENTO_RISPOSTA[chi]);else if (!on && avanzamento === AVANZAMENTO_RISPOSTA[chi]) setAvanzamento(statoDiPartenza());
-  };
+  // «Segnalato…»: il capocommessa ha già avvisato lui. Senza RDC l'anomalia si
+  // chiude; per aspettare la risposta si sceglie «In attesa risposta …».
+  const toggleSegnalato = chi => setSegnalati(prev => ({
+    ...prev,
+    [chi]: !prev[chi]
+  }));
   const flash = (msg, ms = 4500) => {
     setSaveMsg(msg);
     if (ms) setTimeout(() => setSaveMsg(cur => cur === msg ? null : cur), ms);
@@ -1952,20 +1977,38 @@ function GestioneAnomalie() {
   const filteredSeriali = useMemo(() => {
     const q = searchSn.trim().toLowerCase();
     return anomalie.filter(a => {
+      if (pageFilter === "in_carico" && !mostraTutte && !a.in_carico_a_me) return false;
       // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
       if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
       if (!q) return true;
       return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`].some(v => String(v || "").toLowerCase().includes(q));
     });
-  }, [anomalie, searchSn, snFilter, raggruppa]);
+  }, [anomalie, searchSn, snFilter, raggruppa, pageFilter, mostraTutte]);
+  const nInCarico = useMemo(() => anomalie.filter(a => a.in_carico_a_me).length, [anomalie]);
   const gruppiAnomalie = useMemo(() => raggruppaAnomalie(filteredSeriali, raggruppa), [filteredSeriali, raggruppa]);
   // Ordine di «precedente/successiva»: quello dei gruppi a video.
   const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap(g => g.items), [gruppiAnomalie]);
   const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
   const sn = useMemo(() => anomalie.find(a => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
   // Dopo «sn» (TDZ): la chiusura con «Segnalare…» dipende da «Segnalato…».
-  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista);
-  const chiudere = chiudereAuto || chiudiManuale;
+  const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista, richiestaAperta(sn));
+  const chiudere = chiudereAuto || chiudiManuale && CC_PUO_CHIUDERE;
+  // Decisione qualità: valori dell'anomalia aperta (dopo «sn», TDZ).
+  useEffect(() => {
+    setQNum(sn.numero_rdc || "");
+    setQAv(sn.avanzamento_qualita || "");
+    setQNote(sn.note_qualita || "");
+    setQSeg({
+      cliente: !!sn.segnalato_cliente,
+      terzista: !!sn.segnalato_terzista
+    });
+    setQRisp({
+      cliente: "",
+      terzista: ""
+    });
+    setRispInfo("");
+    setInfoModal(null);
+  }, [sn.item_id, sn.numero_rdc, sn.avanzamento_qualita, sn.note_qualita, sn.segnalato_cliente, sn.segnalato_terzista]);
   const posizione = ordineVisibile.findIndex(a => a.item_id === sn.item_id);
   const isSelectedClosed = Boolean(sn.chiudere);
   const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
@@ -1989,7 +2032,7 @@ function GestioneAnomalie() {
       const list = Array.isArray(data) ? data : [];
       setAnomalie(list);
       // Si apre la prima anomalia che aspetta una decisione.
-      const first = list.find(isDaDecidere) || list.find(a => !a.chiudere);
+      const first = list.find(a => a.in_carico_a_me) || list.find(isDaDecidere) || list.find(a => !a.chiudere);
       setSelectedSnId(first ? first.item_id : "");
       setLoadingAnom(false);
     }).catch(e => {
@@ -2117,7 +2160,7 @@ function GestioneAnomalie() {
   // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
   // la decisione si applica, l'anomalia resta aperta.
   // «Segnalato…» vale anche per loro: è la stessa decisione.
-  const chiudeBersaglio = x => (chiudiManuale || shouldAutoClose(aprireRdc, avanzamento, rdcNum, segnalare, segnalati.cliente, terzista, segnalati.terzista)) && !(x.serve_azione && !aprireRdc);
+  const chiudeBersaglio = x => (chiudiManuale && CC_PUO_CHIUDERE || shouldAutoClose(aprireRdc, avanzamento, x.numero_rdc || "", segnalare, segnalati.cliente, terzista, segnalati.terzista, richiestaAperta(x))) && !(x.serve_azione && !aprireRdc);
   const gruppiPerSn = lista => {
     const out = [];
     lista.forEach(x => {
@@ -2165,10 +2208,10 @@ function GestioneAnomalie() {
   }, [currentLocalId]);
   const uploadFiles = async (files, ambito = "") => {
     if (!files.length) return;
-    if (!canEditCurrentOp) {
+    if (!(ambito === "qualita" ? CAN_QUALITA : canEditCurrentOp)) {
       flash({
         ok: false,
-        text: "Permesso negato: non puoi caricare allegati su questo OP"
+        text: "Permesso negato: non puoi caricare allegati qui"
       });
       return;
     }
@@ -2239,8 +2282,9 @@ function GestioneAnomalie() {
   const getAttachmentUrl = (fileId, forceDownload = false) => `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
   const immagini = attachments.filter(f => f.is_image);
   // Gli allegati della decisione del capocommessa stanno nel suo riquadro.
-  const attAnomalia = attachments.filter(f => !f.decisione);
+  const attAnomalia = attachments.filter(f => !f.decisione && !f.qualita);
   const attDecisione = attachments.filter(f => f.decisione);
+  const attQualita = attachments.filter(f => f.qualita);
   const renderAttGrid = list => /*#__PURE__*/React.createElement("div", {
     className: "ga-att__grid"
   }, list.map(file => /*#__PURE__*/React.createElement("div", {
@@ -2352,7 +2396,6 @@ function GestioneAnomalie() {
           note,
           pezzi_prec: pezziPrec,
           aprire_rdc: aprireRdc,
-          numero_rdc: aprireRdc ? rdcNum : "",
           segnalare,
           segnala_terzista: terzista,
           segnala_car: segnalaCar,
@@ -2391,7 +2434,6 @@ function GestioneAnomalie() {
         note: notaCongelata ? baseline.note : note,
         pezzi_prec: pezziPrec,
         aprire_rdc: aprireRdc,
-        numero_rdc: aprireRdc ? rdcNum : "",
         segnalare,
         segnala_terzista: terzista,
         segnala_car: segnalaCar && carScelti.length > 0,
@@ -2435,7 +2477,6 @@ function GestioneAnomalie() {
                 note,
                 pezzi_prec: !!f.pezzi_prec,
                 aprire_rdc: aprireRdc,
-                numero_rdc: aprireRdc ? rdcNum : "",
                 segnalare,
                 segnala_terzista: terzista,
                 chiudere: chiudeF,
@@ -2453,7 +2494,6 @@ function GestioneAnomalie() {
               ...a,
               note,
               aprire_rdc: aprireRdc,
-              numero_rdc: aprireRdc ? rdcNum : "",
               segnalare,
               segnala_terzista: terzista,
               chiudere: chiudeF,
@@ -2528,6 +2568,207 @@ function GestioneAnomalie() {
       terzista: ""
     });
     setChiudiManuale(false);
+  };
+
+  // ── Decisione qualità ──
+  const postJson = async (url, body, label) => {
+    const r = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken()
+      },
+      body: JSON.stringify(body)
+    });
+    const d = await readJsonOrThrow(r, label);
+    if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+    return d;
+  };
+  const aggiornaSn = campi => setAnomalie(prev => prev.map(a => a.item_id === sn.item_id ? {
+    ...a,
+    ...campi
+  } : a));
+  const oraBreve = () => new Date().toLocaleString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).replace(",", "");
+  const salvaQualita = async (chiudi = false) => {
+    if (!sn.local_id || qBusy) return;
+    setQBusy(true);
+    try {
+      const body = {
+        local_id: sn.local_id,
+        avanzamento_qualita: qAv,
+        note_qualita: qNote,
+        chiudi
+      };
+      if (sn.aprire_rdc) body.numero_rdc = qNum;
+      if (sn.segnalare) {
+        body.segnalato_cliente = qSeg.cliente;
+        body.risposta_cliente = qRisp.cliente.trim();
+      }
+      if (sn.segnala_terzista) {
+        body.segnalato_terzista = qSeg.terzista;
+        body.risposta_terzista = qRisp.terzista.trim();
+      }
+      const d = await postJson(API.qualita_salva, body, "Decisione qualità");
+      const segnalatoNuovo = chi => qSeg[chi] ? sn[`segnalato_${chi}`] || {
+        il: oraBreve(),
+        da: CURRENT_USER_NAME,
+        ruolo: "qualita"
+      } : null;
+      aggiornaSn({
+        numero_rdc: d.numero_rdc || "",
+        avanzamento_qualita: qAv,
+        note_qualita: qNote,
+        chiudere: !!d.chiusa,
+        avanzamento: d.avanzamento || sn.avanzamento,
+        qualita_da: CURRENT_USER_NAME,
+        qualita_il: oraBreve(),
+        ...(sn.segnalare ? {
+          segnalato_cliente: segnalatoNuovo("cliente")
+        } : {}),
+        ...(sn.segnala_terzista ? {
+          segnalato_terzista: segnalatoNuovo("terzista")
+        } : {}),
+        ...(d.chiusa ? {
+          can_riaprire: true,
+          in_carico_a_me: false
+        } : {})
+      });
+      setQRisp({
+        cliente: "",
+        terzista: ""
+      });
+      setVersioneEsiti(v => v + 1);
+      flash({
+        ok: true,
+        text: d.chiusa ? "Decisione qualità salvata · anomalia chiusa" : "Decisione qualità salvata"
+      });
+      loadOrdini();
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+    setQBusy(false);
+  };
+  const inviaRichiestaInfo = async () => {
+    if (!infoModal || infoModal.busy) return;
+    const destinatari = [infoModal.cc && "cc", infoModal.controllore && "controllore"].filter(Boolean);
+    if (!destinatari.length) {
+      setInfoModal({
+        ...infoModal,
+        err: "Scegli a chi chiedere."
+      });
+      return;
+    }
+    if (!infoModal.messaggio.trim()) {
+      setInfoModal({
+        ...infoModal,
+        err: "Scrivi cosa ti serve sapere."
+      });
+      return;
+    }
+    setInfoModal({
+      ...infoModal,
+      busy: true,
+      err: ""
+    });
+    try {
+      const d = await postJson(API.qualita_richiedi_info, {
+        local_id: sn.local_id,
+        destinatari,
+        messaggio: infoModal.messaggio.trim()
+      }, "Richiesta informazioni");
+      aggiornaSn({
+        richieste_info: d.richieste || [],
+        avanzamento_qualita: d.avanzamento_qualita || AVANZAMENTO_CHIARIMENTI,
+        in_carico_a_me: false
+      });
+      setInfoModal(null);
+      const inv = d.invio || {};
+      flash({
+        ok: true,
+        text: `Richiesta inviata${inv.inviate ? ` · ${inv.inviate} mail` : ""}${(inv.senza_email || []).length ? ` · senza email: ${inv.senza_email.join(", ")}` : ""}`
+      }, 6000);
+      loadOrdini();
+    } catch (e) {
+      setInfoModal(m => m ? {
+        ...m,
+        busy: false,
+        err: e.message
+      } : m);
+    }
+  };
+  const rispondiRichiesta = async () => {
+    if (!rispInfo.trim() || !sn.local_id) return;
+    try {
+      const d = await postJson(API.qualita_rispondi_info, {
+        local_id: sn.local_id,
+        testo: rispInfo.trim()
+      }, "Risposta alla qualità");
+      aggiornaSn({
+        richieste_info: d.richieste || [],
+        ruoli_risposta: [],
+        in_carico_a_me: false,
+        ...(sn.avanzamento_qualita === AVANZAMENTO_CHIARIMENTI && !(d.richieste || []).some(r => r.aperta) ? {
+          avanzamento_qualita: "In attesa"
+        } : {})
+      });
+      setRispInfo("");
+      flash({
+        ok: true,
+        text: "Risposta inviata · l'anomalia torna alla qualità"
+      });
+      loadOrdini();
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+  };
+  // Riquadro delle richieste della qualità, con la risposta per chi ne ha una aperta.
+  const renderRichieste = ruolo => {
+    const tutte = sn.richieste_info || [];
+    const mie = tutte.filter(r => (r.destinatari || []).includes(ruolo));
+    if (!mie.length) return null;
+    const puoRispondere = (sn.ruoli_risposta || []).includes(ruolo) && mie.some(r => r.aperta);
+    return /*#__PURE__*/React.createElement("div", {
+      className: `ga-richieste${mie.some(r => r.aperta) ? " is-aperta" : ""}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-richieste__t"
+    }, "Richieste della qualit\xE0"), mie.map(r => /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      className: "ga-richiesta"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-hint"
+    }, r.da, " \xB7 ", r.il, r.aperta ? " · in attesa di risposta" : ""), /*#__PURE__*/React.createElement("div", {
+      className: "ga-richiesta__msg"
+    }, r.messaggio), !r.aperta && /*#__PURE__*/React.createElement("div", {
+      className: "ga-richiesta__risp"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, "Risposta di ", r.risposta_da, " \xB7 ", r.risposta_il), /*#__PURE__*/React.createElement("div", null, r.risposta)))), puoRispondere && /*#__PURE__*/React.createElement("div", {
+      className: "ga-richiesta__form"
+    }, /*#__PURE__*/React.createElement("textarea", {
+      className: "ga-input",
+      rows: 2,
+      value: rispInfo,
+      onChange: e => setRispInfo(e.target.value),
+      placeholder: "Scrivi le informazioni richieste\u2026"
+    }), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--accent ga-btn--sm",
+      disabled: !rispInfo.trim(),
+      onClick: rispondiRichiesta
+    }, "Invia risposta")));
   };
 
   // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
@@ -2867,7 +3108,12 @@ function GestioneAnomalie() {
       className: "ga-pill ga-pill--cli"
     }, a.chiudere || a.segnalato_cliente ? "Cliente" : "Cliente · da segnalare"), a.segnala_terzista && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--ter"
-    }, a.chiudere || a.segnalato_terzista ? "Terzista" : "Terzista · da segnalare"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
+    }, a.chiudere || a.segnalato_terzista ? "Terzista" : "Terzista · da segnalare"), a.avanzamento_qualita && !a.chiudere && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--muted",
+      title: "Avanzamento qualit\xE0"
+    }, "Qualit\xE0 \xB7 ", a.avanzamento_qualita), a.in_carico_a_me && pageFilter !== "in_carico" && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--tocca"
+    }, "Tocca a te"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--muted",
       title: `Solo sui S/N: ${a.seriali_parziali}`
     }, "Solo ", a.seriali_parziali), !a.blocco_id && (a.testo || a.desc) && /*#__PURE__*/React.createElement("span", {
@@ -3133,7 +3379,14 @@ function GestioneAnomalie() {
     className: raggruppa === "stato" ? "is-on" : "",
     "aria-pressed": raggruppa === "stato",
     onClick: () => setRaggruppa("stato")
-  }, "Per stato")), raggruppa === "sn" && /*#__PURE__*/React.createElement("div", {
+  }, "Per stato")), pageFilter === "in_carico" && anomalie.length > 0 && /*#__PURE__*/React.createElement("label", {
+    className: "ga-mostra-tutte",
+    title: "In \xABIn carico a me\xBB compaiono solo le anomalie che toccano a te"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: mostraTutte,
+    onChange: e => setMostraTutte(e.target.checked)
+  }), /*#__PURE__*/React.createElement("span", null, "Mostra tutte (", anomalie.length, ") \xB7 tue ", nInCarico)), raggruppa === "sn" && /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
   }, /*#__PURE__*/React.createElement(Chip, {
     active: snFilter === "tutte",
@@ -3158,7 +3411,7 @@ function GestioneAnomalie() {
     className: "ga-empty"
   }, "Seleziona un ordine.") : filteredSeriali.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-empty"
-  }, raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.", canEditCurrentOp && !anomalie.length && /*#__PURE__*/React.createElement("a", {
+  }, pageFilter === "in_carico" && !mostraTutte && anomalie.length ? "Nessuna anomalia di questo OP tocca a te. «Mostra tutte» per vederle." : raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.", canEditCurrentOp && !anomalie.length && /*#__PURE__*/React.createElement("a", {
     className: "ga-btn ga-btn--accent ga-btn--sm",
     href: nuovaAnomaliaUrl
   }, Ico.plus, "Nuova segnalazione")) : /*#__PURE__*/React.createElement("div", {
@@ -3269,7 +3522,7 @@ function GestioneAnomalie() {
     className: "ga-card__head"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ga-card__title"
-  }, "Segnalazione"), sn.stato_superficie && /*#__PURE__*/React.createElement("span", {
+  }, "Controllore \xB7 segnalazione"), sn.stato_superficie && /*#__PURE__*/React.createElement("span", {
     className: "ga-pill ga-pill--sup"
   }, sn.stato_superficie), canEditSelected && !editDesc && /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -3318,7 +3571,14 @@ function GestioneAnomalie() {
     }))
   }), detail.risposta_da && /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, "Risposta di ", detail.risposta_da, detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : "")))), /*#__PURE__*/React.createElement("div", {
+  }, "Risposta di ", detail.risposta_da, detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : "")))), (sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-ctrl"
+  }, sn.dove_pezzi && /*#__PURE__*/React.createElement("div", null, "\uD83D\uDCE6 Dove sono i pezzi: ", /*#__PURE__*/React.createElement("b", null, sn.dove_pezzi)), (sn.dettaglio_righe || []).map((r, ri) => /*#__PURE__*/React.createElement("div", {
+    key: ri,
+    className: "ga-ctrl__r"
+  }, r)), sn.tipo_difetto && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Tipo di difetto: ", sn.tipo_difetto)), renderRichieste("controllore"), /*#__PURE__*/React.createElement("div", {
     className: `ga-att${dropOver ? " is-over" : ""}`,
     tabIndex: canEditCurrentOp ? 0 : -1,
     onDragOver: e => {
@@ -3370,7 +3630,7 @@ function GestioneAnomalie() {
     className: "ga-card__head"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ga-card__title"
-  }, "Decisione del capocommessa")), /*#__PURE__*/React.createElement(PercorsoAnomalia, {
+  }, "Capocommessa")), /*#__PURE__*/React.createElement(PercorsoAnomalia, {
     passi: esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null
   }), /*#__PURE__*/React.createElement("div", {
     className: "ga-flags"
@@ -3400,70 +3660,51 @@ function GestioneAnomalie() {
     checked: pezziPrec,
     disabled: !canEditSelected,
     onChange: () => setPezziPrec(!pezziPrec)
-  })), (aprireRdc || segnalare || terzista) && !sn.chiudere && (() => {
-    // Passi per chiudere, nell'ordine in cui si fanno; «Segnalato…» si spunta qui.
+  })), (segnalare || terzista || segnalaCar) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-segnalati-riga"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, "Hai gi\xE0 fatto tu la segnalazione? Spunta \xABSegnalato\xBB."), [["cliente", segnalare, "Segnalato al cliente"], ["terzista", terzista, "Segnalato al terzista"]].filter(([, on]) => on).map(([chi,, label]) => {
+    const reg = sn[`segnalato_${chi}`];
+    return /*#__PURE__*/React.createElement("span", {
+      key: chi,
+      className: "ga-segnalato-voce"
+    }, /*#__PURE__*/React.createElement(FlagToggle, {
+      label: label,
+      checked: segnalati[chi],
+      disabled: !canEditSelected || !!reg && ruoloSegnalato(sn, chi) === "qualita",
+      onChange: () => toggleSegnalato(chi)
+    }), reg && /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, "il ", reg.il, reg.da ? ` da ${reg.da}` : "", ruoloSegnalato(sn, chi) === "qualita" ? " (qualità)" : ""));
+  }), segnalaCar && /*#__PURE__*/React.createElement("span", {
+    className: "ga-segnalato-voce"
+  }, /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Segnalato al CAR",
+    checked: !!sn.segnalato_car,
+    disabled: true,
+    onChange: () => {}
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, sn.segnalato_car ? `il ${sn.segnalato_car.il} · mail dal portale` : "si spunta da solo quando parte la mail ai CAR scelti"))), !sn.chiudere && sn.item_id && (() => {
+    // Cosa succede al salvataggio della decisione del capocommessa.
     const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
-    const num = String(rdcNum || "").trim();
-    const statoDefinitivo = !STATI_ATTESA.includes(normalizeChoice(avanzamento).toLowerCase());
-    const passi = [];
-    if (aprireRdc) {
-      passi.push({
-        k: "rdc",
-        fatto: !!num,
-        testo: "Numero RDC",
-        det: num || "scrivilo nel campo «Numero RDC» qui sotto"
-      });
-    }
-    DESTINATARI.filter(d => d.chi === "cliente" ? segnalare : terzista).forEach(d => {
-      const fatto = segnalati[d.chi];
-      const reg = sn[`segnalato_${d.chi}`];
-      passi.push({
-        k: `seg-${d.chi}`,
-        fatto,
-        testo: d.segnalato,
-        spunta: d.chi,
-        det: fatto ? reg && baseline.segnalati[d.chi] ? `il ${reg.il}${reg.da ? ` da ${reg.da}` : ""}` : `al salvataggio lo stato passa a «${AVANZAMENTO_RISPOSTA[d.chi]}»` : `spunta quando hai avvisato ${d.a}`
-      });
-      if (fatto) {
-        passi.push({
-          k: `risp-${d.chi}`,
-          fatto: statoDefinitivo,
-          testo: d.risposta,
-          det: statoDefinitivo ? `stato scelto: ${avanzamento}` : baseline.segnalati[d.chi] ? `scrivila nel campo «${d.risposta}» qui sotto, poi scegli lo stato definitivo` : "dopo il salvataggio compare il campo per scriverla"
-        });
-      }
-    });
+    const attesa = STATI_RISPOSTA.includes(normalizeChoice(avanzamento).toLowerCase());
+    const manca = [];
+    if (aprireRdc && !String(rdcNum || "").trim()) manca.push("il numero RDC");
+    if (segnalare && !segnalati.cliente) manca.push("la segnalazione al cliente");
+    if (terzista && !segnalati.terzista) manca.push("la segnalazione al terzista");
     const variante = info ? "info" : chiudere ? "ok" : "aperta";
+    const testo = info ? "⏸ Rimandata al capocommessa: servono ulteriori informazioni" : chiudere ? "✓ Al salvataggio l'anomalia si chiude" : attesa ? "Al salvataggio resta in attesa della risposta: la registra chi ha fatto la segnalazione" : richiestaAperta(sn) ? "In attesa dei chiarimenti chiesti dalla qualità" : aprireRdc || segnalare || terzista || segnalaCar || baseline.avanzamento !== DEFAULT_AVANZAMENTO || note.trim() ? "Al salvataggio passa alla qualità" : "";
+    if (!testo) return null;
     return /*#__PURE__*/React.createElement("div", {
       className: `ga-chiusura ga-chiusura--${variante}`,
       role: "status"
     }, /*#__PURE__*/React.createElement("div", {
       className: "ga-chiusura__t"
-    }, info ? "⏸ Servono ulteriori informazioni · in carico al capocommessa" : chiudiManuale && !chiudereAuto ? "✓ «Chiudi l'anomalia» spuntato: si chiude al salvataggio" : chiudereAuto ? "✓ Passi completati: si chiude al salvataggio" : "Resta aperta finché non completi questi passi"), info ? /*#__PURE__*/React.createElement("div", {
+    }, testo), !chiudere && !info && !attesa && manca.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "ga-chiusura__d"
-    }, "Le spunte restano. Quando il capocommessa risponde e sceglie un altro stato, torna al referente RDC.") : /*#__PURE__*/React.createElement("ol", {
-      className: "ga-passi"
-    }, passi.map((v, i) => /*#__PURE__*/React.createElement("li", {
-      key: v.k,
-      className: v.fatto ? "is-fatto" : ""
-    }, v.spunta ? /*#__PURE__*/React.createElement("label", {
-      className: "ga-passi__spunta"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      checked: v.fatto,
-      disabled: !canEditSelected,
-      onChange: () => toggleSegnalato(v.spunta)
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "ga-passi__box",
-      "aria-hidden": "true"
-    }, v.fatto ? "✓" : ""), /*#__PURE__*/React.createElement("b", null, v.testo)) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-      className: "ga-passi__n",
-      "aria-hidden": "true"
-    }, v.fatto ? "✓" : i + 1), /*#__PURE__*/React.createElement("b", null, v.testo)), /*#__PURE__*/React.createElement("span", {
-      className: "ga-passi__det"
-    }, v.det)))), !info && (aprireRdc || segnalare) && !chiudere && /*#__PURE__*/React.createElement("div", {
-      className: "ga-chiusura__d"
-    }, "In carico al referente RDC finch\xE9 resta aperta."));
+    }, "La qualit\xE0 completa ", manca.join(", "), "; senza RDC le segnalazioni fatte chiudono l'anomalia."));
   })(), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Nessun CAR sull'OP e nessun capo reparto in Configurazione.") : /*#__PURE__*/React.createElement("div", {
@@ -3474,16 +3715,7 @@ function GestioneAnomalie() {
     onClick: () => canEditSelected && toggleCarScelto(nome)
   }, nome, isCarDellOp(nome) ? " · CAR dell'OP" : ""))), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, carScelti.length ? `Al salvataggio la mail «Segnala a CAR» va solo a: ${carScelti.join(", ")} (chi l'ha già ricevuta non la riceve di nuovo).` : "Scegli almeno un CAR: senza scelta la segnalazione non parte.", " ", "Il CAR dell'OP riceve comunque il riepilogo delle modifiche, come sempre.")), (sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && /*#__PURE__*/React.createElement("div", {
-    className: "ga-ctrl"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "ga-ctrl__t"
-  }, "Dal controllore"), sn.dove_pezzi && /*#__PURE__*/React.createElement("div", null, "\uD83D\uDCE6 Dove sono i pezzi: ", /*#__PURE__*/React.createElement("b", null, sn.dove_pezzi)), (sn.dettaglio_righe || []).map((r, ri) => /*#__PURE__*/React.createElement("div", {
-    key: ri,
-    className: "ga-ctrl__r"
-  }, r)), sn.tipo_difetto && /*#__PURE__*/React.createElement("div", {
-    className: "ga-hint"
-  }, "Tipo di difetto: ", sn.tipo_difetto)), /*#__PURE__*/React.createElement("div", {
+  }, carScelti.length ? `Al salvataggio la mail «Segnala a CAR» va solo a: ${carScelti.join(", ")} (chi l'ha già ricevuta non la riceve di nuovo).` : "Scegli almeno un CAR: senza scelta la segnalazione non parte.", " ", "Il CAR dell'OP riceve comunque il riepilogo delle modifiche, come sempre.")), /*#__PURE__*/React.createElement("div", {
     className: "ga-att ga-att--dec",
     onDragOver: e => {
       if (canEditCurrentOp && sn.local_id) e.preventDefault();
@@ -3524,13 +3756,7 @@ function GestioneAnomalie() {
     disabled: !canEditSelected
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
-  }, opt)))), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
-    className: `ga-input${!String(rdcNum || "").trim() && !sn.chiudere ? " is-invalid" : ""}`,
-    placeholder: "Es. RDC-2026-014",
-    value: rdcNum,
-    onChange: e => setRdcNum(e.target.value),
-    disabled: !canEditSelected
-  }))), notaCongelata ? /*#__PURE__*/React.createElement("div", {
+  }, opt))))), notaCongelata ? /*#__PURE__*/React.createElement("div", {
     className: "ga-nota-ferma"
   }, /*#__PURE__*/React.createElement(FieldLabel, null, "Note gi\xE0 inviate"), /*#__PURE__*/React.createElement("div", {
     className: "ga-nota-ferma__testo"
@@ -3545,7 +3771,7 @@ function GestioneAnomalie() {
     placeholder: "Decisione, istruzioni di rilavorazione, riferimenti\u2026"
   })), canEditSelected && notaSenzaStato && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, NOTA_STATO_MSG), DESTINATARI.filter(d => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi]).map(d => {
+  }, NOTA_STATO_MSG), DESTINATARI.filter(d => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi] && ruoloSegnalato(sn, d.chi) === "cc" && STATI_RISPOSTA.includes(normalizeChoice(baseline.avanzamento).toLowerCase())).map(d => {
     const gia = (esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti || []).filter(e => e.tipo === d.tipo);
     return /*#__PURE__*/React.createElement("div", {
       key: d.chi,
@@ -3573,7 +3799,7 @@ function GestioneAnomalie() {
     }));
   }), canEditSelected && rispostaSenzaStato && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, RISPOSTA_STATO_MSG), canEditSelected && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+  }, RISPOSTA_STATO_MSG), renderRichieste("cc"), canEditSelected && !sn.chiudere && CC_PUO_CHIUDERE && /*#__PURE__*/React.createElement("div", {
     className: "ga-chiudi"
   }, /*#__PURE__*/React.createElement(FlagToggle, {
     label: "Chiudi l'anomalia",
@@ -3643,7 +3869,157 @@ function GestioneAnomalie() {
     type: "checkbox",
     checked: includiDecise,
     onChange: e => setIncludiDecise(e.target.checked)
-  }), /*#__PURE__*/React.createElement("span", null, "Includi anche le ", giaDecise, " gi\xE0 decise (la loro decisione viene sostituita)")))), sn.local_id && /*#__PURE__*/React.createElement(EsitiAnomalia, {
+  }), /*#__PURE__*/React.createElement("span", null, "Includi anche le ", giaDecise, " gi\xE0 decise (la loro decisione viene sostituita)")))), sn.local_id && (() => {
+    const puo = CAN_QUALITA && !sn.chiudere;
+    const attesaQ = chi => ruoloSegnalato(sn, chi) === "qualita" && !!sn[`segnalato_${chi}`] && normalizeChoice(sn.avanzamento).toLowerCase() === AVANZAMENTO_RISPOSTA[chi].toLowerCase();
+    const chiudeQ = !sn.chiudere && shouldAutoClose(!!sn.aprire_rdc, DESTINATARI.some(d => attesaQ(d.chi) && qRisp[d.chi].trim()) ? "In attesa" : sn.avanzamento, qNum, !!sn.segnalare, qSeg.cliente, !!sn.segnala_terzista, qSeg.terzista, richiestaAperta(sn));
+    const esitiQ = tipo => (esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti || []).filter(e => e.tipo === tipo);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "ga-card ga-card--qualita"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-card__head"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-card__title"
+    }, "Decisione qualit\xE0"), sn.qualita_da && /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, sn.qualita_da, sn.qualita_il ? ` · ${sn.qualita_il}` : "")), !puo && !sn.avanzamento_qualita && !sn.note_qualita && !sn.numero_rdc && !attQualita.length && !(sn.richieste_info || []).length ? /*#__PURE__*/React.createElement("div", {
+      className: "ga-hint"
+    }, sn.chiudere ? "Nessuna decisione qualità." : "La decide la qualità (Configurazione → «Qualità»).") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "ga-grid2"
+    }, sn.aprire_rdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
+      className: `ga-input${puo && !qNum.trim() ? " is-invalid" : ""}`,
+      placeholder: "Es. RDC-2026-014",
+      value: qNum,
+      onChange: e => setQNum(e.target.value),
+      disabled: !puo
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento qualit\xE0"), /*#__PURE__*/React.createElement("select", {
+      className: "ga-input",
+      value: qAv,
+      onChange: e => setQAv(e.target.value),
+      disabled: !puo
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "\u2014 nessuno stato \u2014"), [...AVANZAMENTI_QUALITA, ...(qAv && !AVANZAMENTI_QUALITA.includes(qAv) ? [qAv] : [])].map(o => /*#__PURE__*/React.createElement("option", {
+      key: o
+    }, o))))), (sn.segnalare || sn.segnala_terzista) && /*#__PURE__*/React.createElement("div", {
+      className: "ga-segnalati-riga"
+    }, DESTINATARI.filter(d => d.chi === "cliente" ? sn.segnalare : sn.segnala_terzista).map(d => {
+      const reg = sn[`segnalato_${d.chi}`];
+      const delCc = !!reg && ruoloSegnalato(sn, d.chi) === "cc";
+      return /*#__PURE__*/React.createElement("span", {
+        key: d.chi,
+        className: "ga-segnalato-voce"
+      }, /*#__PURE__*/React.createElement(FlagToggle, {
+        label: d.segnalato,
+        checked: qSeg[d.chi],
+        disabled: !puo || delCc,
+        onChange: () => setQSeg(p => ({
+          ...p,
+          [d.chi]: !p[d.chi]
+        }))
+      }), /*#__PURE__*/React.createElement("span", {
+        className: "ga-hint"
+      }, reg ? `il ${reg.il}${reg.da ? ` da ${reg.da}` : ""}${delCc ? " (capocommessa)" : ""}` : "se il capocommessa non l'ha fatto"));
+    })), DESTINATARI.filter(d => attesaQ(d.chi)).map(d => /*#__PURE__*/React.createElement("div", {
+      key: d.chi,
+      className: "ga-risposta"
+    }, /*#__PURE__*/React.createElement(FieldLabel, null, d.risposta), esitiQ(d.tipo).map(e => /*#__PURE__*/React.createElement("div", {
+      key: e.id,
+      className: "ga-risposta__gia"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, e.utente), /*#__PURE__*/React.createElement("div", null, e.testo))), puo && /*#__PURE__*/React.createElement("textarea", {
+      className: "ga-input",
+      rows: 2,
+      value: qRisp[d.chi],
+      onChange: e => setQRisp(p => ({
+        ...p,
+        [d.chi]: e.target.value
+      })),
+      placeholder: `Cosa ha risposto ${d.a}`
+    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Note della qualit\xE0"), /*#__PURE__*/React.createElement("textarea", {
+      className: "ga-input",
+      rows: 3,
+      value: qNote,
+      onChange: e => setQNote(e.target.value),
+      disabled: !puo,
+      placeholder: "Valutazione, riferimenti RDC, indicazioni\u2026"
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "ga-att ga-att--dec",
+      onDragOver: e => {
+        if (puo) e.preventDefault();
+      },
+      onDrop: e => {
+        e.preventDefault();
+        if (puo) uploadFiles(Array.from(e.dataTransfer.files || []), "qualita");
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      ref: fileInputQRef,
+      type: "file",
+      multiple: true,
+      hidden: true,
+      accept: ALLEGATI_ACCEPT,
+      onChange: e => {
+        const f = Array.from(e.target.files || []);
+        e.target.value = "";
+        uploadFiles(f, "qualita");
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "ga-att__head"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-card__sub"
+    }, Ico.clip, " Allegati della qualit\xE0 ", attQualita.length ? `(${attQualita.length})` : ""), puo && /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, uploadingAttachments ? "Caricamento…" : /*#__PURE__*/React.createElement(React.Fragment, null, "Trascina qui o ", /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-link",
+      onClick: () => fileInputQRef.current && fileInputQRef.current.click()
+    }, "sfoglia")))), attQualita.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "ga-hint"
+    }, "Nessun allegato della qualit\xE0.") : renderAttGrid(attQualita)), (sn.richieste_info || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "ga-richieste"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-richieste__t"
+    }, "Informazioni chieste"), sn.richieste_info.map(r => /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      className: "ga-richiesta"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-hint"
+    }, r.il, " \xB7 a ", (r.destinatari || []).map(x => x === "cc" ? "capocommessa" : "controllore").join(" e "), r.aperta ? " · in attesa" : ""), /*#__PURE__*/React.createElement("div", {
+      className: "ga-richiesta__msg"
+    }, r.messaggio), !r.aperta && /*#__PURE__*/React.createElement("div", {
+      className: "ga-richiesta__risp"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, r.risposta_da, " \xB7 ", r.risposta_il), /*#__PURE__*/React.createElement("div", null, r.risposta))))), puo && /*#__PURE__*/React.createElement(React.Fragment, null, chiudeQ && /*#__PURE__*/React.createElement("div", {
+      className: "ga-note ga-note--ok"
+    }, "Al salvataggio l'anomalia si chiude."), /*#__PURE__*/React.createElement("div", {
+      className: "ga-qualita__acts"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--ghost-dark",
+      disabled: qBusy,
+      onClick: () => setInfoModal({
+        cc: true,
+        controllore: false,
+        messaggio: "",
+        busy: false,
+        err: ""
+      })
+    }, "Richiedi info aggiuntive\u2026"), /*#__PURE__*/React.createElement("span", {
+      className: "ga-qualita__spacer"
+    }), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--outline",
+      disabled: qBusy,
+      onClick: () => salvaQualita(false)
+    }, qBusy ? "Salvataggio…" : "Salva"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--accent",
+      disabled: qBusy,
+      onClick: () => salvaQualita(true)
+    }, "Chiudi l'anomalia")))));
+  })(), sn.local_id && /*#__PURE__*/React.createElement(EsitiAnomalia, {
     localId: sn.local_id,
     avanzamento: sn.avanzamento,
     chiusa: Boolean(sn.chiudere),
@@ -3759,7 +4135,59 @@ function GestioneAnomalie() {
     className: `ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`,
     disabled: azAnom.busy,
     onClick: confermaAzione
-  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), modOp && /*#__PURE__*/React.createElement("div", {
+  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), infoModal && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "ga-info-t"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title",
+    id: "ga-info-t"
+  }, "Richiedi info aggiuntive \xB7 #", sn.local_id), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Arriva una notifica e una mail con il link per rispondere; finch\xE9 non rispondono l'anomalia \xE8 in carico a loro (\xAB", AVANZAMENTO_CHIARIMENTI, "\xBB)."), /*#__PURE__*/React.createElement("div", {
+    className: "ga-flags"
+  }, /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Capocommessa",
+    checked: infoModal.cc,
+    onChange: () => setInfoModal({
+      ...infoModal,
+      cc: !infoModal.cc
+    })
+  }), /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Controllore",
+    checked: infoModal.controllore,
+    onChange: () => setInfoModal({
+      ...infoModal,
+      controllore: !infoModal.controllore
+    })
+  })), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 4,
+    autoFocus: true,
+    value: infoModal.messaggio,
+    placeholder: "Cosa ti serve sapere?",
+    onChange: e => setInfoModal({
+      ...infoModal,
+      messaggio: e.target.value
+    })
+  }), infoModal.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, infoModal.err), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    disabled: infoModal.busy,
+    onClick: () => setInfoModal(null)
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    disabled: infoModal.busy,
+    onClick: inviaRichiestaInfo
+  }, infoModal.busy ? "Invio…" : "Invia richiesta")))), modOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-modal",
     role: "dialog",
     "aria-modal": "true",
