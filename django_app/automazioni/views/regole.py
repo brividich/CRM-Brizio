@@ -3384,6 +3384,7 @@ def _describe_action_values(
         "summary": _truncate_text(description or _choice_label(AutomationActionType, action_type), 100),
         "preview_lines": preview_lines,
         "badges": badges,
+        "action_type": action_type,
     }
 
 
@@ -3889,11 +3890,19 @@ def _build_rule_designer_context(
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
     binding = getattr(rule, "managed_flow", None)
+    native_preview = []
+    if binding and binding.kind == "schedule":
+        from ..mail_config import riepilogo_righe
+        native_preview = riepilogo_righe(binding.code)
+        for entry in action_entries:
+            if entry["descriptor"].get("action_type") == AutomationActionType.NATIVE_PROCESS and native_preview:
+                entry["descriptor"]["preview_lines"] = list(native_preview)
     if binding:
         from ..schedules import describe_cadence
         label = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
         when = describe_cadence({"schedule_type": binding.schedule_type, "minutes": binding.minutes, "cron": binding.cron}) if binding.kind == "schedule" else rule.description
         trigger_descriptor.update(operation_label=label, trigger_scope_label=label, headline=when,
+                                  source_label=f"{label}: {when}" if binding.kind == "schedule" else trigger_descriptor.get("source_label"),
                                   natural_when="QUANDO " + when, natural_scope="SE le condizioni sono soddisfatte", scope_detail=label)
     flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
     teams_flow_endpoints, teams_flow_endpoints_warning = _helpers._get_teams_flow_endpoints_context(active_only=True)
@@ -3908,6 +3917,7 @@ def _build_rule_designer_context(
         **_build_source_catalog_context(source_code),
         "managed_binding": binding,
         "managed_info": managed_info,
+        "managed_native_preview": native_preview,
         "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
         "enable_smart_field_panel": True,
         "rule": rule,

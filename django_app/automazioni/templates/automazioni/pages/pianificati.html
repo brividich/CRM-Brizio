@@ -118,12 +118,12 @@ body.theme-dark .pian-note{color:var(--text-light)}
             <td><span class="pian-name">{{ r.name }}</span><div class="pian-desc">{{ r.description|default:"" }}</div></td>
             <td class="pian-oggetto">
               {% if r.oggetto %}<span class="pian-subj">{{ r.oggetto }}</span>
-                {% if r.oggetto_personalizzato %}<div class="pian-desc">personalizzato{% if r.configurable %} · <a href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">Configura mail</a>{% endif %}</div>{% endif %}
+                {% if r.oggetto_personalizzato %}<div class="pian-desc">personalizzato</div>{% endif %}
                 {% for v in r.oggetto_varianti %}<div class="pian-desc">oppure: {{ v }}</div>{% endfor %}
               {% else %}<span style="color:#94a3b8;">nessuna mail, solo notifica nel portale</span>{% endif %}
             </td>
             <td>{{ r.cadence }}</td>
-            <td>{{ r.a_chi }}</td>
+            <td>{% if r.destinatari %}<span class="pian-desc">{{ r.destinatari|truncatechars:90 }}</span>{% else %}{{ r.a_chi }}{% endif %}</td>
             <td>
               {% if not r.enabled %}<span class="pian-pill pian-off">○ Disattivato</span>
               {% elif r.sospeso_fino %}<span class="pian-pill pian-pausa">❚❚ In pausa fino al {{ r.sospeso_fino|date:"d/m/Y" }}</span>
@@ -168,7 +168,7 @@ body.theme-dark .pian-note{color:var(--text-light)}
                   <input type="hidden" name="action" value="run_now">
                   <button class="pian-btn run" type="submit">Esegui ora</button>
                 </form>
-                {% if r.configurable %}<a class="pian-btn" href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">✉️ Configura mail</a>{% endif %}
+                <button type="button" class="pian-btn" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}" hx-target="#amp-drawer-body">Modifica</button>
               </div>
             </td>
           </tr>
@@ -234,9 +234,7 @@ body.theme-dark .pian-note{color:var(--text-light)}
                 <input type="hidden" name="action" value="run_now">
                 <button class="pian-btn run" type="submit">Esegui ora</button>
               </form>
-              {% if r.configurable %}
-              <a class="pian-btn" href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">✉️ Configura mail</a>
-              {% endif %}
+              {% if r.configurable %}<button type="button" class="pian-btn" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}" hx-target="#amp-drawer-body">Modifica</button>{% endif %}
             </div>
           </td>
         </tr>
@@ -246,4 +244,5 @@ body.theme-dark .pian-note{color:var(--text-light)}
       </tbody>
     </table>
   </div>
+  {% include "automazioni/components/mail_drawer.html" %}
 {% endblock %}

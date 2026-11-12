@@ -1,5 +1,5 @@
 ﻿<article {% if entry.is_existing %}id="action-card-{{ entry.descriptor.item_id }}"{% endif %}
-  class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
+  class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}{% if entry.descriptor.action_type == "native_process" %} designer-action-card--native{% endif %}"
   data-action-card
   data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
   {% if entry.is_existing %}data-sortable-item data-item-id="{{ entry.descriptor.item_id }}" draggable="true"{% endif %}>
@@ -11,7 +11,7 @@
       <div class="designer-section-subtitle" data-action-summary>{{ entry.descriptor.summary }}</div>
     </div>
     <div class="designer-actions">
-      <button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>
+      {% if entry.descriptor.action_type != "native_process" %}<button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>{% endif %}
       {% if entry.is_existing %}
         <button class="btn btn-light" type="button" data-move="-1">Su</button>
         <button class="btn btn-light" type="button" data-move="1">Giu'</button>
@@ -34,6 +34,11 @@
     {% endfor %}
   </div>
 
+  {% if managed_binding.kind == "schedule" and entry.descriptor.action_type == "native_process" %}
+    <div class="amp-native">
+      <button type="button" class="btn btn-primary" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Modifica mail, destinatari e orario</button>
+    </div>
+  {% endif %}
   <div class="designer-help" data-suggestion-hint style="margin-top:8px;">
     Seleziona il tipo azione e usa "Campi suggeriti" per precompilare una base modificabile.
   </div>

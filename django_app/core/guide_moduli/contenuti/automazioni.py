@@ -77,16 +77,26 @@ GUIDA = {
             "titolo": "Lavori pianificati",
             "blocchi": [
                 ("p", "«Pianificati» elenca i lavori che girano a orari fissi (sincronizzazioni, promemoria, pulizie): si accendono, "
-                      "si spengono e per quelli con mail si configura il testo. Lo stato di salute di ognuno è in "
+                      "si spengono e con «Modifica» si cambiano orario, destinatari e testo della mail. Lo stato di salute di ognuno è in "
                       "Amministrazione → Monitoring → «Salute degli schedule»."),
                 ("p", "In cima c'è il raccoglitore «Digest e promemoria»: i riepiloghi e i solleciti che arrivano alle persone, "
-                      "in ordine di orario, con le colonne «Oggetto della mail» e «A chi». L'oggetto è quello che arriva in casella: «N» sta per un numero, ‹…› per un testo che cambia (reparto, codice, persona) e sotto, con «oppure:», ci sono le varianti; se l'oggetto è stato cambiato da «Configura mail» compare quello, con la scritta «personalizzato». Chi non manda mail ma solo una notifica nel portale lo dice nella stessa colonna. «Sospendi» con una data li ferma fino a quel giorno "
+                      "in ordine di orario, con le colonne «Oggetto della mail» e «A chi». L'oggetto è quello che arriva in casella: «N» sta per un numero, ‹…› per un testo che cambia (reparto, codice, persona) e sotto, con «oppure:», ci sono le varianti; se l'oggetto è stato cambiato da «Modifica» compare quello, con la scritta «personalizzato». Chi non manda mail ma solo una notifica nel portale lo dice nella stessa colonna. «Sospendi» con una data li ferma fino a quel giorno "
                       "compreso (al massimo 60 giorni) e il giorno dopo ripartono da soli; lo stato diventa «In pausa fino al …». "
                       "«Sospendi tutti fino al» ferma l'intero raccoglitore (ferie, chiusure), «Riprendi» e «Riprendi tutti» "
                       "tolgono la pausa subito. La pausa vale per tutti i destinatari; «Esegui ora» manda il digest comunque."),
                 ("p", "Per fermare un digest a tempo indeterminato usa «Disattiva». Per smettere di riceverlo una persona sola, "
-                      "toglila dai destinatari con «Configura mail»; il riepilogo personale delle scadenze si spegne invece "
+                      "toglila dai destinatari con «Modifica»; il riepilogo personale delle scadenze si spegne invece "
                       "da Notifiche → Impostazioni di chi lo riceve."),
+                ("p", "«Modifica» apre un pannello di lato con tre parti. «Quando parte»: l'orario (i giorni restano quelli "
+                      "del calendario; se il lavoro gira ogni N minuti o non ha un orario fisso, si cambia dal flusso). "
+                      "«Destinatari»: le email separate da virgola o a capo; vuoto = amministratori di sistema (per le "
+                      "letture mensili MFC vuoto = la mail non parte). Se i destinatari li sceglie il modulo dai dati "
+                      "(assegnatari, iscritti, capireparto) il pannello lo dice e non c'è niente da compilare. «Testo della "
+                      "mail»: oggetto, testo sopra l'elenco e nota in fondo; vuoti = testo predefinito, l'elenco delle voci "
+                      "resta generato dai dati. «Salva» vale subito; «Invia prova a me» manda un'anteprima con righe di esempio."),
+                ("p", "Lo stesso pannello si apre dal designer: pulsante «Mail, destinatari e orario» nella scheda in cima e "
+                      "«Modifica mail, destinatari e orario» sulla card «Esegui processo del modulo», che ora riassume "
+                      "quando parte, a chi arriva e l'oggetto. Dopo il salvataggio si torna al designer."),
                 ("p", "«Apri flusso» porta alla scheda del lavoro in cima al designer: stato (Attivo o Disattivato), "
                       "«Quando» (la cadenza in parole), «Prossima esecuzione» e la descrizione aggiornata dal codice. "
                       "Per cambiare l'orario scegli la Ricorrenza: «Ogni N minuti» chiede l'intervallo, «Calendario» "

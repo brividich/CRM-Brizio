@@ -237,7 +237,7 @@ SEZIONI: list[dict] = [
                 "Mail di riepilogo: quando tutte le MFC sono lette parte una mail con contatori, copie del mese "
                 "(«—» se manca la lettura del mese prima o un contatore è sceso), Excel allegato e link a queste "
                 "letture. Il giorno 7 dalle 23:00, se manca ancora qualche MFC, parte con le mancanti e il motivo. "
-                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: "
+                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Modifica»: "
                 "senza destinatari non parte.",
             ]),
         ],

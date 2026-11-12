@@ -22,7 +22,8 @@
       <div class="mf-head-actions">
         {% if managed_info.active %}<span class="flow-pill flow-pill-green mf-pill">Attivo</span>{% else %}<span class="flow-pill flow-pill-red mf-pill">Disattivato</span>{% endif %}
         <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
-        {% if managed_schedule_form %}<a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_pianificati' %}">Tutte le pianificazioni</a>{% endif %}
+        {% if managed_schedule_form %}<button type="button" class="btn btn-primary btn-sm" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Mail, destinatari e orario</button>
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_pianificati' %}">Tutte le pianificazioni</a>{% endif %}
       </div>
     </header>
 
@@ -646,6 +647,10 @@
     </div>
   </div>
 </div>
+{% if managed_binding.kind == "schedule" %}
+  {{ managed_native_preview|json_script:"native-preview" }}
+  {% include "automazioni/components/mail_drawer.html" %}
+{% endif %}
 
 {% endblock %}
 
@@ -1892,8 +1897,11 @@
     var actionLabel = getFieldDisplayValue(actionTypeField) || '-';
     var description = descriptionField ? String(descriptionField.value || '').trim() : '';
     var previewLines = ['Configurazione non disponibile.'];
+    var nativePreviewNode = document.getElementById('native-preview');
 
-    if (actionType === 'send_email') {
+    if (actionType === 'native_process' && nativePreviewNode) {
+      try { previewLines = JSON.parse(nativePreviewNode.textContent) || previewLines; } catch (e) { /* resta il testo di base */ }
+    } else if (actionType === 'send_email') {
       previewLines = [
         'Destinatari: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
         'Subject: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
