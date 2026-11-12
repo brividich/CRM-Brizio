@@ -90,3 +90,28 @@ class PcCoperturaTests(TestCase):
 
     def test_scheda_anche_per_pc_solo_intune(self):
         self.assertEqual(self.client.get(reverse("security:pc_detail") + "?nome=PC-DUE").status_code, 200)
+
+    def test_scheda_completa_postura_caratteristiche_patch_software(self):
+        from security.models import WatchGuardDispositivo, WatchGuardPatch
+        from security.services.pc_overview import pc_scheda
+
+        DispositivoIntune.objects.filter(nome="PC-DUE").update(produttore="Dell", modello="Latitude 5440", ram_bytes=16 * 1024 ** 3,
+                                                               disco_totale_bytes=500 * 1024 ** 3, disco_libero_bytes=25 * 1024 ** 3)
+        WatchGuardDispositivo.objects.create(device_id="w2", host="pc-due", host_display="PC-DUE", protezione=1, motore_aggiornato=True,
+                                             ultima_connessione=timezone.now())
+        WatchGuardPatch.objects.create(device_id="w2", patch_id="p1", host="pc-due", nome="Aggiornamento cumulativo", criticita=201)
+        WatchGuardPatch.objects.create(device_id="w2", patch_id="p2", host="pc-due", nome="Patch vecchia", criticita=201, presente=False)
+        pc = pc_scheda("PC-DUE")
+        self.assertEqual(pc["produttore_modello"], "Dell Latitude 5440")
+        self.assertEqual(pc["disco"]["usato_pct"], 95)
+        self.assertEqual(pc["disco"]["tono"], "critical")
+        self.assertEqual((pc["patch_count"], pc["patch_critiche"]), (1, 1))  # solo le patch ancora presenti
+        # Intune «non cifrato» (−10) e una patch critica (−3): gli altri motivi dipendono da backup e agenti.
+        testi = [m["testo"] for m in pc["rischio"]["motivi"]]
+        self.assertIn("Intune: disco non cifrato (BitLocker)", testi)
+        self.assertEqual(pc["rischio"]["punteggio"], 100 - sum(m["punti"] for m in pc["rischio"]["motivi"]))
+        self.assertNotIn("Senza agente WatchGuard", testi)
+        html = self.client.get(reverse("security:pc_detail") + "?nome=PC-DUE").content.decode()
+        for testo in ('data-pcs-tab="caratteristiche"', "Indice di postura", "Latitude 5440", "Aggiornamento cumulativo", "pc-scheda.js"):
+            self.assertIn(testo, html)
+        self.assertNotIn("Patch vecchia", html)

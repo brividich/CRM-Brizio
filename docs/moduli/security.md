@@ -72,7 +72,7 @@ Canale unico `core/eventi_sicurezza.py` → sorgente «Portale · accessi». `CA
 
 - **Da fare** `/soc/mio-lavoro/` (URL e nome rotta `my_work` invariati): tutti gli incidenti (prossima scadenza in alto), ticket e alert aperti, senza filtro per persona (il team IT è di due tecnici).
 - **Ricerca** (casella nella barra del SOC, `/soc/cerca/?q=`): incidenti, ticket, alert, PC e server (dispositivi SOC e PC dei backup), vulnerabilità.
-- **Scheda PC** `/soc/pc/?nome=…` (`services/pc_overview.py`): verdetto, backup, alert e vulnerabilità aperti, protezione endpoint, eventi, link all'asset HUB. Il nome host è la chiave comune ai fornitori (confronto senza maiuscole).
+- **Scheda PC** `/soc/pc/?nome=…` (`services/pc_overview.pc_scheda`, sopra `pc_overview` che resta per pannello laterale e controllo AI): testata con identità e indice di postura 0-100 (`_rischio`), sei KPI, schede Panoramica (flusso fonti → PC → esiti), Caratteristiche (Intune, DHCP/DNS), Protezione (`WatchGuardDispositivo`, Intune, segnali endpoint), Vulnerabilità e patch (CVE uniche + `WatchGuardPatch` presenti ed errori 14 gg), Software (`SoftwareInstallation` attive), Backup, Timeline. Solo dati SOC, niente manutenzione. CSS/JS in `static/security/pc-scheda.css|js` (sezione in `#ancora`). Il nome host è la chiave comune ai fornitori (confronto senza maiuscole).
 
 ## Sala controllo: barra live, anteprime, multiselezione, AI
 
