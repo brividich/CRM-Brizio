@@ -146,3 +146,28 @@ class DigestSospensioneTests(TestCase):
                                side_effect=RuntimeError("raggiunto")):
             with self.assertRaisesMessage(RuntimeError, "raggiunto"):
                 managed_flows.run_managed_flow("system_digest", ignora_sospensione=True)
+
+
+class DigestOggettoTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("ogg_admin", "ogg@x.local", "x")
+        self.client.force_login(self.admin)
+
+    def test_ogni_digest_ha_la_voce_oggetto(self):
+        from automazioni.schedules import DIGEST_E_PROMEMORIA, DIGEST_OGGETTO
+
+        self.assertEqual(set(DIGEST_OGGETTO), set(DIGEST_E_PROMEMORIA))
+
+    def test_pagina_mostra_oggetto_e_quello_personalizzato_prevale(self):
+        from automazioni.models import ScheduledMailText
+
+        url = reverse("admin_portale:automazioni_pianificati")
+        r = self.client.get(url)
+        self.assertContains(r, "Oggetto della mail")
+        self.assertContains(r, "[Ticket] N da gestire oggi - gg-mm-aaaa")
+        self.assertContains(r, "solo notifica nel portale")
+
+        ScheduledMailText.objects.create(task_name="visite_expiry_reminders", subject="Visite da rinnovare")
+        r = self.client.get(url)
+        self.assertContains(r, "Visite da rinnovare")
+        self.assertNotContains(r, "[VISITE MEDICHE] N scadute")
