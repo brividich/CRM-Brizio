@@ -25,6 +25,9 @@
   .pian-btn.run { border-color:#93c5fd; color:#1e40af; }
   .pian-note { color:#64748b; font-size:13px; margin:6px 0 16px; }
   .pian-digest { margin-bottom:28px; }
+  .pian-oggetto { min-width:220px; max-width:340px; }
+  .pian-subj { font-weight:600; color:#0f172a; }
+  body.theme-dark .pian-subj { color:#e2e8f0; }
   .pian-digest-head { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
   .pian-digest h2, .pian-h2 { font-size:18px; margin:0; color:#0f172a; }
   .pian-h2 { margin-bottom:4px; }
@@ -106,13 +109,19 @@ body.theme-dark .pian-note{color:var(--text-light)}
     <div class="pian-table-wrap">
       <table class="pian-table">
         <thead>
-          <tr><th>Ora</th><th>Task</th><th>Quando gira</th><th>A chi</th><th>Stato</th><th>Ultimo esito</th><th>Azioni</th></tr>
+          <tr><th>Ora</th><th>Task</th><th>Oggetto della mail</th><th>Quando gira</th><th>A chi</th><th>Stato</th><th>Ultimo esito</th><th>Azioni</th></tr>
         </thead>
         <tbody>
           {% for r in digest_rows %}
           <tr>
             <td><strong>{{ r.orario|default:"—" }}</strong></td>
             <td><span class="pian-name">{{ r.name }}</span><div class="pian-desc">{{ r.description|default:"" }}</div></td>
+            <td class="pian-oggetto">
+              {% if r.oggetto %}<span class="pian-subj">{{ r.oggetto }}</span>
+                {% if r.oggetto_personalizzato %}<div class="pian-desc">personalizzato{% if r.configurable %} · <a href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">Configura mail</a>{% endif %}</div>{% endif %}
+                {% for v in r.oggetto_varianti %}<div class="pian-desc">oppure: {{ v }}</div>{% endfor %}
+              {% else %}<span style="color:#94a3b8;">nessuna mail, solo notifica nel portale</span>{% endif %}
+            </td>
             <td>{{ r.cadence }}</td>
             <td>{{ r.a_chi }}</td>
             <td>

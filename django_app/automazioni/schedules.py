@@ -1254,6 +1254,69 @@ DIGEST_E_PROMEMORIA: dict[str, str] = {
     "presenti_avvisi_uscite": "Capi (uscite non timbrate)",
 }
 
+# Oggetto delle mail dei digest, come lo compongono i comandi (N = numero, ‹…› = testo variabile).
+# Il primo è quello principale, gli altri sono le varianti; tupla vuota = solo notifica in-app.
+# Un oggetto personalizzato da «Configura mail» (ScheduledMailText) prevale: vedi schedule_rows.
+# Se cambi l'oggetto in un comando, aggiornalo anche qui.
+DIGEST_OGGETTO: dict[str, tuple[str, ...]] = {
+    "system_digest": ("[Portale] Digest stato sistema — tutto ok", "[Portale] Digest stato sistema — attenzioni presenti"),
+    "caporeparto_morning_digest": ("[Caporeparto] Riepilogo ‹reparti› - gg-mm-aaaa",),
+    "scadenze_digest_personale": ("[SCADENZE] N scadute, N entro N giorni - gg-mm-aaaa",),
+    "report_scadenze_settimanale": (
+        "[Scadenze] Visite mediche in scadenza (N)",
+        "[Scadenze] Contratti e periodi di prova in scadenza (N)",
+        "[Scadenze] Qualifiche e abilitazioni in scadenza (N)",
+    ),
+    "assets_maintenance_reminders": ("[Manutenzione] N SCADUTE + N non valutabili + N senza rapporto + N licenze/contratti — gg-mm-aaaa",),
+    "assets_it_monitoring_alerts": ("[Monitoraggio IT] N problemi aperti — gg-mm-aaaa",),
+    "part145_scadenze": ("[PART 145] Scadenze entro N giorni (N)",),
+    "dpi_expiry_reminders": (
+        "[DPI] N scaduti + N in scadenza - gg-mm-aaaa",
+        "[DPI] DPI scaduti o in scadenza nella tua squadra (N) - gg-mm-aaaa",
+    ),
+    "visite_expiry_reminders": ("[VISITE MEDICHE] N scadute + N in scadenza - gg-mm-aaaa",),
+    "visite_mediche_digest": ("[Visite mediche] N in scadenza entro Ngg - gg-mm-aaaa",),
+    "contratti_expiry_reminders": ("[CONTRATTI] N scaduti + N in scadenza + N fine prova - gg-mm-aaaa",),
+    "training_expiry_reminders": ("[FORMAZIONE] N scaduti + N in scadenza - gg-mm-aaaa",),
+    "elearning_reminders": ("[E-LEARNING] N corsi da completare - gg-mm-aaaa",),
+    "formazione_session_reminders": ("Promemoria corso: ‹corso› il gg-mm-aaaa",),
+    "formazione_audit_digest": ("[Formazione ISO] N abilitazioni in scadenza entro Ngg - gg-mm-aaaa",),
+    "idoneita_digest": ("[Idoneità] N non idonei, N con riserve - gg-mm-aaaa",),
+    "cambio_mansione_digest": (
+        "[Cambio mansione] N persone da verificare, N adempimenti in ritardo",
+        "[Cambio mansione] ‹persona›: N adempimenti da completare",
+    ),
+    "tickets_daily_digest": ("[Ticket] N da gestire oggi - gg-mm-aaaa",),
+    "tickets_sla_reminders": ("[SLA SCADUTO] Ticket ‹numero›",),
+    "tasks_send_reminders": (),
+    "tasks_meetings_digest": (
+        "Promemoria KICK-OFF: prossimo incontro e scadenze",
+        "Promemoria incontro ‹domani› — ‹incontro›",
+        "Scadenze KICK-OFF (N)",
+    ),
+    "gestione_specifiche_reminder": ("Promemoria MOD.133 — ‹codice›",),
+    "gestione_specifiche_escalation": ("ESCALATION MOD.133 — ‹codice›",),
+    "gestione_specifiche_verifica_periodica": ("Verifica periodica — ‹codice›",),
+    "gestione_specifiche_sync_cartelle": ("Nuova specifica ‹codice› da prendere in carico",),
+    "scadenzario_avvisi_attivita": ("[SCADENZA] ‹attività› - gg/mm/aaaa",),
+    "scadenzario_riepilogo_mensile": ("[RIEPILOGO SCADENZE] ‹categoria› - prossimi N giorni",),
+    "checklist_chiusura_reminders": ("Checklist chiusura «‹chiusura›»: N da confermare",),
+    "rentri_scadenze_check": ("[RENTRI] N registrazioni in scadenza — soglia N giorni",),
+    "rentri_promemoria_scarico_effettivo": (),
+    "assenze_solleciti": ("N richieste di assenza da approvare", "Richiesta di assenza da approvare: ‹DIPENDENTE›"),
+    "assenze_certificato_avviso": ("Certificato medico non arrivato: N malattie",),
+    "suggestion_corner_reminders": (
+        "[Suggestion Corner] Sollecito ‹fase› — SC#N",
+        "[Suggestion Corner] ESCALATION ‹fase› — SC#N",
+    ),
+    "sistema_gestione_car_solleciti": ("CAR in ritardo oltre N giorni: N",),
+    "sistema_gestione_scadenze_esterni": ("Certificazioni e audit esterni: N scadenze",),
+    "presenti_avvisi_uscite": (
+        "[NOVICROM HUB] N uscite non timbrate nella tua squadra",
+        "[NOVICROM HUB] Uscita non timbrata: ‹Cognome Nome› il gg/mm/aaaa",
+    ),
+}
+
 # Pausa massima a tempo: oltre si usa «Disattiva», che è una scelta esplicita e durevole.
 SOSPENSIONE_MAX_GIORNI = 60
 
@@ -1363,6 +1426,14 @@ def schedule_descriptions() -> dict:
     return commenti
 
 
+def _oggetto_riga(name: str, personalizzato: str = "") -> dict:
+    """Oggetto mail da mostrare: quello personalizzato, se c'è, altrimenti il primo di serie."""
+    serie = DIGEST_OGGETTO.get(name, ())
+    if personalizzato:
+        return {"oggetto": personalizzato, "oggetto_varianti": (), "oggetto_personalizzato": True}
+    return {"oggetto": serie[0] if serie else "", "oggetto_varianti": serie[1:], "oggetto_personalizzato": False}
+
+
 def schedule_rows() -> list[dict]:
     """Righe pronte per la UI: statico (SCHEDULES) + stato runtime (django_q) + on/off.
 
@@ -1402,6 +1473,15 @@ def schedule_rows() -> list[dict]:
     except Exception:
         last_runs = {}
 
+    # Oggetti personalizzati da «Configura mail»: sostituiscono quello di serie.
+    try:
+        from .models import ScheduledMailText
+
+        oggetti_custom = {t: s.strip() for t, s in ScheduledMailText.objects.values_list("task_name", "subject")
+                          if (s or "").strip()}
+    except Exception:
+        oggetti_custom = {}
+
     from .models import ManagedFlow
     bindings = {b.code: b for b in ManagedFlow.objects.select_related("rule").all()}
     descr = schedule_descriptions()
@@ -1431,6 +1511,7 @@ def schedule_rows() -> list[dict]:
             "last_ok": last[1] if last else None,
             "digest": name in DIGEST_E_PROMEMORIA,
             "a_chi": DIGEST_E_PROMEMORIA.get(name, ""),
+            **_oggetto_riga(name, oggetti_custom.get(name, "")),
             "orario": orario_cron(effective),
             "sospeso_fino": sospesi.get(name),
         })
