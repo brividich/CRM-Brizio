@@ -98,3 +98,73 @@ body.theme-dark .cn-auto { --cn-canvas:#11161f; --cn-card:#1b2230; --cn-border:#
 .cn-auto .designer-source-panel { border-top:3px solid #0078d4; }
 
 @media (max-width:760px) { .cn-auto .designer-main { padding:8px; } }
+
+/* ── Condizione come in Power Automate / n8n: righe «campo | operatore | valore» unite da «E» ── */
+.cn-auto [data-condition-card] { padding:10px 12px; background:var(--cn-canvas); }
+.cn-auto [data-condition-card] > .designer-header .designer-summary-kicker,
+.cn-auto [data-condition-card] [data-condition-human-summary],
+.cn-auto [data-condition-card] [data-condition-suggestion-hint],
+.cn-auto [data-condition-card] details[data-card-details] > summary { display:none !important; }
+.cn-auto [data-condition-card] [data-condition-summary] { font-size:12px !important; color:var(--cn-sub); font-weight:600; }
+.cn-auto [data-condition-card] details[data-card-details] { margin-top:4px !important; }
+.cn-auto [data-condition-card] .designer-trigger-copy { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.3fr); gap:8px 10px; align-items:end; margin-top:4px !important; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-order"]) { display:none; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-field_name"]) { order:1; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-operator"]) { order:2; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-expected_value"]) { order:3; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-value_type"]),
+.cn-auto [data-condition-card] .designer-field:has([name$="-compare_with_old"]),
+.cn-auto [data-condition-card] .designer-field:has([name$="-is_enabled"]),
+.cn-auto [data-condition-card] .designer-field:has([name$="-DELETE"]) { order:4; font-size:11.5px; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-expected_value"]) textarea { min-height:38px; height:38px; }
+.cn-auto [data-condition-card] .designer-help { font-size:11px; }
+.cn-auto [data-condition-card] + [data-condition-card],
+.cn-auto .designer-sortable + .designer-add-stack > [data-condition-card]:first-child,
+.cn-auto .designer-add-stack > [data-condition-card] + [data-condition-card] { margin-top:26px; position:relative; }
+.cn-auto [data-condition-card] + [data-condition-card]::before,
+.cn-auto .designer-sortable + .designer-add-stack > [data-condition-card]:first-child::before,
+.cn-auto .designer-add-stack > [data-condition-card] + [data-condition-card]::before {
+  content:"E"; position:absolute; top:-21px; left:14px; font-size:11px; font-weight:800; color:#8764b8; background:var(--cn-card);
+  border:1px solid #c8b6e2; border-radius:999px; padding:1px 9px;
+}
+@media (max-width:760px) { .cn-auto [data-condition-card] .designer-trigger-copy { grid-template-columns:1fr; } }
+
+/* Esito della condizione: due rami come in Power Automate */
+.cn-auto .cn-lanes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.cn-lane { display:grid; gap:2px; border-radius:6px; padding:10px 12px; font-size:12.5px; color:var(--cn-sub); border:1px solid var(--cn-border); }
+.cn-lane strong { font-size:13px; }
+.cn-lane--si { border-top:3px solid #107c10; } .cn-lane--si strong { color:#107c10; }
+.cn-lane--no { border-top:3px solid #a4262c; } .cn-lane--no strong { color:#a4262c; }
+body.theme-dark .cn-lane--si strong { color:#86efac; } body.theme-dark .cn-lane--no strong { color:#fca5a5; }
+
+/* ── Se sì / Se no, Ripeti finché, Per ogni elemento: contenitori con passaggi dentro ── */
+.cn-auto [data-action-config="branch"] > .designer-trigger-copy,
+.cn-auto [data-action-config="do_until"] > .designer-trigger-copy { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px 10px; background:var(--cn-canvas); border-radius:6px; padding:10px; }
+.cn-auto .designer-branch-grid, .cn-auto .designer-inline-builder-grid { gap:12px; }
+.cn-auto .designer-branch-column { background:var(--cn-canvas); border:1px solid var(--cn-border); border-radius:6px; border-top:3px solid #8a8886; }
+.cn-auto .designer-branch-column--true, .cn-auto .designer-inline-builder-column--success { border-top-color:#107c10; }
+.cn-auto .designer-branch-column--false, .cn-auto .designer-inline-builder-column--timeout { border-top-color:#a4262c; }
+.cn-auto .designer-inline-builder-column--loop, .cn-auto .designer-inline-builder-column--each { border-top-color:#0f6cbd; }
+.cn-auto .designer-branch-column--true .designer-branch-title, .cn-auto .designer-inline-builder-column--success .designer-branch-title { color:#107c10; }
+.cn-auto .designer-branch-column--false .designer-branch-title, .cn-auto .designer-inline-builder-column--timeout .designer-branch-title { color:#a4262c; }
+.cn-auto .designer-branch-column .designer-help { display:none; }
+.cn-auto .designer-inline-toolbar .btn { border-radius:999px; font-size:12px; padding:4px 10px; }
+.cn-auto .designer-inline-item { background:var(--cn-card); border:1px solid var(--cn-border); border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+.cn-inline-editor { display:grid; gap:8px; padding:10px 2px 4px; }
+.cn-inline-field { display:grid; gap:3px; font-size:12px; font-weight:600; color:var(--cn-text, #201f1e); }
+.cn-inline-field input, .cn-inline-field select, .cn-inline-field textarea { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #8a8886; border-radius:2px; font:inherit; font-weight:400; background:var(--cn-card, #fff); color:inherit; }
+.cn-inline-note { margin:0; font-size:11.5px; color:var(--cn-sub, #605e5c); }
+
+/* Valore della riga: il riquadro «Valori disponibili» va sotto la riga, a tutta larghezza */
+.cn-auto [data-condition-card] .designer-field-choice-grid { display:contents; }
+.cn-auto [data-condition-card] .designer-choice-helper { order:5; grid-column:1 / -1; padding:8px 10px; }
+.cn-auto [data-condition-card] .designer-field:has([name$="-expected_value"]) .designer-help { display:none; }
+
+/* Pulsanti «+ Log / + Email …» dentro i rami: piccoli, come il «+» di Power Automate */
+.cn-auto .designer-inline-toolbar { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px; }
+.cn-auto .designer-inline-toolbar .btn { background:var(--cn-card) !important; color:#0f6cbd !important; border:1px dashed #0f6cbd !important;
+  border-radius:999px; font-size:12px; font-weight:600; padding:3px 10px; height:auto; min-height:0; box-shadow:none; flex:none; }
+.cn-auto .designer-inline-toolbar [data-inline-json-clear],
+.cn-auto .designer-inline-toolbar [data-inline-json-copy-other] { color:var(--cn-sub) !important; border-color:var(--cn-border) !important; }
+.cn-auto [data-action-config] > .designer-help { display:none; }
+.cn-auto .designer-branch-column { align-content:start; align-items:start; }
