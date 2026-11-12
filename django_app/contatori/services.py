@@ -1327,6 +1327,54 @@ def stato_flotta(ora=None):
     return out
 
 
+TONO_FLOTTA = {"ok": "ok", "attenzione": "warn", "errore": "danger", "non_interrogati": "muted"}
+# Famiglie per i riquadri e il flusso della Centrale: categoria del dispositivo → (etichetta, sigla).
+FAMIGLIE = {
+    "MFC": ("Stampanti MFC", "MFC"), "STAMPANTE": ("Stampanti MFC", "MFC"), "LETTORE": ("Lettori", "LET"),
+    "FIREWALL": ("Rete e sicurezza", "NET"), "RETE": ("Rete e sicurezza", "NET"), "SERVER": ("Server e storage", "SRV"),
+    "STORAGE": ("Server e storage", "SRV"), "UPS": ("UPS e ambiente", "UPS"), "AMBIENTE": ("UPS e ambiente", "UPS"),
+    "TVCC_NVR": ("Videosorveglianza", "CAM"), "TVCC_CAMERA": ("Videosorveglianza", "CAM"), "ALTRO": ("Altro", "ALT"),
+}
+
+
+def mappa_flotta(ora=None):
+    """Un riquadro per apparato monitorato, con lo stato della flotta: stesse regole di ``stato_flotta``.
+
+    Lo stato di ogni apparato viene da ``filtra_flotta`` (le stesse query dei conteggi del riquadro):
+    i riquadri della mappa e i numeri della Centrale coincidono sempre. In cima chi è in errore.
+    """
+    from django.urls import reverse
+    ora = ora or timezone.now()
+    mfc, dispositivi = flotta_monitorata()
+    stato_mfc, stato_disp = {}, {}
+    for chiave in FLOTTA:
+        stato_mfc.update({pk: chiave for pk in filtra_flotta(mfc, chiave, ora).values_list("pk", flat=True)})
+        stato_disp.update({pk: chiave for pk in filtra_flotta(dispositivi, chiave, ora).values_list("pk", flat=True)})
+    riquadri = []
+    for m in mfc:
+        chiave = stato_mfc.get(m.pk, "non_interrogati")
+        riquadri.append({"nome": m.reparto, "sigla": "MFC", "famiglia": "Stampanti MFC", "host": m.host or "", "stato": chiave,
+                         "tono": TONO_FLOTTA[chiave], "quando": m.snmp_ultimo_controllo, "errore": m.snmp_ultimo_errore or "",
+                         "url": reverse("contatori:macchina", args=[m.pk]), "anteprima": reverse("contatori:anteprima", args=["mfc", m.pk])})
+    for d in dispositivi:
+        chiave = stato_disp.get(d.pk, "non_interrogati")
+        famiglia, sigla = FAMIGLIE.get(d.categoria, ("Altro", "ALT"))
+        riquadri.append({"nome": d.nome, "sigla": sigla, "famiglia": famiglia, "host": d.host or "", "stato": chiave,
+                         "tono": TONO_FLOTTA[chiave], "quando": d.snmp_ultimo_controllo, "errore": d.snmp_ultimo_errore or "",
+                         "url": reverse("contatori:snmp_dispositivo", args=[d.pk]), "anteprima": reverse("contatori:anteprima", args=["snmp", d.pk])})
+    ordine = {"errore": 0, "attenzione": 1, "non_interrogati": 2, "ok": 3}
+    riquadri.sort(key=lambda r: (ordine[r["stato"]], r["famiglia"], r["nome"].casefold()))
+    famiglie = {}
+    for r in riquadri:
+        f = famiglie.setdefault(r["famiglia"], {"nome": r["famiglia"], "sigla": r["sigla"], "totale": 0, "problemi": 0})
+        f["totale"] += 1
+        f["problemi"] += r["stato"] in ("errore", "attenzione")
+    for f in famiglie.values():
+        f["tono"] = "danger" if f["problemi"] and any(r["stato"] == "errore" and r["famiglia"] == f["nome"] for r in riquadri) else (
+            "warn" if f["problemi"] else "ok")
+    return {"riquadri": riquadri, "famiglie": sorted(famiglie.values(), key=lambda f: -f["totale"])}
+
+
 def ultimi_errori_snmp(limite=6):
     """Apparati attualmente in errore con la causa registrata, i piu' recenti prima."""
     from django.urls import reverse
