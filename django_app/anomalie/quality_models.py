@@ -456,7 +456,7 @@ class AnomaliaNCAllegato(models.Model):
 
 
 class AnomaliaEsito(models.Model):
-    """Risposta del cliente o azione effettuata su un'anomalia, con i suoi allegati.
+    """Risposta del cliente o del terzista, o azione effettuata su un'anomalia, con i suoi allegati.
 
     I file stanno nella cartella allegati dell'anomalia (stessa validazione e stesso
     download degli altri allegati): qui si tiene solo l'elenco dei ``file_id``.
@@ -464,6 +464,7 @@ class AnomaliaEsito(models.Model):
 
     class Tipo(models.TextChoices):
         RISPOSTA_CLIENTE = "RISPOSTA_CLIENTE", "Risposta del cliente"
+        RISPOSTA_TERZISTA = "RISP_TERZISTA", "Risposta del terzista"
         AZIONE = "AZIONE", "Azione effettuata"
 
     anomalia_id = models.IntegerField(db_index=True)

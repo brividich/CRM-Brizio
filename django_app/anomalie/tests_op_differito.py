@@ -12,6 +12,7 @@ from django.db import connection
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
+from anomalie import segnalato_service as segn
 from anomalie import views as av
 
 _NUOVO = {"causale_doc": "OP", "anno": "2026", "numero": "1399", "pn": "PN-7781-A",
@@ -69,22 +70,23 @@ class VerificaOpTests(TestCase):
 
 
 class SegnalareClienteTests(TestCase):
-    def test_stato_libero_diventa_attesa_cliente(self):
-        self.assertEqual(av.avanzamento_dopo_segnalazione(True, "In attesa"), av.AVANZAMENTO_RISPOSTA_CLIENTE)
-        self.assertEqual(av.avanzamento_dopo_segnalazione(True, ""), av.AVANZAMENTO_RISPOSTA_CLIENTE)
+    # «Segnalare al cliente» da solo non cambia stato: lo cambia «Segnalato al cliente».
+    def test_segnalato_porta_in_attesa_risposta(self):
+        self.assertEqual(segn.avanzamento_dopo_segnalato("In attesa", ["cliente"]), av.AVANZAMENTO_RISPOSTA_CLIENTE)
+        self.assertEqual(segn.avanzamento_dopo_segnalato("", ["terzista"]), av.AVANZAMENTO_RISPOSTA_TERZISTA)
 
     def test_stato_scelto_resta(self):
-        self.assertEqual(av.avanzamento_dopo_segnalazione(True, "Azione di recupero"), "Azione di recupero")
-        self.assertEqual(av.avanzamento_dopo_segnalazione(False, "In attesa"), "In attesa")
+        self.assertEqual(segn.avanzamento_dopo_segnalato("Azione di recupero", ["cliente"]), "Azione di recupero")
+        self.assertEqual(segn.avanzamento_dopo_segnalato("In attesa", []), "In attesa")
 
     def test_vuoto_vale_lo_stato_attuale(self):
         # Dalla mail «invariato» = vuoto: conta lo stato già salvato.
-        self.assertEqual(av.avanzamento_dopo_segnalazione(True, "", "Finito trattato"), "")
-        self.assertEqual(av.avanzamento_dopo_segnalazione(True, "", "In attesa"), av.AVANZAMENTO_RISPOSTA_CLIENTE)
+        self.assertEqual(segn.avanzamento_dopo_segnalato("", ["cliente"], "Finito trattato"), "")
+        self.assertEqual(segn.avanzamento_dopo_segnalato("", ["cliente"], "In attesa"), av.AVANZAMENTO_RISPOSTA_CLIENTE)
 
     def test_nota_con_segnalazione_non_bloccata(self):
-        # Prima «Segnalare al cliente» + nota + «In attesa» veniva rifiutato: ora lo
-        # stato passa a «In attesa risposta cliente» e il salvataggio prosegue.
+        # «Segnalare al cliente» + nota + «In attesa»: l'anomalia aspetta la
+        # segnalazione, il salvataggio prosegue.
         request = RequestFactory().post("/api/anomalie/salva")
         request.user = SimpleNamespace(is_superuser=True, is_authenticated=True)
         with (

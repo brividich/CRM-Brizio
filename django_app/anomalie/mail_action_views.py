@@ -151,7 +151,8 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
     # Azioni dispositive: aggiorna il DB legacy e marca il token monouso
     if is_dispositive:
         # Stessa regola della pagina: una nota scritta non lascia l'anomalia «In attesa».
-        from .views import MSG_NOTA_STATO_IN_ATTESA, _nota_con_stato_in_attesa
+        from .segnalato_service import STATI_RISPOSTA
+        from .views import MSG_NOTA_STATO_IN_ATTESA, MSG_RISPOSTA_SENZA_STATO, _nota_con_stato_in_attesa
 
         stato_live = {str(a.get("id")): str(a.get(_STATO_FIELD) or "") for a in anomalie_live}
         default_avanzamento = nuovo_avanzamento or _ACTION_TO_AVANZAMENTO.get(action, "")
@@ -163,12 +164,18 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
             riga_avanzamento = (
                 str(per_riga.get("avanzamento") or "").strip() or default_avanzamento or stato_live[str(anomalia_id)]
             )
-            if _nota_con_stato_in_attesa(riga_note, riga_avanzamento):
+            in_attesa_di_segnalazione = any(per_riga.get(k) for k in ("aprire_rdc", "segnalare", "segnala_terzista"))
+            if not in_attesa_di_segnalazione and _nota_con_stato_in_attesa(riga_note, riga_avanzamento):
                 return _render_error(
                     request, f"Anomalia #{anomalia_id}: {MSG_NOTA_STATO_IN_ATTESA} Torna indietro e correggi.", "invalid",
                 )
+            if ((str(per_riga.get("risposta_cliente") or "").strip() or str(per_riga.get("risposta_terzista") or "").strip())
+                    and not per_riga.get("chiudi_manuale") and riga_avanzamento.strip().lower() in STATI_RISPOSTA):
+                return _render_error(
+                    request, f"Anomalia #{anomalia_id}: {MSG_RISPOSTA_SENZA_STATO} Torna indietro e correggi.", "invalid",
+                )
             # Prima decisione «Azione di recupero»: si chiude solo con l'azione effettuata.
-            if per_riga.get("chiudere") and not per_riga.get("aprire_rdc"):
+            if (per_riga.get("chiudere") or per_riga.get("chiudi_manuale")) and not per_riga.get("aprire_rdc"):
                 from .tempi_service import MSG_SERVE_AZIONE, serve_azione_per_chiudere
                 if serve_azione_per_chiudere(int(anomalia_id)):
                     return _render_error(
@@ -243,6 +250,50 @@ def _segna_decise_e_azioni(anomalie_live) -> None:
         a["serve_azione"] = int(a.get("id") or 0) in serve
 
 
+def _salva_allegati_mail(request, token_obj, anomalia_id: int) -> None:
+    """Allegati della decisione caricati dal link mail (foto, PDF, mail .msg/.eml).
+
+    Stesse regole della pagina (formati, dimensione, cartella); solo anomalie della
+    pagina del token, perché il chiamante passa da ``anomalie_live``. Mai bloccante.
+    """
+    files = request.FILES.getlist(f"allegati_{anomalia_id}")
+    if not files:
+        return
+    try:
+        from .views import _attachment_dir_for_local, salva_file_allegati
+
+        folder = _attachment_dir_for_local(anomalia_id, create=True)
+        salvati, nomi, errori = salva_file_allegati(anomalia_id, folder, files, per_decisione=True)
+        log_action(request, azione="anomalia_allegato_upload_mail", modulo="anomalie", dettaglio={
+            "local_id": anomalia_id, "op_id": token_obj.op_id, "files": nomi, "errori": errori,
+            "token": token_obj.token[:8], "recipient": token_obj.recipient_display,
+        })
+    except Exception:
+        logger.warning("mail_action: allegati non salvati id=%s", anomalia_id, exc_info=True)
+
+
+def _salva_segnalati_mail(token_obj, anomalia_id: int, stato: dict) -> None:
+    """«Segnala a terzista», «Segnalato…» e risposte dal form del link mail. Mai bloccante."""
+    from . import segnalato_service as segn
+
+    chi_utente = (token_obj.recipient_display or token_obj.recipient_email or "Capocommessa")[:200]
+    try:
+        from .qualita_service import get_or_create_scheda
+        from .quality_models import AnomaliaSchedaQualita
+
+        scheda, _ = get_or_create_scheda(anomalia_id)
+        if scheda is not None and scheda.segnala_terzista != stato["terzista"]:
+            AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(
+                segnala_terzista=stato["terzista"], updated_at=timezone.now())
+        for chi in segn.DESTINATARI:
+            if stato["segnalati"][chi] != stato["gia"][chi]:
+                segn.registra_segnalato(anomalia_id, chi, stato["segnalati"][chi], chi_utente)
+            if stato["risposte"][chi]:
+                segn.registra_risposta(anomalia_id, chi, stato["risposte"][chi], utente_display=chi_utente)
+    except Exception:
+        logger.warning("mail_action: segnalato/risposte non salvati id=%s", anomalia_id, exc_info=True)
+
+
 def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_avanzamento, aggiornamenti_per_id):
     from .mail_action_models import AnomaliaActionLog
 
@@ -260,27 +311,41 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
         if not isinstance(per_riga, dict):
             per_riga, toccata = {}, False
         riga_avanzamento = str(per_riga.get("avanzamento") or "").strip()[:100] or default_avanzamento
+        segn_stato = None
         if toccata:
+            from . import segnalato_service as segn
+
             riga_note = str(per_riga.get("note") or "").strip()[:2000]
             if not riga_note and note and action in _NOTE_GLOBALE_ACTIONS:
                 riga_note = note
+            # In attesa di risposta la nota già mandata resta com'era.
+            if segn.nota_congelata(anomalia.get(_STATO_FIELD), anomalia.get("note_capocommessa")):
+                riga_note = None
             riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
             riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
-            if riga_segnalare:
-                from .views import avanzamento_dopo_segnalazione
-
-                riga_avanzamento = avanzamento_dopo_segnalazione(True, riga_avanzamento, anomalia.get(_STATO_FIELD) or "")
-            # Stessa regola della pagina: RDC senza numero o cliente non ancora avvisato
-            # lasciano l'anomalia aperta, in carico al referente RDC.
-            if riga_chiudere and action != "chiudi":
-                from .views import chiusura_automatica, segnalato_cliente_registrato
+            gia = segn.stato_segnalati(anomalia_id)
+            riga_terzista = bool(per_riga["segnala_terzista"]) if "segnala_terzista" in per_riga else gia["segnala_terzista"]
+            richiesti = {"cliente": riga_segnalare, "terzista": riga_terzista}
+            segnalati = {chi: (bool(per_riga.get(f"segnalato_{chi}")) if f"segnalato_{chi}" in per_riga and richiesti[chi]
+                               else gia[chi]) for chi in segn.DESTINATARI}
+            appena = [chi for chi in segn.DESTINATARI if segnalati[chi] and not gia[chi]]
+            if appena:
+                riga_avanzamento = segn.avanzamento_dopo_segnalato(riga_avanzamento, appena, anomalia.get(_STATO_FIELD) or "")
+            segn_stato = {"terzista": riga_terzista, "segnalati": segnalati, "gia": gia,
+                          "risposte": {chi: str(per_riga.get(f"risposta_{chi}") or "").strip()[:4000]
+                                       for chi in segn.DESTINATARI}}
+            # Stessa regola della pagina: RDC senza numero o cliente/terzista non ancora
+            # avvisati lasciano l'anomalia aperta; «Chiudi» a mano chiude comunque.
+            if per_riga.get("chiudi_manuale"):
+                riga_chiudere = True
+            elif riga_chiudere and action != "chiudi":
+                from .views import chiusura_automatica
 
                 riga_chiudere = chiusura_automatica(
-                    riga_aprire_rdc, riga_numero_rdc, riga_segnalare,
-                    segnalato_cliente_registrato(anomalia_id) if riga_segnalare else False,
-                    riga_avanzamento or anomalia.get(_STATO_FIELD) or "",
+                    riga_aprire_rdc, riga_numero_rdc, riga_segnalare, segnalati["cliente"],
+                    riga_avanzamento or anomalia.get(_STATO_FIELD) or "", riga_terzista, segnalati["terzista"],
                 )
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
@@ -319,6 +384,10 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                     )
             except Exception:
                 logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
+        if ok and segn_stato is not None:
+            _salva_segnalati_mail(token_obj, int(anomalia_id), segn_stato)
+        if ok:
+            _salva_allegati_mail(request, token_obj, int(anomalia_id))
         if ok:
             # Scheda qualita' e tempi (prima decisione, attesa cliente, chiusura).
             try:
@@ -494,7 +563,10 @@ def mail_action_allegato_view(request: HttpRequest, token: str) -> HttpResponse:
         )
     except Exception:
         pass
-    response = FileResponse(path.open("rb"), as_attachment=False, filename=display_name)
+    # Mail salvate (.msg, .eml) e testi si scaricano, mai aperti nel browser.
+    from .views import ESITI_SOLO_DOWNLOAD
+    response = FileResponse(path.open("rb"), as_attachment=path.suffix.lower() in ESITI_SOLO_DOWNLOAD,
+                            filename=display_name)
     return harden_file_response(response, display_name, inline=True)
 
 
@@ -637,6 +709,10 @@ def _raggruppa(token_obj, anomalie_live: list[dict]) -> list[dict]:
             for a in anomalie_live
         ]
     _segna_decise_e_azioni(anomalie_live)
+    from .segnalato_service import arricchisci_righe, nota_congelata
+    arricchisci_righe(anomalie_live)
+    for a in anomalie_live:
+        a["nota_congelata"] = nota_congelata(a.get(_STATO_FIELD), a.get("note_capocommessa"))
     for gruppo in gruppi:
         gruppo["nuovo"] = any(r.get("nuova") for r in gruppo["righe"])
     gruppi.sort(key=lambda g: 0 if g["nuovo"] else 1)

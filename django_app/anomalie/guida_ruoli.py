@@ -169,7 +169,8 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Leggi la «Segnalazione» e guarda le foto (un clic le ingrandisce). Il riquadro «Dal controllore» "
                 "mostra dove sono i pezzi e le misure.",
                 "Spunta se serve «Aprire RDC» (con il «Numero RDC»), «Segnalare al cliente» (spunta anche «Aprire "
-                "RDC», che puoi togliere), «Segnala a terzista», «Pezzi precedenti al benestare».",
+                "RDC», che puoi togliere), «Segnala a terzista», «Pezzi precedenti al benestare». Sotto le spunte il "
+                "riquadro dei passi dice cosa manca per chiuderla.",
                 "«Segnala a CAR»: in «A quale CAR?» spunta i capi reparto da avvisare (nessuno è scelto di serie). Al "
                 "salvataggio solo loro ricevono la mail; il CAR dell'OP riceve comunque il riepilogo delle modifiche.",
                 "Documenti o foto della decisione: «Allegati della decisione» (si caricano anche ad anomalia chiusa).",
@@ -179,10 +180,10 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ]),
             ("img", (_IMG + "k2_decisione.jpg", "Decisione del capocommessa: flag, «A quale CAR?», «Dal controllore» e allegati")),
             ("ul", [
-                "Con una nota l'avanzamento non può restare «In attesa».",
-                "L'anomalia si chiude da sola con «Accetto lo stato» o «Apertura ORE/RIPI». Con «Aprire RDC» o "
-                "«Segnalare al cliente» resta aperta, in carico ai referenti RDC, finché l'RDC non ha il numero e "
-                "«Segnalato al cliente» non è spuntato.",
+                "Con una nota l'avanzamento non può restare «In attesa», tranne con RDC, cliente o terzista da segnalare.",
+                "L'anomalia si chiude da sola con «Accetto lo stato» o «Apertura ORE/RIPI». Con «Aprire RDC», "
+                "«Segnalare al cliente» o «Segnala a terzista» resta aperta finché l'RDC non ha il numero e le "
+                "segnalazioni non sono spuntate. «Chiudi l'anomalia» la chiude comunque al salvataggio.",
                 "Se il referente RDC risponde «In attesa di ulteriori informazioni» l'anomalia torna a te con le spunte "
                 "aperte: rispondi nelle note e scegli un altro stato, torna al referente.",
                 "Stessa decisione su più anomalie: in «Applica la stessa decisione anche a» scegli stesso blocco, tutte "
@@ -198,12 +199,14 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
         "titolo": "Segnalare al cliente",
         "blocchi": [
             ("passi", [
-                "Spunta «Segnalare al cliente»: l'avanzamento passa a «In attesa risposta cliente».",
-                "Scrivi nella nota cosa hai chiesto al cliente e salva: l'anomalia resta aperta.",
-                "Quando hai avvisato il cliente spunta «Segnalato al cliente» (per il terzista «Segnalato al "
-                "terzista»): si registra subito con data e nome e non manda nessuna mail; compare nel riepilogo "
-                "successivo. Puoi allegare la comunicazione in «Allegati della decisione».",
-                "Quando il cliente risponde, torna sull'anomalia in Gestione e scegli lo stato definitivo.",
+                "Spunta «Segnalare al cliente» (o «Segnala a terzista») e scrivi nella nota cosa chiedi: l'anomalia "
+                "resta aperta.",
+                "Quando l'hai avvisato spunta «Segnalato al cliente» nel riquadro dei passi: l'avanzamento passa da solo "
+                "a «In attesa risposta cliente» (per il terzista «In attesa risposta terzista»). Salva: data e nome "
+                "restano registrati. Puoi allegare la comunicazione, anche la mail .msg o .eml, in «Allegati della "
+                "decisione».",
+                "Da qui la nota è ferma («Note già inviate»). Quando arriva la risposta scrivila nel campo «Risposta del "
+                "cliente», scegli lo stato definitivo e salva; per chiuderla subito spunta «Chiudi l'anomalia».",
             ]),
             ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente», «Segnalato al cliente» e stato «In attesa risposta cliente»")),
         ],
@@ -213,8 +216,8 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
         "titolo": "Risposta del cliente e azione effettuata",
         "blocchi": [
             ("passi", [
-                "Il cliente ha risposto: nel riquadro «Tempi ed esiti» scrivi la risposta, allega la mail (.msg o .eml) "
-                "e premi «Registra risposta», poi scegli lo stato definitivo.",
+                "Il cliente o il terzista ha risposto: scrivi la risposta nel campo della decisione e scegli lo stato "
+                "definitivo; «Tempi ed esiti» la mostra con chi e quando.",
                 "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata (la registri tu, il "
                 "CAR o il controllore): rilavorato o riparato chiede «Pezzo riverificato conforme».",
             ]),

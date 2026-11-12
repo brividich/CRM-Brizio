@@ -625,6 +625,37 @@ class MailActionDecisioneTests(LegacyTableMixin, TestCase):
         self.assertEqual(row["numero_rdc"], "RDC-12")
 
 
+    def test_post_segnalato_chiudi_e_allegato_mail(self):
+        """Dal link mail: «Segnalato al cliente», «Chiudi l'anomalia» e la mail .eml allegata."""
+        import tempfile
+        from pathlib import Path
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        aid = self.ids[0]
+        AnomaliaSchedaQualita.objects.create(anomalia_id=aid, op_titolo=OP)
+        payload = {str(aid): {"avanzamento": "", "note": "Avvisato per telefono", "aprire_rdc": False,
+                              "segnalare": True, "segnalato_cliente": True, "chiudi_manuale": True,
+                              "chiudere": True, "numero_rdc": ""}}
+        with tempfile.TemporaryDirectory() as cartella,                 patch("anomalie.views._attachment_dir_for_local", return_value=Path(cartella)),                 patch("anomalie.views._mark_attachment_pending"):
+            r = self.client.post(
+                reverse("anomalie_mail_action", kwargs={"token": self.token.token}),
+                {"aggiornamenti_json": json.dumps(payload),
+                 f"allegati_{aid}": SimpleUploadedFile("risposta.eml", b"From: x", content_type="message/rfc822")},
+            )
+            self.assertIn(r.status_code, (301, 302))
+            salvati = [f.name for f in Path(cartella).iterdir()]
+        self.assertTrue(any(n.endswith("__risposta.eml") for n in salvati), salvati)
+        row = self.riga(aid)
+        self.assertEqual(row["avanzamento"], "In attesa risposta cliente")
+        with connection.cursor() as cur:
+            cur.execute("SELECT chiudere FROM anomalie WHERE id = %s", [aid])
+            self.assertEqual(cur.fetchone()[0], 1)
+        self.assertIsNotNone(AnomaliaSchedaQualita.objects.get(anomalia_id=aid).segnalato_cliente_il)
+
+
 class AutomazioniNonDuplicanoLaMailTests(TestCase):
     """Le regole «mail-action anomalie» saltano le righe nate da un controllo OP:
     la mail al capocommessa la manda già il controllo."""

@@ -242,12 +242,24 @@
     .ga-chiusura--ok .ga-chiusura__t { color: var(--success); }
     .ga-chiusura--info .ga-chiusura__t { color: #c2410c; }
     .ga-chiusura__d { margin-top: 4px; font-size: var(--fs-sm); }
-    .ga-chiusura__l { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
-    .ga-chiusura__h { color: var(--text-muted, #64748b); font-weight: 600; }
-    .ga-chiusura__i { display: inline-block; width: 1.2em; font-weight: 800; color: var(--warning); }
-    .ga-chiusura__l .is-fatto .ga-chiusura__i { color: var(--success); }
-    .ga-chiusura__l .is-fatto b { text-decoration: line-through; opacity: .7; }
-    .ga-chiusura__det { color: var(--text-muted, #64748b); }
+    /* Passi per chiudere: numerati, «Segnalato…» si spunta nella riga */
+    .ga-passi { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: var(--fs-sm); }
+    .ga-passi li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+    .ga-passi__n { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--warning); color: #fff; font-weight: 800; font-size: 12px; flex-shrink: 0; }
+    .ga-passi .is-fatto .ga-passi__n { background: var(--success); }
+    .ga-passi .is-fatto b { opacity: .75; }
+    .ga-passi__spunta { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .ga-passi__spunta { position: relative; }
+    .ga-passi__spunta input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .ga-passi__box { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--warning); background: var(--surface, #fff); color: #fff; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+    .ga-passi .is-fatto .ga-passi__box { background: var(--success); border-color: var(--success); }
+    .ga-passi__spunta input:focus-visible + .ga-passi__box { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ga-passi__spunta:hover .ga-passi__box { box-shadow: 0 0 0 3px rgba(217,119,6,.2); }
+    .ga-passi__det { color: var(--text-muted, #64748b); }
+    /* Note congelate in attesa di risposta, risposta del destinatario, «Chiudi l'anomalia» */
+    .ga-nota-ferma__testo { white-space: pre-wrap; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: var(--fs-sm); }
+    .ga-risposta__gia { padding: 6px 10px; margin-bottom: 6px; border-left: 3px solid #0ea5e9; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: var(--fs-sm); }
+    .ga-chiudi { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
     body.theme-dark .ga-chiusura--info .ga-chiusura__t { color: #fdba74; }
     /* Clona OP: pulsante sulla riga dell'ordine e selezione delle anomalie da copiare */
     /* Riga OP compatta: numero + contatori, P/N sotto */
