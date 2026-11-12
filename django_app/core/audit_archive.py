@@ -95,12 +95,39 @@ def classify_row(row: dict) -> str:
         return "tecnico"
     if classe == "metadata_only":
         return "contenuti" if any(k in det for k in _VALUE_KEYS) else "keep"
-    if azione == "auto_update" and key in audit_policy.IGNORED_FIELDS and "nuovi_valori" not in det:
+    if azione == "auto_update" and "nuovi_valori" not in det:
         modifiche = det.get("modifiche") or {}
         ignorati = _ignored_for_key(key)
-        if not [k for k in modifiche if k not in ignorati]:
+        # Modelli con campi tecnici dichiarati: anche una riga senza modifiche è nulla. Per tutti gli
+        # altri (v4) è nulla la riga le cui modifiche sono solo campi auto_now o «updated_at»: i segnali
+        # di oggi non la scriverebbero (es. NavigationItem, 296.000 righe di solo updated_at in produzione).
+        if key in audit_policy.IGNORED_FIELDS and not [k for k in modifiche if k not in ignorati]:
             return "update_nullo"
+        if modifiche and all(k in ignorati for k in modifiche):
+            return "update_nullo"
+    if azione == "auto_update" and key in audit_policy.IGNORED_CONFIG_KEYS and _chiave_tecnica_riga(key, det):
+        return "update_nullo"
     return "keep"
+
+
+_OGGETTO_CHIAVE = re.compile(r"^\w+<(.+)>$")
+
+
+def _chiave_tecnica_riga(key: str, det: dict) -> bool:
+    """Riga di una chiave usata come battito o cursore (stessa regola di ``audit_policy.chiave_tecnica``).
+
+    La chiave si legge da ``oggetto`` (``SiteConfig<assets.collector_cnc.battito>``) o, per i modelli
+    il cui ``__str__`` è la chiave stessa, dall'intero ``oggetto``.
+    """
+    from fnmatch import fnmatchcase
+
+    oggetto = str(det.get("oggetto") or "")
+    trovata = _OGGETTO_CHIAVE.match(oggetto)
+    chiave = trovata.group(1) if trovata else oggetto
+    if not chiave:
+        return False
+    _campo, modelli = audit_policy.IGNORED_CONFIG_KEYS[key]
+    return any(fnmatchcase(chiave, m) for m in modelli)
 
 
 def reduce_to_metadata(dettaglio: dict) -> dict:

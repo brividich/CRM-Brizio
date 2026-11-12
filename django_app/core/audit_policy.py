@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-AUDIT_POLICY_VERSION = 3
+AUDIT_POLICY_VERSION = 4
 
 # Esclusioni storiche (precedenti alla politica): ricorsione, cache, log già dedicati.
 _LEGACY_EXCLUDED_MODELS: frozenset[str] = frozenset({
@@ -54,6 +54,10 @@ TECHNICAL_EXCLUDED_MODELS: frozenset[str] = frozenset({
     "security.securitymailboxingestionrun",  # è già il registro dei giri della casella
     "assets.periodostatomacchina",        # derivato dalle letture MTConnect
     "contatori.macportaswitch",           # ricalcolato a ogni lettura degli switch
+    # v4 (12/11/2026): misurati in produzione nell'ultima settimana, nessuna persona dietro.
+    "registro_log.statoraccoglitore",     # battito del raccoglitore (10.000 righe a settimana)
+    "contatori.valoresnmp",               # letture SNMP, cancellate a ogni giro (7.700 a settimana)
+    "security.securityalertactionlog",    # è già il registro delle azioni sugli alert
 })
 
 EXCLUDED_MODELS: frozenset[str] = _LEGACY_EXCLUDED_MODELS | TECHNICAL_EXCLUDED_MODELS
@@ -104,7 +108,8 @@ IGNORED_FIELDS: dict[str, frozenset[str]] = {
     "security.securitycverecord": frozenset({
         "nvd_fetched_at", "impact_computed_at", "epss", "epss_percentile", "nvd_error",
     }),
-    "core.notifica": frozenset({"popup_shown", "letta", "letta_il"}),
+    # v4: «messaggio» lo riscrive il promemoria SLA ogni pochi minuti (5.500 righe a settimana).
+    "core.notifica": frozenset({"popup_shown", "letta", "letta_il", "messaggio"}),
     # v3 (27/10/2026): campi riscritti dai collettori a ogni giro. Chi cambia la
     # configurazione (indirizzo, macchina, spunte…) resta in audit.
     "assets.collegamentomtconnect": frozenset({
@@ -112,7 +117,13 @@ IGNORED_FIELDS: dict[str, frozenset[str]] = {
         # nella storia di PeriodoStatoMacchina
         "controllato_il", "letto_il", "ore_grezzo", "stato", "stato_dal",
         "esecuzione", "allarmi", "programma", "modalita",
+        # v4: riscritti dal collector a ogni evento (13.200 righe a settimana)
+        "ultimo_evento", "pezzi_grezzo", "errore",
     }),
+    # v4: dati riletti dai collettori a ogni giro; un cambio d'esito o di configurazione resta in audit.
+    "registro_log.accountad": frozenset({"visto_il", "ultimo_accesso"}),
+    "security.watchguardtaskesito": frozenset({"letto_il"}),
+    "security.watchguardtask": frozenset({"letto_il"}),
     "assets.indirizzorete": frozenset({"ultima_vista"}),
     "assets.macrete": frozenset({"ultima_vista"}),
     "monitoring.issue": frozenset({"last_seen_at", "occurrences_count"}),
@@ -128,7 +139,9 @@ IGNORED_FIELDS: dict[str, frozenset[str]] = {
 # modifica non è una modifica di configurazione. Modello → (campo chiave, modelli
 # fnmatch). Le altre chiavi degli stessi modelli restano in audit completo.
 IGNORED_CONFIG_KEYS: dict[str, tuple[str, tuple[str, ...]]] = {
-    "core.siteconfig": ("chiave", ("*.battito", "*.ultimo_giro")),
+    # v4: cursori di sincronizzazione e «ultimo controllo» scritti dai task (assenze:sp_delta_link, gs_sync_cartelle_ultimo…)
+    "core.siteconfig": ("chiave", ("*.battito", "*.ultimo_giro", "*:sp_delta_link", "*_ultimo_controllo", "*_ultimo",
+                                   "*_last_sync")),
     "security.securitycentersetting": ("key", (
         "*.ultimo_giro", "*.cursore", "*.cursore_*", "entra.ultimo_controllo_account",
     )),

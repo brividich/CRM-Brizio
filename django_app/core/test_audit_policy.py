@@ -169,6 +169,19 @@ class ChiaviTecnicheTests(TestCase):
         for chiave in ("watchguard.api.credenziali", "defender.severita_minima"):
             self.assertFalse(audit_policy.chiave_tecnica(SecurityCenterSetting, SecurityCenterSetting(key=chiave)), chiave)
 
+    def test_v4_cursori_e_fonti_tecniche(self):
+        for chiave in ("assenze:sp_delta_link", "pr_sgi_ultimo_controllo", "gs_sync_cartelle_ultimo", "pr_sgi_last_sync"):
+            self.assertTrue(audit_policy.chiave_tecnica(SiteConfig, SiteConfig(chiave=chiave)), chiave)
+        for chiave in ("login_titolo", "anomalie_config_json"):
+            self.assertFalse(audit_policy.chiave_tecnica(SiteConfig, SiteConfig(chiave=chiave)), chiave)
+        for chiave in ("registro_log.statoraccoglitore", "contatori.valoresnmp", "security.securityalertactionlog"):
+            self.assertEqual(audit_policy.classify_key(chiave), "excluded", chiave)
+        from assets.models import CollegamentoMTConnect
+
+        campi = audit_policy.ignored_fields(CollegamentoMTConnect)
+        self.assertTrue({"ultimo_evento", "pezzi_grezzo", "errore"} <= campi)
+        self.assertNotIn("indirizzo", campi)
+
     def test_campi_v3_ignorati_ma_configurazione_tracciata(self):
         from assets.models import IndirizzoRete
 
@@ -230,13 +243,16 @@ class ClasseDTests(TestCase):
         self.assertEqual(_righe("core", "Notifica"), [])
 
     def test_campo_reale_piu_ignorato(self):
+        # v4: «messaggio» è riscritto dal promemoria SLA, quindi tecnico; «tipo» resta un campo reale.
+        prima = self.n.tipo
         self.n.letta = True
         self.n.messaggio = "aggiornato"
+        self.n.tipo = "dpi_scadenza" if prima != "dpi_scadenza" else "generico"
         self.n.save()
         righe = _righe("core", "Notifica", "auto_update")
         self.assertEqual(len(righe), 1)
-        self.assertEqual(righe[0].dettaglio["modifiche"], {"messaggio": {"old": "ciao", "new": "aggiornato"}})
-        self.assertEqual(righe[0].dettaglio["campi_tecnici_cambiati"], ["letta"])
+        self.assertEqual(righe[0].dettaglio["modifiche"], {"tipo": {"old": prima, "new": self.n.tipo}})
+        self.assertEqual(righe[0].dettaglio["campi_tecnici_cambiati"], ["letta", "messaggio"])
 
 
 class InvariantiTests(TestCase):
