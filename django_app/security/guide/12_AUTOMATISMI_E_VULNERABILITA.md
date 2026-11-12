@@ -353,7 +353,17 @@ Pagina **Dispositivi › Installazioni da console**: i task di installazione pat
 - **Aprendo un task**: l'esito per PC e patch, prima gli errori, poi i PC in attesa.
 - Un task con tutti gli esiti e l'ultima esecuzione più vecchia di 24 ore non si rilegge più: resta com'è nello storico.
 
-L'esito arriva anche sulla patch mancante («Errore di installazione il 12/11» in Patch e protezione). La patch esce dalle mancanti solo quando WatchGuard non la segnala più, alla lettura completa successiva.
+**Verifica dopo l'installazione.** Quando un task finisce (nessun PC in attesa e almeno un'installazione riuscita, ultima esecuzione negli ultimi 2 giorni), la lettura successiva rilegge subito da WatchGuard le **patch mancanti** e il **software dei PC**, senza aspettare le 06:10 o le 13:10. La lettura del software fa ripartire il ricalcolo delle CVE e la **chiusura con prove** degli alert «PC con versione vulnerabile»: le regole restano quelle (2 prove concordi per le CVE critiche o sfruttate, nel dubbio l'alert resta aperto). Una sola lettura per giro anche se finiscono più task; se il software è stato letto da meno di 50 minuti si usa quello. Con l'interruttore «Software dei PC» spento la verifica è «saltata» e lo dice. La colonna **Verifica** della tabella mostra cosa è stato fatto e quando.
+
+**Evidenza.** Aprendo un task, sopra la tabella ci sono i conteggi delle CVE corrette dalle sue patch e, per ogni PC, la colonna **CVE della patch** con lo stato di ognuna nel calcolo del SOC:
+
+- **Corretta**: l'inventario ha visto il programma aggiornato o disinstallato dopo l'inizio del task;
+- **Ancora vulnerabile** / **Da verificare**: il PC risulta ancora esposto (di solito l'inventario WatchGuard non si è ancora aggiornato: si ricontrolla alla lettura dopo);
+- **Non nel calcolo del SOC**: la CVE non risultava sul PC (programma non collegato al catalogo CVE o versione mai vista vulnerabile).
+
+Nella timeline dell'alert della CVE e nel suo pannello, la prova della patch dice anche quale task l'ha installata: «patch WatchGuard «…» installata il 12/11 dal task «Install … patch on 37 computers» della console».
+
+L'esito arriva anche sulla patch mancante («Errore di installazione il 12/11» in Patch e protezione). La patch esce dalle mancanti quando WatchGuard non la segnala più: con la verifica, già alla lettura oraria dopo la fine del task.
 
 ### Tempi delle patch
 

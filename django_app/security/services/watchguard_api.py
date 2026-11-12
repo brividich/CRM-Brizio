@@ -63,6 +63,7 @@ TASK_GIORNI = 30   # task con un'esecuzione negli ultimi 30 giorni; quelli già 
 TASK_MAX = 300     # task letti per giro (i completi non costano chiamate: si saltano)
 TASK_JOB_MAX = 10  # esecuzioni per task (le ultime)
 TASK_ORE_STABILE = 24  # un task con tutti gli esiti e l'ultima esecuzione più vecchia di così non si rilegge
+VERIFICA_GIORNI = 2    # un task finito più di recente fa rileggere subito patch e software (ricalcolo CVE)
 
 
 class WatchGuardError(RuntimeError):
@@ -641,6 +642,49 @@ def sincronizza_task(now=None, *, client=None) -> dict:
             "oltre_limite": max(0, len(recenti) - TASK_MAX)}
 
 
+def task_da_verificare():
+    """Task finiti (nessun PC in attesa, almeno un'installazione riuscita) non ancora verificati dopo l'ultima esecuzione."""
+    from django.db.models import F, Q
+
+    return WatchGuardTask.objects.filter(in_attesa=0, riuscite__gt=0).filter(
+        Q(verifica_il__isnull=True) | Q(ultimo_job_il__gt=F("verifica_il")))
+
+
+def verifica_task(now=None, *, client=None, software_gia: dict | None = None) -> dict | None:
+    """Dopo la fine di un task: patch e software riletti da WatchGuard, così le CVE si ricalcolano subito.
+
+    La lettura del software accoda il ricalcolo degli impatti CVE (``_dopo_import``), che aggiorna gli
+    alert e prova la chiusura con prove (``cve_impatto_risolto``): le regole restano quelle, cambia solo
+    quando arrivano i dati. Una lettura per giro al massimo; ``software_gia`` = software già letto nel
+    giro completo. Il risultato resta sul task (``verifica``) ed è la sua evidenza in pagina.
+    """
+    now = now or timezone.now()
+    tasks = list(task_da_verificare())
+    if not tasks:
+        return None
+    esito: dict
+    recenti = [t for t in tasks if t.ultimo_job_il and t.ultimo_job_il >= now - timedelta(days=VERIFICA_GIORNI)]
+    if not recenti:
+        esito = {"stato": "saltata", "motivo": f"task concluso da più di {VERIFICA_GIORNI} giorni: vale la lettura completa"}
+    elif not soc_settings.value("watchguard.api.software"):
+        esito = {"stato": "saltata", "motivo": "lettura del software spenta (interruttore «Software dei PC»)"}
+    elif software_gia is not None:
+        esito = {"stato": "fatta", "software": software_gia, "motivo": "software letto nel giro completo"}
+    else:
+        ultima = (SoftwareInventoryImport.objects.filter(source_kind=SoftwareSourceKind.WATCHGUARD, original_name=NOME_IMPORT)
+                  .order_by("-created_at").values_list("created_at", flat=True).first())
+        if ultima and ultima >= max(t.ultimo_job_il for t in recenti) and ultima >= now - timedelta(minutes=50):
+            esito = {"stato": "fatta", "motivo": f"software già riletto alle {timezone.localtime(ultima):%H:%M}"}
+        else:
+            try:
+                esito = {"stato": "fatta", "patch": sincronizza_patch(now, client=client),
+                         "software": sincronizza_software(client=client)}
+            except WatchGuardError as exc:
+                esito = {"stato": "errore", "motivo": str(exc)[:300]}
+    WatchGuardTask.objects.filter(pk__in=[t.pk for t in tasks]).update(verifica_il=now, verifica=esito)
+    return {**esito, "task": len(tasks)}
+
+
 def run_task() -> dict:
     """Giro orario solo dei task di installazione (interruttore delle patch): esiti vicini a quando si lanciano."""
     if not soc_settings.value("watchguard.api.patch"):
@@ -652,7 +696,12 @@ def run_task() -> dict:
     except WatchGuardError as exc:
         return {"ok": False, "motivo": str(exc)[:300]}
     try:
-        return {"ok": True, "task": sincronizza_task(client=client)}
+        out = {"ok": True, "task": sincronizza_task(client=client)}
+        verifica = verifica_task(client=client)
+        if verifica is not None:
+            out["verifica"] = verifica
+            out["ok"] = verifica["stato"] != "errore"
+        return out
     except WatchGuardError as exc:
         logger.warning("WatchGuard API task: %s", exc)
         return {"ok": False, "motivo": str(exc)[:300]}
@@ -697,6 +746,50 @@ def patch_aperte_per_cve(cve_ids, hosts=None) -> dict:
     return out
 
 
+CVE_STATI = {"corretta": ("Corretta", "low"), "vulnerabile": ("Ancora vulnerabile", "high"),
+             "da_verificare": ("Da verificare", "medium"), "fuori": ("Non nel calcolo del SOC", "muted")}
+
+
+def evidenza_cve(task, esiti) -> dict:
+    """Per ogni esito (PC, patch) del task: le CVE che la patch corregge e il loro stato nel calcolo del SOC.
+
+    «Corretta» = l'inventario ha visto il programma aggiornato o disinstallato (``SecurityCveRisoluzione``) dopo l'inizio del task; «Ancora
+    vulnerabile» / «Da verificare» = impatto aperto oggi; «Non nel calcolo del SOC» = la CVE non risulta
+    sul PC (programma non mappato o versione mai vista vulnerabile). Mette ``e.cve`` su ogni esito.
+    """
+    from security.models import SecurityCveImpact, SecurityCveRisoluzione
+
+    hosts = sorted({e.host for e in esiti})[:500]
+    nomi = sorted({e.patch_nome for e in esiti if e.patch_nome})[:500]
+    cve_di: dict = {}
+    for host, nome, cve in WatchGuardPatch.objects.filter(host__in=hosts, nome__in=nomi).exclude(cve="").values_list("host", "nome", "cve"):
+        cve_di[(host, nome)] = [c for c in cve.split("|") if c]
+    tutte = sorted({c for v in cve_di.values() for c in v})[:2000]
+    inizio = min((e.job_il for e in esiti if e.job_il), default=task.creato_il or task.ultimo_job_il or timezone.now())
+    aperti = {(c, h): o for c, h, o in SecurityCveImpact.objects.filter(
+        cve__cve_id__in=tutte, host__in=hosts, outcome__in=(SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY),
+    ).values_list("cve__cve_id", "host", "outcome")}
+    corrette = set(SecurityCveRisoluzione.objects.filter(
+        cve__cve_id__in=tutte, host__in=hosts, risolta_il__gte=inizio - timedelta(days=1),
+        come__in=SecurityCveRisoluzione.CORREZIONI,  # aggiornato o disinstallato: «PC assente» non è una correzione
+    ).values_list("cve__cve_id", "host"))
+    conteggi = dict.fromkeys(CVE_STATI, 0)
+    for e in esiti:
+        e.cve = []
+        for c in cve_di.get((e.host, e.patch_nome), []):
+            if (c, e.host) in aperti:
+                stato = "vulnerabile" if aperti[(c, e.host)] == SecurityCveImpact.IMPACTS else "da_verificare"
+            elif (c, e.host) in corrette:
+                stato = "corretta"
+            else:
+                stato = "fuori"
+            conteggi[stato] += 1
+            e.cve.append({"id": c, "stato": stato, "label": CVE_STATI[stato][0], "classe": CVE_STATI[stato][1]})
+        e.cve.sort(key=lambda x: (list(CVE_STATI).index(x["stato"]) if x["stato"] != "corretta" else -1, x["id"]))
+    return {"conteggi": conteggi, "totale": sum(conteggi.values()),
+            "stati": [(k, v[0], v[1], conteggi[k]) for k, v in CVE_STATI.items()]}
+
+
 # --- Task --------------------------------------------------------------------------------------
 
 def run() -> dict:
@@ -734,6 +827,16 @@ def run() -> dict:
                 logger.exception("WatchGuard API %s non riuscita", nome)
                 out[nome] = {"errore": f"{type(exc).__name__}: {exc}"[:300]}
                 out["ok"] = False
+        if attivi["patch"] and "errore" not in (out.get("task") or {}):
+            software = out.get("software")
+            gia = software if attivi["software"] and isinstance(software, dict) and "errore" not in software else None
+            try:
+                verifica = verifica_task(now, client=client, software_gia=gia)
+                if verifica is not None:
+                    out["verifica"] = verifica
+            except Exception as exc:  # noqa: BLE001 - la verifica è un di più: il giro resta valido
+                logger.exception("WatchGuard API: verifica dei task finiti non riuscita")
+                out["verifica"] = {"errore": f"{type(exc).__name__}: {exc}"[:300]}
     finally:
         client.close()
     return out
