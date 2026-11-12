@@ -1874,6 +1874,22 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
     });
   })();
 
+  // ── Tendine con Tom Select ──────────────────────────────────────────────
+  // tomselect-init.js trasforma in Tom Select ogni tendina con più di 10 voci
+  // (capi reparto, dipendenti): cambiare solo il <select> nativo aggiorna il
+  // valore inviato e il pannello laterale, ma non la tendina che si vede.
+  function absSetValue(el, value) {
+    if (!el) return;
+    if (el.tomselect) el.tomselect.setValue(value, true);
+    else el.value = value;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function absSetDisabled(el, off) {
+    if (!el) return;
+    if (el.tomselect) { if (off) el.tomselect.disable(); else el.tomselect.enable(); }
+    el.disabled = !!off;
+  }
+
   {% if malattia_per_tutti_solo %}
   // ── Malattia per tutti: la scelta del dipendente vale solo per «Malattia» ─
   (function() {
@@ -1887,11 +1903,8 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       var malattia = String(tipoSel.value || "").trim().toLowerCase() === "malattia";
       scelta.hidden = !malattia;
       proprio.hidden = malattia;
-      dipSel.disabled = !malattia;
-      if (!malattia && dipSel.value) {
-        dipSel.value = "";
-        dipSel.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      absSetDisabled(dipSel, !malattia);
+      if (!malattia && dipSel.value) absSetValue(dipSel, "");
     }
     tipoSel.addEventListener("change", sync);
     sync();
@@ -1907,6 +1920,19 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
     var heroPill  = document.getElementById("hero-pill-dipendente");
     var selfLabel = "{{ nome|escapejs }}";
     if (!dipSel || !capoSel) return;
+    // Capo e stato del campo all'apertura: valgono per chi compila (nessun dipendente scelto).
+    var capoIniziale = capoSel.value;
+    var bloccatoIniziale = capoSel.disabled;
+    var richiesta = 0;
+
+    function applicaCapo(value, bloccato) {
+      var trovato = "";
+      for (var i = 0; i < capoSel.options.length; i++) {
+        if (capoSel.options[i].value === value) { trovato = value; break; }
+      }
+      absSetDisabled(capoSel, bloccato && !!trovato);
+      if (capoSel.value !== trovato) absSetValue(capoSel, trovato);
+    }
 
     dipSel.addEventListener("change", function() {
       var anaId = dipSel.value;
@@ -1915,25 +1941,25 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
         : selfLabel + " (tu)";
       if (heroPill) heroPill.textContent = "Dipendente " + selectedText.replace(/ \(tu\)$/, "");
 
-      if (!anaId) return;
+      var mia = ++richiesta;
+      if (!anaId) {
+        applicaCapo(capoIniziale, bloccatoIniziale);
+        return;
+      }
       fetch("/assenze/api/dipendente-capo?dipendente_id=" + encodeURIComponent(anaId), {
         credentials: "same-origin",
         headers: { "Accept": "application/json" }
       })
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
-          {% if not assenze_can_choose_capo %}
+          // Una risposta arrivata dopo un cambio successivo non deve sovrascriverlo.
+          if (mia !== richiesta || !data || !data.ok) return;
+          {% if assenze_can_choose_capo %}
+          applicaCapo(data.capo_value || "", false);
+          {% else %}
           // Non abilitato al cambio: il campo si libera solo se il dipendente non ha un capo.
-          if (data && data.ok) capoSel.disabled = !!data.capo_value;
+          applicaCapo(data.capo_value || "", true);
           {% endif %}
-          if (!data || !data.ok || !data.capo_value) return;
-          for (var i = 0; i < capoSel.options.length; i++) {
-            if (capoSel.options[i].value === data.capo_value) {
-              capoSel.selectedIndex = i;
-              capoSel.dispatchEvent(new Event("change", { bubbles: true }));
-              return;
-            }
-          }
         })
         .catch(function() {});
     });
