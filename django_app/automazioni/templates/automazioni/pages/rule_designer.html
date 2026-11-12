@@ -12,79 +12,37 @@
 {% endblock %}
 
 {% block content %}
-{% if managed_binding %}
-  <section class="designer-section-card mf-card">
-    <header class="mf-head">
-      <div class="mf-head-text">
-        <div class="mf-kicker">{{ managed_binding.get_kind_display }} · flusso gestito</div>
-        <h2 class="mf-title">{{ rule.name|capfirst }}</h2>
-      </div>
-      <div class="mf-head-actions">
-        {% if managed_info.active %}<span class="flow-pill flow-pill-green mf-pill">Attivo</span>{% else %}<span class="flow-pill flow-pill-red mf-pill">Disattivato</span>{% endif %}
-        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
-        {% if managed_schedule_form %}<button type="button" class="btn btn-primary btn-sm" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Mail, destinatari e orario</button>
-        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_pianificati' %}">Tutte le pianificazioni</a>{% endif %}
-      </div>
-    </header>
-
-    {% if managed_schedule_form %}
-      <dl class="mf-summary">
-        <div><dt>Quando</dt><dd>{{ managed_info.cadence|capfirst }}</dd></div>
-        <div><dt>Prossima esecuzione</dt><dd>{% if managed_info.next_run %}{{ managed_info.next_run|date:"d/m/Y H:i" }}{% elif managed_info.active %}in attesa del pianificatore{% else %}nessuna, flusso disattivato{% endif %}</dd></div>
-      </dl>
-    {% endif %}
-
-    {% if managed_info.description %}<p class="mf-desc">{{ managed_info.description }}</p>{% endif %}
-
-    {% if managed_schedule_form %}
-      {% with f=managed_schedule_form %}
-      <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" class="mf-form" id="mf-schedule-form">
-        {% csrf_token %}<input type="hidden" name="name" value="{{ managed_binding.code }}"><input type="hidden" name="action" value="save_schedule">
-        <div class="mf-fields">
-          <label class="mf-field">
-            <span class="mf-label">{{ f.schedule_type.label }}</span>
-            {{ f.schedule_type }}
-          </label>
-          <label class="mf-field" data-mf-type="I">
-            <span class="mf-label">{{ f.minutes.label }}</span>
-            {{ f.minutes }}
-            {% for e in f.minutes.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
-          </label>
-          <label class="mf-field mf-field--wide" data-mf-type="C">
-            <span class="mf-label">Calendario</span>
-            {{ f.cron }}
-            <span class="mf-help">Cinque campi: minuto, ora, giorno, mese, giorno della settimana. Esempio <code>0 7 * * 1-5</code> = alle 07:00 dal lunedì al venerdì. Fuso del portale.</span>
-            {% for e in f.cron.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
-          </label>
-          <div class="mf-submit"><button type="submit" class="btn btn-primary">Salva pianificazione</button></div>
-        </div>
-      </form>
-      {% endwith %}
-    {% else %}
-      <p class="mf-note">Il flusso parte quando il modulo emette l'evento, senza modificare il salvataggio dei dati aziendali.</p>
-    {% endif %}
-    <p class="mf-note">Condizioni e azioni si modificano nel designer qui sotto. L'azione «Esegui processo del modulo» applica le regole operative del modulo e può essere disattivata o sostituita.</p>
-  </section>
-  <script>
-  (function () {
-    var form = document.getElementById("mf-schedule-form");
-    if (!form) return;
-    var select = form.querySelector("[name=schedule_type]");
-    function sync() {
-      form.querySelectorAll("[data-mf-type]").forEach(function (el) {
-        el.hidden = el.getAttribute("data-mf-type") !== select.value;
-      });
-    }
-    select.addEventListener("change", sync);
-    sync();
-  })();
-  </script>
-{% endif %}
+  {% if managed_pa %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Flusso" %}
+  {% else %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
+  {% endif %}
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/skeletons.html" %}
   {% include "automazioni/components/subnav.html" %}
 
+{% if managed_pa %}
+  <link rel="stylesheet" href="{% static 'automazioni/css/flusso_pa.css' %}?v=20261112">
+  <section class="pa-embed">
+    {% with p=managed_pa next_url=request.get_full_path %}{% include "automazioni/partials/flusso_pa.html" %}{% endwith %}
+  </section>
+  <p class="pa-hint" style="text-align:center;margin:-6px 0 18px;">
+    <button type="button" class="btn btn-light btn-sm" data-pa-avanzato aria-controls="designer-avanzato" aria-expanded="false">Designer completo (condizioni e azioni tecniche)</button>
+  </p>
+  <script>
+  (function () {
+    var btn = document.querySelector("[data-pa-avanzato]");
+    var box = document.getElementById("designer-avanzato");
+    if (!btn || !box) return;
+    btn.addEventListener("click", function () {
+      box.hidden = !box.hidden;
+      btn.setAttribute("aria-expanded", String(!box.hidden));
+      if (!box.hidden) box.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  })();
+  </script>
+{% endif %}
+<div id="designer-avanzato"{% if managed_pa %} hidden{% endif %}>
   <div class="designer-shell">
   <form method="post" class="designer-layout" id="rule-designer-form">
     {% csrf_token %}
@@ -647,7 +605,8 @@
     </div>
   </div>
 </div>
-{% if managed_binding.kind == "schedule" %}
+</div>
+{% if managed_pa %}
   {{ managed_native_preview|json_script:"native-preview" }}
   {% include "automazioni/components/mail_drawer.html" %}
 {% endif %}

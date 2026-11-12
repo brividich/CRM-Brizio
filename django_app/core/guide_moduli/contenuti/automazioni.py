@@ -77,7 +77,7 @@ GUIDA = {
             "titolo": "Lavori pianificati",
             "blocchi": [
                 ("p", "«Pianificati» elenca i lavori che girano a orari fissi (sincronizzazioni, promemoria, pulizie): si accendono, "
-                      "si spengono e con «Modifica» si cambiano orario, destinatari e testo della mail. Lo stato di salute di ognuno è in "
+                      "si spengono e con «Modifica» si cambiano ricorrenza, destinatari, CC e testo della mail. Lo stato di salute di ognuno è in "
                       "Amministrazione → Monitoring → «Salute degli schedule»."),
                 ("p", "In cima c'è il raccoglitore «Digest e promemoria»: i riepiloghi e i solleciti che arrivano alle persone, "
                       "in ordine di orario, con le colonne «Oggetto della mail» e «A chi». L'oggetto è quello che arriva in casella: «N» sta per un numero, ‹…› per un testo che cambia (reparto, codice, persona) e sotto, con «oppure:», ci sono le varianti; se l'oggetto è stato cambiato da «Modifica» compare quello, con la scritta «personalizzato». Chi non manda mail ma solo una notifica nel portale lo dice nella stessa colonna. «Sospendi» con una data li ferma fino a quel giorno "
@@ -87,21 +87,29 @@ GUIDA = {
                 ("p", "Per fermare un digest a tempo indeterminato usa «Disattiva». Per smettere di riceverlo una persona sola, "
                       "toglila dai destinatari con «Modifica»; il riepilogo personale delle scadenze si spegne invece "
                       "da Notifiche → Impostazioni di chi lo riceve."),
-                ("p", "«Modifica» apre un pannello di lato con tre parti. «Quando parte»: l'orario (i giorni restano quelli "
-                      "del calendario; se il lavoro gira ogni N minuti o non ha un orario fisso, si cambia dal flusso). "
-                      "«Destinatari»: le email separate da virgola o a capo; vuoto = amministratori di sistema (per le "
-                      "letture mensili MFC vuoto = la mail non parte). Se i destinatari li sceglie il modulo dai dati "
-                      "(assegnatari, iscritti, capireparto) il pannello lo dice e non c'è niente da compilare. «Testo della "
-                      "mail»: oggetto, testo sopra l'elenco e nota in fondo; vuoti = testo predefinito, l'elenco delle voci "
-                      "resta generato dai dati. «Salva» vale subito; «Invia prova a me» manda un'anteprima con righe di esempio."),
-                ("p", "Lo stesso pannello si apre dal designer: pulsante «Mail, destinatari e orario» nella scheda in cima e "
-                      "«Modifica mail, destinatari e orario» sulla card «Esegui processo del modulo», che ora riassume "
-                      "quando parte, a chi arriva e l'oggetto. Dopo il salvataggio si torna al designer."),
-                ("p", "«Apri flusso» porta alla scheda del lavoro in cima al designer: stato (Attivo o Disattivato), "
-                      "«Quando» (la cadenza in parole), «Prossima esecuzione» e la descrizione aggiornata dal codice. "
-                      "Per cambiare l'orario scegli la Ricorrenza: «Ogni N minuti» chiede l'intervallo, «Calendario» "
-                      "chiede i cinque campi minuto, ora, giorno, mese, giorno della settimana (es. 0 0 1 * * = il giorno 1 "
-                      "del mese alle 00:00, fuso del portale), poi «Salva pianificazione»: vale subito, senza riavvii."),
+                ("p", "«Modifica» apre di lato il flusso come in Power Automate: tre passaggi uno sotto l'altro, ognuno si apre e "
+                      "si chiude con un clic. Lo stesso pulsante c'è su ogni riga di «Pianificati» e di «Notifiche di sistema» "
+                      "(i flussi che partono da un evento del modulo)."),
+                ("p", "1) «Ricorrenza» (solo lavori pianificati): Frequenza «Ogni N minuti», «Ogni giorno, nei giorni scelti» "
+                      "(orario + pulsanti lun…dom), «Ogni mese, in un giorno» (giorno 1-31 + orario) o «Personalizzato (cron)» "
+                      "con i cinque campi minuto, ora, giorno, mese, giorno della settimana (es. 40 7-19 * * 1-5). Sotto c'è la "
+                      "«Prossima esecuzione». Per un flusso su evento il primo passaggio è «Quando accade nel modulo» e dice cosa lo fa partire."),
+                ("p", "2) «Esegui processo del modulo»: raccoglie i dati e decide cosa mandare con le regole del modulo; non si modifica."),
+                ("p", "3) «Invia un messaggio di posta»: «Invia la mail» spenta = il flusso gira ma non manda mail. «A»: per i "
+                      "lavori con elenco fisso (visite, contratti, idoneità, cambio mansione, formazione, e-learning, DPI, "
+                      "manutenzioni, letture MFC) è l'elenco stesso, vuoto = amministratori di sistema (MFC: la mail non parte); "
+                      "per gli altri c'è l'etichetta dei destinatari che sceglie il modulo (assegnatari, capireparto, dipendente…) "
+                      "e sotto si aggiungono altri indirizzi. «CC»: indirizzi in copia a ogni mail del flusso. «Oggetto»: vuoto = "
+                      "quello del modulo; il pulsante «＋ Oggetto del modulo» inserisce {oggetto}, che riprende l'oggetto originale "
+                      "dentro il tuo (es. [HR] {oggetto}). «Corpo»: testo prima del contenuto generato dal modulo e nota in fondo. "
+                      "«Mostra opzioni avanzate»: «Non inviare a» toglie indirizzi da A e CC; «Manda solo agli indirizzi scritti in A» "
+                      "sostituisce i destinatari del modulo (serve almeno un indirizzo)."),
+                ("p", "«Salva» vale subito, senza riavvii. «Invia prova a me» manda un'anteprima con righe di esempio, «Esegui ora» "
+                      "fa partire il lavoro pianificato, «Storico» apre le sue esecuzioni. Indirizzi separati da virgola, punto e "
+                      "virgola o a capo. Le regole valgono per ogni mail che il processo manda dentro il flusso; le mail che non "
+                      "partono per una regola («Invia la mail» spenta, nessun destinatario rimasto) compaiono in «Mail inviate» con il motivo."),
+                ("p", "«Apri flusso» mostra in cima la stessa vista; il designer tecnico con condizioni e azioni resta sotto "
+                      "«Designer completo». Lì la card «Esegui processo del modulo» riassume quando parte, a chi arriva, CC e oggetto."),
                 ("nota", "L'orario di un lavoro già installato resta quello salvato nel flusso: se cambia nel codice "
                          "di una nuova versione, va aggiornato qui a mano."),
                 ("nota", "Tutte le automazioni e i lavori pianificati girano nel servizio «qcluster» sul server. Se è fermo, "

@@ -270,6 +270,23 @@ def send_hub_mail(
     if not from_email:
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
 
+    # Passaggio «Invia mail» del flusso gestito in esecuzione (Automazioni): destinatari
+    # aggiunti/tolti, oggetto, testo, mail spenta. Fuori da un flusso non cambia niente.
+    try:
+        from automazioni.mail_config import personalizza_invio
+
+        regole = personalizza_invio(subject, body_text, body_html_fragment, footer_note, recipients, cc)
+    except Exception:
+        logger.warning("Regole mail del flusso non applicate", exc_info=True)
+        regole = None
+    if regole:
+        if regole["blocca"]:
+            _registra_invio(subject, recipients, cc, email_type, errore=f"Non inviata: {regole['motivo']}.")
+            return 0
+        subject, body_text = regole["subject"], regole["body_text"]
+        body_html_fragment, footer_note = regole["fragment"], regole["footer_note"]
+        recipients, cc = regole["recipients"], regole["cc"]
+
     fragment = body_html_fragment or text_to_html(body_text)
     html_body = render_hub_email_html(
         fragment,

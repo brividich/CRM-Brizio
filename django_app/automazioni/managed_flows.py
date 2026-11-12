@@ -63,6 +63,12 @@ def install_flows():
     return created
 
 
+def codice_flusso_corrente() -> str | None:
+    """Codice del flusso gestito in esecuzione (None fuori da un flusso): lo usa send_hub_mail."""
+    ctx = _invocation.get()
+    return ctx["code"] if ctx else None
+
+
 def invoke_native(action, run_log):
     binding = ManagedFlow.objects.filter(rule_id=getattr(run_log, "rule_id", None)).first()
     if not binding or binding.code not in catalog():
