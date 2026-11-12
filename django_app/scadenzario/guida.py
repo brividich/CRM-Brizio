@@ -92,10 +92,12 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("def", [
                 ("Clic sulla scadenza", "apre la pagina dove si gestisce, nel modulo di origine."),
-                ("👤 Me ne occupo io", "tutti vedono il tuo nome accanto alla scadenza; con «＋ nota» aggiungi una riga (es. «chiamata la ditta»)."),
-                ("👤 Subentro io", "prendi il posto di chi l'aveva."),
-                ("✕ Lascia", "la liberi. Chi gestisce lo scadenzario può liberare anche quelle degli altri."),
-                ("→ Assegna", "per chi ha la scadenza o gestisce lo scadenzario: scrivi il nome, sceglilo dall'elenco e conferma. La persona riceve una notifica, e anche chi l'aveva prima."),
+                ("👤 Me ne occupo io", "tutti vedono il tuo nome accanto alla scadenza."),
+                ("＋ nota / ✎ nota", "una riga visibile a chi vede la scadenza (es. «chiamata la ditta»), con 📝. Non assegna la scadenza a nessuno, nemmeno a te; svuotala e salva per toglierla."),
+                ("👤 Subentro io", "prendi il posto di chi l'aveva (la nota resta)."),
+                ("✕ Lascia", "la liberi; la nota resta. Possono farlo chi ce l'ha, chi l'ha affidata e chi gestisce lo scadenzario."),
+                ("→ Assegna", "per chi ha la scadenza, chi l'ha affidata o gestisce lo scadenzario: scrivi il nome di un collega o di un fornitore esterno (anagrafica Fornitori, «· fornitore esterno»), sceglilo dall'elenco e conferma. Il collega riceve una notifica, e anche chi l'aveva prima."),
+                ("🏢 Fornitore esterno", "la scadenza affidata a un fornitore mostra 🏢 e il nome della ditta. Il fornitore non riceve avvisi dal portale: la segue chi l'ha affidata, che la ritrova in «👤 Solo le mie»."),
                 ("✓ Rinnovato oggi", "solo scadenze generiche, per chi gestisce la categoria: registra il rinnovo e calcola la prossima scadenza."),
             ]),
             ("nota", "Se la scadenza cambia data, la presa in carico decade da sola. Il nome si vede nello Scadenzario e nel riquadro delle schede dei moduli."),

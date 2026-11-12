@@ -95,45 +95,101 @@ def _persona_scelta(valore):
     return get_user_model().objects.filter(is_active=True, username=trovato.group(1)).first()
 
 
+def _fornitore_scelto(valore):
+    """«Ragione sociale · fornitore esterno [F12]» dall'elenco di «Assegna a»; None se non è un fornitore attivo."""
+    import re
+
+    from anagrafica.models import Fornitore
+
+    trovato = re.search(r"\[F(\d+)\]\s*$", valore or "")
+    if not trovato:
+        return None
+    return Fornitore.objects.filter(is_active=True, pk=int(trovato.group(1))).first()
+
+
+def _gestisce_presa(request, presa) -> bool:
+    """Chi ha la scadenza, chi l'ha affidata o chi gestisce lo scadenzario."""
+    if presa is not None and request.user.id in {presa.utente_id, presa.assegnato_da_id}:
+        return True
+    return puo_gestire_pannello(request)
+
+
 @login_required
 @require_POST
 def presa_in_carico(request):
+    """Presa in carico, assegnazione (a un collega o a un fornitore esterno) e nota.
+
+    La nota è un'azione a sé: scriverla non assegna la scadenza a nessuno.
+    """
     chiave = (request.POST.get("chiave") or "").strip()[:64]
     azione = request.POST.get("azione") or "prendi"
-    esistente = PresaInCarico.objects.filter(chiave=chiave).select_related("utente").first()
+    esistente = PresaInCarico.objects.filter(chiave=chiave).select_related("utente", "fornitore").first()
     if azione == "lascia":
-        if esistente and (esistente.utente_id == request.user.id or puo_gestire_pannello(request)):
+        if esistente and esistente.assegnata and _gestisce_presa(request, esistente):
             log_action(request, "scadenza_lasciata", "scadenzario",
-                       {"scadenza": esistente.descrizione, "era_di": esistente.utente_id})
-            esistente.delete()
+                       {"scadenza": esistente.descrizione, "era_di": esistente.utente_id,
+                        "era_del_fornitore": esistente.fornitore_id})
+            if esistente.nota:  # la nota resta anche senza nessuno che se ne occupa
+                esistente.utente = esistente.fornitore = esistente.assegnato_da = None
+                esistente.save(update_fields=["utente", "fornitore", "assegnato_da", "creato_il"])
+            else:
+                esistente.delete()
             messages.success(request, "Presa in carico tolta.")
         return _torna(request)
     v = _scadenza_visibile(request, chiave, request.POST.get("data") or "")
     if v is None:
         return HttpResponseForbidden("Scadenza non trovata fra quelle che puoi vedere.")
-    nota = (request.POST.get("nota") or "").strip()[:300]
-    precedente = esistente.utente if esistente else None
-    incaricato = request.user
-    if azione == "assegna":
-        if not (puo_gestire_pannello(request) or (precedente and precedente.pk == request.user.pk)):
-            return HttpResponseForbidden("Solo chi ha la scadenza o gestisce lo scadenzario può assegnarla.")
-        incaricato = _persona_scelta(request.POST.get("persona"))
-        if incaricato is None:
-            messages.error(request, "Scegli la persona dall'elenco.")
+    descrizione = descrizione_scadenza(v)
+    if azione == "nota":
+        nota = (request.POST.get("nota") or "").strip()[:300]
+        if esistente is None and not nota:
             return _torna(request)
-    PresaInCarico.objects.update_or_create(chiave=chiave, defaults={
-        "utente": incaricato, "nota": nota, "descrizione": descrizione_scadenza(v), "data_scadenza": v.data_scadenza,
-    })
-    log_action(request, "scadenza_assegnata" if azione == "assegna" else "scadenza_presa_in_carico", "scadenzario",
-               {"scadenza": descrizione_scadenza(v), "nota": nota, "subentra_a": precedente.pk if precedente else None,
-                "a": incaricato.pk})
-    chi = nome_utente(request.user)
-    if incaricato.pk != request.user.pk:
-        avvisa_utente(incaricato, "scadenza_assegnata", f"{chi} ti ha assegnato la scadenza: {descrizione_scadenza(v)}.", v.url)
-    if precedente and precedente.pk not in {incaricato.pk, request.user.pk}:
-        avvisa_utente(precedente, "scadenza_assegnata", f"Di questa scadenza ora si occupa {nome_utente(incaricato)}: {descrizione_scadenza(v)}.", v.url)
+        if esistente is None:
+            esistente = PresaInCarico(chiave=chiave)
+        esistente.nota = nota
+        esistente.nota_da = request.user if nota else None
+        esistente.descrizione, esistente.data_scadenza = descrizione, v.data_scadenza
+        if not nota and not esistente.assegnata:
+            esistente.delete()
+        else:
+            esistente.save()
+        log_action(request, "scadenza_nota", "scadenzario", {"scadenza": descrizione, "nota": nota})
+        messages.success(request, "Nota salvata." if nota else "Nota tolta.")
+        return _torna(request)
+    precedente = esistente.utente if esistente else None
+    incaricato, fornitore, assegnato_da = request.user, None, None
     if azione == "assegna":
-        messages.success(request, f"Scadenza assegnata a {nome_utente(incaricato)}.")
+        if esistente is not None and esistente.assegnata:
+            consentito = _gestisce_presa(request, esistente)
+        else:
+            consentito = puo_gestire_pannello(request)
+        if not consentito:
+            return HttpResponseForbidden("Solo chi ha la scadenza o gestisce lo scadenzario può assegnarla.")
+        scelta = request.POST.get("persona")
+        incaricato = _persona_scelta(scelta)
+        fornitore = None if incaricato else _fornitore_scelto(scelta)
+        if incaricato is None and fornitore is None:
+            messages.error(request, "Scegli dall'elenco un collega o un fornitore esterno.")
+            return _torna(request)
+        assegnato_da = request.user
+    valori = {"utente": incaricato, "fornitore": fornitore, "assegnato_da": assegnato_da,
+              "descrizione": descrizione, "data_scadenza": v.data_scadenza}
+    if "nota" in request.POST:  # compatibilità: senza il campo la nota resta quella che c'è
+        valori["nota"] = (request.POST.get("nota") or "").strip()[:300]
+        valori["nota_da"] = request.user if valori["nota"] else None
+    PresaInCarico.objects.update_or_create(chiave=chiave, defaults=valori)
+    chi_riceve = nome_utente(incaricato) if incaricato else f"{fornitore.ragione_sociale} (fornitore esterno)"
+    log_action(request, "scadenza_assegnata" if azione == "assegna" else "scadenza_presa_in_carico", "scadenzario",
+               {"scadenza": descrizione, "subentra_a": precedente.pk if precedente else None,
+                "a": incaricato.pk if incaricato else None, "fornitore": fornitore.pk if fornitore else None})
+    chi = nome_utente(request.user)
+    if incaricato and incaricato.pk != request.user.pk:
+        avvisa_utente(incaricato, "scadenza_assegnata", f"{chi} ti ha assegnato la scadenza: {descrizione}.", v.url)
+    if precedente and precedente.pk not in {getattr(incaricato, "pk", None), request.user.pk}:
+        avvisa_utente(precedente, "scadenza_assegnata",
+                      f"Di questa scadenza ora si occupa {chi_riceve}: {descrizione}.", v.url)
+    if azione == "assegna":
+        messages.success(request, f"Scadenza assegnata a {chi_riceve}.")
     else:
         messages.success(request, "Scadenza presa in carico: compare con il tuo nome a chi la vede.")
     return _torna(request)
