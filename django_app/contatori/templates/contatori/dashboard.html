@@ -65,6 +65,66 @@
   </a>
 </div>
 
+{# Flusso: dagli apparati monitorati ai risultati del modulo. Ogni nodo porta alla sua pagina. #}
+<section class="panel cc-flow-panel" aria-label="Flusso della flotta">
+  <div class="panel-head"><div><span class="cc-kicker">Flusso dei dati</span><h2>Dagli apparati ai risultati</h2></div></div>
+  <div class="cc-flow">
+    <div class="cc-flow-col cc-flow-in">
+      {% for f in mappa.famiglie %}
+        <a class="cc-node is-{{ f.tono }}" href="#cc-mappa" data-cc-famiglia="{{ f.nome }}" title="Filtra la mappa qui sotto">
+          <span class="cc-node-dot"></span><span class="cc-node-name">{{ f.nome }}</span>
+          <small>{{ f.totale }} apparat{{ f.totale|pluralize:"o,i" }}{% if f.problemi %} · {{ f.problemi }} da guardare{% endif %}</small>
+        </a>
+      {% empty %}<p class="muted">Nessun apparato monitorato.</p>{% endfor %}
+    </div>
+    <div class="cc-flow-core">
+      {% with tot=flotta.totale ok=flotta.ok %}
+      <div class="cc-core {% if flotta.errore %}is-danger{% elif flotta.attenzione or flotta.non_interrogati %}is-warn{% else %}is-ok{% endif %}" style="--pct: {% widthratio ok tot|default:1 100 %}">
+        <span class="cc-core-ico" aria-hidden="true">⌁</span>
+        <strong>Contatori IT</strong><span>{{ ok }}/{{ tot }}</span><small>operativi</small>
+      </div>
+      {% endwith %}
+    </div>
+    <div class="cc-flow-col cc-flow-out">
+      <a class="cc-node is-{% if c.letture_fatte < c.mfc_attive %}warn{% else %}ok{% endif %}" href="#parco"><span class="cc-node-dot"></span><span class="cc-node-name">Letture {{ c.trimestre }}</span><small>{{ c.letture_fatte }} di {{ c.mfc_attive }} MFC</small></a>
+      <a class="cc-node is-{% if c.consumabili_critici %}warn{% else %}ok{% endif %}" href="{% url 'contatori:consumabili' %}?filtro=critici"><span class="cc-node-dot"></span><span class="cc-node-name">Consumabili</span><small>{{ c.consumabili_critici }} sotto soglia</small></a>
+      <a class="cc-node is-{% if flotta.errore %}danger{% else %}ok{% endif %}" href="{% url 'contatori:snmp_centrale' %}?flotta=errore"><span class="cc-node-dot"></span><span class="cc-node-name">Errori SNMP</span><small>{{ flotta.errore }} apparat{{ flotta.errore|pluralize:"o,i" }}</small></a>
+      {# Le letture proposte sono solo gestione: in consultazione il nodo non è un link. #}
+      <{% if g %}a href="{% url 'contatori:letture_proposte' %}?trimestre={{ c.trimestre_prec }}"{% else %}div{% endif %} class="cc-node is-{% if c.proposte_totali %}warn{% else %}ok{% endif %}"><span class="cc-node-dot"></span><span class="cc-node-name">Letture da confermare</span><small>{{ c.proposte_totali }} per il {{ c.trimestre_prec }}</small></{% if g %}a{% else %}div{% endif %}>
+      <a class="cc-node is-{% if da_riconciliare %}warn{% else %}ok{% endif %}" href="{% url 'contatori:riconciliazione' %}"><span class="cc-node-dot"></span><span class="cc-node-name">Fatture</span><small>{% if da_riconciliare %}{{ da_riconciliare|length }} da riconciliare{% else %}in ordine{% endif %}</small></a>
+    </div>
+  </div>
+</section>
+
+{# Mappa della flotta: un riquadro per apparato, colore = stato (stesse regole dei conteggi in alto). #}
+{% if mappa.riquadri %}
+<section class="panel cc-map" id="cc-mappa" data-cc-map aria-label="Mappa della flotta">
+  <div class="cc-map-head">
+    <div><span class="cc-kicker">Mappa della flotta · {{ mappa.riquadri|length }} apparati</span><h2>Ogni apparato a colpo d'occhio</h2></div>
+    <div class="cc-map-filters">
+      <button type="button" class="is-active" data-cc-stato="">Tutti <b>{{ flotta.totale }}</b></button>
+      <button type="button" class="is-danger" data-cc-stato="errore"{% if not flotta.errore %} disabled{% endif %}>In errore <b>{{ flotta.errore }}</b></button>
+      <button type="button" class="is-warn" data-cc-stato="attenzione"{% if not flotta.attenzione %} disabled{% endif %}>Attenzione <b>{{ flotta.attenzione }}</b></button>
+      <button type="button" class="is-muted" data-cc-stato="non_interrogati"{% if not flotta.non_interrogati %} disabled{% endif %}>Non interrogati <b>{{ flotta.non_interrogati }}</b></button>
+      <button type="button" class="is-ok" data-cc-stato="ok"{% if not flotta.ok %} disabled{% endif %}>Operativi <b>{{ flotta.ok }}</b></button>
+    </div>
+    <input type="search" class="cc-map-search" placeholder="Cerca nome o IP…" aria-label="Cerca nella mappa" data-cc-cerca>
+  </div>
+  <div class="cc-map-grid" data-preview-scope>
+    {% for r in mappa.riquadri %}
+      <a class="cc-tile is-{{ r.tono }}" href="{{ r.url }}"{% if r.anteprima %} data-preview="{{ r.anteprima }}"{% endif %} data-stato="{{ r.stato }}" data-famiglia="{{ r.famiglia }}"
+         data-testo="{{ r.nome|lower }} {{ r.host }}" title="{{ r.nome }} · {{ r.famiglia }}{% if r.host %} · {{ r.host }}{% endif %}{% if r.quando %} · controllato {{ r.quando|date:'d/m H:i' }}{% endif %}{% if r.errore %} · {{ r.errore|truncatechars:120 }}{% endif %}">
+        <span class="cc-tile-sigla">{{ r.sigla }}</span>
+        <span class="cc-tile-nome">{{ r.nome }}</span>
+        <span class="cc-tile-host">{{ r.host|default:"senza IP" }}</span>
+        <i></i>
+      </a>
+    {% endfor %}
+  </div>
+  <p class="muted cc-map-note">Clic su un riquadro: il pannello laterale con lo stato salvato (Ctrl+clic apre la scheda). In cima chi è in errore. I nodi a sinistra del flusso filtrano la mappa per famiglia.</p>
+</section>
+{% endif %}
+
 <div class="centrale-grid">
   <section class="panel centrale-col">
     <div class="panel-head"><div><h2>Da fare</h2><p>In ordine di urgenza.</p></div></div>

@@ -26,6 +26,7 @@ GUIDA = {
                     "Monitor SNMP: i riquadri Operativi, Attenzione, Errori e Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale e un clic mostra quegli apparati; il filtro «Stato» ha le stesse voci.",
                     "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» apre il pannello laterale con stato, ultima lettura, consumabili, avvisi aperti e asset; ← → scorrono le righe, Esc chiude. «Raggruppa ▾» divide le righe per colonna.",
                     "Azioni su più righe (caselle a sinistra, nessuna spuntata all'apertura): Consumabili «Leggi ora le selezionate» e «Prepara richiesta ordine» (CSV), Stampanti MFC «Collega gli asset proposti» (prima l'anteprima, poi «Conferma i collegamenti»), Discovery «Correggi gli IP selezionati», letture da confermare e «Elimina selezionate» in Gestisci letture.",
+                    "Nella Centrale il flusso dei dati (famiglie di apparati → risultati) e la mappa della flotta: un riquadro per apparato colorato per stato, con filtri, ricerca per nome o IP e pannello laterale al clic.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
                 ]),
             ],

@@ -1,0 +1,166 @@
+/* Contatori IT · tocco «cyber», come il Security Center. Caricato dopo contatori.css: aggiunge, non cambia comportamenti.
+   Token --cc-*; toni is-ok/is-warn/is-danger/is-muted (e health-* già usati dal modulo). Tema scuro: body.theme-dark. */
+
+.contatori-module {
+  --cc-cyan: #22d3ee;
+  --cc-blue: #2563eb;
+  --cc-ok: var(--cm-ok);
+  --cc-warn: var(--cm-warn);
+  --cc-bad: var(--cm-danger);
+  --cc-mute: var(--text-light, #94a3b8);
+  --cc-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --cc-soft: color-mix(in srgb, var(--cm-surface) 92%, var(--cc-cyan));
+  --cc-kicker: #0891b2;
+}
+body.theme-dark .contatori-module { --cc-kicker: var(--cc-cyan); }
+.contatori-module .is-ok { --tone: var(--cc-ok); }
+.contatori-module .is-warn { --tone: var(--cc-warn); }
+.contatori-module .is-danger { --tone: var(--cc-bad); }
+.contatori-module .is-muted { --tone: var(--cc-mute); }
+.contatori-module .mono, .contatori-module .cc-mono { font-family: var(--cc-mono); letter-spacing: .2px; }
+.contatori-module .cc-kicker, .contatori-module .eyebrow { font-family: var(--cc-mono); letter-spacing: .12em; }
+.contatori-module .cc-kicker { display: block; font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--cc-kicker); }
+
+/* ---------- Menu del modulo ---------- */
+.contatori-module .cnav { background: linear-gradient(135deg, #020617, #0b1a33 60%, #0f2747); border-color: rgba(34, 211, 238, .25); }
+.contatori-module .cnav a { color: rgba(226, 232, 240, .78); }
+.contatori-module .cnav a:hover { color: #fff; background: rgba(255, 255, 255, .08); box-shadow: none; }
+.contatori-module .cnav a.active { color: #fff; background: rgba(34, 211, 238, .16); box-shadow: inset 0 -2px 0 var(--cc-cyan), 0 0 12px rgba(34, 211, 238, .25); }
+.contatori-module .cnav-label { font-family: var(--cc-mono); color: #7dd3fc !important; letter-spacing: .1em; }
+.contatori-module .cnav-nuovo summary { color: #e0f2fe; }
+
+/* ---------- Intestazioni: Centrale e pagine con «hero» ---------- */
+.contatori-module .centrale-head, .contatori-module .hero {
+  position: relative; overflow: hidden; color: #dbeafe; border-radius: 16px; border: 1px solid rgba(34, 211, 238, .25);
+  background:
+    linear-gradient(rgba(34, 211, 238, .07) 1px, transparent 1px) 0 0 / 22px 22px,
+    linear-gradient(90deg, rgba(34, 211, 238, .07) 1px, transparent 1px) 0 0 / 22px 22px,
+    radial-gradient(circle at 85% 0%, rgba(34, 211, 238, .22), transparent 55%),
+    linear-gradient(135deg, #020617 0%, #0b1a33 55%, #0f2747 100%);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, .25);
+}
+.contatori-module .centrale-head { padding: 20px 24px; margin-bottom: 16px; }
+.contatori-module .centrale-head::before, .contatori-module .hero::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 45%; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, .12) 50%, transparent); animation: cc-scan 7s linear infinite;
+}
+@keyframes cc-scan { from { transform: translateY(-100%); } to { transform: translateY(240%); } }
+.contatori-module .centrale-head > *, .contatori-module .hero > * { position: relative; z-index: 1; }
+.contatori-module .centrale-head h1, .contatori-module .hero h1 { color: #fff; text-shadow: 0 0 14px rgba(34, 211, 238, .3); }
+.contatori-module .centrale-head .eyebrow, .contatori-module .hero .eyebrow { color: #7dd3fc; opacity: 1; }
+.contatori-module .hero:after { border-color: rgba(34, 211, 238, .1); }
+.contatori-module .centrale-head .btn.ghost, .contatori-module .hero .btn.ghost { color: #e0f2fe; border-color: rgba(125, 211, 252, .35); background: rgba(15, 39, 71, .6); }
+.contatori-module .centrale-head .btn.ghost:hover, .contatori-module .hero .btn.ghost:hover { border-color: var(--cc-cyan); box-shadow: 0 0 12px rgba(34, 211, 238, .3); }
+.contatori-module .centrale-head .btn:not(.ghost), .contatori-module .hero .btn:not(.ghost) { background: linear-gradient(135deg, #0891b2, #2563eb); }
+
+/* ---------- Riquadri numerici: barra di tono, numeri a spaziatura fissa, luce sugli errori ---------- */
+.contatori-module .kpi, .contatori-module .card { position: relative; overflow: hidden; --tone: var(--cc-mute); transition: transform .15s, box-shadow .15s, border-color .15s; }
+.contatori-module .kpi::before, .contatori-module .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tone); box-shadow: 0 0 10px var(--tone); }
+.contatori-module .kpi:has(.health-ok), .contatori-module .card:has(.health-ok) { --tone: var(--cc-ok); }
+.contatori-module .kpi:has(.health-warning), .contatori-module .card:has(.health-warning) { --tone: var(--cc-warn); }
+.contatori-module .kpi:has(.health-error), .contatori-module .card:has(.health-error) { --tone: var(--cc-bad); }
+.contatori-module a.kpi:hover, .contatori-module .card.link:hover { transform: translateY(-2px); border-color: var(--tone); box-shadow: 0 6px 18px color-mix(in srgb, var(--tone) 22%, transparent); }
+.contatori-module .kpi .v, .contatori-module .card .v { font-family: var(--cc-mono); letter-spacing: -.02em; }
+.contatori-module .kpi .k, .contatori-module .card .k { font-family: var(--cc-mono); letter-spacing: .08em; }
+.contatori-module .kpi:has(.health-error) .k::after, .contatori-module .card:has(.health-error) .k::after {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--cc-bad); vertical-align: 1px;
+  animation: cc-led 1.6s ease-out infinite;
+}
+@keyframes cc-led { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); } 100% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } }
+
+/* ---------- Pannelli, tabelle, stati ---------- */
+.contatori-module .panel { position: relative; }
+.contatori-module .panel-head h2 { letter-spacing: -.01em; }
+.contatori-module th { font-family: var(--cc-mono); letter-spacing: .09em; }
+.contatori-module tbody tr { transition: background .12s, box-shadow .12s; }
+.contatori-module tbody tr:hover { box-shadow: inset 3px 0 0 var(--cc-cyan); background: var(--cc-soft); }
+.contatori-module .pill .status-dot { box-shadow: 0 0 6px currentColor; }
+.contatori-module .pill.danger .status-dot { animation: cc-breathe 1.6s ease-in-out infinite; }
+@keyframes cc-breathe { 50% { opacity: .35; } }
+.contatori-module .todo-dot { box-shadow: 0 0 8px currentColor; }
+.contatori-module .bar > span, .contatori-module .cons-bar > span { box-shadow: 0 0 8px rgba(34, 211, 238, .35); }
+
+/* ---------- Flusso della flotta (Centrale) ---------- */
+.contatori-module .cc-flow { display: grid; grid-template-columns: minmax(0, 360px) 220px minmax(0, 360px); justify-content: center; align-items: center; padding: 6px 0; }
+.contatori-module .cc-flow-col { position: relative; display: grid; gap: 8px; }
+.contatori-module .cc-node {
+  position: relative; display: grid; grid-template-columns: 12px 1fr; column-gap: 8px; align-items: center; margin: 0 34px; padding: 8px 12px;
+  border-radius: 10px; color: var(--cm-text); text-decoration: none; --tone: var(--cc-mute);
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 7%, var(--cm-surface));
+  transition: transform .15s, box-shadow .15s;
+}
+.contatori-module .cc-node.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-node.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-node.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-node:hover { transform: translateX(2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent); color: var(--cm-text); }
+.contatori-module .cc-node.is-active { box-shadow: 0 0 0 3px var(--cc-cyan); }
+.contatori-module .cc-node-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 8px var(--tone); grid-row: span 2; }
+.contatori-module .cc-node-name { font-weight: 700; }
+.contatori-module .cc-node small { grid-column: 2; color: var(--cm-muted); font-size: 11px; }
+.contatori-module .cc-node::after {
+  content: ""; position: absolute; top: 50%; width: 34px; height: 2px;
+  background: repeating-linear-gradient(90deg, var(--tone) 0 6px, transparent 6px 12px); background-size: 24px 2px; animation: cc-flow 0.9s linear infinite;
+}
+.contatori-module .cc-flow-in .cc-node::after { left: 100%; }
+.contatori-module .cc-flow-out .cc-node::after { right: 100%; }
+@keyframes cc-flow { from { background-position: 0 0; } to { background-position: 24px 0; } }
+.contatori-module .cc-flow-in::after, .contatori-module .cc-flow-out::before { content: ""; position: absolute; top: 18px; bottom: 18px; width: 2px; background: linear-gradient(var(--cc-cyan), var(--cc-blue)); opacity: .5; }
+.contatori-module .cc-flow-in::after { right: 0; }
+.contatori-module .cc-flow-out::before { left: 0; }
+.contatori-module .cc-flow-core { position: relative; display: grid; place-items: center; }
+.contatori-module .cc-flow-core::before, .contatori-module .cc-flow-core::after { content: ""; position: absolute; top: 50%; height: 2px; width: calc(50% - 70px); background: linear-gradient(90deg, var(--cc-cyan), var(--cc-blue)); opacity: .6; }
+.contatori-module .cc-flow-core::before { left: 0; }
+.contatori-module .cc-flow-core::after { right: 0; }
+.contatori-module .cc-core {
+  position: relative; z-index: 1; width: 140px; height: 140px; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: 2px; text-align: center;
+  --tone: var(--cc-ok); color: #e2e8f0;
+  background: radial-gradient(circle, #0b1a33 58%, transparent 60%), conic-gradient(var(--tone) calc(var(--pct) * 1%), rgba(148, 163, 184, .25) 0);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone) 12%, transparent), 0 0 30px color-mix(in srgb, var(--tone) 40%, transparent);
+  animation: cc-pulse 2.8s ease-in-out infinite;
+}
+.contatori-module .cc-core.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-core.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-core-ico { font-size: 22px; color: var(--cc-cyan); line-height: 1; }
+.contatori-module .cc-core strong { font: 700 12px/1.2 var(--cc-mono); color: #fff; }
+.contatori-module .cc-core span:not(.cc-core-ico) { font: 700 18px/1 var(--cc-mono); color: var(--tone); }
+.contatori-module .cc-core small { font: 600 10px/1 var(--cc-mono); color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; }
+@keyframes cc-pulse { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--tone) 6%, transparent), 0 0 40px color-mix(in srgb, var(--tone) 55%, transparent); } }
+
+/* ---------- Mappa della flotta ---------- */
+.contatori-module .cc-map-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; margin-bottom: 12px; }
+.contatori-module .cc-map-head h2 { margin: 2px 0 0; }
+.contatori-module .cc-map-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.contatori-module .cc-map-filters button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--cm-border); background: var(--cm-surface); color: var(--cm-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.contatori-module .cc-map-filters button b { font-family: var(--cc-mono); color: var(--tone, var(--cm-text)); }
+.contatori-module .cc-map-filters button.is-active { border-color: var(--cc-cyan); color: var(--cm-text); background: var(--cc-soft); box-shadow: 0 0 0 2px rgba(34, 211, 238, .18); }
+.contatori-module .cc-map-filters button:disabled { opacity: .4; cursor: default; }
+.contatori-module .cc-map-search { margin-left: auto; width: 220px; }
+.contatori-module .cc-map-search:focus { outline: none; border-color: var(--cc-cyan); box-shadow: 0 0 0 3px rgba(34, 211, 238, .2); }
+.contatori-module .cc-map-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: 440px; overflow: auto; padding: 2px; }
+.contatori-module .cc-tile {
+  position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; padding: 8px 10px 10px; border-radius: 9px; overflow: hidden;
+  text-decoration: none; color: var(--cm-text); border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 8%, var(--cm-surface));
+  transition: transform .12s, box-shadow .12s;
+}
+.contatori-module .cc-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 30%, transparent); color: var(--cm-text); }
+.contatori-module .cc-tile[hidden] { display: none; }
+.contatori-module .cc-tile-sigla { grid-row: span 2; font: 700 10px/1 var(--cc-mono); padding: 6px 5px; border-radius: 6px; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent); }
+.contatori-module .cc-tile-nome { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contatori-module .cc-tile-host { font: 500 10.5px/1.2 var(--cc-mono); color: var(--cm-muted); }
+.contatori-module .cc-tile i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--tone); box-shadow: 0 0 6px var(--tone); }
+.contatori-module .cc-tile.is-danger i { animation: cc-breathe 1.6s ease-in-out infinite; }
+.contatori-module .cc-map-note { margin: 10px 0 0; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .contatori-module .cc-flow { grid-template-columns: 1fr; gap: 14px; }
+  .contatori-module .cc-node { margin: 0; }
+  .contatori-module .cc-node::after, .contatori-module .cc-flow-in::after, .contatori-module .cc-flow-out::before, .contatori-module .cc-flow-core::before, .contatori-module .cc-flow-core::after { display: none; }
+  .contatori-module .cc-map-search { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contatori-module *, .contatori-module *::before, .contatori-module *::after { animation: none !important; }
+}
+/* Riquadri con uno stato a pillola (schede MFC e dispositivo): la barra prende il colore dello stato. */
+.contatori-module .card:has(.pill.ok) { --tone: var(--cc-ok); }
+.contatori-module .card:has(.pill.warn) { --tone: var(--cc-warn); }
+.contatori-module .card:has(.pill.danger) { --tone: var(--cc-bad); }

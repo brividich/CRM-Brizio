@@ -254,6 +254,7 @@ def dashboard(request):
         "dispositivi_altri": max(dispositivi.count() - len(dispositivi_snmp), 0),
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
         "flotta": flotta,
+        "mappa": services.mappa_flotta(),
         "etichette_flotta": services.FLOTTA,
         "errori_snmp": errori_snmp,
         "errori_altri": max(flotta["errore"] - len(errori_snmp), 0),
