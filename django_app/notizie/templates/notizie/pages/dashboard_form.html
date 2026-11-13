@@ -1,236 +1,164 @@
 {% extends "core/base.html" %}
-{% block title %}{% if is_create %}Nuova Notizia{% else %}Modifica Notizia{% endif %} - Portale Applicativo{% endblock %}
+{% block title %}{% if is_create %}Nuova notizia{% else %}Modifica notizia{% endif %} - Portale Applicativo{% endblock %}
+{% block body_class %}{{ block.super }} notizie-page notizie-form-page{% endblock %}
 
-{% block extra_head %}
-<style>
-.news-form-wrap { max-width: 1080px; margin: 2rem auto; padding: 0 1rem; }
-.news-form-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .8rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-.panel {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 1rem 1.1rem;
-  margin-bottom: .9rem;
-}
-.panel h2 { margin: 0 0 .8rem; font-size: 1rem; color: #1e3a5f; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-.field label { display: block; font-size: .8rem; color: #64748b; margin-bottom: .25rem; font-weight: 600; }
-.field input[type=text],
-.field input[type=url],
-.field input[type=number],
-.field textarea {
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  padding: .52rem .65rem;
-  font-size: .9rem;
-  font-family: inherit;
-}
-.field textarea { min-height: 220px; resize: vertical; }
-.inline-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-.inline-table th {
-  background: #f8fafc;
-  color: #334155;
-  text-align: left;
-  padding: .45rem .55rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-.inline-table td {
-  border-bottom: 1px solid #f1f5f9;
-  padding: .48rem .55rem;
-  vertical-align: top;
-}
-.btn-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  text-decoration: none;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: .48rem .88rem;
-  font-size: .88rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: #fff;
-  color: #0f172a;
-}
-.btn:hover { background: #f8fafc; }
-.btn-primary { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
-.btn-green { background: #0f766e; color: #fff; border-color: #0f766e; }
-.tiny { font-size: .78rem; color: #64748b; }
-.errors { color: #b91c1c; font-size: .82rem; margin-top: .2rem; }
-@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-
-body.theme-dark .panel { background:var(--surface); border-color:var(--border); }
-body.theme-dark .panel h2 { color:var(--text); }
-body.theme-dark .field label { color:var(--text-light); }
-body.theme-dark .field input[type=text], body.theme-dark .field input[type=url],
-body.theme-dark .field input[type=number], body.theme-dark .field textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .inline-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .inline-table td { border-color:var(--border); color:var(--text); }
-body.theme-dark .btn { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .btn:hover { background:var(--surface-alt); }
-body.theme-dark .tiny { color:var(--text-light); }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .errors{color:#fca5a5}
-</style>
-{% endblock %}
+{% block extra_head %}{% include "notizie/components/_assets.html" %}{% endblock %}
 
 {% block content %}
-<div class="news-form-wrap">
-  <div class="news-form-top">
-    <div>
-      <h1 style="margin:0;color:#1e3a5f;">{% if is_create %}Nuova Notizia{% else %}Modifica Notizia{% endif %}</h1>
-      {% if not is_create %}
-        <div class="tiny">ID {{ notizia.id }} | Stato: {{ notizia.get_stato_display }} | Versione: {{ notizia.versione }}</div>
-      {% endif %}
-    </div>
-    <a href="{% url 'notizie_dashboard' %}" class="btn">Torna alla dashboard</a>
-  </div>
+<div class="nz">
+  <a class="nz-back" href="{% url 'notizie_dashboard' %}">&#8592; Gestione notizie</a>
 
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" enctype="multipart/form-data" data-nz-form novalidate>
     {% csrf_token %}
+    <input type="hidden" name="audience_picker" value="1">
 
-    {% if form.non_field_errors %}
-      <div class="panel">
-        {% for err in form.non_field_errors %}
-          <div class="errors">{{ err }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    <div class="panel">
-      <h2>Contenuto</h2>
-      <div class="field" style="margin-bottom:.7rem;">
-        <label for="{{ form.titolo.id_for_label }}">Titolo</label>
-        {{ form.titolo }}
-        {% if form.titolo.errors %}<div class="errors">{{ form.titolo.errors|join:", " }}</div>{% endif %}
-      </div>
-      <div class="field" style="margin-bottom:.65rem;">
-        <label for="{{ form.corpo.id_for_label }}">Testo</label>
-        {{ form.corpo }}
-        {% if form.corpo.errors %}<div class="errors">{{ form.corpo.errors|join:", " }}</div>{% endif %}
-      </div>
-      <div class="field">
-        <label>{{ form.obbligatoria }} Comunicazione obbligatoria (richiede conferma lettura)</label>
-        {% if form.obbligatoria.errors %}<div class="errors">{{ form.obbligatoria.errors|join:", " }}</div>{% endif %}
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="panel">
-        <h2>Audience Ruoli</h2>
-        <div class="tiny" style="margin-bottom:.6rem;">Se non imposti ruoli, la notizia e visibile a tutti.</div>
-        {{ audience_formset.management_form }}
-        {% if audience_formset.non_form_errors %}
-          <div class="errors" style="margin-bottom:.5rem;">{{ audience_formset.non_form_errors|join:", " }}</div>
+    <div class="nz-form-grid">
+      <div class="nz-form-main">
+        {% if form.non_field_errors %}
+          <div class="nz-alert">{% for err in form.non_field_errors %}{{ err }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
         {% endif %}
-        <table class="inline-table">
-          <thead>
-            <tr>
-              <th style="width:65%;">ID ruolo</th>
-              <th>Elimina</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for f in audience_formset.forms %}
-              <tr>
-                <td>
-                  {{ f.id }}
-                  {{ f.legacy_role_id }}
-                  {% if f.legacy_role_id.errors %}<div class="errors">{{ f.legacy_role_id.errors|join:", " }}</div>{% endif %}
-                </td>
-                <td>
-                  {% if f.instance.pk %}{{ f.DELETE }}{% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
 
-      <div class="panel">
-        <h2>Ruoli Disponibili</h2>
-        {% if roles_hint %}
-          <div style="max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;">
-            <table class="inline-table">
-              <thead>
-                <tr><th style="width:28%;">ID</th><th>Nome</th></tr>
-              </thead>
-              <tbody>
-                {% for role in roles_hint %}
-                  <tr>
-                    <td>{{ role.id }}</td>
-                    <td>{{ role.name }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+        <section class="nz-panel">
+          <div class="nz-panel-title">
+            <span>{% if is_create %}Nuova notizia{% else %}Modifica notizia{% endif %}</span>
+            <div class="nz-segment" data-nz-editor-tabs role="tablist" aria-label="Modalità editor">
+              <button type="button" class="active" data-mode="write">Scrivi</button>
+              <button type="button" data-mode="preview">Anteprima</button>
+            </div>
           </div>
-        {% else %}
-          <div class="tiny">Ruoli non disponibili: inserisci gli ID ruolo manualmente.</div>
-        {% endif %}
-      </div>
-    </div>
+          <div data-nz-write>
+            <div class="nz-field">
+              <label for="{{ form.titolo.id_for_label }}">Titolo</label>
+              {{ form.titolo }}
+              {% if form.titolo.errors %}<div class="nz-err">{{ form.titolo.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="nz-field">
+              <label for="{{ form.corpo.id_for_label }}">Testo</label>
+              {{ form.corpo }}
+              <div class="nz-field-foot"><span>Una riga vuota separa i paragrafi.</span><span data-nz-count></span></div>
+              {% if form.corpo.errors %}<div class="nz-err">{{ form.corpo.errors|join:", " }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="nz-preview" data-nz-preview-pane hidden></div>
+        </section>
 
-    <div class="panel">
-      <h2>Allegati e Documenti</h2>
-      <div class="tiny" style="margin-bottom:.55rem;">Per ogni riga inserisci un file oppure un URL esterno.</div>
-      {{ allegati_formset.management_form }}
-      {% if allegati_formset.non_form_errors %}
-        <div class="errors" style="margin-bottom:.5rem;">{{ allegati_formset.non_form_errors|join:", " }}</div>
-      {% endif %}
-      <table class="inline-table">
-        <thead>
-          <tr>
-            <th style="width:28%;">Nome</th>
-            <th style="width:28%;">File</th>
-            <th style="width:32%;">URL esterno</th>
-            <th>Elimina</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in allegati_formset.forms %}
-            <tr>
-              <td>
+        <section class="nz-panel">
+          <div class="nz-panel-title"><span>Allegati</span><small>PDF e immagini si leggono in anteprima nella notizia</small></div>
+
+          {{ allegati_formset.management_form }}
+          {% if allegati_formset.non_form_errors %}<div class="nz-alert">{{ allegati_formset.non_form_errors|join:", " }}</div>{% endif %}
+          {% if nuovi_allegati_errori %}
+            <div class="nz-alert">{% for e in nuovi_allegati_errori %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
+          {% endif %}
+
+          <label class="nz-drop" data-nz-drop>
+            <span class="nz-drop-ico" aria-hidden="true">&#8682;</span>
+            <strong>Trascina qui i file o clicca per sceglierli</strong>
+            <small>PDF, immagini, Office, testo, ZIP · anche più file insieme</small>
+            <input type="file" name="nuovi_allegati" multiple accept="{{ accept_allegati }}">
+          </label>
+          <div class="nz-files is-edit" data-nz-drop-list></div>
+
+          {% with forms_esistenti=allegati_formset.forms %}
+          <div class="nz-files is-edit">
+            {% for f in forms_esistenti %}
+              {% if f.instance.pk %}
+                {% with a=f.instance %}
+                <div class="nz-file">
+                  {{ f.id }}
+                  {% if a.file %}
+                    <div class="nz-file-ico{% if a.is_pdf %} is-pdf{% elif a.is_immagine %} is-img{% endif %}">{{ a.estensione|default:"file"|slice:":4" }}</div>
+                  {% else %}
+                    <div class="nz-file-ico is-link">link</div>
+                  {% endif %}
+                  <div style="min-width:0;">
+                    <input type="text" name="{{ f.nome_file.html_name }}" value="{{ f.nome_file.value|default:'' }}" maxlength="300" aria-label="Nome dell'allegato">
+                    {% if a.file %}
+                      {{ f.url_esterno.as_hidden }}
+                      <div class="nz-file-sub">{% if a.dimensione_bytes %}{{ a.dimensione_bytes|filesizeformat }}{% endif %}</div>
+                    {% else %}
+                      <input type="url" class="nz-input" name="{{ f.url_esterno.html_name }}" value="{{ f.url_esterno.value|default:'' }}" maxlength="500" placeholder="https://..." aria-label="Indirizzo del link">
+                    {% endif %}
+                    {% if f.non_field_errors %}<div class="nz-err">{{ f.non_field_errors|join:", " }}</div>{% endif %}
+                    {% if f.nome_file.errors %}<div class="nz-err">{{ f.nome_file.errors|join:", " }}</div>{% endif %}
+                    {% if f.url_esterno.errors %}<div class="nz-err">{{ f.url_esterno.errors|join:", " }}</div>{% endif %}
+                  </div>
+                  <div class="nz-file-actions">
+                    {% if a.file %}
+                      <a class="nz-btn" href="{% url 'notizie_allegato_download' a.id %}{% if a.ha_anteprima %}?anteprima=1{% endif %}" target="_blank" rel="noopener">{% if a.ha_anteprima %}Anteprima{% else %}Scarica{% endif %}</a>
+                    {% endif %}
+                    <label class="nz-toggle-del"><input type="checkbox" name="{{ f.DELETE.html_name }}" data-nz-del {% if f.DELETE.value %}checked{% endif %}><span>Rimuovi</span></label>
+                  </div>
+                </div>
+                {% endwith %}
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          {% for f in forms_esistenti %}
+            {% if not f.instance.pk %}
+              <details class="nz-details"{% if f.errors or f.nome_file.value or f.url_esterno.value %} open{% endif %}>
+                <summary>+ Aggiungi un link esterno</summary>
                 {{ f.id }}
-                {{ f.nome_file }}
-                {% if f.nome_file.errors %}<div class="errors">{{ f.nome_file.errors|join:", " }}</div>{% endif %}
-              </td>
-              <td>
-                {{ f.file }}
-                {% if f.instance.pk and f.instance.file %}
-                  <div class="tiny">Attuale: <a href="{% url 'notizie_allegato_download' f.instance.id %}" target="_blank" rel="noopener">{{ f.instance.nome_file }}</a></div>
-                {% endif %}
-                {% if f.file.errors %}<div class="errors">{{ f.file.errors|join:", " }}</div>{% endif %}
-              </td>
-              <td>
-                {{ f.url_esterno }}
-                {% if f.url_esterno.errors %}<div class="errors">{{ f.url_esterno.errors|join:", " }}</div>{% endif %}
-                {% if f.non_field_errors %}<div class="errors">{{ f.non_field_errors|join:", " }}</div>{% endif %}
-              </td>
-              <td>
-                {% if f.instance.pk %}{{ f.DELETE }}{% endif %}
-              </td>
-            </tr>
+                <div class="nz-link-row">
+                  <input type="text" class="nz-input" name="{{ f.nome_file.html_name }}" value="{{ f.nome_file.value|default:'' }}" maxlength="300" placeholder="Nome del link" aria-label="Nome del link">
+                  <input type="url" class="nz-input" name="{{ f.url_esterno.html_name }}" value="{{ f.url_esterno.value|default:'' }}" maxlength="500" placeholder="https://..." aria-label="Indirizzo del link">
+                </div>
+                {% if f.non_field_errors %}<div class="nz-err">{{ f.non_field_errors|join:", " }}</div>{% endif %}
+                {% if f.url_esterno.errors %}<div class="nz-err">{{ f.url_esterno.errors|join:", " }}</div>{% endif %}
+              </details>
+            {% endif %}
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          {% endwith %}
+        </section>
+      </div>
 
-    <div class="btn-row">
-      <button type="submit" class="btn btn-primary">Salva bozza</button>
-      <button type="submit" name="save_and_publish" value="1" class="btn btn-green">Salva e pubblica</button>
-      <a href="{% url 'notizie_dashboard' %}" class="btn">Annulla</a>
+      <aside class="nz-form-side">
+        <section class="nz-panel">
+          <div class="nz-panel-title"><span>Pubblicazione</span></div>
+          {% if not is_create %}
+            <dl class="nz-facts">
+              <dt>Stato</dt><dd><span class="nz-badge is-{{ notizia.stato }}"><span class="nz-badge-dot" aria-hidden="true"></span>{{ notizia.get_stato_display }}</span></dd>
+              <dt>Versione</dt><dd>{{ notizia.versione }}</dd>
+              {% if notizia.pubblicato_il %}<dt>Pubblicata</dt><dd>{{ notizia.pubblicato_il|date:"d-m-Y H:i" }}</dd>{% endif %}
+            </dl>
+            {% if notizia.stato == 'pubblicata' %}
+              <div class="nz-alert is-info" style="margin-bottom:14px;">«Salva bozza» la toglie dalla pubblicazione; «Salva e pubblica» crea la versione {{ notizia.versione|add:1 }} e chiede di nuovo la conferma.</div>
+            {% endif %}
+          {% endif %}
+
+          <label class="nz-switch" for="{{ form.obbligatoria.id_for_label }}">
+            {{ form.obbligatoria }}
+            <span class="nz-switch-track" aria-hidden="true"></span>
+            <span class="nz-switch-text"><strong>Obbligatoria</strong><span>Chi la riceve deve confermarla prima di continuare a usare il portale.</span></span>
+          </label>
+          {% if form.obbligatoria.errors %}<div class="nz-err">{{ form.obbligatoria.errors|join:", " }}</div>{% endif %}
+
+          <div class="nz-side-actions">
+            <button type="submit" name="save_and_publish" value="1" class="nz-btn nz-btn-primary nz-btn-block">Salva e pubblica</button>
+            <button type="submit" class="nz-btn nz-btn-block">Salva bozza</button>
+          </div>
+        </section>
+
+        <section class="nz-panel">
+          <div class="nz-panel-title"><span>Destinatari</span><small data-nz-roles-count>{% if roles_selected_count %}{{ roles_selected_count }} ruol{{ roles_selected_count|pluralize:"o,i" }}{% else %}Tutti{% endif %}</small></div>
+          <div class="nz-roles-all" data-nz-roles-all{% if roles_selected_count %} hidden{% endif %}>Nessun ruolo scelto: la vedono tutti.</div>
+          {% if roles %}
+            {% if roles|length > 8 %}<input type="search" class="nz-input nz-roles-search" placeholder="Cerca ruolo" aria-label="Cerca ruolo" data-nz-roles-search>{% endif %}
+            <div class="nz-roles" data-nz-roles>
+              {% for role in roles %}
+                <label class="nz-role" data-nz-role data-nome="{{ role.name|lower }}">
+                  <input type="checkbox" name="audience_roles" value="{{ role.id }}" {% if role.selected %}checked{% endif %}>
+                  <span>{{ role.name }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            <div style="margin-top:8px;"><button type="button" class="nz-linkbtn" data-nz-roles-clear{% if not roles_selected_count %} hidden{% endif %}>Togli tutti i ruoli</button></div>
+          {% else %}
+            <p class="nz-muted">Elenco ruoli non disponibile.</p>
+          {% endif %}
+        </section>
+      </aside>
     </div>
   </form>
 </div>
