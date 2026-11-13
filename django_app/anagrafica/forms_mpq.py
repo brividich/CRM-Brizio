@@ -200,10 +200,8 @@ class AbilitazioneProcessoForm(forms.Form):
     dipendente = forms.CharField(required=False)
     nominativo_esterno = forms.CharField(
         required=False, max_length=200, widget=forms.TextInput(attrs=_FM))
-    is_qualificato = forms.BooleanField(required=False, initial=True, widget=forms.CheckboxInput(attrs=_FM_CHECK))
-    is_addetto = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs=_FM_CHECK))
-    is_controllore = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs=_FM_CHECK))
-    is_part145 = forms.BooleanField(required=False, widget=forms.CheckboxInput(attrs=_FM_CHECK))
+    # I ruoli (anche Qualificato/Addetto/Controllore/Part 145) sono checkbox del template:
+    # «ruoli_standard» (codici) e «ruoli_processo» (id), letti da services/mpq_ruoli.
     stato = forms.ChoiceField(
         choices=AbilitazioneProcesso.STATO_CHOICES,
         initial=AbilitazioneProcesso.STATO_ATTIVA, widget=forms.Select(attrs=_FM_SELECT))

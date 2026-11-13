@@ -759,7 +759,7 @@ def _abilitazioni_processi(ctx: Contesto, o: dict) -> Risultato:
 
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti()}
-    base = AbilitazioneProcesso.objects.exclude(legacy_anagrafica_id=0)
+    base = AbilitazioneProcesso.objects.exclude(legacy_anagrafica_id=0).prefetch_related("ruoli_processo")
     if o["solo_attive"]:
         base = base.filter(stato=AbilitazioneProcesso.STATO_ATTIVA)
     if o["processi"]:
@@ -776,8 +776,9 @@ def _abilitazioni_processi(ctx: Contesto, o: dict) -> Risultato:
     for a in sorted(abilitazioni, key=lambda x: (persone[ctx.canonico(x.legacy_anagrafica_id)].nominativo.casefold(),
                                                  x.processo.nome.casefold())):
         p = persone[ctx.canonico(a.legacy_anagrafica_id)]
-        ruoli = [lbl for flag, lbl in ((a.is_qualificato, "Qualificato"), (a.is_addetto, "Addetto"),
-                                       (a.is_controllore, "Controllore"), (a.is_part145, "Part 145")) if flag]
+        from anagrafica.services.mpq_ruoli import nomi_ruoli
+
+        ruoli = nomi_ruoli(a)  # stesso elenco del processo (ruoli del modulo e propri)
         scad = cert.get(a.id)
         _c, stato, tono = _stato_scadenza(scad, ctx.today, o["preavviso"]) if scad else ("", a.get_stato_display(), "")
         if tono == TONE_DANGER:

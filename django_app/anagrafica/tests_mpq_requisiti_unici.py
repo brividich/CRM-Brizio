@@ -222,3 +222,59 @@ class AlternativeTests(TestCase):
                                         gruppo_alternativo="Base")
         self.assertEqual(obblighi_richiesti(self.ab)["corsi"], [])
         self.assertEqual(legacy_ids_richiesti_da_processo(c.pk), set())
+
+
+class RuoliUniciTests(TestCase):
+    """Qualificato/Addetto/Controllore/Part 145 sono ruoli del processo; i booleani ne sono la copia."""
+
+    def setUp(self):
+        self.p = _proc("Processo R")
+
+    def test_imposta_ruoli_scrive_la_copia(self):
+        from .services.mpq_ruoli import imposta_ruoli, nomi_ruoli, ruolo_standard
+
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4301, processo=self.p)
+        op = RuoloProcesso.objects.create(processo=self.p, nome="Operatore macchina")
+        imposta_ruoli(ab, [ruolo_standard(self.p, "CONTROLLORE"), op])
+        ab.refresh_from_db()
+        self.assertTrue(ab.is_controllore)
+        self.assertFalse(ab.is_qualificato)
+        self.assertEqual(nomi_ruoli(ab), ["Controllore", "Operatore macchina"])
+
+    def test_requisito_per_ruolo_standard(self):
+        from .services.mpq_ruoli import imposta_ruoli, ruolo_standard
+
+        ctrl = ruolo_standard(self.p, "CONTROLLORE")
+        r = RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_ESAME,
+                                            descrizione="Esame controllore")
+        r.ruoli.add(ctrl)
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4302, processo=self.p)
+        imposta_ruoli(ab, [ruolo_standard(self.p, "QUALIFICATO")])
+        self.assertEqual(stato_persona(ab)["esito"], "nessuno")
+        imposta_ruoli(ab, [ctrl])
+        self.assertEqual(stato_persona(ab)["esito"], "incompleto")
+
+    def test_migrazione_crea_ruoli_dai_booleani(self):
+        mig = importlib.import_module("anagrafica.migrations.0227_mpq_ruoli_unici")
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4303, processo=self.p,
+                                                 is_qualificato=True, is_part145=True)
+        mig._avanti(apps, None)
+        mig._avanti(apps, None)
+        self.assertEqual(sorted(r.codice_modulo for r in ab.ruoli_processo.all()), ["PART145", "QUALIFICATO"])
+        self.assertEqual(self.p.ruoli.count(), 2)
+
+    def test_form_abilitazione_salva_ruoli(self):
+        from core.models import UserOnboarding
+
+        u = get_user_model().objects.create_superuser("mpq.ruoli", "mpq.ruoli@example.com", "x")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4304, processo=self.p)
+        r = self.client.post(reverse("anagrafica:mpq_abilitazione_edit", args=[ab.pk]), {
+            "tipo_persona": "interno", "dipendente": "4304", "stato": "ATTIVA",
+            "ruoli_standard": ["ADDETTO", "PART145"],
+        })
+        self.assertEqual(r.status_code, 302)
+        ab.refresh_from_db()
+        self.assertTrue(ab.is_addetto and ab.is_part145)
+        self.assertFalse(ab.is_qualificato)

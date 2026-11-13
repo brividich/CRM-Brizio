@@ -261,6 +261,10 @@ class Command(BaseCommand):
                     },
                 )
                 stats["abilitazioni"] += int(ab_created)
+                if ab_created:
+                    from anagrafica.services.mpq_ruoli import allinea_da_flag
+
+                    allinea_da_flag(ab)  # i booleani del file diventano ruoli del processo
                 for cert in (per.get("certs") or []):
                     _, c_created = CertificazioneIndividuale.objects.get_or_create(
                         abilitazione=ab, schema=cert["schema"], numero=cert["numero"],
