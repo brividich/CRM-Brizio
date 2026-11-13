@@ -1710,8 +1710,10 @@ def _contesto_decisione_qualita(request) -> dict:
         from anomalie import decisione_qualita as dq
         from anomalie.qualita_views import puo_decisione_qualita
 
+        from anomalie.registro_views import puo_vedere_registro
+
         return {"can_qualita": puo_decisione_qualita(request), "avanzamenti_qualita": dq.avanzamenti_qualita(),
-                "cc_puo_chiudere": dq.cc_puo_chiudere()}
+                "cc_puo_chiudere": dq.cc_puo_chiudere(), "can_registro": puo_vedere_registro(request)}
     except Exception:
         logger.warning("anomalie: contesto decisione qualità non letto", exc_info=True)
         return {"can_qualita": False, "avanzamenti_qualita": [], "cc_puo_chiudere": True}
@@ -1812,6 +1814,13 @@ def _car_segnalato_su_op(request, op_title: str) -> bool:
     """Chi guarda è fra i CAR a cui il capocommessa ha segnalato un'anomalia dell'OP."""
     if not op_title or not _has_table("anomalie"):
         return False
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        if op_title.strip().lower() in op_incaricato(request):
+            return True
+    except Exception:
+        logger.warning("anomalie: OP affidati non letti", exc_info=True)
     mie = {_chiave_persona(n) for n in _request_name_norms(request)}
     if not mie:
         return False
@@ -2317,6 +2326,20 @@ def api_anomalie_elimina(request):
         log_action(request, "anomalia_eliminata", "anomalie", istantanea)
     except Exception:
         logger.warning("api_anomalie_elimina: audit non scritto id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=istantanea.get("op_id") or "", action="elimina", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=_current_user_identity(request).get("name") or request.user.username,
+            note=str(istantanea.get("descrizione") or "")[:500], ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"seriale": istantanea.get("seriale") or "", "descrizione": str(istantanea.get("descrizione") or "")[:500]},
+        )
+    except Exception:
+        logger.warning("api_anomalie_elimina: registro attività non scritto id=%s", local_id, exc_info=True)
     return JsonResponse({"success": True, "local_id": local_id, "controllo_id": istantanea.get("controllo_id")})
 
 
@@ -2448,7 +2471,7 @@ def _in_carico_per_op(request) -> dict:
         return out
     cols = legacy_table_columns("anomalie") or set()
     voluti = ("id", "op_lookup_id", "ex_op_nominativo", "chiudere", "aprire_rdc", "segnalare_cliente",
-              "note_capocommessa", "avanzamento", "created_by_user_id")
+              "note_capocommessa", "avanzamento", "created_by_user_id", "modified_datetime")
     try:
         righe = _fetch_all_dict(
             f"SELECT {', '.join(c for c in voluti if c in cols)} FROM anomalie WHERE COALESCE(chiudere, 0) = 0")
@@ -2464,19 +2487,41 @@ def _in_carico_per_op(request) -> dict:
         out["per_op"].setdefault(chiave, []).append((r, i))
         if i and i.get("car_assegnati") and mie & {_chiave_persona(n) for n in i["car_assegnati"]}:
             out["car_ops"].add(titolo)
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        out["car_ops"] |= op_incaricato(request)
+    except Exception:
+        logger.warning("anomalie: OP affidati non letti", exc_info=True)
     return out
 
 
-def _conta_in_carico(request, carico: dict, titolo_l: str, item_id: str, capo, car) -> int:
+def _conta_in_carico(request, carico: dict, titolo_l: str, item_id: str, capo, car) -> tuple[int, int | None]:
+    """(anomalie in carico a chi guarda, giorni da cui la più vecchia è ferma)."""
     from anomalie import decisione_qualita as dq
 
     coppie = list(carico["per_op"].get(f"t:{titolo_l}", []))
     if item_id:
         coppie += carico["per_op"].get(f"id:{item_id}", [])
     if not coppie:
-        return 0
+        return 0, None
     io = dq.chi_sono(request, capo, car)
-    return sum(1 for riga, info in coppie if dq.in_carico_a_me(io, riga, info))
+    mie = [riga for riga, info in coppie if dq.in_carico_a_me(io, riga, info)]
+    oggi = dj_tz.now()
+    giorni = []
+    for riga in mie:
+        m = riga.get("modified_datetime")
+        if m is None:
+            continue
+        if isinstance(m, str):
+            try:
+                m = datetime.fromisoformat(m)
+            except ValueError:
+                continue
+        if dj_tz.is_naive(m):
+            m = m.replace(tzinfo=timezone.utc)
+        giorni.append(max(0, (oggi - m).days))
+    return len(mie), (max(giorni) if giorni else None)
 
 
 def _capo_car_di_op(op_title: str) -> tuple[str, str]:
@@ -2499,7 +2544,7 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
     for r in rows:
         r.update({"avanzamento_qualita": "", "note_qualita": "", "qualita_da": "", "qualita_il": "",
                   "richieste_info": [], "in_carico_a_me": False, "ruoli_in_carico": [], "ruoli_risposta": [],
-                  "segnalato_car": None})
+                  "segnalato_car": None, "incaricati": {}, "puo_cambiare_incaricato": False})
     ids = [int(r["local_id"]) for r in rows if r.get("local_id")]
     if not ids:
         return
@@ -2518,6 +2563,9 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
         info = dq.info_per_anomalie(ids)
         capo, car = _capo_car_di_op(op_title)
         io = dq.chi_sono(request, capo, car)
+        from anomalie import incaricati as inc
+
+        cambia_su_op = inc.puo_cambiare_su_op(request, capo, car)
     except Exception:
         logger.warning("anomalie: decisione qualità / in carico non letti", exc_info=True)
         return
@@ -2543,6 +2591,9 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
                 "avanzamento": raw.get("avanzamento")}
         r["ruoli_in_carico"] = sorted(dq.ruoli_in_carico(riga, info.get(aid)))
         r["in_carico_a_me"] = dq.in_carico_a_me(io, riga, info.get(aid))
+        r["incaricati"] = (info.get(aid) or {}).get("incaricati") or {}
+        r["puo_cambiare_incaricato"] = not raw.get("chiudere") and (
+            cambia_su_op or inc.puo_cambiare_su_anomalia(request, info.get(aid)))
         if any(q["aperta"] for q in r["richieste_info"]):
             r["ruoli_risposta"] = ruoli_risposta(request, riga)
 
@@ -2690,6 +2741,15 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     # anomalie da aprire RDC o da segnalare al cliente (es. per il numero RDC).
     if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
         return True
+
+    # Incaricato del capocommessa su un'anomalia aperta dell'OP (incaricati.py).
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        if str(op_id or "").strip().lower() in op_incaricato(request, ruoli={"cc"}):
+            return True
+    except Exception:
+        logger.warning("anomalie: incarichi del capocommessa non letti", exc_info=True)
 
     from core.permessi import sistema_ruoli_attivo
 
@@ -3231,7 +3291,7 @@ def _ordini_payload(request, *, per_apertura: bool):
         # capocommessa con «In attesa di ulteriori informazioni».
         vede_rdc = referente_rdc and rdc_cliente > 0
         titolo_l = str(r.get("op_title") or "").strip().lower()
-        n_carico = _conta_in_carico(request, carico, titolo_l, str(r.get("item_id") or ""), capo, car)
+        n_carico, ferma_da = _conta_in_carico(request, carico, titolo_l, str(r.get("item_id") or ""), capo, car)
         vede_qualita = referente_rdc and int(r.get("anomalie_aperte_count") or 0) > 0
         if (filtra and not vede_rdc and not vede_qualita and titolo_l not in carico["car_ops"]
                 and not _vede_op_ruoli(request, capo, car, creatori)):
@@ -3253,6 +3313,7 @@ def _ordini_payload(request, *, per_apertura: bool):
             # non basta.
             "in_carico": n_carico > 0,
             "anomalie_in_carico_count": n_carico,
+            "ferma_da_giorni": ferma_da,
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
@@ -3739,6 +3800,25 @@ def api_anomalie_allegati(request):
         return _json_error(f"Errore allegati: {exc}", status=500)
 
 
+def _registro_allegati(request, local_id: int, op_id: str, azione: str, nomi: list[str], dove: str = "") -> None:
+    """Registro attività: allegati aggiunti (``allegato``) o tolti (``allegato_tolto``)."""
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        identity = _current_user_identity(request)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=op_id, action=azione, user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=identity.get("name") or request.user.username,
+            note=", ".join(str(n) for n in nomi)[:500], ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"allegati": [str(n)[:200] for n in nomi][:50], **({"dove": dove} if dove else {})},
+        )
+    except Exception:
+        logger.warning("allegati: registro non scritto id=%s", local_id, exc_info=True)
+
+
 @login_required
 @require_POST
 def api_anomalie_allegati_copia(request):
@@ -3771,6 +3851,9 @@ def api_anomalie_allegati_copia(request):
             copiati += 1
         except OSError as exc:
             errori.append(f"{item['name']}: {exc}")
+    if copiati:
+        _registro_allegati(request, a_id, str(destinazione.get("ex_op_nominativo") or "").strip(), "allegato",
+                           [i["name"] for i in allegati], f"copiati da {codice_anomalia(da_id)}")
     try:
         log_action(request, "anomalia_allegati_copiati", "anomalie", {"da": da_id, "a": a_id, "copiati": copiati})
     except Exception:
@@ -3844,6 +3927,9 @@ def api_anomalie_allegati_upload(request):
         saved_file_ids, saved_names, errors = salva_file_allegati(local_id, folder, files, per_decisione=per_decisione,
                                                                   per_qualita=per_qualita)
         saved = len(saved_file_ids)
+        if saved_names:
+            _registro_allegati(request, local_id, op_id, "allegato", saved_names,
+                               "decisione qualità" if per_qualita else ("decisione" if per_decisione else ""))
 
         logger.info(
             "[anomalie] allegati_upload done local_id=%s op=%s saved=%s errors=%s",
@@ -3968,6 +4054,7 @@ def api_anomalie_allegati_delete(request):
         if file_id.startswith("descrizione:") and attached:
             attached.delete()
         _remove_attachment_sync_meta_entry(local_id, file_id)
+        _registro_allegati(request, local_id, op_id, "allegato_tolto", [deleted_name])
         try:
             log_action(
                 request,
@@ -4706,6 +4793,42 @@ def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avan
     return cc_chiude and av in _STATI_CHIUSURA
 
 
+_CAMPI_REGISTRO_EXTRA = ("descrizione", "seriale", "aprire_rdc", "segnalare_cliente", "pezzo_recuperato")
+# Campi della riga legacy riportati nel registro attività, con il nome che vede l'utente.
+_CAMPI_REGISTRO = (
+    ("seriale", "S/N"), ("descrizione", "Testo"), ("avanzamento", "Avanzamento"),
+    ("note_capocommessa", "Note"), ("aprire_rdc", "Aprire RDC"), ("numero_rdc", "N° RDC"),
+    ("segnalare_cliente", "Segnalare al cliente"), ("pezzo_recuperato", "Pezzi precedenti al benestare"),
+    ("chiudere", "Chiusa"),
+)
+_CAMPI_SI_NO = {"aprire_rdc", "segnalare_cliente", "pezzo_recuperato", "chiudere"}
+
+
+def _valore_registro(campo, valore) -> str:
+    if campo in _CAMPI_SI_NO:
+        return "sì" if valore and str(valore) not in ("0", "False") else "no"
+    testo = str(valore or "").strip()
+    return testo[:300]
+
+
+def modifiche_registro(prima: dict, dopo: dict, *, nuova: bool = False) -> list:
+    """``[[campo leggibile, prima, dopo], ...]`` dei campi cambiati (per una nuova
+    anomalia solo quelli compilati, con «prima» vuoto)."""
+    out = []
+    for campo, nome in _CAMPI_REGISTRO:
+        if campo not in dopo:
+            continue
+        nuovo = _valore_registro(campo, dopo.get(campo))
+        if nuova:
+            if nuovo and nuovo != "no":
+                out.append([nome, "", nuovo])
+            continue
+        vecchio = _valore_registro(campo, prima.get(campo))
+        if vecchio != nuovo:
+            out.append([nome, vecchio, nuovo])
+    return out
+
+
 def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnalati, gia_segnalati, risposte) -> None:
     """«Segnalato al cliente/terzista» e risposte del destinatario salvati con la decisione."""
     from anomalie import segnalato_service as segn
@@ -4851,13 +4974,15 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
     prev_av = ""
     prev_note = ""
     prev_numero_rdc = ""
+    prev_valori: dict = {}
     if where_clause == "id = %s" and local_pk_id is not None:
         try:
             with connections["default"].cursor() as pre_cur:
                 pre_cur.execute(
-                    "SELECT avanzamento, chiudere, {nota}, {num} FROM anomalie WHERE id = %s".format(
+                    "SELECT avanzamento, chiudere, {nota}, {num}, {extra} FROM anomalie WHERE id = %s".format(
                         nota="note_capocommessa" if "note_capocommessa" in cols else "NULL",
-                        num="numero_rdc" if "numero_rdc" in cols else "NULL"),
+                        num="numero_rdc" if "numero_rdc" in cols else "NULL",
+                        extra=", ".join(c if c in cols else "NULL" for c in _CAMPI_REGISTRO_EXTRA)),
                     [local_pk_id],
                 )
                 pre_row = pre_cur.fetchone()
@@ -4866,6 +4991,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 prev_chiuso = bool(pre_row[1])
                 prev_note = str(pre_row[2] or "")
                 prev_numero_rdc = str(pre_row[3] or "")
+                prev_valori = {"avanzamento": prev_av, "chiudere": prev_chiuso, "note_capocommessa": prev_note,
+                               "numero_rdc": prev_numero_rdc,
+                               **{c: pre_row[4 + i] for i, c in enumerate(_CAMPI_REGISTRO_EXTRA)}}
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
                 # Prima decisione «Azione di recupero»: si chiude solo con l'azione
                 # effettuata (o aprendo un RDC, che porta la decisione al cliente).
@@ -5010,6 +5138,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
             new_status=new_status,
             ip_address=_client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"modifiche": modifiche_registro(prev_valori if updated > 0 else {}, payload_map,
+                                                     nuova=updated <= 0),
+                     **({"clonata_da": int(data["clonata_da"])} if str(data.get("clonata_da") or "").isdigit() else {})},
         )
     except Exception:
         logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)
@@ -5091,6 +5222,10 @@ _TIMELINE_ACTION_LABELS = {
     "respingi": "Respinta",
     "richiedi_modifica": "Richiesta modifica",
     "visualizza": "Visualizzata",
+    "incaricato": "Incaricato cambiato",
+    "allegato": "Allegati aggiunti",
+    "allegato_tolto": "Allegato tolto",
+    "elimina": "Anomalia eliminata",
 }
 
 # Etichette canale (AnomaliaActionLog.Source) per la timeline.

@@ -33,6 +33,7 @@ class SegnalaHubTests(TestCase):
         self.assertEqual(url.path, reverse("tickets:nuovo"))
         self.assertEqual(qs["tipo"], ["IT"])
         self.assertEqual(qs["categoria"], ["SYN_HUB"])
+        self.assertEqual(qs["asset_libero"], ["NOVICROM HUB"])
         self.assertIn("Pagina: /assenze/richiesta/?x=1", qs["descrizione"][0])
 
     def test_senza_categoria_hub_apre_ticket_it_semplice(self):
@@ -51,6 +52,7 @@ class SegnalaHubTests(TestCase):
         with patch("tickets.views._can_open_tickets", return_value=True), \
              patch("tickets.views._get_assets_for_select", return_value=[]), \
              patch("tickets.views.get_categorie", return_value=cats):
-            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT&categoria=SYN_HUB")
+            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT&categoria=SYN_HUB&asset_libero=NOVICROM+HUB")
         self.assertContains(page, '<option value="SYN_HUB" selected>')
+        self.assertContains(page, 'value="NOVICROM HUB"')
         self.assertContains(page, "incolla uno screenshot con Ctrl+V")

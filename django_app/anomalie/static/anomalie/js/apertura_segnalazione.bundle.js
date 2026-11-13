@@ -2763,7 +2763,10 @@ const Step2Controllo = ({
             tutti,
             seriali: tutti ? [] : selDi(a),
             dettaglio: dettPayload(a.dett),
-            tipo_difetto_id: a.dett ? a.dett.tipoDifettoId : null
+            tipo_difetto_id: a.dett ? a.dett.tipoDifettoId : null,
+            ...(a.origineId && !a.localId ? {
+              clonata_da: a.origineId
+            } : {})
           };
         })
       }, 'Salvataggio blocco');

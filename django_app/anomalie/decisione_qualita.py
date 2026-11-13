@@ -76,6 +76,7 @@ def info_per_anomalie(ids) -> dict[int, dict]:
         return out
     try:
         from .automazioni_service import separa_car_scelti
+        from .incaricati import per_anomalie as incaricati_per_anomalie
         from .quality_models import AnomaliaRichiestaInfo, AnomaliaSchedaQualita
 
         for i in range(0, len(ids), 500):
@@ -100,6 +101,8 @@ def info_per_anomalie(ids) -> dict[int, dict]:
                 for d in r.destinatari or []:
                     if d not in info["richiesta_aperta"]:
                         info["richiesta_aperta"].append(d)
+            for aid, inc in incaricati_per_anomalie(blocco).items():
+                out.setdefault(aid, _info_vuota())["incaricati"] = inc
     except Exception:
         logger.warning("anomalie: dati di «in carico» non letti", exc_info=True)
     return out
@@ -108,7 +111,7 @@ def info_per_anomalie(ids) -> dict[int, dict]:
 def _info_vuota() -> dict:
     return {"segnala_terzista": False, "car_assegnati": [], "segnalato_cliente": False, "segnalato_terzista": False,
             "segnalato_cliente_ruolo": "", "segnalato_terzista_ruolo": "", "avanzamento_qualita": "",
-            "richiesta_aperta": []}
+            "richiesta_aperta": [], "incaricati": {}}
 
 
 # ── A chi tocca ────────────────────────────────────────────────────────────
@@ -162,12 +165,20 @@ def chi_sono(request, capo, car_op=None) -> dict:
 
 
 def in_carico_a_me(io: dict, row: dict, info: dict | None) -> bool:
-    """L'anomalia è in carico a chi guarda (``io`` da ``chi_sono``)."""
+    """L'anomalia è in carico a chi guarda (``io`` da ``chi_sono``).
+
+    Un ruolo affidato a un incaricato (``incaricati.py``) tocca solo a lui, non a
+    chi lo ricopre di serie."""
+    from .incaricati import e_incaricato
     from .views import _chiave_persona
 
     ruoli = ruoli_in_carico(row, info)
     if not ruoli:
         return False
+    affidati = set(((info or {}).get("incaricati") or {}).keys())
+    if any(e_incaricato(info, r, io.get("legacy_id")) for r in ruoli & affidati):
+        return True
+    ruoli = ruoli - affidati
     if RUOLO_CC in ruoli and io.get("cc"):
         return True
     if RUOLO_QUALITA in ruoli and io.get("qualita"):

@@ -127,7 +127,6 @@ def _allegati_in_cestino(local_id: int) -> str:
 
 def elimina(local_id: int) -> dict:
     """Elimina la riga e i suoi dati collegati. Ritorna l'istantanea per l'audit."""
-    from .mail_action_models import AnomaliaActionLog
     from .nc_service import ricalcola_stato, registra_evento
     from .quality_models import AnomaliaSchedaQualita, AnomaliaSegnalazioneMeta
 
@@ -153,9 +152,11 @@ def elimina(local_id: int) -> dict:
             meta.delete()  # anche le descrizioni multiple (CASCADE)
         if scheda is not None:
             scheda.delete()
-        # Solo creazione/modifiche/visualizzazioni (gli avanzamenti bloccano l'eliminazione):
-        # l'audit del portale ne conserva la traccia, qui non devono restare orfane.
-        AnomaliaActionLog.objects.filter(anomalia_id=local_id).delete()
+        # Il registro attività resta (con l'evento «elimina» scritto dalla vista): la
+        # storia di un'anomalia eliminata si ritrova dal suo codice AN-.
+        from .incaricati import togli_anomalia
+
+        togli_anomalia(local_id)
         if meta is not None:
             _blocco_vuoto_via(meta.blocco_id)
     if meta is not None:

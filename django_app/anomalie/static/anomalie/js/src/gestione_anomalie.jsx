@@ -28,8 +28,11 @@
       seriali_op: "/api/anomalie/seriali-op",
     };
     API.qualita_salva = API.qualita_salva || "/api/anomalie/qualita/salva";
+    API.registro = API.registro || "/api/anomalie/registro";
     API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
     API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
+    API.incaricato = API.incaricato || "/api/anomalie/incaricato";
+    API.incaricato_persone = API.incaricato_persone || "/api/anomalie/incaricato/persone";
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
       : [];
@@ -41,6 +44,7 @@
     const AVANZAMENTI_QUALITA = Array.isArray(ACCESS_CONTEXT.avanzamenti_qualita) && ACCESS_CONTEXT.avanzamenti_qualita.length
       ? ACCESS_CONTEXT.avanzamenti_qualita : ["In attesa", AVANZAMENTO_CHIARIMENTI];
     const CC_PUO_CHIUDERE = ACCESS_CONTEXT.cc_puo_chiudere !== false;
+    const CAN_REGISTRO = !!ACCESS_CONTEXT.can_registro;
     const ROLE_ACCESS = ACCESS_CONTEXT.role_access || {};
     const ACCESS_ORDER = { NONE: 0, READ_ALL: 1, EDIT_ASSIGNED: 2, EDIT_ALL: 3 };
     const BASE_AVANZAMENTO_OPTIONS =
@@ -453,6 +457,90 @@
       );
     };
 
+    // ── Registro attività (supervisore): ogni azione registrata, in frasi ──
+    const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"],
+      ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"],
+      ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"],
+      ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"]];
+    const STRISCIA_REGISTRO = { crea: "info", aggiorna: "acc", qualita: "qa", chiudi: "ok", riapri: "warn", segnalato: "info",
+      richiesta_info: "warn", risposta_info: "ok", spostata: "warn", aggiorna_avanzamento: "acc", approva: "acc",
+      incaricato: "qa", allegato: "info", allegato_tolto: "warn", elimina: "warn" };
+    const giornoLabel = (iso) => {
+      const d = new Date(iso);
+      const oggi = new Date(); const ieri = new Date(Date.now() - 864e5);
+      const stesso = (a, b) => a.toDateString() === b.toDateString();
+      const testo = d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+      return stesso(d, oggi) ? `Oggi · ${testo}` : stesso(d, ieri) ? `Ieri · ${testo}` : testo;
+    };
+    const RegistroAttivita = ({ filtroIniziale, onApri, onChiudi }) => {
+      const [f, setF] = useState({ op: "", codice: "", persona: "", azione: "", fonte: "", giorni: "7", ...(filtroIniziale || {}) });
+      const [per, setPer] = useState(filtroIniziale && filtroIniziale.codice ? "anomalia" : "giorno");
+      const [dati, setDati] = useState(null);
+      const [errore, setErrore] = useState("");
+      useEffect(() => {
+        const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
+        setErrore("");
+        fetch(`${API.registro}?${qs.toString()}`, { credentials: "same-origin" })
+          .then((r) => readJsonOrThrow(r, "Registro attività"))
+          .then((d) => { if (!d.success) throw new Error(d.error || "errore"); setDati(d); })
+          .catch((e) => setErrore(e.message));
+      }, [f.op, f.codice, f.persona, f.azione, f.fonte, f.giorni]);
+      const eventi = (dati && dati.eventi) || [];
+      const gruppi = [];
+      eventi.forEach((e) => {
+        const k = per === "anomalia" ? (e.codice || `OP ${e.op_id}`) : e.giorno;
+        let g = gruppi.find((x) => x.k === k);
+        if (!g) { g = { k, titolo: per === "anomalia" ? `${e.codice || "OP"} · OP ${e.op_id}${e.seriale ? ` · S/N ${e.seriale}` : ""}` : giornoLabel(e.quando), ev: [] }; gruppi.push(g); }
+        g.ev.push(e);
+      });
+      const campo = (k, v) => setF((p) => ({ ...p, [k]: v }));
+      return (
+        <div className="ga-reg">
+          <div className="ga-reg__filtri">
+            <label>OP<select className="ga-input" value={f.op} onChange={(e) => campo("op", e.target.value)}>
+              <option value="">Tutti</option>{((dati && dati.op) || []).concat(f.op && !(dati && dati.op || []).includes(f.op) ? [f.op] : []).map((o) => <option key={o}>{o}</option>)}</select></label>
+            <label>Codice<input className="ga-input" value={f.codice} placeholder="AN-…" onChange={(e) => campo("codice", e.target.value)} /></label>
+            <label>Persona<select className="ga-input" value={f.persona} onChange={(e) => campo("persona", e.target.value)}>
+              <option value="">Tutte</option>{((dati && dati.persone) || []).map((o) => <option key={o}>{o}</option>)}</select></label>
+            <label>Azione<select className="ga-input" value={f.azione} onChange={(e) => campo("azione", e.target.value)}>
+              {AZIONI_REGISTRO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+            <label>Da dove<select className="ga-input" value={f.fonte} onChange={(e) => campo("fonte", e.target.value)}>
+              <option value="">Tutto</option><option value="portal">Portale</option><option value="mail_action">Link della mail</option><option value="system">Sistema</option></select></label>
+            <label>Periodo<select className="ga-input" value={f.giorni} onChange={(e) => campo("giorni", e.target.value)}>
+              <option value="7">Ultimi 7 giorni</option><option value="30">Ultimo mese</option><option value="90">Ultimi 3 mesi</option><option value="365">Ultimo anno</option></select></label>
+            <div className="ga-seg-ctl" role="group" aria-label="Raggruppa il registro">
+              <button type="button" className={per === "giorno" ? "is-on" : ""} onClick={() => setPer("giorno")}>Per giorno</button>
+              <button type="button" className={per === "anomalia" ? "is-on" : ""} onClick={() => setPer("anomalia")}>Per anomalia</button>
+            </div>
+          </div>
+          {errore ? <div className="ga-note ga-note--warn">{errore}</div>
+            : !dati ? <div className="ga-empty">Caricamento…</div>
+            : !eventi.length ? <div className="ga-empty">Nessuna attività con questi filtri.</div>
+            : gruppi.map((g) => (
+              <section key={g.k} className="ga-reg__grp">
+                <h3 className="ga-reg__giorno">{g.titolo}</h3>
+                {g.ev.map((e) => (
+                  <div key={e.id} className={`ga-reg__ev ga-reg__ev--${STRISCIA_REGISTRO[e.azione] || "muted"}`}>
+                    <span className="ga-reg__ora">{per === "anomalia" ? `${new Date(e.quando).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} ${e.ora}` : e.ora}</span>
+                    <div className="ga-reg__c">
+                      <div><b>{e.chi}</b> {e.verbo} {e.codice && <button type="button" className="ga-link ga-reg__cod" title="Apri l'anomalia in Gestione anomalie" onClick={() => onApri(e)}>{e.codice}</button>}
+                        {e.op_id && <span className="ga-hint"> · OP {e.op_id}{e.seriale ? ` · S/N ${e.seriale}` : ""}</span>}</div>
+                      {e.modifiche.length > 0 && (
+                        <div className="ga-reg__diff">{e.modifiche.map(([c, prima, dopo], i) => (
+                          <span key={i}>{c}: {prima ? <><s>{prima}</s> → </> : null}{dopo || <em>vuoto</em>}</span>
+                        ))}</div>
+                      )}
+                      {e.note && !e.modifiche.length && <div className="ga-reg__nota">{e.note}</div>}
+                      <div className="ga-hint">{e.fonte}</div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            ))}
+        </div>
+      );
+    };
+
     const TimelineOp = ({ opId, opItemId }) => {
       const [items, setItems] = useState([]);
       const [loading, setLoading] = useState(false);
@@ -833,6 +921,11 @@
     // Preferenze della pagina nel browser (raggruppamento, gruppi chiusi): se lo
     // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
     const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
+    const PREF_VISTA_OP = "ga_vista_ordini";
+    // Viste delle due colonne: «elenco» e «sn»/«stato» sono quelle di sempre.
+    const VISTE_ORDINI = [["elenco", "Elenco"], ["coda", "Coda di lavoro"], ["persona", "Per capocommessa"], ["tabella", "Tabella"]];
+    const VISTE_ANOMALIE = [["sn", "Per S/N"], ["stato", "Per stato"], ["kanban", "Per fase"], ["ruolo", "Per ruolo"], ["tabella", "Tabella"], ["pezzi", "Pezzi"]];
+    const VISTE_LARGHE = ["kanban", "tabella", "pezzi"];
     const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
     const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
     const leggiPref = (k, def) => {
@@ -978,7 +1071,19 @@
       const [snFilter, setSnFilter] = useState("tutte");   // "tutte" | "da_decidere"
       // Raggruppamento delle anomalie («sn» per blocco di seriali, «stato») e gruppi
       // chiusi: restano nel browser finché la persona non li cambia, per tutti gli OP.
-      const [raggruppa, setRaggruppaState] = useState(() => leggiPref(PREF_RAGGRUPPA, "sn") === "stato" ? "stato" : "sn");
+      const [raggruppa, setRaggruppaState] = useState(() => {
+        const v = leggiPref(PREF_RAGGRUPPA, "sn");
+        return VISTE_ANOMALIE.some(([k]) => k === v) ? v : "sn";
+      });
+      // Vista della colonna ordini e pagina mostrata (gestione o registro attività).
+      const [vistaOp, setVistaOpState] = useState(() => {
+        const v = leggiPref(PREF_VISTA_OP, "elenco");
+        return VISTE_ORDINI.some(([k]) => k === v) ? v : "elenco";
+      });
+      const setVistaOp = (v) => { setVistaOpState(v); scriviPref(PREF_VISTA_OP, v); };
+      const [ordineTab, setOrdineTab] = useState({ k: "ferma", desc: true });
+      const [pagina, setPagina] = useState(null);  // null | { filtro }
+      const daAprireRef = useRef(null);  // anomalia da aprire dopo il caricamento dell'OP (dal registro)
       const [gruppiChiusi, setGruppiChiusi] = useState(() => {
         const v = leggiPref(PREF_GRUPPI_CHIUSI, null);
         return v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -1053,6 +1158,7 @@
       const [qRisp, setQRisp] = useState({ cliente: "", terzista: "" });
       const [qBusy, setQBusy] = useState(false);
       const [infoModal, setInfoModal] = useState(null);  // null | { cc, controllore, messaggio, busy, err }
+      const [incModal, setIncModal] = useState(null);  // null | { ruolo, persona, nota, persone, busy, err }
       const [rispInfo, setRispInfo] = useState("");
       // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
       // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
@@ -1306,8 +1412,10 @@
             if (!alive) return;
             const list = Array.isArray(data) ? data : [];
             setAnomalie(list);
-            // Si apre la prima anomalia che aspetta una decisione.
-            const first = list.find((a) => a.in_carico_a_me) || list.find(isDaDecidere) || list.find((a) => !a.chiudere);
+            // Si apre l'anomalia chiesta dal registro, altrimenti la prima che aspetta.
+            const chiesta = daAprireRef.current && list.find((a) => String(a.local_id) === String(daAprireRef.current));
+            daAprireRef.current = null;
+            const first = chiesta || list.find((a) => a.in_carico_a_me) || list.find(isDaDecidere) || list.find((a) => !a.chiudere);
             setSelectedSnId(first ? first.item_id : "");
             setLoadingAnom(false);
           })
@@ -1707,6 +1815,44 @@
           setInfoModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
         }
       };
+      const caricaPersone = async (ruolo) => {
+        try {
+          const r = await fetch(`${API.incaricato_persone}?ruolo=${encodeURIComponent(ruolo)}`, { credentials: "same-origin" });
+          const d = await r.json();
+          if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
+          setIncModal((m) => (m && m.ruolo === ruolo ? { ...m, persone: d.persone || [] } : m));
+        } catch (e) {
+          setIncModal((m) => (m ? { ...m, persone: [], err: "Elenco persone non caricato: " + e.message } : m));
+        }
+      };
+      const apriCambiaIncaricato = (ruolo) => {
+        const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
+        const att = (sn.incaricati || {})[r];
+        setIncModal({ ruolo: r, persona: att ? String(att.id) : "", nota: "", persone: null, busy: false, err: "" });
+        caricaPersone(r);
+      };
+      const cambiaRuoloIncarico = (r) => {
+        const att = (sn.incaricati || {})[r];
+        setIncModal((m) => ({ ...m, ruolo: r, persona: att ? String(att.id) : "", persone: null, err: "" }));
+        caricaPersone(r);
+      };
+      const salvaIncaricato = async (diSerie) => {
+        if (!incModal || incModal.busy) return;
+        if (!diSerie && !incModal.persona) { setIncModal({ ...incModal, err: "Scegli la persona." }); return; }
+        setIncModal({ ...incModal, busy: true, err: "" });
+        try {
+          const d = await postJson(API.incaricato, { local_id: sn.local_id, ruolo: incModal.ruolo,
+            persona_id: diSerie ? "" : incModal.persona, nota: incModal.nota.trim() }, "Cambio incaricato");
+          aggiornaSn({ incaricati: d.incaricati || {}, ruoli_in_carico: d.ruoli_in_carico || [], in_carico_a_me: !!d.in_carico_a_me,
+            puo_cambiare_incaricato: d.puo_cambiare_incaricato !== false });
+          setIncModal(null);
+          flash({ ok: true, text: diSerie ? "Il ruolo torna a chi lo ha di serie"
+            : `Incaricato cambiato${d.mail ? " · mail inviata" : ""}${d.senza_email ? " · nessuna email in anagrafica" : ""}` }, 6000);
+          loadOrdini();
+        } catch (e) {
+          setIncModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
+        }
+      };
       const rispondiRichiesta = async () => {
         if (!rispInfo.trim() || !sn.local_id) return;
         try {
@@ -1977,65 +2123,9 @@
         );
       };
 
-      return (
-        <div className={`ga${isMobile ? " ga--mobile" : ""}`}>
-          {/* ── Barra superiore ── */}
-          <header className="ga-top">
-            <div className="ga-top__left">
-              <a href="/anomalie-menu" className="ga-iconbtn" title="Torna al menu anomalie">{Ico.back}</a>
-              <h1 className="ga-top__title">{isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie"}</h1>
-              {!isMobile && op.id && <span className="ga-top__op">{op.id}{op.pn && op.pn !== "—" ? ` · ${op.pn}` : ""}</span>}
-            </div>
-            <div className="ga-top__right">
-              <a className="ga-btn ga-btn--accent" href={nuovaAnomaliaUrl} title="Apri un nuovo controllo con segnalazione di anomalie">
-                {Ico.plus}{!isMobile && <span>Nuova segnalazione</span>}
-              </a>
-              {!isMobile && API.nc_lista && <a className="ga-btn ga-btn--ghost" href={API.nc_lista}>Non conformità</a>}
-              <div className="ga-menu">
-                <button type="button" className="ga-iconbtn" title="Altre azioni" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>{Ico.more}</button>
-                {menuOpen && (
-                  <>
-                    <div className="ga-menu__scrim" onClick={() => setMenuOpen(false)} />
-                    <div className="ga-menu__pop" role="menu">
-                      <button type="button" role="menuitem" disabled={!op.id} onClick={() => handleOpenReport()}>Report OP</button>
-                      <button type="button" role="menuitem" disabled={!op.id} onClick={() => handleOpenReport("pdf")}>Report OP in PDF</button>
-                      <button type="button" role="menuitem" disabled={!canEditSelected} onClick={duplica}>Duplica anomalia come nuovo record</button>
-                      {isMobile && API.nc_lista && <a role="menuitem" href={API.nc_lista}>Non conformità</a>}
-                      {IS_ADMIN && ADMIN_URL && <a role="menuitem" href={ADMIN_URL}>Configurazione modulo</a>}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </header>
-
-          <div className="ga-cols" style={isMobile ? undefined : { gridTemplateColumns: isTablet ? "250px 270px minmax(0,1fr)" : "310px 330px minmax(0,1fr)" }}>
-
-            {/* ── 1. Ordini di produzione ── */}
-            <section className="ga-col ga-col--op" style={{ display: showCol("ordini") ? undefined : "none" }}>
-              <div className="ga-col__head">
-                <div className="ga-col__title">Ordini di produzione</div>
-                <div className="ga-chips">
-                  {[["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => (
-                    <Chip key={v} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
-                      onClick={() => setPageFilter(v)}>{l}</Chip>
-                  ))}
-                </div>
-                <div className="ga-search">
-                  {Ico.search}
-                  <input value={searchOp} onChange={(e) => setSearchOp(e.target.value)} placeholder="Cerca OP, P/N, capocommessa, CAR…" />
-                </div>
-              </div>
-              <div className="ga-col__body">
-                {loadingOrdini ? <div className="ga-empty">Caricamento ordini…</div>
-                  : filteredOrdini.length === 0 ? (
-                    <div className="ga-empty">
-                      {pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te."
-                        : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato."}
-                    </div>
-                  ) : filteredOrdini.map((o) => {
-                    // Riga compatta: numero, P/N e contatori; il resto è nella scheda
-                    // dell'OP in cima alla colonna Anomalie.
+      // Riga compatta dell'elenco OP: numero, P/N e contatori; il resto è nella scheda
+      // dell'OP in cima alla colonna Anomalie.
+      const renderOpRiga = (o) => {
                     const sel = opKey(o) === opKey(op);
                     const tot = Number(o.anomalie_count || 0);
                     const aperte = apertiDi(o);
@@ -2054,14 +2144,295 @@
                           {tot > 0 && aperte === 0 && <span className="ga-cnt ga-cnt--ok" title="Tutte chiuse">✓</span>}
                         </span>
                         <span className="ga-opr__pn">{o.pn && o.pn !== "—" ? o.pn : "—"}</span>
-                      </button>
+                      </button>);
+      };
+      // Fase del percorso di un'anomalia (vista «Per fase»).
+      const faseDi = (a) => {
+        if (a.chiudere) return "chiuse";
+        if (richiestaAperta(a)) return "chiarimenti";
+        if (STATI_RISPOSTA.includes(normalizeChoice(a.avanzamento).toLowerCase())) return "attesa";
+        if (isDaDecidere(a)) return "decidere";
+        return "qualita";
+      };
+      const giorniDa = (iso) => {
+        if (!iso) return null;
+        const d = new Date(String(iso).replace(" ", "T"));
+        return Number.isNaN(d.getTime()) ? null : Math.max(0, Math.floor((Date.now() - d.getTime()) / 864e5));
+      };
+      const RUOLI_NOMI = { cc: "Capocommessa", qualita: "Qualità", controllore: "Controllore", car: "CAR segnalato" };
+      // Chi ha il ruolo sull'anomalia: l'incaricato, se c'è, se no chi lo ha di serie.
+      const chiHaRuolo = (a, r) => {
+        const inc = (a.incaricati || {})[r];
+        if (inc) return inc.nome;
+        if (r === "cc") return op.capo && op.capo !== "—" ? op.capo : "capocommessa dell'OP";
+        if (r === "qualita") return "referenti RDC";
+        if (r === "car") return (a.car_segnalati || []).join(", ") || "CAR segnalati";
+        return a.controllo_operatore || a.autore || "chi l'ha inserita";
+      };
+      const inCaricoTesto = (a) => (a.in_carico_a_me ? "Tu"
+        : ((a.ruoli_in_carico || []).map((r) => `${RUOLI_NOMI[r]} · ${chiHaRuolo(a, r)}`).join("; ") || "—"));
+      const schedaAnomalia = (a) => (
+        <button type="button" key={a.item_id} className={`ga-kcard${a.item_id === sn.item_id ? " is-sel" : ""}${a.in_carico_a_me ? " is-tua" : ""}`}
+          onClick={() => selectSn(a)}>
+          <span className="ga-kcard__row"><span className="ga-kcard__cod">{codiceAnomalia(a.local_id)}</span><span className="ga-hint">{a.sn}</span></span>
+          <span className="ga-kcard__txt">{a.testo || a.desc || "—"}</span>
+          <span className="ga-kcard__pills">
+            {a.aprire_rdc && !a.numero_rdc && !a.chiudere && <span className="ga-pill ga-pill--rdc">RDC · manca N°</span>}
+            {a.segnalare && !a.segnalato_cliente && !a.chiudere && <span className="ga-pill ga-pill--cli">Cliente · da segnalare</span>}
+            {a.avanzamento_qualita && !a.chiudere && <span className="ga-pill ga-pill--muted">Qualità · {a.avanzamento_qualita}</span>}
+          </span>
+        </button>
+      );
+      const renderVistaAnomalie = () => {
+        const lista = filteredSeriali;
+        if (raggruppa === "kanban") {
+          const colonne = [["decidere", "Da decidere"], ["qualita", "Qualità"], ["attesa", "Attesa cliente / terzista"], ["chiarimenti", "Chiarimenti"], ["chiuse", "Chiuse"]];
+          return (
+            <div className="ga-kanban">{colonne.map(([k, t]) => {
+              const qui = lista.filter((a) => faseDi(a) === k);
+              return (
+                <div key={k} className="ga-kcol">
+                  <div className="ga-kcol__t"><span>{t}</span><span className="ga-grp__n">{qui.length}</span></div>
+                  {qui.length ? qui.map(schedaAnomalia) : <span className="ga-hint">—</span>}
+                </div>
+              );
+            })}</div>
+          );
+        }
+        if (raggruppa === "ruolo") {
+          const gruppi = ["cc", "qualita", "controllore", "car"].map((r) => [r, lista.filter((a) => (a.ruoli_in_carico || []).includes(r))]);
+          const chiuse = lista.filter((a) => a.chiudere);
+          return (
+            <div className="ga-grps">
+              {gruppi.map(([r, qui]) => (
+                <div key={r} className="ga-grp ga-grp--aperto">
+                  <div className="ga-grp__head"><span className="ga-grp__line"><span className="ga-grp__label">{RUOLI_NOMI[r]}</span><span className="ga-grp__n">{qui.length}</span></span></div>
+                  <div className="ga-grp__body">{qui.length ? qui.map(renderAnomalia) : <div className="ga-hint">Nessuna.</div>}</div>
+                </div>
+              ))}
+              {chiuse.length > 0 && <div className="ga-grp ga-grp--chiuso"><div className="ga-grp__head"><span className="ga-grp__line"><span className="ga-grp__label">Chiuse</span><span className="ga-grp__n">{chiuse.length}</span></span></div>
+                <div className="ga-grp__body">{chiuse.map(renderAnomalia)}</div></div>}
+            </div>
+          );
+        }
+        if (raggruppa === "tabella") {
+          const righe = [...lista].sort((x, y) => (giorniDa(y.modified) ?? -1) - (giorniDa(x.modified) ?? -1));
+          return (
+            <div className="ga-tabwrap"><table className="ga-tab ga-tab--compatta">
+              <thead><tr><th>Codice</th><th>S/N</th><th>Anomalia</th><th>Stato</th><th>In carico a</th><th className="r">Ferma da</th></tr></thead>
+              <tbody>{righe.map((a) => {
+                const st = statoAnomalia(a);
+                return (
+                  <tr key={a.item_id} className={a.item_id === sn.item_id ? "is-sel" : ""} onClick={() => selectSn(a)}>
+                    <td className="ga-kcard__cod">{codiceAnomalia(a.local_id)}</td><td>{a.sn}</td><td className="ga-tab__txt">{a.testo || a.desc || "—"}</td>
+                    <td><span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
+                      {a.avanzamento_qualita && !a.chiudere && <div className="ga-hint">Qualità · {a.avanzamento_qualita}</div>}</td>
+                    <td className="ga-tab__txt ga-tab__txt--stretto">{a.in_carico_a_me ? <b>Tu</b> : inCaricoTesto(a)}</td>
+                    <td className="r">{a.chiudere ? "—" : `${giorniDa(a.modified) ?? "—"} gg`}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table></div>
+          );
+        }
+        if (raggruppa === "pezzi") {
+          const tipi = [...new Set(lista.map((a) => a.tipo_difetto || "Senza tipo"))];
+          const seriali = [...new Set(lista.map((a) => a.sn || "—"))].sort();
+          const classe = (a) => (a.chiudere ? "ok" : isDaDecidere(a) ? "dec" : "corso");
+          return (
+            <div className="ga-tabwrap"><div className="ga-pezzi" style={{ gridTemplateColumns: `120px repeat(${tipi.length}, minmax(110px, 1fr))` }}>
+              <span className="ga-pezzi__h">S/N</span>{tipi.map((t) => <span key={t} className="ga-pezzi__h">{t}</span>)}
+              {seriali.map((s2) => (
+                <React.Fragment key={s2}>
+                  <span className="ga-kcard__cod ga-pezzi__sn">{s2}</span>
+                  {tipi.map((t) => {
+                    const qui = lista.filter((a) => (a.sn || "—") === s2 && (a.tipo_difetto || "Senza tipo") === t);
+                    return (
+                      <span key={t} className="ga-pezzi__cella">
+                        {qui.length ? qui.map((a) => (
+                          <button type="button" key={a.item_id} className={`ga-pezzo ga-pezzo--${classe(a)}${a.item_id === sn.item_id ? " is-sel" : ""}`}
+                            title={a.testo || a.desc || ""} onClick={() => selectSn(a)}>{codiceAnomalia(a.local_id)}</button>
+                        )) : <span className="ga-hint">—</span>}
+                      </span>
                     );
                   })}
+                </React.Fragment>
+              ))}
+            </div></div>
+          );
+        }
+        return <div className="ga-grps">{gruppiAnomalie.map(renderGruppo)}</div>;
+      };
+      const rigaOp = (o) => {
+        const sel = opKey(o) === opKey(op);
+        const aperte = apertiDi(o);
+        const daDec = daDecidereDi(o);
+        const inCorso = Math.max(0, aperte - daDec);
+        return { sel, aperte, daDec, inCorso, tot: Number(o.anomalie_count || 0) };
+      };
+      const renderVistaOrdini = () => {
+        if (vistaOp === "coda") {
+          const lista = [...filteredOrdini].sort((x, y) => (y.anomalie_in_carico_count > 0) - (x.anomalie_in_carico_count > 0)
+            || (y.ferma_da_giorni ?? -1) - (x.ferma_da_giorni ?? -1));
+          return lista.map((o) => {
+            const { sel } = rigaOp(o);
+            const n = Number(o.anomalie_in_carico_count || 0);
+            const g = o.ferma_da_giorni;
+            return (
+              <button type="button" key={opKey(o)} className={`ga-coda${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}>
+                <span className="ga-coda__id">{o.id}</span>
+                <span className="ga-coda__sub">{o.pn && o.pn !== "—" ? o.pn : "—"} · {n ? `${n} tu${n === 1 ? "a" : "e"}` : "niente per te"}</span>
+                <span className={`ga-coda__eta${g >= 3 ? " is-hot" : ""}`}>{n && g != null ? <><b>{g}</b><small>{g === 1 ? "giorno" : "giorni"}</small></> : <small>—</small>}</span>
+              </button>
+            );
+          });
+        }
+        if (vistaOp === "persona") {
+          const per = {};
+          filteredOrdini.forEach((o) => { (per[o.capo || "—"] = per[o.capo || "—"] || []).push(o); });
+          return Object.keys(per).sort().map((capo) => {
+            const g = { key: `capo:${capo}`, chiusoDiSerie: false };
+            const chiuso = gruppoChiuso(g);
+            const daDec = per[capo].reduce((n, o) => n + daDecidereDi(o), 0);
+            return (
+              <div key={capo} className={`ga-grp ga-grp--blocco${chiuso ? " is-chiuso" : ""}`}>
+                <div className="ga-grp__head">
+                  <button type="button" className="ga-grp__toggle" aria-expanded={!chiuso} onClick={() => toggleGruppo(g)}>
+                    <span className="ga-grp__line"><span className="ga-grp__caret" aria-hidden="true">▾</span><span className="ga-grp__label">{capo}</span>
+                      <span className="ga-grp__n">{per[capo].length}</span>{daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}</span>
+                  </button>
+                </div>
+                {!chiuso && <div className="ga-grp__body">{per[capo].map(renderOpRiga)}</div>}
+              </div>
+            );
+          });
+        }
+        if (vistaOp === "tabella") {
+          const val = (o, k) => ({ op: o.id, pn: o.pn, capo: o.capo, car: o.car, dec: daDecidereDi(o), corso: rigaOp(o).inCorso,
+            chiuse: Number(o.anomalie_count || 0) - apertiDi(o), tue: Number(o.anomalie_in_carico_count || 0), ferma: o.ferma_da_giorni ?? -1 })[k];
+          const lista = [...filteredOrdini].sort((x, y) => {
+            const a = val(x, ordineTab.k), b = val(y, ordineTab.k);
+            const c = typeof a === "number" ? a - b : String(a || "").localeCompare(String(b || ""));
+            return ordineTab.desc ? -c : c;
+          });
+          const th = (k, l, r) => (
+            <th className={r ? "r" : ""}><button type="button" className="ga-tab__sort" onClick={() => setOrdineTab((p) => ({ k, desc: p.k === k ? !p.desc : true }))}>
+              {l}{ordineTab.k === k ? (ordineTab.desc ? " ↓" : " ↑") : ""}</button></th>
+          );
+          return (
+            <div className="ga-tabwrap"><table className="ga-tab">
+              <thead><tr>{th("op", "OP")}{th("pn", "P/N")}{th("capo", "Capocommessa")}{th("car", "CAR")}{th("dec", "Da decidere", 1)}{th("corso", "In corso", 1)}{th("chiuse", "Chiuse", 1)}{th("tue", "Tue", 1)}{th("ferma", "Ferma da", 1)}</tr></thead>
+              <tbody>{lista.map((o) => {
+                const { sel, daDec, inCorso } = rigaOp(o);
+                return (
+                  <tr key={opKey(o)} className={sel ? "is-sel" : ""} onClick={() => { selectOp(o); setVistaOp("elenco"); }} title="Apri l'OP">
+                    <td><b>{o.id}</b></td><td>{o.pn}</td><td>{o.capo}</td><td>{o.car}</td>
+                    <td className="r">{daDec ? <span className="ga-cnt ga-cnt--dec">{daDec}</span> : "—"}</td>
+                    <td className="r">{inCorso || "—"}</td><td className="r">{(Number(o.anomalie_count || 0) - apertiDi(o)) || "—"}</td>
+                    <td className="r">{o.anomalie_in_carico_count || "—"}</td>
+                    <td className="r">{o.anomalie_in_carico_count && o.ferma_da_giorni != null ? `${o.ferma_da_giorni} gg` : "—"}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table></div>
+          );
+        }
+        return filteredOrdini.map(renderOpRiga);
+      };
+      const apriDalRegistro = (e) => {
+        setPagina(null);
+        const o = ordini.find((x) => String(x.id || "").toLowerCase() === String(e.op_id || "").toLowerCase());
+        if (!o) { flash({ ok: false, text: `OP ${e.op_id} non presente nell'elenco` }); return; }
+        if (opKey(o) === opKey(op)) {
+          const a = anomalie.find((x) => String(x.local_id) === String(e.anomalia_id));
+          if (a) setSelectedSnId(a.item_id);
+          return;
+        }
+        daAprireRef.current = e.anomalia_id;
+        setSelectedOpKey(opKey(o));
+      };
+      const gridCols = isMobile ? undefined : (() => {
+        const base = isTablet ? ["250px", "270px", "minmax(0,1fr)"] : ["310px", "330px", "minmax(0,1fr)"];
+        if (vistaOp === "tabella") return { gridTemplateColumns: "minmax(0,1fr) minmax(0,0.9fr)" };
+        if (raggruppa === "kanban") return { gridTemplateColumns: `${base[0]} minmax(0,2.3fr) minmax(340px,1fr)` };
+        if (VISTE_LARGHE.includes(raggruppa)) return { gridTemplateColumns: `${base[0]} minmax(0,1.6fr) minmax(360px,1fr)` };
+        return { gridTemplateColumns: base.join(" ") };
+      })();
+
+      return (
+        <div className={`ga${isMobile ? " ga--mobile" : ""}`}>
+          {/* ── Barra superiore ── */}
+          <header className="ga-top">
+            <div className="ga-top__left">
+              {pagina
+                ? <button type="button" className="ga-iconbtn" title="Torna a Gestione anomalie" onClick={() => setPagina(null)}>{Ico.back}</button>
+                : <a href="/anomalie-menu" className="ga-iconbtn" title="Torna al menu anomalie">{Ico.back}</a>}
+              <h1 className="ga-top__title">{pagina ? "Registro attività" : (isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie")}</h1>
+              {!isMobile && op.id && !pagina && <span className="ga-top__op">{op.id}{op.pn && op.pn !== "—" ? ` · ${op.pn}` : ""}</span>}
+            </div>
+            <div className="ga-top__right">
+              <a className="ga-btn ga-btn--accent" href={nuovaAnomaliaUrl} title="Apri un nuovo controllo con segnalazione di anomalie">
+                {Ico.plus}{!isMobile && <span>Nuova segnalazione</span>}
+              </a>
+              {!isMobile && API.nc_lista && <a className="ga-btn ga-btn--ghost" href={API.nc_lista}>Non conformità</a>}
+              {CAN_REGISTRO && !pagina && <button type="button" className="ga-btn ga-btn--ghost" onClick={() => setPagina({ filtro: {} })}>Registro attività</button>}
+              <div className="ga-menu">
+                <button type="button" className="ga-iconbtn" title="Altre azioni" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>{Ico.more}</button>
+                {menuOpen && (
+                  <>
+                    <div className="ga-menu__scrim" onClick={() => setMenuOpen(false)} />
+                    <div className="ga-menu__pop" role="menu">
+                      <button type="button" role="menuitem" disabled={!op.id} onClick={() => handleOpenReport()}>Report OP</button>
+                      <button type="button" role="menuitem" disabled={!op.id} onClick={() => handleOpenReport("pdf")}>Report OP in PDF</button>
+                      <button type="button" role="menuitem" disabled={!canEditSelected} onClick={duplica}>Duplica anomalia come nuovo record</button>
+                      {isMobile && API.nc_lista && <a role="menuitem" href={API.nc_lista}>Non conformità</a>}
+                      {IS_ADMIN && ADMIN_URL && <a role="menuitem" href={ADMIN_URL}>Configurazione modulo</a>}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {pagina ? (
+            <RegistroAttivita filtroIniziale={pagina.filtro} onApri={apriDalRegistro} onChiudi={() => setPagina(null)} />
+          ) : (
+          <div className="ga-cols" style={gridCols}>
+
+            {/* ── 1. Ordini di produzione ── */}
+            <section className="ga-col ga-col--op" style={{ display: showCol("ordini") ? undefined : "none" }}>
+              <div className="ga-col__head">
+                <div className="ga-col__titlerow">
+                  <div className="ga-col__title">Ordini di produzione</div>
+                  <label className="ga-vista">Vista
+                    <select value={vistaOp} onChange={(e) => setVistaOp(e.target.value)} aria-label="Vista della colonna ordini">
+                      {VISTE_ORDINI.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="ga-chips">
+                  {[["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => (
+                    <Chip key={v} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
+                      onClick={() => setPageFilter(v)}>{l}</Chip>
+                  ))}
+                </div>
+                <div className="ga-search">
+                  {Ico.search}
+                  <input value={searchOp} onChange={(e) => setSearchOp(e.target.value)} placeholder="Cerca OP, P/N, capocommessa, CAR…" />
+                </div>
+              </div>
+              <div className="ga-col__body">
+                {loadingOrdini ? <div className="ga-empty">Caricamento ordini…</div>
+                  : filteredOrdini.length === 0 ? (
+                    <div className="ga-empty">
+                      {pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te."
+                        : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato."}
+                    </div>
+                  ) : renderVistaOrdini()}
               </div>
             </section>
-
             {/* ── 2. Anomalie dell'OP ── */}
-            <section className="ga-col ga-col--sn" style={{ display: showCol("serie") ? undefined : "none" }}>
+            <section className="ga-col ga-col--sn" style={{ display: showCol("serie") && !(vistaOp === "tabella" && !isMobile) ? undefined : "none" }}>
               {op.id && (() => {
                 // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
                 // contatori della riga a sinistra (apertiDi / daDecidereDi).
@@ -2119,9 +2490,10 @@
                   </div>
                 )}
                 <div className="ga-raggr">
-                  <div className="ga-seg-ctl" role="group" aria-label="Raggruppa le anomalie">
-                    <button type="button" className={raggruppa === "sn" ? "is-on" : ""} aria-pressed={raggruppa === "sn"} onClick={() => setRaggruppa("sn")}>Per S/N</button>
-                    <button type="button" className={raggruppa === "stato" ? "is-on" : ""} aria-pressed={raggruppa === "stato"} onClick={() => setRaggruppa("stato")}>Per stato</button>
+                  <div className="ga-seg-ctl ga-seg-ctl--viste" role="group" aria-label="Vista delle anomalie">
+                    {VISTE_ANOMALIE.map(([k, l]) => (
+                      <button key={k} type="button" className={raggruppa === k ? "is-on" : ""} aria-pressed={raggruppa === k} onClick={() => setRaggruppa(k)}>{l}</button>
+                    ))}
                   </div>
                   {pageFilter === "in_carico" && anomalie.length > 0 && (
                     <label className="ga-mostra-tutte" title="In «In carico a me» compaiono solo le anomalie che toccano a te">
@@ -2151,7 +2523,7 @@
                       {canEditCurrentOp && !anomalie.length && <a className="ga-btn ga-btn--accent ga-btn--sm" href={nuovaAnomaliaUrl}>{Ico.plus}Nuova segnalazione</a>}
                     </div>
                   ) : (
-                    <div className="ga-grps">{gruppiAnomalie.map(renderGruppo)}</div>
+                    renderVistaAnomalie()
                   )}
               </div>
               {clonaIds && (
@@ -2200,6 +2572,8 @@
                     </div>
                     <div className="ga-det__titlerow">
                       <h2 className="ga-det__title">Anomalia {codiceAnomalia(sn.local_id)}</h2>
+                      {CAN_REGISTRO && sn.local_id && <button type="button" className="ga-link" title="Tutto quello che è stato fatto su questa anomalia"
+                        onClick={() => setPagina({ filtro: { codice: codiceAnomalia(sn.local_id), giorni: "365" } })}>Storia</button>}
                       <span className={`ga-pill ga-pill--${statoSel.variant} ga-pill--lg`}>{statoSel.text}</span>
                       <div className="ga-det__nav">
                         <button type="button" className="ga-iconbtn ga-iconbtn--light" disabled={posizione <= 0} onClick={() => vaiA(-1)} title="Anomalia precedente (Alt+↑)">{Ico.prev}</button>
@@ -2214,6 +2588,28 @@
                       {isMobile && <span><b>CAR</b> {op.car || "—"}</span>}
                       {sn.controllo_operatore && <span><b>Segnalata da</b> {sn.controllo_operatore}{sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""}</span>}
                     </div>
+                    {!sn.chiudere && ((sn.ruoli_in_carico || []).length > 0 || Object.keys(sn.incaricati || {}).length > 0) && (
+                      <div className="ga-carico">
+                        <span className="ga-carico__t">In carico</span>
+                        {(sn.ruoli_in_carico || []).map((r) => {
+                          const inc = (sn.incaricati || {})[r];
+                          return (
+                            <span key={r} className={`ga-carico__p${inc ? " is-inc" : ""}`}
+                              title={inc ? `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}${inc.nota ? ` · ${inc.nota}` : ""}` : "Di serie"}>
+                              <b>{RUOLI_NOMI[r]}</b> {chiHaRuolo(sn, r)}{inc ? " · incaricato" : ""}
+                            </span>
+                          );
+                        })}
+                        {Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => (
+                          <span key={r} className="ga-carico__p is-inc is-dopo" title="Incaricato per quando l'anomalia passerà a questo ruolo">
+                            <b>{RUOLI_NOMI[r]}</b> {inc.nome} · dopo
+                          </span>
+                        ))}
+                        {sn.puo_cambiare_incaricato && sn.local_id && (
+                          <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={() => apriCambiaIncaricato()}>Cambia incaricato</button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="ga-det__body">
@@ -2628,6 +3024,7 @@
               )}
             </section>
           </div>
+          )}
 
           {azAnom && sn.local_id && (
             <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-az-t">
@@ -2682,6 +3079,45 @@
                 <div className="ga-modal__acts">
                   <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={infoModal.busy} onClick={() => setInfoModal(null)}>Annulla</button>
                   <button type="button" className="ga-btn ga-btn--accent" disabled={infoModal.busy} onClick={inviaRichiestaInfo}>{infoModal.busy ? "Invio…" : "Invia richiesta"}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cambia incaricato: capocommessa, CAR, amministratori */}
+          {incModal && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-inc-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-inc-t">Cambia incaricato · {codiceAnomalia(sn.local_id)}</div>
+                <label className="ga-field"><FieldLabel>Ruolo</FieldLabel>
+                  <select className="ga-input" value={incModal.ruolo} disabled={incModal.busy} onChange={(e) => cambiaRuoloIncarico(e.target.value)}>
+                    {["cc", "qualita", "controllore", "car"].map((r) => (
+                      <option key={r} value={r}>{RUOLI_NOMI[r]}{(sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : ""}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="ga-hint">Ora: {chiHaRuolo(sn, incModal.ruolo)}{(sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"}</div>
+                <label className="ga-field"><FieldLabel>Affida a</FieldLabel>
+                  {incModal.persone === null
+                    ? <div className="ga-hint">Caricamento…</div>
+                    : (
+                      <select className="ga-input" value={incModal.persona} disabled={incModal.busy}
+                        onChange={(e) => setIncModal({ ...incModal, persona: e.target.value })}>
+                        <option value="">— scegli —</option>
+                        {incModal.persone.map((p) => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+                      </select>
+                    )}
+                </label>
+                {incModal.ruolo === "qualita" && <div className="ga-hint">Per la qualità si sceglie fra i referenti RDC di Configurazione.</div>}
+                <textarea className="ga-input" rows={2} value={incModal.nota} placeholder="Nota (facoltativa): arriva nella mail"
+                  onChange={(e) => setIncModal({ ...incModal, nota: e.target.value })} />
+                {incModal.err && <div className="ga-note ga-note--warn">{incModal.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={incModal.busy} onClick={() => setIncModal(null)}>Annulla</button>
+                  {(sn.incaricati || {})[incModal.ruolo] && (
+                    <button type="button" className="ga-btn ga-btn--outline" disabled={incModal.busy} onClick={() => salvaIncaricato(true)}>Torna di serie</button>
+                  )}
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={incModal.busy || !incModal.persona} onClick={() => salvaIncaricato(false)}>{incModal.busy ? "Salvataggio…" : "Affida"}</button>
                 </div>
               </div>
             </div>

@@ -50,7 +50,7 @@ def link_segnala_hub(context):
 
     from django.urls import reverse
 
-    params = {"tipo": "IT"}
+    params = {"tipo": "IT", "asset_libero": "NOVICROM HUB"}
     codice = _codice_categoria_hub()
     if codice:
         params["categoria"] = codice

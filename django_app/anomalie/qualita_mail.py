@@ -26,7 +26,22 @@ def _destinatari_legacy(anomalia_id: int, op_id: str, destinatari: list[str]) ->
     from .mail_action_service import find_legacy_user_by_name
     from .views import _row_capocommessa
 
+    from .incaricati import per_anomalie
+
     out = []
+    incaricati = per_anomalie([anomalia_id]).get(int(anomalia_id)) or {}
+    for ruolo in ("cc", "controllore"):
+        if ruolo in destinatari and ruolo in incaricati:
+            # Ruolo affidato a una persona: la richiesta va a lei, non a chi lo ha di serie.
+            try:
+                from core.legacy_models import UtenteLegacy
+
+                utente = UtenteLegacy.objects.filter(pk=incaricati[ruolo]["id"]).first()
+                if utente is not None and all(u.pk != utente.pk for _r, u in out):
+                    out.append((ruolo, utente))
+            except Exception:
+                logger.warning("richiesta info: incaricato %s non trovato id=%s", ruolo, anomalia_id, exc_info=True)
+            destinatari = [d for d in destinatari if d != ruolo]
     if "cc" in destinatari:
         try:
             rows = _fetch("SELECT capocomessa FROM ordini_produzione WHERE title = %s", [op_id])

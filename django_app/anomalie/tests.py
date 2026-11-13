@@ -77,6 +77,7 @@ class AnomalieOrdiniApiTests(TestCase):
                     "anomalie_da_decidere_count": 1,
                     "in_carico": False,
                     "anomalie_in_carico_count": 0,
+                    "ferma_da_giorni": None,
                     "anomalie_rdc_cliente_count": 0,
                 }
             ],
