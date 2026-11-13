@@ -101,8 +101,12 @@ def info_per_anomalie(ids) -> dict[int, dict]:
                 for d in r.destinatari or []:
                     if d not in info["richiesta_aperta"]:
                         info["richiesta_aperta"].append(d)
-            for aid, inc in incaricati_per_anomalie(blocco).items():
-                out.setdefault(aid, _info_vuota())["incaricati"] = inc
+            try:
+                for aid, inc in incaricati_per_anomalie(blocco).items():
+                    out.setdefault(aid, _info_vuota())["incaricati"] = inc
+            except Exception:
+                # Tabella degli incaricati non ancora creata (migrazione 0029): regola di serie.
+                logger.warning("anomalie: incaricati non letti", exc_info=True)
     except Exception:
         logger.warning("anomalie: dati di «in carico» non letti", exc_info=True)
     return out
