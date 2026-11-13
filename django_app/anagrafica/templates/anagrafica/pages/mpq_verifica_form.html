@@ -1,0 +1,76 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Verifica {{ asset.asset_tag }} · {{ processo.nome }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+  .mpqf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .mpqf-lbl{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;}
+  .fm-input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d7e0ea;border-radius:8px;background:#fff;font:inherit;color:#0b1b2e;}
+  .fm-input:focus{outline:none;border-color:#1f87cd;box-shadow:0 0 0 3px rgba(31,135,205,.15);}
+  .mpqf-err{color:#c53030;font-size:12px;margin:2px 0;}
+  body.theme-dark .fm-input{background:var(--surface);border-color:var(--border);color:var(--text);}
+  body.theme-dark .mpqf-lbl{color:var(--text-mid);}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .mpqf-err{color:#fca5a5}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Verifica · {{ asset.asset_tag }} {{ asset.name }}</div>
+        <div class="fmd-block-aside">{{ processo.nome }}{% if qm.frequenza_mesi %} · conforme = qualificata per {{ qm.frequenza_mesi }} mesi{% endif %}</div>
+      </div>
+      {% for e in errori %}<div class="mpqf-err">{{ e }}</div>{% endfor %}
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mpqf-grid">
+          <div><label class="mpqf-lbl" for="v-tipo">Tipo</label>
+            <select id="v-tipo" name="tipo" class="fm-input">{% for k, l in tipi %}<option value="{{ k }}"{% if k == tipo_sel %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+          <div><label class="mpqf-lbl" for="v-data">Data *</label><input id="v-data" type="date" name="data" class="fm-input" value="{{ data_sel }}" required></div>
+          <div><label class="mpqf-lbl" for="v-chi">Eseguita da</label><input id="v-chi" type="text" name="eseguita_da" class="fm-input" maxlength="150" value="{{ post.eseguita_da|default:'' }}" placeholder="Es. capo reparto con collaudatore"></div>
+          <div><label class="mpqf-lbl" for="v-doc">Rapporto firmato</label><input id="v-doc" type="file" name="documento" class="fm-input"></div>
+        </div>
+
+        {% if parametri %}
+        <div class="fmd-tablewrap" style="margin-top:16px;">
+          <table class="fmd-table" data-fm-table-skip="1">
+            <thead><tr><th>Voce</th><th>Criterio</th><th>Nominale</th><th>Misurato</th><th>Conforme</th></tr></thead>
+            <tbody>
+            {% for p, v in righe_form %}
+              <tr>
+                <td>{{ p.nome }}</td>
+                <td class="fmd-muted">{{ p.criterio }}</td>
+                <td>{% if p.tipo == "TOLLERANZA" %}<input type="text" inputmode="decimal" name="nom_{{ p.id }}" class="fm-input" style="max-width:130px;" placeholder="{{ p.unita }}" value="{{ v.nominale|default:'' }}">{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+                <td>{% if p.tipo != "PROVA" %}<input type="text" inputmode="decimal" name="mis_{{ p.id }}" class="fm-input" style="max-width:130px;" placeholder="{{ p.unita }}" value="{{ v.misurato|default:'' }}">{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+                <td>{% if p.tipo == "PROVA" %}<label style="white-space:nowrap;"><input type="checkbox" name="ok_{{ p.id }}" value="1"{% if v.conforme %} checked{% endif %}> Sì</label>{% else %}<span class="fmd-muted">calcolato</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="fmd-muted" style="font-size:11px;margin-top:6px;">Una sola voce fuori criterio rende la verifica non conforme: la macchina viene sospesa e Qualità riceve una mail.</div>
+        {% else %}
+        <div class="fmd-muted" style="margin-top:12px;font-size:12px;">Il processo non ha voci di verifica: si registra l'esito conforme con il rapporto allegato. Le voci (es. giri ±10%) si aggiungono dal processo, «Cosa serve a una macchina».</div>
+        {% endif %}
+
+        <div style="margin-top:14px;"><label class="mpqf-lbl" for="v-note">Note</label><textarea id="v-note" name="note" rows="3" class="fm-input">{{ post.note|default:'' }}</textarea></div>
+        <div style="margin-top:18px;display:flex;gap:8px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary">Registra verifica</button>
+          <a href="{% url 'anagrafica:mpq_qualifica_macchina' qm.id %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

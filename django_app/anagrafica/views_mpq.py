@@ -255,7 +255,7 @@ def mpq_processo_detail(request, processo_id: int):
     abilitazioni = list(
         processo.abilitazioni
         .select_related("dipendente_qualifica")
-        .prefetch_related("certificazioni", "certificazioni__ente_certificatore")
+        .prefetch_related("certificazioni", "certificazioni__ente_certificatore", "ruoli_processo")
         .order_by("legacy_anagrafica_id")
     )
     nomi = _nomi_map([a.legacy_anagrafica_id for a in abilitazioni])
@@ -266,9 +266,16 @@ def mpq_processo_detail(request, processo_id: int):
     visite_req = list(processo.visite_richieste.all())
     # Requisiti generici tipizzati (1.14): audit/certificato/esame/… con stato proprio.
     requisiti_generici = list(processo.requisiti.all())
+    # Persone qualificate (13/11): requisiti per ruolo, una tantum o ricorrenti.
+    requisiti_persona = list(
+        processo.requisiti_persona.select_related("corso", "tipo_visita").prefetch_related("ruoli")
+    )
     ha_requisiti = bool(corsi_req or dpi_req or visite_req
-                        or any(r.attivo for r in requisiti_generici))
-    from .services.mpq_conformita import verifica_requisiti
+                        or any(r.attivo for r in requisiti_generici)
+                        or any(r.attivo for r in requisiti_persona))
+    from .services.mpq_persone import contesto_processo, stato_persona
+
+    ctx_persone = contesto_processo(processo, abilitazioni)
 
     ab_stato_labels = dict(AbilitazioneProcesso.STATO_CHOICES)
     righe = []
@@ -291,21 +298,32 @@ def mpq_processo_detail(request, processo_id: int):
         else:
             nome_persona = nomi.get(a.legacy_anagrafica_id) or f"#{a.legacy_anagrafica_id}"
             nome_risolto = a.legacy_anagrafica_id in nomi
-        conformita = None
-        if ha_requisiti and not a.nominativo_esterno and a.legacy_anagrafica_id:
-            conformita = verifica_requisiti(processo, a.legacy_anagrafica_id, oggi=oggi)
+        stato = stato_persona(a, oggi=oggi, contesto=ctx_persone)
+        scad_p = stato["scadenza"]
         righe.append({
             "obj": a,
             "nome": nome_persona,
             "nome_risolto": nome_risolto,
             "ruoli": ruoli,
+            "ruoli_processo": [r.nome for r in a.ruoli_processo.all()],
             "stato_label": ab_stato_labels.get(a.stato, a.stato),
             "certificazioni": certs,
-            "conformita": conformita,
+            "conformita": stato if ha_requisiti else None,
+            "stato_persona": stato,
+            "scadenza_persona": scad_p,
+            "scad_persona_stato": _classifica_scadenza(scad_p, oggi, s30, s60)[0] if scad_p else "",
+            # Prima voce da sistemare: il pulsante della riga porta lì.
+            "da_fare": next((v for v in stato["voci"]
+                             if v.get("bloccante", True) and v["stato"] in ("scaduto", "mancante", "in_scadenza")
+                             and v.get("req") is not None), None),
         })
 
     scad = processo.scadenza_effettiva
     scad_stato, scad_label = _classifica_scadenza(scad, oggi, s30, s60)
+
+    from .services.mpq_macchine import righe_macchine
+
+    macchine = righe_macchine(processo, oggi=oggi)
 
     return render(request, "anagrafica/pages/mpq_processo_detail.html", {
         "oggi": oggi,
@@ -324,19 +342,14 @@ def mpq_processo_detail(request, processo_id: int):
         "ha_requisiti": ha_requisiti,
         "abilitazioni": righe,
         "storico": list(processo.storico.select_related("registrato_da")[:50]),
-        "attrezzature": _attrezzature_processo(processo),
+        "attrezzature": macchine,
+        "n_persone_operative": sum(1 for r in righe if r["stato_persona"]["operativa"]),
+        "n_macchine_operative": sum(1 for r in macchine if r["operativa"]),
+        "ruoli_catalogo": list(processo.ruoli.select_related("competenza")),
+        "requisiti_persona": requisiti_persona,
+        "requisiti_macchina": list(processo.requisiti_macchina.select_related("piano")),
+        "parametri_verifica": list(processo.parametri_verifica.all()),
     })
-
-
-def _attrezzature_processo(processo) -> list[dict]:
-    """Attrezzature del processo: collegate qui o (regime PART145) col flag PART 145."""
-    from assets.services.part145 import attrezzature_processo
-
-    collegate = set(processo.attrezzature.values_list("pk", flat=True))
-    return [
-        {"asset": a, "collegata": a.pk in collegate, "da_flag": bool(a.part_145)}
-        for a in attrezzature_processo(processo).select_related("asset_category").order_by("asset_tag")
-    ]
 
 
 def _build_vista_groups(processi_qs=None):
@@ -630,17 +643,24 @@ def mpq_cliente_edit(request, cliente_id: int):
     })
 
 
-def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False):
+def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_sel=()):
     return {
         "form": form, "titolo": titolo, "processo": processo,
+        "ruoli_catalogo": list(processo.ruoli.all()),
+        "ruoli_sel": {int(r) for r in ruoli_sel if str(r).isdigit()},
         "dipendenti": _dipendenti_scelte(),
         "multi_select": multi_select,
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[processo.id]),
     }
 
 
+def _ruoli_dal_post(request, processo):
+    ids = [int(x) for x in request.POST.getlist("ruoli_processo") if str(x).isdigit()]
+    return list(processo.ruoli.filter(pk__in=ids))
+
+
 def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
-                          data_ingresso=None, note=""):
+                          data_ingresso=None, note="", ruoli_processo=()):
     """1.8 — Crea in blocco N ``AbilitazioneProcesso`` (dipendenti interni).
 
     Idempotente sul vincolo unico (persona×processo) e deduplica gli id ripetuti
@@ -677,6 +697,8 @@ def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
                 },
             )
             if created:
+                if ruoli_processo:
+                    ab.ruoli_processo.set(ruoli_processo)
                 creati.append(ab)
             else:
                 gia += 1
@@ -711,6 +733,7 @@ def mpq_abilitazione_add(request, processo_id: int):
                               "note": cd.get("note", "")},
                 )
                 if created:
+                    ab.ruoli_processo.set(_ruoli_dal_post(request, proc))
                     _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
                     messages.success(request, "Abilitazione aggiunta.")
                 else:
@@ -721,6 +744,7 @@ def mpq_abilitazione_add(request, processo_id: int):
                 creati, gia = bulk_abilita_processo(
                     proc, legacy_ids, ruoli=ruoli, stato=stato,
                     data_ingresso=cd.get("data_ingresso"), note=cd.get("note", ""),
+                    ruoli_processo=_ruoli_dal_post(request, proc),
                 )
                 for ab in creati:
                     _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
@@ -740,7 +764,8 @@ def mpq_abilitazione_add(request, processo_id: int):
         form = AbilitazioneProcessoForm()
     return render(request, "anagrafica/pages/mpq_abilitazione_form.html",
                   _abilitazione_form_ctx(form, proc, "Aggiungi persone abilitate",
-                                         multi_select=True))
+                                         multi_select=True,
+                                         ruoli_sel=request.POST.getlist("ruoli_processo")))
 
 
 @login_required
@@ -764,6 +789,7 @@ def mpq_abilitazione_edit(request, ab_id: int):
             ab.data_ingresso = cd.get("data_ingresso")
             ab.note = cd.get("note", "")
             ab.save()
+            ab.ruoli_processo.set(_ruoli_dal_post(request, ab.processo))
             _mpq_log(request, processo=ab.processo, abilitazione=ab, evento="Modifica abilitazione")
             messages.success(request, "Abilitazione aggiornata.")
             return redirect("anagrafica:mpq_processo_detail", processo_id=ab.processo_id)
@@ -777,8 +803,11 @@ def mpq_abilitazione_edit(request, ab_id: int):
             "is_controllore": ab.is_controllore, "is_part145": ab.is_part145,
             "stato": ab.stato, "data_ingresso": ab.data_ingresso, "note": ab.note,
         })
+    ruoli_sel = (request.POST.getlist("ruoli_processo") if request.method == "POST"
+                 else [r.pk for r in ab.ruoli_processo.all()])
     return render(request, "anagrafica/pages/mpq_abilitazione_form.html",
-                  _abilitazione_form_ctx(form, ab.processo, "Modifica abilitazione"))
+                  _abilitazione_form_ctx(form, ab.processo, "Modifica abilitazione",
+                                         ruoli_sel=ruoli_sel))
 
 
 @login_required
@@ -882,13 +911,15 @@ def mpq_attrezzatura_add(request, processo_id: int):
                  or Asset.objects.filter(internal_number__iexact=codice).first())
     if asset is None:
         messages.error(request, f"Nessun asset con tag o numero interno «{codice}».")
-    elif asset.processi_qualificati.filter(pk=proc.pk).exists():
-        messages.info(request, f"{asset.asset_tag} è già un'attrezzatura del processo.")
+    elif proc.qualifiche_macchina.filter(asset=asset).exclude(stato="RITIRATA").exists():
+        messages.info(request, f"{asset.asset_tag} è già una macchina del processo.")
     else:
-        asset.processi_qualificati.add(proc)
+        from .services.mpq_macchine import collega
+
+        collega(proc, asset, user=request.user)
         _mpq_log(request, processo=proc, evento=f"Attrezzatura collegata: {asset.asset_tag}",
                  dettaglio=asset.name)
-        messages.success(request, f"{asset.asset_tag} collegato al processo.")
+        messages.success(request, f"{asset.asset_tag} collegato al processo: registra la qualifica.")
     return redirect(reverse("anagrafica:mpq_processo_detail", args=[proc.id]) + "#attrezzature")
 
 
@@ -902,7 +933,9 @@ def mpq_attrezzatura_remove(request, processo_id: int, asset_id: int):
     proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
     asset = get_object_or_404(Asset, pk=asset_id)
     if asset.processi_qualificati.filter(pk=proc.pk).exists():
-        asset.processi_qualificati.remove(proc)
+        from .services.mpq_macchine import scollega
+
+        scollega(proc, asset, user=request.user)
         _mpq_log(request, processo=proc, evento=f"Attrezzatura scollegata: {asset.asset_tag}",
                  dettaglio=asset.name)
         messages.success(request, f"{asset.asset_tag} scollegato dal processo.")

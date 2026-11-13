@@ -39,6 +39,14 @@ __all__ = [
     "AbilitazioneProcesso",
     "CertificazioneIndividuale",
     "MpqStorico",
+    "RuoloProcesso",
+    "RequisitoPersona",
+    "EvidenzaRequisitoPersona",
+    "QualificaMacchina",
+    "RequisitoMacchina",
+    "ParametroVerificaMacchina",
+    "VerificaMacchina",
+    "VerificaMacchinaMisura",
 ]
 
 
@@ -205,6 +213,13 @@ class ProcessoQualificato(models.Model):
     data_conseguimento = models.DateField(null=True, blank=True)
     durata_mesi = models.PositiveSmallIntegerField(null=True, blank=True)
     data_scadenza = models.DateField(null=True, blank=True)
+
+    # Macchine qualificate: ogni quanto va ripetuta la qualifica di una macchina
+    # (es. P11TF12: 12 mesi). Proposta alle macchine nuove, modificabile per macchina.
+    frequenza_macchine_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Ripeti la qualifica macchine ogni (mesi)",
+        help_text="Vuoto = la qualifica di una macchina non scade (salvo sospensione).",
+    )
 
     # Personale nominale vs organizzativo (rimando a dichiarazione aziendale).
     personale_modalita = models.CharField(
@@ -421,6 +436,12 @@ class AbilitazioneProcesso(models.Model):
     is_addetto = models.BooleanField(default=False)
     is_controllore = models.BooleanField(default=False)
     is_part145 = models.BooleanField(default=False)
+    # Ruoli del processo (catalogo per processo, es. Operatore macchina, Presetting,
+    # CAR...): decidono quali requisiti persona valgono per chi. Vuoto = solo i
+    # requisiti validi per tutti i ruoli.
+    ruoli_processo = models.ManyToManyField(
+        "anagrafica.RuoloProcesso", blank=True, related_name="abilitazioni",
+    )
 
     stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_ATTIVA, db_index=True)
     data_ingresso = models.DateField(null=True, blank=True)
@@ -541,3 +562,469 @@ class MpqStorico(models.Model):
 
     def __str__(self) -> str:
         return f"{self.evento} ({self.registrato_il:%Y-%m-%d})" if self.registrato_il else self.evento
+
+
+# ===========================================================================
+# Persone qualificate e macchine qualificate (13/11/2026)
+#
+# Ogni processo ha tre livelli con scadenze indipendenti:
+# - il processo (approvazione cliente/ente: ``ProcessoQualificato.scadenza_effettiva``);
+# - la persona (requisiti per ruolo, una tantum o ricorrenti: ``RequisitoPersona``);
+# - la macchina (qualifica, verifiche con misure, manutenzioni: ``QualificaMacchina``).
+# Rif. MT CN 69 §7/§9 (P11TF12), MT CN 70 (Part 145), MT CN 07 §6.
+# ===========================================================================
+
+
+def _documento_mpq_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "evidenza"
+    now = timezone.now()
+    return (
+        f"anagrafica/mpq_evidenze/{type(instance).__name__.lower()}/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
+def numero_breve(valore) -> str:
+    """Decimale senza zeri finali, virgola italiana («4,1», «10»)."""
+    if valore is None:
+        return ""
+    testo = format(valore.normalize(), "f") if hasattr(valore, "normalize") else str(valore)
+    return testo.replace(".", ",")
+
+
+def _fine_mese(d: date) -> date:
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
+
+
+class RuoloProcesso(models.Model):
+    """Ruolo sul processo (es. P11TF12: Ingegneria, Programmazione, Operatore macchina...)."""
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="ruoli",
+    )
+    nome = models.CharField(max_length=120)
+    competenza = models.ForeignKey(
+        "anagrafica.CompetenzaSkm", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="ruoli_processo", verbose_name="Mansione della skill matrix",
+        help_text="Facoltativa: collega il ruolo alla mansione lavorativa corrispondente.",
+    )
+    ordine = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["processo", "ordine", "nome"]
+        verbose_name = "Ruolo del processo (MPQ)"
+        verbose_name_plural = "Ruoli del processo (MPQ)"
+        constraints = [
+            models.UniqueConstraint(fields=["processo", "nome"], name="mpq_uniq_ruolo_processo"),
+        ]
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class RequisitoPersona(models.Model):
+    """Cosa serve a una persona per essere qualificata sul processo (per ruolo).
+
+    Una tantum (es. formazione iniziale) o ricorrente ogni N mesi (es. corso
+    P11TF12 annuale): la scadenza è della persona, non del processo.
+    """
+
+    TIPO_CORSO = "corso"
+    TIPO_VISITA = "visita"
+    TIPO_TEST_VISIVO = "test_visivo"
+    TIPO_ESAME = "esame"
+    TIPO_ESPERIENZA = "esperienza"
+    TIPO_AFFIANCAMENTO = "affiancamento"
+    TIPO_CERTIFICATO = "certificato"
+    TIPO_ALTRO = "altro"
+    TIPO_CHOICES = [
+        (TIPO_CORSO, "Corso di formazione"),
+        (TIPO_VISITA, "Visita medica"),
+        (TIPO_TEST_VISIVO, "Test visivo"),
+        (TIPO_ESAME, "Esame / verifica di competenza"),
+        (TIPO_ESPERIENZA, "Ore di esperienza"),
+        (TIPO_AFFIANCAMENTO, "Affiancamento"),
+        (TIPO_CERTIFICATO, "Certificato"),
+        (TIPO_ALTRO, "Altro"),
+    ]
+    # Tipi la cui evidenza vive altrove (formazione, visite): niente doppioni.
+    TIPI_DA_ALTRI_MODULI = (TIPO_CORSO, TIPO_VISITA)
+
+    RICORRENZA_UNA_TANTUM = "UNA_TANTUM"
+    RICORRENZA_RICORRENTE = "RICORRENTE"
+    RICORRENZA_CHOICES = [
+        (RICORRENZA_UNA_TANTUM, "Una tantum"),
+        (RICORRENZA_RICORRENTE, "Ricorrente"),
+    ]
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="requisiti_persona",
+    )
+    ruoli = models.ManyToManyField(
+        RuoloProcesso, blank=True, related_name="requisiti",
+        help_text="Vuoto = vale per tutti i ruoli del processo.",
+    )
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES, default=TIPO_CORSO)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    corso = models.ForeignKey(
+        "anagrafica.TrainingCourse", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_persona_mpq",
+    )
+    tipo_visita = models.ForeignKey(
+        "anagrafica.TipoVisitaMedica", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_persona_mpq",
+    )
+    ricorrenza = models.CharField(
+        max_length=12, choices=RICORRENZA_CHOICES, default=RICORRENZA_RICORRENTE,
+    )
+    frequenza_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Ogni (mesi)",
+        help_text="Solo per i requisiti ricorrenti (es. 12 = ogni anno).",
+    )
+    scadenza_fine_mese = models.BooleanField(
+        default=False, verbose_name="Scade a fine mese",
+        help_text="Come le qualifiche CND: la scadenza cade l'ultimo giorno del mese.",
+    )
+    ore_minime = models.DecimalField(
+        max_digits=7, decimal_places=1, null=True, blank=True,
+        help_text="Per «Ore di esperienza»: ore da raggiungere.",
+    )
+    bloccante = models.BooleanField(
+        default=True, help_text="Se manca o è scaduto, la persona non è operativa sul processo.",
+    )
+    attivo = models.BooleanField(default=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["processo", "ordine", "id"]
+        verbose_name = "Requisito persona (MPQ)"
+        verbose_name_plural = "Requisiti persona (MPQ)"
+
+    def __str__(self) -> str:
+        return self.etichetta
+
+    @property
+    def etichetta(self) -> str:
+        if self.descrizione:
+            return self.descrizione
+        if self.tipo == self.TIPO_CORSO and self.corso_id:
+            return self.corso.titolo
+        if self.tipo == self.TIPO_VISITA and self.tipo_visita_id:
+            return self.tipo_visita.nome
+        return self.get_tipo_display()
+
+    @property
+    def is_ricorrente(self) -> bool:
+        return self.ricorrenza == self.RICORRENZA_RICORRENTE and bool(self.frequenza_mesi)
+
+    def scadenza_da(self, data_esecuzione):
+        """Scadenza calcolata da una data di esecuzione (None = non scade)."""
+        if not data_esecuzione or not self.is_ricorrente:
+            return None
+        scad = _add_months(data_esecuzione, int(self.frequenza_mesi))
+        return _fine_mese(scad) if self.scadenza_fine_mese else scad
+
+
+class EvidenzaRequisitoPersona(models.Model):
+    """Evidenza di un requisito persona (test visivo, esame, ore, affiancamento...).
+
+    Corsi e visite NON passano da qui: si leggono da Formazione e Visite.
+    """
+
+    ESITO_SUPERATO = "SUPERATO"
+    ESITO_NON_SUPERATO = "NON_SUPERATO"
+    ESITO_CHOICES = [
+        (ESITO_SUPERATO, "Superato"),
+        (ESITO_NON_SUPERATO, "Non superato"),
+    ]
+
+    abilitazione = models.ForeignKey(
+        AbilitazioneProcesso, on_delete=models.CASCADE, related_name="evidenze",
+    )
+    requisito = models.ForeignKey(
+        RequisitoPersona, on_delete=models.CASCADE, related_name="evidenze",
+    )
+    data_esecuzione = models.DateField()
+    esito = models.CharField(max_length=14, choices=ESITO_CHOICES, default=ESITO_SUPERATO)
+    ore = models.DecimalField(max_digits=7, decimal_places=1, null=True, blank=True)
+    data_scadenza = models.DateField(
+        null=True, blank=True,
+        help_text="Vuoto = calcolata dalla ricorrenza del requisito.",
+    )
+    documento = models.FileField(
+        upload_to=_documento_mpq_upload_to, storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+    )
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
+    note = models.CharField(max_length=255, blank=True, default="")
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data_esecuzione", "-id"]
+        verbose_name = "Evidenza requisito persona (MPQ)"
+        verbose_name_plural = "Evidenze requisito persona (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.requisito_id} · {self.data_esecuzione}"
+
+    @property
+    def scadenza_effettiva(self):
+        return self.data_scadenza or self.requisito.scadenza_da(self.data_esecuzione)
+
+
+class QualificaMacchina(models.Model):
+    """Qualifica di una macchina (asset) su un processo, con scadenza propria."""
+
+    STATO_DA_QUALIFICARE = "DA_QUALIFICARE"
+    STATO_QUALIFICATA = "QUALIFICATA"
+    STATO_DA_VALUTARE = "DA_VALUTARE"
+    STATO_SOSPESA = "SOSPESA"
+    STATO_DECLASSATA = "DECLASSATA"
+    STATO_RITIRATA = "RITIRATA"
+    STATO_CHOICES = [
+        (STATO_DA_QUALIFICARE, "Da qualificare"),
+        (STATO_QUALIFICATA, "Qualificata"),
+        (STATO_DA_VALUTARE, "Da valutare dopo manutenzione"),
+        (STATO_SOSPESA, "Sospesa"),
+        (STATO_DECLASSATA, "Declassata"),
+        (STATO_RITIRATA, "Non più usata nel processo"),
+    ]
+    # Stati con cui la macchina può lavorare il processo (se non scaduta).
+    STATI_OPERATIVI = (STATO_QUALIFICATA, STATO_DECLASSATA)
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="qualifiche_macchina",
+    )
+    asset = models.ForeignKey(
+        "assets.Asset", on_delete=models.CASCADE, related_name="qualifiche_processo",
+    )
+    stato = models.CharField(max_length=16, choices=STATO_CHOICES, default=STATO_DA_QUALIFICARE,
+                             db_index=True)
+    data_qualifica = models.DateField(null=True, blank=True)
+    frequenza_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Ripeti ogni (mesi)",
+        help_text="Vuoto = la qualifica non scade (salvo sospensione).",
+    )
+    data_scadenza = models.DateField(
+        null=True, blank=True, help_text="Vuoto = calcolata da data qualifica + frequenza.",
+    )
+    motivo_stato = models.CharField(max_length=255, blank=True, default="")
+    limitazioni = models.TextField(
+        blank=True, default="", help_text="Per una macchina declassata: lavorazioni escluse.",
+    )
+    note = models.TextField(blank=True, default="")
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["processo", "asset__asset_tag"]
+        verbose_name = "Qualifica macchina (MPQ)"
+        verbose_name_plural = "Qualifiche macchina (MPQ)"
+        constraints = [
+            models.UniqueConstraint(fields=["processo", "asset"], name="mpq_uniq_qualifica_macchina"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.asset_id} · {self.processo_id} · {self.stato}"
+
+    @property
+    def scadenza_effettiva(self):
+        if self.data_scadenza:
+            return self.data_scadenza
+        if self.data_qualifica and self.frequenza_mesi:
+            return _add_months(self.data_qualifica, int(self.frequenza_mesi))
+        return None
+
+    def is_scaduta(self, oggi=None) -> bool:
+        scad = self.scadenza_effettiva
+        return bool(scad and scad < (oggi or timezone.localdate()))
+
+    def is_operativa(self, oggi=None) -> bool:
+        return self.stato in self.STATI_OPERATIVI and not self.is_scaduta(oggi)
+
+
+class RequisitoMacchina(models.Model):
+    """Cosa serve a una macchina del processo: manutenzioni, tarature, controlli.
+
+    Collegato a un piano del motore manutenzioni: lo stato si legge dalle
+    scadenze di quel piano sull'asset (nessuna scadenza duplicata).
+    """
+
+    TIPO_VERIFICA = "VERIFICA_PERIODICA"
+    TIPO_MANUTENZIONE = "MANUTENZIONE"
+    TIPO_TARATURA = "TARATURA"
+    TIPO_CONTROLLO = "CONTROLLO_GIORNALIERO"
+    TIPO_ALTRO = "ALTRO"
+    TIPO_CHOICES = [
+        (TIPO_VERIFICA, "Verifica periodica"),
+        (TIPO_MANUTENZIONE, "Manutenzione programmata"),
+        (TIPO_TARATURA, "Taratura"),
+        (TIPO_CONTROLLO, "Controllo a bordo macchina"),
+        (TIPO_ALTRO, "Altro"),
+    ]
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="requisiti_macchina",
+    )
+    tipo = models.CharField(max_length=24, choices=TIPO_CHOICES, default=TIPO_MANUTENZIONE)
+    descrizione = models.CharField(max_length=255)
+    piano = models.ForeignKey(
+        "assets.MaintenanceInterventionTemplate", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_mpq", verbose_name="Piano di manutenzione",
+        help_text="Lo stato si legge dalle scadenze di questo piano sulla macchina.",
+    )
+    ricorrenza = models.CharField(
+        max_length=60, blank=True, default="", help_text="Solo descrittiva (es. «ogni giorno»).",
+    )
+    bloccante = models.BooleanField(
+        default=True, help_text="Se scaduto, la macchina non è operativa sul processo.",
+    )
+    attivo = models.BooleanField(default=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["processo", "ordine", "id"]
+        verbose_name = "Requisito macchina (MPQ)"
+        verbose_name_plural = "Requisiti macchina (MPQ)"
+
+    def __str__(self) -> str:
+        return self.descrizione
+
+
+class ParametroVerificaMacchina(models.Model):
+    """Voce della verifica di qualifica (es. MOD.161: giri ±10%, avanzamento ±15%)."""
+
+    TIPO_TOLLERANZA = "TOLLERANZA"
+    TIPO_MINIMO = "MINIMO"
+    TIPO_PROVA = "PROVA"
+    TIPO_CHOICES = [
+        (TIPO_TOLLERANZA, "Misura con tolleranza ± %"),
+        (TIPO_MINIMO, "Misura con valore minimo"),
+        (TIPO_PROVA, "Prova funzionale (conforme / non conforme)"),
+    ]
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="parametri_verifica",
+    )
+    nome = models.CharField(max_length=150)
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, default=TIPO_TOLLERANZA)
+    unita = models.CharField(max_length=20, blank=True, default="")
+    tolleranza_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    valore_minimo = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+    attivo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["processo", "ordine", "id"]
+        verbose_name = "Parametro verifica macchina (MPQ)"
+        verbose_name_plural = "Parametri verifica macchina (MPQ)"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def criterio(self) -> str:
+        if self.tipo == self.TIPO_TOLLERANZA:
+            return f"± {numero_breve(self.tolleranza_pct)}%"
+        if self.tipo == self.TIPO_MINIMO:
+            return f"≥ {numero_breve(self.valore_minimo)} {self.unita}".strip()
+        return "conforme / non conforme"
+
+
+class VerificaMacchina(models.Model):
+    """Verifica di qualifica di una macchina (iniziale, periodica, riqualifica)."""
+
+    TIPO_INIZIALE = "INIZIALE"
+    TIPO_PERIODICA = "PERIODICA"
+    TIPO_RIQUALIFICA = "RIQUALIFICA"
+    TIPO_CHOICES = [
+        (TIPO_INIZIALE, "Qualifica iniziale"),
+        (TIPO_PERIODICA, "Verifica periodica"),
+        (TIPO_RIQUALIFICA, "Riqualifica dopo manutenzione"),
+    ]
+    ESITO_OK = "OK"
+    ESITO_KO = "KO"
+    ESITO_CHOICES = [(ESITO_OK, "Conforme"), (ESITO_KO, "Non conforme")]
+
+    qualifica = models.ForeignKey(
+        QualificaMacchina, on_delete=models.CASCADE, related_name="verifiche",
+    )
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, default=TIPO_PERIODICA)
+    data = models.DateField()
+    esito = models.CharField(max_length=2, choices=ESITO_CHOICES, default=ESITO_OK)
+    eseguita_da = models.CharField(max_length=150, blank=True, default="")
+    documento = models.FileField(
+        upload_to=_documento_mpq_upload_to, storage=PrivateAnagraficaStorage(),
+        null=True, blank=True, help_text="Rapporto firmato (es. MOD.161).",
+    )
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
+    note = models.TextField(blank=True, default="")
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-id"]
+        verbose_name = "Verifica macchina (MPQ)"
+        verbose_name_plural = "Verifiche macchina (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.qualifica_id} · {self.data} · {self.esito}"
+
+
+class VerificaMacchinaMisura(models.Model):
+    """Riga della verifica: valore nominale/misurato e conformità calcolata."""
+
+    verifica = models.ForeignKey(
+        VerificaMacchina, on_delete=models.CASCADE, related_name="misure",
+    )
+    parametro = models.ForeignKey(
+        ParametroVerificaMacchina, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    nome = models.CharField(max_length=150)
+    tipo = models.CharField(max_length=12, choices=ParametroVerificaMacchina.TIPO_CHOICES)
+    unita = models.CharField(max_length=20, blank=True, default="")
+    tolleranza_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    valore_minimo = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    nominale = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    misurato = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    scostamento_pct = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    conforme = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["verifica", "id"]
+        verbose_name = "Misura verifica macchina (MPQ)"
+        verbose_name_plural = "Misure verifica macchina (MPQ)"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def criterio(self) -> str:
+        return ParametroVerificaMacchina.criterio.fget(self)
+
+    TIPO_TOLLERANZA = ParametroVerificaMacchina.TIPO_TOLLERANZA
+    TIPO_MINIMO = ParametroVerificaMacchina.TIPO_MINIMO
+
+    @property
+    def nominale_txt(self) -> str:
+        return f"{numero_breve(self.nominale)} {self.unita}".strip() if self.nominale is not None else "—"
+
+    @property
+    def misurato_txt(self) -> str:
+        return f"{numero_breve(self.misurato)} {self.unita}".strip() if self.misurato is not None else "—"
+
+    @property
+    def scostamento_txt(self) -> str:
+        return f"{numero_breve(self.scostamento_pct)}%" if self.scostamento_pct is not None else "—"

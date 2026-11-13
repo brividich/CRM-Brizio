@@ -119,6 +119,25 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_requisito_delete": PERM_MPQ_MANAGE,
     "anagrafica:mpq_attrezzatura_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_attrezzatura_remove": PERM_MPQ_MANAGE,
+    # Persone qualificate e macchine qualificate (13/11/2026)
+    "anagrafica:mpq_qualifica_macchina": PERM_MPQ_VIEW,
+    "anagrafica:mpq_documento": PERM_MPQ_VIEW,
+    "anagrafica:mpq_elenco": PERM_MPQ_VIEW,
+    "anagrafica:mpq_ruolo_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_ruolo_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_persona_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_persona_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_persona_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_evidenza_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_macchina_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_macchina_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_macchina_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_parametro_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_parametro_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_qualifica_macchina_crea": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_qualifica_macchina_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_qualifica_macchina_stato": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_verifica_add": PERM_MPQ_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

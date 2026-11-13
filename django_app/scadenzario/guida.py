@@ -116,7 +116,7 @@ SEZIONI: list[dict] = [
                 ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
                 ("Azioni CAPA", "azioni aperte con una scadenza; chi non gestisce le CAPA vede le proprie."),
                 ("Sistema di gestione", "sorveglianza e scadenza dei certificati, audit interni ed esterni, risposta all'ente, analisi e chiusura delle CAR, verifica di efficacia, qualifica degli auditor, azioni della SoA, scenari di rischio OT."),
-                ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128, requisiti, certificazioni individuali, revisione delle abilitazioni macchina."),
+                ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128, requisiti, certificazioni individuali, revisione delle abilitazioni macchina, scadenza della persona qualificata e della macchina qualificata sul processo (le macchine sospese o da valutare compaiono subito)."),
                 ("Formazione (enti e verifiche)", "documenti di enti e docenti, verifica assenza NC a 6 mesi."),
                 ("SOC / NIS2", "azioni correttive degli incidenti, accettazioni del rischio, termini di legge NIS2 e GDPR con l'ora nel titolo."),
                 ("GDPR", "verifica periodica degli amministratori di sistema."),

@@ -82,6 +82,13 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
 
   {% if form.non_field_errors %}<div class="assets-message assets-message-error">{{ form.non_field_errors }}</div>{% endif %}
 
+  {% if qualifiche_mpq_toccate %}
+    <div class="assets-message assets-message-warning" role="status">
+      Macchina qualificata per {% for q in qualifiche_mpq_toccate %}<a href="{% url 'anagrafica:mpq_qualifica_macchina' q.id %}">{{ q.processo.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}:
+      alla chiusura passa a «Da valutare» e Qualità decide se serve la riqualifica (mandrino, assi, sensori).
+    </div>
+  {% endif %}
+
   {% if pending_confirmation %}
     <div class="woc-gate" id="woc-gate">
       <h2>Rimangono {{ pending_occurrences|length }} manutenzion{{ pending_occurrences|length|pluralize:"e,i" }} non registrat{{ pending_occurrences|length|pluralize:"a,e" }}.</h2>
