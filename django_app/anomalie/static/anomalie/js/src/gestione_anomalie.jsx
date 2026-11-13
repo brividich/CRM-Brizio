@@ -1633,7 +1633,7 @@
 
       const uploadFiles = async (files, ambito = "") => {
         if (!files.length) return;
-        if (!(ambito === "qualita" ? CAN_QUALITA : canEditCurrentOp)) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati qui" }); return; }
+        if (!(ambito === "qualita" ? (CAN_QUALITA || sn.qualita_mia) : canEditCurrentOp)) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati qui" }); return; }
         if (!currentLocalId) { flash({ ok: false, text: "Seleziona un'anomalia salvata per caricare allegati." }); return; }
         setUploadingAttachments(true);
         try {
@@ -1889,20 +1889,21 @@
           const r = await fetch(`${API.incaricato_persone}?ruolo=${encodeURIComponent(ruolo)}`, { credentials: "same-origin" });
           const d = await r.json();
           if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
-          setIncModal((m) => (m && m.ruolo === ruolo ? { ...m, persone: d.persone || [] } : m));
+          setIncModal((m) => (m ? { ...m, persone: d.persone || [] } : m));
         } catch (e) {
           setIncModal((m) => (m ? { ...m, persone: [], err: "Elenco persone non caricato: " + e.message } : m));
         }
       };
-      const apriCambiaIncaricato = (ruolo) => {
-        const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
-        const att = (sn.incaricati || {})[r];
-        setIncModal({ ruolo: r, persona: att ? String(att.id) : "", nota: "", persone: null, busy: false, err: "" });
-        caricaPersone(r);
+      // Ruolo che ha l'anomalia adesso: «Cambia incaricato» la passa subito alla persona scelta.
+      const ruoloAttuale = (a) => {
+        const ruoli = a.ruoli_in_carico || [];
+        return ["cc", "qualita", "controllore", "car_op", "car"].find((r) => ruoli.includes(r))
+          || ruoli.filter((r) => String(r).startsWith("p:")).sort()[0] || "";
       };
-      const cambiaRuoloIncarico = (r) => {
-        const att = (sn.incaricati || {})[r];
-        setIncModal((m) => ({ ...m, ruolo: r, persona: att ? String(att.id) : "", persone: null, err: "" }));
+      const apriCambiaIncaricato = () => {
+        const r = ruoloAttuale(sn);
+        if (!r) { flash({ ok: false, text: "L'anomalia non è in carico a nessuno" }); return; }
+        setIncModal({ ruolo: r, persona: "", nota: "", persone: null, busy: false, err: "" });
         caricaPersone(r);
       };
       useEffect(() => {
@@ -2995,7 +2996,7 @@
                     </div>
 
                     {sn.local_id && (() => {
-                      const puo = CAN_QUALITA && !sn.chiudere;
+                      const puo = (CAN_QUALITA || sn.qualita_mia) && !sn.chiudere;
                       const attesaQ = (chi) => ruoloSegnalato(sn, chi) === "qualita" && !!sn[`segnalato_${chi}`]
                         && normalizeChoice(sn.avanzamento).toLowerCase() === AVANZAMENTO_RISPOSTA[chi].toLowerCase();
                       const chiudeQ = !sn.chiudere && shouldAutoClose(!!sn.aprire_rdc, (DESTINATARI.some((d) => attesaQ(d.chi) && qRisp[d.chi].trim()) ? "In attesa" : sn.avanzamento),
@@ -3192,14 +3193,11 @@
             <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-inc-t">
               <div className="ga-modal__box">
                 <div className="ga-modal__title" id="ga-inc-t">Cambia incaricato · {codiceAnomalia(sn.local_id)}</div>
-                <label className="ga-field"><FieldLabel>Ruolo</FieldLabel>
-                  <select className="ga-input" value={incModal.ruolo} disabled={incModal.busy} onChange={(e) => cambiaRuoloIncarico(e.target.value)}>
-                    {["cc", "qualita", "controllore", "car"].map((r) => (
-                      <option key={r} value={r}>{RUOLI_NOMI[r]}{(sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : ""}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="ga-hint">Ora: {chiHaRuolo(sn, incModal.ruolo)}{(sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"}</div>
+                <div className="ga-carico">
+                  <span className="ga-carico__t">Ora in carico a</span>
+                  <span className="ga-carico__p"><b>{nomeRuolo(incModal.ruolo)}</b> {chiHaRuolo(sn, incModal.ruolo)}</span>
+                </div>
+                <div className="ga-hint">L'anomalia passa subito alla persona che scegli: la trova in «In carico a me» e riceve notifica e mail. Resta sua finché l'anomalia è in mano a «{nomeRuolo(incModal.ruolo)}»; quando passa a un altro, decide la tabella di Configurazione.</div>
                 <label className="ga-field"><FieldLabel>Affida a</FieldLabel>
                   {incModal.persone === null
                     ? <div className="ga-hint">Caricamento…</div>
@@ -3211,7 +3209,6 @@
                       </select>
                     )}
                 </label>
-                {incModal.ruolo === "qualita" && <div className="ga-hint">Per la qualità si sceglie fra i referenti RDC di Configurazione.</div>}
                 <textarea className="ga-input" rows={2} value={incModal.nota} placeholder="Nota (facoltativa): arriva nella mail"
                   onChange={(e) => setIncModal({ ...incModal, nota: e.target.value })} />
                 {incModal.err && <div className="ga-note ga-note--warn">{incModal.err}</div>}

@@ -29,10 +29,7 @@ def _err(msg: str, status: int = 400) -> JsonResponse:
 
 @login_required
 def api_incaricato_persone(request):
-    ruolo = str(request.GET.get("ruolo") or "").strip()
-    if ruolo not in inc.RUOLI:
-        return _err("Ruolo non valido")
-    return JsonResponse({"success": True, "persone": inc.persone(ruolo)})
+    return JsonResponse({"success": True, "persone": inc.persone("tutti")})
 
 
 @login_required
@@ -52,8 +49,8 @@ def api_incaricato_cambia(request):
     except ValueError:
         return _err("local_id non valido")
     ruolo = str(data.get("ruolo") or "").strip()
-    if ruolo not in inc.RUOLI:
-        return _err("Scegli il ruolo da affidare")
+    if ruolo and not inc.ruolo_valido(ruolo):
+        return _err("Ruolo non valido")
     nota = _safe_text(data.get("nota"), 500) or ""
     row = _riga(local_id)
     if row is None:
@@ -63,6 +60,11 @@ def api_incaricato_cambia(request):
     info = dq.info_per_anomalie([local_id]).get(local_id)
     if not inc.puo_cambiare(request, row, info):
         return _err("L'incaricato lo cambiano capocommessa, CAR e amministratori", 403)
+    # Senza ruolo (il caso normale): l'anomalia passa subito alla persona scelta,
+    # al posto di chi la ha adesso.
+    ruolo = ruolo or inc.ruolo_attuale(dq.ruoli_in_carico(row, info))
+    if not ruolo:
+        return _err("L'anomalia non è in carico a nessuno (è chiusa?)")
 
     raw_id = str(data.get("persona_id") or "").strip()
     nuova = None
@@ -70,8 +72,6 @@ def api_incaricato_cambia(request):
         nuova = inc.persona(raw_id)
         if nuova is None:
             return _err("Persona non trovata fra gli utenti attivi", 404)
-        if ruolo == "qualita" and nuova["id"] not in {p["id"] for p in inc.persone("qualita")}:
-            return _err("Per la qualità scegli fra i referenti RDC di Configurazione")
 
     attuale = ((info or {}).get("incaricati") or {}).get(ruolo)
     if (attuale or {}).get("id") == (nuova or {}).get("id"):
@@ -86,7 +86,7 @@ def api_incaricato_cambia(request):
 
     op_id = str(row.get("ex_op_nominativo") or "").strip()
     di_serie = inc.nome_di_serie(ruolo, row, info)
-    etichetta = f"Incaricato {inc.NOMI_RUOLO[ruolo]}"
+    etichetta = "Incaricato"
     modifiche = [[etichetta, (prima or {}).get("nome") or f"{di_serie} (di serie)",
                   (dopo or {}).get("nome") or f"{di_serie} (di serie)"]]
     legacy = getattr(request, "legacy_user", None) or get_legacy_user(request.user)

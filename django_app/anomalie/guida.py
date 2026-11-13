@@ -317,20 +317,22 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Sotto il titolo dell'anomalia la riga «In carico» dice a chi tocca adesso: il ruolo e la persona. "
                   "A chi passa in ogni momento (da decidere, attesa del cliente, avanzamento qualità, «Aprire RDC», "
-                  "ogni avanzamento…) lo decide la tabella «Chi ha in carico l'anomalia» in Configurazione → Qualità: "
+                  "da segnalare / segnalato al cliente, al terzista, al CAR, ogni avanzamento…) lo decide la tabella «Chi ha "
+                  "in carico l'anomalia» in Configurazione → Qualità: "
                   "per ogni riga un ruolo o una persona precisa, vale la prima riga che corrisponde dall'alto. Di serie: "
                   "da decidere → capocommessa, attesa della risposta → chi ha segnalato, il resto → qualità."),
             ("passi", [
                 "Premi «Cambia incaricato» (lo vedono capocommessa e CAR dell'OP, i CAR segnalati e gli "
                 "amministratori del modulo).",
-                "Scegli il ruolo (quelli «in carico ora» sono indicati) e in «Affida a» la persona; per la qualità "
-                "l'elenco ha solo i referenti RDC di Configurazione.",
+                "La finestra mostra a chi è in carico ora; in «Affida a» scegli la persona: l'anomalia passa subito "
+                "a lei, al posto di chi la aveva.",
                 "Scrivi una nota se serve e premi «Affida».",
             ]),
             ("ul", [
-                "Da quel momento quel ruolo, su quell'anomalia, tocca solo all'incaricato: la trova in «In carico a "
-                "me», vede l'OP e, se è incaricato del capocommessa, può decidere. Chi aveva il ruolo di serie non la "
-                "vede più fra le sue.",
+                "Da quel momento l'anomalia è sua: la trova in «In carico a me», vede l'OP e può fare quello che "
+                "faceva chi la aveva (decidere al posto del capocommessa, la decisione qualità al posto della "
+                "qualità). Chi la aveva non la vede più fra le sue. Resta sua finché l'anomalia è in mano a quel "
+                "ruolo; quando passa al passo successivo decide la tabella «Chi ha in carico l'anomalia».",
                 "L'incaricato riceve una notifica nel portale e una mail con la nota e il link; le richieste di "
                 "informazioni della qualità al capocommessa o al controllore vanno a lui.",
                 "Nella riga «In carico» l'incaricato ha il bordo viola; un incarico per un ruolo che oggi non ha "

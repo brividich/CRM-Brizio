@@ -72,8 +72,16 @@ class CambiaIncaricatoApiTests(_TabellaAnomalieMixin, TestCase):
         x = AnomaliaIncaricato.objects.get(anomalia_id=self.aid, ruolo="cc")
         self.assertEqual((x.legacy_user_id, x.nota), (42, "Segue lui la commessa"))
         ev = AnomaliaActionLog.objects.get(anomalia_id=self.aid, action="incaricato")
-        self.assertEqual(ev.payload["modifiche"], [["Incaricato capocommessa", "BIANCHI LUCA (di serie)", "PERSONA 42"]])
+        self.assertEqual(ev.payload["modifiche"], [["Incaricato", "BIANCHI LUCA (di serie)", "PERSONA 42"]])
         self.assertEqual(self.avvisi[0]["persona_id"], 42)
+
+    def test_senza_ruolo_va_a_chi_ha_l_anomalia_adesso(self):
+        # Da decidere = capocommessa: la persona scelta prende il suo posto subito.
+        r = self._post(persona_id=42)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(AnomaliaIncaricato.objects.filter(anomalia_id=self.aid, ruolo="cc", legacy_user_id=42).exists())
+        d = json.loads(r.content)
+        self.assertIn("cc", d["incaricati"])
 
     def test_torna_di_serie(self):
         self._post(ruolo="cc", persona_id=42)

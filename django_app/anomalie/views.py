@@ -2598,6 +2598,7 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
         r["ruoli_in_carico"] = sorted(dq.ruoli_in_carico(riga, info.get(aid)))
         r["in_carico_a_me"] = dq.in_carico_a_me(io, riga, info.get(aid))
         r["incaricati"] = (info.get(aid) or {}).get("incaricati") or {}
+        r["qualita_mia"] = inc.e_incaricato(info.get(aid), "qualita", io.get("legacy_id"))
         persone = [x[2:] for x in r["ruoli_in_carico"] if x.startswith("p:")]
         if persone:
             from anomalie.regole_carico import nomi_persone
@@ -3904,8 +3905,9 @@ def api_anomalie_allegati_upload(request):
         per_qualita = ambito == "qualita"
         if per_qualita:
             # Allegati della decisione qualità: solo chi decide la qualità.
+            from anomalie.incaricati import incaricato_qualita
             from anomalie.qualita_views import puo_decisione_qualita
-            if not puo_decisione_qualita(request):
+            if not (puo_decisione_qualita(request) or incaricato_qualita(request, local_id)):
                 return _json_error("Permesso negato: allega alla decisione qualità solo la qualità", status=403)
         elif not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
