@@ -154,3 +154,58 @@ class RetentionMailInviateTests(TestCase):
         )
         call_command("cleanup_run_logs", apply=True, days=90, stdout=StringIO())
         self.assertEqual(list(EmailInviata.objects.values_list("destinatari", flat=True)), ["nuova@example.com"])
+
+
+class RegistroAgganciatoAllInvioTests(TestCase):
+    """Ogni EmailMessage.send lascia una riga; registra() la completa invece di duplicarla."""
+
+    def test_mail_di_un_modulo_senza_registra(self):
+        from django.core.mail import EmailMessage
+
+        EmailMessage("[Sicurezza] Informativa #40", "testo", "noreply@test.local", ["Preposti@Test.local"]).send()
+        riga = EmailInviata.objects.get()
+        self.assertEqual((riga.origine, riga.destinatari, riga.oggetto), ("modulo", "preposti@test.local", "[Sicurezza] Informativa #40"))
+        self.assertEqual(riga.sorgente, "automazioni")
+        self.assertEqual(riga.esito, EmailInviata.ESITO_INVIATA)
+
+    def test_registra_completa_la_riga_dell_invio(self):
+        from django.core.mail import EmailMessage
+
+        EmailMessage("Richiesta 7", "testo", "noreply@test.local", ["dip@test.local"], cc=["capo@test.local"]).send()
+        registra(origine="assenze_modifica", destinatari=["dip@test.local"], oggetto="Richiesta 7",
+                 sorgente="assenze", record_id=7)
+        riga = EmailInviata.objects.get()
+        self.assertEqual((riga.origine, riga.sorgente, riga.record_id), ("assenze_modifica", "assenze", "7"))
+        self.assertEqual(riga.copia, "capo@test.local")
+
+    def test_send_hub_mail_una_riga_sola(self):
+        from core.email_utils import send_hub_mail
+
+        send_hub_mail("Promemoria", "testo", ["a@test.local"], email_type="Reception")
+        riga = EmailInviata.objects.get()
+        self.assertEqual((riga.origine, riga.sorgente), ("hub", "Reception"))
+
+    def test_invio_fallito_registrato_e_rilanciato(self):
+        from django.core.mail import EmailMessage
+
+        with patch("django.core.mail.backends.locmem.EmailBackend.send_messages", side_effect=OSError("smtp giu")):
+            with self.assertRaises(OSError):
+                EmailMessage("Oggetto", "t", "noreply@test.local", ["x@test.local"]).send()
+        riga = EmailInviata.objects.get()
+        self.assertEqual(riga.esito, EmailInviata.ESITO_ERRORE)
+        self.assertIn("smtp giu", riga.errore)
+
+    def test_oggetto_diverso_non_si_fonde(self):
+        from django.core.mail import EmailMessage
+
+        EmailMessage("Prima", "t", "noreply@test.local", ["x@test.local"]).send()
+        registra(origine="automazione", destinatari=["x@test.local"], oggetto="Seconda")
+        self.assertEqual(EmailInviata.objects.count(), 2)
+
+    def test_registro_rotto_non_ferma_l_invio(self):
+        from django.core import mail
+        from django.core.mail import EmailMessage
+
+        with patch("automazioni.mail_inviate._crea_riga", side_effect=RuntimeError("db")):
+            self.assertEqual(EmailMessage("O", "t", "noreply@test.local", ["x@test.local"]).send(), 1)
+        self.assertEqual(len(mail.outbox), 1)

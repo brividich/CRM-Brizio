@@ -641,6 +641,10 @@ def minute_recipients(meeting) -> tuple[list[str], list[str]]:
     return presenti, [e for e in tutti if e not in presenti]
 
 
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("kickoff_minuta", skipped_result={"sent": False, "recipients": [], "cc": [], "reason": "flow_disabled"})
 def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict:
     """Invia la minuta a tutti i partecipanti (CC a PM/capo commessa, PDF allegato).
 
@@ -691,6 +695,7 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
     return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 
 
+@event_flow("kickoff_convocazione", skipped_result={"sent": False, "recipients": [], "cc": [], "reason": "flow_disabled"})
 def send_meeting_invite(meeting, *, sent_by=None) -> dict:
     """Invia la convocazione (ordine del giorno) ai partecipanti.
 
@@ -742,6 +747,7 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
     return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 
 
+@event_flow("kickoff_annullamento", skipped_result={"sent": False, "recipients": [], "cc": [], "reason": "flow_disabled"})
 def send_meeting_cancellation(meeting, *, sent_by=None) -> dict:
     """Avvisa i convocati che l'incontro e' annullato (.ics di annullamento allegato)."""
     recipients = meeting.get_all_attendee_emails()

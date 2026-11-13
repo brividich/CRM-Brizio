@@ -173,6 +173,10 @@ def notify_task_completed(task: Task, *, actor=None) -> None:
         logger.exception("Notifica completamento attivita' fallita (task=%s)", task.pk)
 
 
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("kickoff_assegnazione_attivita")
 def _mail_assegnazione(task: Task, *, actor=None) -> None:
     """Mail al responsabile: prima l'assegnazione arrivava solo nel portale.
 

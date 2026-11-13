@@ -693,6 +693,10 @@ def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int
     return destinatari
 
 
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("sgi_audit_comunicazione", skipped_result=0)
 def invia_email_comunicazione(audit: Audit, *, metodo: str, destinatari: list[str], annullamento: bool = False) -> int:
     """Email del piano (o del suo annullamento) con eventuale invito/cancellazione .ics."""
     from core.email_utils import send_hub_mail
@@ -713,6 +717,7 @@ def invia_email_comunicazione(audit: Audit, *, metodo: str, destinatari: list[st
                          email_type="Sistema di gestione", attachments=allegati)
 
 
+@event_flow("sgi_audit_rapporto")
 def distribuisci_rapporto(audit: Audit) -> None:
     destinatari = {
         p.email.strip() for p in audit.persone.filter(
