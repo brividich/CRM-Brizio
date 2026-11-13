@@ -119,6 +119,8 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_requisito_delete": PERM_MPQ_MANAGE,
     "anagrafica:mpq_requisito_sposta": PERM_MPQ_MANAGE,
     "anagrafica:mpq_matrice": PERM_MPQ_VIEW,
+    "anagrafica:mpq_ruolo_mansione": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_aggiorna_mansioni": PERM_MPQ_MANAGE,
     "anagrafica:mpq_attrezzatura_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_attrezzatura_remove": PERM_MPQ_MANAGE,
     # Persone qualificate e macchine qualificate (13/11/2026)

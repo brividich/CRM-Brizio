@@ -580,3 +580,57 @@ def mpq_matrice(request):
         "solo_problemi": solo_problemi, "n_operative": n_operative,
         "n_problemi": sum(r["problemi"] for r in righe),
     })
+
+
+def _messaggio_allineamento(request, esito) -> None:
+    parti = [f"{esito[k]} {lbl}" for k, lbl in (("assegnate", "assegnate"), ("alzate", "livelli alzati"),
+                                                ("abbassate", "livelli abbassati")) if esito[k]]
+    if parti:
+        messages.success(request, "Mansioni aggiornate: " + ", ".join(parti) + ". Il dettaglio è nello storico delle abilitazioni.")
+    else:
+        messages.info(request, "Mansioni e livelli già allineati.")
+
+
+def _allinea_processo(proc) -> dict:
+    """Assegnazioni e livelli delle mansioni collegate ai ruoli, poi il ricalcolo delle competenze."""
+    from .services.competenze_ricalcolo import ricalcola
+    from .services.mpq_competenze import allinea
+
+    esito = allinea(processi_ids=[proc.pk])
+    ids = set(proc.abilitazioni.values_list("legacy_anagrafica_id", flat=True)) - {0}
+    if ids:
+        ricalcola(ids, motivo=f"qualifica MOD.128 «{proc.nome}»")
+    return esito
+
+
+@login_required
+@require_POST
+def mpq_ruolo_mansione(request, processo_id: int):
+    """Collega un ruolo del processo a una mansione della skill matrix (vuoto = scollega)."""
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from .models_skillmatrix import CompetenzaSkm
+
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    ruolo = get_object_or_404(RuoloProcesso, pk=request.POST.get("ruolo") or 0, processo=proc)
+    cid = request.POST.get("competenza") or ""
+    ruolo.competenza = get_object_or_404(CompetenzaSkm, pk=cid) if cid.isdigit() else None
+    ruolo.save(update_fields=["competenza"])
+    _mpq_log(request, processo=proc, evento="Ruolo collegato a mansione",
+             dettaglio=f"{ruolo.nome} → {ruolo.competenza or 'nessuna'}")
+    _messaggio_allineamento(request, _allinea_processo(proc))
+    return redirect(_dettaglio(proc.id, "requisiti-persone"))
+
+
+@login_required
+@require_POST
+def mpq_aggiorna_mansioni(request, processo_id: int):
+    """«Aggiorna mansioni e livelli»: riallinea subito senza aspettare la notte."""
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    esito = _allinea_processo(proc)
+    _mpq_log(request, processo=proc, evento="Mansioni e livelli aggiornati",
+             dettaglio=f"assegnate {esito['assegnate']}, alzati {esito['alzate']}, abbassati {esito['abbassate']}")
+    _messaggio_allineamento(request, esito)
+    return redirect(_dettaglio(proc.id, "requisiti-persone"))

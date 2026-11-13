@@ -179,7 +179,7 @@
       </div>
       <div style="padding:2px 2px 10px;">
         <span class="fmd-muted" style="font-size:12px;margin-right:6px;">Ruoli del processo:</span>
-        {% for r in ruoli_catalogo %}<span class="fmd-badge fmd-b-cyan" title="{% if r.competenza %}Mansione: {{ r.competenza }}{% endif %}">{{ r.nome }}{% if can_manage %}
+        {% for r in ruoli_catalogo %}<span class="fmd-badge fmd-b-cyan" title="{% if r.competenza %}Mansione della skill matrix: {{ r.competenza }}{% endif %}">{{ r.nome }}{% if r.competenza %} → {{ r.competenza }}{% endif %}{% if can_manage %}
           <form method="post" action="{% url 'anagrafica:mpq_ruolo_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il ruolo «{{ r.nome }}»? Le persone perdono il ruolo, i requisiti restano.">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>{% endif %}</span>
         {% empty %}<span class="fmd-muted" style="font-size:12px;">nessuno (i requisiti valgono per tutti)</span>{% endfor %}
         {% if can_manage %}
@@ -189,6 +189,19 @@
                  style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
           <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Ruoli</button>
         </form>
+        {% if ruoli_catalogo %}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+          <form method="post" action="{% url 'anagrafica:mpq_ruolo_mansione' processo.id %}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            {% csrf_token %}
+            <span class="fmd-muted" style="font-size:12px;">Collega il ruolo</span>
+            <select name="ruolo" class="fm-input fm-select" style="max-width:200px;">{% for r in ruoli_catalogo %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}</select>
+            <span class="fmd-muted" style="font-size:12px;">alla mansione</span>
+            <select name="competenza" class="fm-input fm-select" style="max-width:280px;"><option value="">— nessuna —</option>{% for m in mansioni_scelta %}<option value="{{ m.pk }}">{{ m.display|default:m.competenza_key }}</option>{% endfor %}</select>
+            <button type="submit" class="fmd-btn fmd-btn-ghost">Collega</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:mpq_aggiorna_mansioni' processo.id %}" class="fmd-act-form">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" title="Mette in lista sulla mansione chi ha il ruolo e aggiorna il livello: qualificato = almeno il livello operativo, non qualificato = sotto la soglia">↻ Aggiorna mansioni e livelli</button></form>
+        </div>
+        {% endif %}
         {% endif %}
       </div>
       {% if requisiti_persona %}
