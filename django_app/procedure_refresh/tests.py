@@ -1595,3 +1595,83 @@ class AdminDashboardSettingsTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, "Accesso rapido")
         self.assertContains(resp, "ms-hero--compact")
+
+
+class CampaignDeleteTests(TestCase):
+    """«Elimina» sessione: via la sessione con assegnazioni e scadenze, restano i documenti."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username="pr_del_admin", password="pw", is_superuser=True)
+        self.doc = ProcedureDocument.objects.create(code="MT-DEL-001", title="t", is_active=True)
+        self.rev = ProcedureRevision.objects.create(
+            document=self.doc, revision_code="1", revision_date=date.today(),
+            effective_date=date.today(), source_type=SourceType.FILESERVER,
+            source_path="C:/share/x.pdf", file_name="x.pdf", is_current=True,
+        )
+        self.camp = ProcedureCampaign.objects.create(
+            name="Prova", status=CampaignStatus.CLOSED,
+            start_date=date.today(), due_date=date.today(), created_by=self.admin,
+        )
+        ProcedureCampaignDocument.objects.create(campaign=self.camp, revision=self.rev, is_mandatory=True)
+        self.assignment = ProcedureAssignment.objects.create(
+            campaign=self.camp, revision=self.rev, user=self.admin,
+            status=AssignmentStatus.OVERDUE, due_date=date.today(),
+        )
+
+    def test_elimina_sessione_assegnazioni_e_tiene_documenti(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post(reverse("procedure_refresh:campaign_delete", args=[self.camp.pk]))
+        self.assertRedirects(resp, reverse("procedure_refresh:campaign_list"), fetch_redirect_response=False)
+        self.assertFalse(ProcedureCampaign.objects.filter(pk=self.camp.pk).exists())
+        self.assertFalse(ProcedureAssignment.objects.filter(pk=self.assignment.pk).exists())
+        self.assertFalse(ProcedureCampaignDocument.objects.filter(campaign_id=self.camp.pk).exists())
+        self.assertTrue(ProcedureRevision.objects.filter(pk=self.rev.pk).exists())
+
+    def test_get_non_elimina(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("procedure_refresh:campaign_delete", args=[self.camp.pk]))
+        self.assertEqual(resp.status_code, 405)
+        self.assertTrue(ProcedureCampaign.objects.filter(pk=self.camp.pk).exists())
+
+    def test_non_gestore_non_elimina(self):
+        u = User.objects.create_user(username="pr_del_user", password="pw")
+        self.client.force_login(u)
+        self.client.post(reverse("procedure_refresh:campaign_delete", args=[self.camp.pk]))
+        self.assertTrue(ProcedureCampaign.objects.filter(pk=self.camp.pk).exists())
+
+    def test_pulsante_in_elenco(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("procedure_refresh:campaign_list"))
+        self.assertContains(resp, reverse("procedure_refresh:campaign_delete", args=[self.camp.pk]))
+
+
+class SgiGiaAllineatoTests(TestCase):
+    """Un file identico alla revisione in vigore non è un «non sincronizzato»."""
+
+    def test_file_identico_su_documento_assegnato_non_e_escluso(self):
+        import hashlib
+        import tempfile
+        from pathlib import Path
+
+        from procedure_refresh.management.commands.import_sgi_da_share import filter_auto_safe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "MT CN 64 Rev.2.pdf"
+            f.write_bytes(b"%PDF-1.4 prova")
+            doc = ProcedureDocument.objects.create(code="MT CN 64", title="t", is_active=True)
+            rev = ProcedureRevision.objects.create(
+                document=doc, revision_code="2", revision_date=date.today(), effective_date=date.today(),
+                source_type=SourceType.FILESERVER, source_path=str(f), file_name=f.name,
+                file_hash=hashlib.sha256(f.read_bytes()).hexdigest(), is_current=True,
+            )
+            camp = ProcedureCampaign.objects.create(name="c", start_date=date.today(), due_date=date.today())
+            u = User.objects.create_user(username="pr_alline", password="pw")
+            ProcedureAssignment.objects.create(campaign=camp, revision=rev, user=u)
+            info = {"code": "MT CN 64", "revision": "2", "title": "t", "document_type": "MT",
+                    "category": "9100", "fallback": False, "file_name": f.name, "path": str(f)}
+            safe, excluded = filter_auto_safe([info])
+            self.assertEqual((safe, excluded), ([], []))
+            # contenuto cambiato senza nuova revisione: resta segnalato
+            f.write_bytes(b"%PDF-1.4 modificato")
+            safe, excluded = filter_auto_safe([info])
+            self.assertEqual(len(excluded), 1)

@@ -232,12 +232,12 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("ul", [
                 "Ogni 15 minuti il portale guarda solo nomi, dimensioni e date dei file della cartella SGI: se qualcosa è cambiato importa documenti nuovi, revisioni nuove (anche dei documenti in presa visione) e file spostati o rinominati.",
-                "Entrano anche i file con nomi liberi (piani qualità, manuali, documenti senza codice SGI). Restano fuori solo i file con lo stesso codice in più punti della cartella e quelli con una revisione nel nome non più recente di quella in libreria.",
+                "Entrano anche i file con nomi liberi (piani qualità, manuali, documenti senza codice SGI). Restano fuori solo i file con lo stesso codice in più punti della cartella e quelli con una revisione nel nome non più recente di quella in libreria (un file identico alla revisione in vigore conta come già sincronizzato, anche se il documento è in una sessione).",
                 "Di notte (03:00) fa la lettura completa: testo dei PDF nuovi, collegamenti, indice.",
                 "In alto a destra «Controllata alle …» dice l'ora dell'ultimo controllo; il pallino diventa giallo se il controllo non gira da più di 45 minuti.",
                 "In «Impostazioni», riquadro «Sincronizzazione con la cartella SGI», chi gestisce vede cosa va e cosa no (interruttore acceso, cartella raggiungibile, controllo programmato, qcluster in funzione, ultimo controllo) e l'elenco «File non sincronizzati» con il motivo.",
             ]),
-            ("p", "«Richieste di presa visione» (prima «Refresh procedure») resta l'azione per chiedere la lettura di uno o più documenti a persone o reparti, con promemoria e report."),
+            ("p", "«Richieste di presa visione» (prima «Refresh procedure») resta l'azione per chiedere la lettura di uno o più documenti a persone o reparti, con promemoria e report. «Elimina» (nell'elenco delle sessioni o nella scheda) cancella definitivamente una sessione di prova con assegnazioni, letture e scadenze collegate; i documenti restano."),
         ],
     },
 ]
