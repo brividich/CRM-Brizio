@@ -1402,7 +1402,7 @@ def consolida_filo_view(request, pk: int):
         if esito["incomplete"]:
             messages.warning(
                 request,
-                f"Restano bozze perché incomplete: "
+                "Restano bozze perché incomplete: "
                 + "; ".join(f"{r.id_registrazione} ({', '.join(r.mancanti)})" for r in esito["incomplete"][:6]) + ".",
             )
         non_allineate = [r.id_registrazione for r in fatte if r.sync_errore]
