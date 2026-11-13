@@ -4,12 +4,20 @@ Una persona è qualificata sul processo quando soddisfa i requisiti che valgono
 per i suoi ruoli. Ogni requisito ha la sua ricorrenza (una tantum o ogni N mesi),
 quindi la scadenza della persona è indipendente da quella del processo.
 
-Fonti (nessun doppione):
-- corsi → ``TrainingDeadline.data_ultimo_completamento`` (Formazione);
+«Cosa serve a una persona» (``RequisitoPersona``) è l'unico elenco dei requisiti
+per persona: i corsi, le visite e i DPI «uguali per tutti» del processo ci sono
+stati spostati (migrazione 0225). Fonti (nessun doppione):
+- corsi → ``TrainingDeadline`` (Formazione);
 - visite → ``VisitaMedica`` (Visite mediche);
+- qualifiche → ``DipendenteQualifica`` corrente (Qualifiche);
+- DPI → ``ConsegnaDPI`` consegnata (DPI);
 - test visivo, esami, ore, affiancamenti, certificati → ``EvidenzaRequisitoPersona``;
-- i requisiti «storici» del processo (corsi/visite/DPI M2M, requisiti tipizzati,
-  certificazioni individuali) restano letti da ``mpq_conformita.verifica_requisiti``.
+- requisiti del processo uguali per tutti (contratto, audit…) → ``mpq_conformita``.
+
+Scadenza di un corso, una visita o una qualifica ricorrente: la più vicina fra
+quella propria (attestato, visita, certificato) e ultima data + frequenza del
+processo. Il motore della Formazione (``services.requisiti``) applica la stessa
+regola, così processo e scadenzario della Formazione dicono la stessa data.
 """
 from __future__ import annotations
 
@@ -19,6 +27,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 SOGLIA_IN_SCADENZA = 30
+_RELATED = ("corso", "tipo_visita", "tipo_qualifica", "categoria_dpi")
 
 _ESITO_LABEL = {
     "ok": "Qualificata",
@@ -39,7 +48,7 @@ def requisiti_per_abilitazione(abilitazione, requisiti=None):
     if requisiti is None:
         requisiti = list(
             abilitazione.processo.requisiti_persona.filter(attivo=True)
-            .select_related("corso", "tipo_visita").prefetch_related("ruoli")
+            .select_related(*_RELATED).prefetch_related("ruoli")
         )
     ruoli_persona = {r.pk for r in abilitazione.ruoli_processo.all()}
     out = []
@@ -50,21 +59,49 @@ def requisiti_per_abilitazione(abilitazione, requisiti=None):
     return out
 
 
-def corsi_visite_richiesti(abilitazione, requisiti=None):
-    """(corsi, tipi visita) dei requisiti persona **bloccanti** che valgono per la persona.
+def obblighi_richiesti(abilitazione, requisiti=None) -> dict[str, list]:
+    """Corsi, tipi visita e categorie DPI dei requisiti persona **bloccanti** della persona.
 
-    Alimentano Formazione (copertura, scadenze, «Iscrivi chi manca») e il semaforo
-    idoneità come obblighi reali; i requisiti non bloccanti restano informativi.
+    Alimentano Formazione (copertura, scadenze, «Iscrivi chi manca»), Visite e il
+    semaforo idoneità come obblighi reali; i requisiti non bloccanti restano informativi.
     """
-    corsi, visite = [], []
+    out: dict[str, list] = {"corsi": [], "visite": [], "dpi": []}
     for req in requisiti_per_abilitazione(abilitazione, requisiti):
         if not req.bloccante:
             continue
         if req.tipo == req.TIPO_CORSO and req.corso_id:
-            corsi.append(req.corso)
+            out["corsi"].append(req.corso)
         elif req.tipo == req.TIPO_VISITA and req.tipo_visita_id:
-            visite.append(req.tipo_visita)
-    return corsi, visite
+            out["visite"].append(req.tipo_visita)
+        elif req.tipo == req.TIPO_DPI and req.categoria_dpi_id:
+            out["dpi"].append(req.categoria_dpi)
+    return out
+
+
+def corsi_visite_richiesti(abilitazione, requisiti=None):
+    """(corsi, tipi visita) bloccanti della persona: vedi :func:`obblighi_richiesti`."""
+    o = obblighi_richiesti(abilitazione, requisiti)
+    return o["corsi"], o["visite"]
+
+
+def frequenze_corsi(abilitazione, requisiti=None) -> dict[int, tuple[int, bool]]:
+    """``{corso_id: (mesi, fine_mese)}``: la frequenza più stretta chiesta dal processo.
+
+    Solo requisiti bloccanti e ricorrenti con una frequenza propria; serve al motore
+    della Formazione per accorciare la scadenza dell'attestato.
+    """
+    out: dict[int, tuple[int, bool]] = {}
+    for req in requisiti_per_abilitazione(abilitazione, requisiti):
+        if req.bloccante and req.tipo == req.TIPO_CORSO and req.corso_id and req.is_ricorrente:
+            att = out.get(req.corso_id)
+            if att is None or int(req.frequenza_mesi) < att[0]:
+                out[req.corso_id] = (int(req.frequenza_mesi), bool(req.scadenza_fine_mese))
+    return out
+
+
+def _prima(*date_):
+    valide = [d for d in date_ if d]
+    return min(valide) if valide else None
 
 
 def _stato_da_scadenza(scadenza, oggi):
@@ -84,8 +121,8 @@ def _voce_corso(req, legacy_id, oggi, deadlines):
         return {"stato": "mancante", "scadenza": None, "ultima": None}
     if ultima is None:
         return {"stato": "mancante", "scadenza": None, "ultima": None}
-    # Ricorrenza del processo se dichiarata, altrimenti la scadenza del corso.
-    scadenza = req.scadenza_da(ultima) if req.is_ricorrente else getattr(d, "data_scadenza", None)
+    # La più vicina fra la scadenza dell'attestato e ultima frequenza + frequenza del processo.
+    scadenza = _prima(getattr(d, "data_scadenza", None), req.scadenza_da(ultima))
     if req.ricorrenza == req.RICORRENZA_UNA_TANTUM:
         scadenza = None
     return {"stato": _stato_da_scadenza(scadenza, oggi), "scadenza": scadenza, "ultima": ultima}
@@ -96,8 +133,26 @@ def _voce_visita(req, oggi, visite):
     if v is None:
         return {"stato": "mancante", "scadenza": None, "ultima": None}
     ultima = getattr(v, "data_svolgimento", None)
-    scadenza = req.scadenza_da(ultima) if req.is_ricorrente else getattr(v, "data_scadenza", None)
+    scadenza = _prima(getattr(v, "data_scadenza", None), req.scadenza_da(ultima))
     return {"stato": _stato_da_scadenza(scadenza, oggi), "scadenza": scadenza, "ultima": ultima}
+
+
+def _voce_qualifica(req, oggi, qualifiche):
+    """Qualifica del catalogo: vale la registrazione conseguita per ultima (Qualifiche)."""
+    q = qualifiche.get(req.tipo_qualifica_id) if req.tipo_qualifica_id else None
+    if q is None:
+        return {"stato": "mancante", "scadenza": None, "ultima": None}
+    ultima = q.data_conseguimento
+    scadenza = _prima(q.data_scadenza, req.scadenza_da(ultima))
+    return {"stato": _stato_da_scadenza(scadenza, oggi), "scadenza": scadenza, "ultima": ultima}
+
+
+def _voce_dpi(req, dpi):
+    """DPI: consegnato almeno una volta per la categoria (stessa regola di prima)."""
+    if dpi is None:
+        return {"stato": "na", "scadenza": None, "ultima": None}
+    ok = bool(req.categoria_dpi_id) and req.categoria_dpi_id in dpi
+    return {"stato": "ok" if ok else "mancante", "scadenza": None, "ultima": None}
 
 
 def _voce_evidenza(req, evidenze, oggi):
@@ -156,21 +211,24 @@ def stato_persona(abilitazione, *, oggi=None, requisiti=None, contesto=None):
     reqs = requisiti_per_abilitazione(abilitazione, requisiti if requisiti is not None
                                       else ctx.get("requisiti"))
     if reqs:
-        if "deadlines" in ctx:
-            deadlines = ctx["deadlines"].get(legacy_id, {})
-            visite = ctx["visite"].get(legacy_id, {})
-        else:
-            deadlines, visite = _deadlines_visite([legacy_id], reqs)
-            deadlines, visite = deadlines.get(legacy_id, {}), visite.get(legacy_id, {})
+        fonti = ctx.get("fonti") or _fonti([legacy_id], reqs)
+        deadlines = fonti["deadlines"].get(legacy_id, {})
+        visite = fonti["visite"].get(legacy_id, {})
+        qualifiche = fonti["qualifiche"].get(legacy_id, {})
+        dpi = None if fonti["dpi"] is None else fonti["dpi"].get(legacy_id, set())
         evidenze = (ctx["evidenze"].get(abilitazione.pk, []) if "evidenze" in ctx
                     else list(abilitazione.evidenze.all()))
         for req in reqs:
-            if req.tipo == RequisitoPersona.TIPO_CORSO:
-                v = ({"stato": "na", "scadenza": None, "ultima": None} if esterno
-                     else _voce_corso(req, legacy_id, oggi, deadlines))
+            if esterno and req.tipo in RequisitoPersona.TIPI_DA_ALTRI_MODULI:
+                v = {"stato": "na", "scadenza": None, "ultima": None}
+            elif req.tipo == RequisitoPersona.TIPO_CORSO:
+                v = _voce_corso(req, legacy_id, oggi, deadlines)
             elif req.tipo == RequisitoPersona.TIPO_VISITA:
-                v = ({"stato": "na", "scadenza": None, "ultima": None} if esterno
-                     else _voce_visita(req, oggi, visite))
+                v = _voce_visita(req, oggi, visite)
+            elif req.tipo == RequisitoPersona.TIPO_QUALIFICA:
+                v = _voce_qualifica(req, oggi, qualifiche)
+            elif req.tipo == RequisitoPersona.TIPO_DPI:
+                v = _voce_dpi(req, dpi)
             else:
                 v = _voce_evidenza(req, evidenze, oggi)
             v.update({
@@ -212,23 +270,52 @@ def stato_persona(abilitazione, *, oggi=None, requisiti=None, contesto=None):
     }
 
 
-def _deadlines_visite(legacy_ids, requisiti):
-    """{legacy: {corso_id: TrainingDeadline}}, {legacy: {tipo_visita_id: ultima VisitaMedica}}."""
-    from ..models import TrainingDeadline, VisitaMedica
+def _fonti(legacy_ids, requisiti) -> dict:
+    """Dati dei moduli collegati per le persone, in poche query.
+
+    ``{"deadlines": {legacy: {corso_id: TrainingDeadline}}, "visite": {legacy: {tipo_id: ultima}},
+    "qualifiche": {legacy: {tipo_id: corrente}}, "dpi": {legacy: {categoria_id}} | None}``
+    (``dpi`` None = modulo DPI non leggibile: il requisito risulta «non verificabile»).
+    """
+    from ..models import DipendenteQualifica, TrainingDeadline, VisitaMedica
 
     ids = [i for i in legacy_ids if i]
     corsi = {r.corso_id for r in requisiti if r.corso_id}
     tipi = {r.tipo_visita_id for r in requisiti if r.tipo_visita_id}
-    deadlines: dict[int, dict] = {}
-    visite: dict[int, dict] = {}
+    tipi_q = {r.tipo_qualifica_id for r in requisiti if r.tipo_qualifica_id}
+    cat_dpi = {r.categoria_dpi_id for r in requisiti if r.categoria_dpi_id}
+    out: dict = {"deadlines": {}, "visite": {}, "qualifiche": {}, "dpi": {}}
     if ids and corsi:
         for d in TrainingDeadline.objects.filter(legacy_anagrafica_id__in=ids, corso_id__in=corsi):
-            deadlines.setdefault(d.legacy_anagrafica_id, {})[d.corso_id] = d
+            out["deadlines"].setdefault(d.legacy_anagrafica_id, {})[d.corso_id] = d
     if ids and tipi:
         for v in (VisitaMedica.objects.filter(legacy_anagrafica_id__in=ids, tipo_id__in=tipi)
                   .order_by("-data_svolgimento", "-pk")):
-            visite.setdefault(v.legacy_anagrafica_id, {}).setdefault(v.tipo_id, v)
-    return deadlines, visite
+            out["visite"].setdefault(v.legacy_anagrafica_id, {}).setdefault(v.tipo_id, v)
+    if ids and tipi_q:
+        # Corrente = conseguita per ultima (come Qualifiche e Scadenzario).
+        for q in (DipendenteQualifica.objects.filter(legacy_anagrafica_id__in=ids, tipo_id__in=tipi_q)
+                  .order_by("legacy_anagrafica_id", "tipo_id", "data_conseguimento", "id")):
+            out["qualifiche"].setdefault(q.legacy_anagrafica_id, {})[q.tipo_id] = q
+    if ids and cat_dpi:
+        try:
+            from dpi.models import ConsegnaDPI, StatoRichiesta
+
+            for lid, cat in (ConsegnaDPI.objects
+                             .filter(richiesta__richiedente_legacy_id__in=ids,
+                                     richiesta__stato=StatoRichiesta.CONSEGNATA,
+                                     richiesta__categoria_id__in=cat_dpi)
+                             .values_list("richiesta__richiedente_legacy_id", "richiesta__categoria_id")):
+                out["dpi"].setdefault(lid, set()).add(cat)
+        except Exception:
+            out["dpi"] = None
+    return out
+
+
+def _deadlines_visite(legacy_ids, requisiti):
+    """Compatibilità: (deadlines, visite) di :func:`_fonti`."""
+    f = _fonti(legacy_ids, requisiti)
+    return f["deadlines"], f["visite"]
 
 
 def contesto_processo(processo, abilitazioni):
@@ -237,10 +324,10 @@ def contesto_processo(processo, abilitazioni):
 
     requisiti = list(
         processo.requisiti_persona.filter(attivo=True)
-        .select_related("corso", "tipo_visita").prefetch_related("ruoli")
+        .select_related(*_RELATED).prefetch_related("ruoli")
     )
     ab_ids = [a.pk for a in abilitazioni]
-    deadlines, visite = _deadlines_visite([a.legacy_anagrafica_id for a in abilitazioni], requisiti)
+    fonti = _fonti([a.legacy_anagrafica_id for a in abilitazioni], requisiti)
     evidenze: dict[int, list] = {}
     for e in (EvidenzaRequisitoPersona.objects.filter(abilitazione_id__in=ab_ids)
               .select_related("requisito")):
@@ -248,8 +335,8 @@ def contesto_processo(processo, abilitazioni):
     certificazioni: dict[int, list] = {}
     for a in abilitazioni:
         certificazioni[a.pk] = list(a.certificazioni.all())
-    return {"requisiti": requisiti, "deadlines": deadlines, "visite": visite,
-            "evidenze": evidenze, "certificazioni": certificazioni}
+    return {"requisiti": requisiti, "fonti": fonti, "deadlines": fonti["deadlines"],
+            "visite": fonti["visite"], "evidenze": evidenze, "certificazioni": certificazioni}
 
 
 def processi_della_persona(legacy_id, *, oggi=None) -> list[dict]:

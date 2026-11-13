@@ -14,25 +14,11 @@ from __future__ import annotations
 
 
 def legacy_ids_richiesti_da_processo(corso_id) -> set[int]:
-    """``legacy_id`` (interni, abilitazione ATTIVA) tenuti al corso via MOD.128."""
-    from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
+    """``legacy_id`` (interni, abilitazione ATTIVA) tenuti al corso via MOD.128.
 
-    proc_ids = list(
-        ProcessoQualificato.objects
-        .filter(corsi_richiesti__id=corso_id)
-        .values_list("id", flat=True)
-    )
-    out = set()
-    if proc_ids:
-        out = {
-            int(lid) for lid in AbilitazioneProcesso.objects
-            .filter(processo_id__in=proc_ids, stato=AbilitazioneProcesso.STATO_ATTIVA)
-            .exclude(legacy_anagrafica_id=0)
-            .values_list("legacy_anagrafica_id", flat=True)
-        }
-    # Requisiti persona per ruolo (13/11): il corso vale solo per i ruoli indicati.
-    out |= {lid for lid, _c in _coppie_da_requisiti_persona(corso_id=corso_id)}
-    return out
+    Fonte unica: i requisiti persona bloccanti di tipo corso (per ruolo).
+    """
+    return {lid for lid, _c in _coppie_da_requisiti_persona(corso_id=corso_id)}
 
 
 def _coppie_da_requisiti_persona(*, corso_id=None, legacy_id=None):
@@ -67,29 +53,10 @@ def _coppie_da_requisiti_persona(*, corso_id=None, legacy_id=None):
 def coppie_richieste_da_processo(*, corso_id=None, legacy_id=None):
     """Lista di ``(legacy_id, TrainingCourse)`` richiesti dai processi.
 
-    Per ``refresh_deadlines``: opzionalmente ristretta a un corso/dipendente
-    (rebuild parziale). Solo abilitazioni ATTIVA di dipendenti interni.
+    Opzionalmente ristretta a un corso/dipendente. Solo abilitazioni ATTIVA di
+    dipendenti interni, solo requisiti persona bloccanti che valgono per i loro ruoli.
     """
-    from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
-
-    out = []
-    procs = (ProcessoQualificato.objects
-             .exclude(corsi_richiesti=None)
-             .prefetch_related("corsi_richiesti"))
-    for p in procs:
-        corsi = [c for c in p.corsi_richiesti.all()
-                 if corso_id is None or c.pk == corso_id]
-        if not corsi:
-            continue
-        ab_qs = (p.abilitazioni
-                 .filter(stato=AbilitazioneProcesso.STATO_ATTIVA)
-                 .exclude(legacy_anagrafica_id=0))
-        if legacy_id is not None:
-            ab_qs = ab_qs.filter(legacy_anagrafica_id=legacy_id)
-        for lid in set(ab_qs.values_list("legacy_anagrafica_id", flat=True)):
-            for c in corsi:
-                out.append((int(lid), c))
-    gia = {(lid, c.pk) for lid, c in out}
+    out, gia = [], set()
     for lid, c in _coppie_da_requisiti_persona(corso_id=corso_id, legacy_id=legacy_id):
         if (lid, c.pk) not in gia:
             gia.add((lid, c.pk))

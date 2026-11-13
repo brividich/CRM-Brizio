@@ -1,29 +1,18 @@
 """MOD.128 MPQ — bidirezionalità con le Visite mediche.
 
-Rende le visite dichiarate come **requisito** su un ``ProcessoQualificato`` un
-**obbligo reale**: chi è abilitato (stato ATTIVA) a un processo che richiede una
-visita è tenuto a quella visita, quindi essa entra nel suo **scadenzario/stato
-visite** (``services.visite.tipi_visita_richiesti_per_dipendente``) accanto a
-quelle derivate dai ruoli operativi. Sola lettura sui modelli MPQ.
+Le visite richieste da un processo («Cosa serve a una persona», tipo visita,
+bloccante, per i ruoli della persona) sono un **obbligo reale**: entrano nello
+scadenzario/stato visite (``services.visite``) accanto a quelle dei ruoli operativi.
+Fonte unica: :func:`mpq_idoneita.requisiti_processo_dettaglio`.
 """
 from __future__ import annotations
 
 
 def tipi_visita_richiesti_da_processo(legacy_id) -> set[int]:
-    """id dei ``TipoVisitaMedica`` richiesti dai processi cui la persona è
-    abilitata (stato ATTIVA)."""
-    from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
+    """id dei ``TipoVisitaMedica`` richiesti dai processi cui la persona è abilitata (ATTIVA)."""
+    from .mpq_idoneita import requisiti_processo_dettaglio
 
-    proc_ids = list(
-        AbilitazioneProcesso.objects
-        .filter(legacy_anagrafica_id=legacy_id, stato=AbilitazioneProcesso.STATO_ATTIVA)
-        .values_list("processo_id", flat=True)
-    )
-    if not proc_ids:
+    dato = requisiti_processo_dettaglio([legacy_id]).get(legacy_id)
+    if not dato:
         return set()
-    ids = (
-        ProcessoQualificato.objects
-        .filter(id__in=proc_ids)
-        .values_list("visite_richieste__id", flat=True)
-    )
-    return {int(i) for i in ids if i is not None}
+    return {int(t.pk) for t in dato["requisiti"]["visite"]}
