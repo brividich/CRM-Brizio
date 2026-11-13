@@ -16,6 +16,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
 from django.db.models import Count, Q
+from django.forms import modelform_factory
 from django.http import (
     Http404, HttpResponse, HttpResponseForbidden, HttpResponseNotFound,
 )
@@ -115,6 +116,12 @@ from automazioni.managed_flows import event_flow
 from . import _helpers  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Campi dell'anagrafica civile del modulo «Dati riservati HR» (solo con permesso HR).
+CAMPI_CIVILE_HR = (
+    "codice_fiscale", "nome_banca", "iban", "intestatario_conto",
+    "categoria_protetta", "categoria_disabili", "percentuale_disabilita",
+)
 
 
 def _foto_dipendente_url(civile, legacy_id, miniatura: bool = False) -> str:
@@ -3936,32 +3943,52 @@ def dipendente_anagrafica_civile_save(request, legacy_id: int):
         messages.error(request, "Non hai i permessi per modificare l'anagrafica civile.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
+    # La scheda ha due moduli che salvano qui: «Anagrafica civile» e «Dati riservati HR».
+    # Ognuno scrive solo i SUOI campi: col form completo i campi assenti dal POST
+    # venivano azzerati (IBAN e banca dal primo, nascita e residenza dal secondo) e il
+    # modulo HR, senza il formset dei figli, non veniva mai salvato.
+    can_hr = _helpers._check_hr_permission(request)
+    sezione_hr = request.POST.get("sezione") == "hr"
+    if sezione_hr and not can_hr:
+        messages.error(request, "Non hai i permessi per modificare i dati riservati HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    campi_form = list(AnagraficaCivileForm.base_fields)
+    if sezione_hr:
+        campi = [c for c in CAMPI_CIVILE_HR if c in campi_form]
+    else:
+        # Il codice fiscale sta nella card civile, ma lo modifica solo chi ha il permesso HR.
+        campi = [c for c in campi_form if c not in CAMPI_CIVILE_HR or (c == "codice_fiscale" and can_hr)]
+    form_class = modelform_factory(DipendenteAnagraficaCivile, form=AnagraficaCivileForm, fields=campi)
+
     instance, _ = DipendenteAnagraficaCivile.objects.get_or_create(
         legacy_anagrafica_id=legacy_id
     )
-    form = AnagraficaCivileForm(request.POST, request.FILES, instance=instance)
-    formset = FiglioACaricoFormSet(request.POST, instance=instance, prefix="figli")
-    if form.is_valid() and formset.is_valid():
+    form = form_class(request.POST, request.FILES, instance=instance)
+    formset = None if sezione_hr else FiglioACaricoFormSet(request.POST, instance=instance, prefix="figli")
+    if form.is_valid() and (formset is None or formset.is_valid()):
         obj = form.save(commit=False)
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
-        formset.instance = obj
-        formset.save()
-        # Allinea il flag al numero effettivo di figli registrati.
-        ha_figli = obj.figli.exists()
-        if obj.figli_a_carico != ha_figli:
-            obj.figli_a_carico = ha_figli
-            obj.save(update_fields=["figli_a_carico"])
-        messages.success(request, "Anagrafica civile salvata.")
+        if formset is not None:
+            formset.instance = obj
+            formset.save()
+            # Allinea il flag al numero effettivo di figli registrati.
+            ha_figli = obj.figli.exists()
+            if obj.figli_a_carico != ha_figli:
+                obj.figli_a_carico = ha_figli
+                obj.save(update_fields=["figli_a_carico"])
+        messages.success(request, "Dati riservati HR salvati." if sezione_hr else "Anagrafica civile salvata.")
     else:
         for field, errs in form.errors.items():
             for err in errs:
                 messages.error(request, f"{field}: {err}")
-        for sub in formset:
+        for sub in formset or []:
             for field, errs in sub.errors.items():
                 for err in errs:
                     messages.error(request, f"Figli — {field}: {err}")
+        for err in (formset.non_form_errors() if formset is not None else []):
+            messages.error(request, f"Figli — {err}")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
