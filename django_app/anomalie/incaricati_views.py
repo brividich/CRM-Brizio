@@ -12,6 +12,7 @@ import json
 import logging
 
 from django.contrib.auth.decorators import login_required
+from django.db import DatabaseError
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
@@ -76,7 +77,12 @@ def api_incaricato_cambia(request):
     if (attuale or {}).get("id") == (nuova or {}).get("id"):
         return _err("È già l'incaricato" if nuova else "Il ruolo segue già la regola di serie")
     chi = _chi(request)
-    prima, dopo = inc.imposta(local_id, ruolo, nuova, chi=chi, nota=nota)
+    try:
+        prima, dopo = inc.imposta(local_id, ruolo, nuova, chi=chi, nota=nota)
+    except DatabaseError:
+        logger.exception("incaricato: salvataggio fallito id=%s", local_id)
+        return _err("Incaricato non salvato: il database non ha la tabella degli incaricati "
+                    "(serve «migrate anomalie»)", 500)
 
     op_id = str(row.get("ex_op_nominativo") or "").strip()
     di_serie = inc.nome_di_serie(ruolo, row, info)
@@ -99,8 +105,11 @@ def api_incaricato_cambia(request):
         pass
     avviso = {}
     if dopo:
-        avviso = inc.avvisa(anomalia_id=local_id, op_id=op_id, ruolo=ruolo, persona_id=dopo["id"], chi=chi, nota=nota,
-                            seriale=str(row.get("seriale") or ""), descrizione=str(row.get("descrizione") or ""))
+        try:
+            avviso = inc.avvisa(anomalia_id=local_id, op_id=op_id, ruolo=ruolo, persona_id=dopo["id"], chi=chi, nota=nota,
+                                seriale=str(row.get("seriale") or ""), descrizione=str(row.get("descrizione") or ""))
+        except Exception:
+            logger.warning("incaricato: avviso non inviato id=%s", local_id, exc_info=True)
 
     info = dq.info_per_anomalie([local_id]).get(local_id)
     capo, car = _capo_car_di_op(op_id)
