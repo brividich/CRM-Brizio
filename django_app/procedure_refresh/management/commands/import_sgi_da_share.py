@@ -480,9 +480,32 @@ def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
             # Stessa revisione, file spostato o rinominato: si aggiorna solo il percorso
             # della revisione in vigore (le prese visione restano dove sono).
             safe.append({**info, "riallineamento": True})
+        elif _gia_allineato(info, doc):
+            # Stessa revisione, stesso file, stesso contenuto: è già sincronizzato (succede ai
+            # documenti assegnati in una sessione). Non va elencato tra i «non sincronizzati».
+            continue
         else:
             excluded.append({**info, "motivo_esclusione": "revisione nel nome non più recente di quella in libreria"})
     return safe, excluded
+
+
+def _gia_allineato(info: dict, doc) -> bool:
+    """La revisione in vigore è esattamente questo file (codice, percorso, nome e impronta)."""
+    current = next((r for r in doc.revisions.all() if r.is_current), None)
+    if (
+        current is None
+        or current.source_type != SourceType.FILESERVER
+        or str(info.get("revision") or "") != str(current.revision_code or "")
+        or current.source_path != info.get("path")
+        or current.file_name != info.get("file_name")
+        or not current.file_hash
+    ):
+        return False
+    try:
+        path = Path(info["path"])
+        return _sha256_con_cache(path, path.stat()) == current.file_hash
+    except (OSError, KeyError):
+        return False
 
 
 def _stessa_revisione_spostata(info: dict, doc) -> bool:

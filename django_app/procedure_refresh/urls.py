@@ -67,6 +67,7 @@ urlpatterns = [
     path("admin/campagne/<int:pk>/modifica/", views.campaign_form, name="campaign_edit"),
     path("admin/campagne/<int:pk>/pubblica/", views.campaign_publish, name="campaign_publish"),
     path("admin/campagne/<int:pk>/chiudi/", views.campaign_close, name="campaign_close"),
+    path("admin/campagne/<int:pk>/elimina/", views.campaign_delete, name="campaign_delete"),
     path("admin/campagne/<int:pk>/aggiungi-documento/", views.campaign_add_document, name="campaign_add_document"),
     path("admin/campagne/<int:pk>/rimuovi-documento/<int:cd_pk>/", views.campaign_remove_document, name="campaign_remove_document"),
     path("admin/campagne/<int:pk>/assegna/", views.assign_users, name="assign_users"),
