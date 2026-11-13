@@ -1,0 +1,2 @@
+{% comment %}Cella «FIR»: numero del formulario sugli scarichi; «manca FIR» su O/M senza numero; i carichi non ne hanno.{% endcomment %}
+<td class="rn-fir-cell"{% if r.arrivo_fir %} title="{{ r.arrivo_fir }}"{% endif %}>{% if r.tipo == "C" %}<span class="rn-fir-na">—</span>{% elif r.arrivo_fir %}{{ r.arrivo_fir }}{% elif r.tipo == "O" or r.tipo == "M" %}<span class="rn-fir-manca">manca FIR</span>{% else %}<span class="rn-fir-na">—</span>{% endif %}</td>
