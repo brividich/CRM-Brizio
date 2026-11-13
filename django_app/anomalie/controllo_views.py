@@ -357,8 +357,11 @@ def api_controllo_blocco(request, pk: int):
             # Flag «su tutti i seriali del blocco» (default sì); se spento, i S/N scelti.
             tutti = item.get("tutti", True) is not False
             scelti = item.get("seriali") if isinstance(item.get("seriali"), list) else []
+            clonata_da = item.get("clonata_da")
             anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti,
-                             "dettaglio": item.get("dettaglio"), "tipo_difetto_id": item.get("tipo_difetto_id")})
+                             "dettaglio": item.get("dettaglio"), "tipo_difetto_id": item.get("tipo_difetto_id"),
+                             # Copiata da Gestione anomalie («Clona»): per il registro attività.
+                             "clonata_da": int(clonata_da) if str(clonata_da or "").isdigit() and not local_id else None})
     if not any(a["testo"] for a in anomalie):
         return _err("Descrivi almeno un'anomalia")
     if any(not a["testo"] for a in anomalie):
@@ -488,6 +491,7 @@ def api_controllo_blocco(request, pk: int):
             "aprire_rdc": False,
             "segnalare": False,
             "chiudere": False,
+            **({"clonata_da": a["clonata_da"]} if a.get("clonata_da") else {}),
         }, notifica_debounce=False, da_controllo=True)
         if not esito.get("success"):
             risultati.append({"local_id": a["local_id"], "ok": False, "error": esito.get("error", "")})

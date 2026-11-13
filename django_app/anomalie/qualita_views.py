@@ -76,7 +76,7 @@ def _chi(request) -> str:
     return _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200) or ""
 
 
-def _timeline(request, local_id, op_id, action, *, note="", prev="", new=""):
+def _timeline(request, local_id, op_id, action, *, note="", prev="", new="", modifiche=None):
     try:
         from .mail_action_service import log_anomalia_portal_action
         from .views import _client_ip
@@ -86,6 +86,7 @@ def _timeline(request, local_id, op_id, action, *, note="", prev="", new=""):
             anomalia_id=local_id, op_id=op_id, action=action, user=request.user,
             legacy_user_id=int(legacy.id) if legacy else None, user_display=_chi(request),
             previous_status=prev, new_status=new, note=note[:500],
+            payload={"modifiche": modifiche} if modifiche else None,
             ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
     except Exception:
@@ -141,6 +142,7 @@ def api_qualita_salva(request):
 
     chi = _chi(request)
     stato = segn.stato_segnalati(local_id)
+    prima_q = AnomaliaSchedaQualita.objects.filter(anomalia_id=local_id).values("avanzamento_qualita", "note_qualita").first() or {}
     richiesti = {"cliente": bool(row.get("segnalare_cliente")), "terzista": stato["segnala_terzista"]}
     avanzamento = str(row.get("avanzamento") or "").strip()
     legacy_valori: dict = {}
@@ -188,9 +190,20 @@ def api_qualita_salva(request):
     except DatabaseError as exc:
         return _err(f"Salvataggio non riuscito: {exc}", 500)
 
+    modifiche = []
+    if (prima_q.get("avanzamento_qualita") or "") != av_qualita:
+        modifiche.append(["Avanzamento qualità", prima_q.get("avanzamento_qualita") or "nessuno stato", av_qualita or "nessuno stato"])
+    nota_q = (_safe_text(data.get("note_qualita")) or "")
+    if (prima_q.get("note_qualita") or "") != nota_q:
+        modifiche.append(["Note della qualità", (prima_q.get("note_qualita") or "")[:300], nota_q[:300]])
+    if "numero_rdc" in legacy_valori and legacy_valori["numero_rdc"] != str(row.get("numero_rdc") or ""):
+        modifiche.append(["N° RDC", str(row.get("numero_rdc") or ""), legacy_valori["numero_rdc"]])
+    if chiusa:
+        modifiche.append(["Chiusa", "no", "sì"])
     _timeline(request, local_id, op_id, "chiudi" if chiusa else "qualita",
               note=" · ".join(x for x in (av_qualita, (data.get("note_qualita") or "")[:300]) if x),
-              prev=avanzamento or "In attesa", new="Chiusa" if chiusa else (av_qualita or "Decisione qualità"))
+              prev=avanzamento or "In attesa", new="Chiusa" if chiusa else (av_qualita or "Decisione qualità"),
+              modifiche=modifiche)
     try:
         log_action(request, "anomalia_decisione_qualita", "anomalie",
                    {"local_id": local_id, "op_id": op_id, "avanzamento_qualita": av_qualita, "chiusa": chiusa})
@@ -299,6 +312,13 @@ def ruoli_risposta(request, row: dict) -> list[str]:
             ruoli.append("controllore")
     except (TypeError, ValueError):
         pass
+    # Incaricato del ruolo su questa anomalia (incaricati.py).
+    if me is not None and row.get("id") is not None:
+        from .incaricati import per_anomalie
+
+        for ruolo, v in (per_anomalie([row["id"]]).get(int(row["id"])) or {}).items():
+            if ruolo in ("cc", "controllore") and v["id"] == int(me) and ruolo not in ruoli:
+                ruoli.append(ruolo)
     return ruoli
 
 

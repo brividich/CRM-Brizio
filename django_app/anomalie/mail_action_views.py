@@ -380,6 +380,15 @@ def _salva_allegati_mail(request, token_obj, anomalia_id: int) -> None:
 
         folder = _attachment_dir_for_local(anomalia_id, create=True)
         salvati, nomi, errori = salva_file_allegati(anomalia_id, folder, files, per_decisione=True)
+        if nomi:
+            from .mail_action_models import AnomaliaActionLog
+
+            AnomaliaActionLog.objects.create(
+                anomalia_id=int(anomalia_id), op_id=str(token_obj.op_id or "")[:100],
+                user_display=str(token_obj.recipient_display or "")[:200], action="allegato",
+                note=", ".join(nomi)[:500], source=AnomaliaActionLog.Source.MAIL_ACTION, token=token_obj,
+                payload={"allegati": [str(n)[:200] for n in nomi][:50], "dove": "decisione"},
+            )
         log_action(request, azione="anomalia_allegato_upload_mail", modulo="anomalie", dettaglio={
             "local_id": anomalia_id, "op_id": token_obj.op_id, "files": nomi, "errori": errori,
             "token": token_obj.token[:8], "recipient": token_obj.recipient_display,

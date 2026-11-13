@@ -79,6 +79,15 @@ GUIDA = {
                       "solo gli OP e le anomalie che toccano a te (capocommessa, qualità, CAR segnalato, controllore a "
                       "cui sono chieste informazioni). Il link della mail fa lo stesso e accetta allegati, anche .msg ed "
                       ".eml; un secondo link permette di rispondere alle richieste della qualità senza accesso."),
+                ("p", "La riga «In carico» del dettaglio dice a chi tocca l'anomalia. Capocommessa e CAR dell'OP, i CAR "
+                      "segnalati e gli amministratori possono «Cambia incaricato»: scelgono il ruolo e la persona (per la "
+                      "qualità fra i referenti RDC), che riceve notifica e mail e da quel momento ha l'anomalia in "
+                      "«In carico a me» al posto di chi la aveva di serie; «Torna di serie» lo toglie."),
+                ("p", "Il menu «Vista» delle colonne Ordini (Elenco, Coda di lavoro, Per capocommessa, Tabella) e "
+                      "Anomalie (Per S/N, Per stato, Per fase, Per ruolo, Tabella, Pezzi) cambia il modo di vederle. "
+                      "«Registro attività» (amministratori e «Supervisori») elenca in frasi chi ha fatto cosa: "
+                      "inserimenti, clonazioni, modifiche con i campi cambiati, chiusure, allegati, cambi di incaricato "
+                      "ed eliminazioni, con filtri; «Storia» nel dettaglio lo apre sull'anomalia."),
                 ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
                       "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
@@ -160,11 +169,13 @@ GUIDA = {
             "titolo": "Svuotare i dati di collaudo",
             "blocchi": [
                 ("ul", [
-                    "Dal portale non si cancellano anomalie: per togliere i dati di prova si usa, sul server, il "
+                    "Dal portale chi ha inserito un'anomalia la elimina solo finché nessuno l'ha gestita (resta nel "
+                    "registro attività); per togliere i dati di prova si usa, sul server, il "
                     "comando «manage.py svuota_anomalie». Da solo conta quante righe toccherebbe; con «--esegui» "
                     "cancella davvero.",
                     "Cancella tutte le anomalie e gli OP, le NC con azioni e allegati, i controlli, le schede "
-                    "qualità, il registro delle mail e delle azioni e le cartelle degli allegati. Con "
+                    "qualità, le richieste di informazioni, gli incaricati, il registro delle mail e delle azioni e "
+                    "le cartelle degli allegati. Con "
                     "«--mantieni-op» gli OP restano.",
                     "Non tocca la configurazione: tipi difetto, ruoli, regole di accesso e impostazioni delle "
                     "notifiche restano come sono.",

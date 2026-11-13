@@ -34,8 +34,11 @@ const API = window.ANOMALIE_API || {
   seriali_op: "/api/anomalie/seriali-op"
 };
 API.qualita_salva = API.qualita_salva || "/api/anomalie/qualita/salva";
+API.registro = API.registro || "/api/anomalie/registro";
 API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
 API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
+API.incaricato = API.incaricato || "/api/anomalie/incaricato";
+API.incaricato_persone = API.incaricato_persone || "/api/anomalie/incaricato/persone";
 const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica) ? CONFIG_LISTS.autorizzati_modifica : [];
 const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
 // Decisione qualità (Configurazione): chi decide, scelte di «Avanzamento qualità»
@@ -44,6 +47,7 @@ const CAN_QUALITA = !!ACCESS_CONTEXT.can_qualita;
 const AVANZAMENTO_CHIARIMENTI = "In attesa chiarimenti";
 const AVANZAMENTI_QUALITA = Array.isArray(ACCESS_CONTEXT.avanzamenti_qualita) && ACCESS_CONTEXT.avanzamenti_qualita.length ? ACCESS_CONTEXT.avanzamenti_qualita : ["In attesa", AVANZAMENTO_CHIARIMENTI];
 const CC_PUO_CHIUDERE = ACCESS_CONTEXT.cc_puo_chiudere !== false;
+const CAN_REGISTRO = !!ACCESS_CONTEXT.can_registro;
 const ROLE_ACCESS = ACCESS_CONTEXT.role_access || {};
 const ACCESS_ORDER = {
   NONE: 0,
@@ -618,6 +622,190 @@ const EsitiAnomalia = ({
     disabled: saving || !azione || serveRiverifica,
     onClick: () => invia("AZIONE")
   }, saving ? "Salvataggio…" : chiudi ? "Registra e chiudi" : "Registra azione"))));
+};
+
+// ── Registro attività (supervisore): ogni azione registrata, in frasi ──
+const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"], ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"], ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"], ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"]];
+const STRISCIA_REGISTRO = {
+  crea: "info",
+  aggiorna: "acc",
+  qualita: "qa",
+  chiudi: "ok",
+  riapri: "warn",
+  segnalato: "info",
+  richiesta_info: "warn",
+  risposta_info: "ok",
+  spostata: "warn",
+  aggiorna_avanzamento: "acc",
+  approva: "acc",
+  incaricato: "qa",
+  allegato: "info",
+  allegato_tolto: "warn",
+  elimina: "warn"
+};
+const giornoLabel = iso => {
+  const d = new Date(iso);
+  const oggi = new Date();
+  const ieri = new Date(Date.now() - 864e5);
+  const stesso = (a, b) => a.toDateString() === b.toDateString();
+  const testo = d.toLocaleDateString("it-IT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long"
+  });
+  return stesso(d, oggi) ? `Oggi · ${testo}` : stesso(d, ieri) ? `Ieri · ${testo}` : testo;
+};
+const RegistroAttivita = ({
+  filtroIniziale,
+  onApri,
+  onChiudi
+}) => {
+  const [f, setF] = useState({
+    op: "",
+    codice: "",
+    persona: "",
+    azione: "",
+    fonte: "",
+    giorni: "7",
+    ...(filtroIniziale || {})
+  });
+  const [per, setPer] = useState(filtroIniziale && filtroIniziale.codice ? "anomalia" : "giorno");
+  const [dati, setDati] = useState(null);
+  const [errore, setErrore] = useState("");
+  useEffect(() => {
+    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
+    setErrore("");
+    fetch(`${API.registro}?${qs.toString()}`, {
+      credentials: "same-origin"
+    }).then(r => readJsonOrThrow(r, "Registro attività")).then(d => {
+      if (!d.success) throw new Error(d.error || "errore");
+      setDati(d);
+    }).catch(e => setErrore(e.message));
+  }, [f.op, f.codice, f.persona, f.azione, f.fonte, f.giorni]);
+  const eventi = dati && dati.eventi || [];
+  const gruppi = [];
+  eventi.forEach(e => {
+    const k = per === "anomalia" ? e.codice || `OP ${e.op_id}` : e.giorno;
+    let g = gruppi.find(x => x.k === k);
+    if (!g) {
+      g = {
+        k,
+        titolo: per === "anomalia" ? `${e.codice || "OP"} · OP ${e.op_id}${e.seriale ? ` · S/N ${e.seriale}` : ""}` : giornoLabel(e.quando),
+        ev: []
+      };
+      gruppi.push(g);
+    }
+    g.ev.push(e);
+  });
+  const campo = (k, v) => setF(p => ({
+    ...p,
+    [k]: v
+  }));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__filtri"
+  }, /*#__PURE__*/React.createElement("label", null, "OP", /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: f.op,
+    onChange: e => campo("op", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Tutti"), (dati && dati.op || []).concat(f.op && !(dati && dati.op || []).includes(f.op) ? [f.op] : []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o
+  }, o)))), /*#__PURE__*/React.createElement("label", null, "Codice", /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    value: f.codice,
+    placeholder: "AN-\u2026",
+    onChange: e => campo("codice", e.target.value)
+  })), /*#__PURE__*/React.createElement("label", null, "Persona", /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: f.persona,
+    onChange: e => campo("persona", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Tutte"), (dati && dati.persone || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o
+  }, o)))), /*#__PURE__*/React.createElement("label", null, "Azione", /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: f.azione,
+    onChange: e => campo("azione", e.target.value)
+  }, AZIONI_REGISTRO.map(([v, l]) => /*#__PURE__*/React.createElement("option", {
+    key: v,
+    value: v
+  }, l)))), /*#__PURE__*/React.createElement("label", null, "Da dove", /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: f.fonte,
+    onChange: e => campo("fonte", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Tutto"), /*#__PURE__*/React.createElement("option", {
+    value: "portal"
+  }, "Portale"), /*#__PURE__*/React.createElement("option", {
+    value: "mail_action"
+  }, "Link della mail"), /*#__PURE__*/React.createElement("option", {
+    value: "system"
+  }, "Sistema"))), /*#__PURE__*/React.createElement("label", null, "Periodo", /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: f.giorni,
+    onChange: e => campo("giorni", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "7"
+  }, "Ultimi 7 giorni"), /*#__PURE__*/React.createElement("option", {
+    value: "30"
+  }, "Ultimo mese"), /*#__PURE__*/React.createElement("option", {
+    value: "90"
+  }, "Ultimi 3 mesi"), /*#__PURE__*/React.createElement("option", {
+    value: "365"
+  }, "Ultimo anno"))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-seg-ctl",
+    role: "group",
+    "aria-label": "Raggruppa il registro"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: per === "giorno" ? "is-on" : "",
+    onClick: () => setPer("giorno")
+  }, "Per giorno"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: per === "anomalia" ? "is-on" : "",
+    onClick: () => setPer("anomalia")
+  }, "Per anomalia"))), errore ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, errore) : !dati ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-empty"
+  }, "Caricamento\u2026") : !eventi.length ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-empty"
+  }, "Nessuna attivit\xE0 con questi filtri.") : gruppi.map(g => /*#__PURE__*/React.createElement("section", {
+    key: g.k,
+    className: "ga-reg__grp"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "ga-reg__giorno"
+  }, g.titolo), g.ev.map(e => /*#__PURE__*/React.createElement("div", {
+    key: e.id,
+    className: `ga-reg__ev ga-reg__ev--${STRISCIA_REGISTRO[e.azione] || "muted"}`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-reg__ora"
+  }, per === "anomalia" ? `${new Date(e.quando).toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit"
+  })} ${e.ora}` : e.ora), /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__c"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, e.chi), " ", e.verbo, " ", e.codice && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link ga-reg__cod",
+    title: "Apri l'anomalia in Gestione anomalie",
+    onClick: () => onApri(e)
+  }, e.codice), e.op_id && /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, " \xB7 OP ", e.op_id, e.seriale ? ` · S/N ${e.seriale}` : "")), e.modifiche.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__diff"
+  }, e.modifiche.map(([c, prima, dopo], i) => /*#__PURE__*/React.createElement("span", {
+    key: i
+  }, c, ": ", prima ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("s", null, prima), " \u2192 ") : null, dopo || /*#__PURE__*/React.createElement("em", null, "vuoto")))), e.note && !e.modifiche.length && /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__nota"
+  }, e.note), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, e.fonte)))))));
 };
 const TimelineOp = ({
   opId,
@@ -1320,6 +1508,11 @@ const statoAnomalia = a => {
 // Preferenze della pagina nel browser (raggruppamento, gruppi chiusi): se lo
 // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
 const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
+const PREF_VISTA_OP = "ga_vista_ordini";
+// Viste delle due colonne: «elenco» e «sn»/«stato» sono quelle di sempre.
+const VISTE_ORDINI = [["elenco", "Elenco"], ["coda", "Coda di lavoro"], ["persona", "Per capocommessa"], ["tabella", "Tabella"]];
+const VISTE_ANOMALIE = [["sn", "Per S/N"], ["stato", "Per stato"], ["kanban", "Per fase"], ["ruolo", "Per ruolo"], ["tabella", "Tabella"], ["pezzi", "Pezzi"]];
+const VISTE_LARGHE = ["kanban", "tabella", "pezzi"];
 const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
 const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
 const leggiPref = (k, def) => {
@@ -1691,7 +1884,25 @@ function GestioneAnomalie() {
   const [snFilter, setSnFilter] = useState("tutte"); // "tutte" | "da_decidere"
   // Raggruppamento delle anomalie («sn» per blocco di seriali, «stato») e gruppi
   // chiusi: restano nel browser finché la persona non li cambia, per tutti gli OP.
-  const [raggruppa, setRaggruppaState] = useState(() => leggiPref(PREF_RAGGRUPPA, "sn") === "stato" ? "stato" : "sn");
+  const [raggruppa, setRaggruppaState] = useState(() => {
+    const v = leggiPref(PREF_RAGGRUPPA, "sn");
+    return VISTE_ANOMALIE.some(([k]) => k === v) ? v : "sn";
+  });
+  // Vista della colonna ordini e pagina mostrata (gestione o registro attività).
+  const [vistaOp, setVistaOpState] = useState(() => {
+    const v = leggiPref(PREF_VISTA_OP, "elenco");
+    return VISTE_ORDINI.some(([k]) => k === v) ? v : "elenco";
+  });
+  const setVistaOp = v => {
+    setVistaOpState(v);
+    scriviPref(PREF_VISTA_OP, v);
+  };
+  const [ordineTab, setOrdineTab] = useState({
+    k: "ferma",
+    desc: true
+  });
+  const [pagina, setPagina] = useState(null); // null | { filtro }
+  const daAprireRef = useRef(null); // anomalia da aprire dopo il caricamento dell'OP (dal registro)
   const [gruppiChiusi, setGruppiChiusi] = useState(() => {
     const v = leggiPref(PREF_GRUPPI_CHIUSI, null);
     return v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -1784,6 +1995,7 @@ function GestioneAnomalie() {
   });
   const [qBusy, setQBusy] = useState(false);
   const [infoModal, setInfoModal] = useState(null); // null | { cc, controllore, messaggio, busy, err }
+  const [incModal, setIncModal] = useState(null); // null | { ruolo, persona, nota, persone, busy, err }
   const [rispInfo, setRispInfo] = useState("");
   // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
   // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
@@ -2071,8 +2283,10 @@ function GestioneAnomalie() {
       if (!alive) return;
       const list = Array.isArray(data) ? data : [];
       setAnomalie(list);
-      // Si apre la prima anomalia che aspetta una decisione.
-      const first = list.find(a => a.in_carico_a_me) || list.find(isDaDecidere) || list.find(a => !a.chiudere);
+      // Si apre l'anomalia chiesta dal registro, altrimenti la prima che aspetta.
+      const chiesta = daAprireRef.current && list.find(a => String(a.local_id) === String(daAprireRef.current));
+      daAprireRef.current = null;
+      const first = chiesta || list.find(a => a.in_carico_a_me) || list.find(isDaDecidere) || list.find(a => !a.chiudere);
       setSelectedSnId(first ? first.item_id : "");
       setLoadingAnom(false);
     }).catch(e => {
@@ -2746,6 +2960,90 @@ function GestioneAnomalie() {
       } : m);
     }
   };
+  const caricaPersone = async ruolo => {
+    try {
+      const r = await fetch(`${API.incaricato_persone}?ruolo=${encodeURIComponent(ruolo)}`, {
+        credentials: "same-origin"
+      });
+      const d = await r.json();
+      if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
+      setIncModal(m => m && m.ruolo === ruolo ? {
+        ...m,
+        persone: d.persone || []
+      } : m);
+    } catch (e) {
+      setIncModal(m => m ? {
+        ...m,
+        persone: [],
+        err: "Elenco persone non caricato: " + e.message
+      } : m);
+    }
+  };
+  const apriCambiaIncaricato = ruolo => {
+    const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
+    const att = (sn.incaricati || {})[r];
+    setIncModal({
+      ruolo: r,
+      persona: att ? String(att.id) : "",
+      nota: "",
+      persone: null,
+      busy: false,
+      err: ""
+    });
+    caricaPersone(r);
+  };
+  const cambiaRuoloIncarico = r => {
+    const att = (sn.incaricati || {})[r];
+    setIncModal(m => ({
+      ...m,
+      ruolo: r,
+      persona: att ? String(att.id) : "",
+      persone: null,
+      err: ""
+    }));
+    caricaPersone(r);
+  };
+  const salvaIncaricato = async diSerie => {
+    if (!incModal || incModal.busy) return;
+    if (!diSerie && !incModal.persona) {
+      setIncModal({
+        ...incModal,
+        err: "Scegli la persona."
+      });
+      return;
+    }
+    setIncModal({
+      ...incModal,
+      busy: true,
+      err: ""
+    });
+    try {
+      const d = await postJson(API.incaricato, {
+        local_id: sn.local_id,
+        ruolo: incModal.ruolo,
+        persona_id: diSerie ? "" : incModal.persona,
+        nota: incModal.nota.trim()
+      }, "Cambio incaricato");
+      aggiornaSn({
+        incaricati: d.incaricati || {},
+        ruoli_in_carico: d.ruoli_in_carico || [],
+        in_carico_a_me: !!d.in_carico_a_me,
+        puo_cambiare_incaricato: d.puo_cambiare_incaricato !== false
+      });
+      setIncModal(null);
+      flash({
+        ok: true,
+        text: diSerie ? "Il ruolo torna a chi lo ha di serie" : `Incaricato cambiato${d.mail ? " · mail inviata" : ""}${d.senza_email ? " · nessuna email in anagrafica" : ""}`
+      }, 6000);
+      loadOrdini();
+    } catch (e) {
+      setIncModal(m => m ? {
+        ...m,
+        busy: false,
+        err: e.message
+      } : m);
+    }
+  };
   const rispondiRichiesta = async () => {
     if (!rispInfo.trim() || !sn.local_id) return;
     try {
@@ -3208,19 +3506,402 @@ function GestioneAnomalie() {
       className: "ga-grp__body"
     }, visibili.map(renderAnomalia)));
   };
+
+  // Riga compatta dell'elenco OP: numero, P/N e contatori; il resto è nella scheda
+  // dell'OP in cima alla colonna Anomalie.
+  const renderOpRiga = o => {
+    const sel = opKey(o) === opKey(op);
+    const tot = Number(o.anomalie_count || 0);
+    const aperte = apertiDi(o);
+    const daDec = daDecidereDi(o);
+    const inCorso = Math.max(0, aperte - daDec);
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: opKey(o),
+      className: `ga-opr${sel ? " is-sel" : ""}`,
+      onClick: () => selectOp(o),
+      title: `Capocommessa ${o.capo || "—"} · CAR ${o.car || "—"}`
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-opr__id"
+    }, o.id, String(o.stato || "").toLowerCase() === "benestare" && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--ben"
+    }, "Benestare")), /*#__PURE__*/React.createElement("span", {
+      className: "ga-opr__cnt"
+    }, daDec > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ga-cnt ga-cnt--dec",
+      title: "Da decidere"
+    }, daDec), inCorso > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ga-cnt ga-cnt--corso",
+      title: "Aperte con una decisione, in corso"
+    }, inCorso), tot > 0 && aperte === 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ga-cnt ga-cnt--ok",
+      title: "Tutte chiuse"
+    }, "\u2713")), /*#__PURE__*/React.createElement("span", {
+      className: "ga-opr__pn"
+    }, o.pn && o.pn !== "—" ? o.pn : "—"));
+  };
+  // Fase del percorso di un'anomalia (vista «Per fase»).
+  const faseDi = a => {
+    if (a.chiudere) return "chiuse";
+    if (richiestaAperta(a)) return "chiarimenti";
+    if (STATI_RISPOSTA.includes(normalizeChoice(a.avanzamento).toLowerCase())) return "attesa";
+    if (isDaDecidere(a)) return "decidere";
+    return "qualita";
+  };
+  const giorniDa = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).replace(" ", "T"));
+    return Number.isNaN(d.getTime()) ? null : Math.max(0, Math.floor((Date.now() - d.getTime()) / 864e5));
+  };
+  const RUOLI_NOMI = {
+    cc: "Capocommessa",
+    qualita: "Qualità",
+    controllore: "Controllore",
+    car: "CAR segnalato"
+  };
+  // Chi ha il ruolo sull'anomalia: l'incaricato, se c'è, se no chi lo ha di serie.
+  const chiHaRuolo = (a, r) => {
+    const inc = (a.incaricati || {})[r];
+    if (inc) return inc.nome;
+    if (r === "cc") return op.capo && op.capo !== "—" ? op.capo : "capocommessa dell'OP";
+    if (r === "qualita") return "referenti RDC";
+    if (r === "car") return (a.car_segnalati || []).join(", ") || "CAR segnalati";
+    return a.controllo_operatore || a.autore || "chi l'ha inserita";
+  };
+  const inCaricoTesto = a => a.in_carico_a_me ? "Tu" : (a.ruoli_in_carico || []).map(r => `${RUOLI_NOMI[r]} · ${chiHaRuolo(a, r)}`).join("; ") || "—";
+  const schedaAnomalia = a => /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    key: a.item_id,
+    className: `ga-kcard${a.item_id === sn.item_id ? " is-sel" : ""}${a.in_carico_a_me ? " is-tua" : ""}`,
+    onClick: () => selectSn(a)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-kcard__row"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-kcard__cod"
+  }, codiceAnomalia(a.local_id)), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, a.sn)), /*#__PURE__*/React.createElement("span", {
+    className: "ga-kcard__txt"
+  }, a.testo || a.desc || "—"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-kcard__pills"
+  }, a.aprire_rdc && !a.numero_rdc && !a.chiudere && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--rdc"
+  }, "RDC \xB7 manca N\xB0"), a.segnalare && !a.segnalato_cliente && !a.chiudere && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--cli"
+  }, "Cliente \xB7 da segnalare"), a.avanzamento_qualita && !a.chiudere && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--muted"
+  }, "Qualit\xE0 \xB7 ", a.avanzamento_qualita)));
+  const renderVistaAnomalie = () => {
+    const lista = filteredSeriali;
+    if (raggruppa === "kanban") {
+      const colonne = [["decidere", "Da decidere"], ["qualita", "Qualità"], ["attesa", "Attesa cliente / terzista"], ["chiarimenti", "Chiarimenti"], ["chiuse", "Chiuse"]];
+      return /*#__PURE__*/React.createElement("div", {
+        className: "ga-kanban"
+      }, colonne.map(([k, t]) => {
+        const qui = lista.filter(a => faseDi(a) === k);
+        return /*#__PURE__*/React.createElement("div", {
+          key: k,
+          className: "ga-kcol"
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "ga-kcol__t"
+        }, /*#__PURE__*/React.createElement("span", null, t), /*#__PURE__*/React.createElement("span", {
+          className: "ga-grp__n"
+        }, qui.length)), qui.length ? qui.map(schedaAnomalia) : /*#__PURE__*/React.createElement("span", {
+          className: "ga-hint"
+        }, "\u2014"));
+      }));
+    }
+    if (raggruppa === "ruolo") {
+      const gruppi = ["cc", "qualita", "controllore", "car"].map(r => [r, lista.filter(a => (a.ruoli_in_carico || []).includes(r))]);
+      const chiuse = lista.filter(a => a.chiudere);
+      return /*#__PURE__*/React.createElement("div", {
+        className: "ga-grps"
+      }, gruppi.map(([r, qui]) => /*#__PURE__*/React.createElement("div", {
+        key: r,
+        className: "ga-grp ga-grp--aperto"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "ga-grp__head"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__line"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__label"
+      }, RUOLI_NOMI[r]), /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__n"
+      }, qui.length))), /*#__PURE__*/React.createElement("div", {
+        className: "ga-grp__body"
+      }, qui.length ? qui.map(renderAnomalia) : /*#__PURE__*/React.createElement("div", {
+        className: "ga-hint"
+      }, "Nessuna.")))), chiuse.length > 0 && /*#__PURE__*/React.createElement("div", {
+        className: "ga-grp ga-grp--chiuso"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "ga-grp__head"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__line"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__label"
+      }, "Chiuse"), /*#__PURE__*/React.createElement("span", {
+        className: "ga-grp__n"
+      }, chiuse.length))), /*#__PURE__*/React.createElement("div", {
+        className: "ga-grp__body"
+      }, chiuse.map(renderAnomalia))));
+    }
+    if (raggruppa === "tabella") {
+      const righe = [...lista].sort((x, y) => (giorniDa(y.modified) ?? -1) - (giorniDa(x.modified) ?? -1));
+      return /*#__PURE__*/React.createElement("div", {
+        className: "ga-tabwrap"
+      }, /*#__PURE__*/React.createElement("table", {
+        className: "ga-tab ga-tab--compatta"
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Codice"), /*#__PURE__*/React.createElement("th", null, "S/N"), /*#__PURE__*/React.createElement("th", null, "Anomalia"), /*#__PURE__*/React.createElement("th", null, "Stato"), /*#__PURE__*/React.createElement("th", null, "In carico a"), /*#__PURE__*/React.createElement("th", {
+        className: "r"
+      }, "Ferma da"))), /*#__PURE__*/React.createElement("tbody", null, righe.map(a => {
+        const st = statoAnomalia(a);
+        return /*#__PURE__*/React.createElement("tr", {
+          key: a.item_id,
+          className: a.item_id === sn.item_id ? "is-sel" : "",
+          onClick: () => selectSn(a)
+        }, /*#__PURE__*/React.createElement("td", {
+          className: "ga-kcard__cod"
+        }, codiceAnomalia(a.local_id)), /*#__PURE__*/React.createElement("td", null, a.sn), /*#__PURE__*/React.createElement("td", {
+          className: "ga-tab__txt"
+        }, a.testo || a.desc || "—"), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+          className: `ga-pill ga-pill--${st.variant}`
+        }, st.text), a.avanzamento_qualita && !a.chiudere && /*#__PURE__*/React.createElement("div", {
+          className: "ga-hint"
+        }, "Qualit\xE0 \xB7 ", a.avanzamento_qualita)), /*#__PURE__*/React.createElement("td", {
+          className: "ga-tab__txt ga-tab__txt--stretto"
+        }, a.in_carico_a_me ? /*#__PURE__*/React.createElement("b", null, "Tu") : inCaricoTesto(a)), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, a.chiudere ? "—" : `${giorniDa(a.modified) ?? "—"} gg`));
+      }))));
+    }
+    if (raggruppa === "pezzi") {
+      const tipi = [...new Set(lista.map(a => a.tipo_difetto || "Senza tipo"))];
+      const seriali = [...new Set(lista.map(a => a.sn || "—"))].sort();
+      const classe = a => a.chiudere ? "ok" : isDaDecidere(a) ? "dec" : "corso";
+      return /*#__PURE__*/React.createElement("div", {
+        className: "ga-tabwrap"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "ga-pezzi",
+        style: {
+          gridTemplateColumns: `120px repeat(${tipi.length}, minmax(110px, 1fr))`
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-pezzi__h"
+      }, "S/N"), tipi.map(t => /*#__PURE__*/React.createElement("span", {
+        key: t,
+        className: "ga-pezzi__h"
+      }, t)), seriali.map(s2 => /*#__PURE__*/React.createElement(React.Fragment, {
+        key: s2
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "ga-kcard__cod ga-pezzi__sn"
+      }, s2), tipi.map(t => {
+        const qui = lista.filter(a => (a.sn || "—") === s2 && (a.tipo_difetto || "Senza tipo") === t);
+        return /*#__PURE__*/React.createElement("span", {
+          key: t,
+          className: "ga-pezzi__cella"
+        }, qui.length ? qui.map(a => /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          key: a.item_id,
+          className: `ga-pezzo ga-pezzo--${classe(a)}${a.item_id === sn.item_id ? " is-sel" : ""}`,
+          title: a.testo || a.desc || "",
+          onClick: () => selectSn(a)
+        }, codiceAnomalia(a.local_id))) : /*#__PURE__*/React.createElement("span", {
+          className: "ga-hint"
+        }, "\u2014"));
+      })))));
+    }
+    return /*#__PURE__*/React.createElement("div", {
+      className: "ga-grps"
+    }, gruppiAnomalie.map(renderGruppo));
+  };
+  const rigaOp = o => {
+    const sel = opKey(o) === opKey(op);
+    const aperte = apertiDi(o);
+    const daDec = daDecidereDi(o);
+    const inCorso = Math.max(0, aperte - daDec);
+    return {
+      sel,
+      aperte,
+      daDec,
+      inCorso,
+      tot: Number(o.anomalie_count || 0)
+    };
+  };
+  const renderVistaOrdini = () => {
+    if (vistaOp === "coda") {
+      const lista = [...filteredOrdini].sort((x, y) => (y.anomalie_in_carico_count > 0) - (x.anomalie_in_carico_count > 0) || (y.ferma_da_giorni ?? -1) - (x.ferma_da_giorni ?? -1));
+      return lista.map(o => {
+        const {
+          sel
+        } = rigaOp(o);
+        const n = Number(o.anomalie_in_carico_count || 0);
+        const g = o.ferma_da_giorni;
+        return /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          key: opKey(o),
+          className: `ga-coda${sel ? " is-sel" : ""}`,
+          onClick: () => selectOp(o)
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "ga-coda__id"
+        }, o.id), /*#__PURE__*/React.createElement("span", {
+          className: "ga-coda__sub"
+        }, o.pn && o.pn !== "—" ? o.pn : "—", " \xB7 ", n ? `${n} tu${n === 1 ? "a" : "e"}` : "niente per te"), /*#__PURE__*/React.createElement("span", {
+          className: `ga-coda__eta${g >= 3 ? " is-hot" : ""}`
+        }, n && g != null ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, g), /*#__PURE__*/React.createElement("small", null, g === 1 ? "giorno" : "giorni")) : /*#__PURE__*/React.createElement("small", null, "\u2014")));
+      });
+    }
+    if (vistaOp === "persona") {
+      const per = {};
+      filteredOrdini.forEach(o => {
+        (per[o.capo || "—"] = per[o.capo || "—"] || []).push(o);
+      });
+      return Object.keys(per).sort().map(capo => {
+        const g = {
+          key: `capo:${capo}`,
+          chiusoDiSerie: false
+        };
+        const chiuso = gruppoChiuso(g);
+        const daDec = per[capo].reduce((n, o) => n + daDecidereDi(o), 0);
+        return /*#__PURE__*/React.createElement("div", {
+          key: capo,
+          className: `ga-grp ga-grp--blocco${chiuso ? " is-chiuso" : ""}`
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "ga-grp__head"
+        }, /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          className: "ga-grp__toggle",
+          "aria-expanded": !chiuso,
+          onClick: () => toggleGruppo(g)
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "ga-grp__line"
+        }, /*#__PURE__*/React.createElement("span", {
+          className: "ga-grp__caret",
+          "aria-hidden": "true"
+        }, "\u25BE"), /*#__PURE__*/React.createElement("span", {
+          className: "ga-grp__label"
+        }, capo), /*#__PURE__*/React.createElement("span", {
+          className: "ga-grp__n"
+        }, per[capo].length), daDec > 0 && /*#__PURE__*/React.createElement("span", {
+          className: "ga-blk__todo"
+        }, daDec, " da decidere")))), !chiuso && /*#__PURE__*/React.createElement("div", {
+          className: "ga-grp__body"
+        }, per[capo].map(renderOpRiga)));
+      });
+    }
+    if (vistaOp === "tabella") {
+      const val = (o, k) => ({
+        op: o.id,
+        pn: o.pn,
+        capo: o.capo,
+        car: o.car,
+        dec: daDecidereDi(o),
+        corso: rigaOp(o).inCorso,
+        chiuse: Number(o.anomalie_count || 0) - apertiDi(o),
+        tue: Number(o.anomalie_in_carico_count || 0),
+        ferma: o.ferma_da_giorni ?? -1
+      })[k];
+      const lista = [...filteredOrdini].sort((x, y) => {
+        const a = val(x, ordineTab.k),
+          b = val(y, ordineTab.k);
+        const c = typeof a === "number" ? a - b : String(a || "").localeCompare(String(b || ""));
+        return ordineTab.desc ? -c : c;
+      });
+      const th = (k, l, r) => /*#__PURE__*/React.createElement("th", {
+        className: r ? "r" : ""
+      }, /*#__PURE__*/React.createElement("button", {
+        type: "button",
+        className: "ga-tab__sort",
+        onClick: () => setOrdineTab(p => ({
+          k,
+          desc: p.k === k ? !p.desc : true
+        }))
+      }, l, ordineTab.k === k ? ordineTab.desc ? " ↓" : " ↑" : ""));
+      return /*#__PURE__*/React.createElement("div", {
+        className: "ga-tabwrap"
+      }, /*#__PURE__*/React.createElement("table", {
+        className: "ga-tab"
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, th("op", "OP"), th("pn", "P/N"), th("capo", "Capocommessa"), th("car", "CAR"), th("dec", "Da decidere", 1), th("corso", "In corso", 1), th("chiuse", "Chiuse", 1), th("tue", "Tue", 1), th("ferma", "Ferma da", 1))), /*#__PURE__*/React.createElement("tbody", null, lista.map(o => {
+        const {
+          sel,
+          daDec,
+          inCorso
+        } = rigaOp(o);
+        return /*#__PURE__*/React.createElement("tr", {
+          key: opKey(o),
+          className: sel ? "is-sel" : "",
+          onClick: () => {
+            selectOp(o);
+            setVistaOp("elenco");
+          },
+          title: "Apri l'OP"
+        }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("b", null, o.id)), /*#__PURE__*/React.createElement("td", null, o.pn), /*#__PURE__*/React.createElement("td", null, o.capo), /*#__PURE__*/React.createElement("td", null, o.car), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, daDec ? /*#__PURE__*/React.createElement("span", {
+          className: "ga-cnt ga-cnt--dec"
+        }, daDec) : "—"), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, inCorso || "—"), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, Number(o.anomalie_count || 0) - apertiDi(o) || "—"), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, o.anomalie_in_carico_count || "—"), /*#__PURE__*/React.createElement("td", {
+          className: "r"
+        }, o.anomalie_in_carico_count && o.ferma_da_giorni != null ? `${o.ferma_da_giorni} gg` : "—"));
+      }))));
+    }
+    return filteredOrdini.map(renderOpRiga);
+  };
+  const apriDalRegistro = e => {
+    setPagina(null);
+    const o = ordini.find(x => String(x.id || "").toLowerCase() === String(e.op_id || "").toLowerCase());
+    if (!o) {
+      flash({
+        ok: false,
+        text: `OP ${e.op_id} non presente nell'elenco`
+      });
+      return;
+    }
+    if (opKey(o) === opKey(op)) {
+      const a = anomalie.find(x => String(x.local_id) === String(e.anomalia_id));
+      if (a) setSelectedSnId(a.item_id);
+      return;
+    }
+    daAprireRef.current = e.anomalia_id;
+    setSelectedOpKey(opKey(o));
+  };
+  const gridCols = isMobile ? undefined : (() => {
+    const base = isTablet ? ["250px", "270px", "minmax(0,1fr)"] : ["310px", "330px", "minmax(0,1fr)"];
+    if (vistaOp === "tabella") return {
+      gridTemplateColumns: "minmax(0,1fr) minmax(0,0.9fr)"
+    };
+    if (raggruppa === "kanban") return {
+      gridTemplateColumns: `${base[0]} minmax(0,2.3fr) minmax(340px,1fr)`
+    };
+    if (VISTE_LARGHE.includes(raggruppa)) return {
+      gridTemplateColumns: `${base[0]} minmax(0,1.6fr) minmax(360px,1fr)`
+    };
+    return {
+      gridTemplateColumns: base.join(" ")
+    };
+  })();
   return /*#__PURE__*/React.createElement("div", {
     className: `ga${isMobile ? " ga--mobile" : ""}`
   }, /*#__PURE__*/React.createElement("header", {
     className: "ga-top"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-top__left"
-  }, /*#__PURE__*/React.createElement("a", {
+  }, pagina ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-iconbtn",
+    title: "Torna a Gestione anomalie",
+    onClick: () => setPagina(null)
+  }, Ico.back) : /*#__PURE__*/React.createElement("a", {
     href: "/anomalie-menu",
     className: "ga-iconbtn",
     title: "Torna al menu anomalie"
   }, Ico.back), /*#__PURE__*/React.createElement("h1", {
     className: "ga-top__title"
-  }, isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie"), !isMobile && op.id && /*#__PURE__*/React.createElement("span", {
+  }, pagina ? "Registro attività" : isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie"), !isMobile && op.id && !pagina && /*#__PURE__*/React.createElement("span", {
     className: "ga-top__op"
   }, op.id, op.pn && op.pn !== "—" ? ` · ${op.pn}` : "")), /*#__PURE__*/React.createElement("div", {
     className: "ga-top__right"
@@ -3231,7 +3912,13 @@ function GestioneAnomalie() {
   }, Ico.plus, !isMobile && /*#__PURE__*/React.createElement("span", null, "Nuova segnalazione")), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
     className: "ga-btn ga-btn--ghost",
     href: API.nc_lista
-  }, "Non conformit\xE0"), /*#__PURE__*/React.createElement("div", {
+  }, "Non conformit\xE0"), CAN_REGISTRO && !pagina && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost",
+    onClick: () => setPagina({
+      filtro: {}
+    })
+  }, "Registro attivit\xE0"), /*#__PURE__*/React.createElement("div", {
     className: "ga-menu"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -3266,11 +3953,13 @@ function GestioneAnomalie() {
   }, "Non conformit\xE0"), IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
     role: "menuitem",
     href: ADMIN_URL
-  }, "Configurazione modulo")))))), /*#__PURE__*/React.createElement("div", {
+  }, "Configurazione modulo")))))), pagina ? /*#__PURE__*/React.createElement(RegistroAttivita, {
+    filtroIniziale: pagina.filtro,
+    onApri: apriDalRegistro,
+    onChiudi: () => setPagina(null)
+  }) : /*#__PURE__*/React.createElement("div", {
     className: "ga-cols",
-    style: isMobile ? undefined : {
-      gridTemplateColumns: isTablet ? "250px 270px minmax(0,1fr)" : "310px 330px minmax(0,1fr)"
-    }
+    style: gridCols
   }, /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--op",
     style: {
@@ -3279,8 +3968,19 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-col__head"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-col__titlerow"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "ga-col__title"
-  }, "Ordini di produzione"), /*#__PURE__*/React.createElement("div", {
+  }, "Ordini di produzione"), /*#__PURE__*/React.createElement("label", {
+    className: "ga-vista"
+  }, "Vista", /*#__PURE__*/React.createElement("select", {
+    value: vistaOp,
+    onChange: e => setVistaOp(e.target.value),
+    "aria-label": "Vista della colonna ordini"
+  }, VISTE_ORDINI.map(([k, l]) => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, l))))), /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
   }, [["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => /*#__PURE__*/React.createElement(Chip, {
     key: v,
@@ -3299,42 +3999,10 @@ function GestioneAnomalie() {
     className: "ga-empty"
   }, "Caricamento ordini\u2026") : filteredOrdini.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-empty"
-  }, pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te." : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato.") : filteredOrdini.map(o => {
-    // Riga compatta: numero, P/N e contatori; il resto è nella scheda
-    // dell'OP in cima alla colonna Anomalie.
-    const sel = opKey(o) === opKey(op);
-    const tot = Number(o.anomalie_count || 0);
-    const aperte = apertiDi(o);
-    const daDec = daDecidereDi(o);
-    const inCorso = Math.max(0, aperte - daDec);
-    return /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      key: opKey(o),
-      className: `ga-opr${sel ? " is-sel" : ""}`,
-      onClick: () => selectOp(o),
-      title: `Capocommessa ${o.capo || "—"} · CAR ${o.car || "—"}`
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "ga-opr__id"
-    }, o.id, String(o.stato || "").toLowerCase() === "benestare" && /*#__PURE__*/React.createElement("span", {
-      className: "ga-pill ga-pill--ben"
-    }, "Benestare")), /*#__PURE__*/React.createElement("span", {
-      className: "ga-opr__cnt"
-    }, daDec > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "ga-cnt ga-cnt--dec",
-      title: "Da decidere"
-    }, daDec), inCorso > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "ga-cnt ga-cnt--corso",
-      title: "Aperte con una decisione, in corso"
-    }, inCorso), tot > 0 && aperte === 0 && /*#__PURE__*/React.createElement("span", {
-      className: "ga-cnt ga-cnt--ok",
-      title: "Tutte chiuse"
-    }, "\u2713")), /*#__PURE__*/React.createElement("span", {
-      className: "ga-opr__pn"
-    }, o.pn && o.pn !== "—" ? o.pn : "—"));
-  }))), /*#__PURE__*/React.createElement("section", {
+  }, pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te." : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato.") : renderVistaOrdini())), /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--sn",
     style: {
-      display: showCol("serie") ? undefined : "none"
+      display: showCol("serie") && !(vistaOp === "tabella" && !isMobile) ? undefined : "none"
     }
   }, op.id && (() => {
     // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
@@ -3406,20 +4074,16 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement("b", null, "Clona ", op.id), ": spunta le anomalie da copiare sul nuovo OP (anche le chiuse), poi \xABContinua\xBB."), /*#__PURE__*/React.createElement("div", {
     className: "ga-raggr"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "ga-seg-ctl",
+    className: "ga-seg-ctl ga-seg-ctl--viste",
     role: "group",
-    "aria-label": "Raggruppa le anomalie"
-  }, /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Vista delle anomalie"
+  }, VISTE_ANOMALIE.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
     type: "button",
-    className: raggruppa === "sn" ? "is-on" : "",
-    "aria-pressed": raggruppa === "sn",
-    onClick: () => setRaggruppa("sn")
-  }, "Per S/N"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: raggruppa === "stato" ? "is-on" : "",
-    "aria-pressed": raggruppa === "stato",
-    onClick: () => setRaggruppa("stato")
-  }, "Per stato")), pageFilter === "in_carico" && anomalie.length > 0 && /*#__PURE__*/React.createElement("label", {
+    className: raggruppa === k ? "is-on" : "",
+    "aria-pressed": raggruppa === k,
+    onClick: () => setRaggruppa(k)
+  }, l))), pageFilter === "in_carico" && anomalie.length > 0 && /*#__PURE__*/React.createElement("label", {
     className: "ga-mostra-tutte",
     title: "In \xABIn carico a me\xBB compaiono solo le anomalie che toccano a te"
   }, /*#__PURE__*/React.createElement("input", {
@@ -3454,9 +4118,7 @@ function GestioneAnomalie() {
   }, pageFilter === "in_carico" && !mostraTutte && anomalie.length ? "Nessuna anomalia di questo OP tocca a te. «Mostra tutte» per vederle." : raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.", canEditCurrentOp && !anomalie.length && /*#__PURE__*/React.createElement("a", {
     className: "ga-btn ga-btn--accent ga-btn--sm",
     href: nuovaAnomaliaUrl
-  }, Ico.plus, "Nuova segnalazione")) : /*#__PURE__*/React.createElement("div", {
-    className: "ga-grps"
-  }, gruppiAnomalie.map(renderGruppo))), clonaIds && /*#__PURE__*/React.createElement("div", {
+  }, Ico.plus, "Nuova segnalazione")) : renderVistaAnomalie()), clonaIds && /*#__PURE__*/React.createElement("div", {
     className: "ga-clona"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-clona__top"
@@ -3525,7 +4187,17 @@ function GestioneAnomalie() {
     className: "ga-det__titlerow"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "ga-det__title"
-  }, "Anomalia ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("span", {
+  }, "Anomalia ", codiceAnomalia(sn.local_id)), CAN_REGISTRO && sn.local_id && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    title: "Tutto quello che \xE8 stato fatto su questa anomalia",
+    onClick: () => setPagina({
+      filtro: {
+        codice: codiceAnomalia(sn.local_id),
+        giorni: "365"
+      }
+    })
+  }, "Storia"), /*#__PURE__*/React.createElement("span", {
     className: `ga-pill ga-pill--${statoSel.variant} ga-pill--lg`
   }, statoSel.text), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__nav"
@@ -3545,7 +4217,26 @@ function GestioneAnomalie() {
     sn: sn
   }), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__people"
-  }, isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""))), /*#__PURE__*/React.createElement("div", {
+  }, isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : "")), !sn.chiudere && ((sn.ruoli_in_carico || []).length > 0 || Object.keys(sn.incaricati || {}).length > 0) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-carico"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-carico__t"
+  }, "In carico"), (sn.ruoli_in_carico || []).map(r => {
+    const inc = (sn.incaricati || {})[r];
+    return /*#__PURE__*/React.createElement("span", {
+      key: r,
+      className: `ga-carico__p${inc ? " is-inc" : ""}`,
+      title: inc ? `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}${inc.nota ? ` · ${inc.nota}` : ""}` : "Di serie"
+    }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", chiHaRuolo(sn, r), inc ? " · incaricato" : "");
+  }), Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => /*#__PURE__*/React.createElement("span", {
+    key: r,
+    className: "ga-carico__p is-inc is-dopo",
+    title: "Incaricato per quando l'anomalia passer\xE0 a questo ruolo"
+  }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", inc.nome, " \xB7 dopo")), sn.puo_cambiare_incaricato && sn.local_id && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline ga-btn--xs",
+    onClick: () => apriCambiaIncaricato()
+  }, "Cambia incaricato"))), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__body"
   }, !canEditCurrentOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
@@ -4234,7 +4925,76 @@ function GestioneAnomalie() {
     className: "ga-btn ga-btn--accent",
     disabled: infoModal.busy,
     onClick: inviaRichiestaInfo
-  }, infoModal.busy ? "Invio…" : "Invia richiesta")))), modOp && /*#__PURE__*/React.createElement("div", {
+  }, infoModal.busy ? "Invio…" : "Invia richiesta")))), incModal && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "ga-inc-t"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title",
+    id: "ga-inc-t"
+  }, "Cambia incaricato \xB7 ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Ruolo"), /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: incModal.ruolo,
+    disabled: incModal.busy,
+    onChange: e => cambiaRuoloIncarico(e.target.value)
+  }, ["cc", "qualita", "controllore", "car"].map(r => /*#__PURE__*/React.createElement("option", {
+    key: r,
+    value: r
+  }, RUOLI_NOMI[r], (sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : "")))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Ora: ", chiHaRuolo(sn, incModal.ruolo), (sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Affida a"), incModal.persone === null ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Caricamento\u2026") : /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: incModal.persona,
+    disabled: incModal.busy,
+    onChange: e => setIncModal({
+      ...incModal,
+      persona: e.target.value
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 scegli \u2014"), incModal.persone.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: String(p.id)
+  }, p.nome)))), incModal.ruolo === "qualita" && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Per la qualit\xE0 si sceglie fra i referenti RDC di Configurazione."), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    value: incModal.nota,
+    placeholder: "Nota (facoltativa): arriva nella mail",
+    onChange: e => setIncModal({
+      ...incModal,
+      nota: e.target.value
+    })
+  }), incModal.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, incModal.err), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    disabled: incModal.busy,
+    onClick: () => setIncModal(null)
+  }, "Annulla"), (sn.incaricati || {})[incModal.ruolo] && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    disabled: incModal.busy,
+    onClick: () => salvaIncaricato(true)
+  }, "Torna di serie"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    disabled: incModal.busy || !incModal.persona,
+    onClick: () => salvaIncaricato(false)
+  }, incModal.busy ? "Salvataggio…" : "Affida")))), modOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-modal",
     role: "dialog",
     "aria-modal": "true",
