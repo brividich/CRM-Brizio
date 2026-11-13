@@ -17,21 +17,75 @@
       align-items: start;
     }
     .calendar-shell .abs-panel-body { padding: 8px; }
+    /* Testata compatta: una riga sola, il calendario prende lo spazio */
+    .abs-hero.cal-hero {
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(15, 118, 110, .16);
+    }
+    .cal-hero h1 { font-size: 20px; }
+    .cal-hero .abs-hero-action { min-height: 34px; padding: 0 12px; }
+    /* Colonna laterale: l'agenda si allunga o si accorcia secondo il pannello colori */
     .calendar-side {
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 12px;
       position: sticky;
       top: 74px;
-      max-height: calc(calc(100 * var(--vh, 1vh)) - 86px);
-      overflow: auto;
+      height: calc(calc(100 * var(--vh, 1vh)) - 86px);
       padding-bottom: 4px;
     }
+    .day-agenda {
+      flex: 1 1 auto;
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+    }
     .day-agenda .abs-panel-body {
-      max-height: calc(45 * var(--vh, 1vh));
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: auto;
+      align-content: start;
       padding-top: 12px;
       padding-bottom: 12px;
     }
+    .calendar-side .abs-panel-head { padding: 12px 16px; }
+    .calendar-side .abs-panel-title { font-size: 14px; font-weight: 800; letter-spacing: 0; }
+    .calendar-side .abs-panel-title svg { width: 16px; height: 16px; }
+    .agenda-list { align-content: start; }
+    .agenda-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; width: 100%; }
+    .agenda-sort {
+      display: inline-flex;
+      padding: 2px;
+      gap: 2px;
+      border-radius: 9px;
+      background: #eef2f6;
+      border: 1px solid #dbe5ef;
+    }
+    .agenda-sort button {
+      border: 0;
+      background: transparent;
+      color: #475569;
+      font: 600 11px "Outfit", sans-serif;
+      padding: 4px 8px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease;
+    }
+    .agenda-sort button:hover { color: #0f172a; }
+    .agenda-sort button[aria-pressed="true"] { background: #fff; color: #0f766e; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+    .agenda-count { font-size: 11px; color: #64748b; font-weight: 600; }
+    /* Pannello colori richiudibile (chiuso di default) */
+    .color-panel { flex: 0 0 auto; }
+    .color-panel > summary { list-style: none; cursor: pointer; }
+    .color-panel > summary::-webkit-details-marker { display: none; }
+    .color-panel > summary .abs-panel-title { width: 100%; }
+    .color-panel-chevron { margin-left: auto; transition: transform .2s ease; color: #64748b; font-size: 12px; }
+    .color-panel[open] .color-panel-chevron { transform: rotate(180deg); }
+    .color-panel:not([open]) > summary { border-bottom: 0; }
+    .color-panel .abs-panel-body { max-height: calc(40 * var(--vh, 1vh)); overflow: auto; }
     .agenda-list { display: grid; gap: 8px; }
     .agenda-item {
       width: 100%;
@@ -252,7 +306,7 @@
     }
     @media (max-width: 1180px) {
       .calendar-layout { grid-template-columns: 1fr; }
-      .calendar-side { position: static; max-height: none; }
+      .calendar-side { position: static; height: auto; }
       .day-agenda .abs-panel-body { max-height: none; }
     }
     @media (max-width: 700px) {
@@ -282,6 +336,11 @@
     body.theme-dark .agenda-name { color:var(--text); }
     body.theme-dark .agenda-time, body.theme-dark .agenda-meta { color:var(--text-light); }
     body.theme-dark .agenda-empty { color:var(--text-light); }
+    body.theme-dark .agenda-sort { background:rgba(255,255,255,.04); border-color:var(--border); }
+    body.theme-dark .agenda-sort button { color:#94a3b8; }
+    body.theme-dark .agenda-sort button:hover { color:#e2e8f0; }
+    body.theme-dark .agenda-sort button[aria-pressed="true"] { background:rgba(45,212,191,.16); color:#5eead4; box-shadow:none; }
+    body.theme-dark .agenda-count, body.theme-dark .color-panel-chevron { color:var(--text-light); }
     body.theme-dark .color-row label { color:var(--text-mid); }
     body.theme-dark .color-row input[type="color"] { background:var(--surface-alt); border-color:var(--border); }
     body.theme-dark .color-status { color:var(--text-light); }
@@ -302,18 +361,8 @@
 {% endblock %}
 
 {% block assenze_shell_content %}
-  <section class="abs-hero">
-    <div class="abs-hero-copy">
-      <span class="abs-eyebrow">Calendario</span>
-      <h1>Calendario assenze</h1>
-      <p>Consulta mese, settimana o agenda, apri il dettaglio di un evento e gestisci colori o operazioni rapide senza uscire dalla vista calendario.</p>
-      <div class="abs-hero-meta">
-        <span class="abs-hero-pill">Vista mensile, settimanale e agenda</span>
-        {% if assenze_can_edit_events %}
-          <span class="abs-hero-pill">Modifica eventi abilitata</span>
-        {% endif %}
-      </div>
-    </div>
+  <section class="abs-hero cal-hero">
+    <h1>Calendario assenze</h1>
     <div class="abs-hero-actions">
       <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">
         <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
@@ -361,9 +410,17 @@
     <aside class="calendar-side">
       <section class="abs-panel day-agenda">
         <div class="abs-panel-head">
-          <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg><span id="agendaDateLabel">Oggi</span></h2>
-            <p class="abs-panel-subtitle">Agenda del giorno selezionato.</p>
+          <div class="abs-panel-title-wrap" style="width:100%;">
+            <div class="agenda-head-row">
+              <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg><span id="agendaDateLabel">Oggi</span></h2>
+              <span class="agenda-count" id="agendaCount"></span>
+            </div>
+            <div class="agenda-sort" role="group" aria-label="Ordina assenti" id="agendaSort" style="margin-top:8px;">
+              <button type="button" data-sort="nome" aria-pressed="true">Nome</button>
+              <button type="button" data-sort="tipo" aria-pressed="false">Tipo</button>
+              <button type="button" data-sort="durata" aria-pressed="false">Durata</button>
+              <button type="button" data-sort="inserita" aria-pressed="false" title="Più recenti prima">Inserita</button>
+            </div>
           </div>
         </div>
         <div class="abs-panel-body">
@@ -372,13 +429,12 @@
         </div>
       </section>
 
-      <section class="abs-panel">
-        <div class="abs-panel-head">
-          <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Colori calendario</h2>
-            <p class="abs-panel-subtitle">Personalizza la palette per tipo e stato.</p>
+      <details class="abs-panel color-panel" id="colorPanel">
+        <summary class="abs-panel-head">
+          <div class="abs-panel-title-wrap" style="width:100%;">
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Colori calendario<span class="color-panel-chevron" aria-hidden="true">&#9660;</span></h2>
           </div>
-        </div>
+        </summary>
         <div class="abs-panel-body">
           <div class="color-grid" id="colorGrid"></div>
           <div class="color-actions">
@@ -387,7 +443,7 @@
           </div>
           <div class="color-status" id="colorStatus"></div>
         </div>
-      </section>
+      </details>
     </aside>
   </div>
   </div>{# /calendario-body #}
@@ -668,20 +724,67 @@
         calendar.refetchEvents();
       }
 
+      // Ordinamento dell'agenda: nome (default), tipo, durata (più lunghe
+      // prima), inserita (più recenti prima; senza data vale l'id).
+      const SORT_KEY = "assenze.calendario.ordina";
+      let agendaSort = "nome";
+      try { agendaSort = localStorage.getItem(SORT_KEY) || "nome"; } catch (e) { /* storage non disponibile */ }
+      const collator = new Intl.Collator("it", { sensitivity: "base" });
+      function msOf(v) { const d = parseDate(v); return d ? d.getTime() : 0; }
+      function byName(a, b) { return collator.compare(a.title || "", b.title || ""); }
+      const sorters = {
+        nome: byName,
+        tipo: function(a, b) { return collator.compare(a.extendedProps.tipo || "", b.extendedProps.tipo || "") || byName(a, b); },
+        durata: function(a, b) {
+          const da = msOf(a.end) - msOf(a.start);
+          const db = msOf(b.end) - msOf(b.start);
+          return (db - da) || byName(a, b);
+        },
+        inserita: function(a, b) {
+          const ia = msOf(a.extendedProps.inserita);
+          const ib = msOf(b.extendedProps.inserita);
+          if (ia !== ib) return ib - ia;
+          return (Number(b.id) || 0) - (Number(a.id) || 0);
+        }
+      };
+      if (!sorters[agendaSort]) agendaSort = "nome";
+
       function dayEvents(date) {
         return state.events
           .filter(function(item) { return inDay(item, date); })
-          .sort(function(a, b) {
-            const as = parseDate(a.start);
-            const bs = parseDate(b.start);
-            return (as ? as.getTime() : 0) - (bs ? bs.getTime() : 0);
-          });
+          .sort(sorters[agendaSort]);
       }
+
+      const agendaSortEl = document.getElementById("agendaSort");
+      const agendaCountEl = document.getElementById("agendaCount");
+      function syncSortButtons() {
+        agendaSortEl.querySelectorAll("[data-sort]").forEach(function(btn) {
+          btn.setAttribute("aria-pressed", btn.dataset.sort === agendaSort ? "true" : "false");
+        });
+      }
+      agendaSortEl.addEventListener("click", function(evt) {
+        const btn = evt.target.closest("[data-sort]");
+        if (!btn || !sorters[btn.dataset.sort]) return;
+        agendaSort = btn.dataset.sort;
+        try { localStorage.setItem(SORT_KEY, agendaSort); } catch (e) { /* storage non disponibile */ }
+        syncSortButtons();
+        renderAgenda(state.selectedDate);
+      });
+      syncSortButtons();
+
+      // Pannello colori: chiuso di default, ricorda l'ultima scelta.
+      const colorPanelEl = document.getElementById("colorPanel");
+      const COLOR_OPEN_KEY = "assenze.calendario.colori_aperto";
+      try { if (localStorage.getItem(COLOR_OPEN_KEY) === "1") colorPanelEl.open = true; } catch (e) { /* storage non disponibile */ }
+      colorPanelEl.addEventListener("toggle", function() {
+        try { localStorage.setItem(COLOR_OPEN_KEY, colorPanelEl.open ? "1" : "0"); } catch (e) { /* storage non disponibile */ }
+      });
 
       function renderAgenda(date) {
         state.selectedDate = toDayStart(date);
         agendaDateLabelEl.textContent = dateFmt.format(state.selectedDate);
         const rows = dayEvents(state.selectedDate);
+        agendaCountEl.textContent = rows.length ? rows.length + (rows.length === 1 ? " assente" : " assenti") : "";
         if (!rows.length) {
           agendaListEl.innerHTML = "";
           agendaEmptyEl.style.display = "block";
