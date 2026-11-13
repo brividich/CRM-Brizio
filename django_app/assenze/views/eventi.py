@@ -355,6 +355,7 @@ def _load_events(
         params.append(end)
 
     _cert_col = ", a.certificato_medico" if _helpers._has_assenze_column("certificato_medico") else ""
+    _ins_col = ", a.created_datetime" if _helpers._has_assenze_column("created_datetime") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -364,7 +365,7 @@ def _load_events(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}{_helpers._col_utente_id()},
+            a.motivazione_richiesta{_cert_col}{_ins_col}{_helpers._col_utente_id()},
             {capo_expr} AS capo
         FROM assenze a
         {joins}
@@ -395,6 +396,9 @@ def _load_events(
             "moderation_status": moderation_status,
             "capo": str(row.get("capo") or ""),
         }
+        # Data di inserimento: serve all'ordinamento dell'agenda del giorno.
+        if row.get("created_datetime"):
+            props["inserita"] = _helpers._to_isoz(row.get("created_datetime"))
         if tipo == "Permesso" and cal_ore is not None:
             props["ore_label"] = calcoli_hr.ore_label(row.get("data_inizio"), row.get("data_fine"), cal_ore)
         if include_sensitive:
