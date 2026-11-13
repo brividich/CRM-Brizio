@@ -126,15 +126,13 @@ def ruoli_in_carico(row: dict, info: dict | None) -> set[str]:
 
     - chiusa: nessuno;
     - richiesta di info aperta: chi deve rispondere (capocommessa e/o controllore);
-    - senza decisione del capocommessa, o rimandata con «In attesa di ulteriori
-      informazioni»: capocommessa;
-    - in attesa della risposta del cliente / terzista: chi ha fatto la segnalazione;
-    - altrimenti (deciso, aperto): qualità.
-    Il CAR ha in carico solo le anomalie che il capocommessa gli ha segnalato.
+    - altrimenti la tabella «Chi ha in carico l'anomalia» di Configurazione
+      (``regole_carico``; di serie: da decidere o «In attesa di ulteriori
+      informazioni» → capocommessa, attesa risposta → chi ha segnalato, resto → qualità).
+    Il CAR ha in carico anche le anomalie che il capocommessa gli ha segnalato.
+    Una persona indicata nella tabella compare come ``p:<utenti.id>``.
     """
-    from .controllo_service import riga_gestita
-    from .segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA
-    from .views import AVANZAMENTO_INFO_RICHIESTE
+    from .regole_carico import destinazione
 
     if not row or row.get("chiudere"):
         return set()
@@ -144,14 +142,7 @@ def ruoli_in_carico(row: dict, info: dict | None) -> set[str]:
         ruoli.add(RUOLO_CAR)
     if info.get("richiesta_aperta"):
         return ruoli | set(info["richiesta_aperta"])
-    av = str(row.get("avanzamento") or "").strip().lower()
-    if not riga_gestita(row) or av == AVANZAMENTO_INFO_RICHIESTE.lower():
-        return ruoli | {RUOLO_CC}
-    if av == AVANZAMENTO_RISPOSTA_CLIENTE.lower():
-        return ruoli | {info.get("segnalato_cliente_ruolo") or RUOLO_CC}
-    if av == AVANZAMENTO_RISPOSTA_TERZISTA.lower():
-        return ruoli | {info.get("segnalato_terzista_ruolo") or RUOLO_CC}
-    return ruoli | {RUOLO_QUALITA}
+    return ruoli | destinazione(row, info)
 
 
 def chi_sono(request, capo, car_op=None) -> dict:
@@ -162,6 +153,7 @@ def chi_sono(request, capo, car_op=None) -> dict:
     codici = _op_role_codes_da_persone(request, capo, car_op)
     return {
         "cc": AnomalieRoleType.CAPO_COMMESSA in codici,
+        "car_op": AnomalieRoleType.CAR in codici,
         "qualita": _is_referente_rdc(request),
         "legacy_id": _request_legacy_user_id(request),
         "nomi": _request_name_norms(request),
@@ -184,6 +176,11 @@ def in_carico_a_me(io: dict, row: dict, info: dict | None) -> bool:
         return True
     ruoli = ruoli - affidati
     if RUOLO_CC in ruoli and io.get("cc"):
+        return True
+    if "car_op" in ruoli and io.get("car_op"):
+        return True
+    legacy = io.get("legacy_id")
+    if legacy is not None and f"p:{legacy}" in ruoli:
         return True
     if RUOLO_QUALITA in ruoli and io.get("qualita"):
         return True

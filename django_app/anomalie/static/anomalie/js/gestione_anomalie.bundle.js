@@ -625,7 +625,7 @@ const EsitiAnomalia = ({
 };
 
 // ── Registro attività (supervisore): ogni azione registrata, in frasi ──
-const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"], ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"], ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"], ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"]];
+const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"], ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"], ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"], ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"], ["passi", "Passi aggiunti a mano"]];
 const STRISCIA_REGISTRO = {
   crea: "info",
   aggiorna: "acc",
@@ -641,7 +641,22 @@ const STRISCIA_REGISTRO = {
   incaricato: "qa",
   allegato: "info",
   allegato_tolto: "warn",
-  elimina: "warn"
+  elimina: "warn",
+  passo: "acc"
+};
+const postStoria = async (url, body) => {
+  const r = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken()
+    },
+    body: JSON.stringify(body)
+  });
+  const d = await readJsonOrThrow(r, "Storia");
+  if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
 };
 const giornoLabel = iso => {
   const d = new Date(iso);
@@ -658,7 +673,8 @@ const giornoLabel = iso => {
 const RegistroAttivita = ({
   filtroIniziale,
   onApri,
-  onChiudi
+  onChiudi,
+  onCambiaIncaricato
 }) => {
   const [f, setF] = useState({
     op: "",
@@ -672,6 +688,60 @@ const RegistroAttivita = ({
   const [per, setPer] = useState(filtroIniziale && filtroIniziale.codice ? "anomalia" : "giorno");
   const [dati, setDati] = useState(null);
   const [errore, setErrore] = useState("");
+  const [ricarica, setRicarica] = useState(0);
+  const [notaSu, setNotaSu] = useState(null); // { id, testo, busy, err }
+  const [passo, setPasso] = useState({
+    testo: "",
+    busy: false,
+    err: ""
+  });
+  const salvaNota = async () => {
+    if (!notaSu || !notaSu.testo.trim() || notaSu.busy) return;
+    setNotaSu({
+      ...notaSu,
+      busy: true,
+      err: ""
+    });
+    try {
+      await postStoria(`${API.registro}/${notaSu.id}/nota`, {
+        testo: notaSu.testo.trim()
+      });
+      setNotaSu(null);
+      setRicarica(n => n + 1);
+    } catch (e) {
+      setNotaSu(m => m ? {
+        ...m,
+        busy: false,
+        err: e.message
+      } : m);
+    }
+  };
+  const aggiungiPasso = async anomaliaId => {
+    if (!passo.testo.trim() || passo.busy) return;
+    setPasso({
+      ...passo,
+      busy: true,
+      err: ""
+    });
+    try {
+      await postStoria(`${API.registro}/passo`, {
+        local_id: anomaliaId,
+        testo: passo.testo.trim()
+      });
+      setPasso({
+        testo: "",
+        busy: false,
+        err: ""
+      });
+      setRicarica(n => n + 1);
+    } catch (e) {
+      setPasso(m => ({
+        ...m,
+        busy: false,
+        err: e.message
+      }));
+    }
+  };
   useEffect(() => {
     const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
     setErrore("");
@@ -681,7 +751,7 @@ const RegistroAttivita = ({
       if (!d.success) throw new Error(d.error || "errore");
       setDati(d);
     }).catch(e => setErrore(e.message));
-  }, [f.op, f.codice, f.persona, f.azione, f.fonte, f.giorni]);
+  }, [f.op, f.codice, f.persona, f.azione, f.fonte, f.giorni, ricarica]);
   const eventi = dati && dati.eventi || [];
   const gruppi = [];
   eventi.forEach(e => {
@@ -769,7 +839,35 @@ const RegistroAttivita = ({
     type: "button",
     className: per === "anomalia" ? "is-on" : "",
     onClick: () => setPer("anomalia")
-  }, "Per anomalia"))), errore ? /*#__PURE__*/React.createElement("div", {
+  }, "Per anomalia"))), (() => {
+    const primo = eventi.find(e => e.anomalia_id);
+    if (!f.codice || !primo) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "ga-reg__azioni"
+    }, /*#__PURE__*/React.createElement("b", null, primo.codice), /*#__PURE__*/React.createElement("textarea", {
+      className: "ga-input",
+      rows: 2,
+      value: passo.testo,
+      placeholder: "Aggiungi un passo: cosa \xE8 stato fatto (es. \xABTelefonato al cliente, attende foto\xBB)",
+      onChange: e => setPasso({
+        ...passo,
+        testo: e.target.value
+      })
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "ga-reg__azioni-btn"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--accent ga-btn--xs",
+      disabled: passo.busy || !passo.testo.trim(),
+      onClick: () => aggiungiPasso(primo.anomalia_id)
+    }, passo.busy ? "Salvataggio…" : "Aggiungi passo"), onCambiaIncaricato && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-btn ga-btn--outline ga-btn--xs",
+      onClick: () => onCambiaIncaricato(primo)
+    }, "Cambia incaricato")), passo.err && /*#__PURE__*/React.createElement("div", {
+      className: "ga-note ga-note--warn"
+    }, passo.err));
+  })(), errore ? /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
   }, errore) : !dati ? /*#__PURE__*/React.createElement("div", {
     className: "ga-empty"
@@ -803,9 +901,48 @@ const RegistroAttivita = ({
     key: i
   }, c, ": ", prima ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("s", null, prima), " \u2192 ") : null, dopo || /*#__PURE__*/React.createElement("em", null, "vuoto")))), e.note && !e.modifiche.length && /*#__PURE__*/React.createElement("div", {
     className: "ga-reg__nota"
-  }, e.note), /*#__PURE__*/React.createElement("div", {
+  }, e.note), (e.note_margine || []).map(n => /*#__PURE__*/React.createElement("div", {
+    key: n.id,
+    className: "ga-reg__margine"
+  }, /*#__PURE__*/React.createElement("b", null, n.chi), " ", /*#__PURE__*/React.createElement("span", {
     className: "ga-hint"
-  }, e.fonte)))))));
+  }, n.il), /*#__PURE__*/React.createElement("div", null, n.testo))), notaSu && notaSu.id === e.id ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__notaform"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    autoFocus: true,
+    value: notaSu.testo,
+    placeholder: "Nota o correzione: l'evento resta com'\xE8",
+    onChange: ev => setNotaSu({
+      ...notaSu,
+      testo: ev.target.value
+    })
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-reg__azioni-btn"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark ga-btn--xs",
+    onClick: () => setNotaSu(null)
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent ga-btn--xs",
+    disabled: notaSu.busy || !notaSu.testo.trim(),
+    onClick: salvaNota
+  }, "Salva nota")), notaSu.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, notaSu.err)) : null, /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, e.fonte, (!notaSu || notaSu.id !== e.id) && /*#__PURE__*/React.createElement(React.Fragment, null, " \xB7 ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => setNotaSu({
+      id: e.id,
+      testo: "",
+      busy: false,
+      err: ""
+    })
+  }, "Aggiungi nota")))))))));
 };
 const TimelineOp = ({
   opId,
@@ -1904,6 +2041,7 @@ function GestioneAnomalie() {
   });
   const [pagina, setPagina] = useState(null); // null | { filtro }
   const daAprireRef = useRef(null); // anomalia da aprire dopo il caricamento dell'OP (dal registro)
+  const incDaStoriaRef = useRef(null); // «Cambia incaricato» chiesto dalla Storia: si apre sull'anomalia
   const [gruppiChiusi, setGruppiChiusi] = useState(() => {
     const v = leggiPref(PREF_GRUPPI_CHIUSI, null);
     return v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -3020,6 +3158,15 @@ function GestioneAnomalie() {
     }));
     caricaPersone(r);
   };
+  useEffect(() => {
+    if (!pagina && incDaStoriaRef.current && sn.local_id && String(sn.local_id) === String(incDaStoriaRef.current)) {
+      incDaStoriaRef.current = null;
+      if (sn.puo_cambiare_incaricato) apriCambiaIncaricato();else flash({
+        ok: false,
+        text: "L'incaricato lo cambiano capocommessa, CAR e amministratori"
+      });
+    }
+  }, [sn.local_id, sn.puo_cambiare_incaricato, pagina]);
   const salvaIncaricato = async diSerie => {
     if (!incModal || incModal.busy) return;
     if (!diSerie && !incModal.persona) {
@@ -3574,10 +3721,14 @@ function GestioneAnomalie() {
     cc: "Capocommessa",
     qualita: "Qualità",
     controllore: "Controllore",
-    car: "CAR segnalato"
+    car: "CAR segnalato",
+    car_op: "CAR dell'OP"
   };
+  const nomeRuolo = r => RUOLI_NOMI[r] || (String(r).startsWith("p:") ? "Persona indicata" : r);
   // Chi ha il ruolo sull'anomalia: l'incaricato, se c'è, se no chi lo ha di serie.
   const chiHaRuolo = (a, r) => {
+    if (String(r).startsWith("p:")) return (a.persone_in_carico || {})[r.slice(2)] || "persona indicata";
+    if (r === "car_op") return op.car && op.car !== "—" ? op.car : "CAR dell'OP";
     const inc = (a.incaricati || {})[r];
     if (inc) return inc.nome;
     if (r === "cc") return op.capo && op.capo !== "—" ? op.capo : "capocommessa dell'OP";
@@ -3585,7 +3736,7 @@ function GestioneAnomalie() {
     if (r === "car") return (a.car_segnalati || []).join(", ") || "CAR segnalati";
     return a.controllo_operatore || a.autore || "chi l'ha inserita";
   };
-  const inCaricoTesto = a => a.in_carico_a_me ? "Tu" : (a.ruoli_in_carico || []).map(r => `${RUOLI_NOMI[r]} · ${chiHaRuolo(a, r)}`).join("; ") || "—";
+  const inCaricoTesto = a => a.in_carico_a_me ? "Tu" : (a.ruoli_in_carico || []).map(r => `${nomeRuolo(r)} · ${chiHaRuolo(a, r)}`).join("; ") || "—";
   const schedaAnomalia = a => /*#__PURE__*/React.createElement("button", {
     type: "button",
     key: a.item_id,
@@ -3629,7 +3780,7 @@ function GestioneAnomalie() {
       }));
     }
     if (raggruppa === "ruolo") {
-      const gruppi = ["cc", "qualita", "controllore", "car"].map(r => [r, lista.filter(a => (a.ruoli_in_carico || []).includes(r))]);
+      const gruppi = ["cc", "qualita", "controllore", "car", "car_op"].map(r => [r, lista.filter(a => (a.ruoli_in_carico || []).includes(r))]).concat([["p", lista.filter(a => (a.ruoli_in_carico || []).some(x => String(x).startsWith("p:")))]]).filter(([r, qui]) => qui.length || ["cc", "qualita", "controllore"].includes(r));
       const chiuse = lista.filter(a => a.chiudere);
       return /*#__PURE__*/React.createElement("div", {
         className: "ga-grps"
@@ -3642,7 +3793,7 @@ function GestioneAnomalie() {
         className: "ga-grp__line"
       }, /*#__PURE__*/React.createElement("span", {
         className: "ga-grp__label"
-      }, RUOLI_NOMI[r]), /*#__PURE__*/React.createElement("span", {
+      }, r === "p" ? "Persona indicata" : nomeRuolo(r)), /*#__PURE__*/React.createElement("span", {
         className: "ga-grp__n"
       }, qui.length))), /*#__PURE__*/React.createElement("div", {
         className: "ga-grp__body"
@@ -4000,7 +4151,11 @@ function GestioneAnomalie() {
   }, "Configurazione modulo")))))), pagina ? /*#__PURE__*/React.createElement(RegistroAttivita, {
     filtroIniziale: pagina.filtro,
     onApri: apriDalRegistro,
-    onChiudi: () => setPagina(null)
+    onChiudi: () => setPagina(null),
+    onCambiaIncaricato: e => {
+      incDaStoriaRef.current = e.anomalia_id;
+      apriDalRegistro(e);
+    }
   }) : /*#__PURE__*/React.createElement("div", {
     className: "ga-cols",
     style: gridCols
@@ -4231,10 +4386,10 @@ function GestioneAnomalie() {
     className: "ga-det__titlerow"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "ga-det__title"
-  }, "Anomalia ", codiceAnomalia(sn.local_id)), CAN_REGISTRO && sn.local_id && /*#__PURE__*/React.createElement("button", {
+  }, "Anomalia ", codiceAnomalia(sn.local_id)), sn.local_id && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ga-link",
-    title: "Tutto quello che \xE8 stato fatto su questa anomalia",
+    title: "Tutto quello che \xE8 stato fatto su questa anomalia: note, passi, cambio incaricato",
     onClick: () => setPagina({
       filtro: {
         codice: codiceAnomalia(sn.local_id),
@@ -4271,7 +4426,7 @@ function GestioneAnomalie() {
       key: r,
       className: `ga-carico__p${inc ? " is-inc" : ""}`,
       title: inc ? `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}${inc.nota ? ` · ${inc.nota}` : ""}` : "Di serie"
-    }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", chiHaRuolo(sn, r), inc ? " · incaricato" : "");
+    }, /*#__PURE__*/React.createElement("b", null, nomeRuolo(r)), " ", chiHaRuolo(sn, r), inc ? " · incaricato" : "");
   }), Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => /*#__PURE__*/React.createElement("span", {
     key: r,
     className: "ga-carico__p is-inc is-dopo",

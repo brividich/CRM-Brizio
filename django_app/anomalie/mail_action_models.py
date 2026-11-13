@@ -158,6 +158,25 @@ class AnomaliaActionLog(models.Model):
         return f"AnomaliaActionLog<{self.anomalia_id}:{self.action}:{self.source}>"
 
 
+class AnomaliaActionNota(models.Model):
+    """Nota a margine di un evento del registro attività («Storia»): l'evento resta
+    com'è, la nota si aggiunge sotto con chi e quando."""
+
+    log = models.ForeignKey(AnomaliaActionLog, on_delete=models.CASCADE, related_name="note_margine")
+    testo = models.TextField()
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    user_display = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Nota sul registro anomalie"
+        verbose_name_plural = "Note sul registro anomalie"
+
+    def __str__(self) -> str:
+        return f"Nota<{self.log_id}>"
+
+
 class AnomaliaPendingNotification(models.Model):
     """Coda di debounce per la mail di conferma aggiornamenti dalla pagina web.
 
