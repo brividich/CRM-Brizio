@@ -27,7 +27,7 @@ def _coppie_da_requisiti_persona(*, corso_id=None, legacy_id=None):
     from .mpq_persone import corsi_visite_richiesti
 
     reqs = (RequisitoPersona.objects
-            .filter(attivo=True, bloccante=True, tipo=RequisitoPersona.TIPO_CORSO,
+            .filter(attivo=True, bloccante=True, gruppo_alternativo="", tipo=RequisitoPersona.TIPO_CORSO,
                     corso__isnull=False)
             .select_related("corso").prefetch_related("ruoli"))
     if corso_id is not None:

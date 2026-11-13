@@ -28,7 +28,8 @@ def legacy_ids_per_visita(tipo_visita) -> tuple[bool, set[int]]:
     from .mpq_persone import obblighi_richiesti
 
     reqs = list(RequisitoPersona.objects
-                .filter(attivo=True, bloccante=True, tipo=RequisitoPersona.TIPO_VISITA, tipo_visita=tipo_visita)
+                .filter(attivo=True, bloccante=True, gruppo_alternativo="", tipo=RequisitoPersona.TIPO_VISITA,
+                        tipo_visita=tipo_visita)
                 .select_related("tipo_visita").prefetch_related("ruoli"))
     if not reqs:
         return False, set()

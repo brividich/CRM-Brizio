@@ -182,3 +182,43 @@ class PagineTests(TestCase):
         r = self.client.get(reverse("anagrafica:formazione_corso_detail", args=[c.pk]))
         self.assertContains(r, "Richiesto dai processi qualificati")
         self.assertContains(r, "Processo P")
+
+
+class AlternativeTests(TestCase):
+    """«Livello 2 UT» oppure «Livello 3 UT»: basta una delle righe con lo stesso gruppo."""
+
+    def setUp(self):
+        self.oggi = timezone.localdate()
+        self.p = _proc("Processo A")
+        self.ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4201, processo=self.p,
+                                                      stato=AbilitazioneProcesso.STATO_ATTIVA)
+        self.l2 = TipoQualifica.objects.create(nome="L2 sintetico", durata_mesi=60)
+        self.l3 = TipoQualifica.objects.create(nome="L3 sintetico", durata_mesi=60)
+        for tq in (self.l2, self.l3):
+            RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_QUALIFICA,
+                                            tipo_qualifica=tq, gruppo_alternativo="UT")
+
+    def test_nessuna_alternativa_incompleta(self):
+        st = stato_persona(self.ab)
+        self.assertEqual(st["esito"], "incompleto")
+        self.assertEqual(st["n_mancanti"], 1)  # il gruppo conta una volta
+
+    def test_basta_una(self):
+        DipendenteQualifica.objects.create(legacy_anagrafica_id=4201, tipo=self.l3,
+                                           data_conseguimento=self.oggi - timedelta(days=5),
+                                           data_scadenza=self.oggi + timedelta(days=500))
+        st = stato_persona(self.ab)
+        self.assertEqual(st["esito"], "ok")
+        self.assertEqual(st["scadenza"], self.oggi + timedelta(days=500))
+        scartate = [v for v in st["voci"] if v.get("alternativa_scartata")]
+        self.assertEqual([v["nome"] for v in scartate], ["L2 sintetico"])
+
+    def test_alternative_non_diventano_obblighi(self):
+        from .services.mpq_formazione import legacy_ids_richiesti_da_processo
+        from .services.mpq_persone import obblighi_richiesti
+
+        c = _corso("UA")
+        RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_CORSO, corso=c,
+                                        gruppo_alternativo="Base")
+        self.assertEqual(obblighi_richiesti(self.ab)["corsi"], [])
+        self.assertEqual(legacy_ids_richiesti_da_processo(c.pk), set())

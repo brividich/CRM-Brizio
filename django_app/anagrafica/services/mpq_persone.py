@@ -67,7 +67,7 @@ def obblighi_richiesti(abilitazione, requisiti=None) -> dict[str, list]:
     """
     out: dict[str, list] = {"corsi": [], "visite": [], "dpi": []}
     for req in requisiti_per_abilitazione(abilitazione, requisiti):
-        if not req.bloccante:
+        if not req.is_obbligo:  # non bloccante o alternativa: si guarda nel processo
             continue
         if req.tipo == req.TIPO_CORSO and req.corso_id:
             out["corsi"].append(req.corso)
@@ -92,7 +92,7 @@ def frequenze_corsi(abilitazione, requisiti=None) -> dict[int, tuple[int, bool]]
     """
     out: dict[int, tuple[int, bool]] = {}
     for req in requisiti_per_abilitazione(abilitazione, requisiti):
-        if req.bloccante and req.tipo == req.TIPO_CORSO and req.corso_id and req.is_ricorrente:
+        if req.is_obbligo and req.tipo == req.TIPO_CORSO and req.corso_id and req.is_ricorrente:
             att = out.get(req.corso_id)
             if att is None or int(req.frequenza_mesi) < att[0]:
                 out[req.corso_id] = (int(req.frequenza_mesi), bool(req.scadenza_fine_mese))
@@ -175,6 +175,31 @@ def _voce_evidenza(req, evidenze, oggi):
             "ultima": e.data_esecuzione, "evidenza": e}
 
 
+_RANGO = {"ok": 0, "na": 1, "in_scadenza": 2, "scaduto": 3, "mancante": 4}
+
+
+def _applica_alternative(voci):
+    """Per ogni gruppo di alternative bloccanti vale la voce migliore della persona.
+
+    Le altre restano visibili ma non bloccano (``bloccante`` False, ``alternativa_scartata``);
+    a pari stato vince la scadenza più lontana.
+    """
+    gruppi: dict[str, list] = {}
+    for v in voci:
+        req = v.get("req")
+        g = (getattr(req, "gruppo_alternativo", "") or "").strip().casefold() if req is not None else ""
+        if g and v.get("bloccante", True):
+            gruppi.setdefault(g, []).append(v)
+    for membri in gruppi.values():
+        migliore = min(membri, key=lambda v: (_RANGO.get(v["stato"], 9),
+                                              -(v["scadenza"].toordinal() if v.get("scadenza") else 10**7)))
+        for v in membri:
+            v["alternativa"] = v["req"].gruppo_alternativo
+            if v is not migliore:
+                v["bloccante"] = False
+                v["alternativa_scartata"] = True
+
+
 def _esito(voci):
     bloccanti = [v["stato"] for v in voci if v.get("bloccante", True)]
     if not voci:
@@ -237,6 +262,8 @@ def stato_persona(abilitazione, *, oggi=None, requisiti=None, contesto=None):
                 "frequenza_mesi": req.frequenza_mesi if req.is_ricorrente else None,
             })
             voci.append(v)
+
+    _applica_alternative(voci)
 
     if not esterno:
         storiche = verifica_requisiti(abilitazione.processo, legacy_id, oggi=oggi)
@@ -401,6 +428,8 @@ def processi_che_richiedono(*, corso=None, tipo_qualifica=None) -> list[dict]:
             quando = f"Ogni {r.frequenza_mesi} mesi" + (" (a fine mese)" if r.scadenza_fine_mese else "")
         else:
             quando = "Segue la sua scadenza"
+        if r.gruppo_alternativo:
+            quando += f" · in alternativa ({r.gruppo_alternativo})"
         out.append({"processo": r.processo, "ruoli": [x.nome for x in r.ruoli.all()],
                     "quando": quando, "bloccante": r.bloccante})
     return out
