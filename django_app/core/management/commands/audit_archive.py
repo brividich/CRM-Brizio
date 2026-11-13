@@ -123,7 +123,8 @@ class Command(BaseCommand):
             )
         if opts["category"] == "policy":
             lines += ["", "Azioni: tecnico/update_nullo → archiviate e cancellate; "
-                          "contenuti → archiviate e ridotte a soli metadati. Classe A mai toccata."]
+                          "contenuti → archiviate e ridotte a soli metadati. Le modifiche reali restano "
+                          "sempre: della classe A si tolgono solo gli update senza alcuna modifica."]
         self._emit(opts, payload, lines)
 
     def _run(self, opts, before):
