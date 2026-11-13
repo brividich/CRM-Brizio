@@ -97,6 +97,8 @@ class CategoriaTicket(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         _invalidate_categoria_label_cache()
+        from django.core.cache import cache
+        cache.delete("tickets:categoria_hub_codice")  # voce «Segnalazione NOVICROM HUB»
 
     def delete(self, *args, **kwargs):
         result = super().delete(*args, **kwargs)

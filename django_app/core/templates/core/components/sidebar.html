@@ -1,5 +1,5 @@
 {% load static %}
-{% load ui_icons guide_tags %}
+{% load ui_icons guide_tags tickets_nav %}
 <aside class="sidebar" id="sidebar" aria-label="Navigazione principale" data-toggle-url="{% url 'ui_sidebar_save' %}">
   <div class="sb-header">
     <div class="sb-header-top">
@@ -139,6 +139,10 @@
         <a href="{% url 'ui_prefs_page' %}" class="sb-user-pref" title="Preferenze interfaccia" aria-label="Preferenze interfaccia">
           <span class="sb-icon" aria-hidden="true">&#9881;</span>
           <span class="sb-label">Preferenze</span>
+        </a>
+        <a href="{% link_segnala_hub %}" class="sb-user-pref" title="Segnalazione NOVICROM HUB: miglioramenti e anomalie" aria-label="Segnalazione NOVICROM HUB">
+          <span class="sb-icon" aria-hidden="true">&#128172;</span>
+          <span class="sb-label">Segnalazione HUB</span>
         </a>
       </div>
       <a href="{% url 'logout' %}" class="sb-logout" title="Esci" aria-label="Esci">

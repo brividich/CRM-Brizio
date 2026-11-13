@@ -487,7 +487,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
           <div class="tkt-form-section-title">Allegati (opzionale)</div>
           <div class="tkt-dropzone" id="tkt-dropzone" onclick="document.getElementById('tkt-files').click()">
             <input type="file" name="allegati" id="tkt-files" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
-            📎 Clicca per aggiungere file, oppure trascinali qui<br>
+            📎 Clicca per aggiungere file, trascinali qui o incolla uno screenshot con Ctrl+V<br>
             <span style="font-size:11px;">Immagini, PDF, documenti Office - max 10 file</span>
           </div>
           <div class="tkt-file-list" id="tkt-file-list"></div>
@@ -977,12 +977,45 @@ function updateFileInput() {
   filesInput.files = dt.files;
 }
 
+function aggiungiFile(nuovi) {
+  selectedFiles = selectedFiles.concat(nuovi).slice(0, 10);
+  updateFileInput();
+  renderFiles();
+}
+
 if (filesInput) {
   filesInput.addEventListener('change', () => {
-    selectedFiles = [...filesInput.files];
-    renderFiles();
+    // Il selettore sostituisce input.files: i file già scelti/incollati restano in selectedFiles.
+    const nuovi = [...filesInput.files].filter(f => !selectedFiles.includes(f));
+    aggiungiFile(nuovi);
   });
 }
+
+// Ctrl+V ovunque nella pagina: gli screenshot e i file negli appunti diventano allegati.
+// Il testo incollato nei campi resta un normale incolla.
+document.addEventListener('paste', e => {
+  if (!filesInput || !e.clipboardData) return;
+  const ora = new Date();
+  const stamp = ora.toISOString().slice(0, 19).replace(/[-:T]/g, '');
+  const incollati = [];
+  [...e.clipboardData.items].forEach((item, i) => {
+    if (item.kind !== 'file') return;
+    const f = item.getAsFile();
+    if (!f) return;
+    const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const nomeGenerico = !f.name || /^image\.\w+$/i.test(f.name);
+    incollati.push(nomeGenerico
+      ? new File([f], `screenshot-${stamp}${i ? '-' + i : ''}.${ext}`, { type: f.type, lastModified: ora.getTime() })
+      : f);
+  });
+  if (!incollati.length) return;
+  e.preventDefault();
+  aggiungiFile(incollati);
+  if (dropzone) {
+    dropzone.classList.add('drag-over');
+    setTimeout(() => dropzone.classList.remove('drag-over'), 600);
+  }
+});
 
 if (dropzone) {
   dropzone.addEventListener('dragover', e => {
@@ -993,9 +1026,7 @@ if (dropzone) {
   dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('drag-over');
-    selectedFiles = [...e.dataTransfer.files];
-    updateFileInput();
-    renderFiles();
+    aggiungiFile([...e.dataTransfer.files]);
   });
 }
 
