@@ -26,9 +26,6 @@ from . import mail, sale, servizi
 from .models import CategoriaVisita, Preregistrazione, Referente, RichiestaAppuntamento
 from .views import _autore, _ctx, _manda_invito, _ora, prenota_sala, sala_dal_post
 
-MAX_ANTICIPO_ANNUNCIO = 365
-
-
 def _nativa() -> bool:
     return bool(getattr(settings, "RECEPTION_NATIVA", False))
 
@@ -89,8 +86,8 @@ def annuncia(request):
             messages.error(request, "Il tuo utente non ha un'email: chiedi alla reception di annunciare l'ospite.")
         elif not nome or "@" not in ospite_email or giorno is None:
             messages.error(request, "Nome, email dell'ospite e giorno sono obbligatori.")
-        elif not oggi <= giorno <= oggi + timedelta(days=MAX_ANTICIPO_ANNUNCIO):
-            messages.error(request, "Il giorno deve essere da oggi a un anno.")
+        elif errore := servizi.errore_visita(giorno, oggi=oggi, giorno_obbligatorio=True):
+            messages.error(request, errore)
         elif (scelta_sala := sala_dal_post(request, giorno, _ora(dati.get("ora_inizio")), _ora(dati.get("ora_fine"))))[1]:
             messages.error(request, scelta_sala[1])
         else:

@@ -222,11 +222,15 @@ def preregistrazioni(request):
             data_visita = _data_ora(dati.get("data_visita", ""), "00:00")
             giorno = data_visita.date() if data_visita else None
             inizio, fine = _ora(dati.get("ora_inizio")), _ora(dati.get("ora_fine"))
-            scelta, errore = sala_dal_post(request, giorno, inizio, fine)
+            # Vuoto = None: crea_preregistrazione lo porta a fine giornata della visita (senza giorno, 7 giorni).
+            scade = _data_ora(dati.get("scade", ""), "23:59")
+            errore = servizi.errore_visita(giorno, scade)
+            scelta = None
+            if not errore:
+                scelta, errore = sala_dal_post(request, giorno, inizio, fine)
             if errore:
                 messages.error(request, errore)
                 return redirect(reverse("reception:preregistrazioni") + "?nuovo=1")
-            scade = _data_ora(dati.get("scade", ""), "23:59") or timezone.now() + timedelta(days=servizi.GIORNI_VALIDITA_CODICE)
             pre = servizi.crea_preregistrazione(
                 ospite_nome=nome, ospite_email=email, ospite_azienda=dati.get("azienda", ""), referente=referente,
                 motivo=dati.get("motivo", ""), creata_da=_autore(request), scade_il=scade,
