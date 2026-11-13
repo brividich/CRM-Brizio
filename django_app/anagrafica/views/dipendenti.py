@@ -1835,6 +1835,13 @@ def dipendente_detail(request, legacy_id: int):
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
+    # Processi qualificati MOD.128 della persona, con la sua scadenza (non quella del processo).
+    try:
+        from ..services.mpq_persone import processi_della_persona
+
+        processi_mpq = processi_della_persona(legacy_id, oggi=oggi)
+    except Exception:
+        processi_mpq = []
 
     # DPI dipendente
     dpi_consegnati = []
@@ -2437,6 +2444,7 @@ def dipendente_detail(request, legacy_id: int):
         "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,
         "ruoli_aziendali_per_ambito": ruoli_aziendali_per_ambito,
         "qualifiche_dip": qualifiche_dip,
+        "processi_mpq": processi_mpq,
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,
         "oggi_plus60": oggi + timedelta(days=60),

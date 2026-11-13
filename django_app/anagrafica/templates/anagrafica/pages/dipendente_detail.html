@@ -1863,6 +1863,31 @@
         {% empty %}
           <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna qualifica registrata.</div>
         {% endfor %}
+        {% if processi_mpq %}
+          <div id="processi-qualificati" style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin:12px 0 2px;">Processi qualificati (MOD.128)</div>
+          {% for pr in processi_mpq %}
+          <div class="dp-qual-item">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <a class="dp-qual-name" href="{% url 'anagrafica:mpq_processo_detail' pr.processo.id %}#persone" style="text-decoration:none;color:inherit;">{{ pr.processo.nome }}</a>
+                {% if pr.stato.esito == "ok" or pr.stato.esito == "nessuno" %}
+                  <span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">Qualificata</span>
+                {% elif pr.stato.esito == "warn" %}
+                  <span style="background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">🟠 In scadenza</span>
+                {% else %}
+                  <span style="background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;" title="{% for v in pr.stato.voci %}{% if v.stato == 'scaduto' or v.stato == 'mancante' %}{{ v.nome }}; {% endif %}{% endfor %}">🔴 {{ pr.stato.label }}</span>
+                {% endif %}
+                {% if pr.abilitazione.stato != "ATTIVA" %}<span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">{{ pr.abilitazione.get_stato_display }}</span>{% endif %}
+              </div>
+              <div class="dp-qual-dates">
+                {% if pr.ruoli %}<span>{{ pr.ruoli|join:", " }}</span>{% endif %}
+                <span>{{ pr.processo.cliente.nome }}</span>
+                {% if pr.stato.scadenza %}<span>Scade: <strong>{{ pr.stato.scadenza|date:"d-m-Y" }}</strong></span>{% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% endif %}
       </div>
 
       {% if is_admin and tipi_qualifica %}
