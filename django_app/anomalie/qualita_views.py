@@ -119,13 +119,15 @@ def api_qualita_salva(request):
     from .quality_models import AnomaliaSchedaQualita
     from .views import _notify_anomalia_event, _safe_text, _serve_azione_per_chiudere, chiusura_automatica
 
-    if not puo_decisione_qualita(request):
-        return _err("Permesso negato: la decisione qualità la prendono i referenti qualità", 403)
     data = _json(request)
     try:
         local_id = int(str(data.get("local_id") or "").split(":")[-1])
     except ValueError:
         return _err("local_id non valido")
+    from .incaricati import incaricato_qualita
+
+    if not (puo_decisione_qualita(request) or incaricato_qualita(request, local_id)):
+        return _err("Permesso negato: la decisione qualità la prendono i referenti qualità", 403)
     row = _riga(local_id)
     if row is None:
         return _err("Anomalia non trovata", 404)

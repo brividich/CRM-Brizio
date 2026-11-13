@@ -58,8 +58,13 @@ def eventi() -> list[dict]:
         out.append({"chiave": f"qualita:{v}", "gruppo": "Avanzamento qualità", "etichetta": v})
     out += [
         {"chiave": "flag:rdc", "gruppo": "Decisione", "etichetta": "«Aprire RDC» senza numero RDC"},
-        {"chiave": "flag:cliente", "gruppo": "Decisione", "etichetta": "«Segnalare al cliente»"},
-        {"chiave": "flag:terzista", "gruppo": "Decisione", "etichetta": "«Segnala a terzista»"},
+        {"chiave": "segn:cliente_da_fare", "gruppo": "Segnalazioni",
+         "etichetta": "«Segnalare al cliente» spuntato, ma non ancora «Segnalato»"},
+        {"chiave": "segn:cliente_fatto", "gruppo": "Segnalazioni", "etichetta": "«Segnalato al cliente»"},
+        {"chiave": "segn:terzista_da_fare", "gruppo": "Segnalazioni",
+         "etichetta": "«Segnala a terzista» spuntato, ma non ancora «Segnalato»"},
+        {"chiave": "segn:terzista_fatto", "gruppo": "Segnalazioni", "etichetta": "«Segnalato al terzista»"},
+        {"chiave": "segn:car", "gruppo": "Segnalazioni", "etichetta": "«Segnalato al CAR» (mail del portale partita)"},
     ]
     try:
         avanzamenti = _load_anomalie_lists().get("avanzamenti") or []
@@ -132,10 +137,16 @@ def _corrisponde(chiave: str, row: dict, info: dict) -> bool:
         return bool(info.get("avanzamento_qualita")) and _norm(info.get("avanzamento_qualita")) == _norm(chiave[8:])
     if chiave == "flag:rdc":
         return bool(row.get("aprire_rdc")) and not str(row.get("numero_rdc") or "").strip()
-    if chiave == "flag:cliente":
-        return bool(row.get("segnalare_cliente"))
-    if chiave == "flag:terzista":
-        return bool(info.get("segnala_terzista"))
+    if chiave == "segn:cliente_da_fare":
+        return bool(row.get("segnalare_cliente")) and not info.get("segnalato_cliente")
+    if chiave == "segn:cliente_fatto":
+        return bool(info.get("segnalato_cliente"))
+    if chiave == "segn:terzista_da_fare":
+        return bool(info.get("segnala_terzista")) and not info.get("segnalato_terzista")
+    if chiave == "segn:terzista_fatto":
+        return bool(info.get("segnalato_terzista"))
+    if chiave == "segn:car":
+        return bool(info.get("car_assegnati"))
     if chiave.startswith("avanzamento:"):
         return av == _norm(chiave[12:])
     return chiave == "altre"
@@ -166,7 +177,8 @@ def _chiavi_ordinate(row, info, regole):
     q = str(info.get("avanzamento_qualita") or "").strip()
     if q:
         yield f"qualita:{_cerca(regole, 'qualita:', q) or q}"
-    for k in ("flag:rdc", "flag:cliente", "flag:terzista"):
+    for k in ("flag:rdc", "segn:cliente_da_fare", "segn:cliente_fatto", "segn:terzista_da_fare",
+              "segn:terzista_fatto", "segn:car"):
         if _corrisponde(k, row, info):
             yield k
     av = str(row.get("avanzamento") or "").strip()

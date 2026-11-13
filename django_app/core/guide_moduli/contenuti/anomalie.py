@@ -80,11 +80,12 @@ GUIDA = {
                       "cui sono chieste informazioni). Il link della mail fa lo stesso e accetta allegati, anche .msg ed "
                       ".eml; un secondo link permette di rispondere alle richieste della qualità senza accesso."),
                 ("p", "La riga «In carico» del dettaglio dice a chi tocca l'anomalia. Capocommessa e CAR dell'OP, i CAR "
-                      "segnalati e gli amministratori possono «Cambia incaricato»: scelgono il ruolo e la persona (per la "
-                      "qualità fra i referenti RDC), che riceve notifica e mail e da quel momento ha l'anomalia in "
-                      "«In carico a me» al posto di chi la aveva di serie; «Torna di serie» lo toglie. A chi passa "
+                      "segnalati e gli amministratori possono «Cambia incaricato»: scelgono la persona e l'anomalia "
+                      "passa subito a lei al posto di chi la aveva (notifica e mail, «In carico a me», può fare quello "
+                      "che faceva lui, compresa la decisione qualità); «Torna di serie» lo toglie. A chi passa "
                       "l'anomalia in ogni momento lo decide la tabella «Chi ha in carico l'anomalia» (Configurazione → "
-                      "Qualità): per fase, avanzamento qualità, flag della decisione e avanzamento si sceglie un ruolo "
+                      "Qualità): per fase, avanzamento qualità, «Aprire RDC», da segnalare / segnalato (cliente, "
+                      "terzista, CAR) e avanzamento si sceglie un ruolo "
                       "o una persona; vale la prima riga che corrisponde."),
                 ("p", "La «Storia» di un'anomalia la vede chi vede l'OP: oltre agli eventi permette «Aggiungi passo» "
                       "(un'attività scritta a mano), «Aggiungi nota» sotto un evento e «Cambia incaricato». Gli eventi "

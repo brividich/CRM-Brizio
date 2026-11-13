@@ -20,8 +20,29 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-RUOLI = ("cc", "qualita", "controllore", "car")
-NOMI_RUOLO = {"cc": "capocommessa", "qualita": "qualità", "controllore": "controllore", "car": "CAR"}
+RUOLI = ("cc", "qualita", "controllore", "car", "car_op")
+NOMI_RUOLO = {"cc": "capocommessa", "qualita": "qualità", "controllore": "controllore", "car": "CAR segnalato",
+              "car_op": "CAR dell'OP"}
+# Ordine con cui si sceglie il ruolo «principale» che ha l'anomalia adesso.
+PRIORITA = ("cc", "qualita", "controllore", "car_op", "car")
+
+
+def ruolo_valido(ruolo: str) -> bool:
+    return ruolo in RUOLI or (ruolo.startswith("p:") and ruolo[2:].isdigit() and len(ruolo) <= 16)
+
+
+def nome_ruolo(ruolo: str) -> str:
+    return NOMI_RUOLO.get(ruolo) or ("persona indicata" if ruolo.startswith("p:") else ruolo)
+
+
+def ruolo_attuale(ruoli) -> str:
+    """Il ruolo che ha l'anomalia adesso: «Cambia incaricato» lo passa alla persona scelta."""
+    ruoli = set(ruoli or ())
+    for r in PRIORITA:
+        if r in ruoli:
+            return r
+    persone = sorted(r for r in ruoli if r.startswith("p:"))
+    return persone[0] if persone else ""
 
 
 def per_anomalie(ids) -> dict[int, dict]:
@@ -31,8 +52,9 @@ def per_anomalie(ids) -> dict[int, dict]:
     out: dict[int, dict] = {}
     ids = sorted({int(i) for i in ids if i is not None})
     for i in range(0, len(ids), 500):
-        for x in AnomaliaIncaricato.objects.filter(anomalia_id__in=ids[i:i + 500], ruolo__in=RUOLI):
-            out.setdefault(x.anomalia_id, {})[x.ruolo] = _voce(x)
+        for x in AnomaliaIncaricato.objects.filter(anomalia_id__in=ids[i:i + 500]):
+            if ruolo_valido(x.ruolo):
+                out.setdefault(x.anomalia_id, {})[x.ruolo] = _voce(x)
     return out
 
 
@@ -74,7 +96,7 @@ def persone(ruolo: str) -> list[dict]:
         return []
     out = [{"id": u.id, "nome": nomi.get(u.id) or str(u.nome or "").strip()} for u in utenti]
     out = [p for p in out if p["nome"]]
-    if ruolo == "qualita":
+    if ruolo == "qualita_referenti":
         try:
             ref = {_chiave_persona(v) for v in (_load_anomalie_lists().get("referenti_rdc") or []) if v}
         except Exception:
@@ -145,6 +167,17 @@ def puo_cambiare(request, row: dict, info: dict | None = None) -> bool:
         aid = (row or {}).get("id")
         info = dq.info_per_anomalie([aid]).get(int(aid)) if aid else None
     return puo_cambiare_su_anomalia(request, info)
+
+
+def incaricato_qualita(request, anomalia_id) -> bool:
+    from .views import _request_legacy_user_id
+
+    me = _request_legacy_user_id(request)
+    try:
+        info = {"incaricati": per_anomalie([anomalia_id]).get(int(anomalia_id)) or {}}
+    except Exception:
+        return False
+    return e_incaricato(info, "qualita", me)
 
 
 def anomalie_incaricato(legacy_id) -> dict[int, set[str]]:
@@ -254,6 +287,12 @@ def nome_di_serie(ruolo: str, row: dict, info: dict | None) -> str:
         return "referenti RDC"
     if ruolo == "car":
         return ", ".join((info or {}).get("car_assegnati") or []) or "CAR segnalati"
+    if ruolo == "car_op":
+        return _capo_car_di_op(str(row.get("ex_op_nominativo") or "").strip())[1] or "CAR dell'OP"
+    if ruolo.startswith("p:"):
+        from .regole_carico import nomi_persone
+
+        return nomi_persone().get(ruolo[2:]) or "persona indicata"
     try:
         from .automazioni_service import contatto_operatore
 
@@ -275,7 +314,7 @@ def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: st
     try:
         Notifica.objects.create(
             legacy_user_id=int(persona_id), tipo="anomalia_da_gestire",
-            messaggio=f"OP {op_id}: {chi} ti ha affidato l'anomalia {codice} come {NOMI_RUOLO[ruolo]}."[:500],
+            messaggio=f"OP {op_id}: {chi} ti ha affidato l'anomalia {codice}."[:500],
             url_azione=op_url(op_id),
         )
     except Exception:
@@ -285,8 +324,8 @@ def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: st
     if not email:
         return esito
     link = op_portal_link(op_id)
-    subject = f"[Novicrom Hub] OP {op_id} — {codice} affidata a te ({NOMI_RUOLO[ruolo]})"
-    lines = [f"{chi} ti ha affidato l'anomalia {codice} dell'OP {op_id} come {NOMI_RUOLO[ruolo]}.", "",
+    subject = f"[Novicrom Hub] OP {op_id} — {codice} affidata a te"
+    lines = [f"{chi} ti ha affidato l'anomalia {codice} dell'OP {op_id}: ora è in carico a te.", "",
              f"  • S/N {seriale or '—'} · {(descrizione or '—')[:160]}"]
     if nota:
         lines.append(f"  Nota: {nota[:300]}")
@@ -294,7 +333,7 @@ def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: st
         lines += ["", f"Gestione anomalie: {link}"]
     html = _render_mail(
         badge="Anomalia affidata a te", eyebrow=f"OP {op_id}", title=f"{codice} ora è in carico a te",
-        intro=f"{'Buongiorno ' + nome + ', ' if nome else ''}{chi} ti ha affidato questa anomalia come {NOMI_RUOLO[ruolo]}.",
+        intro=f"{'Buongiorno ' + nome + ', ' if nome else ''}{chi} ti ha affidato questa anomalia: ora è in carico a te.",
         columns=["ID", "S/N", "Anomalia", "Nota"], rows=[[codice, seriale or "—", (descrizione or "—")[:160], nota or "—"]],
         cta_url=link, cta_label="Apri in Gestione anomalie",
     )

@@ -2617,7 +2617,7 @@ function GestioneAnomalie() {
   }, [currentLocalId]);
   const uploadFiles = async (files, ambito = "") => {
     if (!files.length) return;
-    if (!(ambito === "qualita" ? CAN_QUALITA : canEditCurrentOp)) {
+    if (!(ambito === "qualita" ? CAN_QUALITA || sn.qualita_mia : canEditCurrentOp)) {
       flash({
         ok: false,
         text: "Permesso negato: non puoi caricare allegati qui"
@@ -3122,7 +3122,7 @@ function GestioneAnomalie() {
       });
       const d = await r.json();
       if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
-      setIncModal(m => m && m.ruolo === ruolo ? {
+      setIncModal(m => m ? {
         ...m,
         persone: d.persone || []
       } : m);
@@ -3134,28 +3134,28 @@ function GestioneAnomalie() {
       } : m);
     }
   };
-  const apriCambiaIncaricato = ruolo => {
-    const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
-    const att = (sn.incaricati || {})[r];
+  // Ruolo che ha l'anomalia adesso: «Cambia incaricato» la passa subito alla persona scelta.
+  const ruoloAttuale = a => {
+    const ruoli = a.ruoli_in_carico || [];
+    return ["cc", "qualita", "controllore", "car_op", "car"].find(r => ruoli.includes(r)) || ruoli.filter(r => String(r).startsWith("p:")).sort()[0] || "";
+  };
+  const apriCambiaIncaricato = () => {
+    const r = ruoloAttuale(sn);
+    if (!r) {
+      flash({
+        ok: false,
+        text: "L'anomalia non è in carico a nessuno"
+      });
+      return;
+    }
     setIncModal({
       ruolo: r,
-      persona: att ? String(att.id) : "",
+      persona: "",
       nota: "",
       persone: null,
       busy: false,
       err: ""
     });
-    caricaPersone(r);
-  };
-  const cambiaRuoloIncarico = r => {
-    const att = (sn.incaricati || {})[r];
-    setIncModal(m => ({
-      ...m,
-      ruolo: r,
-      persona: att ? String(att.id) : "",
-      persone: null,
-      err: ""
-    }));
     caricaPersone(r);
   };
   useEffect(() => {
@@ -4802,7 +4802,7 @@ function GestioneAnomalie() {
     checked: includiDecise,
     onChange: e => setIncludiDecise(e.target.checked)
   }), /*#__PURE__*/React.createElement("span", null, "Includi anche le ", giaDecise, " gi\xE0 decise (la loro decisione viene sostituita)")))), sn.local_id && (() => {
-    const puo = CAN_QUALITA && !sn.chiudere;
+    const puo = (CAN_QUALITA || sn.qualita_mia) && !sn.chiudere;
     const attesaQ = chi => ruoloSegnalato(sn, chi) === "qualita" && !!sn[`segnalato_${chi}`] && normalizeChoice(sn.avanzamento).toLowerCase() === AVANZAMENTO_RISPOSTA[chi].toLowerCase();
     const chiudeQ = !sn.chiudere && shouldAutoClose(!!sn.aprire_rdc, DESTINATARI.some(d => attesaQ(d.chi) && qRisp[d.chi].trim()) ? "In attesa" : sn.avanzamento, qNum, !!sn.segnalare, qSeg.cliente, !!sn.segnala_terzista, qSeg.terzista, richiestaAperta(sn));
     const esitiQ = tipo => (esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti || []).filter(e => e.tipo === tipo);
@@ -5134,19 +5134,15 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-modal__title",
     id: "ga-inc-t"
-  }, "Cambia incaricato \xB7 ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("label", {
-    className: "ga-field"
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Ruolo"), /*#__PURE__*/React.createElement("select", {
-    className: "ga-input",
-    value: incModal.ruolo,
-    disabled: incModal.busy,
-    onChange: e => cambiaRuoloIncarico(e.target.value)
-  }, ["cc", "qualita", "controllore", "car"].map(r => /*#__PURE__*/React.createElement("option", {
-    key: r,
-    value: r
-  }, RUOLI_NOMI[r], (sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : "")))), /*#__PURE__*/React.createElement("div", {
+  }, "Cambia incaricato \xB7 ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("div", {
+    className: "ga-carico"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-carico__t"
+  }, "Ora in carico a"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-carico__p"
+  }, /*#__PURE__*/React.createElement("b", null, nomeRuolo(incModal.ruolo)), " ", chiHaRuolo(sn, incModal.ruolo))), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, "Ora: ", chiHaRuolo(sn, incModal.ruolo), (sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"), /*#__PURE__*/React.createElement("label", {
+  }, "L'anomalia passa subito alla persona che scegli: la trova in \xABIn carico a me\xBB e riceve notifica e mail. Resta sua finch\xE9 l'anomalia \xE8 in mano a \xAB", nomeRuolo(incModal.ruolo), "\xBB; quando passa a un altro, decide la tabella di Configurazione."), /*#__PURE__*/React.createElement("label", {
     className: "ga-field"
   }, /*#__PURE__*/React.createElement(FieldLabel, null, "Affida a"), incModal.persone === null ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
@@ -5163,9 +5159,7 @@ function GestioneAnomalie() {
   }, "\u2014 scegli \u2014"), incModal.persone.map(p => /*#__PURE__*/React.createElement("option", {
     key: p.id,
     value: String(p.id)
-  }, p.nome)))), incModal.ruolo === "qualita" && /*#__PURE__*/React.createElement("div", {
-    className: "ga-hint"
-  }, "Per la qualit\xE0 si sceglie fra i referenti RDC di Configurazione."), /*#__PURE__*/React.createElement("textarea", {
+  }, p.nome)))), /*#__PURE__*/React.createElement("textarea", {
     className: "ga-input",
     rows: 2,
     value: incModal.nota,

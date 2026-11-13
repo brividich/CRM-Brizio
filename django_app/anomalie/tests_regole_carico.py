@@ -50,6 +50,15 @@ class DestinazioneTests(SimpleTestCase):
             self.assertTrue(dq.in_carico_a_me({"car_op": True}, {**_RIGA, "aprire_rdc": 1}, None))
 
 
+class SegnalatoTests(SimpleTestCase):
+    def test_da_segnalare_e_segnalato(self):
+        regole = {"segn:cliente_da_fare": "persona:5", "segn:cliente_fatto": "persona:6"}
+        riga = {**_RIGA, "segnalare_cliente": 1, "avanzamento": "Accetto lo stato"}
+        self.assertEqual(rc.destinazione(riga, dq._info_vuota(), regole), {"p:5"})
+        info = {**dq._info_vuota(), "segnalato_cliente": True}
+        self.assertEqual(rc.destinazione(riga, info, regole), {"p:6"})
+
+
 class SalvaRegoleTests(TestCase):
     def tearDown(self):
         rc._CACHE["v"] = None  # la copia in memoria sopravvive al rollback del test
