@@ -433,3 +433,33 @@ def processi_che_richiedono(*, corso=None, tipo_qualifica=None) -> list[dict]:
         out.append({"processo": r.processo, "ruoli": [x.nome for x in r.ruoli.all()],
                     "quando": quando, "bloccante": r.bloccante})
     return out
+
+
+def matrice(*, oggi=None, cliente_id=None) -> dict:
+    """Persone × processi attivi, con lo stato di ognuno (stesso calcolo del processo).
+
+    ``{"processi": [...], "righe": [{"chiave", "legacy_id", "esterno", "celle": {processo_id: stato}}]}``;
+    contano le abilitazioni non dismesse. I nomi li risolve chi mostra la pagina.
+    """
+    from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
+
+    oggi = oggi or timezone.localdate()
+    processi = ProcessoQualificato.objects.filter(stato=ProcessoQualificato.STATO_ATTIVO).select_related("cliente")
+    if cliente_id:
+        processi = processi.filter(cliente_id=cliente_id)
+    processi = list(processi.order_by("cliente__nome", "nome"))
+    righe: dict[tuple, dict] = {}
+    for p in processi:
+        abil = list(p.abilitazioni.exclude(stato=AbilitazioneProcesso.STATO_DISMESSA)
+                    .prefetch_related("ruoli_processo", "certificazioni"))
+        if not abil:
+            continue
+        ctx = contesto_processo(p, abil)
+        for ab in abil:
+            chiave = ("e", ab.nominativo_esterno.strip().upper()) if ab.nominativo_esterno else ("i", ab.legacy_anagrafica_id)
+            riga = righe.setdefault(chiave, {"chiave": chiave, "legacy_id": ab.legacy_anagrafica_id,
+                                             "esterno": ab.nominativo_esterno, "celle": {}})
+            st = stato_persona(ab, oggi=oggi, contesto=ctx)
+            st["abilitazione"] = ab
+            riga["celle"][p.pk] = st
+    return {"processi": processi, "righe": list(righe.values()), "oggi": oggi}

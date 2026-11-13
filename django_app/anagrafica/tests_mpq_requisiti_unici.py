@@ -278,3 +278,66 @@ class RuoliUniciTests(TestCase):
         ab.refresh_from_db()
         self.assertTrue(ab.is_addetto and ab.is_part145)
         self.assertFalse(ab.is_qualificato)
+
+
+class IscriviTuttiTests(TestCase):
+    def test_pulsante_con_tutti_i_mancanti(self):
+        from core.models import UserOnboarding
+
+        u = get_user_model().objects.create_superuser("mpq.iscrivi", "mpq.iscrivi@example.com", "x")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        p = _proc("Processo I")
+        c = _corso("UI")
+        RequisitoPersona.objects.create(processo=p, tipo=RequisitoPersona.TIPO_CORSO, corso=c)
+        for lid in (4401, 4402):
+            AbilitazioneProcesso.objects.create(legacy_anagrafica_id=lid, processo=p,
+                                                stato=AbilitazioneProcesso.STATO_ATTIVA)
+        AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4403, processo=p,
+                                            stato=AbilitazioneProcesso.STATO_SOSPESA)
+        r = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[p.pk]))
+        self.assertContains(r, "Iscrivi tutti (2)")
+        html = r.content.decode("utf-8")
+        fine = html.index("Iscrivi tutti (2)")
+        modulo = html[html.rindex("<form", 0, fine):fine]
+        self.assertIn('value="4401"', modulo)
+        self.assertIn('value="4402"', modulo)
+        self.assertNotIn('value="4403"', modulo)
+
+
+class MatriceTests(TestCase):
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        u = get_user_model().objects.create_superuser("mpq.matrice", "mpq.matrice@example.com", "x")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        self.p1 = _proc("Processo M1")
+        self.p2 = _proc("Processo M2")
+        RequisitoPersona.objects.create(processo=self.p2, tipo=RequisitoPersona.TIPO_ESAME, descrizione="Esame M2")
+        for p in (self.p1, self.p2):
+            AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4501, processo=p,
+                                                stato=AbilitazioneProcesso.STATO_ATTIVA)
+
+    def test_pagina_e_stesso_calcolo(self):
+        from .services.mpq_persone import matrice
+
+        dati = matrice()
+        riga = [r for r in dati["righe"] if r["legacy_id"] == 4501][0]
+        self.assertTrue(riga["celle"][self.p1.pk]["operativa"])
+        self.assertFalse(riga["celle"][self.p2.pk]["operativa"])
+        r = self.client.get(reverse("anagrafica:mpq_matrice"))
+        self.assertContains(r, "Processo M1")
+        self.assertContains(r, "1 da sistemare")
+        r = self.client.get(reverse("anagrafica:mpq_matrice") + "?export=csv")
+        self.assertEqual(r["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn("Processo M2", r.content.decode("utf-8"))
+
+    def test_voce_di_menu(self):
+        from .models import SubnavLinkAnagrafica
+
+        mig = importlib.import_module("anagrafica.migrations.0228_subnav_mpq_matrice")
+        mig.avanti(apps, None)
+        sorella = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_cruscotto").first()
+        if sorella is not None:
+            self.assertTrue(SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_matrice").exists())
