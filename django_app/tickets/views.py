@@ -1441,7 +1441,7 @@ def _form_da_querystring(get) -> dict | None:
     """
     titolo = (get.get("titolo") or "").strip()[:300]
     descrizione = (get.get("descrizione") or "").strip()[:4000]
-    if not (titolo or descrizione or get.get("categoria") or get.get("asset_libero")):
+    if not (titolo or descrizione or get.get("categoria") or get.get("asset_libero") or get.get("sicurezza")):
         return None
     priorita = (get.get("priorita") or "").strip().upper()
     return {
@@ -1449,6 +1449,8 @@ def _form_da_querystring(get) -> dict | None:
         "descrizione": descrizione,
         "categoria": (get.get("categoria") or "").strip()[:30],
         "asset_descrizione_libera": (get.get("asset_libero") or "").strip()[:300],
+        # Solo «No» si preimposta (segnalazioni software): il «Sì» resta una scelta esplicita.
+        "incide_sicurezza": "0" if get.get("sicurezza") == "0" else "",
         "priorita": priorita if priorita in PrioritaTicket.values else PrioritaTicket.MEDIA,
     }
 

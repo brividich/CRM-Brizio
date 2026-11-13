@@ -166,3 +166,7 @@
 .hub-empty-state__actions {
   margin-top: var(--hub-space-2);
 }
+
+/* Tom Select a scelta singola: mentre si digita la ricerca il valore già scelto
+   si nasconde, altrimenti il testo cercato gli si accoda e si sovrappone. */
+.ts-wrapper.single.ts-digita .ts-control > .item { position: absolute; visibility: hidden; pointer-events: none; }

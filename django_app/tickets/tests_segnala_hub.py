@@ -34,6 +34,7 @@ class SegnalaHubTests(TestCase):
         self.assertEqual(qs["tipo"], ["IT"])
         self.assertEqual(qs["categoria"], ["SYN_HUB"])
         self.assertEqual(qs["asset_libero"], ["NOVICROM HUB"])
+        self.assertEqual(qs["sicurezza"], ["0"])
         self.assertIn("Pagina: /assenze/richiesta/?x=1", qs["descrizione"][0])
 
     def test_senza_categoria_hub_apre_ticket_it_semplice(self):
@@ -52,7 +53,10 @@ class SegnalaHubTests(TestCase):
         with patch("tickets.views._can_open_tickets", return_value=True), \
              patch("tickets.views._get_assets_for_select", return_value=[]), \
              patch("tickets.views.get_categorie", return_value=cats):
-            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT&categoria=SYN_HUB&asset_libero=NOVICROM+HUB")
+            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT&categoria=SYN_HUB&asset_libero=NOVICROM+HUB&sicurezza=0")
+            senza = self.client.get(reverse("tickets:nuovo") + "?tipo=IT&sicurezza=1")
         self.assertContains(page, '<option value="SYN_HUB" selected>')
+        self.assertContains(page, 'id="sic-no" required checked')
+        self.assertNotContains(senza, " checked>")  # il «Sì» non si preimposta mai
         self.assertContains(page, 'value="NOVICROM HUB"')
         self.assertContains(page, "incolla uno screenshot con Ctrl+V")
