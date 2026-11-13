@@ -180,23 +180,31 @@ GUIDA = {
                     ("Bordo destro dell'intestazione", "trascinalo per allargare o stringere la colonna; doppio clic la adatta al contenuto. "
                      "Da tastiera: Tab fino al bordo, poi frecce ← →. Le larghezze restano salvate per te."),
                     ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo. "
-                     "In fondo al menu «Ripristina colonne predefinite» torna alle colonne e alle larghezze di partenza "
-                     "(le viste salvate restano)."),
+                     "In fondo al menu «Ripristina colonne predefinite» torna alle colonne e alle larghezze di partenza, "
+                     "cioè alla vista comune predefinita se un amministratore l'ha scelta (le viste salvate restano)."),
                     ("Raggruppa ▾ (Security Center)", "divide le righe per il valore di una colonna (es. per PC, per patch, per CVE, per stato): "
                      "ogni gruppo ha una riga con il nome, quante righe contiene e la freccia per aprirlo o chiuderlo; «Apri tutti» e «Chiudi tutti» "
                      "sono in fondo al menu. Dove c'è la selezione multipla, la casella del gruppo seleziona tutte le sue righe. "
                      "Una riga con più valori (es. una patch che corregge due CVE) compare in ogni gruppo: le copie sono più chiare e non selezionabili. "
                      "La scelta resta salvata ed entra nelle viste. Il menu propone solo le colonne che hanno valori ripetuti."),
-                    ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
-                     "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
+                    ("Viste ▾", "due elenchi. «Viste comuni · per tutti»: uguali per ogni utente, le salvano gli amministratori; "
+                     "quella con ★ è la predefinita, cioè come si apre la tabella per chi non ha cambiato colonne. "
+                     "«Le mie viste · solo per me»: le tue, fino a 12 per tabella. "
+                     "«＋ Salva la vista attuale…» apre un piccolo modulo: scrivi il nome e premi Salva; colonne, filtri, ricerca "
+                     "e ordinamento di adesso entrano nella vista. Gli amministratori scelgono anche «Solo per me» o "
+                     "«Per tutti (vista comune)» e, per tutti, «Apri la tabella così per tutti (predefinita)». "
+                     "Un clic sul nome la richiama, × la elimina, ☆/★ (solo amministratori) sceglie la predefinita. "
                      "Quando una vista è attiva il pulsante dice «Vista: nome»."),
                     ("⛶ Schermo intero", "porta la tabella a tutto lo schermo, con la sua barra. Esc o «Esci (Esc)» per tornare alla pagina."),
                 ]),
                 ("p", "Larghezza delle colonne: le tabelle si adattano da sole allo schermo. Le colonne corte (numeri, "
                       "date, importi, codici, pulsanti) si stringono sul loro contenuto, quelle di testo prendono lo spazio "
                       "che serve e il resto si divide in parti uguali, senza buchi. Le intestazioni vanno a capo tra le "
-                      "parole, mai a metà. Se la tabella non entra, la pagina usa tutta la larghezza dello schermo e le "
-                      "celle si compattano; solo se ancora non basta la tabella scorre di lato, con la prima colonna ferma. "
+                      "parole, mai a metà. Le pagine con una tabella usano sempre tutta la larghezza dello schermo e la "
+                      "tabella non scorre mai di lato: se non entra le celle si compattano, poi il testo va a capo, infine "
+                      "le ultime colonne si piegano. Sull'intestazione della prima colonna «+3» dice quante sono piegate e "
+                      "il pulsante ▸ all'inizio di ogni riga apre sotto la riga le colonne piegate («etichetta: valore»); "
+                      "▾ la richiude. Allargando la finestra o a schermo intero le colonne tornano al loro posto. "
                       "Sulle colonne strette ↕ e imbuto compaiono passando con il mouse sull'intestazione. Se allarghi "
                       "o stringi una colonna a mano, da lì valgono le tue larghezze («Colonne ▾ → Ripristina colonne predefinite» torna all'adattamento automatico)."),
                 ("p", "Tabelle lunghe: quando la tabella è più alta dello schermo scorre dentro il suo riquadro e "
@@ -240,7 +248,7 @@ GUIDA = {
                     ("DPI", "i DPI consegnati e non ancora sostituiti, alla data di fine vita utile."),
                     ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
                     ("Azioni CAPA", "le azioni aperte con una scadenza; chi non gestisce le CAPA vede solo le proprie."),
-                    ("Altre fonti", "sistema di gestione (certificazioni, audit, CAR, efficacia, auditor, SoA, rischi OT), qualifiche di processo MOD.128 e abilitazioni macchina, documenti di enti e docenti e verifica NC a 6 mesi, SOC (azioni correttive, accettazioni del rischio), revisione degli amministratori di sistema, prese visione (guida «Scadenzario»)."),
+                    ("Altre fonti", "sistema di gestione (certificazioni, audit, CAR, efficacia, auditor, SoA, rischi OT), qualifiche di processo MOD.128 (processi, persone e macchine qualificate, ognuno con la sua scadenza) e abilitazioni macchina, documenti di enti e docenti e verifica NC a 6 mesi, SOC (azioni correttive, accettazioni del rischio), revisione degli amministratori di sistema, prese visione (guida «Scadenzario»)."),
                     ("Scadenze generiche", "certificati, contratti e altre attività fuori dagli altri moduli, con avvisi per mail e rinnovi (guida «Scadenzario»)."),
                 ]),
                 ("ul", [
@@ -356,6 +364,9 @@ GUIDA = {
                 "Le viste sono legate a quella tabella di quella pagina: su un'altra pagina non compaiono.",
                 "Se la tabella ha cambiato colonne, le colonne nuove compaiono comunque e quelle tolte vengono ignorate: risalva la vista.",
                 "«Vista non salvata»: troppi filtri lunghi o connessione assente. Riprova con meno filtri.",
+                "Non vedi «Per tutti (vista comune)» o la ☆: le viste comuni le gestiscono solo gli amministratori.",
+                "La tabella si apre diversa dalla vista comune predefinita: hai già colonne tue. «Colonne ▾ → Ripristina "
+                "colonne predefinite» torna alla predefinita.",
             ],
         },
         {

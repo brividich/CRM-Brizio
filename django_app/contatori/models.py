@@ -411,6 +411,8 @@ class DispositivoSNMP(models.Model):
         help_text="Profilo OID; se vuoto viene proposto automaticamente dopo il primo test.",
     )
     posizione = models.CharField(max_length=120, blank=True)
+    porte_totali = models.PositiveSmallIntegerField(
+        default=0, help_text="Porte disegnate nel pannello frontale (firewall, switch). 0 = non disegnare.")
     produttore = models.CharField(max_length=80, blank=True)
     modello = models.CharField(max_length=120, blank=True)
     matricola = models.CharField(max_length=80, blank=True)
@@ -880,6 +882,50 @@ class RigaFattura(models.Model):
 
     def __str__(self):
         return f"{self.fattura.numero} · {self.contratto}"
+
+
+class PortaApparato(models.Model):
+    """Una porta del pannello di un firewall o di uno switch, come la descrive chi gestisce: nome, tipo, VLAN e cosa
+    c'è collegato (un altro apparato, una MFC o un testo libero come «Internet»). È la base dell'albero della
+    topologia (``contatori.topologia``). Le porte senza riga sono disegnate libere."""
+
+    class Tipo(models.TextChoices):
+        LAN = "LAN", "LAN"
+        WAN = "WAN", "WAN / Internet"
+        SFP = "SFP", "Fibra / SFP"
+        POE = "POE", "LAN con PoE"
+        MGMT = "MGMT", "Gestione"
+
+    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, related_name="porte_disegnate")
+    numero = models.PositiveSmallIntegerField()
+    nome = models.CharField(max_length=60, blank=True, help_text="Es. «WAN1», «Uplink core», «Ufficio tecnico».")
+    tipo = models.CharField(max_length=6, choices=Tipo.choices, default=Tipo.LAN)
+    vlan = models.CharField(max_length=40, blank=True)
+    collegato_dispositivo = models.ForeignKey(DispositivoSNMP, null=True, blank=True, on_delete=models.SET_NULL,
+                                              related_name="collegato_da_porte")
+    collegato_macchina = models.ForeignKey("Macchina", null=True, blank=True, on_delete=models.SET_NULL,
+                                           related_name="collegato_da_porte")
+    collegato_testo = models.CharField(max_length=120, blank=True, help_text="Cosa c'è collegato se non è un apparato del modulo.")
+    nota = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["dispositivo", "numero"]
+        constraints = [models.UniqueConstraint(fields=["dispositivo", "numero"], name="cont_porta_disp_numero")]
+
+    def __str__(self):
+        return f"{self.dispositivo.nome} · porta {self.numero}"
+
+    @property
+    def collegato(self):
+        return self.collegato_dispositivo or self.collegato_macchina
+
+    @property
+    def collegato_label(self):
+        if self.collegato_dispositivo_id:
+            return self.collegato_dispositivo.nome
+        if self.collegato_macchina_id:
+            return f"MFC {self.collegato_macchina.reparto}"
+        return self.collegato_testo
 
 
 class MacPortaSwitch(models.Model):

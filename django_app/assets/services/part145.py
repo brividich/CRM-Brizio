@@ -117,6 +117,12 @@ def _svuota_coda():
         cambi = [c for c in cambi if attuali.get(c[0]) == c[2]]
     if cambi:
         try:
+            from anagrafica.services.mpq_macchine import applica_cambio_stato_asset
+
+            applica_cambio_stato_asset(cambi)
+        except Exception:
+            logger.exception("Qualifiche macchina non aggiornate dopo il cambio di stato")
+        try:
             notifica_cambio_stato(cambi)
         except Exception:
             logger.exception("Avviso PART 145 sui cambi di stato non inviato")

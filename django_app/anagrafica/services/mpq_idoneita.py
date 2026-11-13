@@ -38,8 +38,12 @@ def requisiti_processo_dettaglio(legacy_ids) -> dict[int, dict]:
         .select_related("processo")
         .prefetch_related("processo__dpi_richiesti",
                           "processo__visite_richieste",
-                          "processo__corsi_richiesti")
+                          "processo__corsi_richiesti",
+                          "ruoli_processo")
     )
+    from .mpq_persone import corsi_visite_richiesti
+
+    req_cache: dict[int, list] = {}
     for ab in abil:
         dato = out.setdefault(ab.legacy_anagrafica_id, {
             "requisiti": {"dpi": [], "visite": [], "corsi": []},
@@ -48,13 +52,20 @@ def requisiti_processo_dettaglio(legacy_ids) -> dict[int, dict]:
         d = dato["requisiti"]
         p = ab.processo
         etichetta = f"Processo «{p}»"
+        if p.pk not in req_cache:
+            req_cache[p.pk] = list(
+                p.requisiti_persona.filter(attivo=True)
+                .select_related("corso", "tipo_visita").prefetch_related("ruoli")
+            )
+        corsi_ruolo, visite_ruolo = corsi_visite_richiesti(ab, req_cache[p.pk])
         for dominio, voci in (
             ("dpi", p.dpi_richiesti.all()),
-            ("visite", p.visite_richieste.all()),
-            ("corsi", p.corsi_richiesti.all()),
+            ("visite", list(p.visite_richieste.all()) + visite_ruolo),
+            ("corsi", list(p.corsi_richiesti.all()) + corsi_ruolo),
         ):
             for obj in voci:
-                d[dominio].append(obj)
+                if obj not in d[dominio]:
+                    d[dominio].append(obj)
                 origine = dato["origini"].setdefault((dominio, obj.pk), [])
                 if etichetta not in origine:
                     origine.append(etichetta)

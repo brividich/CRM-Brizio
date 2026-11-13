@@ -11,19 +11,28 @@ from django.http import HttpResponseForbidden, HttpResponseNotAllowed, Streaming
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from admin_portale.decorators import legacy_admin_or_acl_required
 from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
+from core.upload_mime import safe_filename
 from core.acl import check_permesso, user_can_modulo_action
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
-from .forms import NotiziaAllegatoFormSet, NotiziaAudienceFormSet, NotiziaForm
+from .forms import (
+    NOTIZIE_ALLEGATO_EXTENSIONS,
+    NotiziaAllegatoForm,
+    NotiziaAllegatoFormSet,
+    NotiziaAudienceFormSet,
+    NotiziaForm,
+)
 from .models import (
+    NotiziaAudience,
     COMPLIANCE_APERTO,
     COMPLIANCE_CONFORME,
     COMPLIANCE_NON_LETTO,
@@ -169,7 +178,7 @@ def _notizie_visibili(legacy_role_id: int | None):
     """Restituisce QS delle notizie pubblicate visibili al ruolo dato."""
     qs = Notizia.objects.filter(stato=STATO_PUBBLICATA)
     result = []
-    for n in qs.prefetch_related("audience"):
+    for n in qs.prefetch_related("audience", "allegati"):
         if is_visible_to_user(n, legacy_role_id):
             result.append(n)
     return result
@@ -407,7 +416,8 @@ def _compliance_breakdown(notizia: Notizia, target_user_ids: set[int]) -> dict[s
     return stats
 
 
-def _dashboard_rows(notizie: list[Notizia]) -> list[dict]:
+def _audience_maps() -> tuple[set[int], dict[int, set[int]]]:
+    """Utenti legacy noti e mappa ruolo -> utenti, base dei destinatari di ogni notizia."""
     try:
         from core.models import Profile
 
@@ -431,7 +441,11 @@ def _dashboard_rows(notizie: list[Notizia]) -> list[dict]:
             continue
         role_id_int = int(role_id)
         role_users_map.setdefault(role_id_int, set()).add(user_id)
+    return all_user_ids, role_users_map
 
+
+def _dashboard_rows(notizie: list[Notizia]) -> list[dict]:
+    all_user_ids, role_users_map = _audience_maps()
     roles_index = _legacy_roles_index()
     rows = []
     for notizia in notizie:
@@ -466,32 +480,88 @@ def _dashboard_form_context(
     audience_formset: NotiziaAudienceFormSet,
     allegati_formset: NotiziaAllegatoFormSet,
     is_create: bool,
+    selected_role_ids: set[int] | None = None,
+    nuovi_allegati_errori: list[str] | None = None,
 ) -> dict:
     roles_index = _legacy_roles_index()
+    if selected_role_ids is None:
+        selected_role_ids = (
+            {int(a.legacy_role_id) for a in notizia.audience.all()} if notizia.pk else set()
+        )
+    roles = [
+        {"id": role_id, "name": role_name, "selected": role_id in selected_role_ids}
+        for role_id, role_name in roles_index.items()
+    ]
+    # Ruoli in audience che non esistono piu' nell'elenco: restano visibili e
+    # selezionati, altrimenti un salvataggio li toglierebbe senza che l'utente lo veda.
+    for role_id in sorted(selected_role_ids - set(roles_index)):
+        roles.append({"id": role_id, "name": f"Ruolo {role_id}", "selected": True})
     return {
         "page_title": "Nuova notizia" if is_create else f"Modifica notizia #{notizia.id}",
         "notizia": notizia,
         "form": form,
         "audience_formset": audience_formset,
         "allegati_formset": allegati_formset,
-        "roles_hint": [{"id": role_id, "name": role_name} for role_id, role_name in roles_index.items()],
+        "roles": roles,
+        "roles_selected_count": sum(1 for r in roles if r["selected"]),
+        "nuovi_allegati_errori": nuovi_allegati_errori or [],
+        "accept_allegati": ",".join(sorted(NOTIZIE_ALLEGATO_EXTENSIONS)),
         "is_create": is_create,
     }
 
 
+def _posted_role_ids(request) -> set[int]:
+    ids: set[int] = set()
+    for raw in request.POST.getlist("audience_roles"):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            ids.add(value)
+    return ids
+
+
+def _validate_nuovi_allegati(request) -> tuple[list[NotiziaAllegatoForm], list[str]]:
+    """Valida i file del riquadro «trascina qui» con le stesse regole delle righe allegato."""
+    forms_ok: list[NotiziaAllegatoForm] = []
+    errori: list[str] = []
+    for upload in request.FILES.getlist("nuovi_allegati"):
+        nome = (safe_filename(getattr(upload, "name", "")) or "allegato")[:300]
+        f = NotiziaAllegatoForm(data={"nome_file": nome, "url_esterno": ""}, files={"file": upload})
+        if f.is_valid():
+            forms_ok.append(f)
+        else:
+            for err in f.non_field_errors() or [e for errs in f.errors.values() for e in errs]:
+                err = str(err)
+                errori.append(err if nome in err else f"{nome}: {err}")
+    return forms_ok, errori
+
+
 def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
+    selected_role_ids: set[int] | None = None
+    nuovi_errori: list[str] = []
     if request.method == "POST":
         save_and_publish = request.POST.get("save_and_publish") == "1"
         form = NotiziaForm(request.POST, instance=notizia)
-        audience_formset = NotiziaAudienceFormSet(request.POST, instance=notizia, prefix="audience")
+        # La pagina invia i ruoli come caselle (audience_picker=1); il formset per ID
+        # resta per compatibilita' con i client che postano ancora le righe.
+        use_picker = request.POST.get("audience_picker") == "1"
+        audience_formset = NotiziaAudienceFormSet(
+            None if use_picker else request.POST, instance=notizia, prefix="audience"
+        )
+        if use_picker:
+            selected_role_ids = _posted_role_ids(request)
         allegati_formset = NotiziaAllegatoFormSet(
             request.POST,
             request.FILES,
             instance=notizia,
             prefix="allegati",
         )
+        nuovi_forms, nuovi_errori = _validate_nuovi_allegati(request)
 
-        if form.is_valid() and audience_formset.is_valid() and allegati_formset.is_valid():
+        audience_ok = use_picker or audience_formset.is_valid()
+        if form.is_valid() and audience_ok and allegati_formset.is_valid() and not nuovi_errori:
             was_published = (notizia.pk is not None and notizia.stato == STATO_PUBBLICATA)
 
             with transaction.atomic():
@@ -504,11 +574,24 @@ def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
                     obj.stato = STATO_BOZZA
                 obj.save()
 
-                audience_formset.instance = obj
-                audience_formset.save()
+                if use_picker:
+                    obj.audience.exclude(legacy_role_id__in=selected_role_ids).delete()
+                    esistenti = set(obj.audience.values_list("legacy_role_id", flat=True))
+                    NotiziaAudience.objects.bulk_create(
+                        NotiziaAudience(notizia=obj, legacy_role_id=role_id)
+                        for role_id in sorted(selected_role_ids - esistenti)
+                    )
+                else:
+                    audience_formset.instance = obj
+                    audience_formset.save()
 
                 allegati_formset.instance = obj
                 allegati_formset.save()
+
+                for nuovo in nuovi_forms:
+                    allegato = nuovo.save(commit=False)
+                    allegato.notizia = obj
+                    allegato.save()
 
                 obj.hash_versione = compute_hash_versione(obj)
                 obj.save(update_fields=["hash_versione"])
@@ -553,7 +636,16 @@ def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
     return render(
         request,
         "notizie/pages/dashboard_form.html",
-        _dashboard_form_context(request, notizia, form, audience_formset, allegati_formset, is_create),
+        _dashboard_form_context(
+            request,
+            notizia,
+            form,
+            audience_formset,
+            allegati_formset,
+            is_create,
+            selected_role_ids=selected_role_ids,
+            nuovi_allegati_errori=nuovi_errori,
+        ),
     )
 
 
@@ -568,16 +660,25 @@ def lista(request):
 
     solo_obbligatorie = request.GET.get("solo_obbligatorie") == "1"
     filtro_stato = request.GET.get("stato", "").strip()
+    query = request.GET.get("q", "").strip()
 
     notizie_visibili = _notizie_visibili(legacy_role_id)
-
-    if solo_obbligatorie:
-        notizie_visibili = [n for n in notizie_visibili if n.obbligatoria]
+    if query:
+        q_low = query.lower()
+        notizie_visibili = [
+            n for n in notizie_visibili if q_low in n.titolo.lower() or q_low in n.corpo.lower()
+        ]
 
     all_items = []
     for n in notizie_visibili:
         compliance = get_compliance_status(n, legacy_user_id) if legacy_user_id else COMPLIANCE_NON_LETTO
-        all_items.append({"notizia": n, "compliance": compliance})
+        allegati = list(n.allegati.all())
+        all_items.append({
+            "notizia": n,
+            "compliance": compliance,
+            "allegati_count": len(allegati),
+            "pdf_count": sum(1 for a in allegati if a.is_pdf),
+        })
 
     news_stats = {
         "total": len(all_items),
@@ -596,6 +697,8 @@ def lista(request):
 
     items = []
     for item in all_items:
+        if solo_obbligatorie and not item["notizia"].obbligatoria:
+            continue
         if filtro_stato and item["compliance"] != filtro_stato:
             continue
         items.append(item)
@@ -607,6 +710,7 @@ def lista(request):
         "news_stats": news_stats,
         "solo_obbligatorie": solo_obbligatorie,
         "filtro_stato": filtro_stato,
+        "query": query,
         "can_manage_notizie": _can_manage_notizie_dashboard(request),
         "can_gestione_admin": _can_manage_notizie_settings(request),
     })
@@ -646,20 +750,34 @@ def dashboard(request):
     filtro_stato = request.GET.get("stato", "").strip().lower()
     query = request.GET.get("q", "").strip()
 
-    notizie_qs = Notizia.objects.prefetch_related("audience").order_by("-updated_at", "-created_at")
+    from django.db.models import Count
 
-    if filtro_stato in _VALID_STATO_FILTERS:
-        notizie_qs = notizie_qs.filter(stato=filtro_stato)
+    notizie_qs = Notizia.objects.prefetch_related("audience").annotate(
+        n_allegati=Count("allegati", distinct=True)
+    ).order_by("-updated_at", "-created_at")
 
     if query:
         notizie_qs = notizie_qs.filter(Q(titolo__icontains=query) | Q(corpo__icontains=query))
 
+    # I contatori delle schede contano la ricerca ma non lo stato scelto: ogni
+    # scheda mostra quante notizie trovi cliccandola.
+    stato_counts = dict(
+        Notizia.objects.filter(pk__in=notizie_qs.values("pk"))
+        .order_by()
+        .values_list("stato")
+        .annotate(n=Count("id"))
+        .values_list("stato", "n")
+    )
+    bozza_count = stato_counts.get(STATO_BOZZA, 0)
+    pubblicata_count = stato_counts.get(STATO_PUBBLICATA, 0)
+    archiviata_count = stato_counts.get(STATO_ARCHIVIATA, 0)
+
+    if filtro_stato in _VALID_STATO_FILTERS:
+        notizie_qs = notizie_qs.filter(stato=filtro_stato)
+
     notizie = list(notizie_qs[:250])
     rows = _dashboard_rows(notizie)
 
-    bozza_count = sum(1 for r in rows if r["notizia"].stato == STATO_BOZZA)
-    pubblicata_count = sum(1 for r in rows if r["notizia"].stato == STATO_PUBBLICATA)
-    archiviata_count = sum(1 for r in rows if r["notizia"].stato == STATO_ARCHIVIATA)
     obbligatorie_pendenti = sum(
         r["pending_count"]
         for r in rows
@@ -675,11 +793,13 @@ def dashboard(request):
             "bozza_count": bozza_count,
             "pubblicata_count": pubblicata_count,
             "archiviata_count": archiviata_count,
+            "totale_count": bozza_count + pubblicata_count + archiviata_count,
             "obbligatorie_pendenti": obbligatorie_pendenti,
             "filtro_stato": filtro_stato,
             "query": query,
             "can_edit_dashboard_acl": can_edit_dashboard_acl,
             "can_gestione_admin": can_manage_settings,
+            "can_report": _is_admin_or_hr(request),
             "dashboard_acl_roles": _dashboard_acl_roles(),
         },
     )
@@ -758,6 +878,7 @@ def dettaglio(request, notizia_id: int):
         return HttpResponseForbidden("Notizia non disponibile.")
 
     allegati = list(notizia.allegati.all())
+    anteprime = [a for a in allegati if a.ha_anteprima]
 
     lettura = None
     compliance = COMPLIANCE_NON_LETTO
@@ -772,15 +893,31 @@ def dettaglio(request, notizia_id: int):
         "page_title": notizia.titolo,
         "notizia": notizia,
         "allegati": allegati,
+        "anteprima_iniziale": anteprime[0] if anteprime else None,
         "compliance": compliance,
         "lettura": lettura,
         "conferma_token": _build_conferma_token(notizia, legacy_user_id),
     })
 
 
+_ANTEPRIMA_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
+
+
 @login_required
+@xframe_options_sameorigin
 def allegato_download(request, allegato_id: int):
-    """Download di un allegato: chi vede la notizia pubblicata, oppure chi gestisce le notizie."""
+    """Download di un allegato: chi vede la notizia pubblicata, oppure chi gestisce le notizie.
+
+    Con ``?anteprima=1`` PDF e immagini si aprono nel browser (inline, incorniciabili
+    solo dalle pagine del portale); gli altri tipi restano sempre in download.
+    """
     import mimetypes
     import os
 
@@ -802,9 +939,14 @@ def allegato_download(request, allegato_id: int):
         raise Http404("File non trovato.")
 
     filename = os.path.basename(allegato.file.name)
-    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    response = FileResponse(handle, as_attachment=True, filename=filename, content_type=content_type)
+    inline_type = _ANTEPRIMA_CONTENT_TYPES.get(allegato.estensione) if request.GET.get("anteprima") == "1" else None
+    if inline_type:
+        response = FileResponse(handle, as_attachment=False, filename=filename, content_type=inline_type)
+    else:
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        response = FileResponse(handle, as_attachment=True, filename=filename, content_type=content_type)
     response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
     return response
 
 
@@ -881,63 +1023,211 @@ def obbligatorie(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Report letture: una riga per persona e notizia
+# ---------------------------------------------------------------------------
+
+REPORT_STATI = [
+    (COMPLIANCE_NON_LETTO, "Non letta"),
+    (COMPLIANCE_NON_CONFORME, "Da riconfermare"),
+    (COMPLIANCE_APERTO, "Da confermare"),
+    (COMPLIANCE_CONFORME, "Confermata"),
+]
+REPORT_STATO_LABEL = dict(REPORT_STATI)
+_REPORT_STATO_ORDINE = {key: idx for idx, (key, _label) in enumerate(REPORT_STATI)}
+_REPORT_PAGE_SIZE = 100
+
+
+def _report_people_index() -> dict[int, dict]:
+    """legacy_user_id -> nome e ruolo, per mostrare persone e non numeri."""
+    try:
+        from core.models import Profile
+
+        profiles = Profile.objects.values(
+            "legacy_user_id", "legacy_ruolo", "user__first_name", "user__last_name", "user__username"
+        )
+        index: dict[int, dict] = {}
+        for p in profiles:
+            nome = f"{p['user__first_name'] or ''} {p['user__last_name'] or ''}".strip() or (p["user__username"] or "")
+            index[int(p["legacy_user_id"])] = {"nome": nome, "ruolo": p["legacy_ruolo"] or ""}
+        return index
+    except Exception:
+        return {}
+
+
+def _stato_persona(notizia: Notizia, letture: list[NotiziaLettura]) -> tuple[str, NotiziaLettura | None]:
+    """Stato di una persona su una notizia e lettura da mostrare.
+
+    Stessa regola di `_compliance_breakdown`: conta solo la versione corrente;
+    chi ha letto solo versioni vecchie deve riconfermare.
+    """
+    correnti = [lettura for lettura in letture if lettura.versione_letta == notizia.versione]
+    if correnti:
+        scelta = next((lettura for lettura in correnti if lettura.ack_at), correnti[0])
+        if scelta.ack_at:
+            return COMPLIANCE_CONFORME, scelta
+        if scelta.opened_at:
+            return COMPLIANCE_APERTO, scelta
+        return COMPLIANCE_NON_LETTO, scelta
+    if letture:
+        return COMPLIANCE_NON_CONFORME, max(letture, key=lambda lettura: lettura.versione_letta)
+    return COMPLIANCE_NON_LETTO, None
+
+
+def _parse_iso_date(raw: str):
+    from datetime import date
+
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _report_dataset(request) -> dict:
+    """Righe del report (pagina e CSV) con gli stessi filtri."""
+    params = request.GET
+    notizia_raw = params.get("notizia_id", "").strip()
+    filtro_stato = params.get("stato", "").strip()
+    if filtro_stato not in REPORT_STATO_LABEL:
+        filtro_stato = ""
+    q = params.get("q", "").strip()
+    da_raw = params.get("da", "").strip()
+    a_raw = params.get("a", "").strip()
+    da = _parse_iso_date(da_raw)
+    a = _parse_iso_date(a_raw)
+
+    notizia_sel = None
+    if notizia_raw.isdigit():
+        notizia_sel = Notizia.objects.filter(pk=int(notizia_raw)).prefetch_related("audience").first()
+
+    letture_qs = NotiziaLettura.objects.select_related("notizia")
+    if notizia_sel is not None:
+        letture_qs = letture_qs.filter(notizia=notizia_sel)
+
+    gruppi: dict[tuple[int, int], list[NotiziaLettura]] = {}
+    notizie_map: dict[int, Notizia] = {}
+    for lettura in letture_qs:
+        key = (lettura.notizia_id, int(lettura.legacy_user_id))
+        gruppi.setdefault(key, []).append(lettura)
+        notizie_map[lettura.notizia_id] = lettura.notizia
+
+    if notizia_sel is not None:
+        # Con una notizia scelta compaiono anche i destinatari che non l'hanno mai aperta.
+        all_user_ids, role_users_map = _audience_maps()
+        for user_id in _target_legacy_user_ids(notizia_sel, all_user_ids, role_users_map):
+            gruppi.setdefault((notizia_sel.pk, user_id), [])
+        notizie_map[notizia_sel.pk] = notizia_sel
+
+    persone = _report_people_index()
+    q_low = q.lower()
+    rows: list[dict] = []
+    for (notizia_id, user_id), letture in gruppi.items():
+        notizia = notizie_map[notizia_id]
+        stato, lettura = _stato_persona(notizia, letture)
+        persona = persone.get(user_id, {"nome": "", "ruolo": ""})
+        if q_low and q_low not in f"{persona['nome']} {persona['ruolo']} {notizia.titolo} {user_id}".lower():
+            continue
+        if da or a:
+            ack = lettura.ack_at if lettura else None
+            if ack is None:
+                continue
+            giorno = timezone.localtime(ack).date() if timezone.is_aware(ack) else ack.date()
+            if (da and giorno < da) or (a and giorno > a):
+                continue
+        rows.append({
+            "user_id": user_id,
+            "nome": persona["nome"],
+            "ruolo": persona["ruolo"],
+            "notizia": notizia,
+            "stato": stato,
+            "stato_label": REPORT_STATO_LABEL[stato],
+            "lettura": lettura,
+        })
+
+    counts = {key: 0 for key in REPORT_STATO_LABEL}
+    for row in rows:
+        counts[row["stato"]] += 1
+    totale = len(rows)
+    if filtro_stato:
+        rows = [row for row in rows if row["stato"] == filtro_stato]
+    rows.sort(key=lambda r: (
+        r["notizia"].titolo.lower(),
+        r["notizia"].pk,
+        _REPORT_STATO_ORDINE[r["stato"]],
+        (r["nome"] or "~").lower(),
+        r["user_id"],
+    ))
+    return {
+        "rows": rows,
+        "counts": counts,
+        "totale": totale,
+        "notizia_sel": notizia_sel,
+        "filtro_notizia_id": str(notizia_sel.pk) if notizia_sel else "",
+        "filtro_stato": filtro_stato,
+        "filtro_q": q,
+        "filtro_da": da_raw if da else "",
+        "filtro_a": a_raw if a else "",
+    }
+
+
+def _conformita_obbligatorie() -> dict:
+    """Conferme della versione corrente sui destinatari delle obbligatorie pubblicate."""
+    righe = _dashboard_rows(list(
+        Notizia.objects.filter(stato=STATO_PUBBLICATA, obbligatoria=True).prefetch_related("audience")
+    ))
+    dovute = sum(r["target_count"] for r in righe)
+    conformi = sum(r["stats"][COMPLIANCE_CONFORME] for r in righe)
+    tasso = round(conformi * 100 / dovute, 1) if dovute else 0
+    return {"n_notizie": len(righe), "dovute": dovute, "conformi": conformi, "tasso": tasso}
+
+
+def _querystring(request, **override) -> str:
+    params = request.GET.copy()
+    params.pop("page", None)
+    for key, value in override.items():
+        if value in (None, ""):
+            params.pop(key, None)
+        else:
+            params[key] = value
+    return params.urlencode()
+
+
 @login_required
 def report(request):
     if not _is_admin_or_hr(request):
         return _forbidden_response(request)
 
-    notizia_id = request.GET.get("notizia_id", "").strip()
-    filtro_stato = request.GET.get("stato", "").strip()
-    da = request.GET.get("da", "").strip()
-    a = request.GET.get("a", "").strip()
+    from django.core.paginator import Paginator
 
-    notizie_qs = Notizia.objects.all().order_by("-pubblicato_il")
-    letture_qs = NotiziaLettura.objects.select_related("notizia").order_by(
-        "notizia__titolo", "legacy_user_id", "-versione_letta"
-    )
-
-    if notizia_id:
-        try:
-            letture_qs = letture_qs.filter(notizia_id=int(notizia_id))
-        except ValueError:
-            pass
-
-    rows = []
-    for lettura in letture_qs:
-        notizia = lettura.notizia
-        compliance = get_compliance_status(notizia, lettura.legacy_user_id)
-        if filtro_stato and compliance != filtro_stato:
-            continue
-        if da:
-            try:
-                from datetime import date
-                cutoff = date.fromisoformat(da)
-                if lettura.ack_at and lettura.ack_at.date() < cutoff:
-                    continue
-            except ValueError:
-                pass
-        if a:
-            try:
-                from datetime import date
-                cutoff = date.fromisoformat(a)
-                if lettura.ack_at and lettura.ack_at.date() > cutoff:
-                    continue
-            except ValueError:
-                pass
-        rows.append({
-            "lettura": lettura,
-            "notizia": notizia,
-            "compliance": compliance,
+    data = _report_dataset(request)
+    page = Paginator(data["rows"], _REPORT_PAGE_SIZE).get_page(request.GET.get("page"))
+    stato_tabs = [{
+        "key": "",
+        "label": "Tutti",
+        "count": data["totale"],
+        "qs": _querystring(request, stato=None),
+        "active": not data["filtro_stato"],
+    }]
+    for key, label in REPORT_STATI:
+        stato_tabs.append({
+            "key": key,
+            "label": label,
+            "count": data["counts"][key],
+            "qs": _querystring(request, stato=key),
+            "active": data["filtro_stato"] == key,
         })
 
     return render(request, "notizie/pages/report.html", {
-        "page_title": "Report letture notizie",
-        "rows": rows,
-        "notizie_qs": notizie_qs,
-        "filtro_notizia_id": notizia_id,
-        "filtro_stato": filtro_stato,
-        "filtro_da": da,
-        "filtro_a": a,
+        "page_title": "Report letture",
+        **data,
+        "page": page,
+        "stato_tabs": stato_tabs,
+        "qs_corrente": _querystring(request),
+        "notizie_qs": Notizia.objects.exclude(stato=STATO_BOZZA).order_by("-pubblicato_il", "-id"),
+        "conformita": _conformita_obbligatorie(),
+        "filtri_attivi": bool(data["filtro_q"] or data["filtro_da"] or data["filtro_a"]),
     })
 
 
@@ -946,65 +1236,103 @@ def report_csv(request):
     if not _is_admin_or_hr(request):
         return HttpResponseForbidden("Accesso negato.")
 
-    notizia_id = request.GET.get("notizia_id", "").strip()
-    filtro_stato = request.GET.get("stato", "").strip()
-    da = request.GET.get("da", "").strip()
-    a = request.GET.get("a", "").strip()
+    data = _report_dataset(request)
+    headers = [
+        "Persona", "Ruolo", "Utente ID", "Notizia", "Stato", "Versione letta",
+        "Versione corrente", "Impronta versione letta", "Aperta il", "Confermata il",
+    ]
 
-    letture_qs = NotiziaLettura.objects.select_related("notizia").order_by(
-        "notizia__titolo", "legacy_user_id", "-versione_letta"
-    )
-    if notizia_id:
-        try:
-            letture_qs = letture_qs.filter(notizia_id=int(notizia_id))
-        except ValueError:
-            pass
-
-    headers = ["Utente ID", "Notizia", "Versione letta", "Versione corrente", "Hash versione", "Stato", "Data apertura", "Data conferma"]
+    def _fmt(dt):
+        if not dt:
+            return ""
+        return (timezone.localtime(dt) if timezone.is_aware(dt) else dt).strftime("%Y-%m-%d %H:%M")
 
     def rows():
-        for lettura in letture_qs:
-            notizia = lettura.notizia
-            compliance = get_compliance_status(notizia, lettura.legacy_user_id)
-            if filtro_stato and compliance != filtro_stato:
-                continue
-            if da:
-                try:
-                    from datetime import date
-                    cutoff = date.fromisoformat(da)
-                    if lettura.ack_at and lettura.ack_at.date() < cutoff:
-                        continue
-                except ValueError:
-                    pass
-            if a:
-                try:
-                    from datetime import date
-                    cutoff = date.fromisoformat(a)
-                    if lettura.ack_at and lettura.ack_at.date() > cutoff:
-                        continue
-                except ValueError:
-                    pass
+        for row in data["rows"]:
+            lettura = row["lettura"]
             yield [
-                lettura.legacy_user_id,
-                notizia.titolo,
-                lettura.versione_letta,
-                notizia.versione,
-                lettura.hash_versione_letta,
-                compliance,
-                lettura.opened_at.strftime("%Y-%m-%d %H:%M") if lettura.opened_at else "",
-                lettura.ack_at.strftime("%Y-%m-%d %H:%M") if lettura.ack_at else "",
+                row["nome"],
+                row["ruolo"],
+                row["user_id"],
+                row["notizia"].titolo,
+                row["stato_label"],
+                lettura.versione_letta if lettura else "",
+                row["notizia"].versione,
+                lettura.hash_versione_letta if lettura else "",
+                _fmt(lettura.opened_at) if lettura else "",
+                _fmt(lettura.ack_at) if lettura else "",
             ]
 
     return _csv_streaming_response(rows(), headers, "report_notizie.csv")
 
 
+# ---------------------------------------------------------------------------
+# Impostazioni
+# ---------------------------------------------------------------------------
+
+_IMPOSTAZIONI_TABS = ("permessi", "aspetto", "registro")
+_REGISTRO_PAGE_SIZE = 50
+_REGISTRO_MAX = 2000
+_AZIONI_LABEL = {
+    "notizia_creata": "Creata (bozza)",
+    "notizia_creata_pubblicata": "Creata e pubblicata",
+    "notizia_modificata": "Modificata",
+    "notizia_pubblicata": "Pubblicata",
+    "notizia_ripubblicata": "Ripubblicata",
+    "notizia_riportata_bozza": "Riportata in bozza",
+    "notizia_archiviata": "Archiviata",
+    "save_module_branding": "Aspetto del modulo salvato",
+    "remove_module_branding_logo": "Logo del modulo rimosso",
+}
+
+
+def _azione_label(azione: str) -> str:
+    return _AZIONI_LABEL.get(azione) or (azione or "").replace("_", " ").capitalize()
+
+
+def _registro_righe(entries) -> list[dict]:
+    righe = []
+    for entry in entries:
+        dettaglio = entry.dettaglio if isinstance(entry.dettaglio, dict) else {}
+        notizia_id = dettaglio.get("notizia_id")
+        extra = []
+        if dettaglio.get("versione"):
+            extra.append(f"versione {dettaglio['versione']}")
+        if dettaglio.get("stato"):
+            extra.append(str(dettaglio["stato"]))
+        righe.append({
+            "entry": entry,
+            "azione_label": _azione_label(entry.azione),
+            "notizia_id": notizia_id if isinstance(notizia_id, int) else None,
+            "titolo": str(dettaglio.get("titolo") or ""),
+            "extra": ", ".join(extra),
+        })
+    return righe
+
+
 @legacy_admin_or_acl_required("notizie", "gestione_admin")
 def gestione_admin(request):
-    """Pagina di gestione interna Notizie — accesso solo admin."""
+    """Impostazioni del modulo: permessi della gestione, aspetto, registro attività."""
     from django.core.paginator import Paginator
-    from django.db.models import Count
 
-    tab = request.GET.get("tab", "riepilogo")
+    tab = request.GET.get("tab", "").strip()
+    if tab == "record":
+        # L'elenco delle notizie sta solo nella Gestione notizie.
+        params = {}
+        if request.GET.get("q", "").strip():
+            params["q"] = request.GET["q"].strip()
+        if request.GET.get("filter_stato", "").strip() in _VALID_STATO_FILTERS:
+            params["stato"] = request.GET["filter_stato"].strip()
+        target = reverse("notizie_dashboard")
+        if params:
+            from urllib.parse import urlencode
+
+            target += "?" + urlencode(params)
+        return redirect(target)
+    if tab == "log":
+        tab = "registro"
+    if tab not in _IMPOSTAZIONI_TABS:
+        tab = "permessi"
     can_edit_dashboard_acl = _is_admin_or_hr(request)
 
     if request.method == "POST":
@@ -1042,71 +1370,50 @@ def gestione_admin(request):
                 )
             return redirect(request.get_full_path() or reverse("notizie_gestione_admin"))
 
-    # --- Statistiche ---
-    total = Notizia.objects.count()
-    bozze = Notizia.objects.filter(stato=STATO_BOZZA).count()
-    pubblicate = Notizia.objects.filter(stato=STATO_PUBBLICATA).count()
-    archiviate = Notizia.objects.filter(stato=STATO_ARCHIVIATA).count()
-    obbligatorie = Notizia.objects.filter(stato=STATO_PUBBLICATA, obbligatoria=True).count()
-    # Conformità = conferme della versione corrente sui destinatari delle notizie
-    # obbligatorie pubblicate (stessa regola del riepilogo per notizia). Prima era
-    # conferme / righe di lettura di tutte le versioni e notizie, e chi non aveva
-    # mai aperto la notizia non contava: il tasso risultava gonfiato.
-    righe_obbligatorie = _dashboard_rows(list(
-        Notizia.objects.filter(stato=STATO_PUBBLICATA, obbligatoria=True).prefetch_related("audience")
-    ))
-    totale_letture = sum(r["target_count"] for r in righe_obbligatorie)
-    totale_conformi = sum(r["stats"][COMPLIANCE_CONFORME] for r in righe_obbligatorie)
-    tasso_conformita = round(totale_conformi * 100 / totale_letture, 1) if totale_letture else 0
-    tasso_conformita_int = max(0, min(100, int(round(tasso_conformita))))
+    context = {
+        "page_title": "Impostazioni notizie",
+        "tab": tab,
+        "can_edit_dashboard_acl": can_edit_dashboard_acl,
+        "can_report": can_edit_dashboard_acl,
+        "can_dashboard": _can_manage_notizie_dashboard(request),
+    }
 
-    # --- Record: notizie con conteggio letture ---
-    q = request.GET.get("q", "").strip()
-    filter_stato = request.GET.get("filter_stato", "").strip()
-    notizie_qs = Notizia.objects.annotate(
-        n_letture=Count("letture", distinct=True),
-        n_conformi=Count("letture__id", filter=Q(letture__ack_at__isnull=False), distinct=True),
-    ).order_by("-pubblicato_il", "-created_at")
-    if q:
-        notizie_qs = notizie_qs.filter(Q(titolo__icontains=q))
-    if filter_stato:
-        notizie_qs = notizie_qs.filter(stato=filter_stato)
-    notizie_page = Paginator(notizie_qs, 50).get_page(request.GET.get("page"))
+    if tab == "permessi":
+        roles = _dashboard_acl_roles()
+        context["dashboard_acl_roles"] = roles
+        context["dashboard_acl_enabled"] = sum(1 for role in roles if role.get("enabled"))
+    elif tab == "aspetto":
+        context.update(get_module_branding_context("notizie", fallback_label="Notizie"))
+        context["branding_compact"] = True
+    else:
+        azione = request.GET.get("azione", "").strip()
+        q = request.GET.get("q", "").strip()
+        base_qs = AuditLog.objects.filter(modulo="notizie")
+        azioni_presenti = sorted(
+            {a for a in base_qs.order_by().values_list("azione", flat=True).distinct() if a},
+            key=_azione_label,
+        )
+        log_qs = base_qs.order_by("-created_at")
+        if azione:
+            log_qs = log_qs.filter(azione=azione)
+        righe = _registro_righe(log_qs[:_REGISTRO_MAX])
+        if q:
+            q_low = q.lower()
+            righe = [
+                r for r in righe
+                if q_low in f"{r['entry'].utente_display} {r['titolo']} {r['azione_label']}".lower()
+            ]
+        registro_page = Paginator(righe, _REGISTRO_PAGE_SIZE).get_page(request.GET.get("page"))
+        ids_pagina = {r["notizia_id"] for r in registro_page.object_list if r["notizia_id"]}
+        esistenti = set(Notizia.objects.filter(pk__in=ids_pagina).values_list("pk", flat=True)) if ids_pagina else set()
+        for r in registro_page.object_list:
+            r["notizia_esiste"] = r["notizia_id"] in esistenti
+        context.update({
+            "registro_page": registro_page,
+            "registro_azioni": [(a, _azione_label(a)) for a in azioni_presenti],
+            "registro_azione": azione,
+            "registro_q": q,
+            "registro_qs": _querystring(request),
+        })
 
-    # --- Log ---
-    audit_entries = AuditLog.objects.filter(modulo="notizie").order_by("-created_at")[:100]
-
-    stati = [
-        (STATO_BOZZA, "Bozza"),
-        (STATO_PUBBLICATA, "Pubblicata"),
-        (STATO_ARCHIVIATA, "Archiviata"),
-    ]
-
-    return render(
-        request,
-        "notizie/pages/gestione_admin.html",
-        {
-            "page_title": "Impostazioni Notizie",
-            "tab": tab,
-            # stats
-            "total": total,
-            "bozze": bozze,
-            "pubblicate": pubblicate,
-            "archiviate": archiviate,
-            "obbligatorie_attive": obbligatorie,
-            "totale_letture": totale_letture,
-            "totale_conformi": totale_conformi,
-            "tasso_conformita": tasso_conformita,
-            "tasso_conformita_int": tasso_conformita_int,
-            # records
-            "notizie_page": notizie_page,
-            "q": q,
-            "filter_stato": filter_stato,
-            "stati": stati,
-            # log
-            "audit_entries": audit_entries,
-            "can_edit_dashboard_acl": can_edit_dashboard_acl,
-            "dashboard_acl_roles": _dashboard_acl_roles(),
-            **get_module_branding_context("notizie", fallback_label="Notizie"),
-        },
-    )
+    return render(request, "notizie/pages/gestione_admin.html", context)

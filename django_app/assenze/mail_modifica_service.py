@@ -16,6 +16,8 @@ from django.template.loader import render_to_string
 from .mail_delete_service import _dedup_recipients, _hr_mailbox, _humanize_dt
 from .mail_certificato import ETICHETTA as ETICHETTA_CERTIFICATO
 from .mail_certificato import certificato_arrivato, etichetta_si_no
+from automazioni.managed_flows import event_flow
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ def _certificato_dopo_modifica(record: dict, modifiche: list[dict]) -> bool | No
     return certificato_arrivato(tipo, certificato)
 
 
+@event_flow("assenze_richiesta_modificata", skipped_result=False)
 def send_assenza_modificata_notification(
     record: dict,
     *,
@@ -126,7 +129,7 @@ def send_assenza_modificata_notification(
             to=to_list,
         )
         msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning("send_assenza_modificata_notification: invio fallito per assenza id=%s", record.get("id"), exc_info=True)
         registra(origine="assenze_modifica", destinatari=to_list, oggetto=subject, sorgente="assenze",

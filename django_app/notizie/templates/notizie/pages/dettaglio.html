@@ -1,107 +1,109 @@
 {% extends "core/base.html" %}
 {% block title %}{{ notizia.titolo }} — Portale Applicativo{% endblock %}
+{% block body_class %}{{ block.super }} notizie-page notizie-detail-page{% endblock %}
 
-{% block extra_head %}
-<style>
-.notizia-dettaglio { max-width:780px; margin:2rem auto; padding:0 1rem; }
-.notizia-corpo { line-height:1.7; color:var(--text,#1e293b); margin:1.5rem 0; }
-.allegati-list { list-style:none; padding:0; margin:0; }
-.allegati-list li { padding:.5rem 0; border-bottom:1px solid var(--border,#e2e8f0); display:flex; align-items:center; gap:.6rem; }
-.allegati-list li:last-child { border-bottom:none; }
-.btn-conferma {
-  display:inline-block; padding:.75rem 2rem; background:var(--primary,#1e3a5f);
-  color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:600;
-  cursor:pointer; text-decoration:none; transition:opacity .15s;
-}
-.btn-conferma:hover { opacity:.88; }
-.compliance-box {
-  border-radius:8px; padding:.9rem 1.2rem; margin-bottom:1.5rem; font-size:.92rem;
-}
-.compliance-conforme    { background:#dcfce7; color:#16a34a; }
-.compliance-aperto      { background:#fef9c3; color:#b45309; }
-.compliance-non_conforme{ background:#fee2e2; color:#dc2626; }
-.compliance-non_letto   { background:#f1f5f9; color:#64748b; }
-
-body.theme-dark .allegati-list li { border-color:var(--border); }
-body.theme-dark .compliance-conforme { background:rgba(22,163,74,.15); color:#86efac; }
-body.theme-dark .compliance-aperto { background:rgba(180,83,9,.15); color:#fcd34d; }
-body.theme-dark .compliance-non_conforme { background:rgba(220,38,38,.15); color:#fca5a5; }
-body.theme-dark .compliance-non_letto { background:var(--surface-alt); color:var(--text-light); }
-</style>
-{% endblock %}
+{% block extra_head %}{% include "notizie/components/_assets.html" %}{% endblock %}
 
 {% block content %}
-<div class="notizia-dettaglio">
-  <div style="margin-bottom:.5rem;">
-    <a href="{% url 'notizie_lista' %}" style="color:var(--text-secondary,#64748b);font-size:.88rem;text-decoration:none;">&#8592; Notizie</a>
-  </div>
+<div class="nz{% if not anteprima_iniziale %} nz-narrow{% endif %}">
+  <a class="nz-back" href="{% url 'notizie_lista' %}">&#8592; Notizie</a>
 
-  <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.4rem;">
-    {% if notizia.obbligatoria %}
-      <span style="background:#fee2e2;color:#dc2626;border-radius:999px;padding:.15rem .6rem;font-size:.8rem;font-weight:600;">Obbligatoria</span>
+  <div class="nz-read{% if anteprima_iniziale %} has-viewer{% endif %}">
+    <article class="nz-panel nz-article">
+      {% if notizia.obbligatoria %}<div class="nz-card-top"><span class="nz-badge is-obbligatoria">Obbligatoria</span></div>{% endif %}
+      <h1>{{ notizia.titolo }}</h1>
+      <div class="nz-meta">
+        {% if notizia.pubblicato_il %}<span>Pubblicata il {{ notizia.pubblicato_il|date:"d-m-Y H:i" }}</span>{% endif %}
+        <span>Versione {{ notizia.versione }}</span>
+      </div>
+
+      {% if compliance == 'conforme' %}
+        <div class="nz-state is-conforme"><span class="nz-state-ico" aria-hidden="true">&#10003;</span>
+          <span>Lettura confermata{% if lettura.ack_at %} il {{ lettura.ack_at|date:"d-m-Y H:i" }}{% endif %}.</span></div>
+      {% elif compliance == 'non_conforme' %}
+        <div class="nz-state is-non_conforme"><span class="nz-state-ico" aria-hidden="true">&#9888;</span>
+          <span>La notizia è stata aggiornata dopo la tua conferma: rileggila e conferma questa versione.</span></div>
+      {% endif %}
+      {% if request.GET.csrf_retry == '1' and compliance != 'conforme' %}
+        <div class="nz-state is-aperto">Ripristino della conferma in corso...</div>
+      {% endif %}
+
+      <div class="nz-body">{{ notizia.corpo|linebreaks }}</div>
+
+      {% if allegati %}
+        <section class="nz-files" aria-label="Allegati">
+          <h2 class="nz-files-title">Allegati</h2>
+          {% for a in allegati %}
+            <div class="nz-file{% if a == anteprima_iniziale %} is-active{% endif %}" data-nz-file>
+              {% if a.file %}
+                <div class="nz-file-ico{% if a.is_pdf %} is-pdf{% elif a.is_immagine %} is-img{% endif %}">{{ a.estensione|default:"file"|slice:":4" }}</div>
+              {% else %}
+                <div class="nz-file-ico is-link">link</div>
+              {% endif %}
+              <div style="min-width:0;">
+                <div class="nz-file-name" title="{{ a.nome_file }}">{{ a.nome_file }}</div>
+                <div class="nz-file-sub">
+                  {% if a.dimensione_bytes %}{{ a.dimensione_bytes|filesizeformat }}{% endif %}
+                  {% if a.url_esterno and not a.file %}Link esterno{% endif %}
+                  {% if a.hash_file %} · <code title="Impronta SHA-256 del file">{{ a.hash_file|slice:":12" }}…</code>{% endif %}
+                </div>
+              </div>
+              <div class="nz-file-actions">
+                {% if a.ha_anteprima %}
+                  {% url 'notizie_allegato_download' a.id as dl %}
+                  <a class="nz-btn" href="{{ dl }}?anteprima=1" target="_blank" rel="noopener"
+                     data-nz-preview data-url="{{ dl }}?anteprima=1" data-download="{{ dl }}"
+                     data-nome="{{ a.nome_file }}" data-tipo="{% if a.is_pdf %}pdf{% else %}img{% endif %}">Anteprima</a>
+                  <a class="nz-btn" href="{{ dl }}" title="Scarica">Scarica</a>
+                {% elif a.file %}
+                  <a class="nz-btn" href="{% url 'notizie_allegato_download' a.id %}">Scarica</a>
+                {% elif a.url_esterno %}
+                  <a class="nz-btn" href="{{ a.url_esterno }}" target="_blank" rel="noopener">Apri &#8599;</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      {% if compliance != 'conforme' %}
+        <div class="nz-confirm">
+          <div class="nz-confirm-text">
+            La conferma registra data, ora e impronta della versione {{ notizia.versione }}
+            (<code title="SHA-256 della versione">{{ notizia.hash_versione|slice:":12" }}…</code>).
+          </div>
+          <a href="{% url 'notizie_conferma' notizia.id %}?token={{ conferma_token|urlencode }}" class="nz-btn nz-btn-primary" data-conferma-link>&#10003; Confermo di aver letto e compreso</a>
+        </div>
+      {% endif %}
+    </article>
+
+    {% if anteprima_iniziale %}
+      {% url 'notizie_allegato_download' anteprima_iniziale.id as dl0 %}
+      <aside class="nz-viewer{% if anteprima_iniziale.is_pdf %} is-pdf{% endif %}" data-nz-viewer aria-label="Anteprima allegato">
+        <div class="nz-viewer-bar">
+          <div class="nz-viewer-name" data-nz-viewer-name>{{ anteprima_iniziale.nome_file }}</div>
+          <div class="nz-file-actions">
+            <a class="nz-btn" href="{{ dl0 }}?anteprima=1" target="_blank" rel="noopener" data-nz-viewer-full>Schermo intero &#8599;</a>
+            <a class="nz-btn" href="{{ dl0 }}" data-nz-viewer-download>Scarica</a>
+          </div>
+        </div>
+        <div class="nz-viewer-stage">
+          {% comment %}Il PDF si incornicia solo su schermi larghi (lo carica notizie.js): sui telefoni l'iframe PDF non si vede o scarica il file.{% endcomment %}
+          {% if anteprima_iniziale.is_pdf %}
+            <iframe data-nz-viewer-frame title="Anteprima di {{ anteprima_iniziale.nome_file }}" data-src="{{ dl0 }}?anteprima=1#view=FitH&navpanes=0"></iframe>
+            <img data-nz-viewer-img alt="" hidden>
+          {% else %}
+            <iframe data-nz-viewer-frame title="Anteprima allegato" hidden></iframe>
+            <img data-nz-viewer-img src="{{ dl0 }}?anteprima=1" alt="{{ anteprima_iniziale.nome_file }}">
+          {% endif %}
+          <a class="nz-viewer-fallback" href="{{ dl0 }}?anteprima=1" target="_blank" rel="noopener" data-nz-viewer-fallback>
+            <span class="nz-file-ico is-pdf" aria-hidden="true">pdf</span>
+            <strong>Apri il PDF</strong>
+          </a>
+        </div>
+      </aside>
     {% endif %}
-    <span style="background:#f1f5f9;color:#64748b;border-radius:999px;padding:.15rem .6rem;font-size:.8rem;">Versione {{ notizia.versione }}</span>
-    {% if notizia.pubblicato_il %}
-      <span style="color:var(--text-secondary,#64748b);font-size:.82rem;">{{ notizia.pubblicato_il|date:"d-m-Y H:i" }}</span>
-    {% endif %}
   </div>
-
-  <h1 style="font-size:1.7rem;font-weight:700;color:var(--text);margin-bottom:1rem;">{{ notizia.titolo }}</h1>
-
-  {% if compliance == 'conforme' %}
-    <div class="compliance-box compliance-conforme">
-      &#10003; Hai confermato la lettura di questa versione.
-      {% if lettura.ack_at %}<span style="margin-left:.5rem;font-size:.88rem;">{{ lettura.ack_at|date:"d-m-Y H:i" }}</span>{% endif %}
-    </div>
-  {% elif compliance == 'non_conforme' %}
-    <div class="compliance-box compliance-non_conforme">
-      &#9888; Hai letto una versione precedente. Conferma la versione corrente.
-    </div>
-  {% elif compliance == 'aperto' %}
-    <div class="compliance-box compliance-aperto">
-      Hai aperto questa comunicazione ma non hai ancora confermato la lettura.
-    </div>
-  {% endif %}
-
-  {% if request.GET.csrf_retry == '1' and compliance != 'conforme' %}
-    <div class="compliance-box compliance-aperto">
-      Ripristino della conferma in corso...
-    </div>
-  {% endif %}
-
-  <div class="notizia-corpo">{{ notizia.corpo|linebreaks }}</div>
-
-  {% if allegati %}
-  <section style="margin:1.5rem 0;">
-    <h2 style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:.75rem;">Allegati</h2>
-    <ul class="allegati-list">
-      {% for a in allegati %}
-      <li>
-        <span style="font-size:1rem;">&#128206;</span>
-        {% if a.file %}
-          <a href="{% url 'notizie_allegato_download' a.id %}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
-        {% elif a.url_esterno %}
-          <a href="{{ a.url_esterno }}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
-        {% else %}
-          {{ a.nome_file }}
-        {% endif %}
-        {% if a.hash_file %}
-          <span style="font-size:.75rem;color:#94a3b8;font-family:monospace;" title="SHA-256">{{ a.hash_file|slice:":16" }}…</span>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
-  {% endif %}
-
-  {% if compliance != 'conforme' %}
-  <div style="margin-top:2rem;">
-    <a href="{% url 'notizie_conferma' notizia.id %}?token={{ conferma_token|urlencode }}" class="btn-conferma" data-conferma-link>&#10003; Confermo di aver letto e compreso</a>
-    <p style="margin-top:.6rem;font-size:.82rem;color:var(--text-secondary,#64748b);">
-      La tua conferma sarà registrata con data, ora e hash della versione corrente ({{ notizia.hash_versione|slice:":16" }}…).
-    </p>
-  </div>
-  {% endif %}
 </div>
 {% endblock %}
 

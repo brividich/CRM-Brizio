@@ -18,7 +18,7 @@ from django.apps import apps
 
 # Area, colore e descrizione per ogni app del progetto, nell'ordine della pagina.
 APP_INFO: dict[str, tuple[str, str, str]] = {
-    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report, postazioni condivise e PIN, bacheca e cataloghi della stanza Sapere"),
+    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report, postazioni condivise e PIN, bacheca e cataloghi della stanza Sapere, preferenze e viste comuni delle tabelle"),
     "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
     "dati_bi": ("Piattaforma", "#0369a1", "Dati per Power BI (viste SQL bi_*) e API dati in sola lettura per applicazioni"),
     "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),
@@ -27,7 +27,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "setup_wizard": ("Piattaforma", "#94a3b8", "Configurazione iniziale"),
     "twofa": ("Piattaforma", "#64748b", "Verifica in due passaggi"),
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
-    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, centri di costo, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, classificazione e coefficienti delle mansioni, costo orario mensile, fornitori, richieste di rettifica (GDPR)"),
+    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, centri di costo, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, processi qualificati MOD.128 con persone qualificate (requisiti per ruolo) e macchine qualificate (verifiche con misure), classificazione e coefficienti delle mansioni, costo orario mensile, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint, "
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione)"),
@@ -47,7 +47,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "anomalie": ("Operations", "#eab308", "Anomalie per OP e seriali"),
     "gestione_carichi_macchina": ("Operations", "#0891b2", "Pianificazione carichi macchina"),
     "checklist_operativa": ("Operations", "#0d9488", "Checklist di chiusura aziendale"),
-    "contatori": ("Operations", "#7c3aed", "Contatori IT: MFC e monitor SNMP"),
+    "contatori": ("Operations", "#7c3aed", "Contatori IT: MFC e monitor SNMP; porte di firewall e switch descritte a mano per la topologia (contatori_portaapparato)"),
     "planimetria": ("Operations", "#a3a3a3", "Ponte verso le planimetrie di assets"),
     "diario_preposto": ("Sicurezza sul lavoro", "#ef4444", "Diario del preposto e ispezioni"),
     "rilevazione_incidenti": ("Sicurezza sul lavoro", "#f43f5e", "Incidenti, near miss, situazioni pericolose"),
@@ -67,7 +67,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                  "del rischio ISO 27001 8.8 in security_securityaccettazionerischio), incidenti, backup; ISO 27001: riesame "
                  "degli incidenti e azioni correttive (security_securityincidentreview, security_securitycorrectiveaction), catena di custodia "
                  "delle evidenze (security_securityevidencecustody), prove di ripristino dei backup (security_backuprestoretest), "
-                 "pacchetti mensili di evidenze (security_securitypacchettoiso, PDF nello storage privato)"),
+                 "pacchetti mensili di evidenze (security_securitypacchettoiso, PDF nello storage privato); aggiornamenti KB installati letti da WatchGuard (security_watchguardaggiornamento) e fotografia notturna dell'indice di postura dei PC (security_posturagiorno)"),
     "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), PC del dominio letti, sigilli giornalieri dell'archivio, "
                      "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
                      "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),
@@ -300,7 +300,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Server AI (Ollama e indice)",
         "cosa": "Il modello di linguaggio dell'Assistente AI e il servizio che calcola l'indice dei documenti, su un server interno.",
         "chi": "Assistente AI, copiloti dei moduli (DPI, Suggestion Corner, Specifiche, Security Center: spiegazioni, lettura assistita, "
-               "proposte su CPE ed esiti CVE da verificare nella tabella security_securitypropostaai, proposte di chiusura degli alert ogni 15 minuti con apprendimento dalle decisioni nella tabella security_securityalertproposta), RENTRI (lettura del FIR, solo per i campi che le regole non trovano).",
+               "proposte su CPE ed esiti CVE da verificare e doppioni software tra WatchGuard e Defender nella tabella security_securitypropostaai, proposte di chiusura degli alert ogni 15 minuti con apprendimento dalle decisioni nella tabella security_securityalertproposta), RENTRI (lettura del FIR, solo per i campi che le regole non trovano).",
         "config": "OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL, RAG_EMBED_BACKEND, RAG_EMBED_OPENAI_BASE_URL",
         "controllo": "Setup Wizard → Server Dashboard → Assistente AI (verifica); Centrale di comando.",
     },

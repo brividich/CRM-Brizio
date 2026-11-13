@@ -1,0 +1,4 @@
+<li id="porta-{{ p.numero }}"><span class="cc-port-num is-{{ p.tono }}">{{ p.numero }}</span>
+  <span class="cc-port-corpo">{% if p.nome %}<strong>{{ p.nome }}</strong>{% endif %}{% if p.tipo != "LAN" %} <span class="pill">{{ p.tipo }}</span>{% endif %}{% if p.vlan %} <span class="muted">VLAN {{ p.vlan }}</span>{% endif %}
+    <span class="cc-port-dest"><span class="cc-port-freccia">→</span> {% if p.url %}<a class="plain" href="{{ p.url }}">{{ p.collegato }}</a>{% else %}{{ p.collegato|default:"—" }}{% endif %}{% if p.nota %} <small class="muted">{{ p.nota }}</small>{% endif %}</span></span>
+</li>

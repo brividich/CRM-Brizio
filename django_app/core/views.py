@@ -1281,11 +1281,17 @@ def api_table_prefs(request, table_id: str):
         return JsonResponse({"ok": False, "error": "table_id non valido"}, status=400)
 
     if request.method == "GET":
-        try:
-            pref = UserTablePreference.objects.get(user=request.user, table_id=table_id)
-            return JsonResponse({"ok": True, "state": pref.state_json or {}})
-        except UserTablePreference.DoesNotExist:
-            return JsonResponse({"ok": True, "state": {}})
+        from core.models import SharedTableView
+
+        pref = UserTablePreference.objects.filter(user=request.user, table_id=table_id).first()
+        # Vista comune predefinita: come si apre la tabella per chi non ha preferenze proprie.
+        default = (SharedTableView.objects.filter(table_id=table_id, predefinita=True)
+                   .values("nome", "state_json").first())
+        return JsonResponse({
+            "ok": True,
+            "state": (pref.state_json if pref else None) or {},
+            "default": {"nome": default["nome"], "stato": default["state_json"] or {}} if default else None,
+        })
 
     if request.method == "POST":
         try:
@@ -1316,6 +1322,121 @@ def api_table_prefs(request, table_id: str):
 
     from django.http import HttpResponseNotAllowed
     return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
+
+
+SHARED_TABLE_VIEWS_MAX = 20
+
+
+def can_manage_shared_table_views(request) -> bool:
+    """Chi può salvare, eliminare e rendere predefinite le viste comuni: gli amministratori."""
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    try:
+        return is_legacy_admin(getattr(request, "legacy_user", None) or get_legacy_user(user))
+    except Exception:  # noqa: BLE001 - fail-closed
+        return False
+
+
+def api_table_views_shared(request, table_id: str):
+    """Viste comuni di una tabella (uguali per tutti), menu «Viste ▾» di fm-table-enhanced.
+
+    - GET    → ``{"ok", "viste": [{id, nome, stato, predefinita}], "can_manage"}``; per tutti.
+    - POST   → ``{"nome", "stato", "predefinita"}``: crea o sostituisce per nome; solo admin.
+      Con ``{"id", "predefinita"}`` e senza ``stato`` cambia solo la predefinita.
+    - DELETE → ``?id=N``; solo admin.
+
+    Niente ``@login_required``: le chiamate sono AJAX, l'anonimo riceve JSON 401.
+    """
+    from django.db import transaction
+    from django.http import HttpResponseNotAllowed
+
+    from core.models import SharedTableView
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Accesso richiesto"}, status=401)
+    table_id = (table_id or "").strip()
+    if not table_id or len(table_id) > 100:
+        return JsonResponse({"ok": False, "error": "table_id non valido"}, status=400)
+    can_manage = can_manage_shared_table_views(request)
+
+    if request.method == "GET":
+        viste = [
+            {"id": v.pk, "nome": v.nome, "stato": v.state_json or {}, "predefinita": v.predefinita}
+            for v in SharedTableView.objects.filter(table_id=table_id).order_by("nome")
+        ]
+        return JsonResponse({"ok": True, "viste": viste, "can_manage": can_manage})
+
+    if request.method not in ("POST", "DELETE"):
+        return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
+    if not can_manage:
+        return JsonResponse({"ok": False, "error": "Solo gli amministratori gestiscono le viste comuni"}, status=403)
+
+    if request.method == "DELETE":
+        try:
+            pk = int(request.GET.get("id") or 0)
+        except (TypeError, ValueError):
+            pk = 0
+        nome = SharedTableView.objects.filter(table_id=table_id, pk=pk).values_list("nome", flat=True).first()
+        SharedTableView.objects.filter(table_id=table_id, pk=pk).delete()
+        if nome:
+            log_action(request, "table_view_shared_deleted", "core", {"table_id": table_id, "nome": nome})
+        return JsonResponse({"ok": True})
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+    if not isinstance(data, dict):
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+    predefinita = bool(data.get("predefinita"))
+
+    # Solo la predefinita (stella nel menu).
+    if "stato" not in data:
+        try:
+            pk = int(data.get("id") or 0)
+        except (TypeError, ValueError):
+            pk = 0
+        vista = SharedTableView.objects.filter(table_id=table_id, pk=pk).first()
+        if vista is None:
+            return JsonResponse({"ok": False, "error": "Vista non trovata"}, status=404)
+        with transaction.atomic():
+            if predefinita:
+                SharedTableView.objects.filter(table_id=table_id, predefinita=True).exclude(pk=pk).update(predefinita=False)
+            vista.predefinita = predefinita
+            vista.aggiornata_da = request.user
+            vista.save(update_fields=["predefinita", "aggiornata_da", "aggiornata_il"])
+        return JsonResponse({"ok": True})
+
+    nome = " ".join(str(data.get("nome") or "").split())[:60]
+    stato = data.get("stato")
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Nome obbligatorio"}, status=400)
+    if not isinstance(stato, dict):
+        return JsonResponse({"ok": False, "error": "campo 'stato' deve essere un oggetto"}, status=400)
+    try:
+        blob = json.dumps(stato)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "stato non serializzabile"}, status=400)
+    if len(blob) > 32768:
+        return JsonResponse({"ok": False, "error": "stato troppo grande"}, status=400)
+    esistente = SharedTableView.objects.filter(table_id=table_id, nome__iexact=nome).first()
+    if esistente is None and SharedTableView.objects.filter(table_id=table_id).count() >= SHARED_TABLE_VIEWS_MAX:
+        return JsonResponse({"ok": False, "error": f"Al massimo {SHARED_TABLE_VIEWS_MAX} viste comuni per tabella"}, status=400)
+    with transaction.atomic():
+        if predefinita:
+            SharedTableView.objects.filter(table_id=table_id, predefinita=True).update(predefinita=False)
+        if esistente is None:
+            esistente = SharedTableView(table_id=table_id)
+        esistente.nome = nome
+        esistente.state_json = stato
+        esistente.predefinita = predefinita
+        esistente.aggiornata_da = request.user
+        esistente.save()
+    log_action(request, "table_view_shared_saved", "core", {"table_id": table_id, "nome": nome, "predefinita": predefinita})
+    return JsonResponse({"ok": True, "id": esistente.pk})
 
 
 def sidebar_toggle_save(request):

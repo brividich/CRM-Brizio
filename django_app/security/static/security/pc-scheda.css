@@ -1,6 +1,6 @@
 /* Scheda PC del SOC (/soc/pc/): stile «cyber», schede, flusso, grafici. Comportamento in pc-scheda.js. */
 .soc-module .pcs {
-  --pcs-cyan: #22d3ee;
+  --pcs-cyan: var(--cy-cyan, #22d3ee);
   --pcs-ok: var(--success, #16a34a);
   --pcs-warn: var(--warning, #d97706);
   --pcs-bad: var(--danger, #dc2626);
@@ -8,7 +8,7 @@
   --pcs-line: var(--border, #e2e8f0);
   --pcs-card: var(--surface, #fff);
   --pcs-soft: color-mix(in srgb, var(--pcs-card) 92%, var(--pcs-cyan));
-  --pcs-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --pcs-mono: var(--cy-mono, Consolas, monospace);
   display: grid; gap: 14px; margin-top: 12px;
 }
 .soc-module .pcs .is-success { --tone: var(--pcs-ok); }
@@ -380,3 +380,20 @@ body.theme-dark .soc-module .pcs-tl-body a:hover { color: var(--pcs-cyan); }
 }
 body.theme-dark .soc-module .pcs-tl-body a, body.theme-dark .soc-module .pcs-tl-title { color: var(--text); }
 @media (max-width: 600px) { .soc-module .pcs-activity-axis span:nth-child(2) { display: none; } }
+
+/* Andamento della postura, storico versioni, aggiornamenti KB */
+.soc-module .pcs-trend { display: grid; gap: 4px; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: var(--pcs-soft); border: 1px solid var(--pcs-line); }
+.soc-module .pcs-trend svg { width: 100%; height: 44px; }
+.soc-module .pcs-trend polyline { fill: none; stroke: var(--tone, var(--pcs-cyan)); stroke-width: 2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px var(--tone, var(--pcs-cyan))); }
+.soc-module .pcs-trend span { font-size: 11px; color: var(--text-mid); }
+.soc-module .pcs-trend b.is-down { color: var(--pcs-bad); }
+.soc-module .pcs-trend b.is-up { color: var(--pcs-ok); }
+.soc-module .pcs-vstory { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.soc-module .pcs-vstory > li { padding: 8px 10px; border-radius: 8px; background: var(--pcs-soft); border: 1px solid var(--pcs-line); }
+.soc-module .pcs-vstory ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 2px; margin: 6px 0 0; padding: 0; }
+.soc-module .pcs-vstory ol li { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--pcs-line)); color: var(--tone); }
+.soc-module .pcs-vstory ol li + li::before { content: "→"; color: var(--text-light); margin-right: 4px; }
+.soc-module .pcs-vstory ol li small { color: var(--text-light); font-size: 10px; }
+.soc-module .pcs-actions form { margin: 0; }
+.soc-module .pcs-actions button.pcs-btn { cursor: pointer; font: inherit; font-weight: 700; }

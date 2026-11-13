@@ -181,7 +181,15 @@ SEZIONI: list[dict] = [
                   "gestione). «? Guida», a destra, apre questa pagina da qualunque punto del modulo."),
             ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "
                   "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
-                  "letture da confermare, fatture da riconciliare, licenze degli apparati), sotto tre colonne che scorrono ognuna per "
+                  "letture da confermare, fatture da riconciliare, licenze degli apparati); sotto, il flusso dei dati: a sinistra le "
+                  "famiglie di apparati (Stampanti MFC, Videosorveglianza, Rete e sicurezza, Server e storage, UPS e ambiente, "
+                  "Lettori), al centro il cerchio con gli apparati operativi sul totale, a destra i risultati (letture del trimestre, "
+                  "consumabili, errori SNMP, letture da confermare, fatture). Il colore dice lo stato (verde in regola, giallo da "
+                  "guardare, rosso in errore); un clic su un risultato apre la sua pagina, un clic su una famiglia filtra la mappa. "
+                  "La mappa della flotta ha un riquadro per apparato, con sigla (MFC, NET, SRV, UPS, CAM, LET), nome e IP, in "
+                  "cima chi è in errore: i filtri In errore / Attenzione / Non interrogati / Operativi usano gli stessi numeri di "
+                  "«Stato flotta», la casella cerca per nome o IP, un clic apre il pannello laterale (Ctrl+clic la scheda). "
+                  "Ancora sotto, tre colonne che scorrono ognuna per "
                   "conto suo: «Da fare», «Parco MFC» e «SNMP». Ogni indicatore e ogni voce aprono la pagina "
                   "dove si interviene, già filtrata (es. «MFC non raggiungibili» apre le Stampanti MFC in errore, "
                   "«letture mensili in attesa» quelle senza la lettura del mese); nel Parco MFC il dettaglio "
@@ -237,7 +245,7 @@ SEZIONI: list[dict] = [
                 "Mail di riepilogo: quando tutte le MFC sono lette parte una mail con contatori, copie del mese "
                 "(«—» se manca la lettura del mese prima o un contatore è sceso), Excel allegato e link a queste "
                 "letture. Il giorno 7 dalle 23:00, se manca ancora qualche MFC, parte con le mancanti e il motivo. "
-                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: "
+                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Modifica»: "
                 "senza destinatari non parte.",
             ]),
         ],
@@ -537,6 +545,54 @@ SEZIONI: list[dict] = [
                 "Se una lettura non arriva in fondo (lo switch smette di rispondere) l'esito dice «lettura parziale» e "
                 "restano le porte della lettura precedente: niente viene cancellato. Gli switch che non entrano nel "
                 "tempo della lettura (90 secondi) sono «rimandati al prossimo giro» e passano per primi la volta dopo.",
+            ]),
+        ],
+    },
+    {
+        "id": "quadro-per-tipo",
+        "titolo": "Il quadro di ogni tipo di apparato",
+        "blocchi": [
+            ("p", "La scheda di un dispositivo SNMP ha, subito sotto i riquadri in alto, il quadro del suo tipo: gli indicatori "
+                  "che contano per quell'apparato e i collegamenti alle pagine che lo riguardano. Usa solo i dati dell'ultima "
+                  "interrogazione già salvata: aprire la scheda non interroga l'apparato e non la rallenta."),
+            ("ul", [
+                "UPS (Alimentazione): carica della batteria (anello), autonomia, stato della batteria, da quanto è su batteria, carico, temperatura; collegamento al Backup.",
+                "Firewall (Sicurezza perimetrale): CPU e memoria (anelli), sessioni, tunnel VPN, traffico; collegamenti ad Accessi VPN e Rete (IP) del SOC e al Registro accessi.",
+                "Switch e rete: CPU, memoria, temperatura, traffico; collegamenti a Rete (IP) nel SOC e agli indirizzi IP in Asset. Resta il riquadro «Chi è collegato alle porte».",
+                "Server: salute generale, CPU, memoria, temperatura, ventole, alimentatori, dischi e controller; collegamenti a «Server e virtualizzazione» del Registro accessi e al Backup.",
+                "NAS e storage: stato del sistema, volumi/RAID, dischi, temperature, aggiornamento disponibile; collegamenti al Backup e al suo log.",
+                "Videoregistratore e telecamere: dischi, canali, registrazione, temperatura; collegamento a tutta la videosorveglianza. Sensori ambiente: temperatura, umidità, allarme. Lettori: stato.",
+                "Per tutti: tempo di risposta, da quanto è acceso e disponibilità nelle ultime 24 ore (anello e «N su M riuscite»).",
+                "Il colore segue le soglie della sonda (verde, giallo, rosso). Gli indicatori si riconoscono dal nome della sonda (quelli dei profili: «Carica residua», «Temperatura sistema», «Stato peggiore volumi/RAID»…); una sonda aggiunta a mano con un nome simile compare da sola. Le altre restano nella tabella «Sonde».",
+                "I collegamenti compaiono solo se puoi aprire la pagina. Le stampanti hanno il loro pannello; la scheda di una MFC a contratto ha sotto la testata la barra «MFC · vai a» (letture di quella MFC, mensili, consumabili, fabbisogno, fatture, riconciliazione, analisi).",
+            ]),
+        ],
+    },
+    {
+        "id": "topologia",
+        "titolo": "Apparato disegnato, porte e topologia",
+        "blocchi": [
+            ("p", "Ogni scheda ha in alto l'apparato disegnato con i dati già salvati (aprirla non lo interroga): la MFC con i toner "
+                  "a colori e il loro livello (bordo rosso sotto il 15%), i cassetti con la carta, il display e la luce di stato; firewall "
+                  "e switch con il pannello frontale e le porte; l'UPS con la batteria e l'autonomia; il NAS con i dischi; il server "
+                  "con ventole e spie; la telecamera; il sensore."),
+            ("ul", [
+                "Porte di firewall e switch: azzurra = collegata, arancione = WAN, rossa = l'apparato collegato è in errore, scura = libera. "
+                "Passando sopra una porta si leggono nome, tipo, VLAN e cosa c'è collegato; un clic apre l'apparato collegato. Oltre 12 porte "
+                "il pannello va a blocchi da 12 che vanno a capo quando lo schermo è stretto. Sotto il pannello le prime 12 porte "
+                "descritte; le altre in «Altre N porte descritte».",
+                "«Modifica porte» (solo con la gestione): quante porte ha il pannello e, per ognuna, nome, tipo (LAN, WAN, fibra, PoE, gestione), "
+                "VLAN, a cosa è collegata (un apparato del modulo o una MFC) oppure un testo libero come «Internet» o «Access point», e una nota. "
+                "Le righe lasciate vuote restano porte libere. Per gli switch con la tabella MAC, accanto alle porte c'è «rilevato: …» "
+                "e il pulsante «Usa le proposte della tabella MAC» riempie le righe vuote: si controlla e si salva.",
+                "«Topologia» (nella barra del modulo): l'albero della rete costruito dalle porte. Una porta WAN collegata a «Internet» mette "
+                "Internet in cima con il firewall sotto; poi switch e apparati, con la porta e la VLAN su ogni ramo. Ogni apparato ha il "
+                "colore del suo stato e il numero di apparati che ha sotto; un clic apre il pannello laterale, la freccia apre o chiude il "
+                "ramo, «Apri tutto» / «Chiudi tutto» in alto. Sotto un apparato si vedono i primi 12 collegamenti, gli altri in «Altri N collegamenti»; "
+                "se l'albero è più largo dello schermo l'area scorre di lato e i nomi lunghi sono accorciati (intero al passaggio "
+                "del mouse). In fondo «Non ancora collegati»: gli apparati che non compaiono su nessuna porta.",
+                "Un cavo «di ritorno» (lo switch che indica il firewall sulla sua porta di uplink) non ribalta l'albero: chi sta a monte "
+                "(firewall, poi switch) resta sopra. «Vedi nella topologia» in ogni scheda porta all'apparato nell'albero.",
             ]),
         ],
     },

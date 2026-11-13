@@ -12,6 +12,7 @@
       {{ fam.data_inizio|date:"d-m-Y"|default:"—" }}{% if fam.data_fine and fam.data_fine != fam.data_inizio %} &#8594; {{ fam.data_fine|date:"d-m-Y" }}{% endif %}
       {% if fam.stato == "deposito" %} · residuo <strong>{{ fam.residuo|floatformat:"-3" }}{% if fam.unita %} {{ fam.unita }}{% endif %}</strong>{% endif %}
     </span>
+    {% if can_manage and fam.ancora_pk and fam.n_consolidati < fam.n_vivi %}<button type="button" class="rn-fam-consolida" data-consolida-filo="{% url 'rentri_consolida_filo' fam.ancora_pk %}" title="Consolida tutte le righe complete del filo">Consolida filo · {{ fam.n_consolidati }}/{{ fam.n_vivi }}</button>{% endif %}
     {% if fam.scollegati %}<span class="rn-state rn-state-scollegato" title="Il riferimento resta come traccia: ricollega lo scarico con «Modifica» o lascialo così.">COLLEGATO A ANNULLATO: {{ fam.scollegati|join:", " }}</span>{% endif %}
   </td>
 </tr>
@@ -23,16 +24,11 @@
   <td style="color:#94a3b8;font-size:11px;">—</td>
   <td><strong>{{ r.codice|default:"—" }}</strong></td>
   <td>{% if r.quantita is not None %}<strong>{{ r.quantita }}</strong>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-  <td>{{ r.carico_scarico|default:"—" }}</td>
+  {% include "rentri/components/fir_cella.html" with r=r %}
   {% include "rentri/components/hp_cella.html" with r=r fam_hp=fam.hp %}
   <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
   <td>
-    <div class="cp-row-actions">
-      {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-      {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-      {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-      <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: filo, storico, consolida, annulla">&#128269;</a>
-    </div>
+    {% include "rentri/components/azioni_riga.html" with r=r %}
   </td>
 </tr>
 {% endfor %}
@@ -44,16 +40,11 @@
   <td style="font-size:11px;color:#94a3b8;">{{ r.rif_op|default:"non collegato" }}</td>
   <td>{{ r.codice|default:"—" }}</td>
   <td>{% if r.quantita is not None %}{{ r.quantita }}{% elif r.rettifica_scarico is not None %}<span style="color:#713f12;">{{ r.rettifica_scarico }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-  <td>{{ r.carico_scarico|default:"—" }}</td>
+  {% include "rentri/components/fir_cella.html" with r=r %}
   {% include "rentri/components/hp_cella.html" with r=r fam_hp=fam.hp %}
   <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
   <td>
-    <div class="cp-row-actions">
-      {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-      {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-      {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-      <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: filo, storico, consolida, annulla">&#128269;</a>
-    </div>
+    {% include "rentri/components/azioni_riga.html" with r=r %}
   </td>
 </tr>
 {% endfor %}

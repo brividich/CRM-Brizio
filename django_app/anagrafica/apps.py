@@ -23,6 +23,10 @@ class AnagraficaConfig(AppConfig):
         from .segnali_competenze import collega as collega_competenze
 
         collega_competenze()
+        # Macchine qualificate MOD.128: un OdL non programmato chiuso chiede la valutazione.
+        from .services.mpq_macchine import collega_segnali as collega_mpq_macchine
+
+        collega_mpq_macchine()
         # Coefficienti delle mansioni: ripartiti da soli quando una mansione entra o esce.
         # Costo orario: ricalcolato quando cambia una voce RML a mano.
         from .services import costo_orario, mansioni_coefficienti  # noqa: F401

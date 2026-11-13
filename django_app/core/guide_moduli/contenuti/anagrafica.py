@@ -226,6 +226,9 @@ GUIDA = {
                     "Onboarding: «Ingressi a 30 giorni», «Fine prova a 30 giorni» e «Pre-ingresso» aprono l'elenco "
                     "con solo quelle pratiche («mostra tutte» per tornare).",
                     "Cruscotto MOD.128: «Processi in scadenza» e «Processi scaduti» portano alla tabella dei processi in scadenza.",
+                    "Scheda dipendente, riquadro Qualifiche: il blocco «Processi qualificati (MOD.128)» elenca i processi "
+                    "della persona con ruolo, stato (Qualificata, In scadenza, Incompleta, Non qualificata) e scadenza; "
+                    "il nome del processo apre il suo dettaglio.",
                 ]),
             ],
         },
@@ -376,15 +379,85 @@ GUIDA = {
             ],
         },
         {
+            "id": "mod128-persone-macchine",
+            "titolo": "MOD.128: persone qualificate e macchine qualificate",
+            "blocchi": [
+                ("p", "Ogni processo ha tre scadenze indipendenti: quella del processo (approvazione del cliente o "
+                      "dell'ente, in testata), quella di ogni persona e quella di ogni macchina. I due riquadri in "
+                      "testata contano chi oggi può lavorare il processo: «Persone qualificate» e «Macchine qualificate»."),
+                ("p", "«Cosa serve a una persona»: prima i ruoli del processo («＋ Ruoli», più nomi separati da ;), poi "
+                      "«+ Aggiungi requisito persona»: corso, visita, test visivo, esame, ore di esperienza, "
+                      "affiancamento, certificato. Ogni requisito vale per alcuni ruoli (vuoto = tutti), è «Una tantum» "
+                      "o «Ricorrente» ogni N mesi («Scade a fine mese» come le qualifiche CND) ed è bloccante o no. "
+                      "I ruoli della persona si spuntano in «Modifica» dell'abilitazione."),
+                ("p", "Un corso o una visita bloccante diventa un obbligo vero in Formazione e nel semaforo idoneità, "
+                      "solo per i ruoli indicati. La scadenza della persona usa la frequenza del processo partendo "
+                      "dall'ultima frequenza del corso registrata in Formazione. Test visivi, esami, ore e "
+                      "affiancamenti si registrano dal pulsante della riga («Registra test visivo»…), con il documento."),
+                ("p", "In «Persone qualificate» la colonna «Qualifica» dice Qualificata, In scadenza, Incompleta o Non "
+                      "qualificata; «Scade» è la prima scadenza fra i requisiti bloccanti e le certificazioni "
+                      "individuali. Il pulsante della riga porta alla cosa da fare: «↻ Iscrivi», «+ Visita» o «Registra…»."),
+                ("p", "«Cosa serve a una macchina»: manutenzioni, tarature e controlli collegati a un piano di "
+                      "manutenzione dell'asset (lo stato si legge dalle sue scadenze) e le voci della verifica di "
+                      "qualifica: misura con tolleranza ± % (es. giri mandrino 10%, avanzamento 15%), misura con valore "
+                      "minimo (es. pressione 4,1 bar) o prova conforme / non conforme (es. blocco per mancanza "
+                      "refrigerante). «Ripeti la qualifica macchine ogni (mesi)» nel form del processo è la frequenza "
+                      "proposta alle macchine nuove."),
+                ("p", "Ogni macchina ha la sua scheda (clic sullo stato): «Registra verifica» chiede nominale e "
+                      "misurato per ogni voce e calcola lo scostamento. Conforme = «Qualificata» fino a data + "
+                      "frequenza; una sola voce fuori criterio = «Sospesa», con il periodo delle parti lavorate da "
+                      "riesaminare (dall'ultima verifica conforme) e il pulsante «+ Non conformità»."),
+                ("p", "Una macchina qualificata passa da sola a «Da valutare» quando si chiude un OdL correttivo o da "
+                      "ticket (non le tarature) o quando l'asset va «In riparazione»; dismessa diventa «Non più usata "
+                      "nel processo». Qualità riceve una mail e decide nella scheda: «Non incide» (torna qualificata "
+                      "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
+                ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
+                      "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+            ],
+        },
+        {
+            "id": "mod128-configurare",
+            "titolo": "MOD.128: configurare un processo passo per passo",
+            "blocchi": [
+                ("passi", [
+                    "Apri il processo (Anagrafica → MOD.128) e in «Modifica» controlla scadenza del processo e "
+                    "«Ripeti la qualifica macchine ogni (mesi)» (es. 12).",
+                    "In «Cosa serve a una persona» premi «＋ Ruoli» e scrivi i ruoli separati da ; (es. Operatore; "
+                    "Ispettore; Responsabile). A ogni ruolo puoi collegare una competenza della skill matrix.",
+                    "«+ Aggiungi requisito persona» per ogni cosa richiesta dalla procedura: tipo, ruoli a cui vale "
+                    "(vuoto = tutti), «Una tantum» o «Ricorrente» con i mesi, bloccante sì/no. Per i corsi scegli il "
+                    "corso del catalogo Formazione; per le visite il tipo di visita.",
+                    "In «Persone qualificate» apri «Modifica» su ogni abilitazione e spunta i ruoli della persona.",
+                    "In «Cosa serve a una macchina» aggiungi i requisiti macchina (manutenzione, taratura, controllo) "
+                    "collegandoli al piano di manutenzione dell'asset, e le voci della verifica: tolleranza ± %, "
+                    "valore minimo o prova conforme / non conforme.",
+                    "In «Macchine qualificate» collega le macchine con tag o numero interno, apri la scheda di ognuna e "
+                    "premi «Registra verifica» con i valori misurati: conforme = Qualificata.",
+                    "Controlla i due riquadri in testata e stampa «Elenco qualificati» per la procedura.",
+                ]),
+                ("p", "Permessi: consultare processo, scheda macchina, documenti ed elenco chiede «Processi qualificati "
+                      "MOD.128 - Visualizza»; aggiungere ruoli, requisiti, evidenze, verifiche e cambiare stato chiede "
+                      "«Processi qualificati MOD.128 - Gestisci». Dopo l'aggiornamento del portale serve «Sincronizza permessi»."),
+                ("p", "Mail: «[MOD.128] Persone e macchine qualificate da sistemare» ogni lunedì alle 07:40 "
+                      "(Automazioni › Pianificati, «mpq_qualifiche_scadenze»; dopo l'aggiornamento va installata con "
+                      "setup_q_schedules) e l'avviso «Macchine qualificate MOD.128 da valutare o sospese» quando un OdL o un cambio di "
+                      "stato dell'asset la rimette in discussione (Automazioni › Notifiche). Destinatari: quelli MOD.128 "
+                      "dei timbri sospesi, modificabili da «Modifica» del flusso."),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [
-                ("p", "Nel dettaglio di un processo qualificato la sezione «Attrezzature» elenca gli asset usati nel "
-                      "processo. Per collegarne uno scrivi il tag o il numero interno e premi «＋ Collega "
-                      "attrezzatura»; «Scollega» lo toglie. Serve il permesso di gestione MOD.128. Per un processo "
-                      "PART 145 compaiono anche gli asset con «Rientra in PART 145» (si tolgono dal form dell'asset)."),
+                ("p", "Nel dettaglio di un processo qualificato la sezione «Macchine qualificate» elenca gli asset "
+                      "usati nel processo. Per collegarne uno scrivi il tag o il numero interno e premi «＋ Collega "
+                      "attrezzatura»: entra «Da qualificare». «Scollega» lo toglie e la sua qualifica resta nello "
+                      "storico. Serve il permesso di gestione MOD.128. Per un processo PART 145 compaiono anche gli "
+                      "asset con «Rientra in PART 145» (si tolgono dal form dell'asset): «Qualifica» apre la loro scheda."),
                 ("p", "Quando un'attrezzatura del processo cambia stato arriva una mail agli stessi destinatari dei "
-                      "timbri sospesi. Il riepilogo per l'audit è il Dossier PART 145 del modulo Asset."),
+                      "timbri sospesi. Ogni lunedì la mail «[MOD.128] Persone e macchine qualificate da sistemare» "
+                      "elenca chi e cosa non è in regola o scade entro 60 giorni. Il riepilogo per l'audit è il "
+                      "Dossier PART 145 del modulo Asset."),
                 ("p", "Un processo speciale autorizzato per le attività Part 145 (es. i processi con DQP "
                       "dell'Annesso 2 dell'accordo con l'organizzazione di manutenzione) va marcato con la casella "
                       "«Rientra nel perimetro Part 145» nel form del processo: così entra nel Dossier PART 145 con "
@@ -1089,6 +1162,9 @@ GUIDA = {
             "blocchi": [
                 ("def", [
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
+                    ("mpq_avviso_qualifiche", "manda subito la mail MOD.128 delle persone e macchine da sistemare "
+                                              "(la stessa del lunedì). --dry-run per vedere l'elenco senza mandare, "
+                                              "--recipients a@x.it b@x.it per provarla su altri indirizzi."),
                     ("pulisci_scadenze_hr", "ricalcola le scadenze di formazione e visite."),
                     ("report_mansioni_catalogo", "sola lettura: per ogni mansione scritta nelle schede dice se "
                                                  "corrisponde al catalogo (esatta, per nome, simile, assente). "
@@ -1130,6 +1206,25 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una persona risulta «Incompleta» sul processo ma il corso l'ha fatto",
+            "perche": "il requisito persona legge l'ultima frequenza registrata in Formazione per quel corso; se il "
+                      "corso è un altro (o non è stato chiuso con presenze) non la trova. Con frequenza del processo "
+                      "più corta del corso, la persona scade prima che in Formazione.",
+            "fare": [
+                "Controlla in Formazione che la frequenza sia registrata sul corso indicato nel requisito.",
+                "Verifica che il requisito valga per i ruoli della persona (Modifica abilitazione → Ruoli del processo).",
+            ],
+        },
+        {
+            "sintomo": "Una macchina qualificata è passata a «Da valutare» senza che nessuno l'abbia toccata in MOD.128",
+            "perche": "è stato chiuso un OdL correttivo o da ticket su quell'asset, oppure l'asset è stato messo in "
+                      "riparazione (MT CN 07 §6, MT CN 69 §9).",
+            "fare": [
+                "Apri la scheda della macchina: il motivo dice quale OdL. «Non incide» la riporta qualificata, "
+                "«Serve la riqualifica» la sospende fino a una verifica conforme.",
+            ],
+        },
         {
             "sintomo": "«Prova adesso» (acquisizione scansioni o referti) dice «Lettura avviata» ma non si vede subito l'esito",
             "perche": "la lettura della cartella gira in background, non nella pagina: con molti file o una cartella di rete lenta "
@@ -1207,6 +1302,16 @@ GUIDA = {
             "fare": [
                 "Inserisci il codice fiscale (scheda → Anagrafica civile) o la matricola in entrambe le schede.",
                 "Ricarica la pagina: con codici diversi restano due persone.",
+            ],
+        },
+        {
+            "sintomo": "Nella scheda il codice fiscale è coperto da asterischi o non si può modificare",
+            "perche": "il codice fiscale è un dato HR riservato: per intero e modificabile solo con il permesso sui dati HR riservati.",
+            "fare": [
+                "Il codice fiscale è nella card «🪪 Anagrafica civile» (scheda Anagrafica), primo campo; senza permesso HR "
+                "si vedono solo i primi 4 caratteri.",
+                "Chi ha il permesso HR lo modifica da «✏ Modifica» della stessa card; banca, IBAN e categorie protette "
+                "restano in «🔒 Dati riservati HR» (scheda Contratto). I due moduli salvano solo i propri campi.",
             ],
         },
         {

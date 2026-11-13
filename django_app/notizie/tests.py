@@ -194,10 +194,23 @@ class NotizieACLTests(TestCase):
         resp = self.client.get(reverse("notizie_lista"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "notizie-list-page")
-        self.assertContains(resp, "news-shell")
-        self.assertContains(resp, "news-workspace")
-        self.assertContains(resp, "Obbligatorie pendenti")
-        self.assertContains(resp, "2 risultati")
+        self.assertContains(resp, "notizie/css/notizie.css")
+        self.assertContains(resp, "1 obbligatoria da confermare")
+        self.assertContains(resp, 'Tutte <span class="nz-tab-n">2</span>', html=False)
+        self.assertContains(resp, '<article class="nz-card', count=2)
+
+    def test_lista_ricerca_e_filtro_obbligatorie(self):
+        _make_notizia(titolo="Turni di Natale")
+        _make_notizia(titolo="Nuova procedura DPI", obbligatoria=True)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_lista"), {"q": "natale"})
+        self.assertContains(resp, "Turni di Natale")
+        self.assertNotContains(resp, "Nuova procedura DPI")
+        resp = self.client.get(reverse("notizie_lista"), {"solo_obbligatorie": "1"})
+        self.assertContains(resp, "Nuova procedura DPI")
+        self.assertNotContains(resp, "Turni di Natale")
+        # I contatori delle schede restano sul totale, non sul filtro scelto.
+        self.assertContains(resp, 'Tutte <span class="nz-tab-n">2</span>', html=False)
 
     def test_lista_mostra_link_impostazioni_per_admin(self):
         self.client.force_login(self.admin_user)
@@ -249,11 +262,15 @@ class NotizieACLTests(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "notizie-dashboard-page")
-        self.assertContains(resp, "news-admin-shell")
-        self.assertContains(resp, "news-admin-workspace")
-        self.assertContains(resp, "news-admin-card")
-        self.assertContains(resp, "Centro gestione comunicazioni")
-        self.assertNotContains(resp, "news-table")
+        self.assertContains(resp, "Gestione notizie")
+        self.assertContains(resp, 'class="nz-card"', count=3)
+        self.assertContains(resp, 'Bozze <span class="nz-tab-n">1</span>', html=False)
+        self.assertNotContains(resp, "<table")
+
+        # Con il filtro di stato i contatori delle altre schede restano.
+        resp = self.client.get(reverse("notizie_dashboard"), {"stato": "bozza"})
+        self.assertContains(resp, 'class="nz-card"', count=1)
+        self.assertContains(resp, 'Pubblicate <span class="nz-tab-n">1</span>', html=False)
 
     def test_dashboard_mostra_link_impostazioni_per_admin(self):
         self.client.force_login(self.admin_user)
@@ -278,19 +295,103 @@ class NotizieACLTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Permessi dashboard")
 
-    def test_impostazioni_renderizza_workspace_a_card_senza_tabella(self):
-        _make_notizia(titolo="Comunicazione pubblicata")
-        Notizia.objects.create(titolo="Bozza interna", corpo="x", stato=STATO_BOZZA, versione=1)
-
+    def test_impostazioni_schede_permessi_aspetto_registro(self):
         self.client.force_login(self.admin_user)
-        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "record"})
-
+        resp = self.client.get(reverse("notizie_gestione_admin"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "notizie-settings-page")
-        self.assertContains(resp, "news-settings-shell")
-        self.assertContains(resp, "news-settings-record-card")
-        self.assertContains(resp, "Centro impostazioni comunicazioni")
-        self.assertNotContains(resp, '<table class="tbl"')
+        self.assertContains(resp, "Impostazioni notizie")
+        self.assertContains(resp, "Chi può gestire le notizie")
+
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "aspetto"})
+        self.assertContains(resp, 'name="action" value="save_module_branding"', html=False)
+
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro"})
+        self.assertContains(resp, "Nessuna attività")
+
+    def test_impostazioni_vecchia_scheda_record_porta_alla_gestione(self):
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "record", "q": "dpi", "filter_stato": "bozza"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("notizie_dashboard") + "?q=dpi&stato=bozza")
+
+    def test_impostazioni_registro_etichette_e_filtro(self):
+        from core.models import AuditLog
+
+        notizia = _make_notizia(titolo="Turni di Natale")
+        AuditLog.objects.create(modulo="notizie", azione="notizia_pubblicata", utente_display="Mario Prova",
+                                dettaglio={"notizia_id": notizia.pk, "titolo": notizia.titolo})
+        AuditLog.objects.create(modulo="notizie", azione="notizia_archiviata", utente_display="Anna Prova",
+                                dettaglio={"notizia_id": 999999, "titolo": "Vecchia circolare"})
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "log"})
+        self.assertContains(resp, "Pubblicata")
+        self.assertContains(resp, reverse("notizie_dashboard_edit", args=[notizia.pk]))
+        self.assertContains(resp, "Vecchia circolare")
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro", "azione": "notizia_archiviata"})
+        self.assertContains(resp, "Anna Prova")
+        self.assertNotContains(resp, "Mario Prova")
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro", "q": "natale"})
+        self.assertContains(resp, "Mario Prova")
+        self.assertNotContains(resp, "Anna Prova")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NotizieReportTests(TestCase):
+    def setUp(self):
+        self.hr_user = _make_user_with_legacy("report-hr", legacy_user_id=3001, ruolo_id=7, ruolo="hr")
+        self.letto = _make_user_with_legacy("report-letto", legacy_user_id=3002, ruolo_id=5, ruolo="operaio")
+        self.letto.first_name, self.letto.last_name = "Lucia", "Sintetica"
+        self.letto.save()
+        self.mai = _make_user_with_legacy("report-mai", legacy_user_id=3003, ruolo_id=5, ruolo="operaio")
+        self.mai.first_name, self.mai.last_name = "Paolo", "Fittizio"
+        self.mai.save()
+        self.notizia = _make_notizia(titolo="Procedura DPI", obbligatoria=True)
+        NotiziaAudience.objects.create(notizia=self.notizia, legacy_role_id=5)
+        # Due righe di lettura (v1 confermata, v2 aperta) = una sola persona nel report.
+        NotiziaLettura.objects.create(notizia=self.notizia, legacy_user_id=3002, versione_letta=1,
+                                      hash_versione_letta="a" * 64, opened_at=timezone.now(), ack_at=timezone.now())
+        self.notizia.versione = 2
+        self.notizia.save(update_fields=["versione"])
+        NotiziaLettura.objects.create(notizia=self.notizia, legacy_user_id=3002, versione_letta=2,
+                                      hash_versione_letta="b" * 64, opened_at=timezone.now())
+        self.client.force_login(self.hr_user)
+
+    def test_senza_notizia_una_riga_per_persona_con_nome(self):
+        resp = self.client.get(reverse("notizie_report"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "notizie-report-page")
+        self.assertContains(resp, "Lucia Sintetica")
+        self.assertContains(resp, "Da confermare")
+        self.assertNotContains(resp, "Paolo Fittizio")
+        self.assertContains(resp, "1 righe")
+
+    def test_con_notizia_compare_anche_chi_non_ha_letto(self):
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk})
+        self.assertContains(resp, "Paolo Fittizio")
+        self.assertContains(resp, "Non letta")
+        self.assertContains(resp, 'Non letta <span class="nz-tab-n">1</span>', html=False)
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "stato": "aperto"})
+        self.assertContains(resp, "Lucia Sintetica")
+        self.assertNotContains(resp, "Paolo Fittizio")
+        # I contatori delle schede restano sul totale.
+        self.assertContains(resp, 'Tutti <span class="nz-tab-n">2</span>', html=False)
+
+    def test_ricerca_persona_e_csv(self):
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "q": "paolo"})
+        self.assertContains(resp, "Paolo Fittizio")
+        self.assertNotContains(resp, "Lucia Sintetica")
+        resp = self.client.get(reverse("notizie_report_csv"), {"notizia_id": self.notizia.pk})
+        body = b"".join(resp.streaming_content).decode("utf-8-sig")
+        self.assertIn("Persona", body)
+        self.assertIn("Paolo Fittizio", body)
+        self.assertIn("Non letta", body)
+        self.assertIn("Da confermare", body)
+
+    def test_filtro_date_conferma_esclude_chi_non_ha_confermato(self):
+        oggi = timezone.localdate().isoformat()
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "da": oggi})
+        self.assertContains(resp, "Nessuna lettura da mostrare")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -331,6 +432,67 @@ class NotizieDashboardCrudTests(TestCase):
         self.assertEqual(notizia.audience.count(), 1)
         self.assertEqual(notizia.allegati.count(), 1)
         self.assertTrue(notizia.hash_versione)
+
+    def _post_form(self, url, extra=None, files=None):
+        data = {
+            "titolo": "Comunicazione con ruoli",
+            "corpo": "Testo.",
+            "audience_picker": "1",
+            "allegati-TOTAL_FORMS": "1",
+            "allegati-INITIAL_FORMS": "0",
+            "allegati-MIN_NUM_FORMS": "0",
+            "allegati-MAX_NUM_FORMS": "1000",
+            "allegati-0-id": "",
+            "allegati-0-nome_file": "",
+            "allegati-0-url_esterno": "",
+        }
+        data.update(extra or {})
+        if files:
+            data["nuovi_allegati"] = files
+        return self.client.post(url, data=data)
+
+    def test_crea_notizia_con_ruoli_a_caselle_e_piu_file(self):
+        self.client.force_login(self.hr_user)
+        pdf = SimpleUploadedFile("circolare.pdf", b"%PDF-1.4\n%test\n", content_type="application/pdf")
+        txt = SimpleUploadedFile("note.txt", b"note interne", content_type="text/plain")
+        resp = self._post_form(
+            reverse("notizie_dashboard_create"),
+            {"audience_roles": ["5", "7", "x"]},
+            files=[pdf, txt],
+        )
+        self.assertEqual(resp.status_code, 302)
+        notizia = Notizia.objects.get(titolo="Comunicazione con ruoli")
+        self.assertEqual(sorted(notizia.audience.values_list("legacy_role_id", flat=True)), [5, 7])
+        self.assertEqual(sorted(notizia.allegati.values_list("nome_file", flat=True)), ["circolare.pdf", "note.txt"])
+
+        # Modifica: tolgo un ruolo, ne aggiungo un altro.
+        resp = self._post_form(
+            reverse("notizie_dashboard_edit", args=[notizia.id]),
+            {
+                "audience_roles": ["7", "9"],
+                "allegati-TOTAL_FORMS": "0",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(sorted(notizia.audience.values_list("legacy_role_id", flat=True)), [7, 9])
+
+        # Nessuna casella: la notizia torna visibile a tutti.
+        self._post_form(reverse("notizie_dashboard_edit", args=[notizia.id]), {"allegati-TOTAL_FORMS": "0"})
+        self.assertEqual(notizia.audience.count(), 0)
+
+    def test_file_non_ammesso_blocca_il_salvataggio(self):
+        self.client.force_login(self.hr_user)
+        exe = SimpleUploadedFile("setup.exe", b"MZ\x90\x00", content_type="application/octet-stream")
+        resp = self._post_form(reverse("notizie_dashboard_create"), files=[exe])
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Notizia.objects.filter(titolo="Comunicazione con ruoli").exists())
+
+    def test_form_mostra_ruoli_a_caselle(self):
+        self.client.force_login(self.hr_user)
+        resp = self.client.get(reverse("notizie_dashboard_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="audience_picker" value="1"')
+        self.assertContains(resp, 'name="nuovi_allegati" multiple')
 
     def test_pubblica_notizia_da_dashboard(self):
         notizia = Notizia.objects.create(
@@ -440,3 +602,53 @@ class GatingMiddlewareTests(TestCase):
         sentinel = object()
         response = NotizieMandatoryMiddleware(lambda req: sentinel)(request)
         self.assertIs(response, sentinel)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AllegatoAnteprimaTests(TestCase):
+    def setUp(self):
+        from .models import NotiziaAllegato
+
+        self.user = _make_user_with_legacy("prev-user", legacy_user_id=3101, ruolo_id=1)
+        self.notizia = _make_notizia(titolo="Circolare con PDF")
+        self.pdf = NotiziaAllegato(notizia=self.notizia, nome_file="Circolare.pdf")
+        self.pdf.file = SimpleUploadedFile("circolare.pdf", b"%PDF-1.4\n%test\n", content_type="application/pdf")
+        self.pdf.save()
+        self.txt = NotiziaAllegato(notizia=self.notizia, nome_file="Note")
+        self.txt.file = SimpleUploadedFile("note.txt", b"note", content_type="text/plain")
+        self.txt.save()
+
+    def test_dettaglio_mostra_visualizzatore_pdf(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_dettaglio", args=[self.notizia.id]))
+        self.assertEqual(resp.status_code, 200)
+        url = reverse("notizie_allegato_download", args=[self.pdf.id])
+        self.assertContains(resp, "data-nz-viewer")
+        self.assertContains(resp, f'data-src="{url}?anteprima=1#view=FitH&navpanes=0"')
+        # Il file di testo non ha anteprima: solo download.
+        self.assertNotContains(resp, reverse("notizie_allegato_download", args=[self.txt.id]) + "?anteprima=1")
+
+    def test_pdf_in_anteprima_inline_e_incorniciabile_dal_portale(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_allegato_download", args=[self.pdf.id]), {"anteprima": "1"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp["Content-Disposition"].startswith("inline"))
+        self.assertEqual(resp["X-Frame-Options"], "SAMEORIGIN")
+        self.assertEqual(resp["X-Content-Type-Options"], "nosniff")
+
+    def test_senza_anteprima_resta_download(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_allegato_download", args=[self.pdf.id]))
+        self.assertTrue(resp["Content-Disposition"].startswith("attachment"))
+
+    def test_file_non_previsto_mai_inline(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_allegato_download", args=[self.txt.id]), {"anteprima": "1"})
+        self.assertTrue(resp["Content-Disposition"].startswith("attachment"))
+
+    def test_anteprima_rispetta_i_destinatari(self):
+        NotiziaAudience.objects.create(notizia=self.notizia, legacy_role_id=99)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_allegato_download", args=[self.pdf.id]), {"anteprima": "1"})
+        self.assertEqual(resp.status_code, 403)

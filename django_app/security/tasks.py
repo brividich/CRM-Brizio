@@ -166,6 +166,20 @@ def ai_cpe_proposte_task():
     return letture.esegui("cpe_ai")
 
 
+def software_doppioni_task():
+    """Doppioni software tra WatchGuard e Defender, con l'AI per le coppie incerte (schedule `security_software_doppioni`)."""
+    from security.services import letture
+
+    return letture.esegui("software_doppioni")
+
+
+def manutenzione_task():
+    """Manutenzione notturna: pulizia dei registri tecnici, postura dei PC, avvisi (schedule `security_manutenzione`)."""
+    from security.services import letture
+
+    return letture.esegui("manutenzione")
+
+
 def ai_proposte_task():
     """Proposte di chiusura dell'AI sugli alert aperti (schedule `security_ai_proposte`, lettura `ai_proposte`).
 

@@ -13,7 +13,7 @@ Lo scadenzario del portale: la pagina `/scadenze` (`dashboard.views_scadenze`) r
 |---|---|---|
 | `/scadenze` | `scadenze_globali` | Scadenzario globale (app `dashboard`): `?vista=mese` (predefinita, `&mese=AAAA-MM`, ±24 mesi), `agenda`, `elenco`; filtri multipli ripetibili `sorgente`, `stato` (fasce disgiunte `scaduta`/`30`/`60`/`90` = 0-30/31-60/61-90, come i contatori), `reparto`, più `q` (testo) e `intero=1` (schermo intero); `?format=csv` / `ics` |
 | `/scadenze?vista=anno&anno=AAAA`, `?vista=andamento` | `scadenze_globali` | Anno (12 mesi, gradini di colore) e andamento (fotografie, solo per chi gestisce il pannello); `mie=1` solo le mie, `auto=5/10/15` ricarica in schermo intero, `giorno=AAAA-MM-GG` apre il giorno |
-| `/scadenze/azioni/presa/` | `scadenzario:presa_in_carico` | POST: prendi / lascia (solo una scadenza che si vede) |
+| `/scadenze/azioni/presa/` | `scadenzario:presa_in_carico` | POST: prendi / lascia / assegna (collega o fornitore esterno) / nota (non assegna). Solo una scadenza che si vede |
 | `/scadenze/azioni/viste/`, `<id>/elimina/`, `<id>/predefinita/` | `scadenzario:vista_*` | POST: viste salvate della persona |
 | `/scadenze/gestione/` | `scadenzario:gestione` | Pannello: albero voci, impostazioni, regole |
 | `/scadenze/generiche/` | `scadenzario:elenco` | Elenco scadenze generiche (+ export Excel `?format=xlsx`) |
@@ -54,6 +54,7 @@ Registrate in `PROVIDERS` (prima di `generiche`) da `dashboard.scadenze_provider
 | `sgi` | soa, rischio_ot (revisione `APPROVATA`) | `sistema_gestione:soa` |
 | `qualifiche` | processo, processo_revisione, requisito, certificazione_individuale (`models_mpq`) | `anagrafica:mpq_cruscotto` |
 | `qualifiche` | abilitazione_macchina (`AbilitazioneMacchina.prossima_revisione`) | `anagrafica:skm_scadenzario` |
+| `qualifiche` | persona_processo (scadenza di `mpq_persone.stato_persona`), macchina_processo (scadenza della `QualificaMacchina`; sospesa/da valutare dalla data del cambio) | `anagrafica:mpq_cruscotto` |
 | `formazione` | documento_ente, verifica_nc (`TrainingProviderDocument`, `TrainingSession.verifica_nc_dovuta_dal`) | `anagrafica:formazione_sessioni_list` |
 | `soc` | azione_correttiva, accettazione_rischio | `security:incidents`, `security:accettazioni_rischio` |
 | `gdpr` | ads_revisione (`AmministratoreSistema`) | `security:registro_log_ads` |

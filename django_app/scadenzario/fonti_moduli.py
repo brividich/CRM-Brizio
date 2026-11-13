@@ -13,7 +13,9 @@ Fonti e tipi (chiavi del pannello «Gestione»):
   delle CAR, verifica di efficacia, qualifica degli auditor, azioni della SoA,
   scenari di rischio OT;
 - ``qualifiche`` MOD.128 e skill matrix: scadenza e revisione dei processi
-  qualificati, requisiti, certificazioni individuali, abilitazioni macchina;
+  qualificati, requisiti, certificazioni individuali, abilitazioni macchina,
+  scadenza della persona qualificata (requisiti per ruolo) e della macchina
+  qualificata (verifica periodica, sospensioni da valutare);
 - ``formazione``: documenti di enti e docenti, verifica NC a 6 mesi (MOD.040);
 - ``soc``: azioni correttive degli incidenti, accettazioni del rischio;
 - ``gdpr``: revisione periodica degli amministratori di sistema;
@@ -82,6 +84,8 @@ TIPI = {
         "requisito": "Requisito di qualifica",
         "certificazione_individuale": "Certificazione individuale",
         "abilitazione_macchina": "Abilitazione macchina",
+        "persona_processo": "Qualifica persona sul processo",
+        "macchina_processo": "Qualifica macchina sul processo",
     },
     SOURCE_FORMAZIONE: {
         "documento_ente": "Documento ente / docente",
@@ -352,8 +356,45 @@ def _abilitazioni(ctx) -> list:
     return items
 
 
+def _persone_macchine_qualificate(ctx) -> list:
+    """Scadenza della persona e della macchina sul processo (indipendenti dal processo).
+
+    Persona: la prima scadenza fra i requisiti bloccanti del suo ruolo. Macchina:
+    scadenza della qualifica; una macchina sospesa o da valutare compare dalla data
+    del cambio di stato (va gestita subito).
+    """
+    if not _apre(ctx, "anagrafica:mpq_cruscotto"):
+        return []
+    from anagrafica.services.mpq_macchine import macchine_in_scadenza
+    from anagrafica.services.mpq_persone import persone_in_scadenza
+
+    giorni = max(0, (ctx.orizzonte - ctx.oggi).days)
+    items = []
+    persone = [r for r in persone_in_scadenza(giorni=giorni, oggi=ctx.oggi) if r["stato"]["scadenza"]]
+    nomi = _nomi_anagrafica({r["abilitazione"].legacy_anagrafica_id for r in persone})
+    for r in persone:
+        ab, st = r["abilitazione"], r["stato"]
+        nome, reparto = nomi.get(ab.legacy_anagrafica_id, (ab.nominativo_esterno or "", ""))
+        cosa = next((v["nome"] for v in st["voci"] if v.get("scadenza") == st["scadenza"]), "")
+        items.append(_item(ctx, SOURCE_QUALIFICHE, "persona_processo",
+                           f"{r['processo'].nome}{' · ' + cosa if cosa else ''}", nome, st["scadenza"],
+                           _url("anagrafica:mpq_processo_detail", r["processo"].pk) + "#persone",
+                           elemento=r["processo"].nome, reparto=reparto,
+                           extra={"legacy_id": ab.legacy_anagrafica_id}))
+    for r in macchine_in_scadenza(giorni=giorni, oggi=ctx.oggi):
+        qm, st = r["qualifica"], r["stato"]
+        scadenza = st["scadenza"] if st["operativa"] or st["codice"] == "scaduta" else None
+        if scadenza is None:
+            scadenza = qm.updated_at.date() if qm.updated_at else ctx.oggi
+        items.append(_item(ctx, SOURCE_QUALIFICHE, "macchina_processo",
+                           f"{qm.asset.asset_tag} {qm.asset.name} · {st['label']}", qm.processo.nome, scadenza,
+                           _url("anagrafica:mpq_qualifica_macchina", qm.pk),
+                           elemento=qm.processo.nome, reparto=qm.asset.reparto or ""))
+    return items
+
+
 def collect_qualifiche(ctx) -> list:
-    return _sicuro(ctx, _mod128) + _sicuro(ctx, _abilitazioni)
+    return _sicuro(ctx, _mod128) + _sicuro(ctx, _abilitazioni) + _sicuro(ctx, _persone_macchine_qualificate)
 
 
 # ---------------------------------------------------------------------------

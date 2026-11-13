@@ -62,13 +62,16 @@ class NotiziaForm(forms.ModelForm):
             "titolo": forms.TextInput(
                 attrs={
                     "maxlength": "300",
-                    "placeholder": "Titolo comunicazione",
+                    "placeholder": "Titolo della comunicazione",
+                    "class": "nz-title-input",
+                    "data-nz-titolo": "",
                 }
             ),
             "corpo": forms.Textarea(
                 attrs={
-                    "rows": 10,
-                    "placeholder": "Testo della comunicazione",
+                    "rows": 14,
+                    "placeholder": "Scrivi qui il testo. Lascia una riga vuota per iniziare un nuovo paragrafo.",
+                    "data-nz-corpo": "",
                 }
             ),
         }

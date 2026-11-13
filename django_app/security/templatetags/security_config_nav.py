@@ -77,15 +77,12 @@ MENU = [
     ("Dispositivi", "pc_copertura", [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
         ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
-        ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
-        ("Patch installate", "watchguard_patch_installate", ("watchguard_patch_installate",), False),
-        ("Installazioni da console", "watchguard_task", ("watchguard_task",), False),
-        ("Tempi delle patch", "watchguard_patch_tempi", ("watchguard_patch_tempi",), False),
+        # Pagine accorpate: la voce si accende su tutte, le pagine del gruppo stanno in una terza riga (GRUPPI).
+        ("Patch", "watchguard_pc", ("watchguard_pc", "watchguard_patch_installate", "watchguard_task", "watchguard_patch_tempi"), False),
+        ("Software", "software_soc", ("software_soc",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
-        ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
-        ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),
-        ("Librerie del portale", "dipendenze_portale", ("dipendenze_portale",), False),
-        ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",), False),
+        ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail", "cve_correzioni", "accettazioni_rischio",
+                                              "dipendenze_portale"), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
     ("Registro accessi", "registro_log", [
@@ -118,6 +115,22 @@ MENU = [
     ]),
 ]
 
+
+# Terza riga: le pagine di una scheda accorpata (scheda → [(etichetta, rotta, rotte che la accendono)]).
+GRUPPI = {
+    "Patch": [
+        ("Da installare e protezione", "watchguard_pc", ("watchguard_pc",)),
+        ("Installate", "watchguard_patch_installate", ("watchguard_patch_installate",)),
+        ("Installazioni da console", "watchguard_task", ("watchguard_task",)),
+        ("Tempi", "watchguard_patch_tempi", ("watchguard_patch_tempi",)),
+    ],
+    "Vulnerabilità": [
+        ("CVE sui PC", "vulnerabilities", ("vulnerabilities", "cve_detail")),
+        ("Correzioni", "cve_correzioni", ("cve_correzioni",)),
+        ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",)),
+        ("Librerie del portale", "dipendenze_portale", ("dipendenze_portale",)),
+    ],
+}
 
 ICONE = {"Da fare": "todo", "Segnalazioni": "bell", "Dispositivi": "monitor", "Registro accessi": "log", "Report": "chart",
          "Impostazioni": "gear"}
@@ -153,7 +166,7 @@ def soc_menu(context, url_name):
         # Senza configurazione la voce contiene solo la Guida: il numero delle
         # sorgenti in ritardo porterebbe a una pagina che non si apre.
         badges.pop("Impostazioni", None)
-    voci, sezione = [], None
+    voci, sezione, gruppo = [], None, None
     for label, entry, pagine in MENU:
         tabs = []
         for tab_label, route, names, admin_only in pagine:
@@ -163,6 +176,9 @@ def soc_menu(context, url_name):
             elif admin_only and not can_configure:
                 continue
             tabs.append({"label": tab_label, "url": reverse(f"security:{route}"), "active": url_name in names})
+            if url_name in names and tab_label in GRUPPI:
+                gruppo = {"label": tab_label, "pagine": [{"label": gl, "url": reverse(f"security:{gr}"), "active": url_name in gn}
+                                                         for gl, gr, gn in GRUPPI[tab_label]]}
         attiva = any(t["active"] for t in tabs)
         voce = {"label": label, "icon": ICONE.get(label, "shield"), "badge": badges.get(label),
                 "url": reverse(f"security:{entry}") if entry else (tabs[0]["url"] if tabs else "#"), "active": attiva, "tabs": tabs}
@@ -174,4 +190,4 @@ def soc_menu(context, url_name):
     briciola = None
     if can_impostazioni and url_name != "admin_config" and url_name in NOMI and url_name not in ("soc_settings", "letture", "suppressions"):
         briciola = {"url": reverse("security:admin_config"), "nome": NOMI[url_name]}
-    return {"voci": voci, "sezione": sezione, "url_name": url_name, "briciola": briciola}
+    return {"voci": voci, "sezione": sezione, "gruppo": gruppo, "url_name": url_name, "briciola": briciola}

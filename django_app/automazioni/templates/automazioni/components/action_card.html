@@ -1,17 +1,22 @@
 ﻿<article {% if entry.is_existing %}id="action-card-{{ entry.descriptor.item_id }}"{% endif %}
-  class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
+  class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}{% if entry.descriptor.action_type == "native_process" %} designer-action-card--native{% endif %}"
   data-action-card
+  data-action-type="{{ entry.descriptor.action_type }}"
+  data-cn-icon="{{ entry.descriptor.icon|default:'⚡' }}"
+  data-cn-app="{{ entry.descriptor.app|default:'Passaggio' }}"
+  style="--cn-c: {{ entry.descriptor.color|default:'#0f6cbd' }};"
   data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
   {% if entry.is_existing %}data-sortable-item data-item-id="{{ entry.descriptor.item_id }}" draggable="true"{% endif %}>
   {% for hidden_field in entry.form.hidden_fields %}{{ hidden_field }}{% endfor %}
   <div class="designer-header">
+    <span class="cn-step-ico cn-only" aria-hidden="true">{{ entry.descriptor.icon|default:"⚡" }}</span>
     <div>
-      <div class="designer-summary-kicker">Azione <span data-order-badge>{{ entry.descriptor.order_value }}</span></div>
+      <div class="designer-summary-kicker"><span class="cn-hide">Azione</span><span class="cn-only">{{ entry.descriptor.app|default:"Passaggio" }} ·</span> <span data-order-badge>{{ entry.descriptor.order_value }}</span></div>
       <div class="designer-summary-line" style="font-size:15px;" data-action-label>{{ entry.descriptor.action_label }}</div>
       <div class="designer-section-subtitle" data-action-summary>{{ entry.descriptor.summary }}</div>
     </div>
     <div class="designer-actions">
-      <button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>
+      {% if entry.descriptor.action_type != "native_process" %}<button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>{% endif %}
       {% if entry.is_existing %}
         <button class="btn btn-light" type="button" data-move="-1">Su</button>
         <button class="btn btn-light" type="button" data-move="1">Giu'</button>
@@ -34,6 +39,11 @@
     {% endfor %}
   </div>
 
+  {% if managed_binding and entry.descriptor.action_type == "native_process" %}
+    <div class="amp-native">
+      <button type="button" class="btn btn-primary" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=managed_binding.code %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body">Modifica il flusso (ricorrenza e mail)</button>
+    </div>
+  {% endif %}
   <div class="designer-help" data-suggestion-hint style="margin-top:8px;">
     Seleziona il tipo azione e usa "Campi suggeriti" per precompilare una base modificabile.
   </div>
@@ -96,7 +106,7 @@
       </div>
 
       <details class="designer-subeditor" style="margin-top:12px;">
-        <summary class="designer-subeditor-summary">Branch leggero / run_if <span class="designer-help" style="font-weight:normal;font-size:11px;margin-left:6px;">(esegui solo se...)</span></summary>
+        <summary class="designer-subeditor-summary">Esegui solo se… <span class="designer-help" style="font-weight:normal;font-size:11px;margin-left:6px;">(condizione di questo passaggio)</span></summary>
         <div class="designer-trigger-copy" style="margin-top:10px;">
           <div class="designer-field">{{ entry.form.run_if_field_name.label_tag }}{{ entry.form.run_if_field_name }}{% if entry.form.run_if_field_name.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_field_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field">{{ entry.form.run_if_operator.label_tag }}{{ entry.form.run_if_operator }}{% if entry.form.run_if_operator.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
@@ -374,7 +384,7 @@
       </div>
       <div class="designer-editor-panel" data-action-config="do_until" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>Do Until - Ripeti fino a condizione</span>
+          <span class="cn-hide">Do Until - Ripeti fino a condizione</span><span class="cn-only">Ripeti finché questa condizione non è vera…</span>
         </div>
         <div class="designer-help" style="margin-bottom:10px;">
           Esegue le azioni del corpo loop e riprogramma l'esecuzione finche' la condizione di uscita non e' soddisfatta o si raggiunge il massimo di iterazioni.
@@ -395,7 +405,7 @@
             data-inline-json-branch-label="Corpo loop">
             <div class="designer-branch-head">
               <div>
-                <div class="designer-branch-title">Corpo loop</div>
+                <div class="designer-branch-title"><span class="cn-hide">Corpo loop</span><span class="cn-only">🔁 Ripeti questi passaggi</span></div>
                 <div class="designer-help">Azioni eseguite ad ogni iterazione prima del nuovo controllo.</div>
               </div>
               <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -404,6 +414,8 @@
               <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
               <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
               <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
               <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
             </div>
             <div class="designer-inline-warning" data-inline-json-warning hidden></div>
@@ -428,7 +440,7 @@
             data-inline-json-branch-label="Successo loop">
             <div class="designer-branch-head">
               <div>
-                <div class="designer-branch-title">Se completato</div>
+                <div class="designer-branch-title"><span class="cn-hide">Se completato</span><span class="cn-only">✓ Quando la condizione è vera</span></div>
                 <div class="designer-help">Azioni finali eseguite quando la condizione di uscita viene soddisfatta.</div>
               </div>
               <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -436,6 +448,8 @@
             <div class="designer-inline-toolbar">
               <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
               <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
               <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
             </div>
             <div class="designer-inline-warning" data-inline-json-warning hidden></div>
@@ -460,7 +474,7 @@
             data-inline-json-branch-label="Timeout loop">
             <div class="designer-branch-head">
               <div>
-                <div class="designer-branch-title">Se timeout</div>
+                <div class="designer-branch-title"><span class="cn-hide">Se timeout</span><span class="cn-only">⏱ Se finiscono i tentativi</span></div>
                 <div class="designer-help">Azioni eseguite quando il loop raggiunge il massimo di iterazioni.</div>
               </div>
               <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -468,6 +482,8 @@
             <div class="designer-inline-toolbar">
               <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
               <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
               <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
             </div>
             <div class="designer-inline-warning" data-inline-json-warning hidden></div>
@@ -506,7 +522,7 @@
           data-inline-json-branch-label="Azioni per record">
           <div class="designer-branch-head">
             <div>
-              <div class="designer-branch-title">Azioni per ogni record</div>
+              <div class="designer-branch-title"><span class="cn-hide">Azioni per ogni record</span><span class="cn-only">Per ogni elemento esegui</span></div>
               <div class="designer-help">Queste azioni vengono eseguite per ogni elemento trovato dalla query.</div>
             </div>
             <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -514,6 +530,8 @@
           <div class="designer-inline-toolbar">
             <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
             <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
             <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
             <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
           </div>
@@ -536,7 +554,7 @@
 
       {# â”€â”€ BRANCH / IF-ELSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="branch" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Branch / Condizione If-Else</div>
+        <div class="designer-editor-panel-title"><span class="cn-hide">Branch / Condizione If-Else</span><span class="cn-only">Se questa condizione è vera…</span></div>
         <div class="designer-help" style="margin-bottom:10px;">
           Se la condizione e' vera esegue le azioni Se Vero, altrimenti le azioni Se Falso. Estende il run_if con un ramo else completo.
         </div>
@@ -555,7 +573,7 @@
             data-inline-json-branch-label="Se Vero">
             <div class="designer-branch-head">
               <div>
-                <div class="designer-branch-title">Se Vero (IF)</div>
+                <div class="designer-branch-title"><span class="cn-hide">Se Vero (IF)</span><span class="cn-only">✓ Se sì</span></div>
                 <div class="designer-help">Questo ramo parte quando la condizione del branch risulta vera.</div>
               </div>
               <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -563,7 +581,10 @@
             <div class="designer-inline-toolbar">
               <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
               <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
-              <button class="btn btn-light" type="button" data-inline-json-copy-other>Copia da Se Falso</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
+              <button class="btn btn-light" type="button" data-inline-json-copy-other><span class="cn-hide">Copia da Se Falso</span><span class="cn-only">Copia da «Se no»</span></button>
               <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
             </div>
             <div class="designer-inline-warning" data-inline-json-warning hidden></div>
@@ -589,7 +610,7 @@
             data-inline-json-branch-label="Se Falso">
             <div class="designer-branch-head">
               <div>
-                <div class="designer-branch-title">Se Falso (ELSE)</div>
+                <div class="designer-branch-title"><span class="cn-hide">Se Falso (ELSE)</span><span class="cn-only">✕ Se no</span></div>
                 <div class="designer-help">Questo ramo parte quando la condizione del branch non e' soddisfatta.</div>
               </div>
               <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
@@ -597,7 +618,10 @@
             <div class="designer-inline-toolbar">
               <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
               <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
-              <button class="btn btn-light" type="button" data-inline-json-copy-other>Copia da Se Vero</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="update_trigger_record">+ Aggiorna record</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="teams_webhook">+ Teams</button>
+              <button class="btn btn-light" type="button" data-inline-json-copy-other><span class="cn-hide">Copia da Se Vero</span><span class="cn-only">Copia da «Se sì»</span></button>
               <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
             </div>
             <div class="designer-inline-warning" data-inline-json-warning hidden></div>

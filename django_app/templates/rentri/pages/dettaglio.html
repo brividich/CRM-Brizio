@@ -4,6 +4,8 @@
 
 {% block extra_head %}
 {% include "rentri/components/sc_styles.html" %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'rentri/css/azioni_tabella.css' %}?v=20261113">
 <style>
   .dt-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 20px; padding:16px; }
   .dt-k { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
@@ -42,6 +44,7 @@
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "rentri/components/dialog_azioni.html" %}
 <div class="sc-wrap">
   <div class="sc-head">
     <div>
@@ -108,14 +111,14 @@
 
   {% if can_manage and not registro.annullato %}
   <section class="sc-section">
-    <div class="sc-sec-head"><div><div class="sc-sec-label">Azioni</div><div class="sc-sec-desc">Una registrazione non si elimina: si consolida quando è definitiva, si annulla se è sbagliata.</div></div></div>
+    <div class="sc-sec-head"><div><div class="sc-sec-label">Azioni</div><div class="sc-sec-desc">Si consolida quando è definitiva, si annulla se è sbagliata; una bozza isolata inserita per errore si può anche eliminare.</div></div></div>
     <div class="dt-azioni">
-      {% if not registro.salva %}
-      <form class="dt-azione" method="post" action="{% url 'rentri_consolida' registro.pk %}">{% csrf_token %}
-        <h3>Consolida</h3>
-        <p>Rende definitiva la registrazione: da quel momento non si modifica più, si corregge solo con una rettifica (R) o annullandola.</p>
-        <button type="submit" class="sc-btn sc-btn-primary">Consolida</button>
-      </form>
+      {% if bozze_filo %}
+      <div class="dt-azione">
+        <h3>Consolida il filo</h3>
+        <p>Rende definitive tutte le righe complete del filo (il carico con i suoi scarichi, {{ bozze_filo }} bozz{{ bozze_filo|pluralize:"a,e" }}): da quel momento non si modificano più, si correggono solo con una rettifica (R) o annullandole.</p>
+        <button type="button" class="sc-btn sc-btn-primary" data-consolida-filo="{% url 'rentri_consolida_filo' registro.pk %}">Consolida filo…</button>
+      </div>
       {% endif %}
       <form class="dt-azione" method="post" action="{% url 'rentri_trasmesso' registro.pk %}">{% csrf_token %}
         <h3>Trasmissione a RENTRI</h3>
@@ -123,12 +126,11 @@
         <input type="hidden" name="trasmesso" value="{% if registro.rentri_si_no %}0{% else %}1{% endif %}">
         <button type="submit" class="sc-btn">{% if registro.rentri_si_no %}Segna da trasmettere{% else %}Segna trasmessa{% endif %}</button>
       </form>
-      <form class="dt-azione" method="post" action="{% url 'rentri_annulla' registro.pk %}">{% csrf_token %}
-        <h3>Annulla</h3>
-        <p>La registrazione resta a registro, barrata, e non conta più nelle giacenze. Il numero non viene riusato.{% if figli %} I {{ figli|length }} movimenti collegati qui sopra restano con il riferimento come traccia ma non risultano più collegati: li ricolleghi con «Modifica» o li lasci così.{% endif %}</p>
-        <textarea name="motivo" required minlength="5" placeholder="Motivo dell'annullamento (obbligatorio)"></textarea>
-        <button type="submit" class="sc-btn sc-btn-danger">Annulla registrazione</button>
-      </form>
+      <div class="dt-azione">
+        <h3>Annulla o elimina</h3>
+        <p>Annullata, resta a registro barrata e non conta più nelle giacenze; il numero non viene riusato.{% if figli %} I {{ figli|length }} movimenti collegati qui sopra restano con il riferimento come traccia ma non risultano più collegati.{% endif %} Eliminare definitivamente si può solo per una bozza isolata.</p>
+        {% include "rentri/components/cestino.html" with r=registro classe="sc-btn sc-btn-danger" etichetta="Annulla o elimina…" %}
+      </div>
     </div>
   </section>
   {% endif %}

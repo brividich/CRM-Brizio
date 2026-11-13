@@ -1114,6 +1114,36 @@ class UserTablePreference(models.Model):
         return f"UserTablePreference(user={self.user_id}, table={self.table_id})"
 
 
+class SharedTableView(models.Model):
+    """Vista comune di una tabella `fm-table`, uguale per tutti gli utenti.
+
+    La salvano gli amministratori dal menu «Viste ▾»; chiunque la vede e la applica.
+    Una sola per tabella può essere ``predefinita``: è come si apre la tabella per
+    chi non ha preferenze proprie (e dopo «Ripristina colonne predefinite»).
+    ``state_json`` ha la stessa forma delle viste personali (colonne, ordine,
+    ordinamento, filtri, ricerca, raggruppamento): il backend non lo interpreta.
+    """
+
+    table_id = models.CharField(max_length=100, db_index=True)
+    nome = models.CharField(max_length=60)
+    state_json = models.JSONField(default=dict, blank=True)
+    predefinita = models.BooleanField(default=False)
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_sharedtableview"
+        unique_together = [("table_id", "nome")]
+        ordering = ["table_id", "nome"]
+        verbose_name = "Vista comune tabella"
+        verbose_name_plural = "Viste comuni tabelle"
+
+    def __str__(self) -> str:
+        return f"{self.table_id} · {self.nome}"
+
+
 class UserOnboarding(models.Model):
     """Traccia il completamento del wizard di primo accesso per-utente.
 

@@ -543,6 +543,66 @@ class AssegnazioneTests(TestCase):
             r, _ = self._post(azione="assegna", persona="Collega (ass.collega)")
         self.assertEqual(r.status_code, 403)
 
+    def test_nota_non_assegna_la_scadenza(self):
+        r, avvisa = self._post(azione="nota", nota="chiamata la ditta")
+        self.assertEqual(r.status_code, 302)
+        p = PresaInCarico.objects.get()
+        self.assertEqual((p.utente_id, p.fornitore_id, p.nota, p.nota_da_id), (None, None, "chiamata la ditta", self.admin.id))
+        self.assertFalse(p.assegnata)
+        avvisa.assert_not_called()
+        # Nota svuotata e nessuno incaricato: la riga sparisce.
+        self._post(azione="nota", nota="")
+        self.assertFalse(PresaInCarico.objects.exists())
+
+    def test_nota_non_cambia_chi_se_ne_occupa(self):
+        PresaInCarico.objects.create(chiave=self.dati["chiave"], utente=self.collega, descrizione="x", data_scadenza=self.voce.data_scadenza)
+        self.client.force_login(self.terzo)
+        self._post(azione="nota", nota="sollecitato")
+        p = PresaInCarico.objects.get()
+        self.assertEqual((p.utente_id, p.nota), (self.collega.id, "sollecitato"))
+
+    def test_presa_mantiene_la_nota(self):
+        PresaInCarico.objects.create(chiave=self.dati["chiave"], nota="già sentito", descrizione="x", data_scadenza=self.voce.data_scadenza)
+        self._post(azione="prendi")
+        p = PresaInCarico.objects.get()
+        self.assertEqual((p.utente_id, p.nota), (self.admin.id, "già sentito"))
+
+    def test_assegna_a_fornitore_esterno(self):
+        from anagrafica.models import Fornitore
+
+        f = Fornitore.objects.create(ragione_sociale="Ditta Sintetica Srl")
+        PresaInCarico.objects.create(chiave=self.dati["chiave"], utente=self.collega, descrizione="x", data_scadenza=self.voce.data_scadenza)
+        r, avvisa = self._post(azione="assegna", persona=f"Ditta Sintetica Srl · fornitore esterno [F{f.pk}]")
+        self.assertEqual(r.status_code, 302)
+        p = PresaInCarico.objects.get()
+        self.assertEqual((p.utente_id, p.fornitore_id, p.assegnato_da_id), (None, f.pk, self.admin.id))
+        self.assertEqual(p.incaricato_nome, "Ditta Sintetica Srl")
+        # Chi l'aveva prima lo viene a sapere.
+        self.assertEqual(avvisa.call_args.args[0], self.collega)
+        self.assertIn("fornitore esterno", avvisa.call_args.args[2])
+
+    def test_fornitore_non_attivo_non_assegna(self):
+        from anagrafica.models import Fornitore
+
+        f = Fornitore.objects.create(ragione_sociale="Ditta Spenta", is_active=False)
+        self._post(azione="assegna", persona=f"Ditta Spenta · fornitore esterno [F{f.pk}]")
+        self.assertFalse(PresaInCarico.objects.exists())
+
+    def test_chi_affida_al_fornitore_puo_lasciare(self):
+        from anagrafica.models import Fornitore
+
+        f = Fornitore.objects.create(ragione_sociale="Ditta Sintetica Srl")
+        PresaInCarico.objects.create(chiave=self.dati["chiave"], fornitore=f, assegnato_da=self.collega,
+                                     descrizione="x", data_scadenza=self.voce.data_scadenza)
+        self.client.force_login(self.terzo)
+        with patch("scadenzario.views_calendario.puo_gestire_pannello", return_value=False):
+            self._post(azione="lascia")
+        self.assertTrue(PresaInCarico.objects.exists())
+        self.client.force_login(self.collega)
+        with patch("scadenzario.views_calendario.puo_gestire_pannello", return_value=False):
+            self._post(azione="lascia")
+        self.assertFalse(PresaInCarico.objects.exists())
+
     def test_subentro_avvisa_chi_laveva(self):
         PresaInCarico.objects.create(chiave=self.dati["chiave"], utente=self.collega, descrizione="x", data_scadenza=self.voce.data_scadenza)
         _, avvisa = self._post(azione="prendi")

@@ -474,6 +474,7 @@ class AutomationRuleForm(forms.ModelForm):
 
     class Meta:
         model = AutomationRule
+        labels = {"code": "Codice", "name": "Nome", "description": "Descrizione", "operation_type": "Quando", "trigger_scope": "Su quali modifiche", "is_active": "Attiva", "is_draft": "Bozza", "stop_on_first_failure": "Fermati al primo errore"}
         fields = [
             "code",
             "name",
@@ -544,6 +545,7 @@ class AutomationConditionForm(forms.ModelForm):
 
     class Meta:
         model = AutomationCondition
+        labels = {"order": "Ordine", "operator": "Operatore", "expected_value": "Valore", "value_type": "Tipo di valore", "compare_with_old": "Confronta con il valore precedente", "is_enabled": "Attiva"}
         fields = [
             "order",
             "field_name",
@@ -588,51 +590,51 @@ class AutomationActionForm(forms.ModelForm):
         choices=(("", "---------"), *AutomationConditionValueType.choices),
         label="Esegui solo se - tipo valore",
     )
-    run_if_compare_with_old = forms.BooleanField(required=False, label="Esegui solo se - usa old payload")
+    run_if_compare_with_old = forms.BooleanField(required=False, label="Esegui solo se - usa il valore precedente")
     run_if_negate = forms.BooleanField(required=False, label="Esegui solo se - inverti risultato")
 
-    email_from_email = forms.CharField(required=False, label="From email")
-    email_to = forms.CharField(required=False, label="To", widget=forms.Textarea(attrs={"rows": 2}))
+    email_from_email = forms.CharField(required=False, label="Mittente")
+    email_to = forms.CharField(required=False, label="A", widget=forms.Textarea(attrs={"rows": 2}))
     email_cc = forms.CharField(required=False, label="CC", widget=forms.Textarea(attrs={"rows": 2}))
-    email_bcc = forms.CharField(required=False, label="BCC", widget=forms.Textarea(attrs={"rows": 2}))
-    email_reply_to = forms.CharField(required=False, label="Reply-to", widget=forms.Textarea(attrs={"rows": 2}))
-    email_subject_template = forms.CharField(required=False, label="Subject template")
+    email_bcc = forms.CharField(required=False, label="CCN", widget=forms.Textarea(attrs={"rows": 2}))
+    email_reply_to = forms.CharField(required=False, label="Rispondi a", widget=forms.Textarea(attrs={"rows": 2}))
+    email_subject_template = forms.CharField(required=False, label="Oggetto")
     email_body_text_template = forms.CharField(
         required=False,
-        label="Body text template",
+        label="Corpo (testo)",
         widget=forms.Textarea(attrs={"rows": 4}),
     )
     email_body_html_template = forms.CharField(
         required=False,
-        label="Body HTML template",
+        label="Corpo HTML",
         widget=forms.Textarea(attrs={"rows": 4}),
     )
-    email_fail_silently = forms.BooleanField(required=False, label="Fail silently")
+    email_fail_silently = forms.BooleanField(required=False, label="Non fermare il flusso se l'invio fallisce")
 
     write_log_message_template = forms.CharField(
         required=False,
-        label="Message template",
+        label="Messaggio",
         widget=forms.Textarea(attrs={"rows": 3}),
     )
 
-    metric_code = forms.CharField(required=False, label="Metric code")
+    metric_code = forms.CharField(required=False, label="Codice indicatore")
     metric_operation = forms.ChoiceField(required=False, choices=(("", "---------"), *METRIC_OPERATION_CHOICES))
-    metric_value_template = forms.CharField(required=False, label="Value template")
+    metric_value_template = forms.CharField(required=False, label="Valore")
 
-    insert_target_table = forms.ChoiceField(required=False, choices=(), label="Target table")
+    insert_target_table = forms.ChoiceField(required=False, choices=(), label="Tabella")
     insert_field_mappings_text = forms.CharField(
         required=False,
-        label="Field mappings",
+        label="Campi da compilare (campo = valore)",
         widget=forms.Textarea(attrs={"rows": 5}),
         help_text="Un mapping per riga: `campo_destinazione = valore template`. Supportato anche JSON object.",
     )
 
-    update_target_table = forms.ChoiceField(required=False, choices=(), label="Target table")
-    update_where_field = forms.CharField(required=False, label="Where field")
-    update_where_value_template = forms.CharField(required=False, label="Where value template")
+    update_target_table = forms.ChoiceField(required=False, choices=(), label="Tabella")
+    update_where_field = forms.CharField(required=False, label="Cerca per campo")
+    update_where_value_template = forms.CharField(required=False, label="Valore da cercare")
     update_fields_text = forms.CharField(
         required=False,
-        label="Update fields",
+        label="Campi da aggiornare (campo = valore)",
         widget=forms.Textarea(attrs={"rows": 5}),
         help_text="Un mapping per riga: `campo_destinazione = valore template`. Supportato anche JSON object.",
     )
@@ -665,16 +667,16 @@ class AutomationActionForm(forms.ModelForm):
         label="Metodo HTTP",
         choices=(("", "---------"), ("GET", "GET"), ("POST", "POST"), ("PUT", "PUT"), ("PATCH", "PATCH"), ("DELETE", "DELETE")),
     )
-    http_url_template = forms.CharField(required=False, label="URL template")
+    http_url_template = forms.CharField(required=False, label="Indirizzo (URL)")
     http_headers_text = forms.CharField(
         required=False,
-        label="Headers",
+        label="Intestazioni",
         widget=forms.Textarea(attrs={"rows": 4}),
         help_text="Un mapping per riga: `Header-Name = valore template`. Supportato anche JSON object.",
     )
     http_body_template = forms.CharField(
         required=False,
-        label="Body template",
+        label="Corpo",
         widget=forms.Textarea(attrs={"rows": 5}),
     )
     http_timeout_seconds = forms.IntegerField(required=False, label="Timeout secondi", min_value=1)
@@ -727,18 +729,18 @@ class AutomationActionForm(forms.ModelForm):
     )
     anomalie_op_source_automation = forms.CharField(required=False, label="Label audit (source_automation)")
 
-    teams_webhook_url = forms.CharField(required=False, label="Teams webhook URL")
+    teams_webhook_url = forms.CharField(required=False, label="Indirizzo webhook Teams")
     teams_title_template = forms.CharField(required=False, label="Titolo card")
-    teams_summary_template = forms.CharField(required=False, label="Summary")
+    teams_summary_template = forms.CharField(required=False, label="Riepilogo")
     teams_text_template = forms.CharField(
         required=False,
         label="Testo card",
         widget=forms.Textarea(attrs={"rows": 4}),
     )
-    teams_theme_color = forms.CharField(required=False, label="Theme color")
+    teams_theme_color = forms.CharField(required=False, label="Colore")
     teams_facts_text = forms.CharField(
         required=False,
-        label="Facts",
+        label="Fatti",
         widget=forms.Textarea(attrs={"rows": 4}),
         help_text="Un mapping per riga: `Etichetta = valore template`. Supportato anche JSON object.",
     )
@@ -891,7 +893,7 @@ class AutomationActionForm(forms.ModelForm):
         choices=(("", "---------"), *AutomationConditionValueType.choices),
         label="Tipo valore",
     )
-    branch_compare_with_old = forms.BooleanField(required=False, label="Confronta con old payload")
+    branch_compare_with_old = forms.BooleanField(required=False, label="Confronta con il valore precedente")
     branch_if_true_actions_json = forms.CharField(
         required=False,
         label="Azioni se vero",
@@ -907,6 +909,7 @@ class AutomationActionForm(forms.ModelForm):
 
     class Meta:
         model = AutomationAction
+        labels = {"order": "Ordine", "action_type": "Tipo di passaggio", "is_enabled": "Attivo", "description": "Nota"}
         fields = [
             "order",
             "action_type",
@@ -1290,7 +1293,7 @@ class AutomationActionForm(forms.ModelForm):
             try:
                 config_json["field_mappings"] = _parse_mapping_text(
                     cleaned_data.get("insert_field_mappings_text", ""),
-                    field_label="Field mappings",
+                    field_label="Campi da compilare (campo = valore)",
                 )
             except forms.ValidationError as exc:
                 self.add_error("insert_field_mappings_text", exc)
@@ -1326,7 +1329,7 @@ class AutomationActionForm(forms.ModelForm):
             try:
                 config_json["update_fields"] = _parse_mapping_text(
                     cleaned_data.get("update_fields_text", ""),
-                    field_label="Update fields",
+                    field_label="Campi da aggiornare (campo = valore)",
                 )
             except forms.ValidationError as exc:
                 self.add_error("update_fields_text", exc)
@@ -1443,7 +1446,7 @@ class AutomationActionForm(forms.ModelForm):
             try:
                 config_json["headers"] = _parse_mapping_text(
                     cleaned_data.get("http_headers_text", ""),
-                    field_label="Headers",
+                    field_label="Intestazioni",
                 )
             except forms.ValidationError as exc:
                 self.add_error("http_headers_text", exc)
@@ -1496,7 +1499,7 @@ class AutomationActionForm(forms.ModelForm):
             try:
                 config_json["facts"] = _parse_mapping_text(
                     cleaned_data.get("teams_facts_text", ""),
-                    field_label="Facts",
+                    field_label="Fatti",
                 )
             except forms.ValidationError as exc:
                 self.add_error("teams_facts_text", exc)

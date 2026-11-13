@@ -1441,7 +1441,7 @@ def _form_da_querystring(get) -> dict | None:
     """
     titolo = (get.get("titolo") or "").strip()[:300]
     descrizione = (get.get("descrizione") or "").strip()[:4000]
-    if not (titolo or descrizione):
+    if not (titolo or descrizione or get.get("categoria")):
         return None
     priorita = (get.get("priorita") or "").strip().upper()
     return {

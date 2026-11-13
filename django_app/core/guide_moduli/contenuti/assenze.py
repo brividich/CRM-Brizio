@@ -151,6 +151,10 @@ GUIDA = {
                 ("p", "«Calendario» mostra le assenze approvate con un colore per tipo. Con le frecce cambi mese."),
                 ("p", "Nell'elenco del giorno, accanto a «Permesso» c'è il totale delle ore (es. «Permesso - 8h»): sono le stesse "
                       "ore che scala il saldo, quindi al massimo una giornata e zero se il giorno non è lavorativo."),
+                ("p", "L'elenco degli assenti del giorno si ordina con i pulsanti «Nome» (predefinito), «Tipo», «Durata» "
+                      "(le più lunghe prima) e «Inserita» (le richieste inserite più di recente prima); la scelta resta "
+                      "memorizzata sul tuo browser. Il pannello «Colori calendario» è chiuso: cliccalo per aprirlo, e "
+                      "l'elenco del giorno si accorcia per fargli spazio."),
                 ("ul", [
                     "Cosa vedi dipende dal tuo ruolo: tutta l'azienda, solo il tuo reparto oppure solo le tue richieste.",
                     "Vedere le assenze degli altri non vuol dire poterle approvare.",
@@ -211,6 +215,13 @@ GUIDA = {
                                                        "non lo registravano. Le righe che non sono malattie o hanno già il certificato vengono saltate."),
                     ("Sincronizzazione SharePoint", "coda delle modifiche da mandare alla lista SharePoint, eventuali errori e pulsante «Sincronizza ora»."),
                 ]),
+                ("p", "Le mail del modulo si personalizzano in Automazioni (amministratori): in «Notifiche di sistema» le righe "
+                      "«Assenze - esito della richiesta al dipendente», «Assenze - richiesta modificata», «Assenze - richiesta eliminata» e "
+                      "«Assenze - certificazione di presenza confermata»; in «Pianificati» i solleciti ai capi (assenze_solleciti) e "
+                      "l'avviso del certificato mancante (assenze_certificato_avviso). «Modifica» apre il passaggio «Invia un messaggio "
+                      "di posta»: accendere o spegnere la mail, indirizzi in più in A o in CC, indirizzi da togliere, oggetto ({oggetto} = "
+                      "quello del modulo), testo prima e nota in fondo. I destinatari normali (dipendente, capo, casella assenze) restano "
+                      "decisi dal modulo."),
             ],
         },
         {

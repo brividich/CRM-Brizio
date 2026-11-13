@@ -4,11 +4,14 @@
 
 {% block extra_head %}
 {% include "rentri/components/sc_styles.html" %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'rentri/css/azioni_tabella.css' %}?v=20261113">
 {% endblock %}
 
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "rentri/components/dialog_azioni.html" %}
 <div class="sc-wrap">
   <div class="sc-head">
     <div>
@@ -49,7 +52,7 @@
       <thead>
         <tr>
           <th>Data</th><th>ID Reg.</th><th>Tipo</th><th>Codice EER</th>
-          <th>Qtà</th><th>Giorni</th><th>Note</th>{% if can_manage %}<th></th>{% endif %}
+          <th>Qtà</th><th>FIR</th><th>Giorni</th><th>Note</th>{% if can_manage %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -60,15 +63,13 @@
           <td>{{ r.tipo_label }}</td>
           <td>{{ r.codice|default:"—"|truncatechars:42 }}</td>
           <td>{{ r.quantita|default:"—" }}</td>
+          {% include "rentri/components/fir_cella.html" with r=r %}
           <td class="sc-age {% if r.giorni >= 30 %}bad{% elif r.giorni >= 10 %}warn{% endif %}">{% if r.giorni is not None %}{{ r.giorni }}g{% else %}—{% endif %}</td>
           <td>{{ r.note|default:""|truncatechars:50 }}</td>
           {% if can_manage %}<td style="white-space:nowrap;">
             <a class="sc-link" href="{% url 'rentri_dettaglio' r.pk %}">Apri</a>
             {% if s.key == "bozze" %}
-            <form method="post" action="{% url 'rentri_consolida' r.pk %}" style="display:inline;">{% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'rentri_scadenzario' %}">
-              <button type="submit" class="sc-link" style="border:0;background:none;cursor:pointer;">Consolida</button>
-            </form>
+            <button type="button" class="sc-link" style="border:0;background:none;cursor:pointer;" data-consolida-filo="{% url 'rentri_consolida_filo' r.pk %}" title="Consolida la riga con tutto il suo filo">Consolida filo</button>
             {% elif s.key == "comunicare" %}
             <form method="post" action="{% url 'rentri_trasmesso' r.pk %}" style="display:inline;">{% csrf_token %}
               <input type="hidden" name="next" value="{% url 'rentri_scadenzario' %}">

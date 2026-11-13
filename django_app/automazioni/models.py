@@ -28,33 +28,33 @@ class AutomationRuleTriggerScope(models.TextChoices):
 
 
 class AutomationConditionOperator(models.TextChoices):
-    EQUALS = "equals", "Equals"
-    NOT_EQUALS = "not_equals", "Not equals"
-    CONTAINS = "contains", "Contains"
-    STARTSWITH = "startswith", "Starts with"
-    ENDSWITH = "endswith", "Ends with"
-    GT = "gt", "Greater than"
-    GTE = "gte", "Greater than or equal"
-    LT = "lt", "Less than"
-    LTE = "lte", "Less than or equal"
-    IS_TRUE = "is_true", "Is true"
-    IS_FALSE = "is_false", "Is false"
-    IN_CSV = "in_csv", "In CSV"
-    NOT_IN_CSV = "not_in_csv", "Not in CSV"
-    IS_EMPTY = "is_empty", "Is empty"
-    IS_NOT_EMPTY = "is_not_empty", "Is not empty"
-    CHANGED = "changed", "Changed"
-    CHANGED_TO = "changed_to", "Changed to"
-    CHANGED_FROM_TO = "changed_from_to", "Changed from to"
+    EQUALS = "equals", "è uguale a"
+    NOT_EQUALS = "not_equals", "non è uguale a"
+    CONTAINS = "contains", "contiene"
+    STARTSWITH = "startswith", "inizia con"
+    ENDSWITH = "endswith", "finisce con"
+    GT = "gt", "è maggiore di"
+    GTE = "gte", "è maggiore o uguale a"
+    LT = "lt", "è minore di"
+    LTE = "lte", "è minore o uguale a"
+    IS_TRUE = "is_true", "è vero"
+    IS_FALSE = "is_false", "è falso"
+    IN_CSV = "in_csv", "è uno di (elenco con virgole)"
+    NOT_IN_CSV = "not_in_csv", "non è uno di (elenco con virgole)"
+    IS_EMPTY = "is_empty", "è vuoto"
+    IS_NOT_EMPTY = "is_not_empty", "non è vuoto"
+    CHANGED = "changed", "è cambiato"
+    CHANGED_TO = "changed_to", "è cambiato in"
+    CHANGED_FROM_TO = "changed_from_to", "è cambiato da … a … (vecchio|nuovo)"
     # Operatori temporali. Il valore del campo deve essere una data/datetime.
     # DAYS_FROM_NOW_*: confronta (campo - oggi) in giorni con expected_value (intero).
     #   Positivo = data nel futuro. Es. data_scadenza entro 30gg => days_from_now_lte 30.
     # DAYS_SPAN_*: confronta (campo - altro_campo) in giorni con expected_value nel
     #   formato "altro_campo:N" (es. "data_inizio:10" => (data_fine - data_inizio) > 10).
-    DAYS_FROM_NOW_LTE = "days_from_now_lte", "Days from now ≤"
-    DAYS_FROM_NOW_GTE = "days_from_now_gte", "Days from now ≥"
-    DAYS_SPAN_GT = "days_span_gt", "Days span >"
-    DAYS_SPAN_GTE = "days_span_gte", "Days span ≥"
+    DAYS_FROM_NOW_LTE = "days_from_now_lte", "mancano al massimo N giorni"
+    DAYS_FROM_NOW_GTE = "days_from_now_gte", "mancano almeno N giorni"
+    DAYS_SPAN_GT = "days_span_gt", "durata in giorni maggiore di"
+    DAYS_SPAN_GTE = "days_span_gte", "durata in giorni almeno"
     # Debounce per gruppo. La condizione è una LETTURA PURA (nessun side-effect): ritorna True
     # (regola eseguibile) solo se NON esiste un invio recente per la coppia namespace+valore.
     # Il valore del gruppo viene da field_name; expected_value nel formato "namespace:minuti"
@@ -65,36 +65,36 @@ class AutomationConditionOperator(models.TextChoices):
 
 
 class AutomationConditionValueType(models.TextChoices):
-    STRING = "string", "String"
-    INT = "int", "Integer"
-    FLOAT = "float", "Float"
-    BOOL = "bool", "Boolean"
-    DATE = "date", "Date"
-    DATETIME = "datetime", "Datetime"
+    STRING = "string", "Testo"
+    INT = "int", "Numero intero"
+    FLOAT = "float", "Numero decimale"
+    BOOL = "bool", "Sì / No"
+    DATE = "date", "Data"
+    DATETIME = "datetime", "Data e ora"
 
 
 class AutomationActionType(models.TextChoices):
     NATIVE_PROCESS = "native_process", "Esegui processo del modulo"
-    SEND_EMAIL = "send_email", "Send email"
-    INSERT_RECORD = "insert_record", "Insert record"
-    UPDATE_RECORD = "update_record", "Update record"
-    UPDATE_TRIGGER_RECORD = "update_trigger_record", "Update triggering record"
+    SEND_EMAIL = "send_email", "Invia un messaggio di posta"
+    INSERT_RECORD = "insert_record", "Crea un record"
+    UPDATE_RECORD = "update_record", "Aggiorna un record"
+    UPDATE_TRIGGER_RECORD = "update_trigger_record", "Aggiorna il record che ha fatto partire il flusso"
     SPLIT_ASSENZA_GIORNALIERA = "split_assenza_giornaliera", "Split assenza giornaliera"
-    UPDATE_DASHBOARD_METRIC = "update_dashboard_metric", "Update dashboard metric"
-    WRITE_LOG = "write_log", "Write log"
-    DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule"
-    HTTP_REQUEST = "http_request", "HTTP request"
-    TEAMS_WEBHOOK = "teams_webhook", "Teams webhook"
+    UPDATE_DASHBOARD_METRIC = "update_dashboard_metric", "Aggiorna un indicatore della dashboard"
+    WRITE_LOG = "write_log", "Scrivi nel registro"
+    DELAY_SCHEDULE = "delay_schedule", "Attendi (ritardo)"
+    HTTP_REQUEST = "http_request", "Chiamata HTTP"
+    TEAMS_WEBHOOK = "teams_webhook", "Pubblica in un canale Teams"
     SEND_ANOMALIE_MAIL_ACTION = "send_anomalie_mail_action", "Invia mail-action anomalie (token sicuro)"
     SEND_ANOMALIE_MAIL_ACTION_BY_OP = "send_anomalie_mail_action_by_op", "Invia mail-action anomalie a CC/CAR dell'OP (risolti automaticamente)"
     SEND_MEETING_MINUTE = "send_meeting_minute", "Invia minuta incontro KICK-OFF ai partecipanti"
     SEND_MEETING_INVITE = "send_meeting_invite", "Invia convocazione incontro KICK-OFF (ordine del giorno)"
     SEND_PROJECT_ALERT = "send_project_alert", "Invia alert progetto KICK-OFF (sicurezza / VRF) a PM e capo commessa"
     # Controllo flusso
-    SEND_APPROVAL = "send_approval", "Richiedi Approvazione"
-    DO_UNTIL = "do_until", "Do Until (Ripeti fino a condizione)"
-    FOR_EACH = "for_each", "Per Ogni Elemento (For Each)"
-    BRANCH = "branch", "Branch / Condizione If-Else"
+    SEND_APPROVAL = "send_approval", "Richiedi approvazione"
+    DO_UNTIL = "do_until", "Ripeti finché (Do Until)"
+    FOR_EACH = "for_each", "Per ogni elemento"
+    BRANCH = "branch", "Condizione (Se / Altrimenti)"
     COUNT_BRANCH = "count_branch", "Conta record e confronta soglia (Count Branch)"
 
 
@@ -985,6 +985,14 @@ class ScheduledMailText(models.Model):
         blank=True, default="",
         help_text="Nota a piè di pagina. Vuoto = nessuna nota.",
     )
+    # Passaggio «Invia mail» del flusso (stile Power Automate): valgono per ogni mail
+    # che il processo manda con send_hub_mail mentre gira dentro il flusso gestito.
+    aggiungi_a = models.TextField(blank=True, default="", help_text="Indirizzi aggiunti in A a ogni mail del flusso.")
+    aggiungi_cc = models.TextField(blank=True, default="", help_text="Indirizzi aggiunti in CC a ogni mail del flusso.")
+    escludi = models.TextField(blank=True, default="", help_text="Indirizzi tolti da A e CC.")
+    sostituisci_destinatari = models.BooleanField(
+        default=False, help_text="Se vero, le mail vanno solo agli indirizzi di «aggiungi_a» (i destinatari del modulo non ricevono).")
+    mail_disattivata = models.BooleanField(default=False, help_text="Se vero, il flusso gira ma non manda mail.")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,

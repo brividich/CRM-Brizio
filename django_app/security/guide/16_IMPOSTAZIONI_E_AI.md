@@ -88,6 +88,12 @@ Come si comportano:
 
 Pagina **Impostazioni › Letture automatiche**: tutte le letture che il SOC fa da solo, una scheda per lettura, raggruppate per fonte (Report via mail, Microsoft 365, WatchGuard, Backup, Vulnerabilità, Rete). Ci sono anche **Backup da Veeam (API)** e **DHCP e DNS di Windows Server** (Rete): «Da configurare» finché mancano i dati nel file .env del server.
 
+Due letture lavorano da sole per ridurre il lavoro a mano: **Doppioni software tra le fonti (AI)** (ogni ora: unisce lo stesso programma visto da WatchGuard e da Defender, chiede all'AI le coppie incerte) e **Manutenzione notturna** (alle 02:30: pulizia dei registri tecnici, fotografia dell'indice di postura di ogni PC, avviso per i PC scesi sotto la soglia). Si regolano in **Avvisi e automatismi** › «Doppioni software tra le fonti» (confidenza per unire da sola, 85%; coppie per giro, 6) e «Manutenzione notturna»: dopo quanti giorni si svuota il testo grezzo delle mail e dei file **già letti** (120; restano oggetto, data, esito e dati estratti), giri delle caselle (60), registro delle richieste all'AI (365), soglia di postura (50) e canali dell'avviso. La pulizia non tocca alert, incidenti, ticket, eventi, evidenze e audit. Nella scheda della lettura WatchGuard ci sono anche gli aggiornamenti (KB) salvati e le righe scartate.
+
+Anche le **proposte AI su CPE** lavorano da sole: un collegamento CPE di cui l'AI è sicura almeno al 90% («Confidenza per accettare da sola», in «Proposte AI su CPE ed esiti da verificare») si accetta senza nessuno, come la conferma a mano, e resta nel registro delle modifiche come «accettata in automatico». Restano da decidere a mano «non applicabile» (spegnerebbe il controllo delle CVE di quel programma), gli esiti CVE per PC e le letture AI delle mail (il testo di una mail lo scrive chi la manda).
+
+In cima c'è il **flusso delle letture**: un riquadro per lettura collegato alla barra **Security Center**. Linea animata = lettura accesa; tratteggiata = spenta o in errore; colore come la scheda (verde riuscita, giallo da controllare, rosso da sistemare, azzurro in corso, grigio spenta). Un clic porta alla scheda della lettura.
+
 Ogni scheda dice:
 
 - **cosa legge** e **quando gira** (ogni 15 minuti, ogni mattina alle 06:20…);

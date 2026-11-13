@@ -1,0 +1,39 @@
+{% comment %}Contenuto del popup «Consolida filo» (caricato da rentri/js/azioni_tabella.js).{% endcomment %}
+{% with a=anteprima %}
+<div class="rn-dlg-top">
+  <div class="rn-dlg-t" id="rn-filo-t">Consolida il filo {{ registro.codice|default:"" }}</div>
+  <button type="button" class="rn-dlg-x" data-chiudi aria-label="Chiudi">&#10005;</button>
+</div>
+{% if not a.membri %}
+  <div class="rn-dlg-avviso">Registrazione annullata: non fa parte di un filo da consolidare.</div>
+{% else %}
+<p class="rn-dlg-nota">Il carico con tutti i suoi scarichi. Le righe consolidate non si modificano più: si correggono con una rettifica (R) o annullandole.</p>
+
+<div class="rn-dlg-sez">Da consolidare ({{ a.pronte|length }})</div>
+{% if a.pronte %}
+<table class="rn-dlg-tab">
+  {% for r in a.pronte %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td>{{ r.data|date:"d/m/Y" }}</td><td class="num">{% if r.quantita is not None %}{{ r.quantita }}{% else %}{{ r.rettifica_scarico|default_if_none:"" }}{% endif %} {{ r.unita }}</td><td>{% if r.arrivo_fir %}FIR {{ r.arrivo_fir }}{% endif %}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="rn-dlg-nota">Nessuna riga pronta.</p>{% endif %}
+
+{% if a.incomplete %}
+<div class="rn-dlg-sez">Restano bozze: incomplete ({{ a.incomplete|length }})</div>
+<table class="rn-dlg-tab">
+  {% for r in a.incomplete %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td class="rn-dlg-manca">{{ r.mancanti|join:", " }}</td><td><a href="{% url 'rentri_modifica' r.pk %}">Modifica</a></td></tr>{% endfor %}
+</table>
+{% endif %}
+
+{% if a.gia %}
+<details><summary>Già consolidate ({{ a.gia|length }})</summary>
+<table class="rn-dlg-tab">
+  {% for r in a.gia %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td>{{ r.consolidato_il|date:"d/m/Y H:i" }} {{ r.consolidato_da }}</td></tr>{% endfor %}
+</table>
+</details>
+{% endif %}
+{% endif %}
+<form method="post" action="{% url 'rentri_consolida_filo' registro.pk %}" class="rn-dlg-azioni">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ prossima }}">
+  <button type="button" class="rn-dlg-btn" data-chiudi>Indietro</button>
+  <button type="submit" class="rn-dlg-btn rn-dlg-btn-primary"{% if not a.pronte %} disabled{% endif %}>Consolida {{ a.pronte|length }} rig{{ a.pronte|length|pluralize:"a,he" }}</button>
+</form>
+{% endwith %}

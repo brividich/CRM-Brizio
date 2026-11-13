@@ -18,7 +18,7 @@ GUIDA = {
                       "contatori, filtri, CSV e file per Outlook come descritto nella guida della Home («Lo Scadenzario globale»)."),
                 ("def", [
                     ("Sistema di gestione", "sorveglianza e scadenza dei certificati (attivi), audit esterni pianificati e risposta all'ente, audit interni pianificati o con piano approvato, analisi (1 mese) e chiusura (3 mesi o proroga) delle CAR aperte, prossima verifica di efficacia, qualifica degli auditor attivi, azioni della SoA e scenari di rischio OT della revisione in vigore."),
-                    ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128 attivi, requisiti con scadenza, certificazioni individuali attive, revisione delle abilitazioni macchina della skill matrix."),
+                    ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128 attivi, requisiti con scadenza, certificazioni individuali attive, revisione delle abilitazioni macchina della skill matrix, «Qualifica persona sul processo» (prima scadenza fra i requisiti bloccanti del suo ruolo) e «Qualifica macchina sul processo» (scadenza della verifica; sospesa o da valutare dalla data del cambio di stato)."),
                     ("Formazione (enti e verifiche)", "documenti di enti e docenti con scadenza (accreditamento, contratto, assicurazione…), «verifica assenza NC a 6 mesi» delle edizioni approvate senza esito."),
                     ("SOC / NIS2", "azioni correttive degli incidenti non fatte, accettazioni del rischio non revocate, termini di legge NIS2 e GDPR non ancora rispettati."),
                     ("GDPR", "verifica periodica dell'operato degli amministratori di sistema non revocati."),
@@ -34,6 +34,8 @@ GUIDA = {
                 ("p", "Ogni voce compare a chi può aprire la pagina dove si gestisce (la tua CAR e la tua presa visione le vedi sempre). "
                       "Il nome nella colonna Soggetto porta a quella pagina."),
                 ("p", "Nelle schede di dipendente, asset, fornitore, certificazione, audit, incidente, verifica impianto e corso il riquadro «📅 Scadenze di questa scheda» mostra le scadenze, chi se ne occupa e «Me ne occupo io»."),
+                ("p", "Una scadenza si affida a un collega (👤) o a un fornitore esterno dell'anagrafica Fornitori (🏢) con «→ Assegna». "
+                      "«＋ nota» aggiunge una riga 📝 visibile a tutti senza assegnare la scadenza a chi la scrive."),
                 ("p", "Cosa vedi lo decidono i permessi del modulo di origine più le regole del pannello «Gestione»: "
                       "una regola può farti vedere scadenze di un modulo che non apri, oppure toglierne alcune a tutti."),
             ],

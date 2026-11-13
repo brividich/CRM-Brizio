@@ -693,8 +693,8 @@ def send_anomalie_update_confirmation(
 
     def _detail_lines(u):
         out = []
-        if u.get("descrizione"):
-            out.append(f"      Descrizione: {str(u['descrizione'])[:300]}")
+        if u.get("note"):
+            out.append(f"      NOTE: {str(u['note'])[:300]}")
         if u.get("numero_rdc"):
             out.append(f"      N° RDC: {u['numero_rdc']}")
         if u.get("pezzi_recuperato"):
@@ -702,8 +702,8 @@ def send_anomalie_update_confirmation(
         if u.get("dove_pezzi"):
             out.append(f"      Dove sono i pezzi: {u['dove_pezzi']}")
         out += [f"      {r}" for r in u.get("extra_decisione") or []]
-        if u.get("note"):
-            out.append(f"      Note: {str(u['note'])[:200]}")
+        if u.get("descrizione"):
+            out.append(f"      Descrizione: {str(u['descrizione'])[:300]}")
         return out
 
     # Corpo testo

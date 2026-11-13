@@ -1864,6 +1864,42 @@ class WatchGuardPatchGiorno(models.Model):
         return f"{self.giorno}: {self.mancanti} patch mancanti"
 
 
+class WatchGuardAggiornamento(models.Model):
+    """Aggiornamento di sistema (KB, service pack) installato su un PC, come lo elenca WatchGuard nell'inventario
+    software (``softwareinventory`` con ``is_patch``). Non è un programma: non entra nell'inventario né nelle CVE.
+    Le righe di un PC si sostituiscono a ogni lettura riuscita di quel PC."""
+
+    host = models.CharField(max_length=255, db_index=True, help_text="Nome normalizzato (minuscolo, senza dominio).")
+    nome = models.CharField(max_length=500)
+    versione = models.CharField(max_length=120, blank=True, default="")
+    produttore = models.CharField(max_length=255, blank=True, default="")
+    installato_il = models.DateField(null=True, blank=True)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["host", "-installato_il", "nome"]
+
+    def __str__(self):
+        return f"{self.host}: {self.nome}"
+
+
+class PosturaGiorno(models.Model):
+    """Indice di postura di un PC in un giorno (``services.postura``): una fotografia per notte, per l'andamento."""
+
+    giorno = models.DateField(db_index=True)
+    pc = models.CharField(max_length=255, help_text="Nome normalizzato (minuscolo, senza dominio).")
+    nome = models.CharField(max_length=255, blank=True, default="")
+    punteggio = models.PositiveSmallIntegerField()
+
+    class Meta:
+        ordering = ["pc", "giorno"]
+        constraints = [models.UniqueConstraint(fields=["giorno", "pc"], name="sec_postura_giorno_pc")]
+        indexes = [models.Index(fields=["pc", "giorno"], name="sec_postura_pc_giorno_idx")]
+
+    def __str__(self):
+        return f"{self.pc} {self.giorno}: {self.punteggio}"
+
+
 class WatchGuardTask(models.Model):
     """Task di installazione patch lanciato dalla console WatchGuard (``tasks`` di tipo 6): lo storico resta qui.
 
@@ -2010,7 +2046,10 @@ class SecurityPropostaAi(models.Model):
 
     TIPO_CPE = "cpe"
     TIPO_ESITO = "esito"
-    TIPI = [(TIPO_CPE, "Collegamento CPE"), (TIPO_ESITO, "Esito CVE su un PC")]
+    # Due nomi dello stesso programma da fonti diverse (WatchGuard / Defender): ``vendor``+``product`` = nome
+    # di Defender, ``proposta`` = «vendor|prodotto» di WatchGuard. Accettata = alias (services.software_doppioni).
+    TIPO_DOPPIONE = "doppione"
+    TIPI = [(TIPO_CPE, "Collegamento CPE"), (TIPO_ESITO, "Esito CVE su un PC"), (TIPO_DOPPIONE, "Stesso programma da due fonti")]
 
     APERTA = "aperta"
     ACCETTATA = "accettata"
@@ -2060,6 +2099,12 @@ class SecurityPropostaAi(models.Model):
             self.NON_APPLICABILE: "Non applicabile", self.DA_VERIFICARE: "Resta da verificare",
             self.IMPATTA: "Impatta", self.NON_IMPATTA: "Non impatta",
         }.get(self.proposta, self.proposta)
+
+    @property
+    def doppione_watchguard(self):
+        """(produttore, prodotto) di WatchGuard per una proposta «doppione» (``proposta`` = «vendor|prodotto»)."""
+        vendor, _sep, product = (self.proposta or "").partition("|")
+        return vendor, product
 
     @property
     def applicabile(self):
