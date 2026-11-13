@@ -1,14 +1,16 @@
 <li class="cc-tree-li">
-  {% if porta %}<span class="cc-tree-porta cc-mono">{{ porta }}</span>{% endif %}
+  {% if porta %}<span class="cc-tree-porta cc-mono" title="{{ porta }}">{{ porta }}</span>{% endif %}
   {% if nodo.figli %}<details open class="cc-tree-ramo"><summary>{% endif %}
   {% if nodo.url %}<a class="cc-tnode is-{{ nodo.tono }}" id="nodo-{{ nodo.chiave }}" href="{{ nodo.url }}"{% if nodo.anteprima %} data-preview="{{ nodo.anteprima }}"{% endif %}>{% else %}<span class="cc-tnode is-testo" id="nodo-{{ nodo.chiave }}">{% endif %}
     <span class="cc-tnode-ico">{{ nodo.sigla }}</span>
-    <span class="cc-tnode-txt"><strong>{{ nodo.nome }}</strong>{% if nodo.host %}<small class="cc-mono">{{ nodo.host }}</small>{% endif %}</span>
+    <span class="cc-tnode-txt" title="{{ nodo.nome }}"><strong>{{ nodo.nome }}</strong>{% if nodo.host %}<small class="cc-mono">{{ nodo.host }}</small>{% endif %}</span>
     {% if nodo.figli %}<span class="cc-tnode-n" title="Apparati sotto">{{ nodo.discendenti }}</span>{% endif %}
   {% if nodo.url %}</a>{% else %}</span>{% endif %}
   {% if nodo.figli %}</summary>
     <ul class="cc-tree">
-      {% for f in nodo.figli %}{% include "contatori/_topo_nodo.html" with nodo=f.nodo porta=f.porta %}{% endfor %}
+      {% for f in nodo.figli|slice:":12" %}{% include "contatori/_topo_nodo.html" with nodo=f.nodo porta=f.porta %}{% endfor %}
+      {% if nodo.figli|length > 12 %}<li class="cc-tree-li cc-tree-altri"><details class="cc-tree-ramo"><summary><span class="cc-tnode is-testo"><span class="cc-tnode-ico">+{{ nodo.figli|length|add:"-12" }}</span><span class="cc-tnode-txt"><strong>Altri {{ nodo.figli|length|add:"-12" }} collegamenti</strong></span></span></summary>
+        <ul class="cc-tree">{% for f in nodo.figli|slice:"12:" %}{% include "contatori/_topo_nodo.html" with nodo=f.nodo porta=f.porta %}{% endfor %}</ul></details></li>{% endif %}
     </ul>
   </details>{% endif %}
 </li>

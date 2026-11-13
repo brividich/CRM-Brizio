@@ -13,21 +13,27 @@
   {% if porte_pannello is not None %}
     <div class="cc-face cc-face-{{ dispositivo.categoria|lower }} is-{{ vista.tipo|default:''|lower }}">
       <div class="cc-face-id"><span class="cc-face-led is-{% if dispositivo.snmp_stato == 'OK' %}ok{% elif dispositivo.snmp_stato == 'ERROR' %}danger{% elif dispositivo.snmp_stato == 'WARNING' %}warn{% else %}muted{% endif %}"></span><strong>{{ dispositivo.nome }}</strong><small class="cc-mono">{{ dispositivo.host }}</small></div>
-      <div class="cc-ports{% if porte_pannello|length > 12 %} is-due-file{% endif %}">
-        {% for p in porte_pannello %}
-          <a class="cc-port is-{{ p.tono }}" href="{% if p.url %}{{ p.url }}{% elif g %}{% url 'contatori:dispositivo_porte' dispositivo.pk %}#porta-{{ p.numero }}{% else %}#porta-{{ p.numero }}{% endif %}"
-             title="Porta {{ p.numero }}{% if p.nome %} · {{ p.nome }}{% endif %}{% if p.tipo != 'LAN' %} · {{ p.tipo }}{% endif %}{% if p.vlan %} · VLAN {{ p.vlan }}{% endif %}{% if p.collegato %} → {{ p.collegato }}{% else %} · libera{% endif %}">
-            <span class="cc-port-led"></span><span class="cc-port-jack"></span><span class="cc-port-n">{{ p.numero }}</span>
-          </a>
+      <div class="cc-port-blocchi">
+        {% for blocco in porte_blocchi %}
+        <div class="cc-ports{% if not porte_una_fila %} is-due-file{% endif %}">
+          {% for p in blocco %}
+            <a class="cc-port is-{{ p.tono }}" href="{% if p.url %}{{ p.url }}{% elif g %}{% url 'contatori:dispositivo_porte' dispositivo.pk %}#porta-{{ p.numero }}{% else %}#porta-{{ p.numero }}{% endif %}"
+               title="Porta {{ p.numero }}{% if p.nome %} · {{ p.nome }}{% endif %}{% if p.tipo != 'LAN' %} · {{ p.tipo }}{% endif %}{% if p.vlan %} · VLAN {{ p.vlan }}{% endif %}{% if p.collegato %} → {{ p.collegato }}{% else %} · libera{% endif %}">
+              <span class="cc-port-led"></span><span class="cc-port-jack"></span><span class="cc-port-n">{{ p.numero }}</span>
+            </a>
+          {% endfor %}
+        </div>
         {% endfor %}
       </div>
     </div>
     <div class="cc-port-legenda"><span><i class="is-on"></i>collegata</span><span><i class="is-wan"></i>WAN</span><span><i class="is-danger"></i>apparato in errore</span><span><i class="is-off"></i>libera</span></div>
-    {% with descritte=porte_pannello|dictsort:"numero" %}
+    {% if porte_in_vista %}
     <ul class="cc-port-elenco">
-      {% for p in descritte %}{% if p.occupata %}<li id="porta-{{ p.numero }}"><span class="cc-port-num is-{{ p.tono }}">{{ p.numero }}</span><span>{% if p.nome %}<strong>{{ p.nome }}</strong>{% endif %}{% if p.tipo != "LAN" %} <span class="pill">{{ p.tipo }}</span>{% endif %}{% if p.vlan %} <span class="muted">VLAN {{ p.vlan }}</span>{% endif %}</span><span class="cc-port-freccia">→</span><span>{% if p.url %}<a class="plain" href="{{ p.url }}">{{ p.collegato }}</a>{% else %}{{ p.collegato|default:"—" }}{% endif %}{% if p.nota %} <small class="muted">{{ p.nota }}</small>{% endif %}</span></li>{% endif %}{% endfor %}
+      {% for p in porte_in_vista %}{% include "contatori/_porta_riga.html" %}{% endfor %}
     </ul>
-    {% endwith %}
+    {% if porte_altre %}<details class="cc-port-altre"><summary>Altre {{ porte_altre|length }} porte descritte</summary>
+      <ul class="cc-port-elenco">{% for p in porte_altre %}{% include "contatori/_porta_riga.html" %}{% endfor %}</ul></details>{% endif %}
+    {% endif %}
     {% if not dispositivo.porte_totali and not porte_pannello.0.occupata %}<p class="muted cc-draw-nota">Porte non ancora descritte: {% if g %}<a class="plain" href="{% url 'contatori:dispositivo_porte' dispositivo.pk %}">indica quante sono e cosa c'è collegato</a>{% else %}chi gestisce può indicarle{% endif %}. Diventano i rami della topologia.</p>{% endif %}
 
   {% elif disegno_mfc %}

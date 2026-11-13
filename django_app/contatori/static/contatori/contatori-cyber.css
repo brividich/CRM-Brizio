@@ -335,3 +335,62 @@ body.theme-dark .contatori-module .cc-links a { color: #e0f2fe; }
 .contatori-module .cc-proposta { display: block; margin-top: 3px; font-size: 11px; color: var(--cc-kicker); }
 .contatori-module .cc-porte-tab tr:target td { background: var(--cc-soft); }
 .contatori-module .cc-ups .pill, .contatori-module .cc-chassis .pill { color: #e2e8f0; background: rgba(255, 255, 255, .12); }
+
+/* ======================= Adattamento al contenuto ======================= */
+/* Pannello: blocchi da 12 porte che vanno a capo; dentro il blocco 6 colonne × 2 file (o una fila fino a 12 porte). */
+.contatori-module .cc-port-blocchi { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 0 8px; }
+.contatori-module .cc-port-blocchi .cc-ports { margin: 0; overflow: visible; padding-bottom: 0; }
+.contatori-module .cc-ports.is-due-file { grid-template-rows: auto auto; }
+.contatori-module .cc-face-id { flex-wrap: wrap; min-width: 0; }
+.contatori-module .cc-face-id strong { overflow-wrap: anywhere; }
+@media (min-width: 1800px) {
+  .contatori-module .cc-port { width: 40px; }
+  .contatori-module .cc-port-jack { width: 36px; height: 28px; }
+}
+@media (max-width: 420px) {
+  .contatori-module .cc-face { padding: 14px 12px 12px; }
+  .contatori-module .cc-port-blocchi { gap: 10px; margin: 0 6px; }
+  .contatori-module .cc-ports { gap: 5px; }
+  .contatori-module .cc-port { width: 30px; }
+  .contatori-module .cc-port-jack { width: 26px; height: 20px; }
+}
+
+/* Elenco delle porte descritte: numero a sinistra, testo che va a capo, destinazione intera sotto il nome. */
+.contatori-module .cc-port-elenco { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.contatori-module .cc-port-elenco li { display: flex; gap: 10px; align-items: flex-start; flex: 0 1 auto; max-width: min(420px, 100%); }
+.contatori-module .cc-port-corpo { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; flex: 0 1 auto; }
+.contatori-module .cc-port-corpo strong { overflow-wrap: anywhere; }
+.contatori-module .cc-port-dest { overflow-wrap: anywhere; }
+.contatori-module .cc-port-dest a.plain { overflow-wrap: anywhere; }
+.contatori-module .cc-port-altre { margin-top: 8px; }
+.contatori-module .cc-port-altre > summary { cursor: pointer; font-weight: 700; color: var(--cm-primary-mid); padding: 6px 2px; }
+body.theme-dark .contatori-module .cc-port-altre > summary { color: #7dd3fc; }
+
+/* Albero: nodi su una riga (nome lungo accorciato con il nome intero al passaggio del mouse); l'area scorre di lato solo se
+   l'albero è più largo dello schermo; rientri più stretti sul telefono. */
+.contatori-module .cc-topo { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.contatori-module .cc-topo > .cc-tree { min-width: max-content; }
+.contatori-module .cc-tnode { max-width: min(440px, 80vw); }
+.contatori-module .cc-tnode-txt { min-width: 0; }
+.contatori-module .cc-tnode-txt strong, .contatori-module .cc-tnode-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contatori-module .cc-tree-porta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(440px, 80vw); }
+.contatori-module .cc-tree-altri .cc-tnode { cursor: pointer; }
+@media (max-width: 720px) {
+  .contatori-module .cc-tree { padding-left: 12px; }
+  .contatori-module .cc-tree-li { padding-left: 12px; }
+  .contatori-module .cc-tree .cc-tree .cc-tree-li::after { width: 12px; }
+  .contatori-module .cc-tnode { padding: 6px 10px 6px 6px; gap: 8px; max-width: 72vw; }
+  .contatori-module .cc-tnode-ico { min-width: 32px; height: 26px; }
+}
+
+/* Editor delle porte sul telefono: ogni porta è una scheda compatta (numero, nome e tipo; VLAN e collegato; testo e nota). */
+@media (max-width: 760px) {
+  .contatori-module .cc-porte-tab thead { display: none; }
+  .contatori-module .cc-porte-tab, .contatori-module .cc-porte-tab tbody { display: block; }
+  .contatori-module .cc-porte-tab tr { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px 8px; padding: 10px 4px; border-bottom: 1px solid var(--cm-border); }
+  .contatori-module .cc-porte-tab td { display: block; padding: 0; border: 0; min-width: 0; }
+  .contatori-module .cc-porte-tab td:first-child { grid-row: span 3; }
+  .contatori-module .cc-porte-tab td::before { display: none !important; }
+  .contatori-module .cc-porte-tab input, .contatori-module .cc-porte-tab select { width: 100%; }
+  .contatori-module .cc-input-corto { width: 100%; }
+}

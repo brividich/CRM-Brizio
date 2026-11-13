@@ -1301,10 +1301,10 @@ def dispositivo_snmp_detail(request, pk):
 
 def _disegno(dispositivo, ultima):
     from .presentazione import disegno_stampante
-    from .topologia import porte_pannello
+    from .topologia import pannello
 
     if dispositivo.categoria in (DispositivoSNMP.Categoria.FIREWALL, DispositivoSNMP.Categoria.RETE):
-        return {"porte_pannello": porte_pannello(dispositivo)}
+        return pannello(dispositivo)
     if dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE:
         return {"disegno_mfc": disegno_stampante(ultima.dati_stampante if ultima else {}, dispositivo.snmp_stato)}
     return {}
