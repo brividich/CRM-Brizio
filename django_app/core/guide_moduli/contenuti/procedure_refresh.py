@@ -107,6 +107,7 @@ GUIDA = {
                     "Clicca «Pubblica». Le persone ricevono una notifica.",
                     "A fine periodo clicca «Chiudi sessione».",
                 ]),
+                ("p", "Sessione di prova o sbagliata: «Elimina» (nell'elenco o nella scheda) la cancella definitivamente con assegnazioni, letture e scadenze, che spariscono anche dallo scadenzario e da «Le mie attività». I documenti restano. Non si annulla: per una sessione vera basta «Chiudi sessione»."),
                 ("p", "Ogni mattina alle 06:45 il portale segna le letture scadute e, se i promemoria sono accesi, manda solleciti e il riepilogo ai gestori."),
             ],
         },
@@ -128,7 +129,7 @@ GUIDA = {
             "sintomo": "Le procedure non si aggiornano quando cambia la cartella",
             "fare": [
                 "Apri «Impostazioni» → «Sincronizzazione con la cartella SGI»: ogni riga con ✕ dice cosa fare (accendere l'interruttore, dare la lettura all'account del sito, lanciare «manage.py setup_q_schedules», riavviare il qcluster).",
-                "Apri «File non sincronizzati»: di solito basta correggere il nome del file (codice e «Rev.N») o togliere il doppione dalla cartella.",
+                "Apri «File non sincronizzati»: di solito basta correggere il nome del file (codice e «Rev.N») o togliere il doppione dalla cartella. I file identici alla revisione in vigore non compaiono più nell'elenco.",
                 "«Sincronizza ora» fa subito il giro senza aspettare i 15 minuti.",
             ],
         },

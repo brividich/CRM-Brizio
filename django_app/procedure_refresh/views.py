@@ -1329,6 +1329,37 @@ def campaign_close(request, pk: int):
 
 @login_required
 @require_POST
+def campaign_delete(request, pk: int):
+    """Elimina definitivamente una sessione (es. di prova) con assegnazioni, letture e
+    quiz collegati: spariscono anche dallo scadenzario e da «Le mie attività».
+    I documenti e le revisioni SGI restano."""
+    if not _can_manage(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    campaign = get_object_or_404(ProcedureCampaign, pk=pk)
+    nome = campaign.name
+    n_assegnazioni = ProcedureAssignment.objects.filter(campaign=campaign).count()
+    n_documenti = ProcedureCampaignDocument.objects.filter(campaign=campaign).count()
+    campaign.delete()
+    log_action(
+        request,
+        "elimina",
+        "procedure_refresh",
+        _audit_detail(
+            "Sessione eliminata",
+            campaign_id=pk,
+            name=nome,
+            assegnazioni=n_assegnazioni,
+            documenti=n_documenti,
+        ),
+    )
+    messages.success(request, f"Sessione «{nome}» eliminata con {n_assegnazioni} assegnazioni.")
+    return redirect("procedure_refresh:campaign_list")
+
+
+@login_required
+@require_POST
 def assign_users(request, pk: int):
     if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")

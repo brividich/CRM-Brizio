@@ -133,6 +133,10 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
       {% endif %}
       <a href="{% url 'procedure_refresh:campaign_edit' pk=campaign.pk %}" class="pr-hbtn pr-hbtn-outline">Modifica</a>
       <a href="{% url 'procedure_refresh:report_matrix' %}?camp_id={{ campaign.pk }}" class="pr-hbtn pr-hbtn-outline">Matrice</a>
+      <form method="post" action="{% url 'procedure_refresh:campaign_delete' pk=campaign.pk %}" data-hub-confirm-ok="Elimina" data-hub-confirm-tone="danger" data-hub-confirm="Eliminare definitivamente la sessione «{{ campaign.name }}»? Spariscono anche le assegnazioni, le letture registrate e le scadenze collegate. I documenti SGI restano. L'operazione non si annulla.">
+        {% csrf_token %}
+        <button type="submit" class="pr-hbtn pr-hbtn-outline">Elimina</button>
+      </form>
       <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments&camp={{ campaign.pk }}" class="pr-hbtn pr-hbtn-outline">⬇ CSV</a>
     </div>
   </div>

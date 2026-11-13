@@ -19,6 +19,8 @@
 .pr-btn-sm { padding:5px 12px; font-size:12px; border-radius:7px; }
 .pr-btn-gray { background:#f1f5f9; color:#475569; }
 .pr-btn-gray:hover { background:#e2e8f0; color:#0f172a; }
+.pr-btn-danger { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; cursor:pointer; font-family:inherit; }
+.pr-btn-danger:hover { background:#fee2e2; color:#991b1b; }
 
 .pr-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
 .pr-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -40,6 +42,8 @@ body.theme-dark .pr-subnav-link.active { background:#1d4ed8; color:#fff; border-
 body.theme-dark .pr-page-title { color:var(--text); }
 body.theme-dark .pr-btn-gray { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .pr-btn-gray:hover { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .pr-btn-danger { background:rgba(185,28,28,.15); color:#fca5a5; border-color:rgba(185,28,28,.4); }
+body.theme-dark .pr-btn-danger:hover { background:rgba(185,28,28,.25); color:#fecaca; }
 body.theme-dark .pr-table-wrap { background:var(--surface); border-color:var(--border); }
 body.theme-dark .pr-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .pr-table td { border-color:var(--border); color:var(--text); }
@@ -96,6 +100,10 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
                   <a href="{% url 'procedure_refresh:campaign_detail' pk=camp.pk %}" class="pr-btn pr-btn-sm">Gestisci</a>
                   <a href="{% url 'procedure_refresh:campaign_edit' pk=camp.pk %}" class="pr-btn pr-btn-sm pr-btn-gray">Modifica</a>
+                  <form method="post" action="{% url 'procedure_refresh:campaign_delete' pk=camp.pk %}" style="margin:0;" data-hub-confirm-ok="Elimina" data-hub-confirm-tone="danger" data-hub-confirm="Eliminare definitivamente la sessione «{{ camp.name }}»? Spariscono anche le assegnazioni, le letture registrate e le scadenze collegate. I documenti SGI restano. L'operazione non si annulla.">
+                    {% csrf_token %}
+                    <button type="submit" class="pr-btn pr-btn-sm pr-btn-danger">Elimina</button>
+                  </form>
                 </div>
               </td>
             </tr>
