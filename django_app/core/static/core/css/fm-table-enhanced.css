@@ -63,6 +63,23 @@
 .fm-tbl-views-del{background:none;border:0;padding:2px 8px;font-size:15px;line-height:1;color:#94a3b8;cursor:pointer;border-radius:4px}
 .fm-tbl-views-del:hover{color:#dc2626;background:rgba(220,38,38,.08)}
 .fm-tbl-views-add{display:block;width:100%;margin-top:6px;padding:7px 8px;text-align:left;font-size:12.5px;font-weight:600;color:#1d4ed8;background:none;border:0;border-top:1px solid #e2e8f0;cursor:pointer;font-family:inherit}
+.fm-tbl-views-star{background:none;border:0;padding:2px 6px;font-size:15px;line-height:1;color:#94a3b8;cursor:pointer;border-radius:4px}
+.fm-tbl-views-star:hover{color:#d97706;background:rgba(217,119,6,.08)}
+.fm-tbl-views-star.active{color:#d97706}
+.fm-tbl-views-tag{font-size:10.5px;color:#64748b;padding:0 8px;white-space:nowrap}
+.fm-tbl-views-form{border-top:1px solid #e2e8f0;margin-top:6px;padding:8px 8px 4px;display:flex;flex-direction:column;gap:8px}
+.fm-tbl-views-lbl{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:#475569}
+.fm-tbl-views-input{font:inherit;font-size:13px;font-weight:400;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;background:var(--surface,#fff);color:inherit}
+.fm-tbl-views-scope{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:#334155}
+.fm-tbl-views-scope label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.fm-tbl-views-scope label[hidden]{display:none}
+.fm-tbl-views-actions{display:flex;gap:6px}
+.fm-tbl-views-save{font:inherit;font-size:12.5px;font-weight:600;padding:5px 12px;border:0;border-radius:6px;background:var(--primary-mid,#2f5f89);color:#fff;cursor:pointer}
+.fm-tbl-views-cancel{font:inherit;font-size:12.5px;padding:5px 10px;border:0;border-radius:6px;background:none;color:#64748b;cursor:pointer}
+body.theme-dark .fm-tbl-views-form{border-top-color:#334155}
+body.theme-dark .fm-tbl-views-lbl,body.theme-dark .fm-tbl-views-scope{color:#cbd5e1}
+body.theme-dark .fm-tbl-views-input{border-color:#334155;background:#0f1b2d}
+body.theme-dark .fm-tbl-views-tag,body.theme-dark .fm-tbl-views-cancel{color:#94a3b8}
 .fm-tbl-status{font-size:11px;color:#64748b;font-style:italic;margin-left:auto}
 .fm-tbl-status-saving{color:#1d4ed8;font-weight:600;font-style:normal}
 .fm-tbl-count{
@@ -242,11 +259,43 @@ table.fm-tbl-measuring > tbody > tr > td{white-space:nowrap !important;overflow-
 table.fm-tbl-fit > thead > tr > th.fm-col-hug{width:1%}
 table.fm-tbl-fit > thead > tr > th{overflow-wrap:normal;word-break:normal;hyphens:manual}
 table.fm-tbl-fit > tbody > tr > td.fm-col-hug{white-space:nowrap}
-/* Tabella più larga della pagina: la pagina usa tutto lo schermo... */
-.content:has(table.fm-tbl-wide){width:100%;max-width:none}
-/* ...e se non basta le celle si compattano. */
+/* Le pagine con una tabella dati usano sempre tutta la larghezza dello schermo... */
+.content:has(table.fm-tbl-fit),
+.content:has(table.fm-tbl-sized){width:100%;max-width:none}
+/* ...se non basta le celle si compattano... */
 table.fm-tbl-dense > thead > tr > th,
 table.fm-tbl-dense > tbody > tr > td{padding-left:7px !important;padding-right:7px !important}
+/* ...poi il testo va a capo anche nelle colonne corte... */
+table.fm-tbl-wrap > tbody > tr > td,
+table.fm-tbl-wrap > tbody > tr > td.fm-col-hug{white-space:normal !important;overflow-wrap:break-word}
+table.fm-tbl-wrap > tbody > tr > td.fm-col-ctl{white-space:nowrap !important}
+table.fm-tbl-wrap > thead > tr > th{white-space:normal !important}
+/* ...e le colonne che ancora non entrano si piegano nel dettaglio della riga (▸):
+ * la tabella non scorre mai di lato. */
+table.fm-tbl-folded th.fm-col-folded,
+table.fm-tbl-folded td.fm-col-folded{display:none !important}
+.fm-fold-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle;
+  border:1px solid var(--border,#cbd5e1);border-radius:5px;background:var(--surface,#fff);
+  color:var(--primary-mid,#2f5f89);cursor:pointer;flex:0 0 auto;
+}
+.fm-fold-btn::before{content:"";width:0;height:0;border-style:solid;border-width:4px 0 4px 6px;border-color:transparent transparent transparent currentColor;transition:transform .15s}
+.fm-fold-btn.open::before{transform:rotate(90deg)}
+.fm-fold-btn:hover,.fm-fold-btn:focus-visible{border-color:var(--primary-mid,#2f5f89);background:#eef4fb}
+th[data-fm-fold-count]::after{
+  content:"+" attr(data-fm-fold-count);margin-left:6px;padding:0 6px;border-radius:999px;
+  font-size:10.5px;font-weight:700;background:#e0ecf8;color:var(--primary-mid,#2f5f89);vertical-align:middle;
+}
+tr.fm-fold-detail > td{background:var(--surface-alt,#f8fafc);padding:10px 14px 12px 34px !important}
+.fm-fold-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px;margin:0}
+.fm-fold-list dt{font-size:11px;font-weight:700;color:#64748b;margin:0}
+.fm-fold-list dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
+body.theme-dark .fm-fold-btn{background:var(--surface,#0f1b2d);border-color:#334155;color:#93c5fd}
+body.theme-dark .fm-fold-btn:hover,body.theme-dark .fm-fold-btn:focus-visible{background:rgba(29,78,216,.15);border-color:#93c5fd}
+body.theme-dark th[data-fm-fold-count]::after{background:rgba(147,197,253,.15);color:#93c5fd}
+body.theme-dark tr.fm-fold-detail > td{background:var(--surface-alt,#13233a)}
+body.theme-dark .fm-fold-list dt{color:#94a3b8}
 
 /* ── Caricamento passo passo (piede della tabella) ──────── */
 /* Il piede non fa da àncora di scorrimento: altrimenti, comparse le righe

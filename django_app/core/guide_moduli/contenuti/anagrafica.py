@@ -1210,6 +1210,16 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Nella scheda il codice fiscale è coperto da asterischi o non si può modificare",
+            "perche": "il codice fiscale è un dato HR riservato: per intero e modificabile solo con il permesso sui dati HR riservati.",
+            "fare": [
+                "Il codice fiscale è nella card «🪪 Anagrafica civile» (scheda Anagrafica), primo campo; senza permesso HR "
+                "si vedono solo i primi 4 caratteri.",
+                "Chi ha il permesso HR lo modifica da «✏ Modifica» della stessa card; banca, IBAN e categorie protette "
+                "restano in «🔒 Dati riservati HR» (scheda Contratto). I due moduli salvano solo i propri campi.",
+            ],
+        },
+        {
             "sintomo": "La scadenza di una visita non è quella scritta dal medico",
             "fare": [
                 "Apri la visita → «Modifica visita» e scrivi la data in «Richiamo indicato dal medico».",

@@ -731,6 +731,8 @@
     return true;
   }
 
+  const _fmSharedDefault = new Map();
+
   async function fetchPrefs(tableId) {
     try {
       const r = await fetch(API_BASE + encodeURIComponent(tableId) + "/", {
@@ -738,6 +740,10 @@
       });
       if (!r.ok) return {};
       const data = await r.json();
+      // Vista comune predefinita (salvata da un amministratore): vale per chi
+      // non ha preferenze proprie su questa tabella.
+      if (data && data.default && data.default.stato) _fmSharedDefault.set(tableId, data.default);
+      else _fmSharedDefault.delete(tableId);
       return (data && data.state) ? data.state : {};
     } catch (e) { return {}; }
   }
@@ -838,11 +844,44 @@
     } catch (e) { return null; }
   }
 
+  async function fetchSharedViews(tableId) {
+    try {
+      const r = await fetch(API_BASE + encodeURIComponent(tableId) + "/comuni/", {
+        credentials: "same-origin", headers: { "Accept": "application/json" },
+      });
+      if (!r.ok) return { viste: [], canManage: false };
+      const data = await r.json();
+      const viste = Array.isArray(data.viste) ? data.viste.filter(v => v && typeof v.nome === "string" && v.stato) : [];
+      return { viste: viste, canManage: !!data.can_manage };
+    } catch (e) { return { viste: [], canManage: false }; }
+  }
+
+  async function sharedViewsCall(tableId, method, body, query) {
+    try {
+      const r = await fetch(API_BASE + encodeURIComponent(tableId) + "/comuni/" + (query || ""), {
+        method: method,
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (r.ok) return { ok: true };
+      let msg = "";
+      try { msg = (await r.json()).error || ""; } catch (e) { /* risposta non JSON */ }
+      return { ok: false, error: msg };
+    } catch (e) { return { ok: false, error: "" }; }
+  }
+
+  // Menu «Viste ▾»: in alto le viste comuni (uguali per tutti: le salvano gli
+  // amministratori, una può essere la predefinita), sotto le viste personali
+  // di questo account. Salvare apre un piccolo modulo dentro il menu.
   function buildViewsMenu(table, state, statusEl) {
     const tableId = table.dataset.tableId;
     const menu = document.createElement("div");
     menu.className = "fm-tbl-menu fm-tbl-views";
-    let viste = null;
+    let viste = null;        // personali
+    let comuni = null;       // uguali per tutti
+    let canManage = false;
+    let formOpen = false;
 
     function snapshot() {
       return {
@@ -855,66 +894,200 @@
       };
     }
 
+    function flash(text) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      setTimeout(() => { statusEl.textContent = ""; }, 2200);
+    }
+
+    function applyView(v) {
+      try { sessionStorage.setItem(VIEWS_PENDING + tableId, JSON.stringify({ nome: v.nome, stato: v.stato })); } catch (e) { return; }
+      location.reload();
+    }
+
+    function sectionTitle(text) {
+      const t = document.createElement("div");
+      t.className = "fm-tbl-views-title";
+      t.textContent = text;
+      return t;
+    }
+
+    function emptyNote(text) {
+      const p = document.createElement("div");
+      p.className = "fm-tbl-views-empty";
+      p.textContent = text;
+      return p;
+    }
+
+    function itemRow(v, extra) {
+      const li = document.createElement("li");
+      li.className = "fm-tbl-views-item";
+      const apply = document.createElement("button");
+      apply.type = "button";
+      apply.className = "fm-tbl-views-apply";
+      apply.textContent = v.nome;
+      apply.title = "Applica la vista «" + v.nome + "»";
+      apply.addEventListener("click", () => applyView(v));
+      li.appendChild(apply);
+      (extra || []).forEach(b => li.appendChild(b));
+      return li;
+    }
+
+    function smallBtn(cls, text, title, onClick) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = cls;
+      b.textContent = text;
+      b.title = title;
+      b.setAttribute("aria-label", title);
+      b.addEventListener("click", async (e) => { e.stopPropagation(); await onClick(); });
+      return b;
+    }
+
     function render() {
       menu.innerHTML = "";
-      const title = document.createElement("div");
-      title.className = "fm-tbl-views-title";
-      title.textContent = "Viste salvate";
-      menu.appendChild(title);
-      if (viste === null) {
-        const p = document.createElement("div");
-        p.className = "fm-tbl-views-empty";
-        p.textContent = "Caricamento…";
-        menu.appendChild(p);
+      if (viste === null || comuni === null) {
+        menu.appendChild(sectionTitle("Viste"));
+        menu.appendChild(emptyNote("Caricamento…"));
         return;
       }
-      if (!viste.length) {
-        const p = document.createElement("div");
-        p.className = "fm-tbl-views-empty";
-        p.textContent = "Nessuna vista salvata. Imposta colonne, filtri e ordinamento, poi salvala qui sotto.";
-        menu.appendChild(p);
+
+      // Viste comuni (uguali per tutti)
+      if (comuni.length || canManage) {
+        menu.appendChild(sectionTitle("Viste comuni · per tutti"));
+        if (!comuni.length) menu.appendChild(emptyNote("Nessuna vista comune."));
+        const ul = document.createElement("ul");
+        ul.className = "fm-tbl-col-list";
+        comuni.forEach((v) => {
+          const extra = [];
+          if (canManage) {
+            extra.push(smallBtn("fm-tbl-views-star" + (v.predefinita ? " active" : ""), v.predefinita ? "★" : "☆",
+              v.predefinita ? "Predefinita per tutti: clic per toglierla" : "Rendi predefinita: la tabella si apre così per chi non ha preferenze proprie",
+              async () => {
+                const r = await sharedViewsCall(tableId, "POST", { id: v.id, predefinita: !v.predefinita });
+                if (!r.ok) { flash("⚠ " + (r.error || "Errore salvataggio")); return; }
+                const on = !v.predefinita;
+                comuni.forEach((x) => { x.predefinita = x.id === v.id ? on : false; });
+                render();
+              }));
+            extra.push(smallBtn("fm-tbl-views-del", "×", "Elimina la vista comune «" + v.nome + "»", async () => {
+              if (!(await hubConfirm("Eliminare per tutti la vista comune «" + v.nome + "»?"))) return;
+              const r = await sharedViewsCall(tableId, "DELETE", null, "?id=" + encodeURIComponent(v.id));
+              if (!r.ok) { flash("⚠ " + (r.error || "Errore salvataggio")); return; }
+              comuni = comuni.filter(x => x.id !== v.id);
+              render();
+            }));
+          } else if (v.predefinita) {
+            const tag = document.createElement("span");
+            tag.className = "fm-tbl-views-tag";
+            tag.textContent = "predefinita";
+            extra.push(tag);
+          }
+          ul.appendChild(itemRow(v, extra));
+        });
+        menu.appendChild(ul);
       }
+
+      // Le mie viste (solo per questo account)
+      menu.appendChild(sectionTitle("Le mie viste · solo per me"));
+      if (!viste.length) menu.appendChild(emptyNote("Imposta colonne, filtri e ordinamento, poi salvali qui sotto."));
       const ul = document.createElement("ul");
       ul.className = "fm-tbl-col-list";
       viste.forEach((v, i) => {
-        const li = document.createElement("li");
-        li.className = "fm-tbl-views-item";
-        const apply = document.createElement("button");
-        apply.type = "button";
-        apply.className = "fm-tbl-views-apply";
-        apply.textContent = v.nome;
-        apply.title = "Applica la vista «" + v.nome + "»";
-        apply.addEventListener("click", () => {
-          try { sessionStorage.setItem(VIEWS_PENDING + tableId, JSON.stringify(v)); } catch (e) { return; }
-          location.reload();
-        });
-        const del = document.createElement("button");
-        del.type = "button";
-        del.className = "fm-tbl-views-del";
-        del.textContent = "×";
-        del.title = "Elimina la vista «" + v.nome + "»";
-        del.setAttribute("aria-label", del.title);
-        del.addEventListener("click", async (e) => {
-          e.stopPropagation();
+        ul.appendChild(itemRow(v, [smallBtn("fm-tbl-views-del", "×", "Elimina la vista «" + v.nome + "»", async () => {
           if (!(await hubConfirm("Eliminare la vista «" + v.nome + "»?"))) return;
           const next = viste.filter((_, j) => j !== i);
           if (await saveViews(tableId, next)) { viste = next; render(); }
-          else if (statusEl) statusEl.textContent = "⚠ Errore salvataggio";
-        });
-        li.appendChild(apply);
-        li.appendChild(del);
-        ul.appendChild(li);
+          else flash("⚠ Errore salvataggio");
+        })]));
       });
       menu.appendChild(ul);
 
-      const add = document.createElement("button");
-      add.type = "button";
-      add.className = "fm-tbl-views-add";
-      add.textContent = "＋ Salva la vista attuale…";
-      add.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const nome = cleanText(prompt("Nome della vista (colonne, filtri, ricerca e ordinamento di adesso):") || "").slice(0, 60);
+      if (!formOpen) {
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "fm-tbl-views-add";
+        add.textContent = "＋ Salva la vista attuale…";
+        add.addEventListener("click", (e) => { e.stopPropagation(); formOpen = true; render(); });
+        menu.appendChild(add);
+        return;
+      }
+      menu.appendChild(buildSaveForm());
+    }
+
+    // Modulo nel menu: nome e, per gli amministratori, «solo per me» / «per tutti».
+    function buildSaveForm() {
+      const form = document.createElement("form");
+      form.className = "fm-tbl-views-form";
+      form.addEventListener("click", e => e.stopPropagation());
+      const lbl = document.createElement("label");
+      lbl.className = "fm-tbl-views-lbl";
+      lbl.textContent = "Nome della vista";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 60;
+      input.required = true;
+      input.className = "fm-tbl-views-input";
+      lbl.appendChild(input);
+      form.appendChild(lbl);
+
+      let scope = "mia";
+      let predef = null;
+      if (canManage) {
+        const fs = document.createElement("div");
+        fs.className = "fm-tbl-views-scope";
+        const pl = document.createElement("label");
+        pl.hidden = true;
+        [["mia", "Solo per me"], ["comune", "Per tutti (vista comune)"]].forEach(([val, text]) => {
+          const l = document.createElement("label");
+          const r = document.createElement("input");
+          r.type = "radio";
+          r.name = "fm-vscope-" + tableId;
+          r.value = val;
+          r.checked = val === "mia";
+          r.addEventListener("change", () => { scope = val; pl.hidden = val !== "comune"; });
+          l.appendChild(r);
+          l.appendChild(document.createTextNode(" " + text));
+          fs.appendChild(l);
+        });
+        predef = document.createElement("input");
+        predef.type = "checkbox";
+        pl.appendChild(predef);
+        pl.appendChild(document.createTextNode(" Apri la tabella così per tutti (predefinita)"));
+        fs.appendChild(pl);
+        form.appendChild(fs);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "fm-tbl-views-actions";
+      const ok = document.createElement("button");
+      ok.type = "submit";
+      ok.className = "fm-tbl-views-save";
+      ok.textContent = "Salva";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "fm-tbl-views-cancel";
+      cancel.textContent = "Annulla";
+      cancel.addEventListener("click", () => { formOpen = false; render(); });
+      actions.appendChild(ok);
+      actions.appendChild(cancel);
+      form.appendChild(actions);
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const nome = cleanText(input.value || "").slice(0, 60);
         if (!nome) return;
+        if (scope === "comune") {
+          const esiste = comuni.find(v => v.nome.toLowerCase() === nome.toLowerCase());
+          if (esiste && !(await hubConfirm("Esiste già la vista comune «" + esiste.nome + "»: sostituirla per tutti?"))) return;
+          const r = await sharedViewsCall(tableId, "POST", { nome: nome, stato: snapshot(), predefinita: !!(predef && predef.checked) });
+          if (!r.ok) { alert("Vista comune non salvata" + (r.error ? ": " + r.error : ".")); return; }
+          comuni = (await fetchSharedViews(tableId)).viste;
+          formOpen = false;
+          render();
+          flash("✓ Vista comune «" + nome + "» salvata");
+          return;
+        }
         const idx = viste.findIndex(v => v.nome.toLowerCase() === nome.toLowerCase());
         if (idx >= 0 && !(await hubConfirm("Esiste già una vista «" + viste[idx].nome + "»: sostituirla?"))) return;
         if (idx < 0 && viste.length >= VIEWS_MAX) {
@@ -926,22 +1099,24 @@
         if (idx >= 0) next[idx] = item; else next.push(item);
         if (await saveViews(tableId, next)) {
           viste = next;
+          formOpen = false;
           render();
-          if (statusEl) {
-            statusEl.textContent = "✓ Vista «" + nome + "» salvata";
-            setTimeout(() => { statusEl.textContent = ""; }, 2200);
-          }
+          flash("✓ Vista «" + nome + "» salvata");
         } else {
           alert("Vista non salvata: troppi filtri o connessione assente.");
         }
       });
-      menu.appendChild(add);
+      setTimeout(() => input.focus(), 0);
+      return form;
     }
 
     menu._fmOpen = async function () {
-      if (viste === null) {
+      if (viste === null || comuni === null) {
         render();
-        viste = await fetchViews(tableId);
+        const res = await Promise.all([fetchViews(tableId), fetchSharedViews(tableId)]);
+        viste = res[0];
+        comuni = res[1].viste;
+        canManage = res[1].canManage;
       }
       render();
     };
@@ -999,7 +1174,10 @@
       // salvata), altrimenti una colonna introdotta dopo resterebbe nascosta
       // per gli utenti che hanno già una preferenza memorizzata.
       const savedVisible = saved.visible.filter(k => defaults.order.includes(k));
-      const savedKnown = new Set(saved.visible);
+      // «Conosciute» = tutte le colonne della preferenza, nascoste comprese
+      // (sono in `order`): prima si guardava solo `visible`, e una colonna
+      // nascosta dall'utente o da una vista ricompariva al ricaricamento.
+      const savedKnown = new Set(saved.visible.concat(Array.isArray(saved.order) ? saved.order : []));
       const newlyAdded = defaults.visible.filter(k => !savedKnown.has(k));
       out.visible = savedVisible.concat(newlyAdded);
     }
@@ -1975,6 +2153,7 @@
       fitTable(table, cols);
     } else {
       markHugCells(table, cols);
+      markFoldCells(table);
     }
     refreshViewportMode(table);
   }
@@ -2270,10 +2449,13 @@
   function markHugCells(table, cols) {
     if (!table.classList.contains("fm-tbl-fit")) return;
     const idx = cols.filter(c => c._fmHug).map(c => c.idx);
+    // Colonne di soli comandi («Scheda ›», pulsanti): mai a capo, neanche in fm-tbl-wrap.
+    const ctl = cols.filter(c => c._fmCtl && c._fmHug).map(c => c.idx);
     if (!idx.length) return;
     bodyRows(table).forEach((tr) => {
       if (tr._fmHugDone) return;
       idx.forEach((i) => { const td = tr.cells[i]; if (td) td.classList.add("fm-col-hug"); });
+      ctl.forEach((i) => { const td = tr.cells[i]; if (td) td.classList.add("fm-col-ctl"); });
       tr._fmHugDone = true;
     });
   }
@@ -2326,12 +2508,12 @@
   const FLUID_MAX_W = 380;
 
   function distributeWidths(table, cols) {
-    const shown = cols.filter(c => c.th.style.display !== "none" && !c._fmFixedW);
+    const shown = cols.filter(c => c.th.style.display !== "none" && !c._fmFolded && !c._fmFixedW);
     if (!shown.length) return;
     const total = table.getBoundingClientRect().width;
     // Larghezza scritta dalla pagina: vale quella dichiarata, non quella che
     // il layout automatico le ha dato nel frattempo.
-    const fixed = cols.filter(c => c.th.style.display !== "none" && c._fmFixedW)
+    const fixed = cols.filter(c => c.th.style.display !== "none" && !c._fmFolded && c._fmFixedW)
       .reduce((s, c) => {
         const px = /px$/.test(c.th.style.width) ? parseFloat(c.th.style.width) : NaN;
         return s + (Number.isFinite(px) ? px : c.th.getBoundingClientRect().width);
@@ -2368,22 +2550,161 @@
       if (c._fmFixedW === undefined) c._fmFixedW = !!c.th.style.width;
     });
     table.classList.toggle("fm-tbl-fit", fit);
-    table.classList.remove("fm-tbl-wide", "fm-tbl-dense");
+    table.classList.remove("fm-tbl-wide", "fm-tbl-dense", "fm-tbl-wrap");
+    unfoldColumns(table, cols);
     if (!fit) {
       cols.forEach(c => c.th.classList.remove("fm-col-hug"));
       fixStickyOffsets(table);
       return;
     }
     classifyColumns(table, cols);
-    bodyRows(table).forEach((tr) => { tr._fmHugDone = false; Array.from(tr.cells).forEach(td => td.classList.remove("fm-col-hug")); });
+    bodyRows(table).forEach((tr) => { tr._fmHugDone = false; Array.from(tr.cells).forEach(td => td.classList.remove("fm-col-hug", "fm-col-ctl")); });
     markHugCells(table, cols);
     markNarrowHeaders(cols);
     const vp = table._fmViewport || table.parentElement;
     const overflows = () => vp && table.offsetWidth > vp.clientWidth + 2;
+    // Una tabella non scorre mai di lato: prima tutta la larghezza dello
+    // schermo, poi celle compatte, poi testo a capo, infine le colonne in
+    // più si «piegano» in un dettaglio aperto dal pulsante ▸ della riga.
     if (overflows()) table.classList.add("fm-tbl-wide");
     if (overflows()) table.classList.add("fm-tbl-dense");
-    else distributeWidths(table, cols);
+    if (overflows()) table.classList.add("fm-tbl-wrap");
+    if (overflows()) foldColumns(table, cols, overflows);
+    if (!overflows()) distributeWidths(table, cols);
     fixStickyOffsets(table);
+  }
+
+  // ─── Colonne piegate (tabella più larga dello schermo) ──────────────────
+  //
+  // Da destra verso sinistra si nascondono (classe `fm-col-folded`, non
+  // `style.display`, che è la visibilità scelta dall'utente) le colonne che
+  // non entrano. Ogni riga riceve un pulsante ▸ nella prima colonna di dati:
+  // apre sotto la riga un dettaglio (`fm-detail-row`, segue il padre in
+  // ordinamento e filtri) con «etichetta: valore» delle colonne piegate.
+  // Si ricalcola a ogni fitTable (resize, colonne mostrate/nascoste).
+
+  const FOLD_MIN_SHOWN = 2;
+
+  function isFoldable(table) {
+    return table.dataset.fmFold !== "0" && !table.closest("[data-fm-fold='0']");
+  }
+
+  function foldColumns(table, cols, overflows) {
+    if (!isFoldable(table)) return;
+    const shown = () => cols.filter(c => c.th.style.display !== "none" && !c._fmFolded);
+    const anchor = shown().find(c => c.key && !c._fmCtl);
+    if (!anchor) return;
+    const candidates = shown().filter(c => c.key && !c._fmCtl && c !== anchor).reverse();
+    const folded = [];
+    // Prima del ciclo: è la classe sulla tabella che nasconde le celle piegate,
+    // e ogni giro deve misurare la tabella senza le colonne già piegate.
+    table.classList.add("fm-tbl-folded");
+    for (const col of candidates) {
+      if (!overflows()) break;
+      if (shown().filter(c => !c._fmCtl).length <= FOLD_MIN_SHOWN) break;
+      col._fmFolded = true;
+      col.th.classList.add("fm-col-folded");
+      bodyRows(table).forEach((tr) => { const td = tr.cells[col.idx]; if (td) td.classList.add("fm-col-folded"); });
+      folded.push(col);
+    }
+    if (!folded.length) { table.classList.remove("fm-tbl-folded"); return; }
+    // Nell'ordine di colonna, per il dettaglio.
+    table._fmFolded = folded.sort((a, b) => a.idx - b.idx);
+    table._fmFoldAnchor = anchor;
+    anchor.th.dataset.fmFoldCount = String(folded.length);
+    anchor.th.dataset.fmFoldPrevTitle = anchor.th.getAttribute("title") || "";
+    anchor.th.title = folded.length === 1
+      ? "1 colonna non entra nello schermo: aprila con ▸ sulla riga"
+      : folded.length + " colonne non entrano nello schermo: aprile con ▸ sulla riga";
+    markFoldCells(table);
+  }
+
+  // Righe nuove (passo passo, pagine successive): celle piegate e pulsante ▸.
+  function markFoldCells(table) {
+    const folded = table._fmFolded;
+    if (!folded || !folded.length) return;
+    const anchor = table._fmFoldAnchor;
+    bodyRows(table).forEach((tr) => {
+      if (tr._fmFoldDone) return;
+      folded.forEach((col) => { const td = tr.cells[col.idx]; if (td) td.classList.add("fm-col-folded"); });
+      const cell = tr.cells[anchor.idx];
+      if (cell && !cell.querySelector(":scope > .fm-fold-btn")) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "fm-fold-btn";
+        btn.setAttribute("aria-expanded", "false");
+        btn.setAttribute("aria-label", "Mostra le altre colonne di questa riga");
+        btn.title = "Mostra le altre colonne";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFoldDetail(table, tr, btn);
+        });
+        cell.insertBefore(btn, cell.firstChild);
+      }
+      tr._fmFoldDone = true;
+    });
+  }
+
+  function toggleFoldDetail(table, tr, btn) {
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains("fm-fold-detail")) {
+      next.remove();
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("open");
+      return;
+    }
+    const folded = table._fmFolded || [];
+    const detail = document.createElement("tr");
+    detail.className = "fm-fold-detail fm-detail-row";
+    detail.dataset.fmRowKind = "detail";
+    const td = document.createElement("td");
+    td.colSpan = Math.max(1, Array.from(tr.cells).filter(c => c.style.display !== "none" && !c.classList.contains("fm-col-folded")).length);
+    const dl = document.createElement("dl");
+    dl.className = "fm-fold-list";
+    folded.forEach((col) => {
+      const cell = tr.cells[col.idx];
+      if (!cell) return;
+      const dt = document.createElement("dt");
+      dt.textContent = col.label || col.key;
+      const dd = document.createElement("dd");
+      if (cleanText(cell.textContent) || cell.querySelector("a, button, img, svg, input, select")) {
+        Array.from(cell.childNodes).forEach(n => dd.appendChild(n.cloneNode(true)));
+        // Niente id doppi nella pagina.
+        dd.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+      } else {
+        dd.textContent = "—";
+      }
+      const item = document.createElement("div");
+      item.className = "fm-fold-item";
+      item.appendChild(dt);
+      item.appendChild(dd);
+      dl.appendChild(item);
+    });
+    td.appendChild(dl);
+    detail.appendChild(td);
+    tr.parentNode.insertBefore(detail, tr.nextSibling);
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("open");
+  }
+
+  function unfoldColumns(table, cols) {
+    if (!table.classList.contains("fm-tbl-folded")) return;
+    cols.forEach((c) => { c._fmFolded = false; c.th.classList.remove("fm-col-folded"); });
+    const anchor = table._fmFoldAnchor;
+    if (anchor) {
+      if (anchor.th.dataset.fmFoldPrevTitle) anchor.th.title = anchor.th.dataset.fmFoldPrevTitle;
+      else anchor.th.removeAttribute("title");
+      delete anchor.th.dataset.fmFoldCount;
+      delete anchor.th.dataset.fmFoldPrevTitle;
+    }
+    $$(".fm-fold-detail", table).forEach(r => r.remove());
+    $$(".fm-fold-btn", table).forEach(b => b.remove());
+    $$("td.fm-col-folded", table).forEach(td => td.classList.remove("fm-col-folded"));
+    bodyRows(table).forEach((tr) => { tr._fmFoldDone = false; });
+    table._fmFolded = null;
+    table._fmFoldAnchor = null;
+    table.classList.remove("fm-tbl-folded");
   }
 
   function fullscreenTitle(table) {
@@ -2920,6 +3241,19 @@
     // era totale) così la tabella si apre sempre pulita.
     if (!persistOpts.persistFilters) saved.filters = {};
     if (!persistOpts.persistSearch)  saved.q = "";
+    // Nessuna preferenza propria: si apre come la vista comune predefinita
+    // (colonne, ordine, ordinamento, raggruppamento; filtri e ricerca no).
+    const sharedDefault = _fmSharedDefault.get(tableId);
+    if (sharedDefault && !(saved.visible && saved.visible.length) && !(saved.order && saved.order.length)) {
+      const d = sharedDefault.stato || {};
+      saved = Object.assign({}, saved, {
+        visible: Array.isArray(d.visible) ? d.visible : undefined,
+        order: Array.isArray(d.order) ? d.order : undefined,
+        sort: Array.isArray(d.sort) ? d.sort : saved.sort,
+        group: d.group || saved.group,
+      });
+      table._fmSharedDefaultName = sharedDefault.nome;
+    }
     // Vista scelta dal menu «Viste ▾» prima del ricaricamento: vale tutta,
     // filtri e ricerca compresi.
     const pendingView = takePendingView(tableId);
