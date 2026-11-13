@@ -78,6 +78,10 @@ GUIDA = {
                     "Ogni riga mostra quando è partita, a chi (e chi era in copia), l'oggetto, la regola e l'esito; "
                     "«Run log #…» apre l'esecuzione della regola.",
                 ]),
+                ("p", "Dal 13/11/2026 c'è ogni mail che il portale manda: anche quelle dei moduli che non passano da una "
+                      "regola (reception, KICK-OFF, sistema di gestione, avvisi IT, monitoraggio…) compaiono con «Tipo di mail» "
+                      "«Mail dei moduli» e il modulo in «Sorgente» (dentro un flusso, il codice del flusso). Le mail di "
+                      "sicurezza dell'accesso (codice 2FA, nuovo dispositivo) sono registrate ma non si modificano dai flussi."),
                 ("p", "Ci sono le mail delle regole (avvisi e richieste di approvazione, una riga per approvatore) e quelle "
                       "delle assenze che non passano dalle regole: «Richiesta modificata», eliminazione di una richiesta "
                       "approvata, solleciti ai capi. Ci sono anche tutte le mail del modulo Anomalie (link di decisione "
@@ -122,6 +126,18 @@ GUIDA = {
                       "dentro il tuo (es. [HR] {oggetto}). «Corpo»: testo prima del contenuto generato dal modulo e nota in fondo. "
                       "«Mostra opzioni avanzate»: «Non inviare a» toglie indirizzi da A e CC; «Manda solo agli indirizzi scritti in A» "
                       "sostituisce i destinatari del modulo (serve almeno un indirizzo)."),
+                ("p", "«Impostazioni del modulo» (dentro «Invia un messaggio di posta», solo per i flussi che le hanno): sono "
+                      "gli stessi elenchi e testi della pagina del modulo, e la riga sotto il titolo dice dove. Cambiarli qui "
+                      "o nel modulo è la stessa cosa: DPI (email Magazzino, Amministrazione, negozio, operatore scarpe, referenti), "
+                      "Reception (oggetto e testo delle mail di invito, conferma e rifiuto), avviso IT nuovi ingressi, idoneità e "
+                      "cambio mansione, report scadenze settimanale, riepilogo CN-SGI, RSGI del sistema di gestione, responsabile "
+                      "escalation Suggestion Corner, CC predefiniti KICK-OFF. Le liste MOD.128 (Qualità) e monitoraggio IT "
+                      "non hanno una pagina nel modulo e si cambiano solo qui. Un indirizzo non valido blocca il salvataggio."),
+                ("p", "Sono flussi su evento anche le mail dei moduli che prima partivano senza automazione: sollecito al capo "
+                      "chiesto dal dipendente (Assenze), invito, conferma, richiesta al referente e rifiuto (Reception), piano e "
+                      "rapporto di audit (Sistema di gestione), nuova attività assegnata, convocazione, minuta e annullamento "
+                      "incontro (KICK-OFF), avviso IT per un nuovo ingresso (Anagrafica), comunicazione al cliente (Suggestion "
+                      "Corner). Con «Invia la mail» spenta il modulo lo dice (es. «Il sollecito non è partito»)."),
                 ("p", "«Salva» vale subito, senza riavvii. «Invia prova a me» manda un'anteprima con righe di esempio, «Esegui ora» "
                       "fa partire il lavoro pianificato, «Storico» apre le sue esecuzioni. Indirizzi separati da virgola, punto e "
                       "virgola o a capo. Le regole valgono per ogni mail che il processo manda dentro il flusso, anche le mail delle assenze (esito, "

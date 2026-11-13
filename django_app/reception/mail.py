@@ -6,6 +6,8 @@ from datetime import datetime
 
 from django.utils import timezone
 
+from automazioni.managed_flows import event_flow
+
 ORGANIZZAZIONE = "Costruzioni Novicrom Srl"
 # Mail agli esterni nel modello NOVICROM HUB, con il piè di pagina giusto per chi non è dipendente.
 PIEDE_ESTERNI = {
@@ -82,6 +84,7 @@ def valori_invito(pre) -> dict[str, str]:
     }
 
 
+@event_flow("reception_invito")
 def invia_invito(pre, *, solo_a: str = "") -> None:
     """``solo_a``: prova da Impostazioni, la mail all'ospite va a questo indirizzo e il referente non riceve niente."""
     from core.email_utils import send_hub_mail
@@ -119,6 +122,7 @@ def invia_invito(pre, *, solo_a: str = "") -> None:
 # --- Richieste di appuntamento dal modulo pubblico ---------------------------------------------
 
 
+@event_flow("reception_conferma_richiesta")
 def invia_conferma_richiesta(richiesta, link: str) -> None:
     """All'esterno: link per confermare l'email. Senza conferma la richiesta non arriva a nessuno."""
     from core.email_utils import send_hub_mail
@@ -145,16 +149,25 @@ def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -
     riepilogo = (f"{richiesta.nome_completo}{f' ({richiesta.azienda})' if richiesta.azienda else ''} chiede di venire "
                  f"il {quando}. Motivo: {richiesta.motivo or 'non indicato'}.")
     if richiesta.referente and "@" in richiesta.referente.email:
-        send_hub_mail(f"Richiesta di visita: {richiesta.nome_completo}",
-                      f"{riepilogo}\n{('Messaggio: ' + richiesta.messaggio) if richiesta.messaggio else ''}\n\n"
-                      f"Approva o rifiuta da qui: {link_referente}",
-                      [richiesta.referente.email], title="Una richiesta di visita per te", email_type="Reception")
+        _mail_nuova_richiesta(richiesta, riepilogo, link_referente)
     testo = riepilogo + (f" Per {richiesta.referente.nome_elenco}." if richiesta.referente
                          else f" Persona indicata: «{richiesta.referente_indicato}», da assegnare.")
     for uid in _destinatari(CHIAVE_RUOLI_RICHIESTE, RUOLI_RICHIESTE_PREDEFINITI):
         invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=link_pannello)
 
 
+@event_flow("reception_nuova_richiesta")
+def _mail_nuova_richiesta(richiesta, riepilogo: str, link_referente: str) -> None:
+    """Mail al referente della richiesta confermata (la notifica nell'HUB parte comunque)."""
+    from core.email_utils import send_hub_mail
+
+    send_hub_mail(f"Richiesta di visita: {richiesta.nome_completo}",
+                  f"{riepilogo}\n{('Messaggio: ' + richiesta.messaggio) if richiesta.messaggio else ''}\n\n"
+                  f"Approva o rifiuta da qui: {link_referente}",
+                  [richiesta.referente.email], title="Una richiesta di visita per te", email_type="Reception")
+
+
+@event_flow("reception_rifiuto")
 def invia_rifiuto(richiesta) -> None:
     from core.email_utils import send_hub_mail
 

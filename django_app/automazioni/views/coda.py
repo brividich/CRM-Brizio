@@ -873,6 +873,9 @@ def _salva_mail(request, name, p):
         "sostituisci_destinatari": request.POST.get("sostituisci") == "1",
         "mail_disattivata": request.POST.get("invia_mail") != "1",
     }
+    from ..mail_modulo import salva as salva_modulo
+
+    cambiati += [f"«{etichetta}» del modulo" for etichetta in salva_modulo(name, request.POST)]
     if campi["sostituisci_destinatari"] and not campi["aggiungi_a"]:
         raise ValueError("Per sostituire i destinatari del modulo scrivi almeno un indirizzo in «A».")
     attuali = {"subject": p["subject"], "intro": p["intro"], "footer": p["footer"],
