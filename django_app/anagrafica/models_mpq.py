@@ -192,9 +192,9 @@ class ProcessoQualificato(models.Model):
         help_text="Tipo qualifica di catalogo collegato (opzionale).",
     )
 
-    # Requisiti per l'idoneità al processo (come le mansioni di rischio): corsi di
-    # formazione, DPI e visite mediche necessari a chi è abilitato. Alimentano la
-    # verifica di conformità (services/mpq_conformita).
+    # STORICI, non più letti (migrazione 0225): corsi, DPI e visite richiesti sono
+    # diventati righe di «Cosa serve a una persona» (RequisitoPersona), l'unico
+    # elenco dei requisiti per persona. Restano per poter tornare indietro.
     corsi_richiesti = models.ManyToManyField(
         "anagrafica.TrainingCourse", blank=True, related_name="processi_richiedenti",
         help_text="Corsi di formazione richiesti per l'idoneità al processo.",
@@ -326,6 +326,12 @@ class RequisitoQualifica(models.Model):
     TIPO_RIF_NORMATIVO = "rif_normativo"
     TIPO_CONTRATTO = "contratto"
     TIPO_ALTRO = "altro"
+    # Tipi che riguardano la singola persona: sono in «Cosa serve a una persona»
+    # (RequisitoPersona). Restano qui solo sui requisiti registrati prima del 13/11.
+    TIPI_PER_PERSONA = ("corso", "esame", "esperienza", "visione", "dpi")
+    # Tipo corrispondente in RequisitoPersona quando si sposta il requisito.
+    TIPO_IN_REQUISITO_PERSONA = {"corso": "corso", "esame": "esame", "esperienza": "esperienza",
+                                 "visione": "test_visivo", "dpi": "dpi"}
     TIPO_CHOICES = [
         (TIPO_AUDIT, "Audit"),
         (TIPO_CORSO, "Corso/Formazione"),
@@ -637,10 +643,14 @@ class RequisitoPersona(models.Model):
     TIPO_ESPERIENZA = "esperienza"
     TIPO_AFFIANCAMENTO = "affiancamento"
     TIPO_CERTIFICATO = "certificato"
+    TIPO_QUALIFICA = "qualifica"
+    TIPO_DPI = "dpi"
     TIPO_ALTRO = "altro"
     TIPO_CHOICES = [
         (TIPO_CORSO, "Corso di formazione"),
         (TIPO_VISITA, "Visita medica"),
+        (TIPO_QUALIFICA, "Qualifica del catalogo"),
+        (TIPO_DPI, "DPI consegnato"),
         (TIPO_TEST_VISIVO, "Test visivo"),
         (TIPO_ESAME, "Esame / verifica di competenza"),
         (TIPO_ESPERIENZA, "Ore di esperienza"),
@@ -649,7 +659,8 @@ class RequisitoPersona(models.Model):
         (TIPO_ALTRO, "Altro"),
     ]
     # Tipi la cui evidenza vive altrove (formazione, visite): niente doppioni.
-    TIPI_DA_ALTRI_MODULI = (TIPO_CORSO, TIPO_VISITA)
+    # Letti dal modulo che li gestisce (Formazione, Visite, Qualifiche, DPI): nessun doppione.
+    TIPI_DA_ALTRI_MODULI = (TIPO_CORSO, TIPO_VISITA, TIPO_QUALIFICA, TIPO_DPI)
 
     RICORRENZA_UNA_TANTUM = "UNA_TANTUM"
     RICORRENZA_RICORRENTE = "RICORRENTE"
@@ -673,6 +684,14 @@ class RequisitoPersona(models.Model):
     )
     tipo_visita = models.ForeignKey(
         "anagrafica.TipoVisitaMedica", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_persona_mpq",
+    )
+    tipo_qualifica = models.ForeignKey(
+        "anagrafica.TipoQualifica", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_persona_mpq",
+    )
+    categoria_dpi = models.ForeignKey(
+        "dpi.CategoriaDPI", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="requisiti_persona_mpq",
     )
     ricorrenza = models.CharField(
@@ -715,6 +734,10 @@ class RequisitoPersona(models.Model):
             return self.corso.titolo
         if self.tipo == self.TIPO_VISITA and self.tipo_visita_id:
             return self.tipo_visita.nome
+        if self.tipo == self.TIPO_QUALIFICA and self.tipo_qualifica_id:
+            return self.tipo_qualifica.nome
+        if self.tipo == self.TIPO_DPI and self.categoria_dpi_id:
+            return getattr(self.categoria_dpi, "nome", str(self.categoria_dpi))
         return self.get_tipo_display()
 
     @property

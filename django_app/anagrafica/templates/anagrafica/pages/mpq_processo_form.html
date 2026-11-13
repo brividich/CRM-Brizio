@@ -37,7 +37,6 @@
       {% include "anagrafica/partials/_fmd_section.html" with title="Validità e scadenza" icon="i-cal-clock" desc="Scadenza del processo: illimitata, a periodo (mesi da conseguimento) o data esplicita. Persone e macchine hanno scadenze proprie: la frequenza qui sotto è quella proposta alle macchine nuove." fields=form|section_fields:"tipo_validita,data_conseguimento,durata_mesi,data_scadenza,frequenza_macchine_mesi" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Personale" icon="i-clipboard" desc="Nominale (elenco persone) oppure organizzativa (rimando a dichiarazione)." fields=form|section_fields:"personale_modalita,riferimento_dichiarazione" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Stato" icon="i-alert-tri" desc="Attivo/sospeso/revocato/dismesso, con motivo e riferimento a supporto." fields=form|section_fields:"stato,motivo_stato,riferimento_stato" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Requisiti (corsi · DPI · visite)" icon="i-clipboard" desc="Cosa serve per l'idoneità al processo. Usa «+ nuovo» se un corso/visita/DPI non è in elenco." fields=form|section_fields:"corsi_richiesti,dpi_richiesti,visite_richieste" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Distribuzione e riconoscimento" icon="i-grid" desc="Reparti a cui è distribuito e clienti/enti che lo riconoscono (condiviso)." fields=form|section_fields:"reparti,clienti_addizionali" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Revisione del registro" icon="i-edit" desc="Numero revisione, responsabile qualità e data (registro vivo)." fields=form|section_fields:"numero_revisione,responsabile_qualita,data_revisione" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note" %}
@@ -50,7 +49,6 @@
       </div>
 
       {% include "anagrafica/components/_multiselect_picker.html" %}
-      {% include "anagrafica/partials/_mpq_quickadd.html" %}
     </form>
 
   </div>

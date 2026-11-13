@@ -300,7 +300,9 @@ class CandidatiSessioneTests(TestCase):
         )
         cliente = ClienteQualificante.objects.create(nome="Cliente MPQ test")
         proc = ProcessoQualificato.objects.create(nome="Saldatura speciale", cliente=cliente)
-        proc.visite_richieste.add(self.tipo)
+        from .models_mpq import RequisitoPersona
+
+        RequisitoPersona.objects.create(processo=proc, tipo=RequisitoPersona.TIPO_VISITA, tipo_visita=self.tipo)
         AbilitazioneProcesso.objects.create(legacy_anagrafica_id=22, processo=proc)
         cand = [c for c in self._candidati() if c["legacy_id"] == 22]
         self.assertEqual(len(cand), 1)

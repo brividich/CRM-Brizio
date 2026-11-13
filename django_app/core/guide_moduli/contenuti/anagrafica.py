@@ -385,15 +385,29 @@ GUIDA = {
                 ("p", "Ogni processo ha tre scadenze indipendenti: quella del processo (approvazione del cliente o "
                       "dell'ente, in testata), quella di ogni persona e quella di ogni macchina. I due riquadri in "
                       "testata contano chi oggi può lavorare il processo: «Persone qualificate» e «Macchine qualificate»."),
-                ("p", "«Cosa serve a una persona»: prima i ruoli del processo («＋ Ruoli», più nomi separati da ;), poi "
-                      "«+ Aggiungi requisito persona»: corso, visita, test visivo, esame, ore di esperienza, "
-                      "affiancamento, certificato. Ogni requisito vale per alcuni ruoli (vuoto = tutti), è «Una tantum» "
-                      "o «Ricorrente» ogni N mesi («Scade a fine mese» come le qualifiche CND) ed è bloccante o no. "
-                      "I ruoli della persona si spuntano in «Modifica» dell'abilitazione."),
-                ("p", "Un corso o una visita bloccante diventa un obbligo vero in Formazione e nel semaforo idoneità, "
-                      "solo per i ruoli indicati. La scadenza della persona usa la frequenza del processo partendo "
-                      "dall'ultima frequenza del corso registrata in Formazione. Test visivi, esami, ore e "
-                      "affiancamenti si registrano dal pulsante della riga («Registra test visivo»…), con il documento."),
+                ("p", "Tutto ciò che serve alla singola persona sta in un solo elenco, «Cosa serve a una persona»: "
+                      "prima i ruoli del processo («＋ Ruoli», più nomi separati da ;), poi «+ Aggiungi requisito "
+                      "persona»: corso, visita, qualifica del catalogo, DPI consegnato, test visivo, esame, ore di "
+                      "esperienza, affiancamento, certificato. Ogni requisito vale per alcuni ruoli (vuoto = tutti), è "
+                      "«Una tantum» o «Ricorrente» ogni N mesi («Scade a fine mese» come le qualifiche CND) ed è "
+                      "bloccante o no. I ruoli della persona si spuntano in «Modifica» dell'abilitazione."),
+                ("p", "Corsi, visite, qualifiche e DPI si leggono dal loro modulo (Formazione, Visite mediche, "
+                      "Qualifiche della persona, DPI): non si registrano due volte. Per corsi, visite e qualifiche "
+                      "senza frequenza la scadenza è la loro («Segue la sua scadenza»); con una frequenza vale la più "
+                      "vicina fra le due, e la stessa data compare nello scadenzario della Formazione. Un corso, una "
+                      "visita o un DPI bloccante diventa un obbligo vero in Formazione, Visite e semaforo idoneità, "
+                      "solo per i ruoli indicati. Test visivi, esami, ore e affiancamenti si registrano dal pulsante "
+                      "della riga («Registra test visivo»…), con il documento."),
+                ("p", "«Requisiti del processo» contiene solo ciò che vale per tutto il processo, uguale per tutti: "
+                      "contratto o accordo, audit, certificato del processo, riferimento normativo. Un requisito per "
+                      "persona registrato lì prima (esame, test visivo, esperienza, corso, DPI) mostra «È per persona» e "
+                      "il pulsante «Sposta», che lo porta in «Cosa serve a una persona» e apre il requisito per "
+                      "completarlo (ruoli, corso…): lo stato uguale per tutti non si copia, ogni persona va verificata."),
+                ("p", "I corsi e le visite che prima si sceglievano nel form del processo («Requisiti (corsi · DPI · "
+                      "visite)») sono già diventati righe di «Cosa serve a una persona» per tutti i ruoli, con la nota "
+                      "«Da «Requisiti del processo» (aggiornamento 0225)»: lo stato delle persone non cambia. Dal form "
+                      "del corso, «Processi qualificati che lo richiedono» aggiunge o toglie la stessa riga; la scheda "
+                      "del corso e quella della qualifica elencano i processi che le chiedono."),
                 ("p", "In «Persone qualificate» la colonna «Qualifica» dice Qualificata, In scadenza, Incompleta o Non "
                       "qualificata; «Scade» è la prima scadenza fra i requisiti bloccanti e le certificazioni "
                       "individuali. Il pulsante della riga porta alla cosa da fare: «↻ Iscrivi», «+ Visita» o «Registra…»."),
@@ -1209,8 +1223,9 @@ GUIDA = {
         {
             "sintomo": "Una persona risulta «Incompleta» sul processo ma il corso l'ha fatto",
             "perche": "il requisito persona legge l'ultima frequenza registrata in Formazione per quel corso; se il "
-                      "corso è un altro (o non è stato chiuso con presenze) non la trova. Con frequenza del processo "
-                      "più corta del corso, la persona scade prima che in Formazione.",
+                      "corso è un altro (o non è stato chiuso con presenze) non la trova. Con una frequenza del "
+                      "processo più corta della validità del corso la scadenza è anticipata, qui e nello scadenzario "
+                      "della Formazione.",
             "fare": [
                 "Controlla in Formazione che la frequenza sia registrata sul corso indicato nel requisito.",
                 "Verifica che il requisito valga per i ruoli della persona (Modifica abilitazione → Ruoli del processo).",

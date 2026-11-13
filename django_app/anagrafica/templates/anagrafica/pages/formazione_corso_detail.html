@@ -85,8 +85,8 @@
       {# Regole obbligatorietà sul corso #}
       <div class="hr-card fm-section">
         <div class="fm-section-head">
-          <div class="fm-section-title">🎯 A chi serve questo corso <span class="fm-count">{{ regole|length }}</span></div>
-          <span class="muted" style="font-size:11px;">Mansioni, ruoli, aree e persone per cui è obbligatorio</span>
+          <div class="fm-section-title">🎯 A chi serve questo corso <span class="fm-count">{{ n_a_chi_serve }}</span></div>
+          <span class="muted" style="font-size:11px;">Mansioni, ruoli, aree, persone e processi qualificati per cui è obbligatorio</span>
         </div>
 
         {% if regole %}
@@ -137,8 +137,16 @@
           </tbody>
         </table>
         </div>
-        {% else %}
+        {% elif not processi_mpq %}
         <div class="fm-empty">Non ancora collegato a nessuno: il corso non risulta obbligatorio, quindi non entra in scadenzario, copertura e onboarding.</div>
+        {% endif %}
+        {% if processi_mpq %}
+        <div style="padding:8px 16px 0;font-size:12px;">
+          <div class="muted" style="margin-bottom:4px;">Richiesto dai processi qualificati (MOD.128) alle persone abilitate con questi ruoli; se il processo chiede una frequenza più stretta, la scadenza qui in Formazione la segue:</div>
+          <ul style="margin:0;padding-left:18px;">
+            {% for x in processi_mpq %}<li><a class="fm-link" href="{% url 'anagrafica:mpq_processo_detail' x.processo.pk %}#requisiti-persone">{{ x.processo.nome }}</a> <span class="muted">· {% if x.ruoli %}{{ x.ruoli|join:", " }}{% else %}tutti i ruoli{% endif %} · {{ x.quando }}{% if not x.bloccante %} · non bloccante{% endif %}</span></li>{% endfor %}
+          </ul>
+        </div>
         {% endif %}
         {% if mansioni_da_competenze %}
         <div style="padding:8px 16px 0;font-size:12px;">

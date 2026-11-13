@@ -100,9 +100,18 @@ def _requisiti_mansione(ctx, persone: dict) -> dict:
 
 
 def _requisiti_processi(ctx, estesi: list[int]) -> dict[int, dict]:
-    """Requisiti MOD.128 per persona (id principale), con l'origine."""
+    """Requisiti MOD.128 per persona (id principale), con l'origine e la frequenza dei corsi.
+
+    ``frequenze_corsi``: ``{corso_id: (mesi, fine_mese)}``, la più stretta chiesta dai
+    processi della persona (vedi :func:`formazione`). Il risultato resta in cache nel
+    contesto: formazione e visite lo chiedono per le stesse persone.
+    """
     from anagrafica.services.mpq_idoneita import requisiti_processo_dettaglio
 
+    cache = getattr(ctx, "_cache", None)
+    chiave = ("mpq_processi", frozenset(estesi))
+    if isinstance(cache, dict) and chiave in cache:
+        return cache[chiave]
     grezzi: dict = {}
     try:
         for blocco in a_blocchi(estesi):
@@ -114,13 +123,38 @@ def _requisiti_processi(ctx, estesi: list[int]) -> dict[int, dict]:
         return {}
     out: dict[int, dict] = {}
     for lid, dato in grezzi.items():
-        acc = out.setdefault(ctx.canonico(lid), {"requisiti": {"dpi": [], "visite": [], "corsi": []}, "origini": {}})
+        acc = out.setdefault(ctx.canonico(lid), {"requisiti": {"dpi": [], "visite": [], "corsi": []},
+                                                 "origini": {}, "frequenze_corsi": {}})
         for dominio, voci in dato["requisiti"].items():
             acc["requisiti"].setdefault(dominio, []).extend(voci)
-        for chiave, etichette in dato["origini"].items():
+        for k, etichette in dato["origini"].items():
             for etichetta in etichette:
-                _aggiungi(acc["origini"], chiave, etichetta)
+                _aggiungi(acc["origini"], k, etichetta)
+        for corso_id, freq in (dato.get("frequenze_corsi") or {}).items():
+            att = acc["frequenze_corsi"].get(corso_id)
+            if att is None or freq[0] < att[0]:
+                acc["frequenze_corsi"][corso_id] = freq
+    if isinstance(cache, dict):
+        cache[chiave] = out
     return out
+
+
+def scadenza_con_processo(completato: date, scadenza: date | None, freq: tuple[int, bool] | None) -> date | None:
+    """Scadenza di un corso quando un processo MOD.128 chiede una frequenza propria.
+
+    La più vicina fra la scadenza dell'attestato e completamento + frequenza del
+    processo (come il «ricalcolo prudente» delle visite): la frequenza del processo
+    non allunga mai un attestato. ``freq`` = ``(mesi, fine_mese)`` o None.
+    """
+    if not freq or not completato:
+        return scadenza
+    from anagrafica.models import _add_months
+    from anagrafica.models_mpq import _fine_mese
+
+    richiesta = _add_months(completato, int(freq[0]))
+    if freq[1]:
+        richiesta = _fine_mese(richiesta)
+    return min(scadenza, richiesta) if scadenza else richiesta
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -268,6 +302,12 @@ def formazione(ctx, persone: dict, *, solo_obbligatori: bool = True) -> list[Voc
 
     richiesti = requisiti_formazione(ctx, persone)
     completamenti = ultimi_completamenti(ctx, persone)
+    # Frequenza propria chiesta dai processi MOD.128 (es. ogni 12 mesi su un corso da 24).
+    freq_processi = {
+        (pid, corso_id): freq
+        for pid, dato in _requisiti_processi(ctx, ctx.id_estesi(persone)).items()
+        for corso_id, freq in (dato.get("frequenze_corsi") or {}).items()
+    }
     coppie: dict[tuple[int, int], list[str]] = {
         (pid, corso_id): list(origini) for pid, corsi in richiesti.items() for corso_id, origini in corsi.items()
     }
@@ -287,9 +327,12 @@ def formazione(ctx, persone: dict, *, solo_obbligatori: bool = True) -> list[Voc
                 continue  # corso dismesso e mai frequentato: non e' un obbligo esigibile
             voci.append(VoceFormazione(pid, corso, (pid, corso_id) in obbligatorie, origini))
             continue
-        stato, giorni = _compute_stato(ultimo[1], corso.validita_mesi, ctx.today)
+        scadenza = ultimo[1]
+        if (pid, corso_id) in obbligatorie:
+            scadenza = scadenza_con_processo(ultimo[0], scadenza, freq_processi.get((pid, corso_id)))
+        stato, giorni = _compute_stato(scadenza, corso.validita_mesi, ctx.today)
         voci.append(VoceFormazione(pid, corso, (pid, corso_id) in obbligatorie, origini,
-                                   completato=ultimo[0], scadenza=ultimo[1], stato=stato, giorni=giorni))
+                                   completato=ultimo[0], scadenza=scadenza, stato=stato, giorni=giorni))
     return voci
 
 

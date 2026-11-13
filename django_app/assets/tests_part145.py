@@ -286,7 +286,10 @@ class Part145IntegrazioniTests(TestCase):
         piano = TrainingPlan.objects.create(codice="PL-HF", nome="Piano sintetico")
         hf = TrainingCourse.objects.create(piano=piano, codice="HF-SYN", titolo="Human Factor sintetico", durata_ore_teorica=1)
         moe = TrainingCourse.objects.create(piano=piano, codice="MOE-SYN", titolo="MOE sintetico", durata_ore_teorica=1)
-        self.p145.corsi_richiesti.add(hf, moe)
+        from anagrafica.models_mpq import RequisitoPersona
+
+        for c in (hf, moe):
+            RequisitoPersona.objects.create(processo=self.p145, tipo=RequisitoPersona.TIPO_CORSO, corso=c)
         TrainingDeadline.objects.create(corso=hf, legacy_anagrafica_id=990077, stato_scadenza="SCADUTO",
                                         data_scadenza=self.oggi - timedelta(days=5), is_required=True)
         sezioni = self._sezioni()

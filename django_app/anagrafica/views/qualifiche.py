@@ -675,8 +675,12 @@ def tipo_qualifica_detail(request, tipo_id: int):
                 "r": r, "nome": nomi.get(r.legacy_anagrafica_id, f"#{r.legacy_anagrafica_id}"),
             })
 
+    from ..services.mpq_persone import processi_che_richiedono
+
     return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
         "tipo": tipo,
+        # Processi qualificati MOD.128 che la chiedono («Cosa serve a una persona»).
+        "processi_mpq": processi_che_richiedono(tipo_qualifica=tipo),
         "is_admin": is_admin,
         "corsi": corsi,
         "holders": holders,
