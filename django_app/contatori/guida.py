@@ -578,8 +578,9 @@ SEZIONI: list[dict] = [
                   "con ventole e spie; la telecamera; il sensore."),
             ("ul", [
                 "Porte di firewall e switch: azzurra = collegata, arancione = WAN, rossa = l'apparato collegato è in errore, scura = libera. "
-                "Passando sopra una porta si leggono nome, tipo, VLAN e cosa c'è collegato; un clic apre l'apparato collegato. Sotto il "
-                "pannello l'elenco delle porte descritte.",
+                "Passando sopra una porta si leggono nome, tipo, VLAN e cosa c'è collegato; un clic apre l'apparato collegato. Oltre 12 porte "
+                "il pannello va a blocchi da 12 che vanno a capo quando lo schermo è stretto. Sotto il pannello le prime 12 porte "
+                "descritte; le altre in «Altre N porte descritte».",
                 "«Modifica porte» (solo con la gestione): quante porte ha il pannello e, per ognuna, nome, tipo (LAN, WAN, fibra, PoE, gestione), "
                 "VLAN, a cosa è collegata (un apparato del modulo o una MFC) oppure un testo libero come «Internet» o «Access point», e una nota. "
                 "Le righe lasciate vuote restano porte libere. Per gli switch con la tabella MAC, accanto alle porte c'è «rilevato: …» "
@@ -587,7 +588,9 @@ SEZIONI: list[dict] = [
                 "«Topologia» (nella barra del modulo): l'albero della rete costruito dalle porte. Una porta WAN collegata a «Internet» mette "
                 "Internet in cima con il firewall sotto; poi switch e apparati, con la porta e la VLAN su ogni ramo. Ogni apparato ha il "
                 "colore del suo stato e il numero di apparati che ha sotto; un clic apre il pannello laterale, la freccia apre o chiude il "
-                "ramo, «Apri tutto» / «Chiudi tutto» in alto. In fondo «Non ancora collegati»: gli apparati che non compaiono su nessuna porta.",
+                "ramo, «Apri tutto» / «Chiudi tutto» in alto. Sotto un apparato si vedono i primi 12 collegamenti, gli altri in «Altri N collegamenti»; "
+                "se l'albero è più largo dello schermo l'area scorre di lato e i nomi lunghi sono accorciati (intero al passaggio "
+                "del mouse). In fondo «Non ancora collegati»: gli apparati che non compaiono su nessuna porta.",
                 "Un cavo «di ritorno» (lo switch che indica il firewall sulla sua porta di uplink) non ribalta l'albero: chi sta a monte "
                 "(firewall, poi switch) resta sopra. «Vedi nella topologia» in ogni scheda porta all'apparato nell'albero.",
             ]),
