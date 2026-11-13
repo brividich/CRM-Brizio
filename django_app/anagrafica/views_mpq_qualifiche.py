@@ -533,3 +533,50 @@ def mpq_elenco(request, processo_id: int):
         "gruppi": [(k, v) for k, v in gruppi.items() if v],
         "n_persone": len(abil), "macchine": macchine,
     })
+
+
+@login_required
+def mpq_matrice(request):
+    """Matrice persone × processi qualificati: chi può lavorare cosa, con la scadenza.
+
+    Stesso calcolo della colonna «Qualifica» del processo (``stato_persona``).
+    ``?export=csv`` scarica la stessa tabella.
+    """
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from .models_mpq import ClienteQualificante
+    from .services.mpq_persone import matrice
+
+    cliente_id = request.GET.get("cliente") or ""
+    cliente_id = int(cliente_id) if cliente_id.isdigit() else None
+    solo_problemi = request.GET.get("solo") == "problemi"
+    dati = matrice(cliente_id=cliente_id)
+    nomi = _nomi_map([r["legacy_id"] for r in dati["righe"] if not r["esterno"]])
+    for r in dati["righe"]:
+        r["nome"] = (f"{r['esterno']} (esterno)" if r["esterno"]
+                     else nomi.get(r["legacy_id"], f"#{r['legacy_id']}"))
+        r["lista"] = [r["celle"].get(p.pk) for p in dati["processi"]]
+        r["problemi"] = sum(1 for c in r["lista"] if c and not c["operativa"])
+    righe = sorted(dati["righe"], key=lambda r: r["nome"].casefold())
+    if solo_problemi:
+        righe = [r for r in righe if r["problemi"]]
+    processi = dati["processi"]
+
+    if request.GET.get("export") == "csv":
+        from core.csv_export import csv_download_response
+
+        resp, w = csv_download_response(f"mod128_matrice_{dati['oggi']:%Y%m%d}.csv", delimiter=";")
+        w.writerow(["Persona"] + [f"{p.nome} ({p.cliente.nome})" for p in processi])
+        for r in righe:
+            w.writerow([r["nome"]] + [
+                (f"{c['label']}" + (f" - scade {c['scadenza']:%d/%m/%Y}" if c.get("scadenza") else "")) if c else ""
+                for c in r["lista"]])
+        return resp
+
+    n_operative = sum(1 for r in righe for c in r["lista"] if c and c["operativa"])
+    return render(request, "anagrafica/pages/mpq_matrice.html", {
+        "processi": processi, "righe": righe, "oggi": dati["oggi"],
+        "clienti": ClienteQualificante.objects.order_by("nome"), "cliente_id": cliente_id,
+        "solo_problemi": solo_problemi, "n_operative": n_operative,
+        "n_problemi": sum(r["problemi"] for r in righe),
+    })

@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Matrice processi qualificati | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+  .mpqm-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;}
+  .mpqm-table th,.mpqm-table td{border-bottom:1px solid var(--fmd-line,#e2e8f0);padding:4px 3px;text-align:center;vertical-align:middle;}
+  .mpqm-table th.mpqm-nome,.mpqm-table td.mpqm-nome{text-align:left;width:190px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mpqm-table thead th{height:150px;vertical-align:bottom;}
+  .mpqm-table thead th a{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;max-height:146px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:inherit;text-decoration:none;}
+  .mpqm-c{display:inline-block;min-width:22px;padding:2px 3px;border-radius:6px;font-size:10.5px;line-height:1.25;text-decoration:none;}
+  .mpqm-ok{background:#dcfce7;color:#166534;}
+  .mpqm-warn{background:#fef3c7;color:#92400e;}
+  .mpqm-ko{background:#fee2e2;color:#991b1b;}
+  .mpqm-off{background:#e2e8f0;color:#475569;}
+  .mpqm-legend span{margin-right:10px;}
+  body.theme-dark .mpqm-ok{background:#14532d;color:#bbf7d0;}
+  body.theme-dark .mpqm-warn{background:#78350f;color:#fde68a;}
+  body.theme-dark .mpqm-ko{background:#7f1d1d;color:#fecaca;}
+  body.theme-dark .mpqm-off{background:var(--surface-alt,#1e293b);color:var(--text-mid,#cbd5e1);}
+  @media print { .no-print, .hub-topbar, nav { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Chi può lavorare quale processo</div>
+        <div class="fmd-block-aside">al {{ oggi|date:"d-m-Y" }} · {{ righe|length }} persone · {{ processi|length }} processi attivi · {{ n_problemi }} da sistemare</div>
+      </div>
+      <form method="get" class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <select name="cliente" class="fm-input fm-select" style="max-width:280px;">
+          <option value="">Tutti i clienti / enti</option>
+          {% for c in clienti %}<option value="{{ c.pk }}"{% if c.pk == cliente_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+        </select>
+        <label style="font-size:13px;"><input type="checkbox" name="solo" value="problemi"{% if solo_problemi %} checked{% endif %}> Solo chi ha qualcosa da sistemare</label>
+        <button type="submit" class="fmd-btn fmd-btn-sm">Filtra</button>
+        <a class="fmd-btn fmd-btn-sm fmd-btn-ghost" href="?{% if cliente_id %}cliente={{ cliente_id }}&amp;{% endif %}{% if solo_problemi %}solo=problemi&amp;{% endif %}export=csv">↓ Excel (CSV)</a>
+      </form>
+      <div class="mpqm-legend fmd-muted" style="font-size:12px;margin-bottom:8px;">
+        <span><span class="mpqm-c mpqm-ok">✓</span> Qualificata</span>
+        <span><span class="mpqm-c mpqm-warn">!</span> In scadenza (entro 30 giorni)</span>
+        <span><span class="mpqm-c mpqm-ko">✗</span> Non qualificata o incompleta</span>
+        <span><span class="mpqm-c mpqm-off">–</span> Abilitazione sospesa</span>
+        · la data è la scadenza della persona; un clic apre il processo.
+      </div>
+      {% if righe %}
+      <table class="mpqm-table" data-fm-table-skip="1">
+        <thead><tr><th class="mpqm-nome">Persona</th>{% for p in processi %}<th title="{{ p.nome }} · {{ p.cliente.nome }}"><a href="{% url 'anagrafica:mpq_processo_detail' p.pk %}">{{ p.nome }}</a></th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for r in righe %}
+          <tr>
+            <td class="mpqm-nome" title="{{ r.nome }}">{% if r.legacy_id and not r.esterno %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#qualifiche">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}</td>
+            {% for c in r.lista %}<td>{% if c %}<a class="mpqm-c {% if c.abilitazione.stato != 'ATTIVA' %}mpqm-off{% elif not c.operativa %}mpqm-ko{% elif c.esito == 'warn' %}mpqm-warn{% else %}mpqm-ok{% endif %}" href="{% url 'anagrafica:mpq_processo_detail' c.abilitazione.processo_id %}#requisiti-persone" title="{{ c.label }}{% if c.scadenza %} · scade il {{ c.scadenza|date:'d/m/Y' }}{% endif %}">{% if c.abilitazione.stato != 'ATTIVA' %}–{% elif not c.operativa %}✗{% elif c.esito == 'warn' %}!{% else %}✓{% endif %}{% if c.scadenza %}<br>{{ c.scadenza|date:"m/y" }}{% endif %}</a>{% endif %}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessuna persona abilitata{% if solo_problemi %} con qualcosa da sistemare{% endif %}.</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

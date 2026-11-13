@@ -431,6 +431,14 @@ GUIDA = {
                       "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
                 ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
                       "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+                ("p", "Accanto a ogni corso di «Cosa serve a una persona» il pulsante «↻ Iscrivi tutti (N)» apre una "
+                      "sola sessione del corso con dentro tutte le persone abilitate (attive) scadute, mancanti o in "
+                      "scadenza: compare a chi può gestire la Formazione."),
+                ("p", "«Matrice processi qualificati» (menu Competenze › Qualifiche, o dal cruscotto MOD.128) mostra "
+                      "chi può lavorare quale processo: una riga per persona, una colonna per processo attivo, con ✓ "
+                      "qualificata, ! in scadenza entro 30 giorni, ✗ non qualificata o incompleta, – abilitazione "
+                      "sospesa e il mese di scadenza. Filtri per cliente/ente e «Solo chi ha qualcosa da sistemare»; "
+                      "«↓ Excel (CSV)» scarica la stessa tabella. È lo stesso calcolo della colonna «Qualifica» del processo."),
             ],
         },
         {
