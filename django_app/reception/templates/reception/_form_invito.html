@@ -14,7 +14,7 @@
            data-scegli="#referenti-dati" data-valore="#p-ref" data-formato="referente" data-poi="#p-data"></div>
     <input type="hidden" id="p-ref" name="referente"></div>
   <div class="rc-riga rc-riga-3">
-    <div class="rc-field"><label for="p-data">Giorno</label><input class="rc-input" id="p-data" type="date" name="data_visita"></div>
+    <div class="rc-field"><label for="p-data">Giorno</label><input class="rc-input" id="p-data" type="date" name="data_visita" min="{% now 'Y-m-d' %}"></div>
     <div class="rc-field"><label for="p-ini">Dalle</label><input class="rc-input" id="p-ini" type="time" name="ora_inizio"></div>
     <div class="rc-field"><label for="p-fine">Alle</label><input class="rc-input" id="p-fine" type="time" name="ora_fine"></div>
   </div>
@@ -24,7 +24,7 @@
   </div>
   <details class="rc-altro">
     <summary>Validità del codice</summary>
-    <div class="rc-field"><label for="p-scade">Valido fino al <span class="rc-opz">vuoto = 7 giorni</span></label><input class="rc-input" id="p-scade" type="date" name="scade"></div>
+    <div class="rc-field"><label for="p-scade">Valido fino al <span class="rc-opz">vuoto = fine del giorno della visita (senza giorno: 7 giorni)</span></label><input class="rc-input" id="p-scade" type="date" name="scade"></div>
   </details>
   <p class="rc-piccolo">Con il giorno, ospite e referente ricevono anche l'invito in calendario.</p>
   <button class="rc-btn rc-btn-p rc-btn-largo" type="submit">Crea e invia il codice</button>
