@@ -397,6 +397,25 @@ class PannelloTests(Base):
         self.assertEqual(len(p.codice), 8)
         invia.assert_called_once()
 
+    def test_invito_con_giorno_vale_fino_a_fine_visita(self):
+        giorno = timezone.localdate() + timedelta(days=10)
+        with patch("reception.mail.invia_invito"):
+            self.client.post(reverse("reception:preregistrazioni"), {"nome": "Anna Prova", "email": "a@example.local",
+                                                                     "referente": self.ref.pk, "data_visita": giorno.isoformat()})
+        p = Preregistrazione.objects.get()
+        self.assertEqual(timezone.localtime(p.scade_il).date(), giorno)
+
+    def test_invito_rifiuta_giorno_passato_e_codice_scaduto_prima(self):
+        oggi = timezone.localdate()
+        base = {"nome": "Anna Prova", "email": "a@example.local", "referente": self.ref.pk}
+        with patch("reception.mail.invia_invito"):
+            r = self.client.post(reverse("reception:preregistrazioni"), {**base, "data_visita": (oggi - timedelta(days=1)).isoformat()}, follow=True)
+            self.assertContains(r, "da oggi a un anno")
+            r = self.client.post(reverse("reception:preregistrazioni"), {**base, "data_visita": (oggi + timedelta(days=5)).isoformat(),
+                                                                         "scade": (oggi + timedelta(days=2)).isoformat()}, follow=True)
+            self.assertContains(r, "scadrebbe prima della visita")
+        self.assertFalse(Preregistrazione.objects.exists())
+
     def test_mail_che_non_parte_lascia_il_codice(self):
         with patch("reception.mail.invia_invito", side_effect=OSError):
             r = self.client.post(reverse("reception:preregistrazioni"), {"nome": "Anna Prova", "email": "a@example.local", "referente": self.ref.pk}, follow=True)

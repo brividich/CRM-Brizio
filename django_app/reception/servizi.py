@@ -14,6 +14,7 @@ from .models import Cartellino, EventoVisita, Ospite, Preregistrazione, Referent
 GIORNI_RIAPERTURA = 7
 CARATTERI_CODICE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # niente O, 0, 1, I: si confondono
 GIORNI_VALIDITA_CODICE = 7
+GIORNI_MAX_ANTICIPO_VISITA = 365  # annuncio e invito: da oggi a un anno
 # Richieste di appuntamento dal modulo pubblico (gli stessi numeri sono scritti nel modulo e nell'informativa).
 ORE_CONFERMA_RICHIESTA = 48
 GIORNI_CONSERVAZIONE_RICHIESTE = 30
@@ -258,6 +259,23 @@ def pulizia_preregistrazioni(oggi=None) -> int:
 
 
 # --- Pre-registrazioni e richieste di appuntamento ---------------------------------------------
+
+
+def errore_visita(data_visita, scade=None, *, giorno_obbligatorio: bool = False, oggi=None) -> str:
+    """Regola unica per «Annuncia una visita» e «+ Invito»: giorno da oggi a un anno, codice mai
+    scaduto prima della visita. Stringa vuota se va bene."""
+    oggi = oggi or timezone.localdate()
+    if data_visita is None:
+        if giorno_obbligatorio:
+            return "Il giorno della visita è obbligatorio."
+    elif not oggi <= data_visita <= oggi + timedelta(days=GIORNI_MAX_ANTICIPO_VISITA):
+        return "Il giorno deve essere da oggi a un anno."
+    if scade is not None:
+        if scade.date() < oggi:
+            return "La data di validità del codice è già passata."
+        if data_visita and scade.date() < data_visita:
+            return "Il codice scadrebbe prima della visita: lascia vuoto «Valido fino al» o scegli una data successiva."
+    return ""
 
 
 def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Referente, creata_da: str,
