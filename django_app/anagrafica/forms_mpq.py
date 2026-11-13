@@ -240,7 +240,7 @@ class RequisitoPersonaForm(forms.ModelForm):
         fields = [
             "tipo", "corso", "tipo_visita", "tipo_qualifica", "categoria_dpi", "descrizione", "ruoli",
             "ricorrenza", "frequenza_mesi", "scadenza_fine_mese", "ore_minime",
-            "bloccante", "attivo", "note",
+            "bloccante", "gruppo_alternativo", "attivo", "note",
         ]
         labels = {
             "corso": "Corso (per «Corso di formazione»)",
@@ -265,6 +265,7 @@ class RequisitoPersonaForm(forms.ModelForm):
             "scadenza_fine_mese": forms.CheckboxInput(attrs=_FM_CHECK),
             "ore_minime": forms.NumberInput(attrs={**_FM_NUM, "step": "0.5"}),
             "bloccante": forms.CheckboxInput(attrs=_FM_CHECK),
+            "gruppo_alternativo": forms.TextInput(attrs=_FM),
             "attivo": forms.CheckboxInput(attrs=_FM_CHECK),
             "note": forms.Textarea(attrs=_FM_TEXTAREA),
         }
@@ -272,7 +273,7 @@ class RequisitoPersonaForm(forms.ModelForm):
     def __init__(self, *args, processo=None, **kwargs):
         super().__init__(*args, **kwargs)
         for f in ("corso", "tipo_visita", "tipo_qualifica", "categoria_dpi", "descrizione", "ruoli",
-                  "frequenza_mesi", "ore_minime", "note"):
+                  "frequenza_mesi", "ore_minime", "gruppo_alternativo", "note"):
             self.fields[f].required = False
         self.fields["frequenza_mesi"].help_text = (
             "Per corsi, visite e qualifiche vuoto = segue la loro scadenza; se la scrivi vale la più "
@@ -300,6 +301,7 @@ class RequisitoPersonaForm(forms.ModelForm):
         if (cd.get("ricorrenza") == RequisitoPersona.RICORRENZA_RICORRENTE and not cd.get("frequenza_mesi")
                 and tipo not in RequisitoPersona.TIPI_DA_ALTRI_MODULI):
             self.add_error("frequenza_mesi", "Indica ogni quanti mesi va ripetuto.")
+        cd["gruppo_alternativo"] = " ".join((cd.get("gruppo_alternativo") or "").split())
         if tipo == RequisitoPersona.TIPO_ESPERIENZA and not cd.get("ore_minime"):
             self.add_error("ore_minime", "Indica le ore da raggiungere.")
         return cd

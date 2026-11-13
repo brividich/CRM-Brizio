@@ -712,6 +712,13 @@ class RequisitoPersona(models.Model):
     bloccante = models.BooleanField(
         default=True, help_text="Se manca o è scaduto, la persona non è operativa sul processo.",
     )
+    # Requisiti alternativi: righe con lo stesso testo = basta una (es. «Livello 2 UT» oppure
+    # «Livello 3 UT»). Vale la migliore della persona; non diventano obblighi in Formazione/Visite.
+    gruppo_alternativo = models.CharField(
+        max_length=30, blank=True, default="", verbose_name="Alternativa (basta una fra…)",
+        help_text="Scrivi lo stesso nome su più righe (es. «UT») per dire che basta una di queste. "
+                  "Le alternative non diventano obblighi in Formazione e Visite: si vede qui chi manca.",
+    )
     attivo = models.BooleanField(default=True)
     ordine = models.PositiveSmallIntegerField(default=0)
     note = models.TextField(blank=True, default="")
@@ -743,6 +750,11 @@ class RequisitoPersona(models.Model):
     @property
     def is_ricorrente(self) -> bool:
         return self.ricorrenza == self.RICORRENZA_RICORRENTE and bool(self.frequenza_mesi)
+
+    @property
+    def is_obbligo(self) -> bool:
+        """Bloccante e non alternativo: diventa un obbligo vero nei moduli collegati."""
+        return self.bloccante and not self.gruppo_alternativo
 
     def scadenza_da(self, data_esecuzione):
         """Scadenza calcolata da una data di esecuzione (None = non scade)."""

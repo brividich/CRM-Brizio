@@ -390,7 +390,11 @@ GUIDA = {
                       "persona»: corso, visita, qualifica del catalogo, DPI consegnato, test visivo, esame, ore di "
                       "esperienza, affiancamento, certificato. Ogni requisito vale per alcuni ruoli (vuoto = tutti), è "
                       "«Una tantum» o «Ricorrente» ogni N mesi («Scade a fine mese» come le qualifiche CND) ed è "
-                      "bloccante o no. I ruoli della persona si spuntano in «Modifica» dell'abilitazione."),
+                      "bloccante o no. I ruoli della persona si spuntano in «Modifica» dell'abilitazione. Le righe "
+                      "sono quante servono (più corsi, più qualifiche…) e le bloccanti valgono tutte insieme; per dire "
+                      "«basta una fra queste» (es. Livello 2 UT oppure Livello 3 UT) scrivi lo stesso nome in "
+                      "«Alternativa (basta una fra…)» su quelle righe: compare «oppure · UT» e vale la migliore della "
+                      "persona. Le alternative non diventano obblighi in Formazione e Visite: chi manca si vede nel processo."),
                 ("p", "Corsi, visite, qualifiche e DPI si leggono dal loro modulo (Formazione, Visite mediche, "
                       "Qualifiche della persona, DPI): non si registrano due volte. Per corsi, visite e qualifiche "
                       "senza frequenza la scadenza è la loro («Segue la sua scadenza»); con una frequenza vale la più "
