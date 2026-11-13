@@ -52,6 +52,7 @@
       <a class="fmd-data-link" href="#annullare">Annullare un completamento</a>
       <a class="fmd-data-link" href="#diretto">Completamento senza edizione</a>
       <a class="fmd-data-link" href="#integrita">Integrità dati</a>
+      <a class="fmd-data-link" href="#processi-qualificati">Corsi richiesti dai processi qualificati</a>
       <a class="fmd-data-link" href="#permessi">Chi può fare cosa</a>
       <a class="fmd-data-link" href="#sgi">Riferimenti SGI</a>
     </nav>
@@ -194,6 +195,17 @@
       <p>La pagina «Integrità dati» (dal cruscotto Formazione) elenca i controlli di coerenza con il riferimento SGI e il numero di casi: edizioni con date invertite, giornate senza durata o fuori intervallo, presenze di non iscritti o con più ore della giornata, completamenti futuri, doppi o senza record, scadenze incoerenti, edizioni senza docente o da approvare, verifiche NC dovute.</p>
       <p>La pagina legge soltanto. «Applica le correzioni automatiche» corregge solo i casi senza margine di interpretazione (date invertite, giornate fuori intervallo, ore di assenze, ore oltre la durata) e lascia traccia nel registro attività; il resto va sistemato a mano. Lo stesso controllo si lancia da riga di comando con <code>manage.py verifica_integrita_formazione</code> (<code>--json</code>, <code>--correggi</code>).</p>
       <p class="elg-nota">«Frequenza diversa dal corso» sulle regole di obbligatorietà non è applicata al calcolo delle scadenze: vale la validità del corso. Il campo non è più nel modulo e le regole che lo avevano compilato compaiono qui.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="processi-qualificati">
+      <h2><svg class="fmd-ico"><use href="#i-award"/></svg>Corsi richiesti dai processi qualificati</h2>
+      <p>Un processo qualificato (MOD.128) può chiedere un corso a chi lo lavora: in «Cosa serve a una persona» è un requisito di tipo <strong>Corso</strong>, valido per alcuni ruoli del processo (es. Operatore, Ispettore) oppure per tutti.</p>
+      <ul>
+        <li>Se il requisito è <strong>bloccante</strong>, il corso diventa un obbligo vero per le persone abilitate con quel ruolo: compare nella loro formazione da fare, nello scadenzario e nel semaforo idoneità, come un corso della mansione.</li>
+        <li><strong>Una tantum</strong>: basta averlo frequentato una volta. <strong>Ricorrente ogni N mesi</strong>: la scadenza parte dall'ultima frequenza registrata qui in Formazione e usa la frequenza scritta nel processo, anche se diversa dalla validità del corso; con «Scade a fine mese» slitta all'ultimo giorno del mese.</li>
+        <li>Nel processo, colonna «Scade» delle persone, il pulsante <strong>«↻ Iscrivi»</strong> apre una sessione del corso con la persona già iscritta. Chiusa la sessione, la qualifica della persona si aggiorna da sola.</li>
+        <li>I requisiti non bloccanti si vedono nel processo ma non creano obblighi in Formazione.</li>
+      </ul>
     </section>
 
     <section class="fmd-panel elg-sec" id="permessi">
