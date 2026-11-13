@@ -145,6 +145,15 @@ def ricalcola_tutto(legacy_ids=None, *, oggi: date | None = None) -> dict[str, d
              "visite": ricalcola_visite(legacy_ids, oggi=oggi)}
     # Dopo la formazione: i livelli sulle mansioni con competenze leggono i corsi validi
     # appena ricalcolati (e qualifiche, MOD.128). La notte copre le scadenze passate.
+    # Prima le mansioni collegate ai ruoli dei processi MOD.128 (assegnazione e livello),
+    # poi il calcolo delle competenze che le legge.
+    try:
+        from .mpq_competenze import allinea as allinea_mansioni_mpq
+
+        m = allinea_mansioni_mpq(legacy_ids)
+        esito["mansioni_mpq"] = {k: m[k] for k in ("assegnate", "alzate", "abbassate")}
+    except Exception:
+        logger.exception("allineamento mansioni MOD.128 fallito per %s", legacy_ids or "tutti")
     try:
         from .competenze_ricalcolo import ricalcola as ricalcola_competenze
 

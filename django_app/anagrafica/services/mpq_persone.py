@@ -463,3 +463,30 @@ def matrice(*, oggi=None, cliente_id=None) -> dict:
             st["abilitazione"] = ab
             riga["celle"][p.pk] = st
     return {"processi": processi, "righe": list(righe.values()), "oggi": oggi}
+
+
+def qualificati(legacy_ids, processi_ids, *, oggi=None) -> set[tuple[int, int]]:
+    """``{(legacy_id, processo_id)}`` delle persone operative sul processo (= colonna «Qualifica»).
+
+    Processo attivo e non scaduto, abilitazione attiva, requisiti in regola. Serve ai
+    requisiti delle competenze del Mansionario e al riallineamento dei livelli.
+    """
+    from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
+
+    oggi = oggi or timezone.localdate()
+    ids = {int(i) for i in legacy_ids if i}
+    out: set[tuple[int, int]] = set()
+    if not ids or not processi_ids:
+        return out
+    for p in ProcessoQualificato.objects.filter(pk__in=list(processi_ids), stato=ProcessoQualificato.STATO_ATTIVO):
+        scad = p.scadenza_effettiva
+        if scad is not None and scad < oggi:
+            continue
+        abil = list(p.abilitazioni.filter(legacy_anagrafica_id__in=ids, stato=AbilitazioneProcesso.STATO_ATTIVA,
+                                          nominativo_esterno="")
+                    .prefetch_related("ruoli_processo", "certificazioni"))
+        if not abil:
+            continue
+        ctx = contesto_processo(p, abil)
+        out |= {(ab.legacy_anagrafica_id, p.pk) for ab in abil if stato_persona(ab, oggi=oggi, contesto=ctx)["operativa"]}
+    return out
