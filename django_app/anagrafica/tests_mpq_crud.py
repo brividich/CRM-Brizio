@@ -94,7 +94,7 @@ class MpqAbilitazioneCrudTests(MpqCrudBase):
         resp = self.client.post(
             reverse("anagrafica:mpq_abilitazione_add", args=[self.proc.id]), {
                 "tipo_persona": "interno", "dipendente": "42",
-                "stato": "ATTIVA", "is_qualificato": "on", "is_controllore": "on",
+                "stato": "ATTIVA", "ruoli_standard": ["QUALIFICATO", "CONTROLLORE"],
             })
         self.assertEqual(resp.status_code, 302)
         ab = AbilitazioneProcesso.objects.get(processo=self.proc, legacy_anagrafica_id=42)
@@ -105,7 +105,7 @@ class MpqAbilitazioneCrudTests(MpqCrudBase):
         resp = self.client.post(
             reverse("anagrafica:mpq_abilitazione_add", args=[self.proc.id]), {
                 "tipo_persona": "esterno", "nominativo_esterno": "Qualificatore Esterno",
-                "stato": "ATTIVA", "is_qualificato": "on",
+                "stato": "ATTIVA", "ruoli_standard": ["QUALIFICATO"],
             })
         self.assertEqual(resp.status_code, 302)
         ab = AbilitazioneProcesso.objects.get(

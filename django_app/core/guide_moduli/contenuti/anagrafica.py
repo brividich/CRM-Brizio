@@ -445,7 +445,9 @@ GUIDA = {
                     "«+ Aggiungi requisito persona» per ogni cosa richiesta dalla procedura: tipo, ruoli a cui vale "
                     "(vuoto = tutti), «Una tantum» o «Ricorrente» con i mesi, bloccante sì/no. Per i corsi scegli il "
                     "corso del catalogo Formazione; per le visite il tipo di visita.",
-                    "In «Persone qualificate» apri «Modifica» su ogni abilitazione e spunta i ruoli della persona.",
+                    "In «Persone qualificate» apri «Modifica» su ogni abilitazione e spunta i ruoli della persona: "
+                    "Qualificato, Addetto, Controllore e Part 145 (le colonne del modulo cartaceo) sono nello stesso "
+                    "elenco dei ruoli propri del processo e valgono allo stesso modo per i requisiti.",
                     "In «Cosa serve a una macchina» aggiungi i requisiti macchina (manutenzione, taratura, controllo) "
                     "collegandoli al piano di manutenzione dell'asset, e le voci della verifica: tolleranza ± %, "
                     "valore minimo o prova conforme / non conforme.",
