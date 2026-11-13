@@ -169,3 +169,19 @@ body.theme-dark .cn-lane--si strong { color:#86efac; } body.theme-dark .cn-lane-
 .designer-branch-column, .designer-inline-builder-grid > section { align-content:start; align-items:start; }
 body.theme-dark .designer-inline-toolbar .btn { color:#93c5fd !important; border-color:#60a5fa !important; }
 .cn-auto [data-action-config] > .designer-help { display:none; }
+
+/* «Copia dal ramo opposto» e «Svuota»: link discreti in coda ai pulsanti + */
+.designer-inline-toolbar { align-items:center; }
+.designer-inline-toolbar [data-inline-json-copy-other],
+.designer-inline-toolbar [data-inline-json-clear] { border:0 !important; background:transparent !important; padding:3px 4px !important; font-weight:600; text-decoration:underline dotted; text-underline-offset:3px; }
+.designer-inline-toolbar [data-inline-json-add] + [data-inline-json-copy-other],
+.designer-inline-toolbar [data-inline-json-add] + [data-inline-json-clear] { margin-left:auto; }
+.designer-inline-toolbar [data-inline-json-clear]:hover { color:#b91c1c !important; }
+body.theme-dark .designer-inline-toolbar [data-inline-json-clear]:hover { color:#fca5a5 !important; }
+body.theme-dark .designer-inline-toolbar [data-inline-json-copy-other],
+body.theme-dark .designer-inline-toolbar [data-inline-json-clear] { color:var(--text-light, #9ca3af) !important; }
+/* Pannello stretto (workspace flow): i campi della condizione su due colonne */
+@container (max-width: 640px) {
+  .cn-auto [data-action-config="branch"] > .designer-trigger-copy,
+  .cn-auto [data-action-config="do_until"] > .designer-trigger-copy { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
