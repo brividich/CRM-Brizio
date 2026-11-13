@@ -112,20 +112,30 @@ GUIDA = {
         },
         {
             "id": "stati",
-            "titolo": "Bozza, consolidata, annullata",
+            "titolo": "Bozza, consolidata, annullata, eliminata",
             "blocchi": [
                 ("def", [
                     ("BOZZA", "appena registrata: si può ancora modificare con la matita ✎."),
                     ("CONSOLIDATA", "definitiva: non si modifica più. Si corregge con una «R - Rettifica scarico» o annullandola."),
                     ("ANNULLATA", "sbagliata: resta nel registro, barrata, con il motivo. Non conta nelle giacenze e il suo numero non viene riusato."),
+                    ("ELIMINATA", "solo una bozza inserita per errore, mai consolidata né trasmessa e senza movimenti collegati: sparisce dal "
+                                  "registro; il numero non viene riusato, dati e motivo restano nel registro delle attività."),
                 ]),
                 ("passi", [
                     "Nell'«Elenco registrazioni» clicca la lente 🔍 della riga: si apre la scheda del movimento.",
-                    "«Consolida» rende definitiva la registrazione (anche dallo «Scadenzario», sezione «Bozze da consolidare»).",
+                    "«Consolida filo» consolida tutto il blocco: il carico con i suoi scarichi O, M e R. Il pulsante sta "
+                    "sull'intestazione del filo nell'«Elenco registrazioni» (con il conto, es. «Consolida filo · 1/3»), nella "
+                    "scheda del movimento e nello «Scadenzario», sezione «Bozze da consolidare». Il popup elenca le righe che "
+                    "verranno consolidate, quelle già consolidate e quelle incomplete (senza data, codice o quantità) con il link "
+                    "«Modifica»: le incomplete restano bozze, le altre si consolidano insieme.",
                     "Per consolidare tante bozze insieme: «Scadenzario» → «Bozze da consolidare» → scegli la data e clicca "
                     "«Consolida bozze complete». Quelle senza data, codice o quantità restano bozze.",
                     "«Segna trasmessa» indica che il movimento è stato trasmesso al RENTRI.",
-                    "«Annulla registrazione» chiede il motivo, obbligatorio. Se ci sono movimenti collegati restano a registro con "
+                    "Il cestino 🗑 sulla riga dell'elenco (e «Annulla o elimina…» nella scheda) apre il popup: scegli «Annulla» "
+                    "oppure «Elimina definitivamente» e scrivi la «Motivazione», obbligatoria (almeno 5 caratteri). «Elimina "
+                    "definitivamente» è attivo solo per le bozze isolate; altrimenti il popup dice perché (consolidata, trasmessa "
+                    "o con movimenti collegati). Dopo la conferma torni alla stessa tabella con gli stessi filtri.",
+                    "Annullando, il motivo è obbligatorio. Se ci sono movimenti collegati restano a registro con "
                     "il riferimento come traccia, ma non risultano più collegati: nell'elenco compare «COLLEGATO A ANNULLATO». "
                     "Li ricolleghi con «Modifica» (se sono bozze) o li lasci così.",
                     "Un collegamento tolto in modifica non si perde: la scheda lo mostra in «Collegamenti tolti (traccia)».",
@@ -142,13 +152,16 @@ GUIDA = {
                     "«Elenco registrazioni»: ogni carico con i suoi scarichi (il filo). Lo stato è IN DEPOSITO (con il residuo), "
                     "MANCA SCARICO EFFETTIVO, CHIUSA o SENZA CARICO. In alto i fili da completare; sotto «Fili chiusi, per codice» "
                     "un gruppo per ogni codice CER, da aprire con un clic. «Espandi»/«Comprimi» apre o chiude tutto.",
+                    "La colonna «FIR» mostra il numero del formulario sugli scarichi; «manca FIR» in giallo su uno scarico O o M "
+                    "senza numero; sui carichi «—».",
                     "La colonna «Pericolosità» mostra le classi HP del movimento (bollino rosso); sugli scarichi senza classi "
                     "propria quelle del carico del filo, in grigio. «HP da indicare» = carico con codice pericoloso (*) senza "
                     "classe. Trasmissione e consolidamento si vedono nella scheda del movimento e si filtrano con «RENTRI» e "
                     "«Consolidamento».",
                     "Filtri dell'elenco: «Cerca» (numero, codice, rif. op, FIR, note), «Codice CER», «Tipo», «Stato del filo», "
                     "«Dal»/«Al», «RENTRI» (trasmessi o da trasmettere), «Consolidamento» (bozze o consolidati), «Solo pericolosi» "
-                    "e «Mostra annullati». Nella casella «Cerca» un codice CER vale per le cifre: «12.01.01», «12 01 01» e "
+                    "e «Mostra annullati». I filtri restano: se passi a un'altra pagina e torni all'elenco li ritrovi (anche "
+                    "«Giacenze» e «Riepilogo annuale» ricordano i propri). «Azzera filtri» riparte da zero. Nella casella «Cerca» un codice CER vale per le cifre: «12.01.01», «12 01 01» e "
                     "«120101» trovano lo stesso codice (e non 12.01.09); «12 01» trova tutti i 12 01 xx.",
                     "Sopra i fili c'è la ricerca immediata: filtra mentre scrivi e tiene insieme ogni filo (carico e scarichi), "
                     "aprendo i gruppi dei chiusi che contengono risultati. Cerca codice CER (come sopra), numero, FIR, data, "
@@ -156,7 +169,8 @@ GUIDA = {
                     "«Esporta» (in alto nell'elenco) apre la finestra con Excel e PDF: «Con i filtri attivi» scarica quello che "
                     "vedi (stato del filo compreso), «Registro completo, annullati compresi» tutto il registro. L'Excel ha anche "
                     "«Collegato a», «Stato del filo», «Annullato» con il motivo e «Collegamenti tolti».",
-                    "«Scadenzario»: formulari mancanti sugli scarichi O e M, movimenti da comunicare, bozze da consolidare.",
+                    "«Scadenzario»: formulari mancanti sugli scarichi O e M, movimenti da comunicare, bozze da consolidare; "
+                    "ogni tabella ha la colonna «FIR».",
                     "«Giacenze»: quanto rifiuto c'è per codice, con l'unità, il semaforo del deposito temporaneo e il totale in m³ "
                     "(limite 30 m³, di cui 10 pericolosi). La giacenza è la somma di quanto resta dei carichi: lo scarico "
                     "originale (O) la riduce, la coppia scarico effettivo/rettifica (M/R) corregge il peso a destino e non la "

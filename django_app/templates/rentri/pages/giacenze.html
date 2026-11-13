@@ -115,6 +115,7 @@ body.theme-dark .gi-empty{color:#86efac}
     {% if q_pericolosi %}<input type="hidden" name="pericolosi" value="1">{% endif %}
     {% if not q_aperte %}<input type="hidden" name="aperte" value="0">{% endif %}
     <button type="submit" class="gi-btn">Cerca</button>
+    {% if filtri_attivi %}<a class="gi-chip" href="?reset=1">&#10005; Azzera filtri</a>{% endif %}
   </form>
 
   <div class="gi-card">

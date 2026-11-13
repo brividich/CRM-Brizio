@@ -3,6 +3,8 @@
 {% block title %}Elenco Registrazioni | RENTRI{% endblock %}
 
 {% block extra_head %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'rentri/css/azioni_tabella.css' %}?v=20261113">
 <style>
 /* ── Layout ── */
 .cp-wrap { display:flex; flex-direction:column; gap:20px; }
@@ -243,6 +245,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "rentri/components/dialog_azioni.html" %}
 <dialog id="rn-export" class="rn-export" aria-labelledby="rn-export-t" onclick="if (event.target === this) this.close()">
   <div class="rn-export-box">
     <div class="rn-export-top">
@@ -358,7 +361,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       </label>
       <button type="submit" class="cp-btn cp-btn-primary" style="align-self:flex-end;">Filtra</button>
       {% if filtri_attivi %}
-        <a href="{% url 'rentri_elenco' %}" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Reset</a>
+        <a href="{% url 'rentri_elenco' %}?reset=1" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Azzera filtri</a>
       {% endif %}
     </form>
   </div>
@@ -449,7 +452,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
               {% else %}<span class="sort-arrow">⇅</span>{% endif %}
             </a>
           </th>
-          <th>C/S</th>
+          <th>FIR</th>
           <th>Pericolosità</th>
           <th class="{% if q_sort == 'inserito_da' %}sort-active{% endif %}">
             <a href="?{{ base_qs }}&sort=inserito_da&dir={% if q_sort == 'inserito_da' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
@@ -503,16 +506,11 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td>{{ r.rif_op|default:"—" }}</td>
             <td><strong>{{ r.codice|default:"—" }}</strong></td>
             <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td>{{ r.carico_scarico|default:"—" }}</td>
+            {% include "rentri/components/fir_cella.html" with r=r %}
             {% include "rentri/components/hp_cella.html" with r=r %}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
-              <div class="cp-row-actions">
-                {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-                {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-                {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-                <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
-              </div>
+              {% include "rentri/components/azioni_riga.html" with r=r %}
             </td>
           </tr>
           {% endfor %}
@@ -528,16 +526,11 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td>{{ r.rif_op|default:"—" }}</td>
             <td><strong>{{ r.codice|default:"—" }}</strong></td>
             <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td>{{ r.carico_scarico|default:"—" }}</td>
+            {% include "rentri/components/fir_cella.html" with r=r %}
             {% include "rentri/components/hp_cella.html" with r=r %}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
-              <div class="cp-row-actions">
-                {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-                {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-                {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-                <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
-              </div>
+              {% include "rentri/components/azioni_riga.html" with r=r %}
             </td>
           </tr>
           {% endfor %}
