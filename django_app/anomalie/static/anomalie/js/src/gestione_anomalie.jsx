@@ -928,6 +928,7 @@
     const VISTE_LARGHE = ["kanban", "tabella", "pezzi"];
     const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
     const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
+    const PREF_COLONNE_CHIUSE = "ga_colonne_chiuse";
     const leggiPref = (k, def) => {
       try { const v = window.localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (_) { return def; }
     };
@@ -1089,6 +1090,16 @@
         return v && typeof v === "object" && !Array.isArray(v) ? v : {};
       });
       const setRaggruppa = (v) => { setRaggruppaState(v); scriviPref(PREF_RAGGRUPPA, v); };
+      // Colonne Ordini e Anomalie richiudibili (solo schermo largo): il dettaglio si allarga.
+      const [colChiuse, setColChiuse] = useState(() => {
+        const v = leggiPref(PREF_COLONNE_CHIUSE, {});
+        return { op: !!(v && v.op), sn: !!(v && v.sn) };
+      });
+      const toggleColonna = (k) => setColChiuse((prev) => {
+        const next = { ...prev, [k]: !prev[k] };
+        scriviPref(PREF_COLONNE_CHIUSE, next);
+        return next;
+      });
       const gruppoChiuso = (g) => (g.key in gruppiChiusi ? Boolean(gruppiChiusi[g.key]) : Boolean(g.chiusoDiSerie));
       const toggleGruppo = (g) => setGruppiChiusi((prev) => {
         const next = { ...prev, [g.key]: !gruppoChiuso(g) };
@@ -2351,13 +2362,28 @@
         daAprireRef.current = e.anomalia_id;
         setSelectedOpKey(opKey(o));
       };
+      const STRISCIA = "40px";
       const gridCols = isMobile ? undefined : (() => {
         const base = isTablet ? ["250px", "270px", "minmax(0,1fr)"] : ["310px", "330px", "minmax(0,1fr)"];
-        if (vistaOp === "tabella") return { gridTemplateColumns: "minmax(0,1fr) minmax(0,0.9fr)" };
-        if (raggruppa === "kanban") return { gridTemplateColumns: `${base[0]} minmax(0,2.3fr) minmax(340px,1fr)` };
-        if (VISTE_LARGHE.includes(raggruppa)) return { gridTemplateColumns: `${base[0]} minmax(0,1.6fr) minmax(360px,1fr)` };
-        return { gridTemplateColumns: base.join(" ") };
+        const c1 = colChiuse.op ? STRISCIA : base[0];
+        if (vistaOp === "tabella" && !colChiuse.op) return { gridTemplateColumns: "minmax(0,1fr) minmax(0,0.9fr)" };
+        if (vistaOp === "tabella") return { gridTemplateColumns: `${STRISCIA} minmax(0,1fr)` };
+        if (colChiuse.sn) return { gridTemplateColumns: `${c1} ${STRISCIA} minmax(0,1fr)` };
+        if (raggruppa === "kanban") return { gridTemplateColumns: `${c1} minmax(0,2.3fr) minmax(340px,1fr)` };
+        if (VISTE_LARGHE.includes(raggruppa)) return { gridTemplateColumns: `${c1} minmax(0,1.6fr) minmax(360px,1fr)` };
+        return { gridTemplateColumns: `${c1} ${base[1]} ${base[2]}` };
       })();
+      // Colonna chiusa: una striscia verticale con il titolo, un clic la riapre.
+      const strisciaColonna = (k, titolo, sotto) => (
+        <button type="button" className="ga-col-strip" onClick={() => toggleColonna(k)} title={`Apri «${titolo}»`}>
+          <span className="ga-col-strip__ico" aria-hidden="true">›</span>
+          <span className="ga-col-strip__t">{titolo}{sotto ? ` · ${sotto}` : ""}</span>
+        </button>
+      );
+      const chiudiColonna = (k, titolo) => !isMobile && (
+        <button type="button" className="ga-col__chiudi" onClick={() => toggleColonna(k)} title={`Chiudi «${titolo}» e allarga il dettaglio`}
+          aria-label={`Chiudi la colonna ${titolo}`}>‹</button>
+      );
 
       return (
         <div className={`ga${isMobile ? " ga--mobile" : ""}`}>
@@ -2400,7 +2426,9 @@
           <div className="ga-cols" style={gridCols}>
 
             {/* ── 1. Ordini di produzione ── */}
-            <section className="ga-col ga-col--op" style={{ display: showCol("ordini") ? undefined : "none" }}>
+            <section className={`ga-col ga-col--op${!isMobile && colChiuse.op ? " is-chiusa" : ""}`} style={{ display: showCol("ordini") ? undefined : "none" }}>
+              {!isMobile && colChiuse.op ? strisciaColonna("op", "Ordini di produzione", op.id || "") : (<>
+              {chiudiColonna("op", "Ordini di produzione")}
               <div className="ga-col__head">
                 <div className="ga-col__titlerow">
                   <div className="ga-col__title">Ordini di produzione</div>
@@ -2430,9 +2458,12 @@
                     </div>
                   ) : renderVistaOrdini()}
               </div>
+              </>)}
             </section>
             {/* ── 2. Anomalie dell'OP ── */}
-            <section className="ga-col ga-col--sn" style={{ display: showCol("serie") && !(vistaOp === "tabella" && !isMobile) ? undefined : "none" }}>
+            <section className={`ga-col ga-col--sn${!isMobile && colChiuse.sn ? " is-chiusa" : ""}`} style={{ display: showCol("serie") && !(vistaOp === "tabella" && !isMobile) ? undefined : "none" }}>
+              {!isMobile && colChiuse.sn ? strisciaColonna("sn", "Anomalie", sn.local_id ? codiceAnomalia(sn.local_id) : "") : (<>
+              {chiudiColonna("sn", "Anomalie")}
               {op.id && (() => {
                 // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
                 // contatori della riga a sinistra (apertiDi / daDecidereDi).
@@ -2540,6 +2571,7 @@
                   </div>
                 </div>
               )}
+              </>)}
             </section>
 
             {/* ── 3. Dettaglio ── */}
@@ -2601,8 +2633,8 @@
                           );
                         })}
                         {Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => (
-                          <span key={r} className="ga-carico__p is-inc is-dopo" title="Incaricato per quando l'anomalia passerà a questo ruolo">
-                            <b>{RUOLI_NOMI[r]}</b> {inc.nome} · dopo
+                          <span key={r} className="ga-carico__p is-inc is-dopo" title={`Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}: oggi l'anomalia non è in mano al ${RUOLI_NOMI[r].toLowerCase()}`}>
+                            <b>{RUOLI_NOMI[r]}</b> {inc.nome} · subentra quando tocca al {RUOLI_NOMI[r].toLowerCase()}
                           </span>
                         ))}
                         {sn.puo_cambiare_incaricato && sn.local_id && (

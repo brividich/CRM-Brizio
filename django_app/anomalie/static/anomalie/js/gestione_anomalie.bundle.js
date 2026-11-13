@@ -1515,6 +1515,7 @@ const VISTE_ANOMALIE = [["sn", "Per S/N"], ["stato", "Per stato"], ["kanban", "P
 const VISTE_LARGHE = ["kanban", "tabella", "pezzi"];
 const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
 const PREF_SEZIONI_CHIUSE = "ga_sezioni_chiuse";
+const PREF_COLONNE_CHIUSE = "ga_colonne_chiuse";
 const leggiPref = (k, def) => {
   try {
     const v = window.localStorage.getItem(k);
@@ -1911,6 +1912,22 @@ function GestioneAnomalie() {
     setRaggruppaState(v);
     scriviPref(PREF_RAGGRUPPA, v);
   };
+  // Colonne Ordini e Anomalie richiudibili (solo schermo largo): il dettaglio si allarga.
+  const [colChiuse, setColChiuse] = useState(() => {
+    const v = leggiPref(PREF_COLONNE_CHIUSE, {});
+    return {
+      op: !!(v && v.op),
+      sn: !!(v && v.sn)
+    };
+  });
+  const toggleColonna = k => setColChiuse(prev => {
+    const next = {
+      ...prev,
+      [k]: !prev[k]
+    };
+    scriviPref(PREF_COLONNE_CHIUSE, next);
+    return next;
+  });
   const gruppoChiuso = g => g.key in gruppiChiusi ? Boolean(gruppiChiusi[g.key]) : Boolean(g.chiusoDiSerie);
   const toggleGruppo = g => setGruppiChiusi(prev => {
     const next = {
@@ -3869,21 +3886,48 @@ function GestioneAnomalie() {
     daAprireRef.current = e.anomalia_id;
     setSelectedOpKey(opKey(o));
   };
+  const STRISCIA = "40px";
   const gridCols = isMobile ? undefined : (() => {
     const base = isTablet ? ["250px", "270px", "minmax(0,1fr)"] : ["310px", "330px", "minmax(0,1fr)"];
-    if (vistaOp === "tabella") return {
+    const c1 = colChiuse.op ? STRISCIA : base[0];
+    if (vistaOp === "tabella" && !colChiuse.op) return {
       gridTemplateColumns: "minmax(0,1fr) minmax(0,0.9fr)"
     };
+    if (vistaOp === "tabella") return {
+      gridTemplateColumns: `${STRISCIA} minmax(0,1fr)`
+    };
+    if (colChiuse.sn) return {
+      gridTemplateColumns: `${c1} ${STRISCIA} minmax(0,1fr)`
+    };
     if (raggruppa === "kanban") return {
-      gridTemplateColumns: `${base[0]} minmax(0,2.3fr) minmax(340px,1fr)`
+      gridTemplateColumns: `${c1} minmax(0,2.3fr) minmax(340px,1fr)`
     };
     if (VISTE_LARGHE.includes(raggruppa)) return {
-      gridTemplateColumns: `${base[0]} minmax(0,1.6fr) minmax(360px,1fr)`
+      gridTemplateColumns: `${c1} minmax(0,1.6fr) minmax(360px,1fr)`
     };
     return {
-      gridTemplateColumns: base.join(" ")
+      gridTemplateColumns: `${c1} ${base[1]} ${base[2]}`
     };
   })();
+  // Colonna chiusa: una striscia verticale con il titolo, un clic la riapre.
+  const strisciaColonna = (k, titolo, sotto) => /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-col-strip",
+    onClick: () => toggleColonna(k),
+    title: `Apri «${titolo}»`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-col-strip__ico",
+    "aria-hidden": "true"
+  }, "\u203A"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-col-strip__t"
+  }, titolo, sotto ? ` · ${sotto}` : ""));
+  const chiudiColonna = (k, titolo) => !isMobile && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-col__chiudi",
+    onClick: () => toggleColonna(k),
+    title: `Chiudi «${titolo}» e allarga il dettaglio`,
+    "aria-label": `Chiudi la colonna ${titolo}`
+  }, "\u2039");
   return /*#__PURE__*/React.createElement("div", {
     className: `ga${isMobile ? " ga--mobile" : ""}`
   }, /*#__PURE__*/React.createElement("header", {
@@ -3961,11 +4005,11 @@ function GestioneAnomalie() {
     className: "ga-cols",
     style: gridCols
   }, /*#__PURE__*/React.createElement("section", {
-    className: "ga-col ga-col--op",
+    className: `ga-col ga-col--op${!isMobile && colChiuse.op ? " is-chiusa" : ""}`,
     style: {
       display: showCol("ordini") ? undefined : "none"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, !isMobile && colChiuse.op ? strisciaColonna("op", "Ordini di produzione", op.id || "") : /*#__PURE__*/React.createElement(React.Fragment, null, chiudiColonna("op", "Ordini di produzione"), /*#__PURE__*/React.createElement("div", {
     className: "ga-col__head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-col__titlerow"
@@ -3999,12 +4043,12 @@ function GestioneAnomalie() {
     className: "ga-empty"
   }, "Caricamento ordini\u2026") : filteredOrdini.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-empty"
-  }, pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te." : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato.") : renderVistaOrdini())), /*#__PURE__*/React.createElement("section", {
-    className: "ga-col ga-col--sn",
+  }, pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te." : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato.") : renderVistaOrdini()))), /*#__PURE__*/React.createElement("section", {
+    className: `ga-col ga-col--sn${!isMobile && colChiuse.sn ? " is-chiusa" : ""}`,
     style: {
       display: showCol("serie") && !(vistaOp === "tabella" && !isMobile) ? undefined : "none"
     }
-  }, op.id && (() => {
+  }, !isMobile && colChiuse.sn ? strisciaColonna("sn", "Anomalie", sn.local_id ? codiceAnomalia(sn.local_id) : "") : /*#__PURE__*/React.createElement(React.Fragment, null, chiudiColonna("sn", "Anomalie"), op.id && (() => {
     // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
     // contatori della riga a sinistra (apertiDi / daDecidereDi).
     const tot = Number(op.anomalie_count || 0);
@@ -4148,7 +4192,7 @@ function GestioneAnomalie() {
     className: "ga-btn ga-btn--accent ga-btn--xs",
     disabled: !clonaIds.length,
     onClick: continuaClona
-  }, "Continua ", Ico.next)))), /*#__PURE__*/React.createElement("section", {
+  }, "Continua ", Ico.next))))), /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--det",
     style: {
       display: showCol("dettaglio") ? undefined : "none"
@@ -4231,8 +4275,8 @@ function GestioneAnomalie() {
   }), Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => /*#__PURE__*/React.createElement("span", {
     key: r,
     className: "ga-carico__p is-inc is-dopo",
-    title: "Incaricato per quando l'anomalia passer\xE0 a questo ruolo"
-  }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", inc.nome, " \xB7 dopo")), sn.puo_cambiare_incaricato && sn.local_id && /*#__PURE__*/React.createElement("button", {
+    title: `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}: oggi l'anomalia non è in mano al ${RUOLI_NOMI[r].toLowerCase()}`
+  }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", inc.nome, " \xB7 subentra quando tocca al ", RUOLI_NOMI[r].toLowerCase())), sn.puo_cambiare_incaricato && sn.local_id && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ga-btn ga-btn--outline ga-btn--xs",
     onClick: () => apriCambiaIncaricato()

@@ -295,7 +295,9 @@ SEZIONI: list[dict] = [
         "titolo": "Viste delle colonne",
         "blocchi": [
             ("p", "Il menu «Vista» in cima alle colonne Ordini e Anomalie cambia il modo di vederle; la scelta resta "
-                  "nel browser."),
+                  "nel browser. La linguetta «‹» sul bordo destro delle colonne Ordini e Anomalie le chiude in una "
+                  "striscia verticale e il dettaglio si allarga; un clic sulla striscia le riapre (la scelta resta nel "
+                  "browser)."),
             ("ul", [
                 "Ordini — «Elenco»: le righe compatte di sempre. «Coda di lavoro»: prima gli OP con anomalie in carico a te, "
                 "dal più fermo (giorni dall'ultima modifica della più vecchia, in arancione da 3 giorni). «Per "
@@ -329,8 +331,9 @@ SEZIONI: list[dict] = [
                 "vede più fra le sue.",
                 "L'incaricato riceve una notifica nel portale e una mail con la nota e il link; le richieste di "
                 "informazioni della qualità al capocommessa o al controllore vanno a lui.",
-                "Nella riga «In carico» l'incaricato ha il bordo viola; un incarico per un ruolo che non tocca ancora "
-                "all'anomalia compare con «· dopo».",
+                "Nella riga «In carico» l'incaricato ha il bordo viola; un incarico per un ruolo che oggi non ha "
+                "l'anomalia compare tratteggiato con «· subentra quando tocca al …» (per esempio al controllore, se la "
+                "qualità gli chiede informazioni).",
                 "«Torna di serie» toglie l'incaricato. Ogni cambio va nel registro attività con prima e dopo.",
             ]),
         ],
