@@ -25,8 +25,8 @@ SEZIONI: list[dict] = [
                   "sola e il PDF si può ancora scaricare o pubblicare su SharePoint."),
             ("def", [
                 ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
-                ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso al GuestPortal e non ancora "
-                 "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
+                ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso alla reception e non ancora "
+                 "usciti: tabella sotto i dipendenti, nell'appello e nel PDF. Con la reception nell'HUB, chi ha il permesso di registrare gli ingressi della reception vede «+ Registra chi è dentro» (finestra al centro: Fornitore o Ospite, cognome, nome, ditta o azienda, chi lo riceve, cartellino o «Senza cartellino», «Entrato alle» vuoto = adesso; ditta e nominativo nuovi entrano tra i fornitori accreditati, nessuna mail al referente) e, su ogni visitatore della tabella, «Come fornitore»: lo aggiunge ai nominativi della ditta della sua azienda e dal prossimo ingresso il chiosco lo riconosce come fornitore (serve l'azienda)."),
                 ("Andamento per reparto", "quante persone c'erano a ogni ora di oggi, reparto per reparto: solo numeri, "
                  "nessun nome."),
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "

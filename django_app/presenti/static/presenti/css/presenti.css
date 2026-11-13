@@ -88,3 +88,29 @@ body.theme-dark .pres-esterno{ background:#64748b; }
 @media print{
   .pres-nav, .pres-azioni, .pres-filtri, .subnav{ display:none !important; }
 }
+
+/* Registrare chi è dentro (fornitore o ospite): finestra centrale, mai laterale. */
+.pres-gruppo-riga{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:10px; }
+.pres-btn-sm{ min-height:30px; padding:0 10px; font-size:12.5px; }
+.pres-dlg{ width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 32px); padding:0; border:1px solid var(--border);
+  border-radius:16px; background:var(--surface); color:var(--text); box-shadow:0 24px 60px rgba(0,0,0,.35); }
+.pres-dlg::backdrop{ background:rgba(15,23,42,.55); }
+.pres-dlg form{ display:grid; gap:14px; padding:20px; }
+.pres-dlg-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.pres-dlg-head h2{ margin:0; font-size:18px; font-weight:800; }
+.pres-dlg-x{ border:0; background:none; color:var(--text-mid); font-size:22px; line-height:1; cursor:pointer; padding:4px 8px; }
+.pres-tipi{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pres-tipi label{ display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; border:1px solid var(--border);
+  border-radius:12px; font-weight:700; cursor:pointer; }
+.pres-tipi input{ position:absolute; opacity:0; pointer-events:none; }
+.pres-tipi label:has(input:checked){ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.pres-tipi label:has(input:focus-visible){ outline:2px solid var(--accent); outline-offset:2px; }
+.pres-campi{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.pres-campo{ display:grid; gap:5px; min-width:0; }
+.pres-campo-largo{ grid-column:1 / -1; }
+.pres-campo label{ font-size:12px; font-weight:700; color:var(--text-mid); text-transform:uppercase; letter-spacing:.04em; }
+.pres-campo input, .pres-campo select{ min-height:40px; padding:0 10px; border:1px solid var(--border); border-radius:10px;
+  background:var(--surface); color:var(--text); font:inherit; width:100%; }
+.pres-nota{ margin:0; font-size:12.5px; color:var(--text-mid); }
+.pres-dlg-azioni{ display:flex; justify-content:flex-end; gap:8px; }
+@media (max-width:520px){ .pres-campi{ grid-template-columns:1fr; } }

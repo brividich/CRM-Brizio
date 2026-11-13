@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_richieste, views_ricerca
+from . import views, views_presenti, views_richieste, views_ricerca
 
 app_name = "reception"
 
@@ -18,6 +18,9 @@ urlpatterns = [
     path("sale/", views.sale_config, name="sale"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
     path("richieste/", views_richieste.richieste, name="richieste"),
+    # Da «Presenti in azienda» (reception.pannello.manage, binding in reception 0010)
+    path("presenti/registra/", views_presenti.presenti_registra, name="presenti_registra"),
+    path("presenti/<int:visita_id>/fornitore/", views_presenti.presenti_come_fornitore, name="presenti_come_fornitore"),
     # Ricerche live (JSON): gate in core/middleware.py API_ACL_GATE_PATHS
     path("api/sale/", views_richieste.sale_disponibilita, name="api_sale"),
     path("api/ospiti/", views_ricerca.ospiti, name="api_ospiti"),

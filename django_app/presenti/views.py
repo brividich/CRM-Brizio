@@ -63,13 +63,38 @@ def _dati_lista(request) -> dict:
         "reparti": sorted({p["reparto"] for p in s["presenti"] if p.get("reparto")}),
         "incarichi": sorted({i["nome"] for p in s["presenti"] for i in p.get("incarichi", [])}),
         "aggiorna_ogni": AGGIORNA_LISTA,
+        "puo_registrare": _puo_registrare(request),
+    }
+
+
+def _puo_registrare(request) -> bool:
+    """Registrare chi è dentro (fornitore o ospite) da qui: reception nell'HUB e permesso di registrare
+    gli ingressi della reception. Decide comunque il binding delle rotte reception:presenti_*."""
+    from django.conf import settings
+
+    return bool(getattr(settings, "RECEPTION_NATIVA", False)) and request_has_permission_code(request, "reception.pannello.manage")
+
+
+def _dati_registra() -> dict:
+    """Scelte della finestra «Registra chi è dentro»: referenti, cartellini liberi, ditte, motivi."""
+    from reception import servizi as rs
+    from reception.models import CategoriaVisita, DittaAccreditata, Referente
+
+    return {
+        "reg_referenti": list(Referente.objects.filter(attivo=True)),
+        "reg_cartellini": rs.cartellini_liberi(),
+        "reg_ditte": list(DittaAccreditata.objects.filter(attiva=True).values_list("nome", flat=True)),
+        "reg_motivi": list(CategoriaVisita.objects.filter(attiva=True).values_list("nome", flat=True)),
     }
 
 
 @login_required
 @require_GET
 def home(request):
-    return render(request, "presenti/home.html", _ctx(request, "home", **_dati_lista(request)))
+    dati = _dati_lista(request)
+    if dati["puo_registrare"]:
+        dati.update(_dati_registra())
+    return render(request, "presenti/home.html", _ctx(request, "home", **dati))
 
 
 @login_required
