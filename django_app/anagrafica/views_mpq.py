@@ -352,6 +352,7 @@ def mpq_processo_detail(request, processo_id: int):
         "n_persone_operative": sum(1 for r in righe if r["stato_persona"]["operativa"]),
         "n_macchine_operative": sum(1 for r in macchine if r["operativa"]),
         "ruoli_catalogo": list(processo.ruoli.select_related("competenza")),
+        "mansioni_scelta": _mansioni_scelta() if _check_manage(request) else [],
         "requisiti_persona": requisiti_persona,
         "requisiti_macchina": list(processo.requisiti_macchina.select_related("piano")),
         "parametri_verifica": list(processo.parametri_verifica.all()),
@@ -647,6 +648,13 @@ def mpq_cliente_edit(request, cliente_id: int):
         "form": form, "titolo": f"Modifica · {cli.nome}",
         "back_url": reverse("anagrafica:mpq_cliente_list"),
     })
+
+
+def _mansioni_scelta():
+    """Mansioni della skill matrix da collegare ai ruoli del processo."""
+    from .models_skillmatrix import CompetenzaSkm
+
+    return list(CompetenzaSkm.objects.order_by("display", "competenza_key").only("pk", "display", "competenza_key"))
 
 
 def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_sel=(), std_sel=("QUALIFICATO",)):

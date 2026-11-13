@@ -341,3 +341,45 @@ class MatriceTests(TestCase):
         sorella = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_cruscotto").first()
         if sorella is not None:
             self.assertTrue(SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_matrice").exists())
+
+
+class MansioniLivelliTests(TestCase):
+    """Ruolo del processo collegato a una mansione: assegnazione e livello seguono la qualifica."""
+
+    def setUp(self):
+        from .models_skillmatrix import CompetenzaSkm
+
+        self.p = _proc("Processo L")
+        self.mansione = CompetenzaSkm.objects.create(competenza_key="mansione-sintetica-l", display="Foratura sintetica")
+        self.ruolo = RuoloProcesso.objects.create(processo=self.p, nome="Operatore", competenza=self.mansione)
+        self.ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4601, processo=self.p,
+                                                      stato=AbilitazioneProcesso.STATO_ATTIVA)
+        self.ab.ruoli_processo.add(self.ruolo)
+
+    def _livello(self):
+        from .models_skillmatrix import AbilitazioneMacchina
+
+        return AbilitazioneMacchina.objects.get(legacy_anagrafica_id=4601, competenza=self.mansione).livello
+
+    def test_assegna_alza_e_abbassa(self):
+        from .models_skillmatrix import AbilitazioneMacchinaStorico, SkillMatrixConfig, ordinale_livello
+        from .services.mpq_competenze import allinea
+
+        soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
+        e = allinea()
+        self.assertEqual(e["assegnate"], 1)
+        self.assertEqual(ordinale_livello(self._livello()), soglia)  # qualificata, nessun requisito
+        # Requisito bloccante mancante: non più qualificata → sotto la soglia.
+        RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_ESAME, descrizione="Esame L")
+        e = allinea()
+        self.assertEqual(e["abbassate"], 1)
+        self.assertLess(ordinale_livello(self._livello()), soglia)
+        self.assertEqual(allinea()["cambi"], [])  # rilanciato non cambia niente
+        self.assertEqual(AbilitazioneMacchinaStorico.objects.filter(legacy_anagrafica_id=4601).count(), 2)
+
+    def test_qualificati_stesso_calcolo(self):
+        from .services.mpq_persone import qualificati
+
+        self.assertIn((4601, self.p.pk), qualificati([4601], [self.p.pk]))
+        RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_ESAME, descrizione="Esame Q")
+        self.assertNotIn((4601, self.p.pk), qualificati([4601], [self.p.pk]))

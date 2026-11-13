@@ -431,6 +431,16 @@ GUIDA = {
                       "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
                 ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
                       "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+                ("p", "Mansioni e livelli: sotto i ruoli, «Collega il ruolo … alla mansione» lega un ruolo del processo "
+                      "a una mansione della skill matrix (il ruolo mostra «→ mansione»). Chi ha quel ruolo viene messo in "
+                      "lista sulla mansione (livello «I» se non è ancora qualificato, livello operativo minimo se lo è); "
+                      "se è qualificato e il livello è sotto la soglia operativa sale alla soglia, se perde la qualifica "
+                      "scende sotto la soglia. Sulle mansioni con competenze nel Mansionario il livello resta quello "
+                      "calcolato dalle valutazioni: lì si fa solo l'assegnazione. Succede da solo dopo ogni salvataggio "
+                      "e la notte; «↻ Aggiorna mansioni e livelli» lo fa subito. Ogni cambio è nello storico delle "
+                      "abilitazioni con la fonte «Ricalcolo automatico» e il nome del processo. Una competenza del "
+                      "Mansionario che chiede un processo MOD.128 ora richiede la persona qualificata (colonna "
+                      "«Qualifica»), non solo abilitata."),
                 ("p", "Accanto a ogni corso di «Cosa serve a una persona» il pulsante «↻ Iscrivi tutti (N)» apre una "
                       "sola sessione del corso con dentro tutte le persone abilitate (attive) scadute, mancanti o in "
                       "scadenza: compare a chi può gestire la Formazione."),
@@ -1190,6 +1200,9 @@ GUIDA = {
             "blocchi": [
                 ("def", [
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
+                    ("allinea_mansioni_mpq", "assegnazione e livello sulle mansioni collegate ai ruoli dei processi "
+                                             "MOD.128 (gira già dopo i salvataggi e la notte). --dry-run elenca i "
+                                             "cambi senza scrivere."),
                     ("mpq_avviso_qualifiche", "manda subito la mail MOD.128 delle persone e macchine da sistemare "
                                               "(la stessa del lunedì). --dry-run per vedere l'elenco senza mandare, "
                                               "--recipients a@x.it b@x.it per provarla su altri indirizzi."),

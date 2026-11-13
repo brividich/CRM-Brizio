@@ -133,13 +133,10 @@ def _requisito_mancante(voce: VoceMacchinaCatalogo, legacy_id: int, oggi) -> str
         if not valida:
             return f"qualifica «{voce.qualifica.nome}»"
     if voce.processo_mpq_id:
-        from ..models_mpq import AbilitazioneProcesso, ProcessoQualificato
-        p = voce.processo_mpq
-        processo_ok = p.stato == ProcessoQualificato.STATO_ATTIVO and (p.data_scadenza is None or p.data_scadenza >= oggi)
-        persona_ok = AbilitazioneProcesso.objects.filter(
-            legacy_anagrafica_id=legacy_id, processo=p, stato=AbilitazioneProcesso.STATO_ATTIVA).exists()
-        if not (processo_ok and persona_ok):
-            return f"abilitazione MOD.128 «{p.nome}»"
+        # Qualificata sul processo (stesso calcolo della colonna «Qualifica»), non solo abilitata.
+        from .mpq_persone import qualificati
+        if (legacy_id, voce.processo_mpq_id) not in qualificati([legacy_id], [voce.processo_mpq_id], oggi=oggi):
+            return f"qualifica MOD.128 «{voce.processo_mpq.nome}»"
     return ""
 
 
@@ -154,7 +151,6 @@ class Requisiti:
 
     def __init__(self, legacy_ids, voci, *, oggi=None):
         from ..models import DipendenteQualifica, TrainingDeadline
-        from ..models_mpq import AbilitazioneProcesso
         from .skillmatrix_qualifica import _STATI_VALIDI
 
         self.oggi = oggi or timezone.localdate()
@@ -183,22 +179,16 @@ class Requisiti:
                 if scad is None or scad >= self.oggi
             }
         if processi:
-            self.mpq_ok = set(AbilitazioneProcesso.objects.filter(
-                legacy_anagrafica_id__in=ids, processo_id__in=processi, stato=AbilitazioneProcesso.STATO_ATTIVA,
-            ).values_list("legacy_anagrafica_id", "processo_id"))
+            from .mpq_persone import qualificati
+            self.mpq_ok = qualificati(ids, processi, oggi=self.oggi)
 
     def mancante(self, voce: VoceMacchinaCatalogo, legacy_id: int) -> str:
-        from ..models_mpq import ProcessoQualificato
-
         if voce.corso_id and (legacy_id, voce.corso_id) not in self.corsi_ok:
             return f"corso «{voce.corso.titolo}»"
         if voce.qualifica_id and (legacy_id, voce.qualifica_id) not in self.qualifiche_ok:
             return f"qualifica «{voce.qualifica.nome}»"
-        if voce.processo_mpq_id:
-            p = voce.processo_mpq
-            processo_ok = p.stato == ProcessoQualificato.STATO_ATTIVO and (p.data_scadenza is None or p.data_scadenza >= self.oggi)
-            if not (processo_ok and (legacy_id, p.pk) in self.mpq_ok):
-                return f"abilitazione MOD.128 «{p.nome}»"
+        if voce.processo_mpq_id and (legacy_id, voce.processo_mpq_id) not in self.mpq_ok:
+            return f"qualifica MOD.128 «{voce.processo_mpq.nome}»"
         return ""
 
 
