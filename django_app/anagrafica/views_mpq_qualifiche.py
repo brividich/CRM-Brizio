@@ -634,3 +634,28 @@ def mpq_aggiorna_mansioni(request, processo_id: int):
              dettaglio=f"assegnate {esito['assegnate']}, alzati {esito['alzate']}, abbassati {esito['abbassate']}")
     _messaggio_allineamento(request, esito)
     return redirect(_dettaglio(proc.id, "requisiti-persone"))
+
+
+@login_required
+@require_POST
+def mpq_attivita(request, ab_id: int):
+    """Registra l'ultima attività della persona sul processo (oggi o la data indicata)."""
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from datetime import date
+
+    ab = get_object_or_404(AbilitazioneProcesso.objects.select_related("processo"), pk=ab_id)
+    oggi = timezone.localdate()
+    try:
+        data = date.fromisoformat(request.POST.get("data") or "") if request.POST.get("data") else oggi
+    except ValueError:
+        data = oggi
+    if data > oggi:
+        messages.error(request, "La data dell'attività non può essere futura.")
+        return redirect(_dettaglio(ab.processo_id))
+    ab.ultima_attivita = data
+    ab.save(update_fields=["ultima_attivita", "updated_at"])
+    _mpq_log(request, processo=ab.processo, abilitazione=ab, evento="Attività registrata",
+             dettaglio=f"{data:%d-%m-%Y}")
+    messages.success(request, f"Attività del {data:%d-%m-%Y} registrata.")
+    return redirect(_dettaglio(ab.processo_id))
