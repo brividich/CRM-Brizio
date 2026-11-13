@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import views_coefficienti
 from . import views_mpq
+from . import views_mpq_qualifiche as views_mpq_q
 from . import views_recruiting
 from . import views_reportistica
 from . import views_reportistica_chat
@@ -334,6 +335,36 @@ urlpatterns = [
     path("mod128/<int:processo_id>/attrezzature/<int:asset_id>/rimuovi/", views_mpq.mpq_attrezzatura_remove,
          name="mpq_attrezzatura_remove"),
     path("mod128/<int:processo_id>/requisito/aggiungi/", views_mpq.mpq_requisito_add, name="mpq_requisito_add"),
+    # Persone qualificate e macchine qualificate (13/11/2026)
+    path("mod128/<int:processo_id>/ruoli/aggiungi/", views_mpq_q.mpq_ruolo_add, name="mpq_ruolo_add"),
+    path("mod128/ruolo/<int:ruolo_id>/elimina/", views_mpq_q.mpq_ruolo_delete, name="mpq_ruolo_delete"),
+    path("mod128/<int:processo_id>/requisito-persona/aggiungi/", views_mpq_q.mpq_requisito_persona_add,
+         name="mpq_requisito_persona_add"),
+    path("mod128/requisito-persona/<int:req_id>/modifica/", views_mpq_q.mpq_requisito_persona_edit,
+         name="mpq_requisito_persona_edit"),
+    path("mod128/requisito-persona/<int:req_id>/elimina/", views_mpq_q.mpq_requisito_persona_delete,
+         name="mpq_requisito_persona_delete"),
+    path("mod128/abilitazione/<int:ab_id>/requisito/<int:req_id>/registra/", views_mpq_q.mpq_evidenza_add,
+         name="mpq_evidenza_add"),
+    path("mod128/<int:processo_id>/requisito-macchina/aggiungi/", views_mpq_q.mpq_requisito_macchina_add,
+         name="mpq_requisito_macchina_add"),
+    path("mod128/requisito-macchina/<int:req_id>/modifica/", views_mpq_q.mpq_requisito_macchina_edit,
+         name="mpq_requisito_macchina_edit"),
+    path("mod128/requisito-macchina/<int:req_id>/elimina/", views_mpq_q.mpq_requisito_macchina_delete,
+         name="mpq_requisito_macchina_delete"),
+    path("mod128/<int:processo_id>/verifica/voce/aggiungi/", views_mpq_q.mpq_parametro_add, name="mpq_parametro_add"),
+    path("mod128/verifica/voce/<int:parametro_id>/elimina/", views_mpq_q.mpq_parametro_delete,
+         name="mpq_parametro_delete"),
+    path("mod128/<int:processo_id>/macchina/<int:asset_id>/qualifica/", views_mpq_q.mpq_qualifica_macchina_crea,
+         name="mpq_qualifica_macchina_crea"),
+    path("mod128/macchina/<int:qm_id>/", views_mpq_q.mpq_qualifica_macchina, name="mpq_qualifica_macchina"),
+    path("mod128/macchina/<int:qm_id>/modifica/", views_mpq_q.mpq_qualifica_macchina_edit,
+         name="mpq_qualifica_macchina_edit"),
+    path("mod128/macchina/<int:qm_id>/stato/", views_mpq_q.mpq_qualifica_macchina_stato,
+         name="mpq_qualifica_macchina_stato"),
+    path("mod128/macchina/<int:qm_id>/verifica/", views_mpq_q.mpq_verifica_add, name="mpq_verifica_add"),
+    path("mod128/documento/<str:tipo>/<int:pk>/", views_mpq_q.mpq_documento, name="mpq_documento"),
+    path("mod128/<int:processo_id>/elenco/", views_mpq_q.mpq_elenco, name="mpq_elenco"),
 
     # Voci retributive — importazione CSV e storico dipendente
     path("retribuzioni/", views.retribuzioni_import, name="retribuzioni_import"),

@@ -1518,13 +1518,26 @@ def _operatori_abilitati(request, asset) -> dict | None:
 
 
 def _processi_qualificati(asset) -> list:
-    """Processi qualificati MOD.128 dell'asset (collegati o PART145 dal flag); fail-safe."""
+    """Processi qualificati MOD.128 dell'asset (collegati o PART145 dal flag); fail-safe.
+
+    Ogni processo porta ``qualifica_macchina``: lo stato della qualifica della
+    macchina su quel processo (o None se non registrata).
+    """
     from ..services.part145 import processi_dell_asset
 
     try:
-        return processi_dell_asset(asset)
+        processi = processi_dell_asset(asset)
     except Exception:
         return []
+    try:
+        from anagrafica.services.mpq_macchine import qualifiche_dell_asset
+
+        stati = qualifiche_dell_asset(asset)
+    except Exception:
+        stati = {}
+    for p in processi:
+        p.qualifica_macchina = stati.get(p.pk)
+    return processi
 
 
 # Ingrandimento della vista «Zona» nella scheda: la planimetria intera in una

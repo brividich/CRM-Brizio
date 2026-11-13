@@ -1,0 +1,175 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ asset.asset_tag }} · {{ processo.nome }} · MOD.128 | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/partials/_torna_a.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow">
+            <span class="fmd-dot"></span>
+            <a href="{% url 'anagrafica:mpq_processo_detail' processo.id %}#attrezzature" style="color:inherit;text-decoration:none;">MOD.128 · {{ processo.nome }}</a>
+          </div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-grid"/></svg><a href="{% url 'assets:asset_view' asset.id %}" style="color:inherit;text-decoration:none;" title="Scheda dell'asset">{{ asset.asset_tag }}</a> · {{ asset.name }}</h1>
+          <p class="fmd-sub">
+            Cliente/ente: <strong>{{ processo.cliente.nome }}</strong>
+            {% if asset.reparto %}· Reparto: {{ asset.reparto }}{% endif %}
+            · Asset: {{ asset.get_status_display }}
+            {% if qm.frequenza_mesi %}· Qualifica ogni {{ qm.frequenza_mesi }} mesi{% else %}· Qualifica senza scadenza{% endif %}
+          </p>
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
+            <span class="fmd-badge {{ stato.classe }}">{{ stato.label }}</span>
+            {% if qm.data_qualifica %}<span class="fmd-badge fmd-b-gray">Qualificata il {{ qm.data_qualifica|date:"d-m-Y" }}</span>{% endif %}
+          </div>
+          {% if can_manage %}
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_verifica_add' qm.id %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Registra verifica</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_qualifica_macchina_edit' qm.id %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    {% if qm.motivo_stato and not stato.operativa %}
+    <section class="fmd-panel fmd-block" style="border-left:4px solid #f59e0b;" id="decidi">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>{{ qm.get_stato_display }}</div>
+      <p class="fmd-sub" style="margin:6px 0 0;">{{ qm.motivo_stato }}</p>
+      {% if riesame %}
+      <p class="fmd-sub" style="margin:6px 0 0;color:#b91c1c;"><strong>Riesamina le parti lavorate su questa macchina {% if riesame.0 %}dal {{ riesame.0|date:"d-m-Y" }}{% else %}fino{% endif %} al {{ riesame.1|date:"d-m-Y" }}</strong> e registra l'esito come non conformità.
+        <a class="fmd-act" href="{% url 'apertura_segnalazione' %}" title="Apri la segnalazione di non conformità">+ Non conformità</a></p>
+      {% endif %}
+      {% if can_manage and qm.stato == "DA_VALUTARE" %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <form method="post" action="{% url 'anagrafica:mpq_qualifica_macchina_stato' qm.id %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="azione" value="non_incide"><button type="submit" class="fmd-act" title="La manutenzione non ha toccato mandrino, assi o sensori: torna qualificata con la scadenza di prima">Non incide</button></form>
+        <form method="post" action="{% url 'anagrafica:mpq_qualifica_macchina_stato' qm.id %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="azione" value="riqualifica"><button type="submit" class="fmd-act" style="color:#b91c1c;" title="Sospende la macchina finché non registri una verifica conforme">Serve la riqualifica</button></form>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if qm.limitazioni %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Limitazioni</div>
+      <p class="fmd-sub" style="margin:6px 0 0;">{{ qm.limitazioni|linebreaksbr }}</p>
+    </section>
+    {% endif %}
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Manutenzioni e controlli richiesti dal processo</div>
+        <div class="fmd-block-aside"><a href="{% url 'assets:asset_view' asset.id %}">Scheda asset →</a></div>
+      </div>
+      {% if requisiti %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Cosa</th><th>Tipo</th><th>Stato</th><th>Ultima</th><th>Prossima</th></tr></thead>
+          <tbody>
+          {% for v in requisiti %}
+            <tr>
+              <td>{{ v.nome }}{% if not v.bloccante %} <span class="fmd-muted" style="font-size:11px;">(non bloccante)</span>{% endif %}</td>
+              <td><span class="fmd-badge fmd-b-slate">{{ v.tipo }}</span></td>
+              <td>{% if v.stato == "ok" %}<span class="fmd-badge fmd-b-green">{{ v.label }}</span>{% elif v.stato == "in_scadenza" %}<span class="fmd-badge fmd-b-amber">{{ v.label }}</span>{% elif v.stato == "na" %}<span class="fmd-badge fmd-b-slate">{{ v.label }}</span>{% else %}<span class="fmd-badge fmd-b-red">{{ v.label }}</span>{% endif %}</td>
+              <td>{{ v.ultima|date:"d-m-Y"|default:"—" }}</td>
+              <td>{{ v.prossima|date:"d-m-Y"|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Il processo non chiede manutenzioni specifiche.</div>{% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Verifiche
+          {% if verifiche %}<span class="fmd-count">{{ verifiche|length }}</span>{% endif %}
+        </div>
+      </div>
+      {% for v in verifiche %}
+      <div style="padding:10px 0;border-bottom:1px solid #eef3f8;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <strong>{{ v.data|date:"d-m-Y" }}</strong>
+          <span class="fmd-badge fmd-b-slate">{{ v.get_tipo_display }}</span>
+          {% if v.esito == "OK" %}<span class="fmd-badge fmd-b-green">Conforme</span>{% else %}<span class="fmd-badge fmd-b-red">Non conforme</span>{% endif %}
+          {% if v.eseguita_da %}<span class="fmd-muted" style="font-size:12px;">· {{ v.eseguita_da }}</span>{% endif %}
+          {% if v.documento %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:mpq_documento' 'verifica' v.id %}">Rapporto</a>{% endif %}
+        </div>
+        {% if v.misure.all %}
+        <div class="fmd-tablewrap" style="margin-top:6px;">
+          <table class="fmd-table" data-fm-table-skip="1">
+            <thead><tr><th>Voce</th><th>Nominale</th><th>Misurato</th><th>Scostamento</th><th>Esito</th></tr></thead>
+            <tbody>
+            {% for m in v.misure.all %}
+              <tr>
+                <td>{{ m.nome }}<div class="fmd-muted" style="font-size:11px;">{{ m.criterio }}</div></td>
+                <td>{{ m.nominale_txt }}</td>
+                <td>{{ m.misurato_txt }}</td>
+                <td>{{ m.scostamento_txt }}</td>
+                <td>{% if m.conforme %}<span class="fmd-badge fmd-b-green">OK</span>{% else %}<span class="fmd-badge fmd-b-red">KO</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        {% if v.note %}<div class="fmd-muted" style="font-size:12px;margin-top:4px;">{{ v.note|linebreaksbr }}</div>{% endif %}
+      </div>
+      {% empty %}<div class="fmd-empty">Nessuna verifica registrata.</div>{% endfor %}
+    </section>
+
+    {% if can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-edit"/></svg>Cambia stato</div></div>
+      <form method="post" action="{% url 'anagrafica:mpq_qualifica_macchina_stato' qm.id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+        {% csrf_token %}
+        <select name="azione" style="padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+          <option value="sospendi">Sospendi</option>
+          <option value="declassa">Declassa (con limitazioni)</option>
+          <option value="ritira">Togli dal processo</option>
+        </select>
+        <input type="text" name="motivo" placeholder="Motivo" maxlength="255" style="flex:1;min-width:200px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+        <input type="text" name="limitazioni" placeholder="Lavorazioni escluse (per «Declassa»)" style="flex:1;min-width:200px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+        <button type="submit" class="fmd-btn fmd-btn-ghost">Applica</button>
+      </form>
+      <div class="fmd-muted" style="font-size:11px;margin-top:6px;">Per tornare «Qualificata» registra una verifica conforme.</div>
+    </section>
+    {% endif %}
+
+    {% if storico %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Storico</div></div>
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead><tr><th class="fmd-nowrap">Quando</th><th>Evento</th><th>Origine</th></tr></thead>
+          <tbody>
+          {% for s in storico %}
+            <tr>
+              <td class="fmd-nowrap fmd-muted">{{ s.registrato_il|date:"d-m-Y H:i" }}</td>
+              <td>{{ s.evento }}{% if s.dettaglio %}<div class="fmd-muted" style="font-size:12px;">{{ s.dettaglio }}</div>{% endif %}</td>
+              <td class="fmd-muted">{{ s.get_origine_display }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

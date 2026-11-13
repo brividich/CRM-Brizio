@@ -807,6 +807,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ANAGRAFICA — MOD.128: persone dei processi qualificati non in regola o in scadenza
+        # entro 60 giorni (requisiti per ruolo) e macchine qualificate sospese, da valutare o
+        # in scadenza. A Qualità, destinatari MOD.128. Nessuna voce = nessuna mail.
+        "name": "mpq_qualifiche_scadenze",
+        "func": "anagrafica.tasks.run_mpq_avviso_qualifiche",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 7 * * 1",       # ogni lunedi alle 07:40
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ASSETS — avvisi del monitoraggio IT: dispositivi SNMP in errore o muti,
         # consumabili MFC sotto soglia. Digest a SiteConfig assets_it_monitoring_emails
         # (poi assets_reminder_emails, poi ADMINS/superuser) + notifica in app solo
@@ -1253,6 +1264,7 @@ DIGEST_E_PROMEMORIA: dict[str, str] = {
     "assets_maintenance_reminders": "Destinatari manutenzioni (o amministratori)",
     "assets_it_monitoring_alerts": "Destinatari monitoraggio IT (o amministratori)",
     "part145_scadenze": "Qualità (destinatari MOD.128)",
+    "mpq_qualifiche_scadenze": "Qualità (destinatari MOD.128)",
     "dpi_expiry_reminders": "Destinatari DPI (o amministratori)",
     "visite_expiry_reminders": "Responsabili visite + notifica al dipendente",
     "visite_mediche_digest": "HR (amministratori)",
@@ -1300,6 +1312,7 @@ DIGEST_OGGETTO: dict[str, tuple[str, ...]] = {
     "assets_maintenance_reminders": ("[Manutenzione] N SCADUTE + N non valutabili + N senza rapporto + N licenze/contratti — gg-mm-aaaa",),
     "assets_it_monitoring_alerts": ("[Monitoraggio IT] N problemi aperti — gg-mm-aaaa",),
     "part145_scadenze": ("[PART 145] Scadenze entro N giorni (N)",),
+    "mpq_qualifiche_scadenze": ("[MOD.128] Persone e macchine qualificate da sistemare (N)",),
     "dpi_expiry_reminders": (
         "[DPI] N scaduti + N in scadenza - gg-mm-aaaa",
         "[DPI] DPI scaduti o in scadenza nella tua squadra (N) - gg-mm-aaaa",

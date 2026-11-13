@@ -354,3 +354,15 @@ def run_report_retention() -> dict:
     except Exception:
         logger.exception("run_report_retention: eccezione inattesa")
         raise
+
+
+def run_mpq_avviso_qualifiche() -> dict:
+    """Avviso settimanale MOD.128: persone e macchine qualificate da sistemare."""
+    from django.core.management import call_command
+
+    try:
+        call_command("mpq_avviso_qualifiche", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_mpq_avviso_qualifiche: eccezione inattesa")
+        raise

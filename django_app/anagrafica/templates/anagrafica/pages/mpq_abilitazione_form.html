@@ -76,6 +76,12 @@ body.theme-dark .mpqf-err{color:#fca5a5}
           <label>{{ form.is_controllore }} Controllore</label>
           <label>{{ form.is_part145 }} Part 145</label>
         </div>
+        {% if ruoli_catalogo %}
+        <label class="mpqf-lbl">Ruoli del processo <span class="fmd-muted" style="font-weight:400;">(decidono quali requisiti valgono per la persona)</span></label>
+        <div class="mpqf-roles">
+          {% for r in ruoli_catalogo %}<label><input type="checkbox" class="fm-check" name="ruoli_processo" value="{{ r.pk }}"{% if r.pk in ruoli_sel %} checked{% endif %}> {{ r.nome }}</label>{% endfor %}
+        </div>
+        {% endif %}
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px;">
           <div><label class="mpqf-lbl" for="{{ form.stato.id_for_label }}">Stato</label>{{ form.stato }}</div>

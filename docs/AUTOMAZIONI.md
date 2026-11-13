@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 115
+**Totale automazioni disponibili:** 116
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -101,6 +101,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 2 minuti
 - **Task eseguito:** `anagrafica.tasks.run_intake_scansioni_formazione`
 - **Cosa fa:** Fogli firme depositati dalla fotocopiatrice in una cartella di rete: il QR dice a quale giornata appartengono, quindi non serve nessuna convenzione sul nome del file. Spento finché non lo si accende da Impostazioni → Acquisizione scansioni, e no-op se la share non risponde: una cartella irraggiungibile non è un guasto del portale.
+
+### `mpq_qualifiche_scadenze`
+
+- **Quando gira:** ogni lun, alle 07:40
+- **Task eseguito:** `anagrafica.tasks.run_mpq_avviso_qualifiche`
+- **Cosa fa:** ANAGRAFICA — MOD.128: persone dei processi qualificati non in regola o in scadenza entro 60 giorni (requisiti per ruolo) e macchine qualificate sospese, da valutare o in scadenza. A Qualità, destinatari MOD.128. Nessuna voce = nessuna mail.
 
 ### `training_expiry_reminders`
 

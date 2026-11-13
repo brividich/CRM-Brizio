@@ -1796,6 +1796,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
             "checklist_blocking_items": [item for item in workorder.checklist_items.all() if item.blocks_closure],
             "pending_occurrences": pending_occurrences if pending_confirmation else [],
+            "qualifiche_mpq_toccate": _qualifiche_mpq_toccate(workorder),
             "pending_confirmation": pending_confirmation,
             "pending_reason_required": pending_reason_required,
             "pending_reason_value": pending_reason_value,
@@ -1865,3 +1866,12 @@ def _workorder_map_url(workorder) -> str:
     except Exception:  # la mappa è un di più: la scheda dell'intervento si apre comunque
         return ""
 
+
+def _qualifiche_mpq_toccate(workorder) -> list:
+    """Processi qualificati MOD.128 su cui la chiusura chiede la valutazione; fail-safe."""
+    try:
+        from anagrafica.services.mpq_macchine import qualifiche_toccate_da_odl
+
+        return qualifiche_toccate_da_odl(workorder)
+    except Exception:
+        return []

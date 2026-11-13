@@ -376,15 +376,55 @@ GUIDA = {
             ],
         },
         {
+            "id": "mod128-persone-macchine",
+            "titolo": "MOD.128: persone qualificate e macchine qualificate",
+            "blocchi": [
+                ("p", "Ogni processo ha tre scadenze indipendenti: quella del processo (approvazione del cliente o "
+                      "dell'ente, in testata), quella di ogni persona e quella di ogni macchina. I due riquadri in "
+                      "testata contano chi oggi può lavorare il processo: «Persone qualificate» e «Macchine qualificate»."),
+                ("p", "«Cosa serve a una persona»: prima i ruoli del processo («＋ Ruoli», più nomi separati da ;), poi "
+                      "«+ Aggiungi requisito persona»: corso, visita, test visivo, esame, ore di esperienza, "
+                      "affiancamento, certificato. Ogni requisito vale per alcuni ruoli (vuoto = tutti), è «Una tantum» "
+                      "o «Ricorrente» ogni N mesi («Scade a fine mese» come le qualifiche CND) ed è bloccante o no. "
+                      "I ruoli della persona si spuntano in «Modifica» dell'abilitazione."),
+                ("p", "Un corso o una visita bloccante diventa un obbligo vero in Formazione e nel semaforo idoneità, "
+                      "solo per i ruoli indicati. La scadenza della persona usa la frequenza del processo partendo "
+                      "dall'ultima frequenza del corso registrata in Formazione. Test visivi, esami, ore e "
+                      "affiancamenti si registrano dal pulsante della riga («Registra test visivo»…), con il documento."),
+                ("p", "In «Persone qualificate» la colonna «Qualifica» dice Qualificata, In scadenza, Incompleta o Non "
+                      "qualificata; «Scade» è la prima scadenza fra i requisiti bloccanti e le certificazioni "
+                      "individuali. Il pulsante della riga porta alla cosa da fare: «↻ Iscrivi», «+ Visita» o «Registra…»."),
+                ("p", "«Cosa serve a una macchina»: manutenzioni, tarature e controlli collegati a un piano di "
+                      "manutenzione dell'asset (lo stato si legge dalle sue scadenze) e le voci della verifica di "
+                      "qualifica: misura con tolleranza ± % (es. giri mandrino 10%, avanzamento 15%), misura con valore "
+                      "minimo (es. pressione 4,1 bar) o prova conforme / non conforme (es. blocco per mancanza "
+                      "refrigerante). «Ripeti la qualifica macchine ogni (mesi)» nel form del processo è la frequenza "
+                      "proposta alle macchine nuove."),
+                ("p", "Ogni macchina ha la sua scheda (clic sullo stato): «Registra verifica» chiede nominale e "
+                      "misurato per ogni voce e calcola lo scostamento. Conforme = «Qualificata» fino a data + "
+                      "frequenza; una sola voce fuori criterio = «Sospesa», con il periodo delle parti lavorate da "
+                      "riesaminare (dall'ultima verifica conforme) e il pulsante «+ Non conformità»."),
+                ("p", "Una macchina qualificata passa da sola a «Da valutare» quando si chiude un OdL correttivo o da "
+                      "ticket (non le tarature) o quando l'asset va «In riparazione»; dismessa diventa «Non più usata "
+                      "nel processo». Qualità riceve una mail e decide nella scheda: «Non incide» (torna qualificata "
+                      "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
+                ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
+                      "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [
-                ("p", "Nel dettaglio di un processo qualificato la sezione «Attrezzature» elenca gli asset usati nel "
-                      "processo. Per collegarne uno scrivi il tag o il numero interno e premi «＋ Collega "
-                      "attrezzatura»; «Scollega» lo toglie. Serve il permesso di gestione MOD.128. Per un processo "
-                      "PART 145 compaiono anche gli asset con «Rientra in PART 145» (si tolgono dal form dell'asset)."),
+                ("p", "Nel dettaglio di un processo qualificato la sezione «Macchine qualificate» elenca gli asset "
+                      "usati nel processo. Per collegarne uno scrivi il tag o il numero interno e premi «＋ Collega "
+                      "attrezzatura»: entra «Da qualificare». «Scollega» lo toglie e la sua qualifica resta nello "
+                      "storico. Serve il permesso di gestione MOD.128. Per un processo PART 145 compaiono anche gli "
+                      "asset con «Rientra in PART 145» (si tolgono dal form dell'asset): «Qualifica» apre la loro scheda."),
                 ("p", "Quando un'attrezzatura del processo cambia stato arriva una mail agli stessi destinatari dei "
-                      "timbri sospesi. Il riepilogo per l'audit è il Dossier PART 145 del modulo Asset."),
+                      "timbri sospesi. Ogni lunedì la mail «[MOD.128] Persone e macchine qualificate da sistemare» "
+                      "elenca chi e cosa non è in regola o scade entro 60 giorni. Il riepilogo per l'audit è il "
+                      "Dossier PART 145 del modulo Asset."),
                 ("p", "Un processo speciale autorizzato per le attività Part 145 (es. i processi con DQP "
                       "dell'Annesso 2 dell'accordo con l'organizzazione di manutenzione) va marcato con la casella "
                       "«Rientra nel perimetro Part 145» nel form del processo: così entra nel Dossier PART 145 con "
@@ -1130,6 +1170,25 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una persona risulta «Incompleta» sul processo ma il corso l'ha fatto",
+            "perche": "il requisito persona legge l'ultima frequenza registrata in Formazione per quel corso; se il "
+                      "corso è un altro (o non è stato chiuso con presenze) non la trova. Con frequenza del processo "
+                      "più corta del corso, la persona scade prima che in Formazione.",
+            "fare": [
+                "Controlla in Formazione che la frequenza sia registrata sul corso indicato nel requisito.",
+                "Verifica che il requisito valga per i ruoli della persona (Modifica abilitazione → Ruoli del processo).",
+            ],
+        },
+        {
+            "sintomo": "Una macchina qualificata è passata a «Da valutare» senza che nessuno l'abbia toccata in MOD.128",
+            "perche": "è stato chiuso un OdL correttivo o da ticket su quell'asset, oppure l'asset è stato messo in "
+                      "riparazione (MT CN 07 §6, MT CN 69 §9).",
+            "fare": [
+                "Apri la scheda della macchina: il motivo dice quale OdL. «Non incide» la riporta qualificata, "
+                "«Serve la riqualifica» la sospende fino a una verifica conforme.",
+            ],
+        },
         {
             "sintomo": "«Prova adesso» (acquisizione scansioni o referti) dice «Lettura avviata» ma non si vede subito l'esito",
             "perche": "la lettura della cartella gira in background, non nella pagina: con molti file o una cartella di rete lenta "

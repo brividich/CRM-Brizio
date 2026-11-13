@@ -195,6 +195,10 @@ GUIDA = {
                     "Il Dossier mostra anche, a chi ha il permesso del modulo, la formazione richiesta dai processi "
                     "(MOD.128), gli audit interni Part 145 (Sistema di gestione) e le NC Part 145 aperte (Anomalie).",
                     "Nel Catalogo report, area «Qualità e PART 145»: tarature delle attrezzature, da sistemare, scadenze.",
+                    "In testata della scheda asset ogni processo qualificato MOD.128 mostra lo stato della qualifica "
+                    "della macchina (verde qualificata, ambra in scadenza, rosso sospesa, da valutare o scaduta) e "
+                    "porta alla sua scheda nel processo. Chiudendo un intervento correttivo o da ticket su una macchina "
+                    "qualificata compare l'avviso: alla chiusura passa a «Da valutare» e Qualità decide se riqualificarla.",
                     "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
                     "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
                 ]),

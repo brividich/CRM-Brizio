@@ -13,7 +13,11 @@ from .models_mpq import (
     AbilitazioneProcesso,
     CertificazioneIndividuale,
     ClienteQualificante,
+    EvidenzaRequisitoPersona,
     ProcessoQualificato,
+    QualificaMacchina,
+    RequisitoMacchina,
+    RequisitoPersona,
     RequisitoQualifica,
     RiferimentoProcesso,
 )
@@ -55,6 +59,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "cliente", "nome", "regime", "perimetro_part145", "livello",
             "ente_certificatore", "tipo_qualifica",
             "tipo_validita", "data_conseguimento", "durata_mesi", "data_scadenza",
+            "frequenza_macchine_mesi",
             "personale_modalita", "riferimento_dichiarazione",
             "stato", "motivo_stato", "riferimento_stato",
             "numero_revisione", "responsabile_qualita", "data_revisione",
@@ -72,6 +77,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "data_conseguimento": forms.DateInput(attrs=_FM_DATE),
             "durata_mesi": forms.NumberInput(attrs=_FM_NUM),
             "data_scadenza": forms.DateInput(attrs=_FM_DATE),
+            "frequenza_macchine_mesi": forms.NumberInput(attrs=_FM_NUM),
             "personale_modalita": forms.Select(attrs=_FM_SELECT),
             "riferimento_dichiarazione": forms.TextInput(attrs=_FM),
             "stato": forms.Select(attrs=_FM_SELECT),
@@ -98,7 +104,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for f in ("ente_certificatore", "tipo_qualifica", "reparti",
                   "clienti_addizionali", "durata_mesi", "data_conseguimento",
-                  "data_scadenza", "data_revisione",
+                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi",
                   "corsi_richiesti", "dpi_richiesti", "visite_richieste"):
             self.fields[f].required = False
         cli_qs = ClienteQualificante.objects.all().order_by("nome")
@@ -217,3 +223,124 @@ class AbilitazioneProcessoForm(forms.Form):
                     self.add_error("dipendente", "Dipendente non valido.")
             cd["nominativo_esterno"] = ""
         return cd
+
+
+# ── Persone qualificate e macchine qualificate (13/11/2026) ──────────────────
+
+class RequisitoPersonaForm(forms.ModelForm):
+    """Cosa serve a una persona sul processo: per ruolo, una tantum o ricorrente."""
+
+    class Meta:
+        model = RequisitoPersona
+        fields = [
+            "tipo", "corso", "tipo_visita", "descrizione", "ruoli",
+            "ricorrenza", "frequenza_mesi", "scadenza_fine_mese", "ore_minime",
+            "bloccante", "attivo", "note",
+        ]
+        labels = {
+            "corso": "Corso (per «Corso di formazione»)",
+            "tipo_visita": "Visita (per «Visita medica»)",
+            "descrizione": "Descrizione",
+            "ruoli": "Vale per i ruoli (vuoto = tutti)",
+        }
+        widgets = {
+            "tipo": forms.Select(attrs=_FM_SELECT),
+            "corso": forms.Select(attrs=_FM_SELECT),
+            "tipo_visita": forms.Select(attrs=_FM_SELECT),
+            "descrizione": forms.TextInput(attrs=_FM),
+            "ruoli": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6",
+                                                 "data-picker": "",
+                                                 "data-picker-placeholder": "Cerca ruolo…"}),
+            "ricorrenza": forms.Select(attrs=_FM_SELECT),
+            "frequenza_mesi": forms.NumberInput(attrs=_FM_NUM),
+            "scadenza_fine_mese": forms.CheckboxInput(attrs=_FM_CHECK),
+            "ore_minime": forms.NumberInput(attrs={**_FM_NUM, "step": "0.5"}),
+            "bloccante": forms.CheckboxInput(attrs=_FM_CHECK),
+            "attivo": forms.CheckboxInput(attrs=_FM_CHECK),
+            "note": forms.Textarea(attrs=_FM_TEXTAREA),
+        }
+
+    def __init__(self, *args, processo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in ("corso", "tipo_visita", "descrizione", "ruoli", "frequenza_mesi",
+                  "ore_minime", "note"):
+            self.fields[f].required = False
+        processo = processo or getattr(self.instance, "processo", None)
+        self.fields["ruoli"].queryset = (processo.ruoli.all() if processo is not None
+                                         else self.fields["ruoli"].queryset.none())
+        self.fields["corso"].queryset = self.fields["corso"].queryset.order_by("titolo")
+
+    def clean(self):
+        cd = super().clean()
+        tipo = cd.get("tipo")
+        if tipo == RequisitoPersona.TIPO_CORSO and not cd.get("corso"):
+            self.add_error("corso", "Scegli il corso.")
+        if tipo == RequisitoPersona.TIPO_VISITA and not cd.get("tipo_visita"):
+            self.add_error("tipo_visita", "Scegli la visita.")
+        if tipo not in RequisitoPersona.TIPI_DA_ALTRI_MODULI and not (cd.get("descrizione") or "").strip():
+            self.add_error("descrizione", "Scrivi cosa serve (es. «Test visivo Jaeger»).")
+        if cd.get("ricorrenza") == RequisitoPersona.RICORRENZA_RICORRENTE and not cd.get("frequenza_mesi"):
+            self.add_error("frequenza_mesi", "Indica ogni quanti mesi va ripetuto.")
+        if tipo == RequisitoPersona.TIPO_ESPERIENZA and not cd.get("ore_minime"):
+            self.add_error("ore_minime", "Indica le ore da raggiungere.")
+        return cd
+
+
+class EvidenzaRequisitoPersonaForm(forms.ModelForm):
+    class Meta:
+        model = EvidenzaRequisitoPersona
+        fields = ["data_esecuzione", "esito", "ore", "data_scadenza", "documento", "note"]
+        labels = {"data_esecuzione": "Eseguito il", "data_scadenza": "Scade il (vuoto = dalla ricorrenza)"}
+        widgets = {
+            "data_esecuzione": forms.DateInput(attrs=_FM_DATE),
+            "esito": forms.Select(attrs=_FM_SELECT),
+            "ore": forms.NumberInput(attrs={**_FM_NUM, "step": "0.5"}),
+            "data_scadenza": forms.DateInput(attrs=_FM_DATE),
+            "note": forms.TextInput(attrs=_FM),
+        }
+
+    def __init__(self, *args, requisito=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in ("ore", "data_scadenza", "documento", "note"):
+            self.fields[f].required = False
+        if requisito is not None and requisito.tipo != RequisitoPersona.TIPO_ESPERIENZA:
+            del self.fields["ore"]
+
+
+class RequisitoMacchinaForm(forms.ModelForm):
+    class Meta:
+        model = RequisitoMacchina
+        fields = ["tipo", "descrizione", "piano", "ricorrenza", "bloccante", "attivo"]
+        widgets = {
+            "tipo": forms.Select(attrs=_FM_SELECT),
+            "descrizione": forms.TextInput(attrs=_FM),
+            "piano": forms.Select(attrs=_FM_SELECT),
+            "ricorrenza": forms.TextInput(attrs=_FM),
+            "bloccante": forms.CheckboxInput(attrs=_FM_CHECK),
+            "attivo": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["piano"].required = False
+        self.fields["ricorrenza"].required = False
+        self.fields["piano"].queryset = self.fields["piano"].queryset.order_by("label")
+
+
+class QualificaMacchinaForm(forms.ModelForm):
+    class Meta:
+        model = QualificaMacchina
+        fields = ["data_qualifica", "frequenza_mesi", "data_scadenza", "limitazioni", "note"]
+        labels = {"data_qualifica": "Qualificata il", "data_scadenza": "Scade il (vuoto = dalla frequenza)"}
+        widgets = {
+            "data_qualifica": forms.DateInput(attrs=_FM_DATE),
+            "frequenza_mesi": forms.NumberInput(attrs=_FM_NUM),
+            "data_scadenza": forms.DateInput(attrs=_FM_DATE),
+            "limitazioni": forms.Textarea(attrs=_FM_TEXTAREA),
+            "note": forms.Textarea(attrs=_FM_TEXTAREA),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in self.fields:
+            self.fields[f].required = False

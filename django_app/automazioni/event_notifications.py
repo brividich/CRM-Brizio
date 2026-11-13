@@ -139,6 +139,30 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "notifica_msm_sospensioni (via propaga_sospensioni)",
     },
     {
+        "code": "mpq_macchina_da_valutare",
+        "label": "Macchine qualificate MOD.128 da valutare o sospese",
+        "module": "Anagrafica HR",
+        "trigger": (
+            "Una macchina qualificata passa a «Da valutare» (OdL non programmato chiuso, asset messo in "
+            "riparazione) o viene sospesa da una verifica non conforme."
+        ),
+        "destinatari": "Destinatari MOD.128 configurati nel servizio (gli stessi dei timbri sospesi)",
+        "source": "anagrafica/services/mpq_macchine.py",
+        "func": "notifica_macchine_da_valutare",
+    },
+    {
+        "code": "mpq_qualifiche_scadenze",
+        "label": "Persone e macchine qualificate MOD.128 da sistemare",
+        "module": "Anagrafica HR",
+        "trigger": (
+            "Ogni lunedì (task mpq_qualifiche_scadenze): persone dei processi attivi non qualificate o in "
+            "scadenza entro 60 giorni, macchine sospese, da valutare o in scadenza. Nessuna voce = nessuna mail."
+        ),
+        "destinatari": "Destinatari MOD.128 configurati nel servizio (gli stessi dei timbri sospesi)",
+        "source": "anagrafica/services/mpq_scadenze.py",
+        "func": "notifica_scadenze",
+    },
+    {
         "code": "part145_attrezzatura_stato",
         "label": "Attrezzature PART 145 che cambiano stato",
         "module": "Asset",

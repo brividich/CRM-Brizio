@@ -54,6 +54,7 @@ Registrate in `PROVIDERS` (prima di `generiche`) da `dashboard.scadenze_provider
 | `sgi` | soa, rischio_ot (revisione `APPROVATA`) | `sistema_gestione:soa` |
 | `qualifiche` | processo, processo_revisione, requisito, certificazione_individuale (`models_mpq`) | `anagrafica:mpq_cruscotto` |
 | `qualifiche` | abilitazione_macchina (`AbilitazioneMacchina.prossima_revisione`) | `anagrafica:skm_scadenzario` |
+| `qualifiche` | persona_processo (scadenza di `mpq_persone.stato_persona`), macchina_processo (scadenza della `QualificaMacchina`; sospesa/da valutare dalla data del cambio) | `anagrafica:mpq_cruscotto` |
 | `formazione` | documento_ente, verifica_nc (`TrainingProviderDocument`, `TrainingSession.verifica_nc_dovuta_dal`) | `anagrafica:formazione_sessioni_list` |
 | `soc` | azione_correttiva, accettazione_rischio | `security:incidents`, `security:accettazioni_rischio` |
 | `gdpr` | ads_revisione (`AmministratoreSistema`) | `security:registro_log_ads` |
