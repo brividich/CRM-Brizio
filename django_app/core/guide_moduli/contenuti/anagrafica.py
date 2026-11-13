@@ -226,6 +226,9 @@ GUIDA = {
                     "Onboarding: «Ingressi a 30 giorni», «Fine prova a 30 giorni» e «Pre-ingresso» aprono l'elenco "
                     "con solo quelle pratiche («mostra tutte» per tornare).",
                     "Cruscotto MOD.128: «Processi in scadenza» e «Processi scaduti» portano alla tabella dei processi in scadenza.",
+                    "Scheda dipendente, riquadro Qualifiche: il blocco «Processi qualificati (MOD.128)» elenca i processi "
+                    "della persona con ruolo, stato (Qualificata, In scadenza, Incompleta, Non qualificata) e scadenza; "
+                    "il nome del processo apre il suo dettaglio.",
                 ]),
             ],
         },
@@ -410,6 +413,36 @@ GUIDA = {
                       "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
                 ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
                       "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+            ],
+        },
+        {
+            "id": "mod128-configurare",
+            "titolo": "MOD.128: configurare un processo passo per passo",
+            "blocchi": [
+                ("passi", [
+                    "Apri il processo (Anagrafica → MOD.128) e in «Modifica» controlla scadenza del processo e "
+                    "«Ripeti la qualifica macchine ogni (mesi)» (es. 12).",
+                    "In «Cosa serve a una persona» premi «＋ Ruoli» e scrivi i ruoli separati da ; (es. Operatore; "
+                    "Ispettore; Responsabile). A ogni ruolo puoi collegare una competenza della skill matrix.",
+                    "«+ Aggiungi requisito persona» per ogni cosa richiesta dalla procedura: tipo, ruoli a cui vale "
+                    "(vuoto = tutti), «Una tantum» o «Ricorrente» con i mesi, bloccante sì/no. Per i corsi scegli il "
+                    "corso del catalogo Formazione; per le visite il tipo di visita.",
+                    "In «Persone qualificate» apri «Modifica» su ogni abilitazione e spunta i ruoli della persona.",
+                    "In «Cosa serve a una macchina» aggiungi i requisiti macchina (manutenzione, taratura, controllo) "
+                    "collegandoli al piano di manutenzione dell'asset, e le voci della verifica: tolleranza ± %, "
+                    "valore minimo o prova conforme / non conforme.",
+                    "In «Macchine qualificate» collega le macchine con tag o numero interno, apri la scheda di ognuna e "
+                    "premi «Registra verifica» con i valori misurati: conforme = Qualificata.",
+                    "Controlla i due riquadri in testata e stampa «Elenco qualificati» per la procedura.",
+                ]),
+                ("p", "Permessi: consultare processo, scheda macchina, documenti ed elenco chiede «Processi qualificati "
+                      "MOD.128 - Visualizza»; aggiungere ruoli, requisiti, evidenze, verifiche e cambiare stato chiede "
+                      "«Processi qualificati MOD.128 - Gestisci». Dopo l'aggiornamento del portale serve «Sincronizza permessi»."),
+                ("p", "Mail: «[MOD.128] Persone e macchine qualificate da sistemare» ogni lunedì alle 07:40 "
+                      "(Automazioni › Pianificati, «mpq_qualifiche_scadenze»; dopo l'aggiornamento va installata con "
+                      "setup_q_schedules) e l'avviso «Macchine qualificate MOD.128 da valutare o sospese» quando un OdL o un cambio di "
+                      "stato dell'asset la rimette in discussione (Automazioni › Notifiche). Destinatari: quelli MOD.128 "
+                      "dei timbri sospesi, modificabili da «Modifica» del flusso."),
             ],
         },
         {
@@ -1129,6 +1162,9 @@ GUIDA = {
             "blocchi": [
                 ("def", [
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
+                    ("mpq_avviso_qualifiche", "manda subito la mail MOD.128 delle persone e macchine da sistemare "
+                                              "(la stessa del lunedì). --dry-run per vedere l'elenco senza mandare, "
+                                              "--recipients a@x.it b@x.it per provarla su altri indirizzi."),
                     ("pulisci_scadenze_hr", "ricalcola le scadenze di formazione e visite."),
                     ("report_mansioni_catalogo", "sola lettura: per ogni mansione scritta nelle schede dice se "
                                                  "corrisponde al catalogo (esatta, per nome, simile, assente). "
