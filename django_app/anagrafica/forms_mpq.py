@@ -59,7 +59,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "cliente", "nome", "regime", "perimetro_part145", "livello",
             "ente_certificatore", "tipo_qualifica",
             "tipo_validita", "data_conseguimento", "durata_mesi", "data_scadenza",
-            "frequenza_macchine_mesi",
+            "frequenza_macchine_mesi", "inattivita_mesi",
             "personale_modalita", "riferimento_dichiarazione",
             "stato", "motivo_stato", "riferimento_stato",
             "numero_revisione", "responsabile_qualita", "data_revisione",
@@ -77,6 +77,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "durata_mesi": forms.NumberInput(attrs=_FM_NUM),
             "data_scadenza": forms.DateInput(attrs=_FM_DATE),
             "frequenza_macchine_mesi": forms.NumberInput(attrs=_FM_NUM),
+            "inattivita_mesi": forms.NumberInput(attrs=_FM_NUM),
             "personale_modalita": forms.Select(attrs=_FM_SELECT),
             "riferimento_dichiarazione": forms.TextInput(attrs=_FM),
             "stato": forms.Select(attrs=_FM_SELECT),
@@ -98,7 +99,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for f in ("ente_certificatore", "tipo_qualifica", "reparti",
                   "clienti_addizionali", "durata_mesi", "data_conseguimento",
-                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi"):
+                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi", "inattivita_mesi"):
             self.fields[f].required = False
         cli_qs = ClienteQualificante.objects.all().order_by("nome")
         self.fields["cliente"].queryset = cli_qs

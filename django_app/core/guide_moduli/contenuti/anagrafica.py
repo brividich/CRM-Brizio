@@ -431,6 +431,11 @@ GUIDA = {
                       "con la scadenza di prima) o «Serve la riqualifica» (sospesa fino a una verifica conforme)."),
                 ("p", "«Elenco qualificati» in testata stampa il personale per ruolo e le macchine con qualifica e "
                       "scadenza: sostituisce gli allegati compilati a mano nelle procedure."),
+                ("p", "Inattività: nel form del processo «Riesame dopo mesi senza attività» (es. 6). Chi non ha "
+                      "un'attività registrata negli ultimi N mesi (si parte dall'ultima attività, altrimenti dalla "
+                      "data di ingresso) non è più qualificato: compare la voce «Attività sul processo» scaduta e "
+                      "«Scade» mostra la data del prossimo riesame. Il pulsante «✓ Attività» sulla riga della persona "
+                      "registra che oggi ha lavorato il processo (o il riesame fatto); vuoto = nessun controllo."),
                 ("p", "Mansioni e livelli: sotto i ruoli, «Collega il ruolo … alla mansione» lega un ruolo del processo "
                       "a una mansione della skill matrix (il ruolo mostra «→ mansione»). Chi ha quel ruolo viene messo in "
                       "lista sulla mansione (livello «I» se non è ancora qualificato, livello operativo minimo se lo è); "

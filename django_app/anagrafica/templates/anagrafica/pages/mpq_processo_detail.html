@@ -383,7 +383,7 @@
               {% endif %}
               {% if can_manage %}
               <td class="fmd-nowrap">
-                <a class="fmd-data-link" href="{% url 'anagrafica:mpq_abilitazione_edit' a.obj.id %}">Modifica</a>
+                {% if processo.inattivita_mesi and a.obj.stato == "ATTIVA" %}<form method="post" action="{% url 'anagrafica:mpq_attivita' a.obj.id %}" class="fmd-act-form" title="Ultima attività: {{ a.obj.ultima_attivita|date:'d-m-Y'|default:'mai registrata' }}. Registra che oggi ha lavorato il processo (o il riesame dopo inattività).">{% csrf_token %}<button type="submit" class="fmd-act fmd-act-ghost">✓ Attività</button></form> · {% endif %}<a class="fmd-data-link" href="{% url 'anagrafica:mpq_abilitazione_edit' a.obj.id %}">Modifica</a>
                 · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_certificazione_add' a.obj.id %}">＋ cert</a>
                 · <form method="post" action="{% url 'anagrafica:mpq_abilitazione_delete' a.obj.id %}" style="display:inline;" data-hub-confirm="Rimuovere l'abilitazione di {{ a.nome }}?">{% csrf_token %}<button type="submit" class="fmd-linkbtn" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0;font:inherit;">Rimuovi</button></form>
               </td>
