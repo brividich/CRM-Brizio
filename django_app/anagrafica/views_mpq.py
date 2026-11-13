@@ -318,6 +318,21 @@ def mpq_processo_detail(request, processo_id: int):
 
     macchine = righe_macchine(processo, oggi=oggi)
 
+    # «Iscrivi tutti»: per ogni corso richiesto, chi (interno, abilitazione attiva) è
+    # scaduto, mancante o in scadenza — una sola sessione con tutti dentro.
+    da_iscrivere: dict[int, list[int]] = {}
+    for riga in righe:
+        ab = riga["obj"]
+        if ab.stato != AbilitazioneProcesso.STATO_ATTIVA or ab.nominativo_esterno or not ab.legacy_anagrafica_id:
+            continue
+        for v in riga["stato_persona"]["voci"]:
+            req = v.get("req")
+            if (req is not None and req.tipo == "corso" and req.corso_id and v.get("bloccante", True)
+                    and v["stato"] in ("scaduto", "mancante", "in_scadenza")):
+                da_iscrivere.setdefault(req.pk, []).append(ab.legacy_anagrafica_id)
+    for r in requisiti_persona:
+        r.da_iscrivere = sorted(set(da_iscrivere.get(r.pk, [])))
+
     return render(request, "anagrafica/pages/mpq_processo_detail.html", {
         "oggi": oggi,
         "can_manage": _check_manage(request),

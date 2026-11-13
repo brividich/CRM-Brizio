@@ -324,6 +324,7 @@ urlpatterns = [
     path("mod128/requisito/<int:req_id>/modifica/", views_mpq.mpq_requisito_edit, name="mpq_requisito_edit"),
     path("mod128/requisito/<int:req_id>/elimina/", views_mpq.mpq_requisito_delete, name="mpq_requisito_delete"),
     path("mod128/requisito/<int:req_id>/sposta/", views_mpq.mpq_requisito_sposta, name="mpq_requisito_sposta"),
+    path("mod128/matrice/", views_mpq_q.mpq_matrice, name="mpq_matrice"),
     path("mod128/quick-add/corso/", views_mpq.mpq_quickadd_corso, name="mpq_quickadd_corso"),
     path("mod128/quick-add/visita/", views_mpq.mpq_quickadd_visita, name="mpq_quickadd_visita"),
     path("mod128/quick-add/dpi/", views_mpq.mpq_quickadd_dpi, name="mpq_quickadd_dpi"),

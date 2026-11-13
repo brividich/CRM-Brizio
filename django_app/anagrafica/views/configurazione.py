@@ -950,6 +950,7 @@ def impostazioni(request):
         ("anagrafica:qualifiche_list", "Competenze — catalogo qualifiche"),
         ("anagrafica:qualifica_sessioni_list", "Competenze — sessioni di rinnovo"),
         ("anagrafica:matrice_competenze", "Competenze — matrice competenze"),
+        ("anagrafica:mpq_matrice", "Competenze — matrice persone × processi (MOD.128)"),
         # Compliance (salute & sicurezza)
         ("anagrafica:sicurezza_hub", "Compliance — hub sicurezza"),
         ("anagrafica:visite_mediche_dashboard", "Compliance — visite mediche"),

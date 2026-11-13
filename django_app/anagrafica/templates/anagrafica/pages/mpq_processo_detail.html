@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static anagrafica_extras %}
 
 {% block title %}{{ processo.nome }} · MOD.128 | Anagrafica HR{% endblock %}
 
@@ -10,7 +10,7 @@
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
-{% block content %}
+{% block content %}{% permessi_azioni as perm_az %}
 {% include "anagrafica/components/_fm_icons.html" %}
 
 <div class="fmd">
@@ -198,7 +198,7 @@
           <tbody>
           {% for r in requisiti_persona %}
             <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
-              <td>{% if r.tipo == "corso" and r.corso_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso_id %}">{{ r.etichetta }}</a>{% else %}{{ r.etichetta }}{% endif %}{% if r.gruppo_alternativo %} <span class="fmd-badge fmd-b-violet" title="Basta una delle righe con lo stesso nome">oppure · {{ r.gruppo_alternativo }}</span>{% endif %}{% if r.note %}<div class="fmd-muted" style="font-size:11px;">{{ r.note|truncatechars:120 }}</div>{% endif %}</td>
+              <td>{% if r.tipo == "corso" and r.corso_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso_id %}">{{ r.etichetta }}</a>{% else %}{{ r.etichetta }}{% endif %}{% if r.da_iscrivere and perm_az.formazione %}<form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form" style="margin-left:6px;">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ r.corso_id }}">{% for lid in r.da_iscrivere %}<input type="hidden" name="dipendenti_selezionati" value="{{ lid }}">{% endfor %}<input type="hidden" name="back" value="{{ request.get_full_path }}"><button type="submit" class="fmd-act" title="Una sola sessione del corso con dentro tutte le persone scadute, mancanti o in scadenza">↻ Iscrivi tutti ({{ r.da_iscrivere|length }})</button></form>{% endif %}{% if r.gruppo_alternativo %} <span class="fmd-badge fmd-b-violet" title="Basta una delle righe con lo stesso nome">oppure · {{ r.gruppo_alternativo }}</span>{% endif %}{% if r.note %}<div class="fmd-muted" style="font-size:11px;">{{ r.note|truncatechars:120 }}</div>{% endif %}</td>
               <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
               <td>{% for ru in r.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ ru.nome }}</span> {% empty %}<span class="fmd-muted">Tutti i ruoli</span>{% endfor %}</td>
               <td>{% if r.is_ricorrente %}Ogni {{ r.frequenza_mesi }} mesi{% if r.scadenza_fine_mese %} <span class="fmd-muted" style="font-size:11px;">(a fine mese)</span>{% endif %}{% elif r.ricorrenza == "UNA_TANTUM" %}Una tantum{% else %}<span title="Nessuna frequenza propria: vale la scadenza del corso, della visita o della qualifica">Segue la sua scadenza</span>{% endif %}{% if r.tipo == "esperienza" and r.ore_minime %} · {{ r.ore_minime }} ore{% endif %}</td>
