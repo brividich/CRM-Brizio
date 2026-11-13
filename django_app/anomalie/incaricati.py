@@ -171,9 +171,14 @@ def op_incaricato(request, *, ruoli=None) -> set[str]:
     cached = getattr(request, cache_key, None)
     if cached is not None:
         return cached
-    mie = anomalie_incaricato(_request_legacy_user_id(request))
+    me = _request_legacy_user_id(request)
+    mie = anomalie_incaricato(me)
     ids = [aid for aid, r in mie.items() if not ruoli or (r & set(ruoli))]
     out: set[str] = set()
+    try:
+        out |= _op_da_regole(me)
+    except Exception:
+        logger.warning("incaricati: OP dalla tabella «in carico» non letti", exc_info=True)
     for i in range(0, len(ids), 500):
         blocco = ids[i:i + 500]
         try:
@@ -190,6 +195,25 @@ def op_incaricato(request, *, ruoli=None) -> set[str]:
     except Exception:
         pass
     return out
+
+
+def _op_da_regole(me) -> set[str]:
+    """OP con anomalie aperte che la tabella «Chi ha in carico l'anomalia» dà a
+    questa persona (solo se la tabella la nomina: altrimenti nessuna query)."""
+    from . import decisione_qualita as dq
+    from .regole_carico import persone_destinazione
+    from .views import _fetch_all_dict, legacy_table_columns
+
+    if me is None or int(me) not in persone_destinazione():
+        return set()
+    cols = legacy_table_columns("anomalie") or set()
+    voluti = ("id", "ex_op_nominativo", "chiudere", "aprire_rdc", "numero_rdc", "segnalare_cliente",
+              "note_capocommessa", "avanzamento")
+    righe = _fetch_all_dict(f"SELECT {', '.join(c for c in voluti if c in cols)} FROM anomalie "
+                            "WHERE COALESCE(chiudere, 0) = 0")
+    info = dq.info_per_anomalie([r["id"] for r in righe if r.get("id") is not None])
+    return {str(r.get("ex_op_nominativo") or "").strip().lower() for r in righe
+            if f"p:{me}" in dq.ruoli_in_carico(r, info.get(r.get("id")))}
 
 
 # ── Cambio ─────────────────────────────────────────────────────────────────

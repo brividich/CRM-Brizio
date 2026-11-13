@@ -2470,7 +2470,7 @@ def _in_carico_per_op(request) -> dict:
     if not _has_table("anomalie"):
         return out
     cols = legacy_table_columns("anomalie") or set()
-    voluti = ("id", "op_lookup_id", "ex_op_nominativo", "chiudere", "aprire_rdc", "segnalare_cliente",
+    voluti = ("id", "op_lookup_id", "ex_op_nominativo", "chiudere", "aprire_rdc", "numero_rdc", "segnalare_cliente",
               "note_capocommessa", "avanzamento", "created_by_user_id", "modified_datetime")
     try:
         righe = _fetch_all_dict(
@@ -2493,6 +2493,12 @@ def _in_carico_per_op(request) -> dict:
         out["car_ops"] |= op_incaricato(request)
     except Exception:
         logger.warning("anomalie: OP affidati non letti", exc_info=True)
+    # Persona indicata nella tabella «Chi ha in carico l'anomalia»: vede quegli OP.
+    me = _request_legacy_user_id(request)
+    if me is not None:
+        for r in righe:
+            if f"p:{me}" in dq.ruoli_in_carico(r, info.get(r.get("id"))):
+                out["car_ops"].add(str(r.get("ex_op_nominativo") or "").strip().lower())
     return out
 
 
@@ -2592,6 +2598,12 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
         r["ruoli_in_carico"] = sorted(dq.ruoli_in_carico(riga, info.get(aid)))
         r["in_carico_a_me"] = dq.in_carico_a_me(io, riga, info.get(aid))
         r["incaricati"] = (info.get(aid) or {}).get("incaricati") or {}
+        persone = [x[2:] for x in r["ruoli_in_carico"] if x.startswith("p:")]
+        if persone:
+            from anomalie.regole_carico import nomi_persone
+
+            nomi = nomi_persone()
+            r["persone_in_carico"] = {p: nomi.get(p) or f"utente {p}" for p in persone}
         r["puo_cambiare_incaricato"] = not raw.get("chiudere") and (
             cambia_su_op or inc.puo_cambiare_su_anomalia(request, info.get(aid)))
         if any(q["aperta"] for q in r["richieste_info"]):
@@ -2882,7 +2894,19 @@ def _anomalie_qualita_tab_context() -> dict:
     from .quality_models import AnomaliaNC, AnomaliaSchedaQualita, AnomaliaTipoDifetto
 
     tipi = list(AnomaliaTipoDifetto.objects.annotate(n_schede=Count("schede")).order_by("ordine", "nome"))
+    from . import regole_carico as rc
+    from .incaricati import persone
+
+    regole = rc.carica()["regole"]
+    righe_carico = []
+    for ev in rc.eventi():
+        di_serie = rc.REGOLA_DI_SERIE.get(ev["chiave"], "")
+        righe_carico.append({**ev, "valore": regole.get(ev["chiave"], ""),
+                             "di_serie": dict(rc.RUOLI_DESTINAZIONE).get(di_serie[6:], "") if di_serie else ""})
     return {
+        "regole_carico": righe_carico,
+        "regole_ruoli": [(f"ruolo:{v}", label) for v, label in rc.RUOLI_DESTINAZIONE],
+        "regole_persone": [{**p, "v": f"persona:{p['id']}"} for p in persone("cc")],
         "tipi_difetto": tipi,
         "nc_chiusura": nc_service.get_chiusura_mode(),
         "nc_chiusura_choices": nc_service.CHIUSURA_CHOICES,
@@ -5623,6 +5647,26 @@ def anomalie_configurazione_page(request):
                     pass
             else:
                 messages.error(request, "Valore non valido per la chiusura delle NC.")
+            return _anomalie_settings_redirect("qualita")
+        if action == "save_regole_carico":
+            from . import regole_carico as rc
+            from .incaricati import persone
+
+            nomi_utenti = {str(p["id"]): p["nome"] for p in persone("cc")}
+            regole, nomi = {}, {}
+            for ev in rc.eventi():
+                v = str(request.POST.get(f"regola__{ev['chiave']}") or "").strip()
+                if v.startswith("persona:") and v[8:] in nomi_utenti:
+                    nomi[v[8:]] = nomi_utenti[v[8:]]
+                elif not v.startswith("ruolo:"):
+                    continue
+                regole[ev["chiave"]] = v
+            rc.salva(regole, nomi)
+            messages.success(request, "Tabella «Chi ha in carico l'anomalia» salvata.")
+            try:
+                log_action(request, "anomalie_regole_carico", "anomalie", {"regole": regole})
+            except Exception:
+                pass
             return _anomalie_settings_redirect("qualita")
         if action == "save_permessi_ruoli":
             saved = _save_anomalie_permessi_ruoli(request.POST.getlist("permessi_ruolo_id"))

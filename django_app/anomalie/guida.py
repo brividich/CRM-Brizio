@@ -316,8 +316,10 @@ SEZIONI: list[dict] = [
         "titolo": "In carico e «Cambia incaricato»",
         "blocchi": [
             ("p", "Sotto il titolo dell'anomalia la riga «In carico» dice a chi tocca adesso: il ruolo e la persona. "
-                  "Di serie è il capocommessa dell'OP, la qualità (referenti RDC), il controllore che l'ha inserita o "
-                  "i CAR segnalati, secondo la fase dell'anomalia."),
+                  "A chi passa in ogni momento (da decidere, attesa del cliente, avanzamento qualità, «Aprire RDC», "
+                  "ogni avanzamento…) lo decide la tabella «Chi ha in carico l'anomalia» in Configurazione → Qualità: "
+                  "per ogni riga un ruolo o una persona precisa, vale la prima riga che corrisponde dall'alto. Di serie: "
+                  "da decidere → capocommessa, attesa della risposta → chi ha segnalato, il resto → qualità."),
             ("passi", [
                 "Premi «Cambia incaricato» (lo vedono capocommessa e CAR dell'OP, i CAR segnalati e gli "
                 "amministratori del modulo).",
@@ -353,8 +355,12 @@ SEZIONI: list[dict] = [
                 "allegati aggiunti o tolti (con i nomi dei file) ed eliminazioni.",
                 "Filtri: codice AN, OP, persona, tipo di azione, provenienza e periodo (fino a un anno).",
                 "Un'anomalia eliminata resta nel registro: la sua storia si ritrova cercando il codice.",
-                "«Storia», accanto al titolo dell'anomalia, apre il registro già filtrato su quell'anomalia; un clic "
-                "su una riga del registro torna all'anomalia.",
+                "«Storia», accanto al titolo dell'anomalia, apre il registro già filtrato su quell'anomalia (la vede "
+                "chiunque vede l'OP); un clic su una riga del registro torna all'anomalia.",
+                "Nella Storia di un'anomalia: «Aggiungi passo» scrive a mano cosa è stato fatto (per esempio «Telefonato "
+                "al cliente»), «Cambia incaricato» torna all'anomalia con la finestra aperta, «Aggiungi nota» sotto "
+                "ogni evento aggiunge una nota o una correzione con nome e ora. Gli eventi registrati non si "
+                "modificano: restano la traccia di chi ha fatto cosa.",
             ]),
         ],
     },
