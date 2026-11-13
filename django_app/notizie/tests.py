@@ -295,19 +295,103 @@ class NotizieACLTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Permessi dashboard")
 
-    def test_impostazioni_renderizza_workspace_a_card_senza_tabella(self):
-        _make_notizia(titolo="Comunicazione pubblicata")
-        Notizia.objects.create(titolo="Bozza interna", corpo="x", stato=STATO_BOZZA, versione=1)
-
+    def test_impostazioni_schede_permessi_aspetto_registro(self):
         self.client.force_login(self.admin_user)
-        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "record"})
-
+        resp = self.client.get(reverse("notizie_gestione_admin"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "notizie-settings-page")
-        self.assertContains(resp, "news-settings-shell")
-        self.assertContains(resp, "news-settings-record-card")
-        self.assertContains(resp, "Centro impostazioni comunicazioni")
-        self.assertNotContains(resp, '<table class="tbl"')
+        self.assertContains(resp, "Impostazioni notizie")
+        self.assertContains(resp, "Chi può gestire le notizie")
+
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "aspetto"})
+        self.assertContains(resp, 'name="action" value="save_module_branding"', html=False)
+
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro"})
+        self.assertContains(resp, "Nessuna attività")
+
+    def test_impostazioni_vecchia_scheda_record_porta_alla_gestione(self):
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "record", "q": "dpi", "filter_stato": "bozza"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("notizie_dashboard") + "?q=dpi&stato=bozza")
+
+    def test_impostazioni_registro_etichette_e_filtro(self):
+        from core.models import AuditLog
+
+        notizia = _make_notizia(titolo="Turni di Natale")
+        AuditLog.objects.create(modulo="notizie", azione="notizia_pubblicata", utente_display="Mario Prova",
+                                dettaglio={"notizia_id": notizia.pk, "titolo": notizia.titolo})
+        AuditLog.objects.create(modulo="notizie", azione="notizia_archiviata", utente_display="Anna Prova",
+                                dettaglio={"notizia_id": 999999, "titolo": "Vecchia circolare"})
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "log"})
+        self.assertContains(resp, "Pubblicata")
+        self.assertContains(resp, reverse("notizie_dashboard_edit", args=[notizia.pk]))
+        self.assertContains(resp, "Vecchia circolare")
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro", "azione": "notizia_archiviata"})
+        self.assertContains(resp, "Anna Prova")
+        self.assertNotContains(resp, "Mario Prova")
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "registro", "q": "natale"})
+        self.assertContains(resp, "Mario Prova")
+        self.assertNotContains(resp, "Anna Prova")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NotizieReportTests(TestCase):
+    def setUp(self):
+        self.hr_user = _make_user_with_legacy("report-hr", legacy_user_id=3001, ruolo_id=7, ruolo="hr")
+        self.letto = _make_user_with_legacy("report-letto", legacy_user_id=3002, ruolo_id=5, ruolo="operaio")
+        self.letto.first_name, self.letto.last_name = "Lucia", "Sintetica"
+        self.letto.save()
+        self.mai = _make_user_with_legacy("report-mai", legacy_user_id=3003, ruolo_id=5, ruolo="operaio")
+        self.mai.first_name, self.mai.last_name = "Paolo", "Fittizio"
+        self.mai.save()
+        self.notizia = _make_notizia(titolo="Procedura DPI", obbligatoria=True)
+        NotiziaAudience.objects.create(notizia=self.notizia, legacy_role_id=5)
+        # Due righe di lettura (v1 confermata, v2 aperta) = una sola persona nel report.
+        NotiziaLettura.objects.create(notizia=self.notizia, legacy_user_id=3002, versione_letta=1,
+                                      hash_versione_letta="a" * 64, opened_at=timezone.now(), ack_at=timezone.now())
+        self.notizia.versione = 2
+        self.notizia.save(update_fields=["versione"])
+        NotiziaLettura.objects.create(notizia=self.notizia, legacy_user_id=3002, versione_letta=2,
+                                      hash_versione_letta="b" * 64, opened_at=timezone.now())
+        self.client.force_login(self.hr_user)
+
+    def test_senza_notizia_una_riga_per_persona_con_nome(self):
+        resp = self.client.get(reverse("notizie_report"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "notizie-report-page")
+        self.assertContains(resp, "Lucia Sintetica")
+        self.assertContains(resp, "Da confermare")
+        self.assertNotContains(resp, "Paolo Fittizio")
+        self.assertContains(resp, "1 righe")
+
+    def test_con_notizia_compare_anche_chi_non_ha_letto(self):
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk})
+        self.assertContains(resp, "Paolo Fittizio")
+        self.assertContains(resp, "Non letta")
+        self.assertContains(resp, 'Non letta <span class="nz-tab-n">1</span>', html=False)
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "stato": "aperto"})
+        self.assertContains(resp, "Lucia Sintetica")
+        self.assertNotContains(resp, "Paolo Fittizio")
+        # I contatori delle schede restano sul totale.
+        self.assertContains(resp, 'Tutti <span class="nz-tab-n">2</span>', html=False)
+
+    def test_ricerca_persona_e_csv(self):
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "q": "paolo"})
+        self.assertContains(resp, "Paolo Fittizio")
+        self.assertNotContains(resp, "Lucia Sintetica")
+        resp = self.client.get(reverse("notizie_report_csv"), {"notizia_id": self.notizia.pk})
+        body = b"".join(resp.streaming_content).decode("utf-8-sig")
+        self.assertIn("Persona", body)
+        self.assertIn("Paolo Fittizio", body)
+        self.assertIn("Non letta", body)
+        self.assertIn("Da confermare", body)
+
+    def test_filtro_date_conferma_esclude_chi_non_ha_confermato(self):
+        oggi = timezone.localdate().isoformat()
+        resp = self.client.get(reverse("notizie_report"), {"notizia_id": self.notizia.pk, "da": oggi})
+        self.assertContains(resp, "Nessuna lettura da mostrare")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
