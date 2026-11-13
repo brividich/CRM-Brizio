@@ -1,698 +1,95 @@
 {% extends "core/base.html" %}
 {% block title %}Notizie - Portale Applicativo{% endblock %}
-{% block body_class %}{{ block.super }} notizie-list-page{% endblock %}
+{% block body_class %}{{ block.super }} notizie-page notizie-list-page{% endblock %}
 
-{% block extra_head %}
-<style>
-.notizie-list-page .content {
-  width: 100%;
-  max-width: none;
-}
-
-.news-shell {
-  width: 100%;
-  min-height: calc(calc(100 * var(--vh, 1vh)) - 150px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.news-hero {
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
-  gap: 22px;
-  align-items: end;
-  border: 1px solid rgba(15, 118, 110, .22);
-  border-radius: 8px;
-  padding: 22px;
-  color: #fff;
-  background:
-    linear-gradient(135deg, rgba(7, 35, 57, .96) 0%, rgba(15, 118, 110, .92) 58%, rgba(234, 88, 12, .82) 128%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
-}
-
-.news-hero-main,
-.news-hero-aside {
-  position: relative;
-  z-index: 1;
-}
-
-.news-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 26px;
-  padding: 0 10px;
-  border: 1px solid rgba(255,255,255,.24);
-  border-radius: 999px;
-  color: rgba(255,255,255,.82);
-  background: rgba(255,255,255,.08);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.news-kicker-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #fb923c;
-  box-shadow: 0 0 0 4px rgba(251,146,60,.14);
-}
-
-.news-hero h1 {
-  margin: 12px 0 7px;
-  color: #fff;
-  font-size: 28px;
-  line-height: 1.12;
-  font-weight: 800;
-}
-
-.news-hero-copy {
-  margin: 0;
-  max-width: 760px;
-  color: rgba(255,255,255,.78);
-  font-size: var(--fs-md);
-}
-
-.news-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.news-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 0 13px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  text-decoration: none;
-  font-size: var(--fs-sm);
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.news-btn-primary {
-  background: #fff;
-  color: #0f766e;
-}
-
-.news-btn-secondary {
-  background: rgba(255,255,255,.1);
-  color: #fff;
-  border-color: rgba(255,255,255,.26);
-}
-
-.news-btn:hover {
-  filter: brightness(.97);
-}
-
-.news-hero-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(255,255,255,.16);
-}
-
-.news-hero-metric {
-  min-height: 76px;
-  padding: 13px;
-  background: rgba(7, 24, 39, .34);
-}
-
-.news-hero-metric strong {
-  display: block;
-  color: #fff;
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 800;
-}
-
-.news-hero-metric span {
-  display: block;
-  margin-top: 6px;
-  color: rgba(255,255,255,.72);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-
-.news-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 16px;
-  align-items: start;
-}
-
-.news-main {
-  min-width: 0;
-  display: grid;
-  gap: 12px;
-}
-
-.news-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
-  background: var(--surface, #fff);
-}
-
-.news-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.news-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 11px;
-  border-radius: 8px;
-  border: 1px solid var(--border, #e2e8f0);
-  color: var(--text-mid, #4a5568);
-  background: var(--bg, #f2f5f8);
-  text-decoration: none;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.news-tab.active,
-.news-tab:hover {
-  border-color: rgba(15, 118, 110, .32);
-  color: #0f766e;
-  background: rgba(15, 118, 110, .1);
-}
-
-.news-toolbar-count {
-  color: var(--text-light, #94a3b8);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-}
-
-.news-list {
-  display: grid;
-  gap: 10px;
-}
-
-.news-card {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: stretch;
-  min-height: 118px;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface, #fff);
-  box-shadow: 0 1px 4px rgba(15,23,42,.05);
-}
-
-.news-card:hover {
-  border-color: rgba(15, 118, 110, .32);
-  box-shadow: 0 10px 22px rgba(15,23,42,.08);
-}
-
-.news-card-rail {
-  background: #64748b;
-}
-
-.news-card-rail.is-conforme { background: #16a34a; }
-.news-card-rail.is-aperto { background: #d97706; }
-.news-card-rail.is-non_conforme { background: #dc2626; }
-.news-card-rail.is-non_letto { background: #64748b; }
-
-.news-card-body {
-  min-width: 0;
-  padding: 15px 0 15px 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-
-.news-card-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.news-card-title {
-  color: var(--text, #1a202c);
-  text-decoration: none;
-  font-size: var(--fs-lg);
-  line-height: 1.2;
-  font-weight: 800;
-}
-
-.news-card-title:hover {
-  color: #0f766e;
-}
-
-.news-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--text-light, #94a3b8);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-
-.news-card-text {
-  max-width: 920px;
-  color: var(--text-mid, #4a5568);
-  font-size: var(--fs-sm);
-  line-height: 1.45;
-}
-
-.news-card-status {
-  padding: 15px 15px 15px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 10px;
-}
-
-.news-status-badge,
-.news-mandatory-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.news-mandatory-badge {
-  color: #b91c1c;
-  background: #fee2e2;
-}
-
-.news-status-badge.is-conforme { color: #166534; background: #dcfce7; }
-.news-status-badge.is-aperto { color: #92400e; background: #fef3c7; }
-.news-status-badge.is-non_conforme { color: #b91c1c; background: #fee2e2; }
-.news-status-badge.is-non_letto { color: #475569; background: #f1f5f9; }
-
-.news-open-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  padding: 0 11px;
-  border-radius: 8px;
-  color: #0f766e;
-  background: rgba(15, 118, 110, .09);
-  text-decoration: none;
-  font-size: var(--fs-sm);
-  font-weight: 800;
-}
-
-.news-open-link:hover {
-  background: rgba(15, 118, 110, .14);
-}
-
-.news-side {
-  position: sticky;
-  top: calc(var(--nav-h, 60px) + var(--subnav-h, 44px) + 18px);
-  display: grid;
-  gap: 12px;
-}
-
-.news-panel {
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
-  background: var(--surface, #fff);
-  padding: 14px;
-}
-
-.news-panel h2 {
-  margin: 0 0 10px;
-  color: var(--text, #1a202c);
-  font-size: var(--fs-md);
-  font-weight: 800;
-}
-
-.news-summary-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 0;
-  border-top: 1px solid var(--border, #e2e8f0);
-}
-
-.news-summary-row:first-of-type {
-  border-top: 0;
-}
-
-.news-summary-label {
-  color: var(--text-mid, #4a5568);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-}
-
-.news-summary-value {
-  color: var(--text, #1a202c);
-  font-size: var(--fs-md);
-  font-weight: 800;
-}
-
-.news-quick-links {
-  display: grid;
-  gap: 8px;
-}
-
-.news-quick-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 38px;
-  padding: 0 10px;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
-  color: var(--text, #1a202c);
-  background: var(--bg, #f2f5f8);
-  text-decoration: none;
-  font-size: var(--fs-sm);
-  font-weight: 800;
-}
-
-.news-quick-link:hover {
-  border-color: rgba(15, 118, 110, .32);
-  color: #0f766e;
-  background: rgba(15, 118, 110, .08);
-}
-
-.news-empty {
-  min-height: 260px;
-  display: grid;
-  place-items: center;
-  border: 1px dashed var(--border, #e2e8f0);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface, #fff) 74%, transparent);
-  text-align: center;
-  padding: 28px;
-}
-
-.news-empty-mark {
-  width: 48px;
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  color: #0f766e;
-  background: rgba(15, 118, 110, .1);
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.news-empty h2 {
-  margin: 0 0 6px;
-  color: var(--text, #1a202c);
-  font-size: var(--fs-lg);
-  font-weight: 800;
-}
-
-.news-empty p {
-  margin: 0;
-  color: var(--text-light, #94a3b8);
-  font-size: var(--fs-sm);
-}
-
-body.theme-dark .news-hero {
-  border-color: rgba(255,255,255,.1);
-}
-
-body.theme-dark .news-toolbar,
-body.theme-dark .news-card,
-body.theme-dark .news-panel {
-  background: var(--surface);
-  border-color: var(--border);
-}
-
-body.theme-dark .news-card:hover {
-  box-shadow: 0 10px 26px rgba(0,0,0,.28);
-}
-
-body.theme-dark .news-tab,
-body.theme-dark .news-quick-link {
-  background: var(--surface-alt);
-  border-color: var(--border);
-  color: var(--text-mid);
-}
-
-body.theme-dark .news-tab.active,
-body.theme-dark .news-tab:hover,
-body.theme-dark .news-quick-link:hover {
-  background: rgba(20, 184, 166, .14);
-  color: #5eead4;
-}
-
-body.theme-dark .news-card-title,
-body.theme-dark .news-panel h2,
-body.theme-dark .news-summary-value,
-body.theme-dark .news-empty h2 {
-  color: var(--text);
-}
-
-body.theme-dark .news-card-text,
-body.theme-dark .news-summary-label {
-  color: var(--text-mid);
-}
-
-body.theme-dark .news-status-badge.is-conforme { color: #86efac; background: rgba(22, 163, 74, .16); }
-body.theme-dark .news-status-badge.is-aperto { color: #fcd34d; background: rgba(217, 119, 6, .16); }
-body.theme-dark .news-status-badge.is-non_conforme { color: #fca5a5; background: rgba(220, 38, 38, .16); }
-body.theme-dark .news-status-badge.is-non_letto { color: var(--text-light); background: var(--surface-alt); }
-body.theme-dark .news-mandatory-badge { color: #fca5a5; background: rgba(220, 38, 38, .16); }
-
-@media (max-width: 1120px) {
-  .news-hero,
-  .news-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .news-side {
-    position: static;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .notizie-list-page .content {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-
-  .news-hero {
-    padding: 16px;
-  }
-
-  .news-hero h1 {
-    font-size: 24px;
-  }
-
-  .news-hero-metrics,
-  .news-side {
-    grid-template-columns: 1fr;
-  }
-
-  .news-card {
-    grid-template-columns: 6px minmax(0, 1fr);
-    gap: 11px;
-  }
-
-  .news-card-body {
-    padding-right: 12px;
-  }
-
-  .news-card-status {
-    grid-column: 2;
-    align-items: flex-start;
-    padding: 0 12px 14px 0;
-  }
-}
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .news-kicker{background:rgba(255,255,255,.06)}
-body.theme-dark .news-btn-primary{background:var(--surface);color:#86efac}
-body.theme-dark .news-btn-secondary{background:rgba(255,255,255,.06)}
-body.theme-dark .news-hero-metrics{background:rgba(255,255,255,.06)}
-body.theme-dark .news-card-title:hover{color:#86efac}
-</style>
-{% endblock %}
+{% block extra_head %}{% include "notizie/components/_assets.html" %}{% endblock %}
 
 {% block content %}
-<div class="news-shell">
-  <section class="news-hero" aria-labelledby="news-title">
-    <div class="news-hero-main">
-      <div class="news-kicker"><span class="news-kicker-dot" aria-hidden="true"></span>Modulo Notizie</div>
-      <h1 id="news-title">Notizie e comunicazioni</h1>
-      <p class="news-hero-copy">Comunicazioni pubblicate per il tuo ruolo, con stato lettura e conferme personali.</p>
-      <div class="news-hero-actions">
-        <a class="news-btn news-btn-primary" href="{% url 'notizie_lista' %}">Tutte</a>
-        <a class="news-btn news-btn-secondary" href="{% url 'notizie_lista' %}?solo_obbligatorie=1">Obbligatorie</a>
-        {% if can_manage_notizie %}
-          <a class="news-btn news-btn-secondary" href="{% url 'notizie_dashboard' %}">Dashboard Notizie</a>
-        {% endif %}
-        {% if can_gestione_admin %}
-          <a class="news-btn news-btn-secondary" href="{% url 'notizie_gestione_admin' %}">Impostazioni</a>
-        {% endif %}
-      </div>
-    </div>
-    <div class="news-hero-aside">
-      <div class="news-hero-metrics" aria-label="Riepilogo notizie">
-        <div class="news-hero-metric">
-          <strong>{{ news_stats.total }}</strong>
-          <span>Visibili</span>
-        </div>
-        <div class="news-hero-metric">
-          <strong>{{ news_stats.obbligatorie_pendenti }}</strong>
-          <span>Obbligatorie pendenti</span>
-        </div>
-        <div class="news-hero-metric">
-          <strong>{{ news_stats.non_lette }}</strong>
-          <span>Non lette</span>
-        </div>
-        <div class="news-hero-metric">
-          <strong>{{ news_stats.confermate }}</strong>
-          <span>Confermate</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="news-workspace">
-    <main class="news-main" aria-label="Elenco notizie">
-      <div class="news-toolbar">
-        <nav class="news-tabs" aria-label="Filtri notizie">
-          <a href="?" class="news-tab{% if not filtro_stato and not solo_obbligatorie %} active{% endif %}">Tutte</a>
-          <a href="?solo_obbligatorie=1" class="news-tab{% if solo_obbligatorie %} active{% endif %}">Obbligatorie</a>
-          <a href="?stato=non_letto" class="news-tab{% if filtro_stato == 'non_letto' %} active{% endif %}">Non lette</a>
-          <a href="?stato=aperto" class="news-tab{% if filtro_stato == 'aperto' %} active{% endif %}">Aperte</a>
-          <a href="?stato=non_conforme" class="news-tab{% if filtro_stato == 'non_conforme' %} active{% endif %}">Non conformi</a>
-          <a href="?stato=conforme" class="news-tab{% if filtro_stato == 'conforme' %} active{% endif %}">Confermate</a>
-        </nav>
-        <div class="news-toolbar-count">{{ news_stats.filtered }} risultati</div>
-      </div>
-
-      {% if not items %}
-        <div class="news-empty">
-          <div>
-            <div class="news-empty-mark" aria-hidden="true">N</div>
-            <h2>Nessuna comunicazione</h2>
-            <p>Non ci sono notizie disponibili per i filtri correnti.</p>
-          </div>
-        </div>
-      {% else %}
-        <div class="news-list">
-          {% for item in items %}
-            {% with n=item.notizia c=item.compliance %}
-              <article class="news-card">
-                <div class="news-card-rail is-{{ c }}" aria-hidden="true"></div>
-                <div class="news-card-body">
-                  <div class="news-card-top">
-                    {% if n.obbligatoria %}
-                      <span class="news-mandatory-badge">Obbligatoria</span>
-                    {% endif %}
-                    <a class="news-card-title" href="{% url 'notizie_dettaglio' n.id %}">{{ n.titolo }}</a>
-                  </div>
-                  <div class="news-card-meta">
-                    <span>Versione {{ n.versione }}</span>
-                    {% if n.pubblicato_il %}
-                      <span>{{ n.pubblicato_il|date:"d-m-Y" }}</span>
-                    {% endif %}
-                  </div>
-                  <div class="news-card-text">{{ n.corpo|striptags|truncatechars:180 }}</div>
-                </div>
-                <div class="news-card-status">
-                  <span class="news-status-badge is-{{ c }}">
-                    {% if c == 'conforme' %}Confermata
-                    {% elif c == 'aperto' %}Aperta
-                    {% elif c == 'non_conforme' %}Non conforme
-                    {% else %}Non letta{% endif %}
-                  </span>
-                  <a class="news-open-link" href="{% url 'notizie_dettaglio' n.id %}">
-                    Apri <span aria-hidden="true">&#8594;</span>
-                  </a>
-                </div>
-              </article>
-            {% endwith %}
-          {% endfor %}
+<div class="nz">
+  <header class="nz-head">
+    <div class="nz-head-title">
+      <h1>Notizie e comunicazioni</h1>
+      {% if news_stats.obbligatorie_pendenti %}
+        <div class="nz-head-sub">
+          <a href="?solo_obbligatorie=1">{{ news_stats.obbligatorie_pendenti }} obbligatori{{ news_stats.obbligatorie_pendenti|pluralize:"a,e" }} da confermare</a>
         </div>
       {% endif %}
-    </main>
+    </div>
+    <div class="nz-head-actions">
+      {% if can_manage_notizie %}
+        <a class="nz-btn nz-btn-primary" href="{% url 'notizie_dashboard' %}">Dashboard Notizie</a>
+      {% endif %}
+      {% if can_gestione_admin %}
+        <a class="nz-btn" href="{% url 'notizie_gestione_admin' %}">Impostazioni</a>
+      {% endif %}
+      <a class="nz-btn" href="{% url 'guida_modulo' 'notizie' %}" title="Guida del modulo Notizie">? Guida</a>
+    </div>
+  </header>
 
-    <aside class="news-side" aria-label="Riepilogo comunicazioni">
-      <section class="news-panel">
-        <h2>Stato lettura</h2>
-        <div class="news-summary-row">
-          <span class="news-summary-label">Non lette</span>
-          <span class="news-summary-value">{{ news_stats.non_lette }}</span>
-        </div>
-        <div class="news-summary-row">
-          <span class="news-summary-label">Aperte</span>
-          <span class="news-summary-value">{{ news_stats.aperte }}</span>
-        </div>
-        <div class="news-summary-row">
-          <span class="news-summary-label">Non conformi</span>
-          <span class="news-summary-value">{{ news_stats.non_conformi }}</span>
-        </div>
-        <div class="news-summary-row">
-          <span class="news-summary-label">Confermate</span>
-          <span class="news-summary-value">{{ news_stats.confermate }}</span>
-        </div>
-      </section>
-
-      <section class="news-panel">
-        <h2>Vista rapida</h2>
-        <div class="news-quick-links">
-          <a class="news-quick-link" href="{% url 'notizie_lista' %}?solo_obbligatorie=1">
-            <span>Obbligatorie</span><span>{{ news_stats.obbligatorie }}</span>
-          </a>
-          <a class="news-quick-link" href="{% url 'notizie_lista' %}?stato=non_letto">
-            <span>Non lette</span><span>{{ news_stats.non_lette }}</span>
-          </a>
-          <a class="news-quick-link" href="{% url 'notizie_lista' %}?stato=non_conforme">
-            <span>Non conformi</span><span>{{ news_stats.non_conformi }}</span>
-          </a>
-          {% if can_manage_notizie %}
-            <a class="news-quick-link" href="{% url 'notizie_dashboard' %}">
-              <span>Dashboard</span><span aria-hidden="true">&#8594;</span>
-            </a>
-          {% endif %}
-          {% if can_gestione_admin %}
-            <a class="news-quick-link" href="{% url 'notizie_gestione_admin' %}">
-              <span>Impostazioni</span><span aria-hidden="true">&#8594;</span>
-            </a>
-          {% endif %}
-        </div>
-      </section>
-    </aside>
+  <div class="nz-toolbar">
+    <nav class="nz-tabs" aria-label="Filtri notizie">
+      {% with qq=query|urlencode %}
+      <a href="?{% if query %}q={{ qq }}{% endif %}" class="nz-tab{% if not filtro_stato and not solo_obbligatorie %} active{% endif %}">Tutte <span class="nz-tab-n">{{ news_stats.total }}</span></a>
+      <a href="?stato=non_letto{% if query %}&q={{ qq }}{% endif %}" class="nz-tab{% if filtro_stato == 'non_letto' %} active{% endif %}">Da leggere <span class="nz-tab-n">{{ news_stats.non_lette }}</span></a>
+      <a href="?stato=aperto{% if query %}&q={{ qq }}{% endif %}" class="nz-tab{% if filtro_stato == 'aperto' %} active{% endif %}">Da confermare <span class="nz-tab-n">{{ news_stats.aperte }}</span></a>
+      {% if news_stats.non_conformi or filtro_stato == 'non_conforme' %}
+        <a href="?stato=non_conforme{% if query %}&q={{ qq }}{% endif %}" class="nz-tab is-alert{% if filtro_stato == 'non_conforme' %} active{% endif %}" title="Notizie aggiornate dopo la tua conferma">Da riconfermare <span class="nz-tab-n">{{ news_stats.non_conformi }}</span></a>
+      {% endif %}
+      <a href="?stato=conforme{% if query %}&q={{ qq }}{% endif %}" class="nz-tab{% if filtro_stato == 'conforme' %} active{% endif %}">Confermate <span class="nz-tab-n">{{ news_stats.confermate }}</span></a>
+      <a href="?solo_obbligatorie=1{% if query %}&q={{ qq }}{% endif %}" class="nz-tab{% if news_stats.obbligatorie_pendenti %} is-alert{% endif %}{% if solo_obbligatorie %} active{% endif %}">Obbligatorie <span class="nz-tab-n">{{ news_stats.obbligatorie }}</span></a>
+      {% endwith %}
+    </nav>
+    <form class="nz-search" method="get" role="search">
+      {% if solo_obbligatorie %}<input type="hidden" name="solo_obbligatorie" value="1">{% endif %}
+      {% if filtro_stato %}<input type="hidden" name="stato" value="{{ filtro_stato }}">{% endif %}
+      <input type="search" name="q" value="{{ query }}" placeholder="Cerca nel titolo o nel testo" aria-label="Cerca notizie">
+    </form>
   </div>
+
+  {% if not items %}
+    <div class="nz-empty">
+      <div>
+        <strong>Nessuna comunicazione</strong>
+        {% if query %}Nessun risultato per «{{ query }}».{% else %}Non ci sono notizie per questo filtro.{% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div class="nz-list">
+      {% for item in items %}
+        {% with n=item.notizia c=item.compliance %}
+          <article class="nz-card{% if c == 'non_letto' %} is-unread{% endif %}">
+            <div class="nz-rail is-{{ c }}" aria-hidden="true"></div>
+            <div class="nz-card-body">
+              {% if n.obbligatoria %}
+                <div class="nz-card-top"><span class="nz-badge is-obbligatoria">Obbligatoria</span></div>
+              {% endif %}
+              <a class="nz-card-title" href="{% url 'notizie_dettaglio' n.id %}">{{ n.titolo }}</a>
+              <div class="nz-card-text">{{ n.corpo|striptags|truncatechars:260 }}</div>
+              <div class="nz-meta">
+                {% if n.pubblicato_il %}
+                  <span title="{{ n.pubblicato_il|date:'d-m-Y H:i' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                    {{ n.pubblicato_il|date:"d-m-Y" }}
+                  </span>
+                {% endif %}
+                {% if n.versione > 1 %}<span>Aggiornata · versione {{ n.versione }}</span>{% endif %}
+                {% if item.allegati_count %}
+                  <span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a6 6 0 01-8.5-8.5l9.2-9.2a4 4 0 015.7 5.7l-9.2 9.2a2 2 0 01-2.8-2.8l8.5-8.5"/></svg>
+                    {{ item.allegati_count }} allegat{{ item.allegati_count|pluralize:"o,i" }}
+                  </span>
+                {% endif %}
+                {% if item.pdf_count %}<span class="nz-badge is-pdf">PDF</span>{% endif %}
+              </div>
+            </div>
+            <div class="nz-card-side">
+              <span class="nz-badge is-{{ c }}"><span class="nz-badge-dot" aria-hidden="true"></span>{% include "notizie/components/_stato_lettura.html" %}</span>
+              <span class="nz-chev" aria-hidden="true">&#8250;</span>
+            </div>
+          </article>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

@@ -27,6 +27,9 @@ COMPLIANCE_APERTO = "aperto"
 COMPLIANCE_NON_CONFORME = "non_conforme"
 COMPLIANCE_CONFORME = "conforme"
 
+# Estensioni mostrate nel visualizzatore della pagina (oltre al PDF).
+ANTEPRIMA_IMMAGINI = {"png", "jpg", "jpeg", "gif", "webp"}
+
 
 class Notizia(models.Model):
     titolo = models.CharField(max_length=300)
@@ -97,6 +100,27 @@ class NotiziaAllegato(models.Model):
 
     def __str__(self) -> str:
         return self.nome_file
+
+    @property
+    def estensione(self) -> str:
+        """Estensione del file caricato (minuscola, senza punto); vuota per i link esterni."""
+        nome = str(getattr(self.file, "name", "") or "")
+        if "." not in nome:
+            return ""
+        return nome.rsplit(".", 1)[-1].lower()
+
+    @property
+    def is_pdf(self) -> bool:
+        return self.estensione == "pdf"
+
+    @property
+    def is_immagine(self) -> bool:
+        return self.estensione in ANTEPRIMA_IMMAGINI
+
+    @property
+    def ha_anteprima(self) -> bool:
+        """PDF e immagini si aprono nel visualizzatore della pagina; gli altri file si scaricano."""
+        return bool(self.file) and (self.is_pdf or self.is_immagine)
 
     def save(self, *args, **kwargs) -> None:
         if self.file and not self.hash_file:
