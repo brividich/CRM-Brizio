@@ -437,11 +437,10 @@ def costruisci(*, oggi=None, con_personale: bool = True, con_audit: bool = False
                      vuoto="Nessuna persona abilitata: in MOD.128 aggiungi le abilitazioni con ruolo «Part 145».")
     if con_personale and abilitazioni:
         from anagrafica.services.mpq_persone import stato_persona
+        from anagrafica.services.mpq_ruoli import nomi_ruoli
 
         for ab in abilitazioni:
-            ruoli = [n for flag, n in ((ab.is_qualificato, "Qualificato"), (ab.is_addetto, "Addetto"),
-                                       (ab.is_controllore, "Controllore"), (ab.is_part145, "Part 145")) if flag]
-            ruoli += [r.nome for r in ab.ruoli_processo.all() if r.nome not in ruoli]
+            ruoli = nomi_ruoli(ab)
             certs = list(ab.certificazioni.all())
             scad_cert = min((c.data_scadenza for c in certs if c.data_scadenza), default=None)
             idoneita = "—"

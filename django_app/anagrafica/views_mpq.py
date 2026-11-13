@@ -38,6 +38,8 @@ from .models_mpq import (
 
 TIPI_REQUISITO_PER_PERSONA = RequisitoQualifica.TIPI_PER_PERSONA
 
+from .services.mpq_ruoli import STANDARD as STANDARD_RUOLI  # noqa: E402
+
 _MESI_ABBR = ["gen", "feb", "mar", "apr", "mag", "giu",
               "lug", "ago", "set", "ott", "nov", "dic"]
 
@@ -273,21 +275,13 @@ def mpq_processo_detail(request, processo_id: int):
     ha_requisiti = bool(any(r.attivo for r in requisiti_generici)
                         or any(r.attivo for r in requisiti_persona))
     from .services.mpq_persone import contesto_processo, stato_persona
+    from .services.mpq_ruoli import nomi_ruoli
 
     ctx_persone = contesto_processo(processo, abilitazioni)
 
     ab_stato_labels = dict(AbilitazioneProcesso.STATO_CHOICES)
     righe = []
     for a in abilitazioni:
-        ruoli = []
-        if a.is_qualificato:
-            ruoli.append("Qualificato")
-        if a.is_addetto:
-            ruoli.append("Addetto")
-        if a.is_controllore:
-            ruoli.append("Controllore")
-        if a.is_part145:
-            ruoli.append("Part 145")
         certs = []
         for c in a.certificazioni.all():
             c_stato, c_label = _classifica_scadenza(c.data_scadenza, oggi, s30, s60)
@@ -303,8 +297,8 @@ def mpq_processo_detail(request, processo_id: int):
             "obj": a,
             "nome": nome_persona,
             "nome_risolto": nome_risolto,
-            "ruoli": ruoli,
-            "ruoli_processo": [r.nome for r in a.ruoli_processo.all()],
+            "ruoli": [],
+            "ruoli_processo": nomi_ruoli(a),
             "stato_label": ab_stato_labels.get(a.stato, a.stato),
             "certificazioni": certs,
             "conformita": stato if ha_requisiti else None,
@@ -640,11 +634,12 @@ def mpq_cliente_edit(request, cliente_id: int):
     })
 
 
-def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_sel=()):
+def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_sel=(), std_sel=("QUALIFICATO",)):
     return {
         "form": form, "titolo": titolo, "processo": processo,
-        "ruoli_catalogo": list(processo.ruoli.all()),
+        "ruoli_catalogo": list(processo.ruoli.filter(codice_modulo="")),
         "ruoli_sel": {int(r) for r in ruoli_sel if str(r).isdigit()},
+        "ruoli_standard": [(c, n, c in set(std_sel)) for c, n, _f in STANDARD_RUOLI],
         "dipendenti": _dipendenti_scelte(),
         "multi_select": multi_select,
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[processo.id]),
@@ -652,11 +647,13 @@ def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_
 
 
 def _ruoli_dal_post(request, processo):
-    ids = [int(x) for x in request.POST.getlist("ruoli_processo") if str(x).isdigit()]
-    return list(processo.ruoli.filter(pk__in=ids))
+    """Ruoli scelti: quelli del modulo (Qualificato…) per codice + quelli propri per id."""
+    from .services.mpq_ruoli import ruoli_dal_form
+
+    return ruoli_dal_form(processo, request.POST.getlist("ruoli_standard"), request.POST.getlist("ruoli_processo"))
 
 
-def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
+def bulk_abilita_processo(processo, legacy_ids, *, ruoli=None, stato,
                           data_ingresso=None, note="", ruoli_processo=()):
     """1.8 — Crea in blocco N ``AbilitazioneProcesso`` (dipendenti interni).
 
@@ -667,9 +664,18 @@ def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
     """
     from django.db import transaction
 
+    from .services.mpq_ruoli import STANDARD, flag_da_ruoli, imposta_ruoli, ruolo_standard
+
     creati: list = []
     gia = 0
     seen: set = set()
+    ruoli_processo = list(ruoli_processo)
+    if not ruoli_processo:
+        # Compatibilità: ruoli come booleani (default Qualificato).
+        ruoli = ruoli if ruoli is not None else {"is_qualificato": True}
+        ruoli_processo = [ruolo_standard(processo, c) for c, _n, campo in STANDARD
+                          if ruoli.get(campo, campo == "is_qualificato")]
+    flag = flag_da_ruoli(ruoli_processo)
     with transaction.atomic():
         for lid in legacy_ids:
             try:
@@ -684,18 +690,14 @@ def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
                 nominativo_esterno="",
                 processo=processo,
                 defaults={
-                    "is_qualificato": ruoli.get("is_qualificato", True),
-                    "is_addetto": ruoli.get("is_addetto", False),
-                    "is_controllore": ruoli.get("is_controllore", False),
-                    "is_part145": ruoli.get("is_part145", False),
+                    **flag,
                     "stato": stato,
                     "data_ingresso": data_ingresso,
                     "note": note,
                 },
             )
             if created:
-                if ruoli_processo:
-                    ab.ruoli_processo.set(ruoli_processo)
+                imposta_ruoli(ab, ruoli_processo)
                 creati.append(ab)
             else:
                 gia += 1
@@ -712,12 +714,9 @@ def mpq_abilitazione_add(request, processo_id: int):
         form = AbilitazioneProcessoForm(request.POST)
         if form.is_valid():
             cd = form.cleaned_data
-            ruoli = {
-                "is_qualificato": cd.get("is_qualificato", True),
-                "is_addetto": cd.get("is_addetto", False),
-                "is_controllore": cd.get("is_controllore", False),
-                "is_part145": cd.get("is_part145", False),
-            }
+            from .services.mpq_ruoli import flag_da_ruoli, imposta_ruoli
+
+            ruoli_scelti = _ruoli_dal_post(request, proc)
             stato = cd.get("stato", AbilitazioneProcesso.STATO_ATTIVA)
             if cd.get("tipo_persona") == AbilitazioneProcessoForm.TIPO_ESTERNO:
                 # Qualificatore esterno: una persona per nominativo (nessun bulk).
@@ -725,12 +724,12 @@ def mpq_abilitazione_add(request, processo_id: int):
                     legacy_anagrafica_id=0,
                     nominativo_esterno=cd.get("nominativo_esterno", ""),
                     processo=proc,
-                    defaults={**ruoli, "stato": stato,
+                    defaults={**flag_da_ruoli(ruoli_scelti), "stato": stato,
                               "data_ingresso": cd.get("data_ingresso"),
                               "note": cd.get("note", "")},
                 )
                 if created:
-                    ab.ruoli_processo.set(_ruoli_dal_post(request, proc))
+                    imposta_ruoli(ab, ruoli_scelti)
                     _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
                     messages.success(request, "Abilitazione aggiunta.")
                 else:
@@ -739,9 +738,9 @@ def mpq_abilitazione_add(request, processo_id: int):
                 # 1.8 — Dipendenti interni: selezione multipla → creazione in blocco.
                 legacy_ids = request.POST.getlist("dipendente")
                 creati, gia = bulk_abilita_processo(
-                    proc, legacy_ids, ruoli=ruoli, stato=stato,
+                    proc, legacy_ids, stato=stato,
                     data_ingresso=cd.get("data_ingresso"), note=cd.get("note", ""),
-                    ruoli_processo=_ruoli_dal_post(request, proc),
+                    ruoli_processo=ruoli_scelti,
                 )
                 for ab in creati:
                     _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
@@ -762,7 +761,9 @@ def mpq_abilitazione_add(request, processo_id: int):
     return render(request, "anagrafica/pages/mpq_abilitazione_form.html",
                   _abilitazione_form_ctx(form, proc, "Aggiungi persone abilitate",
                                          multi_select=True,
-                                         ruoli_sel=request.POST.getlist("ruoli_processo")))
+                                         ruoli_sel=request.POST.getlist("ruoli_processo"),
+                                         std_sel=(request.POST.getlist("ruoli_standard")
+                                                  if request.method == "POST" else ("QUALIFICATO",))))
 
 
 @login_required
@@ -778,15 +779,13 @@ def mpq_abilitazione_edit(request, ab_id: int):
             cd = form.cleaned_data
             ab.legacy_anagrafica_id = cd["legacy_anagrafica_id"]
             ab.nominativo_esterno = cd.get("nominativo_esterno", "")
-            ab.is_qualificato = cd.get("is_qualificato", True)
-            ab.is_addetto = cd.get("is_addetto", False)
-            ab.is_controllore = cd.get("is_controllore", False)
-            ab.is_part145 = cd.get("is_part145", False)
             ab.stato = cd.get("stato", ab.stato)
             ab.data_ingresso = cd.get("data_ingresso")
             ab.note = cd.get("note", "")
             ab.save()
-            ab.ruoli_processo.set(_ruoli_dal_post(request, ab.processo))
+            from .services.mpq_ruoli import imposta_ruoli
+
+            imposta_ruoli(ab, _ruoli_dal_post(request, ab.processo))
             _mpq_log(request, processo=ab.processo, abilitazione=ab, evento="Modifica abilitazione")
             messages.success(request, "Abilitazione aggiornata.")
             return redirect("anagrafica:mpq_processo_detail", processo_id=ab.processo_id)
@@ -796,15 +795,15 @@ def mpq_abilitazione_edit(request, ab_id: int):
                              else AbilitazioneProcessoForm.TIPO_INTERNO),
             "dipendente": ab.legacy_anagrafica_id or "",
             "nominativo_esterno": ab.nominativo_esterno,
-            "is_qualificato": ab.is_qualificato, "is_addetto": ab.is_addetto,
-            "is_controllore": ab.is_controllore, "is_part145": ab.is_part145,
             "stato": ab.stato, "data_ingresso": ab.data_ingresso, "note": ab.note,
         })
     ruoli_sel = (request.POST.getlist("ruoli_processo") if request.method == "POST"
                  else [r.pk for r in ab.ruoli_processo.all()])
+    std_sel = (request.POST.getlist("ruoli_standard") if request.method == "POST"
+               else [r.codice_modulo for r in ab.ruoli_processo.all() if r.codice_modulo])
     return render(request, "anagrafica/pages/mpq_abilitazione_form.html",
                   _abilitazione_form_ctx(form, ab.processo, "Modifica abilitazione",
-                                         ruoli_sel=ruoli_sel))
+                                         ruoli_sel=ruoli_sel, std_sel=std_sel))
 
 
 @login_required

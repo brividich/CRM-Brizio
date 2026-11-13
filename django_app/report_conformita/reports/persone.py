@@ -21,6 +21,8 @@ from ..registry import (
     c,
     register,
 )
+from anagrafica.services.mpq_ruoli import nomi_ruoli
+
 from ._common import d, links, pct, scadenza_stato, short
 
 # ---------------------------------------------------------------------------
@@ -123,7 +125,8 @@ def _processi_speciali(params: ReportParams) -> ReportResult:
         ProcessoQualificato.objects.filter(stato="ATTIVO").select_related("cliente").order_by("nome")
     )
     abilitazioni = list(
-        AbilitazioneProcesso.objects.filter(processo__in=processi, stato="ATTIVA").order_by("processo_id", "id")
+        AbilitazioneProcesso.objects.filter(processo__in=processi, stato="ATTIVA").prefetch_related("ruoli_processo")
+        .order_by("processo_id", "id")
     )
     cert_scad: dict[int, object] = {}
     for cert in CertificazioneIndividuale.objects.filter(
@@ -158,8 +161,7 @@ def _processi_speciali(params: ReportParams) -> ReportResult:
         for a in persone_proc:
             p = anag.get(a.legacy_anagrafica_id) if a.legacy_anagrafica_id else None
             nome = p.nominativo if p else (a.nominativo_esterno or "")
-            ruoli = [label for flag, label in ((a.is_qualificato, "Qualificato"), (a.is_addetto, "Addetto"),
-                                               (a.is_controllore, "Controllore"), (a.is_part145, "Part 145")) if flag]
+            ruoli = nomi_ruoli(a)
             scad_cert = cert_scad.get(a.id)
             esito, tone = "Abilitato", TONE_OK
             if p and p.cessato:

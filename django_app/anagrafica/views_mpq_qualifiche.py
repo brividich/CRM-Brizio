@@ -81,7 +81,14 @@ def mpq_ruolo_delete(request, ruolo_id: int):
     ruolo = get_object_or_404(RuoloProcesso, pk=ruolo_id)
     pid = ruolo.processo_id
     _mpq_log(request, processo=ruolo.processo, evento="Ruolo rimosso", dettaglio=ruolo.nome)
+    toccate = list(ruolo.abilitazioni.all()) if ruolo.codice_modulo else []
     ruolo.delete()
+    if toccate:
+        # Ruolo del modulo (Qualificato…): riallinea la copia calcolata delle persone.
+        from .services.mpq_ruoli import imposta_ruoli
+
+        for ab in toccate:
+            imposta_ruoli(ab, ab.ruoli_processo.all())
     messages.success(request, "Ruolo rimosso.")
     return redirect(_dettaglio(pid, "requisiti-persone"))
 

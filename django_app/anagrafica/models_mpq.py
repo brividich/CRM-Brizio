@@ -437,7 +437,8 @@ class AbilitazioneProcesso(models.Model):
     processo = models.ForeignKey(
         ProcessoQualificato, on_delete=models.CASCADE, related_name="abilitazioni",
     )
-    # Ruoli sul processo (booleani, come nel modulo). Qualificato = essere in lista.
+    # COPIA CALCOLATA dei ruoli standard (services/mpq_ruoli.imposta_ruoli): si scrivono
+    # solo da lì. La fonte è ``ruoli_processo``; restano per vista MOD.128, export, Dossier.
     is_qualificato = models.BooleanField(default=True)
     is_addetto = models.BooleanField(default=False)
     is_controllore = models.BooleanField(default=False)
@@ -616,6 +617,12 @@ class RuoloProcesso(models.Model):
         help_text="Facoltativa: collega il ruolo alla mansione lavorativa corrispondente.",
     )
     ordine = models.PositiveSmallIntegerField(default=0)
+    # Ruoli del modulo cartaceo MOD.128 (vedi services/mpq_ruoli): vuoto = ruolo proprio del processo.
+    CODICE_CHOICES = [
+        ("QUALIFICATO", "Qualificato"), ("ADDETTO", "Addetto"),
+        ("CONTROLLORE", "Controllore"), ("PART145", "Part 145"),
+    ]
+    codice_modulo = models.CharField(max_length=16, blank=True, default="", choices=CODICE_CHOICES)
 
     class Meta:
         ordering = ["processo", "ordine", "nome"]
