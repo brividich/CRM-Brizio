@@ -17,6 +17,8 @@ class Ospite(models.Model):
     azienda = models.CharField(max_length=255, blank=True)
     informativa_letta_il = models.DateTimeField(null=True, blank=True)
     informativa_ip = models.CharField(max_length=45, blank=True)
+    # Versione dell'informativa accettata (reception.informativa.versione): uguale = non si rilegge al chiosco.
+    informativa_versione = models.CharField(max_length=16, blank=True)
     anonimizzato = models.BooleanField(default=False)
     creato_il = models.DateTimeField(auto_now_add=True)
     aggiornato_il = models.DateTimeField(auto_now=True)

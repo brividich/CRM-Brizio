@@ -225,8 +225,16 @@ def _cartellini(_dati: dict) -> JsonResponse:
     return JsonResponse({"success": True, "cartellini": numeri})
 
 
+def _consenso(dati: dict, ricordata) -> bool | None:
+    """True = spuntata adesso; False = non spuntata ma già accettata (versione in vigore); None = manca."""
+    if dati.get("gdpr_consent") is True:
+        return True
+    return False if ricordata() else None
+
+
 def _ingresso(dati: dict, ip: str, ospite_hub: int | None = None) -> JsonResponse:
-    if dati.get("gdpr_consent") is not True:
+    consenso = _consenso(dati, lambda: chiosco.privacy_ricordata_ospite(ospite_hub))
+    if consenso is None:
         return _errore("Per continuare conferma di aver letto l'informativa.")
     host = chiosco.referente(_intero(dati, "referente_id"))
     motivo = _testo(dati, "motivo")
@@ -243,7 +251,7 @@ def _ingresso(dati: dict, ip: str, ospite_hub: int | None = None) -> JsonRespons
     richiesta = {
         "first_name": nome, "last_name": cognome, "email": email, "phone": _testo(dati, "phone"),
         "company": _testo(dati, "company"), "host_employee": host["nome"], "host_email": host["email"],
-        "purpose": motivo, "gdpr_consent": True,
+        "purpose": motivo, "gdpr_consent": consenso,
     }
     if ospite_hub:
         # Dopo il passaggio chi torna si riaggancia al suo ospite anche senza email: niente doppioni.
@@ -255,8 +263,6 @@ def _ingresso(dati: dict, ip: str, ospite_hub: int | None = None) -> JsonRespons
 
 def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
     # Anche il fornitore accreditato legge l'informativa: il GuestPortal registra comunque ConsentGDPR=1.
-    if dati.get("gdpr_consent") is not True:
-        return _errore("Per continuare conferma di aver letto l'informativa.")
     azienda_id, nominativo_id = _intero(dati, "azienda_id"), _intero(dati, "nominativo_id")
     if dati.get("fornitore"):
         # Riconosciuto da nome e cognome: ditta e nominativo vengono dalla chiave firmata.
@@ -264,6 +270,10 @@ def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
         if dalla_chiave is None:
             return _errore("Non ti ritrovo più: tocca «Ricomincia».")
         azienda_id, nominativo_id = dalla_chiave
+    # Già accettata: vale solo per chi è stato riconosciuto (chiave firmata), mai per una scelta da elenco.
+    consenso = _consenso(dati, lambda: bool(dati.get("fornitore")) and chiosco.privacy_ricordata_fornitore(azienda_id, nominativo_id))
+    if consenso is None:
+        return _errore("Per continuare conferma di aver letto l'informativa.")
     azienda = next((a for a in chiosco.aziende() if a["id"] == azienda_id), None)
     if azienda is None:
         return _errore("Scegli l'azienda.")
@@ -276,7 +286,7 @@ def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
     stato, esito = chiosco.chiama("supplier_checkin", {
         "supplier_id": azienda["id"], "contact_id": persona["id"], "company_name": azienda["nome"],
         "first_name": persona["nome"], "last_name": persona["cognome"],
-        "host_employee": host["nome"], "host_email": host["email"],
+        "host_employee": host["nome"], "host_email": host["email"], "gdpr_consent": consenso,
     }, ip=ip)
     return _esito_ingresso(stato, esito, azienda=azienda["nome"], ditta_id=azienda["id"])
 
@@ -319,6 +329,7 @@ def _prereg_cerca(dati: dict) -> JsonResponse:
     return JsonResponse({"success": True, "prereg": {
         "guest_name": p.get("guest_name") or "", "guest_company": p.get("guest_company") or "",
         "host_employee": p.get("host_employee") or "", "purpose": p.get("purpose") or "",
+        "privacy_ok": bool(p.get("privacy_ok")),
     }})
 
 
@@ -326,9 +337,10 @@ def _prereg_entra(dati: dict, ip: str) -> JsonResponse:
     codice = _testo(dati, "code").upper()
     if len(codice) != 8:
         return _errore("Il codice deve avere 8 caratteri.")
-    if dati.get("gdpr_consent") is not True:
+    consenso = _consenso(dati, lambda: chiosco.privacy_ricordata_codice(codice))
+    if consenso is None:
         return _errore("Per continuare conferma di aver letto l'informativa.")
-    stato, esito = chiosco.chiama("prereg_checkin", {"code": codice}, ip=ip)
+    stato, esito = chiosco.chiama("prereg_checkin", {"code": codice, "gdpr_consent": consenso}, ip=ip)
     if not esito.get("success") and stato == 200:
         return _errore("Codice non valido, scaduto o già utilizzato.")
     return _esito_ingresso(stato, esito)

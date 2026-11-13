@@ -9,7 +9,9 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Cartellino, EventoVisita, Ospite, Preregistrazione, Referente, RichiestaAppuntamento, Visita
+from .models import (
+    Cartellino, ContattoDitta, DittaAccreditata, EventoVisita, Ospite, Preregistrazione, Referente, RichiestaAppuntamento, Visita,
+)
 
 GIORNI_RIAPERTURA = 7
 CARATTERI_CODICE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # niente O, 0, 1, I: si confondono
@@ -56,8 +58,13 @@ def trova_ospite_per_email(email: str) -> Ospite | None:
 
 
 def ospite_da_dati(*, nome: str, cognome: str, email: str = "", telefono: str = "", azienda: str = "",
-                   ip: str = "") -> Ospite:
-    """Trova o crea l'ospite. Stessa email con un altro nome: errore, non si sovrascrive."""
+                   ip: str = "", informativa: bool = True) -> Ospite:
+    """Trova o crea l'ospite. Stessa email con un altro nome: errore, non si sovrascrive.
+
+    ``informativa=False``: non l'ha spuntata adesso perché aveva già accettato la versione in vigore
+    (la data di lettura resta quella vera)."""
+    from . import informativa as inf
+
     email = (email or "").strip().lower()
     esistente = trova_ospite_per_email(email)
     if esistente is not None:
@@ -65,25 +72,86 @@ def ospite_da_dati(*, nome: str, cognome: str, email: str = "", telefono: str = 
             raise EmailDiAltri
         esistente.nome, esistente.cognome = nome.strip(), cognome.strip()
         esistente.telefono, esistente.azienda = (telefono or "").strip(), (azienda or "").strip()
-        esistente.informativa_letta_il, esistente.informativa_ip = timezone.now(), (ip or "")[:45]
+        if informativa or not inf.gia_accettata(esistente):
+            inf.registra(esistente, ip)
         esistente.save()
         return esistente
-    return Ospite.objects.create(
-        nome=nome.strip(), cognome=cognome.strip(), email=email, telefono=(telefono or "").strip(),
-        azienda=(azienda or "").strip(), informativa_letta_il=timezone.now(), informativa_ip=(ip or "")[:45],
-    )
-
-
-def ospite_fornitore(*, nome: str, cognome: str, azienda: str, ip: str = "") -> Ospite:
-    ospite = Ospite.objects.filter(
-        nome__iexact=nome, cognome__iexact=cognome, azienda__iexact=azienda, anonimizzato=False,
-    ).order_by("pk").first()
-    if ospite is None:
-        return Ospite.objects.create(nome=nome.strip(), cognome=cognome.strip(), azienda=azienda.strip(),
-                                     informativa_letta_il=timezone.now(), informativa_ip=(ip or "")[:45])
-    ospite.informativa_letta_il, ospite.informativa_ip = timezone.now(), (ip or "")[:45]
-    ospite.save(update_fields=["informativa_letta_il", "informativa_ip", "aggiornato_il"])
+    ospite = Ospite(nome=nome.strip(), cognome=cognome.strip(), email=email, telefono=(telefono or "").strip(),
+                    azienda=(azienda or "").strip())
+    inf.registra(ospite, ip)
+    ospite.save()
     return ospite
+
+
+def trova_ospite_fornitore(nome: str, cognome: str, azienda: str) -> Ospite | None:
+    return Ospite.objects.filter(
+        nome__iexact=(nome or "").strip(), cognome__iexact=(cognome or "").strip(),
+        azienda__iexact=(azienda or "").strip(), anonimizzato=False,
+    ).order_by("pk").first()
+
+
+def ospite_fornitore(*, nome: str, cognome: str, azienda: str, ip: str = "", informativa: bool = True) -> Ospite:
+    from . import informativa as inf
+
+    ospite = trova_ospite_fornitore(nome, cognome, azienda)
+    if ospite is None:
+        ospite = Ospite(nome=nome.strip(), cognome=cognome.strip(), azienda=azienda.strip())
+        inf.registra(ospite, ip)
+        ospite.save()
+        return ospite
+    if informativa or not inf.gia_accettata(ospite):
+        ospite.save(update_fields=[*inf.registra(ospite, ip), "aggiornato_il"])
+    return ospite
+
+
+def ditta_e_contatto(azienda: str, nome: str, cognome: str) -> tuple[DittaAccreditata, ContattoDitta]:
+    """Ditta accreditata e nominativo con questi nomi (maiuscole indifferenti): li crea o li riattiva."""
+    azienda, nome, cognome = (azienda or "").strip()[:200], (nome or "").strip()[:100], (cognome or "").strip()[:100]
+    if not azienda or not nome or not cognome:
+        raise OperazioneNonValida("Per un fornitore servono nome, cognome e azienda.")
+    ditta = DittaAccreditata.objects.filter(nome__iexact=azienda).first() or DittaAccreditata.objects.create(nome=azienda)
+    if not ditta.attiva:
+        ditta.attiva = True
+        ditta.save(update_fields=["attiva"])
+    contatto = ditta.contatti.filter(nome__iexact=nome, cognome__iexact=cognome).first() \
+        or ContattoDitta.objects.create(ditta=ditta, nome=nome, cognome=cognome)
+    if not contatto.attivo:
+        contatto.attivo = True
+        contatto.save(update_fields=["attivo"])
+    return ditta, contatto
+
+
+def visita_come_fornitore(visita_id: int, *, autore: str = "", ip: str = "") -> Visita:
+    """Chi è dentro come visitatore diventa nominativo della sua ditta accreditata: la visita passa a
+    «Fornitore» e dal prossimo ingresso il chiosco lo riconosce come fornitore."""
+    with transaction.atomic():
+        visita = Visita.objects.select_for_update().select_related("ospite").filter(pk=visita_id, stato=Visita.DENTRO).first()
+        if visita is None:
+            raise OperazioneNonValida("La visita non è più aperta.")
+        if visita.tipo == Visita.FORNITORE:
+            raise OperazioneNonValida("È già registrato come fornitore.")
+        o = visita.ospite
+        if o.anonimizzato or not (o.azienda or "").strip():
+            raise OperazioneNonValida(f"{o.nome_completo} non ha un'azienda: aggiungila dalla scheda della visita o registralo da «+ Registra chi è dentro».")
+        ditta, contatto = ditta_e_contatto(o.azienda, o.nome, o.cognome)
+        visita.tipo, visita.ditta, visita.contatto = Visita.FORNITORE, ditta, contatto
+        visita.save(update_fields=["tipo", "ditta", "contatto"])
+        if o.azienda != ditta.nome:
+            o.azienda = ditta.nome
+            o.save(update_fields=["azienda", "aggiornato_il"])
+    _evento(visita.pk, "COME_FORNITORE", autore, ip, ditta=ditta.nome)
+    return visita
+
+
+def ospite_del_codice(pre: Preregistrazione | None) -> Ospite | None:
+    """L'ospite già registrato a cui andrà la visita del codice (stessa email e stesso nome)."""
+    if pre is None:
+        return None
+    o = trova_ospite_per_email(pre.ospite_email)
+    nome, _, cognome = pre.ospite_nome.strip().partition(" ")
+    if o is None or (o.nome.strip().lower(), o.cognome.strip().lower()) != (nome.strip().lower(), cognome.strip().lower()):
+        return None
+    return o
 
 
 def registra_ingresso(ospite: Ospite, *, referente_nome: str, referente_email: str = "", motivo: str = "",
@@ -211,7 +279,7 @@ def preregistrazione_valida(codice: str) -> Preregistrazione | None:
                                            scade_il__gte=timezone.now()).first()
 
 
-def ingresso_da_codice(codice: str, *, ip: str = "") -> Visita | None:
+def ingresso_da_codice(codice: str, *, ip: str = "", informativa: bool = True) -> Visita | None:
     """``None`` se il codice non vale. Il codice si usa una volta sola anche con due richieste insieme."""
     with transaction.atomic():
         pre = Preregistrazione.objects.select_for_update().filter(
@@ -220,7 +288,8 @@ def ingresso_da_codice(codice: str, *, ip: str = "") -> Visita | None:
         if pre is None:
             return None
         nome, _, cognome = pre.ospite_nome.strip().partition(" ")
-        ospite = ospite_da_dati(nome=nome, cognome=cognome, email=pre.ospite_email, azienda=pre.ospite_azienda, ip=ip)
+        ospite = ospite_da_dati(nome=nome, cognome=cognome, email=pre.ospite_email, azienda=pre.ospite_azienda, ip=ip,
+                                informativa=informativa)
         visita = registra_ingresso(ospite, referente_nome=pre.referente_nome, referente_email=pre.referente_email,
                                    motivo=pre.motivo, tipo=Visita.PREREG, creata_da="PREREG")
         pre.usata_il, pre.visita = timezone.now(), visita

@@ -142,6 +142,8 @@ def leggi_esterni() -> tuple[list[dict], str]:
         req = stati.get(getattr(a, "fornitore_id", None))
         righe.append({
             "solari_id": -int(a.visita_id),
+            "visita_id": int(a.visita_id),
+            "tipo_codice": a.tipo,
             "esterno": True,
             "legacy_id": None,
             "cognome": a.nome,
