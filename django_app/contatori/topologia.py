@@ -156,3 +156,18 @@ def proposte_da_tabella_mac(dispositivo):
         out[n] = {"valore": f"{tipo}:{obj.pk}" if obj else "", "testo": (obj.nome if tipo == "d" else f"MFC {obj.reparto}") if obj else str(r["asset"]),
                   "vlan": str(r["vlan"] or "")}
     return out
+
+
+BLOCCO_PORTE = 12
+DESCRITTE_IN_VISTA = 12
+
+
+def pannello(dispositivo):
+    """Porte divise in blocchi da 12 (6 colonne × 2 file, come sui veri switch) che vanno a capo con lo spazio;
+    fino a 12 porte una fila sola. Più le porte descritte, le prime in vista e le altre da aprire."""
+    porte = porte_pannello(dispositivo)
+    una_fila = len(porte) <= BLOCCO_PORTE
+    blocchi = [porte] if una_fila else [porte[i:i + BLOCCO_PORTE] for i in range(0, len(porte), BLOCCO_PORTE)]
+    descritte = [p for p in porte if p["occupata"]]
+    return {"porte_pannello": porte, "porte_blocchi": blocchi, "porte_una_fila": una_fila,
+            "porte_in_vista": descritte[:DESCRITTE_IN_VISTA], "porte_altre": descritte[DESCRITTE_IN_VISTA:]}
