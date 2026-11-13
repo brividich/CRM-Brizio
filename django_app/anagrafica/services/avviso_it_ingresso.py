@@ -194,6 +194,10 @@ def testo_avviso(dati: DatiAvviso) -> str:
 # Canali
 # ---------------------------------------------------------------------------
 
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("anagrafica_avviso_it_ingresso")
 def _invia_email(dati: DatiAvviso, destinatari: list[str]) -> None:
     from core.email_utils import email_cta, email_facts_table, send_hub_mail, text_to_html
 

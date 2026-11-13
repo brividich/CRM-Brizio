@@ -43,7 +43,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Mail inviate" page_subtitle="Ogni mail partita dalle automazioni, dalle assenze e dalle anomalie: destinatari, oggetto ed esito." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Mail inviate" page_subtitle="Ogni mail partita dal portale (automazioni e moduli): destinatari, oggetto ed esito." %}
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
@@ -165,7 +165,7 @@
         {% else %}
           <p class="mail-muted" style="padding:24px 0;text-align:center;">Nessuna mail con questi filtri.</p>
         {% endif %}
-        <p class="mail-note">Il registro parte dall'installazione di questa pagina: le mail precedenti restano solo nel Run log. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
+        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
       </div>
     </div>
   </div>

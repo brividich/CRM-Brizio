@@ -55,6 +55,11 @@ class CoreConfig(AppConfig):
         collega_segnali()
         collega_variazioni()
 
+        # Registro «Mail inviate»: ogni EmailMessage.send del portale lascia la sua riga.
+        from .mail_registro import installa as installa_registro_mail
+
+        installa_registro_mail()
+
 
 def _user_get_full_name(self) -> str:
     """Nominativo dell'utente nel formato unico del portale: ``COGNOME NOME``.

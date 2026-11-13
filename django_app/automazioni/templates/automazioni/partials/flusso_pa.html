@@ -92,6 +92,19 @@
                 <textarea name="aggiungi_a" rows="2" placeholder="Aggiungi altri indirizzi in A">{{ p.aggiungi_a }}</textarea>
               {% endif %}
             </div>
+            {% if p.modulo %}
+            <fieldset class="pa-field pa-modulo">
+              <legend class="pa-label">Impostazioni del modulo</legend>
+              <small class="pa-hint">Sono le stesse di {{ p.modulo.dove }}: cambiarle qui o lì è la stessa cosa.</small>
+              {% for c in p.modulo.campi %}
+                <label class="pa-field"><span class="pa-label">{{ c.etichetta }}</span>
+                  {% if c.righe > 1 %}<textarea name="{{ c.nome }}" rows="{{ c.righe }}">{{ c.valore }}</textarea>
+                  {% else %}<input type="text" name="{{ c.nome }}" value="{{ c.valore }}">{% endif %}
+                  {% if c.aiuto %}<small class="pa-hint">{{ c.aiuto }}</small>{% endif %}
+                </label>
+              {% endfor %}
+            </fieldset>
+            {% endif %}
             <label class="pa-field"><span class="pa-label">CC</span>
               <textarea name="aggiungi_cc" rows="2" placeholder="Indirizzi in copia">{{ p.aggiungi_cc }}</textarea></label>
             <div class="pa-field"><label class="pa-label" for="pa-subj-{{ p.name }}">Oggetto</label>

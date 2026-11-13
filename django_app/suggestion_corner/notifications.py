@@ -61,6 +61,7 @@ def notifica_team_nuova_segnalazione(seg) -> int:
     )
 
 
+@event_flow("suggestion_corner_comunicazione_cliente", skipped_result=0)
 def notifica_cliente_sms(seg, messaggio: str = "") -> int:
     """Comunicazione al cliente per una segnalazione classificata SMS Sì.
 

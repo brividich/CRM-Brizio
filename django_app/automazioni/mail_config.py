@@ -205,6 +205,7 @@ def personalizza_invio(subject: str, body_text: str, fragment: str, footer_note:
 def pannello(codice: str) -> dict | None:
     """Dati del flusso in stile Power Automate (None se il codice non è nel catalogo)."""
     from . import ricorrenza
+    from .mail_modulo import campi as campi_modulo
     from .managed_flows import catalog
     from .models import ManagedFlow
     from .schedules import DIGEST_E_PROMEMORIA, DIGEST_OGGETTO, _oggetto_riga, describe_cadence
@@ -268,6 +269,7 @@ def pannello(codice: str) -> dict | None:
         "mail_disattivata": bool(getattr(txt, "mail_disattivata", False)),
         "oggetto_predefinito": _oggetto_riga(codice)["oggetto"],
         "token_oggetto": TOKEN_OGGETTO,
+        "modulo": campi_modulo(codice),
     }
 
 

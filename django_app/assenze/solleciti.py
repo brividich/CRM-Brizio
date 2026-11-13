@@ -277,6 +277,15 @@ def annota_richieste_personali(righe: list[dict], now=None) -> None:
         r["sollecito_prossimo"] = _helpers._dt_label(prossimo) if prossimo else ""
 
 
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("assenze_sollecito_manuale", skipped_result=0)
+def _manda_sollecito_manuale(msg) -> int:
+    """Invio del sollecito chiesto dal dipendente: flusso gestito, si spegne o si personalizza da Automazioni."""
+    return invia_con_regole_flusso(msg)
+
+
 def sollecita_richiesta(riga: dict, now=None) -> tuple[bool, str]:
     """Sollecito chiesto dal dipendente per una sua richiesta. Ritorna ``(inviato, messaggio)``."""
     from automazioni.mail_inviate import registra
@@ -308,12 +317,14 @@ def sollecita_richiesta(riga: dict, now=None) -> tuple[bool, str]:
     try:
         msg = EmailMultiAlternatives(subject=oggetto, body=testo, from_email=from_email, to=[email])
         msg.attach_alternative(html, "text/html")
-        invia_con_regole_flusso(msg)
+        inviate = _manda_sollecito_manuale(msg)
     except Exception as exc:
         logger.warning("assenze.solleciti: sollecito manuale della richiesta %s non riuscito", rid, exc_info=True)
         registra(origine="assenze_sollecito", destinatari=[email], oggetto=oggetto, sorgente="assenze",
                  record_id=str(rid), errore=f"{type(exc).__name__}: {exc}")
         return False, "Invio del sollecito non riuscito: riprova più tardi."
+    if not inviate:
+        return False, "Il sollecito non è partito: la mail è disattivata in Automazioni (flusso «Assenze - sollecito al capo dal dipendente»)."
     registra(origine="assenze_sollecito", destinatari=[email], oggetto=oggetto, sorgente="assenze", record_id=str(rid))
     _segna_invio(rid, email, now)
     return True, "Sollecito inviato al capo."
