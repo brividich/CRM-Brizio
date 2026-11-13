@@ -477,6 +477,7 @@
     </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
+        <div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{% if civile.codice_fiscale %}{% if can_hr %}{{ civile.codice_fiscale }}{% else %}{{ civile.codice_fiscale|slice:":4" }}************{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data di nascita</div><div class="dp-info-value">{{ civile.data_nascita|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Luogo di nascita</div><div class="dp-info-value">{{ civile.luogo_nascita|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Provincia di nascita</div><div class="dp-info-value">{{ civile.provincia_nascita|default:"—" }}</div></div>
@@ -523,9 +524,10 @@
         <div class="dp-form-section-title">Modifica dati civili</div>
         <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
+          <input type="hidden" name="sezione" value="civile">
           <div class="dp-form-grid">
             {% for field in form_civile %}
-              {% if field.html_name not in "nome_banca,iban,intestatario_conto,categoria_protetta,categoria_disabili,percentuale_disabilita" %}
+              {% if field.html_name not in "nome_banca,iban,intestatario_conto,categoria_protetta,categoria_disabili,percentuale_disabilita" and field.html_name != "codice_fiscale" or field.html_name == "codice_fiscale" and can_hr %}
               <div class="dp-form-field">
                 <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
@@ -932,7 +934,7 @@
     <div class="dp-card-body">
       <div class="dp-hr-badge">⚠ Dati sensibili — visibili solo agli utenti con autorizzazione HR</div>
       <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{{ civile.codice_fiscale|default:"—" }}</div></div>
+        {% if not is_admin %}<div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{{ civile.codice_fiscale|default:"—" }}</div></div>{% endif %}
         <div class="dp-info-item"><div class="dp-info-label">Nome banca</div><div class="dp-info-value">{{ civile.nome_banca|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">IBAN</div><div class="dp-info-value">{% if civile.iban %}{{ civile.iban_mascherato }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Intestatario conto</div><div class="dp-info-value">{{ civile.intestatario_conto|default:"—" }}</div></div>
@@ -945,9 +947,10 @@
         <div class="dp-form-section-title">Modifica dati riservati HR</div>
         <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
+          <input type="hidden" name="sezione" value="hr">
           <div class="dp-form-grid">
             {% for field in form_civile %}
-              {% if field.html_name in "codice_fiscale,nome_banca,iban,intestatario_conto" %}
+              {% if field.html_name in "nome_banca,iban,intestatario_conto" %}
               <div class="dp-form-field">
                 <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}

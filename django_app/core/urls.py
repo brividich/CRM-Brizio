@@ -86,6 +86,7 @@ urlpatterns = [
     path("api/onboarding/<int:user_id>/reset", views.api_onboarding_reset, name="api_onboarding_reset"),
     path("api/search/", views.api_global_search, name="api_global_search"),
     path("api/table-prefs/<str:table_id>/", views.api_table_prefs, name="api_table_prefs"),
+    path("api/table-prefs/<str:table_id>/comuni/", views.api_table_views_shared, name="api_table_views_shared"),
     # CAPA — Azioni Correttive/Preventive (gating fail-closed nelle view)
     path("capa/", views_capa.capa_list, name="capa_list"),
     path("capa/nuova/", views_capa.capa_create, name="capa_create"),
