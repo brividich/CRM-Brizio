@@ -42,7 +42,18 @@ GUIDA = {
             "id": "report",
             "titolo": "Chi ha letto",
             "blocchi": [
-                ("p", "«Report Letture» mostra per ogni notizia chi l'ha letta e confermata; «Esporta CSV» scarica l'elenco."),
+                ("p", "«Report letture» (da «Gestione notizie», o «Letture» sulla singola notizia pubblicata) mostra una riga per persona e notizia: "
+                      "Non letta, Da riconfermare, Da confermare, Confermata. In testata c'è la percentuale di conferme sulle obbligatorie pubblicate."),
+                ("p", "Scegliendo una notizia compaiono anche i destinatari che non l'hanno mai aperta, in cima all'elenco. «Cerca» trova persona, ruolo o titolo; "
+                      "«Confermata dal / al» tiene solo chi ha confermato in quei giorni. «Esporta CSV» scarica le stesse righe con i filtri attivi."),
+            ],
+        },
+        {
+            "id": "impostazioni",
+            "titolo": "Impostazioni",
+            "blocchi": [
+                ("p", "Notizie → «Impostazioni» ha tre schede: «Permessi» (ruoli che entrano in Gestione notizie), «Aspetto del modulo» (nome e logo) "
+                      "e «Registro attività» (chi ha creato, pubblicato, ripubblicato o archiviato cosa, filtrabile per azione e cercabile)."),
             ],
         },
         {
@@ -57,9 +68,15 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": 'La conformità in Impostazioni è più bassa di prima',
+            "sintomo": 'La percentuale di conferme sulle obbligatorie è più bassa di prima',
             "fare": [
-                "Ora conta le conferme della versione corrente sui destinatari delle notizie obbligatorie pubblicate (chi non l'ha mai aperta conta come non conforme), come il riepilogo per notizia.",
+                "Ora sta in testata al Report letture e conta le conferme della versione corrente sui destinatari delle notizie obbligatorie pubblicate (chi non l'ha mai aperta conta come mancante), come la barra di ogni notizia.",
+            ],
+        },
+        {
+            "sintomo": "Nel Report letture non vedo chi non ha mai aperto la notizia",
+            "fare": [
+                "Scegli la notizia nella tendina «Notizia»: solo così il report aggiunge i destinatari senza letture.",
             ],
         },
         {
