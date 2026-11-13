@@ -33,7 +33,10 @@ from .models_mpq import (
     CertificazioneIndividuale,
     ClienteQualificante,
     ProcessoQualificato,
+    RequisitoQualifica,
 )
+
+TIPI_REQUISITO_PER_PERSONA = RequisitoQualifica.TIPI_PER_PERSONA
 
 _MESI_ABBR = ["gen", "feb", "mar", "apr", "mag", "giu",
               "lug", "ago", "set", "ott", "nov", "dic"]
@@ -260,18 +263,14 @@ def mpq_processo_detail(request, processo_id: int):
     )
     nomi = _nomi_map([a.legacy_anagrafica_id for a in abilitazioni])
 
-    # Requisiti del processo (corsi/DPI/visite) → conformità per persona abilitata.
-    corsi_req = list(processo.corsi_richiesti.all())
-    dpi_req = list(processo.dpi_richiesti.all())
-    visite_req = list(processo.visite_richieste.all())
-    # Requisiti generici tipizzati (1.14): audit/certificato/esame/… con stato proprio.
+    # Requisiti del processo uguali per tutti (contratto, audit, certificato…).
     requisiti_generici = list(processo.requisiti.all())
-    # Persone qualificate (13/11): requisiti per ruolo, una tantum o ricorrenti.
+    # «Cosa serve a una persona»: l'unico elenco dei requisiti per persona (per ruolo).
     requisiti_persona = list(
-        processo.requisiti_persona.select_related("corso", "tipo_visita").prefetch_related("ruoli")
+        processo.requisiti_persona
+        .select_related("corso", "tipo_visita", "tipo_qualifica", "categoria_dpi").prefetch_related("ruoli")
     )
-    ha_requisiti = bool(corsi_req or dpi_req or visite_req
-                        or any(r.attivo for r in requisiti_generici)
+    ha_requisiti = bool(any(r.attivo for r in requisiti_generici)
                         or any(r.attivo for r in requisiti_persona))
     from .services.mpq_persone import contesto_processo, stato_persona
 
@@ -335,9 +334,7 @@ def mpq_processo_detail(request, processo_id: int):
         "clienti_addizionali": list(processo.clienti_addizionali.all()),
         "reparti": list(processo.reparti.all()),
         "riferimenti": list(processo.riferimenti.all()),
-        "corsi_req": corsi_req,
-        "dpi_req": dpi_req,
-        "visite_req": visite_req,
+        "tipi_per_persona": TIPI_REQUISITO_PER_PERSONA,
         "requisiti_generici": requisiti_generici,
         "ha_requisiti": ha_requisiti,
         "abilitazioni": righe,
@@ -973,7 +970,6 @@ def mpq_requisito_edit(request, req_id: int):
     if not _check_manage(request):
         return _mpq_denied(request)
     from .forms_mpq import RequisitoQualificaForm
-    from .models_mpq import RequisitoQualifica
     req = get_object_or_404(RequisitoQualifica.objects.select_related("processo"), pk=req_id)
     proc = req.processo
     if request.method == "POST":
@@ -997,7 +993,6 @@ def mpq_requisito_edit(request, req_id: int):
 def mpq_requisito_delete(request, req_id: int):
     if not _check_manage(request):
         return _mpq_denied(request)
-    from .models_mpq import RequisitoQualifica
     req = get_object_or_404(RequisitoQualifica.objects.select_related("processo"), pk=req_id)
     proc = req.processo
     dettaglio = f"{req.get_tipo_display()}: {req.descrizione}"
@@ -1005,6 +1000,44 @@ def mpq_requisito_delete(request, req_id: int):
     _mpq_log(request, processo=proc, evento="Requisito rimosso", dettaglio=dettaglio)
     messages.success(request, "Requisito rimosso.")
     return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
+
+
+@login_required
+@require_POST
+def mpq_requisito_sposta(request, req_id: int):
+    """Sposta un requisito «per persona» registrato fra quelli del processo in «Cosa serve a una persona».
+
+    Lo stato uguale per tutti non si copia (ogni persona va verificata): si apre il
+    requisito nuovo per completarlo (corso, visita, ricorrenza, ruoli).
+    """
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from django.db import transaction
+
+    from .models_mpq import RequisitoPersona
+
+    req = get_object_or_404(RequisitoQualifica.objects.select_related("processo"), pk=req_id)
+    tipo = RequisitoQualifica.TIPO_IN_REQUISITO_PERSONA.get(req.tipo)
+    if tipo is None:
+        messages.error(request, "Questo requisito vale per tutto il processo: resta qui.")
+        return redirect("anagrafica:mpq_processo_detail", processo_id=req.processo_id)
+    proc = req.processo
+    periodicita = req.periodicita_mesi or None
+    with transaction.atomic():
+        nuovo = RequisitoPersona.objects.create(
+            processo=proc, tipo=tipo, descrizione=req.descrizione[:255],
+            ricorrenza=(RequisitoPersona.RICORRENZA_RICORRENTE if periodicita
+                        else RequisitoPersona.RICORRENZA_UNA_TANTUM),
+            frequenza_mesi=periodicita, bloccante=req.obbligatorio, attivo=req.attivo,
+            note="\n".join(x for x in (req.rif_normativo, req.note,
+                                        "Spostato da «Requisiti del processo».") if x),
+        )
+        dettaglio = f"{req.get_tipo_display()}: {req.descrizione}"
+        req.delete()
+    _mpq_log(request, processo=proc, evento="Requisito spostato fra i requisiti persona",
+             dettaglio=dettaglio)
+    messages.success(request, "Spostato in «Cosa serve a una persona»: completa ruoli e dettagli e salva.")
+    return redirect("anagrafica:mpq_requisito_persona_edit", req_id=nuovo.id)
 
 
 # ── Crea-al-volo (JSON) di corso/visita/DPI dal form processo (gated manage) ──

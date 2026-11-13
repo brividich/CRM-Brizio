@@ -28,8 +28,6 @@ logger = logging.getLogger(__name__)
 
 GIORNI_SCADENZE = 90
 
-ESITI_IDONEITA = {"ok": "Idoneo", "warn": "In scadenza", "incompleto": "Incompleto", "ko": "Non idoneo",
-                  "nessuno": "Nessun requisito"}
 
 # Classi di controllo degli attrezzi (MOE C750-03 §2.4.2), dedotte dai piani di manutenzione.
 CLASSE_TARATURA = "Taratura"
@@ -51,10 +49,10 @@ DOCUMENTI_SGI = [
 
 
 # Colore del badge in pagina per i valori di stato (rosso / ambra / verde).
-BADGE = {v: "ko" for v in ("Scaduta", "Alta", "Mai frequentata", "Non idoneo", "Non trovato nel registro SGI")}
+BADGE = {v: "ko" for v in ("Scaduta", "Alta", "Mai frequentata", "Non qualificata", "Non trovato nel registro SGI")}
 BADGE.update({v: "warn" for v in ("Entro 30 giorni", "Entro 90 giorni", "Media", "Senza scadenza", "In scadenza",
-                                   "Incompleto")})
-BADGE.update({v: "ok" for v in ("Valida", "Illimitata", "Idoneo")})
+                                   "Incompleta")})
+BADGE.update({v: "ok" for v in ("Valida", "Illimitata", "Qualificata")})
 
 PRIORITA_ALTA = "Alta"
 PRIORITA_MEDIA = "Media"
@@ -235,11 +233,21 @@ def _formazione_richiesta(processi, abilitazioni) -> tuple[list, list]:
     Ritorna (scadenze presenti, coppie (persona, corso) senza scadenza registrata).
     """
     from anagrafica.models_formazione import TrainingCourse, TrainingDeadline
+    from anagrafica.services.mpq_persone import corsi_visite_richiesti
 
-    corsi_per_processo = {p.pk: {c.pk for c in p.corsi_richiesti.all()} for p in processi}
-    coppie = {(ab.legacy_anagrafica_id, c) for ab in abilitazioni
-              if ab.stato == ab.STATO_ATTIVA and not ab.nominativo_esterno and ab.legacy_anagrafica_id
-              for c in corsi_per_processo.get(ab.processo_id, ())}
+    # Stessa fonte del processo: corsi bloccanti di «Cosa serve a una persona» per i ruoli di ognuno.
+    perimetro = {p.pk for p in processi}
+    req_cache: dict[int, list] = {}
+    coppie = set()
+    for ab in abilitazioni:
+        if (ab.stato != ab.STATO_ATTIVA or ab.nominativo_esterno or not ab.legacy_anagrafica_id
+                or ab.processo_id not in perimetro):
+            continue
+        if ab.processo_id not in req_cache:
+            req_cache[ab.processo_id] = list(ab.processo.requisiti_persona.filter(attivo=True)
+                                             .select_related("corso").prefetch_related("ruoli"))
+        corsi, _visite = corsi_visite_richiesti(ab, req_cache[ab.processo_id])
+        coppie |= {(ab.legacy_anagrafica_id, c.pk) for c in corsi}
     if not coppie:
         return [], []
     scadenze = [d for d in TrainingDeadline.objects.filter(legacy_anagrafica_id__in={p for p, _ in coppie},
@@ -293,7 +301,7 @@ def costruisci(*, oggi=None, con_personale: bool = True, con_audit: bool = False
     stati_asset = dict(Asset.STATUS_CHOICES)
 
     processi = list(processi_perimetro().select_related("cliente", "ente_certificatore")
-                    .prefetch_related("riferimenti", "corsi_richiesti").order_by("-regime", "nome"))
+                    .prefetch_related("riferimenti").order_by("-regime", "nome"))
     requisiti = _sicuro(avvisi, "Contratti e requisiti dei processi", lambda: list(
         RequisitoQualifica.objects.filter(processo__in=processi, attivo=True)
         .select_related("processo").order_by("data_scadenza", "processo__nome", "ordine")), [])
@@ -337,7 +345,8 @@ def costruisci(*, oggi=None, con_personale: bool = True, con_audit: bool = False
         elenco = list(
             AbilitazioneProcesso.objects.filter(Q(is_part145=True) | Q(processo__regime=REGIME_PART145)
                                                 | Q(processo__perimetro_part145=True))
-            .select_related("processo").prefetch_related("certificazioni").order_by("processo__nome", "legacy_anagrafica_id")
+            .select_related("processo").prefetch_related("certificazioni", "ruoli_processo", "evidenze")
+            .order_by("processo__nome", "legacy_anagrafica_id")
         )
         return elenco, _nomi_map([a.legacy_anagrafica_id for a in elenco])
 
@@ -423,21 +432,23 @@ def costruisci(*, oggi=None, con_personale: bool = True, con_audit: bool = False
     # ── Personale ────────────────────────────────────────────────────────────
     s_pers = Sezione("personale", "Personale abilitato",
                      ["Persona", "Processo", "Ruoli", "Stato abilitazione", "Certificazioni", "Prima scadenza certificati",
-                      "Idoneità requisiti", "Timbro"],
+                      "Qualifica sul processo", "Timbro"],
                      nota="Abilitazioni MOD.128 con ruolo «Part 145» o su un processo del perimetro.",
                      vuoto="Nessuna persona abilitata: in MOD.128 aggiungi le abilitazioni con ruolo «Part 145».")
     if con_personale and abilitazioni:
-        from anagrafica.services.mpq_conformita import verifica_requisiti
+        from anagrafica.services.mpq_persone import stato_persona
 
         for ab in abilitazioni:
             ruoli = [n for flag, n in ((ab.is_qualificato, "Qualificato"), (ab.is_addetto, "Addetto"),
                                        (ab.is_controllore, "Controllore"), (ab.is_part145, "Part 145")) if flag]
+            ruoli += [r.nome for r in ab.ruoli_processo.all() if r.nome not in ruoli]
             certs = list(ab.certificazioni.all())
             scad_cert = min((c.data_scadenza for c in certs if c.data_scadenza), default=None)
             idoneita = "—"
             if not ab.nominativo_esterno and ab.legacy_anagrafica_id:
                 try:
-                    idoneita = ESITI_IDONEITA.get(verifica_requisiti(ab.processo, ab.legacy_anagrafica_id, oggi=oggi)["esito"], "—")
+                    # Stesso calcolo della colonna «Qualifica» del processo MOD.128.
+                    idoneita = stato_persona(ab, oggi=oggi)["label"]
                 except Exception:
                     logger.exception("Dossier PART 145: idoneità non calcolabile per abilitazione %s", ab.pk)
                     idoneita = "non calcolabile"

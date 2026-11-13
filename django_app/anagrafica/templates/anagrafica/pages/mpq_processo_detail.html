@@ -127,31 +127,12 @@
       {% if processo.note %}<p class="fmd-sub" style="margin-top:10px;">{{ processo.note|linebreaksbr }}</p>{% endif %}
     </section>
 
-    {# ── Requisiti del processo (corsi/DPI/visite) ──────────────────────── #}
-    {% if ha_requisiti or can_manage %}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti del processo</div>
-        <div class="fmd-block-aside">Corsi/DPI/visite necessari all'idoneità (come una mansione di rischio)</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:6px 2px;">
-        <div><div class="fmd-muted" style="font-size:12px;">Corsi di formazione</div>
-          <div>{% for c in corsi_req %}<span class="fmd-badge fmd-b-cyan">{{ c.titolo }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
-        <div><div class="fmd-muted" style="font-size:12px;">DPI</div>
-          <div>{% for d in dpi_req %}<span class="fmd-badge fmd-b-amber">{{ d.nome }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
-        <div><div class="fmd-muted" style="font-size:12px;">Visite mediche</div>
-          <div>{% for v in visite_req %}<span class="fmd-badge fmd-b-violet">{{ v.nome }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
-      </div>
-      {% if can_manage %}<div class="fmd-muted" style="font-size:11px;margin-top:8px;">Modifica i requisiti dal pulsante «Modifica» in testata. L'idoneità di ogni persona abilitata è mostrata nella tabella sotto.</div>{% endif %}
-    </section>
-    {% endif %}
-
-    {# ── Requisiti generici tipizzati (audit/certificato/esame/…) ─────────── #}
+    {# ── Requisiti del processo uguali per tutti (contratto, audit, certificato…) ── #}
     {% if requisiti_generici or can_manage %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Requisiti di qualifica</div>
-        <div class="fmd-block-aside">Requisiti tipizzati con scadenza/evidenza propria (audit, certificato, esame, esperienza…)</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Requisiti del processo</div>
+        <div class="fmd-block-aside">Uguali per tutti: contratto, audit, certificato del processo. Ciò che serve alla singola persona è in «Cosa serve a una persona»</div>
       </div>
       {% if requisiti_generici %}
       <div class="fmd-tablewrap">
@@ -160,7 +141,7 @@
           <tbody>
           {% for r in requisiti_generici %}
             <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
-              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
+              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span>{% if r.tipo in tipi_per_persona %}<div class="fmd-muted" style="font-size:11px;">È per persona: va in «Cosa serve a una persona»</div>{% endif %}</td>
               <td>{{ r.descrizione }}{% if r.rif_normativo %}<div class="fmd-muted" style="font-size:11px;">{{ r.rif_normativo }}</div>{% endif %}</td>
               <td>{% if r.obbligatorio %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
               <td>
@@ -173,7 +154,7 @@
               <td>{% if r.evidenza_url %}<a href="{{ r.evidenza_url }}" target="_blank" rel="noopener">apri</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               {% if can_manage %}
               <td style="white-space:nowrap;">
-                <a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
+                {% if r.tipo in tipi_per_persona %}<form method="post" action="{% url 'anagrafica:mpq_requisito_sposta' r.id %}" class="fmd-act-form" data-hub-confirm="Spostare «{{ r.descrizione }}» in «Cosa serve a una persona»? Lo stato registrato qui (uguale per tutti) non viene copiato: ogni persona andrà verificata.">{% csrf_token %}<button type="submit" class="fmd-act">Sposta</button></form> {% endif %}<a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
                 <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
               </td>
               {% endif %}
@@ -182,7 +163,7 @@
           </tbody>
         </table>
       </div>
-      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessun requisito tipizzato.</div>{% endif %}
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessun requisito uguale per tutti.</div>{% endif %}
       {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_add' processo.id %}">+ Aggiungi requisito</a></div>{% endif %}
     </section>
     {% endif %}
@@ -220,7 +201,7 @@
               <td>{% if r.tipo == "corso" and r.corso_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso_id %}">{{ r.etichetta }}</a>{% else %}{{ r.etichetta }}{% endif %}{% if r.note %}<div class="fmd-muted" style="font-size:11px;">{{ r.note|truncatechars:120 }}</div>{% endif %}</td>
               <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
               <td>{% for ru in r.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ ru.nome }}</span> {% empty %}<span class="fmd-muted">Tutti i ruoli</span>{% endfor %}</td>
-              <td>{% if r.is_ricorrente %}Ogni {{ r.frequenza_mesi }} mesi{% if r.scadenza_fine_mese %} <span class="fmd-muted" style="font-size:11px;">(a fine mese)</span>{% endif %}{% else %}Una tantum{% endif %}{% if r.tipo == "esperienza" and r.ore_minime %} · {{ r.ore_minime }} ore{% endif %}</td>
+              <td>{% if r.is_ricorrente %}Ogni {{ r.frequenza_mesi }} mesi{% if r.scadenza_fine_mese %} <span class="fmd-muted" style="font-size:11px;">(a fine mese)</span>{% endif %}{% elif r.ricorrenza == "UNA_TANTUM" %}Una tantum{% else %}<span title="Nessuna frequenza propria: vale la scadenza del corso, della visita o della qualifica">Segue la sua scadenza</span>{% endif %}{% if r.tipo == "esperienza" and r.ore_minime %} · {{ r.ore_minime }} ore{% endif %}</td>
               <td>{% if r.bloccante %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
               {% if can_manage %}
               <td style="white-space:nowrap;">
@@ -385,7 +366,7 @@
                 {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
               <td class="fmd-nowrap">{% if a.scadenza_persona %}{% if a.scad_persona_stato == "scaduta" %}<span class="fmd-badge fmd-b-red">{{ a.scadenza_persona|date:"d-m-Y" }}</span>{% elif a.scad_persona_stato == "s30" or a.scad_persona_stato == "s60" %}<span class="fmd-badge fmd-b-amber">{{ a.scadenza_persona|date:"d-m-Y" }}</span>{% else %}{{ a.scadenza_persona|date:"d-m-Y" }}{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
-              <td class="fmd-nowrap">{% with f=a.da_fare %}{% if f %}{% if f.req.tipo == "corso" %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo="FORMAZIONE" rif=f.req.corso_id legacy_id=a.obj.legacy_anagrafica_id back=request.get_full_path %}{% elif f.req.tipo == "visita" %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo="VISITA" rif=f.req.tipo_visita_id legacy_id=a.obj.legacy_anagrafica_id back=request.get_full_path %}{% elif can_manage %}<a class="fmd-act" href="{% url 'anagrafica:mpq_evidenza_add' a.obj.id f.req.id %}" title="{{ f.nome }}: {{ f.stato }}">Registra {{ f.req.get_tipo_display|lower }}</a>{% endif %}{% endif %}{% endwith %}</td>
+              <td class="fmd-nowrap">{% with f=a.da_fare %}{% if f %}{% if f.req.tipo == "corso" %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo="FORMAZIONE" rif=f.req.corso_id legacy_id=a.obj.legacy_anagrafica_id back=request.get_full_path %}{% elif f.req.tipo == "visita" %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo="VISITA" rif=f.req.tipo_visita_id legacy_id=a.obj.legacy_anagrafica_id back=request.get_full_path %}{% elif f.req.tipo == "dpi" %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo="DPI" rif=f.req.categoria_dpi_id legacy_id=a.obj.legacy_anagrafica_id back=request.get_full_path %}{% elif f.req.tipo == "qualifica" %}{% if a.obj.legacy_anagrafica_id %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_detail' a.obj.legacy_anagrafica_id %}#qualifiche" title="{{ f.nome }}: si registra nelle qualifiche della persona">Apri qualifiche</a>{% endif %}{% elif can_manage %}<a class="fmd-act" href="{% url 'anagrafica:mpq_evidenza_add' a.obj.id f.req.id %}" title="{{ f.nome }}: {{ f.stato }}">Registra {{ f.req.get_tipo_display|lower }}</a>{% endif %}{% endif %}{% endwith %}</td>
               {% endif %}
               {% if can_manage %}
               <td class="fmd-nowrap">

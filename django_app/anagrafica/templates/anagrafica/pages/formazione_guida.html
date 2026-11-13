@@ -202,7 +202,8 @@
       <p>Un processo qualificato (MOD.128) può chiedere un corso a chi lo lavora: in «Cosa serve a una persona» è un requisito di tipo <strong>Corso</strong>, valido per alcuni ruoli del processo (es. Operatore, Ispettore) oppure per tutti.</p>
       <ul>
         <li>Se il requisito è <strong>bloccante</strong>, il corso diventa un obbligo vero per le persone abilitate con quel ruolo: compare nella loro formazione da fare, nello scadenzario e nel semaforo idoneità, come un corso della mansione.</li>
-        <li><strong>Una tantum</strong>: basta averlo frequentato una volta. <strong>Ricorrente ogni N mesi</strong>: la scadenza parte dall'ultima frequenza registrata qui in Formazione e usa la frequenza scritta nel processo, anche se diversa dalla validità del corso; con «Scade a fine mese» slitta all'ultimo giorno del mese.</li>
+        <li><strong>Una tantum</strong>: basta averlo frequentato una volta. <strong>Ricorrente</strong> senza mesi: vale la validità del corso. <strong>Ricorrente ogni N mesi</strong>: vale la più vicina fra la scadenza dell'attestato e l'ultima frequenza + N mesi (con «Scade a fine mese» all'ultimo giorno del mese). La stessa data è scritta nello scadenzario della Formazione: se il processo chiede 12 mesi su un corso da 24, la persona compare in scadenza qui a 12 mesi.</li>
+        <li>Nella scheda del corso, «A chi serve questo corso» elenca anche i processi che lo chiedono, con ruoli e frequenza. Nel form del corso, «Processi qualificati che lo richiedono» lo aggiunge o lo toglie per tutti i ruoli; per un ruolo solo o una frequenza propria si usa il processo.</li>
         <li>Nel processo, colonna «Scade» delle persone, il pulsante <strong>«↻ Iscrivi»</strong> apre una sessione del corso con la persona già iscritta. Chiusa la sessione, la qualifica della persona si aggiorna da sola.</li>
         <li>I requisiti non bloccanti si vedono nel processo ma non creano obblighi in Formazione.</li>
       </ul>

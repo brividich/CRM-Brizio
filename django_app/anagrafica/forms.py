@@ -484,15 +484,18 @@ class TrainingCourseForm(forms.ModelForm):
             _grouped.append((_cat_labels.get(_cat, _cat), [(q.pk, q.nome) for q in _items]))
         self.fields["qualifica"].widget.choices = _grouped
 
-        # Processi qualificati (MOD.128) che richiedono questo corso (reverse M2M
-        # di ProcessoQualificato.corsi_richiesti): gestibile anche dal lato corso.
+        # Processi qualificati (MOD.128) che chiedono questo corso a tutte le persone
+        # abilitate: righe di «Cosa serve a una persona» (tipo corso, tutti i ruoli),
+        # gestibili anche dal lato corso. Quelle per ruolo si vedono qui ma si
+        # modificano nel processo.
         try:
             from .models_mpq import ProcessoQualificato
             self.fields["processi_richiedenti"] = forms.ModelMultipleChoiceField(
                 queryset=ProcessoQualificato.objects.select_related("cliente").order_by("cliente__nome", "nome"),
                 required=False,
                 label="Processi qualificati che lo richiedono (MOD.128)",
-                help_text="Chi è abilitato a questi processi sarà tenuto a questo corso.",
+                help_text="Chi è abilitato a questi processi sarà tenuto a questo corso. Per limitarlo a "
+                          "un ruolo o dargli una frequenza propria usa «Cosa serve a una persona» nel processo.",
                 widget=forms.SelectMultiple(attrs={
                     "class": "fm-input fm-select", "size": "5",
                     "data-picker": "", "data-picker-placeholder": "Cerca processo qualificato…"}),
@@ -500,8 +503,11 @@ class TrainingCourseForm(forms.ModelForm):
             self.fields["processi_richiedenti"].label_from_instance = (
                 lambda p: f"{p.nome} ({p.cliente.nome})")
             if self.instance and self.instance.pk:
+                from .models_mpq import RequisitoPersona
                 self.fields["processi_richiedenti"].initial = list(
-                    self.instance.processi_richiedenti.values_list("pk", flat=True))
+                    RequisitoPersona.objects.filter(tipo=RequisitoPersona.TIPO_CORSO, corso=self.instance,
+                                                    attivo=True)
+                    .values_list("processo_id", flat=True).distinct())
         except Exception:
             pass
         self._aggiungi_campi_destinatari()
@@ -606,12 +612,29 @@ class TrainingCourseForm(forms.ModelForm):
         return cambi
 
     def salva_processi(self, corso) -> None:
-        """Persiste il reverse-M2M dei processi qualificati che richiedono il corso.
+        """Allinea i processi che chiedono il corso («Cosa serve a una persona», tipo corso).
 
-        Va chiamato dalla view dopo il salvataggio del corso (il create usa
-        ``save(commit=False)`` senza ``save_m2m``)."""
-        if "processi_richiedenti" in self.fields:
-            corso.processi_richiedenti.set(self.cleaned_data.get("processi_richiedenti") or [])
+        Processo spuntato senza requisito → nasce un requisito per tutti i ruoli, bloccante,
+        che segue la validità del corso. Processo tolto → si tolgono solo i requisiti per
+        tutti i ruoli nati così semplici (senza ruoli né frequenza propria); quelli per
+        ruolo o con frequenza si gestiscono nel processo. Va chiamato dalla view dopo il
+        salvataggio del corso (il create usa ``save(commit=False)`` senza ``save_m2m``)."""
+        if "processi_richiedenti" not in self.fields:
+            return
+        from .models_mpq import RequisitoPersona
+
+        scelti = {p.pk for p in (self.cleaned_data.get("processi_richiedenti") or [])}
+        esistenti = list(RequisitoPersona.objects.filter(tipo=RequisitoPersona.TIPO_CORSO, corso=corso)
+                         .prefetch_related("ruoli"))
+        presenti = {r.processo_id for r in esistenti if r.attivo}
+        for pid in scelti - presenti:
+            RequisitoPersona.objects.create(processo_id=pid, tipo=RequisitoPersona.TIPO_CORSO, corso=corso,
+                                            ricorrenza=RequisitoPersona.RICORRENZA_RICORRENTE,
+                                            frequenza_mesi=None, bloccante=True)
+        for r in esistenti:
+            if (r.processo_id not in scelti and r.attivo and not r.ruoli.all()
+                    and not r.frequenza_mesi and r.ricorrenza == RequisitoPersona.RICORRENZA_RICORRENTE):
+                r.delete()
 
     def save(self, commit=True):
         """Alloca il codice ``YYNNN`` alla nascita del corso.

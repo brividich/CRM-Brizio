@@ -1130,18 +1130,10 @@ def _requisiti_tipo_visita(tipo: TipoVisitaMedica) -> dict:
     da_processi: set[int] = set()
     ha_processi = False
     try:
-        from ..models_mpq import AbilitazioneProcesso
-        ha_processi = tipo.processi_richiedenti.exists()
-        if ha_processi:
-            da_processi = set(
-                AbilitazioneProcesso.objects
-                .filter(
-                    stato=AbilitazioneProcesso.STATO_ATTIVA,
-                    processo__visite_richieste=tipo,
-                )
-                .exclude(legacy_anagrafica_id=0)
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+        from ..services.mpq_visite import legacy_ids_per_visita
+
+        # «Cosa serve a una persona» dei processi: visita bloccante, per i ruoli indicati.
+        ha_processi, da_processi = legacy_ids_per_visita(tipo)
     except Exception:
         logger.warning(
             "Lookup requisiti MOD.128 per tipo visita %s fallito", tipo.pk, exc_info=True,
