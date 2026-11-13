@@ -50,7 +50,7 @@ GUIDA = {
                       "modulo per incollare uno screenshot (Win+Maiusc+S) o un file copiato: diventa un allegato "
                       "«screenshot-…png». Il testo incollato nei campi resta testo. Massimo 10 file, la ✕ ne toglie uno."),
                 ("p", "Miglioramenti o anomalie del portale: dal menu con il tuo nome (o dalla barra laterale) scegli "
-                      "«Segnalazione NOVICROM HUB». Si apre il ticket IT con la categoria dell'HUB già scelta, l'asset «NOVICROM HUB» e la pagina "
+                      "«Segnalazione NOVICROM HUB». Si apre il ticket IT con la categoria dell'HUB già scelta, l'asset «NOVICROM HUB», la sicurezza su «No» e la pagina "
                       "da cui sei partito scritta nella descrizione: aggiungi cosa non va e uno screenshot con Ctrl+V."),
                 ("p", "Se l'invio torna con un errore i dati restano nei campi: correggi e invia di nuovo. "
                       "Gli allegati vanno riscelti (il browser non li conserva)."),
