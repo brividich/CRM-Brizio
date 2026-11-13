@@ -260,5 +260,5 @@ class ColonnaPericolositaTests(TestCase):
             self.assertNotContains(r, "<th>Salva</th>")
             self.assertNotContains(r, "<th>RENTRI</th>")
             self.assertContains(r, '<span class="rn-hp">HP14</span>', html=False)
-        r = self.client.get(reverse("rentri_elenco"))
+        r = self.client.get(reverse("rentri_elenco"), {"view": "famiglie"})  # senza parametri tornerebbe all'ultima vista
         self.assertContains(r, 'rn-hp-eredita', html=False)

@@ -35,7 +35,17 @@ from .importazione import (  # noqa: F401 - _parse_csv_rows resta importabile da
     _parse_csv_rows,
     importa_righe,
 )
-from .servizi import ErroreRegistro, annulla, consolida, salva_movimento, segna_trasmesso, fotografia
+from .servizi import (
+    ErroreRegistro,
+    annulla,
+    anteprima_filo,
+    consolida,
+    consolida_filo,
+    elimina_definitivamente,
+    fotografia,
+    salva_movimento,
+    segna_trasmesso,
+)
 from .sharepoint import _graph_configured, pull as sharepoint_pull
 from .validazione import quantita_da_testo
 from core.upload_limits import DOCUMENT_MAX_BYTES
@@ -137,6 +147,59 @@ def _require_rentri_manager(request):
         {"ok": False, "error": "Permessi insufficienti per modificare il registro RENTRI."},
         status=403,
     )
+
+
+_FILTRI_SESSIONE = "rentri_filtri"
+_PARAMETRI_NON_RICORDATI = ("export", "reset")
+
+
+def _ricorda_filtri(request, pagina: str):
+    """Ogni tabella ricorda i propri filtri nella sessione dell'utente.
+
+    Con parametri nell'indirizzo li salva; senza, riapplica gli ultimi salvati
+    (redirect). ``?reset=1`` li dimentica. Gli export non toccano il salvato.
+    Ritorna un redirect da restituire, oppure ``None``.
+    """
+    salvati = dict(request.session.get(_FILTRI_SESSIONE) or {})
+    if request.GET.get("reset") == "1":
+        if salvati.pop(pagina, None) is not None:
+            request.session[_FILTRI_SESSIONE] = salvati
+        return redirect(request.path)
+    if request.GET.get("export"):
+        return None
+    parametri = request.GET.copy()
+    for k in _PARAMETRI_NON_RICORDATI:
+        parametri.pop(k, None)
+    testo = parametri.urlencode()
+    if testo:
+        if salvati.get(pagina) != testo:
+            salvati[pagina] = testo
+            request.session[_FILTRI_SESSIONE] = salvati
+        return None
+    if salvati.get(pagina):
+        return redirect(f"{request.path}?{salvati[pagina]}")
+    return None
+
+
+def _prossima_rentri(request) -> str:
+    """Pagina a cui tornare dopo un'azione: solo percorsi interni del modulo."""
+    prossima = request.POST.get("next") or request.GET.get("next") or ""
+    return prossima if prossima.startswith("/rentri/") and "//" not in prossima else ""
+
+
+def _annota_righe(records: list, attivi: list | None = None) -> None:
+    """Per le azioni di riga: movimenti collegati (``figli_txt``) e se si può eliminare davvero."""
+    if attivi is None:
+        attivi = list(RegistroRifiuti.objects.attivi().only("pk", "tipo", "id_registrazione", "rif_op"))
+    figli: dict[str, list] = {}
+    for r in attivi:
+        for rid in split_rif_op(r.rif_op):
+            figli.setdefault(rid, []).append(r)
+    for r in records:
+        mie = [f for f in figli.get((r.id_registrazione or "").strip(), []) if f.pk != r.pk]
+        testo = ", ".join(f"{f.tipo} {f.id_registrazione}" for f in mie[:6])
+        r.figli_txt = testo + ("…" if len(mie) > 6 else "")
+        r.eliminabile = not (r.annullato or r.salva or r.rentri_si_no or mie)
 
 
 def _as_bool_field(v) -> bool:
@@ -793,6 +856,9 @@ _GROUP_FIELDS = {
 def elenco(request):
     from .fili import analizza
 
+    ricordati = _ricorda_filtri(request, "elenco")
+    if ricordati is not None:
+        return ricordati
     q_annullati = request.GET.get("annullati", "") == "1"
     qs, filtri = _filtra_registro(request.GET, annullati=q_annullati)
 
@@ -835,9 +901,16 @@ def elenco(request):
         # Il conto del filo si fa su tutto il registro valido: il residuo di un
         # carico non dipende dai filtri della pagina.
         records = list(qs.order_by("data", "id_registrazione"))
-        analisi = analizza(list(RegistroRifiuti.objects.attivi()))
+        attivi = list(RegistroRifiuti.objects.attivi())
+        analisi = analizza(attivi)
+        _annota_righe(records, attivi)
         annullati = dict(RegistroRifiuti.objects.filter(annullato=True).values_list("id_registrazione", "tipo"))
         families = _build_families(records, analisi, annullati)
+        for fam in families:
+            vivi = [r for r in fam["carichi"] + fam["operazioni"] if not r.annullato]
+            fam["n_vivi"] = len(vivi)
+            fam["n_consolidati"] = sum(1 for r in vivi if r.salva)
+            fam["ancora_pk"] = vivi[0].pk if vivi else None
         ctx["n_chiuse"] = sum(1 for f in families if f["chiusa"])
         ctx["n_aperte"] = len(families) - ctx["n_chiuse"]
         if q_stato in _FILTRI_STATO:
@@ -876,6 +949,7 @@ def elenco(request):
             qs = qs.order_by(order_db, "-data", "id")
 
         records = list(qs)
+        _annota_righe(records)
         groups = []
         current_key = None
         current_group: list = []
@@ -897,7 +971,10 @@ def elenco(request):
 
     # Vista flat paginata
     paginator = Paginator(qs, 50)
-    ctx["page_obj"] = paginator.get_page(request.GET.get("page"))
+    pagina = paginator.get_page(request.GET.get("page"))
+    pagina.object_list = list(pagina.object_list)
+    _annota_righe(pagina.object_list)
+    ctx["page_obj"] = pagina
     return render(request, "rentri/pages/elenco.html", ctx)
 
 
@@ -915,6 +992,7 @@ def _scadenzario_rows(qs, today) -> list[dict]:
             "quantita": r.quantita,
             "giorni": giorni,
             "note": r.note_rentri,
+            "arrivo_fir": r.arrivo_fir,
             "salva": r.salva,
         })
     return rows
@@ -971,7 +1049,7 @@ def _scadenzario_csv(today, sections):
     writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Adempimento", "Data", "ID Registrazione", "Tipo",
-        "Codice EER", "Quantita", "Giorni di giacenza", "Note",
+        "Codice EER", "Quantita", "FIR", "Giorni di giacenza", "Note",
     ])
     for section in sections:
         for r in section["rows"]:
@@ -982,6 +1060,7 @@ def _scadenzario_csv(today, sections):
                 r["tipo_label"],
                 r["codice"],
                 r["quantita"] if r["quantita"] is not None else "",
+                r["arrivo_fir"],
                 r["giorni"] if r["giorni"] is not None else "",
                 r["note"],
             ])
@@ -1058,6 +1137,9 @@ def giacenze(request):
     """
     from .giacenze import criterio_quantitativo, giacenze_per_cer, soglie_deposito
 
+    ricordati = _ricorda_filtri(request, "giacenze")
+    if ricordati is not None:
+        return ricordati
     today = timezone.localdate()
     soglie = soglie_deposito()
 
@@ -1101,6 +1183,7 @@ def giacenze(request):
         "q_allerta": q_allerta,
         "q_pericolosi": q_pericolosi,
         "q_aperte": q_aperte,
+        "filtri_attivi": bool(q_search or q_allerta or q_pericolosi or not q_aperte),
         "can_manage": _can_manage_rentri(request),
     })
 
@@ -1182,7 +1265,14 @@ def dettaglio(request, pk: int):
     voci = storico_oggetto(registro)
     figli = figli_attivi(registro)
     filo = _filo_scheda(registro)
+    can_manage = _can_manage_rentri(request)
+    bozze_filo = 0
+    if can_manage and not registro.annullato:
+        _annota_righe([registro])
+        anteprima = anteprima_filo(registro)
+        bozze_filo = len(anteprima["pronte"]) + len(anteprima["incomplete"])
     return render(request, "rentri/pages/dettaglio.html", {
+        "bozze_filo": bozze_filo,
         "registro": registro,
         "genitori": genitori,
         "figli": figli,
@@ -1190,7 +1280,7 @@ def dettaglio(request, pk: int):
         "prossimo": _prossimo_movimento(registro, figli, filo),
         "duplica_url": reverse(_URL_TIPO.get(registro.tipo, "rentri_carico")) + f"?duplica={registro.pk}",
         "storico": storico_leggibile(voci),
-        "can_manage": _can_manage_rentri(request),
+        "can_manage": can_manage,
     })
 
 
@@ -1246,6 +1336,79 @@ def annulla_view(request, pk: int):
             testo += f" Non più collegati (il riferimento resta come traccia): {elenco}."
         return testo
     return _azione_registro(request, pk, _fai)
+
+
+@login_required
+@require_POST
+def rimuovi_view(request, pk: int):
+    """Dal pulsante cestino delle tabelle: annulla (resta barrata) o elimina definitivamente una bozza."""
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    registro = get_object_or_404(RegistroRifiuti, pk=pk)
+    motivo = request.POST.get("motivo", "")
+    utente = _get_username(request)
+    try:
+        if request.POST.get("modo") == "elimina":
+            foto = elimina_definitivamente(request, registro, motivo, utente)
+            messages.success(
+                request,
+                f"{foto['id_registrazione']} eliminata definitivamente. Il numero non viene riusato; "
+                "dati e motivo restano nel registro delle attività.",
+            )
+        else:
+            figli = annulla(request, registro, motivo, utente)
+            testo = f"{registro.id_registrazione} annullata: resta a registro, barrata, e non conta più."
+            if figli:
+                testo += " Non più collegati (il riferimento resta come traccia): " + ", ".join(
+                    f"{f.tipo} {f.id_registrazione}" for f in figli[:6]
+                ) + "."
+            messages.success(request, testo)
+            if registro.sync_errore:
+                messages.warning(request, f"La copia su SharePoint non è allineata: {registro.sync_errore}")
+    except ErroreRegistro as exc:
+        messages.error(request, " ".join(exc.errori))
+    prossima = _prossima_rentri(request)
+    if prossima.startswith(f"/rentri/{pk}/") and not RegistroRifiuti.objects.filter(pk=pk).exists():
+        prossima = ""  # la scheda della riga eliminata non esiste più
+    return redirect(prossima or reverse("rentri_elenco"))
+
+
+@login_required
+def consolida_filo_view(request, pk: int):
+    """GET: anteprima del filo per il popup. POST: consolida tutte le righe complete del filo."""
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    registro = get_object_or_404(RegistroRifiuti, pk=pk)
+    prossima = _prossima_rentri(request)
+    if request.method != "POST":
+        return render(request, "rentri/components/consolida_filo.html", {
+            "registro": registro,
+            "anteprima": anteprima_filo(registro),
+            "prossima": prossima,
+        })
+    try:
+        esito = consolida_filo(request, registro, _get_username(request))
+    except ErroreRegistro as exc:
+        messages.error(request, " ".join(exc.errori))
+    else:
+        fatte = esito["fatte"]
+        messages.success(
+            request,
+            f"Filo consolidato: {len(fatte)} registrazion{'e' if len(fatte) == 1 else 'i'} "
+            f"({', '.join(r.id_registrazione for r in fatte[:8])}{'…' if len(fatte) > 8 else ''}).",
+        )
+        if esito["incomplete"]:
+            messages.warning(
+                request,
+                "Restano bozze perché incomplete: "
+                + "; ".join(f"{r.id_registrazione} ({', '.join(r.mancanti)})" for r in esito["incomplete"][:6]) + ".",
+            )
+        non_allineate = [r.id_registrazione for r in fatte if r.sync_errore]
+        if non_allineate:
+            messages.warning(request, f"Copia su SharePoint non allineata per: {', '.join(non_allineate[:8])}.")
+    return redirect(prossima or reverse("rentri_dettaglio", args=[pk]))
 
 
 @login_required
@@ -1851,6 +2014,9 @@ def riepilogo_annuale(request):
     """Riepilogo per codice CER dell'anno (base per il MUD), con export Excel e PDF."""
     from .registro_annuale import anni_disponibili, riepilogo_anno
 
+    ricordati = _ricorda_filtri(request, "riepilogo_annuale")
+    if ricordati is not None:
+        return ricordati
     anno = _anno_richiesto(request)
     righe = riepilogo_anno(anno)
     formato = request.GET.get("export", "")

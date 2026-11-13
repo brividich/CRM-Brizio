@@ -1,0 +1,8 @@
+{% comment %}Azioni di una riga del registro: stato, modifica, scheda, cestino (annulla o elimina). r = movimento annotato da _annota_righe.{% endcomment %}
+<div class="cp-row-actions">
+  {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
+  {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
+  {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
+  <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda">&#128269;</a>
+  {% if can_manage and not r.annullato %}{% include "rentri/components/cestino.html" with r=r %}{% endif %}
+</div>

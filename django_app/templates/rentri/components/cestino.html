@@ -1,0 +1,7 @@
+{% comment %}Pulsante che apre il popup «Elimina» (annulla o elimina definitivamente). r = movimento annotato da _annota_righe.{% endcomment %}
+<button type="button" class="{{ classe|default:'cp-act-btn cp-act-del' }}" title="Elimina o annulla"
+    data-rimuovi="{% url 'rentri_rimuovi' r.pk %}" data-num="{{ r.id_registrazione }}" data-tipo="{{ r.get_tipo_display }}"
+    data-data="{{ r.data|date:'d/m/Y' }}" data-codice="{{ r.codice }}"
+    data-qta="{% if r.quantita is not None %}{{ r.quantita }}{% elif r.rettifica_scarico is not None %}{{ r.rettifica_scarico }}{% endif %}{% if r.unita %} {{ r.unita }}{% endif %}"
+    data-fir="{{ r.arrivo_fir }}" data-figli="{{ r.figli_txt }}" data-eliminabile="{% if r.eliminabile %}1{% endif %}"
+    data-perche="{% if r.salva %}è consolidata{% elif r.rentri_si_no %}risulta trasmessa a RENTRI{% elif r.figli_txt %}ha movimenti collegati{% endif %}">{{ etichetta|default:"&#128465;" }}</button>

@@ -1,0 +1,30 @@
+{% comment %}Popup «Elimina» e «Consolida filo»: una volta per pagina. Pulsanti e logica in rentri/js/azioni_tabella.js.{% endcomment %}
+{% load static %}
+{% if can_manage %}
+<dialog id="rn-rimuovi" class="rn-dlg" aria-labelledby="rn-rimuovi-t">
+  <form method="post" class="rn-dlg-box">{% csrf_token %}
+    <input type="hidden" name="next" value="">
+    <div class="rn-dlg-top">
+      <div class="rn-dlg-t" id="rn-rimuovi-t" data-campo="titolo">Elimina registrazione</div>
+      <button type="button" class="rn-dlg-x" data-chiudi aria-label="Chiudi">&#10005;</button>
+    </div>
+    <div class="rn-dlg-riepilogo" data-campo="riepilogo"></div>
+    <div class="rn-dlg-avviso" data-campo="figli" hidden></div>
+    <fieldset class="rn-dlg-modi">
+      <legend class="rn-dlg-lbl">Come</legend>
+      <label class="rn-dlg-modo"><input type="radio" name="modo" value="annulla" checked>
+        <span><strong>Annulla</strong><small>Resta a registro, barrata, e non conta più nelle giacenze.</small></span></label>
+      <label class="rn-dlg-modo"><input type="radio" name="modo" value="elimina">
+        <span><strong>Elimina definitivamente</strong><small data-campo="elimina-nota"></small></span></label>
+    </fieldset>
+    <label class="rn-dlg-lbl" for="rn-rimuovi-motivo">Motivazione</label>
+    <textarea id="rn-rimuovi-motivo" name="motivo" required minlength="5" rows="3" placeholder="Obbligatoria, almeno 5 caratteri"></textarea>
+    <div class="rn-dlg-azioni">
+      <button type="button" class="rn-dlg-btn" data-chiudi>Indietro</button>
+      <button type="submit" class="rn-dlg-btn rn-dlg-btn-danger" data-campo="conferma">Annulla registrazione</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="rn-filo" class="rn-dlg rn-dlg-largo" aria-labelledby="rn-filo-t"><div class="rn-dlg-box"></div></dialog>
+<script src="{% static 'rentri/js/azioni_tabella.js' %}?v=20261113" defer></script>
+{% endif %}
