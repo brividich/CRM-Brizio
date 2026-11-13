@@ -98,6 +98,9 @@ body.theme-dark .soc-module { --cy-kicker: var(--cy-cyan); }
 .soc-module .cy-tile[hidden] { display: none; }
 .soc-module .cy-tile-name { font: 600 11px/1.2 var(--cy-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .soc-module .cy-tile b { font: 700 18px/1 var(--cy-mono); color: var(--cy-tone); }
+.soc-module .cy-delta { margin-left: 6px; font-size: 10px; font-weight: 700; vertical-align: 3px; }
+.soc-module .cy-delta.is-down { color: var(--cy-bad); }
+.soc-module .cy-delta.is-up { color: var(--cy-ok); }
 .soc-module .cy-tile i { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--pct) * 1%); background: var(--cy-tone); box-shadow: 0 0 6px var(--cy-tone); }
 .soc-module .cy-map-note { margin: 0; color: var(--text-mid); font-size: var(--fs-sm, 12px); }
 
@@ -166,3 +169,56 @@ body.theme-dark .soc-module { --cy-kicker: var(--cy-cyan); }
   .soc-module .soc-head::before, .soc-module .soc-count.tone-critical, .soc-module .soc-kpi.tone-critical .soc-kpi-ico::after,
   .soc-module .soc-live-dot, .soc-module .cy-bus-node::after, .soc-module .cy-bus-led, .soc-module .cy-spin { animation: none !important; }
 }
+
+/* ---------- Software (Dispositivi › Software) ---------- */
+.soc-module .cy-dup { border-top: 3px solid var(--cy-cyan); }
+.soc-module .cy-dup-form { display: inline-flex; gap: 8px; align-items: center; margin: 0; }
+.soc-module .cy-dup-form button { cursor: pointer; }
+.soc-module .cy-dup .pcs-cvebadge.is-success { --tone: var(--cy-ok); }
+.soc-module .cy-dup-uniti { margin-top: 10px; }
+.soc-module .cy-dup-uniti summary { cursor: pointer; font-weight: 700; color: var(--text-mid); margin-bottom: 6px; }
+.soc-module .cy-sw-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.soc-module .cy-sw a.pcs-sw-stat { text-decoration: none; }
+.soc-module .cy-sw-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.soc-module .cy-sw-chips a { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); font-size: 12px; font-weight: 700; text-decoration: none; }
+.soc-module .cy-sw-chips a b { font-family: var(--cy-mono); font-size: 11px; padding: 0 5px; border-radius: 999px; background: var(--cy-soft); }
+.soc-module .cy-sw-chips a:hover { border-color: var(--cy-cyan); color: var(--text); text-decoration: none; }
+.soc-module .cy-sw-chips a.is-active { border-color: var(--cy-cyan); color: var(--text); background: var(--cy-soft); box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18); }
+.soc-module .cy-sw-chips a.is-zero { opacity: 0.45; }
+.soc-module .cy-sw tbody tr[data-preview] { cursor: pointer; }
+.soc-module .cy-sw-new { font-style: normal; font-weight: 700; color: var(--cy-warn); }
+.soc-module .cy-swp { display: grid; gap: 12px; }
+.soc-module .cy-swp-head { display: flex; gap: 12px; align-items: center; }
+.soc-module .cy-swp-head .pcs-avatar { width: 40px; height: 40px; font-size: 16px; }
+.soc-module .cy-swp-head h2 { margin: 0; font-size: 18px; }
+.soc-module .cy-swp-head small { color: var(--text-mid); }
+.soc-module .cy-swp-vers { display: grid; gap: 4px; }
+.soc-module .cy-swp-vers div { display: grid; grid-template-columns: minmax(90px, 0.6fr) minmax(0, 1fr) 36px; gap: 8px; align-items: center; font-size: 12px; }
+.soc-module .cy-swp-vers i { height: 8px; width: calc(var(--w) * 1%); border-radius: 4px; background: linear-gradient(90deg, var(--cy-cyan), var(--cy-blue)); }
+.soc-module .cy-swp-vers b { text-align: right; }
+@media (max-width: 1100px) { .soc-module .cy-sw-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .soc-module .cy-sw-stats { grid-template-columns: 1fr; }
+  .soc-module .cy-sw .pcs-sw-table th:nth-child(5), .soc-module .cy-sw .pcs-sw-table td:nth-child(5),
+  .soc-module .cy-sw .pcs-sw-table th:nth-child(6), .soc-module .cy-sw .pcs-sw-table td:nth-child(6) { display: none; }
+}
+.soc-module .cy-sw .pcs-sw-table th button { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.soc-module .cy-sw .pcs-sw-table th button::after { content: " ↕"; opacity: 0.35; }
+.soc-module .cy-sw .pcs-sw-table th button.is-sorted { color: var(--cy-cyan); }
+.soc-module .cy-sw .pcs-sw-table th button[data-dir="asc"]::after { content: " ↑"; opacity: 1; }
+.soc-module .cy-sw .pcs-sw-table th button[data-dir="desc"]::after { content: " ↓"; opacity: 1; }
+.soc-module .cy-swp .pcs-checks > div:not([class]) { --tone: var(--text); }
+
+/* ---------- Terza riga del menu: pagine di una scheda accorpata (Patch, Vulnerabilità) ---------- */
+.soc-module .soc-subsub { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 14px; padding: 0 2px; }
+.soc-module .soc-subsub a {
+  padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(125, 211, 252, 0.28); color: rgba(255, 255, 255, 0.82);
+  font-size: var(--fs-sm, 12.5px); font-weight: 700; text-decoration: none; white-space: nowrap; transition: background 0.15s, border-color 0.15s;
+}
+.soc-module .soc-subsub a:hover { background: rgba(255, 255, 255, 0.1); color: #fff; text-decoration: none; }
+.soc-module .soc-subsub a.active { color: #fff; border-color: var(--cy-cyan); background: rgba(34, 211, 238, 0.16); box-shadow: 0 0 10px rgba(34, 211, 238, 0.3); }
+@media (max-width: 720px) { .soc-module .soc-subsub { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } }
+/* Menu a tendina del telefono dentro l'intestazione: «position: relative» della testata ereditava il «top» del
+   pulsante sticky e lo spingeva 60px in giù (spazio vuoto in alto, terza riga tagliata). */
+.soc-module .soc-head > .mnav-bar { top: auto; }
+.soc-module .soc-head > .soc-head-row + .mnav-bar { margin-top: 14px; }

@@ -34,6 +34,7 @@ from monitoring.models import AutomationExecution
 
 from automazioni.scadenze_config import DEFAULT_GIORNI, get_scadenze_config
 from core import naming
+from core.email_utils import invia_con_regole_flusso
 
 
 def _nominativi(legacy_ids: list[int]) -> dict[int, str]:
@@ -106,7 +107,7 @@ def _invia(*, destinatari: list[str], section_label: str, titolo: str,
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
     message = EmailMultiAlternatives(subject=subject, body=text_body, from_email=from_email, to=destinatari)
     message.attach_alternative(html_body, "text/html")
-    message.send(fail_silently=False)
+    invia_con_regole_flusso(message)
     return {"sent": True, "count": len(righe), "to": destinatari}
 
 

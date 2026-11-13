@@ -26,6 +26,9 @@ GUIDA = {
                     "Monitor SNMP: i riquadri Operativi, Attenzione, Errori e Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale e un clic mostra quegli apparati; il filtro «Stato» ha le stesse voci.",
                     "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» apre il pannello laterale con stato, ultima lettura, consumabili, avvisi aperti e asset; ← → scorrono le righe, Esc chiude. «Raggruppa ▾» divide le righe per colonna.",
                     "Azioni su più righe (caselle a sinistra, nessuna spuntata all'apertura): Consumabili «Leggi ora le selezionate» e «Prepara richiesta ordine» (CSV), Stampanti MFC «Collega gli asset proposti» (prima l'anteprima, poi «Conferma i collegamenti»), Discovery «Correggi gli IP selezionati», letture da confermare e «Elimina selezionate» in Gestisci letture.",
+                    "Nella Centrale il flusso dei dati (famiglie di apparati → risultati) e la mappa della flotta: un riquadro per apparato colorato per stato, con filtri, ricerca per nome o IP e pannello laterale al clic.",
+                    "La scheda di un dispositivo ha il quadro del suo tipo (UPS, firewall, switch, server, NAS, videosorveglianza, sensori): gli indicatori che contano per quell'apparato e i collegamenti alle pagine giuste, dai dati già salvati. La scheda MFC ha la barra «MFC · vai a».",
+                    "Ogni scheda mostra l'apparato disegnato (MFC con toner e cassetti, pannello delle porte di firewall e switch, UPS, NAS, server). «Modifica porte» descrive cosa c'è collegato a ogni porta, con proposte dalla tabella MAC; «Topologia» nella barra mostra l'albero della rete da Internet agli apparati. Pannello, elenchi e albero si adattano al numero di porte e allo schermo; sul telefono «Modifica porte» mostra una scheda per porta.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
                 ]),
             ],
@@ -120,7 +123,7 @@ GUIDA = {
                       "dalle 23:00 ne manca ancora qualcuna parte una mail con le mancanti e il motivo; se poi l'ultima "
                       "rientra arriva anche quella completa."),
                 ("passi", [
-                    "Amministrazione → Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail».",
+                    "Amministrazione → Automazioni → «Pianificati» → «contatori letture mensili» → «Modifica».",
                     "Scrivi i destinatari (virgola, punto e virgola o a capo) e salva. Oggetto, introduzione e nota sono facoltativi.",
                 ]),
                 ("nota", "Senza destinatari la mail non parte: non va agli amministratori di sistema."),
@@ -185,7 +188,7 @@ GUIDA = {
         {
             "sintomo": "La mail delle letture mensili non è arrivata",
             "fare": [
-                "Controlla i destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: vuoti = nessun invio.",
+                "Controlla i destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Modifica»: vuoti = nessun invio.",
                 "La mail parte solo quando tutte le MFC attive con IP sono lette, oppure il giorno 7 dalle 23:00 con le mancanti.",
                 "Se i destinatari sono stati aggiunti dopo, la mail parte al giro successivo del recupero (ogni 15 minuti fino al giorno 7).",
             ],

@@ -3384,6 +3384,10 @@ def _describe_action_values(
         "summary": _truncate_text(description or _choice_label(AutomationActionType, action_type), 100),
         "preview_lines": preview_lines,
         "badges": badges,
+        "action_type": action_type,
+        "icon": _ACTION_NODE_STYLES.get(action_type, {}).get("icon", "⚡"),
+        "color": _ACTION_NODE_STYLES.get(action_type, {}).get("color", "#0f6cbd"),
+        "app": _ACTION_NODE_STYLES.get(action_type, {}).get("app", "Passaggio"),
     }
 
 
@@ -3395,9 +3399,9 @@ def _build_action_preview_from_form(form) -> list[str]:
         subject = _truncate_text(_bound_or_instance_value(form, "email_subject_template"), 80) or "-"
         body = _truncate_text(_bound_or_instance_value(form, "email_body_text_template"), 90) or "-"
         preview_lines = [
-            f"Destinatari: {recipients}",
-            f"Subject: {subject}",
-            f"Body: {body}",
+            f"A: {recipients}",
+            f"Oggetto: {subject}",
+            f"Corpo: {body}",
         ]
     elif action_type == AutomationActionType.WRITE_LOG:
         preview_lines = [f"Messaggio: {_truncate_text(_bound_or_instance_value(form, 'write_log_message_template'), 120) or '-'}"]
@@ -3889,11 +3893,21 @@ def _build_rule_designer_context(
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
     binding = getattr(rule, "managed_flow", None)
+    native_preview = []
+    managed_pa = None
+    if binding:
+        from ..mail_config import pannello, riepilogo_righe
+        native_preview = riepilogo_righe(binding.code)
+        managed_pa = pannello(binding.code)
+        for entry in action_entries:
+            if entry["descriptor"].get("action_type") == AutomationActionType.NATIVE_PROCESS and native_preview:
+                entry["descriptor"]["preview_lines"] = list(native_preview)
     if binding:
         from ..schedules import describe_cadence
         label = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
         when = describe_cadence({"schedule_type": binding.schedule_type, "minutes": binding.minutes, "cron": binding.cron}) if binding.kind == "schedule" else rule.description
         trigger_descriptor.update(operation_label=label, trigger_scope_label=label, headline=when,
+                                  source_label=f"{label}: {when}" if binding.kind == "schedule" else trigger_descriptor.get("source_label"),
                                   natural_when="QUANDO " + when, natural_scope="SE le condizioni sono soddisfatte", scope_detail=label)
     flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
     teams_flow_endpoints, teams_flow_endpoints_warning = _helpers._get_teams_flow_endpoints_context(active_only=True)
@@ -3908,6 +3922,8 @@ def _build_rule_designer_context(
         **_build_source_catalog_context(source_code),
         "managed_binding": binding,
         "managed_info": managed_info,
+        "managed_native_preview": native_preview,
+        "managed_pa": managed_pa,
         "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
         "enable_smart_field_panel": True,
         "rule": rule,

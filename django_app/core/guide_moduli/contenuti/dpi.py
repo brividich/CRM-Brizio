@@ -287,7 +287,7 @@ GUIDA = {
                       "giorni (le consegne già sostituite da una nuova non contano)."),
                 ("ul", [
                     "Referenti DPI («Responsabili» + «Email notifiche aggiuntive» delle Impostazioni) e indirizzi del task in "
-                    "Automazioni → Task pianificati → «Configura mail»: ogni mattina l'elenco completo. Se non c'è nessun indirizzo, "
+                    "Automazioni → Task pianificati → «Modifica»: ogni mattina l'elenco completo. Se non c'è nessun indirizzo, "
                     "va agli amministratori del portale.",
                     "Responsabile e preposto del dipendente: una mail con i DPI della propria squadra, solo nei giorni di avviso.",
                     "Dipendente: notifica nel portale, solo nei giorni di avviso.",

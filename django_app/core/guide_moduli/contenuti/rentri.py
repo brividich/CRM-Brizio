@@ -239,6 +239,8 @@ GUIDA = {
                       "Schedule: rentri_promemoria_scarico_effettivo. Prova da terminale: rentri_promemoria --dry-run."),
                 ("nota", "Gli scarichi inseriti prima di questa versione, importati o arrivati da SharePoint non hanno l'autore "
                          "collegato: per quelli la notifica va solo ai referenti."),
+                ("p", "La mail del controllo scadenze (rentri_scadenze_check) si personalizza in Automazioni → «Pianificati» → "
+                      "«Modifica»: orario, indirizzi in più in A o in CC, indirizzi da togliere, oggetto, testo e mail spenta."),
             ],
         },
         {

@@ -23,7 +23,7 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
             "o per una modifica delle mansioni di rischio) crea nuovi adempimenti: visita, "
             "formazione, DPI, schede di sicurezza. Parte dopo il commit; nessun dato clinico."
         ),
-        "destinatari": "SiteConfig cambio_mansione_emails (Task pianificati → cambio_mansione_digest → Configura mail)",
+        "destinatari": "SiteConfig cambio_mansione_emails (Task pianificati → cambio_mansione_digest → Modifica)",
         "source": "anagrafica/services/notifiche_cambio_mansione.py",
         "func": "notifica_piano_cambio_mansione",
     },
@@ -247,6 +247,42 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "source": "tasks/services/tappe.py",
         "func": "evento_outlook",
         "attivo_di_default": False,
+    },
+    {
+        "code": "assenze_esito_dipendente",
+        "label": "Assenze - esito della richiesta al dipendente",
+        "module": "Assenze",
+        "trigger": "Il capo (o chi approva) approva o rifiuta una richiesta di assenza.",
+        "destinatari": "Il dipendente della richiesta (email di notifica)",
+        "source": "assenze/mail_esito_service.py",
+        "func": "send_esito_dipendente",
+    },
+    {
+        "code": "assenze_richiesta_modificata",
+        "label": "Assenze - richiesta modificata",
+        "module": "Assenze",
+        "trigger": "Una richiesta di assenza già inserita viene modificata (date, tipo, note).",
+        "destinatari": "Casella assenze, il dipendente e il suo capo",
+        "source": "assenze/mail_modifica_service.py",
+        "func": "send_assenza_modificata_notification",
+    },
+    {
+        "code": "assenze_richiesta_eliminata",
+        "label": "Assenze - richiesta eliminata",
+        "module": "Assenze",
+        "trigger": "Una richiesta di assenza viene eliminata.",
+        "destinatari": "Casella HR, il dipendente e il suo capo",
+        "source": "assenze/mail_delete_service.py",
+        "func": "send_assenza_deleted_notification",
+    },
+    {
+        "code": "assenze_certificazione_presenza",
+        "label": "Assenze - certificazione di presenza confermata",
+        "module": "Assenze",
+        "trigger": "Viene registrata una certificazione di presenza dalla pagina Assenze.",
+        "destinatari": "Il dipendente, chi l'ha inserita e la casella assenze",
+        "source": "assenze/mail_certificazione_presenza.py",
+        "func": "send_certificazione_confermata",
     },
 ]
 

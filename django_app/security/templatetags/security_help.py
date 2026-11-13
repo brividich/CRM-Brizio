@@ -17,6 +17,7 @@ PAGE_HELP = {
     "watchguard_patch_tempi": ("12-automatismi-e-vulnerabilita", "tempi-delle-patch"),
     "dipendenze_portale": ("12-automatismi-e-vulnerabilita", "librerie-del-portale"),
     "rete_indirizzi": ("15-backup-vpn-kpi-asset", "rete-ip"),
+    "software_soc": ("13-lavoro-quotidiano", "software"),
     "letture": ("16-impostazioni-e-ai", "letture-automatiche"),
     "battito": ("16-impostazioni-e-ai", "battito-del-soc"),
     "segnalazioni": ("13-lavoro-quotidiano", "le-segnalazioni"),

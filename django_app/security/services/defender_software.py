@@ -66,6 +66,10 @@ def anteprima(righe: list[dict]) -> RowPreview:
 def _dopo_import() -> None:
     from security import views_vuln
 
+    from security.services.software_inventory import unisci_per_equivalenza
+
+    # Stesso programma da WatchGuard e Defender (stesso PC, stessa versione, nome equivalente): una riga.
+    unisci_per_equivalenza(applica=True)
     views_vuln._auto_link_cpe()
     views_vuln._apply_na_rules()
     views_vuln._queue_recompute()

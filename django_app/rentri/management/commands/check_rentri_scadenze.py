@@ -23,6 +23,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from rentri.models import RegistroRifiuti
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ class Command(BaseCommand):
                 to=destinatari,
             )
             msg.attach_alternative(wrapped_html, "text/html")
-            sent = msg.send(fail_silently=False)
+            sent = invia_con_regole_flusso(msg)
             if sent:
                 self.stdout.write(
                     self.style.SUCCESS(f"Email inviata a {', '.join(destinatari)} — {totale} segnalazioni.")

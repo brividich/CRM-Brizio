@@ -254,6 +254,7 @@ def dashboard(request):
         "dispositivi_altri": max(dispositivi.count() - len(dispositivi_snmp), 0),
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
         "flotta": flotta,
+        "mappa": services.mappa_flotta(),
         "etichette_flotta": services.FLOTTA,
         "errori_snmp": errori_snmp,
         "errori_altri": max(flotta["errore"] - len(errori_snmp), 0),
@@ -470,7 +471,11 @@ def macchina_detail(request, pk):
     from .ticket_stampante import url_apri_ticket
 
     consumabili_stato = services.stato_consumabili([macchina]).get(macchina.pk)
+    from .presentazione import collegamenti_mfc, disegno_stampante
+
     return render(request, "contatori/macchina.html", {
+        "collegamenti": collegamenti_mfc(macchina, request),
+        "disegno_mfc": disegno_stampante(macchina.dati_stampante, macchina.snmp_stato),
         "url_ticket": url_apri_ticket(request, macchina, consumabili_stato),
         "macchina": macchina, "dati": dati, "info_snmp": services.info_snmp(macchina),
         "ultima_mensile": macchina.letture_mensili.order_by("-rilevata_il").first(),
@@ -1265,8 +1270,15 @@ def dispositivo_snmp_detail(request, pk):
         per_indice = {r["indice"]: r for r in dati_extra["stime_stampante"]["consumabili"]}
         for c in ((ultima.dati_stampante or {}).get("consumabili") or []) if ultima else []:
             c["stima"] = per_indice.get(c.get("indice"))  # solo in memoria, non si salva
+    disponibilita = services.disponibilita_dispositivo(dispositivo)
+    from .presentazione import vista as vista_apparato
+
     return render(request, "contatori/snmp_dispositivo_detail.html", {
         **dati_extra,
+        # Layout del suo tipo (UPS, firewall, switch, server, NAS, NVR…): solo dati già in memoria, nessuna query in più.
+        "vista": vista_apparato(dispositivo, sonde, ultima=ultima_rilevazione, disponibilita=disponibilita, request=request),
+        # Disegno dell'apparato: pannello delle porte (firewall, switch) o stampante, dai dati salvati.
+        **_disegno(dispositivo, ultima_rilevazione),
         "dispositivo": dispositivo,
         "sonde": sonde,
         "rilevazioni": rilevazioni_pagina.object_list,
@@ -1281,10 +1293,21 @@ def dispositivo_snmp_detail(request, pk):
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
         **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp", request),
         "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
-        "disponibilita": services.disponibilita_dispositivo(dispositivo),
+        "disponibilita": disponibilita,
         "periodi_disponibilita": (("24h", "ultime 24 ore"), ("7g", "ultimi 7 giorni")),
         **_porte_switch(dispositivo),
     })
+
+
+def _disegno(dispositivo, ultima):
+    from .presentazione import disegno_stampante
+    from .topologia import pannello
+
+    if dispositivo.categoria in (DispositivoSNMP.Categoria.FIREWALL, DispositivoSNMP.Categoria.RETE):
+        return pannello(dispositivo)
+    if dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE:
+        return {"disegno_mfc": disegno_stampante(ultima.dati_stampante if ultima else {}, dispositivo.snmp_stato)}
+    return {}
 
 
 def _porte_switch(dispositivo):
@@ -1470,3 +1493,70 @@ def dispositivi_snmp_interroga_tutti(request):
         + ": gli stati si aggiornano entro qualche minuto.",
     )
     return redirect("contatori:snmp_centrale")
+
+
+# --- Topologia e porte degli apparati (contatori.topologia) -----------------------------------------
+
+def topologia(request):
+    """Albero della rete dalle porte descritte su firewall e switch: solo dati salvati, nessuna interrogazione."""
+    from .topologia import albero
+
+    return render(request, "contatori/topologia.html", {"t": albero()})
+
+
+@richiede_gestione
+def dispositivo_porte(request, pk):
+    """Editor delle porte di un firewall o di uno switch: nome, tipo, VLAN, cosa c'è collegato. Proposte dalla tabella MAC."""
+    from .models import PortaApparato
+    from .topologia import PORTE_DEFAULT, porte_pannello, proposte_da_tabella_mac
+
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
+    candidati_d = list(services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True).exclude(pk=pk)).order_by("nome"))
+    candidati_m = list(Macchina.objects.filter(attiva=True).order_by("reparto"))
+    validi = {f"d:{d.pk}" for d in candidati_d} | {f"m:{m.pk}" for m in candidati_m}
+    if request.method == "POST":
+        try:
+            totale = max(0, min(96, int(request.POST.get("porte_totali") or 0)))
+        except ValueError:
+            totale = dispositivo.porte_totali
+        tipi = {c for c, _l in PortaApparato.Tipo.choices}
+        esistenti = {p.numero: p for p in dispositivo.porte_disegnate.all()}
+        salvate = 0
+        with transaction.atomic():
+            DispositivoSNMP.objects.filter(pk=pk).update(porte_totali=totale)
+            for n in range(1, (totale or PORTE_DEFAULT.get(dispositivo.categoria, 0)) + 1):
+                campi = {k: (request.POST.get(f"{k}_{n}") or "").strip() for k in ("nome", "tipo", "vlan", "coll", "testo", "nota")}
+                coll = campi["coll"] if campi["coll"] in validi else ""
+                vuota = not any((campi["nome"], campi["vlan"], coll, campi["testo"], campi["nota"])) and campi["tipo"] in ("", "LAN")
+                if vuota:
+                    if n in esistenti:
+                        esistenti[n].delete()
+                    continue
+                PortaApparato.objects.update_or_create(dispositivo=dispositivo, numero=n, defaults={
+                    "nome": campi["nome"][:60], "tipo": campi["tipo"] if campi["tipo"] in tipi else "LAN", "vlan": campi["vlan"][:40],
+                    "collegato_dispositivo_id": int(coll[2:]) if coll.startswith("d:") else None,
+                    "collegato_macchina_id": int(coll[2:]) if coll.startswith("m:") else None,
+                    "collegato_testo": "" if coll else campi["testo"][:120], "nota": campi["nota"][:200]})
+                salvate += 1
+            # Porte oltre il nuovo totale: non si disegnano più, si tolgono.
+            if totale:
+                dispositivo.porte_disegnate.filter(numero__gt=totale).delete()
+        log_action(request, "apparato_porte_salvate", "contatori", {"porte_totali": totale, "porte_descritte": salvate},
+                   oggetto_tipo="contatori.dispositivosnmp", oggetto_id=str(pk))
+        messages.success(request, f"Porte salvate: {salvate} descritte su {totale or 'quelle predefinite'}.")
+        return redirect(reverse("contatori:snmp_dispositivo", args=[pk]) + "#disegno")
+    porte = porte_pannello(dispositivo)
+    righe_db = {p.numero: p for p in dispositivo.porte_disegnate.all()}
+    proposte = proposte_da_tabella_mac(dispositivo)
+    for porta in porte:
+        p = righe_db.get(porta["numero"])
+        porta["coll"] = (f"d:{p.collegato_dispositivo_id}" if p and p.collegato_dispositivo_id else
+                         f"m:{p.collegato_macchina_id}" if p and p.collegato_macchina_id else "")
+        porta["testo"] = p.collegato_testo if p else ""
+        porta["proposta"] = proposte.get(porta["numero"]) if not p else None
+    return render(request, "contatori/dispositivo_porte.html", {
+        "dispositivo": dispositivo, "porte": porte, "totale_mostrato": len(porte),
+        "candidati_d": [{"valore": f"d:{d.pk}", "label": f"{d.nome} · {d.host}"} for d in candidati_d],
+        "candidati_m": [{"valore": f"m:{m.pk}", "label": f"MFC {m.reparto}"} for m in candidati_m],
+        "tipi": PortaApparato.Tipo.choices, "n_proposte": sum(1 for p in porte if p["proposta"]),
+    })

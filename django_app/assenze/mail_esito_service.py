@@ -16,10 +16,13 @@ from django.core.validators import validate_email
 from django.template.loader import render_to_string
 
 from .mail_delete_service import _humanize_dt
+from automazioni.managed_flows import event_flow
+from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
 
+@event_flow("assenze_esito_dipendente", skipped_result=False)
 def send_esito_dipendente(record: dict, *, consenso: str, tipo_display: str, note: str = "", deciso_da: str = "") -> bool:
     """Ritorna True se la mail e' partita. Non solleva mai."""
     if consenso not in ("Approvato", "Rifiutato"):
@@ -81,7 +84,7 @@ def send_esito_dipendente(record: dict, *, consenso: str, tipo_display: str, not
             from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None) or None, to=[email],
         )
         msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
+        invia_con_regole_flusso(msg)
     except Exception as exc:
         logger.warning("send_esito_dipendente: invio fallito per assenza id=%s", record.get("id"), exc_info=True)
         registra(origine="assenze_esito", destinatari=[email], oggetto=subject, sorgente="assenze",

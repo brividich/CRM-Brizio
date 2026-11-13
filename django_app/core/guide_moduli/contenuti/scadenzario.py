@@ -34,6 +34,8 @@ GUIDA = {
                 ("p", "Ogni voce compare a chi può aprire la pagina dove si gestisce (la tua CAR e la tua presa visione le vedi sempre). "
                       "Il nome nella colonna Soggetto porta a quella pagina."),
                 ("p", "Nelle schede di dipendente, asset, fornitore, certificazione, audit, incidente, verifica impianto e corso il riquadro «📅 Scadenze di questa scheda» mostra le scadenze, chi se ne occupa e «Me ne occupo io»."),
+                ("p", "Una scadenza si affida a un collega (👤) o a un fornitore esterno dell'anagrafica Fornitori (🏢) con «→ Assegna». "
+                      "«＋ nota» aggiunge una riga 📝 visibile a tutti senza assegnare la scadenza a chi la scrive."),
                 ("p", "Cosa vedi lo decidono i permessi del modulo di origine più le regole del pannello «Gestione»: "
                       "una regola può farti vedere scadenze di un modulo che non apri, oppure toglierne alcune a tutti."),
             ],

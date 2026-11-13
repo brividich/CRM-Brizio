@@ -264,7 +264,7 @@ def _decora(voci, *, feste: dict | None = None) -> None:
 
 def _azioni(request, voci) -> None:
     """Chiave della scadenza, presa in carico e rinnovo diretto (scadenze generiche)."""
-    from scadenzario.calendario import chiave_scadenza, nome_utente, prese_in_carico
+    from scadenzario.calendario import chiave_scadenza, prese_in_carico
 
     for v in voci:
         v.chiave = chiave_scadenza(v)
@@ -272,8 +272,11 @@ def _azioni(request, voci) -> None:
     gestibili: dict[int, bool] = {}
     for v in voci:
         v.presa = prese.get(v.chiave)
-        v.presa_nome = nome_utente(v.presa.utente) if v.presa else ""
+        v.presa_nome = v.presa.incaricato_nome if v.presa else ""
+        v.presa_esterna = bool(v.presa and v.presa.fornitore_id and not v.presa.utente_id)
         v.presa_mia = bool(v.presa and v.presa.utente_id == request.user.id)
+        # chi ha la scadenza o l'ha affidata (anche a un fornitore esterno) la può lasciare o riassegnare
+        v.presa_gestibile = bool(v.presa_nome and request.user.id in {v.presa.utente_id, v.presa.assegnato_da_id})
         v.rinnovo_url = ""
         cat = (v.extra or {}).get("categoria_id") if v.source == "generiche" else None
         sid = (v.extra or {}).get("scadenza_id")
@@ -570,15 +573,22 @@ def _puo_assegnare(request, context) -> bool:
         return True
     from scadenzario.models import PresaInCarico
 
-    return PresaInCarico.objects.filter(utente=request.user).exists()
+    from django.db.models import Q
+
+    return PresaInCarico.objects.filter(Q(utente=request.user) | Q(assegnato_da=request.user)).exists()
 
 
 def _persone_assegna() -> list[str]:
-    """Elenco di «Assegna»: un nome solo per pagina, non ripetuto a ogni scadenza."""
+    """Elenco di «Assegna»: colleghi e fornitori esterni, un elenco solo per pagina."""
     from django.contrib.auth import get_user_model
 
+    from anagrafica.models import Fornitore
+
     utenti = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
-    return [f"{(u.get_full_name() or u.username).strip()} ({u.username})" for u in utenti]
+    esito = [f"{(u.get_full_name() or u.username).strip()} ({u.username})" for u in utenti]
+    fornitori = Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("pk", "ragione_sociale")
+    esito += [f"{(nome or '').strip()} · fornitore esterno [F{pk}]" for pk, nome in fornitori]
+    return esito
 
 
 def _puo_pannello(request) -> bool:

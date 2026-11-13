@@ -123,7 +123,7 @@ def prese_in_carico(chiavi) -> dict:
         return {}
     esito = {}
     for i in range(0, len(chiavi), 500):  # SQL Server: niente IN con migliaia di parametri
-        for p in PresaInCarico.objects.select_related("utente").filter(chiave__in=chiavi[i:i + 500]):
+        for p in PresaInCarico.objects.select_related("utente", "fornitore").filter(chiave__in=chiavi[i:i + 500]):
             esito[p.chiave] = p
     return esito
 
@@ -162,8 +162,11 @@ def chiavi_persona_di(request) -> set[str]:
 def e_mia(v, *, user_id, chiavi_persona: set[str]) -> bool:
     from fornitori.nomi import chiave_persona
 
-    if getattr(v, "presa", None) is not None and v.presa.utente_id == user_id:
-        return True
+    presa = getattr(v, "presa", None)
+    if presa is not None and user_id and (
+        presa.utente_id == user_id or (presa.fornitore_id and presa.assegnato_da_id == user_id)
+    ):
+        return True  # in carico a me, o affidata da me a un fornitore esterno
     extra = v.extra or {}
     if user_id and user_id in (extra.get("responsabile_id"), extra.get("utente_id")):
         return True

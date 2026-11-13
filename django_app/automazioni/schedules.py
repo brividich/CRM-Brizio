@@ -176,6 +176,26 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — doppioni software tra WatchGuard e Defender: unioni sicure, poi l'AI per le coppie
+        # dal nome simile (alias automatico solo sopra soglia e con versioni coincidenti). Lettura «software_doppioni».
+        "name": "security_software_doppioni",
+        "func": "security.tasks.software_doppioni_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 60,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SECURITY CENTER — manutenzione notturna: pulizia dei registri tecnici, fotografia dell'indice di
+        # postura dei PC, avviso per chi scende sotto soglia. Lettura «manutenzione».
+        "name": "security_manutenzione",
+        "func": "security.tasks.manutenzione_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 2 * * *",       # ogni notte alle 02:30
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 600}},
+    },
+    {
         # SECURITY CENTER — proposte di chiusura dell'AI locale sugli alert aperti, con apprendimento
         # dalle decisioni delle persone; chiude da sola solo i tipi di alert imparati. Lettura «ai_proposte».
         "name": "security_ai_proposte",
@@ -1266,7 +1286,7 @@ DIGEST_E_PROMEMORIA: dict[str, str] = {
 
 # Oggetto delle mail dei digest, come lo compongono i comandi (N = numero, ‹…› = testo variabile).
 # Il primo è quello principale, gli altri sono le varianti; tupla vuota = solo notifica in-app.
-# Un oggetto personalizzato da «Configura mail» (ScheduledMailText) prevale: vedi schedule_rows.
+# Un oggetto personalizzato da «Modifica» (ScheduledMailText) prevale: vedi schedule_rows.
 # Se cambi l'oggetto in un comando, aggiornalo anche qui.
 DIGEST_OGGETTO: dict[str, tuple[str, ...]] = {
     "system_digest": ("[Portale] Digest stato sistema — tutto ok", "[Portale] Digest stato sistema — attenzioni presenti"),
@@ -1440,7 +1460,9 @@ def _oggetto_riga(name: str, personalizzato: str = "") -> dict:
     """Oggetto mail da mostrare: quello personalizzato, se c'è, altrimenti il primo di serie."""
     serie = DIGEST_OGGETTO.get(name, ())
     if personalizzato:
-        return {"oggetto": personalizzato, "oggetto_varianti": (), "oggetto_personalizzato": True}
+        from .mail_config import componi_oggetto
+        return {"oggetto": componi_oggetto(personalizzato, serie[0] if serie else ""), "oggetto_varianti": (),
+                "oggetto_personalizzato": True}
     return {"oggetto": serie[0] if serie else "", "oggetto_varianti": serie[1:], "oggetto_personalizzato": False}
 
 
@@ -1483,7 +1505,7 @@ def schedule_rows() -> list[dict]:
     except Exception:
         last_runs = {}
 
-    # Oggetti personalizzati da «Configura mail»: sostituiscono quello di serie.
+    # Oggetti personalizzati da «Modifica»: sostituiscono quello di serie.
     try:
         from .models import ScheduledMailText
 

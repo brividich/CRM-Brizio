@@ -12,7 +12,6 @@
     Il <strong>motivo</strong> dice quanto è sicura la chiusura: «Installata» viene da un task di installazione WatchGuard; «Non più segnalata» vuol dire
     installata fuori da WatchGuard (Windows Update, a mano) o sostituita da una patch più recente; «PC non più in WatchGuard» non è un'installazione.
     La verifica sulla versione del programma è in <a href="{% url 'security:cve_correzioni' %}">Correzioni CVE</a>.
-    <a href="{% url 'security:watchguard_pc' %}">Torna alle patch mancanti</a>
   </p>
   <div class="sec-fact-grid">
     <div class="sec-fact"><span>Patch chiuse</span><strong>{{ d.kpi.patch }}</strong> <small class="sec-muted">su {{ d.kpi.pc }} PC</small></div>

@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'automazioni/css/pagine/rule_designer.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'automazioni/css/cn_automations.css' %}?v=20261112">
+<script src="{% static 'automazioni/js/cn_automations.js' %}?v=20261112" defer></script>
 {% endblock %}
 
 {% block subnav %}
@@ -12,79 +14,38 @@
 {% endblock %}
 
 {% block content %}
-{% if managed_binding %}
-  <section class="designer-section-card mf-card">
-    <header class="mf-head">
-      <div class="mf-head-text">
-        <div class="mf-kicker">{{ managed_binding.get_kind_display }} · flusso gestito</div>
-        <h2 class="mf-title">{{ rule.name|capfirst }}</h2>
-      </div>
-      <div class="mf-head-actions">
-        {% if managed_info.active %}<span class="flow-pill flow-pill-green mf-pill">Attivo</span>{% else %}<span class="flow-pill flow-pill-red mf-pill">Disattivato</span>{% endif %}
-        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
-        {% if managed_schedule_form %}<a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_pianificati' %}">Tutte le pianificazioni</a>{% endif %}
-      </div>
-    </header>
-
-    {% if managed_schedule_form %}
-      <dl class="mf-summary">
-        <div><dt>Quando</dt><dd>{{ managed_info.cadence|capfirst }}</dd></div>
-        <div><dt>Prossima esecuzione</dt><dd>{% if managed_info.next_run %}{{ managed_info.next_run|date:"d/m/Y H:i" }}{% elif managed_info.active %}in attesa del pianificatore{% else %}nessuna, flusso disattivato{% endif %}</dd></div>
-      </dl>
-    {% endif %}
-
-    {% if managed_info.description %}<p class="mf-desc">{{ managed_info.description }}</p>{% endif %}
-
-    {% if managed_schedule_form %}
-      {% with f=managed_schedule_form %}
-      <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" class="mf-form" id="mf-schedule-form">
-        {% csrf_token %}<input type="hidden" name="name" value="{{ managed_binding.code }}"><input type="hidden" name="action" value="save_schedule">
-        <div class="mf-fields">
-          <label class="mf-field">
-            <span class="mf-label">{{ f.schedule_type.label }}</span>
-            {{ f.schedule_type }}
-          </label>
-          <label class="mf-field" data-mf-type="I">
-            <span class="mf-label">{{ f.minutes.label }}</span>
-            {{ f.minutes }}
-            {% for e in f.minutes.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
-          </label>
-          <label class="mf-field mf-field--wide" data-mf-type="C">
-            <span class="mf-label">Calendario</span>
-            {{ f.cron }}
-            <span class="mf-help">Cinque campi: minuto, ora, giorno, mese, giorno della settimana. Esempio <code>0 7 * * 1-5</code> = alle 07:00 dal lunedì al venerdì. Fuso del portale.</span>
-            {% for e in f.cron.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
-          </label>
-          <div class="mf-submit"><button type="submit" class="btn btn-primary">Salva pianificazione</button></div>
-        </div>
-      </form>
-      {% endwith %}
-    {% else %}
-      <p class="mf-note">Il flusso parte quando il modulo emette l'evento, senza modificare il salvataggio dei dati aziendali.</p>
-    {% endif %}
-    <p class="mf-note">Condizioni e azioni si modificano nel designer qui sotto. L'azione «Esegui processo del modulo» applica le regole operative del modulo e può essere disattivata o sostituita.</p>
-  </section>
-  <script>
-  (function () {
-    var form = document.getElementById("mf-schedule-form");
-    if (!form) return;
-    var select = form.querySelector("[name=schedule_type]");
-    function sync() {
-      form.querySelectorAll("[data-mf-type]").forEach(function (el) {
-        el.hidden = el.getAttribute("data-mf-type") !== select.value;
-      });
-    }
-    select.addEventListener("change", sync);
-    sync();
-  })();
-  </script>
-{% endif %}
+  {% if managed_pa %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Flusso" %}
+  {% else %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
+  {% endif %}
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/skeletons.html" %}
   {% include "automazioni/components/subnav.html" %}
 
-  <div class="designer-shell">
+{% if managed_pa %}
+  <link rel="stylesheet" href="{% static 'automazioni/css/flusso_pa.css' %}?v=20261112">
+  <section class="pa-embed">
+    {% with p=managed_pa next_url=request.get_full_path %}{% include "automazioni/partials/flusso_pa.html" %}{% endwith %}
+  </section>
+  <p class="pa-hint" style="text-align:center;margin:-6px 0 18px;">
+    <button type="button" class="btn btn-light btn-sm" data-pa-avanzato aria-controls="designer-avanzato" aria-expanded="false">Designer completo (condizioni e azioni tecniche)</button>
+  </p>
+  <script>
+  (function () {
+    var btn = document.querySelector("[data-pa-avanzato]");
+    var box = document.getElementById("designer-avanzato");
+    if (!btn || !box) return;
+    btn.addEventListener("click", function () {
+      box.hidden = !box.hidden;
+      btn.setAttribute("aria-expanded", String(!box.hidden));
+      if (!box.hidden) box.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  })();
+  </script>
+{% endif %}
+<div id="designer-avanzato"{% if managed_pa %} hidden{% endif %}>
+  <div class="designer-shell" data-cn-shell>
   <form method="post" class="designer-layout" id="rule-designer-form">
     {% csrf_token %}
     <div class="designer-main">
@@ -92,7 +53,7 @@
         <div class="designer-section-body">
           <div class="designer-header">
             <div>
-              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}| Nuova regola{% else %}| Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-summary-kicker"><span class="cn-hide">Designer visuale affiancato</span><span class="cn-only">CN Automations</span> {% if is_new_rule %}| Nuova regola{% else %}| Regola {{ rule.id }}{% endif %}</div>
               <div class="designer-section-title">{{ rule_name_value }}</div>
               <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
             </div>
@@ -101,6 +62,7 @@
                 <button type="button" class="designer-view-button is-active" data-view-mode="compact">Vista compatta</button>
                 <button type="button" class="designer-view-button" data-view-mode="flow">Vista flow</button>
               </div>
+              <button type="button" class="btn btn-light" data-cn-toggle aria-pressed="true"><span class="cn-only">Vista classica</span><span class="cn-hide">Vista CN Automations</span></button>
               <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">Diagramma di flusso</button>
               {% if not is_new_rule %}
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
@@ -270,7 +232,7 @@
         <section class="designer-section-card" id="conditions-section">
           <div class="designer-section-head">
             <div>
-              <div class="designer-section-title">Condizioni</div>
+              <div class="designer-section-title"><span class="cn-hide">Condizioni</span><span class="cn-only">Condizione · tutte vere</span></div>
               <div class="designer-section-subtitle">Tutte le condizioni devono essere vere. Riordino con drag-and-drop o pulsanti su/giu'.</div>
             </div>
             <div class="designer-pill-row">
@@ -302,14 +264,18 @@
                 {% include "automazioni/components/condition_card.html" with entry=entry %}
               {% endfor %}
             </div>
-            <button type="button" class="btn btn-light" data-add-condition style="margin-top:8px;">+ Nuova condizione</button>
+            <button type="button" class="btn btn-light" data-add-condition style="margin-top:8px;"><span class="cn-hide">+ Nuova condizione</span><span class="cn-only">+ Aggiungi riga</span></button>
+            <div class="cn-lanes cn-only" aria-label="Esito della condizione">
+              <div class="cn-lane cn-lane--si"><strong>✓ Se sì</strong><span>esegue i passaggi qui sotto, in ordine.</span></div>
+              <div class="cn-lane cn-lane--no"><strong>✕ Se no</strong><span>la regola si ferma. Per agire anche in questo caso aggiungi il passaggio «Condizione (Se / Altrimenti)».</span></div>
+            </div>
           </div>
         </section>
 
         <section class="designer-section-card" id="actions-section">
           <div class="designer-section-head">
             <div>
-              <div class="designer-section-title">Azioni</div>
+              <div class="designer-section-title"><span class="cn-hide">Azioni</span><span class="cn-only">Poi esegui, in ordine</span></div>
               <div class="designer-section-subtitle">Le azioni vengono eseguite in sequenza. Il preview sintetico resta leggibile anche senza aprire l'editor della card.</div>
             </div>
             <div class="designer-pill-row">
@@ -646,6 +612,11 @@
     </div>
   </div>
 </div>
+</div>
+{% if managed_pa %}
+  {{ managed_native_preview|json_script:"native-preview" }}
+  {% include "automazioni/components/mail_drawer.html" %}
+{% endif %}
 
 {% endblock %}
 
@@ -1530,8 +1501,11 @@
     if (actionType === 'split_assenza_giornaliera') {
       return 'Crea righe giornaliere derivate da ' + (cfg.start_field || 'data_inizio') + ' a ' + (cfg.end_field || 'data_fine') + '.';
     }
+    if (actionType === 'teams_webhook') {
+      return 'Teams: ' + _truncateInlinePreview(cfg.title_template || 'titolo da impostare', 60);
+    }
     if (actionType === 'branch') {
-      return 'Branch annidato: apri il JSON avanzato per rifinire il ramo.';
+      return 'Condizione annidata: si modifica nel JSON avanzato.';
     }
     return 'Configurazione inline disponibile nel JSON avanzato.';
   }
@@ -1596,12 +1570,118 @@
         }
       };
     }
+    if (actionType === 'update_trigger_record') {
+      return { action_type: 'update_trigger_record', description: 'Aggiorna record ' + label, config_json: { update_fields: {} } };
+    }
+    if (actionType === 'teams_webhook') {
+      return { action_type: 'teams_webhook', description: 'Teams ' + label,
+               config_json: { webhook_url: '', title_template: label + ' - record {id}', summary_template: '', text_template: '', facts: [] } };
+    }
     return {
       action_type: actionType,
       description: label,
       config_json: {}
     };
   }
+
+
+  // ── CN Automations: modifica dei passaggi dentro Se sì / Se no, Ripeti finché, Per ogni elemento ──
+  // Scrive nello stesso JSON di sempre (config_json per tipo): le regole esistenti non cambiano formato.
+  var _INLINE_EDIT_FIELDS = {
+    send_email: [
+      { key: 'to', label: 'A' }, { key: 'cc', label: 'CC' },
+      { key: 'subject_template', label: 'Oggetto' }, { key: 'body_text_template', label: 'Corpo', area: true }
+    ],
+    write_log: [ { key: 'message_template', label: 'Messaggio', area: true } ],
+    delay_schedule: [
+      { key: 'value_template', label: 'Quanto' },
+      { key: 'unit', label: 'Unità', choices: [['minutes', 'Minuti'], ['hours', 'Ore'], ['days', 'Giorni']] }
+    ],
+    teams_webhook: [
+      { key: 'webhook_url', label: 'Indirizzo webhook del canale' },
+      { key: 'title_template', label: 'Titolo' }, { key: 'text_template', label: 'Testo', area: true }
+    ],
+    update_trigger_record: [ { key: 'update_fields', label: 'Campi da aggiornare (una riga: campo = valore)', area: true, mapping: true } ]
+  };
+
+  function _inlineOpenSet(builder) {
+    var raw = builder ? (builder.getAttribute('data-inline-open') || '') : '';
+    return raw ? raw.split(',') : [];
+  }
+
+  function _mappingToText(value) {
+    if (!value || typeof value !== 'object') return '';
+    return Object.keys(value).map(function(k) { return k + ' = ' + value[k]; }).join('\n');
+  }
+
+  function _textToMapping(text) {
+    var out = {};
+    String(text || '').split('\n').forEach(function(line) {
+      var i = line.indexOf('=');
+      if (i <= 0) return;
+      var k = line.slice(0, i).trim();
+      if (k) out[k] = line.slice(i + 1).trim();
+    });
+    return out;
+  }
+
+  function _renderInlineItemEditor(item, index) {
+    var cfg = item && item.config_json && typeof item.config_json === 'object' ? item.config_json : {};
+    var fields = _INLINE_EDIT_FIELDS[String(item.action_type || '')] || [];
+    var html = '<div class="cn-inline-editor">';
+    html += '<label class="cn-inline-field"><span>Nome del passaggio</span><input type="text" data-inline-json-input="description" data-inline-json-index="' + index + '" value="' + _escapeInlineHtml(item.description || '') + '"></label>';
+    fields.forEach(function(f) {
+      var value = f.mapping ? _mappingToText(cfg[f.key]) : (cfg[f.key] == null ? '' : String(cfg[f.key]));
+      var attrs = ' data-inline-json-input="config.' + f.key + '" data-inline-json-index="' + index + '"' + (f.mapping ? ' data-inline-json-mapping' : '');
+      html += '<label class="cn-inline-field"><span>' + _escapeInlineHtml(f.label) + '</span>';
+      if (f.choices) {
+        html += '<select' + attrs + '>' + f.choices.map(function(c) {
+          return '<option value="' + c[0] + '"' + (value === c[0] ? ' selected' : '') + '>' + _escapeInlineHtml(c[1]) + '</option>';
+        }).join('') + '</select>';
+      } else if (f.area) {
+        html += '<textarea rows="3"' + attrs + '>' + _escapeInlineHtml(value) + '</textarea>';
+      } else {
+        html += '<input type="text"' + attrs + ' value="' + _escapeInlineHtml(value) + '">';
+      }
+      html += '</label>';
+    });
+    if (!fields.length) {
+      html += '<p class="cn-inline-note">Questo tipo di passaggio si modifica nel JSON avanzato qui sotto.</p>';
+    } else {
+      html += '<p class="cn-inline-note">Contenuto dinamico: scrivi {nome_campo} per usare un campo del record.</p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function _applyInlineInput(input, dispatch) {
+    var ctx = _getInlineJsonContext(input);
+    if (!ctx || !ctx.field || ctx.parsed.error) return;
+    var index = parseInt(input.getAttribute('data-inline-json-index') || '-1', 10);
+    var item = ctx.parsed.items[index];
+    if (!item) return;
+    var path = input.getAttribute('data-inline-json-input') || '';
+    if (path === 'description') {
+      item.description = input.value;
+    } else if (path.indexOf('config.') === 0) {
+      if (!item.config_json || typeof item.config_json !== 'object') item.config_json = {};
+      var key = path.slice(7);
+      item.config_json[key] = input.hasAttribute('data-inline-json-mapping') ? _textToMapping(input.value) : input.value;
+    }
+    if (dispatch) {
+      _writeInlineJsonItems(ctx.field, ctx.parsed.items);
+    } else {
+      // Mentre si scrive: niente ridisegno (resterebbe il fuoco), solo il JSON salvato col form.
+      ctx.field.value = _stringifyInlineJsonArray(ctx.parsed.items);
+    }
+  }
+
+  document.addEventListener('input', function(event) {
+    if (event.target && event.target.matches && event.target.matches('[data-inline-json-input]')) _applyInlineInput(event.target, false);
+  });
+  document.addEventListener('change', function(event) {
+    if (event.target && event.target.matches && event.target.matches('[data-inline-json-input]')) _applyInlineInput(event.target, true);
+  });
 
   function _getInlineJsonFieldFromBuilder(builder) {
     if (!builder) return null;
@@ -1680,6 +1760,7 @@
     }
 
     var html = '';
+    var openSet = _inlineOpenSet(builder);
     for (var index = 0; index < items.length; index += 1) {
       var item = items[index] || {};
       var actionType = item.action_type ? String(item.action_type) : '';
@@ -1695,11 +1776,13 @@
       html += '<div class="designer-inline-item-meta">' + _escapeInlineHtml(_describeInlineActionConfig(item)) + '</div>';
       html += '</div>';
       html += '<div class="designer-inline-item-actions">';
+      html += '<button class="designer-inline-btn" type="button" data-inline-json-edit data-inline-json-index="' + index + '">' + (openSet.indexOf(String(index)) !== -1 ? 'Chiudi' : 'Modifica') + '</button>';
       html += '<button class="designer-inline-btn" type="button" data-inline-json-move="-1" data-inline-json-index="' + index + '">Su</button>';
       html += '<button class="designer-inline-btn" type="button" data-inline-json-move="1" data-inline-json-index="' + index + '">Giu\'</button>';
       html += '<button class="designer-inline-btn" type="button" data-inline-json-remove data-inline-json-index="' + index + '">Rimuovi</button>';
       html += '</div>';
       html += '</div>';
+      if (openSet.indexOf(String(index)) !== -1) html += _renderInlineItemEditor(item, index);
       html += '</div>';
     }
     listNode.hidden = false;
@@ -1892,12 +1975,15 @@
     var actionLabel = getFieldDisplayValue(actionTypeField) || '-';
     var description = descriptionField ? String(descriptionField.value || '').trim() : '';
     var previewLines = ['Configurazione non disponibile.'];
+    var nativePreviewNode = document.getElementById('native-preview');
 
-    if (actionType === 'send_email') {
+    if (actionType === 'native_process' && nativePreviewNode) {
+      try { previewLines = JSON.parse(nativePreviewNode.textContent) || previewLines; } catch (e) { /* resta il testo di base */ }
+    } else if (actionType === 'send_email') {
       previewLines = [
-        'Destinatari: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
-        'Subject: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
-        'Body: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
+        'A: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
+        'Oggetto: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
+        'Corpo: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
       ];
     } else if (actionType === 'write_log') {
       previewLines = ['Messaggio: ' + (String((getCardField(card, 'write_log_message_template') || {}).value || '').trim() || '-')];
@@ -2548,6 +2634,20 @@
       focusFirstSmartTarget();
     }
 
+    var inlineEditButton = closestElement(event.target, '[data-inline-json-edit]');
+    if (inlineEditButton) {
+      event.preventDefault();
+      var editBuilder = closestElement(inlineEditButton, '[data-inline-json-builder]');
+      if (!editBuilder) return;
+      var editIndex = inlineEditButton.getAttribute('data-inline-json-index') || '';
+      var openNow = _inlineOpenSet(editBuilder);
+      var pos = openNow.indexOf(editIndex);
+      if (pos === -1) openNow.push(editIndex); else openNow.splice(pos, 1);
+      editBuilder.setAttribute('data-inline-open', openNow.join(','));
+      _renderInlineJsonBuilder(editBuilder);
+      return;
+    }
+
     var inlineAddButton = closestElement(event.target, '[data-inline-json-add]');
     if (inlineAddButton) {
       event.preventDefault();
@@ -2561,6 +2661,9 @@
       var addType = inlineAddButton.getAttribute('data-inline-json-add') || 'write_log';
       var branchLabel = addContext.builder.getAttribute('data-inline-json-branch-label') || 'Ramo';
       addContext.parsed.items.push(_buildInlineActionTemplate(addType, branchLabel));
+      var addOpen = _inlineOpenSet(addContext.builder);
+      addOpen.push(String(addContext.parsed.items.length - 1));
+      addContext.builder.setAttribute('data-inline-open', addOpen.join(','));
       _writeInlineJsonItems(addContext.field, addContext.parsed.items);
       openCardDetails(addContext.card);
       setCardFeedback(addContext.card, 'Azione aggiunta al ramo ' + branchLabel + '.');
@@ -2612,6 +2715,7 @@
       if (moveIndex < 0 || targetIndex < 0 || targetIndex >= moveContext.parsed.items.length) return;
       var movedItem = moveContext.parsed.items.splice(moveIndex, 1)[0];
       moveContext.parsed.items.splice(targetIndex, 0, movedItem);
+      moveContext.builder.removeAttribute('data-inline-open');
       _writeInlineJsonItems(moveContext.field, moveContext.parsed.items);
       setCardFeedback(moveContext.card, 'Ordine azioni ramo aggiornato.');
       return;
@@ -2625,6 +2729,7 @@
       var removeIndex = parseInt(inlineRemoveButton.getAttribute('data-inline-json-index') || '-1', 10);
       if (removeIndex < 0 || removeIndex >= removeContext.parsed.items.length) return;
       removeContext.parsed.items.splice(removeIndex, 1);
+      removeContext.builder.removeAttribute('data-inline-open');
       _writeInlineJsonItems(removeContext.field, removeContext.parsed.items);
       setCardFeedback(removeContext.card, 'Azione rimossa dal ramo.');
       return;

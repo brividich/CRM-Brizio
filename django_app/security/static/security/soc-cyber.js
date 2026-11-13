@@ -71,7 +71,60 @@
     });
   }
 
-  function avvio() { lazy(document); monoTabelle(document); }
+  // --- Dispositivi › Software: ricerca immediata (Invio cerca anche sul server), «/», ordinamento -------------
+  function compatto(t) { return (t || "").toLowerCase().replace(/[\W_]+/g, ""); }
+  function initSoftware() {
+    var root = document.querySelector("[data-cy-sw]:not([data-cy-pronto])");
+    if (!root) return;
+    root.setAttribute("data-cy-pronto", "1");
+    var cerca = root.querySelector("[data-cy-sw-search]");
+    var tbody = root.querySelector("[data-cy-sw-table] tbody");
+    var righe = Array.prototype.slice.call(root.querySelectorAll("[data-cy-sw-table] tbody tr[data-nome]"));
+    var conta = root.querySelector("[data-cy-sw-count]");
+    var nessuna = root.querySelector("[data-cy-sw-none]");
+    var testoConta = conta ? conta.textContent : "";
+    function filtra() {
+      // Ogni parola, senza spazi e trattini, come la ricerca del server: «7zip» trova «7-Zip».
+      var parole = (cerca.value || "").split(/\s+/).map(compatto).filter(Boolean);
+      var n = 0;
+      righe.forEach(function (r) {
+        var testo = compatto(r.dataset.nome);
+        var ok = parole.every(function (p) { return testo.indexOf(p) !== -1; });
+        r.hidden = !ok;
+        if (ok) n++;
+      });
+      if (conta) conta.textContent = parole.length ? n + " di " + righe.length + " in elenco" : testoConta;
+      if (nessuna) nessuna.hidden = n > 0 || !righe.length;
+    }
+    if (cerca) {
+      cerca.addEventListener("input", filtra);
+      document.addEventListener("keydown", function (ev) {
+        var t = ev.target.tagName;
+        if (ev.key !== "/" || t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || ev.target.isContentEditable) return;
+        ev.preventDefault(); cerca.focus(); cerca.select();
+      });
+    }
+    var ordine = { col: "", su: true };
+    root.querySelectorAll("[data-cy-sort]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var col = b.dataset.cySort;
+        ordine.su = ordine.col === col ? !ordine.su : col === "nome";
+        ordine.col = col;
+        righe.sort(function (a, c) {
+          var x = col === "nome" ? a.dataset.nome : +a.dataset[col] || 0;
+          var y = col === "nome" ? c.dataset.nome : +c.dataset[col] || 0;
+          return (x < y ? -1 : x > y ? 1 : 0) * (ordine.su ? 1 : -1);
+        });
+        righe.forEach(function (r) { tbody.insertBefore(r, nessuna || null); });
+        root.querySelectorAll("[data-cy-sort]").forEach(function (x) {
+          x.classList.toggle("is-sorted", x === b);
+          x.dataset.dir = x === b ? (ordine.su ? "asc" : "desc") : "";
+        });
+      });
+    });
+  }
+
+  function avvio() { lazy(document); monoTabelle(document); initSoftware(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", avvio); else avvio();
   document.addEventListener("htmx:afterSettle", avvio);
   // Tabelle riscritte dai filtri o dalla paginazione: ricontrollo leggero, al massimo una volta per fotogramma.

@@ -1,0 +1,396 @@
+/* Contatori IT · tocco «cyber», come il Security Center. Caricato dopo contatori.css: aggiunge, non cambia comportamenti.
+   Token --cc-*; toni is-ok/is-warn/is-danger/is-muted (e health-* già usati dal modulo). Tema scuro: body.theme-dark. */
+
+.contatori-module {
+  --cc-cyan: #22d3ee;
+  --cc-blue: #2563eb;
+  --cc-ok: var(--cm-ok);
+  --cc-warn: var(--cm-warn);
+  --cc-bad: var(--cm-danger);
+  --cc-mute: var(--text-light, #94a3b8);
+  --cc-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --cc-soft: color-mix(in srgb, var(--cm-surface) 92%, var(--cc-cyan));
+  --cc-kicker: #0891b2;
+}
+body.theme-dark .contatori-module { --cc-kicker: var(--cc-cyan); }
+.contatori-module .is-ok { --tone: var(--cc-ok); }
+.contatori-module .is-warn { --tone: var(--cc-warn); }
+.contatori-module .is-danger { --tone: var(--cc-bad); }
+.contatori-module .is-muted { --tone: var(--cc-mute); }
+.contatori-module .mono, .contatori-module .cc-mono { font-family: var(--cc-mono); letter-spacing: .2px; }
+.contatori-module .cc-kicker, .contatori-module .eyebrow { font-family: var(--cc-mono); letter-spacing: .12em; }
+.contatori-module .cc-kicker { display: block; font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--cc-kicker); }
+
+/* ---------- Menu del modulo ---------- */
+.contatori-module .cnav { background: linear-gradient(135deg, #020617, #0b1a33 60%, #0f2747); border-color: rgba(34, 211, 238, .25); }
+.contatori-module .cnav a { color: rgba(226, 232, 240, .78); }
+.contatori-module .cnav a:hover { color: #fff; background: rgba(255, 255, 255, .08); box-shadow: none; }
+.contatori-module .cnav a.active { color: #fff; background: rgba(34, 211, 238, .16); box-shadow: inset 0 -2px 0 var(--cc-cyan), 0 0 12px rgba(34, 211, 238, .25); }
+.contatori-module .cnav-label { font-family: var(--cc-mono); color: #7dd3fc !important; letter-spacing: .1em; }
+.contatori-module .cnav-nuovo summary { color: #e0f2fe; }
+
+/* ---------- Intestazioni: Centrale e pagine con «hero» ---------- */
+.contatori-module .centrale-head, .contatori-module .hero {
+  position: relative; overflow: hidden; color: #dbeafe; border-radius: 16px; border: 1px solid rgba(34, 211, 238, .25);
+  background:
+    linear-gradient(rgba(34, 211, 238, .07) 1px, transparent 1px) 0 0 / 22px 22px,
+    linear-gradient(90deg, rgba(34, 211, 238, .07) 1px, transparent 1px) 0 0 / 22px 22px,
+    radial-gradient(circle at 85% 0%, rgba(34, 211, 238, .22), transparent 55%),
+    linear-gradient(135deg, #020617 0%, #0b1a33 55%, #0f2747 100%);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, .25);
+}
+.contatori-module .centrale-head { padding: 20px 24px; margin-bottom: 16px; }
+.contatori-module .centrale-head::before, .contatori-module .hero::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 45%; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, .12) 50%, transparent); animation: cc-scan 7s linear infinite;
+}
+@keyframes cc-scan { from { transform: translateY(-100%); } to { transform: translateY(240%); } }
+.contatori-module .centrale-head > *, .contatori-module .hero > * { position: relative; z-index: 1; }
+.contatori-module .centrale-head h1, .contatori-module .hero h1 { color: #fff; text-shadow: 0 0 14px rgba(34, 211, 238, .3); }
+.contatori-module .centrale-head .eyebrow, .contatori-module .hero .eyebrow { color: #7dd3fc; opacity: 1; }
+.contatori-module .hero:after { border-color: rgba(34, 211, 238, .1); }
+.contatori-module .centrale-head .btn.ghost, .contatori-module .hero .btn.ghost { color: #e0f2fe; border-color: rgba(125, 211, 252, .35); background: rgba(15, 39, 71, .6); }
+.contatori-module .centrale-head .btn.ghost:hover, .contatori-module .hero .btn.ghost:hover { border-color: var(--cc-cyan); box-shadow: 0 0 12px rgba(34, 211, 238, .3); }
+.contatori-module .centrale-head .btn:not(.ghost), .contatori-module .hero .btn:not(.ghost) { background: linear-gradient(135deg, #0891b2, #2563eb); }
+
+/* ---------- Riquadri numerici: barra di tono, numeri a spaziatura fissa, luce sugli errori ---------- */
+.contatori-module .kpi, .contatori-module .card { position: relative; overflow: hidden; --tone: var(--cc-mute); transition: transform .15s, box-shadow .15s, border-color .15s; }
+.contatori-module .kpi::before, .contatori-module .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tone); box-shadow: 0 0 10px var(--tone); }
+.contatori-module .kpi:has(.health-ok), .contatori-module .card:has(.health-ok) { --tone: var(--cc-ok); }
+.contatori-module .kpi:has(.health-warning), .contatori-module .card:has(.health-warning) { --tone: var(--cc-warn); }
+.contatori-module .kpi:has(.health-error), .contatori-module .card:has(.health-error) { --tone: var(--cc-bad); }
+.contatori-module a.kpi:hover, .contatori-module .card.link:hover { transform: translateY(-2px); border-color: var(--tone); box-shadow: 0 6px 18px color-mix(in srgb, var(--tone) 22%, transparent); }
+.contatori-module .kpi .v, .contatori-module .card .v { font-family: var(--cc-mono); letter-spacing: -.02em; }
+.contatori-module .kpi .k, .contatori-module .card .k { font-family: var(--cc-mono); letter-spacing: .08em; }
+.contatori-module .kpi:has(.health-error) .k::after, .contatori-module .card:has(.health-error) .k::after {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--cc-bad); vertical-align: 1px;
+  animation: cc-led 1.6s ease-out infinite;
+}
+@keyframes cc-led { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); } 100% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } }
+
+/* ---------- Pannelli, tabelle, stati ---------- */
+.contatori-module .panel { position: relative; }
+.contatori-module .panel-head h2 { letter-spacing: -.01em; }
+.contatori-module th { font-family: var(--cc-mono); letter-spacing: .09em; }
+.contatori-module tbody tr { transition: background .12s, box-shadow .12s; }
+.contatori-module tbody tr:hover { box-shadow: inset 3px 0 0 var(--cc-cyan); background: var(--cc-soft); }
+.contatori-module .pill .status-dot { box-shadow: 0 0 6px currentColor; }
+.contatori-module .pill.danger .status-dot { animation: cc-breathe 1.6s ease-in-out infinite; }
+@keyframes cc-breathe { 50% { opacity: .35; } }
+.contatori-module .todo-dot { box-shadow: 0 0 8px currentColor; }
+.contatori-module .bar > span, .contatori-module .cons-bar > span { box-shadow: 0 0 8px rgba(34, 211, 238, .35); }
+
+/* ---------- Flusso della flotta (Centrale) ---------- */
+.contatori-module .cc-flow { display: grid; grid-template-columns: minmax(0, 360px) 220px minmax(0, 360px); justify-content: center; align-items: center; padding: 6px 0; }
+.contatori-module .cc-flow-col { position: relative; display: grid; gap: 8px; }
+.contatori-module .cc-node {
+  position: relative; display: grid; grid-template-columns: 12px 1fr; column-gap: 8px; align-items: center; margin: 0 34px; padding: 8px 12px;
+  border-radius: 10px; color: var(--cm-text); text-decoration: none; --tone: var(--cc-mute);
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 7%, var(--cm-surface));
+  transition: transform .15s, box-shadow .15s;
+}
+.contatori-module .cc-node.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-node.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-node.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-node:hover { transform: translateX(2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent); color: var(--cm-text); }
+.contatori-module .cc-node.is-active { box-shadow: 0 0 0 3px var(--cc-cyan); }
+.contatori-module .cc-node-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 8px var(--tone); grid-row: span 2; }
+.contatori-module .cc-node-name { font-weight: 700; }
+.contatori-module .cc-node small { grid-column: 2; color: var(--cm-muted); font-size: 11px; }
+.contatori-module .cc-node::after {
+  content: ""; position: absolute; top: 50%; width: 34px; height: 2px;
+  background: repeating-linear-gradient(90deg, var(--tone) 0 6px, transparent 6px 12px); background-size: 24px 2px; animation: cc-flow 0.9s linear infinite;
+}
+.contatori-module .cc-flow-in .cc-node::after { left: 100%; }
+.contatori-module .cc-flow-out .cc-node::after { right: 100%; }
+@keyframes cc-flow { from { background-position: 0 0; } to { background-position: 24px 0; } }
+.contatori-module .cc-flow-in::after, .contatori-module .cc-flow-out::before { content: ""; position: absolute; top: 18px; bottom: 18px; width: 2px; background: linear-gradient(var(--cc-cyan), var(--cc-blue)); opacity: .5; }
+.contatori-module .cc-flow-in::after { right: 0; }
+.contatori-module .cc-flow-out::before { left: 0; }
+.contatori-module .cc-flow-core { position: relative; display: grid; place-items: center; }
+.contatori-module .cc-flow-core::before, .contatori-module .cc-flow-core::after { content: ""; position: absolute; top: 50%; height: 2px; width: calc(50% - 70px); background: linear-gradient(90deg, var(--cc-cyan), var(--cc-blue)); opacity: .6; }
+.contatori-module .cc-flow-core::before { left: 0; }
+.contatori-module .cc-flow-core::after { right: 0; }
+.contatori-module .cc-core {
+  position: relative; z-index: 1; width: 140px; height: 140px; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: 2px; text-align: center;
+  --tone: var(--cc-ok); color: #e2e8f0;
+  background: radial-gradient(circle, #0b1a33 58%, transparent 60%), conic-gradient(var(--tone) calc(var(--pct) * 1%), rgba(148, 163, 184, .25) 0);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone) 12%, transparent), 0 0 30px color-mix(in srgb, var(--tone) 40%, transparent);
+  animation: cc-pulse 2.8s ease-in-out infinite;
+}
+.contatori-module .cc-core.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-core.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-core-ico { font-size: 22px; color: var(--cc-cyan); line-height: 1; }
+.contatori-module .cc-core strong { font: 700 12px/1.2 var(--cc-mono); color: #fff; }
+.contatori-module .cc-core span:not(.cc-core-ico) { font: 700 18px/1 var(--cc-mono); color: var(--tone); }
+.contatori-module .cc-core small { font: 600 10px/1 var(--cc-mono); color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; }
+@keyframes cc-pulse { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--tone) 6%, transparent), 0 0 40px color-mix(in srgb, var(--tone) 55%, transparent); } }
+
+/* ---------- Mappa della flotta ---------- */
+.contatori-module .cc-map-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; margin-bottom: 12px; }
+.contatori-module .cc-map-head h2 { margin: 2px 0 0; }
+.contatori-module .cc-map-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.contatori-module .cc-map-filters button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--cm-border); background: var(--cm-surface); color: var(--cm-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.contatori-module .cc-map-filters button b { font-family: var(--cc-mono); color: var(--tone, var(--cm-text)); }
+.contatori-module .cc-map-filters button.is-active { border-color: var(--cc-cyan); color: var(--cm-text); background: var(--cc-soft); box-shadow: 0 0 0 2px rgba(34, 211, 238, .18); }
+.contatori-module .cc-map-filters button:disabled { opacity: .4; cursor: default; }
+.contatori-module .cc-map-search { margin-left: auto; width: 220px; }
+.contatori-module .cc-map-search:focus { outline: none; border-color: var(--cc-cyan); box-shadow: 0 0 0 3px rgba(34, 211, 238, .2); }
+.contatori-module .cc-map-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: 440px; overflow: auto; padding: 2px; }
+.contatori-module .cc-tile {
+  position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; padding: 8px 10px 10px; border-radius: 9px; overflow: hidden;
+  text-decoration: none; color: var(--cm-text); border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 8%, var(--cm-surface));
+  transition: transform .12s, box-shadow .12s;
+}
+.contatori-module .cc-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 30%, transparent); color: var(--cm-text); }
+.contatori-module .cc-tile[hidden] { display: none; }
+.contatori-module .cc-tile-sigla { grid-row: span 2; font: 700 10px/1 var(--cc-mono); padding: 6px 5px; border-radius: 6px; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent); }
+.contatori-module .cc-tile-nome { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contatori-module .cc-tile-host { font: 500 10.5px/1.2 var(--cc-mono); color: var(--cm-muted); }
+.contatori-module .cc-tile i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--tone); box-shadow: 0 0 6px var(--tone); }
+.contatori-module .cc-tile.is-danger i { animation: cc-breathe 1.6s ease-in-out infinite; }
+.contatori-module .cc-map-note { margin: 10px 0 0; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .contatori-module .cc-flow { grid-template-columns: 1fr; gap: 14px; }
+  .contatori-module .cc-node { margin: 0; }
+  .contatori-module .cc-node::after, .contatori-module .cc-flow-in::after, .contatori-module .cc-flow-out::before, .contatori-module .cc-flow-core::before, .contatori-module .cc-flow-core::after { display: none; }
+  .contatori-module .cc-map-search { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contatori-module *, .contatori-module *::before, .contatori-module *::after { animation: none !important; }
+}
+/* Riquadri con uno stato a pillola (schede MFC e dispositivo): la barra prende il colore dello stato. */
+.contatori-module .card:has(.pill.ok) { --tone: var(--cc-ok); }
+.contatori-module .card:has(.pill.warn) { --tone: var(--cc-warn); }
+.contatori-module .card:has(.pill.danger) { --tone: var(--cc-bad); }
+
+/* ---------- Quadro per tipo di apparato e collegamenti (contatori/presentazione.py) ---------- */
+.contatori-module .cc-vista { border-top: 3px solid var(--cc-cyan); }
+.contatori-module .cc-ind-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.contatori-module .cc-ind {
+  display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; --tone: var(--cc-mute);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 6%, var(--cm-surface));
+}
+.contatori-module .cc-ind.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-ind.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-ind.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-ind-body { display: grid; gap: 2px; min-width: 0; }
+.contatori-module .cc-ind-label { font: 600 10.5px/1.3 var(--cc-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--cm-muted); }
+.contatori-module .cc-ind strong { font: 700 16px/1.25 var(--cc-mono); color: var(--tone); overflow-wrap: anywhere; }
+.contatori-module .cc-ind.is-muted strong { color: var(--cm-text); }
+.contatori-module .cc-ring {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--tone) calc(var(--pct) * 1%), var(--cm-border) 0); box-shadow: 0 0 12px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+.contatori-module .cc-ring b { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--cm-surface); font: 700 12px/1 var(--cc-mono); color: var(--cm-text); }
+.contatori-module .cc-ind:has(.cc-ring) strong { font-size: 13px; color: var(--cm-muted); }
+.contatori-module .cc-vista-nota { margin: 10px 0 0; font-size: 12px; }
+.contatori-module .cc-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.contatori-module .cc-links a {
+  padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; text-decoration: none;
+  color: var(--cm-primary-mid); border: 1px solid var(--cm-border); background: var(--cm-surface); transition: border-color .15s, box-shadow .15s;
+}
+.contatori-module .cc-links a:hover { border-color: var(--cc-cyan); box-shadow: 0 0 0 3px rgba(34, 211, 238, .15); }
+body.theme-dark .contatori-module .cc-links a { color: #e0f2fe; }
+.contatori-module .cc-links-bar { margin: -6px 0 18px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--cm-border); background: var(--cc-soft); }
+.contatori-module .cc-links-bar .cc-kicker { margin-right: 6px; }
+
+/* ======================= Apparato disegnato ======================= */
+.contatori-module .cc-disegno { border-top: 3px solid var(--cc-cyan); overflow: hidden; }
+.contatori-module .cc-draw-nota { margin: 10px 0 0; font-size: 12px; }
+.contatori-module .is-ok { --led: #22c55e; }
+.contatori-module .is-warn { --led: #f59e0b; }
+.contatori-module .is-danger { --led: #ef4444; }
+.contatori-module .is-muted { --led: #64748b; }
+
+/* Pannello frontale (firewall, switch) */
+.contatori-module .cc-face {
+  position: relative; padding: 16px 18px 14px; border-radius: 10px; color: #cbd5e1;
+  background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid #334155;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 24px rgba(2,6,23,.35);
+}
+.contatori-module .cc-face::before, .contatori-module .cc-face::after { content: ""; position: absolute; top: 50%; width: 10px; height: 26px; margin-top: -13px; border-radius: 3px; background: #475569; }
+.contatori-module .cc-face::before { left: 4px; }
+.contatori-module .cc-face::after { right: 4px; }
+.contatori-module .cc-face-firewall { background: linear-gradient(180deg, #3b1d1d, #1a0b0b); border-color: #7f1d1d; }
+.contatori-module .cc-face-id { display: flex; align-items: baseline; gap: 10px; margin: 0 8px 12px; }
+.contatori-module .cc-face-id strong { font: 700 13px/1 var(--cc-mono); color: #f1f5f9; letter-spacing: .08em; text-transform: uppercase; }
+.contatori-module .cc-face-id small { color: #94a3b8; }
+.contatori-module .cc-face-led { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--led, #64748b); box-shadow: 0 0 8px var(--led, transparent); }
+.contatori-module .cc-ports { display: grid; grid-auto-flow: column; grid-template-rows: 1fr; gap: 8px; justify-content: start; margin: 0 8px; overflow-x: auto; padding-bottom: 4px; }
+.contatori-module .cc-ports.is-due-file { grid-template-rows: 1fr 1fr; }
+.contatori-module .cc-port { position: relative; display: grid; justify-items: center; gap: 3px; width: 34px; text-decoration: none; color: #94a3b8; }
+.contatori-module .cc-port-jack { position: relative; width: 30px; height: 24px; border-radius: 3px; background: #020617; border: 2px solid #475569; box-shadow: inset 0 3px 6px rgba(0,0,0,.6); transition: transform .12s; }
+.contatori-module .cc-port-jack::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 6px; background: #020617; border: 2px solid #475569; border-top: 0; }
+.contatori-module .cc-port-led { width: 6px; height: 6px; border-radius: 50%; background: #1e293b; }
+.contatori-module .cc-port-n { font: 600 9px/1 var(--cc-mono); }
+.contatori-module .cc-port.is-on .cc-port-jack { border-color: var(--cc-cyan); box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(34,211,238,.45); }
+.contatori-module .cc-port.is-on .cc-port-led { background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: cc-blink 1.4s steps(2, start) infinite; }
+.contatori-module .cc-port.is-wan .cc-port-jack { border-color: #f97316; box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(249,115,22,.5); }
+.contatori-module .cc-port.is-wan .cc-port-led { background: #f97316; box-shadow: 0 0 6px #f97316; }
+.contatori-module .cc-port.is-danger .cc-port-jack { border-color: #ef4444; box-shadow: inset 0 3px 6px rgba(0,0,0,.6), 0 0 10px rgba(239,68,68,.55); }
+.contatori-module .cc-port.is-danger .cc-port-led { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+.contatori-module .cc-port:hover .cc-port-jack { transform: translateY(-1px); border-color: #e2e8f0; }
+.contatori-module .cc-port:hover { color: #f8fafc; }
+@keyframes cc-blink { to { opacity: .35; } }
+.contatori-module .cc-port-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 2px; font-size: 11px; color: var(--cm-muted); }
+.contatori-module .cc-port-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; border: 2px solid #475569; background: #020617; }
+.contatori-module .cc-port-legenda i.is-on { border-color: var(--cc-cyan); }
+.contatori-module .cc-port-legenda i.is-wan { border-color: #f97316; }
+.contatori-module .cc-port-legenda i.is-danger { border-color: #ef4444; }
+.contatori-module .cc-port-elenco { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.contatori-module .cc-port-elenco li { display: grid; grid-template-columns: auto auto auto 1fr; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 8px; background: var(--cc-soft); border: 1px solid var(--cm-border); }
+.contatori-module .cc-port-num { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; border-radius: 4px; font: 700 11px/1 var(--cc-mono); color: #e2e8f0; background: #0b1220; border: 2px solid #475569; }
+.contatori-module .cc-port-num.is-on { border-color: var(--cc-cyan); }
+.contatori-module .cc-port-num.is-wan { border-color: #f97316; }
+.contatori-module .cc-port-num.is-danger { border-color: #ef4444; }
+.contatori-module .cc-port-freccia { color: var(--cc-cyan); font-weight: 700; }
+
+/* MFC */
+.contatori-module .cc-draw-mfc { display: grid; place-items: center; }
+.contatori-module .cc-draw-mfc svg { width: min(420px, 100%); height: auto; filter: drop-shadow(0 10px 18px rgba(2,6,23,.18)); }
+.contatori-module .cc-svg-ombra { fill: rgba(15,23,42,.18); }
+.contatori-module .cc-svg-scanner { fill: #cbd5e1; stroke: #94a3b8; }
+.contatori-module .cc-svg-fessura { fill: #64748b; }
+.contatori-module .cc-svg-corpo { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1.5; }
+.contatori-module .cc-svg-display { fill: #052e16; stroke: #22c55e; }
+.contatori-module .cc-svg-display-testo { fill: #4ade80; font: 600 8.5px var(--cc-mono); }
+.contatori-module .cc-svg-led { fill: var(--led, #64748b); }
+.contatori-module .cc-svg-mini { fill: #334155; font: 600 8px var(--cc-mono); }
+.contatori-module .cc-svg-vano { fill: #0f172a; }
+.contatori-module .cc-svg-tubo { fill: #1e293b; stroke: #334155; }
+.contatori-module .cc-svg-toner.is-basso .cc-svg-tubo { stroke: #ef4444; stroke-width: 2; }
+.contatori-module .cc-svg-toner text { fill: #e2e8f0; }
+.contatori-module .cc-svg-cassetto-corpo { fill: #f1f5f9; stroke: #94a3b8; }
+.contatori-module .cc-svg-cassetto-vuoto { fill: #cbd5e1; }
+.contatori-module .cc-svg-cassetto-carta { fill: #22d3ee; }
+.contatori-module .cc-svg-cassetto.is-problema .cc-svg-cassetto-corpo { stroke: #ef4444; stroke-width: 2; }
+.contatori-module .cc-svg-cassetto.is-problema .cc-svg-cassetto-carta { fill: #ef4444; }
+.contatori-module .cc-svg-allarme { fill: none; stroke: #ef4444; stroke-width: 3; stroke-dasharray: 8 5; animation: cc-breathe 1.4s ease-in-out infinite; }
+.contatori-module .cc-svg-allarme-testo { fill: #ef4444; font: 700 10px var(--cc-mono); }
+
+/* Altri apparati */
+.contatori-module .cc-hw { display: grid; place-items: center; padding: 6px 0; }
+.contatori-module .cc-hw-dati { display: grid; gap: 4px; justify-items: start; }
+.contatori-module .cc-hw-dati strong { font: 700 20px/1.1 var(--cc-mono); color: var(--cm-text); }
+.contatori-module .cc-hw-dati small { font: 600 10px var(--cc-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--cm-muted); }
+.contatori-module .cc-ups { display: flex; gap: 22px; align-items: center; padding: 18px 24px; border-radius: 14px; background: linear-gradient(180deg, #1e293b, #0b1220); color: #e2e8f0; }
+.contatori-module .cc-ups .cc-hw-dati strong { color: #f8fafc; }
+.contatori-module .cc-ups-batt { position: relative; width: 70px; height: 120px; border-radius: 10px; border: 3px solid #94a3b8; overflow: hidden; --tone: var(--cc-ok); }
+.contatori-module .cc-ups-batt.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-ups-batt.is-danger { --tone: var(--cc-bad); }
+.contatori-module .cc-ups-batt i { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--pct) * 1%); background: linear-gradient(0deg, var(--tone), color-mix(in srgb, var(--tone) 60%, #fff)); box-shadow: 0 0 14px var(--tone); }
+.contatori-module .cc-ups-batt span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 15px var(--cc-mono); color: #fff; text-shadow: 0 1px 3px #000; }
+.contatori-module .cc-chassis { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 16px 20px; border-radius: 10px; background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid #334155; color: #e2e8f0; }
+.contatori-module .cc-chassis .cc-hw-dati strong { color: #f8fafc; margin-left: 10px; }
+.contatori-module .cc-bay { width: 34px; height: 70px; border-radius: 4px; background: repeating-linear-gradient(0deg, #0f172a 0 4px, #1e293b 4px 7px); border: 1px solid #475569; position: relative; }
+.contatori-module .cc-bay i { position: absolute; top: 6px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--led); box-shadow: 0 0 6px var(--led); }
+.contatori-module .cc-chassis-2u { padding: 18px 22px; }
+.contatori-module .cc-vent { width: 46px; height: 46px; border-radius: 50%; background: repeating-radial-gradient(circle, #0f172a 0 3px, #334155 3px 5px); border: 2px solid #475569; }
+.contatori-module .cc-hw-leds { display: grid; gap: 6px; margin-left: 12px; }
+.contatori-module .cc-hw-leds span { display: flex; align-items: center; gap: 8px; font: 600 10px var(--cc-mono); text-transform: uppercase; color: #cbd5e1; }
+.contatori-module .cc-hw-leds span::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--led); box-shadow: 0 0 6px var(--led); }
+.contatori-module .cc-hdd { width: 22px; height: 40px; border-radius: 3px; background: #0f172a; border: 1px solid #475569; position: relative; }
+.contatori-module .cc-hdd::after { content: ""; position: absolute; bottom: 5px; left: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--led); box-shadow: 0 0 5px var(--led); }
+.contatori-module .cc-cam { width: min(260px, 100%); }
+.contatori-module .cc-cam rect, .contatori-module .cc-cam circle { fill: #334155; stroke: #64748b; }
+.contatori-module .cc-cam .cc-cam-lente { fill: #0b1220; stroke: var(--cc-cyan); stroke-width: 2; }
+.contatori-module .cc-cam .cc-cam-led { fill: var(--led); stroke: none; }
+.contatori-module .cc-termo { display: flex; gap: 20px; align-items: center; }
+.contatori-module .cc-termo-tubo { position: relative; width: 22px; height: 120px; border-radius: 11px; border: 3px solid #94a3b8; overflow: hidden; background: var(--cm-surface); }
+.contatori-module .cc-termo-tubo i { position: absolute; left: 0; right: 0; bottom: 0; height: 70%; background: var(--led); box-shadow: 0 0 10px var(--led); }
+
+/* ======================= Topologia ======================= */
+.contatori-module .cc-topo { overflow-x: auto; }
+.contatori-module .cc-tree { list-style: none; margin: 0; padding: 0 0 0 26px; position: relative; }
+.contatori-module .cc-topo > .cc-tree { padding-left: 0; }
+.contatori-module .cc-tree-li { position: relative; padding: 6px 0 6px 18px; }
+.contatori-module .cc-tree .cc-tree .cc-tree-li::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid color-mix(in srgb, var(--cc-cyan) 55%, transparent); }
+.contatori-module .cc-tree .cc-tree .cc-tree-li:last-child::before { bottom: auto; height: 30px; }
+.contatori-module .cc-tree .cc-tree .cc-tree-li::after { content: ""; position: absolute; left: 0; top: 30px; width: 18px; height: 2px; background: repeating-linear-gradient(90deg, var(--cc-cyan) 0 5px, transparent 5px 9px); background-size: 18px 2px; animation: cc-flow 1s linear infinite; }
+.contatori-module .cc-tree-porta { display: block; margin: 0 0 3px 2px; font-size: 10px; color: var(--cc-kicker); }
+.contatori-module .cc-tree-ramo > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.contatori-module .cc-tree-ramo > summary::-webkit-details-marker { display: none; }
+.contatori-module .cc-tree-ramo > summary::before { content: "▸"; color: var(--cc-cyan); font-size: 12px; transition: transform .15s; }
+.contatori-module .cc-tree-ramo[open] > summary::before { transform: rotate(90deg); }
+.contatori-module .cc-tnode { display: inline-flex; align-items: center; gap: 10px; padding: 7px 12px 7px 8px; border-radius: 10px; text-decoration: none; color: var(--cm-text); --tone: var(--cc-mute); border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--cm-border)); background: color-mix(in srgb, var(--tone) 7%, var(--cm-surface)); transition: transform .12s, box-shadow .12s; }
+.contatori-module .cc-tnode.is-ok { --tone: var(--cc-ok); }
+.contatori-module .cc-tnode.is-warn { --tone: var(--cc-warn); }
+.contatori-module .cc-tnode.is-danger { --tone: var(--cc-bad); }
+.contatori-module a.cc-tnode:hover { transform: translateX(2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent); color: var(--cm-text); }
+.contatori-module .cc-tnode:target { box-shadow: 0 0 0 3px var(--cc-cyan); }
+.contatori-module .cc-tnode.is-testo { border-style: dashed; background: var(--cc-soft); }
+.contatori-module .cc-tnode-ico { display: grid; place-items: center; min-width: 38px; height: 30px; padding: 0 4px; border-radius: 7px; font: 700 10px var(--cc-mono); color: #e2e8f0; background: linear-gradient(180deg, #1e293b, #0b1220); border: 1px solid var(--tone); box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 40%, transparent); }
+.contatori-module .cc-tnode-txt { display: grid; line-height: 1.2; }
+.contatori-module .cc-tnode-txt strong { font-size: 13px; }
+.contatori-module .cc-tnode-txt small { font-size: 10.5px; color: var(--cm-muted); }
+.contatori-module .cc-tnode-n { font: 700 10px var(--cc-mono); padding: 2px 6px; border-radius: 999px; background: var(--cc-soft); color: var(--cm-muted); }
+.contatori-module .cc-topo-sciolti { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Editor delle porte */
+.contatori-module .cc-porte-tab td { padding: 6px; }
+.contatori-module .cc-porte-tab input, .contatori-module .cc-porte-tab select { padding: 6px 8px; font-size: 13px; }
+.contatori-module .cc-input-corto { width: 80px; }
+.contatori-module .cc-proposta { display: block; margin-top: 3px; font-size: 11px; color: var(--cc-kicker); }
+.contatori-module .cc-porte-tab tr:target td { background: var(--cc-soft); }
+.contatori-module .cc-ups .pill, .contatori-module .cc-chassis .pill { color: #e2e8f0; background: rgba(255, 255, 255, .12); }
+
+/* ======================= Adattamento al contenuto ======================= */
+/* Pannello: blocchi da 12 porte che vanno a capo; dentro il blocco 6 colonne × 2 file (o una fila fino a 12 porte). */
+.contatori-module .cc-port-blocchi { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 0 8px; }
+.contatori-module .cc-port-blocchi .cc-ports { margin: 0; overflow: visible; padding-bottom: 0; }
+.contatori-module .cc-ports.is-due-file { grid-template-rows: auto auto; }
+.contatori-module .cc-face-id { flex-wrap: wrap; min-width: 0; }
+.contatori-module .cc-face-id strong { overflow-wrap: anywhere; }
+@media (min-width: 1800px) {
+  .contatori-module .cc-port { width: 40px; }
+  .contatori-module .cc-port-jack { width: 36px; height: 28px; }
+}
+@media (max-width: 420px) {
+  .contatori-module .cc-face { padding: 14px 12px 12px; }
+  .contatori-module .cc-port-blocchi { gap: 10px; margin: 0 6px; }
+  .contatori-module .cc-ports { gap: 5px; }
+  .contatori-module .cc-port { width: 30px; }
+  .contatori-module .cc-port-jack { width: 26px; height: 20px; }
+}
+
+/* Elenco delle porte descritte: numero a sinistra, testo che va a capo, destinazione intera sotto il nome. */
+.contatori-module .cc-port-elenco { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.contatori-module .cc-port-elenco li { display: flex; gap: 10px; align-items: flex-start; flex: 0 1 auto; max-width: min(420px, 100%); }
+.contatori-module .cc-port-corpo { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; flex: 0 1 auto; }
+.contatori-module .cc-port-corpo strong { overflow-wrap: anywhere; }
+.contatori-module .cc-port-dest { overflow-wrap: anywhere; }
+.contatori-module .cc-port-dest a.plain { overflow-wrap: anywhere; }
+.contatori-module .cc-port-altre { margin-top: 8px; }
+.contatori-module .cc-port-altre > summary { cursor: pointer; font-weight: 700; color: var(--cm-primary-mid); padding: 6px 2px; }
+body.theme-dark .contatori-module .cc-port-altre > summary { color: #7dd3fc; }
+
+/* Albero: nodi su una riga (nome lungo accorciato con il nome intero al passaggio del mouse); l'area scorre di lato solo se
+   l'albero è più largo dello schermo; rientri più stretti sul telefono. */
+.contatori-module .cc-topo { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.contatori-module .cc-topo > .cc-tree { min-width: max-content; }
+.contatori-module .cc-tnode { max-width: min(440px, 80vw); }
+.contatori-module .cc-tnode-txt { min-width: 0; }
+.contatori-module .cc-tnode-txt strong, .contatori-module .cc-tnode-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contatori-module .cc-tree-porta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(440px, 80vw); }
+.contatori-module .cc-tree-altri .cc-tnode { cursor: pointer; }
+@media (max-width: 720px) {
+  .contatori-module .cc-tree { padding-left: 12px; }
+  .contatori-module .cc-tree-li { padding-left: 12px; }
+  .contatori-module .cc-tree .cc-tree .cc-tree-li::after { width: 12px; }
+  .contatori-module .cc-tnode { padding: 6px 10px 6px 6px; gap: 8px; max-width: 72vw; }
+  .contatori-module .cc-tnode-ico { min-width: 32px; height: 26px; }
+}
+
+/* Editor delle porte sul telefono: ogni porta è una scheda compatta (numero, nome e tipo; VLAN e collegato; testo e nota). */
+@media (max-width: 760px) {
+  .contatori-module .cc-porte-tab thead { display: none; }
+  .contatori-module .cc-porte-tab, .contatori-module .cc-porte-tab tbody { display: block; }
+  .contatori-module .cc-porte-tab tr { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px 8px; padding: 10px 4px; border-bottom: 1px solid var(--cm-border); }
+  .contatori-module .cc-porte-tab td { display: block; padding: 0; border: 0; min-width: 0; }
+  .contatori-module .cc-porte-tab td:first-child { grid-row: span 3; }
+  .contatori-module .cc-porte-tab td::before { display: none !important; }
+  .contatori-module .cc-porte-tab input, .contatori-module .cc-porte-tab select { width: 100%; }
+  .contatori-module .cc-input-corto { width: 100%; }
+}
