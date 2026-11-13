@@ -253,14 +253,17 @@ def _riconosci_hub(nome: str, cognome: str) -> list[dict]:
 
     from django.utils import timezone
 
+    from reception import informativa
     from reception.models import ContattoDitta, Visita
+    from reception.servizi import trova_ospite_fornitore
 
     righe = []
     for c in ContattoDitta.objects.select_related("ditta").filter(
             nome__iexact=nome, cognome__iexact=cognome, attivo=True, ditta__attiva=True)[:RICONOSCI_MAX]:
         ultima = Visita.objects.filter(contatto=c).order_by("-ingresso").first()
         righe.append({"chiave": chiave("hub", "fornitore", c.pk, c.ditta_id), "tipo": "fornitore", "azienda": c.ditta.nome,
-                      "referente": ultima.referente_nome if ultima else "", "motivo": ""})
+                      "referente": ultima.referente_nome if ultima else "", "motivo": "",
+                      "privacy_ok": informativa.gia_accettata(trova_ospite_fornitore(c.nome, c.cognome, c.ditta.nome))})
     visite = (Visita.objects.select_related("ospite")
               .filter(ospite__nome__iexact=nome, ospite__cognome__iexact=cognome, ospite__anonimizzato=False,
                       ingresso__gte=timezone.now() - timedelta(days=_giorni_conservazione()))
@@ -271,8 +274,38 @@ def _riconosci_hub(nome: str, cognome: str) -> list[dict]:
             continue
         visti.add(v.ospite_id)
         righe.append({"chiave": chiave("hub", "ospite", v.ospite_id), "tipo": "ospite", "azienda": v.ospite.azienda,
-                      "referente": v.referente_nome, "motivo": v.motivo})
+                      "referente": v.referente_nome, "motivo": v.motivo,
+                      "privacy_ok": informativa.gia_accettata(v.ospite)})
     return righe
+
+
+def privacy_ricordata_ospite(ospite_id: int | None) -> bool:
+    """Ospite dell'HUB che ha già accettato l'informativa in vigore: al chiosco non la rilegge."""
+    if not ospite_id or not nativa():
+        return False
+    from reception import informativa
+    from reception.models import Ospite
+
+    return informativa.gia_accettata(Ospite.objects.filter(pk=ospite_id).first())
+
+
+def privacy_ricordata_fornitore(azienda_id: int | None, nominativo_id: int | None) -> bool:
+    if not azienda_id or not nominativo_id or not nativa():
+        return False
+    from reception import informativa
+    from reception.models import ContattoDitta
+    from reception.servizi import trova_ospite_fornitore
+
+    c = ContattoDitta.objects.select_related("ditta").filter(pk=nominativo_id, ditta_id=azienda_id).first()
+    return bool(c) and informativa.gia_accettata(trova_ospite_fornitore(c.nome, c.cognome, c.ditta.nome))
+
+
+def privacy_ricordata_codice(codice: str) -> bool:
+    if not nativa():
+        return False
+    from reception import informativa, servizi
+
+    return informativa.gia_accettata(servizi.ospite_del_codice(servizi.preregistrazione_valida(codice)))
 
 
 def _riconosci_gp(nome: str, cognome: str) -> list[dict]:

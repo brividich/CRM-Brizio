@@ -47,7 +47,10 @@
   </table>
 </div>
 
-<h2 class="pres-gruppo" style="margin-top:18px;">Esterni in azienda ({% if filtrato %}{{ esterni|length }} su {% endif %}{{ n_esterni }})</h2>
+<div class="pres-gruppo-riga">
+  <h2 class="pres-gruppo" style="margin-top:18px;">Esterni in azienda ({% if filtrato %}{{ esterni|length }} su {% endif %}{{ n_esterni }})</h2>
+  {% if puo_registrare %}<button type="button" class="pres-btn" data-apri-registra>+ Registra chi è dentro</button>{% endif %}
+</div>
 <div class="pres-card" style="padding:0; overflow-x:auto;">
   <table class="pres-tab" data-fm-table-skip="1">
     <thead>
@@ -58,6 +61,7 @@
         <th class="pres-hide-sm">Referente</th>
         <th class="pres-c">Entrata</th>
         <th class="pres-c pres-hide-sm">Badge</th>
+        {% if puo_registrare %}<th class="pres-c">Registra</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -70,9 +74,13 @@
         <td class="pres-hide-sm">{{ p.referente|default:"—" }}</td>
         <td class="pres-c pres-mono">{{ p.entrata }}</td>
         <td class="pres-c pres-mono pres-hide-sm">{{ p.badge|default:"—" }}</td>
+        {% if puo_registrare %}<td class="pres-c">{% if p.tipo_codice != "SUPPLIER" %}
+          <form method="post" action="{% url 'reception:presenti_come_fornitore' p.visita_id %}">{% csrf_token %}
+            <button type="submit" class="pres-btn pres-btn-sm" title="Lo aggiunge ai nominativi della ditta: dal prossimo ingresso entra come fornitore">Come fornitore</button>
+          </form>{% else %}<span class="pres-sub">Fornitore</span>{% endif %}</td>{% endif %}
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="pres-vuoto">{% if stato.errore_esterni %}Elenco esterni non disponibile.{% elif filtrato %}Nessun esterno corrisponde ai filtri.{% else %}Nessun esterno registrato in azienda al GuestPortal.{% endif %}</td></tr>
+      <tr><td colspan="{% if puo_registrare %}7{% else %}6{% endif %}" class="pres-vuoto">{% if stato.errore_esterni %}Elenco esterni non disponibile.{% elif filtrato %}Nessun esterno corrisponde ai filtri.{% else %}Nessun esterno registrato in azienda.{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

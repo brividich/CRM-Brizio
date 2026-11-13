@@ -106,6 +106,8 @@ button { font:inherit; color:inherit; }
 /* Informativa */
 .ck-gdpr { max-height:380px; overflow:auto; padding:22px; border-radius:20px; background:var(--surface); border:2px solid var(--border); font-size:17px; line-height:1.55; color:#cbd5e1; user-select:text; }
 .ck-gdpr p { margin:0 0 12px; }
+.ck-ricordata { margin:0; padding:22px; border-radius:20px; border:2px solid #22c55e; background:rgba(34,197,94,.08); font-size:20px; line-height:1.5; }
+.ck-ricordata strong { color:#4ade80; }
 .ck-gdpr a { color:var(--accent); }
 .ck-check { display:flex; align-items:center; gap:18px; margin-top:18px; padding:18px 22px; border:2px solid var(--border2); border-radius:20px; background:var(--surface); font-size:21px; cursor:pointer; }
 .ck-check input { width:36px; height:36px; flex:none; accent-color:var(--green); }
@@ -253,8 +255,9 @@ button { font:inherit; color:inherit; }
     </section>
 
     <section class="ck-step" id="s-privacy">
-      <h1 class="ck-title">Informativa privacy</h1>
-      <div class="ck-gdpr">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
+      <h1 class="ck-title" id="t-gdpr">Informativa privacy</h1>
+      <p class="ck-ricordata" id="r-gdpr" hidden><strong>Informativa già accettata.</strong> Non serve rileggerla: conferma l'ingresso.</p>
+      <div class="ck-gdpr" id="g-gdpr">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
       <label class="ck-check" id="l-gdpr"><input type="checkbox" id="f-gdpr"><span><strong>Ho letto e accetto</strong> l'informativa sul trattamento dei miei dati personali.</span></label>
       <button type="button" class="ck-go" id="b-entra" disabled><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Confermo l'ingresso</button>
       <div class="ck-err" id="e-privacy"></div>
@@ -303,7 +306,8 @@ button { font:inherit; color:inherit; }
         <div class="ck-who-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></div>
         <div><div class="ck-who-n" id="prereg-nome">–</div><div class="ck-who-d" id="prereg-dett"></div></div>
       </div>
-      <div class="ck-gdpr ck-mt">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
+      <p class="ck-ricordata ck-mt" id="r-gdpr-p" hidden><strong>Informativa già accettata.</strong> Non serve rileggerla: conferma l'ingresso.</p>
+      <div class="ck-gdpr ck-mt" id="g-gdpr-p">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
       <label class="ck-check" id="l-gdpr-p"><input type="checkbox" id="f-gdpr-p"><span><strong>Ho letto e accetto</strong> l'informativa sul trattamento dei miei dati personali.</span></label>
       <button type="button" class="ck-go" id="b-prereg" disabled>Confermo l'ingresso</button>
       <div class="ck-err" id="e-prereg"></div>
@@ -438,6 +442,7 @@ button { font:inherit; color:inherit; }
     stato = {}; storia = [];
     document.querySelectorAll('input.ck-input, input.ck-big').forEach(function (i) { i.value = ''; });
     document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; c.dispatchEvent(new Event('change')); });
+    privacyRicordata('', 'b-entra', false); privacyRicordata('-p', 'b-prereg', false);
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
     $('f-host').value = ''; $('f-host').dataset.nome = ''; $('f-host').dataset.reparto = ''; $('f-host').dataset.foto = ''; $('f-host-cerca').value = ''; lettera = ''; disegnaReferenti();
     $('visite').innerHTML = ''; $('pad-box').hidden = true;
@@ -535,13 +540,15 @@ button { font:inherit; color:inherit; }
   }
   function scegliNoto(t) {
     stato.noto = t;
+    stato.privacyOk = !!t.privacy_ok;
+    privacyRicordata('', 'b-entra', stato.privacyOk);
     stato.fornitore = t.tipo === 'fornitore' ? t : null;
     stato.azienda = t.azienda || '';
     scegliReferente(trovaReferente(t.referente), true);
     scegliMotivo(MOTIVI.indexOf(t.motivo) !== -1 ? t.motivo : '');
     avanti();
   }
-  $('b-non-io').addEventListener('click', function () { stato.noto = null; stato.fornitore = null; stato.azienda = val('f-azienda'); avanti(); });
+  $('b-non-io').addEventListener('click', function () { stato.noto = null; stato.fornitore = null; stato.privacyOk = false; privacyRicordata('', 'b-entra', false); stato.azienda = val('f-azienda'); avanti(); });
 
   // ─── 3. Azienda (solo prima visita): nessun suggerimento, si scrive ───
   $('f-azienda').addEventListener('input', function () { stato.azienda = val('f-azienda'); pass(); });
@@ -667,16 +674,25 @@ button { font:inherit; color:inherit; }
   }
   legaSpunta('f-gdpr', 'l-gdpr', 'b-entra');
   legaSpunta('f-gdpr-p', 'l-gdpr-p', 'b-prereg');
+  // Già accettata (stessa versione del testo): niente testo né spunta, solo la conferma. Decide il server.
+  function privacyRicordata(suff, bottone, ok) {
+    $('r-gdpr' + suff).hidden = !ok;
+    $('g-gdpr' + suff).hidden = ok;
+    $('l-gdpr' + suff).hidden = ok;
+    $(bottone).disabled = !ok && !$('f-gdpr' + suff).checked;
+    if (suff === '') { $('t-gdpr').textContent = ok ? 'Tutto pronto' : 'Informativa privacy'; }
+  }
   $('b-entra').addEventListener('click', function () {
-    if (!$('f-gdpr').checked) { return errore('e-privacy', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
+    if (!$('f-gdpr').checked && !stato.privacyOk) { return errore('e-privacy', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
+    var consenso = $('f-gdpr').checked;
     if (!$('f-host').value) { return errore('e-privacy', 'Manca chi vieni a trovare: tocca «Referente» sul pass.'); }
     if (stato.fornitore) {
-      return chiama('ingresso-fornitore', { fornitore: stato.fornitore.chiave, referente_id: $('f-host').value, gdpr_consent: true })
+      return chiama('ingresso-fornitore', { fornitore: stato.fornitore.chiave, referente_id: $('f-host').value, gdpr_consent: consenso })
         .then(function (d) { esitoIngresso(d, 'e-privacy'); });
     }
     if (!stato.motivo) { return errore('e-privacy', 'Manca il motivo: tocca «Motivo» sul pass.'); }
     if (stato.noto) {
-      return chiama('ingresso-ospite', { ospite: stato.noto.chiave, referente_id: $('f-host').value, motivo: stato.motivo, gdpr_consent: true })
+      return chiama('ingresso-ospite', { ospite: stato.noto.chiave, referente_id: $('f-host').value, motivo: stato.motivo, gdpr_consent: consenso })
         .then(function (d) { esitoIngresso(d, 'e-privacy'); });
     }
     chiama('ingresso', {
@@ -765,13 +781,15 @@ button { font:inherit; color:inherit; }
       var p = d.prereg;
       $('prereg-nome').textContent = p.guest_name;
       $('prereg-dett').textContent = [p.guest_company, p.host_employee ? 'da ' + p.host_employee : '', p.purpose].filter(Boolean).join(' · ');
+      stato.privacyCodice = !!p.privacy_ok;
+      privacyRicordata('-p', 'b-prereg', stato.privacyCodice);
       vai('s-prereg');
     });
   }
   $('b-codice').addEventListener('click', cercaCodice);
   $('b-prereg').addEventListener('click', function () {
-    if (!$('f-gdpr-p').checked) { return errore('e-prereg', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
-    chiama('prereg-entra', { code: codice, gdpr_consent: true }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
+    if (!$('f-gdpr-p').checked && !stato.privacyCodice) { return errore('e-prereg', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
+    chiama('prereg-entra', { code: codice, gdpr_consent: $('f-gdpr-p').checked }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
   });
 
   // ─── QR: la fotocamera funziona solo in HTTPS, altrimenti i pulsanti non compaiono ───

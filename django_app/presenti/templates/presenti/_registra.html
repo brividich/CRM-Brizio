@@ -1,0 +1,61 @@
+{% comment %}
+Finestra centrale «Registra chi è dentro»: un fornitore (ditta e nominativo, creati se mancano) o un
+ospite che non è passato dal chiosco. Scrive reception:presenti_registra; nessuna mail al referente.
+{% endcomment %}
+<dialog class="pres-dlg" id="pres-registra" aria-labelledby="pres-registra-titolo">
+  <form method="post" action="{% url 'reception:presenti_registra' %}">
+    {% csrf_token %}
+    <div class="pres-dlg-head">
+      <h2 id="pres-registra-titolo">Registra chi è dentro</h2>
+      <button type="button" class="pres-dlg-x" data-chiudi-registra aria-label="Chiudi">×</button>
+    </div>
+    <div class="pres-tipi" role="radiogroup" aria-label="Chi è">
+      <label><input type="radio" name="tipo" value="fornitore" checked>Fornitore</label>
+      <label><input type="radio" name="tipo" value="ospite">Ospite</label>
+    </div>
+    <div class="pres-campi">
+      <div class="pres-campo"><label for="reg-cognome">Cognome</label><input id="reg-cognome" name="cognome" maxlength="100" required autocomplete="off"></div>
+      <div class="pres-campo"><label for="reg-nome">Nome</label><input id="reg-nome" name="nome" maxlength="100" required autocomplete="off"></div>
+      <div class="pres-campo pres-campo-largo"><label for="reg-azienda" id="reg-azienda-lab">Ditta</label>
+        <input id="reg-azienda" name="azienda" maxlength="200" list="reg-ditte" autocomplete="off" required>
+        <datalist id="reg-ditte">{% for d in reg_ditte %}<option value="{{ d }}">{% endfor %}</datalist></div>
+      <div class="pres-campo pres-campo-largo"><label for="reg-referente">Chi lo riceve</label>
+        <select id="reg-referente" name="referente" required><option value="">Scegli il dipendente</option>{% for r in reg_referenti %}<option value="{{ r.pk }}">{{ r.nome_elenco }}{% if r.reparto %} · {{ r.reparto }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="pres-campo pres-campo-largo" id="reg-motivo-box" hidden><label for="reg-motivo">Motivo</label>
+        <select id="reg-motivo" name="motivo">{% for m in reg_motivi %}<option value="{{ m }}">{{ m }}</option>{% empty %}<option value="Altro">Altro</option>{% endfor %}</select></div>
+      <div class="pres-campo"><label for="reg-cart">Cartellino</label>
+        <select id="reg-cart" name="cartellino" data-no-search>{% for n in reg_cartellini %}<option value="{{ n }}"{% if forloop.first %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="">Senza cartellino</option></select></div>
+      <div class="pres-campo"><label for="reg-ora">Entrato alle</label><input id="reg-ora" type="time" name="ora"></div>
+    </div>
+    <p class="pres-nota" id="reg-nota">Ditta e nominativo nuovi entrano tra i fornitori accreditati: dal prossimo ingresso il chiosco lo riconosce. «Entrato alle» vuoto = adesso.</p>
+    <div class="pres-dlg-azioni">
+      <button type="button" class="pres-btn" data-chiudi-registra>Annulla</button>
+      <button type="submit" class="pres-btn pres-btn-primary">Registra</button>
+    </div>
+  </form>
+</dialog>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var dlg = document.getElementById('pres-registra');
+  if (!dlg) { return; }
+  var lab = document.getElementById('reg-azienda-lab'), az = document.getElementById('reg-azienda');
+  var motivo = document.getElementById('reg-motivo-box'), nota = document.getElementById('reg-nota');
+  function tipo() {
+    var forn = dlg.querySelector('input[name=tipo]:checked').value === 'fornitore';
+    lab.textContent = forn ? 'Ditta' : 'Azienda (facoltativa)';
+    az.required = forn;
+    az.setAttribute('list', forn ? 'reg-ditte' : '');
+    motivo.hidden = forn;
+    nota.textContent = forn
+      ? 'Ditta e nominativo nuovi entrano tra i fornitori accreditati: dal prossimo ingresso il chiosco lo riconosce. «Entrato alle» vuoto = adesso.'
+      : 'Registrato come ospite, senza mail al referente. «Entrato alle» vuoto = adesso.';
+  }
+  dlg.querySelectorAll('input[name=tipo]').forEach(function (r) { r.addEventListener('change', tipo); });
+  // Il pulsante sta nella lista che si ricarica da sola: delega sul documento.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-apri-registra]')) { tipo(); dlg.showModal(); document.getElementById('reg-cognome').focus(); }
+    if (e.target.closest('[data-chiudi-registra]')) { dlg.close(); }
+  });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) { dlg.close(); } });
+})();
+</script>

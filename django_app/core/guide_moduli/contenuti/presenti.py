@@ -24,6 +24,7 @@ GUIDA = {
                     "Contatori in alto: dipendenti presenti, esterni in azienda e, per incarico di sicurezza, quanti sono in azienda.",
                     "Tabella «Esterni in azienda»: visitatori, ditte e docenti registrati al GuestPortal e non ancora usciti "
                     "(nome, azienda, tipo, referente, entrata, badge). Anche nel PDF.",
+                    "Con la reception nell'HUB, chi ha il permesso di registrare gli ingressi della reception vede «+ Registra chi è dentro» (finestra al centro: Fornitore o Ospite, cognome, nome, ditta o azienda, chi lo riceve, cartellino o «Senza cartellino», «Entrato alle» vuoto = adesso; ditta e nominativo nuovi entrano tra i fornitori accreditati, nessuna mail al referente) e, su ogni visitatore della tabella, «Come fornitore»: lo aggiunge ai nominativi della ditta della sua azienda e dal prossimo ingresso il chiosco lo riconosce come fornitore (serve l'azienda).",
                     "Ricerca per nome, matricola o reparto; filtri per reparto e incarico.",
                     "«PDF»: la lista nel formato del vecchio CN-PRESENZE, senza ora di entrata.",
                     "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti, scheda, organigramma "

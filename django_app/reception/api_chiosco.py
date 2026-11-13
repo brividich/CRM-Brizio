@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from . import servizi
+from . import informativa, servizi
 from .models import CategoriaVisita, ContattoDitta, DittaAccreditata, Ospite, Preregistrazione, Referente, Visita
 
 
@@ -60,8 +60,8 @@ def _checkin_submit(dati, ip):
     def fatto():
         noto = Ospite.objects.filter(pk=dati.get("guest_id"), anonimizzato=False).first() if dati.get("guest_id") else None
         if noto is not None:
-            noto.informativa_letta_il, noto.informativa_ip = timezone.now(), (ip or "")[:45]
-            noto.save(update_fields=["informativa_letta_il", "informativa_ip", "aggiornato_il"])
+            if dati.get("gdpr_consent") is not False or not informativa.gia_accettata(noto):
+                noto.save(update_fields=[*informativa.registra(noto, ip), "aggiornato_il"])
             return servizi.registra_ingresso(noto, referente_nome=dati["host_employee"],
                                              referente_email=dati.get("host_email", ""), motivo=dati.get("purpose", ""))
         ospite = servizi.ospite_da_dati(nome=dati["first_name"], cognome=dati["last_name"], email=dati.get("email", ""),
@@ -86,7 +86,8 @@ def _supplier_checkin(dati, ip):
     def fatto():
         ditta = DittaAccreditata.objects.get(pk=dati["supplier_id"])
         contatto = ContattoDitta.objects.get(pk=dati["contact_id"], ditta=ditta)
-        ospite = servizi.ospite_fornitore(nome=dati["first_name"], cognome=dati["last_name"], azienda=ditta.nome, ip=ip)
+        ospite = servizi.ospite_fornitore(nome=dati["first_name"], cognome=dati["last_name"], azienda=ditta.nome, ip=ip,
+                                          informativa=dati.get("gdpr_consent") is not False)
         return servizi.registra_ingresso(ospite, referente_nome=dati["host_employee"], referente_email=dati.get("host_email", ""),
                                          motivo=ditta.nome, tipo=Visita.FORNITORE, ditta=ditta, contatto=contatto,
                                          creata_da="FORNITORE")
@@ -123,12 +124,13 @@ def _prereg_lookup(dati, _ip):
     if p is None:
         return 200, {"success": False}
     return 200, {"success": True, "prereg": {"guest_name": p.ospite_nome, "guest_company": p.ospite_azienda,
-                                             "host_employee": p.referente_nome, "purpose": p.motivo}}
+                                             "host_employee": p.referente_nome, "purpose": p.motivo,
+                                             "privacy_ok": informativa.gia_accettata(servizi.ospite_del_codice(p))}}
 
 
 def _prereg_checkin(dati, ip):
     def fatto():
-        visita = servizi.ingresso_da_codice(dati.get("code"), ip=ip)
+        visita = servizi.ingresso_da_codice(dati.get("code"), ip=ip, informativa=dati.get("gdpr_consent") is not False)
         if visita is None:
             raise servizi.OperazioneNonValida
         return visita
