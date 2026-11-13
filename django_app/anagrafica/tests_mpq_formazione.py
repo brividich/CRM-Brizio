@@ -29,7 +29,9 @@ def _corso(codice="C1"):
 def _processo_con_corso(corso, *, legacy_ids=(77,), stato=None):
     cli = ClienteQualificante.objects.create(nome=f"Cli {corso.codice}")
     p = ProcessoQualificato.objects.create(nome=f"Proc {corso.codice}", cliente=cli)
-    p.corsi_richiesti.add(corso)
+    from .models_mpq import RequisitoPersona
+
+    RequisitoPersona.objects.create(processo=p, tipo=RequisitoPersona.TIPO_CORSO, corso=corso)
     st = stato or AbilitazioneProcesso.STATO_ATTIVA
     for lid in legacy_ids:
         AbilitazioneProcesso.objects.create(legacy_anagrafica_id=lid, processo=p, stato=st)
@@ -118,4 +120,8 @@ class CourseFormProcessiTests(TestCase):
         form = TrainingCourseForm(instance=c)
         form.cleaned_data = {"processi_richiedenti": [p]}
         form.salva_processi(c)
-        self.assertIn(p, c.processi_richiedenti.all())
+        from .models_mpq import RequisitoPersona
+        self.assertTrue(RequisitoPersona.objects.filter(processo=p, corso=c, tipo="corso").exists())
+        form.cleaned_data = {"processi_richiedenti": []}
+        form.salva_processi(c)
+        self.assertFalse(RequisitoPersona.objects.filter(processo=p, corso=c).exists())

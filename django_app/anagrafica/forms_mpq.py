@@ -63,8 +63,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "personale_modalita", "riferimento_dichiarazione",
             "stato", "motivo_stato", "riferimento_stato",
             "numero_revisione", "responsabile_qualita", "data_revisione",
-            "reparti", "clienti_addizionali",
-            "corsi_richiesti", "dpi_richiesti", "visite_richieste", "note",
+            "reparti", "clienti_addizionali", "note",
         ]
         widgets = {
             "cliente": forms.Select(attrs=_FM_SELECT),
@@ -92,11 +91,6 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "clienti_addizionali": forms.SelectMultiple(attrs={
                 "class": "fm-input fm-select", "size": "4",
                 "data-picker": "", "data-picker-placeholder": "Cerca cliente/ente…"}),
-            # corsi/DPI/visite: select nativi con filtro + crea-al-volo (_mpq_quickadd),
-            # niente data-picker (gestiti dall'enhancer MOD.128, non dal msp-picker).
-            "corsi_richiesti": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
-            "dpi_richiesti": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
-            "visite_richieste": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
             "note": forms.Textarea(attrs=_FM_TEXTAREA),
         }
 
@@ -104,8 +98,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for f in ("ente_certificatore", "tipo_qualifica", "reparti",
                   "clienti_addizionali", "durata_mesi", "data_conseguimento",
-                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi",
-                  "corsi_richiesti", "dpi_richiesti", "visite_richieste"):
+                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi"):
             self.fields[f].required = False
         cli_qs = ClienteQualificante.objects.all().order_by("nome")
         self.fields["cliente"].queryset = cli_qs
@@ -127,7 +120,15 @@ class RiferimentoProcessoForm(forms.ModelForm):
 
 
 class RequisitoQualificaForm(forms.ModelForm):
-    """Requisito generico tipizzato di un processo (1.14): audit/certificato/…"""
+    """Requisito del processo **uguale per tutti** (contratto, audit, certificato del processo…).
+
+    Ciò che serve alla singola persona (corso, esame, test visivo, esperienza, DPI)
+    va in «Cosa serve a una persona»: quei tipi restano scelti solo sui requisiti
+    già registrati, per non perderli.
+    """
+
+    TIPI_PROCESSO = tuple(k for k, _v in RequisitoQualifica.TIPO_CHOICES
+                          if k not in RequisitoQualifica.TIPI_PER_PERSONA)
 
     class Meta:
         model = RequisitoQualifica
@@ -154,6 +155,10 @@ class RequisitoQualificaForm(forms.ModelForm):
         for f in ("rif_normativo", "data_conseguimento", "periodicita_mesi",
                   "data_scadenza", "evidenza_url", "note"):
             self.fields[f].required = False
+        attuale = getattr(self.instance, "tipo", None) if self.instance.pk else None
+        self.fields["tipo"].choices = [
+            (k, v) for k, v in RequisitoQualifica.TIPO_CHOICES if k in self.TIPI_PROCESSO or k == attuale
+        ]
 
 
 class CertificazioneIndividualeForm(forms.ModelForm):
@@ -233,13 +238,15 @@ class RequisitoPersonaForm(forms.ModelForm):
     class Meta:
         model = RequisitoPersona
         fields = [
-            "tipo", "corso", "tipo_visita", "descrizione", "ruoli",
+            "tipo", "corso", "tipo_visita", "tipo_qualifica", "categoria_dpi", "descrizione", "ruoli",
             "ricorrenza", "frequenza_mesi", "scadenza_fine_mese", "ore_minime",
             "bloccante", "attivo", "note",
         ]
         labels = {
             "corso": "Corso (per «Corso di formazione»)",
             "tipo_visita": "Visita (per «Visita medica»)",
+            "tipo_qualifica": "Qualifica (per «Qualifica del catalogo»)",
+            "categoria_dpi": "Categoria DPI (per «DPI consegnato»)",
             "descrizione": "Descrizione",
             "ruoli": "Vale per i ruoli (vuoto = tutti)",
         }
@@ -247,6 +254,8 @@ class RequisitoPersonaForm(forms.ModelForm):
             "tipo": forms.Select(attrs=_FM_SELECT),
             "corso": forms.Select(attrs=_FM_SELECT),
             "tipo_visita": forms.Select(attrs=_FM_SELECT),
+            "tipo_qualifica": forms.Select(attrs=_FM_SELECT),
+            "categoria_dpi": forms.Select(attrs=_FM_SELECT),
             "descrizione": forms.TextInput(attrs=_FM),
             "ruoli": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6",
                                                  "data-picker": "",
@@ -262,9 +271,14 @@ class RequisitoPersonaForm(forms.ModelForm):
 
     def __init__(self, *args, processo=None, **kwargs):
         super().__init__(*args, **kwargs)
-        for f in ("corso", "tipo_visita", "descrizione", "ruoli", "frequenza_mesi",
-                  "ore_minime", "note"):
+        for f in ("corso", "tipo_visita", "tipo_qualifica", "categoria_dpi", "descrizione", "ruoli",
+                  "frequenza_mesi", "ore_minime", "note"):
             self.fields[f].required = False
+        self.fields["frequenza_mesi"].help_text = (
+            "Per corsi, visite e qualifiche vuoto = segue la loro scadenza; se la scrivi vale la più "
+            "vicina fra le due (anche nello scadenzario della Formazione).")
+        self.fields["tipo_qualifica"].queryset = (
+            self.fields["tipo_qualifica"].queryset.filter(is_active=True).order_by("nome"))
         processo = processo or getattr(self.instance, "processo", None)
         self.fields["ruoli"].queryset = (processo.ruoli.all() if processo is not None
                                          else self.fields["ruoli"].queryset.none())
@@ -277,9 +291,14 @@ class RequisitoPersonaForm(forms.ModelForm):
             self.add_error("corso", "Scegli il corso.")
         if tipo == RequisitoPersona.TIPO_VISITA and not cd.get("tipo_visita"):
             self.add_error("tipo_visita", "Scegli la visita.")
+        if tipo == RequisitoPersona.TIPO_QUALIFICA and not cd.get("tipo_qualifica"):
+            self.add_error("tipo_qualifica", "Scegli la qualifica.")
+        if tipo == RequisitoPersona.TIPO_DPI and not cd.get("categoria_dpi"):
+            self.add_error("categoria_dpi", "Scegli la categoria DPI.")
         if tipo not in RequisitoPersona.TIPI_DA_ALTRI_MODULI and not (cd.get("descrizione") or "").strip():
             self.add_error("descrizione", "Scrivi cosa serve (es. «Test visivo Jaeger»).")
-        if cd.get("ricorrenza") == RequisitoPersona.RICORRENZA_RICORRENTE and not cd.get("frequenza_mesi"):
+        if (cd.get("ricorrenza") == RequisitoPersona.RICORRENZA_RICORRENTE and not cd.get("frequenza_mesi")
+                and tipo not in RequisitoPersona.TIPI_DA_ALTRI_MODULI):
             self.add_error("frequenza_mesi", "Indica ogni quanti mesi va ripetuto.")
         if tipo == RequisitoPersona.TIPO_ESPERIENZA and not cd.get("ore_minime"):
             self.add_error("ore_minime", "Indica le ore da raggiungere.")

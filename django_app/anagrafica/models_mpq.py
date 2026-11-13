@@ -326,6 +326,12 @@ class RequisitoQualifica(models.Model):
     TIPO_RIF_NORMATIVO = "rif_normativo"
     TIPO_CONTRATTO = "contratto"
     TIPO_ALTRO = "altro"
+    # Tipi che riguardano la singola persona: sono in «Cosa serve a una persona»
+    # (RequisitoPersona). Restano qui solo sui requisiti registrati prima del 13/11.
+    TIPI_PER_PERSONA = ("corso", "esame", "esperienza", "visione", "dpi")
+    # Tipo corrispondente in RequisitoPersona quando si sposta il requisito.
+    TIPO_IN_REQUISITO_PERSONA = {"corso": "corso", "esame": "esame", "esperienza": "esperienza",
+                                 "visione": "test_visivo", "dpi": "dpi"}
     TIPO_CHOICES = [
         (TIPO_AUDIT, "Audit"),
         (TIPO_CORSO, "Corso/Formazione"),

@@ -192,8 +192,8 @@ def stato_persona(abilitazione, *, oggi=None, requisiti=None, contesto=None):
     """Stato di qualifica di una persona sul processo.
 
     Ritorna ``{"esito", "label", "operativa", "scadenza", "voci", "n_mancanti"}``:
-    - ``voci``: una per requisito (tipo, nome, stato, scadenza, ultima, req, bloccante),
-      più quelle storiche del processo (corsi/visite/DPI/requisiti tipizzati);
+    - ``voci``: una per requisito persona (tipo, nome, stato, scadenza, ultima, req, bloccante),
+      più i requisiti del processo uguali per tutti (contratto, audit…);
     - ``scadenza``: la prima scadenza fra i requisiti bloccanti e le certificazioni
       individuali attive (None = non scade);
     - ``operativa``: abilitazione ATTIVA ed esito ok/warn/nessuno.
@@ -376,4 +376,31 @@ def persone_in_scadenza(*, giorni=60, oggi=None) -> list[dict]:
             st = stato_persona(ab, oggi=oggi, contesto=ctx)
             if st["esito"] in ("ko", "incompleto") or (st["scadenza"] and st["scadenza"] <= limite):
                 out.append({"processo": p, "abilitazione": ab, "stato": st})
+    return out
+
+
+def processi_che_richiedono(*, corso=None, tipo_qualifica=None) -> list[dict]:
+    """Processi MOD.128 che chiedono il corso o la qualifica in «Cosa serve a una persona».
+
+    Per le schede del corso e della qualifica: ``[{"processo", "ruoli", "quando", "bloccante"}]``.
+    """
+    from ..models_mpq import RequisitoPersona
+
+    qs = RequisitoPersona.objects.filter(attivo=True).select_related("processo").prefetch_related("ruoli")
+    if corso is not None:
+        qs = qs.filter(tipo=RequisitoPersona.TIPO_CORSO, corso=corso)
+    elif tipo_qualifica is not None:
+        qs = qs.filter(tipo=RequisitoPersona.TIPO_QUALIFICA, tipo_qualifica=tipo_qualifica)
+    else:
+        return []
+    out = []
+    for r in qs.order_by("processo__nome", "id"):
+        if r.ricorrenza == r.RICORRENZA_UNA_TANTUM:
+            quando = "Una tantum"
+        elif r.is_ricorrente:
+            quando = f"Ogni {r.frequenza_mesi} mesi" + (" (a fine mese)" if r.scadenza_fine_mese else "")
+        else:
+            quando = "Segue la sua scadenza"
+        out.append({"processo": r.processo, "ruoli": [x.nome for x in r.ruoli.all()],
+                    "quando": quando, "bloccante": r.bloccante})
     return out

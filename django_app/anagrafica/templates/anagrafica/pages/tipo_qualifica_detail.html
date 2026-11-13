@@ -68,6 +68,16 @@
       {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun dipendente possiede questa qualifica.</div>{% endif %}
     </section>
 
+    {% if processi_mpq %}
+    {# ── Processi qualificati che la chiedono (MOD.128) ───────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Richiesta dai processi qualificati <span class="fmd-count">{{ processi_mpq|length }}</span></div></div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;">
+        {% for x in processi_mpq %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' x.processo.pk %}#requisiti-persone">{{ x.processo.nome }}</a> <span class="fmd-muted">· {% if x.ruoli %}{{ x.ruoli|join:", " }}{% else %}tutti i ruoli{% endif %} · {{ x.quando }}{% if not x.bloccante %} · non bloccante{% endif %}</span></li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     {# ── Corsi collegati ────────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-book"/></svg>Corsi collegati <span class="fmd-count">{{ corsi|length }}</span></div></div>

@@ -1613,8 +1613,14 @@ def formazione_corso_detail(request, corso_id: int):
             key=lambda x: _ordine_pool.get(x[0], x[1]).casefold(),
         )
 
+    from ..services.mpq_persone import processi_che_richiedono
+
+    # Processi qualificati MOD.128 che lo chiedono («Cosa serve a una persona»).
+    processi_mpq = processi_che_richiedono(corso=corso)
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
+        "processi_mpq": processi_mpq,
+        "n_a_chi_serve": len(regole) + len(processi_mpq),
         # Materiale del corso: e' la base che ogni nuova edizione si ritrova
         # proposta in copia (vedi TrainingSessionForm.allegati_dal_corso).
         "allegati_corso": list(corso.allegati.order_by("tipo", "-created_at")),

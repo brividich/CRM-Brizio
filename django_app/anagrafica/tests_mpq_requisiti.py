@@ -1,9 +1,7 @@
-"""MOD.128 MPQ — requisiti del processo (corsi/DPI/visite) + conformità.
+"""MOD.128 MPQ — visite e DPI richiesti dal processo («Cosa serve a una persona») + conformità.
 
-Un processo qualificato può dichiarare requisiti (come una mansione di rischio).
-Il servizio ``mpq_conformita.verifica_requisiti`` verifica, per una persona
-abilitata, se li possiede. Test tramite le **visite** (fixture leggere; la logica
-di corsi/DPI è simmetrica). Nessun dato reale.
+Dal 13/11 i requisiti per persona sono un solo elenco (``RequisitoPersona``):
+lo stato di una persona lo dà ``mpq_persone.stato_persona``. Nessun dato reale.
 """
 from __future__ import annotations
 
@@ -19,7 +17,9 @@ from .models import (
     TipoVisitaMedica,
     VisitaMedica,
 )
+from .models_mpq import RequisitoPersona
 from .services.mpq_conformita import verifica_requisiti
+from .services.mpq_persone import stato_persona
 
 
 def _proc():
@@ -27,15 +27,28 @@ def _proc():
     return ProcessoQualificato.objects.create(nome="Processo R", cliente=cli)
 
 
+def _visita(p, t):
+    """Visita uguale per tutti i ruoli, che segue la durata del tipo."""
+    return RequisitoPersona.objects.create(processo=p, tipo=RequisitoPersona.TIPO_VISITA, tipo_visita=t)
+
+
+def _dpi(p, cat):
+    return RequisitoPersona.objects.create(processo=p, tipo=RequisitoPersona.TIPO_DPI, categoria_dpi=cat)
+
+
+def _stato(p, legacy_id=50):
+    ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=legacy_id, processo=p,
+                                             stato=AbilitazioneProcesso.STATO_ATTIVA)
+    return stato_persona(ab)
+
+
 class RequisitiModelTests(TestCase):
-    def test_visite_richieste_m2m(self):
+    def test_visita_requisito_persona(self):
         p = _proc()
         t = TipoVisitaMedica.objects.create(nome="Sorveglianza sanitaria", durata_mesi=12)
-        p.visite_richieste.add(t)
-        self.assertEqual(p.visite_richieste.count(), 1)
-        # gli altri campi requisito esistono (manager accessibile)
-        self.assertEqual(p.corsi_richiesti.count(), 0)
-        self.assertEqual(p.dpi_richiesti.count(), 0)
+        r = _visita(p, t)
+        self.assertEqual(r.etichetta, "Sorveglianza sanitaria")
+        self.assertIn(RequisitoPersona.TIPO_VISITA, RequisitoPersona.TIPI_DA_ALTRI_MODULI)
 
 
 class VerificaRequisitiTests(TestCase):
@@ -48,8 +61,8 @@ class VerificaRequisitiTests(TestCase):
     def test_visita_mancante_incompleto(self):
         p = _proc()
         t = TipoVisitaMedica.objects.create(nome="Visita A", durata_mesi=12)
-        p.visite_richieste.add(t)
-        r = verifica_requisiti(p, legacy_id=50)  # nessuna visita registrata
+        _visita(p, t)
+        r = _stato(p)  # nessuna visita registrata
         self.assertEqual(r["esito"], "incompleto")
         self.assertEqual(r["voci"][0]["stato"], "mancante")
         self.assertEqual(r["n_mancanti"], 1)
@@ -57,21 +70,21 @@ class VerificaRequisitiTests(TestCase):
     def test_visita_scaduta_ko(self):
         p = _proc()
         t = TipoVisitaMedica.objects.create(nome="Visita B", durata_mesi=12)
-        p.visite_richieste.add(t)
+        _visita(p, t)
         VisitaMedica.objects.create(
             legacy_anagrafica_id=50, tipo=t, data_svolgimento=date(2020, 1, 1))
-        r = verifica_requisiti(p, legacy_id=50)
+        r = _stato(p)
         self.assertEqual(r["esito"], "ko")
         self.assertEqual(r["voci"][0]["stato"], "scaduto")
 
     def test_visita_valida_ok(self):
         p = _proc()
         t = TipoVisitaMedica.objects.create(nome="Visita C", durata_mesi=24)
-        p.visite_richieste.add(t)
+        _visita(p, t)
         VisitaMedica.objects.create(
             legacy_anagrafica_id=50, tipo=t,
             data_svolgimento=timezone.localdate() - timedelta(days=30))
-        r = verifica_requisiti(p, legacy_id=50)
+        r = _stato(p)
         self.assertEqual(r["esito"], "ok")
         self.assertEqual(r["voci"][0]["stato"], "ok")
 
@@ -86,7 +99,7 @@ class VisiteBidirezionaliTests(TestCase):
         # obbligatoria=False: è il processo a renderla obbligatoria, non il tipo
         t = TipoVisitaMedica.objects.create(
             nome="Visita da processo", durata_mesi=12, obbligatoria=False)
-        p.visite_richieste.add(t)
+        _visita(p, t)
         AbilitazioneProcesso.objects.create(
             legacy_anagrafica_id=88, processo=p, stato=AbilitazioneProcesso.STATO_ATTIVA)
         tipi = tipi_visita_richiesti_per_dipendente(88)  # persona senza ruoli
@@ -96,7 +109,7 @@ class VisiteBidirezionaliTests(TestCase):
         from .services.visite import tipi_visita_richiesti_per_dipendente
         p = _proc()
         t = TipoVisitaMedica.objects.create(nome="Visita Z", durata_mesi=12)
-        p.visite_richieste.add(t)
+        _visita(p, t)
         # legacy 999 non abilitato → nessuna visita da processo
         self.assertEqual(tipi_visita_richiesti_per_dipendente(999), [])
 
@@ -110,7 +123,7 @@ class DpiIdoneitaBidirezionaleTests(TestCase):
         from .services.mpq_idoneita import requisiti_processo_per_legacy
         p = _proc()
         cat = CategoriaDPI.objects.create(nome="Guanti anticalore")
-        p.dpi_richiesti.add(cat)
+        _dpi(p, cat)
         AbilitazioneProcesso.objects.create(
             legacy_anagrafica_id=88, processo=p, stato=AbilitazioneProcesso.STATO_ATTIVA)
         req = requisiti_processo_per_legacy([88])
@@ -122,7 +135,7 @@ class DpiIdoneitaBidirezionaleTests(TestCase):
         p = _proc()
         cat = CategoriaDPI.objects.create(
             nome="Occhiali protettivi", obbligatoria_mansionario=False)
-        p.dpi_richiesti.add(cat)
+        _dpi(p, cat)
         AbilitazioneProcesso.objects.create(
             legacy_anagrafica_id=77, processo=p, stato=AbilitazioneProcesso.STATO_ATTIVA)
         # persona senza mansione: l'obbligo nasce SOLO dal processo
