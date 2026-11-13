@@ -265,6 +265,18 @@
     });
   }
 
+  /* ── Filtri: invio automatico quando cambia una tendina ─── */
+  function initAutoSubmit() {
+    qsa("[data-nz-autosubmit]").forEach(function (form) {
+      qsa("[data-nz-autosubmit-change]", form).forEach(function (el) {
+        el.addEventListener("change", function () {
+          if (typeof form.requestSubmit === "function") form.requestSubmit();
+          else form.submit();
+        });
+      });
+    });
+  }
+
   function init() {
     initViewer();
     initEditor();
@@ -273,6 +285,7 @@
     initRemoveToggles();
     initSubmitOnce();
     initDrawers();
+    initAutoSubmit();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

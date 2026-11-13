@@ -583,6 +583,73 @@
 .nz-drawer-foot { padding: 12px 16px; border-top: 1px solid var(--border); }
 .nz-check { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid var(--border); color: var(--text); font-size: var(--fs-base); }
 
+/* ── Filtri (report, registro) ───────────────────────────── */
+.nz-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 12px 14px; }
+.nz-filter { display: grid; gap: 4px; flex: 0 1 170px; min-width: 140px; }
+.nz-filter-wide { flex: 1 1 240px; }
+.nz-filter > span { color: var(--text-light); font-size: var(--fs-xs); font-weight: 800; }
+.nz-filter .nz-input { width: 100%; min-height: 38px; }
+.nz-filter-actions { display: flex; gap: 6px; }
+.nz-panel-intro { margin: -4px 0 12px; }
+.nz-form-foot { display: flex; justify-content: flex-end; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.nz-roles.nz-roles-tall { max-height: 420px; }
+.nz-empty.nz-empty-sm { min-height: 90px; }
+
+/* ── Report: notizia scelta ──────────────────────────────── */
+.nz-report-focus { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.nz-report-focus-main { display: grid; gap: 6px; min-width: 0; flex: 1 1 360px; }
+.nz-report-focus-title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: 800; line-height: 1.25; }
+.nz-report-focus-actions { justify-content: flex-start; }
+.nz-cov.nz-cov-wide { width: 300px; }
+.nz-cov-wide .nz-cov-bar { height: 10px; }
+.nz-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 999px; background: var(--border); vertical-align: 1px; }
+.nz-dot.is-conforme { background: var(--nz-ok); }
+.nz-dot.is-aperto { background: var(--nz-warn); }
+.nz-dot.is-non_conforme { background: var(--nz-bad); }
+
+/* ── Tabelle (diventano schede sotto i 760px, mai scroll laterale) ── */
+.nz-table-wrap { padding: 0; overflow: hidden; }
+.nz-table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+.nz-table th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-light);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+.nz-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; overflow-wrap: anywhere; }
+.nz-table tbody tr:last-child td { border-bottom: 0; }
+.nz-table tbody tr:hover td { background: var(--nz-teal-soft); }
+.nz-table-link { color: var(--text); font-weight: 700; text-decoration: none; }
+.nz-table-link:hover { color: var(--nz-teal-ink); text-decoration: underline; }
+.nz-person { color: var(--text); font-weight: 700; }
+.nz-person-sub { margin-top: 2px; color: var(--text-light); font-size: var(--fs-xs); font-weight: 600; }
+.nz-hash { margin-top: 2px; color: var(--text-light); font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-2xs); }
+.nz-nowrap { white-space: nowrap; }
+.nz-status, .nz-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.nz-status.is-conforme { color: #166534; background: #dcfce7; }
+.nz-status.is-aperto { color: #92400e; background: #fef3c7; }
+.nz-status.is-non_conforme { color: #b91c1c; background: #fee2e2; }
+.nz-action.is-notizia_pubblicata, .nz-action.is-notizia_creata_pubblicata, .nz-action.is-notizia_ripubblicata { color: #166534; background: #dcfce7; }
+.nz-action.is-notizia_archiviata { color: #b91c1c; background: #fee2e2; }
+.nz-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; color: var(--text-light); font-size: var(--fs-sm); font-weight: 700; }
+.nz-pager > span { margin-right: auto; }
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .nz-read.has-viewer, .nz-form-grid { grid-template-columns: minmax(0, 1fr); }
@@ -608,6 +675,18 @@
   .nz-file { grid-template-columns: 32px minmax(0, 1fr); }
   .nz-file-actions { grid-column: 2; }
   .nz-link-row { grid-template-columns: 1fr; }
+  .nz-cov.nz-cov-wide { width: 100%; }
+  .nz-filter, .nz-filter-wide { flex: 1 1 100%; }
+}
+@media (max-width: 760px) {
+  .nz-table thead { display: none; }
+  .nz-table, .nz-table tbody, .nz-table tr, .nz-table td { display: block; width: 100%; }
+  .nz-table tr { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .nz-table tbody tr:last-child { border-bottom: 0; }
+  .nz-table td { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 2px 8px; padding: 3px 0; border: 0; }
+  .nz-table td::before { content: attr(data-label); grid-row: 1 / span 3; color: var(--text-light); font-size: var(--fs-xs); font-weight: 800; }
+  .nz-table td > * { grid-column: 2; justify-self: start; }
+  .nz-table tbody tr:hover td { background: none; }
 }
 
 /* Tema scuro scritto a mano (il generatore salta questi selettori). */
@@ -638,3 +717,8 @@ body.theme-dark .nz-gate-ico{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .nz-gate-ico.is-ok{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .nz-alert{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .nz-alert.is-info{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .nz-status.is-conforme{color:#86efac;background:rgba(56,161,105,.18)}
+body.theme-dark .nz-status.is-aperto{color:#fcd34d;background:rgba(214,158,46,.16)}
+body.theme-dark .nz-status.is-non_conforme{color:#fca5a5;background:rgba(229,62,62,.16)}
+body.theme-dark .nz-action.is-notizia_pubblicata,body.theme-dark .nz-action.is-notizia_creata_pubblicata,body.theme-dark .nz-action.is-notizia_ripubblicata{color:#86efac;background:rgba(56,161,105,.18)}
+body.theme-dark .nz-action.is-notizia_archiviata{color:#fca5a5;background:rgba(229,62,62,.16)}

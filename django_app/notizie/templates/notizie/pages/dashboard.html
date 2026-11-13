@@ -15,7 +15,7 @@
     </div>
     <div class="nz-head-actions">
       <a href="{% url 'notizie_dashboard_create' %}" class="nz-btn nz-btn-primary">+ Nuova notizia</a>
-      <a href="{% url 'notizie_report' %}" class="nz-btn">Report letture</a>
+      {% if can_report %}<a href="{% url 'notizie_report' %}" class="nz-btn">Report letture</a>{% endif %}
       <a href="{% url 'notizie_lista' %}" class="nz-btn">Vista utenti</a>
       {% if can_edit_dashboard_acl %}
         <button type="button" class="nz-btn" data-nz-drawer-open="nz-permessi">Permessi</button>
@@ -88,6 +88,7 @@
               <a class="nz-btn" href="{% url 'notizie_dashboard_edit' n.id %}">Modifica</a>
               {% if n.stato == "pubblicata" %}
                 <a class="nz-btn" href="{% url 'notizie_dettaglio' n.id %}">Apri</a>
+                {% if can_report %}<a class="nz-btn" href="{% url 'notizie_report' %}?notizia_id={{ n.id }}" title="Chi ha confermato e chi manca">Letture</a>{% endif %}
               {% endif %}
               {% if n.stato != "archiviata" %}
                 <form method="post" action="{% url 'notizie_dashboard_publish' n.id %}">

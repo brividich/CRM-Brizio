@@ -1,123 +1,136 @@
 {% extends "core/base.html" %}
-{% block title %}Report letture — Portale Applicativo{% endblock %}
+{% block title %}Report letture - Portale Applicativo{% endblock %}
+{% block body_class %}{{ block.super }} notizie-page notizie-report-page{% endblock %}
 
-{% block extra_head %}
-<style>
-.report-filters {
-  background:#f8fafc; border:1px solid var(--border,#e2e8f0); border-radius:8px;
-  padding:1rem 1.2rem; margin-bottom:1.5rem; display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end;
-}
-.report-filters label { font-size:.82rem; font-weight:600; color:var(--text-secondary,#64748b); display:block; margin-bottom:.2rem; }
-.report-filters select, .report-filters input[type=date], .report-filters input[type=text] {
-  padding:.38rem .65rem; border:1px solid var(--border,#e2e8f0); border-radius:6px; font-size:.88rem;
-}
-.report-table { width:100%; border-collapse:collapse; font-size:.88rem; }
-.report-table th { background:var(--primary,#1e3a5f); color:#fff; padding:.55rem .75rem; text-align:left; font-weight:600; }
-.report-table td { padding:.5rem .75rem; border-bottom:1px solid #f1f5f9; }
-.report-table tr:hover td { background:#f8fafc; }
-.badge-compliance { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.78rem; font-weight:600; }
-.badge-conforme     { background:#dcfce7; color:#16a34a; }
-.badge-aperto       { background:#fef9c3; color:#b45309; }
-.badge-non_conforme { background:#fee2e2; color:#dc2626; }
-.badge-non_letto    { background:#f1f5f9; color:#64748b; }
-.btn-export { padding:.45rem 1.1rem; background:#16a34a; color:#fff; border-radius:7px; font-size:.9rem; font-weight:600; text-decoration:none; }
-.btn-export:hover { opacity:.85; }
-
-body.theme-dark .report-filters { background:var(--surface); border-color:var(--border); }
-body.theme-dark .report-filters label { color:var(--text-light); }
-body.theme-dark .report-filters select, body.theme-dark .report-filters input[type=date], body.theme-dark .report-filters input[type=text] { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .report-table td { border-color:var(--border); color:var(--text); }
-body.theme-dark .report-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .badge-conforme { background:rgba(22,163,74,.15); color:#86efac; }
-body.theme-dark .badge-aperto { background:rgba(180,83,9,.15); color:#fcd34d; }
-body.theme-dark .badge-non_conforme { background:rgba(220,38,38,.15); color:#fca5a5; }
-body.theme-dark .badge-non_letto { background:var(--surface-alt); color:var(--text-light); }
-</style>
-{% endblock %}
+{% block extra_head %}{% include "notizie/components/_assets.html" %}{% endblock %}
 
 {% block content %}
-<div style="max-width:1100px;margin:2rem auto;padding:0 1rem;">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
-    <h1 style="font-size:1.5rem;font-weight:700;color:var(--text);">Report letture notizie</h1>
-    <a href="{% url 'notizie_report_csv' %}?notizia_id={{ filtro_notizia_id }}&stato={{ filtro_stato }}&da={{ filtro_da }}&a={{ filtro_a }}"
-       class="btn-export">&#11015; Esporta CSV</a>
-  </div>
+<div class="nz">
+  <header class="nz-head">
+    <div class="nz-head-title">
+      <h1>Report letture</h1>
+      {% if conformita.dovute %}
+        <div class="nz-head-sub">Obbligatorie pubblicate: {{ conformita.conformi }} conferme su {{ conformita.dovute }} dovute ({{ conformita.tasso }}%)</div>
+      {% endif %}
+    </div>
+    <div class="nz-head-actions">
+      <a href="{% url 'notizie_report_csv' %}{% if qs_corrente %}?{{ qs_corrente }}{% endif %}" class="nz-btn nz-btn-primary">Esporta CSV</a>
+      <a href="{% url 'notizie_dashboard' %}" class="nz-btn">Gestione notizie</a>
+      <a class="nz-btn" href="{% url 'guida_modulo' 'notizie' %}" title="Guida del modulo Notizie">? Guida</a>
+    </div>
+  </header>
 
-  <form method="get" class="report-filters">
-    <div>
-      <label for="f-notizia">Notizia</label>
-      <select name="notizia_id" id="f-notizia">
-        <option value="">Tutte</option>
+  <form method="get" class="nz-panel nz-filters" data-nz-autosubmit>
+    {% if filtro_stato %}<input type="hidden" name="stato" value="{{ filtro_stato }}">{% endif %}
+    <label class="nz-filter nz-filter-wide">
+      <span>Notizia</span>
+      <select name="notizia_id" class="nz-input" data-nz-autosubmit-change>
+        <option value="">Tutte le notizie</option>
         {% for n in notizie_qs %}
-          <option value="{{ n.id }}" {% if filtro_notizia_id == n.id|stringformat:"s" %}selected{% endif %}>
-            {{ n.titolo|truncatechars:50 }}
-          </option>
+          <option value="{{ n.id }}" {% if filtro_notizia_id == n.id|stringformat:"s" %}selected{% endif %}>{{ n.titolo|truncatechars:70 }}{% if n.stato == "archiviata" %} (archiviata){% endif %}</option>
         {% endfor %}
       </select>
-    </div>
-    <div>
-      <label for="f-stato">Stato</label>
-      <select name="stato" id="f-stato">
-        <option value="">Tutti</option>
-        <option value="conforme"     {% if filtro_stato == 'conforme' %}selected{% endif %}>Conforme</option>
-        <option value="non_conforme" {% if filtro_stato == 'non_conforme' %}selected{% endif %}>Non conforme</option>
-        <option value="aperto"       {% if filtro_stato == 'aperto' %}selected{% endif %}>Aperto</option>
-        <option value="non_letto"    {% if filtro_stato == 'non_letto' %}selected{% endif %}>Non letto</option>
-      </select>
-    </div>
-    <div>
-      <label for="f-da">Da</label>
-      <input type="date" name="da" id="f-da" value="{{ filtro_da }}">
-    </div>
-    <div>
-      <label for="f-a">A</label>
-      <input type="date" name="a" id="f-a" value="{{ filtro_a }}">
-    </div>
-    <div>
-      <button type="submit" style="padding:.4rem 1rem;background:var(--primary,#1e3a5f);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.9rem;">Filtra</button>
+    </label>
+    <label class="nz-filter nz-filter-wide">
+      <span>Cerca</span>
+      <input type="search" name="q" value="{{ filtro_q }}" class="nz-input" placeholder="Persona, ruolo o titolo">
+    </label>
+    <label class="nz-filter">
+      <span>Confermata dal</span>
+      <input type="date" name="da" value="{{ filtro_da }}" class="nz-input">
+    </label>
+    <label class="nz-filter">
+      <span>al</span>
+      <input type="date" name="a" value="{{ filtro_a }}" class="nz-input">
+    </label>
+    <div class="nz-filter-actions">
+      <button type="submit" class="nz-btn nz-btn-primary">Filtra</button>
+      {% if filtro_notizia_id or filtri_attivi or filtro_stato %}<a href="{% url 'notizie_report' %}" class="nz-btn">Azzera</a>{% endif %}
     </div>
   </form>
 
-  {% if not rows %}
-    <p style="color:var(--text-secondary,#64748b);">Nessun risultato per i filtri selezionati.</p>
+  {% if notizia_sel %}
+    <section class="nz-panel nz-report-focus">
+      <div class="nz-report-focus-main">
+        <div class="nz-card-top">
+          <span class="nz-badge is-{{ notizia_sel.stato }}"><span class="nz-badge-dot" aria-hidden="true"></span>{{ notizia_sel.get_stato_display }}</span>
+          {% if notizia_sel.obbligatoria %}<span class="nz-badge is-obbligatoria">Obbligatoria</span>{% endif %}
+          <span class="nz-muted">Versione {{ notizia_sel.versione }}{% if notizia_sel.pubblicato_il %} · pubblicata il {{ notizia_sel.pubblicato_il|date:"d-m-Y" }}{% endif %}</span>
+        </div>
+        <h2 class="nz-report-focus-title">{{ notizia_sel.titolo }}</h2>
+        <div class="nz-card-actions nz-report-focus-actions">
+          {% if notizia_sel.stato == "pubblicata" %}<a class="nz-btn" href="{% url 'notizie_dettaglio' notizia_sel.id %}">Apri</a>{% endif %}
+          <a class="nz-btn" href="{% url 'notizie_dashboard_edit' notizia_sel.id %}">Modifica</a>
+        </div>
+      </div>
+      {% if totale %}
+        <div class="nz-cov nz-cov-wide">
+          <div class="nz-cov-head"><span>{{ counts.conforme }} su {{ totale }} hanno confermato</span><strong>{% widthratio counts.conforme totale 100 %}%</strong></div>
+          <div class="nz-cov-bar" aria-hidden="true">
+            <span class="is-ok" style="width:{% widthratio counts.conforme totale 100 %}%"></span>
+            <span class="is-open" style="width:{% widthratio counts.aperto totale 100 %}%"></span>
+            <span class="is-old" style="width:{% widthratio counts.non_conforme totale 100 %}%"></span>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <nav class="nz-tabs" aria-label="Filtra per stato">
+    {% for t in stato_tabs %}
+      <a class="nz-tab{% if t.active %} active{% endif %}" href="?{{ t.qs }}">{% if t.key %}<i class="nz-dot is-{{ t.key }}" aria-hidden="true"></i>{% endif %}{{ t.label }} <span class="nz-tab-n">{{ t.count }}</span></a>
+    {% endfor %}
+  </nav>
+
+  {% if not page.object_list %}
+    <div class="nz-empty">
+      <div>
+        <strong>Nessuna lettura da mostrare</strong>
+        {% if filtri_attivi or filtro_stato %}Prova a togliere qualche filtro.{% elif not notizia_sel %}Scegli una notizia per vedere anche chi non l'ha ancora aperta.{% endif %}
+      </div>
+    </div>
   {% else %}
-  <div style="overflow-x:auto;">
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>Utente ID</th>
-          <th>Notizia</th>
-          <th>Versione letta</th>
-          <th>Ver. corrente</th>
-          <th>Hash</th>
-          <th>Stato</th>
-          <th>Apertura</th>
-          <th>Conferma</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td>{{ r.lettura.legacy_user_id }}</td>
-          <td>
-            <a href="{% url 'notizie_dettaglio' r.notizia.id %}" style="color:var(--text);">
-              {{ r.notizia.titolo|truncatechars:45 }}
-            </a>
-          </td>
-          <td>{{ r.lettura.versione_letta }}</td>
-          <td>{{ r.notizia.versione }}</td>
-          <td style="font-family:monospace;font-size:.75rem;color:#94a3b8;" title="{{ r.lettura.hash_versione_letta }}">
-            {{ r.lettura.hash_versione_letta|slice:":12" }}…
-          </td>
-          <td><span class="badge-compliance badge-{{ r.compliance }}">{{ r.compliance }}</span></td>
-          <td>{% if r.lettura.opened_at %}{{ r.lettura.opened_at|date:"d-m-Y H:i" }}{% else %}—{% endif %}</td>
-          <td>{% if r.lettura.ack_at %}{{ r.lettura.ack_at|date:"d-m-Y H:i" }}{% else %}—{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p style="font-size:.82rem;color:#94a3b8;margin-top:.5rem;">{{ rows|length }} risultati</p>
+    <div class="nz-panel nz-table-wrap">
+      <table class="nz-table" data-fm-table-skip="1">
+        <thead>
+          <tr>
+            <th>Persona</th>
+            {% if not notizia_sel %}<th>Notizia</th>{% endif %}
+            <th>Stato</th>
+            <th>Versione letta</th>
+            <th>Aperta</th>
+            <th>Confermata</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in page.object_list %}
+            <tr>
+              <td data-label="Persona">
+                <div class="nz-person">{% if r.nome %}{{ r.nome }}{% else %}Utente {{ r.user_id }}{% endif %}</div>
+                <div class="nz-person-sub">{% if r.ruolo %}{{ r.ruolo }} · {% endif %}ID {{ r.user_id }}</div>
+              </td>
+              {% if not notizia_sel %}
+                <td data-label="Notizia"><a class="nz-table-link" href="?{% if filtro_stato %}stato={{ filtro_stato }}&amp;{% endif %}notizia_id={{ r.notizia.id }}" title="Vedi tutti i destinatari di questa notizia">{{ r.notizia.titolo|truncatechars:60 }}</a></td>
+              {% endif %}
+              <td data-label="Stato"><span class="nz-status is-{{ r.stato }}">{{ r.stato_label }}</span></td>
+              <td data-label="Versione letta">
+                {% if r.lettura %}
+                  <span title="Impronta: {{ r.lettura.hash_versione_letta }}">v{{ r.lettura.versione_letta }}{% if r.lettura.versione_letta != r.notizia.versione %} <span class="nz-muted">(attuale v{{ r.notizia.versione }})</span>{% endif %}</span>
+                  {% if r.lettura.hash_versione_letta %}<div class="nz-hash" title="{{ r.lettura.hash_versione_letta }}">{{ r.lettura.hash_versione_letta|slice:":12" }}…</div>{% endif %}
+                {% else %}<span class="nz-muted">—</span>{% endif %}
+              </td>
+              <td data-label="Aperta">{% if r.lettura.opened_at %}{{ r.lettura.opened_at|date:"d-m-Y H:i" }}{% else %}<span class="nz-muted">—</span>{% endif %}</td>
+              <td data-label="Confermata">{% if r.lettura.ack_at %}{{ r.lettura.ack_at|date:"d-m-Y H:i" }}{% else %}<span class="nz-muted">—</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="nz-pager">
+      <span>{{ page.paginator.count }} righe{% if page.paginator.num_pages > 1 %} · pagina {{ page.number }} di {{ page.paginator.num_pages }}{% endif %}</span>
+      {% if page.has_previous %}<a class="nz-btn" href="?{% if qs_corrente %}{{ qs_corrente }}&amp;{% endif %}page={{ page.previous_page_number }}">‹ Precedente</a>{% endif %}
+      {% if page.has_next %}<a class="nz-btn" href="?{% if qs_corrente %}{{ qs_corrente }}&amp;{% endif %}page={{ page.next_page_number }}">Successiva ›</a>{% endif %}
+    </div>
   {% endif %}
 </div>
 {% endblock %}
