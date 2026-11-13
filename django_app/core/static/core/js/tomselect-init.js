@@ -27,6 +27,15 @@
         // Cerca su testo e value; ordina per pertinenza poi alfabetico.
         searchField: ["text"],
       });
+      // Scelta singola: mentre si digita il valore già scelto (es. «Io stesso»)
+      // resterebbe accanto al testo cercato e si sovrapporrebbe: si nasconde
+      // finché c'è testo nella ricerca (CSS .ts-digita in components.css).
+      if (!el.multiple) {
+        var digita = function (testo) { ts.wrapper.classList.toggle("ts-digita", !!testo); };
+        ts.on("type", digita);
+        ts.on("dropdown_close", function () { digita(""); });
+        ts.on("change", function () { digita(""); });
+      }
       // Con lo zoom CSS di theme.css (schermi 4K: :root{zoom:1.5}) le
       // coordinate di getBoundingClientRect e quelle assolute del body non
       // coincidono e la lista finiva mezza pagina più in basso. Si misura la
