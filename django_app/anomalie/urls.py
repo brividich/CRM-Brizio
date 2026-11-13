@@ -58,6 +58,8 @@ urlpatterns = [
     path("api/anomalie/riapri", views.api_riapri, name="api_anomalie_riapri"),
     path("api/anomalie/segnalato", views.api_segnalato, name="api_anomalie_segnalato"),
     path("api/anomalie/registro", registro_views.api_registro, name="api_anomalie_registro"),
+    path("api/anomalie/registro/passo", registro_views.api_registro_passo, name="api_anomalie_registro_passo"),
+    path("api/anomalie/registro/<int:pk>/nota", registro_views.api_registro_nota, name="api_anomalie_registro_nota"),
     path("api/anomalie/qualita/salva", qualita_views.api_qualita_salva, name="api_anomalie_qualita_salva"),
     path("api/anomalie/qualita/richiedi-info", qualita_views.api_qualita_richiedi_info,
          name="api_anomalie_qualita_richiedi_info"),

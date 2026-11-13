@@ -82,7 +82,13 @@ GUIDA = {
                 ("p", "La riga «In carico» del dettaglio dice a chi tocca l'anomalia. Capocommessa e CAR dell'OP, i CAR "
                       "segnalati e gli amministratori possono «Cambia incaricato»: scelgono il ruolo e la persona (per la "
                       "qualità fra i referenti RDC), che riceve notifica e mail e da quel momento ha l'anomalia in "
-                      "«In carico a me» al posto di chi la aveva di serie; «Torna di serie» lo toglie."),
+                      "«In carico a me» al posto di chi la aveva di serie; «Torna di serie» lo toglie. A chi passa "
+                      "l'anomalia in ogni momento lo decide la tabella «Chi ha in carico l'anomalia» (Configurazione → "
+                      "Qualità): per fase, avanzamento qualità, flag della decisione e avanzamento si sceglie un ruolo "
+                      "o una persona; vale la prima riga che corrisponde."),
+                ("p", "La «Storia» di un'anomalia la vede chi vede l'OP: oltre agli eventi permette «Aggiungi passo» "
+                      "(un'attività scritta a mano), «Aggiungi nota» sotto un evento e «Cambia incaricato». Gli eventi "
+                      "registrati non cambiano."),
                 ("p", "Il menu «Vista» delle colonne Ordini (Elenco, Coda di lavoro, Per capocommessa, Tabella) e "
                       "Anomalie (Per S/N, Per stato, Per fase, Per ruolo, Tabella, Pezzi) cambia il modo di vederle. "
                       "«Registro attività» (amministratori e «Supervisori») elenca in frasi chi ha fatto cosa: "

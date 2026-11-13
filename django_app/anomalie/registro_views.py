@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .codice import codice_anomalia, id_da_codice
 
@@ -31,6 +34,7 @@ VERBI = {
     "visualizza": "ha visto dal link della mail",
     "incaricato": "ha cambiato l'incaricato di", "allegato": "ha allegato file a",
     "allegato_tolto": "ha tolto un allegato da", "elimina": "ha eliminato",
+    "passo": "ha aggiunto un passo a",
 }
 # Filtro «Azione» della pagina → azioni registrate.
 GRUPPI = {
@@ -46,6 +50,7 @@ GRUPPI = {
     "incaricati": {"incaricato", "prendi_in_carico"},
     "allegati": {"allegato", "allegato_tolto"},
     "eliminazioni": {"elimina"},
+    "passi": {"passo"},
 }
 FONTI = {"portal": "Portale", "mail_action": "Link della mail", "system": "Sistema"}
 
@@ -74,6 +79,27 @@ def puo_vedere_registro(request) -> bool:
         return False
 
 
+def _vede_storia(request, codice) -> bool:
+    """La «Storia» di una sola anomalia la vede anche chi vede il suo OP."""
+    from .qualita_views import _riga
+    from .views import _can_view_anomalie_for_op
+
+    aid = id_da_codice(str(codice or "").strip()) if codice else None
+    if aid is None:
+        return False
+    try:
+        row = _riga(aid)
+    except Exception:
+        row = None
+    if row is None:
+        from .mail_action_models import AnomaliaActionLog
+
+        op = AnomaliaActionLog.objects.filter(anomalia_id=aid).values_list("op_id", flat=True).first()
+    else:
+        op = str(row.get("ex_op_nominativo") or "").strip()
+    return bool(op) and _can_view_anomalie_for_op(request, op)
+
+
 def _seriali(ids: list[int]) -> dict[int, str]:
     if not ids:
         return {}
@@ -95,10 +121,10 @@ def _seriali(ids: list[int]) -> dict[int, str]:
 def api_registro(request):
     from .mail_action_models import AnomaliaActionLog
 
-    if not puo_vedere_registro(request):
+    g = request.GET
+    if not puo_vedere_registro(request) and not _vede_storia(request, g.get("codice")):
         return JsonResponse({"success": False, "error": "Il registro attività lo vedono amministratori e supervisori."},
                             status=403)
-    g = request.GET
     try:
         giorni = max(1, min(int(g.get("giorni") or 7), 365))
     except ValueError:
@@ -122,7 +148,7 @@ def api_registro(request):
     fonte = str(g.get("fonte") or "").strip()
     if fonte in FONTI:
         qs = qs.filter(source=fonte)
-    logs = list(qs.order_by("-created_at")[:400])
+    logs = list(qs.order_by("-created_at").prefetch_related("note_margine")[:400])
     if azione == "clona":
         logs = [x for x in logs if (x.payload or {}).get("clonata_da")]
     elif azione == "inserimento":
@@ -148,7 +174,94 @@ def api_registro(request):
             "seriale": (seriali.get(int(x.anomalia_id), "") if x.anomalia_id else "") or str(payload.get("seriale") or ""),
             "clonata_da": codice_anomalia(payload["clonata_da"]) if payload.get("clonata_da") else "",
             "modifiche": modifiche, "note": (x.note or "")[:500], "fonte": FONTI.get(x.source, x.source),
+            "note_margine": [_nota_json(n) for n in x.note_margine.all()],
         })
     persone = sorted({e["chi"] for e in eventi if e["chi"] != "—"})
     return JsonResponse({"success": True, "eventi": eventi, "persone": persone,
                          "op": sorted({e["op_id"] for e in eventi if e["op_id"]})})
+
+
+# ── Storia modificabile: note a margine e passi aggiunti a mano ────────────
+
+
+def _nota_json(n) -> dict:
+    quando = timezone.localtime(n.created_at)
+    return {"id": n.pk, "testo": n.testo, "chi": n.user_display or "—", "il": quando.strftime("%d/%m/%Y %H:%M")}
+
+
+def _json_body(request) -> dict:
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _chi(request) -> str:
+    from .qualita_views import _chi as chi
+
+    return chi(request)
+
+
+def _puo_scrivere(request, op_id: str) -> bool:
+    """Scrive nella Storia chi vede il registro o chi gestisce l'OP."""
+    from .views import _can_edit_anomalie_for_op
+
+    return puo_vedere_registro(request) or _can_edit_anomalie_for_op(request, op_id)
+
+
+@login_required
+@require_POST
+def api_registro_nota(request, pk: int):
+    """Nota a margine di un evento: l'evento non cambia."""
+    from .mail_action_models import AnomaliaActionLog, AnomaliaActionNota
+
+    log = AnomaliaActionLog.objects.filter(pk=pk).first()
+    if log is None:
+        return JsonResponse({"success": False, "error": "Evento non trovato"}, status=404)
+    if not _puo_scrivere(request, log.op_id):
+        return JsonResponse({"success": False, "error": "Le note le scrive chi vede il registro o gestisce l'OP"},
+                            status=403)
+    testo = str(_json_body(request).get("testo") or "").strip()[:2000]
+    if not testo:
+        return JsonResponse({"success": False, "error": "Scrivi la nota"}, status=400)
+    nota = AnomaliaActionNota.objects.create(log=log, testo=testo, user=request.user, user_display=_chi(request))
+    try:
+        from core.audit import log_action
+
+        log_action(request, "anomalia_registro_nota", "anomalie", {"log_id": log.pk, "anomalia_id": log.anomalia_id})
+    except Exception:
+        pass
+    return JsonResponse({"success": True, "nota": _nota_json(nota)})
+
+
+@login_required
+@require_POST
+def api_registro_passo(request):
+    """Passo aggiunto a mano alla Storia (es. «telefonato al cliente»)."""
+    from .mail_action_service import log_anomalia_portal_action
+    from .qualita_views import _riga
+    from .views import _client_ip, get_legacy_user
+
+    data = _json_body(request)
+    try:
+        local_id = int(str(data.get("local_id") or "").split(":")[-1])
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Anomalia non valida"}, status=400)
+    testo = str(data.get("testo") or "").strip()[:2000]
+    if not testo:
+        return JsonResponse({"success": False, "error": "Scrivi cosa è stato fatto"}, status=400)
+    row = _riga(local_id)
+    if row is None:
+        return JsonResponse({"success": False, "error": "Anomalia non trovata"}, status=404)
+    op_id = str(row.get("ex_op_nominativo") or "").strip()
+    if not _puo_scrivere(request, op_id):
+        return JsonResponse({"success": False, "error": "I passi li aggiunge chi vede il registro o gestisce l'OP"},
+                            status=403)
+    legacy = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    log_anomalia_portal_action(
+        anomalia_id=local_id, op_id=op_id, action="passo", user=request.user,
+        legacy_user_id=int(legacy.id) if legacy else None, user_display=_chi(request), note=testo,
+        ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+    )
+    return JsonResponse({"success": True})

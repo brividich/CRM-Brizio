@@ -950,6 +950,46 @@
   <div class="card" style="margin-bottom:18px;">
     <div class="card-head">
       <div>
+        <div class="card-title">Chi ha in carico l'anomalia</div>
+        <div class="page-sub" style="margin-top:4px;">Per ogni momento dell'anomalia scegli a chi passa: un ruolo o una persona precisa. Vale la prima riga che corrisponde, dall'alto. &laquo;Di serie&raquo; lascia la regola di sempre (scritta accanto) o, se non c'&egrave;, passa alla riga successiva. Restano fissi: chiusa = nessuno, richiesta di informazioni aperta = chi deve rispondere, CAR segnalati = sempre anche loro; &laquo;Cambia incaricato&raquo; sulla singola anomalia vince sulla tabella.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_regole_carico">
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Quando</th><th>Passa a</th></tr></thead>
+            <tbody>
+              {% for r in regole_carico %}
+              {% ifchanged r.gruppo %}<tr><td colspan="2" style="font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);background:var(--bg);">{{ r.gruppo }}</td></tr>{% endifchanged %}
+              <tr>
+                <td>{{ r.etichetta }}</td>
+                <td>
+                  <select name="regola__{{ r.chiave }}" class="ga-select" style="min-width:260px;">
+                    <option value="">Di serie{% if r.di_serie %} ({{ r.di_serie }}){% endif %}</option>
+                    <optgroup label="Ruolo">
+                      {% for val, label in regole_ruoli %}<option value="{{ val }}"{% if r.valore == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="Persona">
+                      {% for p in regole_persone %}<option value="{{ p.v }}"{% if r.valore == p.v %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
+                    </optgroup>
+                  </select>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <button type="submit" class="btn" style="margin-top:10px;">Salva</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-head">
+      <div>
         <div class="card-title">Non conformit&agrave; per OP (ISO 9001 &sect;10.2)</div>
         <div class="page-sub" style="margin-top:4px;">Alla prima anomalia di un OP nasce la sua NC (<code>NC-anno-numero</code>); le anomalie successive si aggiungono finch&eacute; &egrave; aperta, dopo la chiusura se ne apre una nuova collegata come ricaduta. Contenimento, analisi delle cause, azioni correttive e verifica di efficacia sono tutte facoltative: lo stato si calcola da ci&ograve; che &egrave; compilato e dall'avanzamento dato dal capocommessa alle anomalie.</div>
       </div>
