@@ -383,3 +383,35 @@ class MansioniLivelliTests(TestCase):
         self.assertIn((4601, self.p.pk), qualificati([4601], [self.p.pk]))
         RequisitoPersona.objects.create(processo=self.p, tipo=RequisitoPersona.TIPO_ESAME, descrizione="Esame Q")
         self.assertNotIn((4601, self.p.pk), qualificati([4601], [self.p.pk]))
+
+
+class InattivitaTests(TestCase):
+    def test_riesame_dopo_mesi_senza_attivita(self):
+        from core.models import UserOnboarding
+
+        oggi = timezone.localdate()
+        p = _proc("Processo T")
+        p.inattivita_mesi = 6
+        p.save(update_fields=["inattivita_mesi"])
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4701, processo=p,
+                                                 stato=AbilitazioneProcesso.STATO_ATTIVA,
+                                                 data_ingresso=oggi - timedelta(days=400))
+        st = stato_persona(ab)
+        self.assertFalse(st["operativa"])
+        self.assertEqual(st["esito"], "ko")
+        u = get_user_model().objects.create_superuser("mpq.att", "mpq.att@example.com", "x")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        r = self.client.post(reverse("anagrafica:mpq_attivita", args=[ab.pk]))
+        self.assertEqual(r.status_code, 302)
+        ab.refresh_from_db()
+        self.assertEqual(ab.ultima_attivita, oggi)
+        st = stato_persona(ab)
+        self.assertTrue(st["operativa"])
+        self.assertIsNotNone(st["scadenza"])  # la data del prossimo riesame
+
+    def test_senza_impostazione_nessun_effetto(self):
+        p = _proc("Processo T2")
+        ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4702, processo=p,
+                                                 stato=AbilitazioneProcesso.STATO_ATTIVA)
+        self.assertEqual(stato_persona(ab)["esito"], "nessuno")

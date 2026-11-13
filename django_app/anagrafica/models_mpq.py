@@ -220,6 +220,10 @@ class ProcessoQualificato(models.Model):
         null=True, blank=True, verbose_name="Ripeti la qualifica macchine ogni (mesi)",
         help_text="Vuoto = la qualifica di una macchina non scade (salvo sospensione).",
     )
+    inattivita_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Riesame dopo mesi senza attività",
+        help_text="Vuoto = nessun riesame per inattività. Es. 6: chi non lavora il processo da 6 mesi non è più qualificato finché non si registra un'attività o un riesame.",
+    )
 
     # Personale nominale vs organizzativo (rimando a dichiarazione aziendale).
     personale_modalita = models.CharField(
@@ -452,6 +456,9 @@ class AbilitazioneProcesso(models.Model):
 
     stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_ATTIVA, db_index=True)
     data_ingresso = models.DateField(null=True, blank=True)
+    # Ultima volta che la persona ha lavorato il processo (o riesame dopo inattività):
+    # con ``ProcessoQualificato.inattivita_mesi`` decide se è ancora qualificata.
+    ultima_attivita = models.DateField(null=True, blank=True, verbose_name="Ultima attività sul processo")
     data_dismissione = models.DateField(null=True, blank=True)
     motivo = models.CharField(max_length=255, blank=True, default="")
 

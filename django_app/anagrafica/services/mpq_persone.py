@@ -265,6 +265,22 @@ def stato_persona(abilitazione, *, oggi=None, requisiti=None, contesto=None):
 
     _applica_alternative(voci)
 
+    # Riesame per inattività: oltre N mesi dall'ultima attività (o dall'ingresso) non è qualificata.
+    mesi = getattr(abilitazione.processo, "inattivita_mesi", None)
+    if mesi:
+        from ..models_mpq import _add_months
+
+        creata = getattr(abilitazione, "created_at", None)
+        base = (abilitazione.ultima_attivita or abilitazione.data_ingresso
+                or (timezone.localtime(creata).date() if creata else None))
+        limite = _add_months(base, int(mesi)) if base else None
+        voci.append({
+            "tipo": "Attività", "nome": f"Attività sul processo (riesame dopo {mesi} mesi)",
+            "stato": "mancante" if limite is None else _stato_da_scadenza(limite, oggi),
+            "scadenza": limite, "ultima": abilitazione.ultima_attivita, "req": None, "bloccante": True,
+            "attivita": True,
+        })
+
     if not esterno:
         storiche = verifica_requisiti(abilitazione.processo, legacy_id, oggi=oggi)
         for v in storiche["voci"]:
