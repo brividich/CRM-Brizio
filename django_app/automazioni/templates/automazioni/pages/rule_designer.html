@@ -1,11 +1,11 @@
-﻿{% extends "core/base.html" %}
+{% extends "core/base.html" %}
 {% load static %}
 
 {% block title %}Automazioni - Designer Visuale | Admin Portale{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'automazioni/css/pagine/rule_designer.css' %}?v=20261112">
-<link rel="stylesheet" href="{% static 'automazioni/css/cn_automations.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'automazioni/css/pagine/rule_designer.css' %}?v=20261113">
+<link rel="stylesheet" href="{% static 'automazioni/css/cn_automations.css' %}?v=20261113">
 <script src="{% static 'automazioni/js/cn_automations.js' %}?v=20261112" defer></script>
 {% endblock %}
 
@@ -110,17 +110,18 @@
             <div class="flow-workspace-shell" role="dialog" aria-modal="true" aria-label="Workspace diagramma di flusso">
               <aside class="flow-workspace-side">
                 <div class="flow-workspace-side-head">
-                  <div class="flow-workspace-kicker">Workspace flow</div>
-                  <div class="flow-workspace-title">{{ rule_name_value }}</div>
-                  <div class="flow-workspace-copy">Canvas a destra, inspector a sinistra. Il diagramma resta visibile mentre modifichi la card selezionata.</div>
+                  <div class="flow-workspace-title-row">
+                    <div class="flow-workspace-kicker">Workspace flow</div>
+                    <div class="flow-workspace-title" title="{{ rule_name_value }}">{{ rule_name_value }}</div>
+                  </div>
                   <div class="designer-pill-row">
                     <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
-                    <span class="designer-pill">{{ existing_condition_entries|length }} condizioni</span>
-                    <span class="designer-pill designer-pill-success">{{ existing_action_entries|length }} azioni</span>
+                    <span class="designer-pill">{% with n=existing_condition_entries|length %}{{ n }} condizion{{ n|pluralize:"e,i" }}{% endwith %}</span>
+                    <span class="designer-pill designer-pill-success">{% with n=existing_action_entries|length %}{{ n }} azion{{ n|pluralize:"e,i" }}{% endwith %}</span>
                   </div>
                   <div class="designer-actions">
                     <button class="btn" type="submit">Salva designer</button>
-                    <button type="button" class="btn btn-light" onclick="toggleFlowDiagram()">Chiudi workspace</button>
+                    <button type="button" class="btn btn-light" onclick="toggleFlowDiagram()">Chiudi</button>
                   </div>
                 </div>
                 <div class="flow-workspace-side-scroll">
@@ -1775,11 +1776,12 @@
       html += '</div>';
       html += '<div class="designer-inline-item-meta">' + _escapeInlineHtml(_describeInlineActionConfig(item)) + '</div>';
       html += '</div>';
+      var isOpen = openSet.indexOf(String(index)) !== -1;
       html += '<div class="designer-inline-item-actions">';
-      html += '<button class="designer-inline-btn" type="button" data-inline-json-edit data-inline-json-index="' + index + '">' + (openSet.indexOf(String(index)) !== -1 ? 'Chiudi' : 'Modifica') + '</button>';
-      html += '<button class="designer-inline-btn" type="button" data-inline-json-move="-1" data-inline-json-index="' + index + '">Su</button>';
-      html += '<button class="designer-inline-btn" type="button" data-inline-json-move="1" data-inline-json-index="' + index + '">Giu\'</button>';
-      html += '<button class="designer-inline-btn" type="button" data-inline-json-remove data-inline-json-index="' + index + '">Rimuovi</button>';
+      html += '<button class="designer-inline-btn designer-inline-btn--icon' + (isOpen ? ' is-active' : '') + '" type="button" data-inline-json-edit data-inline-json-index="' + index + '" title="' + (isOpen ? 'Chiudi modifica' : 'Modifica') + '" aria-label="' + (isOpen ? 'Chiudi modifica' : 'Modifica') + '">' + (isOpen ? '✓' : '✎') + '</button>';
+      html += '<button class="designer-inline-btn designer-inline-btn--icon" type="button" data-inline-json-move="-1" data-inline-json-index="' + index + '" title="Sposta su" aria-label="Sposta su"' + (index === 0 ? ' disabled' : '') + '>↑</button>';
+      html += '<button class="designer-inline-btn designer-inline-btn--icon" type="button" data-inline-json-move="1" data-inline-json-index="' + index + '" title="Sposta giù" aria-label="Sposta giù"' + (index === items.length - 1 ? ' disabled' : '') + '>↓</button>';
+      html += '<button class="designer-inline-btn designer-inline-btn--icon designer-inline-btn--danger" type="button" data-inline-json-remove data-inline-json-index="' + index + '" title="Rimuovi" aria-label="Rimuovi">✕</button>';
       html += '</div>';
       html += '</div>';
       if (openSet.indexOf(String(index)) !== -1) html += _renderInlineItemEditor(item, index);
