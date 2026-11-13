@@ -29,6 +29,8 @@ VERBI = {
     "approva": "ha approvato dal link della mail", "respingi": "ha respinto dal link della mail",
     "richiedi_modifica": "ha chiesto una modifica dal link della mail su", "aggiorna_avanzamento": "ha deciso dal link della mail su",
     "visualizza": "ha visto dal link della mail",
+    "incaricato": "ha cambiato l'incaricato di", "allegato": "ha allegato file a",
+    "allegato_tolto": "ha tolto un allegato da", "elimina": "ha eliminato",
 }
 # Filtro «Azione» della pagina → azioni registrate.
 GRUPPI = {
@@ -41,6 +43,9 @@ GRUPPI = {
     "informazioni": {"richiesta_info", "risposta_info"},
     "spostamenti": {"spostata"},
     "azioni": {"azione"},
+    "incaricati": {"incaricato", "prendi_in_carico"},
+    "allegati": {"allegato", "allegato_tolto"},
+    "eliminazioni": {"elimina"},
 }
 FONTI = {"portal": "Portale", "mail_action": "Link della mail", "system": "Sistema"}
 
@@ -133,11 +138,15 @@ def api_registro(request):
         verbo = VERBI.get(x.action, x.action)
         if x.action == "crea" and payload.get("clonata_da"):
             verbo = f"ha clonato da {codice_anomalia(payload['clonata_da'])}"
+        elif x.action == "allegato" and payload.get("dove"):
+            dove = str(payload["dove"])
+            verbo = f"ha allegato file ({dove}) a" if dove.startswith("copiati") else f"ha allegato file alla {dove} di"
         eventi.append({
             "id": x.pk, "quando": quando.isoformat(), "giorno": quando.strftime("%Y-%m-%d"), "ora": quando.strftime("%H:%M"),
             "chi": x.user_display or "—", "azione": x.action, "verbo": verbo,
             "anomalia_id": x.anomalia_id, "codice": codice_anomalia(x.anomalia_id), "op_id": x.op_id,
-            "seriale": seriali.get(int(x.anomalia_id), "") if x.anomalia_id else "",
+            "seriale": (seriali.get(int(x.anomalia_id), "") if x.anomalia_id else "") or str(payload.get("seriale") or ""),
+            "clonata_da": codice_anomalia(payload["clonata_da"]) if payload.get("clonata_da") else "",
             "modifiche": modifiche, "note": (x.note or "")[:500], "fonte": FONTI.get(x.source, x.source),
         })
     persone = sorted({e["chi"] for e in eventi if e["chi"] != "—"})

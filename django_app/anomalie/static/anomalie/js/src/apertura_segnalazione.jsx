@@ -1961,7 +1961,8 @@
           anomalie: anomalie.map(a => {
             const tutti = a.tutti || edTokens.length <= 1;
             return { local_id: a.localId, testo: testoAnomalia(a), tutti, seriali: tutti ? [] : selDi(a),
-              dettaglio: dettPayload(a.dett), tipo_difetto_id: a.dett ? a.dett.tipoDifettoId : null };
+              dettaglio: dettPayload(a.dett), tipo_difetto_id: a.dett ? a.dett.tipoDifettoId : null,
+              ...(a.origineId && !a.localId ? { clonata_da: a.origineId } : {}) };
           }),
         }, 'Salvataggio blocco');
         // Primo blocco su un OP nuovo: il server ha creato l'OP.

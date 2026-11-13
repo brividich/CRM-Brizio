@@ -291,6 +291,71 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "viste",
+        "titolo": "Viste delle colonne",
+        "blocchi": [
+            ("p", "Il menu «Vista» in cima alle colonne Ordini e Anomalie cambia il modo di vederle; la scelta resta "
+                  "nel browser."),
+            ("ul", [
+                "Ordini — «Elenco»: le righe compatte di sempre. «Coda di lavoro»: prima gli OP con anomalie in carico a te, "
+                "dal più fermo (giorni dall'ultima modifica della più vecchia, in arancione da 3 giorni). «Per "
+                "capocommessa»: gli OP raggruppati per capocommessa. «Tabella»: OP, P/N, capocommessa, CAR, da "
+                "decidere, in corso, chiuse, tue e «Ferma da», ordinabile cliccando l'intestazione.",
+                "Anomalie — «Per S/N» e «Per stato» come prima; «Per fase»: le colonne Da decidere, Qualità, Attesa "
+                "cliente / terzista, Chiarimenti, Chiuse; «Per ruolo»: a chi tocca (capocommessa, qualità, controllore, "
+                "CAR segnalato); «Tabella»: codice, S/N, stato, qualità, «In carico a» con il nome e «Ferma da»; "
+                "«Pezzi»: i seriali per tipo di difetto, colorati da decidere / in corso / chiuse.",
+                "In tutte le viste un clic apre l'anomalia nel dettaglio a destra.",
+            ]),
+        ],
+    },
+    {
+        "id": "incaricato",
+        "titolo": "In carico e «Cambia incaricato»",
+        "blocchi": [
+            ("p", "Sotto il titolo dell'anomalia la riga «In carico» dice a chi tocca adesso: il ruolo e la persona. "
+                  "Di serie è il capocommessa dell'OP, la qualità (referenti RDC), il controllore che l'ha inserita o "
+                  "i CAR segnalati, secondo la fase dell'anomalia."),
+            ("passi", [
+                "Premi «Cambia incaricato» (lo vedono capocommessa e CAR dell'OP, i CAR segnalati e gli "
+                "amministratori del modulo).",
+                "Scegli il ruolo (quelli «in carico ora» sono indicati) e in «Affida a» la persona; per la qualità "
+                "l'elenco ha solo i referenti RDC di Configurazione.",
+                "Scrivi una nota se serve e premi «Affida».",
+            ]),
+            ("ul", [
+                "Da quel momento quel ruolo, su quell'anomalia, tocca solo all'incaricato: la trova in «In carico a "
+                "me», vede l'OP e, se è incaricato del capocommessa, può decidere. Chi aveva il ruolo di serie non la "
+                "vede più fra le sue.",
+                "L'incaricato riceve una notifica nel portale e una mail con la nota e il link; le richieste di "
+                "informazioni della qualità al capocommessa o al controllore vanno a lui.",
+                "Nella riga «In carico» l'incaricato ha il bordo viola; un incarico per un ruolo che non tocca ancora "
+                "all'anomalia compare con «· dopo».",
+                "«Torna di serie» toglie l'incaricato. Ogni cambio va nel registro attività con prima e dopo.",
+            ]),
+        ],
+    },
+    {
+        "id": "registro",
+        "titolo": "Registro attività",
+        "blocchi": [
+            ("p", "«Registro attività», in alto in Gestione anomalie, elenca tutto quello che è stato fatto sulle "
+                  "anomalie, in frasi. Lo vedono gli amministratori del modulo e le persone della lista «Supervisori» "
+                  "delle notifiche."),
+            ("ul", [
+                "Ogni riga dice chi, cosa e su quale anomalia (codice, OP, S/N), da dove (portale, link della mail, "
+                "sistema) e i campi cambiati, per esempio «Avanzamento: In attesa → In attesa risposta cliente».",
+                "Ci sono inserimenti, clonazioni («ha clonato da AN-…»), modifiche e decisioni, chiusure, "
+                "segnalazioni e risposte, richieste di informazioni, «Taglia», azioni effettuate, cambi di incaricato, "
+                "allegati aggiunti o tolti (con i nomi dei file) ed eliminazioni.",
+                "Filtri: codice AN, OP, persona, tipo di azione, provenienza e periodo (fino a un anno).",
+                "Un'anomalia eliminata resta nel registro: la sua storia si ritrova cercando il codice.",
+                "«Storia», accanto al titolo dell'anomalia, apre il registro già filtrato su quell'anomalia; un clic "
+                "su una riga del registro torna all'anomalia.",
+            ]),
+        ],
+    },
+    {
         "id": "decisione",
         "titolo": "Decidere su un'anomalia (capocommessa)",
         "blocchi": [
@@ -316,7 +381,7 @@ SEZIONI: list[dict] = [
                 "Scegli l'«Avanzamento» e scrivi la «Risposta / note per il reparto». Il «Numero RDC» lo scrive la qualità.",
                 "Un riquadro dice cosa succede al salvataggio: «si chiude», «passa alla qualità» o «resta in attesa "
                 "della risposta».",
-                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
+                "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
             ]),
             ("ul", [
                 "Chiusura automatica: senza RDC, «Segnalato al cliente» / «Segnalato al terzista» chiudono l'anomalia; "

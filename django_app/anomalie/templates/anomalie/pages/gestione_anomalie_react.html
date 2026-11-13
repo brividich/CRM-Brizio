@@ -288,7 +288,9 @@
     .ga-tab tbody tr { cursor: pointer; }
     .ga-tab tbody tr:hover { background: var(--bg); }
     .ga-tab tbody tr.is-sel { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
-    .ga-tab__txt { white-space: normal !important; min-width: 220px; }
+    .ga-tab__txt { white-space: normal !important; min-width: 160px; }
+    .ga-tab__txt--stretto { min-width: 120px; font-size: var(--fs-xs); }
+    .ga-tab--compatta th, .ga-tab--compatta td { padding: 7px 6px; }
     .ga-tab__sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
     .ga-kanban { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 8px; min-width: 680px; }
     .ga-col--sn .ga-col__body:has(.ga-kanban) { overflow-x: auto; }
@@ -313,6 +315,12 @@
     body.theme-dark .ga-pezzo--dec { background: #3a2414; color: #fdba74; border-color: #7c3d12; }
     body.theme-dark .ga-pezzo--corso { background: #182a4d; color: #93b4ff; border-color: #2b4a85; }
     body.theme-dark .ga-pezzo--ok { background: #12301f; color: #4ade80; border-color: #1f5a37; }
+    /* «In carico» del dettaglio e incaricato affidato */
+    .ga-carico { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+    .ga-carico__t { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mid); }
+    .ga-carico__p { padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: var(--fs-sm); }
+    .ga-carico__p.is-inc { border-color: #7c3aed; box-shadow: inset 3px 0 0 #7c3aed; }
+    .ga-carico__p.is-dopo { opacity: .75; border-style: dashed; }
     /* Registro attività (supervisore) */
     .ga-reg { flex: 1; overflow: auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 10px; align-content: start; max-width: 1100px; width: 100%; margin: 0 auto; }
     .ga-reg__filtri { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }

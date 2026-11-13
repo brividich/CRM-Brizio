@@ -122,7 +122,10 @@ class EliminaTests(_Api):
         self.assertIsNone(self.riga(self.a2))
         self.assertFalse(AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=self.a2).exists())
         self.assertFalse(AnomaliaSchedaQualita.objects.filter(anomalia_id=self.a2).exists())
-        self.assertFalse(AnomaliaActionLog.objects.filter(anomalia_id=self.a2).exists())
+        # Il registro attività resta, con l'evento «elimina» e S/N e testo dell'anomalia.
+        self.assertTrue(AnomaliaActionLog.objects.filter(anomalia_id=self.a2, action="crea").exists())
+        ev = AnomaliaActionLog.objects.get(anomalia_id=self.a2, action="elimina")
+        self.assertIn("seriale", ev.payload)
         self.controllo.refresh_from_db()
         self.assertEqual(self.controllo.da_notificare, [self.a1, self.a3])
         p = AnomaliaPendingNotification.objects.get(op_id=OP)

@@ -312,6 +312,13 @@ def ruoli_risposta(request, row: dict) -> list[str]:
             ruoli.append("controllore")
     except (TypeError, ValueError):
         pass
+    # Incaricato del ruolo su questa anomalia (incaricati.py).
+    if me is not None and row.get("id") is not None:
+        from .incaricati import per_anomalie
+
+        for ruolo, v in (per_anomalie([row["id"]]).get(int(row["id"])) or {}).items():
+            if ruolo in ("cc", "controllore") and v["id"] == int(me) and ruolo not in ruoli:
+                ruoli.append(ruolo)
     return ruoli
 
 

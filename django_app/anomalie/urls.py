@@ -5,6 +5,7 @@ from . import mail_action_views
 from . import silenzia_views
 from . import nc_views
 from . import controllo_views
+from . import incaricati_views
 from . import qualita_views
 from . import registro_views
 
@@ -32,6 +33,9 @@ urlpatterns = [
     path("api/anomalie/db/ordini", views.api_db_ordini, name="api_anomalie_db_ordini"),
     path("api/anomalie/db/ordini/crea", views.api_db_ordini_crea, name="api_anomalie_db_ordini_crea"),
     path("api/anomalie/op/modifica", views.api_op_modifica, name="api_anomalie_op_modifica"),
+    path("api/anomalie/incaricato/persone", incaricati_views.api_incaricato_persone,
+         name="api_anomalie_incaricato_persone"),
+    path("api/anomalie/incaricato", incaricati_views.api_incaricato_cambia, name="api_anomalie_incaricato"),
     path("api/anomalie/config/liste", views.api_anomalie_config_liste, name="api_anomalie_config_liste"),
     path("api/anomalie/config/notifiche", views.api_anomalie_notifiche, name="api_anomalie_notifiche"),
     path("api/anomalie/config/notifiche/silenziati/<int:pk>/riattiva", silenzia_views.api_op_silenziato_riattiva,

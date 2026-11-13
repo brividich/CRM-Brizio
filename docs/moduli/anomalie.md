@@ -71,6 +71,12 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 - **Export CSV** tracciato in AuditLog
 - **ACL**: il launcher resta accessibile ai ruoli con almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche senza grant del contenitore
 
+## Viste, Registro attività e incaricato (13/11/2026)
+
+- **Viste**: menu «Vista» sulle colonne Ordini (Elenco, Coda di lavoro, Per capocommessa, Tabella) e Anomalie (Per S/N, Per stato, Per fase, Per ruolo, Tabella, Pezzi); scelta in `localStorage`. L'elenco OP espone `ferma_da_giorni`.
+- **Registro attività**: `GET /api/anomalie/registro` (superuser, `admin_anomalie`, email nella lista «Supervisori»), legge `AnomaliaActionLog` con `payload.modifiche` (`[[campo, prima, dopo]]`), `payload.clonata_da`, `payload.allegati`. Azioni nuove: `incaricato`, `allegato`, `allegato_tolto`, `elimina`. L'eliminazione di un'anomalia non cancella più i suoi log.
+- **Incaricato**: tabella `AnomaliaIncaricato` (anomalia, ruolo `cc`/`qualita`/`controllore`/`car`, `legacy_user_id`, nome, chi, quando, nota). `decisione_qualita.in_carico_a_me` dà il ruolo affidato solo all'incaricato; `incaricati.op_incaricato` apre la visibilità dell'OP (e la modifica per l'incaricato del capocommessa); `qualita_mail` manda le richieste di informazioni all'incaricato. API `POST /api/anomalie/incaricato` (`local_id`, `ruolo`, `persona_id` vuoto = di serie, `nota`) e `GET /api/anomalie/incaricato/persone?ruolo=`. Cambiano capocommessa e CAR dell'OP, CAR segnalati, incaricati di capocommessa/CAR, amministratori.
+
 ## Statistiche con l'ambito dell'utente (02/11/2026)
 
 Statistiche, Ricerca dettaglio, tendina degli OP e contatore della home passano da `_anomalie_scope_where`: con scope ASSIGNED contano solo gli OP in cui l'utente è capocommessa/CAR, con OWN_ANOMALIE quelli su cui ha aperto un'anomalia, come l'elenco OP (`api_db_ordini`).

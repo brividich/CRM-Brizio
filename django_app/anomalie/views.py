@@ -1814,6 +1814,13 @@ def _car_segnalato_su_op(request, op_title: str) -> bool:
     """Chi guarda è fra i CAR a cui il capocommessa ha segnalato un'anomalia dell'OP."""
     if not op_title or not _has_table("anomalie"):
         return False
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        if op_title.strip().lower() in op_incaricato(request):
+            return True
+    except Exception:
+        logger.warning("anomalie: OP affidati non letti", exc_info=True)
     mie = {_chiave_persona(n) for n in _request_name_norms(request)}
     if not mie:
         return False
@@ -2319,6 +2326,20 @@ def api_anomalie_elimina(request):
         log_action(request, "anomalia_eliminata", "anomalie", istantanea)
     except Exception:
         logger.warning("api_anomalie_elimina: audit non scritto id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=istantanea.get("op_id") or "", action="elimina", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=_current_user_identity(request).get("name") or request.user.username,
+            note=str(istantanea.get("descrizione") or "")[:500], ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"seriale": istantanea.get("seriale") or "", "descrizione": str(istantanea.get("descrizione") or "")[:500]},
+        )
+    except Exception:
+        logger.warning("api_anomalie_elimina: registro attività non scritto id=%s", local_id, exc_info=True)
     return JsonResponse({"success": True, "local_id": local_id, "controllo_id": istantanea.get("controllo_id")})
 
 
@@ -2466,6 +2487,12 @@ def _in_carico_per_op(request) -> dict:
         out["per_op"].setdefault(chiave, []).append((r, i))
         if i and i.get("car_assegnati") and mie & {_chiave_persona(n) for n in i["car_assegnati"]}:
             out["car_ops"].add(titolo)
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        out["car_ops"] |= op_incaricato(request)
+    except Exception:
+        logger.warning("anomalie: OP affidati non letti", exc_info=True)
     return out
 
 
@@ -2517,7 +2544,7 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
     for r in rows:
         r.update({"avanzamento_qualita": "", "note_qualita": "", "qualita_da": "", "qualita_il": "",
                   "richieste_info": [], "in_carico_a_me": False, "ruoli_in_carico": [], "ruoli_risposta": [],
-                  "segnalato_car": None})
+                  "segnalato_car": None, "incaricati": {}, "puo_cambiare_incaricato": False})
     ids = [int(r["local_id"]) for r in rows if r.get("local_id")]
     if not ids:
         return
@@ -2536,6 +2563,9 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
         info = dq.info_per_anomalie(ids)
         capo, car = _capo_car_di_op(op_title)
         io = dq.chi_sono(request, capo, car)
+        from anomalie import incaricati as inc
+
+        cambia_su_op = inc.puo_cambiare_su_op(request, capo, car)
     except Exception:
         logger.warning("anomalie: decisione qualità / in carico non letti", exc_info=True)
         return
@@ -2561,6 +2591,9 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
                 "avanzamento": raw.get("avanzamento")}
         r["ruoli_in_carico"] = sorted(dq.ruoli_in_carico(riga, info.get(aid)))
         r["in_carico_a_me"] = dq.in_carico_a_me(io, riga, info.get(aid))
+        r["incaricati"] = (info.get(aid) or {}).get("incaricati") or {}
+        r["puo_cambiare_incaricato"] = not raw.get("chiudere") and (
+            cambia_su_op or inc.puo_cambiare_su_anomalia(request, info.get(aid)))
         if any(q["aperta"] for q in r["richieste_info"]):
             r["ruoli_risposta"] = ruoli_risposta(request, riga)
 
@@ -2708,6 +2741,15 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     # anomalie da aprire RDC o da segnalare al cliente (es. per il numero RDC).
     if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
         return True
+
+    # Incaricato del capocommessa su un'anomalia aperta dell'OP (incaricati.py).
+    try:
+        from anomalie.incaricati import op_incaricato
+
+        if str(op_id or "").strip().lower() in op_incaricato(request, ruoli={"cc"}):
+            return True
+    except Exception:
+        logger.warning("anomalie: incarichi del capocommessa non letti", exc_info=True)
 
     from core.permessi import sistema_ruoli_attivo
 
@@ -3758,6 +3800,25 @@ def api_anomalie_allegati(request):
         return _json_error(f"Errore allegati: {exc}", status=500)
 
 
+def _registro_allegati(request, local_id: int, op_id: str, azione: str, nomi: list[str], dove: str = "") -> None:
+    """Registro attività: allegati aggiunti (``allegato``) o tolti (``allegato_tolto``)."""
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        identity = _current_user_identity(request)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=op_id, action=azione, user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=identity.get("name") or request.user.username,
+            note=", ".join(str(n) for n in nomi)[:500], ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            payload={"allegati": [str(n)[:200] for n in nomi][:50], **({"dove": dove} if dove else {})},
+        )
+    except Exception:
+        logger.warning("allegati: registro non scritto id=%s", local_id, exc_info=True)
+
+
 @login_required
 @require_POST
 def api_anomalie_allegati_copia(request):
@@ -3790,6 +3851,9 @@ def api_anomalie_allegati_copia(request):
             copiati += 1
         except OSError as exc:
             errori.append(f"{item['name']}: {exc}")
+    if copiati:
+        _registro_allegati(request, a_id, str(destinazione.get("ex_op_nominativo") or "").strip(), "allegato",
+                           [i["name"] for i in allegati], f"copiati da {codice_anomalia(da_id)}")
     try:
         log_action(request, "anomalia_allegati_copiati", "anomalie", {"da": da_id, "a": a_id, "copiati": copiati})
     except Exception:
@@ -3863,6 +3927,9 @@ def api_anomalie_allegati_upload(request):
         saved_file_ids, saved_names, errors = salva_file_allegati(local_id, folder, files, per_decisione=per_decisione,
                                                                   per_qualita=per_qualita)
         saved = len(saved_file_ids)
+        if saved_names:
+            _registro_allegati(request, local_id, op_id, "allegato", saved_names,
+                               "decisione qualità" if per_qualita else ("decisione" if per_decisione else ""))
 
         logger.info(
             "[anomalie] allegati_upload done local_id=%s op=%s saved=%s errors=%s",
@@ -3987,6 +4054,7 @@ def api_anomalie_allegati_delete(request):
         if file_id.startswith("descrizione:") and attached:
             attached.delete()
         _remove_attachment_sync_meta_entry(local_id, file_id)
+        _registro_allegati(request, local_id, op_id, "allegato_tolto", [deleted_name])
         try:
             log_action(
                 request,
@@ -5154,6 +5222,10 @@ _TIMELINE_ACTION_LABELS = {
     "respingi": "Respinta",
     "richiedi_modifica": "Richiesta modifica",
     "visualizza": "Visualizzata",
+    "incaricato": "Incaricato cambiato",
+    "allegato": "Allegati aggiunti",
+    "allegato_tolto": "Allegato tolto",
+    "elimina": "Anomalia eliminata",
 }
 
 # Etichette canale (AnomaliaActionLog.Source) per la timeline.

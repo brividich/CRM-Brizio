@@ -37,6 +37,8 @@ API.qualita_salva = API.qualita_salva || "/api/anomalie/qualita/salva";
 API.registro = API.registro || "/api/anomalie/registro";
 API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
 API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
+API.incaricato = API.incaricato || "/api/anomalie/incaricato";
+API.incaricato_persone = API.incaricato_persone || "/api/anomalie/incaricato/persone";
 const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica) ? CONFIG_LISTS.autorizzati_modifica : [];
 const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
 // Decisione qualità (Configurazione): chi decide, scelte di «Avanzamento qualità»
@@ -623,7 +625,7 @@ const EsitiAnomalia = ({
 };
 
 // ── Registro attività (supervisore): ogni azione registrata, in frasi ──
-const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"], ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"], ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"]];
+const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"], ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"], ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"], ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"]];
 const STRISCIA_REGISTRO = {
   crea: "info",
   aggiorna: "acc",
@@ -635,7 +637,11 @@ const STRISCIA_REGISTRO = {
   risposta_info: "ok",
   spostata: "warn",
   aggiorna_avanzamento: "acc",
-  approva: "acc"
+  approva: "acc",
+  incaricato: "qa",
+  allegato: "info",
+  allegato_tolto: "warn",
+  elimina: "warn"
 };
 const giornoLabel = iso => {
   const d = new Date(iso);
@@ -1989,6 +1995,7 @@ function GestioneAnomalie() {
   });
   const [qBusy, setQBusy] = useState(false);
   const [infoModal, setInfoModal] = useState(null); // null | { cc, controllore, messaggio, busy, err }
+  const [incModal, setIncModal] = useState(null); // null | { ruolo, persona, nota, persone, busy, err }
   const [rispInfo, setRispInfo] = useState("");
   // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
   // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
@@ -2953,6 +2960,90 @@ function GestioneAnomalie() {
       } : m);
     }
   };
+  const caricaPersone = async ruolo => {
+    try {
+      const r = await fetch(`${API.incaricato_persone}?ruolo=${encodeURIComponent(ruolo)}`, {
+        credentials: "same-origin"
+      });
+      const d = await r.json();
+      if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
+      setIncModal(m => m && m.ruolo === ruolo ? {
+        ...m,
+        persone: d.persone || []
+      } : m);
+    } catch (e) {
+      setIncModal(m => m ? {
+        ...m,
+        persone: [],
+        err: "Elenco persone non caricato: " + e.message
+      } : m);
+    }
+  };
+  const apriCambiaIncaricato = ruolo => {
+    const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
+    const att = (sn.incaricati || {})[r];
+    setIncModal({
+      ruolo: r,
+      persona: att ? String(att.id) : "",
+      nota: "",
+      persone: null,
+      busy: false,
+      err: ""
+    });
+    caricaPersone(r);
+  };
+  const cambiaRuoloIncarico = r => {
+    const att = (sn.incaricati || {})[r];
+    setIncModal(m => ({
+      ...m,
+      ruolo: r,
+      persona: att ? String(att.id) : "",
+      persone: null,
+      err: ""
+    }));
+    caricaPersone(r);
+  };
+  const salvaIncaricato = async diSerie => {
+    if (!incModal || incModal.busy) return;
+    if (!diSerie && !incModal.persona) {
+      setIncModal({
+        ...incModal,
+        err: "Scegli la persona."
+      });
+      return;
+    }
+    setIncModal({
+      ...incModal,
+      busy: true,
+      err: ""
+    });
+    try {
+      const d = await postJson(API.incaricato, {
+        local_id: sn.local_id,
+        ruolo: incModal.ruolo,
+        persona_id: diSerie ? "" : incModal.persona,
+        nota: incModal.nota.trim()
+      }, "Cambio incaricato");
+      aggiornaSn({
+        incaricati: d.incaricati || {},
+        ruoli_in_carico: d.ruoli_in_carico || [],
+        in_carico_a_me: !!d.in_carico_a_me,
+        puo_cambiare_incaricato: d.puo_cambiare_incaricato !== false
+      });
+      setIncModal(null);
+      flash({
+        ok: true,
+        text: diSerie ? "Il ruolo torna a chi lo ha di serie" : `Incaricato cambiato${d.mail ? " · mail inviata" : ""}${d.senza_email ? " · nessuna email in anagrafica" : ""}`
+      }, 6000);
+      loadOrdini();
+    } catch (e) {
+      setIncModal(m => m ? {
+        ...m,
+        busy: false,
+        err: e.message
+      } : m);
+    }
+  };
   const rispondiRichiesta = async () => {
     if (!rispInfo.trim() || !sn.local_id) return;
     try {
@@ -3468,6 +3559,16 @@ function GestioneAnomalie() {
     controllore: "Controllore",
     car: "CAR segnalato"
   };
+  // Chi ha il ruolo sull'anomalia: l'incaricato, se c'è, se no chi lo ha di serie.
+  const chiHaRuolo = (a, r) => {
+    const inc = (a.incaricati || {})[r];
+    if (inc) return inc.nome;
+    if (r === "cc") return op.capo && op.capo !== "—" ? op.capo : "capocommessa dell'OP";
+    if (r === "qualita") return "referenti RDC";
+    if (r === "car") return (a.car_segnalati || []).join(", ") || "CAR segnalati";
+    return a.controllo_operatore || a.autore || "chi l'ha inserita";
+  };
+  const inCaricoTesto = a => a.in_carico_a_me ? "Tu" : (a.ruoli_in_carico || []).map(r => `${RUOLI_NOMI[r]} · ${chiHaRuolo(a, r)}`).join("; ") || "—";
   const schedaAnomalia = a => /*#__PURE__*/React.createElement("button", {
     type: "button",
     key: a.item_id,
@@ -3549,8 +3650,8 @@ function GestioneAnomalie() {
       return /*#__PURE__*/React.createElement("div", {
         className: "ga-tabwrap"
       }, /*#__PURE__*/React.createElement("table", {
-        className: "ga-tab"
-      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Codice"), /*#__PURE__*/React.createElement("th", null, "S/N"), /*#__PURE__*/React.createElement("th", null, "Anomalia"), /*#__PURE__*/React.createElement("th", null, "Stato"), /*#__PURE__*/React.createElement("th", null, "Qualit\xE0"), /*#__PURE__*/React.createElement("th", null, "In carico a"), /*#__PURE__*/React.createElement("th", {
+        className: "ga-tab ga-tab--compatta"
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Codice"), /*#__PURE__*/React.createElement("th", null, "S/N"), /*#__PURE__*/React.createElement("th", null, "Anomalia"), /*#__PURE__*/React.createElement("th", null, "Stato"), /*#__PURE__*/React.createElement("th", null, "In carico a"), /*#__PURE__*/React.createElement("th", {
         className: "r"
       }, "Ferma da"))), /*#__PURE__*/React.createElement("tbody", null, righe.map(a => {
         const st = statoAnomalia(a);
@@ -3564,9 +3665,11 @@ function GestioneAnomalie() {
           className: "ga-tab__txt"
         }, a.testo || a.desc || "—"), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
           className: `ga-pill ga-pill--${st.variant}`
-        }, st.text)), /*#__PURE__*/React.createElement("td", null, a.avanzamento_qualita || /*#__PURE__*/React.createElement("span", {
+        }, st.text), a.avanzamento_qualita && !a.chiudere && /*#__PURE__*/React.createElement("div", {
           className: "ga-hint"
-        }, "\u2014")), /*#__PURE__*/React.createElement("td", null, a.in_carico_a_me ? /*#__PURE__*/React.createElement("b", null, "Tu") : (a.ruoli_in_carico || []).map(r => RUOLI_NOMI[r]).join(", ") || "—"), /*#__PURE__*/React.createElement("td", {
+        }, "Qualit\xE0 \xB7 ", a.avanzamento_qualita)), /*#__PURE__*/React.createElement("td", {
+          className: "ga-tab__txt ga-tab__txt--stretto"
+        }, a.in_carico_a_me ? /*#__PURE__*/React.createElement("b", null, "Tu") : inCaricoTesto(a)), /*#__PURE__*/React.createElement("td", {
           className: "r"
         }, a.chiudere ? "—" : `${giorniDa(a.modified) ?? "—"} gg`));
       }))));
@@ -4114,7 +4217,26 @@ function GestioneAnomalie() {
     sn: sn
   }), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__people"
-  }, isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""))), /*#__PURE__*/React.createElement("div", {
+  }, isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), isMobile && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : "")), !sn.chiudere && ((sn.ruoli_in_carico || []).length > 0 || Object.keys(sn.incaricati || {}).length > 0) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-carico"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-carico__t"
+  }, "In carico"), (sn.ruoli_in_carico || []).map(r => {
+    const inc = (sn.incaricati || {})[r];
+    return /*#__PURE__*/React.createElement("span", {
+      key: r,
+      className: `ga-carico__p${inc ? " is-inc" : ""}`,
+      title: inc ? `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}${inc.nota ? ` · ${inc.nota}` : ""}` : "Di serie"
+    }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", chiHaRuolo(sn, r), inc ? " · incaricato" : "");
+  }), Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => /*#__PURE__*/React.createElement("span", {
+    key: r,
+    className: "ga-carico__p is-inc is-dopo",
+    title: "Incaricato per quando l'anomalia passer\xE0 a questo ruolo"
+  }, /*#__PURE__*/React.createElement("b", null, RUOLI_NOMI[r]), " ", inc.nome, " \xB7 dopo")), sn.puo_cambiare_incaricato && sn.local_id && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline ga-btn--xs",
+    onClick: () => apriCambiaIncaricato()
+  }, "Cambia incaricato"))), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__body"
   }, !canEditCurrentOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
@@ -4803,7 +4925,76 @@ function GestioneAnomalie() {
     className: "ga-btn ga-btn--accent",
     disabled: infoModal.busy,
     onClick: inviaRichiestaInfo
-  }, infoModal.busy ? "Invio…" : "Invia richiesta")))), modOp && /*#__PURE__*/React.createElement("div", {
+  }, infoModal.busy ? "Invio…" : "Invia richiesta")))), incModal && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "ga-inc-t"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title",
+    id: "ga-inc-t"
+  }, "Cambia incaricato \xB7 ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Ruolo"), /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: incModal.ruolo,
+    disabled: incModal.busy,
+    onChange: e => cambiaRuoloIncarico(e.target.value)
+  }, ["cc", "qualita", "controllore", "car"].map(r => /*#__PURE__*/React.createElement("option", {
+    key: r,
+    value: r
+  }, RUOLI_NOMI[r], (sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : "")))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Ora: ", chiHaRuolo(sn, incModal.ruolo), (sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Affida a"), incModal.persone === null ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Caricamento\u2026") : /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: incModal.persona,
+    disabled: incModal.busy,
+    onChange: e => setIncModal({
+      ...incModal,
+      persona: e.target.value
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 scegli \u2014"), incModal.persone.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: String(p.id)
+  }, p.nome)))), incModal.ruolo === "qualita" && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Per la qualit\xE0 si sceglie fra i referenti RDC di Configurazione."), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    value: incModal.nota,
+    placeholder: "Nota (facoltativa): arriva nella mail",
+    onChange: e => setIncModal({
+      ...incModal,
+      nota: e.target.value
+    })
+  }), incModal.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, incModal.err), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    disabled: incModal.busy,
+    onClick: () => setIncModal(null)
+  }, "Annulla"), (sn.incaricati || {})[incModal.ruolo] && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    disabled: incModal.busy,
+    onClick: () => salvaIncaricato(true)
+  }, "Torna di serie"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    disabled: incModal.busy || !incModal.persona,
+    onClick: () => salvaIncaricato(false)
+  }, incModal.busy ? "Salvataggio…" : "Affida")))), modOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-modal",
     role: "dialog",
     "aria-modal": "true",

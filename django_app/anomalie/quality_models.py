@@ -530,3 +530,24 @@ class AnomaliaRichiestaInfo(models.Model):
 
     def __str__(self) -> str:
         return f"Richiesta info anomalia {self.anomalia_id}"
+
+
+class AnomaliaIncaricato(models.Model):
+    """Ruolo di un'anomalia affidato a una persona al posto di chi lo ha di serie
+    (capocommessa dell'OP, qualità, controllore, CAR segnalati): vedi ``incaricati.py``."""
+
+    anomalia_id = models.IntegerField(db_index=True)
+    ruolo = models.CharField(max_length=16)
+    legacy_user_id = models.IntegerField(db_index=True)
+    nome = models.CharField(max_length=200, blank=True, default="")
+    assegnato_da = models.CharField(max_length=200, blank=True, default="")
+    assegnato_il = models.DateTimeField(auto_now=True)
+    nota = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Incaricato dell'anomalia"
+        verbose_name_plural = "Incaricati delle anomalie"
+        constraints = [models.UniqueConstraint(fields=["anomalia_id", "ruolo"], name="anomalia_incaricato_ruolo_unico")]
+
+    def __str__(self) -> str:
+        return f"#{self.anomalia_id} {self.ruolo}: {self.nome}"

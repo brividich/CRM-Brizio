@@ -31,6 +31,8 @@
     API.registro = API.registro || "/api/anomalie/registro";
     API.qualita_richiedi_info = API.qualita_richiedi_info || "/api/anomalie/qualita/richiedi-info";
     API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
+    API.incaricato = API.incaricato || "/api/anomalie/incaricato";
+    API.incaricato_persone = API.incaricato_persone || "/api/anomalie/incaricato/persone";
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
       : [];
@@ -458,9 +460,11 @@
     // ── Registro attività (supervisore): ogni azione registrata, in frasi ──
     const AZIONI_REGISTRO = [["", "Tutte"], ["inserimento", "Inserimento"], ["clona", "Clona"], ["modifica", "Modifica / decisione"],
       ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"],
-      ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"]];
+      ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"],
+      ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"]];
     const STRISCIA_REGISTRO = { crea: "info", aggiorna: "acc", qualita: "qa", chiudi: "ok", riapri: "warn", segnalato: "info",
-      richiesta_info: "warn", risposta_info: "ok", spostata: "warn", aggiorna_avanzamento: "acc", approva: "acc" };
+      richiesta_info: "warn", risposta_info: "ok", spostata: "warn", aggiorna_avanzamento: "acc", approva: "acc",
+      incaricato: "qa", allegato: "info", allegato_tolto: "warn", elimina: "warn" };
     const giornoLabel = (iso) => {
       const d = new Date(iso);
       const oggi = new Date(); const ieri = new Date(Date.now() - 864e5);
@@ -1154,6 +1158,7 @@
       const [qRisp, setQRisp] = useState({ cliente: "", terzista: "" });
       const [qBusy, setQBusy] = useState(false);
       const [infoModal, setInfoModal] = useState(null);  // null | { cc, controllore, messaggio, busy, err }
+      const [incModal, setIncModal] = useState(null);  // null | { ruolo, persona, nota, persone, busy, err }
       const [rispInfo, setRispInfo] = useState("");
       // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
       // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
@@ -1810,6 +1815,44 @@
           setInfoModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
         }
       };
+      const caricaPersone = async (ruolo) => {
+        try {
+          const r = await fetch(`${API.incaricato_persone}?ruolo=${encodeURIComponent(ruolo)}`, { credentials: "same-origin" });
+          const d = await r.json();
+          if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
+          setIncModal((m) => (m && m.ruolo === ruolo ? { ...m, persone: d.persone || [] } : m));
+        } catch (e) {
+          setIncModal((m) => (m ? { ...m, persone: [], err: "Elenco persone non caricato: " + e.message } : m));
+        }
+      };
+      const apriCambiaIncaricato = (ruolo) => {
+        const r = ruolo || (sn.ruoli_in_carico || [])[0] || "cc";
+        const att = (sn.incaricati || {})[r];
+        setIncModal({ ruolo: r, persona: att ? String(att.id) : "", nota: "", persone: null, busy: false, err: "" });
+        caricaPersone(r);
+      };
+      const cambiaRuoloIncarico = (r) => {
+        const att = (sn.incaricati || {})[r];
+        setIncModal((m) => ({ ...m, ruolo: r, persona: att ? String(att.id) : "", persone: null, err: "" }));
+        caricaPersone(r);
+      };
+      const salvaIncaricato = async (diSerie) => {
+        if (!incModal || incModal.busy) return;
+        if (!diSerie && !incModal.persona) { setIncModal({ ...incModal, err: "Scegli la persona." }); return; }
+        setIncModal({ ...incModal, busy: true, err: "" });
+        try {
+          const d = await postJson(API.incaricato, { local_id: sn.local_id, ruolo: incModal.ruolo,
+            persona_id: diSerie ? "" : incModal.persona, nota: incModal.nota.trim() }, "Cambio incaricato");
+          aggiornaSn({ incaricati: d.incaricati || {}, ruoli_in_carico: d.ruoli_in_carico || [], in_carico_a_me: !!d.in_carico_a_me,
+            puo_cambiare_incaricato: d.puo_cambiare_incaricato !== false });
+          setIncModal(null);
+          flash({ ok: true, text: diSerie ? "Il ruolo torna a chi lo ha di serie"
+            : `Incaricato cambiato${d.mail ? " · mail inviata" : ""}${d.senza_email ? " · nessuna email in anagrafica" : ""}` }, 6000);
+          loadOrdini();
+        } catch (e) {
+          setIncModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
+        }
+      };
       const rispondiRichiesta = async () => {
         if (!rispInfo.trim() || !sn.local_id) return;
         try {
@@ -2117,6 +2160,17 @@
         return Number.isNaN(d.getTime()) ? null : Math.max(0, Math.floor((Date.now() - d.getTime()) / 864e5));
       };
       const RUOLI_NOMI = { cc: "Capocommessa", qualita: "Qualità", controllore: "Controllore", car: "CAR segnalato" };
+      // Chi ha il ruolo sull'anomalia: l'incaricato, se c'è, se no chi lo ha di serie.
+      const chiHaRuolo = (a, r) => {
+        const inc = (a.incaricati || {})[r];
+        if (inc) return inc.nome;
+        if (r === "cc") return op.capo && op.capo !== "—" ? op.capo : "capocommessa dell'OP";
+        if (r === "qualita") return "referenti RDC";
+        if (r === "car") return (a.car_segnalati || []).join(", ") || "CAR segnalati";
+        return a.controllo_operatore || a.autore || "chi l'ha inserita";
+      };
+      const inCaricoTesto = (a) => (a.in_carico_a_me ? "Tu"
+        : ((a.ruoli_in_carico || []).map((r) => `${RUOLI_NOMI[r]} · ${chiHaRuolo(a, r)}`).join("; ") || "—"));
       const schedaAnomalia = (a) => (
         <button type="button" key={a.item_id} className={`ga-kcard${a.item_id === sn.item_id ? " is-sel" : ""}${a.in_carico_a_me ? " is-tua" : ""}`}
           onClick={() => selectSn(a)}>
@@ -2164,16 +2218,16 @@
         if (raggruppa === "tabella") {
           const righe = [...lista].sort((x, y) => (giorniDa(y.modified) ?? -1) - (giorniDa(x.modified) ?? -1));
           return (
-            <div className="ga-tabwrap"><table className="ga-tab">
-              <thead><tr><th>Codice</th><th>S/N</th><th>Anomalia</th><th>Stato</th><th>Qualità</th><th>In carico a</th><th className="r">Ferma da</th></tr></thead>
+            <div className="ga-tabwrap"><table className="ga-tab ga-tab--compatta">
+              <thead><tr><th>Codice</th><th>S/N</th><th>Anomalia</th><th>Stato</th><th>In carico a</th><th className="r">Ferma da</th></tr></thead>
               <tbody>{righe.map((a) => {
                 const st = statoAnomalia(a);
                 return (
                   <tr key={a.item_id} className={a.item_id === sn.item_id ? "is-sel" : ""} onClick={() => selectSn(a)}>
                     <td className="ga-kcard__cod">{codiceAnomalia(a.local_id)}</td><td>{a.sn}</td><td className="ga-tab__txt">{a.testo || a.desc || "—"}</td>
-                    <td><span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span></td>
-                    <td>{a.avanzamento_qualita || <span className="ga-hint">—</span>}</td>
-                    <td>{a.in_carico_a_me ? <b>Tu</b> : ((a.ruoli_in_carico || []).map((r) => RUOLI_NOMI[r]).join(", ") || "—")}</td>
+                    <td><span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
+                      {a.avanzamento_qualita && !a.chiudere && <div className="ga-hint">Qualità · {a.avanzamento_qualita}</div>}</td>
+                    <td className="ga-tab__txt ga-tab__txt--stretto">{a.in_carico_a_me ? <b>Tu</b> : inCaricoTesto(a)}</td>
                     <td className="r">{a.chiudere ? "—" : `${giorniDa(a.modified) ?? "—"} gg`}</td>
                   </tr>
                 );
@@ -2534,6 +2588,28 @@
                       {isMobile && <span><b>CAR</b> {op.car || "—"}</span>}
                       {sn.controllo_operatore && <span><b>Segnalata da</b> {sn.controllo_operatore}{sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""}</span>}
                     </div>
+                    {!sn.chiudere && ((sn.ruoli_in_carico || []).length > 0 || Object.keys(sn.incaricati || {}).length > 0) && (
+                      <div className="ga-carico">
+                        <span className="ga-carico__t">In carico</span>
+                        {(sn.ruoli_in_carico || []).map((r) => {
+                          const inc = (sn.incaricati || {})[r];
+                          return (
+                            <span key={r} className={`ga-carico__p${inc ? " is-inc" : ""}`}
+                              title={inc ? `Affidata da ${inc.da}${inc.il ? ` il ${inc.il}` : ""}${inc.nota ? ` · ${inc.nota}` : ""}` : "Di serie"}>
+                              <b>{RUOLI_NOMI[r]}</b> {chiHaRuolo(sn, r)}{inc ? " · incaricato" : ""}
+                            </span>
+                          );
+                        })}
+                        {Object.entries(sn.incaricati || {}).filter(([r]) => !(sn.ruoli_in_carico || []).includes(r)).map(([r, inc]) => (
+                          <span key={r} className="ga-carico__p is-inc is-dopo" title="Incaricato per quando l'anomalia passerà a questo ruolo">
+                            <b>{RUOLI_NOMI[r]}</b> {inc.nome} · dopo
+                          </span>
+                        ))}
+                        {sn.puo_cambiare_incaricato && sn.local_id && (
+                          <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={() => apriCambiaIncaricato()}>Cambia incaricato</button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="ga-det__body">
@@ -3003,6 +3079,45 @@
                 <div className="ga-modal__acts">
                   <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={infoModal.busy} onClick={() => setInfoModal(null)}>Annulla</button>
                   <button type="button" className="ga-btn ga-btn--accent" disabled={infoModal.busy} onClick={inviaRichiestaInfo}>{infoModal.busy ? "Invio…" : "Invia richiesta"}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cambia incaricato: capocommessa, CAR, amministratori */}
+          {incModal && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-inc-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-inc-t">Cambia incaricato · {codiceAnomalia(sn.local_id)}</div>
+                <label className="ga-field"><FieldLabel>Ruolo</FieldLabel>
+                  <select className="ga-input" value={incModal.ruolo} disabled={incModal.busy} onChange={(e) => cambiaRuoloIncarico(e.target.value)}>
+                    {["cc", "qualita", "controllore", "car"].map((r) => (
+                      <option key={r} value={r}>{RUOLI_NOMI[r]}{(sn.ruoli_in_carico || []).includes(r) ? " (in carico ora)" : ""}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="ga-hint">Ora: {chiHaRuolo(sn, incModal.ruolo)}{(sn.incaricati || {})[incModal.ruolo] ? " (incaricato)" : " (di serie)"}</div>
+                <label className="ga-field"><FieldLabel>Affida a</FieldLabel>
+                  {incModal.persone === null
+                    ? <div className="ga-hint">Caricamento…</div>
+                    : (
+                      <select className="ga-input" value={incModal.persona} disabled={incModal.busy}
+                        onChange={(e) => setIncModal({ ...incModal, persona: e.target.value })}>
+                        <option value="">— scegli —</option>
+                        {incModal.persone.map((p) => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+                      </select>
+                    )}
+                </label>
+                {incModal.ruolo === "qualita" && <div className="ga-hint">Per la qualità si sceglie fra i referenti RDC di Configurazione.</div>}
+                <textarea className="ga-input" rows={2} value={incModal.nota} placeholder="Nota (facoltativa): arriva nella mail"
+                  onChange={(e) => setIncModal({ ...incModal, nota: e.target.value })} />
+                {incModal.err && <div className="ga-note ga-note--warn">{incModal.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={incModal.busy} onClick={() => setIncModal(null)}>Annulla</button>
+                  {(sn.incaricati || {})[incModal.ruolo] && (
+                    <button type="button" className="ga-btn ga-btn--outline" disabled={incModal.busy} onClick={() => salvaIncaricato(true)}>Torna di serie</button>
+                  )}
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={incModal.busy || !incModal.persona} onClick={() => salvaIncaricato(false)}>{incModal.busy ? "Salvataggio…" : "Affida"}</button>
                 </div>
               </div>
             </div>
