@@ -11,19 +11,28 @@ from django.http import HttpResponseForbidden, HttpResponseNotAllowed, Streaming
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from admin_portale.decorators import legacy_admin_or_acl_required
 from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
+from core.upload_mime import safe_filename
 from core.acl import check_permesso, user_can_modulo_action
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
-from .forms import NotiziaAllegatoFormSet, NotiziaAudienceFormSet, NotiziaForm
+from .forms import (
+    NOTIZIE_ALLEGATO_EXTENSIONS,
+    NotiziaAllegatoForm,
+    NotiziaAllegatoFormSet,
+    NotiziaAudienceFormSet,
+    NotiziaForm,
+)
 from .models import (
+    NotiziaAudience,
     COMPLIANCE_APERTO,
     COMPLIANCE_CONFORME,
     COMPLIANCE_NON_LETTO,
@@ -169,7 +178,7 @@ def _notizie_visibili(legacy_role_id: int | None):
     """Restituisce QS delle notizie pubblicate visibili al ruolo dato."""
     qs = Notizia.objects.filter(stato=STATO_PUBBLICATA)
     result = []
-    for n in qs.prefetch_related("audience"):
+    for n in qs.prefetch_related("audience", "allegati"):
         if is_visible_to_user(n, legacy_role_id):
             result.append(n)
     return result
@@ -466,32 +475,88 @@ def _dashboard_form_context(
     audience_formset: NotiziaAudienceFormSet,
     allegati_formset: NotiziaAllegatoFormSet,
     is_create: bool,
+    selected_role_ids: set[int] | None = None,
+    nuovi_allegati_errori: list[str] | None = None,
 ) -> dict:
     roles_index = _legacy_roles_index()
+    if selected_role_ids is None:
+        selected_role_ids = (
+            {int(a.legacy_role_id) for a in notizia.audience.all()} if notizia.pk else set()
+        )
+    roles = [
+        {"id": role_id, "name": role_name, "selected": role_id in selected_role_ids}
+        for role_id, role_name in roles_index.items()
+    ]
+    # Ruoli in audience che non esistono piu' nell'elenco: restano visibili e
+    # selezionati, altrimenti un salvataggio li toglierebbe senza che l'utente lo veda.
+    for role_id in sorted(selected_role_ids - set(roles_index)):
+        roles.append({"id": role_id, "name": f"Ruolo {role_id}", "selected": True})
     return {
         "page_title": "Nuova notizia" if is_create else f"Modifica notizia #{notizia.id}",
         "notizia": notizia,
         "form": form,
         "audience_formset": audience_formset,
         "allegati_formset": allegati_formset,
-        "roles_hint": [{"id": role_id, "name": role_name} for role_id, role_name in roles_index.items()],
+        "roles": roles,
+        "roles_selected_count": sum(1 for r in roles if r["selected"]),
+        "nuovi_allegati_errori": nuovi_allegati_errori or [],
+        "accept_allegati": ",".join(sorted(NOTIZIE_ALLEGATO_EXTENSIONS)),
         "is_create": is_create,
     }
 
 
+def _posted_role_ids(request) -> set[int]:
+    ids: set[int] = set()
+    for raw in request.POST.getlist("audience_roles"):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            ids.add(value)
+    return ids
+
+
+def _validate_nuovi_allegati(request) -> tuple[list[NotiziaAllegatoForm], list[str]]:
+    """Valida i file del riquadro «trascina qui» con le stesse regole delle righe allegato."""
+    forms_ok: list[NotiziaAllegatoForm] = []
+    errori: list[str] = []
+    for upload in request.FILES.getlist("nuovi_allegati"):
+        nome = (safe_filename(getattr(upload, "name", "")) or "allegato")[:300]
+        f = NotiziaAllegatoForm(data={"nome_file": nome, "url_esterno": ""}, files={"file": upload})
+        if f.is_valid():
+            forms_ok.append(f)
+        else:
+            for err in f.non_field_errors() or [e for errs in f.errors.values() for e in errs]:
+                err = str(err)
+                errori.append(err if nome in err else f"{nome}: {err}")
+    return forms_ok, errori
+
+
 def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
+    selected_role_ids: set[int] | None = None
+    nuovi_errori: list[str] = []
     if request.method == "POST":
         save_and_publish = request.POST.get("save_and_publish") == "1"
         form = NotiziaForm(request.POST, instance=notizia)
-        audience_formset = NotiziaAudienceFormSet(request.POST, instance=notizia, prefix="audience")
+        # La pagina invia i ruoli come caselle (audience_picker=1); il formset per ID
+        # resta per compatibilita' con i client che postano ancora le righe.
+        use_picker = request.POST.get("audience_picker") == "1"
+        audience_formset = NotiziaAudienceFormSet(
+            None if use_picker else request.POST, instance=notizia, prefix="audience"
+        )
+        if use_picker:
+            selected_role_ids = _posted_role_ids(request)
         allegati_formset = NotiziaAllegatoFormSet(
             request.POST,
             request.FILES,
             instance=notizia,
             prefix="allegati",
         )
+        nuovi_forms, nuovi_errori = _validate_nuovi_allegati(request)
 
-        if form.is_valid() and audience_formset.is_valid() and allegati_formset.is_valid():
+        audience_ok = use_picker or audience_formset.is_valid()
+        if form.is_valid() and audience_ok and allegati_formset.is_valid() and not nuovi_errori:
             was_published = (notizia.pk is not None and notizia.stato == STATO_PUBBLICATA)
 
             with transaction.atomic():
@@ -504,11 +569,24 @@ def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
                     obj.stato = STATO_BOZZA
                 obj.save()
 
-                audience_formset.instance = obj
-                audience_formset.save()
+                if use_picker:
+                    obj.audience.exclude(legacy_role_id__in=selected_role_ids).delete()
+                    esistenti = set(obj.audience.values_list("legacy_role_id", flat=True))
+                    NotiziaAudience.objects.bulk_create(
+                        NotiziaAudience(notizia=obj, legacy_role_id=role_id)
+                        for role_id in sorted(selected_role_ids - esistenti)
+                    )
+                else:
+                    audience_formset.instance = obj
+                    audience_formset.save()
 
                 allegati_formset.instance = obj
                 allegati_formset.save()
+
+                for nuovo in nuovi_forms:
+                    allegato = nuovo.save(commit=False)
+                    allegato.notizia = obj
+                    allegato.save()
 
                 obj.hash_versione = compute_hash_versione(obj)
                 obj.save(update_fields=["hash_versione"])
@@ -553,7 +631,16 @@ def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
     return render(
         request,
         "notizie/pages/dashboard_form.html",
-        _dashboard_form_context(request, notizia, form, audience_formset, allegati_formset, is_create),
+        _dashboard_form_context(
+            request,
+            notizia,
+            form,
+            audience_formset,
+            allegati_formset,
+            is_create,
+            selected_role_ids=selected_role_ids,
+            nuovi_allegati_errori=nuovi_errori,
+        ),
     )
 
 
@@ -568,16 +655,25 @@ def lista(request):
 
     solo_obbligatorie = request.GET.get("solo_obbligatorie") == "1"
     filtro_stato = request.GET.get("stato", "").strip()
+    query = request.GET.get("q", "").strip()
 
     notizie_visibili = _notizie_visibili(legacy_role_id)
-
-    if solo_obbligatorie:
-        notizie_visibili = [n for n in notizie_visibili if n.obbligatoria]
+    if query:
+        q_low = query.lower()
+        notizie_visibili = [
+            n for n in notizie_visibili if q_low in n.titolo.lower() or q_low in n.corpo.lower()
+        ]
 
     all_items = []
     for n in notizie_visibili:
         compliance = get_compliance_status(n, legacy_user_id) if legacy_user_id else COMPLIANCE_NON_LETTO
-        all_items.append({"notizia": n, "compliance": compliance})
+        allegati = list(n.allegati.all())
+        all_items.append({
+            "notizia": n,
+            "compliance": compliance,
+            "allegati_count": len(allegati),
+            "pdf_count": sum(1 for a in allegati if a.is_pdf),
+        })
 
     news_stats = {
         "total": len(all_items),
@@ -596,6 +692,8 @@ def lista(request):
 
     items = []
     for item in all_items:
+        if solo_obbligatorie and not item["notizia"].obbligatoria:
+            continue
         if filtro_stato and item["compliance"] != filtro_stato:
             continue
         items.append(item)
@@ -607,6 +705,7 @@ def lista(request):
         "news_stats": news_stats,
         "solo_obbligatorie": solo_obbligatorie,
         "filtro_stato": filtro_stato,
+        "query": query,
         "can_manage_notizie": _can_manage_notizie_dashboard(request),
         "can_gestione_admin": _can_manage_notizie_settings(request),
     })
@@ -646,20 +745,34 @@ def dashboard(request):
     filtro_stato = request.GET.get("stato", "").strip().lower()
     query = request.GET.get("q", "").strip()
 
-    notizie_qs = Notizia.objects.prefetch_related("audience").order_by("-updated_at", "-created_at")
+    from django.db.models import Count
 
-    if filtro_stato in _VALID_STATO_FILTERS:
-        notizie_qs = notizie_qs.filter(stato=filtro_stato)
+    notizie_qs = Notizia.objects.prefetch_related("audience").annotate(
+        n_allegati=Count("allegati", distinct=True)
+    ).order_by("-updated_at", "-created_at")
 
     if query:
         notizie_qs = notizie_qs.filter(Q(titolo__icontains=query) | Q(corpo__icontains=query))
 
+    # I contatori delle schede contano la ricerca ma non lo stato scelto: ogni
+    # scheda mostra quante notizie trovi cliccandola.
+    stato_counts = dict(
+        Notizia.objects.filter(pk__in=notizie_qs.values("pk"))
+        .order_by()
+        .values_list("stato")
+        .annotate(n=Count("id"))
+        .values_list("stato", "n")
+    )
+    bozza_count = stato_counts.get(STATO_BOZZA, 0)
+    pubblicata_count = stato_counts.get(STATO_PUBBLICATA, 0)
+    archiviata_count = stato_counts.get(STATO_ARCHIVIATA, 0)
+
+    if filtro_stato in _VALID_STATO_FILTERS:
+        notizie_qs = notizie_qs.filter(stato=filtro_stato)
+
     notizie = list(notizie_qs[:250])
     rows = _dashboard_rows(notizie)
 
-    bozza_count = sum(1 for r in rows if r["notizia"].stato == STATO_BOZZA)
-    pubblicata_count = sum(1 for r in rows if r["notizia"].stato == STATO_PUBBLICATA)
-    archiviata_count = sum(1 for r in rows if r["notizia"].stato == STATO_ARCHIVIATA)
     obbligatorie_pendenti = sum(
         r["pending_count"]
         for r in rows
@@ -675,6 +788,7 @@ def dashboard(request):
             "bozza_count": bozza_count,
             "pubblicata_count": pubblicata_count,
             "archiviata_count": archiviata_count,
+            "totale_count": bozza_count + pubblicata_count + archiviata_count,
             "obbligatorie_pendenti": obbligatorie_pendenti,
             "filtro_stato": filtro_stato,
             "query": query,
@@ -758,6 +872,7 @@ def dettaglio(request, notizia_id: int):
         return HttpResponseForbidden("Notizia non disponibile.")
 
     allegati = list(notizia.allegati.all())
+    anteprime = [a for a in allegati if a.ha_anteprima]
 
     lettura = None
     compliance = COMPLIANCE_NON_LETTO
@@ -772,15 +887,31 @@ def dettaglio(request, notizia_id: int):
         "page_title": notizia.titolo,
         "notizia": notizia,
         "allegati": allegati,
+        "anteprima_iniziale": anteprime[0] if anteprime else None,
         "compliance": compliance,
         "lettura": lettura,
         "conferma_token": _build_conferma_token(notizia, legacy_user_id),
     })
 
 
+_ANTEPRIMA_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
+
+
 @login_required
+@xframe_options_sameorigin
 def allegato_download(request, allegato_id: int):
-    """Download di un allegato: chi vede la notizia pubblicata, oppure chi gestisce le notizie."""
+    """Download di un allegato: chi vede la notizia pubblicata, oppure chi gestisce le notizie.
+
+    Con ``?anteprima=1`` PDF e immagini si aprono nel browser (inline, incorniciabili
+    solo dalle pagine del portale); gli altri tipi restano sempre in download.
+    """
     import mimetypes
     import os
 
@@ -802,9 +933,14 @@ def allegato_download(request, allegato_id: int):
         raise Http404("File non trovato.")
 
     filename = os.path.basename(allegato.file.name)
-    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    response = FileResponse(handle, as_attachment=True, filename=filename, content_type=content_type)
+    inline_type = _ANTEPRIMA_CONTENT_TYPES.get(allegato.estensione) if request.GET.get("anteprima") == "1" else None
+    if inline_type:
+        response = FileResponse(handle, as_attachment=False, filename=filename, content_type=inline_type)
+    else:
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        response = FileResponse(handle, as_attachment=True, filename=filename, content_type=content_type)
     response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
     return response
 
 
