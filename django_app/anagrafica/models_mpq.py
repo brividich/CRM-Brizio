@@ -1077,3 +1077,206 @@ class VerificaMacchinaMisura(models.Model):
     @property
     def scostamento_txt(self) -> str:
         return f"{numero_breve(self.scostamento_pct)}%" if self.scostamento_pct is not None else "—"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Utensili critici, Technical Plan e MOD.176 RUC (MT CN 69 §8, P11TF12)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class UtensileCritico(models.Model):
+    """Utensile identificato come CRITICO per un processo (MT CN 69 §8.2, MOD.007 «CRITICO»)."""
+
+    TIPO_COMMERCIALE = "COMMERCIALE"
+    TIPO_SPECIALE = "SPECIALE"
+    TIPO_CHOICES = [
+        (TIPO_COMMERCIALE, "Commerciale (a catalogo)"),
+        (TIPO_SPECIALE, "Speciale (disegno interno)"),
+    ]
+
+    processo = models.ForeignKey(ProcessoQualificato, on_delete=models.CASCADE, related_name="utensili_critici")
+    codice = models.CharField(max_length=80, help_text="Codice costruttore (a catalogo) o codice interno (speciale).")
+    descrizione = models.CharField(max_length=255, verbose_name="Descrizione e geometria")
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, default=TIPO_COMMERCIALE)
+    materiale = models.CharField(max_length=120, blank=True, default="", verbose_name="Materiale e rivestimento")
+    diametro_mm = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True,
+                                      verbose_name="Diametro (mm)")
+    numero_taglienti = models.PositiveSmallIntegerField(null=True, blank=True)
+    fornitore = models.CharField(max_length=150, blank=True, default="",
+                                 help_text="Fornitore certificato dal cliente (MT CN 69 §8.2.1).")
+    riaffilabile = models.BooleanField(
+        default=False, help_text="Solo se il disegno indica i limiti di riaffilatura; altrimenti è monouso.")
+    riaffilature_max = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Riaffilature ammesse")
+    fornitore_riaffilatura = models.CharField(max_length=150, blank=True, default="",
+                                              help_text="Ente certificato indicato sul disegno.")
+    attivo = models.BooleanField(default=True)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["processo", "codice"]
+        verbose_name = "Utensile critico (MPQ)"
+        verbose_name_plural = "Utensili critici (MPQ)"
+        constraints = [
+            models.UniqueConstraint(fields=["processo", "codice"], name="mpq_uniq_utensile_critico"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.codice} · {self.descrizione}"
+
+
+class TechnicalPlan(models.Model):
+    """Technical Plan per tipologia di foro critico di un P/N (MT CN 69 §8.1)."""
+
+    processo = models.ForeignKey(ProcessoQualificato, on_delete=models.CASCADE, related_name="technical_plan")
+    part_number = models.CharField(max_length=80, verbose_name="P/N")
+    tipologia_foro = models.CharField(max_length=150, help_text="Tipologia di foro identificata come critica.")
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["processo", "part_number", "tipologia_foro"]
+        verbose_name = "Technical Plan (MPQ)"
+        verbose_name_plural = "Technical Plan (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.part_number} · {self.tipologia_foro}"
+
+    @property
+    def revisione_corrente(self):
+        """L'ultima revisione approvata (quella valida in produzione), None se nessuna."""
+        return self.revisioni.filter(stato=TechnicalPlanRevisione.STATO_APPROVATA).order_by("-numero").first()
+
+
+class TechnicalPlanRevisione(models.Model):
+    """Revisione del Technical Plan: ogni modifica va approvata dal Certify Agent del cliente."""
+
+    STATO_BOZZA = "BOZZA"
+    STATO_APPROVATA = "APPROVATA"
+    STATO_SUPERATA = "SUPERATA"
+    STATO_CHOICES = [
+        (STATO_BOZZA, "In attesa di approvazione"),
+        (STATO_APPROVATA, "Approvata"),
+        (STATO_SUPERATA, "Superata"),
+    ]
+
+    plan = models.ForeignKey(TechnicalPlan, on_delete=models.CASCADE, related_name="revisioni")
+    numero = models.PositiveSmallIntegerField()
+    data = models.DateField(default=timezone.localdate)
+    modifiche = models.TextField(verbose_name="Cosa cambia",
+                                 help_text="Modifiche al processo rispetto alla revisione precedente.")
+    stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_BOZZA, db_index=True)
+    approvato_da = models.CharField(max_length=150, blank=True, default="",
+                                    verbose_name="Approvato da (Certify Agent)")
+    data_approvazione = models.DateField(null=True, blank=True)
+    documento = models.FileField(upload_to=_documento_mpq_upload_to, storage=PrivateAnagraficaStorage(),
+                                 blank=True, null=True, max_length=255)
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["plan", "-numero"]
+        verbose_name = "Revisione Technical Plan (MPQ)"
+        verbose_name_plural = "Revisioni Technical Plan (MPQ)"
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "numero"], name="mpq_uniq_tp_revisione"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.plan} rev. {self.numero}"
+
+
+class TechnicalPlanPasso(models.Model):
+    """Un passo del processo di foratura nel Technical Plan (tabella §8.1)."""
+
+    OP_CHOICES = [
+        ("FORATURA", "Foratura"), ("ARROTONDATURA", "Arrotondatura"), ("SVASATURA", "Svasatura"),
+        ("LAMATURA", "Lamatura"), ("BANCO", "Processo di banco"),
+    ]
+    UNITA_CHOICES = [("FORI", "fori"), ("PEZZI", "pezzi"), ("MINUTI", "minuti")]
+
+    revisione = models.ForeignKey(TechnicalPlanRevisione, on_delete=models.CASCADE, related_name="passi")
+    ordine = models.PositiveSmallIntegerField(default=0)
+    operazione = models.CharField(max_length=14, choices=OP_CHOICES, default="FORATURA")
+    utensile = models.ForeignKey(UtensileCritico, on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name="passi")
+    velocita = models.CharField(max_length=60, blank=True, default="", verbose_name="Velocità (SFM / giri)")
+    avanzamento = models.CharField(max_length=60, blank=True, default="",
+                                   help_text="Asportazione per dente o per giro.")
+    refrigerante = models.CharField(max_length=120, blank=True, default="",
+                                    verbose_name="Refrigerante e applicazione")
+    pressione_min_bar = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True,
+                                            verbose_name="Pressione minima (bar)",
+                                            help_text="Utensili autorefrigeranti: almeno 4,1 bar (60 psi).")
+    tcp_limite = models.PositiveIntegerField(null=True, blank=True, verbose_name="TCP (punto di cambio)")
+    tcp_unita = models.CharField(max_length=8, choices=UNITA_CHOICES, default="FORI", verbose_name="Unità del TCP")
+    criteri_cambio = models.CharField(max_length=255, blank=True, default="",
+                                      verbose_name="Criteri di cambio utensile")
+
+    class Meta:
+        ordering = ["revisione", "ordine", "id"]
+        verbose_name = "Passo Technical Plan (MPQ)"
+        verbose_name_plural = "Passi Technical Plan (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.get_operazione_display()} · {self.utensile or 'senza utensile'}"
+
+
+class RegistroUtensile(models.Model):
+    """MOD.176 RUC: un utensile/kit montato, seguito fino al TCP del Technical Plan (MT CN 69 §8.2.2)."""
+
+    STATO_IN_USO = "IN_USO"
+    STATO_TCP = "TCP_RAGGIUNTO"
+    STATO_CHIUSO = "CHIUSO"
+    STATO_CHOICES = [
+        (STATO_IN_USO, "In uso"),
+        (STATO_TCP, "TCP raggiunto"),
+        (STATO_CHIUSO, "Chiuso e consegnato a IN1"),
+    ]
+
+    passo = models.ForeignKey(TechnicalPlanPasso, on_delete=models.PROTECT, related_name="registri")
+    identificativo = models.CharField(max_length=80, verbose_name="Utensile / kit",
+                                      help_text="Marcatura sul codolo, confezione o contenitore dedicato.")
+    stato = models.CharField(max_length=14, choices=STATO_CHOICES, default=STATO_IN_USO, db_index=True)
+    aperto_il = models.DateField(default=timezone.localdate)
+    chiuso_il = models.DateField(null=True, blank=True)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-aperto_il", "-id"]
+        verbose_name = "Registro utensile critico MOD.176 (MPQ)"
+        verbose_name_plural = "Registri utensili critici MOD.176 (MPQ)"
+
+    def __str__(self) -> str:
+        return f"MOD.176 {self.identificativo}"
+
+    @property
+    def utilizzo(self) -> int:
+        return sum(r.quantita for r in self.righe.all())
+
+    @property
+    def residuo(self):
+        return None if self.passo.tcp_limite is None else self.passo.tcp_limite - self.utilizzo
+
+
+class RegistroUtensileRiga(models.Model):
+    """Una riga del MOD.176: parte lavorata con quell'utensile (tracciabilità)."""
+
+    registro = models.ForeignKey(RegistroUtensile, on_delete=models.CASCADE, related_name="righe")
+    data = models.DateField(default=timezone.localdate)
+    part_number = models.CharField(max_length=80, verbose_name="P/N")
+    ordine_produzione = models.CharField(max_length=60, blank=True, default="", verbose_name="OP / commessa")
+    seriale = models.CharField(max_length=80, blank=True, default="", verbose_name="Matricola / seriale pezzo")
+    quantita = models.PositiveIntegerField(help_text="Nell'unità del TCP (fori, pezzi o minuti).")
+    operatore = models.CharField(max_length=120, blank=True, default="")
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["registro", "data", "id"]
+        verbose_name = "Riga MOD.176 (MPQ)"
+        verbose_name_plural = "Righe MOD.176 (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.part_number} {self.seriale}".strip()

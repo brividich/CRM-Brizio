@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Technical Plan {{ tp.part_number }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+  .tpf{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:end;}
+  .tpf label{display:block;font-size:11px;font-weight:600;color:var(--text-mid,#475569);margin-bottom:2px;}
+  .tpf .fm-input{width:100%;box-sizing:border-box;}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;"><a href="{% url 'anagrafica:mpq_utensili' processo.id %}">← Utensili e Technical Plan</a> · {{ processo.nome }}</div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Technical Plan · {{ tp.part_number }} · {{ tp.tipologia_foro }}</div>
+        <div class="fmd-block-aside">Ogni modifica va approvata dal Certify Agent del cliente</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <span class="fmd-muted" style="font-size:12px;">Revisioni:</span>
+        {% for r in revisioni %}<a class="fmd-badge {% if r.stato == 'APPROVATA' %}fmd-b-green{% elif r.stato == 'BOZZA' %}fmd-b-amber{% else %}fmd-b-gray{% endif %}" href="?rev={{ r.numero }}" style="{% if r.pk == rev.pk %}outline:2px solid currentColor;{% endif %}text-decoration:none;" title="{{ r.get_stato_display }}">rev. {{ r.numero }} · {{ r.get_stato_display|lower }}</a>{% endfor %}
+      </div>
+      {% if rev %}
+      <div style="margin-top:10px;font-size:13px;">
+        <strong>Rev. {{ rev.numero }}</strong> del {{ rev.data|date:"d-m-Y" }} — {{ rev.modifiche }}
+        {% if rev.stato != "BOZZA" and rev.approvato_da %}<div class="fmd-muted" style="font-size:12px;">Approvata da {{ rev.approvato_da }} il {{ rev.data_approvazione|date:"d-m-Y" }}{% if rev.documento %} · <a href="{% url 'anagrafica:mpq_documento' 'technical-plan' rev.id %}">documento</a>{% endif %}</div>{% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+    {% if rev %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Passi del processo <span class="fmd-count">{{ passi|length }}</span></div>
+        <div class="fmd-block-aside">{% if rev.stato == "BOZZA" %}Revisione in attesa: i passi si possono correggere{% elif rev.stato == "APPROVATA" %}Revisione valida: da qui si apre il MOD.176{% else %}Revisione superata: solo consultazione{% endif %}</div>
+      </div>
+      {% if passi %}
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th>Passo</th><th>Utensile</th><th>Velocità · avanzamento</th><th>Refrigerante</th><th>TCP</th><th></th></tr></thead>
+        <tbody>
+        {% for p in passi %}
+          <tr>
+            <td><strong>{{ p.get_operazione_display }}</strong>{% if p.criteri_cambio %}<div class="fmd-muted" style="font-size:11px;">{{ p.criteri_cambio }}</div>{% endif %}</td>
+            <td>{% if p.utensile %}{{ p.utensile.codice }}<div class="fmd-muted" style="font-size:11px;">{{ p.utensile.descrizione }}</div>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            <td>{{ p.velocita|default:"—" }} · {{ p.avanzamento|default:"—" }}</td>
+            <td>{{ p.refrigerante|default:"—" }}{% if p.pressione_min_bar %}<div class="fmd-muted" style="font-size:11px;">min {{ p.pressione_min_bar|floatformat:"-2" }} bar</div>{% endif %}</td>
+            <td>{% if p.tcp_limite %}{{ p.tcp_limite }} {{ p.get_tcp_unita_display }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            <td style="white-space:nowrap;">
+              {% if can_manage and rev.stato == "BOZZA" %}<form method="post" action="{% url 'anagrafica:mpq_tp_passo_delete' p.id %}" class="fmd-act-form" data-hub-confirm="Togliere il passo?">{% csrf_token %}<button type="submit" class="fmd-linkbtn" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Togli</button></form>{% endif %}
+              {% if can_manage and rev.stato == "APPROVATA" %}<form method="post" action="{% url 'anagrafica:mpq_registro_apri' p.id %}" class="fmd-act-form" style="display:inline-flex;gap:4px;">{% csrf_token %}<input type="text" name="identificativo" required maxlength="80" placeholder="Marcatura / kit" class="fm-input" style="width:130px;padding:3px 6px;"><button type="submit" class="fmd-act">Apri MOD.176</button></form>{% endif %}
+              {% for reg in p.registri.all %}{% if reg.stato != "CHIUSO" %}<div><a class="fmd-data-link" style="font-size:11px;" href="{% url 'anagrafica:mpq_registro' reg.id %}">MOD.176 {{ reg.identificativo }}</a></div>{% endif %}{% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessun passo.</div>{% endif %}
+
+      {% if passo_form and can_manage %}
+      <details style="margin-top:10px;"{% if not passi %} open{% endif %}>
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;">+ Aggiungi passo</summary>
+        <form method="post" action="{% url 'anagrafica:mpq_tp_passo_add' rev.id %}" style="margin-top:8px;">
+          {% csrf_token %}
+          <div class="tpf">
+            {% for f in passo_form %}<div><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}</div>{% endfor %}
+          </div>
+          <button type="submit" class="fmd-btn fmd-btn-sm" style="margin-top:8px;">Aggiungi</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+
+    {% if can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>{% if rev.stato == "BOZZA" %}Approvazione della rev. {{ rev.numero }}{% else %}Modifica del processo{% endif %}</div></div>
+      {% if rev.stato == "BOZZA" %}
+      <form method="post" action="{% url 'anagrafica:mpq_tp_approva' rev.id %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="tpf">
+          <div><label>Approvato da (Certify Agent)</label><input type="text" name="approvato_da" class="fm-input" required maxlength="150"></div>
+          <div><label>Data</label><input type="date" name="data" class="fm-input" value="{{ oggi|date:'Y-m-d' }}"></div>
+          <div><label>Documento firmato</label><input type="file" name="documento" class="fm-input"></div>
+          <div><button type="submit" class="fmd-btn fmd-btn-primary">Registra approvazione</button></div>
+        </div>
+      </form>
+      {% else %}
+      <form method="post" action="{% url 'anagrafica:mpq_tp_revisione' tp.id %}" style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="text" name="modifiche" required maxlength="2000" placeholder="Cosa cambia (es. nuovo utensile al passo di svasatura)" class="fm-input" style="flex:1;min-width:260px;">
+        <button type="submit" class="fmd-btn fmd-btn-ghost">Nuova revisione</button>
+      </form>
+      <div class="fmd-muted" style="font-size:11px;margin-top:4px;">Parte dai passi della revisione valida; finché non è approvata in produzione resta valida quella attuale.</div>
+      {% endif %}
+    </section>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

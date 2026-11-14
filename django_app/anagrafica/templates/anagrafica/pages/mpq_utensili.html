@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Utensili e Technical Plan · {{ processo.nome }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;"><a href="{% url 'anagrafica:mpq_processo_detail' processo.id %}">← {{ processo.nome }}</a> · {{ processo.cliente.nome }}</div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Technical Plan <span class="fmd-count">{{ plans|length }}</span></div>
+        <div class="fmd-block-aside">Uno per P/N e tipologia di foro critico · vale la revisione approvata dal Certify Agent</div>
+      </div>
+      {% if plans %}
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th>P/N</th><th>Tipologia di foro</th><th>Revisione valida</th><th>In attesa di approvazione</th></tr></thead>
+        <tbody>
+        {% for tp in plans %}
+          <tr>
+            <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_tp' tp.id %}"><strong>{{ tp.part_number }}</strong></a></td>
+            <td>{{ tp.tipologia_foro }}</td>
+            <td>{% if tp.corrente %}rev. {{ tp.corrente.numero }} <span class="fmd-muted" style="font-size:11px;">del {{ tp.corrente.data_approvazione|date:"d-m-Y" }}</span>{% else %}<span class="fmd-badge fmd-b-red">nessuna: non usabile</span>{% endif %}</td>
+            <td>{% if tp.in_attesa %}<span class="fmd-badge fmd-b-amber">rev. {{ tp.in_attesa.numero }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessun Technical Plan.</div>{% endif %}
+      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_tp_add' processo.id %}">+ Nuovo Technical Plan</a></div>{% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Registri utensili aperti (MOD.176) <span class="fmd-count">{{ registri|length }}</span></div>
+        <div class="fmd-block-aside">Si aprono dal passo del Technical Plan · al TCP l'utensile si cambia</div>
+      </div>
+      {% if registri %}
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th>Utensile / kit</th><th>P/N · passo</th><th>Uso</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for r in registri %}
+          <tr>
+            <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_registro' r.id %}"><strong>{{ r.identificativo }}</strong></a>{% if r.passo.utensile %}<div class="fmd-muted" style="font-size:11px;">{{ r.passo.utensile.codice }}</div>{% endif %}</td>
+            <td>{{ r.passo.revisione.plan.part_number }} · {{ r.passo.get_operazione_display }}</td>
+            <td>{{ r.utilizzo }}{% if r.passo.tcp_limite %} / {{ r.passo.tcp_limite }}{% endif %} {{ r.passo.get_tcp_unita_display }}</td>
+            <td>{% if r.stato == "TCP_RAGGIUNTO" %}<span class="fmd-badge fmd-b-red">TCP raggiunto: da chiudere</span>{% else %}<span class="fmd-badge fmd-b-green">In uso</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessun registro aperto.</div>{% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Utensili critici <span class="fmd-count">{{ utensili|length }}</span></div>
+        <div class="fmd-block-aside">Solo da fornitori certificati dal cliente · senza limiti di riaffilatura sul disegno = monouso</div>
+      </div>
+      {% if utensili %}
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th>Codice</th><th>Descrizione</th><th>Tipo</th><th>Ø / taglienti</th><th>Fornitore</th><th>Riaffilatura</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+        {% for u in utensili %}
+          <tr{% if not u.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
+            <td><strong>{{ u.codice }}</strong></td>
+            <td>{{ u.descrizione }}{% if u.materiale %}<div class="fmd-muted" style="font-size:11px;">{{ u.materiale }}</div>{% endif %}</td>
+            <td>{{ u.get_tipo_display }}</td>
+            <td>{% if u.diametro_mm %}Ø {{ u.diametro_mm|floatformat:"-3" }}{% endif %}{% if u.numero_taglienti %} · {{ u.numero_taglienti }} t.{% endif %}</td>
+            <td>{{ u.fornitore|default:"—" }}</td>
+            <td>{% if u.riaffilabile %}fino a {{ u.riaffilature_max }} · {{ u.fornitore_riaffilatura|default:"ente da indicare" }}{% else %}monouso{% endif %}</td>
+            {% if can_manage %}<td><a href="{% url 'anagrafica:mpq_utensile_edit' processo.id u.id %}" title="Modifica">✎</a></td>{% endif %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessun utensile critico.</div>{% endif %}
+      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_utensile_add' processo.id %}">+ Nuovo utensile critico</a></div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
