@@ -489,6 +489,29 @@ GUIDA = {
             ],
         },
         {
+            "id": "mod128-utensili-technical-plan",
+            "titolo": "MOD.128: utensili critici, Technical Plan e MOD.176",
+            "blocchi": [
+                ("p", "Dal processo, «Utensili e Technical Plan» apre una pagina con tre parti (MT CN 69 §8)."),
+                ("passi", [
+                    "«+ Nuovo utensile critico»: codice costruttore o interno, descrizione, commerciale o speciale, "
+                    "materiale, diametro, taglienti, fornitore certificato. «Riaffilabile» solo se il disegno indica "
+                    "quante riaffilature ammette (e l'ente che le fa); altrimenti è monouso.",
+                    "«+ Nuovo Technical Plan»: P/N e tipologia di foro. Nasce la rev. 1 «in attesa di approvazione»: "
+                    "con «+ Aggiungi passo» si inseriscono foratura, arrotondatura, svasatura, lamatura o banco con "
+                    "utensile, velocità, avanzamento, refrigerante, pressione minima e TCP (fori, pezzi o minuti).",
+                    "«Registra approvazione» con il nome del Certify Agent del cliente, la data e il documento firmato: "
+                    "la revisione diventa quella valida. Per cambiare il processo «Nuova revisione» (scrivi cosa cambia): "
+                    "parte dai passi di quella valida, che resta in uso finché la nuova non è approvata e poi diventa «Superata».",
+                    "Sulla revisione valida, accanto a ogni passo, scrivi la marcatura dell'utensile o del kit e premi "
+                    "«Apri MOD.176». Nel registro si segnano data, P/N, OP, seriale e quantità: la barra mostra l'uso "
+                    "sul TCP. Al TCP il registro passa a «TCP raggiunto», non accetta altre righe e si chiude con "
+                    "«Chiudi e consegna a IN1»; se una riga supera il TCP compare l'avviso da segnalare a Qualità.",
+                ]),
+                ("p", "Consultare chiede il permesso visualizza MOD.128, modificare il permesso gestisci MOD.128."),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [

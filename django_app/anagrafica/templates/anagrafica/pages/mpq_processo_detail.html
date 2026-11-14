@@ -50,6 +50,9 @@
             <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_elenco' processo.id %}" title="Personale qualificato per ruolo e macchine qualificate, pronto da stampare">
               <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Elenco qualificati
             </a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_utensili' processo.id %}" title="Utensili critici, Technical Plan e registri MOD.176">
+              <svg class="fmd-ico"><use href="#i-gear"/></svg>Utensili e Technical Plan
+            </a>
           {% if can_manage %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_edit' processo.id %}">
               <svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica

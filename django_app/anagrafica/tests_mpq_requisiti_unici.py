@@ -415,3 +415,74 @@ class InattivitaTests(TestCase):
         ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=4702, processo=p,
                                                  stato=AbilitazioneProcesso.STATO_ATTIVA)
         self.assertEqual(stato_persona(ab)["esito"], "nessuno")
+
+
+class TechnicalPlanUtensiliTests(TestCase):
+    """MT CN 69 §8: Technical Plan con revisioni approvate, utensili critici, MOD.176 fino al TCP."""
+
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        from .models_mpq import UtensileCritico
+
+        u = get_user_model().objects.create_superuser("mpq.tp", "mpq.tp@example.com", "x")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        self.p = _proc("Processo TP")
+        self.ut = UtensileCritico.objects.create(processo=self.p, codice="SYN-PUNTA-6", descrizione="Punta sintetica")
+
+    def _plan_approvato(self):
+        from .models_mpq import TechnicalPlan, TechnicalPlanPasso
+        from .services import mpq_utensili
+
+        tp = TechnicalPlan.objects.create(processo=self.p, part_number="PN-SYN-1", tipologia_foro="Foro sintetico")
+        rev = mpq_utensili.nuova_revisione(tp, modifiche="Prima emissione")
+        TechnicalPlanPasso.objects.create(revisione=rev, operazione="FORATURA", utensile=self.ut,
+                                          tcp_limite=100, tcp_unita="FORI")
+        mpq_utensili.approva(rev, approvato_da="Certify Agent sintetico")
+        return tp, rev
+
+    def test_revisioni_e_approvazione(self):
+        from .services import mpq_utensili
+
+        tp, rev1 = self._plan_approvato()
+        self.assertEqual(tp.revisione_corrente, rev1)
+        rev2 = mpq_utensili.nuova_revisione(tp, modifiche="Nuovo TCP")
+        self.assertEqual(rev2.numero, 2)
+        self.assertEqual(rev2.passi.count(), 1)  # copiati dalla revisione valida
+        self.assertEqual(tp.revisione_corrente, rev1)  # finché non è approvata vale la 1
+        mpq_utensili.approva(rev2, approvato_da="Certify Agent sintetico")
+        rev1.refresh_from_db()
+        self.assertEqual(rev1.stato, "SUPERATA")
+        self.assertEqual(tp.revisione_corrente, rev2)
+
+    def test_mod176_fino_al_tcp(self):
+        from .models_mpq import RegistroUtensile
+        from .services import mpq_utensili
+
+        _tp, rev = self._plan_approvato()
+        reg = RegistroUtensile.objects.create(passo=rev.passi.get(), identificativo="KIT-SYN-01")
+        e = mpq_utensili.registra_riga(reg, part_number="PN-SYN-1", quantita=60, data=timezone.localdate())
+        self.assertFalse(e["tcp_raggiunto"])
+        e = mpq_utensili.registra_riga(reg, part_number="PN-SYN-1", quantita=50, data=timezone.localdate())
+        self.assertTrue(e["tcp_raggiunto"])
+        self.assertEqual(e["oltre"], 10)
+        reg.refresh_from_db()
+        self.assertEqual(reg.stato, RegistroUtensile.STATO_TCP)
+        with self.assertRaises(ValueError):
+            mpq_utensili.registra_riga(reg, part_number="PN-SYN-1", quantita=1, data=timezone.localdate())
+
+    def test_pagine(self):
+        tp, rev = self._plan_approvato()
+        r = self.client.get(reverse("anagrafica:mpq_utensili", args=[self.p.pk]))
+        self.assertContains(r, "PN-SYN-1")
+        self.assertContains(r, "SYN-PUNTA-6")
+        r = self.client.get(reverse("anagrafica:mpq_tp", args=[tp.pk]))
+        self.assertContains(r, "Apri MOD.176")
+        r = self.client.post(reverse("anagrafica:mpq_registro_apri", args=[rev.passi.get().pk]),
+                             {"identificativo": "KIT-SYN-02"})
+        self.assertEqual(r.status_code, 302)
+        r = self.client.get(r["Location"])
+        self.assertContains(r, "MOD.176 · KIT-SYN-02")
+        r = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.p.pk]))
+        self.assertContains(r, "Utensili e Technical Plan")
