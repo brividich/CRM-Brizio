@@ -116,3 +116,37 @@ class MailLettureMensiliTests(TestCase):
         self.assertEqual(services.copie_mensili(nov, ott)["a4_bn"], 200)
         self.assertIsNone(services.copie_mensili(ott, nov))  # contatori scesi
         self.assertEqual(services.righe_mensili_macchina(self.a)[0]["copie"], 330)
+
+
+@override_settings(SITE_URL="https://hub.example.local",
+                   EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class MailMensileFuoriDalFlussoTests(TestCase):
+    """La lettura arrivata dopo (task suo) rispetta flusso spento e regole dei destinatari."""
+
+    def setUp(self):
+        cache.clear()
+        self.a = Macchina.objects.create(reparto="Ufficio", matricola="SYN-A", host="192.0.2.41")
+        SiteConfig.set(mail_mensile.CHIAVE_DESTINATARI, "contatori@example.com")
+        LetturaMensileContatori.objects.create(macchina=self.a, mese=NOV, rilevata_il=_quando(2),
+                                               a4_bn=10, a3_bn=1, a4_col=5, a3_col=0)
+
+    def test_flusso_spento_niente_mail(self):
+        with mock.patch("automazioni.managed_flows.flusso_attivo", return_value=False):
+            self.assertEqual(mail_mensile.notifica(NOV), "")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_regole_dei_destinatari_del_flusso(self):
+        from automazioni.models import ScheduledMailText
+
+        ScheduledMailText.objects.create(task_name=mail_mensile.TASK_NAME, aggiungi_a="extra@example.com",
+                                         aggiungi_cc="copia@example.com")
+        self.assertEqual(mail_mensile.notifica(NOV), mail_mensile.COMPLETA)
+        self.assertEqual(mail.outbox[0].to, ["contatori@example.com", "extra@example.com"])
+        self.assertEqual(mail.outbox[0].cc, ["copia@example.com"])
+
+    def test_mail_disattivata_nel_flusso(self):
+        from automazioni.models import ScheduledMailText
+
+        ScheduledMailText.objects.create(task_name=mail_mensile.TASK_NAME, mail_disattivata=True)
+        self.assertEqual(mail_mensile.notifica(NOV), "")
+        self.assertEqual(len(mail.outbox), 0)
