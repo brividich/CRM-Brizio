@@ -39,6 +39,10 @@ REGOLA_DI_SERIE = {
 }
 
 
+# Decisioni del capocommessa che la pagina offre sempre, anche fuori dalla lista di Configurazione.
+AVANZAMENTI_FISSI = ("Azione di recupero", "Apertura ORE/RIPI")
+
+
 def _norm(v) -> str:
     return " ".join(str(v or "").split()).lower()
 
@@ -70,12 +74,14 @@ def eventi() -> list[dict]:
         avanzamenti = _load_anomalie_lists().get("avanzamenti") or []
     except Exception:
         avanzamenti = []
-    # «Azione di recupero» ha un percorso suo (azione effettuata da registrare): la riga c'è sempre.
-    from .tempi_service import AVANZAMENTO_RECUPERO
-
-    if _norm(AVANZAMENTO_RECUPERO) not in {_norm(str(v or "")) for v in avanzamenti}:
-        avanzamenti = [*avanzamenti, AVANZAMENTO_RECUPERO]
+    # Stesse scelte della pagina: la lista «Avanzamenti» di Configurazione (una voce nuova
+    # compare da sola) più le due che la pagina aggiunge sempre (buildAvanzamentoOptions).
+    avanzamenti = [*avanzamenti, *AVANZAMENTI_FISSI]
+    visti = set()
     for v in avanzamenti:
+        if _norm(v) in visti:
+            continue
+        visti.add(_norm(v))
         v = str(v or "").strip()
         if v and _norm(v) not in {"in attesa", ""}:
             out.append({"chiave": f"avanzamento:{v}", "gruppo": "Avanzamento", "etichetta": v})
