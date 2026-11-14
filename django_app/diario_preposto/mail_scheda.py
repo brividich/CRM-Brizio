@@ -131,3 +131,40 @@ def invia(s: SegnalazionePreposto, destinatari: list[str], *, cc: list[str] | No
         attachments=allegati,
     )
     return inviate, esclusi
+
+
+def destinatari_automatici() -> list[str]:
+    """Destinatari del flusso «scheda completa» (Automazioni → Notifiche di sistema → Modifica)."""
+    from automazioni.mail_config import elenco_indirizzi
+    from automazioni.mail_modulo import RSPP, SCHEDA_PREPOSTO
+    from core.models import SiteConfig
+
+    return elenco_indirizzi(SiteConfig.get(SCHEDA_PREPOSTO, RSPP) or "")
+
+
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("diario_preposto_scheda", skipped_result=0)
+def invia_alla_creazione(pk) -> int:
+    """Flusso: alla nuova segnalazione del preposto, la scheda completa ai destinatari configurati."""
+    s = SegnalazionePreposto.objects.filter(pk=pk).first()
+    destinatari = destinatari_automatici()
+    if s is None or not destinatari:
+        return 0
+    return invia(s, destinatari)[0]
+
+
+def dopo_creazione(pk) -> None:
+    """Dalla vista «Nuova segnalazione»: parte dopo il commit e non blocca mai il salvataggio."""
+    import logging
+
+    from django.db import transaction
+
+    def _manda():
+        try:
+            invia_alla_creazione(pk)
+        except Exception:
+            logging.getLogger(__name__).warning("scheda della segnalazione preposto %s non inviata", pk, exc_info=True)
+
+    transaction.on_commit(_manda)

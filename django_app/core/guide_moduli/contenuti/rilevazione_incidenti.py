@@ -80,6 +80,7 @@ GUIDA = {
                     "Richiesta di approvazione a rls@ (scade dopo 7 giorni). «Non approvo»: la rilevazione segna «Non approvato» e l'iter si ferma.",
                     "Se il RLS approva: «Approvazione RLS» = Approvato con la data, e richiesta di approvazione a rspp@.",
                     "Se il RSPP approva: la rilevazione risulta chiusa con la data di chiusura.",
+                    "In più, flusso «Segnalazione di sicurezza - scheda completa» (Automazioni → Notifiche di sistema): la scheda con tutti i campi, di base a rspp@. Destinatari e spegnimento da «Modifica»; campo vuoto = non parte.",
                 ]),
                 ("nota", "Nome della persona e descrizione dell'avvenimento compaiono solo nelle mail di approvazione a RLS e RSPP."),
             ],

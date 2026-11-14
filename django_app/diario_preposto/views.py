@@ -637,6 +637,9 @@ def nuovo(request):
                 segnalazione.save()
                 for uploaded_file, safe_name in validi:
                     _crea_allegato(request, segnalazione, uploaded_file, safe_name)
+                from .mail_scheda import dopo_creazione
+
+                dopo_creazione(segnalazione.pk)
             messages.success(request, f"Segnalazione {segnalazione.codice_identificativo} inserita.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:

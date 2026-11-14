@@ -59,3 +59,30 @@ class MailSchedaSegnalazioneTests(TestCase):
             call_command("invia_mail_segnalazione", "999999", "--to", "rls@test.local", stdout=StringIO())
         with self.assertRaises(CommandError):
             call_command("invia_mail_segnalazione", str(self.r.pk), "--to", "non-una-mail", stdout=StringIO())
+
+
+class FlussoSchedaSegnalazioneTests(TestCase):
+    def setUp(self):
+        self.r = RilevazioneIncidente.objects.create(nominativo="Persona Prova", tipologia_scheda="Near Miss", reparto="R1")
+
+    def test_alla_creazione_parte_al_rspp_di_base(self):
+        from .mail_scheda import dopo_creazione
+
+        with self.captureOnCommitCallbacks(execute=True):
+            dopo_creazione(self.r.pk)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["rspp@costruzioninovicrom.it"])
+
+    def test_destinatari_dal_pannello_e_vuoto_non_parte(self):
+        from automazioni.mail_modulo import salva
+        from core.models import SiteConfig
+
+        from .mail_scheda import invia_alla_creazione
+
+        salva("sicurezza_scheda_segnalazione", {"mod__sc:sicurezza_scheda_segnalazione_emails": "a@test.local; b@test.local"})
+        self.assertEqual(SiteConfig.get("sicurezza_scheda_segnalazione_emails"), "a@test.local, b@test.local")
+        invia_alla_creazione(self.r.pk)
+        self.assertEqual(mail.outbox[0].to, ["a@test.local", "b@test.local"])
+        SiteConfig.set("sicurezza_scheda_segnalazione_emails", "")
+        self.assertEqual(invia_alla_creazione(self.r.pk), 0)
+        self.assertEqual(len(mail.outbox), 1)

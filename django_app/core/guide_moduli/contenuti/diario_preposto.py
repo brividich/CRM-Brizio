@@ -93,6 +93,7 @@ GUIDA = {
                 ("ul", [
                     "AU57: a ogni nuova segnalazione, mail a rspp@, preposti@ e rls@costruzioninovicrom.it.",
                     "AU34: 14 giorni dopo la segnalazione, promemoria al RSPP per verificare il seguito.",
+                    "Flusso «Diario del preposto - scheda completa» (Automazioni → Notifiche di sistema): la scheda con descrizione ed elenco allegati, di base a rspp@. Destinatari e spegnimento da «Modifica»; campo vuoto = non parte.",
                     "Una regola importata nasce in bozza e spenta: va aperta, controllata e attivata.",
                 ]),
             ],
