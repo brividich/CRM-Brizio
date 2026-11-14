@@ -79,7 +79,7 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
 ## Chi ha in carico e Storia modificabile (13/11/2026)
 
-- `regole_carico.py`: `SiteConfig["anomalie_regole_carico"]` = `{"regole": {evento: "ruolo:<cc|qualita|controllore|car_op|segnalatore>" | "persona:<utenti.id>"}, "nomi": {...}}`. `decisione_qualita.ruoli_in_carico` usa `destinazione()` dopo le regole fisse (chiusa, richiesta aperta, CAR segnalati); una persona entra come `p:<id>`. Copia in memoria 10 s. Pagina: Configurazione → Qualità.
+- `regole_carico.py`: `SiteConfig["anomalie_regole_carico"]` = `{"regole": {evento: "ruolo:<cc|qualita|controllore|car_op|segnalatore>" | "persona:<utenti.id>"}, "nomi": {...}}`. `decisione_qualita.ruoli_in_carico` usa `destinazione()` dopo le regole fisse (chiusa, richiesta aperta, CAR segnalati); una persona entra come `p:<id>`. Copia in memoria 10 s. Pagina: Configurazione → Qualità, a riquadri per gruppo (due-tre colonne); la riga «Azione di recupero» c'è sempre, anche se manca dalla lista «Avanzamenti».
 - Storia: `AnomaliaActionNota` (nota a margine di un `AnomaliaActionLog`), `POST /api/anomalie/registro/<id>/nota`, `POST /api/anomalie/registro/passo` (azione `passo`). `GET /api/anomalie/registro?codice=` è aperto a chi vede l'OP dell'anomalia; senza codice resta ad amministratori e «Supervisori».
 
 ## Statistiche con l'ambito dell'utente (02/11/2026)

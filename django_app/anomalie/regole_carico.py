@@ -70,6 +70,11 @@ def eventi() -> list[dict]:
         avanzamenti = _load_anomalie_lists().get("avanzamenti") or []
     except Exception:
         avanzamenti = []
+    # «Azione di recupero» ha un percorso suo (azione effettuata da registrare): la riga c'è sempre.
+    from .tempi_service import AVANZAMENTO_RECUPERO
+
+    if _norm(AVANZAMENTO_RECUPERO) not in {_norm(str(v or "")) for v in avanzamenti}:
+        avanzamenti = [*avanzamenti, AVANZAMENTO_RECUPERO]
     for v in avanzamenti:
         v = str(v or "").strip()
         if v and _norm(v) not in {"in attesa", ""}:
