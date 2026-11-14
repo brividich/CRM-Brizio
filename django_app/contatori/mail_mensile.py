@@ -156,6 +156,13 @@ def notifica(mese, *, ultimo_giro=False):
     gia = _stato_inviato(mese)
     if gia == COMPLETA or gia == esito:
         return ""
+    # La lettura di una MFC accesa dopo gira in un task suo, fuori dal flusso pianificato:
+    # valgono comunque flusso spento e regole dei destinatari di Automazioni.
+    from automazioni.managed_flows import codice_flusso_corrente, flusso_attivo
+
+    fuori_flusso = codice_flusso_corrente() != TASK_NAME
+    if fuori_flusso and not flusso_attivo(TASK_NAME):
+        return ""
     elenco = destinatari()
     if not elenco:
         logger.info("contatori: mail letture mensili %s non inviata, nessun destinatario configurato", mese)
@@ -175,10 +182,20 @@ def notifica(mese, *, ultimo_giro=False):
         oggetto, testo, frammento = componi(dati)
         oggetto, testo, frammento, nota = apply_mail_overrides(
             TASK_NAME, subject=oggetto, body_text=testo, fragment=frammento)
+        copia = []
+        if fuori_flusso:
+            from automazioni.mail_config import personalizza_invio
+
+            regole = personalizza_invio(oggetto, testo, frammento, nota, elenco, [], codice=TASK_NAME)
+            if regole:
+                if regole["blocca"]:
+                    logger.info("contatori: mail letture mensili %s non inviata (%s)", mese, regole["motivo"])
+                    return ""
+                elenco, copia = regole["recipients"], regole["cc"]
         buffer = io.BytesIO()
         letture_mensili_xlsx(dati).save(buffer)
         send_hub_mail(
-            oggetto, testo, elenco,
+            oggetto, testo, elenco, cc=copia,
             email_type="Contatori", section_label="Letture mensili MFC",
             body_html_fragment=frammento, footer_note=nota,
             attachments=[(f"letture_mfc_{mese:%Y-%m}.xlsx", buffer.getvalue(),
