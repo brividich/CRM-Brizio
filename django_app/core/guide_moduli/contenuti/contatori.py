@@ -126,7 +126,9 @@ GUIDA = {
                     "Amministrazione → Automazioni → «Pianificati» → «contatori letture mensili» → «Modifica».",
                     "Scrivi i destinatari (virgola, punto e virgola o a capo) e salva. Oggetto, introduzione e nota sono facoltativi.",
                 ]),
-                ("nota", "Senza destinatari la mail non parte: non va agli amministratori di sistema."),
+                ("nota", "Senza destinatari la mail non parte: non va agli amministratori di sistema. Flusso spento, "
+                         "«mail disattivata» e destinatari aggiunti o tolti valgono anche per la mail che parte "
+                         "quando l'ultima MFC viene letta in ritardo."),
             ],
         },
     ],
