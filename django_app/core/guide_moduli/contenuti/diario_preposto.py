@@ -93,8 +93,23 @@ GUIDA = {
                 ("ul", [
                     "AU57: a ogni nuova segnalazione, mail a rspp@, preposti@ e rls@costruzioninovicrom.it.",
                     "AU34: 14 giorni dopo la segnalazione, promemoria al RSPP per verificare il seguito.",
+                    "Flusso «Diario del preposto - scheda completa» (Automazioni → Notifiche di sistema): la scheda con descrizione ed elenco allegati, di base a rspp@. Destinatari e spegnimento da «Modifica»; campo vuoto = non parte.",
                     "Una regola importata nasce in bozza e spenta: va aperta, controllata e attivata.",
                 ]),
+            ],
+        },
+        {
+            "id": "mail_scheda",
+            "titolo": "Rimandare a mano la scheda di una segnalazione",
+            "blocchi": [
+                ("p", "Dal server si manda la scheda completa (codice, titolo, data, preposto, chi segnala, descrizione, "
+                      "elenco allegati e link «Apri la segnalazione») nel formato delle mail NOVICROM HUB:"),
+                ("passi", [
+                    "Prova senza inviare: python manage.py invia_mail_preposto DP-2026-0012 --to rspp@costruzioninovicrom.it --dry-run",
+                    "Invio: lo stesso comando senza --dry-run; --cc per la copia, più codici per più segnalazioni.",
+                    "Con --allegati i file della segnalazione vanno anche in allegato, fino a 15 MB in tutto; quelli oltre restano solo in elenco.",
+                ]),
+                ("nota", "La mail compare in Automazioni → «Mail inviate»."),
             ],
         },
         {

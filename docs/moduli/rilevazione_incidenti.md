@@ -22,6 +22,10 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 - **Heatmap planimetria** in `/rilevazione-incidenti/heatmap/`: posizione presa, nell'ordine, dal **punto indicato** nel modulo (`planimetria_layout` + `planimetria_x/y`, migrazione 0008, selettore «Dove è successo» in nuovo/modifica, solo in modalità database locale come l'area), dalla **macchina coinvolta** (`asset` con marker collocato), dall'**area** scelta o dal riquadro con lo stesso reparto, dal **baricentro delle macchine collocate dello stesso reparto** (`heatmap_points`); punti raggruppati su griglia del 2%, disegnati in HTML (prima: SVG stirato con coordinate localizzate «25,3» che il browser scartava). Sotto la pianta il conteggio per fonte e le rilevazioni non collocabili
 - **Statistiche** per reparto, causa, gravità e categoria evento
 
+## Scheda per mail (14/11/2026)
+
+`python manage.py invia_mail_segnalazione <id…> --to … [--cc …] [--senza-nominativo] [--dry-run]` manda la scheda completa della segnalazione (`rilevazione_incidenti/mail_scheda.py`, layout `send_hub_mail`, riga in «Mail inviate»). Serve a rimandare a mano una mail AU3 non arrivata; `--senza-nominativo` toglie nome e descrizione come l'informativa a preposti e RLS. Legge il database locale. La stessa scheda parte da sola a ogni nuova segnalazione salvata dal portale (flusso evento `sicurezza_scheda_segnalazione`, destinatari SiteConfig `sicurezza_scheda_segnalazione_emails`, di base rspp@, modificabili e disattivabili da Automazioni).
+
 ## Hardening ottobre 2026
 
 - In modalità SharePoint la lista è in cache per 60 secondi (invalidata a ogni creazione/modifica/eliminazione) e la paginazione Graph ha un tempo massimo di 45 secondi: lista, statistiche ed export non tengono più occupato un thread per ogni apertura.
