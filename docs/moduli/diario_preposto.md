@@ -47,6 +47,10 @@ Registro delle segnalazioni di sicurezza del preposto (D.Lgs. 81/2008 art. 19) e
 
 Migrazione `diario_preposto 0007_integrita_eliminazione_impronta_allegati` (solo colonne nuove, nullable o con default).
 
+## Scheda per mail (14/11/2026)
+
+`python manage.py invia_mail_preposto <codice|id…> --to … [--cc …] [--allegati] [--dry-run]` manda la scheda completa della segnalazione (`diario_preposto/mail_scheda.py`, layout `send_hub_mail`, riga in «Mail inviate»). Gli allegati sono sempre elencati; con `--allegati` vanno in allegato fino a 15 MB in tutto.
+
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) le segnalazioni sono filtrate per autore (`creato_da`): il preposto vede e modifica le proprie, il responsabile vede quelle del suo team d'organigramma, la Sicurezza tutte. Dettaglio, modifica, eliminazione, export Excel/PDF, allegati e ispezioni applicano la stessa regola; la lista «acl_scrittura» delle impostazioni vale solo a sistema spento.
