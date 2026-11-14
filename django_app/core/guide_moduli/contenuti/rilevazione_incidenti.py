@@ -85,6 +85,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "mail_scheda",
+            "titolo": "Rimandare a mano la scheda di una segnalazione",
+            "blocchi": [
+                ("p", "Se una mail non è arrivata, dal server si manda la scheda completa (tutti i campi, i 5 perché, "
+                      "le note e il link «Apri la segnalazione») nel formato delle mail NOVICROM HUB:"),
+                ("passi", [
+                    "Prova senza inviare: python manage.py invia_mail_segnalazione 40 --to rls@costruzioninovicrom.it --dry-run",
+                    "Invio: lo stesso comando senza --dry-run; --cc per la copia, più numeri per più segnalazioni.",
+                    "Con --senza-nominativo la mail non contiene nome e descrizione dell'avvenimento, come l'informativa a preposti e RLS.",
+                ]),
+                ("nota", "Funziona con i dati nel database del portale. La mail compare in Automazioni → «Mail inviate»."),
+            ],
+        },
+        {
             "id": "permessi",
             "titolo": "Permessi",
             "blocchi": [
