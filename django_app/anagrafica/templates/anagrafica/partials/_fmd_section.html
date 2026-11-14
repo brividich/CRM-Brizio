@@ -14,16 +14,22 @@
      desc   (opz.)          riga descrizione «cosa inserire»
      count  (opz.)          nota a destra (es. "2 / 5")
      fields (obbligatorio)  lista bound-field, da  form|section_fields:"a,b,c"
+     griglia (opz.)         campi affiancati su più colonne invece che impilati
+     chiusa (opz.)          sezione facoltativa: richiusa, si apre con un clic
    Richiede il partial _fmd_form_style.html in pagina (stili .fmd-*).
    ──────────────────────────────────────────────────────────────────────────── {% endcomment %}
 <div class="fmd-form-sec">
+  {% if chiusa %}<details{% for field in fields %}{% if field.errors or field.value %} open{% endif %}{% endfor %}><summary>{% endif %}
   <div class="fmd-form-sec-h">
     <svg class="fmd-ico"><use href="#{{ icon|default:'i-clipboard' }}"/></svg>
     <span class="fmd-form-sec-t">{{ title }}</span>
     {% if count %}<span class="fmd-form-sec-n">{{ count }}</span>{% endif %}
+    {% if chiusa %}<span class="fmd-form-sec-facolt">facoltativo</span>{% endif %}
   </div>
+  {% if chiusa %}</summary>{% endif %}
   {% if desc %}<div class="fmd-form-sec-d">{{ desc }}</div>{% endif %}
-  <div class="fmd-stack">
+  <div class="{% if griglia %}fmd-grid-auto{% else %}fmd-stack{% endif %}">
     {% for field in fields %}{% include "anagrafica/partials/_fmd_field.html" with field=field %}{% endfor %}
   </div>
+  {% if chiusa %}</details>{% endif %}
 </div>

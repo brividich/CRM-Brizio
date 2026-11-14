@@ -40,6 +40,7 @@ body.theme-dark .mpqf-err{color:#fca5a5}
         <div style="display:flex;gap:16px;">{{ form.tipo_persona }}</div>
         {% if form.tipo_persona.errors %}<div class="mpqf-err">{{ form.tipo_persona.errors }}</div>{% endif %}
 
+        <div data-mostra-se="tipo_persona=interno" data-blocco>
         <label class="mpqf-lbl" for="id_dipendente">Dipendente interno{% if multi_select %} <span style="font-weight:400;color:#64748b;">(selezione multipla — Ctrl/⌘+clic)</span>{% endif %}</label>
         <input type="text" id="dip-filter" class="fm-input" placeholder="🔎 Filtra per cognome/nome…" autocomplete="off" style="margin-bottom:6px;">
         <select name="dipendente" id="id_dipendente" class="fm-input fm-select" size="8"{% if multi_select %} multiple{% endif %}>
@@ -64,10 +65,13 @@ body.theme-dark .mpqf-err{color:#fca5a5}
         })();
         </script>
         {% if form.dipendente.errors %}<div class="mpqf-err">{{ form.dipendente.errors }}</div>{% endif %}
+        </div>
 
+        <div data-mostra-se="tipo_persona=esterno" data-blocco>
         <label class="mpqf-lbl" for="{{ form.nominativo_esterno.id_for_label }}">Qualificatore esterno (nominativo)</label>
-        {{ form.nominativo_esterno|upper }}
+        {{ form.nominativo_esterno }}
         {% if form.nominativo_esterno.errors %}<div class="mpqf-err">{{ form.nominativo_esterno.errors }}</div>{% endif %}
+        </div>
 
         <label class="mpqf-lbl">Ruoli sul processo <span class="fmd-muted" style="font-weight:400;">(decidono quali requisiti valgono per la persona)</span></label>
         <div class="mpqf-roles">
@@ -89,4 +93,5 @@ body.theme-dark .mpqf-err{color:#fca5a5}
     </section>
   </div>
 </div>
+<script src="{% static 'anagrafica/js/mpq_form.js' %}?v=20261114" defer></script>
 {% endblock %}

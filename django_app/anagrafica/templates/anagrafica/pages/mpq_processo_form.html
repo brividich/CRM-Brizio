@@ -15,7 +15,7 @@
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
-  <div class="fmd-wrap" style="max-width:840px;">
+  <div class="fmd-wrap" style="max-width:1120px;">
 
     <div class="fmd-pagehead">
       <div class="fmd-crumb">
@@ -23,7 +23,6 @@
         <span class="fmd-sep"> / </span><span class="fmd-cur">{{ titolo }}</span>
       </div>
       <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ titolo }}</h1>
-      <p class="fmd-ph-sub">Definisci il processo qualificato: cliente/ente, validità, requisiti e distribuzione.</p>
     </div>
 
     <form method="post" class="fmd-panel">
@@ -32,14 +31,14 @@
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
 
-      {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Cliente/ente qualificante, nome del processo, regime e livello. «Rientra nel perimetro Part 145» porta un processo speciale (es. con DQP) nel Dossier PART 145." fields=form|section_fields:"cliente,nome,regime,perimetro_part145,livello" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Certificazione" icon="i-check" desc="Ente/organismo certificatore e tipo qualifica di catalogo collegato (opzionali)." fields=form|section_fields:"ente_certificatore,tipo_qualifica" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Validità e scadenza" icon="i-cal-clock" desc="Scadenza del processo: illimitata, a periodo (mesi da conseguimento) o data esplicita. Persone e macchine hanno scadenze proprie: la frequenza qui sotto è quella proposta alle macchine nuove." fields=form|section_fields:"tipo_validita,data_conseguimento,durata_mesi,data_scadenza,frequenza_macchine_mesi,inattivita_mesi" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Personale" icon="i-clipboard" desc="Nominale (elenco persone) oppure organizzativa (rimando a dichiarazione)." fields=form|section_fields:"personale_modalita,riferimento_dichiarazione" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Stato" icon="i-alert-tri" desc="Attivo/sospeso/revocato/dismesso, con motivo e riferimento a supporto." fields=form|section_fields:"stato,motivo_stato,riferimento_stato" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Distribuzione e riconoscimento" icon="i-grid" desc="Reparti a cui è distribuito e clienti/enti che lo riconoscono (condiviso)." fields=form|section_fields:"reparti,clienti_addizionali" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Revisione del registro" icon="i-edit" desc="Numero revisione, responsabile qualità e data (registro vivo)." fields=form|section_fields:"numero_revisione,responsabile_qualita,data_revisione" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Chi lo riconosce, come si chiama e il regime. «Rientra nel perimetro Part 145» lo porta nel Dossier PART 145." griglia=1 fields=form|section_fields:"cliente,nome,regime,perimetro_part145,livello" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Certificazione" icon="i-check" desc="Ente che certifica il processo e tipo qualifica collegato." griglia=1 chiusa=1 fields=form|section_fields:"ente_certificatore,tipo_qualifica" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Validità e scadenza" icon="i-cal-clock" desc="Scadenza del processo. Persone e macchine hanno scadenze proprie: qui solo la frequenza delle macchine e il riesame per inattività delle persone." griglia=1 fields=form|section_fields:"tipo_validita,data_conseguimento,durata_mesi,data_scadenza,frequenza_macchine_mesi,inattivita_mesi" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Personale" icon="i-clipboard" desc="Elenco nominale oppure rimando a una dichiarazione." griglia=1 chiusa=1 fields=form|section_fields:"personale_modalita,riferimento_dichiarazione" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Stato" icon="i-alert-tri" desc="Attivo, sospeso, revocato o dismesso, con il motivo." griglia=1 fields=form|section_fields:"stato,motivo_stato,riferimento_stato" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Distribuzione e riconoscimento" icon="i-grid" desc="Reparti a cui è distribuito e altri clienti/enti che lo riconoscono." griglia=1 chiusa=1 fields=form|section_fields:"reparti,clienti_addizionali" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Revisione del registro" icon="i-edit" desc="Numero di revisione, responsabile qualità e data." griglia=1 chiusa=1 fields=form|section_fields:"numero_revisione,responsabile_qualita,data_revisione" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" griglia=1 chiusa=1 fields=form|section_fields:"note" %}
 
       <div class="fmd-form-foot">
         <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>

@@ -26,7 +26,7 @@
 
       <div class="fmd-muted" style="font-size:12px;margin:4px 0 8px;">Personale qualificato: {{ n_persone }}</div>
       <div class="fmd-tablewrap">
-        <table class="fmd-table">
+        <table class="fmd-table" data-fm-table-skip="1">
           <thead><tr><th>Ruolo</th><th>N°</th><th>Nominativi</th></tr></thead>
           <tbody>
           {% for ruolo, persone in gruppi %}
@@ -42,7 +42,7 @@
 
       <div class="fmd-muted" style="font-size:12px;margin:18px 0 8px;">Macchine qualificate: {{ macchine|length }}</div>
       <div class="fmd-tablewrap">
-        <table class="fmd-table">
+        <table class="fmd-table" data-fm-table-skip="1">
           <thead><tr><th>Macchina</th><th>Reparto</th><th>Qualificata il</th><th>Scade</th><th>Stato</th></tr></thead>
           <tbody>
           {% for m in macchine %}

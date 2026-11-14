@@ -37,7 +37,7 @@ body.theme-dark .mpqf-err{color:#fca5a5}
         {% if form.non_field_errors %}<div class="mpqf-err" style="margin-bottom:10px;">{{ form.non_field_errors }}</div>{% endif %}
         <div class="mpqf-grid">
           {% for field in form %}
-          <div>
+          <div class="mpqf-campo">
             <label class="mpqf-lbl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
             {{ field }}
             {% if field.help_text %}<div class="fmd-muted" style="font-size:11px;">{{ field.help_text }}</div>{% endif %}
@@ -54,4 +54,5 @@ body.theme-dark .mpqf-err{color:#fca5a5}
     </section>
   </div>
 </div>
+<script src="{% static 'anagrafica/js/mpq_form.js' %}?v=20261114" defer></script>
 {% endblock %}
