@@ -59,6 +59,14 @@ class SegnalatoTests(SimpleTestCase):
         self.assertEqual(rc.destinazione(riga, info, regole), {"p:6"})
 
 
+class EventiTests(SimpleTestCase):
+    def test_voce_nuova_della_lista_compare_da_sola(self):
+        lista = {"avanzamenti": ["Accetto lo stato", "In attesa", "Rottamare il pezzo", "azione di recupero"]}
+        with patch("anomalie.views._load_anomalie_lists", return_value=lista):
+            avanz = [e["etichetta"] for e in rc.eventi() if e["gruppo"] == "Avanzamento"]
+        self.assertEqual(avanz, ["Accetto lo stato", "Rottamare il pezzo", "azione di recupero", "Apertura ORE/RIPI"])
+
+
 class SalvaRegoleTests(TestCase):
     def tearDown(self):
         rc._CACHE["v"] = None  # la copia in memoria sopravvive al rollback del test
