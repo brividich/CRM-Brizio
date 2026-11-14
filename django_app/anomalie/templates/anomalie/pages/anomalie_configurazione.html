@@ -951,36 +951,46 @@
     <div class="card-head">
       <div>
         <div class="card-title">Chi ha in carico l'anomalia</div>
-        <div class="page-sub" style="margin-top:4px;">Per ogni momento dell'anomalia scegli a chi passa: un ruolo o una persona precisa. Vale la prima riga che corrisponde, dall'alto. &laquo;Di serie&raquo; lascia la regola di sempre (scritta accanto) o, se non c'&egrave;, passa alla riga successiva. Restano fissi: chiusa = nessuno, richiesta di informazioni aperta = chi deve rispondere, CAR segnalati = sempre anche loro; &laquo;Cambia incaricato&raquo; sulla singola anomalia vince sulla tabella.</div>
+        <div class="page-sub" style="margin-top:4px;">A chi passa l'anomalia in ogni momento: vale la prima riga che corrisponde (dall'alto). &laquo;Di serie&raquo; = regola di sempre. Fissi: chiusa = nessuno, richiesta info aperta = chi deve rispondere, CAR segnalati = anche loro; &laquo;Cambia incaricato&raquo; vince sulla tabella.</div>
       </div>
     </div>
     <div class="card-body">
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_regole_carico">
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead><tr><th>Quando</th><th>Passa a</th></tr></thead>
-            <tbody>
-              {% for r in regole_carico %}
-              {% ifchanged r.gruppo %}<tr><td colspan="2" style="font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);background:var(--bg);">{{ r.gruppo }}</td></tr>{% endifchanged %}
-              <tr>
-                <td>{{ r.etichetta }}</td>
-                <td>
-                  <select name="regola__{{ r.chiave }}" class="ga-select" style="min-width:260px;">
-                    <option value="">Di serie{% if r.di_serie %} ({{ r.di_serie }}){% endif %}</option>
-                    <optgroup label="Ruolo">
-                      {% for val, label in regole_ruoli %}<option value="{{ val }}"{% if r.valore == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
-                    </optgroup>
-                    <optgroup label="Persona">
-                      {% for p in regole_persone %}<option value="{{ p.v }}"{% if r.valore == p.v %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
-                    </optgroup>
-                  </select>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <style>
+          .rc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:10px 18px;align-items:start;}
+          .rc-gr{border:1px solid var(--border);border-radius:10px;padding:6px 10px 8px;background:var(--surface,var(--card-bg));}
+          .rc-gr__t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid);padding:2px 0 4px;}
+          .rc-r{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:8px;align-items:center;padding:3px 0;border-top:1px dashed var(--border);font-size:12.5px;margin:0;}
+          .rc-r:first-of-type{border-top:0;}
+          .rc-r select{width:100%;padding:3px 6px;font-size:12px;min-height:0;height:28px;}
+          .rc-r .ts-wrapper{min-width:0;}.rc-r .ts-control{min-height:28px;padding:3px 8px;font-size:12px;}
+          .rc-r--set span{font-weight:700;}
+          .rc-r--set select{border-color:var(--primary,#2563eb);}
+          @media (max-width:560px){.rc-grid{grid-template-columns:1fr;}.rc-r{grid-template-columns:1fr;}}
+        </style>
+        {% regroup regole_carico by gruppo as gruppi_carico %}
+        <div class="rc-grid">
+          {% for g in gruppi_carico %}
+          <div class="rc-gr">
+            <div class="rc-gr__t">{{ g.grouper }}</div>
+            {% for r in g.list %}
+            <label class="rc-r{% if r.valore %} rc-r--set{% endif %}">
+              <span>{{ r.etichetta }}</span>
+              <select name="regola__{{ r.chiave }}" class="ga-select">
+                <option value="">Di serie{% if r.di_serie %} ({{ r.di_serie }}){% endif %}</option>
+                <optgroup label="Ruolo">
+                  {% for val, label in regole_ruoli %}<option value="{{ val }}"{% if r.valore == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </optgroup>
+                <optgroup label="Persona">
+                  {% for p in regole_persone %}<option value="{{ p.v }}"{% if r.valore == p.v %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
+                </optgroup>
+              </select>
+            </label>
+            {% endfor %}
+          </div>
+          {% endfor %}
         </div>
         <button type="submit" class="btn" style="margin-top:10px;">Salva</button>
       </form>
