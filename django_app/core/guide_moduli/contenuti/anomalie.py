@@ -85,7 +85,7 @@ GUIDA = {
                       "che faceva lui, compresa la decisione qualità); «Torna di serie» lo toglie. A chi passa "
                       "l'anomalia in ogni momento lo decide la tabella «Chi ha in carico l'anomalia» (Configurazione → "
                       "Qualità): per fase, avanzamento qualità, «Aprire RDC», da segnalare / segnalato (cliente, "
-                      "terzista, CAR) e avanzamento (c'è sempre anche «Azione di recupero») si sceglie un ruolo "
+                      "terzista, CAR) e avanzamento (le voci della lista «Avanzamenti», anche quelle aggiunte dopo, più «Azione di recupero» e «Apertura ORE/RIPI») si sceglie un ruolo "
                       "o una persona; vale la prima riga che corrisponde."),
                 ("p", "La «Storia» di un'anomalia la vede chi vede l'OP: oltre agli eventi permette «Aggiungi passo» "
                       "(un'attività scritta a mano), «Aggiungi nota» sotto un evento e «Cambia incaricato». Gli eventi "
