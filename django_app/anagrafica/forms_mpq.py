@@ -20,6 +20,9 @@ from .models_mpq import (
     RequisitoPersona,
     RequisitoQualifica,
     RiferimentoProcesso,
+    TechnicalPlan,
+    TechnicalPlanPasso,
+    UtensileCritico,
 )
 
 _FM = {"class": "fm-input"}
@@ -364,3 +367,67 @@ class QualificaMacchinaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for f in self.fields:
             self.fields[f].required = False
+
+
+class UtensileCriticoForm(forms.ModelForm):
+    class Meta:
+        model = UtensileCritico
+        fields = ["codice", "descrizione", "tipo", "materiale", "diametro_mm", "numero_taglienti", "fornitore",
+                  "riaffilabile", "riaffilature_max", "fornitore_riaffilatura", "attivo", "note"]
+        widgets = {
+            "codice": forms.TextInput(attrs=_FM), "descrizione": forms.TextInput(attrs=_FM),
+            "tipo": forms.Select(attrs=_FM_SELECT), "materiale": forms.TextInput(attrs=_FM),
+            "diametro_mm": forms.NumberInput(attrs={**_FM_NUM, "step": "0.001"}),
+            "numero_taglienti": forms.NumberInput(attrs=_FM_NUM), "fornitore": forms.TextInput(attrs=_FM),
+            "riaffilabile": forms.CheckboxInput(attrs=_FM_CHECK),
+            "riaffilature_max": forms.NumberInput(attrs=_FM_NUM),
+            "fornitore_riaffilatura": forms.TextInput(attrs=_FM),
+            "attivo": forms.CheckboxInput(attrs=_FM_CHECK), "note": forms.Textarea(attrs=_FM_TEXTAREA),
+        }
+
+    def clean(self):
+        cd = super().clean()
+        if cd.get("riaffilabile") and not cd.get("riaffilature_max"):
+            self.add_error("riaffilature_max", "Indica quante riaffilature ammette il disegno.")
+        return cd
+
+
+class TechnicalPlanForm(forms.ModelForm):
+    class Meta:
+        model = TechnicalPlan
+        fields = ["part_number", "tipologia_foro", "note"]
+        widgets = {"part_number": forms.TextInput(attrs=_FM), "tipologia_foro": forms.TextInput(attrs=_FM),
+                   "note": forms.Textarea(attrs=_FM_TEXTAREA)}
+
+
+class TechnicalPlanPassoForm(forms.ModelForm):
+    class Meta:
+        model = TechnicalPlanPasso
+        fields = ["operazione", "utensile", "velocita", "avanzamento", "refrigerante", "pressione_min_bar",
+                  "tcp_limite", "tcp_unita", "criteri_cambio"]
+        widgets = {
+            "operazione": forms.Select(attrs=_FM_SELECT), "utensile": forms.Select(attrs=_FM_SELECT),
+            "velocita": forms.TextInput(attrs=_FM), "avanzamento": forms.TextInput(attrs=_FM),
+            "refrigerante": forms.TextInput(attrs=_FM),
+            "pressione_min_bar": forms.NumberInput(attrs={**_FM_NUM, "step": "0.1"}),
+            "tcp_limite": forms.NumberInput(attrs=_FM_NUM), "tcp_unita": forms.Select(attrs=_FM_SELECT),
+            "criteri_cambio": forms.TextInput(attrs=_FM),
+        }
+
+    def __init__(self, *args, processo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = UtensileCritico.objects.filter(attivo=True)
+        self.fields["utensile"].queryset = qs.filter(processo=processo) if processo is not None else qs.none()
+        self.fields["utensile"].required = False
+
+
+class RegistroRigaForm(forms.Form):
+    data = forms.DateField(widget=forms.DateInput(attrs=_FM_DATE))
+    part_number = forms.CharField(max_length=80, label="P/N", widget=forms.TextInput(attrs=_FM))
+    ordine_produzione = forms.CharField(max_length=60, required=False, label="OP / commessa",
+                                        widget=forms.TextInput(attrs=_FM))
+    seriale = forms.CharField(max_length=80, required=False, label="Matricola / seriale",
+                              widget=forms.TextInput(attrs=_FM))
+    quantita = forms.IntegerField(min_value=1, label="Quantità", widget=forms.NumberInput(attrs=_FM_NUM))
+    operatore = forms.CharField(max_length=120, required=False, widget=forms.TextInput(attrs=_FM))
+    note = forms.CharField(max_length=255, required=False, widget=forms.TextInput(attrs=_FM))

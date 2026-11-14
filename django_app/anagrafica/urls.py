@@ -4,6 +4,7 @@ from . import views
 from . import views_coefficienti
 from . import views_mpq
 from . import views_mpq_qualifiche as views_mpq_q
+from . import views_mpq_utensili as views_mpq_u
 from . import views_recruiting
 from . import views_reportistica
 from . import views_reportistica_chat
@@ -325,6 +326,20 @@ urlpatterns = [
     path("mod128/requisito/<int:req_id>/elimina/", views_mpq.mpq_requisito_delete, name="mpq_requisito_delete"),
     path("mod128/requisito/<int:req_id>/sposta/", views_mpq.mpq_requisito_sposta, name="mpq_requisito_sposta"),
     path("mod128/matrice/", views_mpq_q.mpq_matrice, name="mpq_matrice"),
+    path("mod128/<int:processo_id>/utensili/", views_mpq_u.mpq_utensili, name="mpq_utensili"),
+    path("mod128/<int:processo_id>/utensili/nuovo/", views_mpq_u.mpq_utensile_form, name="mpq_utensile_add"),
+    path("mod128/<int:processo_id>/utensili/<int:utensile_id>/modifica/", views_mpq_u.mpq_utensile_form,
+         name="mpq_utensile_edit"),
+    path("mod128/<int:processo_id>/technical-plan/nuovo/", views_mpq_u.mpq_tp_nuovo, name="mpq_tp_add"),
+    path("mod128/technical-plan/<int:tp_id>/", views_mpq_u.mpq_tp, name="mpq_tp"),
+    path("mod128/technical-plan/<int:tp_id>/revisione/", views_mpq_u.mpq_tp_revisione, name="mpq_tp_revisione"),
+    path("mod128/technical-plan/revisione/<int:rev_id>/passo/", views_mpq_u.mpq_tp_passo_add, name="mpq_tp_passo_add"),
+    path("mod128/technical-plan/revisione/<int:rev_id>/approva/", views_mpq_u.mpq_tp_approva, name="mpq_tp_approva"),
+    path("mod128/technical-plan/passo/<int:passo_id>/elimina/", views_mpq_u.mpq_tp_passo_delete,
+         name="mpq_tp_passo_delete"),
+    path("mod128/technical-plan/passo/<int:passo_id>/registro/", views_mpq_u.mpq_registro_apri,
+         name="mpq_registro_apri"),
+    path("mod128/registro-utensili/<int:reg_id>/", views_mpq_u.mpq_registro, name="mpq_registro"),
     path("mod128/abilitazione/<int:ab_id>/attivita/", views_mpq_q.mpq_attivita, name="mpq_attivita"),
     path("mod128/<int:processo_id>/ruolo-mansione/", views_mpq_q.mpq_ruolo_mansione, name="mpq_ruolo_mansione"),
     path("mod128/<int:processo_id>/aggiorna-mansioni/", views_mpq_q.mpq_aggiorna_mansioni,

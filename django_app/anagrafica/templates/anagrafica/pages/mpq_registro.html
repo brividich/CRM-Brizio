@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}MOD.176 {{ reg.identificativo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+  .ruc-f{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;}
+  .ruc-f label{display:block;font-size:11px;font-weight:600;color:var(--text-mid,#475569);margin-bottom:2px;}
+  .ruc-f .fm-input{width:100%;box-sizing:border-box;}
+  .ruc-bar{height:8px;border-radius:4px;background:var(--surface-alt,#e2e8f0);overflow:hidden;max-width:360px;}
+  .ruc-bar span{display:block;height:100%;background:#16a34a;}
+  .ruc-bar.alta span{background:#d97706;}
+  .ruc-bar.piena span{background:#dc2626;}
+  @media print { .no-print, .hub-topbar, nav { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-muted no-print" style="font-size:12px;margin-bottom:6px;"><a href="{% url 'anagrafica:mpq_tp' tp.id %}">← Technical Plan {{ tp.part_number }}</a> · {{ processo.nome }}</div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>MOD.176 · {{ reg.identificativo }}</div>
+        <div class="fmd-block-aside">{{ reg.get_stato_display }} · aperto il {{ reg.aperto_il|date:"d-m-Y" }}{% if reg.chiuso_il %} · chiuso il {{ reg.chiuso_il|date:"d-m-Y" }}{% endif %}</div>
+      </div>
+      <div style="font-size:13px;">
+        {{ tp.part_number }} · {{ reg.passo.get_operazione_display }} (rev. {{ reg.passo.revisione.numero }}){% if reg.passo.utensile %} · utensile {{ reg.passo.utensile.codice }}{% endif %}
+      </div>
+      <div style="margin-top:8px;font-size:13px;">
+        Uso: <strong>{{ usato }}</strong>{% if limite %} su {{ limite }}{% endif %} {{ reg.passo.get_tcp_unita_display }}
+        {% if limite %}<div class="ruc-bar {% if percentuale >= 100 %}piena{% elif percentuale >= 80 %}alta{% endif %}" style="margin-top:4px;"><span style="width:{{ percentuale }}%;"></span></div>{% else %}<span class="fmd-muted">(TCP non indicato nel passo)</span>{% endif %}
+      </div>
+      {% if reg.stato == "TCP_RAGGIUNTO" and can_manage %}
+      <form method="post" class="no-print" style="margin-top:10px;">{% csrf_token %}<input type="hidden" name="azione" value="chiudi"><button type="submit" class="fmd-btn fmd-btn-primary">Chiudi e consegna a IN1</button></form>
+      {% endif %}
+    </section>
+
+    {% if form %}
+    <section class="fmd-panel fmd-block no-print">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Registra parti lavorate</div></div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="ruc-f">
+          {% for f in form %}<div><label for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} *{% endif %}</label>{{ f }}{% if f.errors %}<div style="color:#c53030;font-size:11px;">{{ f.errors|join:" " }}</div>{% endif %}</div>{% endfor %}
+        </div>
+        <button type="submit" class="fmd-btn fmd-btn-sm" style="margin-top:8px;">Registra</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Parti lavorate <span class="fmd-count">{{ righe|length }}</span></div></div>
+      {% if righe %}
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th>Data</th><th>P/N</th><th>OP / commessa</th><th>Seriale</th><th>Quantità</th><th>Operatore</th><th>Note</th></tr></thead>
+        <tbody>
+        {% for r in righe %}<tr><td>{{ r.data|date:"d-m-Y" }}</td><td>{{ r.part_number }}</td><td>{{ r.ordine_produzione|default:"—" }}</td><td>{{ r.seriale|default:"—" }}</td><td>{{ r.quantita }}</td><td>{{ r.operatore|default:"—" }}</td><td>{{ r.note }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="fmd-muted">Nessuna parte registrata.</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

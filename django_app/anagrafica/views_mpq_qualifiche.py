@@ -490,6 +490,10 @@ def mpq_documento(request, tipo: str, pk: int):
         obj = get_object_or_404(VerificaMacchina, pk=pk)
     elif tipo == "evidenza":
         obj = get_object_or_404(EvidenzaRequisitoPersona, pk=pk)
+    elif tipo == "technical-plan":
+        from .models_mpq import TechnicalPlanRevisione
+
+        obj = get_object_or_404(TechnicalPlanRevisione, pk=pk)
     else:
         raise Http404
     if not obj.documento:
