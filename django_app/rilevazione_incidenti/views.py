@@ -749,6 +749,9 @@ def nuovo(request):
                     # Autore della segnalazione: base della visibilita' «propri / team».
                     fields["SegnalatoDaLegacyId"] = legacy_id(request)
                     created = _create_item_local(fields)
+                    from .mail_scheda import dopo_creazione
+
+                    dopo_creazione(created["id"])
                 else:
                     created = _create_item(fields)
                 sp_id = created["id"]

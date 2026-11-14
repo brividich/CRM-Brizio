@@ -35,12 +35,13 @@ def _valida_indirizzi(valore: str) -> str:
     return ""
 
 
-def siteconfig(chiave: str, etichetta: str, *, aiuto: str = "", indirizzi: bool = True, righe: int = 2) -> Campo:
+def siteconfig(chiave: str, etichetta: str, *, aiuto: str = "", indirizzi: bool = True, righe: int = 2,
+               predefinito: str = "") -> Campo:
     """Elenco (o testo) su ``core.SiteConfig``: la stessa chiave che usa il modulo."""
     def leggi() -> str:
         from core.models import SiteConfig
 
-        return SiteConfig.get(chiave, "") or ""
+        return SiteConfig.get(chiave, predefinito) or ""
 
     def salva(valore: str) -> str:
         from core.models import SiteConfig
@@ -127,6 +128,11 @@ def _dpi(campo: str, etichetta: str, aiuto: str = "") -> Campo:
     return modello("dpi.DPIImpostazioni", campo, etichetta, carica="get_singleton", aiuto=aiuto, separatore="\n")
 
 
+RSPP = "rspp@costruzioninovicrom.it"
+SCHEDA_SICUREZZA = "sicurezza_scheda_segnalazione_emails"
+SCHEDA_PREPOSTO = "diario_preposto_scheda_emails"
+
+
 def _impostazioni() -> dict[str, dict]:
     """Codice flusso → {"dove": dove si cambia nel modulo, "campi": [Campo, ...]}."""
     reception = "Reception → Configurazione → Impostazioni"
@@ -184,6 +190,11 @@ def _impostazioni() -> dict[str, dict]:
             modello("tasks.TaskImpostazioni", "cc_predefinite_email", "CC predefiniti (email)", carica="get_singleton",
                     separatore="\n", aiuto="Valgono quando l'incontro non ha CC suoi; i CC scelti come utenti restano nel modulo.")]}
            for codice in ("kickoff_convocazione", "kickoff_minuta", "kickoff_annullamento")},
+        "sicurezza_scheda_segnalazione": {"dove": "nessuna pagina del modulo: si cambia solo qui", "campi": [
+            siteconfig(SCHEDA_SICUREZZA, "Destinatari della scheda completa", predefinito=RSPP,
+                       aiuto="La scheda contiene nome e descrizione: mandala solo a chi gestisce la segnalazione.")]},
+        "diario_preposto_scheda": {"dove": "nessuna pagina del modulo: si cambia solo qui", "campi": [
+            siteconfig(SCHEDA_PREPOSTO, "Destinatari della scheda completa", predefinito=RSPP)]},
         "dpi_promemoria_ordine_scarpe": {"dove": dpi, "campi": [
             _dpi("negozio_operatore_emails", "Operatore incaricato degli ordini", "Vuoto: i referenti DPI.")]},
     }

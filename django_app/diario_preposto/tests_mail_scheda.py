@@ -53,3 +53,15 @@ class MailSchedaPrepostoTests(TestCase):
         self.assertIn("Oggetto:", out.getvalue())
         with self.assertRaises(CommandError):
             call_command("invia_mail_preposto", "DP-1999-9999", "--to", "rspp@test.local", stdout=StringIO())
+
+
+class FlussoSchedaPrepostoTests(TestCase):
+    def test_alla_creazione_parte_al_rspp_di_base(self):
+        from .mail_scheda import dopo_creazione
+
+        s = SegnalazionePreposto.objects.create(
+            titolo="T", data_segnalazione=timezone.make_aware(datetime(2026, 11, 10, 8, 0)), descrizione="D")
+        with self.captureOnCommitCallbacks(execute=True):
+            dopo_creazione(s.pk)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["rspp@costruzioninovicrom.it"])

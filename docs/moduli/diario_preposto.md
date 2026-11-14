@@ -49,7 +49,7 @@ Migrazione `diario_preposto 0007_integrita_eliminazione_impronta_allegati` (solo
 
 ## Scheda per mail (14/11/2026)
 
-`python manage.py invia_mail_preposto <codice|id…> --to … [--cc …] [--allegati] [--dry-run]` manda la scheda completa della segnalazione (`diario_preposto/mail_scheda.py`, layout `send_hub_mail`, riga in «Mail inviate»). Gli allegati sono sempre elencati; con `--allegati` vanno in allegato fino a 15 MB in tutto.
+`python manage.py invia_mail_preposto <codice|id…> --to … [--cc …] [--allegati] [--dry-run]` manda la scheda completa della segnalazione (`diario_preposto/mail_scheda.py`, layout `send_hub_mail`, riga in «Mail inviate»). Gli allegati sono sempre elencati; con `--allegati` vanno in allegato fino a 15 MB in tutto. La stessa scheda parte da sola a ogni nuova segnalazione (flusso evento `diario_preposto_scheda`, destinatari SiteConfig `diario_preposto_scheda_emails`, di base rspp@, modificabili e disattivabili da Automazioni).
 
 ## Ruoli del portale
 

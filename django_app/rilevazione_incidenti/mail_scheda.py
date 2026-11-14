@@ -149,3 +149,40 @@ def invia(r: RilevazioneIncidente, destinatari: list[str], *, cc: list[str] | No
         section_label="Segnalazione di sicurezza",
         body_html_fragment=mail["frammento"],
     )
+
+
+def destinatari_automatici() -> list[str]:
+    """Destinatari del flusso «scheda completa» (Automazioni → Notifiche di sistema → Modifica)."""
+    from automazioni.mail_config import elenco_indirizzi
+    from automazioni.mail_modulo import RSPP, SCHEDA_SICUREZZA
+    from core.models import SiteConfig
+
+    return elenco_indirizzi(SiteConfig.get(SCHEDA_SICUREZZA, RSPP) or "")
+
+
+from automazioni.managed_flows import event_flow  # noqa: E402
+
+
+@event_flow("sicurezza_scheda_segnalazione", skipped_result=0)
+def invia_alla_creazione(pk) -> int:
+    """Flusso: alla nuova segnalazione, la scheda completa ai destinatari configurati."""
+    r = RilevazioneIncidente.objects.filter(pk=pk).first()
+    destinatari = destinatari_automatici()
+    if r is None or not destinatari:
+        return 0
+    return invia(r, destinatari)
+
+
+def dopo_creazione(pk) -> None:
+    """Dalla vista «Nuova rilevazione»: parte dopo il commit e non blocca mai il salvataggio."""
+    import logging
+
+    from django.db import transaction
+
+    def _manda():
+        try:
+            invia_alla_creazione(pk)
+        except Exception:
+            logging.getLogger(__name__).warning("scheda della segnalazione #%s non inviata", pk, exc_info=True)
+
+    transaction.on_commit(_manda)
