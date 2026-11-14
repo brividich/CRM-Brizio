@@ -136,3 +136,17 @@ body.theme-dark .fmd-modal-head{ border-bottom-color:var(--border); }
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .fmd-ferr{color:#fca5a5}
+
+/* ── Sezioni compatte (14/11/2026) ────────────────────────────
+   «griglia»: campi affiancati che vanno a capo da soli; «chiusa»: sezione facoltativa
+   richiusa in un <details>, si apre con un clic (vedi partials/_fmd_section.html). */
+.fmd-grid-auto{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px 16px; }
+.fmd-grid-auto .fmd-field:has(textarea),
+.fmd-grid-auto .fmd-field:has(select[multiple]){ grid-column:1 / -1; }
+.fmd-form-sec details > summary{ list-style:none; cursor:pointer; }
+.fmd-form-sec details > summary::-webkit-details-marker{ display:none; }
+.fmd-form-sec details > summary .fmd-form-sec-h{ margin-bottom:0; }
+.fmd-form-sec details[open] > summary .fmd-form-sec-h{ margin-bottom:12px; }
+.fmd-form-sec-facolt{ margin-left:auto; font-size:11px; color:var(--fmd-muted,#6b7a90); }
+.fmd-form-sec details > summary .fmd-form-sec-facolt::after{ content:" ▸"; }
+.fmd-form-sec details[open] > summary .fmd-form-sec-facolt::after{ content:" ▾"; }

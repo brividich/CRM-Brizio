@@ -130,202 +130,6 @@
       {% if processo.note %}<p class="fmd-sub" style="margin-top:10px;">{{ processo.note|linebreaksbr }}</p>{% endif %}
     </section>
 
-    {# ── Requisiti del processo uguali per tutti (contratto, audit, certificato…) ── #}
-    {% if requisiti_generici or can_manage %}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Requisiti del processo</div>
-        <div class="fmd-block-aside">Uguali per tutti: contratto, audit, certificato del processo. Ciò che serve alla singola persona è in «Cosa serve a una persona»</div>
-      </div>
-      {% if requisiti_generici %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Tipo</th><th>Descrizione</th><th>Obbl.</th><th>Stato</th><th>Scadenza</th><th>Evidenza</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
-          <tbody>
-          {% for r in requisiti_generici %}
-            <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
-              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span>{% if r.tipo in tipi_per_persona %}<div class="fmd-muted" style="font-size:11px;">È per persona: va in «Cosa serve a una persona»</div>{% endif %}</td>
-              <td>{{ r.descrizione }}{% if r.rif_normativo %}<div class="fmd-muted" style="font-size:11px;">{{ r.rif_normativo }}</div>{% endif %}</td>
-              <td>{% if r.obbligatorio %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
-              <td>
-                {% if r.stato == 'SODDISFATTO' and not r.is_scaduto %}<span class="fmd-badge fmd-b-green">Soddisfatto</span>
-                {% elif r.is_scaduto %}<span class="fmd-badge fmd-b-red">Scaduto</span>
-                {% elif r.stato == 'NON_APPLICABILE' %}<span class="fmd-badge fmd-b-slate">N/A</span>
-                {% else %}<span class="fmd-badge fmd-b-amber">Da verificare</span>{% endif %}
-              </td>
-              <td>{% if r.data_scadenza %}{{ r.data_scadenza|date:"d/m/Y" }}{% if r.periodicita_mesi %} <span class="fmd-muted" style="font-size:11px;">(ogni {{ r.periodicita_mesi }} m)</span>{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
-              <td>{% if r.evidenza_url %}<a href="{{ r.evidenza_url }}" target="_blank" rel="noopener">apri</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
-              {% if can_manage %}
-              <td style="white-space:nowrap;">
-                {% if r.tipo in tipi_per_persona %}<form method="post" action="{% url 'anagrafica:mpq_requisito_sposta' r.id %}" class="fmd-act-form" data-hub-confirm="Spostare «{{ r.descrizione }}» in «Cosa serve a una persona»? Lo stato registrato qui (uguale per tutti) non viene copiato: ogni persona andrà verificata.">{% csrf_token %}<button type="submit" class="fmd-act">Sposta</button></form> {% endif %}<a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
-                <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
-              </td>
-              {% endif %}
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessun requisito uguale per tutti.</div>{% endif %}
-      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_add' processo.id %}">+ Aggiungi requisito</a></div>{% endif %}
-    </section>
-    {% endif %}
-
-    {# ── Cosa serve a una persona: ruoli + requisiti per ruolo ─────────────── #}
-    {% if requisiti_persona or ruoli_catalogo or can_manage %}
-    <section class="fmd-panel fmd-block" id="requisiti-persone">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Cosa serve a una persona
-          {% if requisiti_persona %}<span class="fmd-count">{{ requisiti_persona|length }}</span>{% endif %}
-        </div>
-        <div class="fmd-block-aside">Per ruolo, una tantum o ricorrente: la scadenza è della persona, non del processo</div>
-      </div>
-      <div style="padding:2px 2px 10px;">
-        <span class="fmd-muted" style="font-size:12px;margin-right:6px;">Ruoli del processo:</span>
-        {% for r in ruoli_catalogo %}<span class="fmd-badge fmd-b-cyan" title="{% if r.competenza %}Mansione della skill matrix: {{ r.competenza }}{% endif %}">{{ r.nome }}{% if r.competenza %} → {{ r.competenza }}{% endif %}{% if can_manage %}
-          <form method="post" action="{% url 'anagrafica:mpq_ruolo_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il ruolo «{{ r.nome }}»? Le persone perdono il ruolo, i requisiti restano.">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>{% endif %}</span>
-        {% empty %}<span class="fmd-muted" style="font-size:12px;">nessuno (i requisiti valgono per tutti)</span>{% endfor %}
-        {% if can_manage %}
-        <form method="post" action="{% url 'anagrafica:mpq_ruolo_add' processo.id %}" style="display:flex;gap:6px;margin-top:8px;max-width:620px;">
-          {% csrf_token %}
-          <input type="text" name="nome" placeholder="Nuovi ruoli separati da ; (es. Operatore macchina; Presetting; Capo reparto)" required maxlength="600"
-                 style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-          <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Ruoli</button>
-        </form>
-        {% if ruoli_catalogo %}
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
-          <form method="post" action="{% url 'anagrafica:mpq_ruolo_mansione' processo.id %}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            {% csrf_token %}
-            <span class="fmd-muted" style="font-size:12px;">Collega il ruolo</span>
-            <select name="ruolo" class="fm-input fm-select" style="max-width:200px;">{% for r in ruoli_catalogo %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}</select>
-            <span class="fmd-muted" style="font-size:12px;">alla mansione</span>
-            <select name="competenza" class="fm-input fm-select" style="max-width:280px;"><option value="">— nessuna —</option>{% for m in mansioni_scelta %}<option value="{{ m.pk }}">{{ m.display|default:m.competenza_key }}</option>{% endfor %}</select>
-            <button type="submit" class="fmd-btn fmd-btn-ghost">Collega</button>
-          </form>
-          <form method="post" action="{% url 'anagrafica:mpq_aggiorna_mansioni' processo.id %}" class="fmd-act-form">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" title="Mette in lista sulla mansione chi ha il ruolo e aggiorna il livello: qualificato = almeno il livello operativo, non qualificato = sotto la soglia">↻ Aggiorna mansioni e livelli</button></form>
-        </div>
-        {% endif %}
-        {% endif %}
-      </div>
-      {% if requisiti_persona %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Cosa</th><th>Tipo</th><th>Per chi</th><th>Quando</th><th>Bloccante</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
-          <tbody>
-          {% for r in requisiti_persona %}
-            <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
-              <td>{% if r.tipo == "corso" and r.corso_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso_id %}">{{ r.etichetta }}</a>{% else %}{{ r.etichetta }}{% endif %}{% if r.da_iscrivere and perm_az.formazione %}<form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form" style="margin-left:6px;">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ r.corso_id }}">{% for lid in r.da_iscrivere %}<input type="hidden" name="dipendenti_selezionati" value="{{ lid }}">{% endfor %}<input type="hidden" name="back" value="{{ request.get_full_path }}"><button type="submit" class="fmd-act" title="Una sola sessione del corso con dentro tutte le persone scadute, mancanti o in scadenza">↻ Iscrivi tutti ({{ r.da_iscrivere|length }})</button></form>{% endif %}{% if r.gruppo_alternativo %} <span class="fmd-badge fmd-b-violet" title="Basta una delle righe con lo stesso nome">oppure · {{ r.gruppo_alternativo }}</span>{% endif %}{% if r.note %}<div class="fmd-muted" style="font-size:11px;">{{ r.note|truncatechars:120 }}</div>{% endif %}</td>
-              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
-              <td>{% for ru in r.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ ru.nome }}</span> {% empty %}<span class="fmd-muted">Tutti i ruoli</span>{% endfor %}</td>
-              <td>{% if r.is_ricorrente %}Ogni {{ r.frequenza_mesi }} mesi{% if r.scadenza_fine_mese %} <span class="fmd-muted" style="font-size:11px;">(a fine mese)</span>{% endif %}{% elif r.ricorrenza == "UNA_TANTUM" %}Una tantum{% else %}<span title="Nessuna frequenza propria: vale la scadenza del corso, della visita o della qualifica">Segue la sua scadenza</span>{% endif %}{% if r.tipo == "esperienza" and r.ore_minime %} · {{ r.ore_minime }} ore{% endif %}</td>
-              <td>{% if r.bloccante %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
-              {% if can_manage %}
-              <td style="white-space:nowrap;">
-                <a href="{% url 'anagrafica:mpq_requisito_persona_edit' r.id %}" title="Modifica">✎</a>
-                <form method="post" action="{% url 'anagrafica:mpq_requisito_persona_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.etichetta }}»? Le evidenze registrate vengono cancellate.">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
-              </td>
-              {% endif %}
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% endif %}
-      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_persona_add' processo.id %}">+ Aggiungi requisito persona</a></div>{% endif %}
-    </section>
-    {% endif %}
-
-    {# ── Cosa serve a una macchina: manutenzioni + voci della verifica ──────── #}
-    {% if requisiti_macchina or parametri_verifica or can_manage %}
-    <section class="fmd-panel fmd-block" id="requisiti-macchine">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Cosa serve a una macchina</div>
-        <div class="fmd-block-aside">Qualifica {% if processo.frequenza_macchine_mesi %}ogni {{ processo.frequenza_macchine_mesi }} mesi{% else %}senza scadenza{% endif %} · manutenzioni lette dai piani dell'asset</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
-        <div>
-          <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Manutenzioni, tarature e controlli</div>
-          {% for r in requisiti_macchina %}
-          <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #eef3f8;{% if not r.attivo %}opacity:.55;{% endif %}">
-            <span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span>
-            <span style="flex:1;">{{ r.descrizione }}{% if r.ricorrenza %} <span class="fmd-muted" style="font-size:11px;">· {{ r.ricorrenza }}</span>{% endif %}
-              <div class="fmd-muted" style="font-size:11px;">{% if r.piano %}Piano: {{ r.piano.label }}{% else %}Registrato a bordo macchina{% endif %}{% if not r.bloccante %} · non bloccante{% endif %}</div></span>
-            {% if can_manage %}<a href="{% url 'anagrafica:mpq_requisito_macchina_edit' r.id %}" title="Modifica">✎</a>
-            <form method="post" action="{% url 'anagrafica:mpq_requisito_macchina_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">×</button></form>{% endif %}
-          </div>
-          {% empty %}<div class="fmd-muted" style="font-size:12px;">Nessuna.</div>{% endfor %}
-          {% if can_manage %}<div style="margin-top:8px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_macchina_add' processo.id %}">+ Aggiungi</a></div>{% endif %}
-        </div>
-        <div>
-          <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Voci della verifica di qualifica</div>
-          {% for p in parametri_verifica %}
-          <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #eef3f8;">
-            <span style="flex:1;">{{ p.nome }}</span>
-            <span class="fmd-muted" style="font-size:12px;">{{ p.criterio }}</span>
-            {% if can_manage %}<form method="post" action="{% url 'anagrafica:mpq_parametro_delete' p.id %}" style="display:inline;" data-hub-confirm="Rimuovere la voce «{{ p.nome }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">×</button></form>{% endif %}
-          </div>
-          {% empty %}<div class="fmd-muted" style="font-size:12px;">Nessuna: la verifica registra solo esito e rapporto.</div>{% endfor %}
-          {% if can_manage %}
-          <form method="post" action="{% url 'anagrafica:mpq_parametro_add' processo.id %}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
-            {% csrf_token %}
-            <input type="text" name="nome" placeholder="Voce (es. Giri mandrino)" required maxlength="150" style="flex:2;min-width:140px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-            <select name="tipo" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-              <option value="TOLLERANZA">± %</option><option value="MINIMO">Minimo</option><option value="PROVA">Prova</option>
-            </select>
-            <input type="text" name="tolleranza_pct" placeholder="Toll. %" inputmode="decimal" style="width:70px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-            <input type="text" name="valore_minimo" placeholder="Minimo" inputmode="decimal" style="width:70px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-            <input type="text" name="unita" placeholder="Unità" maxlength="20" style="width:60px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-            <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Voce</button>
-          </form>
-          {% endif %}
-        </div>
-      </div>
-    </section>
-    {% endif %}
-
-    {# ── Macchine qualificate (asset del processo) ─────────────────────────── #}
-    <section class="fmd-panel fmd-block" id="attrezzature">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Macchine qualificate
-          {% if attrezzature %}<span class="fmd-count">{{ attrezzature|length }}</span>{% endif %}
-        </div>
-        <div class="fmd-block-aside">Asset usati nel processo, con qualifica e scadenza proprie{% if processo.regime == "PART145" %}: per un processo PART 145 ci sono anche tutti gli asset con la casella «Rientra in PART 145» · <a href="{% url 'assets:part_145_list' %}">Dossier PART 145 →</a>{% endif %}</div>
-      </div>
-      {% if attrezzature %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Asset</th><th>Nome</th><th>Reparto</th><th>Stato</th><th>Qualifica</th><th>Manutenzioni</th><th>Perché è qui</th><th></th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
-          <tbody>
-          {% for r in attrezzature %}
-            <tr>
-              <td><a href="{% url 'assets:asset_view' r.asset.id %}">{{ r.asset.asset_tag }}</a></td>
-              <td>{{ r.asset.name }}<div class="fmd-muted" style="font-size:11px;">{{ r.asset.asset_category.label|default:"" }}</div></td>
-              <td>{{ r.asset.reparto|default:"—" }}</td>
-              <td>{% if r.asset.status == "IN_USE" %}<span class="fmd-badge fmd-b-green">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "IN_REPAIR" %}<span class="fmd-badge fmd-b-amber">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "RETIRED" %}<span class="fmd-badge fmd-b-red">{{ r.asset.get_status_display }}</span>{% else %}<span class="fmd-badge fmd-b-slate">{{ r.asset.get_status_display }}</span>{% endif %}</td>
-              <td>{% if r.qualifica %}<a href="{% url 'anagrafica:mpq_qualifica_macchina' r.qualifica.id %}" class="fmd-badge {{ r.stato.classe }}" style="text-decoration:none;" title="{{ r.qualifica.motivo_stato }}">{{ r.stato.label }}</a>{% else %}<span class="fmd-badge fmd-b-slate">Non registrata</span>{% endif %}</td>
-              <td>{% for v in r.problemi %}<span class="fmd-badge fmd-b-red" title="{{ v.tipo }}">{{ v.nome }}: {{ v.label }}</span> {% empty %}{% if r.requisiti %}<span class="fmd-badge fmd-b-green">In regola</span>{% else %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}</td>
-              <td>{% if r.collegata %}<span class="fmd-badge fmd-b-violet">Collegata qui</span>{% endif %} {% if r.da_flag and processo.regime == "PART145" %}<span class="fmd-badge fmd-b-red">PART 145</span>{% endif %}</td>
-              <td class="fmd-nowrap">{% if r.qualifica %}{% if can_manage and r.stato.codice == "da_valutare" %}<a class="fmd-act" href="{% url 'anagrafica:mpq_qualifica_macchina' r.qualifica.id %}#decidi">Valuta</a>{% elif can_manage and not r.stato.operativa %}<a class="fmd-act" href="{% url 'anagrafica:mpq_verifica_add' r.qualifica.id %}">Registra verifica</a>{% elif can_manage and r.stato.codice == "in_scadenza" %}<a class="fmd-act" href="{% url 'anagrafica:mpq_verifica_add' r.qualifica.id %}">↻ Verifica</a>{% elif r.problemi %}<a class="fmd-act fmd-act-ghost" href="{% url 'assets:asset_view' r.asset.id %}">Manutenzioni</a>{% endif %}{% elif can_manage %}<form method="post" action="{% url 'anagrafica:mpq_qualifica_macchina_crea' processo.id r.asset.id %}" class="fmd-act-form">{% csrf_token %}<button type="submit" class="fmd-act">Qualifica</button></form>{% endif %}</td>
-              {% if can_manage %}
-              <td>{% if r.collegata %}<form method="post" action="{% url 'anagrafica:mpq_attrezzatura_remove' processo.id r.asset.id %}" style="display:inline;" data-hub-confirm="Scollegare {{ r.asset.asset_tag }} dal processo?">{% csrf_token %}<button type="submit" title="Scollega" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Scollega</button></form>{% else %}<span class="fmd-muted" style="font-size:11px;">dal flag dell'asset</span>{% endif %}</td>
-              {% endif %}
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessuna attrezzatura collegata.</div>{% endif %}
-      {% if can_manage %}
-      <form method="post" action="{% url 'anagrafica:mpq_attrezzatura_add' processo.id %}" style="display:flex;gap:6px;margin-top:10px;max-width:520px;">
-        {% csrf_token %}
-        <input type="text" name="asset" placeholder="Tag o numero interno dell'asset" required maxlength="64"
-               style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
-        <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Collega attrezzatura</button>
-      </form>
-      <div class="fmd-muted" style="font-size:11px;margin-top:6px;">Una macchina messa in riparazione o con un OdL non programmato chiuso passa a «Da valutare» e Qualità riceve una mail: decide se serve la riqualifica.</div>
-      {% endif %}
-    </section>
-
     {# ── Personale abilitato ────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block" id="persone">
       <div class="fmd-block-head">
@@ -400,6 +204,202 @@
       <div class="fmd-empty">Nessuna persona abilitata su questo processo.</div>
       {% endif %}
     </section>
+
+    {# ── Macchine qualificate (asset del processo) ─────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="attrezzature">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Macchine qualificate
+          {% if attrezzature %}<span class="fmd-count">{{ attrezzature|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">Asset usati nel processo, con qualifica e scadenza proprie{% if processo.regime == "PART145" %}: per un processo PART 145 ci sono anche tutti gli asset con la casella «Rientra in PART 145» · <a href="{% url 'assets:part_145_list' %}">Dossier PART 145 →</a>{% endif %}</div>
+      </div>
+      {% if attrezzature %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-fm-table-skip="1">
+          <thead><tr><th>Asset</th><th>Nome</th><th>Reparto</th><th>Stato</th><th>Qualifica</th><th>Manutenzioni</th><th>Perché è qui</th><th></th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in attrezzature %}
+            <tr>
+              <td><a href="{% url 'assets:asset_view' r.asset.id %}">{{ r.asset.asset_tag }}</a></td>
+              <td>{{ r.asset.name }}<div class="fmd-muted" style="font-size:11px;">{{ r.asset.asset_category.label|default:"" }}</div></td>
+              <td>{{ r.asset.reparto|default:"—" }}</td>
+              <td>{% if r.asset.status == "IN_USE" %}<span class="fmd-badge fmd-b-green">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "IN_REPAIR" %}<span class="fmd-badge fmd-b-amber">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "RETIRED" %}<span class="fmd-badge fmd-b-red">{{ r.asset.get_status_display }}</span>{% else %}<span class="fmd-badge fmd-b-slate">{{ r.asset.get_status_display }}</span>{% endif %}</td>
+              <td>{% if r.qualifica %}<a href="{% url 'anagrafica:mpq_qualifica_macchina' r.qualifica.id %}" class="fmd-badge {{ r.stato.classe }}" style="text-decoration:none;" title="{{ r.qualifica.motivo_stato }}">{{ r.stato.label }}</a>{% else %}<span class="fmd-badge fmd-b-slate">Non registrata</span>{% endif %}</td>
+              <td>{% for v in r.problemi %}<span class="fmd-badge fmd-b-red" title="{{ v.tipo }}">{{ v.nome }}: {{ v.label }}</span> {% empty %}{% if r.requisiti %}<span class="fmd-badge fmd-b-green">In regola</span>{% else %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}</td>
+              <td>{% if r.collegata %}<span class="fmd-badge fmd-b-violet">Collegata qui</span>{% endif %} {% if r.da_flag and processo.regime == "PART145" %}<span class="fmd-badge fmd-b-red">PART 145</span>{% endif %}</td>
+              <td class="fmd-nowrap">{% if r.qualifica %}{% if can_manage and r.stato.codice == "da_valutare" %}<a class="fmd-act" href="{% url 'anagrafica:mpq_qualifica_macchina' r.qualifica.id %}#decidi">Valuta</a>{% elif can_manage and not r.stato.operativa %}<a class="fmd-act" href="{% url 'anagrafica:mpq_verifica_add' r.qualifica.id %}">Registra verifica</a>{% elif can_manage and r.stato.codice == "in_scadenza" %}<a class="fmd-act" href="{% url 'anagrafica:mpq_verifica_add' r.qualifica.id %}">↻ Verifica</a>{% elif r.problemi %}<a class="fmd-act fmd-act-ghost" href="{% url 'assets:asset_view' r.asset.id %}">Manutenzioni</a>{% endif %}{% elif can_manage %}<form method="post" action="{% url 'anagrafica:mpq_qualifica_macchina_crea' processo.id r.asset.id %}" class="fmd-act-form">{% csrf_token %}<button type="submit" class="fmd-act">Qualifica</button></form>{% endif %}</td>
+              {% if can_manage %}
+              <td>{% if r.collegata %}<form method="post" action="{% url 'anagrafica:mpq_attrezzatura_remove' processo.id r.asset.id %}" style="display:inline;" data-hub-confirm="Scollegare {{ r.asset.asset_tag }} dal processo?">{% csrf_token %}<button type="submit" title="Scollega" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Scollega</button></form>{% else %}<span class="fmd-muted" style="font-size:11px;">dal flag dell'asset</span>{% endif %}</td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessuna attrezzatura collegata.</div>{% endif %}
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:mpq_attrezzatura_add' processo.id %}" style="display:flex;gap:6px;margin-top:10px;max-width:520px;">
+        {% csrf_token %}
+        <input type="text" name="asset" placeholder="Tag o numero interno dell'asset" required maxlength="64"
+               style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+        <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Collega attrezzatura</button>
+      </form>
+      <div class="fmd-muted" style="font-size:11px;margin-top:6px;">Una macchina messa in riparazione o con un OdL non programmato chiuso passa a «Da valutare» e Qualità riceve una mail: decide se serve la riqualifica.</div>
+      {% endif %}
+    </section>
+
+    {# ── Cosa serve a una persona: ruoli + requisiti per ruolo ─────────────── #}
+    {% if requisiti_persona or ruoli_catalogo or can_manage %}
+    <section class="fmd-panel fmd-block" id="requisiti-persone">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Cosa serve a una persona
+          {% if requisiti_persona %}<span class="fmd-count">{{ requisiti_persona|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">Per ruolo, una tantum o ricorrente: la scadenza è della persona, non del processo</div>
+      </div>
+      <div style="padding:2px 2px 10px;">
+        <span class="fmd-muted" style="font-size:12px;margin-right:6px;">Ruoli del processo:</span>
+        {% for r in ruoli_catalogo %}<span class="fmd-badge fmd-b-cyan" title="{% if r.competenza %}Mansione della skill matrix: {{ r.competenza }}{% endif %}">{{ r.nome }}{% if r.competenza %} → {{ r.competenza }}{% endif %}{% if can_manage %}
+          <form method="post" action="{% url 'anagrafica:mpq_ruolo_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il ruolo «{{ r.nome }}»? Le persone perdono il ruolo, i requisiti restano.">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>{% endif %}</span>
+        {% empty %}<span class="fmd-muted" style="font-size:12px;">nessuno (i requisiti valgono per tutti)</span>{% endfor %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'anagrafica:mpq_ruolo_add' processo.id %}" style="display:flex;gap:6px;margin-top:8px;max-width:620px;">
+          {% csrf_token %}
+          <input type="text" name="nome" placeholder="Nuovi ruoli separati da ; (es. Operatore macchina; Presetting; Capo reparto)" required maxlength="600"
+                 style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+          <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Ruoli</button>
+        </form>
+        {% if ruoli_catalogo %}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+          <form method="post" action="{% url 'anagrafica:mpq_ruolo_mansione' processo.id %}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            {% csrf_token %}
+            <span class="fmd-muted" style="font-size:12px;">Collega il ruolo</span>
+            <select name="ruolo" class="fm-input fm-select" style="max-width:200px;">{% for r in ruoli_catalogo %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}</select>
+            <span class="fmd-muted" style="font-size:12px;">alla mansione</span>
+            <select name="competenza" class="fm-input fm-select" style="max-width:280px;"><option value="">— nessuna —</option>{% for m in mansioni_scelta %}<option value="{{ m.pk }}">{{ m.display|default:m.competenza_key }}</option>{% endfor %}</select>
+            <button type="submit" class="fmd-btn fmd-btn-ghost">Collega</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:mpq_aggiorna_mansioni' processo.id %}" class="fmd-act-form">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" title="Mette in lista sulla mansione chi ha il ruolo e aggiorna il livello: qualificato = almeno il livello operativo, non qualificato = sotto la soglia">↻ Aggiorna mansioni e livelli</button></form>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% if requisiti_persona %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-fm-table-skip="1">
+          <thead><tr><th>Cosa</th><th>Tipo</th><th>Per chi</th><th>Quando</th><th>Bloccante</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in requisiti_persona %}
+            <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
+              <td>{% if r.tipo == "corso" and r.corso_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso_id %}">{{ r.etichetta }}</a>{% else %}{{ r.etichetta }}{% endif %}{% if r.da_iscrivere and perm_az.formazione %}<form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form" style="margin-left:6px;">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ r.corso_id }}">{% for lid in r.da_iscrivere %}<input type="hidden" name="dipendenti_selezionati" value="{{ lid }}">{% endfor %}<input type="hidden" name="back" value="{{ request.get_full_path }}"><button type="submit" class="fmd-act" title="Una sola sessione del corso con dentro tutte le persone scadute, mancanti o in scadenza">↻ Iscrivi tutti ({{ r.da_iscrivere|length }})</button></form>{% endif %}{% if r.gruppo_alternativo %} <span class="fmd-badge fmd-b-violet" title="Basta una delle righe con lo stesso nome">oppure · {{ r.gruppo_alternativo }}</span>{% endif %}{% if r.note %}<div class="fmd-muted" style="font-size:11px;">{{ r.note|truncatechars:120 }}</div>{% endif %}</td>
+              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
+              <td>{% for ru in r.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ ru.nome }}</span> {% empty %}<span class="fmd-muted">Tutti i ruoli</span>{% endfor %}</td>
+              <td>{% if r.is_ricorrente %}Ogni {{ r.frequenza_mesi }} mesi{% if r.scadenza_fine_mese %} <span class="fmd-muted" style="font-size:11px;">(a fine mese)</span>{% endif %}{% elif r.ricorrenza == "UNA_TANTUM" %}Una tantum{% else %}<span title="Nessuna frequenza propria: vale la scadenza del corso, della visita o della qualifica">Segue la sua scadenza</span>{% endif %}{% if r.tipo == "esperienza" and r.ore_minime %} · {{ r.ore_minime }} ore{% endif %}</td>
+              <td>{% if r.bloccante %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
+              {% if can_manage %}
+              <td style="white-space:nowrap;">
+                <a href="{% url 'anagrafica:mpq_requisito_persona_edit' r.id %}" title="Modifica">✎</a>
+                <form method="post" action="{% url 'anagrafica:mpq_requisito_persona_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.etichetta }}»? Le evidenze registrate vengono cancellate.">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_persona_add' processo.id %}">+ Aggiungi requisito persona</a></div>{% endif %}
+    </section>
+    {% endif %}
+
+    {# ── Cosa serve a una macchina: manutenzioni + voci della verifica ──────── #}
+    {% if requisiti_macchina or parametri_verifica or can_manage %}
+    <section class="fmd-panel fmd-block" id="requisiti-macchine">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Cosa serve a una macchina</div>
+        <div class="fmd-block-aside">Qualifica {% if processo.frequenza_macchine_mesi %}ogni {{ processo.frequenza_macchine_mesi }} mesi{% else %}senza scadenza{% endif %} · manutenzioni lette dai piani dell'asset</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+        <div>
+          <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Manutenzioni, tarature e controlli</div>
+          {% for r in requisiti_macchina %}
+          <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #eef3f8;{% if not r.attivo %}opacity:.55;{% endif %}">
+            <span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span>
+            <span style="flex:1;">{{ r.descrizione }}{% if r.ricorrenza %} <span class="fmd-muted" style="font-size:11px;">· {{ r.ricorrenza }}</span>{% endif %}
+              <div class="fmd-muted" style="font-size:11px;">{% if r.piano %}Piano: {{ r.piano.label }}{% else %}Registrato a bordo macchina{% endif %}{% if not r.bloccante %} · non bloccante{% endif %}</div></span>
+            {% if can_manage %}<a href="{% url 'anagrafica:mpq_requisito_macchina_edit' r.id %}" title="Modifica">✎</a>
+            <form method="post" action="{% url 'anagrafica:mpq_requisito_macchina_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">×</button></form>{% endif %}
+          </div>
+          {% empty %}<div class="fmd-muted" style="font-size:12px;">Nessuna.</div>{% endfor %}
+          {% if can_manage %}<div style="margin-top:8px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_macchina_add' processo.id %}">+ Aggiungi</a></div>{% endif %}
+        </div>
+        <div>
+          <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Voci della verifica di qualifica</div>
+          {% for p in parametri_verifica %}
+          <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #eef3f8;">
+            <span style="flex:1;">{{ p.nome }}</span>
+            <span class="fmd-muted" style="font-size:12px;">{{ p.criterio }}</span>
+            {% if can_manage %}<form method="post" action="{% url 'anagrafica:mpq_parametro_delete' p.id %}" style="display:inline;" data-hub-confirm="Rimuovere la voce «{{ p.nome }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">×</button></form>{% endif %}
+          </div>
+          {% empty %}<div class="fmd-muted" style="font-size:12px;">Nessuna: la verifica registra solo esito e rapporto.</div>{% endfor %}
+          {% if can_manage %}
+          <form method="post" action="{% url 'anagrafica:mpq_parametro_add' processo.id %}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            {% csrf_token %}
+            <input type="text" name="nome" placeholder="Voce (es. Giri mandrino)" required maxlength="150" style="flex:2;min-width:140px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+            <select name="tipo" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+              <option value="TOLLERANZA">± %</option><option value="MINIMO">Minimo</option><option value="PROVA">Prova</option>
+            </select>
+            <input type="text" name="tolleranza_pct" placeholder="Toll. %" inputmode="decimal" style="width:70px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+            <input type="text" name="valore_minimo" placeholder="Minimo" inputmode="decimal" style="width:70px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+            <input type="text" name="unita" placeholder="Unità" maxlength="20" style="width:60px;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+            <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Voce</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {# ── Requisiti del processo uguali per tutti (contratto, audit, certificato…) ── #}
+    {% if requisiti_generici or can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Requisiti del processo</div>
+        <div class="fmd-block-aside">Uguali per tutti: contratto, audit, certificato del processo. Ciò che serve alla singola persona è in «Cosa serve a una persona»</div>
+      </div>
+      {% if requisiti_generici %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-fm-table-skip="1">
+          <thead><tr><th>Tipo</th><th>Descrizione</th><th>Obbl.</th><th>Stato</th><th>Scadenza</th><th>Evidenza</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in requisiti_generici %}
+            <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
+              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span>{% if r.tipo in tipi_per_persona %}<div class="fmd-muted" style="font-size:11px;">È per persona: va in «Cosa serve a una persona»</div>{% endif %}</td>
+              <td>{{ r.descrizione }}{% if r.rif_normativo %}<div class="fmd-muted" style="font-size:11px;">{{ r.rif_normativo }}</div>{% endif %}</td>
+              <td>{% if r.obbligatorio %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
+              <td>
+                {% if r.stato == 'SODDISFATTO' and not r.is_scaduto %}<span class="fmd-badge fmd-b-green">Soddisfatto</span>
+                {% elif r.is_scaduto %}<span class="fmd-badge fmd-b-red">Scaduto</span>
+                {% elif r.stato == 'NON_APPLICABILE' %}<span class="fmd-badge fmd-b-slate">N/A</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">Da verificare</span>{% endif %}
+              </td>
+              <td>{% if r.data_scadenza %}{{ r.data_scadenza|date:"d/m/Y" }}{% if r.periodicita_mesi %} <span class="fmd-muted" style="font-size:11px;">(ogni {{ r.periodicita_mesi }} m)</span>{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td>{% if r.evidenza_url %}<a href="{{ r.evidenza_url }}" target="_blank" rel="noopener">apri</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              {% if can_manage %}
+              <td style="white-space:nowrap;">
+                {% if r.tipo in tipi_per_persona %}<form method="post" action="{% url 'anagrafica:mpq_requisito_sposta' r.id %}" class="fmd-act-form" data-hub-confirm="Spostare «{{ r.descrizione }}» in «Cosa serve a una persona»? Lo stato registrato qui (uguale per tutti) non viene copiato: ogni persona andrà verificata.">{% csrf_token %}<button type="submit" class="fmd-act">Sposta</button></form> {% endif %}<a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
+                <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessun requisito uguale per tutti.</div>{% endif %}
+      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_add' processo.id %}">+ Aggiungi requisito</a></div>{% endif %}
+    </section>
+    {% endif %}
 
     {# ── Storico ────────────────────────────────────────────────────────── #}
     {% if storico %}

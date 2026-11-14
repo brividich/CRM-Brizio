@@ -203,7 +203,8 @@ class AbilitazioneProcessoForm(forms.Form):
     # il campo cattura solo il legacy_id scelto (nessuna validazione su choices).
     dipendente = forms.CharField(required=False)
     nominativo_esterno = forms.CharField(
-        required=False, max_length=200, widget=forms.TextInput(attrs=_FM))
+        required=False, max_length=200,
+        widget=forms.TextInput(attrs={**_FM, "style": "text-transform:uppercase;"}))
     # I ruoli (anche Qualificato/Addetto/Controllore/Part 145) sono checkbox del template:
     # «ruoli_standard» (codici) e «ruoli_processo» (id), letti da services/mpq_ruoli.
     stato = forms.ChoiceField(
@@ -218,6 +219,9 @@ class AbilitazioneProcessoForm(forms.Form):
         if tipo == self.TIPO_ESTERNO:
             if not (cd.get("nominativo_esterno") or "").strip():
                 self.add_error("nominativo_esterno", "Indicare il nominativo del qualificatore esterno.")
+            # Nominativi in maiuscolo come nel resto dell'anagrafica (prima un |upper sul widget
+            # stampava l'HTML del campo come testo).
+            cd["nominativo_esterno"] = " ".join((cd.get("nominativo_esterno") or "").split()).upper()
             cd["legacy_anagrafica_id"] = 0
         else:
             dip = (cd.get("dipendente") or "").strip()
@@ -282,6 +286,17 @@ class RequisitoPersonaForm(forms.ModelForm):
             "vicina fra le due (anche nello scadenzario della Formazione).")
         self.fields["tipo_qualifica"].queryset = (
             self.fields["tipo_qualifica"].queryset.filter(is_active=True).order_by("nome"))
+        # Si vede solo il campo che serve al tipo scelto (static/anagrafica/js/mpq_form.js).
+        for nome, regola in (("corso", "tipo=corso"), ("tipo_visita", "tipo=visita"),
+                             ("tipo_qualifica", "tipo=qualifica"), ("categoria_dpi", "tipo=dpi"),
+                             ("ore_minime", "tipo=esperienza"),
+                             ("frequenza_mesi", "ricorrenza=RICORRENTE"),
+                             ("scadenza_fine_mese", "ricorrenza=RICORRENTE")):
+            self.fields[nome].widget.attrs["data-mostra-se"] = regola
+        self.fields["corso"].label = "Corso"
+        self.fields["tipo_visita"].label = "Visita"
+        self.fields["tipo_qualifica"].label = "Qualifica"
+        self.fields["categoria_dpi"].label = "Categoria DPI"
         processo = processo or getattr(self.instance, "processo", None)
         self.fields["ruoli"].queryset = (processo.ruoli.all() if processo is not None
                                          else self.fields["ruoli"].queryset.none())
@@ -384,6 +399,11 @@ class UtensileCriticoForm(forms.ModelForm):
             "fornitore_riaffilatura": forms.TextInput(attrs=_FM),
             "attivo": forms.CheckboxInput(attrs=_FM_CHECK), "note": forms.Textarea(attrs=_FM_TEXTAREA),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nome in ("riaffilature_max", "fornitore_riaffilatura"):
+            self.fields[nome].widget.attrs["data-mostra-se"] = "riaffilabile=1"
 
     def clean(self):
         cd = super().clean()

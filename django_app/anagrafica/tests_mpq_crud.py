@@ -109,7 +109,7 @@ class MpqAbilitazioneCrudTests(MpqCrudBase):
             })
         self.assertEqual(resp.status_code, 302)
         ab = AbilitazioneProcesso.objects.get(
-            processo=self.proc, nominativo_esterno="Qualificatore Esterno")
+            processo=self.proc, nominativo_esterno="QUALIFICATORE ESTERNO")
         self.assertTrue(ab.is_esterno)
         self.assertEqual(ab.legacy_anagrafica_id, 0)
 
