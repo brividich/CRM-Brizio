@@ -332,7 +332,12 @@ def fonti(request):
             else:
                 host = "" if f.tipo == FonteLog.TIPO_WEF else f.host
                 canali = ["ForwardedEvents"] if f.tipo == FonteLog.TIPO_WEF else f.lista_canali()
-                prova = {"fonte": f, "righe": windows.prova(host, canali)}
+                from core.models import SiteConfig
+
+                righe = windows.prova(host, canali)
+                righe.append(windows.nota_account(windows.account_processo(),
+                                                  SiteConfig.get(windows.CHIAVE_ACCOUNT, "") or ""))
+                prova = {"fonte": f, "righe": righe}
     from core.models import SiteConfig
 
     try:

@@ -443,7 +443,9 @@ GUIDA = {
             "sintomo": "Registro accessi: «Raccoglitore fermo» o una fonte in errore",
             "fare": [
                 "Raccoglitore fermo: sul server del portale avvia il task «RegistroLog_<ambiente>» (cartella PortaleNovicrom dell'Utilità di pianificazione; log in logs/registro_log.log).",
-                "«Accesso negato al registro eventi»: l'account del raccoglitore non è nel gruppo «Event Log Readers» del server.",
+                "«Accesso negato al registro eventi»: l'account del raccoglitore non è nel gruppo «Event Log Readers» del server. "
+                "Se compare solo nella «Prova», guardare l'ultima riga: la prova usa l'account del portale (app pool di IIS), "
+                "il raccoglitore quello del suo servizio; fa fede lo stato della fonte a raccolta accesa.",
                 "«Server non raggiungibile per la lettura remota (RPC)»: regola firewall «Gestione remota registro eventi» sul server.",
                 "Syslog muto: porta 514 non aperta nel firewall di Windows del server del portale o IP dell'apparato diverso da quello della fonte.",
                 "Ogni periodo senza raccolta resta tra le interruzioni (Archivio e integrità): scrivi la giustificazione.",
