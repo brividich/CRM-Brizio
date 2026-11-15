@@ -38,7 +38,17 @@ body.theme-dark .auto-table th{color:var(--text-light);background:var(--surface-
       <div class="card-head">
         <div class="card-title">Run log #{{ run_log.id }}</div>
         {% if run_log.rule %}
-          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' run_log.rule.id %}?from_log={{ run_log.id }}" title="Apre la pagina test con il payload di questo run log pre-caricato">Ripeti</a>
+          <div class="auto-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+            {% if ripeti.modo %}
+              <form method="post" action="{% url 'admin_portale:automazioni_run_log_ripeti' run_log.id %}">
+                {% csrf_token %}
+                <button class="btn" type="submit" title="{% if ripeti.modo == 'pianificato' %}Avvia ora il flusso pianificato{% else %}Riesegue la regola con gli stessi dati, davvero (mail comprese){% endif %}">Ripeti</button>
+              </form>
+            {% elif ripeti.motivo %}
+              <span class="auto-meta-label" title="{{ ripeti.motivo }}">{{ ripeti.motivo }}</span>
+            {% endif %}
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' run_log.rule.id %}?from_log={{ run_log.id }}" title="Apre la pagina test con il payload di questo run log pre-caricato">Prova con questi dati</a>
+          </div>
         {% endif %}
       </div>
       <div class="card-body auto-grid">

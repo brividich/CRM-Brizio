@@ -164,6 +164,7 @@ from .coda import (
     queue_retry_view,
     queue_stop_view,
     run_log_detail_page,
+    run_log_ripeti_view,
     run_log_list_page,
     mail_inviate_page,
 )
