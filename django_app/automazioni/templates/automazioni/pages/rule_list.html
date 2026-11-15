@@ -294,7 +294,7 @@ body.theme-dark .auto-empty-copy{color:var(--text-light)}
                           </div>
                         {% endif %}
                       </td>
-                      <td><span class="auto-badge auto-badge-{{ rule.operation_type }}">{{ rule.operation_type }}</span></td>
+                      <td>{% if rule.processo_modulo %}<span class="auto-badge auto-badge-scope" title="Flusso del modulo: parte da un'operazione nel modulo o dalla sua pianificazione">{{ rule.flow_preview.trigger_op }}</span>{% else %}<span class="auto-badge auto-badge-{{ rule.operation_type }}">{{ rule.operation_type }}</span>{% endif %}</td>
                       <td><span class="auto-badge auto-badge-scope">{{ rule.trigger_scope }}</span></td>
                       <td><code>{{ rule.watched_field|default:"-" }}</code></td>
                       <td>

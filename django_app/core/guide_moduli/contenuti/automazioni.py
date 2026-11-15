@@ -79,7 +79,8 @@ GUIDA = {
                     "«Run log #…» apre l'esecuzione della regola.",
                     "Nella colonna «Flusso» il nome del flusso mostra tutte le sue mail, «Apri flusso» apre la regola "
                     "per correggerla e, per i lavori pianificati con mail, «Destinatari» apre la scheda dei destinatari. "
-                    "«Spento» indica un flusso disattivato; «Nessun flusso collegato» una mail mandata fuori da un flusso.",
+                    "«Spento» indica un flusso disattivato; «Nessun flusso collegato» una mail che non appartiene a nessun "
+                    "flusso. Le mail dei promemoria partite fuori dal flusso (o prima del 15/11/2026) si collegano dall'oggetto.",
                     "Su una mail in «Errore», «Run log #…» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli "
                     "stessi dati (solo quella regola, non le altre dello stesso evento) o, per un lavoro pianificato, il "
                     "flusso intero. Le mail di un'operazione di modulo (es. la scheda di una segnalazione) non si ripetono "

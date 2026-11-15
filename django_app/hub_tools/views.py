@@ -844,7 +844,7 @@ def api_db_backup(request):
             from django.db import connection
             with _query_senza_timeout(connection), connection.cursor() as cur:
                 cur.execute(
-                    "BACKUP DATABASE ? TO DISK = ? WITH FORMAT, INIT, NAME = ?",
+                    "BACKUP DATABASE %s TO DISK = %s WITH FORMAT, INIT, NAME = %s",
                     [db_name, backup_path, f"NOVICROM_HUB_backup_{ts}"]
                 )
             # Registra il backup nella lista locale
@@ -1019,7 +1019,7 @@ def api_db_restore(request):
             from django.db import connection
             with _query_senza_timeout(connection), connection.cursor() as cur:
                 cur.execute(
-                    "RESTORE DATABASE ? FROM DISK = ? WITH REPLACE, RECOVERY",
+                    "RESTORE DATABASE %s FROM DISK = %s WITH REPLACE, RECOVERY",
                     [db_name, bak_path]
                 )
             return JsonResponse({"ok": True, "message": f"Database SQL Server ripristinato da '{bak_path}'. Riavvia il server."})
