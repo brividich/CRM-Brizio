@@ -224,6 +224,10 @@ GUIDA = {
                       "amministratori di sistema (Garante) e come evidenza ISO 27001."),
                 ("passi", [
                     "«Panoramica»: pallino verde = raccolta attiva; «Come iniziare» dice i passi che mancano.",
+                    "«Controllo › Attività»: diario delle letture (righe, durata, errori), avvii del raccoglitore, sigilli e "
+                    "lavori notturni; per chi configura anche chi ha consultato cosa e chi ha cambiato la configurazione.",
+                    "«Controllo › Spazio e manutenzione»: dimensione di database e archivio, ultimo backup, seconda copia; "
+                    "backup, copia, conservazione, alleggerimento e ricostruzione del catalogo con il registro delle operazioni.",
                     "«Persona o PC»: si cerca un account, un PC o un IP; scheda, primo accesso del giorno, PC usati, "
                     "accessi falliti e la giornata in ordine di ora (file, stampe e USB no: solo nelle indagini).",
                     "«Catalogo»: il catalogo di ciò che è stato letto, a sezioni come in BusinessLog: «Log accessi» (accesso al dominio, "

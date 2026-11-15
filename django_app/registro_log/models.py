@@ -531,3 +531,76 @@ class ApparatoInfra(models.Model):
 
     def __str__(self):
         return self.nome
+
+
+class OperazioneManutenzione(models.Model):
+    """Un'operazione avviata da «Spazio e manutenzione» (backup, copia, conservazione…), col suo esito.
+
+    Gira nel qcluster: la pagina mostra lo stato e resta anche come registro di quanto fatto.
+    """
+
+    TIPI = [
+        ("backup_db", "Backup del database del registro"),
+        ("copia", "Copia sulla seconda copia"),
+        ("conservazione", "Conservazione applicata"),
+        ("alleggerisci", "Catalogo alleggerito"),
+        ("ricataloga", "Catalogo rifatto dall'archivio"),
+    ]
+    STATI = [("attesa", "In attesa"), ("in_corso", "In corso"), ("ok", "Riuscita"), ("errore", "Non riuscita")]
+
+    tipo = models.CharField(max_length=20, choices=TIPI)
+    parametri = models.JSONField(default=dict, blank=True)
+    stato = models.CharField(max_length=10, choices=STATI, default="attesa")
+    esito = models.CharField(max_length=1000, blank=True, default="")
+    dettaglio = models.JSONField(default=dict, blank=True)
+    avviata_da = models.CharField(max_length=150, blank=True, default="")
+    avviata_il = models.DateTimeField(default=timezone.now)
+    finita_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-avviata_il", "-id"]
+        verbose_name = "Operazione di manutenzione"
+        verbose_name_plural = "Operazioni di manutenzione"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} ({self.get_stato_display()})"
+
+
+class AttivitaRaccolta(models.Model):
+    """Il diario del raccoglitore: letture con righe o errori, avvii, arresti, catalogo, sigilli, copie.
+
+    Una riga per lettura di una fonte che ha portato righe o un errore (non i giri a vuoto). Si tiene
+    :data:`GIORNI_TENUTI` giorni (pulizia nel ciclo giornaliero).
+    """
+
+    GIORNI_TENUTI = 30
+    TIPI = [
+        ("lettura", "Lettura di un server"),
+        ("pc", "Lettura di un PC"),
+        ("avvio", "Raccoglitore avviato"),
+        ("arresto", "Raccoglitore fermato"),
+        ("catalogo", "Catalogo rifatto"),
+        ("cartella", "Archivio spostato"),
+        ("sigillo", "Giorno sigillato"),
+        ("giornaliero", "Lavori giornalieri"),
+    ]
+    ESITI = [("ok", "Riuscita"), ("avviso", "Da guardare"), ("errore", "Non riuscita")]
+
+    quando = models.DateTimeField(default=timezone.now, db_index=True)
+    tipo = models.CharField(max_length=12, choices=TIPI, db_index=True)
+    esito = models.CharField(max_length=7, choices=ESITI, default="ok")
+    fonte_id = models.IntegerField(null=True, blank=True)
+    fonte_nome = models.CharField(max_length=120, blank=True, default="")
+    sistema = models.CharField(max_length=255, blank=True, default="")
+    righe = models.IntegerField(default=0)
+    durata_ms = models.IntegerField(null=True, blank=True)
+    messaggio = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        ordering = ["-quando", "-id"]
+        indexes = [models.Index(fields=["tipo", "quando"], name="reglog_att_tipo_quando")]
+        verbose_name = "Attività della raccolta"
+        verbose_name_plural = "Attività della raccolta"
+
+    def __str__(self):
+        return f"{self.quando:%Y-%m-%d %H:%M} {self.tipo} {self.sistema}"

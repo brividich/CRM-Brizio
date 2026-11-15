@@ -69,7 +69,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                  "delle evidenze (security_securityevidencecustody), prove di ripristino dei backup (security_backuprestoretest), "
                  "pacchetti mensili di evidenze (security_securitypacchettoiso, PDF nello storage privato); aggiornamenti KB installati letti da WatchGuard (security_watchguardaggiornamento) e fotografia notturna dell'indice di postura dei PC (security_posturagiorno)"),
     "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), PC del dominio letti, sigilli giornalieri dell'archivio, "
-                     "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
+                     "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO, diario della raccolta, "
+                     "operazioni di manutenzione. "
                      "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),
     "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log, mail inviate"),
 }

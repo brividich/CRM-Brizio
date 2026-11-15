@@ -2,7 +2,7 @@
 
 Il Registro accessi raccoglie i log dei server Windows, dei controller di dominio, di ESXi e vCenter, degli switch, del firewall e del NAS. Tutto finisce in un **archivio sigillato** che vale come registro degli accessi degli amministratori di sistema (provvedimento del Garante del 27/11/2008) e come evidenza per la ISO/IEC 27001 (controlli 5.18, 5.28, 8.2, 8.15, 8.16, 8.17). Sostituisce un prodotto di log management esterno.
 
-Si apre dal menu del SOC: **Registro accessi**. Le schede: **Panoramica**, **Persona o PC**, **Catalogo**, **Indagini** (solo chi configura il SOC), **Elenchi** (Fonti e impostazioni, Account AD, Amministratori di sistema) e **Controllo** (Archivio e integrità, Verifica annuale, Server e virtualizzazione); le pagine di Elenchi e Controllo sono nella riga sotto le schede.
+Si apre dal menu del SOC: **Registro accessi**. Le schede: **Panoramica**, **Persona o PC**, **Catalogo**, **Indagini** (solo chi configura il SOC), **Elenchi** (Fonti e impostazioni, Account AD, Amministratori di sistema) e **Controllo** (Archivio e integrità, Verifica annuale, Server e virtualizzazione, Attività, Spazio e manutenzione); le pagine di Elenchi e Controllo sono nella riga sotto le schede.
 
 ## Panoramica
 
@@ -110,6 +110,22 @@ vCenter (o i singoli host ESXi, se non c'è vCenter) e i controller iLO/iDRAC de
 - iLO/iDRAC: salute dell'hardware diversa da «OK», server spento.
 
 Le versioni di ESXi, vCenter e dei firmware dei controller entrano nell'inventario software del SOC (fonte «Server e virtualizzazione») e passano dal calcolo delle CVE. Utente consigliato: ruolo «Sola lettura»; password salvata cifrata.
+
+## Attività
+
+Il diario del registro, in tre viste:
+
+- **Raccolta ed elaborazione** (chi vede il SOC): ogni lettura di un server o di un PC che ha portato righe o un errore, con righe lette, durata ed esito; avvii e arresti del raccoglitore; catalogo rifatto dall'archivio; archivio spostato in un'altra cartella; giorni sigillati; lavori notturni (verifica, seconda copia, conservazione). In alto: letture, righe lette, errori e avvii del periodo. Filtri per periodo (24 ore, 7 o 30 giorni), tipo, esito, fonte e testo. Le letture senza righe nuove non compaiono; il diario si tiene 30 giorni.
+- **Consultazioni** (solo chi configura il SOC): chi ha cercato o letto cosa, dall'audit del portale: ricerche in «Persona o PC», eventi originali aperti, catalogo scaricato, indagini aperte, consultate, scaricate e chiuse, file dell'archivio e verbali scaricati.
+- **Modifiche alla configurazione** (solo chi configura il SOC): fonti, impostazioni, amministratori di sistema, account AD, giustificazioni, operazioni di manutenzione.
+
+## Spazio e manutenzione
+
+- Riquadri: dimensione del **database del registro** (dati e log), **voci nel catalogo** con la data della più vecchia, dimensione dell'**archivio sigillato** (file, giorni sigillati, file di oggi) e **spazio libero** sul disco dell'archivio (giallo sotto 10 GB, rosso sotto 2 GB).
+- **Database**: righe e spazio di ogni tabella e l'**ultimo backup** che comprende il database del registro.
+- **Archivio per mese**, stato della **seconda copia** e giorni oltre la conservazione.
+- **Interventi** (solo chi configura il SOC), in background: **Backup del database** (completo e verificato, con il motore di backup del portale, solo con il database a parte), **Copia ora** sulla seconda copia, **Conservazione** subito, **Alleggerisci il catalogo** (toglie dal database le voci più vecchie dei mesi indicati: restano nell'archivio sigillato), **Rifai il catalogo** degli ultimi giorni (fino a 31) con le regole attuali. Una sola operazione per tipo alla volta.
+- **Operazioni**: chi le ha avviate, quando, stato ed esito; mentre una è in corso la pagina si aggiorna da sola. Ogni avvio resta anche nell'audit.
 
 ## Indagini: file, stampe e USB
 

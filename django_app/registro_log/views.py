@@ -791,3 +791,132 @@ def infra_elimina(request, pk: int):
     app.delete()
     messages.success(request, "Apparato eliminato.")
     return redirect("security:registro_log_infra")
+
+
+# ── Spazio e manutenzione ───────────────────────────────────────────────────
+
+AZIONI_MANUTENZIONE = {
+    "backup_db": "Backup del database avviato",
+    "copia": "Copia sulla seconda copia avviata",
+    "conservazione": "Conservazione avviata",
+    "alleggerisci": "Alleggerimento del catalogo avviato",
+    "ricataloga": "Catalogo in ricostruzione",
+}
+
+
+def manutenzione(request):
+    from . import spazio
+    from .models import OperazioneManutenzione
+
+    puo = _puo_configurare(request)
+    if request.method == "POST":
+        if not puo:
+            return _nego()
+        tipo = request.POST.get("azione", "")
+        if tipo not in AZIONI_MANUTENZIONE:
+            return redirect("security:registro_log_manutenzione")
+        parametri = {}
+        if tipo == "alleggerisci":
+            try:
+                parametri["mesi"] = max(spazio.MESI_MINIMI_CATALOGO, int(request.POST.get("mesi") or 0))
+            except ValueError:
+                messages.error(request, "Indicare quanti mesi tenere nel catalogo.")
+                return redirect("security:registro_log_manutenzione")
+        elif tipo == "ricataloga":
+            try:
+                parametri["giorni"] = min(spazio.GIORNI_MASSIMI_RICATALOGO, max(1, int(request.POST.get("giorni") or 1)))
+            except ValueError:
+                parametri["giorni"] = 1
+        op = spazio.avvia(tipo, _utente(request), parametri)
+        if op is None:
+            messages.warning(request, "Un'operazione dello stesso tipo è già in corso: il suo esito compare qui sotto.")
+        else:
+            log_action(request, f"registro_log_manutenzione_{tipo}", MODULO, {"operazione": op.pk, **parametri})
+            messages.success(request, f"{AZIONI_MANUTENZIONE[tipo]}: l'esito compare in «Operazioni» qui sotto.")
+        return redirect(reverse("security:registro_log_manutenzione") + "#operazioni")
+    operazioni = list(OperazioneManutenzione.objects.all()[:40])
+    return render(request, "registro_log/manutenzione.html", {
+        "db": spazio.database(), "arch": spazio.archivio_info(), "backup": spazio.ultimo_backup(),
+        "operazioni": operazioni, "in_corso": any(o.stato in ("attesa", "in_corso") for o in operazioni),
+        "puo_configurare": puo, "mesi_minimi": spazio.MESI_MINIMI_CATALOGO, "giorni_massimi": spazio.GIORNI_MASSIMI_RICATALOGO,
+    })
+
+
+# ── Attività: diario della raccolta e consultazioni ────────────────────────
+
+ETICHETTE_CONSULTAZIONI = {
+    "registro_log_persona": "Ricerca in «Persona o PC»",
+    "registro_log_riga_letta": "Evento originale aperto",
+    "registro_log_eventi_export": "Catalogo scaricato (CSV)",
+    "registro_log_indagine_aperta": "Indagine aperta",
+    "registro_log_indagine_consultata": "Indagine consultata",
+    "registro_log_indagine_export": "Indagine scaricata (CSV)",
+    "registro_log_indagine_chiusa": "Indagine chiusa",
+    "registro_log_scarica": "File dell'archivio scaricato",
+    "registro_log_verifica_pdf": "Verbale della verifica scaricato",
+    "registro_log_nomina_scaricata": "Lettera di nomina scaricata",
+}
+
+
+def attivita(request):
+    from core.models import AuditLog
+
+    from .models import AttivitaRaccolta
+
+    puo = _puo_configurare(request)
+    vista = request.GET.get("vista", "raccolta")
+    if vista not in ("raccolta", "consultazioni", "modifiche") or (vista != "raccolta" and not puo):
+        vista = "raccolta"
+    giorni = request.GET.get("giorni") or "1"
+    if giorni not in ("1", "7", "30"):
+        giorni = "1"
+    da = timezone.now() - timedelta(days=int(giorni))
+    ctx = {"vista": vista, "giorni": giorni, "puo_configurare": puo, "periodi": (("1", "Ultime 24 ore"), ("7", "7 giorni"),
+                                                                                  ("30", "30 giorni"))}
+    if vista == "raccolta":
+        qs = AttivitaRaccolta.objects.filter(quando__gte=da)
+        tipo = request.GET.get("tipo", "")
+        if tipo in dict(AttivitaRaccolta.TIPI):
+            qs = qs.filter(tipo=tipo)
+        esito = request.GET.get("esito", "")
+        if esito in dict(AttivitaRaccolta.ESITI):
+            qs = qs.filter(esito=esito)
+        fonte = request.GET.get("fonte", "")
+        if fonte.isdigit():
+            qs = qs.filter(fonte_id=int(fonte))
+        testo = (request.GET.get("q") or "").strip()
+        if testo:
+            qs = qs.filter(Q(sistema__icontains=testo) | Q(messaggio__icontains=testo))
+        periodo = AttivitaRaccolta.objects.filter(quando__gte=da)
+        ctx.update({
+            "pagina": Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina")),
+            "tipo": tipo, "esito": esito, "fonte": fonte, "q": testo, "tipi": AttivitaRaccolta.TIPI,
+            "esiti": AttivitaRaccolta.ESITI, "fonti": FonteLog.objects.all(),
+            "riepilogo": {
+                "letture": periodo.filter(tipo__in=("lettura", "pc")).count(),
+                "righe": sum(periodo.filter(tipo__in=("lettura", "pc")).values_list("righe", flat=True)),
+                "errori": periodo.filter(esito="errore").count(),
+                "avvii": periodo.filter(tipo="avvio").count(),
+            },
+        })
+    else:
+        qs = AuditLog.objects.filter(modulo=MODULO, created_at__gte=da)
+        if vista == "consultazioni":
+            qs = qs.filter(azione__in=list(ETICHETTE_CONSULTAZIONI))
+        else:
+            qs = qs.exclude(azione__in=list(ETICHETTE_CONSULTAZIONI))
+        chi = (request.GET.get("chi") or "").strip()
+        if chi:
+            qs = qs.filter(utente_display__icontains=chi)
+        pagina = Paginator(qs.order_by("-created_at"), 100).get_page(request.GET.get("pagina"))
+        righe = []
+        for a in pagina:
+            d = a.dettaglio if isinstance(a.dettaglio, dict) else {}
+            righe.append({"quando": a.created_at, "chi": a.utente_display, "ip": a.ip_address,
+                          "cosa": ETICHETTE_CONSULTAZIONI.get(a.azione) or a.azione.removeprefix("registro_log_").replace("_", " ").capitalize(),
+                          "dettaglio": ", ".join(f"{k}: {v}" for k, v in d.items() if v not in ("", None, []))[:300]})
+        ctx.update({"pagina": pagina, "righe": righe, "chi": chi})
+    parametri = request.GET.copy()
+    parametri.pop("pagina", None)
+    ctx["parametri"] = parametri.urlencode()
+    return render(request, "registro_log/attivita.html", ctx)

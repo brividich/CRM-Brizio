@@ -81,9 +81,32 @@ def giornaliero(forza: bool = False) -> dict | None:
         "verifica": archivio.verifica_a_rotazione(),
         "copia": archivio.copia_mancanti(),
         "conservazione": archivio.applica_conservazione(),
+        "diario": pulisci_diario(),
     }
     SiteConfig.objects.update_or_create(chiave=CHIAVE_GIORNALIERO, defaults={"valore": oggi})
+    from .raccoglitore import registra_attivita
+
+    v, c, k = esito["verifica"], esito["copia"], esito["conservazione"]
+    rotti = v.get("rotti") or []
+    registra_attivita(
+        "giornaliero", esito="errore" if rotti or c.get("errori") else "ok",
+        messaggio=(f"Verificati {v.get('verificati', 0)} giorni" + (f", NON integri: {', '.join(str(g) for g in rotti)}" if rotti else "")
+                   + f"; copiati {c.get('copiati', 0)}" + (f" ({c['errori']} non riusciti)" if c.get("errori") else "")
+                   + f"; conservazione: {k.get('giorni_eliminati', 0)} giorni eliminati; diario: {esito['diario']} righe vecchie tolte."))
     return esito
+
+
+def pulisci_diario() -> int:
+    """Toglie dal diario della raccolta le righe più vecchie di ``AttivitaRaccolta.GIORNI_TENUTI`` giorni."""
+    from .models import AttivitaRaccolta
+
+    limite = timezone.now() - timedelta(days=AttivitaRaccolta.GIORNI_TENUTI)
+    tolte = 0
+    while True:
+        ids = list(AttivitaRaccolta.objects.filter(quando__lt=limite).values_list("pk", flat=True)[:5000])
+        if not ids:
+            return tolte
+        tolte += AttivitaRaccolta.objects.filter(pk__in=ids).delete()[0]
 
 
 # ── SOC ──────────────────────────────────────────────────────────────────────
@@ -214,7 +237,15 @@ def esegui() -> dict:
     try:
         b = battito()
         aperto = b["stato"].giorno_corrente if b["vivo"] and b["stato"] else None
-        esito["sigilli"] = len(archivio.sigilla_mancanti(giorno_aperto=aperto))
+        sigillati = archivio.sigilla_mancanti(giorno_aperto=aperto)
+        esito["sigilli"] = len(sigillati)
+        if sigillati:
+            from .raccoglitore import registra_attivita
+
+            for s in sigillati:
+                giorno = getattr(s, "giorno", None)
+                registra_attivita("sigillo", sistema=f"{giorno:%d/%m/%Y}" if giorno else "", righe=getattr(s, "righe", 0) or 0,
+                                  messaggio=f"Giorno chiuso e sigillato: {getattr(s, 'righe', 0) or 0} righe.")
         esito["giornaliero"] = giornaliero()
     except Exception as exc:  # noqa: BLE001
         logger.exception("Registro accessi: sigilli non riusciti")
