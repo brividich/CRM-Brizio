@@ -86,7 +86,7 @@
               {% if p.config_key %}
                 <textarea name="recipients" rows="2" placeholder="rspp@azienda.it, hr@azienda.it">{{ p.recipients }}</textarea>
                 <small class="pa-hint">{% if p.solo_destinatari %}Vuoto: la mail non parte.{% else %}Vuoto: arriva agli amministratori di sistema.{% endif %}</small>
-                <input type="hidden" name="aggiungi_a" value="{{ p.aggiungi_a }}">
+                {% if p.effettivi %}<small class="pa-hint pa-effettivi">Oggi riceve: <strong>{{ p.effettivi }}</strong></small>{% endif %}
               {% else %}
                 <div class="pa-chips"><span class="pa-chip" title="Contenuto dinamico: li calcola il modulo">👥 {{ p.a_chi|default:"Destinatari del modulo" }}</span></div>
                 <textarea name="aggiungi_a" rows="2" placeholder="Aggiungi altri indirizzi in A">{{ p.aggiungi_a }}</textarea>

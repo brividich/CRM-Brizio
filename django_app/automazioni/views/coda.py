@@ -658,10 +658,11 @@ def pianificati_page(request):
     from ..schedules import SOSPENSIONE_MAX_GIORNI
 
     rows = schedule_rows()
-    from ..mail_config import destinatari_elenco
+    from ..mail_config import descrivi_effettivi, destinatari_effettivi
     for r in rows:
         r["configurable"] = is_configurable(r["name"])
-        r["destinatari"] = ", ".join(destinatari_elenco(r["name"])) if r["configurable"] else ""
+        # Chi riceve davvero (elenco + regole del flusso + ripiego), non solo l'elenco salvato.
+        r["destinatari"] = descrivi_effettivi(destinatari_effettivi(r["name"])) if r["configurable"] else ""
     enabled_n = sum(1 for r in rows if r["enabled"])
     # Raccoglitore «Digest e promemoria» in ordine di orario; il resto nell'elenco generale.
     digest_rows = sorted((r for r in rows if r["digest"]), key=lambda r: (r["orario"] or "99", r["name"]))
@@ -873,6 +874,10 @@ def _salva_mail(request, name, p):
         "sostituisci_destinatari": request.POST.get("sostituisci") == "1",
         "mail_disattivata": request.POST.get("invia_mail") != "1",
     }
+    if p["config_key"]:
+        # Con l'elenco fisso «A» è l'elenco stesso: niente indirizzi in più nascosti né
+        # sostituzioni rimaste da versioni precedenti del pannello.
+        campi["aggiungi_a"], campi["sostituisci_destinatari"] = "", False
     from ..mail_modulo import salva as salva_modulo
 
     cambiati += [f"«{etichetta}» del modulo" for etichetta in salva_modulo(name, request.POST)]

@@ -153,6 +153,45 @@ def destinatari_elenco(task_name: str) -> list[str]:
     return elenco_indirizzi(get_recipients_raw(task_name))
 
 
+def destinatari_effettivi(task_name: str) -> dict | None:
+    """Chi riceve davvero la mail di un flusso con elenco fisso (None se i destinatari li calcola il modulo).
+
+    Stessa cascata dell'invio: elenco del flusso (SiteConfig) → se vuoto amministratori di
+    sistema (salvo ``solo_destinatari``) → regole del passaggio «Invia mail» (CC, esclusi,
+    eventuali A in più o sostituzione rimasti da prima, mail spenta).
+    """
+    meta = MAIL_TASKS.get(task_name)
+    if not meta or not meta.get("config_key"):
+        return None
+    base = destinatari_elenco(task_name)
+    ripiego = False
+    if not base and not meta.get("solo_destinatari"):
+        from core.reminder_recipients import resolve_reminder_recipients
+
+        base = resolve_reminder_recipients(config_key=meta["config_key"])
+        ripiego = bool(base)
+    to, cc, spenta = list(base), [], False
+    regole = personalizza_invio("", "", "", "", base, [], codice=task_name)
+    if regole:
+        spenta = bool(regole["blocca"])
+        to, cc = list(regole["recipients"]), list(regole["cc"])
+    return {"to": to, "cc": cc, "ripiego": ripiego, "spenta": spenta}
+
+
+def descrivi_effettivi(eff: dict | None) -> str:
+    """Testo breve per la colonna «Destinatari» e il pannello."""
+    if eff is None:
+        return ""
+    if eff["spenta"]:
+        return "nessuno: mail spenta o senza destinatari"
+    testo = ", ".join(eff["to"]) or "nessuno"
+    if eff["cc"]:
+        testo += " · CC " + ", ".join(eff["cc"])
+    if eff["ripiego"]:
+        testo += " (elenco vuoto: amministratori di sistema)"
+    return testo
+
+
 def _unici(indirizzi, esclusi: set[str]) -> list[str]:
     visti: set[str] = set()
     out = []
@@ -258,6 +297,7 @@ def pannello(codice: str) -> dict | None:
         "config_key": meta.get("config_key") or "",
         "solo_destinatari": bool(meta.get("solo_destinatari")),
         "recipients": get_recipients_raw(codice),
+        "effettivi": descrivi_effettivi(destinatari_effettivi(codice)),
         "a_chi": DIGEST_E_PROMEMORIA.get(codice) or spec.get("destinatari", ""),
         "subject": getattr(txt, "subject", "") or "",
         "intro": getattr(txt, "intro", "") or "",
