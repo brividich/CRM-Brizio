@@ -4168,14 +4168,14 @@ def _schedule_queue_event(
             INSERT INTO dbo.automation_event_queue
                 (source_code, source_table, source_pk, operation_type, event_code,
                  payload_json, old_payload_json, status, retry_count, created_at, execute_after)
-            VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', 0, SYSUTCDATETIME(), ?)
+            VALUES (%s, %s, %s, %s, %s, %s, NULL, 'pending', 0, SYSUTCDATETIME(), %s)
         """
     else:
         sql = """
             INSERT INTO automation_event_queue
                 (source_code, source_table, source_pk, operation_type, event_code,
                  payload_json, old_payload_json, status, retry_count, created_at, execute_after)
-            VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', 0, datetime('now'), ?)
+            VALUES (%s, %s, %s, %s, %s, %s, NULL, 'pending', 0, datetime('now'), %s)
         """
     with connections["default"].cursor() as cursor:
         cursor.execute(sql, [source_code, source_table, source_pk, operation_type,
@@ -4287,10 +4287,10 @@ def _query_source_for_each(
         with connections["default"].cursor() as cursor:
             if filter_field and filter_value is not None:
                 if is_mssql:
-                    sql = f"SELECT TOP {max_items} * FROM {table_name} WHERE {filter_field} = ?"
+                    sql = f"SELECT TOP {max_items} * FROM {table_name} WHERE {filter_field} = %s"
                     cursor.execute(sql, [filter_value])
                 else:
-                    sql = f"SELECT * FROM {table_name} WHERE {filter_field} = ? LIMIT {max_items}"
+                    sql = f"SELECT * FROM {table_name} WHERE {filter_field} = %s LIMIT {max_items}"
                     cursor.execute(sql, [filter_value])
             else:
                 if is_mssql:
@@ -4336,11 +4336,11 @@ def _count_source(
     where_parts: list[str] = []
     params: list[Any] = []
     if filter_field and filter_value is not None:
-        where_parts.append(f"{filter_field} = ?")
+        where_parts.append(f"{filter_field} = %s")
         params.append(filter_value)
     if window_field and window_days:
         threshold = (timezone.localdate() - timedelta(days=int(window_days))).isoformat()
-        where_parts.append(f"{window_field} >= ?")
+        where_parts.append(f"{window_field} >= %s")
         params.append(threshold)
 
     where_sql = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""

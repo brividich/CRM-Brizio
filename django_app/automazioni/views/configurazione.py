@@ -96,7 +96,9 @@ def _build_automation_settings_context(
 def event_notifications_page(request):
     """Flussi su evento con collegamento al designer e stato corrente."""
     from ..event_notifications import get_event_notifications
+    from ..managed_flows import assicura_installati
 
+    assicura_installati()
     rows = get_event_notifications()
     context = {
         **_helpers._base_context(),
