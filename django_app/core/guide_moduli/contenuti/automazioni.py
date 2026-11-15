@@ -81,10 +81,13 @@ GUIDA = {
                     "destinatari, copia, oggetto, testo, orario e accensione del flusso (per una regola, il designer). "
                     "«Spento» indica un flusso disattivato. Le mail dei promemoria partite fuori dal flusso (o prima del "
                     "15/11/2026) si collegano dall'oggetto.",
+                    "Gli avvisi di sicurezza all'utente sono due flussi in Notifiche di sistema: «Sicurezza - avvisi sul "
+                    "proprio account» (password cambiata, 2FA modificata, nuovo autenticatore, impersonazione, PIN "
+                    "o blocco della postazione) e «Sicurezza - accesso da un nuovo dispositivo»: si spengono o si "
+                    "aggiungono CC e testo da «Modifica flusso».",
                     "«Nessun flusso collegato» resta solo per le mail che apposta non passano dai flussi: codice di accesso "
-                    "2FA e avvisi di sicurezza all'utente (cambio password, 2FA, impersonazione, postazione bloccata: "
-                    "l'avviso di impersonazione si spegne in Configurazione → Notifiche), prova SMTP, mail di prova del "
-                    "pannello e allarme del controllo del cluster (destinatari: amministratori del monitoraggio).",
+                    "2FA (deve partire sempre), prova SMTP, mail di prova del pannello e allarme del controllo del cluster "
+                    "(destinatari: amministratori del monitoraggio).",
                     "Su una mail in «Errore», «Run log #…» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli "
                     "stessi dati (solo quella regola, non le altre dello stesso evento) o, per un lavoro pianificato, il "
                     "flusso intero. Le mail di un'operazione di modulo (es. la scheda di una segnalazione) non si ripetono "
@@ -93,8 +96,8 @@ GUIDA = {
                 ]),
                 ("p", "Dal 13/11/2026 c'è ogni mail che il portale manda: anche quelle dei moduli che non passano da una "
                       "regola (reception, KICK-OFF, sistema di gestione, avvisi IT, monitoraggio…) compaiono con «Tipo di mail» "
-                      "«Mail dei moduli» e il modulo in «Sorgente» (dentro un flusso, il codice del flusso). Le mail di "
-                      "sicurezza dell'accesso (codice 2FA, nuovo dispositivo) sono registrate ma non si modificano dai flussi."),
+                      "«Mail dei moduli» e il modulo in «Sorgente» (dentro un flusso, il codice del flusso). Il codice di "
+                      "accesso 2FA è registrato ma non si modifica dai flussi; gli avvisi di sicurezza all'utente sì (vedi sotto)."),
                 ("p", "Ci sono le mail delle regole (avvisi e richieste di approvazione, una riga per approvatore) e quelle "
                       "delle assenze che non passano dalle regole: «Richiesta modificata», eliminazione di una richiesta "
                       "approvata, solleciti ai capi. Ci sono anche tutte le mail del modulo Anomalie (link di decisione "

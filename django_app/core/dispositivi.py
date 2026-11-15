@@ -198,6 +198,13 @@ def avvisa(user, disp) -> None:
 
 
 def _mail(user, testo: str) -> None:
+    """Flusso Automazioni «Sicurezza - accesso da un nuovo dispositivo» (spegnibile da Notifiche di sistema)."""
+    from automazioni.managed_flows import event_flow
+
+    return event_flow("sicurezza_nuovo_dispositivo")(_manda_mail)(user, testo)
+
+
+def _manda_mail(user, testo: str) -> None:
     from core.email_utils import send_hub_mail
     from dashboard.scadenze_digest import _email_utente
 

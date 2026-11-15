@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 
 
 class MonitoringPrivacyTests(SimpleTestCase):
@@ -37,8 +37,8 @@ class MonitoringPrivacyTests(SimpleTestCase):
         self.assertNotEqual(context["session_key"], "raw-session-key")
 
 
-class SecurityNotificationTests(SimpleTestCase):
-    """Mail all'utente per gli eventi di sicurezza sul suo account."""
+class SecurityNotificationTests(TestCase):
+    """Mail all'utente per gli eventi di sicurezza sul suo account (passa dal flusso Automazioni, serve il database)."""
 
     def test_notification_sent_to_user(self):
         from django.core import mail
