@@ -613,6 +613,7 @@ def dettaglio(request, pk):
             "can_delete": can_delete,
             "can_manage_settings": _can_manage_settings(request),
             "storyline": storyline,
+            "puo_rimandare_scheda": _can_manage_settings(request) and not segnalazione.is_eliminata,
             "infografica": infografica(segnalazione, storyline, _base_registro(request)),
         },
     )
@@ -710,6 +711,32 @@ def modifica(request, pk):
             "allegati": segnalazione.allegati_attivi(),
         },
     )
+
+
+@require_POST
+def rimanda_scheda(request, pk):
+    """Rimanda la scheda completa dal flusso «Diario del preposto - scheda completa»."""
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+    if not _can_manage_settings(request):
+        return risposta_negata(request, pagina="Diario preposto")
+    segnalazione = _get_segnalazione_visibile(request, pk)
+    if segnalazione.is_eliminata:
+        messages.error(request, "La segnalazione è eliminata: ripristinala prima di rimandare la scheda.")
+        return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
+    from automazioni.ripeti import rimanda_evento_modulo
+
+    from .mail_scheda import destinatari_automatici, invia_alla_creazione
+
+    riuscito, messaggio = rimanda_evento_modulo("diario_preposto_scheda", invia_alla_creazione,
+                                                destinatari_automatici, segnalazione.pk)
+    (messages.success if riuscito else messages.error)(request, messaggio)
+    if riuscito:
+        from core.audit import log_action
+
+        log_action(request, "scheda_rimandata", MODULO, {"codice": segnalazione.codice_identificativo},
+                   oggetto=segnalazione)
+    return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
 
 
 @_write_required

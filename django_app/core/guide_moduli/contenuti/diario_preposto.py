@@ -102,7 +102,14 @@ GUIDA = {
             "id": "mail_scheda",
             "titolo": "Rimandare a mano la scheda di una segnalazione",
             "blocchi": [
-                ("p", "Dal server si manda la scheda completa (codice, titolo, data, preposto, chi segnala, descrizione, "
+                ("passi", [
+                    "Apri la segnalazione e clicca «Rimanda la scheda» (lo vede chi gestisce il modulo), poi conferma.",
+                    "La scheda riparte come alla creazione, dal flusso «Diario del preposto - scheda completa»: stessi "
+                    "destinatari (Automazioni → Notifiche di sistema → «Modifica» → Impostazioni del modulo, di base "
+                    "rspp@) e stesse regole del passaggio «Invia un messaggio di posta».",
+                    "Un messaggio dice a chi è partita; se il flusso è spento o senza destinatari lo dice e non manda niente.",
+                ]),
+                ("p", "Per mandarla a indirizzi scelti a mano resta il comando dal server. Dal server si manda la scheda completa (codice, titolo, data, preposto, chi segnala, descrizione, "
                       "elenco allegati e link «Apri la segnalazione») nel formato delle mail NOVICROM HUB:"),
                 ("passi", [
                     "Prova senza inviare: python manage.py invia_mail_preposto DP-2026-0012 --to rspp@costruzioninovicrom.it --dry-run",

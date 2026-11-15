@@ -94,6 +94,19 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "rimandare",
+        "titolo": "Rimandare la scheda per mail",
+        "blocchi": [
+            ("passi", [
+                "Nella scheda clicca «Rimanda la scheda» (lo vede chi gestisce il modulo) e conferma.",
+                "La scheda completa riparte come alla creazione, ai destinatari del flusso «Diario del preposto - "
+                "scheda completa» (di base rspp@).",
+            ]),
+            ("p", "Destinatari, copia e testo si cambiano in Automazioni → Notifiche di sistema → «Modifica». "
+                  "Se il flusso è spento o non ha destinatari compare un avviso e non parte niente."),
+        ],
+    },
+    {
         "id": "eliminare",
         "titolo": "Eliminare e ripristinare",
         "blocchi": [
