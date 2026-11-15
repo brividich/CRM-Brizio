@@ -80,6 +80,11 @@ GUIDA = {
                     "Nella colonna «Flusso» il nome del flusso mostra tutte le sue mail, «Apri flusso» apre la regola "
                     "per correggerla e, per i lavori pianificati con mail, «Destinatari» apre la scheda dei destinatari. "
                     "«Spento» indica un flusso disattivato; «Nessun flusso collegato» una mail mandata fuori da un flusso.",
+                    "Su una mail in «Errore», «Run log #…» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli "
+                    "stessi dati (solo quella regola, non le altre dello stesso evento) o, per un lavoro pianificato, il "
+                    "flusso intero. Le mail di un'operazione di modulo (es. la scheda di una segnalazione) non si ripetono "
+                    "da qui: si rifà l'operazione nel modulo. Lo stesso «Ripeti» c'è nel dettaglio del run log, accanto a "
+                    "«Prova con questi dati» (la pagina di test con quei dati).",
                 ]),
                 ("p", "Dal 13/11/2026 c'è ogni mail che il portale manda: anche quelle dei moduli che non passano da una "
                       "regola (reception, KICK-OFF, sistema di gestione, avvisi IT, monitoraggio…) compaiono con «Tipo di mail» "

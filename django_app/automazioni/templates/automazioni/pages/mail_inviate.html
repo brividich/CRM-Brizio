@@ -166,6 +166,20 @@
                     {% if m.esito == 'errore' %}
                       <span class="auto-status-pill is-fail">Errore</span>
                       {% if m.errore %}<span class="mail-err">{{ m.errore|truncatechars:240 }}</span>{% endif %}
+                      {% if m.run_log_id %}
+                        <span class="mail-cc">
+                          <a href="{% url 'admin_portale:automazioni_run_log_detail' m.run_log_id %}">Run log #{{ m.run_log_id }}</a>
+                          {% if m.ripeti.modo %}
+                            <form method="post" action="{% url 'admin_portale:automazioni_run_log_ripeti' m.run_log_id %}" style="display:inline;margin-left:6px;">
+                              {% csrf_token %}
+                              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                              <button class="btn btn-light btn-sm" type="submit" title="{% if m.ripeti.modo == 'pianificato' %}Avvia ora il flusso{% else %}Riesegue la regola con gli stessi dati{% endif %}">Ripeti</button>
+                            </form>
+                          {% elif m.ripeti.motivo %}
+                            <span class="mail-muted" style="display:block;">{{ m.ripeti.motivo }}</span>
+                          {% endif %}
+                        </span>
+                      {% endif %}
                     {% else %}
                       <span class="auto-status-pill is-ok">Inviata</span>
                     {% endif %}
@@ -184,7 +198,7 @@
         {% else %}
           <p class="mail-muted" style="padding:24px 0;text-align:center;">Nessuna mail con questi filtri.</p>
         {% endif %}
-        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Il nome del flusso filtra le sue mail, «Apri flusso» porta alla regola da correggere. Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
+        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Il nome del flusso filtra le sue mail, «Apri flusso» porta alla regola da correggere. Su una mail in errore «Run log» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli stessi dati o, per un lavoro pianificato, il flusso intero. Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
       </div>
     </div>
   </div>

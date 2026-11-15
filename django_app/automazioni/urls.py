@@ -61,6 +61,7 @@ urlpatterns = [
     path("run-log/", views.run_log_list_page, name="automazioni_run_log_list"),
     path("mail-inviate/", views.mail_inviate_page, name="automazioni_mail_inviate"),
     path("run-log/<int:run_log_id>/", views.run_log_detail_page, name="automazioni_run_log_detail"),
+    path("run-log/<int:run_log_id>/ripeti/", views.run_log_ripeti_view, name="automazioni_run_log_ripeti"),
     path("api/table-configs/", views.api_table_config_list, name="automazioni_api_table_config_list"),
     path("api/table-configs/save/", views.api_table_config_save, name="automazioni_api_table_config_save"),
     path("api/table-configs/<int:config_id>/delete/", views.api_table_config_delete, name="automazioni_api_table_config_delete"),

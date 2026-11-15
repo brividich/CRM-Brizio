@@ -560,7 +560,7 @@ def mail_inviate_page(request):
         k: _helpers._get_filter_value(request, k)
         for k in ("q", "richiesta", "flusso", "origine", "sorgente", "esito", "dal", "al")
     }
-    qs = EmailInviata.objects.select_related("regola").order_by("-inviata_il", "-id")
+    qs = EmailInviata.objects.select_related("regola", "run_log__rule").order_by("-inviata_il", "-id")
     if filtri["q"]:
         qs = qs.filter(
             Q(destinatari__icontains=filtri["q"]) | Q(copia__icontains=filtri["q"]) | Q(oggetto__icontains=filtri["q"])
@@ -589,6 +589,12 @@ def mail_inviate_page(request):
     for riga in pagina:
         riga.origine_label = ORIGINI.get(riga.origine, riga.origine)
     flussi_per_riga(pagina)
+    from ..ripeti import come_ripetere
+
+    for riga in pagina:
+        # «Ripeti» solo sulle mail non partite che hanno un'esecuzione da rifare.
+        riga.ripeti = (come_ripetere(riga.run_log)
+                       if riga.esito == EmailInviata.ESITO_ERRORE and riga.run_log_id and riga.run_log else None)
     cat = catalog()
     query_senza_pagina = request.GET.copy()
     query_senza_pagina.pop("page", None)
@@ -638,6 +644,8 @@ def run_log_detail_page(request, run_log_id: int):
         AutomationRunLog.objects.select_related("rule", "initiated_by").prefetch_related("action_logs__action"),
         pk=run_log_id,
     )
+    from ..ripeti import come_ripetere
+
     queue_event = get_queue_event_detail(run_log.queue_event_id) if run_log.queue_event_id else None
     action_logs = list(run_log.action_logs.select_related("action").order_by("created_at", "id"))
 
@@ -646,10 +654,31 @@ def run_log_detail_page(request, run_log_id: int):
         "run_log": run_log,
         "queue_event": queue_event,
         "action_logs": action_logs,
+        "ripeti": come_ripetere(run_log),
         "payload_pretty": _helpers._json_pretty(run_log.payload_json),
         "old_payload_pretty": _helpers._json_pretty(run_log.old_payload_json),
     }
     return render(request, "automazioni/pages/run_log_detail.html", context)
+
+
+@legacy_admin_or_acl_required("automazioni", "queue_retry_view")
+@require_POST
+def run_log_ripeti_view(request, run_log_id: int):
+    """Rimanda un'esecuzione: la regola con lo stesso payload o il flusso pianificato."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from ..ripeti import ripeti
+
+    run_log = get_object_or_404(AutomationRunLog.objects.select_related("rule"), pk=run_log_id)
+    riuscito, messaggio = ripeti(run_log, request.user)
+    (messages.success if riuscito else messages.error)(request, messaggio)
+    if riuscito:
+        _helpers.log_action(request, "automazioni_run_log_ripeti", "automazioni", {"run_log_id": run_log.pk})
+    prossima = request.POST.get("next") or ""
+    if prossima and url_has_allowed_host_and_scheme(prossima, allowed_hosts={request.get_host()},
+                                                    require_https=request.is_secure()):
+        return redirect(prossima)
+    return redirect("admin_portale:automazioni_run_log_detail", run_log_id=run_log.pk)
 
 
 # ── Task pianificati (schedule django-q) — riflessi nell'area automazioni ──────
