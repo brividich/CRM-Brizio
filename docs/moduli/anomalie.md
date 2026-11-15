@@ -86,6 +86,10 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
 Statistiche, Ricerca dettaglio, tendina degli OP e contatore della home passano da `_anomalie_scope_where`: con scope ASSIGNED contano solo gli OP in cui l'utente è capocommessa/CAR, con OWN_ANOMALIE quelli su cui ha aperto un'anomalia, come l'elenco OP (`api_db_ordini`).
 
+## Mail come flussi di Automazioni (15/11/2026)
+
+`send_and_log_email` spedisce dentro il flusso evento `anomalie_mail_<kind>` (`anomalie/mail_flussi.py`, catalogo `ANOMALIE_MAIL_FLUSSI` in `automazioni/event_notifications.py`, tipo non censito → `anomalie_mail_altro`): flusso spento o regole che fermano la mail → nessun invio, riga «Non inviata» in «Mail inviate», ritorno `(True, None)` così chi chiama non ritenta. Gli errori SMTP risalgono come prima; «Reinvia» dal log non passa dal flusso. Le liste `conferma_aggiornamenti`, `rdc_segnalazione`, `escalation_supervisori` sono anche in «Impostazioni del modulo» dei flussi (`automazioni/mail_modulo._lista_anomalie`, salvate con `notifiche.salva_pannello`).
+
 ## Hardening ottobre 2026
 
 - Correzione 10/10: la copia di riepilogo al segnalante non partiva mai (la query cercava `utenti.cognome`, colonna inesistente, e avrebbe usato `utenti.email`, che è il login). Ora l'indirizzo è l'`email_notifica` della scheda anagrafica.

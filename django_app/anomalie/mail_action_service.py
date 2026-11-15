@@ -81,7 +81,21 @@ def send_and_log_email(
         )
         if body_html:
             msg.attach_alternative(body_html, "text/html")
-        msg.send(fail_silently=False)
+        if resend_of is not None:
+            # «Reinvia» dal log: rispedisce esattamente lo stesso messaggio.
+            msg.send(fail_silently=False)
+        else:
+            # Flusso Automazioni del tipo di mail: spento o regole che la fermano = non parte.
+            from .mail_flussi import FERMATA, invia
+
+            inviate, registrata = invia(kind, msg)
+            if inviate == FERMATA:
+                logger.info("anomalie mail kind=%s op=%s fermata dal flusso Automazioni", kind, op_id)
+                if not registrata:
+                    _registra_mail_inviate(kind=kind, subject=subject, to_list=to_list, cc_list=cc_list,
+                                           op_id=op_id, error_text="Non inviata: flusso spento in Automazioni.")
+                # Gestita: chi chiama non deve ritentare né avvisare i supervisori.
+                return True, None
         sent = True
     except Exception as exc:  # noqa: BLE001 - l'esito finisce nel log
         error_text = f"{type(exc).__name__}: {exc}"
