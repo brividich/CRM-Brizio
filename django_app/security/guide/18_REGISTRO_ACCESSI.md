@@ -147,7 +147,7 @@ Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare null
 
 Il modulo «Aggiungi una fonte» resta chiuso finché non serve: si apre con **Aggiungi una fonte** o **Apri il modulo**. **Avvisa se muta per più di (ore)**: oltre questa soglia senza messaggi nasce l'interruzione «Fonte senza messaggi».
 
-**Impostazioni**: raccolta accesa, account dei raccoglitori di log, conservazione in mesi, cartella dell'archivio, seconda copia (cartella di rete, SharePoint), syslog (indirizzo, porta, TCP), orario di lavoro. Le modifiche arrivano al raccoglitore entro 5 minuti.
+**Impostazioni**: raccolta accesa, account dei raccoglitori di log, conservazione in mesi, cartella dell'archivio, seconda copia (cartella di rete, SharePoint), syslog (indirizzo, porta, TCP), orario di lavoro. Le modifiche arrivano al raccoglitore entro 5 minuti. Se cambia la **cartella dell'archivio**, il raccoglitore porta lui i file nella cartella nuova (deve poterci scrivere): il giorno in corso, se c'è in tutte e due, diventa un file solo con un'unica catena; un giorno già sigillato non si tocca e il file della cartella vecchia resta accanto come `registro-cartella-precedente-…`. Lo spostamento compare tra le interruzioni come «file riparato».
 
 **Account dei raccoglitori di log**: gli account dei programmi che leggono i registri di tutti i server ogni pochi minuti (il servizio di BusinessLog finché resta acceso; l'account con cui gira questo raccoglitore vale già). I loro accessi restano nell'archivio ma non riempiono «Accessi degli amministratori»; se svuotano un registro compare «Registro svuotato da un raccoglitore autorizzato» invece dell'evento critico «Registro eventi cancellato».
 
