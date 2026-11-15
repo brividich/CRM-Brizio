@@ -224,8 +224,10 @@ GUIDA = {
                       "amministratori di sistema (Garante) e come evidenza ISO 27001."),
                 ("passi", [
                     "«Panoramica»: pallino verde = raccolta attiva; «Come iniziare» dice i passi che mancano.",
-                    "«Eventi»: viste rapide «Accessi degli amministratori», «Fuori orario», «Non riusciti», «Modifiche ad account e "
-                    "gruppi», «Critici». Clic sulla data per l'evento originale.",
+                    "«Eventi»: il catalogo di ciò che è stato letto, a sezioni come in BusinessLog: «Log accessi» (ogni accesso "
+                    "delle persone, anche di rete), «Accessi falliti», «Account e gruppi», «Eventi di sistema», «Syslog», ognuna "
+                    "col numero di eventi del periodo; filtri rapidi «Solo amministratori», «Fuori orario», «Critici». Clic sulla "
+                    "data per l'evento originale.",
                     "«Amministratori di sistema»: elenco con account usati, sistemi, nomina in PDF, revisione e revoca.",
                     "«Account AD»: «Da sistemare» mostra ex dipendenti con l'account attivo, amministratori senza nomina, account senza persona.",
                     "«Verifica annuale»: lista di controllo dell'anno, PDF del verbale, esito da registrare.",

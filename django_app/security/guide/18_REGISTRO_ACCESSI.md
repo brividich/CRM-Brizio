@@ -23,20 +23,22 @@ Se il raccoglitore ha un problema (scrittura dell'archivio non riuscita, cartell
 
 ## Eventi
 
-Gli eventi importanti estratti dall'archivio. Viste rapide: **Accessi degli amministratori**, **Fuori orario**, **Non riusciti**, **Modifiche ad account e gruppi**, **Critici**. Filtri per periodo (da 24 ore a un anno), tipo di evento, fonte e testo (account, server, IP).
+Il catalogo degli eventi letti, diviso in sezioni come gli «Archivi log» di BusinessLog: **Tutti**, **Log accessi**, **Accessi falliti**, **Account e gruppi**, **Eventi di sistema**, **Syslog**. Accanto a ogni sezione il numero di eventi nel periodo scelto. Filtri rapidi che si aggiungono alla sezione: **Solo amministratori**, **Fuori orario**, **Critici**. Filtri per periodo (da 24 ore a un anno), tipo di evento, fonte e testo (account, server, IP).
 
-Cosa entra nell'elenco (il resto resta solo nell'archivio):
+Cosa entra nel catalogo (il resto resta solo nell'archivio):
 
-- accessi alla console, in desktop remoto, sblocchi della sessione; gli accessi di rete solo per gli account amministratori;
+- tutti gli accessi delle persone: alla console, in desktop remoto, sblocchi della sessione e accessi di rete (cartelle condivise, posta, risorse del dominio). Restano fuori gli account dei computer (quelli che finiscono con `$`), gli account di sistema, i servizi e i processi pianificati;
 - accessi non riusciti (con il motivo: password sbagliata, utente inesistente, account bloccato…), anche Kerberos e NTLM dei controller di dominio;
 - account creati, eliminati, abilitati, disabilitati, bloccati, password reimpostate;
 - aggiunte e rimozioni dai gruppi (critico se il gruppo è di amministratori: Domain Admins, Administrators, Enterprise Admins, Backup Operators…);
 - registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti;
-- da syslog: accessi SSH e alla console di gestione (ESXi, vCenter, switch Cisco e Aruba, firewall WatchGuard, NAS Synology), accessi rifiutati, SSH o shell abilitati, comandi `sudo`.
+- da syslog: accessi SSH e alla console di gestione (ESXi, vCenter, switch Cisco e Aruba, firewall WatchGuard, NAS Synology), accessi rifiutati, SSH o shell abilitati, comandi `sudo`; ogni altro messaggio va nella sezione «Syslog».
+
+Quando cambiano le regole del catalogo, al riavvio il raccoglitore rifà il catalogo degli ultimi 31 giorni rileggendo l'archivio (l'archivio sigillato non cambia). Gli eventi ricatalogati non mandano alert al SOC.
 
 Clic su un account o su un sistema: l'elenco si restringe a quell'account o a quel sistema. **Scarica CSV** scarica l'elenco con i filtri scelti (al massimo 20.000 righe; l'export resta nell'audit).
 
-Etichette: **admin** = account di un amministratore di sistema o con privilegi; **fuori orario** = fuori dall'orario di lavoro impostato in Fonti, o nel fine settimana. Lo stesso accesso ripetuto entro 10 minuti compare una volta sola (nell'archivio restano tutti).
+Etichette: **admin** = account di un amministratore di sistema o con privilegi; **fuori orario** = fuori dall'orario di lavoro impostato in Fonti, o nel fine settimana. Lo stesso accesso (stessa persona, stesso tipo, stesso PC) entro 10 minuti dall'ora dell'evento compare una volta sola, come lo stesso messaggio syslog; nell'archivio restano tutti.
 
 Clic sulla data di una riga: dettaglio con l'**evento originale** com'è stato ricevuto (campi del registro di Windows o testo del syslog) e gli altri eventi dello stesso account. La lettura della riga d'archivio resta nell'audit del portale.
 

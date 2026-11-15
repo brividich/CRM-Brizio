@@ -40,12 +40,12 @@
 {% endif %}
 
 <section class="sec-grid sec-kpi-grid" style="margin-top:12px">
-  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;vista=ads">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;sezione=accessi&amp;vista=ads">
     <span class="sec-kpi-label">Accessi degli amministratori</span>
     <strong class="sec-kpi-value">{{ kpi.accessi_ads }}</strong>
     <span class="sec-kpi-delta sec-good">ultime 24 ore · {{ kpi.accessi }} accessi in tutto</span>
   </a>
-  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;vista=falliti">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;sezione=falliti">
     <span class="sec-kpi-label">Accessi non riusciti</span>
     <strong class="sec-kpi-value{% if kpi.falliti %} warning{% endif %}">{{ kpi.falliti }}</strong>
     <span class="sec-kpi-delta">ultime 24 ore</span>

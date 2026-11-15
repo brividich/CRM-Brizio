@@ -146,12 +146,14 @@ class RegoleWindowsTests(TestCase):
         self.assertEqual(idx.ip_origine, "10.0.0.5")
         self.assertEqual(regole.quando_windows(d), datetime(2026, 10, 20, 8, 15, 30, 123456, tzinfo=dt_timezone.utc))
 
-    def test_accesso_di_rete_solo_per_amministratori(self):
+    def test_accesso_di_rete_di_tutte_le_persone(self):
+        # Come il «Log Accessi» di BusinessLog: ogni accesso di una persona, non solo degli amministratori.
         d = self._d(evento_xml(4624, 11, {"TargetUserName": "mrossi", "LogonType": "3"}))
-        self.assertIsNone(regole.classifica_windows(d))
-        self.assertEqual(regole.classifica_windows(d, {"mrossi"}).categoria, "accesso")
+        self.assertEqual(regole.classifica_windows(d).categoria, "accesso")
         macchina = self._d(evento_xml(4624, 12, {"TargetUserName": "PC01$", "LogonType": "10"}))
         self.assertIsNone(regole.classifica_windows(macchina))
+        servizio = self._d(evento_xml(4624, 13, {"TargetUserName": "svc-backup", "LogonType": "5"}))
+        self.assertIsNone(regole.classifica_windows(servizio))
 
     def test_accesso_fallito_con_motivo(self):
         d = self._d(evento_xml(4625, 13, {"TargetUserName": "mrossi", "SubStatus": "0xC000006A", "LogonType": "3"}))
@@ -205,7 +207,9 @@ class RegoleSyslogTests(TestCase):
         self.assertEqual(d["app"], "sudo")
         idx = regole.classifica_syslog(d)
         self.assertEqual(idx.categoria, "comando_privilegiato")
-        self.assertIsNone(regole.classifica_syslog(regole.parse_syslog(b"<14>Oct 20 08:00:01 sw01 link up on port 3", "x")))
+        altro = regole.classifica_syslog(regole.parse_syslog(b"<14>Oct 20 08:00:01 sw01 link up on port 3", "x"))
+        self.assertEqual((altro.categoria, altro.gravita), ("syslog", "info"))
+        self.assertIn("link up on port 3", altro.descrizione)
 
     def test_ora_syslog_senza_anno(self):
         ricevuto = timezone.make_aware(datetime(2026, 1, 1, 0, 0, 5))
@@ -286,6 +290,61 @@ class RaccoglitoreTests(_ConArchivio):
         dc.refresh_from_db()
         self.assertEqual(dc.segnalibri, {"Security": 51})
         self.assertEqual(dc.righe_oggi, 2)
+
+    def test_doppioni_sull_ora_dell_evento_e_ricatalogo(self):
+        from core.models import SiteConfig
+        from defusedxml import ElementTree
+
+        from .raccoglitore import Raccoglitore
+
+        dc = FonteLog.objects.create(nome="DC01", tipo=FonteLog.TIPO_WINDOWS, ruolo="dc", host="DC01")
+        r = Raccoglitore()
+        r.carica()
+        ora = timezone.now()
+
+        def accesso(rec, quando):
+            d = regole.normalizza_windows(ElementTree.fromstring(evento_xml(
+                4624, rec, {"TargetUserName": "mrossi", "LogonType": "3", "IpAddress": "10.0.0.5"})))
+            return dict(d, t=quando.astimezone(dt_timezone.utc).isoformat())
+
+        # Recupero di ore di registro in un colpo: accessi a un'ora di distanza restano due, a un minuto uno.
+        for rec, quando in ((1, ora - timedelta(hours=2)), (2, ora - timedelta(hours=2) + timedelta(minutes=1)),
+                            (3, ora - timedelta(hours=1))):
+            r.coda.put(("windows", dc.pk, accesso(rec, quando), ora))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        self.assertEqual(EventoRegistro.objects.filter(categoria="accesso").count(), 2)
+
+        # Regole cambiate: all'avvio l'elenco del giorno si rifà dall'archivio, senza toccare l'archivio.
+        EventoRegistro.objects.all().delete()
+        SiteConfig.objects.filter(chiave="registro_log.versione_regole").delete()
+        r2 = Raccoglitore()
+        r2.carica()
+        self.assertEqual(r2.ricataloga_se_serve(), 2)
+        self.assertTrue(all(e.inviato_soc for e in EventoRegistro.objects.all()))
+        self.assertEqual(SiteConfig.get("registro_log.versione_regole", ""), str(regole.VERSIONE_REGOLE))
+        self.assertEqual(r2.ricataloga_se_serve(), 0)  # già fatto: non si ripete
+        self.assertEqual(EventoRegistro.objects.count(), 2)
+
+    def test_sezioni_del_catalogo_nella_pagina_eventi(self):
+        dc = FonteLog.objects.create(nome="DC01", tipo=FonteLog.TIPO_WINDOWS, ruolo="dc", host="DC01")
+        ora = timezone.now()
+        for cat in ("accesso", "accesso", "accesso_fallito", "account_creato"):
+            EventoRegistro.objects.create(quando=ora, categoria=cat, fonte_id=dc.pk, account="mrossi")
+        from core.models import UserOnboarding
+
+        utente = get_user_model().objects.create_user("soc.sezioni", password="pass-di-prova-123", is_staff=True,
+                                                      is_superuser=True)
+        UserOnboarding.objects.update_or_create(user=utente, defaults={"completed": True})
+        self.client.force_login(utente)
+        url = reverse("security:registro_log_eventi")
+        r = self.client.get(url, {"giorni": "1", "sezione": "accessi"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context["pagina"].paginator.count, 2)
+        self.assertEqual({s["codice"]: s["n"] for s in r.context["sezioni"]},
+                         {"": 4, "accessi": 2, "falliti": 1, "account": 1, "sistema": 0, "syslog": 0})
+        vecchio = self.client.get(url, {"giorni": "1", "vista": "falliti"})  # link di prima
+        self.assertEqual(vecchio.context["sezione"], "falliti")
 
     def test_battito_annota_le_righe_riparate(self):
         from .raccoglitore import Raccoglitore

@@ -110,8 +110,9 @@ def panoramica(request):
         "kpi": {
             "righe_oggi": b["stato"].righe_oggi if b["stato"] else 0,
             "accessi": conta.get("accesso", 0) + conta.get("accesso_privilegiato", 0),
-            "accessi_ads": eventi_24.filter(privilegiato=True, categoria__in=("accesso", "accesso_privilegiato")).count(),
-            "falliti": conta.get("accesso_fallito", 0),
+            # Stessi filtri dei link (Eventi › sezione): il numero sulla scheda è quello dell'elenco che apre.
+            "accessi_ads": _filtra_sezione(eventi_24, "accessi").filter(privilegiato=True).count(),
+            "falliti": _filtra_sezione(eventi_24, "falliti").count(),
             "critici": eventi_24.filter(gravita="high").count(),
             "fonti_ok": fonti.filter(attiva=True).exclude(tipo=FonteLog.TIPO_SYSLOG).filter(stato=FonteLog.STATO_OK).count()
             + fonti.filter(attiva=True, tipo=FonteLog.TIPO_SYSLOG, ultimo_evento_il__gte=ora - timedelta(hours=24)).count(),
@@ -127,14 +128,23 @@ def panoramica(request):
 # ── Eventi ───────────────────────────────────────────────────────────────────
 
 PERIODI = (("1", "Ultime 24 ore"), ("7", "7 giorni"), ("30", "30 giorni"), ("90", "90 giorni"), ("365", "Un anno"))
+# Filtri che si aggiungono alla sezione del catalogo.
 FILTRI_RAPIDI = (
     ("", "Tutti"),
-    ("ads", "Accessi degli amministratori"),
+    ("ads", "Solo amministratori"),
     ("fuori", "Fuori orario"),
-    ("falliti", "Non riusciti"),
-    ("modifiche", "Modifiche ad account e gruppi"),
     ("critici", "Critici"),
 )
+# Link vecchi (?vista=falliti, ?vista=modifiche): ora sono sezioni del catalogo.
+VISTE_DIVENTATE_SEZIONI = {"falliti": "falliti", "modifiche": "account"}
+
+
+def _filtra_sezione(qs, sezione: str):
+    if sezione == "syslog":
+        return qs.filter(fonte_id__in=FonteLog.objects.filter(tipo=FonteLog.TIPO_SYSLOG).values_list("pk", flat=True))
+    if sezione in regole.SEZIONI:
+        return qs.filter(categoria__in=regole.SEZIONI[sezione][1])
+    return qs
 
 
 def eventi(request):
@@ -143,16 +153,18 @@ def eventi(request):
         giorni = "7"
     qs = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=int(giorni))).exclude(
         categoria__in=regole.CATEGORIE_RISERVATE)
+    periodo = qs
     rapido = request.GET.get("vista", "")
+    sezione = request.GET.get("sezione", "")
+    if rapido in VISTE_DIVENTATE_SEZIONI:
+        sezione, rapido = VISTE_DIVENTATE_SEZIONI[rapido], ""
+    if sezione not in regole.SEZIONI:
+        sezione = ""
+    qs = _filtra_sezione(qs, sezione)
     if rapido == "ads":
-        qs = qs.filter(privilegiato=True, categoria__in=("accesso", "accesso_privilegiato", "uscita"))
+        qs = qs.filter(privilegiato=True)
     elif rapido == "fuori":
         qs = qs.filter(fuori_orario=True, categoria__in=("accesso", "accesso_privilegiato"))
-    elif rapido == "falliti":
-        qs = qs.filter(categoria__in=("accesso_fallito", "account_bloccato"))
-    elif rapido == "modifiche":
-        qs = qs.filter(categoria__in=("account_creato", "account_eliminato", "account_modificato", "gruppo_privilegiato",
-                                      "gruppo_modificato"))
     elif rapido == "critici":
         qs = qs.filter(gravita="high")
     categoria = request.GET.get("categoria", "")
@@ -184,10 +196,18 @@ def eventi(request):
     pagina = Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina"))
     parametri = request.GET.copy()
     parametri.pop("pagina", None)
+    # Una voce per sezione del catalogo, col numero di eventi nel periodo scelto.
+    sezioni = [{"codice": "", "etichetta": "Tutti", "n": periodo.count()}] + [
+        {"codice": codice, "etichetta": etichetta, "n": _filtra_sezione(periodo, codice).count()}
+        for codice, (etichetta, _categorie) in regole.SEZIONI.items()]
     return render(request, "registro_log/eventi.html", {
         "pagina": pagina, "giorni": giorni, "periodi": PERIODI, "rapidi": FILTRI_RAPIDI, "vista": rapido,
+        "sezione": sezione, "sezioni": sezioni,
+        "titolo_sezione": regole.SEZIONI[sezione][0] if sezione else "Eventi",
         "categoria": categoria, "categorie": sorted(((k, v) for k, v in regole.CATEGORIE.items()
-                                                     if k not in regole.CATEGORIE_RISERVATE), key=lambda x: x[1][0]),
+                                                     if k not in regole.CATEGORIE_RISERVATE
+                                                     and (not sezione or sezione == "syslog" or k in regole.SEZIONI[sezione][1])),
+                                                    key=lambda x: x[1][0]),
         "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "parametri": parametri.urlencode(),
         "etichette": regole.CATEGORIE,
     })

@@ -34,6 +34,7 @@ CATEGORIE: dict[str, tuple[str, str]] = {
     "avvio_arresto": ("Avvio o arresto del sistema", "info"),
     "configurazione": ("Configurazione dell'apparato modificata", "warning"),
     "comando_privilegiato": ("Comando eseguito come amministratore", "info"),
+    "syslog": ("Messaggio syslog", "info"),
     "file_letto": ("File aperto", "info"),
     "file_modificato": ("File modificato", "info"),
     "file_eliminato": ("File eliminato", "info"),
@@ -67,6 +68,26 @@ TIPI_ACCESSO = {
     "10": "Desktop remoto", "11": "Interattivo (credenziali in cache)",
 }
 ACCESSI_INTERATTIVI = {"2", "7", "10", "11"}
+# Tipi di accesso che non sono persone al lavoro (processi pianificati, servizi): solo nell'archivio.
+ACCESSI_NON_CATALOGATI = {"4", "5"}
+
+# Si alza quando cambia cosa entra nell'elenco: all'avvio il raccoglitore ricataloga dall'archivio
+# gli ultimi giorni (vedi ``Raccoglitore.ricataloga_se_serve``).
+VERSIONE_REGOLE = 2
+GIORNI_RICATALOGO = 31
+
+# Sezioni dell'elenco, come gli «Archivi log» di BusinessLog: codice → (etichetta, categorie).
+# «syslog» raccoglie tutto ciò che arriva dalle fonti syslog, qualunque sia la categoria.
+SEZIONI = {
+    "accessi": ("Log accessi", ("accesso", "accesso_privilegiato", "uscita")),
+    "falliti": ("Accessi falliti", ("accesso_fallito", "account_bloccato")),
+    "account": ("Account e gruppi", ("account_creato", "account_eliminato", "account_modificato", "gruppo_privilegiato",
+                                     "gruppo_modificato")),
+    "sistema": ("Eventi di sistema", ("registro_cancellato", "registro_svuotato", "audit_modificato", "servizio_installato",
+                                      "attivita_pianificata", "ora_modificata", "avvio_arresto", "configurazione",
+                                      "comando_privilegiato")),
+    "syslog": ("Syslog", ()),
+}
 
 # Event ID letti in modalità «Accessi e amministrazione», come intervalli per la query XPath
 # di wevtutil (Windows accetta poche condizioni in OR: gli intervalli le tengono sotto il limite).
@@ -213,10 +234,11 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
     ip = _ip(x.get("IpAddress", "") or x.get("Workstation", ""))
     tipo = x.get("LogonType", "")
     tipo_txt = TIPI_ACCESSO.get(tipo, f"Tipo {tipo}" if tipo else "")
-    priv = (utente or "").lower() in privilegiati
 
     if eid == 4624:
-        if not _account_reale(utente) or not (tipo in ACCESSI_INTERATTIVI or (tipo == "3" and priv)):
+        # Tutti gli accessi delle persone, anche quelli di rete (cartelle condivise, posta, risorse del
+        # dominio), come il «Log Accessi» di BusinessLog; non gli account dei computer né i servizi.
+        if not _account_reale(utente) or tipo in ACCESSI_NON_CATALOGATI:
             return None
         return Indice("accesso", f"Accesso {tipo_txt.lower()}", utente, dominio, ip_origine=ip,
                       tipo_accesso=tipo_txt, esito="ok", dedup=f"4624|{utente}|{tipo}|{ip}")
@@ -608,7 +630,15 @@ def classifica_syslog(d: dict) -> Indice | None:
             descr += f": {g['comando'].strip()[:200]}"
         return Indice(regola.categoria, descr, utente, ip_origine=_ip(g.get("ip") or ""), esito=regola.esito,
                       dedup=f"sys|{regola.categoria}|{utente}|{g.get('ip') or ''}" if regola.categoria in ("accesso", "uscita") else "")
-    return None
+    # Ogni altro messaggio va nell'elenco «Syslog» (lo stesso messaggio ripetuto compare una volta ogni 10 minuti).
+    testo = " ".join(msg.split())
+    if not testo:
+        return None
+    app = (d.get("app") or "").strip()
+    sev = d.get("sev")
+    gravita = "warning" if isinstance(sev, int) and sev <= 2 else "info"  # emergenza, allarme, critico
+    return Indice("syslog", (f"{app}: " if app else "") + testo[:380], gravita=gravita,
+                  dedup=f"sys|msg|{app}|{testo[:200]}")
 
 
 _MESI = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
