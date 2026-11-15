@@ -11,7 +11,7 @@
       <dt>Quando</dt><dd>{{ ev.quando|date:"d/m/Y H:i:s" }}{% if ev.fuori_orario %} <span class="rl-tag">fuori orario</span>{% endif %}</dd>
       <dt>Sistema</dt><dd>{{ ev.host|default:"—" }}</dd>
       <dt>Fonte</dt><dd>{{ ev.fonte_nome|default:"—" }}{% if ev.canale %} · {{ ev.canale }}{% endif %}{% if ev.event_id %} · evento {{ ev.event_id }}{% endif %}</dd>
-      <dt>Account</dt><dd>{% if ev.dominio %}{{ ev.dominio }}\{% endif %}{{ ev.account|default:"—" }}{% if ev.privilegiato %} <span class="rl-tag ads">admin</span>{% endif %}</dd>
+      <dt>Account</dt><dd>{% if ev.dominio %}{{ ev.dominio }}\{% endif %}{{ ev.account|default:"—" }}{% if ev.privilegiato %} <span class="rl-tag ads">admin</span>{% endif %}{% if ev.account %} · <a href="{% url 'security:registro_log_persona' %}?q={{ ev.account|urlencode }}">scheda della persona</a>{% endif %}</dd>
       {% if ev.account_target %}<dt>Su</dt><dd>{{ ev.account_target }}</dd>{% endif %}
       {% if ev.tipo_accesso %}<dt>Tipo di accesso</dt><dd>{{ ev.tipo_accesso }}</dd>{% endif %}
       <dt>Da dove</dt><dd>{{ ev.ip_origine|default:"—" }}</dd>

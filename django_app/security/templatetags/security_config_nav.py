@@ -85,16 +85,16 @@ MENU = [
                                               "dipendenze_portale"), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
+    # Aree come schede; Elenchi e Controllo hanno le loro pagine in terza riga (GRUPPI),
+    # il Catalogo le sue sezioni dentro la pagina (Log accessi, Accessi falliti…).
     ("Registro accessi", "registro_log", [
         ("Panoramica", "registro_log", ("registro_log",), False),
-        ("Eventi", "registro_log_eventi", ("registro_log_eventi", "registro_log_evento"), False),
-        ("Amministratori di sistema", "registro_log_ads", ("registro_log_ads",), False),
-        ("Account AD", "registro_log_account", ("registro_log_account",), False),
-        ("Verifica annuale", "registro_log_verifica", ("registro_log_verifica",), False),
-        ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",), False),
-        ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",), False),
+        ("Persona o PC", "registro_log_persona", ("registro_log_persona",), False),
+        ("Catalogo", "registro_log_eventi", ("registro_log_eventi", "registro_log_evento"), False),
         ("Indagini", "registro_log_indagini", ("registro_log_indagini", "registro_log_indagine"), True),
-        ("Fonti", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni"), False),
+        ("Elenchi", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni", "registro_log_account",
+                                           "registro_log_ads"), False),
+        ("Controllo", "registro_log_archivio", ("registro_log_archivio", "registro_log_verifica", "registro_log_infra"), False),
     ]),
     ("Report", "report", [
         ("Report", "report", ("report",), False),
@@ -118,6 +118,16 @@ MENU = [
 
 # Terza riga: le pagine di una scheda accorpata (scheda → [(etichetta, rotta, rotte che la accendono)]).
 GRUPPI = {
+    "Elenchi": [
+        ("Fonti e impostazioni", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni")),
+        ("Account AD", "registro_log_account", ("registro_log_account",)),
+        ("Amministratori di sistema", "registro_log_ads", ("registro_log_ads",)),
+    ],
+    "Controllo": [
+        ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",)),
+        ("Verifica annuale", "registro_log_verifica", ("registro_log_verifica",)),
+        ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",)),
+    ],
     "Patch": [
         ("Da installare e protezione", "watchguard_pc", ("watchguard_pc",)),
         ("Installate", "watchguard_patch_installate", ("watchguard_patch_installate",)),
