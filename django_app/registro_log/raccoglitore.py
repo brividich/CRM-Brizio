@@ -12,6 +12,7 @@ Fili di lavoro:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import queue
@@ -20,8 +21,9 @@ import threading
 import time
 from datetime import timedelta
 
-from django.db import connections
+from django.db import connections, transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from . import archivio, regole
 from .sorgenti import windows
@@ -148,12 +150,13 @@ class Raccoglitore:
         if idx is None:
             return None
         if idx.dedup:
+            # Sull'ora dell'evento: recuperando ore di registro in pochi secondi gli accessi restano distinti.
             chiave = f"{fonte.pk if fonte else ''}|{host}|{idx.dedup}".lower()
-            ora = time.monotonic()
-            if ora - self._dedup.get(chiave, -1e9) < DEDUP_MINUTI * 60:
+            ora = quando.timestamp()
+            if abs(ora - self._dedup.get(chiave, -1e12)) < DEDUP_MINUTI * 60:
                 return None
             self._dedup[chiave] = ora
-            if len(self._dedup) > 20000:
+            if len(self._dedup) > 50000:
                 limite = ora - DEDUP_MINUTI * 60
                 self._dedup = {k: v for k, v in self._dedup.items() if v >= limite}
         account = (idx.account or "")[:150]
@@ -466,9 +469,61 @@ class Raccoglitore:
     def ferma(self) -> None:
         self._fermo.set()
 
+    def ricataloga_se_serve(self) -> int:
+        """Se sono cambiate le regole dell'elenco, rifà l'elenco degli ultimi giorni rileggendo l'archivio.
+
+        Le righe dell'archivio non si toccano (sono sigillate): si cancellano e si ricreano solo le voci
+        dell'elenco (``EventoRegistro``) di quei giorni. Gira all'avvio, prima della raccolta.
+        """
+        from core.models import SiteConfig
+
+        from .models import EventoRegistro, FonteLog
+
+        chiave = "registro_log.versione_regole"
+        try:
+            fatta = int(SiteConfig.get(chiave, "0") or 0)
+        except (TypeError, ValueError):
+            fatta = 0
+        if fatta >= regole.VERSIONE_REGOLE:
+            return 0
+        oggi = timezone.localdate()
+        giorni = [g for g in archivio._giorni_su_disco() if (oggi - g).days <= regole.GIORNI_RICATALOGO]
+        fonti = {f.pk: f for f in FonteLog.objects.all()}
+        totale = 0
+        for giorno in sorted(set(giorni)):
+            fh = archivio._apri_lettura(giorno, self.scrittore.base)
+            if fh is None:
+                continue
+            self._dedup = {}
+            nuovi = []
+            with fh:
+                for testo in fh:
+                    try:
+                        riga = json.loads(testo)
+                        dati, fonte = riga.get("d") or {}, fonti.get(riga.get("f"))
+                        ricevuto = parse_datetime(riga.get("r") or "") or timezone.now()
+                        ev = self._indice(fonte, dati, giorno, int(riga.get("n") or 0), ricevuto)
+                    except Exception:  # noqa: BLE001 - una riga illeggibile non ferma il ricatalogo
+                        continue
+                    if ev is not None:
+                        ev.inviato_soc = True  # giorni passati: niente ondata di alert nel SOC
+                        nuovi.append(ev)
+            with transaction.atomic(using=EventoRegistro.objects.db):
+                EventoRegistro.objects.filter(archivio_giorno=giorno).delete()
+                EventoRegistro.objects.bulk_create(nuovi, batch_size=500)
+            totale += len(nuovi)
+            logger.info("Registro accessi: ricatalogato il %s, %s voci.", giorno, len(nuovi))
+        self._dedup = {}
+        SiteConfig.objects.update_or_create(chiave=chiave, defaults={"valore": str(regole.VERSIONE_REGOLE)})
+        return totale
+
     def esegui(self, *, controlla_uscita=None) -> None:
         """Gira finché ``ferma()`` o finché ``controlla_uscita()`` non dice di uscire."""
         self.carica()
+        try:
+            self.ricataloga_se_serve()
+        except Exception:  # noqa: BLE001 - senza ricatalogo la raccolta va avanti con le regole nuove
+            logger.exception("Registro accessi: ricatalogo dall'archivio non riuscito")
         filo = threading.Thread(target=self.ciclo_scrittore, name="registro-scrittore", daemon=True)
         filo.start()
         threading.Thread(target=self.ciclo_battito, name="registro-battito", daemon=True).start()
