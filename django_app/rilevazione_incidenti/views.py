@@ -869,6 +869,8 @@ def dettaglio(request, sp_id):
         "error": error,
         "can_edit_preposto": can_edit_preposto,
         "can_edit_rspp": can_edit_rspp,
+        # «Rimanda la scheda» dal flusso: solo con i dati nel database del portale.
+        "puo_rimandare_scheda": can_edit_rspp and _use_local(cfg) and item_fields is not None,
         "b": _bool_field,
         "capa_items": capa_items,
         "capa_new_url": capa_new_url,
@@ -1041,6 +1043,28 @@ def elimina(request, sp_id):
         logger.error("rilevazione_incidenti elimina %s: %s", sp_id, exc)
         messages.error(request, f"Errore: {exc}")
     return redirect("rilevazione_incidenti:lista")
+
+
+@login_required
+@require_POST
+def rimanda_scheda(request, sp_id):
+    """Rimanda la scheda completa dal flusso «Segnalazione di sicurezza - scheda completa»."""
+    if not _can_manage_rspp(request):
+        return render(request, "core/pages/forbidden.html", status=403)
+    locale = _use_local(_get_impostazioni()) and str(sp_id).isdigit()
+    if not locale or not RilevazioneIncidente.objects.filter(pk=int(sp_id)).exists():
+        messages.error(request, "La scheda si rimanda solo per le segnalazioni salvate nel portale.")
+        return redirect("rilevazione_incidenti:dettaglio", sp_id=sp_id)
+    from automazioni.ripeti import rimanda_evento_modulo
+
+    from .mail_scheda import destinatari_automatici, invia_alla_creazione
+
+    riuscito, messaggio = rimanda_evento_modulo("sicurezza_scheda_segnalazione", invia_alla_creazione,
+                                                destinatari_automatici, int(sp_id))
+    (messages.success if riuscito else messages.error)(request, messaggio)
+    if riuscito:
+        log_action(request, "rimanda_scheda", "rilevazione_incidenti", f"Scheda rimandata rilevazione id={sp_id}")
+    return redirect("rilevazione_incidenti:dettaglio", sp_id=sp_id)
 
 
 # ---------------------------------------------------------------------------

@@ -224,6 +224,13 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
           <button type="submit" class="dp-btn dp-btn-danger">Elimina</button>
         </form>
         {% endif %}
+        {% if puo_rimandare_scheda %}
+        <form method="post" action="{% url 'diario_preposto:rimanda_scheda' segnalazione.pk %}"
+              data-hub-confirm="Rimandare la scheda completa ai destinatari del flusso (Automazioni → Notifiche di sistema)?">
+          {% csrf_token %}
+          <button type="submit" class="dp-btn dp-btn-outline" title="Rimanda la scheda completa come alla creazione: destinatari e regole del flusso «Diario del preposto - scheda completa»">Rimanda la scheda</button>
+        </form>
+        {% endif %}
         <a href="{% url 'diario_preposto:export_pdf' segnalazione.pk %}" target="_blank" class="dp-btn dp-btn-pdf">Apri PDF</a>
         <a href="{% url 'diario_preposto:lista' %}" class="dp-btn dp-btn-outline">Torna alla lista</a>
       </div>

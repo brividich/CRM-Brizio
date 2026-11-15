@@ -89,7 +89,15 @@ GUIDA = {
             "id": "mail_scheda",
             "titolo": "Rimandare a mano la scheda di una segnalazione",
             "blocchi": [
-                ("p", "Se una mail non è arrivata, dal server si manda la scheda completa (tutti i campi, i 5 perché, "
+                ("passi", [
+                    "Apri la segnalazione e clicca «Rimanda la scheda» in fondo alla pagina (lo vede l'RSPP), poi conferma.",
+                    "La scheda riparte come alla creazione, dal flusso «Segnalazione di sicurezza - scheda completa»: "
+                    "stessi destinatari (Automazioni → Notifiche di sistema → «Modifica» → Impostazioni del modulo, di "
+                    "base rspp@) e stesse regole del passaggio «Invia un messaggio di posta».",
+                    "Un messaggio dice a chi è partita; se il flusso è spento o senza destinatari lo dice e non manda niente. "
+                    "Il pulsante c'è solo con i dati nel database del portale.",
+                ]),
+                ("p", "Per mandarla a indirizzi scelti a mano resta il comando dal server. Se una mail non è arrivata, dal server si manda la scheda completa (tutti i campi, i 5 perché, "
                       "le note e il link «Apri la segnalazione») nel formato delle mail NOVICROM HUB:"),
                 ("passi", [
                     "Prova senza inviare: python manage.py invia_mail_segnalazione 40 --to rls@costruzioninovicrom.it --dry-run",

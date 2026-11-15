@@ -80,3 +80,26 @@ def ripeti(run_log, user) -> tuple[bool, str]:
     if piano["modo"] == "pianificato":
         return True, "Flusso avviato ora: l'esito compare tra qualche secondo in Mail inviate e nei run log."
     return True, "Regola rimandata con gli stessi dati: l'esito compare tra qualche secondo in Mail inviate e nei run log."
+
+
+def rimanda_evento_modulo(codice_flusso: str, invia_fn, destinatari_fn, chiave) -> tuple[bool, str]:
+    """Rimanda la mail di un flusso su evento per un record esistente (es. la scheda di una
+    segnalazione), come alla sua creazione: stesso flusso, destinatari e regole «Invia mail».
+    Restituisce (riuscito, messaggio per l'utente)."""
+    from .managed_flows import assicura_installati, flusso_attivo
+
+    assicura_installati()
+    if not flusso_attivo(codice_flusso):
+        return False, "Il flusso è spento: accendilo in Automazioni → Notifiche di sistema."
+    destinatari = list(destinatari_fn() or [])
+    if not destinatari:
+        return False, ("Nessun destinatario impostato: aggiungilo in Automazioni → Notifiche di sistema → "
+                       "«Modifica» → Impostazioni del modulo.")
+    try:
+        inviate = invia_fn(chiave)
+    except Exception as exc:
+        logger.warning("Rimanda %s %s non riuscito", codice_flusso, chiave, exc_info=True)
+        return False, f"Invio non riuscito ({type(exc).__name__}): vedi Automazioni → Mail inviate."
+    if not inviate:
+        return False, "La mail non è partita (fermata dal flusso o errore di invio): vedi Automazioni → Mail inviate."
+    return True, "Scheda rimandata a " + ", ".join(destinatari) + " (più eventuali CC del flusso)."

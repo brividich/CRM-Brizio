@@ -12,6 +12,7 @@ urlpatterns = [
     path("<int:pk>/", views.dettaglio, name="dettaglio"),
     path("<int:pk>/modifica/", views.modifica, name="modifica"),
     path("<int:pk>/elimina/", views.elimina, name="elimina"),
+    path("<int:pk>/rimanda-scheda/", views.rimanda_scheda, name="rimanda_scheda"),
     path("<int:pk>/ripristina/", views.ripristina, name="ripristina"),
     path("<int:pk>/export-pdf/", views.export_pdf, name="export_pdf"),
     path("export-excel/", views.export_excel, name="export_excel"),
