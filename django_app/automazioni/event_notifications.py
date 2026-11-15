@@ -446,6 +446,78 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
 ]
 
 
+# Mail del modulo Anomalie: un flusso per tipo (AnomalieEmailLog.kind), applicato in
+# anomalie.mail_action_service.send_and_log_email. Le liste email restano quelle di
+# Gestione anomalie → Configurazione → Notifiche (stesso dato, modificabile dai due lati).
+ANOMALIE_MAIL_FLUSSI: list[tuple[str, str, str, str]] = [
+    ("mail_action", "Anomalie - link di decisione al capocommessa",
+     "Nuova anomalia o controllo OP inviato: mail con il link per decidere.",
+     "Capocommessa dell OP, in copia i CAR"),
+    ("promemoria_bozza_controllo", "Anomalie - promemoria del controllo in bozza",
+     "Un controllo OP resta in bozza oltre il tempo impostato.", "Chi ha aperto il controllo"),
+    ("promemoria_controllo", "Anomalie - promemoria decisioni del controllo",
+     "Le anomalie di un controllo OP aspettano ancora la decisione.", "Capocommessa dell OP"),
+    ("conferma_aggiornamenti", "Anomalie - riepilogo modifiche",
+     "5 minuti dopo l ultima modifica sulle anomalie di un OP.",
+     "Chi ha segnalato, capocommessa e CAR + liste Riepilogo modifiche e RDC / segnalazione cliente"),
+    ("decisioni_operatore", "Anomalie - decisioni all operatore",
+     "Insieme al riepilogo, se a decidere non è stato chi ha segnalato.", "Chi ha segnalato"),
+    ("segnala_car", "Anomalie - segnala a CAR",
+     "Decisione salvata con Segnala a CAR spuntato.", "I CAR scelti dal capocommessa"),
+    ("op_completato", "Anomalie - OP completato",
+     "Circa 5 minuti dopo la chiusura dell ultima anomalia aperta dell OP.", "Capocommessa e CAR dell OP"),
+    ("anomalia_incaricato", "Anomalie - nuovo incaricato",
+     "Un anomalia viene assegnata (o passata) a un incaricato.", "L incaricato"),
+    ("richiesta_info", "Anomalie - richiesta di informazioni della Qualità",
+     "La Qualità chiede informazioni su un anomalia.", "La persona a cui sono chieste"),
+    ("risposta_info", "Anomalie - risposta alla Qualità",
+     "Arriva la risposta a una richiesta di informazioni.", "Chi aveva chiesto"),
+    ("escalation_resoconto", "Anomalie - resoconto OP da controllare",
+     "Giorni lavorativi all ora impostata, se ci sono anomalie In attesa oltre la soglia.",
+     "Capocommessa e CAR degli OP + lista Supervisori"),
+    ("ricorrenza_pn", "Anomalie - difetto ricorrente per P/N",
+     "Lo stesso P/N supera il numero di anomalie impostato nei giorni impostati.",
+     "Liste Supervisori e RDC / segnalazione cliente"),
+    ("digest_settimanale", "Anomalie - digest settimanale",
+     "Ogni lunedì all ora impostata.", "Lista Supervisori"),
+    ("altro", "Anomalie - altre mail del modulo",
+     "Ogni altra mail del modulo Anomalie non elencata sopra.", "Secondo la mail"),
+]
+
+
+def codice_flusso_anomalie(kind: str) -> str:
+    """Codice del flusso Automazioni per una mail anomalie (``altro`` se il tipo non è censito)."""
+    noti = {k for k, *_ in ANOMALIE_MAIL_FLUSSI}
+    return "anomalie_mail_" + (kind if kind in noti else "altro")
+
+
+EVENT_NOTIFICATIONS += [
+    {
+        "code": codice_flusso_anomalie(kind),
+        "label": label,
+        "module": "Anomalie",
+        "trigger": trigger + " Interruttori e orari restano in Gestione anomalie → Configurazione → Notifiche.",
+        "destinatari": destinatari,
+        "source": "anomalie/mail_action_service.py",
+        "func": "send_and_log_email",
+    }
+    for kind, label, trigger, destinatari in ANOMALIE_MAIL_FLUSSI
+] + [
+    {
+        "code": "soc_notifiche_email",
+        "label": "SOC - avvisi di sicurezza per mail",
+        "module": "SOC",
+        "trigger": (
+            "Nuovo alert, ticket di rimedio, SLA superato e avvisi programmati (scadenze, backup, report) "
+            "sui canali email del SOC. Gravità minima, eventi e cooldown restano nel canale."
+        ),
+        "destinatari": "Destinatari dei canali email (SOC → Impostazioni → Notifiche, modificabili anche qui)",
+        "source": "security/services/notifications.py",
+        "func": "_send_email",
+    },
+]
+
+
 def get_event_notifications() -> list[dict[str, str]]:
     """Copia difensiva del catalogo, per uso nelle view."""
     from .models import ManagedFlow

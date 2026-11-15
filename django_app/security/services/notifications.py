@@ -99,7 +99,8 @@ def deliver_once(channel, *, event_kind, severity, dedup_hash, subject, body, at
             if not recipients:
                 outcome, count, error = SecurityNotificationLog.Outcome.FAILED, 0, "Email channel has no recipients"
             else:
-                _send_email(subject, body, recipients, attachment=attachment)
+                if not _send_email(subject, body, recipients, attachment=attachment):
+                    return None  # flusso spento in Automazioni: riprova al giro dopo, senza righe di log
                 outcome, count, error = SecurityNotificationLog.Outcome.SENT, len(recipients), ""
         elif channel.channel_type == "teams_webhook":
             url = resolve_webhook_url(channel)
@@ -172,7 +173,9 @@ def _deliver_to_channel(channel, *, event_kind, severity, dedup_hash, subject, b
         if not recipients:
             return _log(channel, event_kind, severity, dedup_hash, alert, ticket,
                         SecurityNotificationLog.Outcome.FAILED, error="Email channel has no recipients")
-        _send_email(subject, body, recipients)
+        if not _send_email(subject, body, recipients):
+            return _log(channel, event_kind, severity, dedup_hash, alert, ticket,
+                        SecurityNotificationLog.Outcome.COOLDOWN, error=FERMATA_DAL_FLUSSO)
         return _log(channel, event_kind, severity, dedup_hash, alert, ticket,
                     SecurityNotificationLog.Outcome.SENT, recipients_count=len(recipients))
 
@@ -187,6 +190,9 @@ def _deliver_to_channel(channel, *, event_kind, severity, dedup_hash, subject, b
 
     return _log(channel, event_kind, severity, dedup_hash, alert, ticket,
                 SecurityNotificationLog.Outcome.FAILED, error=f"Unsupported channel type: {channel.channel_type}")
+
+
+FERMATA_DAL_FLUSSO = "Non inviata: mail SOC spenta o fermata in Automazioni → Notifiche di sistema."
 
 
 def _in_cooldown(channel, event_kind, dedup_hash) -> bool:
@@ -238,18 +244,36 @@ def resolve_webhook_url(channel) -> str:
     return str(get_setting(ref, "") or "").strip()
 
 
-def _send_email(subject: str, body: str, recipients: list[str], attachment=None) -> None:
-    if attachment:
-        from django.core.mail import EmailMessage
+FLUSSO_MAIL = "soc_notifiche_email"
 
-        message = EmailMessage(subject=subject, body=body, from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None), to=recipients)
-        message.attach(*attachment)
-        invia_con_regole_flusso(message)
-        return
+
+def _manda_email(subject, body, recipients, attachment, esito: dict) -> bool:
     from django.core.mail import EmailMessage
 
-    invia_con_regole_flusso(EmailMessage(subject=subject, body=body,
-                                         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None), to=recipients))
+    message = EmailMessage(subject=subject, body=body, from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                           to=recipients)
+    if attachment:
+        message.attach(*attachment)
+    try:
+        return bool(invia_con_regole_flusso(message))
+    except Exception as exc:  # risale fuori dal flusso, che altrimenti lo inghiottirebbe
+        esito["errore"] = exc
+        return False
+
+
+def _send_email(subject: str, body: str, recipients: list[str], attachment=None) -> bool:
+    """Mail di un canale SOC dentro il flusso Automazioni «SOC - avvisi di sicurezza per mail».
+
+    True se partita, False se il flusso è spento o una sua regola l'ha fermata;
+    un errore SMTP risale al chiamante (canale «Failed»).
+    """
+    from automazioni.managed_flows import event_flow
+
+    esito: dict = {}
+    partita = event_flow(FLUSSO_MAIL, skipped_result=False)(_manda_email)(subject, body, recipients, attachment, esito)
+    if "errore" in esito:
+        raise esito["errore"]
+    return bool(partita)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

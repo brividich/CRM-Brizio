@@ -124,6 +124,56 @@ def _avviso_it_emails() -> Campo:
     return Campo("it:emails", "Email dell'IT", leggi, salva, 2)
 
 
+def _lista_anomalie(chiave: str) -> Campo:
+    """Lista email di Gestione anomalie → Configurazione → Notifiche (stesso dato, una per riga)."""
+    from anomalie.notifiche import LISTE
+
+    etichetta, uso = next((lab, u) for k, lab, u in LISTE if k == chiave)
+
+    def leggi() -> str:
+        from anomalie.views import _load_anomalie_lists
+
+        return "\n".join(e for e in (_load_anomalie_lists().get(chiave) or []) if e)
+
+    def salva(valore: str) -> str:
+        from anomalie.notifiche import salva_pannello
+
+        ok, messaggio = salva_pannello({"liste": {chiave: valore or ""}})
+        return "" if ok else messaggio
+
+    return Campo(f"anom:{chiave}", f"Lista «{etichetta}»", leggi, salva, 3, uso)
+
+
+def _canali_soc() -> list[Campo]:
+    """Destinatari di ogni canale email del SOC (SOC → Impostazioni → Notifiche)."""
+    from security.models import SecurityNotificationChannel
+
+    def campo(pk: int, nome: str, attivo: bool) -> Campo:
+        def leggi() -> str:
+            c = SecurityNotificationChannel.objects.filter(pk=pk).first()
+            return c.recipients if c else ""
+
+        def salva(valore: str) -> str:
+            from .mail_config import elenco_indirizzi
+
+            errore = _valida_indirizzi(valore or "")
+            if errore:
+                return errore
+            SecurityNotificationChannel.objects.filter(pk=pk).update(
+                recipients="\n".join(dict.fromkeys(elenco_indirizzi(valore or ""))))
+            return ""
+
+        stato = "" if attivo else " (canale spento nel SOC)"
+        return Campo(f"soc:{pk}", f"Canale «{nome}»{stato}", leggi, salva, 3,
+                     "Gravità minima, eventi e cooldown si cambiano nel SOC.")
+
+    try:
+        canali = SecurityNotificationChannel.objects.filter(channel_type="email").order_by("name")
+        return [campo(c.pk, c.name, c.enabled) for c in canali]
+    except Exception:
+        return []
+
+
 def _dpi(campo: str, etichetta: str, aiuto: str = "") -> Campo:
     return modello("dpi.DPIImpostazioni", campo, etichetta, carica="get_singleton", aiuto=aiuto, separatore="\n")
 
@@ -195,6 +245,13 @@ def _impostazioni() -> dict[str, dict]:
                        aiuto="La scheda contiene nome e descrizione: mandala solo a chi gestisce la segnalazione.")]},
         "diario_preposto_scheda": {"dove": "nessuna pagina del modulo: si cambia solo qui", "campi": [
             siteconfig(SCHEDA_PREPOSTO, "Destinatari della scheda completa", predefinito=RSPP)]},
+        **{f"anomalie_mail_{kind}": {"dove": "Gestione anomalie → Configurazione → Notifiche",
+                                     "campi": [_lista_anomalie(k) for k in liste]}
+           for kind, liste in (("conferma_aggiornamenti", ("conferma_aggiornamenti", "rdc_segnalazione")),
+                               ("escalation_resoconto", ("escalation_supervisori",)),
+                               ("ricorrenza_pn", ("escalation_supervisori", "rdc_segnalazione")),
+                               ("digest_settimanale", ("escalation_supervisori",)))},
+        "soc_notifiche_email": {"dove": "SOC → Impostazioni → Notifiche", "campi": _canali_soc()},
         "dpi_promemoria_ordine_scarpe": {"dove": dpi, "campi": [
             _dpi("negozio_operatore_emails", "Operatore incaricato degli ordini", "Vuoto: i referenti DPI.")]},
     }
@@ -203,7 +260,7 @@ def _impostazioni() -> dict[str, dict]:
 def campi(codice: str) -> dict | None:
     """Campi del modulo per il pannello del flusso, con il valore attuale (None se non ce ne sono)."""
     voce = _impostazioni().get(codice)
-    if not voce:
+    if not voce or not voce["campi"]:
         return None
     righe = []
     for c in voce["campi"]:

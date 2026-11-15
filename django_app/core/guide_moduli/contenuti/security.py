@@ -273,6 +273,7 @@ GUIDA = {
                     "accettati, soppressioni dagli alert). La Guida resta visibile a tutti.",
                     "Regole, soglie e AI si configurano nelle Impostazioni del Security Center (capitolo «Impostazioni e AI» della guida completa).",
                     "Le mail di avviso del SOC mandate da un lavoro pianificato o da un flusso si personalizzano anche in Automazioni → «Pianificati» o «Notifiche di sistema» → «Modifica» (indirizzi in più in A o in CC, indirizzi da togliere, oggetto, testo, mail spenta). Chi le riceve di base resta deciso dalle Impostazioni del SOC.",
+                    "Le mail dei canali email (alert, ticket, SLA, avvisi programmati) sono il flusso «SOC - avvisi di sicurezza per mail» in Automazioni → Notifiche di sistema: da «Modifica» si spengono o si cambiano destinatari e testo, e «Impostazioni del modulo» mostra i destinatari di ogni canale email, gli stessi delle Impostazioni del SOC. Con il flusso spento il registro del canale segna «Suppressed» con il motivo.",
                     "Alert di Microsoft Defender: Impostazioni › «Alert di Microsoft Defender». Serve il permesso Graph SecurityAlert.Read.All "
                     "con consenso amministratore sull'app del portale; prova con manage.py defender_alerts --prova.",
                     "Nella stessa sezione: «Raggruppa per incidente» (SecurityIncident.Read.All), «Leggi il software dei PC» "

@@ -163,6 +163,11 @@ GUIDA = {
                     "Tutte le mail del modulo stanno in Configurazione → Notifiche: quando partono, chi le riceve, "
                     "interruttori, orari, liste di destinatari fissi e indirizzo della mail «nuova anomalia fuori da "
                     "un controllo». La stessa vista è in Automazioni → Notifiche di sistema: un dato solo, due pagine.",
+                    "Ogni tipo di mail del modulo è anche un flusso in Automazioni → Notifiche di sistema (voci "
+                    "«Anomalie - …»): da «Modifica» la spegni, aggiungi o togli destinatari e CC, cambi oggetto e testo. "
+                    "Per riepilogo modifiche, resoconto, difetto ricorrente e digest il blocco «Impostazioni del modulo» "
+                    "mostra le liste di Configurazione → Notifiche: cambiarle da una parte le cambia anche dall'altra. "
+                    "Una mail fermata dal flusso non viene ritentata; «Reinvia» dal log la rispedisce comunque.",
                     "La vecchia regola Automazioni «AU-MAIL-ANOMALIE anomalia modificata» è spenta: il riepilogo "
                     "delle modifiche lo manda il modulo, 5 minuti dopo l'ultima modifica sull'OP.",
                     "I pulsanti «Apri nel portale» delle mail puntano all'indirizzo del portale (SITE_URL) passando "
