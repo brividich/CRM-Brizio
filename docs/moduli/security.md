@@ -10,6 +10,10 @@ Area **SOC IT - CN** · URL `/soc/` · codice [`django_app/security/`](../../dja
 
 **Grafica di Vulnerabilità e Dispositivi (08/11/2026)** (`security.css` blocco «Tessere KPI…», `vuln_dashboard.html`, `pc_copertura.html`, `views_vuln._termini_cve`, `views_work.pc_copertura`, `cve_sla.serie_settimanale`/`punti_sparkline`, `windows_lavoro.riepilogo.percento`): il riquadro «Tempi di correzione» apre con tre tessere `sec-fact sec-kpi` (nel termine, mediana, oltre il termine) con variazione `sec-kpi-delta` rispetto ai 90 giorni prima e sparkline SVG `sec-spark` delle ultime 8 settimane (`serie_settimanale` legge una volta `correzioni_valide` e raggruppa per settimana; `punti_sparkline` scala sui soli valori presenti); nella tabella per classe la colonna «Nel termine» è una barra `sec-bar` verde/rossa. In Dispositivi la striscia `sec-strip` del piano Windows (contatori fuori supporto / in scadenza come link ai filtri, barra di avanzamento, «Apri il piano» / «Vai al caso») e la colonna «Sistema» separata dal nome (`pcc-sys`). Il riquadro Rischio della scheda asset (`partials/asset_rischio.html`, `soc-live.css` `.cvp-card-stats--auto`, `.ris-motivi`) ha le tessere hardware e account amministratori (`accessi_admin.per_asset` ritorna anche `cessati`) e i motivi con icona per livello. Dopo il deploy serve `collectstatic`.
 
+## Canali email nel flusso di Automazioni (15/11/2026)
+
+`notifications._send_email` gira dentro il flusso evento `soc_notifiche_email`: spento o fermato da una regola ritorna False; `_deliver_to_channel` registra `cooldown` («Suppressed») con il motivo, `deliver_once` non scrive niente e riprova al giro dopo. I destinatari di ogni canale email sono anche in «Impostazioni del modulo» del flusso (`automazioni/mail_modulo._canali_soc`).
+
 ## Registro incidenti (NIS2 / GDPR)
 
 `/soc/incidenti/` — livello sopra alert e ticket: l'alert è il segnale, il ticket il lavoro tecnico, l'incidente il fatto da ricostruire e, se grave, notificare.

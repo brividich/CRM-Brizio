@@ -126,5 +126,8 @@ class ImpostazioniBidirezionaliTests(TestCase):
         self.assertEqual(SiteConfig.get("mpq_msm_reminder_emails"), "qualita@x.local")
 
     def test_tutti_i_campi_si_leggono(self):
-        for codice in _impostazioni():
+        for codice, voce in _impostazioni().items():
+            if not voce["campi"]:  # es. SOC senza canali email: nessun pannello
+                self.assertIsNone(campi(codice), codice)
+                continue
             self.assertTrue(campi(codice)["campi"], codice)
