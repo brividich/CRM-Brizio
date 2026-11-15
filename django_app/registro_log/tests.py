@@ -146,14 +146,28 @@ class RegoleWindowsTests(TestCase):
         self.assertEqual(idx.ip_origine, "10.0.0.5")
         self.assertEqual(regole.quando_windows(d), datetime(2026, 10, 20, 8, 15, 30, 123456, tzinfo=dt_timezone.utc))
 
-    def test_accesso_di_rete_di_tutte_le_persone(self):
-        # Come il «Log Accessi» di BusinessLog: ogni accesso di una persona, non solo degli amministratori.
+    def test_accesso_di_rete_solo_per_amministratori(self):
         d = self._d(evento_xml(4624, 11, {"TargetUserName": "mrossi", "LogonType": "3"}))
-        self.assertEqual(regole.classifica_windows(d).categoria, "accesso")
+        self.assertIsNone(regole.classifica_windows(d))
+        self.assertEqual(regole.classifica_windows(d, {"mrossi"}).categoria, "accesso")
         macchina = self._d(evento_xml(4624, 12, {"TargetUserName": "PC01$", "LogonType": "10"}))
         self.assertIsNone(regole.classifica_windows(macchina))
         servizio = self._d(evento_xml(4624, 13, {"TargetUserName": "svc-backup", "LogonType": "5"}))
         self.assertIsNone(regole.classifica_windows(servizio))
+
+    def test_accesso_al_dominio_kerberos(self):
+        ok = self._d(evento_xml(4768, 14, {"TargetUserName": "mrossi", "TargetDomainName": "ESEMPIO", "Status": "0x0",
+                                           "IpAddress": "::ffff:10.0.0.51"}))
+        idx = regole.classifica_windows(ok)
+        self.assertEqual((idx.categoria, idx.esito, idx.ip_origine), ("accesso", "ok", "10.0.0.51"))
+        self.assertEqual(idx.descrizione, "Accesso al dominio")
+        ko = self._d(evento_xml(4768, 15, {"TargetUserName": "mrossi", "Status": "0x12", "IpAddress": "::ffff:10.0.0.51"}))
+        self.assertEqual(regole.classifica_windows(ko).categoria, "accesso_fallito")
+        self.assertIn("disabilitato", regole.classifica_windows(ko).descrizione)
+        pc = self._d(evento_xml(4768, 16, {"TargetUserName": "PC01$", "Status": "0x0"}))
+        self.assertIsNone(regole.classifica_windows(pc))
+        self.assertIsNone(regole.classifica_windows(ok, raccoglitori={"mrossi"}))
+        self.assertIn("EventID >= 4767 and EventID <= 4768", regole.xpath("Security", 1, tutto=False))
 
     def test_accesso_fallito_con_motivo(self):
         d = self._d(evento_xml(4625, 13, {"TargetUserName": "mrossi", "SubStatus": "0xC000006A", "LogonType": "3"}))
@@ -207,9 +221,7 @@ class RegoleSyslogTests(TestCase):
         self.assertEqual(d["app"], "sudo")
         idx = regole.classifica_syslog(d)
         self.assertEqual(idx.categoria, "comando_privilegiato")
-        altro = regole.classifica_syslog(regole.parse_syslog(b"<14>Oct 20 08:00:01 sw01 link up on port 3", "x"))
-        self.assertEqual((altro.categoria, altro.gravita), ("syslog", "info"))
-        self.assertIn("link up on port 3", altro.descrizione)
+        self.assertIsNone(regole.classifica_syslog(regole.parse_syslog(b"<14>Oct 20 08:00:01 sw01 link up on port 3", "x")))
 
     def test_ora_syslog_senza_anno(self):
         ricevuto = timezone.make_aware(datetime(2026, 1, 1, 0, 0, 5))
@@ -304,7 +316,7 @@ class RaccoglitoreTests(_ConArchivio):
 
         def accesso(rec, quando):
             d = regole.normalizza_windows(ElementTree.fromstring(evento_xml(
-                4624, rec, {"TargetUserName": "mrossi", "LogonType": "3", "IpAddress": "10.0.0.5"})))
+                4624, rec, {"TargetUserName": "mrossi", "LogonType": "10", "IpAddress": "10.0.0.5"})))
             return dict(d, t=quando.astimezone(dt_timezone.utc).isoformat())
 
         # Recupero di ore di registro in un colpo: accessi a un'ora di distanza restano due, a un minuto uno.
@@ -610,6 +622,18 @@ class FileStampeUsbTests(TestCase):
         self.assertEqual((letto.categoria, letto.oggetto), ("file_letto", "D:\\Dati\\Progetti\\disegno.dwg"))
         tmp = {"id": 4663, "dati": dict(base, ObjectName="D:\\Dati\\~$offerta.docx", AccessMask="0x2")}
         self.assertIsNone(regole.classifica_windows(tmp, livello_file="tutto"))
+
+    def test_salvataggio_di_office_non_e_una_cancellazione(self):
+        def d(mask, programma):
+            return {"id": 4663, "dati": {"SubjectUserName": "mrossi", "ObjectType": "File", "AccessMask": mask,
+                                         "ObjectName": "D:\\Dati\\offerta.docx", "ProcessName": f"C:\\Prog\\{programma}"}}
+
+        salvato = regole.classifica_windows(d("0x10000", "WINWORD.EXE"), livello_file="modifiche")
+        self.assertEqual((salvato.categoria, salvato.descrizione), ("file_modificato", "Salvato D:\\Dati\\offerta.docx"))
+        cancellato = regole.classifica_windows(d("0x10000", "explorer.exe"), livello_file="modifiche")
+        self.assertEqual(cancellato.categoria, "file_eliminato")
+        # Solo «Scrittura attributi» (Esplora risorse, antivirus): non è una modifica del contenuto.
+        self.assertIsNone(regole.classifica_windows(d("0x100", "explorer.exe"), livello_file="modifiche"))
 
     def test_stampa_e_nome_documento_minimizzato(self):
         from .raccoglitore import minimizza
