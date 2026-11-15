@@ -34,7 +34,6 @@ CATEGORIE: dict[str, tuple[str, str]] = {
     "avvio_arresto": ("Avvio o arresto del sistema", "info"),
     "configurazione": ("Configurazione dell'apparato modificata", "warning"),
     "comando_privilegiato": ("Comando eseguito come amministratore", "info"),
-    "syslog": ("Messaggio syslog", "info"),
     "file_letto": ("File aperto", "info"),
     "file_modificato": ("File modificato", "info"),
     "file_eliminato": ("File eliminato", "info"),
@@ -68,12 +67,15 @@ TIPI_ACCESSO = {
     "10": "Desktop remoto", "11": "Interattivo (credenziali in cache)",
 }
 ACCESSI_INTERATTIVI = {"2", "7", "10", "11"}
-# Tipi di accesso che non sono persone al lavoro (processi pianificati, servizi): solo nell'archivio.
-ACCESSI_NON_CATALOGATI = {"4", "5"}
+# Kerberos (4768, 4771): codici di errore del controller di dominio.
+MOTIVI_KERBEROS = {
+    "0x6": "utente inesistente", "0x12": "account disabilitato, bloccato o scaduto", "0x17": "password scaduta",
+    "0x18": "password sbagliata", "0x25": "orologio del PC sfasato",
+}
 
 # Si alza quando cambia cosa entra nell'elenco: all'avvio il raccoglitore ricataloga dall'archivio
 # gli ultimi giorni (vedi ``Raccoglitore.ricataloga_se_serve``).
-VERSIONE_REGOLE = 2
+VERSIONE_REGOLE = 3
 GIORNI_RICATALOGO = 31
 
 # Sezioni dell'elenco, come gli «Archivi log» di BusinessLog: codice → (etichetta, categorie).
@@ -94,7 +96,7 @@ SEZIONI = {
 EVENTI_SECURITY = [
     (1102, 1102), (4616, 4616), (4624, 4625), (4634, 4634), (4647, 4648), (4672, 4672),
     (4697, 4698), (4719, 4720), (4722, 4726), (4728, 4729), (4732, 4733), (4738, 4738),
-    (4740, 4740), (4756, 4757), (4767, 4767), (4771, 4771), (4776, 4776),
+    (4740, 4740), (4756, 4757), (4767, 4768), (4771, 4771), (4776, 4776),
 ]
 EVENTI_SYSTEM = [(104, 104), (6005, 6006), (6008, 6008), (7045, 7045)]
 EVENTI_FILE = [(4663, 4663), (4670, 4670)]
@@ -229,16 +231,17 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
         return _usb_pnp(x)
     utente, dominio = x.get("TargetUserName", ""), x.get("TargetDomainName", "")
     soggetto, dom_sogg = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
-    if raccoglitori and eid in (4624, 4634, 4647, 4672) and (soggetto if eid == 4672 else utente).lower() in raccoglitori:
+    if raccoglitori and eid in (4624, 4634, 4647, 4672, 4768) and (soggetto if eid == 4672 else utente).lower() in raccoglitori:
         return None
     ip = _ip(x.get("IpAddress", "") or x.get("Workstation", ""))
     tipo = x.get("LogonType", "")
     tipo_txt = TIPI_ACCESSO.get(tipo, f"Tipo {tipo}" if tipo else "")
+    priv = (utente or "").lower() in privilegiati
 
     if eid == 4624:
-        # Tutti gli accessi delle persone, anche quelli di rete (cartelle condivise, posta, risorse del
-        # dominio), come il «Log Accessi» di BusinessLog; non gli account dei computer né i servizi.
-        if not _account_reale(utente) or tipo in ACCESSI_NON_CATALOGATI:
+        # Accessi veri: console, desktop remoto, sblocco. Gli accessi di rete (cartelle, GPO, posta: decine
+        # all'ora per persona sui DC) restano nell'archivio, tranne quelli degli amministratori.
+        if not _account_reale(utente) or not (tipo in ACCESSI_INTERATTIVI or (tipo in ("3", "8") and priv)):
             return None
         return Indice("accesso", f"Accesso {tipo_txt.lower()}", utente, dominio, ip_origine=ip,
                       tipo_accesso=tipo_txt, esito="ok", dedup=f"4624|{utente}|{tipo}|{ip}")
@@ -248,6 +251,20 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
         motivo = MOTIVI_FALLIMENTO.get((x.get("SubStatus") or x.get("Status") or "").lower(), "")
         return Indice("accesso_fallito", "Accesso non riuscito" + (f": {motivo}" if motivo else ""), utente, dominio,
                       ip_origine=ip, tipo_accesso=tipo_txt, esito="ko")
+    if eid == 4768:
+        # Il controller di dominio dà il «biglietto» Kerberos quando una persona entra in un PC del dominio
+        # (e quando il biglietto scade, ogni 10 ore): è l'accesso al dominio visto dal DC.
+        nome = x.get("TargetUserName", "")
+        if not _account_reale(nome) or "/" in nome:
+            return None
+        stato = (x.get("Status") or "0x0").lower()
+        da = _ip(x.get("IpAddress", ""))
+        if stato in ("0x0", "0"):
+            return Indice("accesso", "Accesso al dominio", nome, x.get("TargetDomainName", ""), ip_origine=da,
+                          tipo_accesso="Accesso al dominio (Kerberos)", esito="ok", dedup=f"4768|{nome}|{da}")
+        motivo = MOTIVI_KERBEROS.get(stato, f"codice {stato}")
+        return Indice("accesso_fallito", f"Accesso al dominio non riuscito: {motivo}", nome, x.get("TargetDomainName", ""),
+                      ip_origine=da, tipo_accesso="Accesso al dominio (Kerberos)", esito="ko")
     if eid == 4771:
         nome = x.get("TargetUserName", "")
         if not _account_reale(nome):
@@ -342,7 +359,9 @@ FILE_IGNORATI = re.compile(r"(\\~\$[^\\]*$|\.tmp$|\\thumbs\.db$|\\desktop\.ini$|
 # 0x20000 = «Autorizzazioni di lettura» (READ_CONTROL): è la voce che BusinessLog fa mettere nel controllo delle
 # cartelle e che Windows registra a ogni apertura del file; 0x1 = «Leggi dati», se qualcuno l'ha messa.
 MASCHERA_LETTURA = 0x1 | 0x20000
-MASCHERA_SCRITTURA = 0x2 | 0x4 | 0x100
+# Scrittura dati e aggiunta dati. Non 0x100 («Scrittura attributi»): lo fanno Esplora risorse, l'antivirus e
+# l'anteprima anche senza cambiare il contenuto, e riempiva l'elenco di «Modificato» finti.
+MASCHERA_SCRITTURA = 0x2 | 0x4
 MASCHERA_ELIMINA = 0x10000
 MASCHERA_PERMESSI = 0x40000 | 0x80000
 LETTURE, SCRITTURE, ELIMINAZIONI = "letture", "scritture", "eliminazioni"
@@ -413,6 +432,14 @@ _VERBO_FILE = {"file_eliminato": "Eliminato", "file_permessi": "Permessi cambiat
                "file_letto": "Aperto"}
 
 
+# Programmi che salvano rinominando il file originale (Windows registra la rinomina come eliminazione):
+# un'«eliminazione» fatta da loro è un salvataggio. Le cancellazioni vere passano da explorer.exe o simili.
+PROGRAMMI_SALVA_RINOMINANDO = {
+    "winword.exe", "excel.exe", "powerpnt.exe", "msaccess.exe", "visio.exe", "winproj.exe", "mspub.exe",
+    "acad.exe", "sldworks.exe", "inventor.exe",
+}
+
+
 def _programma(x: dict) -> str:
     """Il programma che ha aperto il file (explorer.exe, robocopy.exe…): in BusinessLog la colonna «Eseguibile»."""
     return (x.get("ProcessName") or "").replace("/", "\\").split("\\")[-1][:40]
@@ -427,6 +454,9 @@ def _file(eid: int, x: dict, livello: str, cartelle: list | None = None) -> Indi
     tipo = _tipo_accesso_file(eid, x)
     if not tipo:
         return None
+    verbo = _VERBO_FILE[tipo]
+    if tipo == "file_eliminato" and _programma(x).lower() in PROGRAMMI_SALVA_RINOMINANDO:
+        tipo, verbo = "file_modificato", "Salvato"
     voci = frozenset({SCRITTURE, ELIMINAZIONI} | ({LETTURE} if livello == "tutto" else set()))
     if cartelle:
         basso = nome.lower()
@@ -436,7 +466,7 @@ def _file(eid: int, x: dict, livello: str, cartelle: list | None = None) -> Indi
         voci = trovata or voci
     if _VOCE_DEL_TIPO[tipo] not in voci:
         return None
-    idx = Indice(tipo, f"{_VERBO_FILE[tipo]} {nome}", utente, dominio, tipo_accesso=_programma(x),
+    idx = Indice(tipo, f"{verbo} {nome}", utente, dominio, tipo_accesso=_programma(x),
                  dedup="" if tipo == "file_eliminato" else f"{tipo}|{utente}|{nome}")
     idx.oggetto = nome[:500]
     return idx
@@ -630,15 +660,7 @@ def classifica_syslog(d: dict) -> Indice | None:
             descr += f": {g['comando'].strip()[:200]}"
         return Indice(regola.categoria, descr, utente, ip_origine=_ip(g.get("ip") or ""), esito=regola.esito,
                       dedup=f"sys|{regola.categoria}|{utente}|{g.get('ip') or ''}" if regola.categoria in ("accesso", "uscita") else "")
-    # Ogni altro messaggio va nell'elenco «Syslog» (lo stesso messaggio ripetuto compare una volta ogni 10 minuti).
-    testo = " ".join(msg.split())
-    if not testo:
-        return None
-    app = (d.get("app") or "").strip()
-    sev = d.get("sev")
-    gravita = "warning" if isinstance(sev, int) and sev <= 2 else "info"  # emergenza, allarme, critico
-    return Indice("syslog", (f"{app}: " if app else "") + testo[:380], gravita=gravita,
-                  dedup=f"sys|msg|{app}|{testo[:200]}")
+    return None
 
 
 _MESI = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
