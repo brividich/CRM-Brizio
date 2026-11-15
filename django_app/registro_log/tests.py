@@ -992,6 +992,52 @@ class ManutenzioneAttivitaTests(_ConArchivio):
         self.assertEqual(pagina.context["pagina"].paginator.count, 1)
 
 
+class SpiegazioniTests(_ConArchivio):
+    def test_ogni_categoria_ha_la_spiegazione(self):
+        from . import spiegazioni
+
+        for categoria in regole.CATEGORIE:
+            s = spiegazioni.spiegazione(categoria)
+            self.assertTrue(s["cosa"] and s["normale"] and s["fare"], categoria)
+        for sezione in [""] + list(regole.SEZIONI):
+            self.assertTrue(spiegazioni.SEZIONI_TESTO.get(sezione), sezione)
+
+    def test_frase_e_campi_in_italiano(self):
+        from . import spiegazioni
+
+        ev = EventoRegistro(categoria="accesso", account="mrossi", ip_origine="10.0.0.51", host="DC01.esempio.local",
+                            tipo_accesso="Accesso al dominio (Kerberos)", descrizione="Accesso al dominio")
+        self.assertEqual(spiegazioni.frase(ev), "Accesso al dominio di mrossi dal PC 10.0.0.51 (registrato da DC01).")
+        campi = {c["etichetta"]: c["valore"] for c in spiegazioni.campi_leggibili(
+            {"id": 4625, "dati": {"TargetUserName": "mrossi", "LogonType": "10", "SubStatus": "0xC000006A",
+                                  "IpAddress": "::ffff:10.0.0.5", "ProcessName": "C:\Windows\System32\svchost.exe"}})}
+        self.assertEqual(campi["Tipo di accesso"], "Desktop remoto")
+        self.assertEqual(campi["Motivo"], "password sbagliata")
+        self.assertEqual(campi["Indirizzo di provenienza"], "10.0.0.5")
+        self.assertEqual(campi["Programma"], "svchost.exe")
+        kerb = {c["etichetta"]: c["valore"] for c in spiegazioni.campi_leggibili({"id": 4768, "dati": {"Status": "0x12"}})}
+        self.assertIn("disabilitato", kerb["Esito"])
+
+    def test_pagina_evento_spiega(self):
+        from core.models import UserOnboarding
+
+        u = get_user_model().objects.create_user("admin.spieg", password="pass-di-prova-123", is_staff=True, is_superuser=True)
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        s = archivio.Scrittore(self.tmp)
+        giorno, n = s.scrivi(1, {"id": 4625, "dati": {"TargetUserName": "mrossi", "SubStatus": "0xC000006A", "LogonType": "3"}},
+                             timezone.now())
+        s.chiudi()
+        ev = EventoRegistro.objects.create(quando=timezone.now(), categoria="accesso_fallito", esito="ko", account="mrossi",
+                                           descrizione="Accesso non riuscito: password sbagliata", host="DC01",
+                                           archivio_giorno=giorno, archivio_riga=n)
+        testo = self.client.get(reverse("security:registro_log_evento", args=[ev.pk])).content.decode()
+        self.assertIn("Tentativo di accesso non riuscito per mrossi", testo)
+        self.assertIn("Quando è normale", testo)
+        self.assertIn("password sbagliata", testo)
+        self.assertIn("Tutti i campi tecnici di Windows", testo)
+
+
 class RobustezzaTests(_ConArchivio):
     def test_scrittura_fallita_si_riprova_senza_perdere_ne_duplicare(self):
         from .raccoglitore import Raccoglitore

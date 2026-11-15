@@ -6,6 +6,8 @@ app_name = "produzione"
 
 urlpatterns = [
     path("", views.elenco, name="elenco"),
+    path("pn/", views.pn_elenco, name="pn_elenco"),
+    path("pn/scheda/", views.pn_scheda, name="pn_scheda"),
     path("op/nuovo/", views.op_nuovo, name="op_nuovo"),
     path("op/<int:pk>/", views.scheda, name="scheda"),
     path("op/<int:pk>/documento/", views.documento, name="documento"),

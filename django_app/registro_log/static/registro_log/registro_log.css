@@ -121,3 +121,9 @@ body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--dang
 .soc-module .rl-azione > div { flex: 1 1 380px; min-width: 0; }
 .soc-module .rl-azione-campo { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
 .soc-module .rl-azione-campo input { width: 80px; }
+/* Spiegazione dell'evento */
+.soc-module .rl-spiega { margin-bottom: 12px; }
+.soc-module .rl-frase { margin: 0 0 10px; font-size: 1.1rem; font-weight: 600; }
+.soc-module .rl-spiega-punti { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0; }
+.soc-module .rl-spiega-punti dt { font-size: var(--fs-sm); color: var(--text-mid); font-weight: 600; margin-bottom: 2px; }
+.soc-module .rl-spiega-punti dd { margin: 0; }

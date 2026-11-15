@@ -6,6 +6,7 @@
 <nav class="rl-chips rl-sezioni" aria-label="Sezioni del catalogo">
   {% for s in sezioni %}<a class="rl-chip{% if sezione == s.codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if s.codice %}&amp;sezione={{ s.codice }}{% endif %}"{% if sezione == s.codice %} aria-current="true"{% endif %}>{{ s.etichetta }} <span class="rl-n">{{ s.n }}</span></a>{% endfor %}
 </nav>
+{% if testo_sezione %}<p class="rl-intro">{{ testo_sezione }} Clic sull'ora di una riga: cosa vuol dire l'evento, quando è normale e cosa fare.</p>{% endif %}
 <nav class="rl-chips" aria-label="Filtri rapidi">
   {% for codice, etichetta in rapidi %}<a class="rl-chip rl-chip-piccolo{% if vista == codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if sezione %}&amp;sezione={{ sezione }}{% endif %}{% if codice %}&amp;vista={{ codice }}{% endif %}"{% if vista == codice %} aria-current="true"{% endif %}>{{ etichetta }}</a>{% endfor %}
 </nav>
