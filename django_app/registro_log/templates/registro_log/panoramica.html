@@ -83,8 +83,8 @@
       <thead><tr><th>Quando</th><th>Cosa</th><th>Dove</th></tr></thead>
       <tbody>{% for e in importanti %}<tr>
         <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}">{{ e.quando|date:"d/m H:i" }}</a></td>
-        <td><span class="rl-cat">{{ e.descrizione }}</span>{% if e.privilegiato and e.fuori_orario %}<span class="rl-tag">fuori orario</span>{% endif %}
-          {% if e.account %}<span class="rl-sub">{{ e.account }}{% if e.ip_origine %} da {{ e.ip_origine }}{% endif %}</span>{% endif %}</td>
+        <td><span class="rl-cat">{{ e.frase }}</span>{% if e.privilegiato and e.fuori_orario %}<span class="rl-tag">fuori orario</span>{% endif %}
+          {% if e.cosa_fare %}<span class="rl-sub">{{ e.cosa_fare }}</span>{% endif %}</td>
         <td>{{ e.host|default:e.fonte_nome }}</td>
       </tr>{% endfor %}</tbody>
     </table></div>

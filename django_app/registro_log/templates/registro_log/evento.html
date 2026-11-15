@@ -4,7 +4,17 @@
 
 {% block soc_content %}
 <p class="rl-intro">{% if indagine %}<a href="{% url 'security:registro_log_indagine' indagine.pk %}">&larr; Torna all'indagine</a>{% else %}<a href="{% url 'security:registro_log_eventi' %}">&larr; Tutti gli eventi</a>{% endif %}</p>
-<div class="rl-due" style="margin-top:0">
+<section class="sec-panel rl-spiega">
+  <p class="rl-frase">{{ frase }}</p>
+  {% if spiega.c_e %}
+  <dl class="rl-spiega-punti">
+    <div><dt>Cosa vuol dire</dt><dd>{{ spiega.cosa }}</dd></div>
+    <div><dt>Quando è normale</dt><dd>{{ spiega.normale }}</dd></div>
+    <div><dt>Cosa fare</dt><dd>{{ spiega.fare }}</dd></div>
+  </dl>
+  {% endif %}
+</section>
+<div class="rl-due">
   <section class="sec-panel">
     <div class="sec-section-head"><h2>{{ ev.descrizione }}</h2>{% if ev.gravita == "high" %}<span class="sec-badge critical">Critico</span>{% elif ev.esito == "ko" %}<span class="sec-badge warning">Non riuscito</span>{% endif %}</div>
     <dl class="rl-kv">
@@ -29,8 +39,12 @@
 <section class="sec-panel" style="margin-top:12px">
   <div class="sec-section-head"><h2>Evento originale</h2><span class="sec-muted sec-small">com'è stato ricevuto e archiviato (riga sigillata)</span></div>
   {% if riga %}
+    {% if campi %}
+      <dl class="rl-kv">{% for c in campi %}<dt title="{{ c.tecnico }}">{{ c.etichetta }}</dt><dd>{{ c.valore|default:"—" }}</dd>{% endfor %}</dl>
+    {% endif %}
     {% if dati.dati %}
-      <dl class="rl-kv">{% for k, v in dati.dati.items %}<dt>{{ k }}</dt><dd>{{ v|default:"—" }}</dd>{% endfor %}</dl>
+      <details class="rl-aiuto"><summary>Tutti i campi tecnici di Windows ({{ dati.dati|length }})</summary>
+      <dl class="rl-kv">{% for k, v in dati.dati.items %}<dt>{{ k }}</dt><dd>{{ v|default:"—" }}</dd>{% endfor %}</dl></details>
     {% elif dati.raw %}
       <pre class="rl-grezzo">{{ dati.raw }}</pre>
     {% endif %}
