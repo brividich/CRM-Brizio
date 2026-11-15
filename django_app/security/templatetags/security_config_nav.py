@@ -94,7 +94,8 @@ MENU = [
         ("Indagini", "registro_log_indagini", ("registro_log_indagini", "registro_log_indagine"), True),
         ("Elenchi", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni", "registro_log_account",
                                            "registro_log_ads"), False),
-        ("Controllo", "registro_log_archivio", ("registro_log_archivio", "registro_log_verifica", "registro_log_infra"), False),
+        ("Controllo", "registro_log_archivio", ("registro_log_archivio", "registro_log_verifica", "registro_log_infra",
+                                                 "registro_log_manutenzione", "registro_log_attivita"), False),
     ]),
     ("Report", "report", [
         ("Report", "report", ("report",), False),
@@ -127,6 +128,8 @@ GRUPPI = {
         ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",)),
         ("Verifica annuale", "registro_log_verifica", ("registro_log_verifica",)),
         ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",)),
+        ("Attività", "registro_log_attivita", ("registro_log_attivita",)),
+        ("Spazio e manutenzione", "registro_log_manutenzione", ("registro_log_manutenzione",)),
     ],
     "Patch": [
         ("Da installare e protezione", "watchguard_pc", ("watchguard_pc",)),

@@ -113,3 +113,11 @@ body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--dang
 .soc-module .rl-linea li.critico .rl-punto { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
 .soc-module .rl-linea li.attenzione .rl-punto { background: var(--warning); }
 .soc-module .rl-linea li.ko .rl-cat { color: var(--danger); }
+/* Spazio e manutenzione */
+.soc-module .rl-azioni { display: grid; gap: 0; }
+.soc-module .rl-azione { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-top: 1px solid var(--border); }
+.soc-module .rl-azione:first-child { border-top: 0; }
+.soc-module .rl-azione > div { flex: 1 1 380px; min-width: 0; }
+.soc-module .rl-azione-campo { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
+.soc-module .rl-azione-campo input { width: 80px; }

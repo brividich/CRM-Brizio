@@ -896,6 +896,102 @@ class CambioCartellaTests(_ConArchivio):
         self.assertFalse(archivio.percorso(timezone.localdate(), self.vecchia).exists())
 
 
+class ManutenzioneAttivitaTests(_ConArchivio):
+    def setUp(self):
+        super().setUp()
+        from core.models import UserOnboarding
+
+        self.admin = get_user_model().objects.create_user("admin.manut", password="pass-di-prova-123", is_staff=True,
+                                                          is_superuser=True)
+        UserOnboarding.objects.update_or_create(user=self.admin, defaults={"completed": True})
+        self.client.force_login(self.admin)
+
+    def test_pagine_e_misure(self):
+        from . import spazio
+
+        s = archivio.Scrittore(self.tmp)
+        s.scrivi(1, {"id": 4624}, timezone.now())
+        s.chiudi()
+        EventoRegistro.objects.create(quando=timezone.now(), categoria="accesso", account="mrossi")
+        db = spazio.database()
+        self.assertEqual(db["eventi"], 1)
+        self.assertIn("registro_log_eventoregistro", [x["nome"] for x in db["tabelle"]])
+        arch = spazio.archivio_info()
+        self.assertEqual(arch["file"], 1)
+        self.assertIsNotNone(arch["oggi_mb"])
+        for nome, parametri in (("registro_log_manutenzione", {}), ("registro_log_attivita", {}),
+                                ("registro_log_attivita", {"vista": "consultazioni"}),
+                                ("registro_log_attivita", {"vista": "modifiche"})):
+            r = self.client.get(reverse(f"security:{nome}"), parametri)
+            self.assertEqual(r.status_code, 200, (nome, parametri))
+            self.assertNotIn("{#", r.content.decode())
+
+    def test_operazioni_in_coda_e_esito(self):
+        from . import spazio
+        from .models import OperazioneManutenzione
+
+        vecchio = EventoRegistro.objects.create(quando=timezone.now() - timedelta(days=100), categoria="accesso", account="a")
+        EventoRegistro.objects.create(quando=timezone.now(), categoria="accesso", account="b")
+        with mock.patch("django_q.tasks.async_task") as coda:
+            r = self.client.post(reverse("security:registro_log_manutenzione"), {"azione": "alleggerisci", "mesi": "1"})
+            self.assertEqual(r.status_code, 302)
+            coda.assert_called_once()
+            # una seconda uguale mentre la prima è in coda non parte
+            self.client.post(reverse("security:registro_log_manutenzione"), {"azione": "alleggerisci", "mesi": "1"})
+            self.assertEqual(coda.call_count, 1)
+        op = OperazioneManutenzione.objects.get()
+        self.assertEqual((op.stato, op.parametri), ("attesa", {"mesi": 1}))
+        spazio.esegui_operazione(op.pk)
+        op.refresh_from_db()
+        self.assertEqual(op.stato, "ok")
+        self.assertIn("Tolte dal catalogo 1 voci", op.esito)
+        self.assertFalse(EventoRegistro.objects.filter(pk=vecchio.pk).exists())
+        self.assertEqual(EventoRegistro.objects.count(), 1)
+        # backup: senza database a parte non si fa, e lo dice
+        with mock.patch("django_q.tasks.async_task"):
+            b = spazio.avvia("backup_db", "admin.manut")
+        spazio.esegui_operazione(b.pk)
+        b.refresh_from_db()
+        self.assertEqual(b.stato, "errore")
+        self.assertIn("già nel backup del portale", b.esito)
+
+    def test_chi_non_configura_non_avvia(self):
+        from core.models import UserOnboarding
+
+        u = get_user_model().objects.create_user("lettore.soc", password="pass-di-prova-123")
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True})
+        self.client.force_login(u)
+        with mock.patch("registro_log.views._puo_configurare", return_value=False), \
+                mock.patch("security.permissions.soc_view_required", side_effect=lambda f: f):
+            r = self.client.post(reverse("security:registro_log_manutenzione"), {"azione": "conservazione"})
+        self.assertIn(r.status_code, (302, 403))
+        from .models import OperazioneManutenzione
+
+        self.assertFalse(OperazioneManutenzione.objects.exists())
+
+    def test_diario_della_raccolta(self):
+        from .ciclo import pulisci_diario
+        from .models import AttivitaRaccolta
+        from .raccoglitore import Raccoglitore
+        from .sorgenti import windows
+
+        dc = FonteLog.objects.create(nome="DC01", tipo=FonteLog.TIPO_WINDOWS, ruolo="dc", host="DC01")
+        r = Raccoglitore()
+        r.carica()
+        letto = windows.EsitoCanale("Security", eventi=[{"id": 4624, "rec": 7, "dati": {}}], segnalibro=7)
+        with mock.patch.object(windows, "leggi_canale", return_value=letto):
+            r.leggi_fonte(dc)
+        a = AttivitaRaccolta.objects.get(tipo="lettura")
+        self.assertEqual((a.fonte_nome, a.sistema, a.righe, a.esito), ("DC01", "DC01", 2, "ok"))  # Security + System
+        with mock.patch.object(windows, "leggi_canale", side_effect=windows.ErroreLettura("Accesso negato")):
+            r.leggi_fonte(dc)
+        self.assertTrue(AttivitaRaccolta.objects.filter(tipo="lettura", esito="errore", messaggio__icontains="Accesso negato").exists())
+        AttivitaRaccolta.objects.create(tipo="avvio", quando=timezone.now() - timedelta(days=40))
+        self.assertEqual(pulisci_diario(), 1)
+        pagina = self.client.get(reverse("security:registro_log_attivita"), {"esito": "errore"})
+        self.assertEqual(pagina.context["pagina"].paginator.count, 1)
+
+
 class RobustezzaTests(_ConArchivio):
     def test_scrittura_fallita_si_riprova_senza_perdere_ne_duplicare(self):
         from .raccoglitore import Raccoglitore

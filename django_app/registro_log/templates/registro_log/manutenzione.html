@@ -1,0 +1,105 @@
+{% extends "registro_log/_base.html" %}
+{% block extra_head %}{{ block.super }}{% if in_corso %}<meta http-equiv="refresh" content="15">{% endif %}{% endblock %}
+{% block title %}Spazio e manutenzione | Registro accessi{% endblock %}
+{% block page_title %}Spazio e manutenzione{% endblock %}
+
+{% block soc_content %}
+<section class="sec-grid sec-kpi-grid">
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Database del registro</span>
+    <strong class="sec-kpi-value">{% if db.totale_mb is not None %}{{ db.totale_mb|floatformat:1 }} MB{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta">{% if db.dati_mb is not None %}dati {{ db.dati_mb|floatformat:1 }} MB{% if db.log_mb is not None %} · log {{ db.log_mb|floatformat:1 }} MB{% endif %}{% else %}dimensione non disponibile{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Voci nel catalogo</span>
+    <strong class="sec-kpi-value">{{ db.eventi }}</strong>
+    <span class="sec-kpi-delta">{% if db.primo %}dal {{ db.primo|date:"d/m/Y" }} al {{ db.ultimo|date:"d/m/Y H:i" }}{% else %}catalogo vuoto{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Archivio sigillato</span>
+    <strong class="sec-kpi-value">{{ arch.totale_mb|floatformat:1 }} MB</strong>
+    <span class="sec-kpi-delta">{{ arch.file }} file · {{ arch.giorni_sigillati }} giorni sigillati{% if arch.oggi_mb is not None %} · oggi {{ arch.oggi_mb|floatformat:1 }} MB{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Spazio libero sul disco dell'archivio</span>
+    <strong class="sec-kpi-value{% if arch.libero_mb is not None and arch.libero_mb < 2048 %} critical{% elif arch.libero_mb is not None and arch.libero_mb < 10240 %} warning{% endif %}">{% if arch.libero_mb is not None %}{% widthratio arch.libero_mb 1024 1 %} GB{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta">{{ arch.cartella }}</span>
+  </div>
+</section>
+
+<div class="rl-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Database</h2><span class="sec-muted sec-small">{% if db.a_parte %}database a parte «{{ db.nome }}»{% else %}nel database del portale{% endif %}</span></div>
+    {% if db.errore %}<p class="sec-muted">{{ db.errore }}</p>{% endif %}
+    {% if db.tabelle %}
+    <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+      <thead><tr><th>Tabella</th><th class="sec-num">Righe</th><th class="sec-num">MB</th></tr></thead>
+      <tbody>{% for t in db.tabelle %}<tr><td>{{ t.nome }}</td><td class="sec-num">{{ t.righe }}</td><td class="sec-num">{% if t.mb is not None %}{{ t.mb|floatformat:1 }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+    <p class="sec-small" style="margin-top:10px">
+      <strong>Ultimo backup:</strong>
+      {% if backup %}{{ backup.started_at|date:"d/m/Y H:i" }} · {% if backup.status == "ok" %}riuscito{% elif backup.status == "warning" %}con avvisi{% else %}non riuscito{% endif %}{% if backup.verify_status %} · verifica: {{ backup.verify_status }}{% endif %}
+      {% elif db.a_parte %}nessun backup trovato per questo database: controllare che sia in BACKUP_EXTRA_DATABASES.
+      {% else %}compreso nel backup del database del portale.{% endif %}
+    </p>
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Archivio per mese</h2><span class="sec-muted sec-small">conservazione {{ arch.conservazione_mesi }} mesi</span></div>
+    {% if arch.errore %}<p class="sec-muted">{{ arch.errore }}</p>{% endif %}
+    {% if arch.mesi %}
+    <ul class="rl-elenco">{% for m in arch.mesi %}<li><span>{{ m.mese }}<span class="rl-sub">{{ m.file }} file</span></span><span class="rl-n">{{ m.mb|floatformat:1 }} MB</span></li>{% endfor %}</ul>
+    {% else %}<p class="sec-muted">Archivio ancora vuoto.</p>{% endif %}
+    <p class="sec-small" style="margin-top:10px">
+      <strong>Seconda copia:</strong>
+      {% if not arch.copia_configurata %}non configurata (Elenchi › Fonti e impostazioni).
+      {% elif arch.da_copiare %}{{ arch.da_copiare }} giorn{{ arch.da_copiare|pluralize:"o,i" }} da copiare{% if arch.ultima_copia %} · ultima copia {{ arch.ultima_copia|date:"d/m/Y H:i" }}{% endif %}.
+      {% else %}tutti i giorni sigillati sono copiati{% if arch.ultima_copia %} · ultima copia {{ arch.ultima_copia|date:"d/m/Y H:i" }}{% endif %}.{% endif %}
+      {% if arch.oltre_conservazione %}<br><strong>{{ arch.oltre_conservazione }} giorn{{ arch.oltre_conservazione|pluralize:"o,i" }} oltre la conservazione</strong>: verranno eliminati al prossimo giro notturno.{% endif %}
+    </p>
+  </section>
+</div>
+
+{% if puo_configurare %}
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Interventi</h2><span class="sec-muted sec-small">girano in background; l'esito compare in «Operazioni»</span></div>
+  <div class="rl-azioni">
+    <form method="post" class="rl-azione">{% csrf_token %}<input type="hidden" name="azione" value="backup_db">
+      <div><strong>Backup del database</strong><span class="rl-sub">Backup completo e verificato del database del registro, con il motore di backup del portale (stessa destinazione dei backup notturni).</span></div>
+      <button class="sec-button sec-button-primary" type="submit"{% if not db.a_parte %} disabled title="Il registro sta nel database del portale: è già nel suo backup"{% endif %}>Esegui ora</button></form>
+    <form method="post" class="rl-azione">{% csrf_token %}<input type="hidden" name="azione" value="copia">
+      <div><strong>Seconda copia</strong><span class="rl-sub">Copia subito i giorni sigillati non ancora copiati sulla cartella di rete e/o SharePoint (di solito lo fa il giro notturno).</span></div>
+      <button class="sec-button" type="submit"{% if not arch.copia_configurata %} disabled{% endif %}>Copia ora</button></form>
+    <form method="post" class="rl-azione">{% csrf_token %}<input type="hidden" name="azione" value="conservazione">
+      <div><strong>Conservazione</strong><span class="rl-sub">Elimina subito i file e le voci del catalogo oltre {{ arch.conservazione_mesi }} mesi. I sigilli restano, con la data di eliminazione.</span></div>
+      <button class="sec-button" type="submit">Applica ora</button></form>
+    <form method="post" class="rl-azione">{% csrf_token %}<input type="hidden" name="azione" value="alleggerisci">
+      <div><strong>Alleggerisci il catalogo</strong><span class="rl-sub">Toglie dal database le voci più vecchie dei mesi indicati: restano nell'archivio sigillato e nei file scaricabili, ma non nelle ricerche.</span></div>
+      <span class="rl-azione-campo"><label for="rl-mesi">Mesi da tenere</label><input id="rl-mesi" type="number" name="mesi" min="{{ mesi_minimi }}" value="6" required></span>
+      <button class="sec-button" type="submit">Alleggerisci</button></form>
+    <form method="post" class="rl-azione">{% csrf_token %}<input type="hidden" name="azione" value="ricataloga">
+      <div><strong>Rifai il catalogo</strong><span class="rl-sub">Rilegge l'archivio degli ultimi giorni e rifà le voci del catalogo con le regole attuali (l'archivio non cambia, nessun alert al SOC).</span></div>
+      <span class="rl-azione-campo"><label for="rl-giorni">Giorni</label><input id="rl-giorni" type="number" name="giorni" min="1" max="{{ giorni_massimi }}" value="1" required></span>
+      <button class="sec-button" type="submit">Rifai</button></form>
+  </div>
+  <p class="sec-muted sec-small">Verifica dell'integrità e download dei file: <a href="{% url 'security:registro_log_archivio' %}">Archivio e integrità</a>. Diario delle letture: <a href="{% url 'security:registro_log_attivita' %}">Attività</a>.</p>
+</section>
+{% endif %}
+
+<section class="sec-panel" id="operazioni" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Operazioni</h2>{% if in_corso %}<span class="sec-badge warning">in corso: la pagina si aggiorna da sola</span>{% endif %}</div>
+  {% if operazioni %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Avviata</th><th>Operazione</th><th>Da</th><th>Stato</th><th>Esito</th><th>Finita</th></tr></thead>
+    <tbody>{% for o in operazioni %}<tr>
+      <td class="sec-nowrap">{{ o.avviata_il|date:"d/m/Y H:i" }}</td>
+      <td>{{ o.get_tipo_display }}{% if o.parametri.mesi %}<span class="rl-sub">tenere {{ o.parametri.mesi }} mesi</span>{% elif o.parametri.giorni %}<span class="rl-sub">{{ o.parametri.giorni }} giorn{{ o.parametri.giorni|pluralize:"o,i" }}</span>{% endif %}</td>
+      <td>{{ o.avviata_da|default:"—" }}</td>
+      <td>{% if o.stato == "ok" %}<span class="sec-badge success">Riuscita</span>{% elif o.stato == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% else %}<span class="sec-badge warning">{{ o.get_stato_display }}</span>{% endif %}</td>
+      <td>{{ o.esito|default:"—" }}</td>
+      <td class="sec-nowrap">{{ o.finita_il|date:"d/m/Y H:i"|default:"—" }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-muted">Nessuna operazione avviata da qui.</p>{% endif %}
+</section>
+{% endblock %}

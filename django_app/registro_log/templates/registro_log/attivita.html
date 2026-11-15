@@ -1,0 +1,79 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Attività | Registro accessi{% endblock %}
+{% block page_title %}Attività del registro{% endblock %}
+
+{% block soc_content %}
+<nav class="rl-chips" aria-label="Cosa mostrare">
+  <a class="rl-chip{% if vista == 'raccolta' %} attivo{% endif %}" href="?vista=raccolta&amp;giorni={{ giorni }}"{% if vista == 'raccolta' %} aria-current="true"{% endif %}>Raccolta ed elaborazione</a>
+  {% if puo_configurare %}
+  <a class="rl-chip{% if vista == 'consultazioni' %} attivo{% endif %}" href="?vista=consultazioni&amp;giorni={{ giorni }}"{% if vista == 'consultazioni' %} aria-current="true"{% endif %}>Consultazioni</a>
+  <a class="rl-chip{% if vista == 'modifiche' %} attivo{% endif %}" href="?vista=modifiche&amp;giorni={{ giorni }}"{% if vista == 'modifiche' %} aria-current="true"{% endif %}>Modifiche alla configurazione</a>
+  {% endif %}
+</nav>
+
+{% if vista == "raccolta" %}
+<section class="sec-grid sec-kpi-grid">
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Letture con righe</span><strong class="sec-kpi-value">{{ riepilogo.letture }}</strong><span class="sec-kpi-delta">server e PC, nel periodo</span></div>
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Righe lette</span><strong class="sec-kpi-value">{{ riepilogo.righe }}</strong><span class="sec-kpi-delta">archiviate e sigillate</span></div>
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Errori</span><strong class="sec-kpi-value{% if riepilogo.errori %} warning{% endif %}">{{ riepilogo.errori }}</strong><span class="sec-kpi-delta">letture o lavori non riusciti</span></div>
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Avvii del raccoglitore</span><strong class="sec-kpi-value">{{ riepilogo.avvii }}</strong><span class="sec-kpi-delta">riavvii, release nuove</span></div>
+</section>
+
+<form class="rl-filtri sec-form" method="get" style="margin-top:12px">
+  <input type="hidden" name="vista" value="raccolta">
+  <p><label for="a-giorni">Periodo</label><select id="a-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="a-tipo">Cosa</label><select id="a-tipo" name="tipo"><option value="">Tutto</option>{% for v, l in tipi %}<option value="{{ v }}"{% if v == tipo %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="a-esito">Esito</label><select id="a-esito" name="esito"><option value="">Tutti</option>{% for v, l in esiti %}<option value="{{ v }}"{% if v == esito %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="a-fonte">Fonte</label><select id="a-fonte" name="fonte"><option value="">Tutte</option>{% for f in fonti %}<option value="{{ f.pk }}"{% if f.pk|stringformat:"s" == fonte %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}</select></p>
+  <p><label for="a-q">Cerca</label><input id="a-q" type="search" name="q" value="{{ q }}" placeholder="Server, PC, messaggio…"></p>
+  <button class="sec-button sec-button-primary" type="submit">Filtra</button>
+</form>
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>{{ pagina.paginator.count }} attività</h2><span class="sec-muted sec-small">le letture senza righe nuove non compaiono · tenute 30 giorni</span></div>
+  {% if pagina %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Quando</th><th>Cosa</th><th>Sistema</th><th class="sec-num">Righe</th><th class="sec-num">Durata</th><th>Esito</th></tr></thead>
+    <tbody>{% for a in pagina %}<tr>
+      <td class="sec-nowrap">{{ a.quando|date:"d/m/Y H:i:s" }}</td>
+      <td>{{ a.get_tipo_display }}{% if a.fonte_nome %}<span class="rl-sub">{{ a.fonte_nome }}</span>{% endif %}</td>
+      <td>{{ a.sistema|default:"—" }}</td>
+      <td class="sec-num">{% if a.righe %}{{ a.righe }}{% else %}—{% endif %}</td>
+      <td class="sec-num sec-nowrap">{% if a.durata_ms is not None %}{% if a.durata_ms >= 1000 %}{% widthratio a.durata_ms 1000 1 %} s{% else %}{{ a.durata_ms }} ms{% endif %}{% else %}—{% endif %}</td>
+      <td>{% if a.esito == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% elif a.esito == "avviso" %}<span class="sec-badge warning">Da guardare</span>{% else %}<span class="sec-badge success">Riuscita</span>{% endif %}{% if a.messaggio %}<span class="rl-sub">{{ a.messaggio }}</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-muted">Nessuna attività nel periodo.</p>{% endif %}
+</section>
+
+{% else %}
+<form class="rl-filtri sec-form" method="get">
+  <input type="hidden" name="vista" value="{{ vista }}">
+  <p><label for="c-giorni">Periodo</label><select id="c-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="c-chi">Chi</label><input id="c-chi" type="search" name="chi" value="{{ chi }}" placeholder="Nome utente"></p>
+  <button class="sec-button sec-button-primary" type="submit">Filtra</button>
+</form>
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>{% if vista == "consultazioni" %}Chi ha cercato o letto cosa{% else %}Chi ha cambiato la configurazione{% endif %}</h2><span class="sec-muted sec-small">dall'audit del portale · {{ pagina.paginator.count }} voci</span></div>
+  {% if righe %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Quando</th><th>Chi</th><th>Cosa</th><th>Dettaglio</th></tr></thead>
+    <tbody>{% for r in righe %}<tr>
+      <td class="sec-nowrap">{{ r.quando|date:"d/m/Y H:i:s" }}</td>
+      <td>{{ r.chi|default:"—" }}{% if r.ip %}<span class="rl-sub">{{ r.ip }}</span>{% endif %}</td>
+      <td>{{ r.cosa }}</td>
+      <td class="sec-small">{{ r.dettaglio|default:"—" }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-muted">Nessuna voce nel periodo.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if pagina.has_other_pages %}
+<nav class="sec-pagination" aria-label="Pagine">
+  {% if pagina.has_previous %}<a class="sec-button" href="?{{ parametri }}&amp;pagina={{ pagina.previous_page_number }}">&#8592; Più recenti</a>{% endif %}
+  <span class="sec-muted">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+  {% if pagina.has_next %}<a class="sec-button" href="?{{ parametri }}&amp;pagina={{ pagina.next_page_number }}">Più vecchie &#8594;</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

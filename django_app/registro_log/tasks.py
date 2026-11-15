@@ -21,3 +21,10 @@ def run_infra() -> dict:
     from security.services import letture
 
     return letture.esegui("registro_infra")
+
+
+def run_manutenzione(op_id: int) -> dict:
+    """Operazione avviata da «Spazio e manutenzione» (backup, copia, conservazione, catalogo)."""
+    from registro_log import spazio
+
+    return spazio.esegui_operazione(op_id)

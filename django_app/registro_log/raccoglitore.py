@@ -336,7 +336,8 @@ class Raccoglitore:
         canali = ["ForwardedEvents"] if fonte.tipo == FonteLog.TIPO_WEF else fonte.lista_canali()
         tutto = fonte.tipo == FonteLog.TIPO_WEF or fonte.eventi == FonteLog.EVENTI_TUTTO
         fresca = FonteLog.objects.filter(pk=fonte.pk).values_list("segnalibri", flat=True).first() or {}
-        errori = []
+        errori, note, righe = [], [], 0
+        inizio = time.monotonic()
         for canale in canali:
             try:
                 esito = windows.leggi_canale(canale, host, fresca.get(canale), tutto=tutto,
@@ -348,10 +349,20 @@ class Raccoglitore:
             for dati in esito.eventi:
                 self.coda.put(("windows", fonte.pk, dati, ricevuto))
             self.coda.put(("segnalibro", fonte.pk, canale, esito.segnalibro))
+            righe += len(esito.eventi)
+            if not esito.completo:
+                note.append(f"{canale}: ancora righe da leggere, si continua al giro dopo")
             nota = nota_eventi_persi(canale, esito)
             if nota:
+                note.append(nota)
                 apri_interruzione(fonte, "eventi_persi", nota, chiudi_subito=True)
         aggiorna_stato_fonte(fonte, errori)
+        if righe or errori:
+            registra_attivita("lettura", fonte=fonte, sistema=host or "eventi inoltrati", righe=righe,
+                              durata_ms=int((time.monotonic() - inizio) * 1000),
+                              esito="errore" if errori else ("avviso" if any("perse" in n.lower() or "sovrascritt" in n.lower()
+                                                                             for n in note) else "ok"),
+                              messaggio="; ".join(errori + note))
 
     # ── PC del dominio ──────────────────────────────────────────────────────
     def leggi_postazioni(self, fonte, ora) -> None:
@@ -390,6 +401,7 @@ class Raccoglitore:
             return
         fresca = Postazione.objects.filter(pk=pc.pk).values_list("segnalibri", flat=True).first() or {}
         errori, note, righe = [], [], 0
+        inizio = time.monotonic()
         for canale in fonte.lista_canali():
             try:
                 esito = windows.leggi_canale(canale, pc.host, fresca.get(canale), tutto=fonte.eventi == FonteLog.EVENTI_TUTTO,
@@ -417,6 +429,9 @@ class Raccoglitore:
             campi.update(stato=Postazione.STATO_OK, ultimo_errore="; ".join(note)[:500], errori_consecutivi=0, riprova_dopo=None)
             FonteLog.objects.filter(pk=fonte.pk).update(stato=FonteLog.STATO_OK, ultima_lettura_il=ora, ultimo_errore="")
         Postazione.objects.filter(pk=pc.pk).update(**campi)
+        if righe or errori:
+            registra_attivita("pc", fonte=fonte, sistema=pc.host, righe=righe, durata_ms=int((time.monotonic() - inizio) * 1000),
+                              esito="errore" if errori else "ok", messaggio="; ".join(errori + note))
 
     # ── segnale di vita e manutenzione ───────────────────────────────────────
     def battito(self) -> None:
@@ -504,6 +519,8 @@ class Raccoglitore:
             for file_, esito in esiti:
                 logger.info("Registro accessi: %s %s (da %s a %s)", file_, esito, prima, nuova)
             if esiti:
+                registra_attivita("cartella", sistema=str(nuova), righe=len(esiti),
+                                  messaggio=f"Da {prima}: " + ", ".join(f"{f} {e}" for f, e in esiti))
                 apri_interruzione(None, "file_riparato", f"Cartella dell'archivio cambiata da {prima} a {nuova}: "
                                   + ", ".join(f"{f} {e}" for f, e in esiti)[:900], chiudi_subito=True)
         SiteConfig.objects.update_or_create(chiave=self.CHIAVE_CARTELLA, defaults={"valore": str(nuova)})
@@ -570,6 +587,8 @@ class Raccoglitore:
                 EventoRegistro.objects.bulk_create(nuovi, batch_size=500)
             totale += len(nuovi)
             logger.info("Registro accessi: ricatalogato il %s, %s voci.", giorno, len(nuovi))
+            registra_attivita("catalogo", sistema=f"{giorno:%d/%m/%Y}", righe=len(nuovi),
+                              messaggio=f"Catalogo del {giorno:%d/%m/%Y} rifatto dall'archivio: {len(nuovi)} voci.")
         self._dedup = {}
         return totale
 
@@ -577,6 +596,8 @@ class Raccoglitore:
         """Gira finché ``ferma()`` o finché ``controlla_uscita()`` non dice di uscire."""
         self.carica()
         self._nuova_cartella = None
+        registra_attivita("avvio", sistema=socket.gethostname(),
+                          messaggio=f"Archivio in {self.scrittore.base}; account {windows.account_processo() or '?'}.")
         try:
             self.allinea_cartella()
         except Exception:  # noqa: BLE001 - i file restano dove sono; si scrive nella cartella scelta
@@ -610,6 +631,8 @@ class Raccoglitore:
                 if lettori is not None:
                     lettori.shutdown(wait=False, cancel_futures=True)
             filo.join(timeout=60)
+            registra_attivita("arresto", sistema=socket.gethostname(), righe=self.scrittore.n,
+                              messaggio="Uscita regolare (riavvio, release nuova o arresto del servizio).")
 
 
 def archivio_giorno(nome_file: str):
@@ -621,6 +644,19 @@ def archivio_giorno(nome_file: str):
         return _dt.strptime(base[9:19], "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def registra_attivita(tipo: str, *, fonte=None, sistema: str = "", righe: int = 0, durata_ms: int | None = None,
+                      esito: str = "ok", messaggio: str = "") -> None:
+    """Una riga nel diario della raccolta (:class:`AttivitaRaccolta`). Mai un'eccezione."""
+    try:
+        from .models import AttivitaRaccolta
+
+        AttivitaRaccolta.objects.create(
+            tipo=tipo, esito=esito, fonte_id=getattr(fonte, "pk", None), fonte_nome=(getattr(fonte, "nome", "") or "")[:120],
+            sistema=(sistema or "")[:255], righe=int(righe or 0), durata_ms=durata_ms, messaggio=(messaggio or "")[:500])
+    except Exception as exc:  # noqa: BLE001 - il diario non deve fermare la raccolta
+        logger.warning("Registro accessi: attività non registrata: %s", exc)
 
 
 def minimizza(dati: dict, fonte) -> dict:
