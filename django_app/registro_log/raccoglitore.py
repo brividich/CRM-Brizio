@@ -100,10 +100,26 @@ class Raccoglitore:
             self.raccoglitori.add(getpass.getuser().lower())  # l'account con cui gira questo raccoglitore
         except Exception:  # noqa: BLE001 - senza nome utente si usa solo l'elenco delle impostazioni
             pass
+        self.segnala_account()
         try:
             self.privilegiati = privilegiati()
         except Exception as exc:  # noqa: BLE001 - senza elenco si indicizzano solo gli accessi interattivi
             logger.warning("Registro accessi: elenco degli amministratori non letto: %s", exc)
+
+    def segnala_account(self) -> None:
+        """Scrive l'account del raccoglitore, per la nota del pulsante «Prova» (che gira con l'account di IIS)."""
+        from core.models import SiteConfig
+
+        from .sorgenti.windows import CHIAVE_ACCOUNT, account_processo
+
+        account = account_processo()
+        if not account or account == getattr(self, "_account_segnalato", None):
+            return
+        try:
+            SiteConfig.objects.update_or_create(chiave=CHIAVE_ACCOUNT, defaults={"valore": account})
+            self._account_segnalato = account
+        except Exception as exc:  # noqa: BLE001 - solo informativo
+            logger.warning("Registro accessi: account del raccoglitore non salvato: %s", exc)
 
     def fonte_per_ip(self, ip: str):
         return self.ip_fonte.get(ip)
