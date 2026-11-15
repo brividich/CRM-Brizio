@@ -100,7 +100,8 @@ class Raccoglitore:
         self.cartelle = {f.pk: f.lista_cartelle() for f in fonti.values() if f.cartelle_file}
         self.raccoglitori = self.imp.lista_raccoglitori()
         try:
-            self.raccoglitori.add(getpass.getuser().lower())  # l'account con cui gira questo raccoglitore
+            # l'account con cui gira questo raccoglitore (da Windows, non dalle variabili d'ambiente)
+            self.raccoglitori.add((windows.account_processo() or getpass.getuser()).split("\\")[-1].lower())
         except Exception:  # noqa: BLE001 - senza nome utente si usa solo l'elenco delle impostazioni
             pass
         self.segnala_account()

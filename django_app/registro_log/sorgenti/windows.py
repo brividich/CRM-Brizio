@@ -159,10 +159,24 @@ CHIAVE_ACCOUNT = "registro_log.account_raccoglitore"
 
 
 def account_processo() -> str:
-    """Account Windows del processo corrente, come ``DOMINIO\\utente`` (vuoto se non si ricava)."""
+    """Account Windows del processo corrente, come ``DOMINIO\\utente`` (vuoto se non si ricava).
+
+    Lo chiede a Windows (``GetUserNameExW``): sotto IIS le variabili d'ambiente USERNAME/USERDOMAIN
+    sono quelle del computer (``NOVISQL$``), non dell'identità dell'app pool.
+    """
     import getpass
     import os
 
+    try:
+        import ctypes
+
+        dimensione = ctypes.c_ulong(512)
+        buf = ctypes.create_unicode_buffer(dimensione.value)
+        if ctypes.windll.secur32.GetUserNameExW(2, buf, ctypes.byref(dimensione)):  # 2 = NameSamCompatible
+            if buf.value:
+                return buf.value
+    except (AttributeError, OSError):  # non Windows
+        pass
     utente = os.environ.get("USERNAME") or ""
     if not utente:
         try:

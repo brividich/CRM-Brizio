@@ -178,7 +178,8 @@ In Impostazioni › Avvisi e automatismi, sezione **Registro accessi**: interrut
 
 ## Problemi frequenti
 
-- **«Accesso negato al registro eventi»**: l'account del raccoglitore non è in «Event Log Readers» del server (sui controller di dominio, il gruppo di dominio). Se compare solo nella **Prova**, guardare l'ultima riga: la prova usa l'account del portale, che può essere diverso da quello del raccoglitore.
+- **«Registro non trovato» nella Prova** o errore su «Registri da leggere»: nel campo vanno i nomi dei registri di Windows (di solito `Security,System`); cosa raccogliere dai file si sceglie in «Accessi ai file».
+- **«Accesso negato al registro eventi»**: l'account del raccoglitore non è in «Event Log Readers» del server (sui controller di dominio, il gruppo di dominio; sugli altri server il gruppo locale, in italiano «Lettori registri eventi»). Se compare solo nella **Prova**, guardare l'ultima riga: la prova usa l'account del portale, che può essere diverso da quello del raccoglitore.
 - **«Server non raggiungibile per la lettura remota (RPC)»**: nome sbagliato o firewall del server senza la regola «Gestione remota registro eventi».
 - **Interruzione «Eventi sovrascritti prima della lettura»**: il registro Security del server è troppo piccolo (portarlo ad almeno 1 GB), oppure un altro programma lo svuota: BusinessLog con «Cancella Registro» acceso.
 - **Molti «Registro svuotato da un raccoglitore autorizzato»**: BusinessLog ha ancora «Cancella Registro» acceso.
