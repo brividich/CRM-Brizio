@@ -155,6 +155,41 @@ def acceso(host: str, timeout: float = 2.0) -> bool:
         return False
 
 
+CHIAVE_ACCOUNT = "registro_log.account_raccoglitore"
+
+
+def account_processo() -> str:
+    """Account Windows del processo corrente, come ``DOMINIO\\utente`` (vuoto se non si ricava)."""
+    import getpass
+    import os
+
+    utente = os.environ.get("USERNAME") or ""
+    if not utente:
+        try:
+            utente = getpass.getuser()
+        except Exception:  # noqa: BLE001
+            return ""
+    dominio = os.environ.get("USERDOMAIN") or ""
+    return f"{dominio}\\{utente}" if dominio else utente
+
+
+def nota_account(account_prova: str, account_raccoglitore: str) -> str:
+    """Riga finale della «Prova»: con quale account si è provato e con quale legge il raccoglitore.
+
+    La prova parte dalla pagina web, quindi con l'account dell'app pool di IIS; il raccoglitore
+    gira come task con l'account del qcluster. Se sono diversi, l'esito può essere diverso.
+    """
+    if not account_raccoglitore:
+        return (f"Prova fatta con l'account del portale «{account_prova or '?'}». Il raccoglitore non ha ancora "
+                "segnalato il suo account: l'esito della raccolta si vede nello stato della fonte dopo l'accensione.")
+    if account_prova.lower() == account_raccoglitore.lower():
+        return f"Prova fatta con «{account_prova}», lo stesso account del raccoglitore."
+    return (f"Prova fatta con l'account del portale «{account_prova or '?'}», ma il raccoglitore legge con "
+            f"«{account_raccoglitore}»: l'esito della raccolta può essere diverso. Fa fede lo stato della fonte "
+            "(«Ultimo messaggio») a raccolta accesa; per far valere anche la prova, mettere pure l'account del "
+            "portale in «Event Log Readers».")
+
+
 def prova(host: str, canali: list[str], timeout: int = 25) -> list[str]:
     """Per il pulsante «Prova»: legge l'ultimo record di ogni registro, senza archiviare nulla."""
     righe = []

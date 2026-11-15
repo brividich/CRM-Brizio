@@ -242,6 +242,18 @@ class WindowsLetturaTests(TestCase):
 
         self.assertIn("Event Log Readers", windows.spiega_errore("Failed to read events. Access is denied."))
 
+    def test_prova_dice_con_quale_account(self):
+        from .sorgenti import windows
+
+        self.assertIn("lo stesso account", windows.nota_account("DOM\\svc", "dom\\SVC"))
+        diverso = windows.nota_account("DOM\\web", "DOM\\raccoglitore")
+        self.assertIn("DOM\\web", diverso)
+        self.assertIn("DOM\\raccoglitore", diverso)
+        self.assertIn("Fa fede lo stato della fonte", diverso)
+        self.assertIn("non ha ancora", windows.nota_account("DOM\\web", ""))
+        with mock.patch.dict("os.environ", {"USERNAME": "svc", "USERDOMAIN": "DOM"}):
+            self.assertEqual(windows.account_processo(), "DOM\\svc")
+
 
 class RaccoglitoreTests(_ConArchivio):
     def test_scrittore_archivia_indicizza_e_salva_segnalibro(self):

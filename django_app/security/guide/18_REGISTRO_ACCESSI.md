@@ -127,7 +127,7 @@ Alert nel SOC, senza nomi di file: **file eliminati, modificati o copiati su chi
 - **Eventi inoltrati (WEF)**: i server inoltrano a questo server con una sottoscrizione di Windows Event Forwarding; una sola fonte per tutti.
 - **Syslog**: ESXi, switch, firewall, NAS e server Linux mandano i messaggi al server del portale. Si indicano gli indirizzi IP degli apparati: i messaggi da altri indirizzi vengono ignorati e contati («indirizzi non configurati»).
 
-Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare nulla e dice cosa non va (accesso negato, server non raggiungibile). La colonna «Ultimo messaggio» dice quanto tempo fa è arrivato l'ultimo; sotto:
+Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare nulla e dice cosa non va (accesso negato, server non raggiungibile). La prova parte dalla pagina, quindi con l'account del portale (app pool di IIS), mentre il raccoglitore legge con l'account del suo servizio: l'ultima riga della prova dice quali sono. Se sono diversi, un «accesso negato» nella prova non vuol dire che la raccolta non funzioni: fa fede lo stato della fonte a raccolta accesa. La colonna «Ultimo messaggio» dice quanto tempo fa è arrivato l'ultimo; sotto:
 
 - **nuovo tentativo alle …**: il server non ha risposto; il raccoglitore riprova dopo 1, 2, 4, 8, 16 e poi ogni 30 minuti, senza rallentare gli altri server (se ne leggono 4 alla volta);
 - **orologio sfasato di N s**: l'ora scritta nei messaggi syslog dell'apparato differisce di oltre 5 minuti dall'ora di arrivo. Va sistemato (NTP, fuso orario dell'apparato): con l'orologio sbagliato i log valgono meno come prova (ISO 27001, controllo 8.17).
@@ -165,7 +165,7 @@ In Impostazioni › Avvisi e automatismi, sezione **Registro accessi**: interrut
 
 ## Problemi frequenti
 
-- **«Accesso negato al registro eventi»**: l'account del raccoglitore non è in «Event Log Readers» del server (sui controller di dominio, il gruppo di dominio).
+- **«Accesso negato al registro eventi»**: l'account del raccoglitore non è in «Event Log Readers» del server (sui controller di dominio, il gruppo di dominio). Se compare solo nella **Prova**, guardare l'ultima riga: la prova usa l'account del portale, che può essere diverso da quello del raccoglitore.
 - **«Server non raggiungibile per la lettura remota (RPC)»**: nome sbagliato o firewall del server senza la regola «Gestione remota registro eventi».
 - **Interruzione «Eventi sovrascritti prima della lettura»**: il registro Security del server è troppo piccolo (portarlo ad almeno 1 GB), oppure un altro programma lo svuota: BusinessLog con «Cancella Registro» acceso.
 - **Molti «Registro svuotato da un raccoglitore autorizzato»**: BusinessLog ha ancora «Cancella Registro» acceso.
