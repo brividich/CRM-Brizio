@@ -59,7 +59,11 @@ GRUPPI_PRIVILEGIATI = {
     "proprietari autori criteri di gruppo",
 }
 
-ACCOUNT_DI_SISTEMA = {"system", "sistema", "local service", "network service", "anonymous logon", "-", ""}
+ACCOUNT_DI_SISTEMA = {"system", "sistema", "local service", "network service", "anonymous logon", "-", "",
+                      "servizio locale", "servizio di rete", "accesso anonimo", "iusr", "defaultapppool"}
+# Domini degli account di Windows e di IIS che non sono persone (anche nella versione italiana di Windows).
+DOMINI_DI_SISTEMA = {"nt authority", "autorità nt", "autorita nt", "iis apppool", "nt service", "window manager",
+                     "font driver host"}
 
 TIPI_ACCESSO = {
     "2": "Interattivo (alla console)", "3": "Di rete", "4": "Processo pianificato", "5": "Servizio",
@@ -75,7 +79,7 @@ MOTIVI_KERBEROS = {
 
 # Si alza quando cambia cosa entra nell'elenco: all'avvio il raccoglitore ricataloga dall'archivio
 # gli ultimi giorni (vedi ``Raccoglitore.ricataloga_se_serve``).
-VERSIONE_REGOLE = 4
+VERSIONE_REGOLE = 5
 GIORNI_RICATALOGO = 31
 
 # Sezioni dell'elenco, come gli «Archivi log» di BusinessLog: codice → (etichetta, categorie).
@@ -196,9 +200,10 @@ class Indice:
         return {k: v for k, v in self.__dict__.items() if k != "dedup"}
 
 
-def _account_reale(nome: str) -> bool:
+def _account_reale(nome: str, dominio: str = "") -> bool:
     n = (nome or "").strip().lower()
-    return bool(n) and n not in ACCOUNT_DI_SISTEMA and not n.endswith("$") and not n.startswith(("dwm-", "umfd-"))
+    return bool(n) and n not in ACCOUNT_DI_SISTEMA and not n.endswith("$") and not n.startswith(("dwm-", "umfd-")) \
+        and (dominio or "").strip().lower() not in DOMINI_DI_SISTEMA
 
 
 def _ip(v: str) -> str:
@@ -286,7 +291,7 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
         return Indice("uscita", "Uscita dalla sessione", utente, dominio, tipo_accesso=tipo_txt,
                       dedup=f"{eid}|{utente}|{tipo}")
     if eid == 4672:
-        if not _account_reale(soggetto):
+        if not _account_reale(soggetto, dom_sogg):
             return None
         return Indice("accesso_privilegiato", "Accesso con privilegi di amministratore", soggetto, dom_sogg,
                       esito="ok", dedup=f"4672|{soggetto}")
@@ -330,6 +335,8 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
         return Indice("registro_cancellato", f"Registro {canale or 'eventi'} cancellato" + (f" da {chi}" if chi else ""), chi,
                       x.get("SubjectDomainName", ""))
     if eid == 4719:
+        if not _account_reale(soggetto, dom_sogg):
+            return None  # il computer che riapplica la GPO di audit a ogni aggiornamento dei criteri
         return Indice("audit_modificato", f"Criteri di audit modificati da {soggetto}", soggetto, dom_sogg)
     if eid in (4697, 7045):
         servizio = x.get("ServiceName", "") or x.get("_0", "")
@@ -338,12 +345,14 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
         return Indice("servizio_installato", f"Servizio «{servizio}» installato" + (f" ({file_[:150]})" if file_ else ""),
                       chi, dom_sogg, dedup=f"svc|{servizio}")
     if eid == 4698:
+        if not _account_reale(soggetto, dom_sogg):
+            return None  # attività create da Windows stesso (Defender, aggiornamenti)
         return Indice("attivita_pianificata", f"Attività pianificata «{x.get('TaskName', '')}» creata da {soggetto}",
                       soggetto, dom_sogg)
     if eid == 4648:
         return None  # solo archivio: troppo frequente, l'accesso vero è già nel 4624
     if eid == 4616:
-        if not _account_reale(soggetto):
+        if not _account_reale(soggetto, dom_sogg):
             return None
         return Indice("ora_modificata", f"Orologio cambiato da {soggetto}", soggetto, dom_sogg)
     if eid in (6005, 6006, 6008):

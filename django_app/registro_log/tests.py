@@ -155,6 +155,22 @@ class RegoleWindowsTests(TestCase):
         servizio = self._d(evento_xml(4624, 13, {"TargetUserName": "svc-backup", "LogonType": "5"}))
         self.assertIsNone(regole.classifica_windows(servizio))
 
+    def test_account_di_sistema_e_del_computer_fuori_dal_catalogo(self):
+        def ev(eid, **dati):
+            return {"id": eid, "dati": dati}
+
+        for nome, dominio in (("SERVIZIO LOCALE", "AUTORITÀ NT"), ("SERVIZIO DI RETE", "AUTORITÀ NT"), ("IUSR", "AUTORITÀ NT"),
+                              ("DefaultAppPool", "IIS APPPOOL"), ("NOVISRV$", "ESEMPIO")):
+            self.assertIsNone(regole.classifica_windows(ev(4672, SubjectUserName=nome, SubjectDomainName=dominio)), nome)
+        self.assertIsNone(regole.classifica_windows(ev(4719, SubjectUserName="SRV01$", SubjectDomainName="ESEMPIO")))
+        self.assertIsNone(regole.classifica_windows(ev(4698, SubjectUserName="SRV01$", TaskName="\\Microsoft\\Defender")))
+        self.assertIsNone(regole.classifica_windows(ev(4616, SubjectUserName="SERVIZIO LOCALE", SubjectDomainName="AUTORITÀ NT")))
+        # Le stesse azioni fatte da una persona restano.
+        self.assertEqual(regole.classifica_windows(ev(4719, SubjectUserName="admin.it", SubjectDomainName="ESEMPIO")).categoria,
+                         "audit_modificato")
+        self.assertEqual(regole.classifica_windows(ev(4672, SubjectUserName="admin.it", SubjectDomainName="ESEMPIO")).categoria,
+                         "accesso_privilegiato")
+
     def test_accesso_al_dominio_kerberos(self):
         ok = self._d(evento_xml(4768, 14, {"TargetUserName": "mrossi", "TargetDomainName": "ESEMPIO", "Status": "0x0",
                                            "IpAddress": "::ffff:10.0.0.51"}))
