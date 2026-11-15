@@ -342,6 +342,13 @@ body.theme-dark .sic-why-text{color:var(--text)}
 
   {% if can_edit_rspp %}
   <div style="display:flex;gap:10px;justify-content:flex-end;">
+    {% if puo_rimandare_scheda %}
+    <form method="post" action="{% url 'rilevazione_incidenti:rimanda_scheda' sp_id=sp_id %}"
+          data-hub-confirm="Rimandare la scheda completa ai destinatari del flusso (Automazioni → Notifiche di sistema)?">
+      {% csrf_token %}
+      <button type="submit" class="sic-btn" title="Rimanda la scheda completa come alla creazione: destinatari e regole del flusso «Segnalazione di sicurezza - scheda completa»">&#9993; Rimanda la scheda</button>
+    </form>
+    {% endif %}
     <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}"
           data-hub-confirm="Eliminare definitivamente questa rilevazione?">
       {% csrf_token %}
