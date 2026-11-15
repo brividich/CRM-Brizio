@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261109a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261115a">{% endblock %}
 
 {% block content %}
 <div class="prod">
@@ -40,20 +40,20 @@
       <thead>
         <tr>
           <th>OP</th><th>P/N</th><th>Capocommessa</th><th>CAR</th><th>Stato</th>
-          <th class="prod-n">Documenti</th>{% if vede_kickoff %}<th class="prod-n">FAI</th>{% endif %}<th class="prod-n">Anomalie aperte</th>
+          <th class="prod-n">Documenti</th>{% if vede_kickoff %}<th class="prod-n">FAI del P/N</th>{% endif %}<th class="prod-n">Anomalie aperte</th>
         </tr>
       </thead>
       <tbody>
         {% for op in pagina %}
         <tr>
           <td><a class="prod-op" href="{% url 'produzione:scheda' op.id %}">{{ op.op }}</a></td>
-          <td>{{ op.pn|default:"—" }}</td>
+          <td>{% if op.url_pn %}<a href="{{ op.url_pn }}">{{ op.pn }}</a>{% else %}—{% endif %}</td>
           <td>{{ op.capocommessa|default:"—" }}</td>
           <td>{{ op.car|default:"—" }}</td>
           <td>{% if op.stato %}<span class="prod-stato">{{ op.stato }}</span>{% endif %}</td>
           {% url 'produzione:scheda' op.id as url_op %}
           <td class="prod-n">{% if op.n_documenti %}{{ op.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-documenti">Manca</a>{% endif %}</td>
-          {% if vede_kickoff %}<td class="prod-n">{% if op.n_fai %}{{ op.n_fai }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-fai">Manca</a>{% endif %}</td>{% endif %}
+          {% if vede_kickoff %}<td class="prod-n">{% if op.n_fai %}{{ op.n_fai }}{% else %}<a class="prod-manca" href="{% if op.url_pn %}{{ op.url_pn }}{% else %}{{ url_op }}{% endif %}#passo-fai">Manca</a>{% endif %}</td>{% endif %}
           <td class="prod-n">{% if op.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}#passo-anomalie">{{ op.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
         </tr>
         {% empty %}

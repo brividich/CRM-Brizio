@@ -1,0 +1,120 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ pn }} · Ordini di produzione{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261115a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">P/N</a></span>
+      <h1>{{ pn }}{% if situazione_fai %} <span class="prod-stato is-{{ situazione_fai.classe }}">FAI: {{ situazione_fai.etichetta }}</span>{% endif %}</h1>
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  <div class="prod-dati">
+    <div class="prod-dato"><span>OP</span><b>{{ ops|length }}</b></div>
+    <div class="prod-dato"><span>Ultimo OP</span><a href="{% url 'produzione:scheda' ultimo_op.id %}">{{ ultimo_op.op }}</a></div>
+    <div class="prod-dato"><span>Capocommessa</span><b>{{ ultimo_op.capocommessa|default:"—" }}</b></div>
+    <div class="prod-dato{% if n_anomalie_aperte %} is-allerta{% endif %}"><span>Anomalie aperte</span><b>{{ n_anomalie_aperte }}</b></div>
+  </div>
+
+  {% if prossimo %}
+  <div class="prod-prossimo is-{{ prossimo.stato }}">
+    <div>
+      <span class="prod-prossimo-etichetta">{% if prossimo.stato == "attesa" %}In attesa{% else %}Prossimo passo{% endif %}</span>
+      <b>{{ prossimo.n }} · {{ prossimo.titolo }}</b>
+      {% if not prossimo.in_tabella %}<p>{{ prossimo.testo }}</p>{% endif %}
+    </div>
+    {% if prossimo.url %}<a class="prod-btn prod-btn-primary" href="{{ prossimo.url }}">{{ prossimo.azione }}</a>{% else %}<a class="prod-btn" href="#passo-{{ prossimo.chiave }}">Vai al passo</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="prod-prossimo is-fatto">
+    <div><span class="prod-prossimo-etichetta">Percorso completo</span><b>Questo P/N ha tutto in ordine.</b></div>
+  </div>
+  {% endif %}
+
+  {% for p in passi %}
+  <section class="prod-card prod-passo is-{{ p.stato }}" id="passo-{{ p.chiave }}">
+    <div class="prod-card-head">
+      <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}</h2>
+      {% if p.url and p != prossimo %}<a class="prod-btn prod-btn-piccolo" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
+    </div>
+    {% if not p.in_tabella and p != prossimo %}<p class="prod-nota prod-passo-testo">{{ p.testo }}</p>{% endif %}
+
+    {% if p.chiave == "kickoff" %}
+      {% if progetti|length > 1 %}
+      <ul class="prod-lista">
+        {% for k in progetti %}<li><a href="{% url 'tasks:project_overview' k.id %}">{{ k.name|truncatechars:60 }}</a><span class="prod-sub">{{ k.get_phase_display }}</span></li>{% endfor %}
+      </ul>
+      {% endif %}
+
+    {% elif p.chiave == "programmi" %}
+      {% if programmi %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th>{% if progetti|length > 1 %}<th>KICK-OFF</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for r in programmi %}
+            <tr>
+              <td><b>{{ r.kind }}</b></td>
+              <td>{{ r.code|default:"—" }}</td>
+              <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
+              <td>{% if r.assigned_to %}{{ r.assigned_to.get_full_name|default:r.assigned_to.username }}{% else %}—{% endif %}</td>
+              <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
+              {% if progetti|length > 1 %}<td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    {% elif p.chiave == "fai" %}
+      {% if p.url != url_nuovo_fai %}<p class="prod-passo-altro"><a href="{{ url_nuovo_fai }}">+ Nuovo FAI per questo P/N</a></p>{% endif %}
+      {% if articoli %}
+      <div class="prod-dati">
+        {% for a in articoli %}
+        <div class="prod-articolo">
+          <div class="prod-articolo-cliente">{{ a.articolo.client_name|default:"Senza cliente" }}</div>
+          <div><i class="prod-stato is-{{ a.situazione.classe }}">{{ a.situazione.etichetta }}</i>{% if a.ripetizione %} <b>entro il {{ a.ripetizione|date:"d/m/Y" }}</b>{% endif %}</div>
+          {% if a.situazione.nota %}<p class="prod-nota">{{ a.situazione.nota }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if fai_pn %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Piano</th><th>Tipo</th><th>Stato</th><th>Invio</th><th>Chiusura</th><th>OP</th></tr></thead>
+          <tbody>{% for f in fai_pn %}{% include "produzione/_riga_fai.html" %}{% endfor %}</tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    {% elif p.chiave == "op" %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>OP</th><th>CAR</th><th>Stato</th><th class="prod-n">Documenti</th><th class="prod-n">Anomalie aperte</th></tr></thead>
+          <tbody>
+            {% for o in ops %}
+            {% url 'produzione:scheda' o.id as url_op %}
+            <tr>
+              <td><a class="prod-op" href="{{ url_op }}">{{ o.op }}</a></td>
+              <td>{{ o.car|default:"—" }}</td>
+              <td>{% if o.stato %}<span class="prod-stato">{{ o.stato }}</span>{% endif %}</td>
+              <td class="prod-n">{% if o.n_documenti %}{{ o.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-documenti">Manca</a>{% endif %}</td>
+              <td class="prod-n">{% if o.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}#passo-anomalie">{{ o.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

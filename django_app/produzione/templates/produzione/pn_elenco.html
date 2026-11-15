@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}P/N · Ordini di produzione{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261115a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <h1>Ordini di produzione</h1>
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  {% if not disponibile %}
+    <div class="prod-avviso">L'elenco dei P/N non è disponibile: manca la tabella degli ordini di produzione.</div>
+  {% else %}
+  <form class="prod-filtri" method="get" role="search">
+    {% if manca %}<input type="hidden" name="manca" value="{{ manca }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Cerca P/N, OP, capocommessa o CAR" aria-label="Cerca">
+    <button class="prod-btn" type="submit">Cerca</button>
+    {% if q or manca %}<a class="prod-btn" href="{% url 'produzione:pn_elenco' %}">Azzera</a>{% endif %}
+  </form>
+
+  <div class="prod-chips" aria-label="Da sistemare">
+    <span class="prod-chips-etichetta">Da sistemare:</span>
+    <a class="prod-chip{% if not manca %} is-on{% endif %}" href="?q={{ q|urlencode }}">Tutti</a>
+    {% for c in chips %}<a class="prod-chip{% if manca == c.chiave %} is-on{% endif %}{% if c.chiave != 'fai' and c.n %} is-allerta{% endif %}" href="?q={{ q|urlencode }}&amp;manca={{ c.chiave }}">{{ c.etichetta }} <b>{{ c.n }}</b></a>{% endfor %}
+  </div>
+
+  <div class="prod-card prod-scorri prod-card-tab">
+    <table class="prod-tab">
+      <thead>
+        <tr>
+          <th>P/N</th><th class="prod-n">OP</th><th>Ultimo OP</th><th>Capocommessa</th>
+          {% if vede_kickoff %}<th class="prod-n">FAI</th><th>Situazione FAI</th>{% endif %}<th class="prod-n">Anomalie aperte</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in pagina %}
+        <tr>
+          <td><a class="prod-op" href="{{ r.url }}">{{ r.pn }}</a></td>
+          <td class="prod-n">{{ r.n_op }}</td>
+          <td><a href="{% url 'produzione:scheda' r.ultimo_op.id %}">{{ r.ultimo_op.op }}</a>{% if r.ultimo_op.stato %} <span class="prod-stato">{{ r.ultimo_op.stato }}</span>{% endif %}</td>
+          <td>{{ r.capocommessa|default:"—" }}</td>
+          {% if vede_kickoff %}
+          <td class="prod-n">{% if r.n_fai %}{{ r.n_fai }}{% else %}<a class="prod-manca" href="{{ r.url }}#passo-fai">Manca</a>{% endif %}</td>
+          <td>{% if r.situazione %}<span class="prod-stato is-{{ r.situazione.classe }}" title="{{ r.situazione.nota }}">{{ r.situazione.etichetta }}</span>{% else %}—{% endif %}</td>
+          {% endif %}
+          <td class="prod-n">{% if r.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ r.url }}#passo-op">{{ r.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="prod-vuoto">{% if q or manca %}Nessun P/N con questi filtri.{% else %}Nessun OP con P/N nell'elenco.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagina.has_other_pages %}
+  <div class="prod-pagine">
+    {% if pagina.has_previous %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;manca={{ manca }}&amp;page={{ pagina.previous_page_number }}">← Precedenti</a>{% endif %}
+    <span>Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;manca={{ manca }}&amp;page={{ pagina.next_page_number }}">Successivi →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

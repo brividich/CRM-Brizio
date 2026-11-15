@@ -2,7 +2,7 @@
 
 Permessi:
 
-- ``PERM_VIEW``: elenco degli OP e scheda con documenti, FAI e anomalie. A tutti i ruoli:
+- ``PERM_VIEW``: elenco degli OP e dei P/N, schede con documenti, FAI e anomalie. A tutti i ruoli:
   i FAI e le anomalie restano filtrati dai permessi dei loro moduli.
 - ``PERM_DOCUMENTI``: aggiungere, cambiare ed eliminare i documenti di produzione. Solo admin
   di default, si assegna in Admin › ACL.
@@ -23,7 +23,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "produzione"
-_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v2"
+_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v3"  # v3: rotte della sezione P/N
 
 PERM_VIEW = "produzione.op.view"
 PERM_DOCUMENTI = "produzione.documenti.manage"
@@ -44,6 +44,8 @@ _CANONICAL = {
 _ROUTE_BINDINGS = {
     "produzione:elenco": PERM_VIEW,
     "produzione:scheda": PERM_VIEW,
+    "produzione:pn_elenco": PERM_VIEW,
+    "produzione:pn_scheda": PERM_VIEW,
     "produzione:guida": PERM_VIEW,
     "produzione:documento": PERM_DOCUMENTI,
     "produzione:documento_elimina": PERM_DOCUMENTI,

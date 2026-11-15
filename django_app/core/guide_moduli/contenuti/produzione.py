@@ -4,9 +4,9 @@ GUIDA = {
     "slug": "produzione",
     "titolo": "Ordini di produzione",
     "area": "Produzione e operations",
-    "sintesi": "Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.",
+    "sintesi": "Ogni P/N con i suoi OP e i suoi FAI; ogni OP con documenti di produzione, programmi CAM e CMM e anomalie.",
     "parole": "ctrl+k cerca op ordine di produzione ordini documenti di produzione fai programmi cam cmm ciclo disegno dip "
-              "piano di controllo certificato materiale collaudo conformità coc anomalie p/n",
+              "piano di controllo certificato materiale collaudo conformità coc anomalie p/n part number articolo scheda p/n",
     "url": "produzione:elenco",
     "prefissi": ("/produzione/",),
     "dettaglio": [
@@ -26,12 +26,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "pn",
+            "titolo": "P/N",
+            "blocchi": [
+                ("p", "Il P/N è l'articolo principale: ha più OP e i FAI sono suoi, non del singolo OP. La scheda «P/N» "
+                      "elenca i P/N degli OP con numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» e anomalie "
+                      "aperte; «Da sistemare» filtra «Con anomalie aperte», «Senza FAI» e «FAI da ripetere o verificare»."),
+                ("p", "La scheda del P/N segue quattro passi: KICK-OFF del P/N, programmi CAM e CMM, FAI del P/N (situazione "
+                      "per cliente, tutti i FAI con il loro OP, «+ Nuovo FAI per questo P/N»), OP del P/N (documenti e "
+                      "anomalie aperte di ciascuno)."),
+            ],
+        },
+        {
             "id": "percorso",
             "titolo": "Il percorso dell'OP",
             "blocchi": [
                 ("p", "La scheda segue cinque passi: KICK-OFF del P/N, programmi CAM e CMM, documenti di produzione, FAI, "
                       "anomalie. Ognuno è «Fatto», «Da fare», «In attesa» o «Da gestire» e ha un solo pulsante con l'azione "
-                      "già compilata (Nuovo KICK-OFF col P/N, Aggiungi documento, Nuovo FAI con OP e P/N…). «Prossimo passo» "
+                      "già compilata (Nuovo KICK-OFF col P/N, Aggiungi documento, Nuovo FAI con OP e P/N…). Il passo «FAI del P/N» guarda "
+                      "il FAI più recente del P/N, anche se fatto su un altro OP. «Prossimo passo» "
                       "in cima dice da dove ripartire; a fine giro compare «Percorso completo»."),
                 ("p", "Nell'elenco «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o senza FAI, e «Manca» "
                       "nelle colonne porta al passo giusto della scheda."),
@@ -45,8 +58,8 @@ GUIDA = {
                     "«Documenti registrati»: cicli, disegni, DIP, piani di controllo, certificati, rapporti di collaudo e "
                     "gli altri tipi decisi in Impostazioni, con revisione, data e cartella di rete. «Aggiungi documento», "
                     "«Modifica», «Elimina».",
-                    "«FAI»: dal Registro FAI, prima quelli dell'OP poi gli altri del P/N; «Nuovo FAI per questo OP» "
-                    "apre la scheda FAI con OP e P/N già compilati.",
+                    "«FAI del P/N»: dal Registro FAI, gli ultimi dieci del P/N con il loro OP; «Scheda del P/N» per "
+                    "tutti, «+ Nuovo FAI del P/N» apre la scheda FAI con OP e P/N già compilati.",
                     "«Programmi CAM e CMM»: dalle righe del KICK-OFF dello stesso P/N.",
                     "«Anomalie»: conteggi e link a Gestione anomalie filtrata sull'OP.",
                     "«KICK-OFF del P/N» e «Altri OP dello stesso P/N» a lato.",
@@ -79,9 +92,9 @@ GUIDA = {
         },
         {
             "sintomo": "Nella scheda dell'OP non compaiono FAI né programmi",
-            "perche": "manca il permesso del KICK-OFF, oppure i FAI non citano l'OP e il P/N è diverso.",
+            "perche": "manca il permesso del KICK-OFF, oppure l'OP non ha P/N o il P/N del FAI è scritto diverso.",
             "fare": ["Controlla i permessi del modulo KICK-OFF.",
-                     "Nel Registro FAI scegli l'OP dal campo OP della scheda FAI."],
+                     "Nella scheda FAI controlla che il P/N sia uguale a quello dell'OP (maiuscole e spazi non contano)."],
         },
     ],
 }
