@@ -447,6 +447,19 @@ class RouterTests(TestCase):
             self.assertFalse(r.allow_migrate("registro_log", "security"))
             self.assertEqual(r.db_for_read(EventoRegistro), "registro_log")
 
+    def test_migrate_del_portale_migra_anche_il_database_a_parte(self):
+        from .apps import migra_database_registro
+
+        with mock.patch("django.core.management.call_command") as cc:
+            migra_database_registro(None, using="default")  # alias non configurato
+            cc.assert_not_called()
+            with override_settings(DATABASES={"default": {}, "registro_log": {}}):
+                migra_database_registro(None, using="registro_log")  # migrate annidato
+                cc.assert_not_called()
+                migra_database_registro(None, using="default", verbosity=1)
+        cc.assert_called_once_with("migrate", "registro_log", database="registro_log",
+                                   interactive=False, verbosity=0)
+
 
 class PagineTests(_ConArchivio):
     def setUp(self):
