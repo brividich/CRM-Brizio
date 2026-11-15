@@ -557,10 +557,36 @@ class PagineTests(_ConArchivio):
         self.ev = EventoRegistro.objects.create(quando=timezone.now(), categoria="accesso", host="DC01", account="mrossi",
                                                 descrizione="Accesso desktop remoto", fonte_id=self.fonte.pk, fonte_nome="DC01")
 
+    def test_persona_o_pc(self):
+        ora = timezone.now()
+        EventoRegistro.objects.create(quando=ora, categoria="accesso", esito="ok", account="mrossi", host="DC01",
+                                      ip_origine="10.0.0.51", descrizione="Accesso al dominio", fonte_id=self.fonte.pk)
+        EventoRegistro.objects.create(quando=ora, categoria="accesso_fallito", esito="ko", account="ESEMPIO\mrossi",
+                                      host="DC01", descrizione="Accesso al dominio non riuscito", fonte_id=self.fonte.pk)
+        EventoRegistro.objects.create(quando=ora, categoria="file_eliminato", account="mrossi", host="SRV-FILE01",
+                                      descrizione="Eliminato D:\Dati\a.docx", fonte_id=self.fonte.pk)
+        url = reverse("security:registro_log_persona")
+        vuota = self.client.get(url)
+        self.assertEqual(vuota.status_code, 200)
+        self.assertIn("mrossi", [r["account"] for r in vuota.context["suggeriti"]])
+        r = self.client.get(url, {"q": "mrossi"})
+        self.assertEqual(r.context["tipo"], "account")
+        categorie = [e.categoria for e in r.context["giornata"]]
+        self.assertNotIn("file_eliminato", categorie)  # file, stampe e USB solo nelle indagini
+        self.assertEqual(sorted(categorie), ["accesso", "accesso", "accesso_fallito"])  # + l'accesso del setUp
+        self.assertEqual(r.context["kpi"]["falliti"], 1)
+        self.assertEqual(r.context["kpi"]["primo_dove"], "10.0.0.51")  # solo accessi riusciti (esito ok)
+        solo = self.client.get(url, {"q": "mrossi", "filtro": "falliti"})
+        self.assertEqual([e.categoria for e in solo.context["giornata"]], ["accesso_fallito"])
+        self.assertEqual(self.client.get(url, {"q": "DC01"}).context["tipo"], "pc")
+        ip = self.client.get(url, {"q": "10.0.0.51"})
+        self.assertEqual((ip.context["tipo"], len(ip.context["giornata"])), ("ip", 1))
+        self.assertNotIn("{#", r.content.decode())
+
     def test_tutte_le_pagine_si_aprono(self):
         AmministratoreSistema.objects.create(nome="Admin Prova", account="admin.it")
         AccountAD.objects.create(sam="mrossi", gruppi_privilegiati=["Domain Admins"])
-        rotte = ["registro_log", "registro_log_eventi", "registro_log_ads", "registro_log_account", "registro_log_verifica",
+        rotte = ["registro_log", "registro_log_persona", "registro_log_eventi", "registro_log_ads", "registro_log_account", "registro_log_verifica",
                  "registro_log_archivio", "registro_log_fonti", "registro_log_infra"]
         for nome in rotte:
             r = self.client.get(reverse(f"security:{nome}"))
