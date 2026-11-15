@@ -65,6 +65,15 @@
             <input id="id_richiesta" name="richiesta" value="{{ filtri.richiesta }}" inputmode="numeric">
           </div>
           <div class="auto-field">
+            <label for="id_flusso">Flusso</label>
+            <select id="id_flusso" name="flusso">
+              <option value="">Tutti</option>
+              {% for codice, etichetta in flussi %}
+                <option value="{{ codice }}"{% if filtri.flusso == codice %} selected{% endif %}>{{ etichetta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
             <label for="id_origine">Tipo di mail</label>
             <select id="id_origine" name="origine">
               <option value="">Tutte</option>
@@ -121,7 +130,7 @@
                 <th>Quando</th>
                 <th>Destinatari</th>
                 <th>Oggetto</th>
-                <th>Tipo di mail</th>
+                <th>Flusso</th>
                 <th>Richiesta</th>
                 <th>Esito</th>
               </tr>
@@ -136,8 +145,18 @@
                   </td>
                   <td>{{ m.oggetto|default:"—" }}</td>
                   <td>
-                    {{ m.origine_label }}
-                    {% if m.regola %}<span class="mail-cc">{{ m.regola.name }}</span>{% endif %}
+                    {% if m.flusso %}
+                      {% if m.flusso.codice %}<a href="{{ base_url }}?flusso={{ m.flusso.codice|urlencode }}" title="Tutte le mail di questo flusso">{{ m.flusso.nome }}</a>{% else %}{{ m.flusso.nome }}{% endif %}
+                      {% if not m.flusso.attivo %}<span class="auto-status-pill is-fail">Spento</span>{% endif %}
+                      <span class="mail-cc">
+                        <a href="{% url 'admin_portale:automazioni_rule_detail' m.flusso.rule_id %}">Apri flusso</a>
+                        {% if m.flusso.mail_configurabile %} · <a href="{% url 'admin_portale:automazioni_pianificati_mail' m.flusso.codice %}">Destinatari</a>{% endif %}
+                        · {{ m.origine_label }}
+                      </span>
+                    {% else %}
+                      {{ m.origine_label }}
+                      <span class="mail-cc mail-muted">Nessun flusso collegato</span>
+                    {% endif %}
                   </td>
                   <td class="mail-nowrap">
                     {% if m.record_id %}{% if m.sorgente %}{{ m.sorgente }} {% endif %}#{{ m.record_id }}{% else %}<span class="mail-muted">—</span>{% endif %}
@@ -165,7 +184,7 @@
         {% else %}
           <p class="mail-muted" style="padding:24px 0;text-align:center;">Nessuna mail con questi filtri.</p>
         {% endif %}
-        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
+        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Il nome del flusso filtra le sue mail, «Apri flusso» porta alla regola da correggere. Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
       </div>
     </div>
   </div>

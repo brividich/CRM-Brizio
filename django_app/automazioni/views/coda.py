@@ -551,12 +551,14 @@ def mail_inviate_page(request):
     from django.core.paginator import Paginator
     from django.db.models import Q
 
-    from ..mail_inviate import ORIGINI
-    from ..models import EmailInviata
+    from ..mail_inviate import ORIGINI, flussi_per_riga
+    from ..managed_flows import assicura_installati, catalog
+    from ..models import EmailInviata, ManagedFlow
 
+    assicura_installati()
     filtri = {
         k: _helpers._get_filter_value(request, k)
-        for k in ("q", "richiesta", "origine", "sorgente", "esito", "dal", "al")
+        for k in ("q", "richiesta", "flusso", "origine", "sorgente", "esito", "dal", "al")
     }
     qs = EmailInviata.objects.select_related("regola").order_by("-inviata_il", "-id")
     if filtri["q"]:
@@ -565,6 +567,12 @@ def mail_inviate_page(request):
         )
     if filtri["richiesta"]:
         qs = qs.filter(record_id__icontains=filtri["richiesta"])
+    if filtri["flusso"]:
+        legame = ManagedFlow.objects.filter(code=filtri["flusso"]).first()
+        cond = Q(sorgente=filtri["flusso"])
+        if legame:
+            cond |= Q(regola_id=legame.rule_id)
+        qs = qs.filter(cond)
     if filtri["origine"]:
         qs = qs.filter(origine=filtri["origine"])
     if filtri["sorgente"]:
@@ -580,6 +588,8 @@ def mail_inviate_page(request):
     pagina = Paginator(qs, 100).get_page(request.GET.get("page"))
     for riga in pagina:
         riga.origine_label = ORIGINI.get(riga.origine, riga.origine)
+    flussi_per_riga(pagina)
+    cat = catalog()
     query_senza_pagina = request.GET.copy()
     query_senza_pagina.pop("page", None)
     context = {
@@ -588,6 +598,7 @@ def mail_inviate_page(request):
         "filtri": filtri,
         "query_senza_pagina": query_senza_pagina.urlencode(),
         "origini": list(ORIGINI.items()),
+        "flussi": sorted(((c, s.get("label") or c) for c, s in cat.items()), key=lambda x: x[1].lower()),
         "sorgenti": list(
             EmailInviata.objects.exclude(sorgente="").values_list("sorgente", flat=True).distinct().order_by("sorgente")
         ),
@@ -657,6 +668,9 @@ def pianificati_page(request):
 
     from ..schedules import SOSPENSIONE_MAX_GIORNI
 
+    from ..managed_flows import assicura_installati
+
+    assicura_installati()
     rows = schedule_rows()
     from ..mail_config import descrivi_effettivi, destinatari_effettivi
     for r in rows:

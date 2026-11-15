@@ -4219,6 +4219,9 @@ def contenuti_page(request):
 @legacy_admin_or_acl_required("automazioni", "rule_list_page")
 @require_GET
 def rule_list_page(request):
+    from ..managed_flows import assicura_installati
+
+    assicura_installati()
     filters = _build_rule_filters_context(request)
     queryset = _apply_rule_filters(
         AutomationRule.objects.select_related("created_by", "updated_by", "managed_flow").order_by("source_code", "name", "id"),

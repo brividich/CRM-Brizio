@@ -63,6 +63,26 @@ def install_flows():
     return created
 
 
+def assicura_installati() -> int:
+    """Installa i flussi del catalogo che mancano (es. aggiunti da un rilascio senza
+    ``setup_q_schedules``): le pagine Automazioni li mostrano subito. Non solleva mai."""
+    try:
+        mancanti = set(catalog()) - set(ManagedFlow.objects.values_list("code", flat=True))
+        return install_flows() if mancanti else 0
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Installazione flussi mancanti non riuscita", exc_info=True)
+        return 0
+
+
+def flusso_corrente() -> dict | None:
+    """Codice, regola e run log del flusso gestito in esecuzione (None fuori da un flusso)."""
+    ctx = _invocation.get()
+    if not ctx:
+        return None
+    return {"code": ctx["code"], "rule_id": ctx.get("rule_id"), "run_log_id": ctx.get("run_log_id")}
+
+
 def codice_flusso_corrente() -> str | None:
     """Codice del flusso gestito in esecuzione (None fuori da un flusso): lo usa send_hub_mail."""
     ctx = _invocation.get()
@@ -79,6 +99,8 @@ def invoke_native(action, run_log):
     if not ctx or ctx["code"] != binding.code or ctx["used"]:
         raise ValueError("Contesto di esecuzione assente o azione di modulo già eseguita.")
     ctx["used"] = True
+    ctx["rule_id"] = binding.rule_id
+    ctx["run_log_id"] = getattr(run_log, "pk", None)
     ctx["result"] = ctx["call"]()
     return ctx["result"]
 

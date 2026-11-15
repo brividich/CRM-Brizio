@@ -74,9 +74,12 @@ GUIDA = {
                 ("passi", [
                     "Apri Automazioni → «Mail inviate».",
                     "Cerca per «Destinatario o oggetto» (es. l'indirizzo della persona) o per «N. richiesta».",
-                    "Restringi con «Tipo di mail», «Sorgente», «Esito» e le date «Dal» / «Al».",
-                    "Ogni riga mostra quando è partita, a chi (e chi era in copia), l'oggetto, la regola e l'esito; "
+                    "Restringi con «Flusso», «Tipo di mail», «Sorgente», «Esito» e le date «Dal» / «Al».",
+                    "Ogni riga mostra quando è partita, a chi (e chi era in copia), l'oggetto, il flusso e l'esito; "
                     "«Run log #…» apre l'esecuzione della regola.",
+                    "Nella colonna «Flusso» il nome del flusso mostra tutte le sue mail, «Apri flusso» apre la regola "
+                    "per correggerla e, per i lavori pianificati con mail, «Destinatari» apre la scheda dei destinatari. "
+                    "«Spento» indica un flusso disattivato; «Nessun flusso collegato» una mail mandata fuori da un flusso.",
                 ]),
                 ("p", "Dal 13/11/2026 c'è ogni mail che il portale manda: anche quelle dei moduli che non passano da una "
                       "regola (reception, KICK-OFF, sistema di gestione, avvisi IT, monitoraggio…) compaiono con «Tipo di mail» "
