@@ -46,7 +46,7 @@ def _elenco(indirizzi: Iterable[str] | str | None) -> str:
 
 
 def _crea_riga(*, origine, destinatari, oggetto="", copia=None, sorgente="", record_id=None,
-               errore="", regola=None, run_log=None):
+               errore="", regola=None, run_log=None, regola_id=None, run_log_id=None):
     """Crea la riga (savepoint); None se la scrittura fallisce."""
     try:
         from .models import EmailInviata
@@ -61,8 +61,8 @@ def _crea_riga(*, origine, destinatari, oggetto="", copia=None, sorgente="", rec
                 oggetto=str(oggetto or "")[:255],
                 esito=EmailInviata.ESITO_ERRORE if errore else EmailInviata.ESITO_INVIATA,
                 errore=str(errore or "")[:2000],
-                regola=regola if getattr(regola, "pk", None) else None,
-                run_log=run_log if getattr(run_log, "pk", None) else None,
+                regola_id=getattr(regola, "pk", None) or regola_id,
+                run_log_id=getattr(run_log, "pk", None) or run_log_id,
             )
     except Exception:
         logger.warning("mail_inviate: riga del registro non scritta (%s)", origine, exc_info=True)
@@ -110,3 +110,39 @@ def registra(
             logger.warning("mail_inviate: riga dell'invio non completata (%s)", origine, exc_info=True)
     _crea_riga(origine=origine, destinatari=destinatari, oggetto=oggetto, copia=copia, sorgente=sorgente,
                record_id=record_id, errore=errore, regola=regola, run_log=run_log)
+
+
+def flussi_per_riga(righe) -> None:
+    """Aggancia a ogni riga il flusso che l'ha mandata (``riga.flusso``), anche per le
+    righe senza regola, risalendo dal codice del flusso salvato in Sorgente."""
+    from django.db.models import Q
+
+    from .mail_config import is_configurable
+    from .managed_flows import catalog
+    from .models import ManagedFlow
+
+    cat = catalog()
+    righe = list(righe)
+    codici = {r.sorgente for r in righe if r.sorgente in cat}
+    regole = {r.regola_id for r in righe if r.regola_id}
+    legami = ManagedFlow.objects.select_related("rule").filter(
+        Q(code__in=codici) | Q(rule_id__in=regole)
+    ) if (codici or regole) else []
+    per_codice = {b.code: b for b in legami}
+    per_regola = {b.rule_id: b for b in per_codice.values()}
+    for r in righe:
+        b = per_regola.get(r.regola_id) or per_codice.get(r.sorgente)
+        if b is not None:
+            r.flusso = {
+                "codice": b.code,
+                "nome": cat.get(b.code, {}).get("label") or b.rule.name,
+                "rule_id": b.rule_id,
+                "attivo": bool(b.rule.is_active and not b.rule.is_draft),
+                "mail_configurabile": b.kind == "schedule" and is_configurable(b.code),
+            }
+        elif r.regola_id and r.regola is not None:
+            r.flusso = {"codice": "", "nome": r.regola.name, "rule_id": r.regola_id,
+                        "attivo": bool(r.regola.is_active and not r.regola.is_draft),
+                        "mail_configurabile": False}
+        else:
+            r.flusso = None

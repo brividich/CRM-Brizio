@@ -40,7 +40,8 @@ class EventNotificationsPageTests(TestCase):
         self.assertEqual(r.status_code, 200)
         for item in EVENT_NOTIFICATIONS:
             self.assertContains(r, item["label"])
-            self.assertContains(r, "Installazione richiesta")
+        # Aprendo la pagina i flussi mancanti si installano da soli.
+        self.assertNotContains(r, "Installazione richiesta")
 
     def test_richiede_login(self):
         self.client.logout()
