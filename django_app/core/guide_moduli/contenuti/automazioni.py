@@ -77,10 +77,14 @@ GUIDA = {
                     "Restringi con «Flusso», «Tipo di mail», «Sorgente», «Esito» e le date «Dal» / «Al».",
                     "Ogni riga mostra quando è partita, a chi (e chi era in copia), l'oggetto, il flusso e l'esito; "
                     "«Run log #…» apre l'esecuzione della regola.",
-                    "Nella colonna «Flusso» il nome del flusso mostra tutte le sue mail, «Apri flusso» apre la regola "
-                    "per correggerla e, per i lavori pianificati con mail, «Destinatari» apre la scheda dei destinatari. "
-                    "«Spento» indica un flusso disattivato; «Nessun flusso collegato» una mail che non appartiene a nessun "
-                    "flusso. Le mail dei promemoria partite fuori dal flusso (o prima del 15/11/2026) si collegano dall'oggetto.",
+                    "Nella colonna «Flusso» il nome del flusso mostra tutte le sue mail; «Modifica flusso» apre a lato "
+                    "destinatari, copia, oggetto, testo, orario e accensione del flusso (per una regola, il designer). "
+                    "«Spento» indica un flusso disattivato. Le mail dei promemoria partite fuori dal flusso (o prima del "
+                    "15/11/2026) si collegano dall'oggetto.",
+                    "«Nessun flusso collegato» resta solo per le mail che apposta non passano dai flussi: codice di accesso "
+                    "2FA e avvisi di sicurezza all'utente (cambio password, 2FA, impersonazione, postazione bloccata: "
+                    "l'avviso di impersonazione si spegne in Configurazione → Notifiche), prova SMTP, mail di prova del "
+                    "pannello e allarme del controllo del cluster (destinatari: amministratori del monitoraggio).",
                     "Su una mail in «Errore», «Run log #…» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli "
                     "stessi dati (solo quella regola, non le altre dello stesso evento) o, per un lavoro pianificato, il "
                     "flusso intero. Le mail di un'operazione di modulo (es. la scheda di una segnalazione) non si ripetono "

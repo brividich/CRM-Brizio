@@ -24,6 +24,7 @@
   .auto-status-pill.is-ok { background:#dcfce7; color:#166534; }
   .auto-status-pill.is-fail { background:#fee2e2; color:#991b1b; }
   .mail-note { margin:12px 0 0; color:#64748b; font-size:13px; line-height:1.55; }
+  .mail-flow-actions { display:block; margin-top:6px; }
   .mail-pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; padding:12px 0 0; flex-wrap:wrap; }
 
   body.theme-dark .auto-field label { color:var(--text-mid); }
@@ -148,10 +149,13 @@
                     {% if m.flusso %}
                       {% if m.flusso.codice %}<a href="{{ base_url }}?flusso={{ m.flusso.codice|urlencode }}" title="Tutte le mail di questo flusso">{{ m.flusso.nome }}</a>{% else %}{{ m.flusso.nome }}{% endif %}
                       {% if not m.flusso.attivo %}<span class="auto-status-pill is-fail">Spento</span>{% endif %}
-                      <span class="mail-cc">
-                        <a href="{% url 'admin_portale:automazioni_rule_detail' m.flusso.rule_id %}">Apri flusso</a>
-                        {% if m.flusso.mail_configurabile %} · <a href="{% url 'admin_portale:automazioni_pianificati_mail' m.flusso.codice %}">Destinatari</a>{% endif %}
-                        · {{ m.origine_label }}
+                      <span class="mail-cc">{{ m.origine_label }}</span>
+                      <span class="mail-flow-actions">
+                        {% if m.flusso.codice %}
+                          <button type="button" class="btn btn-light btn-sm" data-amp-open hx-get="{% url 'admin_portale:automazioni_pianificati_mail' name=m.flusso.codice %}?next={{ request.get_full_path|urlencode }}" hx-target="#amp-drawer-body" title="Destinatari, copia, oggetto, testo, orario e accensione del flusso">Modifica flusso</button>
+                        {% else %}
+                          <a class="btn btn-light btn-sm" href="{% url 'admin_portale:automazioni_rule_designer' m.flusso.rule_id %}" title="Apre la regola nel designer">Modifica flusso</a>
+                        {% endif %}
                       </span>
                     {% else %}
                       {{ m.origine_label }}
@@ -198,8 +202,9 @@
         {% else %}
           <p class="mail-muted" style="padding:24px 0;text-align:center;">Nessuna mail con questi filtri.</p>
         {% endif %}
-        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Il nome del flusso filtra le sue mail, «Apri flusso» porta alla regola da correggere. Su una mail in errore «Run log» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli stessi dati o, per un lavoro pianificato, il flusso intero. Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
+        <p class="mail-note">Ogni mail che il portale manda finisce qui, anche quella di un modulo senza automazione («Mail dei moduli», con il modulo in Sorgente). Il nome del flusso filtra le sue mail, «Modifica flusso» apre destinatari, testo e orario del flusso (per una regola, il designer). Su una mail in errore «Run log» apre l'esecuzione e «Ripeti» la rimanda: la regola con gli stessi dati o, per un lavoro pianificato, il flusso intero. Le mail dei moduli partite prima del 13/11/2026 non ci sono. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
       </div>
     </div>
   </div>
+  {% include "automazioni/components/mail_drawer.html" %}
 {% endblock %}
