@@ -202,8 +202,8 @@ class CollegamentoTuttiIPercorsiTests(TestCase):
         r = self.client.get(url)
         righe = {m.pk: m for m in r.context["pagina"]}
         self.assertEqual(righe[vecchia.pk].flusso["codice"], "visite_expiry_reminders")
-        self.assertContains(r, reverse("admin_portale:automazioni_rule_detail",
-                                       args=[self._regola("visite_expiry_reminders")]))
+        self.assertContains(r, reverse("admin_portale:automazioni_pianificati_mail",
+                                       kwargs={"name": "visite_expiry_reminders"}))
         r = self.client.get(url, {"flusso": "visite_expiry_reminders"})
         self.assertEqual([m.pk for m in r.context["pagina"]], [vecchia.pk])
 
@@ -218,3 +218,47 @@ class CollegamentoTuttiIPercorsiTests(TestCase):
         self.assertIn("managed-diario_preposto_scheda", codici)
         self.assertNotIn("managed-sicurezza_scheda_segnalazione", codici)
         self.assertContains(r, "Evento")
+
+    def test_mail_mandata_da_un_modulo_durante_un_azione_resta_della_regola(self):
+        from .models import AutomationAction, AutomationRule, AutomationRunLog
+        from .services import execute_action
+
+        au = AutomationRule.objects.create(code="au-kick", name="AU alert progetto", source_code="tasks",
+                                           operation_type="insert", trigger_scope="all_inserts")
+        azione = AutomationAction.objects.create(rule=au, order=1, action_type="write_log", config_json={})
+        run_log = AutomationRunLog.objects.create(rule=au, source_code="tasks", operation_type="insert",
+                                                  payload_json={})
+
+        def manda_dal_modulo(*args, **kwargs):
+            EmailMessage("Alert progetto", "x", to=["pm@example.com"]).send()
+            return {"status": "success", "result_message": ""}
+
+        with patch("automazioni.services._execute_action", side_effect=manda_dal_modulo):
+            execute_action(azione, {"id": 1}, run_log=run_log)
+        riga = EmailInviata.objects.get(oggetto="Alert progetto")
+        self.assertEqual((riga.regola_id, riga.run_log_id), (au.pk, run_log.pk))
+
+    def test_pulsante_modifica_flusso(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from .models import AutomationRule
+
+        au = AutomationRule.objects.create(code="au-mod", name="AU mod", source_code="assenze",
+                                           operation_type="insert", trigger_scope="all_inserts")
+        EmailInviata.objects.create(origine="hub", sorgente="Monitoraggio", destinatari="it@example.com",
+                                    oggetto="[Monitoraggio IT] 45 problemi aperti — 15-11-2026")
+        EmailInviata.objects.create(origine="automazione", sorgente="assenze", destinatari="a@example.com",
+                                    oggetto="Regola", regola=au)
+        admin = get_user_model().objects.create_superuser("mod_admin", "mod@example.com", "synthetic")
+        self.client.force_login(admin)
+        r = self.client.get(reverse("admin_portale:automazioni_mail_inviate"))
+        self.assertContains(r, ">Modifica flusso</", count=2)
+        self.assertContains(r, reverse("admin_portale:automazioni_pianificati_mail",
+                                       kwargs={"name": "assets_it_monitoring_alerts"}) + "?next=")
+        self.assertContains(r, reverse("admin_portale:automazioni_rule_designer", args=[au.pk]))
+        self.assertContains(r, 'id="amp-drawer-body"')
+        # Il pannello si apre anche per questo flusso (risposta HTMX).
+        p = self.client.get(reverse("admin_portale:automazioni_pianificati_mail",
+                                    kwargs={"name": "assets_it_monitoring_alerts"}), HTTP_HX_REQUEST="true")
+        self.assertEqual(p.status_code, 200)

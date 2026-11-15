@@ -4404,6 +4404,21 @@ def execute_action(
     run_log: AutomationRunLog | None = None,
     queue_event: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Esegue un'azione; ogni mail che parte nel frattempo resta collegata alla regola
+    e al run log in «Mail inviate» (anche quelle mandate dai moduli, es. alert progetto)."""
+    from .mail_inviate import regola_in_corso
+
+    with regola_in_corso(getattr(action, "rule_id", None), getattr(run_log, "pk", None)):
+        return _execute_action(action, payload, old_payload=old_payload, run_log=run_log, queue_event=queue_event)
+
+
+def _execute_action(
+    action: AutomationAction,
+    payload: Any,
+    old_payload: Any = None,
+    run_log: AutomationRunLog | None = None,
+    queue_event: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     config = action.config_json if isinstance(action.config_json, dict) else {}
     payload_context = payload if isinstance(payload, dict) else {}
     source_code = (

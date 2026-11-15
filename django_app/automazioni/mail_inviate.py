@@ -9,6 +9,8 @@ un errore di scrittura viene solo loggato, l'invio non ne risente.
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Iterable
 
 from django.db import transaction
@@ -87,6 +89,7 @@ def registra(
     flusso = {} if getattr(regola, "pk", None) else flusso_della_mail(oggetto)
     if flusso.get("code"):
         sorgente = flusso["code"]
+    if flusso:
         if not getattr(regola, "pk", None) and flusso.get("rule_id"):
             regola = _Rif(flusso["rule_id"])
         if not getattr(run_log, "pk", None) and flusso.get("run_log_id"):
@@ -133,7 +136,6 @@ def flussi_per_riga(righe) -> None:
     righe senza regola, risalendo dal codice del flusso salvato in Sorgente."""
     from django.db.models import Q
 
-    from .mail_config import is_configurable
     from .managed_flows import catalog
     from .models import ManagedFlow
 
@@ -165,12 +167,10 @@ def flussi_per_riga(righe) -> None:
                 "nome": cat.get(b.code, {}).get("label") or b.rule.name,
                 "rule_id": b.rule_id,
                 "attivo": bool(b.rule.is_active and not b.rule.is_draft),
-                "mail_configurabile": b.kind == "schedule" and is_configurable(b.code),
             }
         elif r.regola_id and r.regola is not None:
             r.flusso = {"codice": "", "nome": r.regola.name, "rule_id": r.regola_id,
-                        "attivo": bool(r.regola.is_active and not r.regola.is_draft),
-                        "mail_configurabile": False}
+                        "attivo": bool(r.regola.is_active and not r.regola.is_draft)}
         else:
             r.flusso = None
 
@@ -232,6 +232,10 @@ def flusso_della_mail(oggetto: str = "") -> dict:
         flusso = flusso_corrente() or {}
         if flusso.get("code") and flusso["code"] not in FLUSSI_CONTENITORE:
             return flusso
+        regola = _regola_in_corso.get()
+        if regola and regola.get("rule_id"):
+            # Mail partita durante un'azione di una regola (es. AU eseguita dalla coda).
+            return {"code": "", **regola}
         codice = flusso_da_oggetto(oggetto)
         if codice:
             from .models import ManagedFlow
@@ -256,3 +260,16 @@ def prefissi_oggetto(codice: str) -> list[str]:
         if len(fisso.strip()) >= 6:
             prefissi.append(fisso)
     return prefissi
+
+
+_regola_in_corso = ContextVar("mail_inviate_regola_in_corso", default=None)
+
+
+@contextmanager
+def regola_in_corso(rule_id, run_log_id):
+    """Durante un'azione di una regola le mail in uscita si collegano a regola e run log."""
+    token = _regola_in_corso.set({"rule_id": rule_id, "run_log_id": run_log_id} if rule_id else None)
+    try:
+        yield
+    finally:
+        _regola_in_corso.reset(token)
