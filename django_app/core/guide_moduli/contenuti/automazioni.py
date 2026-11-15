@@ -119,7 +119,8 @@ GUIDA = {
                 ("p", "2) «Esegui processo del modulo»: raccoglie i dati e decide cosa mandare con le regole del modulo; non si modifica."),
                 ("p", "3) «Invia un messaggio di posta»: «Invia la mail» spenta = il flusso gira ma non manda mail. «A»: per i "
                       "lavori con elenco fisso (visite, contratti, idoneità, cambio mansione, formazione, e-learning, DPI, "
-                      "manutenzioni, letture MFC) è l'elenco stesso, vuoto = amministratori di sistema (MFC: la mail non parte); "
+                      "manutenzioni, letture MFC) è l'elenco stesso e l'unico, vuoto = amministratori di sistema (MFC: la mail non parte); "
+                      "sotto «Oggi riceve» e la colonna «Destinatari» di «Pianificati» dicono chi riceve davvero, CC e ripiego compresi; "
                       "per gli altri c'è l'etichetta dei destinatari che sceglie il modulo (assegnatari, capireparto, dipendente…) "
                       "e sotto si aggiungono altri indirizzi. «CC»: indirizzi in copia a ogni mail del flusso. «Oggetto»: vuoto = "
                       "quello del modulo; il pulsante «＋ Oggetto del modulo» inserisce {oggetto}, che riprende l'oggetto originale "
