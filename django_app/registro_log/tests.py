@@ -258,6 +258,18 @@ class WindowsLetturaTests(TestCase):
 
         self.assertIn("Event Log Readers", windows.spiega_errore("Failed to read events. Access is denied."))
 
+    def test_registri_da_leggere_validi(self):
+        from .forms import FonteForm
+
+        base = {"nome": "FS01", "tipo": FonteLog.TIPO_WINDOWS, "ruolo": "server", "host": "FS01", "eventi": "accessi",
+                "silenzio_max_ore": 24, "attiva": "on", "audit_file": ""}
+        sbagliata = FonteForm(data=dict(base, canali="Modifiche, eliminazioni e permessi"))
+        self.assertFalse(sbagliata.is_valid())
+        self.assertIn("Accessi ai file", str(sbagliata.errors["canali"]))
+        buona = FonteForm(data=dict(base, canali="Security, System, Microsoft-Windows-PrintService/Operational"))
+        self.assertTrue(buona.is_valid(), buona.errors)
+        self.assertEqual(buona.cleaned_data["canali"], "Security,System,Microsoft-Windows-PrintService/Operational")
+
     def test_prova_dice_con_quale_account(self):
         from .sorgenti import windows
 
@@ -267,7 +279,18 @@ class WindowsLetturaTests(TestCase):
         self.assertIn("DOM\\raccoglitore", diverso)
         self.assertIn("Fa fede lo stato della fonte", diverso)
         self.assertIn("non ha ancora", windows.nota_account("DOM\\web", ""))
-        with mock.patch.dict("os.environ", {"USERNAME": "svc", "USERDOMAIN": "DOM"}):
+        import ctypes
+
+        # Windows dice l'account vero; le variabili d'ambiente (sotto IIS: il computer) solo se Windows non risponde.
+        def da_windows(_formato, buf, _dim):
+            buf.value = "DOM\\web"
+            return 1
+
+        with mock.patch.dict("os.environ", {"USERNAME": "PC01$", "USERDOMAIN": "DOM"}), \
+                mock.patch.object(ctypes.windll.secur32, "GetUserNameExW", side_effect=da_windows):
+            self.assertEqual(windows.account_processo(), "DOM\\web")
+        with mock.patch.dict("os.environ", {"USERNAME": "svc", "USERDOMAIN": "DOM"}), \
+                mock.patch.object(ctypes.windll.secur32, "GetUserNameExW", return_value=0):
             self.assertEqual(windows.account_processo(), "DOM\\svc")
 
 
