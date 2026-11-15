@@ -82,6 +82,15 @@ def registra(
     run_log=None,
 ) -> None:
     """Scrive la riga del registro, o completa quella appena scritta dall'invio. Non solleva mai."""
+    # Mail di un flusso gestito (non di una regola): vincono codice, regola e run log del
+    # flusso, così resta collegata anche se il chiamante passa il tipo di mail in Sorgente.
+    flusso = {} if getattr(regola, "pk", None) else flusso_della_mail(oggetto)
+    if flusso.get("code"):
+        sorgente = flusso["code"]
+        if not getattr(regola, "pk", None) and flusso.get("rule_id"):
+            regola = _Rif(flusso["rule_id"])
+        if not getattr(run_log, "pk", None) and flusso.get("run_log_id"):
+            run_log = _Rif(flusso["run_log_id"])
     try:
         from core.mail_registro import prendi_pendente
 
@@ -98,9 +107,9 @@ def registra(
             if record_id not in (None, ""):
                 campi["record_id"] = str(record_id)[:60]
             if getattr(regola, "pk", None):
-                campi["regola"] = regola
+                campi["regola_id"] = regola.pk
             if getattr(run_log, "pk", None):
-                campi["run_log"] = run_log
+                campi["run_log_id"] = run_log.pk
             if errore:
                 campi.update(esito=EmailInviata.ESITO_ERRORE, errore=str(errore)[:2000])
             with transaction.atomic():
@@ -110,6 +119,13 @@ def registra(
             logger.warning("mail_inviate: riga dell'invio non completata (%s)", origine, exc_info=True)
     _crea_riga(origine=origine, destinatari=destinatari, oggetto=oggetto, copia=copia, sorgente=sorgente,
                record_id=record_id, errore=errore, regola=regola, run_log=run_log)
+
+
+class _Rif:
+    """Riferimento per chiave (regola/run log) senza caricare l'oggetto."""
+
+    def __init__(self, pk):
+        self.pk = pk
 
 
 def flussi_per_riga(righe) -> None:
@@ -130,8 +146,19 @@ def flussi_per_riga(righe) -> None:
     ) if (codici or regole) else []
     per_codice = {b.code: b for b in legami}
     per_regola = {b.rule_id: b for b in per_codice.values()}
+    # Righe senza regola e senza codice del flusso (scritte prima del 15/11 o fuori dal
+    # flusso, es. comando dall'Utilità di pianificazione): si riconoscono dall'oggetto.
+    da_oggetto = {r.pk: flusso_da_oggetto(r.oggetto) for r in righe if not r.regola_id and r.sorgente not in cat}
+    mancanti = {c for c in da_oggetto.values() if c} - set(per_codice)
+    if mancanti:
+        for b in ManagedFlow.objects.select_related("rule").filter(code__in=mancanti):
+            per_codice[b.code] = b
     for r in righe:
-        b = per_regola.get(r.regola_id) or per_codice.get(r.sorgente)
+        if r.regola_id:
+            # Una regola esplicita vince sempre (es. AU34 eseguita dal processore della coda).
+            b = per_regola.get(r.regola_id)
+        else:
+            b = per_codice.get(r.sorgente) or per_codice.get(da_oggetto.get(r.pk) or "")
         if b is not None:
             r.flusso = {
                 "codice": b.code,
@@ -146,3 +173,86 @@ def flussi_per_riga(righe) -> None:
                         "mail_configurabile": False}
         else:
             r.flusso = None
+
+
+# Il processore della coda è un flusso «contenitore»: le mail delle regole che esegue
+# appartengono alle regole, non a lui.
+FLUSSI_CONTENITORE = {"automation_queue"}
+
+# Oggetti delle mail di flussi pianificati che non sono digest (vedi schedules.DIGEST_OGGETTO).
+ALTRI_OGGETTI: dict[str, tuple[str, ...]] = {
+    "infra_health_alert": ("[SERVER CRITICO] ‹…›",),
+    "backup_health_alert": ("[BACKUP CRITICO] ‹…›",),
+}
+
+_MODELLI: list | None = None
+
+
+def _modelli_oggetto() -> list:
+    """(regex, codice) dagli oggetti censiti: N = numero, gg-mm-aaaa = data, ‹…› = testo."""
+    global _MODELLI
+    if _MODELLI is None:
+        import re
+
+        from .schedules import DIGEST_OGGETTO
+
+        segnaposto = {"gg-mm-aaaa": r"\d{2}-\d{2}-\d{4}", "N": r"\d+"}
+        pezzi_rx = re.compile(r"(‹[^›]*›|gg-mm-aaaa|(?<![A-Za-z])N(?![A-Za-z]))")
+        modelli = []
+        for codice, serie in list(DIGEST_OGGETTO.items()) + list(ALTRI_OGGETTI.items()):
+            for testo in serie:
+                parti = []
+                for pezzo in pezzi_rx.split(testo):
+                    if pezzo.startswith("‹"):
+                        parti.append(".+")
+                    elif pezzo in segnaposto:
+                        parti.append(segnaposto[pezzo])
+                    else:
+                        parti.append(re.escape(pezzo))
+                modelli.append((re.compile("".join(parti) + r"\s*$"), codice))
+        _MODELLI = modelli
+    return _MODELLI
+
+
+def flusso_da_oggetto(oggetto: str) -> str:
+    """Codice del flusso pianificato riconosciuto dall'oggetto della mail ('' se nessuno o più d'uno)."""
+    testo = str(oggetto or "").strip()
+    if not testo:
+        return ""
+    trovati = {codice for rx, codice in _modelli_oggetto() if rx.match(testo)}
+    return trovati.pop() if len(trovati) == 1 else ""
+
+
+def flusso_della_mail(oggetto: str = "") -> dict:
+    """Flusso a cui appartiene una mail in uscita: quello in esecuzione (non la coda) o,
+    fuori da un flusso, quello riconosciuto dall'oggetto. ``{}`` se nessuno."""
+    try:
+        from .managed_flows import flusso_corrente
+
+        flusso = flusso_corrente() or {}
+        if flusso.get("code") and flusso["code"] not in FLUSSI_CONTENITORE:
+            return flusso
+        codice = flusso_da_oggetto(oggetto)
+        if codice:
+            from .models import ManagedFlow
+
+            rule_id = ManagedFlow.objects.filter(code=codice).values_list("rule_id", flat=True).first()
+            return {"code": codice, "rule_id": rule_id, "run_log_id": None}
+    except Exception:
+        logger.warning("mail_inviate: flusso della mail non determinato", exc_info=True)
+    return {}
+
+
+def prefissi_oggetto(codice: str) -> list[str]:
+    """Parte fissa iniziale degli oggetti censiti di un flusso (per filtrare le righe senza regola)."""
+    import re
+
+    from .schedules import DIGEST_OGGETTO
+
+    serie = DIGEST_OGGETTO.get(codice) or ALTRI_OGGETTI.get(codice) or ()
+    prefissi = []
+    for testo in serie:
+        fisso = re.split(r"‹|gg-mm-aaaa|(?<![A-Za-z])N(?![A-Za-z])", testo, maxsplit=1)[0]
+        if len(fisso.strip()) >= 6:
+            prefissi.append(fisso)
+    return prefissi
