@@ -75,7 +75,7 @@ MOTIVI_KERBEROS = {
 
 # Si alza quando cambia cosa entra nell'elenco: all'avvio il raccoglitore ricataloga dall'archivio
 # gli ultimi giorni (vedi ``Raccoglitore.ricataloga_se_serve``).
-VERSIONE_REGOLE = 3
+VERSIONE_REGOLE = 4
 GIORNI_RICATALOGO = 31
 
 # Sezioni dell'elenco, come gli «Archivi log» di BusinessLog: codice → (etichetta, categorie).

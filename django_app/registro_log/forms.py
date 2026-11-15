@@ -39,7 +39,8 @@ class ImpostazioniForm(forms.ModelForm):
         }
         help_texts = {
             "conservazione_mesi": "Minimo 6 mesi (Garante). Consigliati 12: coprono la verifica annuale.",
-            "cartella_archivio": "Vuota = cartella privata del portale. Su un altro disco del server, non su una share.",
+            "cartella_archivio": "Vuota = cartella privata del portale. Su un altro disco del server, non su una share. "
+                                 "Cambiandola, il raccoglitore porta lui i file nella cartella nuova (deve poterci scrivere).",
             "copia_cartella": "Es. \\\\nas\\registro-log. L'account del raccoglitore deve poterci scrivere.",
             "orario_fine": "Gli accessi degli amministratori fuori da questo orario (e nel fine settimana) vengono evidenziati.",
             "controlli_lavoratori_ok": "Serve per accendere accessi ai file, stampe e USB sulle fonti: sono controlli "
