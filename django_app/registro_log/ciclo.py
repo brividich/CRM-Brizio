@@ -173,10 +173,15 @@ def invia_al_soc() -> dict:
         if not da_mandare and ev.privilegiato and ev.fuori_orario and ev.categoria in ("accesso", "accesso_privilegiato"):
             da_mandare, regola = bool(soc_settings.value("registro.alert.fuori_orario")), (None, "low")
         if da_mandare:
-            creati += _evento_soc(source, ev.categoria, f"{ev.descrizione} su {ev.host or ev.fonte_nome}",
+            from .spiegazioni import frase, spiegazione
+
+            spiega = spiegazione(ev.categoria)
+            creati += _evento_soc(source, ev.categoria, frase(ev),
                                   getattr(Severity, regola[1].upper(), regola[1]), f"ev|{ev.pk}", ev.quando, {
                                       "evento_id": ev.pk, "host": ev.host, "account": ev.account,
                                       "ip": ev.ip_origine, "categoria": ev.categoria, "fonte": ev.fonte_nome,
+                                      "descrizione": spiega["cosa"], "quando_normale": spiega["normale"],
+                                      "cosa_fare": spiega["fare"],
                                   })
     if nuovi:
         EventoRegistro.objects.filter(pk__lte=nuovi[-1].pk, inviato_soc=False).update(inviato_soc=True)

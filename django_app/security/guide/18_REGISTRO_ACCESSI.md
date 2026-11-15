@@ -51,7 +51,7 @@ Clic su un account o su un sistema: l'elenco si restringe a quell'account o a qu
 
 Etichette: **admin** = account di un amministratore di sistema o con privilegi; **fuori orario** = fuori dall'orario di lavoro impostato in Fonti, o nel fine settimana. Lo stesso accesso (stessa persona, stesso tipo, stesso PC) entro 10 minuti dall'ora dell'evento compare una volta sola, come lo stesso messaggio syslog; nell'archivio restano tutti.
 
-Clic sulla data di una riga: dettaglio con l'**evento originale** com'è stato ricevuto (campi del registro di Windows o testo del syslog) e gli altri eventi dello stesso account. La lettura della riga d'archivio resta nell'audit del portale.
+Sopra l'elenco una riga dice cosa contiene la sezione. Clic sull'ora di una riga: il dettaglio racconta l'evento in una frase (es. «Accesso al dominio di mrossi dal PC 10.0.0.51») e spiega **cosa vuol dire**, **quando è normale** e **cosa fare**. Sotto, i dati dell'evento originale con le etichette in italiano e i valori tradotti (tipo di accesso, motivo dell'errore, programma, provenienza); i campi tecnici di Windows restano in «Tutti i campi tecnici di Windows», e passando sull'etichetta si vede il nome tecnico. Anche «Da guardare» in Panoramica usa la frase e il «cosa fare», e gli alert mandati al SOC portano la stessa spiegazione. Accanto, gli altri eventi dello stesso account. La lettura della riga d'archivio resta nell'audit del portale.
 
 ## Amministratori di sistema
 

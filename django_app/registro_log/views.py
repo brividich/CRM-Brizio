@@ -103,9 +103,14 @@ def panoramica(request):
     for x in grafico:
         x["altezza"] = min(100, max(3, round((x["righe"] or 0) * 100 / massimo))) if x["righe"] else 0
     passi = _passi(imp, fonti, b, ads_n, bool(imp.copia_cartella or imp.copia_sharepoint))
-    importanti = (EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
-                  .filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
-                  .order_by("-quando")[:12])
+    from . import spiegazioni
+
+    importanti = list(EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
+                      .filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
+                      .order_by("-quando")[:12])
+    for e in importanti:
+        e.frase = spiegazioni.frase(e)
+        e.cosa_fare = spiegazioni.spiegazione(e.categoria)["fare"]
     return render(request, "registro_log/panoramica.html", {
         "imp": imp, "battito": b, "fonti": fonti, "passi": passi, "passi_mancanti": sum(1 for p in passi if not p["fatto"]),
         "kpi": {
@@ -138,6 +143,12 @@ FILTRI_RAPIDI = (
 )
 # Link vecchi (?vista=falliti, ?vista=modifiche): ora sono sezioni del catalogo.
 VISTE_DIVENTATE_SEZIONI = {"falliti": "falliti", "modifiche": "account"}
+
+
+def _testo_sezione(sezione: str) -> str:
+    from .spiegazioni import SEZIONI_TESTO
+
+    return SEZIONI_TESTO.get(sezione, "")
 
 
 def _filtra_sezione(qs, sezione: str):
@@ -203,7 +214,7 @@ def eventi(request):
         for codice, (etichetta, _categorie) in regole.SEZIONI.items()]
     return render(request, "registro_log/eventi.html", {
         "pagina": pagina, "giorni": giorni, "periodi": PERIODI, "rapidi": FILTRI_RAPIDI, "vista": rapido,
-        "sezione": sezione, "sezioni": sezioni,
+        "sezione": sezione, "sezioni": sezioni, "testo_sezione": _testo_sezione(sezione),
         "titolo_sezione": regole.SEZIONI[sezione][0] if sezione else "Eventi",
         "categoria": categoria, "categorie": sorted(((k, v) for k, v in regole.CATEGORIE.items()
                                                      if k not in regole.CATEGORIE_RISERVATE
@@ -314,8 +325,13 @@ def evento(request, pk: int):
         log_action(request, "registro_log_riga_letta", MODULO, {"evento": ev.pk, "giorno": str(ev.archivio_giorno),
                                                               "riga": ev.archivio_riga,
                                                               "indagine": indagine.pk if indagine else None})
+    from . import spiegazioni
+
+    dati_riga = (riga or {}).get("d") or {}
     return render(request, "registro_log/evento.html", {
-        "ev": ev, "riga": json.dumps(riga, ensure_ascii=False, indent=2) if riga else "", "dati": (riga or {}).get("d") or {}, "etichetta": regole.CATEGORIE.get(ev.categoria, (ev.categoria,))[0],
+        "frase": spiegazioni.frase(ev), "spiega": spiegazioni.spiegazione(ev.categoria),
+        "campi": spiegazioni.campi_leggibili(dati_riga),
+        "ev": ev, "riga": json.dumps(riga, ensure_ascii=False, indent=2) if riga else "", "dati": dati_riga, "etichetta": regole.CATEGORIE.get(ev.categoria, (ev.categoria,))[0],
         "stesso_account": EventoRegistro.objects.filter(account=ev.account).exclude(pk=ev.pk).exclude(
             categoria__in=regole.CATEGORIE_RISERVATE).order_by("-quando")[:15] if ev.account else [],
         "indagine": indagine,

@@ -230,6 +230,8 @@ GUIDA = {
                     "backup, copia, conservazione, alleggerimento e ricostruzione del catalogo con il registro delle operazioni.",
                     "«Persona o PC»: si cerca un account, un PC o un IP; scheda, primo accesso del giorno, PC usati, "
                     "accessi falliti e la giornata in ordine di ora (file, stampe e USB no: solo nelle indagini).",
+                    "Ogni evento ha la sua spiegazione: una frase su cosa è successo, cosa vuol dire, quando è normale e cosa fare, "
+                    "con i dati di Windows tradotti in italiano.",
                     "«Catalogo»: il catalogo di ciò che è stato letto, a sezioni come in BusinessLog: «Log accessi» (accesso al dominio, "
                     "console, desktop remoto, sblocco; gli accessi di rete solo degli amministratori), «Accessi falliti», «Account e gruppi», «Eventi di sistema», «Syslog», ognuna "
                     "col numero di eventi del periodo; filtri rapidi «Solo amministratori», «Fuori orario», «Critici». Clic sulla "
