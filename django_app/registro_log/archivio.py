@@ -46,11 +46,95 @@ COME_VERIFICARE = (
 )
 
 
+def cartella_predefinita() -> Path:
+    return Path(settings.PRIVATE_ATTACHMENTS_ROOT) / "registro_log" / "archivio"
+
+
 def cartella() -> Path:
     from .models import Impostazioni
 
     scelta = (Impostazioni.corrente().cartella_archivio or "").strip()
-    return Path(scelta) if scelta else Path(settings.PRIVATE_ATTACHMENTS_ROOT) / "registro_log" / "archivio"
+    return Path(scelta) if scelta else cartella_predefinita()
+
+
+def _stessa(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve() == b.resolve()
+    except OSError:
+        return str(a).lower() == str(b).lower()
+
+
+def _rilega(righe_testo, giorno: date, n: int, x: str):
+    """Righe di un file del giorno rinumerate e incatenate dopo la riga ``n`` (hash ``x``)."""
+    for testo in righe_testo:
+        testo = testo.strip()
+        if not testo:
+            continue
+        try:
+            riga = json.loads(testo)
+        except ValueError:
+            logger.warning("Registro accessi: riga illeggibile tolta durante l'unione del %s", giorno)
+            continue
+        n += 1
+        corpo = {"d": riga.get("d"), "f": riga.get("f"), "n": n, "r": riga.get("r")}
+        x = hash_riga(x, corpo)
+        yield canonica({**corpo, "x": x}), n, x
+
+
+def unisci_giorno(prima: Path, dopo: Path, giorno: date) -> int:
+    """Un solo file per il giorno: le righe di ``prima`` (scritte prima), poi quelle di ``dopo``, in un'unica catena.
+
+    Solo per un giorno non ancora sigillato: la catena si rifà dal seme del giorno. ``prima`` viene tolto.
+    """
+    tmp = dopo.with_name(dopo.name + ".unione")
+    n, x = 0, seme(giorno)
+    with open(tmp, "w", encoding="utf-8", newline="\n") as out:
+        for f in (prima, dopo):
+            with open(f, encoding="utf-8") as fh:
+                for testo, n, x in _rilega(fh, giorno, n, x):
+                    out.write(testo + "\n")
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(tmp, dopo)
+    prima.unlink()
+    return n
+
+
+def sposta_archivio(da: Path, a: Path) -> list[tuple[str, str]]:
+    """Porta i file dell'archivio dalla cartella ``da`` alla cartella ``a`` (cambio di «Cartella dell'archivio»).
+
+    Un giorno presente in tutte e due, non ancora sigillato (il giorno in corso), diventa un file solo
+    (:func:`unisci_giorno`). Un giorno già sigillato non si tocca: il file della cartella vecchia resta
+    accanto, con il nome ``registro-cartella-precedente-…``. Torna ``[(file, esito)]`` con esito
+    «spostato», «unito» o «tenuto a parte».
+    """
+    from .models import SigilloGiorno
+
+    esiti: list[tuple[str, str]] = []
+    if not da.exists() or _stessa(da, a):
+        return esiti
+    for p in sorted(da.glob("*/*/registro-*")):
+        rel = p.relative_to(da)
+        dest = a / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            giorno = datetime.strptime(p.name[9:19], "%Y-%m-%d").date()
+        except ValueError:
+            giorno = None
+        # File del giorno ancora aperto, ma il giorno è già stato sigillato dall'altra cartella: resta accanto.
+        sigillato = bool(giorno) and p.name.endswith(".jsonl") and SigilloGiorno.objects.filter(giorno=giorno).exists()
+        if not dest.exists() and not sigillato:
+            shutil.move(str(p), str(dest))
+            esiti.append((str(rel), "spostato"))
+            continue
+        if dest.exists() and not sigillato and giorno and p.name.endswith(".jsonl") and dest.name.endswith(".jsonl"):
+            unisci_giorno(p, dest, giorno)
+            esiti.append((str(rel), "unito"))
+            continue
+        accanto = dest.with_name(dest.name.replace("registro-", "registro-cartella-precedente-", 1))
+        shutil.move(str(p), str(accanto))
+        esiti.append((str(rel), "tenuto a parte"))
+    return esiti
 
 
 def percorso(giorno: date, base: Path | None = None) -> Path:

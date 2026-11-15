@@ -84,6 +84,7 @@ class Raccoglitore:
         self.raccoglitori: set[str] = set()
         self.cartelle: dict[int, list] = {}
         self._sessioni: dict[tuple[str, str], str] = {}
+        self._nuova_cartella = None
         self.avviato_il = timezone.now()
 
     # ── configurazione ──────────────────────────────────────────────────────
@@ -103,6 +104,9 @@ class Raccoglitore:
         except Exception:  # noqa: BLE001 - senza nome utente si usa solo l'elenco delle impostazioni
             pass
         self.segnala_account()
+        nuova = archivio.cartella()
+        if not archivio._stessa(nuova, self.scrittore.base):
+            self._nuova_cartella = nuova  # la sposta lo scrittore, tra una riga e l'altra
         try:
             self.privilegiati = privilegiati()
         except Exception as exc:  # noqa: BLE001 - senza elenco si indicizzano solo gli accessi interattivi
@@ -221,6 +225,15 @@ class Raccoglitore:
         righe_dal_flush = 0
         pendente, tentativi = None, 0
         while not (self._fermo.is_set() and self.coda.empty() and pendente is None):
+            if self._nuova_cartella is not None:
+                if eventi or segnalibri or contatori:
+                    self._scrivi_lotto(eventi, segnalibri, contatori)
+                    eventi, segnalibri, contatori = [], [], {}
+                    righe_dal_flush = 0
+                try:
+                    self._cambia_cartella()
+                except Exception:  # noqa: BLE001 - si continua a scrivere dove si era
+                    logger.exception("Registro accessi: cambio della cartella dell'archivio non riuscito")
             if pendente is not None:
                 voce, pendente = pendente, None
             else:
@@ -469,6 +482,43 @@ class Raccoglitore:
     def ferma(self) -> None:
         self._fermo.set()
 
+    CHIAVE_CARTELLA = "registro_log.cartella_usata"
+
+    def allinea_cartella(self, nuova=None) -> list:
+        """Se la cartella dell'archivio è cambiata, porta lì i file della cartella usata prima.
+
+        Gira all'avvio e, a raccoglitore acceso, quando cambia l'impostazione (dallo scrittore, a file
+        chiuso). Il giorno in corso, se c'è in tutte e due, diventa un file solo con un'unica catena.
+        """
+        from pathlib import Path
+
+        from core.models import SiteConfig
+
+        nuova = Path(nuova or self.scrittore.base)
+        usata = (SiteConfig.get(self.CHIAVE_CARTELLA, "") or "").strip()
+        prima = Path(usata) if usata else archivio.cartella_predefinita()
+        esiti = []
+        if not archivio._stessa(prima, nuova):
+            esiti = archivio.sposta_archivio(prima, nuova)
+            for file_, esito in esiti:
+                logger.info("Registro accessi: %s %s (da %s a %s)", file_, esito, prima, nuova)
+            if esiti:
+                apri_interruzione(None, "file_riparato", f"Cartella dell'archivio cambiata da {prima} a {nuova}: "
+                                  + ", ".join(f"{f} {e}" for f, e in esiti)[:900], chiudi_subito=True)
+        SiteConfig.objects.update_or_create(chiave=self.CHIAVE_CARTELLA, defaults={"valore": str(nuova)})
+        return esiti
+
+    def _cambia_cartella(self) -> None:
+        """Dallo scrittore: chiude il file, sposta l'archivio nella cartella nuova e riprende da lì."""
+        nuova, self._nuova_cartella = self._nuova_cartella, None
+        self.scrittore.chiudi()
+        esiti = self.allinea_cartella(nuova)
+        self.scrittore.base = nuova
+        self.scrittore.giorno = None  # alla prossima riga riapre il file del giorno e riprende la catena
+        uniti = [archivio_giorno(f) for f, e in esiti if e == "unito"]
+        if uniti:
+            self.ricataloga_giorni([g for g in uniti if g])
+
     def ricataloga_se_serve(self) -> int:
         """Se sono cambiate le regole dell'elenco, rifà l'elenco degli ultimi giorni rileggendo l'archivio.
 
@@ -476,8 +526,6 @@ class Raccoglitore:
         dell'elenco (``EventoRegistro``) di quei giorni. Gira all'avvio, prima della raccolta.
         """
         from core.models import SiteConfig
-
-        from .models import EventoRegistro, FonteLog
 
         chiave = "registro_log.versione_regole"
         try:
@@ -488,6 +536,14 @@ class Raccoglitore:
             return 0
         oggi = timezone.localdate()
         giorni = [g for g in archivio._giorni_su_disco() if (oggi - g).days <= regole.GIORNI_RICATALOGO]
+        totale = self.ricataloga_giorni(giorni)
+        SiteConfig.objects.update_or_create(chiave=chiave, defaults={"valore": str(regole.VERSIONE_REGOLE)})
+        return totale
+
+    def ricataloga_giorni(self, giorni) -> int:
+        """Rifà le voci del catalogo dei giorni indicati rileggendo l'archivio (che non cambia)."""
+        from .models import EventoRegistro, FonteLog
+
         fonti = {f.pk: f for f in FonteLog.objects.all()}
         totale = 0
         for giorno in sorted(set(giorni)):
@@ -514,12 +570,16 @@ class Raccoglitore:
             totale += len(nuovi)
             logger.info("Registro accessi: ricatalogato il %s, %s voci.", giorno, len(nuovi))
         self._dedup = {}
-        SiteConfig.objects.update_or_create(chiave=chiave, defaults={"valore": str(regole.VERSIONE_REGOLE)})
         return totale
 
     def esegui(self, *, controlla_uscita=None) -> None:
         """Gira finché ``ferma()`` o finché ``controlla_uscita()`` non dice di uscire."""
         self.carica()
+        self._nuova_cartella = None
+        try:
+            self.allinea_cartella()
+        except Exception:  # noqa: BLE001 - i file restano dove sono; si scrive nella cartella scelta
+            logger.exception("Registro accessi: spostamento dell'archivio nella cartella nuova non riuscito")
         try:
             self.ricataloga_se_serve()
         except Exception:  # noqa: BLE001 - senza ricatalogo la raccolta va avanti con le regole nuove
@@ -549,6 +609,17 @@ class Raccoglitore:
                 if lettori is not None:
                     lettori.shutdown(wait=False, cancel_futures=True)
             filo.join(timeout=60)
+
+
+def archivio_giorno(nome_file: str):
+    """``2026/11/registro-2026-11-15.jsonl`` → data, o None."""
+    from datetime import datetime as _dt
+
+    base = nome_file.replace("\\", "/").rsplit("/", 1)[-1]
+    try:
+        return _dt.strptime(base[9:19], "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def minimizza(dati: dict, fonte) -> dict:

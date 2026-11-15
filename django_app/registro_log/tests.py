@@ -781,6 +781,82 @@ class IndaginiTests(_ConArchivio):
         self.assertFalse(any(".dwg" in t for t in titoli))  # nessun dettaglio riservato nel SOC
 
 
+class CambioCartellaTests(_ConArchivio):
+    """Cartella dell'archivio cambiata: i file vanno nella nuova, il giorno in corso diventa un file solo."""
+
+    def setUp(self):
+        super().setUp()
+        self.vecchia = Path(tempfile.mkdtemp(prefix="reglog-vecchia-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.vecchia, ignore_errors=True)
+        super().tearDown()
+
+    def _scrivi(self, base, quante, inizio):
+        s = archivio.Scrittore(base)
+        ora = timezone.now()
+        for i in range(quante):
+            s.scrivi(1, {"id": 4624, "i": inizio + i}, ora)
+        s.chiudi()
+
+    def test_unione_del_giorno_e_spostamento_dei_giorni_chiusi(self):
+        from core.models import SiteConfig
+
+        from .raccoglitore import Raccoglitore
+
+        oggi = timezone.localdate()
+        self._scrivi(self.vecchia, 3, 0)   # scritte prima, nella cartella vecchia
+        self._scrivi(self.tmp, 2, 100)     # poi nella nuova
+        ieri = oggi - timedelta(days=1)
+        vecchio_gz = archivio.percorso_gz(ieri, self.vecchia)
+        vecchio_gz.parent.mkdir(parents=True, exist_ok=True)
+        vecchio_gz.write_bytes(gzip.compress(b""))
+        SiteConfig.objects.update_or_create(chiave=Raccoglitore.CHIAVE_CARTELLA, defaults={"valore": str(self.vecchia)})
+
+        r = Raccoglitore()
+        r.carica()
+        esiti = dict(r.allinea_cartella())
+        self.assertIn("unito", esiti.values())
+        self.assertIn("spostato", esiti.values())
+        p = archivio.percorso(oggi, self.tmp)
+        righe = p.read_text(encoding="utf-8").splitlines()
+        self.assertEqual([json.loads(x)["d"]["i"] for x in righe], [0, 1, 2, 100, 101])
+        self.assertEqual(archivio.ricalcola(righe, oggi)["errore"], "")  # un'unica catena integra
+        self.assertFalse(archivio.percorso(oggi, self.vecchia).exists())
+        self.assertTrue(archivio.percorso_gz(ieri, self.tmp).exists())
+        self.assertEqual(SiteConfig.get(Raccoglitore.CHIAVE_CARTELLA, ""), str(self.tmp))
+        self.assertEqual(r.allinea_cartella(), [])  # già allineata: non rifà nulla
+
+    def test_cambio_a_raccoglitore_acceso(self):
+        from core.models import SiteConfig
+
+        from .raccoglitore import Raccoglitore
+
+        imp = Impostazioni.corrente()
+        imp.cartella_archivio = str(self.vecchia)
+        imp.save()
+        r = Raccoglitore()
+        r.carica()
+        SiteConfig.objects.update_or_create(chiave=Raccoglitore.CHIAVE_CARTELLA, defaults={"valore": str(self.vecchia)})
+        ora = timezone.now()
+        r.coda.put(("syslog", None, b"<14>Oct 20 08:00:01 sw01 prima", "10.0.0.2", ora))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        self.assertTrue(archivio.percorso(timezone.localdate(), self.vecchia).exists())
+        imp.cartella_archivio = str(self.tmp)  # cambiata in Impostazioni mentre gira
+        imp.save()
+        r.carica()
+        self.assertIsNotNone(r._nuova_cartella)
+        r._fermo.clear()
+        r.coda.put(("syslog", None, b"<14>Oct 20 08:00:02 sw01 dopo", "10.0.0.2", ora))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        righe = archivio.percorso(timezone.localdate(), self.tmp).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(righe), 2)
+        self.assertEqual(archivio.ricalcola(righe, timezone.localdate())["errore"], "")
+        self.assertFalse(archivio.percorso(timezone.localdate(), self.vecchia).exists())
+
+
 class RobustezzaTests(_ConArchivio):
     def test_scrittura_fallita_si_riprova_senza_perdere_ne_duplicare(self):
         from .raccoglitore import Raccoglitore
