@@ -33,7 +33,18 @@ def set_avviso_impersonazione(attivo: bool) -> None:
 
 
 def notify_security_event(user, title: str, message: str) -> bool:
-    """Invia la mail di sicurezza a ``user.email``. Ritorna True se spedita."""
+    """Invia la mail di sicurezza a ``user.email``. Ritorna True se spedita.
+
+    Flusso Automazioni «Sicurezza - avvisi sull'account»: si spegne o si personalizza
+    (CC, testo) da Automazioni → Notifiche di sistema. Il codice 2FA non passa da qui."""
+    if not (getattr(user, "email", "") or "").strip():
+        return False
+    from automazioni.managed_flows import event_flow
+
+    return bool(event_flow("sicurezza_avvisi_account", skipped_result=False)(_invia)(user, title, message))
+
+
+def _invia(user, title: str, message: str) -> bool:
     recipient = (getattr(user, "email", "") or "").strip()
     if not recipient:
         return False
