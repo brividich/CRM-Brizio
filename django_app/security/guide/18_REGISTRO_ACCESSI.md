@@ -38,11 +38,11 @@ Il catalogo degli eventi letti, diviso in sezioni come gli «Archivi log» di Bu
 
 Cosa entra nel catalogo (il resto resta solo nell'archivio):
 
-- gli accessi veri delle persone: **accesso al dominio** (quando una persona entra in un PC del dominio, visto dal controller di dominio; si ripete quando il «biglietto» Kerberos scade, ogni 10 ore), accessi alla console, in desktop remoto, sblocchi della sessione. Gli accessi di rete (cartelle condivise, criteri di gruppo, posta: decine all'ora per persona) restano solo nell'archivio, tranne quelli degli amministratori. Restano fuori anche gli account dei computer (quelli che finiscono con `$`), gli account di sistema e i servizi;
+- gli accessi veri delle persone: **accesso al dominio** (quando una persona entra in un PC del dominio, visto dal controller di dominio; si ripete quando il «biglietto» Kerberos scade, ogni 10 ore), accessi alla console, in desktop remoto, sblocchi della sessione. Gli accessi di rete (cartelle condivise, criteri di gruppo, posta: decine all'ora per persona) restano solo nell'archivio, tranne quelli degli amministratori. Restano fuori anche gli account dei computer (quelli che finiscono con `$`), gli account di sistema (anche con il nome italiano: «SERVIZIO LOCALE», «SERVIZIO DI RETE»), quelli di IIS (IUSR, pool di applicazioni) e i servizi;
 - accessi non riusciti (con il motivo: password sbagliata, utente inesistente, account bloccato…), anche Kerberos e NTLM dei controller di dominio;
 - account creati, eliminati, abilitati, disabilitati, bloccati, password reimpostate;
 - aggiunte e rimozioni dai gruppi (critico se il gruppo è di amministratori: Domain Admins, Administrators, Enterprise Admins, Backup Operators…);
-- registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti;
+- registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti (criteri di audit, attività pianificate e orologio solo se li cambia una persona: quando li applica Windows stesso, per esempio riapplicando la GPO, restano nell'archivio);
 - da syslog: accessi SSH e alla console di gestione (ESXi, vCenter, switch Cisco e Aruba, firewall WatchGuard, NAS Synology), accessi rifiutati, SSH o shell abilitati, comandi `sudo`. Gli altri messaggi syslog restano solo nell'archivio.
 
 Quando cambiano le regole del catalogo, al riavvio il raccoglitore rifà il catalogo degli ultimi 31 giorni rileggendo l'archivio (l'archivio sigillato non cambia). Gli eventi ricatalogati non mandano alert al SOC.
