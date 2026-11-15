@@ -119,3 +119,15 @@
 .prod-passo{scroll-margin-top:80px}
 .prod-passo .prod-card-head{margin-bottom:4px}
 .prod-passo-altro{margin:0 0 10px;font-size:13px;font-weight:700}
+
+/* Situazione FAI del P/N (classi di tasks.fai_regole.StatoArticolo) */
+.prod-stato.is-danger{background:var(--danger);color:#fff}
+.prod-stato.is-warn{background:var(--warning,#d97706);color:#fff}
+.prod-stato.is-ok{background:var(--success,#16a34a);color:#fff}
+.prod-stato.is-info{background:var(--accent);color:#fff}
+
+.prod-articolo{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.prod-articolo-cliente{font-size:11.5px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em}
+.prod-articolo i.prod-stato{font-style:normal}
+.prod-articolo .prod-nota{margin:0}
+

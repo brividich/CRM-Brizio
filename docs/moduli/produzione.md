@@ -13,6 +13,9 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
   - programmi CAM e CMM delle righe KICK-OFF dello stesso P/N;
   - anomalie (totale e aperte, stesso legame di Gestione anomalie: id SharePoint o titolo) con link a `/gestione-anomalie?op=`;
   - KICK-OFF del P/N e altri OP dello stesso P/N.
+- **P/N** (`/produzione/pn/`, `services.righe_pn`): il P/N è l'articolo principale con più OP, e il FAI è del P/N, non dell'OP. Una riga per P/N (normalizzato con `tasks.identity.normalize_part_number`) degli OP: numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» (la peggiore fra gli articoli del P/N, da `tasks.services.fai.righe_registro`, stessa lettura del Registro FAI) e anomalie aperte di tutti gli OP. La ricerca sceglie i P/N da un loro OP, capocommessa o CAR ma conta tutti gli OP. Chip `?manca=anomalie|fai|scadenza`.
+- **Scheda del P/N** (`/produzione/pn/scheda/?pn=`, `services.scheda_pn`, 404 se nessun OP ha quel P/N): quattro passi — KICK-OFF del P/N, programmi CAM e CMM, FAI del P/N (situazione per cliente con «entro», tutti i FAI con il loro OP, «+ Nuovo FAI per questo P/N» → `tasks:fai_nuovo?pn=`), OP del P/N (CAR, stato, documenti, anomalie aperte).
+- Nella scheda dell'OP il passo è **FAI del P/N** (`services._passo_fai`): conta il FAI più recente non annullato del P/N, anche se fatto su un altro OP; «allerta» se l'articolo è da ripetere o, dopo un FAI positivo, da verificare. Nell'elenco OP la colonna «FAI del P/N» e il chip «Senza FAI» contano i FAI del P/N.
 - **Impostazioni** (`/produzione/impostazioni/`): tipi di documento (`TipoDocumento`), seminati dalla migrazione `0002`.
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
@@ -21,7 +24,7 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 | Codice | Default | Rotte |
 |---|---|---|
-| `produzione.op.view` | tutti i ruoli | elenco, scheda, guida |
+| `produzione.op.view` | tutti i ruoli | elenco, scheda, pn_elenco, pn_scheda, guida |
 | `produzione.documenti.manage` | admin | documento, documento_elimina |
 | `produzione.impostazioni.manage` | admin | impostazioni |
 | `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |

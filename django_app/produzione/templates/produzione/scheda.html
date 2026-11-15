@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{{ op.op }} · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261109a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261115a">{% endblock %}
 
 {% block content %}
 <div class="prod">
@@ -16,7 +16,7 @@
   {% include "produzione/_nav.html" %}
 
   <div class="prod-dati">
-    <div class="prod-dato"><span>P/N</span><b>{{ op.pn|default:"—" }}</b></div>
+    <div class="prod-dato"><span>P/N</span>{% if url_pn %}<a href="{{ url_pn }}">{{ op.pn }}</a>{% else %}<b>{{ op.pn|default:"—" }}</b>{% endif %}</div>
     <div class="prod-dato"><span>Capocommessa</span><b>{{ op.capocommessa|default:"—" }}</b></div>
     <div class="prod-dato"><span>CAR</span><b>{{ op.car|default:"—" }}</b></div>
   </div>
@@ -128,19 +128,15 @@
       {% endif %}
 
     {% elif p.chiave == "fai" %}
-      {% if p.url != url_nuovo_fai %}<p class="prod-passo-altro"><a href="{{ url_nuovo_fai }}">+ Nuovo FAI per questo OP</a></p>{% endif %}
-      {% if fai_op or fai_pn %}
+      <p class="prod-passo-altro">{% if url_pn %}<a href="{{ url_pn }}#passo-fai">Scheda del P/N</a>{% endif %}{% if p.url != url_nuovo_fai and op.pn %}{% if url_pn %} · {% endif %}<a href="{{ url_nuovo_fai }}">+ Nuovo FAI del P/N</a>{% endif %}</p>
+      {% if fai_pn %}
       <div class="prod-scorri">
         <table class="prod-tab">
           <thead><tr><th>Piano</th><th>Tipo</th><th>Stato</th><th>Invio</th><th>Chiusura</th><th>OP</th></tr></thead>
-          <tbody>
-            {% if fai_op %}<tr><td colspan="6" class="prod-gruppo">Di questo OP</td></tr>{% endif %}
-            {% for f in fai_op %}{% include "produzione/_riga_fai.html" %}{% endfor %}
-            {% if fai_pn %}<tr><td colspan="6" class="prod-gruppo">Altri FAI dello stesso P/N</td></tr>{% endif %}
-            {% for f in fai_pn %}{% include "produzione/_riga_fai.html" %}{% endfor %}
-          </tbody>
+          <tbody>{% for f in fai_pn|slice:":10" %}{% include "produzione/_riga_fai.html" %}{% endfor %}</tbody>
         </table>
       </div>
+      {% if fai_pn|length > 10 %}<p class="prod-nota">Gli altri {{ fai_pn|length|add:"-10" }} FAI sono nella <a href="{{ url_pn }}#passo-fai">scheda del P/N</a>.</p>{% endif %}
       {% endif %}
 
     {% elif p.chiave == "anomalie" %}
@@ -150,7 +146,7 @@
 
   {% if altri_op %}
   <section class="prod-card">
-    <div class="prod-card-head"><h2>Altri OP dello stesso P/N</h2></div>
+    <div class="prod-card-head"><h2>Altri OP dello stesso P/N</h2>{% if url_pn %}<a class="prod-btn prod-btn-piccolo" href="{{ url_pn }}">Scheda del P/N</a>{% endif %}</div>
     <div class="prod-chips">
       {% for o in altri_op %}<a class="prod-chip" href="{% url 'produzione:scheda' o.id %}">{{ o.op }}{% if o.stato %} · {{ o.stato }}{% endif %}</a>{% endfor %}
     </div>

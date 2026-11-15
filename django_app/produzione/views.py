@@ -58,6 +58,36 @@ def elenco(request):
     ))
 
 
+@login_required
+@require_GET
+def pn_elenco(request):
+    """Una riga per P/N: il P/N è l'articolo principale, con i suoi OP e i suoi FAI."""
+    testo = (request.GET.get("q") or "").strip()
+    disponibile = op_db.disponibile()
+    manca = (request.GET.get("manca") or "").strip()
+    righe = services.righe_pn(request, testo) if disponibile else []
+    vede_kickoff = services._vede_kickoff(request)
+    chips = services.conteggi_manca_pn(righe, vede_kickoff)
+    if manca not in {c["chiave"] for c in chips}:
+        manca = ""
+    righe_filtrate = services.filtra_manca_pn(righe, manca)
+    return render(request, "produzione/pn_elenco.html", _ctx(
+        request, "pn", disponibile=disponibile, pagina=pagina_elenco(request, righe_filtrate),
+        totale=len(righe_filtrate), chips=chips, manca=manca, vede_kickoff=vede_kickoff, q=testo,
+    ))
+
+
+@login_required
+@require_GET
+def pn_scheda(request):
+    if not op_db.disponibile():
+        raise Http404
+    dati = services.scheda_pn(request, request.GET.get("pn") or "")
+    if dati is None:
+        raise Http404
+    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", **dati))
+
+
 class DocumentoForm(forms.ModelForm):
     class Meta:
         model = DocumentoOP

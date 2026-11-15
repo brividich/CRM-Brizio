@@ -6,7 +6,7 @@ se cambiano, va aggiornata anche ``core/guide_moduli/contenuti/produzione.py``.
 from __future__ import annotations
 
 TITOLO = "Ordini di produzione"
-SOTTOTITOLO = "Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie."
+SOTTOTITOLO = "Ogni P/N con i suoi OP e i suoi FAI; ogni OP con i documenti di produzione, i programmi CAM e CMM e le anomalie."
 
 SEZIONI: list[dict] = [
     {
@@ -19,7 +19,8 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Documenti registrati", "cicli, disegni, DIP, piani di controllo, certificati, rapporti di collaudo e "
                  "gli altri tipi decisi in Impostazioni, con revisione, data e cartella di rete."),
-                ("FAI", "dal Registro FAI: prima quelli che citano l'OP, poi gli altri FAI dello stesso P/N."),
+                ("FAI", "dal Registro FAI. Il FAI è del P/N, non del singolo OP: tutti gli OP dello stesso P/N "
+                 "condividono gli stessi FAI e la stessa situazione (in regola, da verificare, da ripetere)."),
                 ("Programmi CAM e CMM", "dalle righe del KICK-OFF dello stesso P/N, con codice, cartella e stato."),
                 ("Anomalie", "quante sono e quante aperte, con il link a Gestione anomalie già filtrata sull'OP."),
             ]),
@@ -40,6 +41,27 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "pn",
+        "titolo": "P/N",
+        "blocchi": [
+            ("p", "La scheda «P/N» elenca i P/N degli OP: il P/N è l'articolo principale e ha più OP. Per ogni P/N: quanti OP, "
+                  "l'ultimo OP con il suo stato, il capocommessa, quanti FAI, la «Situazione FAI» e le anomalie aperte di tutti "
+                  "i suoi OP. La ricerca trova il P/N anche da un suo OP, capocommessa o CAR, e conta comunque tutti i suoi OP."),
+            ("p", "«Da sistemare» filtra i P/N «Con anomalie aperte», quelli «Senza FAI» e quelli con «FAI da ripetere o "
+                  "verificare»."),
+            ("p", "La scheda del P/N è un percorso in quattro passi:"),
+            ("def", [
+                ("1 · KICK-OFF del P/N", "come nella scheda dell'OP."),
+                ("2 · Programmi CAM e CMM", "come nella scheda dell'OP."),
+                ("3 · FAI del P/N", "la situazione per cliente (con la data «entro» cui ripeterlo) e tutti i FAI del P/N con il "
+                 "loro OP; «+ Nuovo FAI per questo P/N» apre la scheda FAI col P/N già scritto."),
+                ("4 · OP del P/N", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle "
+                 "anomalie portano al passo della scheda dell'OP."),
+            ]),
+            ("p", "Il P/N nell'elenco degli OP e nella scheda dell'OP porta alla scheda del P/N."),
+        ],
+    },
+    {
         "id": "percorso",
         "titolo": "Il percorso dell'OP",
         "blocchi": [
@@ -50,14 +72,15 @@ SEZIONI: list[dict] = [
                 ("1 · KICK-OFF del P/N", "fatto se c'è un KICK-OFF dello stesso P/N; altrimenti «Nuovo KICK-OFF» con il P/N già scritto."),
                 ("2 · Programmi CAM e CMM", "fatto quando tutte le righe CAM/CMM del KICK-OFF sono «Fatto»; in attesa se qualcuna è «Da fare»."),
                 ("3 · Documenti di produzione", "fatto con almeno un documento registrato; «Aggiungi documento» apre il modulo."),
-                ("4 · FAI", "fatto con un FAI dell'OP in uno stato a esito positivo; in attesa se è eseguito e aspetta l'esito; "
-                 "senza FAI, «Nuovo FAI» con OP e P/N compilati. I FAI annullati non contano."),
+                ("4 · FAI del P/N", "conta il FAI più recente del P/N, anche se fatto su un altro OP: fatto se è a esito "
+                 "positivo; in attesa se è eseguito e aspetta l'esito; «Da gestire» se l'articolo è da ripetere o, dopo un "
+                 "FAI positivo, da verificare; senza FAI, «Nuovo FAI» con OP e P/N compilati. I FAI annullati non contano."),
                 ("5 · Anomalie", "da gestire finché ci sono anomalie aperte sull'OP."),
             ]),
             ("p", "In cima, «Prossimo passo» mostra il primo passo da fare (o da gestire) con il suo pulsante; se restano "
                   "solo attese mostra la prima attesa; quando è tutto a posto compare «Percorso completo». FAI, programmi e "
                   "KICK-OFF compaiono solo a chi ha i permessi del KICK-OFF."),
-            ("p", "Nell'elenco, «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o senza FAI; nelle colonne "
+            ("p", "Nell'elenco, «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o il cui P/N è senza FAI; nelle colonne "
                   "«Manca» e il numero delle anomalie aperte portano dritti al passo della scheda."),
         ],
     },
@@ -69,7 +92,8 @@ SEZIONI: list[dict] = [
                 "In alto: P/N, capocommessa, CAR e stato dell'OP, poi «Prossimo passo» e i cinque passi.",
                 "«Documenti registrati»: premi «Aggiungi documento», scegli il tipo e indica titolo o numero, revisione, "
                 "data e cartella o file di rete (\\\\server\\cartella). «Modifica» e «Elimina» su ogni riga.",
-                "«FAI»: «Nuovo FAI per questo OP» apre la scheda FAI con OP e P/N già compilati. Nella scheda FAI, "
+                "«FAI del P/N»: gli ultimi dieci FAI del P/N con l'OP su cui sono stati fatti; «Scheda del P/N» per tutti, "
+                "«+ Nuovo FAI del P/N» apre la scheda FAI con OP e P/N già compilati. Nella scheda FAI, "
                 "«+ Nuovo OP» accanto al campo OP apre lo stesso pannello col P/N del FAI e mette l'OP creato nel campo.",
                 "«Programmi CAM e CMM» e «KICK-OFF del P/N»: si aprono e si cambiano dal KICK-OFF.",
                 "«Altri OP dello stesso P/N»: per passare a un OP precedente o successivo.",
