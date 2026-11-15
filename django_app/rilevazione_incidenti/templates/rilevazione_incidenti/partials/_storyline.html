@@ -1,0 +1,79 @@
+{% comment %}
+Uso: include con parte="sintesi" (riquadri) o parte="storia" (linea del tempo); senza parte, entrambe.
+Storia della rilevazione (rilevazione_incidenti/scheda.py), stessa grafica del Diario del preposto.
+Stati con icona + testo, mai solo colore.
+{% endcomment %}
+{% if parte != "storia" %}
+{% with r=storyline.riepilogo %}
+<div class="dps-sintesi">
+  <div class="dps-chip">
+    <span class="dps-chip-val">{{ r.giorni_dal_fatto|default_if_none:"-" }}</span>
+    <span class="dps-chip-lbl">{% if r.giorni_dal_fatto == 1 %}giorno{% else %}giorni{% endif %} dal fatto</span>
+  </div>
+  <div class="dps-chip{% if r.ritardo_avviso %} is-avviso{% endif %}">
+    <span class="dps-chip-val">{% if r.ritardo_avviso %}! {% endif %}{{ r.ritardo_giorni|default_if_none:"-" }}</span>
+    <span class="dps-chip-lbl">giorni per registrarla</span>
+  </div>
+  <div class="dps-chip{% if not r.why %} is-avviso{% endif %}">
+    <span class="dps-chip-val">{% if not r.why %}! {% endif %}{{ r.why }}/5</span>
+    <span class="dps-chip-lbl">perché dell'analisi 5WHY</span>
+  </div>
+  <div class="dps-chip{% if r.capa_aperte %} is-avviso{% endif %}">
+    <span class="dps-chip-val">{% if r.capa_aperte %}! {% endif %}{{ r.capa }}</span>
+    <span class="dps-chip-lbl">azion{% if r.capa == 1 %}e{% else %}i{% endif %} correttiv{% if r.capa == 1 %}a{% else %}e{% endif %}{% if r.capa_aperte %} · {{ r.capa_aperte }} da concludere{% endif %}</span>
+  </div>
+  {% if r.storico %}
+  <div class="dps-chip">
+    <span class="dps-chip-val">{{ r.modifiche }}</span>
+    <span class="dps-chip-lbl">modific{% if r.modifiche == 1 %}a{% else %}he{% endif %}</span>
+  </div>
+  <div class="dps-chip{% if r.mail_ko %} is-critico{% endif %}">
+    <span class="dps-chip-val">{% if r.mail_ko %}✕ {{ r.mail_ko }}{% elif r.mail_ok %}✓ {{ r.mail_ok }}{% else %}–{% endif %}</span>
+    <span class="dps-chip-lbl">{% if r.mail_ko %}notifiche non partite{% elif r.mail_ok %}notific{% if r.mail_ok == 1 %}a inviata{% else %}he inviate{% endif %}{% else %}nessuna notifica registrata{% endif %}</span>
+  </div>
+  {% endif %}
+  {% if r.ultima_attivita %}
+  <div class="dps-chip">
+    <span class="dps-chip-val dps-chip-val-small">{% if r.ultima_attivita_solo_data %}{{ r.ultima_attivita|date:"d/m/Y" }}{% else %}{{ r.ultima_attivita|date:"d/m/Y H:i" }}{% endif %}</span>
+    <span class="dps-chip-lbl">ultima attività{% if r.ultima_attivita_chi %} · {{ r.ultima_attivita_chi }}{% endif %}</span>
+  </div>
+  {% endif %}
+</div>
+{% endwith %}
+{% endif %}
+
+{% if parte != "sintesi" %}
+<section class="dps" aria-label="Storia della rilevazione">
+  <div class="dps-head">
+    <div class="dps-title">Storia della rilevazione</div>
+    <div class="dps-meta">{{ storyline.eventi|length }} event{{ storyline.eventi|length|pluralize:"o,i" }}, dal fatto a oggi</div>
+  </div>
+  <ol class="dps-list">
+    {% for e in storyline.eventi %}
+    <li class="dps-ev dps-ev-{{ e.tipo }}{% if e.stato %} is-{{ e.stato }}{% endif %}">
+      <span class="dps-dot" aria-hidden="true"></span>
+      <div class="dps-body">
+        <div class="dps-riga">
+          <span class="dps-ev-title">{% if e.stato == "critico" %}✕ {% elif e.stato == "avviso" %}! {% endif %}{{ e.titolo }}</span>
+          <span class="dps-quando">{% if e.solo_data %}{{ e.quando|date:"d/m/Y" }}{% else %}{{ e.quando|date:"d/m/Y H:i" }}{% endif %}</span>
+        </div>
+        {% if e.chi %}<div class="dps-chi">{{ e.chi }}</div>{% endif %}
+        {% for n in e.note %}<div class="dps-nota">{{ n }}</div>{% endfor %}
+        {% if e.righe %}
+        <ul class="dps-righe">
+          {% for riga in e.righe %}
+          <li><span class="dps-campo">{{ riga.campo }}</span>{% if riga.prima != "—" %} <span class="dps-prima">{{ riga.prima|truncatechars:90 }}</span> →{% endif %} <span class="dps-dopo">{{ riga.dopo|truncatechars:90 }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </li>
+    {% empty %}
+    <li class="dps-ev"><span class="dps-dot" aria-hidden="true"></span><div class="dps-body"><span class="dps-nota">Nessun evento registrato.</span></div></li>
+    {% endfor %}
+  </ol>
+  {% if not storyline.riepilogo.storico %}<p class="dps-nota" style="margin:12px 0 0;">Rilevazione letta da SharePoint: modifiche e mail non sono nello storico del portale.</p>{% endif %}
+</section>
+{% endif %}
+
+{% include "diario_preposto/partials/_storyline_css.html" %}

@@ -863,7 +863,33 @@ def dettaglio(request, sp_id):
     # CAPA — Azioni correttive/preventive collegate a questo incidente.
     capa_items, capa_new_url = _capa_panel_context(request, sp_id, item_fields)
 
+    # Storia e infografica come nel dettaglio del Diario del preposto.
+    scheda_ctx = {}
+    if item_fields is not None:
+        from . import scheda
+
+        locale = _use_local(cfg)
+        try:
+            items = _fetch_items_local() if locale else _fetch_items()
+            for it in items:
+                _enrich_event_fields(it.get("fields") or {})
+            visibili = _visibili(request, items)
+        except Exception as exc:
+            logger.warning("rilevazione_incidenti dettaglio confronto reparto: %s", exc)
+            visibili = []
+        storyline = scheda.costruisci_storyline(item_fields, sp_id, locale=locale, capa_items=capa_items)
+        scheda_ctx = {
+            "storyline": storyline,
+            "infografica": scheda.infografica(item_fields, sp_id, storyline, visibili),
+            "descrizione": scheda.descrizione(item_fields),
+            "data_rilevazione": scheda.data_ora(item_fields.get("Data_e_ora_rilevazione")),
+            "data_rls": scheda.solo_data(item_fields.get("Data_approvazione_RLS")),
+            "data_chiusura": scheda.solo_data(item_fields.get("Data_chiusura_RSPP")),
+            "why": [{"n": i, "testo": str(item_fields.get(c) or "").strip()} for i, c in enumerate(scheda.CAMPI_WHY, 1)],
+        }
+
     return render(request, "rilevazione_incidenti/pages/dettaglio.html", {
+        **scheda_ctx,
         "f": item_fields,
         "sp_id": sp_id,
         "error": error,

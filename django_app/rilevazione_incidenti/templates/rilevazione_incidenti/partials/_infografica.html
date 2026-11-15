@@ -1,0 +1,87 @@
+{% comment %}
+Infografica della singola rilevazione (rilevazione_incidenti/scheda.py), stessa grafica del
+Diario del preposto: esito dei controlli, riquadri di sintesi, percorso, controlli e reparto.
+Stati sempre con icona + testo, mai solo colore.
+{% endcomment %}
+{% with c=infografica.controlli ctx=infografica.contesto %}
+<section class="dpi" aria-label="Situazione della rilevazione">
+  <div class="dpi-head">
+    <div>
+      <div class="dpi-title">Situazione della rilevazione</div>
+      <div class="dpi-sub">n. {{ sp_id }} · {{ c.superati }} controll{% if c.superati == 1 %}o superato{% else %}i superati{% endif %} su {{ c.valutati }}</div>
+    </div>
+    {% if c.critici %}
+    <span class="dpi-esito is-critico">✕ {{ c.critici }} problem{% if c.critici == 1 %}a{% else %}i{% endif %}{% if c.avvisi %} · {{ c.avvisi }} da controllare{% endif %}</span>
+    {% elif c.avvisi %}
+    <span class="dpi-esito is-avviso">! {{ c.avvisi }} da controllare</span>
+    {% else %}
+    <span class="dpi-esito is-ok">✓ Tutto in ordine</span>
+    {% endif %}
+  </div>
+
+  {% include "rilevazione_incidenti/partials/_storyline.html" with parte="sintesi" %}
+
+  <ol class="dpi-percorso" aria-label="Percorso della rilevazione">
+    {% for t in infografica.percorso %}
+    <li class="dpi-tappa is-{{ t.stato }}">
+      <span class="dpi-tappa-dot" aria-hidden="true">{% if t.stato == "ok" %}✓{% elif t.stato == "avviso" %}!{% elif t.stato == "critico" %}✕{% else %}–{% endif %}</span>
+      <div class="dpi-tappa-body">
+        <div class="dpi-tappa-title">{{ t.titolo }}<span class="sr-only"> ({% if t.stato == "ok" %}fatto{% elif t.stato == "avviso" %}da controllare{% elif t.stato == "critico" %}problema{% else %}non avvenuto{% endif %})</span></div>
+        {% if t.quando %}<div class="dpi-tappa-quando">{% if t.solo_data %}{{ t.quando|date:"d/m/Y" }}{% else %}{{ t.quando|date:"d/m/Y H:i" }}{% endif %}</div>{% endif %}
+        {% if t.dopo %}<div class="dpi-tappa-dopo">{{ t.dopo }}</div>{% endif %}
+        {% if t.nota %}<div class="dpi-tappa-nota">{{ t.nota|truncatechars:60 }}</div>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+
+  <div class="dpi-grid">
+    <div class="dpi-box">
+      <div class="dpi-box-title">Controlli</div>
+      <ul class="dpi-check">
+        {% for v in c.voci %}
+        <li class="is-{{ v.stato }}">
+          <span class="dpi-check-ico" aria-hidden="true">{% if v.stato == "ok" %}✓{% elif v.stato == "avviso" %}!{% elif v.stato == "critico" %}✕{% else %}–{% endif %}</span>
+          <span><strong>{{ v.titolo }}</strong><span class="sr-only"> ({% if v.stato == "ok" %}superato{% elif v.stato == "avviso" %}da controllare{% elif v.stato == "critico" %}problema{% else %}non applicabile{% endif %})</span><br><span class="dpi-check-det">{{ v.dettaglio }}</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="dpi-box">
+      <div class="dpi-box-title">Il reparto{% if ctx %}: {{ ctx.reparto }}{% endif %}</div>
+      {% if ctx %}
+      <div class="dpi-ctx-nums">
+        <div><span class="dpi-ctx-val">{{ ctx.ultimi_12_mesi }}</span><span class="dpi-ctx-lbl">rilevazion{% if ctx.ultimi_12_mesi == 1 %}e{% else %}i{% endif %} negli ultimi 12 mesi</span></div>
+        <div><span class="dpi-ctx-val">{{ ctx.stesso_mese }}</span><span class="dpi-ctx-lbl">nello stesso mese di questa</span></div>
+        {% if ctx.numero %}<div><span class="dpi-ctx-val">{{ ctx.numero }}ª</span><span class="dpi-ctx-lbl">di {{ ctx.totale }} del reparto</span></div>{% endif %}
+      </div>
+      <div class="dpi-bars" role="img" aria-label="Rilevazioni del reparto {{ ctx.reparto }} per mese, ultimi 12 mesi">
+        {% for b in ctx.andamento %}
+        <div class="dpi-bar-col{% if b.questa %} is-questa{% endif %}" tabindex="0" data-tip="{{ b.descrizione }}{% if b.questa %} (mese di questa rilevazione){% endif %}">
+          <span class="dpi-bar-val">{% if b.valore %}{{ b.valore }}{% endif %}</span>
+          <div class="dpi-bar" style="height:{{ b.percento }}%"></div>
+          <span class="dpi-bar-lbl">{{ b.etichetta }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="dpi-bars-note">{% if ctx.in_finestra %}▲ il mese di questa rilevazione{% else %}Questa rilevazione è più vecchia di 12 mesi.{% endif %}</div>
+      <details class="dpi-numeri">
+        <summary>Vedi i numeri</summary>
+        <table><thead><tr><th scope="col">Mese</th><th scope="col">Rilevazioni</th></tr></thead><tbody>
+        {% for b in ctx.andamento %}<tr><td>{{ b.mese }}</td><td>{{ b.valore }}</td></tr>{% endfor %}
+        </tbody></table>
+      </details>
+      <div class="dpi-nav">
+        {% if ctx.precedente %}<a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=ctx.precedente.id %}">← Precedente · n. {{ ctx.precedente.id }}{% if ctx.precedente.quando %} del {{ ctx.precedente.quando|date:"d/m/Y" }}{% endif %}</a>{% else %}<span>Nessuna precedente</span>{% endif %}
+        {% if ctx.successiva %}<a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=ctx.successiva.id %}">Successiva · n. {{ ctx.successiva.id }}{% if ctx.successiva.quando %} del {{ ctx.successiva.quando|date:"d/m/Y" }}{% endif %} →</a>{% else %}<span>Nessuna successiva</span>{% endif %}
+      </div>
+      {% else %}
+      <p class="dpi-check-det">Reparto non indicato: nessun confronto possibile.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endwith %}
+
+{% include "diario_preposto/partials/_infografica_css.html" %}
