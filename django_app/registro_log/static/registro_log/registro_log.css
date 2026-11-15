@@ -88,3 +88,28 @@ body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--dang
 .soc-module details.rl-pannello-apribile > summary { list-style: none; cursor: pointer; }
 .soc-module details.rl-pannello-apribile > summary::-webkit-details-marker { display: none; }
 .soc-module details.rl-pannello-apribile:not([open]) > summary { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
+/* Persona o PC */
+.soc-module .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.soc-module .rl-cerca { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-width: 720px; }
+.soc-module .rl-cerca label { font-weight: 600; }
+.soc-module .rl-cerca-riga { display: flex; gap: 8px; }
+.soc-module .rl-cerca-riga input[type=search] { flex: 1; min-height: 44px; font-size: 1rem; }
+.soc-module .rl-elenco { list-style: none; margin: 0; padding: 0; }
+.soc-module .rl-elenco li { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 8px 0;
+  border-top: 1px solid var(--border); }
+.soc-module .rl-elenco li:first-child { border-top: 0; }
+.soc-module .rl-elenco .rl-n, .soc-module .rl-n { font-variant-numeric: tabular-nums; color: var(--text-mid); }
+.soc-module .rl-scheda { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.soc-module .rl-scheda-nome { font-size: 1.2rem; }
+.soc-module .rl-scheda-azioni { display: flex; flex-wrap: wrap; gap: 8px; }
+.soc-module .rl-giorno { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 12px 0 0; }
+.soc-module .rl-giorno .rl-chips { margin-bottom: 0; }
+.soc-module .rl-giorno-scelta { display: flex; gap: 6px; align-items: center; }
+.soc-module .rl-linea { list-style: none; margin: 0; padding: 0; }
+.soc-module .rl-linea li { display: grid; grid-template-columns: 76px 14px minmax(0, 1fr); gap: 10px; align-items: start; padding: 7px 0; }
+.soc-module .rl-ora { font-variant-numeric: tabular-nums; }
+.soc-module .rl-punto { width: 11px; height: 11px; border-radius: 50%; margin-top: 5px; background: var(--primary-mid); }
+.soc-module .rl-linea li.ko .rl-punto { background: var(--danger); }
+.soc-module .rl-linea li.critico .rl-punto { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
+.soc-module .rl-linea li.attenzione .rl-punto { background: var(--warning); }
+.soc-module .rl-linea li.ko .rl-cat { color: var(--danger); }

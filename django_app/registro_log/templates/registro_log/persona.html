@@ -1,0 +1,109 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Persona o PC | Registro accessi{% endblock %}
+{% block page_title %}Persona o PC{% endblock %}
+
+{% block soc_content %}
+<form class="rl-cerca sec-form" method="get" role="search">
+  <label for="rl-q">Persona, PC o indirizzo IP</label>
+  <div class="rl-cerca-riga">
+    <input id="rl-q" type="search" name="q" value="{{ q }}" placeholder="es. mrossi, PC-UFF12, 10.0.0.51" autofocus>
+    {% if q %}<input type="hidden" name="giorno" value="{{ giorno|date:'Y-m-d' }}">{% endif %}
+    <button class="sec-button sec-button-primary" type="submit">Cerca</button>
+  </div>
+</form>
+
+{% if not q %}
+<div class="rl-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Più accessi nelle ultime 24 ore</h2></div>
+    {% if suggeriti %}<ul class="rl-elenco">{% for r in suggeriti %}<li><a href="?q={{ r.account|urlencode }}">{{ r.account }}</a><span class="rl-n">{{ r.n }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="sec-muted">Nessun accesso nel catalogo nelle ultime 24 ore.</p>{% endif %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Più accessi falliti nelle ultime 24 ore</h2></div>
+    {% if falliti_top %}<ul class="rl-elenco">{% for r in falliti_top %}<li><a href="?q={{ r.account|urlencode }}">{{ r.account|default:"(utente non indicato)" }}</a><span class="rl-n">{{ r.n }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="sec-muted">Nessun accesso fallito nelle ultime 24 ore.</p>{% endif %}
+  </section>
+</div>
+{% else %}
+
+<section class="sec-panel rl-scheda">
+  <div>
+    <strong class="rl-scheda-nome">{{ nome }}</strong>
+    <span class="rl-sub">
+      {% if tipo == "account" %}
+        {% if scheda_ad %}{{ scheda_ad.anagrafica_nome|default:scheda_ad.nome|default:"Account di Active Directory" }} · {% if scheda_ad.abilitato %}account attivo{% else %}account disabilitato{% endif %}{% if scheda_ad.persona_cessata %} · <strong>persona cessata</strong>{% endif %}{% if scheda_ad.gruppi_privilegiati %} · gruppi: {{ scheda_ad.gruppi_privilegiati|join:", " }}{% endif %}
+        {% else %}Account non trovato tra gli account di Active Directory letti{% endif %}
+      {% elif tipo == "pc" %}PC o server: accessi fatti su questo sistema o partiti da qui
+      {% else %}Indirizzo IP: accessi partiti da qui o fatti su questo indirizzo{% endif %}
+    </span>
+  </div>
+  <div class="rl-scheda-azioni">
+    {% if tipo == "account" and scheda_ad %}<a class="sec-button" href="{% url 'security:registro_log_account' %}?q={{ nome|urlencode }}">Apri in Account AD</a>{% endif %}
+    <a class="sec-button" href="{% url 'security:registro_log_eventi' %}?giorni=7&amp;q={{ nome|urlencode }}">Nel catalogo (7 giorni)</a>
+  </div>
+</section>
+
+<section class="sec-grid sec-kpi-grid" style="margin-top:12px">
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Primo accesso del giorno</span>
+    <strong class="sec-kpi-value">{% if kpi.primo %}{{ kpi.primo|time:"H:i" }}{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta">{% if kpi.primo %}{{ kpi.primo_dove|default:"" }}{% else %}nessun accesso il {{ giorno|date:"d/m/Y" }}{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">{% if tipo == "account" %}PC e sistemi usati{% else %}Persone che hanno fatto accesso{% endif %}</span>
+    <strong class="sec-kpi-value">{{ kpi.usati }}</strong>
+    <span class="sec-kpi-delta">ultimi 7 giorni</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Accessi falliti</span>
+    <strong class="sec-kpi-value{% if kpi.falliti %} warning{% endif %}">{{ kpi.falliti }}</strong>
+    <span class="sec-kpi-delta">ultimi 7 giorni</span>
+  </div>
+  {% if tipo == "account" %}
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Privilegi di amministratore</span>
+    <strong class="sec-kpi-value">{% if admin %}Sì{% else %}No{% endif %}</strong>
+    <span class="sec-kpi-delta">gruppi di amministratori o elenco degli amministratori di sistema</span>
+  </div>
+  {% endif %}
+</section>
+
+<div class="rl-giorno">
+  <nav class="rl-chips" aria-label="Cosa mostrare">
+    {% for codice, etichetta in filtri %}<a class="rl-chip{% if filtro == codice %} attivo{% endif %}" href="?q={{ q|urlencode }}&amp;giorno={{ giorno|date:'Y-m-d' }}{% if codice %}&amp;filtro={{ codice }}{% endif %}"{% if filtro == codice %} aria-current="true"{% endif %}>{{ etichetta }}</a>{% endfor %}
+  </nav>
+  <form class="rl-giorno-scelta" method="get">
+    <input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="filtro" value="{{ filtro }}">
+    <a class="sec-button" href="?q={{ q|urlencode }}&amp;giorno={{ giorno_prima|date:'Y-m-d' }}&amp;filtro={{ filtro }}" aria-label="Giorno prima">&#8592;</a>
+    <label for="rl-giorno" class="sr-only">Giorno</label>
+    <input id="rl-giorno" type="date" name="giorno" value="{{ giorno|date:'Y-m-d' }}" max="{{ oggi|date:'Y-m-d' }}" onchange="this.form.submit()">
+    {% if giorno < oggi %}<a class="sec-button" href="?q={{ q|urlencode }}&amp;giorno={{ giorno_dopo|date:'Y-m-d' }}&amp;filtro={{ filtro }}" aria-label="Giorno dopo">&#8594;</a>{% endif %}
+  </form>
+</div>
+
+<div class="rl-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>{% if giorno == oggi %}La giornata di oggi{% else %}{{ giorno|date:"l d/m/Y"|capfirst }}{% endif %}</h2><span class="sec-muted sec-small">{{ giornata|length }} event{{ giornata|length|pluralize:"o,i" }}, in ordine di ora</span></div>
+    {% if giornata %}
+    <ol class="rl-linea">
+      {% for e in giornata %}
+      <li class="{% if e.esito == 'ko' %}ko{% elif e.gravita == 'high' %}critico{% elif e.gravita == 'warning' %}attenzione{% endif %}">
+        <a class="rl-ora" href="{% url 'security:registro_log_evento' e.pk %}" title="Evento originale">{{ e.quando|time:"H:i:s" }}</a>
+        <span aria-hidden="true" class="rl-punto"></span>
+        <span><span class="rl-cat">{{ e.descrizione }}</span>
+          <span class="rl-sub">{% if tipo != "account" and e.account %}{{ e.account }} · {% endif %}{% if e.ip_origine %}da {{ e.ip_origine }} · {% endif %}{{ e.host|default:e.fonte_nome }}{% if e.tipo_accesso %} · {{ e.tipo_accesso }}{% endif %}</span></span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}<p class="sec-muted">Nessun evento nel catalogo per questo giorno{% if filtro %} con questo filtro{% endif %}.</p>{% endif %}
+  </section>
+  <aside class="sec-panel">
+    <div class="sec-section-head"><h2>{% if tipo == "account" %}PC e sistemi usati{% else %}Chi ha fatto accesso{% endif %}</h2><span class="sec-muted sec-small">ultimi 7 giorni</span></div>
+    {% if laterale %}<ul class="rl-elenco">{% for r in laterale %}<li><span>{% if r.q %}<a href="?q={{ r.q|urlencode }}">{{ r.titolo }}</a>{% else %}<a href="?q={{ r.titolo|urlencode }}">{{ r.titolo }}</a>{% endif %}{% if r.sotto %}<span class="rl-sub">{{ r.sotto }}</span>{% endif %}</span><span class="rl-n">{{ r.n }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="sec-muted">Nessun accesso negli ultimi 7 giorni.</p>{% endif %}
+    <p class="sec-muted sec-small">File, stampe e USB non compaiono qui: si consultano solo dentro un'indagine motivata.</p>
+  </aside>
+</div>
+{% endif %}
+{% endblock %}

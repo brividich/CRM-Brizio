@@ -6,8 +6,9 @@ dall'audit del portale.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -211,6 +212,93 @@ def eventi(request):
         "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "parametri": parametri.urlencode(),
         "etichette": regole.CATEGORIE,
     })
+
+
+# ── Persona o PC ────────────────────────────────────────────────────────────
+
+FILTRI_PERSONA = (("", "Tutto"), ("accessi", "Accessi"), ("falliti", "Falliti"), ("account", "Account e gruppi"))
+
+
+def _tipo_ricerca(q: str) -> str:
+    """«ip», «pc» (un sistema visto negli eventi o tra i PC del dominio) oppure «account»."""
+    try:
+        ipaddress.ip_address(q)
+        return "ip"
+    except ValueError:
+        pass
+    if EventoRegistro.objects.filter(Q(host__iexact=q) | Q(host__istartswith=q + ".")).exists() \
+            or Postazione.objects.filter(nome__iexact=q).exists():
+        return "pc"
+    return "account"
+
+
+def _nome_account(q: str) -> str:
+    return q.split("\\")[-1].split("@")[0].strip()
+
+
+def persona(request):
+    """Tutto ciò che il catalogo sa di una persona, di un PC o di un indirizzo IP, giorno per giorno.
+
+    Niente file, stampe e USB: quelli restano dentro le indagini. Ogni ricerca resta nell'audit.
+    """
+    q = (request.GET.get("q") or "").strip()[:150]
+    try:
+        giorno = date.fromisoformat(request.GET.get("giorno") or "")
+    except ValueError:
+        giorno = timezone.localdate()
+    filtro = request.GET.get("filtro", "")
+    if filtro not in regole.SEZIONI:
+        filtro = ""
+    base = EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
+    ora = timezone.now()
+    ctx = {"q": q, "giorno": giorno, "filtro": filtro, "filtri": FILTRI_PERSONA, "oggi": timezone.localdate(),
+           "giorno_prima": giorno - timedelta(days=1), "giorno_dopo": giorno + timedelta(days=1)}
+    if not q:
+        ultime = base.filter(quando__gte=ora - timedelta(days=1)).exclude(account="")
+        ctx["suggeriti"] = list(_filtra_sezione(ultime, "accessi").values("account").annotate(n=Count("id")).order_by("-n")[:12])
+        ctx["falliti_top"] = list(_filtra_sezione(ultime, "falliti").values("account").annotate(n=Count("id")).order_by("-n")[:8])
+        return render(request, "registro_log/persona.html", ctx)
+
+    tipo = _tipo_ricerca(q)
+    nome = _nome_account(q)
+    if tipo == "account":
+        cond = Q(account__iexact=nome) | Q(account__iendswith="\\" + nome) | Q(account_target__iexact=nome)
+    elif tipo == "pc":
+        cond = Q(host__iexact=q) | Q(host__istartswith=q + ".") | Q(ip_origine__iexact=q)
+    else:
+        cond = Q(ip_origine=q) | Q(host=q)
+    suoi = base.filter(cond)
+    sette = suoi.filter(quando__gte=ora - timedelta(days=7))
+    inizio = timezone.make_aware(datetime.combine(giorno, time.min))
+    del_giorno = suoi.filter(quando__gte=inizio, quando__lt=inizio + timedelta(days=1))
+    accessi_giorno = _filtra_sezione(del_giorno, "accessi").filter(esito="ok")
+    primo = accessi_giorno.order_by("quando").first()
+    if tipo == "account":
+        usati = (_filtra_sezione(sette, "accessi").values("ip_origine", "host").annotate(n=Count("id")).order_by("-n")[:10])
+        laterale = [{"titolo": r["ip_origine"] or r["host"], "sotto": r["host"] if r["ip_origine"] else "", "n": r["n"]}
+                    for r in usati]
+    else:
+        chi = _filtra_sezione(sette, "accessi").exclude(account="").values("account").annotate(n=Count("id")).order_by("-n")[:10]
+        laterale = [{"titolo": r["account"], "sotto": "", "n": r["n"], "q": r["account"]} for r in chi]
+    scheda_ad = AccountAD.objects.filter(sam__iexact=nome).first() if tipo == "account" else None
+    from .raccoglitore import privilegiati
+
+    admin = tipo == "account" and nome.lower() in privilegiati()
+    ctx.update({
+        "tipo": tipo, "nome": nome if tipo == "account" else q, "scheda_ad": scheda_ad, "admin": admin,
+        "kpi": {
+            "primo": timezone.localtime(primo.quando) if primo else None,
+            "primo_dove": (primo.ip_origine or primo.host) if primo else "",
+            "usati": len(laterale),
+            "falliti": _filtra_sezione(sette, "falliti").count(),
+            "totale_giorno": del_giorno.count(),
+        },
+        "giornata": list(_filtra_sezione(del_giorno, filtro).order_by("quando", "id")[:500]),
+        "laterale": laterale,
+        "etichette": regole.CATEGORIE,
+    })
+    log_action(request, "registro_log_persona", MODULO, {"q": q, "tipo": tipo, "giorno": str(giorno)})
+    return render(request, "registro_log/persona.html", ctx)
 
 
 def evento(request, pk: int):

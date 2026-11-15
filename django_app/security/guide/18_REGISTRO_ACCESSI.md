@@ -2,7 +2,7 @@
 
 Il Registro accessi raccoglie i log dei server Windows, dei controller di dominio, di ESXi e vCenter, degli switch, del firewall e del NAS. Tutto finisce in un **archivio sigillato** che vale come registro degli accessi degli amministratori di sistema (provvedimento del Garante del 27/11/2008) e come evidenza per la ISO/IEC 27001 (controlli 5.18, 5.28, 8.2, 8.15, 8.16, 8.17). Sostituisce un prodotto di log management esterno.
 
-Si apre dal menu del SOC: **Registro accessi**.
+Si apre dal menu del SOC: **Registro accessi**. Le schede: **Panoramica**, **Persona o PC**, **Catalogo**, **Indagini** (solo chi configura il SOC), **Elenchi** (Fonti e impostazioni, Account AD, Amministratori di sistema) e **Controllo** (Archivio e integrità, Verifica annuale, Server e virtualizzazione); le pagine di Elenchi e Controllo sono nella riga sotto le schede.
 
 ## Panoramica
 
@@ -21,7 +21,18 @@ Se il raccoglitore ha un problema (scrittura dell'archivio non riuscita, cartell
 
 **Righe archiviate negli ultimi 14 giorni**: una barra per giorno, alta quanto le righe archiviate. Blu = giorno sigillato e integro, rossa = non integro, tratteggiata = nessun sigillo (raccolta ferma o giorno non ancora chiuso), più chiara = oggi, ancora in corso. Un giorno molto più basso degli altri vuol dire che una fonte ha smesso di mandare: si apre «Archivio e integrità». «Da guardare» mostra gli ultimi eventi importanti; «Continuità della raccolta» le interruzioni in corso.
 
-## Eventi
+## Persona o PC
+
+Si scrive un account (es. `mrossi`, anche `DOMINIO\mrossi`), il nome di un PC o di un server, oppure un indirizzo IP. Senza ricerca la pagina propone gli account con più accessi e con più accessi falliti nelle ultime 24 ore.
+
+- In alto la scheda: per un account, il nome dall'anagrafica, se l'account è attivo, se la persona è cessata e i gruppi di amministratori (da «Account AD»).
+- Riquadri: **primo accesso del giorno** (con il PC o l'IP), **PC e sistemi usati** negli ultimi 7 giorni (per un PC o un IP: le persone che ci hanno fatto accesso), **accessi falliti** degli ultimi 7 giorni, **privilegi di amministratore** (gruppi di amministratori o elenco degli amministratori di sistema).
+- **La giornata**: tutti gli eventi del catalogo di quel giorno in ordine di ora, con filtri **Tutto**, **Accessi**, **Falliti**, **Account e gruppi**; frecce e calendario per cambiare giorno. Clic sull'ora: l'evento originale.
+- A destra i PC e i sistemi usati (o chi ha fatto accesso), cliccabili per passare alla loro scheda.
+
+File, stampe e USB non compaiono: si consultano solo dentro un'indagine. Ogni ricerca resta nell'audit del portale (azione «registro_log_persona»). Dal dettaglio di un evento, «scheda della persona» apre questa pagina.
+
+## Catalogo
 
 Il catalogo degli eventi letti, diviso in sezioni come gli «Archivi log» di BusinessLog: **Tutti**, **Log accessi**, **Accessi falliti**, **Account e gruppi**, **Eventi di sistema**, **Syslog**. Accanto a ogni sezione il numero di eventi nel periodo scelto. Filtri rapidi che si aggiungono alla sezione: **Solo amministratori**, **Fuori orario**, **Critici**. Filtri per periodo (da 24 ore a un anno), tipo di evento, fonte e testo (account, server, IP).
 
