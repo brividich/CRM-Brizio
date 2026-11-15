@@ -110,6 +110,19 @@ class FonteForm(forms.ModelForm):
         }
         widgets = {"cartelle_file": forms.Textarea(attrs={"rows": 3, "placeholder": "D:\\Dati\\Progetti | letture, scritture, eliminazioni"})}
 
+    REGISTRI_NOTI = {"security", "system", "application", "setup", "forwardedevents"}
+
+    def clean_canali(self):
+        """Nomi dei registri di Windows: Security, System… o un registro «Fornitore/Operational»."""
+        valore = self.cleaned_data.get("canali") or ""
+        canali = [c.strip() for c in valore.split(",") if c.strip()]
+        sbagliati = [c for c in canali if c.lower() not in self.REGISTRI_NOTI and "/" not in c]
+        if sbagliati:
+            raise forms.ValidationError(
+                f"Registro di Windows non riconosciuto: {', '.join(sbagliati)}. Di solito «Security,System». "
+                "Cosa raccogliere dai file si sceglie in «Accessi ai file».")
+        return ",".join(canali)
+
     def clean(self):
         dati = super().clean()
         tipo = dati.get("tipo")
