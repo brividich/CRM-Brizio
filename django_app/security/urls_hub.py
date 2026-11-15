@@ -27,6 +27,8 @@ urlpatterns = [
     # Registro accessi (app registro_log): log dei server e degli apparati, amministratori di sistema.
     path("registro-log/", _guard(registro_views.panoramica), name="registro_log"),
     path("registro-log/persona/", _guard(registro_views.persona), name="registro_log_persona"),
+    path("registro-log/manutenzione/", _guard(registro_views.manutenzione), name="registro_log_manutenzione"),
+    path("registro-log/attivita/", _guard(registro_views.attivita), name="registro_log_attivita"),
     path("registro-log/eventi/", _guard(registro_views.eventi), name="registro_log_eventi"),
     path("registro-log/eventi/<int:pk>/", _guard(registro_views.evento), name="registro_log_evento"),
     path("registro-log/amministratori/", _guard(registro_views.amministratori), name="registro_log_ads"),
