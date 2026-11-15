@@ -551,7 +551,7 @@ def mail_inviate_page(request):
     from django.core.paginator import Paginator
     from django.db.models import Q
 
-    from ..mail_inviate import ORIGINI, flussi_per_riga
+    from ..mail_inviate import ORIGINI, flussi_per_riga, prefissi_oggetto
     from ..managed_flows import assicura_installati, catalog
     from ..models import EmailInviata, ManagedFlow
 
@@ -572,6 +572,9 @@ def mail_inviate_page(request):
         cond = Q(sorgente=filtri["flusso"])
         if legame:
             cond |= Q(regola_id=legame.rule_id)
+        # Righe vecchie o partite fuori dal flusso: riconosciute dall'oggetto.
+        for prefisso in prefissi_oggetto(filtri["flusso"]):
+            cond |= Q(regola__isnull=True, oggetto__startswith=prefisso)
         qs = qs.filter(cond)
     if filtri["origine"]:
         qs = qs.filter(origine=filtri["origine"])

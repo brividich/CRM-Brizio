@@ -56,9 +56,9 @@ def _modulo_chiamante() -> str:
 def _scrivi(msg, *, errore: str = "") -> None:
     try:
         from automazioni.mail_inviate import _crea_riga
-        from automazioni.managed_flows import flusso_corrente
+        from automazioni.mail_inviate import flusso_della_mail
 
-        flusso = flusso_corrente() or {}
+        flusso = flusso_della_mail(str(getattr(msg, "subject", "") or ""))
         sorgente = flusso.get("code") or _modulo_chiamante()
         bcc = [str(x).strip().lower() for x in (getattr(msg, "bcc", None) or []) if str(x or "").strip()]
         riga = _crea_riga(

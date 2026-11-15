@@ -3806,7 +3806,13 @@ def _build_rule_filters_context(request) -> dict[str, str]:
 
 def _apply_rule_filters(queryset, filters: dict[str, str]):
     if filters["source_code"]:
-        queryset = queryset.filter(source_code=filters["source_code"])
+        # Anche i flussi del modulo omonimo (es. scheda del diario preposto), che stanno nel suo gruppo.
+        from django.db.models import Q
+
+        from ..managed_flows import catalog
+
+        codici = [c for c, spec in catalog().items() if spec.get("module") == filters["source_code"]]
+        queryset = queryset.filter(Q(source_code=filters["source_code"]) | Q(managed_flow__code__in=codici))
     if filters["operation_type"]:
         queryset = queryset.filter(operation_type=filters["operation_type"])
     if filters["is_active"] in {"true", "false"}:
@@ -4251,9 +4257,15 @@ def rule_list_page(request):
         binding = getattr(rule, "managed_flow", None)
         if binding and binding.code in native_catalog:
             module = native_catalog[binding.code]["module"]
+            rule.flow_preview["trigger_op"] = "Pianificazione" if binding.kind == "schedule" else "Evento"
+            rule.processo_modulo = True
+            # Il flusso del modulo va nel gruppo della sorgente omonima (es. diario_preposto,
+            # rilevazione_incidenti) accanto alle regole AU; un gruppo a parte solo se manca.
+            if module in source_map and not module.startswith("managed-"):
+                groups[module].append(rule)
+                continue
             group_code = f"managed-{module}"
             source_map[group_code] = {"label": module.replace("_", " ").title(), "source_app": "Processi del modulo"}
-            rule.flow_preview["trigger_op"] = "Pianificazione" if binding.kind == "schedule" else "Evento"
             groups[group_code].append(rule)
         else:
             groups[rule.source_code].append(rule)
