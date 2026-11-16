@@ -171,6 +171,20 @@ class RegoleWindowsTests(TestCase):
         self.assertEqual(regole.classifica_windows(ev(4672, SubjectUserName="admin.it", SubjectDomainName="ESEMPIO")).categoria,
                          "accesso_privilegiato")
 
+    def test_servizi_e_attivita_di_windows_fuori_dal_catalogo(self):
+        def ev(eid, **dati):
+            return {"id": eid, "prov": "Service Control Manager", "dati": dati}
+
+        self.assertIsNone(regole.classifica_windows(ev(7045, ServiceName="cbdhsvc_145720",
+                                                       ImagePath="C:\\WINDOWS\\system32\\svchost.exe -k ClipboardSvcGroup")))
+        self.assertIsNone(regole.classifica_windows(ev(4698, SubjectUserName="mrossi", SubjectDomainName="ESEMPIO",
+                                                       TaskName="\\SoftLanding\\S-1-5-21-1-2-3-1001\\SoftLandingCreativeManagementTask")))
+        # Un servizio vero e un'attività creata da una persona restano.
+        vero = regole.classifica_windows(ev(7045, ServiceName="AnyDesk", ImagePath="C:\\Program Files\\AnyDesk\\AnyDesk.exe"))
+        self.assertEqual(vero.categoria, "servizio_installato")
+        att = regole.classifica_windows(ev(4698, SubjectUserName="admin.it", SubjectDomainName="ESEMPIO", TaskName="\\Backup notturno"))
+        self.assertEqual(att.categoria, "attivita_pianificata")
+
     def test_accesso_al_dominio_kerberos(self):
         ok = self._d(evento_xml(4768, 14, {"TargetUserName": "mrossi", "TargetDomainName": "ESEMPIO", "Status": "0x0",
                                            "IpAddress": "::ffff:10.0.0.51"}))

@@ -71,6 +71,11 @@ TIPI_ACCESSO = {
     "10": "Desktop remoto", "11": "Interattivo (credenziali in cache)",
 }
 ACCESSI_INTERATTIVI = {"2", "7", "10", "11"}
+# Servizi che Windows 10/11 crea per ogni utente al primo accesso: nome del modello + «_» + un codice esadecimale.
+SERVIZIO_PER_UTENTE = re.compile(r"_[0-9a-f]{4,8}$", re.I)
+# Attività pianificate che Windows o Office creano da sé nel profilo di chi accede.
+ATTIVITA_DI_WINDOWS = re.compile(r"^\\(Microsoft|SoftLanding|OneDrive|MicrosoftEdgeUpdate)|S-1-5-21-", re.I)
+
 # Kerberos (4768, 4771): codici di errore del controller di dominio.
 MOTIVI_KERBEROS = {
     "0x6": "utente inesistente", "0x12": "account disabilitato, bloccato o scaduto", "0x17": "password scaduta",
@@ -79,7 +84,7 @@ MOTIVI_KERBEROS = {
 
 # Si alza quando cambia cosa entra nell'elenco: all'avvio il raccoglitore ricataloga dall'archivio
 # gli ultimi giorni (vedi ``Raccoglitore.ricataloga_se_serve``).
-VERSIONE_REGOLE = 5
+VERSIONE_REGOLE = 6
 GIORNI_RICATALOGO = 31
 
 # Sezioni dell'elenco, come gli «Archivi log» di BusinessLog: codice → (etichetta, categorie).
@@ -341,12 +346,14 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
     if eid in (4697, 7045):
         servizio = x.get("ServiceName", "") or x.get("_0", "")
         file_ = x.get("ServiceFileName", "") or x.get("ImagePath", "") or x.get("_1", "")
+        if SERVIZIO_PER_UTENTE.search(servizio or "") and "svchost.exe" in (file_ or "").lower():
+            return None  # servizi «per utente» che Windows 10/11 crea a ogni accesso (cbdhsvc_1a2b3c…)
         chi = soggetto if eid == 4697 else x.get("AccountName", "")
         return Indice("servizio_installato", f"Servizio «{servizio}» installato" + (f" ({file_[:150]})" if file_ else ""),
                       chi, dom_sogg, dedup=f"svc|{servizio}")
     if eid == 4698:
-        if not _account_reale(soggetto, dom_sogg):
-            return None  # attività create da Windows stesso (Defender, aggiornamenti)
+        if not _account_reale(soggetto, dom_sogg) or ATTIVITA_DI_WINDOWS.search(x.get("TaskName", "") or ""):
+            return None  # attività create da Windows stesso (Defender, aggiornamenti, SoftLanding…)
         return Indice("attivita_pianificata", f"Attività pianificata «{x.get('TaskName', '')}» creata da {soggetto}",
                       soggetto, dom_sogg)
     if eid == 4648:
