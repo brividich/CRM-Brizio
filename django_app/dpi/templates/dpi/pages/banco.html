@@ -4,7 +4,7 @@
 {% block title %}Banco consegne DPI | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'dpi/css/pagine/banco.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'dpi/css/pagine/banco.css' %}?v=20261116">
 {% endblock %}
 
 {% block content %}
@@ -35,53 +35,75 @@
   </div>
 
   {% if modelli_banco %}
-  <details class="dpi-card" id="diretta">
-    <summary class="dpi-card-title">Consegna senza richiesta</summary>
-    <p class="dpi-hint">La persona è al banco e chiede un DPI che nessuno ha richiesto: scegli persona e DPI, «Aggiungi e consegna con badge» apre la sua scheda con il DPI spuntato e aspetta subito il badge della persona; «Aggiungi al banco» apre solo la scheda, per confermare con mail o firma. Le categorie segnate «senza approvazione» sono i consumabili; per le altre resta scritto nella richiesta e il report di consegna arriva al responsabile. Le scarpe si ordinano al negozio e non passano da qui.</p>
-    <form method="post" class="dpi-diretta-grid">
+  <div class="banco-velo" id="diretta-velo" data-chiudi-diretta hidden></div>
+  <aside class="banco-pannello" id="diretta" role="dialog" aria-modal="true" aria-labelledby="diretta-titolo" hidden>
+    <form method="post" class="banco-pannello-form">
       {% csrf_token %}
       <input type="hidden" name="azione" value="diretta">
       {% if tutte %}<input type="hidden" name="tutte" value="1">{% endif %}
-      <div class="dpi-field">
-        <label for="diretta-dip">Dipendente</label>
-        <select name="dipendente" id="diretta-dip" class="js-searchable" required>
-          <option value="">Scegli…</option>
-          {% for d in dipendenti %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
-        </select>
+      <div class="banco-pannello-testa">
+        <div>
+          <div class="banco-pannello-titolo" id="diretta-titolo">Consegna senza richiesta</div>
+          <div class="dpi-hint" style="margin:0;">Le scarpe si ordinano al negozio e non passano da qui.</div>
+        </div>
+        <button type="button" class="banco-chiudi" data-chiudi-diretta aria-label="Chiudi">✕</button>
       </div>
-      <div class="dpi-field">
-        <label for="diretta-mod">DPI</label>
-        <select name="modello_dpi_id" id="diretta-mod" required>
-          <option value="">Scegli…</option>
-          {% regroup modelli_banco by tipo.categoria as per_cat %}
-          {% for gruppo in per_cat %}
-          <optgroup label="{{ gruppo.grouper.nome }}{% if gruppo.grouper.consegna_diretta %} · senza approvazione{% endif %}">
-            {% for m in gruppo.list %}<option value="{{ m.pk }}">{{ m.nome }} ({{ m.codice }}) · in magazzino {{ m.giacenza }}</option>{% endfor %}
-          </optgroup>
-          {% endfor %}
-        </select>
+      <div class="banco-pannello-corpo">
+        <div class="dpi-field">
+          <label for="diretta-dip">Dipendente</label>
+          <select name="dipendente" id="diretta-dip" class="js-searchable" required>
+            <option value="">Scegli…</option>
+            {% for d in dipendenti %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <input type="search" class="dpi-search banco-pannello-cerca" id="diretta-cerca" placeholder="Cerca DPI…" autocomplete="off" aria-label="Cerca DPI">
+        {% regroup modelli_banco by tipo.categoria as per_cat %}
+        {% for gruppo in per_cat %}
+        <div class="banco-gruppo" data-gruppo>
+          <div class="banco-gruppo-titolo">{{ gruppo.grouper.nome }} <span class="banco-gruppo-nota{% if gruppo.grouper.consegna_diretta %} libera{% endif %}">{% if gruppo.grouper.consegna_diretta %}senza approvazione{% else %}report al responsabile{% endif %}</span></div>
+          <div class="banco-tessere">
+            {% for m in gruppo.list %}
+            <label class="banco-tessera{% if m.giacenza <= 0 %} vuota{% endif %}" data-cerca="{{ m.nome }} {{ m.codice }} {{ gruppo.grouper.nome }}">
+              <input type="radio" name="modello_dpi_id" value="{{ m.pk }}" required>
+              {% if gruppo.grouper.immagine %}<img src="{{ gruppo.grouper.immagine.url }}" alt="" class="banco-tessera-ico">{% else %}<svg class="banco-tessera-ico"><use href="#i-dpi-{{ gruppo.grouper.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}
+              <span class="banco-tessera-nome">{{ m.nome }}</span>
+              {% if m.codice %}<span class="banco-tessera-cod">{{ m.codice }}</span>{% endif %}
+              <span class="banco-tessera-giac">{% if m.giacenza <= 0 %}⚠ {% endif %}{{ m.giacenza }} in magazzino</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        <div class="banco-nessun-dpi" id="diretta-nessuno" hidden>Nessun DPI trovato.</div>
       </div>
-      <div class="dpi-field">
-        <label for="diretta-taglia">Taglia</label>
-        <select name="taglia_dpi_id" id="diretta-taglia">
-          <option value="">-</option>
-          {% for m in modelli_banco %}{% for t in m.taglie_attive %}<option value="{{ t.pk }}" data-modello="{{ m.pk }}" hidden>{{ t.valore }}</option>{% endfor %}{% endfor %}
-        </select>
-      </div>
-      <div class="dpi-field">
-        <label for="diretta-qta">Quantità</label>
-        <input type="number" name="quantita" id="diretta-qta" value="1" min="1">
-      </div>
-      <div class="dpi-field" style="grid-column:1/-1;">
-        <label for="diretta-mot">Motivo (facoltativo)</label>
-        <input type="text" name="motivazione" id="diretta-mot" placeholder="Es: guanti rotti, cambio turno">
-      </div>
-      <div class="dpi-azioni" style="margin:0;">
-        <button type="submit" class="dpi-btn dpi-btn-green" data-diretta-badge>Aggiungi e consegna con badge</button>
-        <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi al banco</button>
+      <div class="banco-pannello-piede">
+        <div class="dpi-field" id="diretta-taglie" hidden>
+          <label>Taglia</label>
+          <div class="banco-chips">
+            {% for m in modelli_banco %}{% for t in m.taglie_attive %}<label class="banco-chip" data-modello="{{ m.pk }}" hidden><input type="radio" name="taglia_dpi_id" value="{{ t.pk }}"><span>{{ t.valore }}</span></label>{% endfor %}{% endfor %}
+          </div>
+        </div>
+        <div class="banco-pannello-riga">
+          <div class="dpi-field">
+            <label for="diretta-qta">Quantità</label>
+            <div class="banco-stepper">
+              <button type="button" data-qta="-1" aria-label="Uno in meno">−</button>
+              <input type="number" name="quantita" id="diretta-qta" value="1" min="1">
+              <button type="button" data-qta="1" aria-label="Uno in più">+</button>
+            </div>
+          </div>
+          <div class="dpi-field" style="flex:1;min-width:180px;">
+            <label for="diretta-mot">Motivo (facoltativo)</label>
+            <input type="text" name="motivazione" id="diretta-mot" placeholder="Es: guanti rotti, cambio turno">
+          </div>
+        </div>
+        <div class="banco-pannello-bottoni">
+          <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi al banco</button>
+          <button type="submit" class="dpi-btn dpi-btn-green" data-diretta-badge>Aggiungi e consegna con badge</button>
+        </div>
       </div>
     </form>
-  </details>
+  </aside>
   {% endif %}
 </div>
 
@@ -92,5 +114,5 @@
 </div>
 {{ catalogo_modelli|json_script:"banco-catalogo" }}
 <script src="{% static 'dpi/js/lettore_badge.js' %}"></script>
-<script src="{% static 'dpi/js/pagine/banco.js' %}?v=20261112"></script>
+<script src="{% static 'dpi/js/pagine/banco.js' %}?v=20261116"></script>
 {% endblock %}
