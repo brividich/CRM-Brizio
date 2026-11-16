@@ -149,3 +149,17 @@ def cambia_stato_ticket(
 
         ticket_id = ticket.pk
         transaction.on_commit(lambda: _sync_sharepoint(ticket_id))
+        if nuovo_stato == StatoTicket.RISOLTO and vecchio != StatoTicket.RISOLTO:
+            avvisa_chi_ha_aperto(ticket_id, risolto_da=utente_nome)
+
+
+def avvisa_chi_ha_aperto(ticket_id: int, *, risolto_da: str = "") -> None:
+    """A transazione confermata: mail a chi ha aperto il ticket per confermare la chiusura."""
+    from .avviso_conferma import invia_richiesta_conferma
+
+    def _invia():
+        ticket = Ticket.objects.select_related("aperto_da_user").filter(pk=ticket_id).first()
+        if ticket is not None and ticket.stato == StatoTicket.RISOLTO:
+            invia_richiesta_conferma(ticket, risolto_da=risolto_da)
+
+    transaction.on_commit(_invia)

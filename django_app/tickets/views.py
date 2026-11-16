@@ -55,7 +55,7 @@ from core.upload_limits import DOCUMENT_MAX_BYTES
 from .registro_permessi import MODULO_PER_TIPO
 from .services.accesso import utente_puo_gestire_ticket
 from .services.lavorazione import chiudi_con_intervento, prendi_in_carico
-from .services.stato import STATI_APERTI, cambia_stato_ticket, stato_di_chiusura
+from .services.stato import STATI_APERTI, avvisa_chi_ha_aperto, cambia_stato_ticket, stato_di_chiusura
 
 logger = logging.getLogger(__name__)
 
@@ -3350,6 +3350,8 @@ def api_bulk(request):
             else:
                 t.closed_at = None
             t.save(update_fields=["stato", "closed_at", "updated_at"])
+            if nuovo_stato == StatoTicket.RISOLTO and vecchio != StatoTicket.RISOLTO:
+                avvisa_chi_ha_aperto(t.pk, risolto_da=name)
             testo_auto = f"Stato aggiornato (bulk): {dict(StatoTicket.choices).get(vecchio, vecchio)} → {label_nuovo}"
             if nota:
                 testo_auto += f"\n{nota}"

@@ -144,6 +144,53 @@ class ConfermaChiusuraTests(LavorazioneBase):
         self.assertEqual((aperto.stato, gia_risolto.stato), (StatoTicket.RISOLTO, StatoTicket.RISOLTO))
 
 
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                   DEFAULT_FROM_EMAIL="noreply@example.com", SITE_URL="https://hub.example.com",
+                   LDAP_ENABLED=False)
+class MailConfermaTests(LavorazioneBase):
+    """Quando il ticket diventa «Risolto» chi l'ha aperto riceve la mail per confermare."""
+
+    def test_risolvi_manda_la_mail_al_richiedente(self):
+        from django.core import mail
+
+        ticket = self._ticket(richiedente_email="richiedente@example.com")
+        with self.captureOnCommitCallbacks(execute=True):
+            self._api(ticket, azione="risolvi", intervento_svolto="Sostituito fusibile sintetico")
+        self.assertEqual(len(mail.outbox), 1)
+        messaggio = mail.outbox[0]
+        self.assertEqual(messaggio.to, ["richiedente@example.com"])
+        self.assertIn("confermi la chiusura", messaggio.subject)
+        self.assertIn("Sostituito fusibile sintetico", messaggio.body)
+        self.assertIn(f"/tickets/{ticket.pk}/", messaggio.body)
+
+    def test_anche_al_compilatore_per_conto_di(self):
+        from django.core import mail
+
+        compilatore = User.objects.create_user(username="syn.compilatore", email="compilatore@example.com")
+        ticket = self._ticket(richiedente_email="richiedente@example.com", aperto_da_user=compilatore,
+                              stato=StatoTicket.IN_CARICO)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._api(ticket, stato="CHIUSO")
+        self.assertCountEqual(mail.outbox[0].to, ["richiedente@example.com", "compilatore@example.com"])
+
+    def test_chi_ha_aperto_e_chiude_non_riceve_mail(self):
+        from django.core import mail
+
+        ticket = self._ticket(richiedente_user=self.tecnico, richiedente_email="tec@example.com")
+        with self.captureOnCommitCallbacks(execute=True):
+            self._api(ticket, azione="risolvi", intervento_svolto="Fatto da me")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_senza_indirizzo_nessuna_mail_e_nessun_errore(self):
+        from django.core import mail
+
+        ticket = self._ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._api(ticket, azione="risolvi", intervento_svolto="Fatto")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+
 class RisolviTests(LavorazioneBase):
     def test_chiude_con_il_solo_lavoro(self):
         ticket = self._ticket()

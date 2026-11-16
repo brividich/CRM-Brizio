@@ -62,6 +62,7 @@ GUIDA = {
             "blocchi": [
                 ("p", "Nel riquadro «La tua richiesta» della scheda: finché nessuno l'ha presa in carico puoi "
                       "annullarla («Annulla la richiesta», motivo facoltativo). Quando il tecnico la segna «Risolto» "
+                      "ti arriva la mail «Risolto: confermi la chiusura?» con il pulsante «Conferma o riapri» e "
                       "decidi tu: «Sì, è risolto: chiudi il ticket» lo chiude, «No, non è risolto» lo riapre con la "
                       "tua nota (obbligatoria) e il team la riceve. In «I miei ticket» un avviso verde conta i ticket "
                       "risolti da confermare."),
