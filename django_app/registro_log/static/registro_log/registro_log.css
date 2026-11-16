@@ -132,7 +132,8 @@ body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--dang
 .soc-module .rl-azioni-riga { white-space: nowrap; text-align: right; }
 .soc-module .sec-button-small { padding: 3px 9px; font-size: var(--fs-xs, 12px); min-height: 0; }
 .soc-module .rl-spunta-filtro label { display: flex; align-items: center; gap: 6px; font-weight: 400; white-space: nowrap; }
-.rl-dialog { border: 1px solid var(--border); border-radius: 12px; padding: 0; max-width: min(560px, calc(100vw - 32px));
+.rl-dialog { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: calc(100vh - 32px); overflow: auto;
+  border: 1px solid var(--border); border-radius: 12px; padding: 0; width: min(560px, calc(100vw - 32px)); max-width: none;
   background: var(--surface); color: var(--text); box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
 .rl-dialog::backdrop { background: rgba(15, 23, 42, .45); }
 .rl-dialog form { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
@@ -144,3 +145,9 @@ body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--dang
 .rl-dialog .rl-campo input, .rl-dialog .rl-campo select { min-height: 38px; }
 .rl-dialog .rl-sub { display: block; color: var(--text-mid); font-size: var(--fs-sm); }
 .rl-dialog-azioni { display: flex; justify-content: flex-end; gap: 8px; }
+.rl-dialog fieldset label { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; }
+.rl-dialog fieldset input[type=checkbox] { width: 18px; height: 18px; margin: 0; flex: 0 0 18px; }
+.soc-module .rl-chip.attivo .rl-n { opacity: 1; color: inherit; }
+.soc-module .rl-filtri select.rl-select-largo { min-width: 220px; }
+.soc-module .rl-percorso { display: block; margin-top: 6px; font-size: var(--fs-xs, 12px); color: var(--text-mid); word-break: break-all; }
+.soc-module .rl-filtri .ts-wrapper { min-width: 220px; }

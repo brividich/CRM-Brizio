@@ -13,7 +13,7 @@
       <td>{% if x.r.account %}account <strong>{{ x.r.account }}</strong>{% else %}tutti gli account{% endif %}<span class="rl-sub">{% if x.r.host %}sistema {{ x.r.host }}{% else %}tutti i sistemi{% endif %}</span></td>
       <td>{{ x.r.motivo }}<span class="rl-sub">{{ x.r.creata_da|default:"—" }} · {{ x.r.creata_il|date:"d/m/Y H:i" }}</span></td>
       <td class="sec-num">{{ x.nascosti }}</td>
-      <td>{% if x.r.in_vigore %}<span class="sec-badge success">In vigore</span>{% if x.r.scade_il %}<span class="rl-sub">fino al {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}{% elif not x.r.attiva %}<span class="sec-badge">Spenta</span>{% else %}<span class="sec-badge">Scaduta</span><span class="rl-sub">il {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}</td>
+      <td>{% if x.r.in_vigore %}<span class="sec-badge ok">In vigore</span>{% if x.r.scade_il %}<span class="rl-sub">fino al {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}{% elif not x.r.attiva %}<span class="sec-badge">Spenta</span>{% else %}<span class="sec-badge">Scaduta</span><span class="rl-sub">il {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}</td>
       {% if puo_configurare %}<td class="rl-azioni-riga">
         <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ x.r.pk }}">
           {% if x.r.attiva %}<button class="sec-button sec-button-small" name="azione" value="spegni" type="submit">Spegni</button>{% else %}<button class="sec-button sec-button-small" name="azione" value="accendi" type="submit">Riaccendi</button>{% endif %}
