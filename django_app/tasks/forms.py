@@ -204,6 +204,7 @@ class ProjectKickoffForm(forms.ModelForm):
             "name",
             "client_name",
             "part_number",
+            "descrizione_pezzo",
             "revisione",
             "versione",
             "description",
@@ -216,9 +217,10 @@ class ProjectKickoffForm(forms.ModelForm):
             "name":             forms.TextInput(attrs={"class": "input", "maxlength": 180, "id": "id_kickoff_name"}),
             "client_name":      forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Cliente"}),
             "part_number":      forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
+            "descrizione_pezzo": forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Nome del pezzo, es. Staffa supporto motore"}),
             "revisione":        forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. A, B, 01"}),
             "versione":         forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. 1.0, 2.3"}),
-            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Cosa si deve fare (opzionale): compare anche nella scheda VRF"}),
+            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Contesto, cosa serve, note per il team (facoltativo). Compare anche nella scheda VRF."}),
             "control_method":   forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Metodo di controllo"}),
             "safety_impact":    forms.CheckboxInput(attrs={"class": "input-checkbox"}),
             "vrf_quote_number": forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Preventivo n."}),
@@ -235,15 +237,29 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["caporeparti"].queryset      = _users_for_role(TaskRoleType.CAPOREPARTO)
         for _name in self.TEAM_FIELDS:
             self.fields[_name].label_from_instance = user_display_label
-        for name in ("name", "part_number", "revisione", "versione",
+        for name in ("name", "part_number", "descrizione_pezzo", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
                      "vrf_esp"):
             self.fields[name].required = False
-        # Il nome si compone da solo come «Cliente · P/N · KICK-OFF n»: qui resta
-        # scrivibile per i casi in cui quella formula non basta.
-        self.fields["name"].label = "Nome del kickoff"
+        # L'oggetto si compone da solo come «Cliente · P/N · Descrizione pezzo»:
+        # resta scrivibile per i casi in cui quella formula non basta.
+        self.fields["name"].label = "Oggetto"
         self.fields["name"].help_text = (
-            "Lascia vuoto per il nome proposto: «Cliente · P/N · KICK-OFF n»."
+            "Lascia vuoto per l'oggetto proposto: «Cliente · P/N · Descrizione pezzo»."
+        )
+        # Ogni campo di testo propone i valori già scritti negli altri kickoff
+        # (suggerimenti.js + tasks:identity_suggest).
+        for campo, chiave in (
+            ("client_name", "client"), ("part_number", "part_number"),
+            ("descrizione_pezzo", "descrizione_pezzo"), ("revisione", "revisione"),
+            ("versione", "versione"), ("control_method", "control_method"),
+            ("vrf_quote_number", "vrf_quote_number"), ("vrf_esp", "vrf_esp"),
+        ):
+            self.fields[campo].widget.attrs["data-suggest"] = chiave
+        # Un oggetto mai scelto a mano segue i dati: cambiati cliente, P/N o
+        # pezzo, si ricompone (anche i vecchi «… · KICK-OFF n»).
+        self._nome_era_automatico = not self.instance.pk or (
+            self.instance.nome_automatico() or self.instance.name == self.instance.default_name()
         )
         if self.instance.pk:
             for _name in self.TEAM_FIELDS:
@@ -305,6 +321,8 @@ class ProjectKickoffForm(forms.ModelForm):
         if self.reused_existing_project is not None:
             return self.reused_existing_project
         project = super().save(commit=False)
+        if not (project.name or "").strip() or (self._nome_era_automatico and "name" not in self.changed_data):
+            project.name = project.default_name()
         if "description" in self.changed_data or not project.vrf_description:
             project.vrf_description = (project.description or "").strip()[:500]
         if commit:
@@ -1191,6 +1209,17 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
         return cleaned_data
 
 
+def _data_iso_o_vuota(value) -> str:
+    """«AAAA-MM-GG» valida o stringa vuota."""
+    from datetime import date
+
+    raw = str(value or "").strip()[:10]
+    try:
+        return date.fromisoformat(raw).isoformat() if raw else ""
+    except ValueError:
+        return ""
+
+
 def _positive_int_or_none(value, *, maximum: int = 480) -> int | None:
     """Minuti validi (1..maximum) o None: usato dai campi tempo dei punti ODG."""
     try:
@@ -1284,6 +1313,9 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["sala"].required = False
         self.fields["durata_minuti"].required = False
         self.fields["sala"].empty_label = "Nessuna sala (online o altrove)"
+        # Titolo e luogo propongono quelli già usati negli altri incontri.
+        self.fields["titolo"].widget.attrs["data-suggest"] = "meeting_titolo"
+        self.fields["luogo"].widget.attrs["data-suggest"] = "meeting_luogo"
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
         # «Annullato» nemmeno: si annulla con l'azione dedicata del dettaglio,
         # che chiede il motivo, toglie l'evento Outlook e avvisa i convocati.
@@ -1353,6 +1385,10 @@ class KickoffMeetingForm(forms.ModelForm):
                     "tempo_effettivo_minuti": _positive_int_or_none(item.get("tempo_effettivo_minuti")),
                     "custom_fields": custom_fields,
                     "done": bool(item.get("done", False)),
+                    # «Diventa un'attività»: al salvataggio nasce l'attività del
+                    # responsabile e il punto la collega (services.kickoff_avvio).
+                    "crea_attivita": bool(item.get("crea_attivita")) and not task_id,
+                    "scadenza": _data_iso_o_vuota(item.get("scadenza")),
                 })
             return result
         except (json.JSONDecodeError, TypeError, ValueError):

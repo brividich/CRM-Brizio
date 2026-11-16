@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 import io
 from pathlib import Path
 import shutil
@@ -19,7 +20,6 @@ from django.utils import timezone
 from .models import (
     KickoffMeeting,
     ProjectMember,
-    MeetingStatus,
     Project,
     ProjectComment,
     Task,
@@ -151,7 +151,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         task = Task.objects.get(title="Task con nuovo progetto")
         self.assertIsNotNone(task.project_id)
-        self.assertTrue(task.project.name.startswith("KICK-OFF "))
+        self.assertFalse(task.project.name.startswith("KICK-OFF "))
         self.assertIsNotNone(task.project.kickoff_number)
         self.assertEqual(task.project.created_by_id, self.user.id)
 
@@ -262,8 +262,9 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         first = make_project(name="", created_by=self.user)
         second = make_project(name="", created_by=self.user)
 
-        self.assertTrue(first.name.startswith("KICK-OFF "))
-        self.assertTrue(second.name.startswith("KICK-OFF "))
+        # Il progressivo resta chiave interna, non entra più nel nome.
+        self.assertEqual(first.name, "Kickoff")
+        self.assertEqual(second.name, "Kickoff")
         self.assertIsNotNone(first.kickoff_number)
         self.assertIsNotNone(second.kickoff_number)
         self.assertNotEqual(first.kickoff_number, second.kickoff_number)
@@ -429,8 +430,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 302)
 
         copied_project = Project.objects.exclude(id=source_project.id).get()
-        # Il nome proposto porta cliente e P/N davanti al progressivo.
-        self.assertIn("KICK-OFF ", copied_project.name)
+        # Il nome proposto è l'oggetto, senza progressivo.
+        self.assertNotIn("KICK-OFF", copied_project.name)
         self.assertNotEqual(copied_project.kickoff_number, source_project.kickoff_number)
         self.assertEqual(copied_project.description, source_project.description)
         self.assertEqual(copied_project.client_name, source_project.client_name)
@@ -609,13 +610,14 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertContains(response, 'name="safety_impact"')
         self.assertContains(response, "Impatto sulla sicurezza")
 
-    def test_post_creates_project_with_first_meeting_and_redirects_there(self):
+    def test_post_creates_project_and_goes_to_vrf(self):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_create"),
             {
                 "client_name": "Cliente Test",
                 "part_number": "PN-NEW-001",
+                "descrizione_pezzo": "Staffa supporto",
                 "revisione": "A",
                 "versione": "1.0",
                 "description": "Desc",
@@ -627,21 +629,60 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
             },
         )
         project = Project.objects.get(part_number="PN-NEW-001")
-        meeting = project.meetings.get()
-        self.assertEqual(meeting.numero, 1)
-        self.assertEqual(meeting.stato, MeetingStatus.PIANIFICATO)
-        self.assertEqual(meeting.data, timezone.localdate())
-        self.assertEqual(meeting.created_by, self.user)
-        # Il team indicato nel form entra fra i partecipanti dell'incontro.
-        self.assertIn(self.user, meeting.partecipanti_utenti.all())
-        self.assertRedirects(
-            response,
-            reverse("tasks:project_meeting_edit", args=[project.id, meeting.id]),
-        )
+        # Il filo: kickoff -> VRF -> «Come procedi?». L'incontro non nasce da solo.
+        self.assertFalse(project.meetings.exists())
+        self.assertRedirects(response, reverse("tasks:project_vrf_compile", args=[project.id]), fetch_redirect_response=False)
+        # Oggetto senza progressivo.
+        self.assertEqual(project.name, "Cliente Test · PN-NEW-001 rev. A · Staffa supporto")
         self.assertEqual(project.client_name, "Cliente Test")
         self.assertEqual(project.revisione, "A")
         self.assertEqual(project.created_by, self.user)
         self.assertFalse(project.safety_impact)
+
+    def test_pianifica_attivita_crea_le_righe(self):
+        project = make_project(client_name="Cliente Righe", part_number="PN-RIGHE-1",
+                               created_by=self.user, project_manager=self.user)
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_attivita_pianifica", args=[project.id]),
+            {
+                "att_titolo": ["Preparare programma CAM", "", "Ordinare materiale"],
+                "att_resp": [str(self.user.id), "", ""],
+                "att_scadenza": ["2026-12-10", "", ""],
+                "poi": "fine",
+            },
+        )
+        self.assertRedirects(response, reverse("tasks:project_overview", args=[project.id]), fetch_redirect_response=False)
+        tasks = list(project.tasks.order_by("id"))
+        self.assertEqual([t.title for t in tasks], ["Preparare programma CAM", "Ordinare materiale"])
+        self.assertEqual(tasks[0].assigned_to, self.user)
+        self.assertEqual(tasks[0].due_date.isoformat(), "2026-12-10")
+        self.assertIsNone(tasks[1].assigned_to)
+        self.assertIsNone(tasks[1].due_date)
+
+    def test_pianifica_attivita_poi_incontro_le_porta_in_odg(self):
+        project = make_project(client_name="Cliente Odg", part_number="PN-ODG-1",
+                               created_by=self.user, project_manager=self.user)
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_attivita_pianifica", args=[project.id]),
+            {"att_titolo": ["Verifica disegno"], "att_resp": [str(self.user.id)], "att_scadenza": [""], "poi": "incontro"},
+        )
+        task = project.tasks.get()
+        url = reverse("tasks:project_meeting_create", args=[project.id]) + f"?attivita={task.id}"
+        self.assertRedirects(response, url, fetch_redirect_response=False)
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        agenda = json.loads(page.context["form"].initial["agenda_items_raw"])
+        self.assertEqual(agenda[0]["task_id"], task.id)
+        self.assertEqual(agenda[0]["source"], "attivita")
+
+    def test_come_procedi_offre_attivita_e_incontro(self):
+        project = make_project(client_name="Cliente Scelta", created_by=self.user, project_manager=self.user)
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("tasks:project_pianifica", args=[project.id]))
+        self.assertContains(page, reverse("tasks:project_attivita_pianifica", args=[project.id]))
+        self.assertContains(page, reverse("tasks:project_meeting_create", args=[project.id]))
 
     def test_project_safety_impact_defaults_false(self):
         project = make_project(name="Kickoff safety default", created_by=self.user)
@@ -668,10 +709,8 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         )
 
         project = Project.objects.get(part_number="PN-SAFE-001")
-        meeting = project.meetings.get()
-        self.assertRedirects(
-            response, reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
-        )
+        self.assertFalse(project.meetings.exists())
+        self.assertRedirects(response, reverse("tasks:project_vrf_compile", args=[project.id]), fetch_redirect_response=False)
         self.assertTrue(project.safety_impact)
         self.assertEqual(project.vrf_status, VRFDocStatus.PENDING)
 
@@ -915,12 +954,13 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
         self.assertEqual(data["firme"]["em_data"], "2026-11-04")
         self.assertEqual(data["firme"]["in1"], "")
 
-    def test_skip_with_reminder_saves_draft_and_redirects_to_gantt(self):
+    def test_skip_with_reminder_saves_draft_and_redirects_to_come_procedi(self):
         from .models import VRFRiskAssessment
 
         self.client.force_login(self.user)
         response = self._post({"action": "skip_with_reminder", "p_R1": "2"})
-        self.assertRedirects(response, reverse("tasks:project_gantt", args=[self.project.id]))
+        # Kickoff ancora senza attività né incontri: si sceglie come procedere.
+        self.assertRedirects(response, reverse("tasks:project_pianifica", args=[self.project.id]), fetch_redirect_response=False)
         self.project.refresh_from_db()
         self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
         assessment = VRFRiskAssessment.objects.get(project=self.project)

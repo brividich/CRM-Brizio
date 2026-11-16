@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
@@ -78,6 +80,19 @@ def user_label(user) -> str:
     return user.get_full_name() or user.username
 
 
+def comporre_oggetto(cliente, part_number, revisione, descrizione_pezzo) -> str:
+    """«Cliente · P/N rev. X · Descrizione pezzo»; le parti vuote si saltano.
+
+    Usata anche dalla migrazione 0070 per riallineare i nomi storici.
+    """
+    pn = (part_number or "").strip()
+    rev = (revisione or "").strip()
+    if pn and rev:
+        pn = f"{pn} rev. {rev}"
+    parti = [(cliente or "").strip(), pn, (descrizione_pezzo or "").strip()]
+    return (" · ".join(p for p in parti if p) or "Kickoff")[:180]
+
+
 class Project(models.Model):
     kickoff_number = models.PositiveIntegerField(
         null=True,
@@ -94,6 +109,9 @@ class Project(models.Model):
     # ruolo ammette piu' persone: una commessa puo' avere due capicommessa.
     control_method = models.CharField(max_length=180, blank=True, default="")
     part_number = models.CharField(max_length=120, blank=True, default="")
+    # Il nome del pezzo (es. «Staffa supporto motore»): entra nell'oggetto del
+    # kickoff al posto del vecchio progressivo «KICK-OFF n».
+    descrizione_pezzo = models.CharField(max_length=180, blank=True, default="", verbose_name="Descrizione pezzo")
     revisione = models.CharField(max_length=60, blank=True, default="")
     versione = models.CharField(max_length=60, blank=True, default="")
     vrf_status = models.CharField(
@@ -276,46 +294,45 @@ class Project(models.Model):
         codes = {row.role_code for row in self._team_rows() if row.user_id == user_id}
         return [code for _field, _label, code in self.TEAM_ROLES if code in codes]
 
-    def default_name(self, kickoff_number=None) -> str:
-        """Nome proposto: «Cliente · P/N · KICK-OFF n».
+    # Nomi nati dalla proposta automatica: «KICK-OFF 12» (storici) e
+    # «Cliente · P/N · KICK-OFF 12» (fino alla 1.9.x). Chi li ha non li ha
+    # scelti, quindi si possono ricomporre con l'oggetto nuovo.
+    _NOME_AUTOMATICO = re.compile(r"(^|·\s*)kick[\s_-]*off\s*\d*$", re.IGNORECASE)
 
-        «KICK-OFF 12» da solo non dice a chi appartiene la commessa: negli
-        elenchi e nelle email si riconosceva solo aprendola. Cliente e P/N
-        mancanti si saltano, cosi' il nome resta leggibile anche a scheda
-        incompleta.
+    def default_name(self, kickoff_number=None) -> str:
+        """Oggetto proposto: «Cliente · P/N rev. X · Descrizione pezzo».
+
+        Come l'oggetto di una mail: dice a colpo d'occhio di che pezzo si parla.
+        Il progressivo «KICK-OFF n» non diceva niente e non c'e' piu' (resta
+        nel campo ``kickoff_number`` per i riferimenti interni). Le parti
+        mancanti si saltano; senza nessuna parte resta «Kickoff».
         """
-        numero = kickoff_number or self.kickoff_number
-        parti = [
-            (self.client_name or "").strip(),
-            (self.part_number or "").strip(),
-        ]
-        parti = [parte for parte in parti if parte]
-        parti.append(f"KICK-OFF {numero}" if numero else "KICK-OFF")
-        return " · ".join(parti)[:180]
+        return comporre_oggetto(self.client_name, self.part_number, self.revisione, self.descrizione_pezzo)
+
+    def nome_automatico(self, nome=None) -> bool:
+        """True se il nome e' vuoto o e' ancora una proposta automatica."""
+        nome = (self.name if nome is None else nome or "").strip()
+        if not nome:
+            return True
+        if self._NOME_AUTOMATICO.search(nome):
+            return True
+        return False
 
     def save(self, *args, **kwargs):
         self.part_number = normalize_part_number(self.part_number)
         self.client_name = normalize_client_name(self.client_name)
+        self.descrizione_pezzo = re.sub(r"\s+", " ", (self.descrizione_pezzo or "").strip())[:180]
+        if not (self.name or "").strip():
+            self.name = self.default_name()
 
-        if not self._state.adding:
-            if self.kickoff_number and not self.name:
-                self.name = f"KICK-OFF {self.kickoff_number}"
+        if not self._state.adding or self.kickoff_number:
             return super().save(*args, **kwargs)
 
-        if self.kickoff_number:
-            if not self.name:
-                self.name = self.default_name()
-            return super().save(*args, **kwargs)
-
-        # Un nome scritto a mano nel form vince sempre sulla proposta; qui si
-        # decide una volta sola, perche' a ogni tentativo il numero cambia e la
-        # proposta va ricomposta con quello nuovo.
-        nome_automatico = not (self.name or "").strip()
+        # Il progressivo resta come chiave interna (riferimenti, storico):
+        # non entra piu' nel nome.
         max_attempts = 5
         for attempt in range(max_attempts):
             self.kickoff_number = _next_kickoff_number()
-            if nome_automatico:
-                self.name = self.default_name()
             try:
                 with transaction.atomic():
                     return super().save(*args, **kwargs)

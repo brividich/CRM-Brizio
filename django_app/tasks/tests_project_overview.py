@@ -200,7 +200,7 @@ class ProjectOverviewTests(TasksBaseTestCase):
         self.assertTrue(response.context["can_manage"])
         self.assertContains(response, "Gestisci VRF")
         self.assertContains(response, "Nuovo incontro")
-        self.assertContains(response, "+ Nuova attività")
+        self.assertContains(response, "+ Pianifica attività")
 
     def test_portfolio_name_opens_overview_while_gantt_button_stays_on_plan(self):
         self.client.force_login(self.owner)

@@ -1,172 +1,178 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#nuovo-kickoff{% endblock %}
 
 {% block tasks_shell_head %}
   {% include "tasks/_percorso_assets.html" %}
+  <style>
+    .kc-mail .kp-station-head { padding: 10px 16px; }
+    .kc-mail .kp-body { padding: 14px 16px; }
+    .kc-oggetto { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-alt, var(--bg)); margin-bottom: 12px; }
+    .kc-oggetto > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); white-space: nowrap; }
+    .kc-oggetto input { flex: 1; min-width: 0; font-weight: 600; }
+    .kc-righe { display: flex; flex-direction: column; gap: 8px; }
+    .kc-riga { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 150px 34px; gap: 8px; align-items: center; }
+    .kc-riga .input { width: 100%; box-sizing: border-box; }
+    .kc-riga input.is-wrong { border-color: var(--danger, #e53e3e); }
+    .kc-x { border: 1px solid var(--border); background: var(--surface); color: var(--text-light); border-radius: 8px; height: 34px; cursor: pointer; font-size: 16px; line-height: 1; }
+    .kc-x:hover { color: var(--danger, #e53e3e); border-color: var(--danger, #e53e3e); }
+    .kc-righe-head { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 150px 34px; gap: 8px; font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .04em; }
+    .kc-add { margin-top: 10px; }
+    .kc-toggle { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); cursor: pointer; }
+    .kc-toggle input { width: 18px; height: 18px; }
+    .kc-incontro[hidden] { display: none; }
+    .kc-incontro { margin-top: 12px; }
+    .kc-altro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+    .kc-altro > summary { padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text); }
+    .kc-altro > summary small { font-weight: 400; color: var(--text-light); margin-left: 6px; }
+    .kc-altro-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+    .kc-altro-body h4 { margin: 4px 0 8px; font-size: 13px; color: var(--text-mid); }
+    @media (max-width: 760px) {
+      .kc-righe-head { display: none; }
+      .kc-riga { grid-template-columns: minmax(0, 1fr) 34px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+      .kc-riga > .kc-titolo { grid-column: 1 / 2; }
+      .kc-riga > .kc-x { grid-column: 2; grid-row: 1; }
+      .kc-riga > .kc-resp, .kc-riga > .kc-scad { grid-column: 1 / -1; }
+    }
+  </style>
 {% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if edit_project %}Modifica kickoff{% else %}Nuovo kickoff{% endif %}</span>{% endblock %}
 {% block tasks_shell_title %}{% if edit_project %}Modifica {{ edit_project.name }}{% else %}Nuovo kickoff{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{% if edit_project %}Dati e team della commessa.{% else %}Inserisci i dati e il team: al salvataggio nasce il primo incontro da convocare. Scheda VRF e attività si completano dopo.{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if edit_project %}Dati e team della commessa.{% else %}Dati della commessa, preventivo e team. Poi la scheda VRF (o la rimandi) e la pianificazione: attività o incontro.{% endif %}{% endblock %}
 {% block tasks_shell_actions %}
   {% if edit_project %}
     <a class="ts-hero-action" href="{% url 'tasks:project_overview' edit_project.id %}">Panoramica</a>
   {% else %}
-    <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+    <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Catalogo kickoff</a>
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_content %}
-<div class="ts-stack">
+<div class="ts-stack kc-mail">
+  {% if not edit_project %}{% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}{% endif %}
 
-  {% if not edit_project %}
-  {% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}
-
-  <div class="ts-note-box">
-    Se inserisci un <strong>P/N con revisione e versione già esistenti</strong>, il sistema riusa il kickoff corrispondente invece di crearne un duplicato.
-  </div>
-  {% endif %}
-
-  <form method="post" id="kc-form">
+  <form method="post" id="kc-form" data-suggest-url="{% url 'tasks:identity_suggest' %}">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="kp-err">{{ form.non_field_errors }}</div>{% endif %}
 
-    <div class="kp-layout" data-kp-root>
+    <div class="kp-stations">
 
-      <aside class="kp-rail" aria-label="Percorso di creazione">
-        <div class="kp-rail-title">Percorso</div>
-        <div class="kp-rail-nodes"></div>
-        <div class="kp-progress">Tappe completate <span class="kp-progress-count">0/3</span></div>
-      </aside>
-
-      <div class="kp-stations">
-
-        {# ── Tappa 1 ─────────────────────────────────────────────── #}
-        <section class="kp-station" data-title="Identificazione">
-          <div class="kp-station-head">
-            <span class="kp-num">1</span>
-            <div class="kp-station-titles">
-              <h3>Identificazione kickoff</h3>
-              <p>Il nome si compone da solo come <strong>Cliente · P/N · KICK-OFF &lt;progressivo&gt;</strong>, e resta modificabile. Compila P/N, revisione e versione per evitare duplicati.</p>
+      {# ── Oggetto: il pezzo ──────────────────────────────────────── #}
+      <section class="kp-station" data-title="Commessa">
+        <div class="kp-station-head">
+          <span class="kp-num">1</span>
+          <div class="kp-station-titles">
+            <h3>Di che pezzo si tratta</h3>
+            <p>Ogni campo propone i valori già usati: scrivi o scegli. Stesso P/N, revisione e versione di un kickoff esistente: si riapre quello.</p>
+          </div>
+        </div>
+        <div class="kp-body">
+          <label class="kc-oggetto" for="id_kickoff_name">
+            <span>Oggetto</span>
+            {{ form.name }}
+          </label>
+          {% if form.name.errors %}<div class="kp-err">{{ form.name.errors|join:" " }}</div>{% endif %}
+          <div class="kp-grid">
+            <div class="kp-field">
+              <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
+              {{ form.client_name }}
+              {% if form.client_name.errors %}<div class="kp-err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.part_number.id_for_label }}">P/N</label>
+              {{ form.part_number }}
+              {% if form.part_number.errors %}<div class="kp-err">{{ form.part_number.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.descrizione_pezzo.id_for_label }}">Descrizione pezzo</label>
+              {{ form.descrizione_pezzo }}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.revisione.id_for_label }}">Revisione</label>
+              {{ form.revisione }}
+              {% if form.revisione.errors %}<div class="kp-err">{{ form.revisione.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.versione.id_for_label }}">Versione</label>
+              {{ form.versione }}
+              {% if form.versione.errors %}<div class="kp-err">{{ form.versione.errors|join:" " }}</div>{% endif %}
             </div>
           </div>
-          <div class="kp-body">
-            <div class="kp-grid">
-              <div class="kp-field col-2">
-                <label for="{{ form.name.id_for_label }}">Nome del kickoff</label>
-                {{ form.name }}
-                <div class="kp-help">Lascia vuoto per il nome proposto: <strong>Cliente · P/N · KICK-OFF &lt;progressivo&gt;</strong>.</div>
-                {% if form.name.errors %}<div class="kp-err">{{ form.name.errors|join:" " }}</div>{% endif %}
-              </div>
-              <div class="kp-field col-2">
-                <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
-                {{ form.client_name }}
-                <datalist id="project-client-datalist"></datalist>
-                {% if form.client_name.errors %}<div class="kp-err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.part_number.id_for_label }}">P/N</label>
-                {{ form.part_number }}
-                <datalist id="project-part-number-datalist"></datalist>
-                {% if form.part_number.errors %}<div class="kp-err">{{ form.part_number.errors|join:" " }}</div>{% endif %}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.revisione.id_for_label }}">Revisione</label>
-                {{ form.revisione }}
-                <div class="kp-help">Valida solo se P/N compilato</div>
-                {% if form.revisione.errors %}<div class="kp-err">{{ form.revisione.errors|join:" " }}</div>{% endif %}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.versione.id_for_label }}">Versione</label>
-                {{ form.versione }}
-                <div class="kp-help">Valida solo se P/N compilato</div>
-                {% if form.versione.errors %}<div class="kp-err">{{ form.versione.errors|join:" " }}</div>{% endif %}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
-                {{ form.control_method }}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.safety_impact.id_for_label }}">Impatto sulla sicurezza</label>
-                <div class="kp-inline">
-                  {{ form.safety_impact }}
-                  <span class="kp-help">Evidenzia il kickoff nelle viste operative</span>
+        </div>
+      </section>
+
+      {# ── Preventivo e dati di commessa ──────────────────────────── #}
+      <section class="kp-station" id="dati" data-title="Dati commessa">
+        <div class="kp-station-head">
+          <span class="kp-num">2</span>
+          <div class="kp-station-titles">
+            <h3>Preventivo e dati di commessa</h3>
+            <p>Tutti facoltativi: si completano anche dopo.</p>
+          </div>
+        </div>
+        <div class="kp-body">
+          <div class="kp-grid">
+            <div class="kp-field">
+              <label for="{{ form.vrf_quote_number.id_for_label }}">Preventivo n.</label>
+              {{ form.vrf_quote_number }}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
+              {{ form.vrf_esp }}
+            </div>
+            <div class="kp-field">
+              <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
+              {{ form.control_method }}
+            </div>
+            <div class="kp-field col-3">
+              <label for="{{ form.description.id_for_label }}">Note</label>
+              {{ form.description }}
+            </div>
+            <div class="kp-field col-3">
+              <label class="kc-toggle" for="{{ form.safety_impact.id_for_label }}">{{ form.safety_impact }} Impatto sulla sicurezza <span class="kp-help">(evidenzia il kickoff nelle viste operative)</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {# ── A chi: il team ─────────────────────────────────────────── #}
+      <section class="kp-station" id="team" data-title="Team">
+        <div class="kp-station-head">
+          <span class="kp-num">3</span>
+          <div class="kp-station-titles">
+            <h3>Team</h3>
+            <p>Basta una persona per creare il kickoff; per risultare pronto all'avvio servono Project manager, Capocommessa e Programmatore.</p>
+          </div>
+        </div>
+        <div class="kp-body">
+          <div class="kp-grid kc-team">
+            {% for team_field in team_fields %}
+            <div class="kp-field">
+              <label>{{ team_field.label }}</label>
+              <div class="kp-multipick" data-kp-multipick>
+                <input type="search" class="kp-multipick-search input" data-kp-ignore placeholder="Cerca {{ team_field.label|lower }}…" aria-label="Cerca {{ team_field.label|lower }}">
+                <div class="kp-multipick-list">
+                  {% for choice in team_field %}
+                    <label class="kp-multipick-opt">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                  {% empty %}
+                    <p class="kp-multipick-empty">Nessun utente disponibile per questo ruolo.</p>
+                  {% endfor %}
                 </div>
               </div>
-              <div class="kp-field col-3">
-                <label for="{{ form.description.id_for_label }}">Descrizione</label>
-                {{ form.description }}
-              </div>
+              {% if team_field.errors %}<div class="kp-err">{{ team_field.errors }}</div>{% endif %}
             </div>
+            {% endfor %}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {# ── Tappa 2 ─────────────────────────────────────────────── #}
-        <section class="kp-station" data-title="Scheda VRF">
-          <div class="kp-station-head">
-            <span class="kp-num">2</span>
-            <div class="kp-station-titles">
-              <h3>Dati scheda VRF</h3>
-              <p>Opzionali: si possono completare dopo, nella compilazione della scheda VRF.</p>
-            </div>
-          </div>
-          <div class="kp-body">
-            <div class="kp-grid">
-              <div class="kp-field">
-                <label for="{{ form.vrf_quote_number.id_for_label }}">Preventivo n.</label>
-                {{ form.vrf_quote_number }}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
-                {{ form.vrf_esp }}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {# ── Tappa 3 ─────────────────────────────────────────────── #}
-        <section class="kp-station" id="team" data-title="Team">
-          <div class="kp-station-head">
-            <span class="kp-num">3</span>
-            <div class="kp-station-titles">
-              <h3>Team di progetto <span class="kp-req">*</span></h3>
-              <p>Basta un referente per creare il kickoff. Per risultare pronto all'avvio servono Project manager, Capocommessa e Programmatore.</p>
-            </div>
-          </div>
-          <div class="kp-body">
-            <div class="kp-grid">
-              {% for team_field in team_fields %}
-              <div class="kp-field">
-                <label>{{ team_field.label }}</label>
-                <div class="kp-multipick" data-kp-multipick>
-                  <input type="search" class="kp-multipick-search input" data-kp-ignore placeholder="Filtra {{ team_field.label|lower }}…" aria-label="Filtra {{ team_field.label|lower }}">
-                  <div class="kp-multipick-list">
-                    {% for choice in team_field %}
-                      <label class="kp-multipick-opt">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
-                    {% empty %}
-                      <p class="kp-multipick-empty">Nessun utente disponibile per questo ruolo.</p>
-                    {% endfor %}
-                  </div>
-                  <p class="kp-multipick-hint">Puoi selezionare più persone.</p>
-                </div>
-                {% if team_field.errors %}<div class="kp-err">{{ team_field.errors }}</div>{% endif %}
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-        </section>
-
-        {# ── Tappa 4: cosa serve ─────────────────────────────────── #}
-        {% if filo_tappe %}
-        <section class="kp-station" id="percorso" data-title="Cosa serve">
-          <div class="kp-station-head">
-            <span class="kp-num">4</span>
-            <div class="kp-station-titles">
-              <h3>Cosa serve a questa commessa</h3>
-              <p>Togli la spunta a quello che non serve (per esempio niente terzista): il Percorso del kickoff conterà solo il resto. Responsabili e date si danno dopo, anche in riunione.</p>
-            </div>
-          </div>
-          <div class="kp-body">
+      {# ── Cosa serve: facoltativo, chiuso ────────────────────────── #}
+      {% if filo_tappe %}
+      <details class="kc-altro" {% if edit_project %}open{% endif %}>
+        <summary>Cosa serve a questa commessa <small>tipo di commessa, consegna, tappe — facoltativo</small></summary>
+        <div class="kc-altro-body">
+          <div id="percorso">
             <input type="hidden" name="tappe_presenti" value="1">
             <div class="kp-grid fl-modello">
               <div class="kp-field">
@@ -181,7 +187,7 @@
                 <input class="input" type="date" id="fl-consegna" name="data_consegna" value="{{ filo_consegna }}">
               </div>
             </div>
-            <p class="kp-hint">Il tipo di commessa spunta le tappe che servono; con la consegna, ogni tappa propone la sua scadenza. I tipi si preparano in Impostazioni → Modelli di commessa.</p>
+            <p class="kp-hint">Togli la spunta a quello che non serve (per esempio niente terzista): il Percorso del kickoff conterà solo il resto.</p>
             <div class="fl-tappe">
               {% for t in filo_tappe %}
               <label class="fl-tappa">
@@ -191,48 +197,16 @@
               {% endfor %}
             </div>
           </div>
-        </section>
-        {% endif %}
+        </div>
+      </details>
+      {% endif %}
 
-        {% if not edit_project %}
-        {# ── Tappa 5: primo incontro ─────────────────────────────── #}
-        <section class="kp-station" id="primo-incontro" data-title="Primo incontro">
-          <div class="kp-station-head">
-            <span class="kp-num">5</span>
-            <div class="kp-station-titles">
-              <h3>Primo incontro</h3>
-              <p>Quando e dove. Il team entra già fra i partecipanti; nella convocazione che si apre dopo vedi la disponibilità delle sale, completi l'ordine del giorno e prenoti la sala con l'invito Outlook.</p>
-            </div>
-          </div>
-          <div class="kp-body">
-            <div class="kp-grid">
-              <div class="kp-field">
-                <label for="primo-data">Data</label>
-                <input class="input" type="date" id="primo-data" name="primo_data" value="{{ filo_primo.data }}">
-              </div>
-              <div class="kp-field">
-                <label for="primo-ora">Ora</label>
-                <input class="input" type="time" id="primo-ora" name="primo_ora" value="{{ filo_primo.ora }}">
-              </div>
-              <div class="kp-field">
-                <label for="primo-sala">Sala</label>
-                <select class="input" id="primo-sala" name="primo_sala">
-                  <option value="">Nessuna sala (online o altrove)</option>
-                  {% for sala in filo_sale %}<option value="{{ sala.id }}"{% if filo_primo.sala == sala.id|stringformat:"s" %} selected{% endif %}>{{ sala.nome }}{% if sala.capienza %} · {{ sala.capienza }} posti{% endif %}</option>{% endfor %}
-                </select>
-              </div>
-            </div>
-          </div>
-        </section>
-        {% endif %}
-
-      </div>{# /kp-stations #}
-    </div>{# /kp-layout #}
+    </div>{# /kp-stations #}
 
     <div class="kp-actions">
       <a class="btn btn-secondary" href="{% if edit_project %}{% url 'tasks:project_overview' edit_project.id %}{% else %}{% url 'tasks:project_list' %}{% endif %}">Annulla</a>
       <div class="kp-right">
-        <button type="submit" class="btn">{% if edit_project %}Salva modifiche{% else %}Crea kickoff e convoca il primo incontro &rarr;{% endif %}</button>
+        <button type="submit" class="btn">{% if edit_project %}Salva modifiche{% else %}Crea kickoff e passa alla VRF &rarr;{% endif %}</button>
       </div>
     </div>
   </form>
@@ -241,6 +215,7 @@
 {% endblock %}
 
 {% block tasks_shell_scripts %}
+<script src="{% static 'tasks/js/suggerimenti.js' %}?v=1" defer></script>
 <script>
   /* Tipo di commessa: spunta le tappe del modello scelto. */
   (function () {
@@ -258,8 +233,6 @@
 <script>
 (function () {
   'use strict';
-
-  const suggestUrl = "{% url 'tasks:identity_suggest' %}";
 
   // Team: le persone scelte restano visibili come etichette; un elenco lungo
   // resta chiuso finche' non si entra nella casella di ricerca.
@@ -305,69 +278,21 @@
     chiudi(true);
   });
 
-  function attachIdentitySuggestions(inputId, datalistId, field) {
-    const input = document.getElementById(inputId);
-    const datalist = document.getElementById(datalistId);
-    if (!input || !datalist) return;
-
-    let requestSequence = 0;
-    async function loadSuggestions() {
-      const query = String(input.value || '').trim();
-      if (query.length < 1) return;
-
-      const currentSequence = ++requestSequence;
-      try {
-        const response = await fetch(
-          suggestUrl + '?field=' + encodeURIComponent(field) + '&q=' + encodeURIComponent(query),
-          {
-            headers: {
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest'
-            }
-          }
-        );
-        const data = await window.portalReadJsonResponse(response, {
-          fallbackError: 'Impossibile caricare i suggerimenti.'
-        });
-        if (currentSequence !== requestSequence) return;
-
-        datalist.replaceChildren();
-        (data.values || []).forEach(function (value) {
-          const option = document.createElement('option');
-          option.value = value;
-          datalist.appendChild(option);
-        });
-        input.setAttribute('list', datalistId);
-      } catch (error) {
-        // Il suggerimento e' accessorio: il campo resta sempre testo libero.
-      }
-    }
-
-    input.addEventListener('focus', loadSuggestions, { once: true });
-    input.addEventListener('input', loadSuggestions);
-    input.addEventListener('change', loadSuggestions);
-  }
-
-  /* Nome proposto: si vede come segnaposto mentre si compilano cliente e P/N,
-     cosi' chi non scrive nulla sa gia' come si chiamera' il kickoff. Il
-     progressivo lo assegna il server al salvataggio. */
-  (function proponiNome() {
+  /* Oggetto proposto: «Cliente · P/N · Descrizione pezzo», visibile mentre si
+     scrive. Chi lo modifica a mano lo tiene. */
+  (function proponiOggetto() {
     const nameInput = document.getElementById('id_kickoff_name');
-    const clientInput = document.getElementById('{{ form.client_name.id_for_label }}');
-    const pnInput = document.getElementById('{{ form.part_number.id_for_label }}');
-    if (!nameInput || !clientInput) return;
+    const campi = ['{{ form.client_name.id_for_label }}', '{{ form.part_number.id_for_label }}', '{{ form.descrizione_pezzo.id_for_label }}']
+      .map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    if (!nameInput) return;
     function aggiorna() {
-      const parti = [clientInput.value.trim(), (pnInput ? pnInput.value.trim() : '')].filter(Boolean);
-      parti.push('KICK-OFF …');
-      nameInput.placeholder = parti.join(' · ');
+      const parti = campi.map(function (c) { return c.value.trim(); }).filter(Boolean);
+      nameInput.placeholder = parti.join(' · ') || 'Si compone da cliente, P/N e descrizione pezzo';
     }
-    clientInput.addEventListener('input', aggiorna);
-    pnInput?.addEventListener('input', aggiorna);
+    campi.forEach(function (c) { c.addEventListener('input', aggiorna); c.addEventListener('change', aggiorna); });
     aggiorna();
   })();
 
-  attachIdentitySuggestions('{{ form.client_name.id_for_label }}', 'project-client-datalist', 'client');
-  attachIdentitySuggestions('{{ form.part_number.id_for_label }}', 'project-part-number-datalist', 'part_number');
 })();
 </script>
 {% endblock %}

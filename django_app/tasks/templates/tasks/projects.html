@@ -99,7 +99,7 @@
               <!-- Riga 1: nome + giorni alla consegna -->
               <div class="pf-card-top">
                 <a class="pf-card-name" href="{% url 'tasks:project_overview' project.id %}">
-                  {% if project.kickoff_number %}<span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>{% endif %}<span>{{ project.name }}</span>
+                  <span>{{ project.name }}</span>
                 </a>
                 <span class="pf-card-days{% if project.days_to_delivery is not None and project.days_to_delivery < 0 %} danger{% endif %}" title="Prossima scadenza fra le attività aperte">
                   {% if project.days_to_delivery is None %}{% if project.task_total %}Nessuna scadenza aperta{% else %}Piano da scrivere{% endif %}

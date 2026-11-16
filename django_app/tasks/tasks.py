@@ -242,14 +242,14 @@ def run_meetings_digest(**kwargs) -> dict:
             parts.append("Prossimi incontri KICK-OFF:\n" + "\n".join(rows))
         if data["issues"]:
             rows = [
-                f"- {i.title} (KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, "
+                f"- {i.title} (KICK-OFF {getattr(i.project, 'name', '') or ''}, "
                 f"scadenza {i.due_date:%d/%m/%Y})"
                 for i in data["issues"]
             ]
             parts.append("Problemi aperti scaduti a te assegnati:\n" + "\n".join(rows))
         if data["actions"]:
             rows = [
-                f"- {a.title} (KICK-OFF {getattr(a.project, 'kickoff_number', '') or ''}, "
+                f"- {a.title} (KICK-OFF {getattr(a.project, 'name', '') or ''}, "
                 f"scadenza {a.due_date:%d/%m/%Y})"
                 for a in data["actions"]
             ]
@@ -257,7 +257,7 @@ def run_meetings_digest(**kwargs) -> dict:
         if data["upcoming"]:
             rows = [
                 f"- {'Problema' if isinstance(i, MeetingIssue) else 'Azione'}: {i.title} "
-                f"(KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, entro il {i.due_date:%d/%m/%Y})"
+                f"(KICK-OFF {getattr(i.project, 'name', '') or ''}, entro il {i.due_date:%d/%m/%Y})"
                 for i in data["upcoming"]
             ]
             parts.append("In scadenza questa settimana:\n" + "\n".join(rows))

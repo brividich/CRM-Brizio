@@ -154,6 +154,9 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
       const respBadge = item.responsabile_label
         ? `<span class="agenda-task-badge"><svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>${esc(item.responsabile_label)}</span>`
         : '';
+      const creaBadge = (item.crea_attivita && !item.task_id)
+        ? `<span class="agenda-task-badge">Diventa attività${item.scadenza ? ' · entro ' + esc(item.scadenza.split('-').reverse().join('/')) : ''}</span>`
+        : '';
       const durataBadge = item.durata_minuti
         ? `<span class="agenda-task-badge">${esc(String(item.durata_minuti))} min</span>`
         : '';
@@ -172,7 +175,7 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
         <div class="agenda-item">
           <div class="agenda-num">${idx + 1}</div>
           <div class="agenda-body">
-            <div class="agenda-title">${esc(item.titolo)}${issueBadge}${taskBadge}${respBadge}${durataBadge}</div>
+            <div class="agenda-title">${esc(item.titolo)}${issueBadge}${taskBadge}${creaBadge}${respBadge}${durataBadge}</div>
             ${nota}
             ${customFieldsHtml}
           </div>
@@ -216,6 +219,10 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
     if (k) k.value = '';
     if (r) r.value = '';
     if (d) d.value = '';
+    const c = document.getElementById('new-agenda-crea');
+    const sc = document.getElementById('new-agenda-scad');
+    if (c) c.checked = false;
+    if (sc) { sc.value = ''; sc.hidden = true; }
     resetCustomFieldRows();
   }
 
@@ -250,10 +257,21 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
       durata_minuti: (durata && durata > 0) ? durata : null,
       custom_fields: collectCustomFields(),
       done: false,
+      crea_attivita: !taskId && !!document.getElementById('new-agenda-crea')?.checked,
+      scadenza: document.getElementById('new-agenda-scad')?.value || '',
     });
 
     renderAgenda();
     hideAddForm();
+  }
+
+  /* «Diventa un'attività»: la scadenza (facoltativa) compare solo se serve. */
+  const creaCheck = document.getElementById('new-agenda-crea');
+  if (creaCheck) {
+    creaCheck.addEventListener('change', function () {
+      const sc = document.getElementById('new-agenda-scad');
+      if (sc) sc.hidden = !creaCheck.checked;
+    });
   }
 
   /* Wiring pulsanti agenda */

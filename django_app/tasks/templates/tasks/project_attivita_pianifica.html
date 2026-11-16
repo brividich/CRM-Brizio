@@ -1,0 +1,138 @@
+{% extends "tasks/base_shell.html" %}
+{% load static catalogo %}
+{% block tasks_shell_guide_anchor %}#pianifica-attivita{% endblock %}
+
+{% block tasks_shell_head %}
+  {% include "tasks/_percorso_assets.html" %}
+  <style>
+    .kc-righe { display: flex; flex-direction: column; gap: 8px; }
+    .kc-riga, .kc-righe-head { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 150px 34px; gap: 8px; align-items: center; }
+    .kc-righe-head { font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .kc-riga .input { width: 100%; box-sizing: border-box; }
+    .kc-riga input.is-wrong { border-color: var(--danger, #e53e3e); }
+    .kc-x { border: 1px solid var(--border); background: var(--surface); color: var(--text-light); border-radius: 8px; height: 34px; cursor: pointer; font-size: 16px; line-height: 1; }
+    .kc-x:hover { color: var(--danger, #e53e3e); border-color: var(--danger, #e53e3e); }
+    .kc-add { margin-top: 10px; }
+    .kc-gia { margin: 8px 0 0; padding-left: 18px; color: var(--text-mid); font-size: 13px; }
+    .kc-gia li { margin: 2px 0; }
+    @media (max-width: 760px) {
+      .kc-righe-head { display: none; }
+      .kc-riga { grid-template-columns: minmax(0, 1fr) 34px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+      .kc-riga > .kc-x { grid-column: 2; grid-row: 1; }
+      .kc-riga > .kc-resp, .kc-riga > .kc-scad { grid-column: 1 / -1; }
+    }
+  </style>
+{% endblock %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Pianifica attività</span>{% endblock %}
+{% block tasks_shell_title %}{{ project.name }}{% endblock %}
+{% block tasks_shell_subtitle %}Cosa, chi, entro quando (se si sa). Invio sul titolo aggiunge una riga con lo stesso responsabile.{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+{% catalogo_datalist "ATTIVITA" %}
+<datalist id="kc-utenti">{% for u in att_utenti %}<option value="{{ u.label }}">{% endfor %}</datalist>
+<div class="ts-stack">
+  {% include "tasks/_percorso_lifecycle.html" with current="attivita" %}
+
+  <form method="post" id="kc-form">
+    {% csrf_token %}
+    <div class="kp-stations">
+      <section class="kp-station">
+        <div class="kp-body">
+          <div class="kc-righe-head"><span>Attività</span><span>Responsabile</span><span>Entro il</span><span></span></div>
+          <div class="kc-righe" data-kc-righe>
+            {% for r in att_righe %}
+            <div class="kc-riga" data-kc-riga>
+              <input class="input kc-titolo" type="text" name="att_titolo" maxlength="200" list="cat-attivita" value="{{ r.titolo }}" placeholder="Cosa va fatto" aria-label="Attività"{% if forloop.first %} autofocus{% endif %}>
+              <span class="kc-resp">
+                <input class="input" type="text" list="kc-utenti" value="{{ r.resp_label }}" placeholder="Cerca persona…" aria-label="Responsabile" data-kc-resp>
+                <input type="hidden" name="att_resp" value="{{ r.resp }}">
+              </span>
+              <input class="input kc-scad" type="date" name="att_scadenza" value="{{ r.scadenza }}" aria-label="Scadenza (facoltativa)">
+              <button type="button" class="kc-x" data-kc-x title="Togli la riga" aria-label="Togli la riga">×</button>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm kc-add" data-kc-add>+ Altra attività</button>
+        </div>
+      </section>
+
+      {% if attivita_esistenti %}
+      <details class="kp-station" style="padding:12px 16px">
+        <summary><strong>Già pianificate ({{ attivita_esistenti|length }})</strong></summary>
+        <ul class="kc-gia">
+          {% for t in attivita_esistenti %}
+            <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+    </div>
+
+    <div class="kp-actions">
+      <a class="btn btn-secondary" href="{% url 'tasks:project_overview' project.id %}">Annulla</a>
+      <div class="kp-right">
+        <button type="submit" class="btn btn-secondary" name="poi" value="fine">Salva</button>
+        <button type="submit" class="btn" name="poi" value="incontro">Salva e pianifica l'incontro &rarr;</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+  const righe = document.querySelector('[data-kc-righe]');
+  if (!righe) return;
+  const utenti = {{ att_utenti_json|default:"[]"|safe }};
+  const perEtichetta = {};
+  utenti.forEach(function (u) { perEtichetta[u.label.toLowerCase()] = u.id; });
+
+  function collega(riga) {
+    const vis = riga.querySelector('[data-kc-resp]');
+    const hid = riga.querySelector('input[name="att_resp"]');
+    function risolvi() {
+      const testo = vis.value.trim().toLowerCase();
+      const id = perEtichetta[testo];
+      hid.value = id ? String(id) : '';
+      vis.classList.toggle('is-wrong', !!testo && !id);
+      vis.title = testo && !id ? "Scegli una persona dall'elenco" : '';
+    }
+    vis.addEventListener('input', risolvi);
+    vis.addEventListener('change', risolvi);
+    riga.querySelector('[data-kc-x]').addEventListener('click', function () {
+      if (righe.querySelectorAll('[data-kc-riga]').length > 1) { riga.remove(); }
+      else { riga.querySelectorAll('input').forEach(function (i) { i.value = ''; }); vis.classList.remove('is-wrong'); }
+    });
+    riga.querySelector('input[name="att_titolo"]').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      aggiungi().querySelector('input[name="att_titolo"]').focus();
+    });
+  }
+
+  function aggiungi() {
+    const tutte = righe.querySelectorAll('[data-kc-riga]');
+    const ultima = tutte[tutte.length - 1];
+    const nuova = ultima.cloneNode(true);
+    nuova.querySelectorAll('input').forEach(function (i) { i.value = ''; i.classList.remove('is-wrong'); i.removeAttribute('autofocus'); });
+    // Il responsabile della riga sopra resta proposto: spesso è lo stesso.
+    nuova.querySelector('[data-kc-resp]').value = ultima.querySelector('[data-kc-resp]').value;
+    nuova.querySelector('input[name="att_resp"]').value = ultima.querySelector('input[name="att_resp"]').value;
+    righe.appendChild(nuova);
+    collega(nuova);
+    return nuova;
+  }
+
+  righe.querySelectorAll('[data-kc-riga]').forEach(collega);
+  document.querySelector('[data-kc-add]').addEventListener('click', function () {
+    aggiungi().querySelector('input[name="att_titolo"]').focus();
+  });
+})();
+</script>
+{% endblock %}

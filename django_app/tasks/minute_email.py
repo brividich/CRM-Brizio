@@ -34,7 +34,7 @@ def meeting_url(meeting) -> str:
 
 
 def _facts(meeting) -> list[tuple[str, str]]:
-    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
+    kickoff = getattr(meeting.project, "name", "") or ""
     titolo = (meeting.titolo or "").strip()
     facts = [
         ("KICK-OFF", str(kickoff)),
@@ -308,7 +308,7 @@ def _invite_sections(meeting) -> list[tuple[str, str]]:
 
 def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, str, str]:
     """Compone (subject, body_text, body_html_fragment) della minuta incontro."""
-    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
+    kickoff = getattr(meeting.project, "name", "") or ""
     titolo = (meeting.titolo or "").strip()
     subject = f"{'Aggiornamento minuta' if aggiornamento else 'Minuta'} incontro — KICK-OFF {kickoff}"
     if titolo:
@@ -328,12 +328,13 @@ def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, st
 
 
 def _commessa_label(meeting) -> str:
-    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
-    # Il cliente in oggetto: chi riceve la mail riconosce la commessa dalla
-    # lista dei messaggi, senza aprirla. Manca il cliente -> si salta.
+    kickoff = getattr(meeting.project, "name", "") or ""
+    # L'oggetto del kickoff (cliente · P/N · pezzo) dice gia' di che commessa
+    # si tratta: il vecchio progressivo «KICK-OFF n» non c'e' piu'. Un oggetto
+    # scritto a mano senza cliente lo riceve davanti, come prima.
+    commessa = f"KICK-OFF {kickoff}".strip()
     cliente = (getattr(meeting.project, "client_name", "") or "").strip()
-    commessa = f"KICK-OFF {kickoff}"
-    if cliente:
+    if cliente and cliente.casefold() not in str(kickoff).casefold():
         commessa = f"{cliente} · {commessa}"
     return commessa
 
@@ -391,7 +392,7 @@ def build_minute_pdf(meeting) -> bytes:
     styles = build_styles(theme)
     buffer = io.BytesIO()
 
-    kickoff = str(getattr(meeting.project, "kickoff_number", "") or "").strip()
+    kickoff = str(getattr(meeting.project, "name", "") or "").strip()
     doc = make_document(buffer, title=f"Minuta incontro KICK-OFF {kickoff}".strip())
     content_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
 
@@ -572,7 +573,7 @@ def build_meeting_ics(meeting, *, cancel: bool = False) -> bytes:
         for email in meeting.get_all_attendee_emails():
             lines.append(f"ATTENDEE;ROLE=REQ-PARTICIPANT:mailto:{email}")
 
-    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
+    kickoff = getattr(meeting.project, "name", "") or ""
     summary = f"KICK-OFF {kickoff} — Incontro {meeting.numero}"
     if (meeting.titolo or "").strip():
         summary += f": {meeting.titolo.strip()}"
@@ -674,7 +675,7 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
         body_text,
         recipients,
         cc=cc,
-        title=f"Minuta incontro KICK-OFF {getattr(meeting.project, 'kickoff_number', '') or ''}",
+        title=f"Minuta incontro KICK-OFF {getattr(meeting.project, 'name', '') or ''}",
         email_type="VRF - KICK-OFF",
         body_html_fragment=body_html,
         attachments=attachments,
@@ -727,7 +728,7 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
         body_text,
         recipients,
         cc=cc,
-        title=f"Convocazione incontro KICK-OFF {getattr(meeting.project, 'kickoff_number', '') or ''}",
+        title=f"Convocazione incontro KICK-OFF {getattr(meeting.project, 'name', '') or ''}",
         email_type="VRF - KICK-OFF",
         body_html_fragment=body_html,
         attachments=attachments,
@@ -768,7 +769,7 @@ def send_meeting_cancellation(meeting, *, sent_by=None) -> dict:
         body_text,
         recipients,
         cc=cc,
-        title=f"Incontro annullato KICK-OFF {getattr(meeting.project, 'kickoff_number', '') or ''}",
+        title=f"Incontro annullato KICK-OFF {getattr(meeting.project, 'name', '') or ''}",
         email_type="VRF - KICK-OFF",
         body_html_fragment=body_html,
         attachments=attachments,
