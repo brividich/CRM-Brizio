@@ -166,7 +166,8 @@ body.banco-pannello-aperto { overflow:hidden; }
 .banco-stepper button:hover { background:#e2e8f0; }
 .dpi-field .banco-stepper input[type=number] { width:56px; border:none; border-radius:0; text-align:center; font-weight:800; -moz-appearance:textfield; }
 .banco-stepper input::-webkit-outer-spin-button, .banco-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.banco-pannello-piede { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; padding:12px 18px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+.banco-pannello-piede { display:flex; flex-direction:column; gap:10px; padding:12px 18px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+.banco-pannello-bottoni { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .banco-attende { background:rgba(146,64,14,.25); color:#fcd34d; }
@@ -247,7 +248,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   .dpi-kpi-box:last-child { grid-column:1/-1; }
   .dpi-consegna-grid { grid-template-columns:minmax(0,1fr); }
   .banco-pannello { width:100%; }
-  .banco-pannello-piede .dpi-btn { flex:1 1 auto; }
+  .banco-pannello-bottoni .dpi-btn { flex:1 1 auto; }
   .banco-conferma-ora-azioni { margin-left:0; width:100%; justify-content:flex-end; }
   .dpi-card { padding:14px; }
   .dpi-riga { flex-wrap:wrap; }

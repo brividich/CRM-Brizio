@@ -75,6 +75,8 @@
         </div>
         {% endfor %}
         <div class="banco-nessun-dpi" id="diretta-nessuno" hidden>Nessun DPI trovato.</div>
+      </div>
+      <div class="banco-pannello-piede">
         <div class="dpi-field" id="diretta-taglie" hidden>
           <label>Taglia</label>
           <div class="banco-chips">
@@ -95,10 +97,10 @@
             <input type="text" name="motivazione" id="diretta-mot" placeholder="Es: guanti rotti, cambio turno">
           </div>
         </div>
-      </div>
-      <div class="banco-pannello-piede">
-        <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi al banco</button>
-        <button type="submit" class="dpi-btn dpi-btn-green" data-diretta-badge>Aggiungi e consegna con badge</button>
+        <div class="banco-pannello-bottoni">
+          <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi al banco</button>
+          <button type="submit" class="dpi-btn dpi-btn-green" data-diretta-badge>Aggiungi e consegna con badge</button>
+        </div>
       </div>
     </form>
   </aside>
