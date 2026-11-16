@@ -21,6 +21,7 @@ from .models import (
     TagliaDPI,
     ConsegnaDPI,
     DPIImpostazioni,
+    ModalitaNegozio,
     ModelloDPI,
     MovimentoMagazzinoDPI,
     RichiestaDPI,
@@ -422,7 +423,33 @@ class BancoConsegneTests(TestCase):
         attesa.refresh_from_db()
         self.assertEqual(attesa.stato, StatoRichiesta.INVIATA)
         self.assertFalse(resp.context["persone"][0]["attese"][0]["puo_approvare"])
-        self.assertNotContains(resp, "data-approva data-richiesta")
+        self.assertNotContains(resp, 'value="approva"')
+        self.assertContains(resp, 'value="senza_approvazione"')
+
+    def test_consegna_senza_approvazione_del_responsabile(self):
+        attesa = self._inviata(self.mod_guanti)
+        with mock.patch("dpi.views._can_approve", return_value=False):
+            pagina = self.client.get(self.url)
+            self.assertContains(pagina, "Consegna senza approvazione")
+            with mock.patch.object(flusso, "notifica_approvata") as avviso:
+                resp = self.client.post(self.url, {"azione": "senza_approvazione", "approva_richiesta": attesa.pk})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.APPROVATA)
+        self.assertEqual(avviso.call_count, 0)
+        self.assertIn("senza attendere l'approvazione", attesa.note_gestione)
+        self.assertIn("senza attendere l'approvazione", attesa.commenti.get().testo)
+        self.assertTrue(resp["Location"].endswith("#apri-p101"))
+        self.client.post(self.url, {"azione": "consegna", "ids": [attesa.pk], "data_consegna": "2026-11-16"})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.CONSEGNATA)
+
+    def test_consegna_senza_approvazione_non_per_le_scarpe_al_negozio(self):
+        attesa = self._inviata(self.mod_guanti)
+        attesa.modalita_negozio = ModalitaNegozio.CONVENZIONE
+        attesa.save(update_fields=["modalita_negozio"])
+        self.client.post(self.url, {"azione": "senza_approvazione", "approva_richiesta": attesa.pk})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.INVIATA)
 
     def test_consegna_diretta_dipendente_non_selezionabile(self):
         self.guanti.consegna_diretta = True

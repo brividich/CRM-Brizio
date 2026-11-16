@@ -137,7 +137,11 @@ GUIDA = {
                       "tratteggiate le richieste ancora da approvare, con scritto chi deve approvarle (il responsabile o il preposto "
                       "della persona). Non si spuntano e non si consegnano. Se chi è al banco può approvarle (responsabile della persona, "
                       "oppure gestore DPI di ripiego) ha il pulsante «Approva»: la richiesta passa tra quelle da consegnare, con un "
-                      "commento «Approvata al Banco consegne», e si consegna subito. Il riquadro «In attesa di approvazione» in alto le filtra."),
+                      "commento «Approvata al Banco consegne», e si consegna subito. Chi non può approvarle ha invece "
+                      "«Consegna senza approvazione»: la persona è al banco, la richiesta passa subito tra quelle da consegnare "
+                      "senza aspettare il caporeparto, resta scritto nella richiesta chi l'ha deciso e il report di consegna "
+                      "arriva al responsabile come sempre (non vale per le scarpe ordinate al negozio). "
+                      "Il riquadro «In attesa di approvazione» in alto le filtra."),
                 ("p", "«Consegna senza richiesta»: la persona è al banco e chiede un DPI che nessuno ha richiesto. Nella sua scheda "
                       "«+ DPI senza richiesta» (o il pulsante «Consegna senza richiesta» quando la ricerca non trova nessuno) apre il "
                       "riquadro con la persona già scelta: scegli DPI, taglia e quantità. «Aggiungi e consegna con badge» crea la richiesta già approvata, apre la "

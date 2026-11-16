@@ -2251,6 +2251,32 @@ def _banco_approva(request, tutte: bool):
     return _banco_redirect(chiave, tutte)
 
 
+def _banco_senza_approvazione(request, tutte: bool):
+    """Richiesta in attesa del responsabile (CAR/preposto), persona al banco: chi gestisce la
+    consegna subito senza aspettare l'approvazione. Resta scritto nella richiesta e nel log, e
+    il report di consegna arriva al responsabile come per la consegna senza richiesta."""
+    r = _inviate_queryset(request).filter(pk=_int_or_none(request.POST.get("approva_richiesta"))).first()
+    if r is None:
+        messages.error(request, "Richiesta non trovata tra quelle in attesa di approvazione.")
+        return _banco_redirect(tutte=tutte)
+    chiave = _chiave_persona(r)
+    if r.modalita_negozio:
+        messages.error(request, "Queste scarpe si ordinano al negozio: serve l'approvazione.")
+        return _banco_redirect(chiave, tutte)
+    autore = request.user.get_full_name() or request.user.username
+    nota = f"[Consegna al banco senza attendere l'approvazione del responsabile: decisa da {autore}]"
+    r.stato = StatoRichiesta.APPROVATA
+    r.note_gestione = f"{r.note_gestione}\n{nota}".strip() if r.note_gestione else nota
+    r.save(update_fields=["stato", "note_gestione", "updated_at"])
+    RichiestaDPICommento.objects.create(
+        richiesta=r, autore_nome=autore, is_interno=False,
+        testo="Consegna al banco senza attendere l'approvazione del responsabile: il report di consegna gli arriva.",
+    )
+    log_action(request, "DPI_BANCO_SENZA_APPROVAZIONE", "dpi", f"{r.numero} consegnabile senza approvazione, deciso da {autore}")
+    messages.success(request, f"{r.numero}: registra la consegna a {r.richiedente_nome}.")
+    return _banco_redirect("apri-" + chiave, tutte)
+
+
 def _banco_cambia_modello(request, tutte: bool):
     """Al banco manca quel modello o quella taglia: si cambia sulla richiesta, con traccia."""
     r = _banco_queryset(request).filter(pk=_int_or_none(request.POST.get("cambia_richiesta"))).first()
@@ -2364,6 +2390,8 @@ def _banco_azione(request):
         return _banco_cambia_modello(request, tutte)
     if azione == "approva":
         return _banco_approva(request, tutte)
+    if azione == "senza_approvazione":
+        return _banco_senza_approvazione(request, tutte)
     if azione == "avvisi":
         _completa_in_sospeso(request, _banco_in_sospeso(request))
         return _banco_redirect(tutte=tutte)

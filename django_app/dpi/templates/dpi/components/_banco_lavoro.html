@@ -94,7 +94,7 @@
                 </span>
               </span>
               <span class="dpi-riga-qta">× {{ r.quantita }}</span>
-              {% if a.puo_approvare %}<button type="submit" name="azione" value="approva" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">Approva</button>{% endif %}
+              {% if a.puo_approvare %}<button type="submit" name="azione" value="approva" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">Approva</button>{% elif not r.modalita_negozio %}<button type="submit" name="azione" value="senza_approvazione" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}" title="La persona è al banco: consegna subito, il report di consegna arriva al responsabile">Consegna senza approvazione</button>{% endif %}
             </div>
           </li>
           {% endwith %}{% endfor %}
