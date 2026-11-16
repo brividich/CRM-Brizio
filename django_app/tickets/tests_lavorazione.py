@@ -294,6 +294,13 @@ class ElencoTests(LavorazioneBase):
         self.assertCountEqual(self._titoli(self._elenco("?tipo=MAN&vista=liberi")), ["Libero sintetico", "Urgente sintetico"])
         self.assertCountEqual(self._titoli(self._elenco("?tipo=MAN&vista=chiusi")), ["Chiuso sintetico", "Risolto sintetico"])
 
+    def test_miei_mostra_in_fondo_i_risolti_da_confermare(self):
+        self._ticket(titolo="Mio risolto sintetico", assegnato_email="tec@example.com", assegnato_a="Tec Nico",
+                     stato=StatoTicket.RISOLTO, priorita=PrioritaTicket.URGENTE)
+        pagina = self._elenco("?tipo=MAN&vista=miei")
+        self.assertEqual(self._titoli(pagina), ["Mio sintetico", "Mio risolto sintetico"])
+        self.assertContains(pagina, "Risolto · da confermare")
+
     def test_i_conteggi_coincidono_con_le_righe(self):
         pagina = self._elenco()
         for vista in pagina.context["viste_gestione"]:

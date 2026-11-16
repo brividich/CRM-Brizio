@@ -557,7 +557,7 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
               {% else %}—{% endif %}
             </td>
             <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
-            <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
+            <td>{% if t.stato == 'RISOLTO' %}<span class="tkt-badge tkt-badge-RISOLTO" title="Lo chiude chi ha aperto il ticket confermando la risoluzione">Risolto · da confermare</span>{% else %}<span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span>{% endif %}</td>
             <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome|upper }}</a>{% else %}{{ t.richiedente_nome|upper }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|upper|default:"—" }}</td>
             <td style="font-size:12px;white-space:nowrap;" data-sort-value="{{ t.created_at|date:'c' }}" title="{{ t.created_at|date:'d-m-Y H:i' }}">{{ t.created_at|timesince }}</td>

@@ -1861,7 +1861,8 @@ def ticket_gestione_list(request):
 
     def _q_vista(codice: str) -> Q:
         if codice == "miei":
-            return Q(stato__in=STATI_APERTI) & miei_q
+            # Anche i risolti in attesa della conferma di chi ha aperto il ticket.
+            return Q(stato__in=(*STATI_APERTI, StatoTicket.RISOLTO)) & miei_q
         if codice == "liberi":
             return Q(stato__in=STATI_APERTI, assegnato_a="", delegato_fornitore__isnull=True)
         if codice == "chiusi":
@@ -1937,8 +1938,11 @@ def ticket_gestione_list(request):
             return qs.order_by("-created_at")
         elif vista_attiva == "chiusi":
             return qs.order_by("-closed_at", "-created_at")
-        # Lista di lavoro: prima gli urgenti, a pari priorità il più vecchio.
-        return qs.annotate(_po=_priority_order).order_by("_po", "created_at")
+        # Lista di lavoro: prima gli urgenti, a pari priorità il più vecchio; in fondo
+        # i risolti che aspettano la conferma (non c'è più niente da fare).
+        _da_confermare = Case(When(stato=StatoTicket.RISOLTO, then=Value(1)), default=Value(0),
+                              output_field=IntegerField())
+        return qs.annotate(_po=_priority_order, _dc=_da_confermare).order_by("_dc", "_po", "created_at")
 
     from core.legacy_models import AnagraficaDipendente
     from .allegati import subquery_conteggio_allegati
