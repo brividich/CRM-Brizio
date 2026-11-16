@@ -5,6 +5,8 @@
 button.cp-act-btn { font:inherit; font-size:11px; font-weight:700; }
 .rn-fam-consolida { margin-left:10px; padding:3px 10px; border-radius:999px; border:1px solid #bbf7d0; background:#f0fdf4; color:#166534; font-size:11px; font-weight:800; cursor:pointer; }
 .rn-fam-consolida:hover { background:#dcfce7; }
+.rn-fam-trasmetti { margin-left:6px; padding:3px 10px; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1e40af; font-size:11px; font-weight:800; cursor:pointer; }
+.rn-fam-trasmetti:hover { background:#dbeafe; }
 
 .rn-dlg { position:fixed; inset:0; margin:auto; height:fit-content; max-height:calc(100vh - 32px); border:none; border-radius:14px; padding:0; width:min(480px, calc(100vw - 32px)); box-shadow:0 20px 50px rgba(15,23,42,.3); overflow:auto; }
 .rn-dlg-largo { width:min(680px, calc(100vw - 32px)); }
@@ -39,6 +41,7 @@ button.cp-act-btn { font:inherit; font-size:11px; font-weight:700; }
 .rn-dlg details summary { cursor:pointer; font-size:12.5px; color:#475569; }
 
 body.theme-dark .rn-fir-manca { background:rgba(234,179,8,.16); color:#fde68a; border-color:rgba(234,179,8,.35); }
+body.theme-dark .rn-fam-trasmetti { background:rgba(59,130,246,.16); color:#93c5fd; border-color:rgba(59,130,246,.35); }
 body.theme-dark .rn-fam-consolida { background:rgba(56,161,105,.16); color:#86efac; border-color:rgba(56,161,105,.35); }
 body.theme-dark .rn-dlg-box { background:var(--surface); color:var(--text); }
 body.theme-dark .rn-dlg-t { color:var(--text); }

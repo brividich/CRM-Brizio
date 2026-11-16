@@ -1,0 +1,40 @@
+{% comment %}Contenuto del popup «Trasmetti filo» (caricato da rentri/js/azioni_tabella.js).{% endcomment %}
+{% with a=anteprima %}
+<div class="rn-dlg-top">
+  <div class="rn-dlg-t" id="rn-filo-t">Trasmissione a RENTRI del filo {{ registro.codice|default:"" }}</div>
+  <button type="button" class="rn-dlg-x" data-chiudi aria-label="Chiudi">&#10005;</button>
+</div>
+{% if not a.membri %}
+  <div class="rn-dlg-avviso">Registrazione annullata: non fa parte di un filo da trasmettere.</div>
+{% else %}
+<p class="rn-dlg-nota">Segna come trasmesse a RENTRI tutte le righe consolidate del filo, senza aprirle una per una. Le bozze restano fuori: si consolidano prima.</p>
+
+<div class="rn-dlg-sez">Da segnare come trasmesse ({{ a.da_segnare|length }})</div>
+{% if a.da_segnare %}
+<table class="rn-dlg-tab">
+  {% for r in a.da_segnare %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td>{{ r.data|date:"d/m/Y" }}</td><td class="num">{% if r.quantita is not None %}{{ r.quantita }}{% else %}{{ r.rettifica_scarico|default_if_none:"" }}{% endif %} {{ r.unita }}</td><td>{{ r.arrivo_fir }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="rn-dlg-nota">Nessuna riga consolidata da segnare.</p>{% endif %}
+
+{% if a.bozze %}
+<div class="rn-dlg-sez">Restano fuori: bozze ({{ a.bozze|length }})</div>
+<table class="rn-dlg-tab">
+  {% for r in a.bozze %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td class="rn-dlg-manca">da consolidare</td></tr>{% endfor %}
+</table>
+{% endif %}
+
+{% if a.gia %}
+<details><summary>Già trasmesse ({{ a.gia|length }})</summary>
+<table class="rn-dlg-tab">
+  {% for r in a.gia %}<tr><td><span class="rn-dlg-tipo">{{ r.tipo }}</span></td><td class="num">{{ r.id_registrazione }}</td><td>{{ r.data|date:"d/m/Y" }}</td></tr>{% endfor %}
+</table>
+</details>
+{% endif %}
+{% endif %}
+<form method="post" action="{% url 'rentri_trasmetti_filo' registro.pk %}" class="rn-dlg-azioni">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ prossima }}">
+  <button type="button" class="rn-dlg-btn" data-chiudi>Indietro</button>
+  {% if a.bozze and a.membri %}<button type="button" class="rn-dlg-btn" data-consolida-filo="{% url 'rentri_consolida_filo' registro.pk %}">Consolida prima il filo</button>{% endif %}
+  <button type="submit" class="rn-dlg-btn rn-dlg-btn-primary"{% if not a.da_segnare %} disabled{% endif %}>Segna {{ a.da_segnare|length }} rig{{ a.da_segnare|length|pluralize:"a,he" }} come trasmess{{ a.da_segnare|length|pluralize:"a,e" }}</button>
+</form>
+{% endwith %}

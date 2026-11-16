@@ -105,7 +105,8 @@ GUIDA = {
                     "Controlla i campi e salva come sempre: il file resta allegato allo scarico.",
                 ]),
                 ("p", "Nello scarico effettivo la quantità proposta è il peso verificato a destino, se il formulario lo riporta; "
-                      "il numero FIR va in «Arrivo FIR». Nello scarico originale numero FIR e destinatario finiscono nelle note."),
+                      "il numero FIR va in «Arrivo FIR». Nello scarico originale il numero va in «Numero FIR» (sezione «Documenti e "
+                      "invio»), il destinatario nelle note."),
                 ("nota", "I valori con l'etichetta «letto dall'AI: controlla» li ha trovati l'assistente AI del portale quando le "
                          "regole non bastavano: partono non spuntati, vanno verificati sul formulario. Il documento non esce dal server."),
             ],
@@ -130,7 +131,10 @@ GUIDA = {
                     "«Modifica»: le incomplete restano bozze, le altre si consolidano insieme.",
                     "Per consolidare tante bozze insieme: «Scadenzario» → «Bozze da consolidare» → scegli la data e clicca "
                     "«Consolida bozze complete». Quelle senza data, codice o quantità restano bozze.",
-                    "«Segna trasmessa» indica che il movimento è stato trasmesso al RENTRI.",
+                    "«Segna trasmessa» indica che il movimento è stato trasmesso al RENTRI. Per tutto il filo in un colpo: "
+                    "«Trasmetti filo · n/m» sull'intestazione del filo nell'elenco (compare quando ci sono righe consolidate "
+                    "non ancora trasmesse) o «Trasmetti filo…» nella scheda. Il popup elenca le righe da segnare, le bozze "
+                    "che restano fuori (si consolidano prima: c'è il pulsante «Consolida prima il filo») e quelle già trasmesse.",
                     "Il cestino 🗑 sulla riga dell'elenco (e «Annulla o elimina…» nella scheda) apre il popup: scegli «Annulla» "
                     "oppure «Elimina definitivamente» e scrivi la «Motivazione», obbligatoria (almeno 5 caratteri). «Elimina "
                     "definitivamente» è attivo solo per le bozze isolate; altrimenti il popup dice perché (consolidata, trasmessa "
@@ -308,7 +312,9 @@ GUIDA = {
             "sintomo": "«Quantità oltre la giacenza»",
             "fare": [
                 "Apri «Giacenze» e cerca il codice: la giacenza è quanto resta dei carichi dopo gli scarichi originali.",
-                "Se lo scarico è collegato, conta il residuo dei carichi spuntati: collega anche gli altri carichi o riduci la quantità.",
+                "Se lo scarico è collegato, conta il residuo dei carichi spuntati: l'errore «Quantità oltre il residuo dei "
+                "carichi collegati» elenca gli altri carichi dello stesso codice con un residuo; aggiungili in «Collegato a» "
+                "o riduci la quantità.",
                 "Se manca un carico, registralo prima dello scarico.",
                 "Se un carico ha la quantità sbagliata ed è una bozza, correggilo; se è consolidato, annullalo e registralo di nuovo.",
             ],
@@ -318,6 +324,8 @@ GUIDA = {
             "fare": [
                 "È consolidata o annullata: la matita non compare e la scheda si apre in sola lettura.",
                 "Registra una «R - Rettifica scarico» oppure annullala con il motivo e registrala di nuovo.",
+                "Se è una bozza, la matita apre il modulo: si correggono anche quantità e segno (lo scarico originale "
+                "va negativo), «Numero FIR» e numero di registrazione. Un messaggio rosso dice cosa blocca il salvataggio.",
             ],
         },
         {
@@ -325,6 +333,10 @@ GUIDA = {
             "fare": [
                 "Lancia rentri_id_duplicati --solo-anomalie dal terminale del Setup Wizard, oppure apri «Verifica».",
                 "I numeri non si riciclano: un movimento annullato tiene il suo numero, ed è corretto così.",
+                "Su una bozza scritta male il numero si corregge nel modulo («Numero di registrazione», solo in modifica): "
+                "anno/progressivo con l'anno della data, non già usato da un altro movimento (annullati compresi). I "
+                "movimenti che citavano il vecchio numero passano al nuovo; non si cambia se è già trasmessa a RENTRI o se "
+                "il vecchio numero è citato da registrazioni consolidate.",
             ],
         },
         {

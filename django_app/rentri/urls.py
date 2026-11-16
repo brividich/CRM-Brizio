@@ -28,6 +28,7 @@ urlpatterns = [
     path("rentri/<int:pk>/elimina/", views.elimina, name="rentri_elimina"),
     path("rentri/<int:pk>/rimuovi/", views.rimuovi_view, name="rentri_rimuovi"),
     path("rentri/<int:pk>/consolida-filo/", views.consolida_filo_view, name="rentri_consolida_filo"),
+    path("rentri/<int:pk>/trasmetti-filo/", views.trasmetti_filo_view, name="rentri_trasmetti_filo"),
     path("rentri/api/sync/pull", views.api_sync_pull, name="rentri_api_sync_pull"),
     path("rentri/api/codici/", views.api_codici_cer, name="rentri_api_codici"),
     path("rentri/api/candidati-rif-op/", views.api_candidati_rif_op, name="rentri_api_candidati_rif_op"),

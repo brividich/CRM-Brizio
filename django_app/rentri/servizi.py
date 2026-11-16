@@ -42,6 +42,8 @@ __all__ = [
     "consolida",
     "annulla",
     "segna_trasmesso",
+    "anteprima_trasmissione_filo",
+    "trasmetti_filo",
     "figli_attivi",
     "consolida_in_blocco",
     "annota_collegamenti_tolti",
@@ -49,7 +51,7 @@ __all__ = [
 
 # Campi che descrivono il movimento (quelli confrontati prima/dopo una modifica).
 CAMPI_DATI = (
-    "data", "codice", "quantita", "unita", "rettifica_scarico", "rif_op",
+    "id_registrazione", "data", "codice", "quantita", "unita", "rettifica_scarico", "rif_op",
     "pericolosita", "arrivo_fir", "note_rentri", "rentri_si_no", "carico_scarico",
 )
 
@@ -135,6 +137,9 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
         utente = getattr(getattr(request, "user", None), "username", "") or ""
         annota_collegamenti_tolti(registro, prima, utente)
         registro.save()
+        rinumerati = []
+        if not nuovo and prima.get("id_registrazione") != registro.id_registrazione:
+            rinumerati = _rinumera_figli(registro, prima.get("id_registrazione") or "")
 
     modifiche = _modifiche(prima, registro)
     if nuovo or modifiche:
@@ -147,11 +152,36 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
                 "tipo": registro.tipo,
                 "codice": registro.codice,
                 **({"modifiche": modifiche} if modifiche else {}),
+                **({"rif_op_aggiornati": rinumerati} if rinumerati else {}),
             },
             oggetto=registro,
         )
     sincronizza(registro)
     return registro
+
+
+def figli_del_numero(registro: RegistroRifiuti, numero: str) -> list[RegistroRifiuti]:
+    """Movimenti che citano `numero` nel Rif. Op, se quel numero è solo di `registro`.
+
+    Lo storico ha numeri ripetuti (un carico e uno scarico con lo stesso id): in
+    quel caso il riferimento non si può attribuire e non si tocca.
+    """
+    numero = (numero or "").strip()
+    if not numero or RegistroRifiuti.objects.filter(id_registrazione=numero).exclude(pk=registro.pk).exists():
+        return []
+    qs = RegistroRifiuti.objects.exclude(pk=registro.pk).filter(rif_op__contains=numero)
+    return [r for r in qs if numero in split_rif_op(r.rif_op)]
+
+
+def _rinumera_figli(registro: RegistroRifiuti, vecchio: str) -> list[str]:
+    """Dopo la correzione del numero, i movimenti che citavano il vecchio puntano al nuovo."""
+    fatti = []
+    for f in figli_del_numero(registro, vecchio):
+        refs = [registro.id_registrazione if rid == vecchio else rid for rid in split_rif_op(f.rif_op)]
+        f.rif_op = ", ".join(refs)[:200]
+        f.save(update_fields=["rif_op", "updated_at"])
+        fatti.append(f"{f.tipo} {f.id_registrazione}")
+    return fatti
 
 
 def consolida(request, registro: RegistroRifiuti, utente: str) -> None:
@@ -373,6 +403,48 @@ def consolida_filo(request, registro: RegistroRifiuti, utente: str) -> dict:
     for r in fatte:
         log_action(request, "rentri_movimento_consolidato", "rentri",
                    {"id_registrazione": r.id_registrazione, "tipo": r.tipo, "filo": True}, oggetto=r)
+        sincronizza(r)
+    esito["fatte"] = fatte
+    return esito
+
+
+def anteprima_trasmissione_filo(registro: RegistroRifiuti) -> dict:
+    """Cosa farebbe «Trasmetti filo»: consolidate da segnare, bozze escluse, già trasmesse."""
+    membri = movimenti_del_filo(registro)
+    da_segnare = [r for r in membri if r.salva and not r.rentri_si_no]
+    gia = [r for r in membri if r.rentri_si_no]
+    bozze = [r for r in membri if not r.salva and not r.rentri_si_no]
+    return {"membri": membri, "da_segnare": da_segnare, "gia": gia, "bozze": bozze}
+
+
+def trasmetti_filo(request, registro: RegistroRifiuti) -> dict:
+    """Segna come trasmesse a RENTRI tutte le righe consolidate del filo (le bozze no)."""
+    from .sharepoint import sincronizza
+
+    if registro.annullato:
+        raise ErroreRegistro("Registrazione annullata: il suo filo non si trasmette da qui.")
+    esito = anteprima_trasmissione_filo(registro)
+    if not esito["da_segnare"]:
+        if esito["bozze"]:
+            raise ErroreRegistro("Nessuna riga consolidata da trasmettere: consolida prima il filo.")
+        raise ErroreRegistro("Il filo risulta già tutto trasmesso a RENTRI.")
+    fatte = []
+    with transaction.atomic():
+        pks = [r.pk for r in esito["da_segnare"]]
+        libere = set(
+            RegistroRifiuti.objects.select_for_update()
+            .filter(pk__in=pks, salva=True, annullato=False, rentri_si_no=False)
+            .values_list("pk", flat=True)
+        )
+        for r in esito["da_segnare"]:
+            if r.pk not in libere:
+                continue  # cambiata nel frattempo da un'altra sessione
+            r.rentri_si_no = True
+            r.save(update_fields=["rentri_si_no", "updated_at"])
+            fatte.append(r)
+    for r in fatte:
+        log_action(request, "rentri_movimento_trasmesso", "rentri",
+                   {"id_registrazione": r.id_registrazione, "filo": True}, oggetto=r)
         sincronizza(r)
     esito["fatte"] = fatte
     return esito

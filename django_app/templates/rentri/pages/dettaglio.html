@@ -5,7 +5,7 @@
 {% block extra_head %}
 {% include "rentri/components/sc_styles.html" %}
 {% load static %}
-<link rel="stylesheet" href="{% static 'rentri/css/azioni_tabella.css' %}?v=20261113">
+<link rel="stylesheet" href="{% static 'rentri/css/azioni_tabella.css' %}?v=20261116">
 <style>
   .dt-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 20px; padding:16px; }
   .dt-k { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
@@ -125,6 +125,7 @@
         <p>{% if registro.rentri_si_no %}Risulta trasmessa. Toglila solo se la trasmissione non è andata a buon fine.{% else %}Segnala che il movimento è stato trasmesso al RENTRI.{% endif %}</p>
         <input type="hidden" name="trasmesso" value="{% if registro.rentri_si_no %}0{% else %}1{% endif %}">
         <button type="submit" class="sc-btn">{% if registro.rentri_si_no %}Segna da trasmettere{% else %}Segna trasmessa{% endif %}</button>
+        {% if trasmetti_filo %}<button type="button" class="sc-btn" data-trasmetti-filo="{% url 'rentri_trasmetti_filo' registro.pk %}" title="Tutte le righe consolidate del filo in un colpo">Trasmetti filo ({{ trasmetti_filo }})…</button>{% endif %}
       </form>
       <div class="dt-azione">
         <h3>Annulla o elimina</h3>

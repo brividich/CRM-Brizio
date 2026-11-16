@@ -160,15 +160,24 @@ def analizza(records) -> Analisi:
     return a
 
 
-def analizza_codice(codice: str, *, escludi_pk=None) -> Analisi:
-    """Conto dei movimenti validi del solo codice indicato (per le sei cifre)."""
+def analizza_codice(codice: str, *, escludi_pk=None, segnaposto=None) -> Analisi:
+    """Conto dei movimenti validi del solo codice indicato (per le sei cifre).
+
+    `segnaposto` è un movimento in memoria (di norma lo scarico in salvataggio,
+    con quantità zero) che entra nel conto al posto della sua riga a database:
+    non porta fuori nulla ma resta nel filo, così una M già collegata non viene
+    scambiata per un'uscita solo perché la sua O è momentaneamente esclusa.
+    """
     from .models import RegistroRifiuti
 
     k = chiave(codice)
     qs = RegistroRifiuti.objects.attivi().exclude(codice="")
     if escludi_pk:
         qs = qs.exclude(pk=escludi_pk)
-    return analizza([r for r in qs if chiave(r.codice) == k])
+    records = [r for r in qs if chiave(r.codice) == k]
+    if segnaposto is not None:
+        records.append(segnaposto)
+    return analizza(records)
 
 
 def stato_filo(carico, a: Analisi) -> str:
