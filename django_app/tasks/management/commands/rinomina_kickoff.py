@@ -1,10 +1,11 @@
-"""Riallinea il nome dei KICK-OFF storici allo schema «Cliente · P/N · KICK-OFF n».
+"""Riallinea il nome dei KICK-OFF all'oggetto «Cliente · P/N rev. X · Descrizione pezzo».
 
-I progetti creati prima della proposta automatica si chiamano «KICK-OFF 12»:
-negli elenchi e negli oggetti delle email non dicono di chi sia la commessa.
-Il comando ricompone quel nome con `Project.default_name()`.
+I nomi nati dalla vecchia proposta automatica («KICK-OFF 12», «Cliente · P/N ·
+KICK-OFF 12») portano un progressivo che non dice niente. La migrazione 0070 li
+ha gia' riallineati; il comando resta per i casi successivi e ricompone il nome
+con `Project.default_name()`.
 
-Tocca SOLO i nomi che sono ancora la vecchia proposta automatica («KICK-OFF n»,
+Tocca SOLO i nomi che sono ancora una proposta automatica (`Project.nome_automatico`,
 eventualmente vuota): un nome scritto a mano e' una decisione di qualcuno e resta
 dov'e'. Di default non scrive nulla: serve `--apply`.
 """
@@ -22,7 +23,7 @@ AUTO_NAME = re.compile(r"^kick[\s_-]*off\s*\d*$", re.IGNORECASE)
 
 
 class Command(BaseCommand):
-    help = "Rinomina i KICK-OFF storici come «Cliente · P/N · KICK-OFF n» (default: dry-run)."
+    help = "Rinomina i KICK-OFF con nome automatico come «Cliente · P/N rev. X · Descrizione pezzo» (default: dry-run)."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,7 +51,7 @@ class Command(BaseCommand):
         # sono poche decine: tenerli in memoria non costa niente.
         for project in list(Project.objects.order_by("kickoff_number", "pk")):
             nome_attuale = (project.name or "").strip()
-            automatico = not nome_attuale or bool(AUTO_NAME.match(nome_attuale))
+            automatico = project.nome_automatico(nome_attuale)
             if not automatico and not anche_personalizzati:
                 saltati_manuali += 1
                 continue

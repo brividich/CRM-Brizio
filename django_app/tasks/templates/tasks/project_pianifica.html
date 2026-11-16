@@ -1,0 +1,48 @@
+{% extends "tasks/base_shell.html" %}
+{% block tasks_shell_guide_anchor %}#come-procedi{% endblock %}
+
+{% block tasks_shell_head %}
+  {% include "tasks/_percorso_assets.html" %}
+  <style>
+    .cp-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .cp-scelta { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+    .cp-scelta:hover, .cp-scelta:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    .cp-scelta strong { font-size: 17px; }
+    .cp-scelta p { margin: 0; color: var(--text-mid); font-size: 13.5px; line-height: 1.5; }
+    .cp-scelta .cp-va { margin-top: auto; padding-top: 8px; font-weight: 700; color: var(--accent); }
+    .cp-stato { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 760px) { .cp-scelte { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+{% endblock %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Come procedi</span>{% endblock %}
+{% block tasks_shell_title %}{{ project.name }}{% endblock %}
+{% block tasks_shell_subtitle %}Pianifica prima le attività o prima l'incontro: dall'uno passi all'altro.{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-stack">
+  {% include "tasks/_percorso_lifecycle.html" with current="attivita" %}
+
+  <div class="cp-stato">
+    <span class="ts-hero-pill">VRF: {{ vrf.label }}</span>
+    <span class="ts-hero-pill">{{ attivita_totali }} attività{% if attivita_senza_responsabile %} · {{ attivita_senza_responsabile }} senza responsabile{% endif %}</span>
+    <span class="ts-hero-pill">{{ incontri }} incontr{{ incontri|pluralize:"o,i" }}</span>
+  </div>
+
+  <div class="cp-scelte">
+    <a class="cp-scelta" href="{% url 'tasks:project_attivita_pianifica' project.id %}">
+      <strong>Pianifica le attività</strong>
+      <p>Chi fa cosa, entro quando se si sa. Una riga per attività. Alla fine puoi convocare l'incontro per confermarle.</p>
+      <span class="cp-va">Pianifica attività &rarr;</span>
+    </a>
+    <a class="cp-scelta" href="{% url 'tasks:project_meeting_create' project.id %}{% if attivita_totali %}?attivita=aperte{% endif %}">
+      <strong>Pianifica un incontro</strong>
+      <p>Data, sala, partecipanti e ordine del giorno. Dai punti dell'ordine del giorno assegni le attività ai responsabili{% if attivita_totali %}; le attività già pianificate entrano da confermare{% endif %}.</p>
+      <span class="cp-va">Pianifica incontro &rarr;</span>
+    </a>
+  </div>
+</div>
+{% endblock %}

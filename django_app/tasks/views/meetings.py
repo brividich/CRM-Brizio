@@ -609,6 +609,17 @@ def project_meetings(request, project_id: int):
     )
 
 
+def _attivita_dai_punti(request, meeting, segni) -> None:
+    """Crea le attività dei punti ODG segnati «Diventa un'attività»."""
+    from ..services.kickoff_avvio import crea_attivita_dai_punti
+
+    create, bloccato = crea_attivita_dai_punti(meeting, request.user, segni)
+    if create:
+        messages.success(request, f"{create} attività assegnate dai punti dell'ordine del giorno.")
+    if bloccato:
+        messages.error(request, "Kickoff bloccato per VRF mancante: alcune attività dei punti non sono state create.")
+
+
 @task_permissions_required("tasks_create")
 def project_meeting_create(request, project_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
@@ -619,12 +630,16 @@ def project_meeting_create(request, project_id: int):
     if request.method == "POST":
         form = KickoffMeetingForm(request.POST)
         if form.is_valid():
+            from ..services.kickoff_avvio import segni_attivita
+
+            segni = segni_attivita(form.cleaned_data.get("agenda_items_raw"))
             with transaction.atomic():
                 meeting = form.save(commit=False)
                 meeting.project = project
                 meeting.created_by = request.user
                 meeting.save()
                 form.save_m2m()
+            _attivita_dai_punti(request, meeting, segni)
             _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_create", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
             messages.success(request, f"Incontro {meeting.numero} aggiunto.")
@@ -641,12 +656,22 @@ def project_meeting_create(request, project_id: int):
         from ..services.tappe import agenda_items as tappe_agenda
 
         auto_agenda += tappe_agenda(project)
+        # Da «Pianifica attività» (o con attività già pianificate): le attività
+        # entrano per prime, da confermare, e i responsabili fra i convocati.
+        partecipanti = list(project.team_user_ids)
+        if request.GET.get("attivita"):
+            from ..services.kickoff_avvio import agenda_da_attivita
+
+            punti_attivita, responsabili = agenda_da_attivita(project, request.GET["attivita"])
+            gia = {item.get("task_id") for item in auto_agenda if item.get("task_id")}
+            auto_agenda = [p for p in punti_attivita if p["task_id"] not in gia] + auto_agenda
+            partecipanti += [pk for pk in responsabili if pk not in partecipanti]
         initial = {
             "data": timezone.localdate(),
             # Con Outlook configurato la sala si prenota e i partecipanti ricevono l'invito.
             "sync_outlook": _outlook_pronto(),
             "agenda_items_raw": json.dumps(auto_agenda),
-            "partecipanti_utenti": project.team_user_ids,
+            "partecipanti_utenti": partecipanti,
         }
         # «Pianifica prossimo incontro»: si riparte dal precedente (convocati,
         # copia, luogo, ora), non solo dal team di commessa.
@@ -761,6 +786,9 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
         old_data, old_stato = meeting.data, meeting.stato
         form = KickoffMeetingForm(request.POST, instance=meeting)
         if form.is_valid():
+            from ..services.kickoff_avvio import segni_attivita
+
+            segni = segni_attivita(form.cleaned_data.get("agenda_items_raw"))
             with transaction.atomic():
                 meeting = form.save(commit=False)
                 # Incontro rinviato: il promemoria del giorno prima va rifatto
@@ -780,6 +808,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
                     meeting.reminder_sent_at = None
                 meeting.save()
                 form.save_m2m()
+            _attivita_dai_punti(request, meeting, segni)
             if meeting.stato != MeetingStatus.ANNULLATO:
                 _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_edit", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})

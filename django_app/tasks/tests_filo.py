@@ -1,14 +1,15 @@
 """Filo kickoff → incontro → attività: creazione guidata, ODG dalle tappe, assegnazione in riunione, prossimi passi."""
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+import json
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import KickoffMeeting, MeetingRoom, MeetingStatus, Project, Task
+from .models import KickoffMeeting, MeetingStatus, Project, Task
 from .services.filo import prossimi_passi
 from .tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions, make_project
 
@@ -37,24 +38,21 @@ class FiloBase(TasksBaseTestCase):
 
 
 class CreazioneGuidataTests(FiloBase):
-    def test_cosa_serve_e_primo_incontro(self):
-        sala = MeetingRoom.objects.create(nome="Sala Filo", email="sala.filo@example.com")
-        self.crea_kickoff(
-            "PN-FILO-1", tappe_presenti="1", tappe_servono=["MATERIALI", "CAM", "MACCHINA", "FAI"],
-            primo_data="2026-12-03", primo_ora="09:30", primo_sala=str(sala.pk),
-        )
+    def test_cosa_serve_entra_nell_odg_del_primo_incontro(self):
+        self.crea_kickoff("PN-FILO-1", tappe_presenti="1", tappe_servono=["MATERIALI", "CAM", "MACCHINA", "FAI"])
         project = Project.objects.get(part_number="PN-FILO-1")
         self.assertEqual(project.tappe_escluse, ["CMM", "ATTREZZATURA", "UTENSILI", "TERZISTA", "PROCESSI"])
-        m = project.meetings.get()
-        self.assertEqual((m.data, m.ora, m.sala, m.luogo), (date(2026, 12, 3), time(9, 30), sala, "Sala Filo"))
-        fonti = [i["source"] for i in m.agenda_items]
-        self.assertEqual(fonti, ["tappa:MATERIALI", "tappa:CAM", "tappa:MACCHINA", "tappa:FAI"])
+        pagina = self.client.get(reverse("tasks:project_meeting_create", args=[project.pk]))
+        fonti = [i["source"] for i in json.loads(pagina.context["form"].initial["agenda_items_raw"])]
+        self.assertEqual([f for f in fonti if f.startswith("tappa:")],
+                         ["tappa:MATERIALI", "tappa:CAM", "tappa:MACCHINA", "tappa:FAI"])
 
     def test_senza_campi_nuovi_non_cambia_nulla(self):
         self.crea_kickoff("PN-FILO-2")
         project = Project.objects.get(part_number="PN-FILO-2")
         self.assertEqual(project.tappe_escluse, [])
-        self.assertEqual(project.meetings.get().data, timezone.localdate())
+        # L'incontro non è più obbligatorio: senza «Serve un incontro» non nasce.
+        self.assertFalse(project.meetings.exists())
 
     def test_modifica_commessa_aggiorna_cosa_serve(self):
         _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
@@ -74,7 +72,8 @@ class CreazioneGuidataTests(FiloBase):
     def test_form_mostra_le_nuove_tappe(self):
         pagina = self.client.get(reverse("tasks:project_create"))
         self.assertContains(pagina, "Cosa serve a questa commessa")
-        self.assertContains(pagina, "Primo incontro")
+        # L'incontro si sceglie dopo la VRF, in «Come procedi?».
+        self.assertNotContains(pagina, "primo_data")
 
 
 class OdgERiunioneTests(FiloBase):

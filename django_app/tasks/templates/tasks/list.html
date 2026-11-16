@@ -3,7 +3,7 @@
 
 {% block tasks_shell_eyebrow %}
   {% if active_project %}
-    <span class="ts-eyebrow">KICK-OFF {{ active_project.kickoff_number }}</span>
+    <span class="ts-eyebrow">KICK-OFF</span>
   {% else %}
     <span class="ts-eyebrow">KICK-OFF / Dashboard</span>
   {% endif %}
@@ -118,7 +118,7 @@
 
   <div class="pk-header">
     <div>
-      <p class="pk-header-eyebrow">Kickoff {{ active_project.kickoff_number }}</p>
+      <p class="pk-header-eyebrow">Kickoff</p>
       <h2 class="pk-header-title">{{ active_project.name }}</h2>
       <div class="pk-header-chips">
         {% if active_project.part_number %}<span class="pk-header-chip">P/N {{ active_project.part_number }}</span>{% endif %}

@@ -36,7 +36,7 @@ class RinominaKickoffTests(TestCase):
     def test_apply_ricompone_il_nome_automatico(self):
         self._run("--apply")
         self.automatico.refresh_from_db()
-        self.assertEqual(self.automatico.name, "ACME \u00b7 PN-9 \u00b7 KICK-OFF 1")
+        self.assertEqual(self.automatico.name, "ACME · PN-9")
 
     def test_le_scritture_avvengono_dopo_aver_letto_tutto(self):
         """Regressione HY010: su SQL Server l'UPDATE non puo' partire mentre il
@@ -59,4 +59,4 @@ class RinominaKickoffTests(TestCase):
     def test_all_sovrascrive_anche_i_nomi_manuali(self):
         self._run("--apply", "--all")
         self.manuale.refresh_from_db()
-        self.assertEqual(self.manuale.name, "Beta \u00b7 KICK-OFF 2")
+        self.assertEqual(self.manuale.name, "Beta")

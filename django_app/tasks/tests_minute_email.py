@@ -40,7 +40,7 @@ class MinuteEmailTests(TestCase):
     def test_build_minute_email_contains_verbale_and_subject(self):
         subject, body_text, body_html = build_minute_email(self.meeting)
         self.assertIn("Minuta", subject)
-        self.assertIn(str(self.meeting.project.kickoff_number), subject)
+        self.assertIn(self.meeting.project.name, subject)
         self.assertIn("Riunione conclusa", body_html)
         self.assertIn("Inviare offerta", body_html)
 

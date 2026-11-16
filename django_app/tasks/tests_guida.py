@@ -55,7 +55,7 @@ class GuidaContenutoTests(SimpleTestCase):
         from ai_assistant.guide_portale import sezioni_in_markdown
 
         testo = sezioni_in_markdown(SEZIONI)
-        self.assertIn("Crea kickoff e convoca il primo incontro", testo)
+        self.assertIn("Crea kickoff e passa alla VRF", testo)
         self.assertNotIn(".jpg", testo)
 
 

@@ -27,7 +27,7 @@ SEZIONI: list[dict] = [
             ("p", "Il modulo KICK-OFF segue una commessa dall'avvio all'esecuzione: la scheda di commessa con "
                   "il documento VRF, il team, le attività pianificate sul Gantt e gli incontri con il loro esito."),
             ("def", [
-                ("Commessa (kickoff)", "la scheda «Cliente · P/N · KICK-OFF n» con team, fase e VRF."),
+                ("Commessa (kickoff)", "la scheda con oggetto «Cliente · P/N rev. · Descrizione pezzo», team, attività, fase e VRF. Il catalogo delle nuove industrializzazioni."),
                 ("Scheda VRF", "il modulo MOD.073 «Scheda valutazione rischi e fornitura»: 9 rischi con probabilità, gravità e Totale Rischio."),
                 ("Attività", "lavoro pianificato con data inizio, data fine, responsabile e avanzamento. Compare sul Gantt."),
                 ("Incontro", "riunione di commessa: convocazione, conduzione, esito e minuta."),
@@ -82,7 +82,7 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Filtri: «Cerca» (nome, P/N, cliente), «Cliente», «Stato VRF» (Caricato, In attesa, Bloccato, Da caricare).",
                 "«Ordina per»: Nome, Scadenza più vicina, Avanzamento, Criticità. Premi «Filtra» per applicare, «Reset» per togliere tutto.",
-                "Sulla card trovi numero, cliente, P/N, data di inizio (il primo incontro non annullato), fase, semaforo di prontezza, team e stato del documento VRF.",
+                "Sulla card trovi oggetto, cliente, P/N, data di inizio (il primo incontro non annullato), fase, semaforo di prontezza, team e stato del documento VRF.",
                 "Pulsanti della card: «Attivita», «Gantt», «Incontri», «Copia VRF», «Copia senza P/N».",
             ]),
             ("img", (_IMG + "portfolio.jpg", "Il portfolio nella vista Card")),
@@ -99,17 +99,18 @@ SEZIONI: list[dict] = [
         "id": "nuovo-kickoff",
         "titolo": "Creare una commessa",
         "blocchi": [
+            ("p", "Il KICK-OFF è il catalogo delle nuove commesse e prende il posto della mail che si mandava al team "
+                  "prima o dopo l'incontro. Il filo: dati della commessa → scheda VRF (compilata o rimandata) → "
+                  "pianificazione delle attività o dell'incontro."),
             ("passi", [
                 "Premi «+ Nuovo kickoff».",
-                "Identificazione: «Cliente» è l'unico campo obbligatorio; i suggerimenti propongono clienti e P/N già usati. Aggiungi P/N, revisione, versione, metodo di controllo e descrizione.",
-                "Lascia vuoto «Nome del kickoff»: viene composto da solo come «Cliente · P/N · KICK-OFF n». Scrivilo solo se quella formula non basta.",
-                "Spunta «Impatto sulla sicurezza» se il lavoro lo richiede: la commessa viene evidenziata nelle viste.",
-                "Dati scheda VRF: preventivo ed Esp., se li hai. La «Descrizione» scritta sopra finisce anche nella scheda VRF.",
-                "Team di progetto: cerca la persona nel riquadro di ogni ruolo e spuntala. Le persone scelte appaiono come etichette, con × per toglierle. Ogni ruolo può avere più persone.",
-                "Tipo di commessa e consegna: scegli il modello (es. «Ripetizione»), che spunta da solo le tappe che servono, e la data di consegna al cliente. Con entrambi, ogni tappa propone la sua scadenza «Entro il» (giorni prima della consegna, decisi nel modello).",
-                "Cosa serve a questa commessa: togli la spunta alle tappe che non servono (per esempio Terzista o Processi speciali). Si può cambiare dopo da «Modifica kickoff» o dal Percorso.",
-                "Primo incontro: data, ora e sala.",
-                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team tra i partecipanti e, come ordine del giorno, le tappe che servono. Si apre la convocazione, con la disponibilità delle sale e l'invito Outlook.",
+                "«Di che pezzo si tratta»: «Cliente» è l'unico campo obbligatorio. Aggiungi P/N, «Descrizione pezzo» (il nome del pezzo), revisione e versione. Ogni campo propone i valori già usati negli altri kickoff: scrivi qualche lettera o clicca nel campo e scegli.",
+                "«Oggetto»: si compone da solo come «Cliente · P/N rev. X · Descrizione pezzo» (non c'è più il numero «KICK-OFF n»). Scrivilo solo se quella formula non basta.",
+                "«Preventivo e dati di commessa»: preventivo, Esp, metodo di controllo, note (finiscono anche nella scheda VRF), impatto sulla sicurezza. Tutti facoltativi.",
+                "«Team»: cerca la persona nel riquadro di ogni ruolo e spuntala; × la toglie. Ogni ruolo può avere più persone.",
+                "«Cosa serve a questa commessa» (chiuso, facoltativo): tipo di commessa, consegna al cliente e tappe che servono.",
+                "Premi «Crea kickoff e passa alla VRF»: si apre la scheda VRF. La compili («Conferma e genera xlsx») o la rimandi («Prosegui e ricordami VRF»).",
+                "Si apre «Come procedi?»: scegli «Pianifica le attività» o «Pianifica un incontro».",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
             ("ul", [
@@ -117,6 +118,33 @@ SEZIONI: list[dict] = [
                 "Revisione e versione valgono solo con un P/N.",
             ]),
             ("nota", "Se P/N, revisione e versione corrispondono a un kickoff che esiste già, non ne nasce uno doppio: il portale apre quello esistente e lo dice con un messaggio."),
+        ],
+    },
+    {
+        "id": "come-procedi",
+        "titolo": "Come procedi: attività o incontro",
+        "blocchi": [
+            ("p", "Dopo la VRF il portale chiede come procedere. Non sempre un nuovo P/N ha bisogno di un incontro; le attività invece sì."),
+            ("def", [
+                ("Pianifica le attività", "chi fa cosa, entro quando se si sa. Alla fine puoi convocare l'incontro per confermarle."),
+                ("Pianifica un incontro", "la convocazione: dai punti dell'ordine del giorno assegni le attività ai responsabili. Se ci sono già attività pianificate, entrano nell'ordine del giorno da confermare."),
+            ]),
+            ("p", "La stessa pagina si riapre da «Come procedi?» (indirizzo /tasks/projects/<id>/come-procedi/); dalla panoramica ci sono anche «+ Pianifica attività» e «Nuovo incontro»."),
+        ],
+    },
+    {
+        "id": "pianifica-attivita",
+        "titolo": "Pianificare le attività",
+        "blocchi": [
+            ("passi", [
+                "Una riga per attività: «Attività» (propone le attività già usate), «Responsabile» (si cerca per nome), «Entro il» (facoltativo: la scadenza si mette quando si sa).",
+                "Invio sul titolo aggiunge una riga con lo stesso responsabile della riga sopra; «+ Altra attività» fa lo stesso; «×» toglie la riga.",
+                "«Salva»: le attività entrano nel piano e ogni responsabile riceve l'avviso di assegnazione. «Salva e pianifica l'incontro»: si apre la convocazione con queste attività nell'ordine del giorno, da confermare, e i responsabili fra i convocati.",
+            ]),
+            ("ul", [
+                "«Già pianificate» elenca le attività aperte del kickoff, per non scriverle due volte.",
+                "Con il kickoff bloccato per VRF mancante la pagina rimanda alla scheda VRF.",
+            ]),
         ],
     },
     {
@@ -378,11 +406,11 @@ SEZIONI: list[dict] = [
         "titolo": "Pianificare e convocare un incontro",
         "blocchi": [
             ("passi", [
-                "Scheda «Incontri» della commessa, «+ Nuovo incontro». Per l'incontro 1 la convocazione è già aperta dopo la creazione.",
+                "Scheda «Incontri» della commessa, «+ Nuovo incontro», oppure «Pianifica un incontro» in «Come procedi?» o «Salva e pianifica l'incontro» dopo le attività.",
                 "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; su «Dall'ordine del giorno» vale la somma dei punti, un'ora se non ce ne sono.",
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta: chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo.",
-                "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
+                "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente». Per assegnare un'attività da un punto scegli il «Responsabile» (fra i convocati), spunta «Diventa un'attività del responsabile» e, se la sai, la data «Entro il»: al salvataggio nasce l'attività, il punto resta collegato e il responsabile riceve l'avviso.",
                 "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio i partecipanti ricevono la riunione Outlook da accettare, con l'ordine del giorno, e la sala la richiesta di prenotazione. È questa la convocazione: niente file .ics da aprire.",
                 "Salva. Ogni modifica salvata dopo (data, ora, durata, sala, convocati, ordine del giorno) arriva ai partecipanti come aggiornamento dell'invito; se non cambia niente per loro, non parte nulla.",
             ]),
@@ -391,7 +419,7 @@ SEZIONI: list[dict] = [
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
                 "Mentre scrivi un punto, un'azione, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé nota e durata predefinite.",
-                "L'ordine del giorno parte già con i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
+                "Se arrivi dalle attività pianificate, l'ordine del giorno parte con quelle attività da confermare e i loro responsabili fra i convocati. Poi i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
                 "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione» del dettaglio, "

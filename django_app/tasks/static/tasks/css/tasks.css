@@ -3652,7 +3652,7 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .mf-header-icon svg { width: 22px; height: 22px; stroke: #fff; }
-.mf-header h2 { margin: 0 0 3px; font-size: 1.15rem; font-weight: 800; }
+.mf-header h2 { margin: 0 0 3px; font-size: 1.15rem; font-weight: 800; color: #fff; }
 .mf-header p  { margin: 0; opacity: .8; font-size: .85rem; }
 
 /* ── Sections ───────────────────────────────────────────────────────── */

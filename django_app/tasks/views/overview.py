@@ -20,9 +20,23 @@ from ._shared import _tasks_shell_context, percentuale_avanzamento
 from .tappe import tappe_context
 
 
+def _testo(value) -> str:
+    return " ".join(str(value or "").split())[:120]
+
+
+# Campi ricercabili: chiave del parametro ``field`` -> (sorgente, campo, normalizzazione).
+# «progetti» = kickoff visibili all'utente; «incontri» = incontri di quei kickoff.
 _IDENTITY_FIELDS = {
-    "client": ("client_name", normalize_client_name),
-    "part_number": ("part_number", normalize_part_number),
+    "client": ("progetti", "client_name", normalize_client_name),
+    "part_number": ("progetti", "part_number", normalize_part_number),
+    "descrizione_pezzo": ("progetti", "descrizione_pezzo", _testo),
+    "revisione": ("progetti", "revisione", _testo),
+    "versione": ("progetti", "versione", _testo),
+    "control_method": ("progetti", "control_method", _testo),
+    "vrf_quote_number": ("progetti", "vrf_quote_number", _testo),
+    "vrf_esp": ("progetti", "vrf_esp", _testo),
+    "meeting_titolo": ("incontri", "titolo", _testo),
+    "meeting_luogo": ("incontri", "luogo", _testo),
 }
 
 
@@ -54,20 +68,31 @@ def identity_suggest(request):
             status=400,
         )
 
-    model_field, normalize_query = field_config
+    sorgente, model_field, normalize_query = field_config
     query = normalize_query(request.GET.get("q"))
-    if not query:
-        return JsonResponse({"values": []})
+    progetti = scoped_projects_queryset(request)
+    if sorgente == "incontri":
+        from ..models import KickoffMeeting
 
-    values = list(
-        scoped_projects_queryset(request)
-        .filter(**{f"{model_field}__istartswith": query})
-        .exclude(**{model_field: ""})
-        .order_by(model_field)
-        .values_list(model_field, flat=True)
-        .distinct()[:20]
-    )
-    return JsonResponse({"values": values})
+        qs = KickoffMeeting.objects.filter(project__in=progetti.values("pk"))
+    else:
+        qs = progetti
+    # Campo vuoto: i valori già usati, per scegliere senza scrivere. Con del
+    # testo: quelli che lo contengono, prima quelli che iniziano così.
+    qs = qs.exclude(**{model_field: ""}).exclude(**{f"{model_field}__isnull": True})
+    if query:
+        qs = qs.filter(**{f"{model_field}__icontains": query})
+    values = list(qs.order_by(model_field).values_list(model_field, flat=True).distinct()[:200])
+    visti, unici = set(), []
+    for value in values:
+        chiave = value.casefold()
+        if chiave not in visti:
+            visti.add(chiave)
+            unici.append(value)
+    if query:
+        q = query.casefold()
+        unici.sort(key=lambda v: (not v.casefold().startswith(q), v.casefold()))
+    return JsonResponse({"values": unici[:20]})
 
 
 @task_permissions_required("tasks_view")

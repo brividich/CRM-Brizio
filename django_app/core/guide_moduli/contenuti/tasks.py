@@ -20,9 +20,10 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri KICK-OFF e clicca «+ Nuovo kickoff».",
-                    "Compila cliente e P/N: il nome viene proposto da solo (Cliente · P/N · KICK-OFF numero). Lascia vuoto il nome per usare la proposta.",
-                    "Scegli il team: PM, capo commessa, programmatore, caporeparto (anche più persone per ruolo). Basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore.",
-                    "Salva con «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 e si apre la sua convocazione.",
+                    "Compila «Di che pezzo si tratta»: cliente, P/N, «Descrizione pezzo», revisione. Ogni campo propone i valori già usati. L'oggetto si compone da solo come «Cliente · P/N rev. X · Descrizione pezzo», senza più il numero «KICK-OFF n».",
+                    "Aggiungi preventivo e dati di commessa (facoltativi) e il team: basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore.",
+                    "«Crea kickoff e passa alla VRF»: compili la scheda VRF o la rimandi, come prima.",
+                    "«Come procedi?»: «Pianifica le attività» (una riga per attività: cosa, chi, entro quando se si sa; poi puoi convocare l'incontro per confermarle) o «Pianifica un incontro» (dai punti dell'ordine del giorno assegni le attività con «Diventa un'attività del responsabile»).",
                     "Dati e team si correggono poi da «Modifica kickoff» nella Panoramica.",
                 ]),
             ],

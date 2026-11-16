@@ -264,6 +264,14 @@ def _vrf_data_from_post(post, vrf_catalog) -> dict:
     return data
 
 
+def _dopo_vrf(project):
+    """Dopo la VRF (compilata o rimandata): un kickoff ancora da pianificare
+    va a «Come procedi?» (attività o incontro); uno già avviato torna al piano."""
+    if not project.tasks.exists() and not project.meetings.exists():
+        return redirect("tasks:project_pianifica", project_id=project.id)
+    return redirect("tasks:project_gantt", project_id=project.id)
+
+
 @task_permissions_required("tasks_view")
 def project_vrf_compile(request, project_id: int):
     """Compila la scheda VRF online e genera l'xlsx a conferma.
@@ -343,7 +351,7 @@ def project_vrf_compile(request, project_id: int):
                 "Bozza VRF salvata. Il sistema ti ricorderà di completare la scheda VRF "
                 "secondo le impostazioni del modulo (promemoria e blocco progressivo).",
             )
-            return redirect("tasks:project_gantt", project_id=project_id)
+            return _dopo_vrf(project)
 
         if action == "confirm":
             from django.core.files.base import ContentFile
@@ -376,7 +384,7 @@ def project_vrf_compile(request, project_id: int):
                 )
             else:
                 messages.success(request, "VRF compilato e salvato. Kickoff sbloccato.")
-            return redirect("tasks:project_gantt", project_id=project_id)
+            return _dopo_vrf(project)
 
         messages.error(request, "Azione non riconosciuta.")
         return redirect("tasks:project_vrf_compile", project_id=project_id)
