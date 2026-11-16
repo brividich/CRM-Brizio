@@ -1,0 +1,27 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Regole di silenzio | Registro accessi{% endblock %}
+{% block page_title %}Regole di silenzio{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro"><a href="{% url 'security:registro_log_eventi' %}">&larr; Catalogo</a> · Gli eventi che corrispondono a una regola in vigore non compaiono nel catalogo, in «Da guardare» e negli alert del SOC; restano nell'archivio sigillato e nella scheda «Persona o PC». Si creano con «Silenzia…» su una riga del catalogo.</p>
+<section class="sec-panel">
+  {% if righe %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Evento</th><th>Vale per</th><th>Motivo</th><th class="sec-num">Nascosti (7 giorni)</th><th>Stato</th>{% if puo_configurare %}<th><span class="sr-only">Azioni</span></th>{% endif %}</tr></thead>
+    <tbody>{% for x in righe %}<tr>
+      <td><span class="rl-cat">{{ x.etichetta }}</span>{% if x.r.testo %}<span class="rl-sub">«{{ x.r.testo }}»</span>{% endif %}</td>
+      <td>{% if x.r.account %}account <strong>{{ x.r.account }}</strong>{% else %}tutti gli account{% endif %}<span class="rl-sub">{% if x.r.host %}sistema {{ x.r.host }}{% else %}tutti i sistemi{% endif %}</span></td>
+      <td>{{ x.r.motivo }}<span class="rl-sub">{{ x.r.creata_da|default:"—" }} · {{ x.r.creata_il|date:"d/m/Y H:i" }}</span></td>
+      <td class="sec-num">{{ x.nascosti }}</td>
+      <td>{% if x.r.in_vigore %}<span class="sec-badge success">In vigore</span>{% if x.r.scade_il %}<span class="rl-sub">fino al {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}{% elif not x.r.attiva %}<span class="sec-badge">Spenta</span>{% else %}<span class="sec-badge">Scaduta</span><span class="rl-sub">il {{ x.r.scade_il|date:"d/m/Y" }}</span>{% endif %}</td>
+      {% if puo_configurare %}<td class="rl-azioni-riga">
+        <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ x.r.pk }}">
+          {% if x.r.attiva %}<button class="sec-button sec-button-small" name="azione" value="spegni" type="submit">Spegni</button>{% else %}<button class="sec-button sec-button-small" name="azione" value="accendi" type="submit">Riaccendi</button>{% endif %}
+          <button class="sec-button sec-button-small" name="azione" value="elimina" type="submit">Elimina</button>
+        </form>
+      </td>{% endif %}
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-empty">Nessuna regola: nel catalogo si vede tutto.</p>{% endif %}
+</section>
+{% endblock %}

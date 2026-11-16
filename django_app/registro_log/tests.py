@@ -405,7 +405,10 @@ class RaccoglitoreTests(_ConArchivio):
         url = reverse("security:registro_log_eventi")
         r = self.client.get(url, {"giorni": "1", "sezione": "accessi"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.context["pagina"].paginator.count, 2)
+        self.assertEqual(r.context["totale"], 2)
+        self.assertEqual(r.context["pagina"].paginator.count, 1)  # i due accessi uguali sono un gruppo
+        self.assertEqual(self.client.get(url, {"giorni": "1", "sezione": "accessi", "righe": "tutte"})
+                         .context["pagina"].paginator.count, 2)
         self.assertEqual({s["codice"]: s["n"] for s in r.context["sezioni"]},
                          {"": 4, "accessi": 2, "falliti": 1, "account": 1, "sistema": 0, "syslog": 0})
         vecchio = self.client.get(url, {"giorni": "1", "vista": "falliti"})  # link di prima
@@ -1050,6 +1053,75 @@ class SpiegazioniTests(_ConArchivio):
         self.assertIn("Quando è normale", testo)
         self.assertIn("password sbagliata", testo)
         self.assertIn("Tutti i campi tecnici di Windows", testo)
+
+
+class CatalogoSilenziTests(_ConArchivio):
+    def setUp(self):
+        super().setUp()
+        from core.models import UserOnboarding
+
+        self.admin = get_user_model().objects.create_user("admin.cat", password="pass-di-prova-123", is_staff=True,
+                                                          is_superuser=True)
+        UserOnboarding.objects.update_or_create(user=self.admin, defaults={"completed": True})
+        self.client.force_login(self.admin)
+        self.url = reverse("security:registro_log_eventi")
+        ora = timezone.now()
+        for i in range(5):  # account di servizio che entra con privilegi ogni ora: rumore
+            EventoRegistro.objects.create(quando=ora - timedelta(minutes=10 * i), categoria="accesso_privilegiato",
+                                          account="svc-qlik", host="DC01.esempio.local", privilegiato=True,
+                                          descrizione="Accesso con privilegi di amministratore")
+        EventoRegistro.objects.create(quando=ora, categoria="accesso_privilegiato", account="admin.it", host="DC01.esempio.local",
+                                      privilegiato=True, descrizione="Accesso con privilegi di amministratore")
+        EventoRegistro.objects.create(quando=ora, categoria="accesso", esito="ok", account="mrossi", host="PC-UFF12",
+                                      descrizione="Accesso al dominio")
+        EventoRegistro.objects.create(quando=ora, categoria="accesso_fallito", esito="ko", account="gverdi", host="DC01",
+                                      descrizione="Accesso al dominio non riuscito: password sbagliata")
+
+    def test_kpi_e_gruppi(self):
+        r = self.client.get(self.url, {"giorni": "1"})
+        kpi = r.context["kpi"]
+        self.assertEqual((kpi["persone"], kpi["accessi"], kpi["falliti"], kpi["falliti_account"]), (1, 1, 1, 1))
+        gruppi = {(g["account"], g["n"]) for g in r.context["pagina"]}
+        self.assertIn(("svc-qlik", 5), gruppi)
+        dettaglio = self.client.get(self.url, {"giorni": "1", "righe": "tutte", "categoria": "accesso_privilegiato",
+                                               "account": "svc-qlik", "host": "DC01.esempio.local"})
+        self.assertEqual(dettaglio.context["pagina"].paginator.count, 5)
+
+    def test_silenzia_nasconde_ovunque_e_si_toglie(self):
+        from .models import RegolaSilenzio
+
+        r = self.client.post(reverse("security:registro_log_silenzia"), {
+            "categoria": "accesso_privilegiato", "account": "svc-qlik", "host": "DC01.esempio.local", "solo_account": "1",
+            "solo_host": "1", "motivo": "servizio Qlik, previsto", "giorni": "30", "torna": self.url})
+        self.assertEqual(r.status_code, 302)
+        regola = RegolaSilenzio.objects.get()
+        self.assertEqual((regola.account, regola.host), ("svc-qlik", "DC01"))  # nome breve: vale anche per il nome completo
+        self.assertIsNotNone(regola.scade_il)
+        pagina = self.client.get(self.url, {"giorni": "1"})
+        self.assertNotIn("svc-qlik", [g["account"] for g in pagina.context["pagina"]])
+        self.assertIn("admin.it", [g["account"] for g in pagina.context["pagina"]])  # stesso evento, altro account: resta
+        self.assertEqual(pagina.context["n_silenziati"], 5)
+        tutti = self.client.get(self.url, {"giorni": "1", "silenziati": "1"})
+        self.assertTrue(any(g["silenziato"] for g in tutti.context["pagina"] if g["account"] == "svc-qlik"))
+        regole_pagina = self.client.get(reverse("security:registro_log_silenzi"))
+        self.assertEqual(regole_pagina.context["righe"][0]["nascosti"], 5)
+        self.client.post(reverse("security:registro_log_silenzi"), {"id": regola.pk, "azione": "spegni"})
+        self.assertIn("svc-qlik", [g["account"] for g in self.client.get(self.url, {"giorni": "1"}).context["pagina"]])
+
+    def test_motivo_obbligatorio_e_niente_alert_per_i_silenziati(self):
+        from . import silenzi
+        from .models import RegolaSilenzio
+
+        self.client.post(reverse("security:registro_log_silenzia"), {"categoria": "accesso_privilegiato", "motivo": "",
+                                                                     "torna": self.url})
+        self.assertFalse(RegolaSilenzio.objects.exists())
+        silenzi.crea(categoria="accesso_privilegiato", account="svc-qlik", host="", testo="", motivo="previsto", giorni="",
+                     utente="t")
+        ev = EventoRegistro.objects.filter(account="svc-qlik").first()
+        regole_s = silenzi.regole_in_vigore()
+        self.assertTrue(silenzi.silenziato(regole_s, categoria=ev.categoria, account="ESEMPIO\\svc-qlik", host=ev.host,
+                                           descrizione=ev.descrizione))
+        self.assertEqual(silenzi.escludi(EventoRegistro.objects.all(), regole_s).filter(account="svc-qlik").count(), 0)
 
 
 class RobustezzaTests(_ConArchivio):

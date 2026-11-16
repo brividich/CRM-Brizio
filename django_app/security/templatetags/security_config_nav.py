@@ -90,7 +90,7 @@ MENU = [
     ("Registro accessi", "registro_log", [
         ("Panoramica", "registro_log", ("registro_log",), False),
         ("Persona o PC", "registro_log_persona", ("registro_log_persona",), False),
-        ("Catalogo", "registro_log_eventi", ("registro_log_eventi", "registro_log_evento"), False),
+        ("Catalogo", "registro_log_eventi", ("registro_log_eventi", "registro_log_evento", "registro_log_silenzi"), False),
         ("Indagini", "registro_log_indagini", ("registro_log_indagini", "registro_log_indagine"), True),
         ("Elenchi", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni", "registro_log_account",
                                            "registro_log_ads"), False),
