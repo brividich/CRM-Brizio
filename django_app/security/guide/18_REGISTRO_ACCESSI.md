@@ -42,7 +42,7 @@ Cosa entra nel catalogo (il resto resta solo nell'archivio):
 - accessi non riusciti (con il motivo: password sbagliata, utente inesistente, account bloccato…), anche Kerberos e NTLM dei controller di dominio;
 - account creati, eliminati, abilitati, disabilitati, bloccati, password reimpostate;
 - aggiunte e rimozioni dai gruppi (critico se il gruppo è di amministratori: Domain Admins, Administrators, Enterprise Admins, Backup Operators…);
-- registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti (criteri di audit, attività pianificate e orologio solo se li cambia una persona: quando li applica Windows stesso, per esempio riapplicando la GPO, restano nell'archivio);
+- registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti (criteri di audit, attività pianificate e orologio solo se li cambia una persona: quando li applica Windows stesso, per esempio riapplicando la GPO, restano nell'archivio; restano nell'archivio anche i servizi «per utente» che Windows 10/11 crea a ogni accesso, come `cbdhsvc_1a2b3c`, e le attività che Windows e Office creano da sé, come `\Microsoft\…` e `\SoftLanding\…`);
 - da syslog: accessi SSH e alla console di gestione (ESXi, vCenter, switch Cisco e Aruba, firewall WatchGuard, NAS Synology), accessi rifiutati, SSH o shell abilitati, comandi `sudo`. Gli altri messaggi syslog restano solo nell'archivio.
 
 Quando cambiano le regole del catalogo, al riavvio il raccoglitore rifà il catalogo degli ultimi 31 giorni rileggendo l'archivio (l'archivio sigillato non cambia). Gli eventi ricatalogati non mandano alert al SOC.
