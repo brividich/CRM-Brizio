@@ -98,13 +98,61 @@ class PrendoIoTests(LavorazioneBase):
         self.assertEqual(ticket.stato, StatoTicket.APERTA)
 
 
+class ConfermaChiusuraTests(LavorazioneBase):
+    """Chiude davvero solo chi ha aperto il ticket; per gli altri resta «Risolto»."""
+
+    def test_chi_ha_aperto_chiude_subito(self):
+        ticket = self._ticket(richiedente_user=self.tecnico)
+        self._api(ticket, azione="risolvi", intervento_svolto="Fatto da me")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+
+    def test_cambio_stato_chiuso_diventa_risolto(self):
+        ticket = self._ticket(stato=StatoTicket.IN_CARICO)
+        response = self._api(ticket, stato="CHIUSO")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["stato"], "RISOLTO")
+        self.assertIn("avviso", response.json())
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+
+    def test_risolto_non_si_chiude_senza_conferma(self):
+        ticket = self._ticket(stato=StatoTicket.RISOLTO)
+        response = self._api(ticket, stato="CHIUSO")
+        self.assertEqual(response.status_code, 409)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+
+    def test_richiedente_gestore_chiude_dal_cambio_stato(self):
+        ticket = self._ticket(stato=StatoTicket.IN_CARICO, richiedente_email="tec@example.com")
+        self._api(ticket, stato="CHIUSO")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+
+    def test_bulk_chiuso_diventa_risolto(self):
+        aperto = self._ticket(stato=StatoTicket.IN_CARICO)
+        gia_risolto = self._ticket(stato=StatoTicket.RISOLTO)
+        response = self.client.post(
+            reverse("tickets:api_bulk"),
+            data=json.dumps({"ids": [aperto.pk, gia_risolto.pk], "azione": "stato", "stato": "CHIUSO"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["aggiornati"], 1)
+        aperto.refresh_from_db()
+        gia_risolto.refresh_from_db()
+        self.assertEqual((aperto.stato, gia_risolto.stato), (StatoTicket.RISOLTO, StatoTicket.RISOLTO))
+
+
 class RisolviTests(LavorazioneBase):
     def test_chiude_con_il_solo_lavoro(self):
         ticket = self._ticket()
         response = self._api(ticket, azione="risolvi", intervento_svolto="Sostituito fusibile sintetico")
         self.assertEqual(response.status_code, 200)
         ticket.refresh_from_db()
-        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+        # Il tecnico non l'ha aperto: «Risolto», la chiusura la conferma il richiedente.
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+        self.assertIsNotNone(ticket.closed_at)
         self.assertTrue(ticket.risolto_da_nome)
         self.assertTrue(ticket.assegnato_a)
         intervento = ticket.interventi.get()

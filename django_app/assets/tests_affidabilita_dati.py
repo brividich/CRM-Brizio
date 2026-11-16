@@ -423,12 +423,13 @@ class WorkorderCloseTicketTests(_TicketFixtureMixin, TestCase):
         self.wo.refresh_from_db()
         self.ticket.refresh_from_db()
         self.assertEqual(self.wo.status, WorkOrder.STATUS_DONE)
-        self.assertEqual(self.ticket.stato, "CHIUSO")
+        # Il gestore non ha aperto la segnalazione: resta «Risolto», la conferma chi l'ha aperta.
+        self.assertEqual(self.ticket.stato, "RISOLTO")
         self.assertIsNotNone(self.ticket.closed_at)
         self.assertTrue(self.ticket.risolto_da_nome)
         log = TicketStatoLog.objects.get(ticket=self.ticket)
-        self.assertEqual((log.da_stato, log.a_stato), ("IN_CARICO", "CHIUSO"))
-        self.assertIn("chiusa", WorkOrderLog.objects.filter(work_order=self.wo).latest("id").note)
+        self.assertEqual((log.da_stato, log.a_stato), ("IN_CARICO", "RISOLTO"))
+        self.assertIn("risolta", WorkOrderLog.objects.filter(work_order=self.wo).latest("id").note)
 
     def test_altro_intervento_aperto_lascia_il_ticket(self):
         WorkOrder.objects.create(

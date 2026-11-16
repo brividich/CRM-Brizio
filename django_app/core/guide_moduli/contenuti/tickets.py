@@ -75,7 +75,8 @@ GUIDA = {
                     ("Aperto", "ricevuto, nessuno l'ha ancora preso."),
                     ("In carico", "un tecnico ci sta lavorando."),
                     ("In attesa", "si aspetta qualcosa (un pezzo, una tua risposta)."),
-                    ("Risolto / Chiuso", "il problema è sistemato."),
+                    ("Risolto", "il tecnico ha finito: tocca a te confermare o riaprire."),
+                    ("Chiuso", "hai confermato che il problema è sistemato."),
                     ("Ticket", "la voce accanto a «I miei ticket», per chi in base al ruolo vede anche i ticket di altri "
                                "(per esempio il caporeparto): tutti i ticket che puoi vedere. Su quelli aperti da altri sei "
                                "in sola lettura: niente commenti, si agisce solo sui propri da «I miei ticket». "
@@ -92,11 +93,11 @@ GUIDA = {
                     "«Prendo io», sulla riga o nella scheda, assegna il ticket a te e lo mette «In carico» con un clic.",
                     "Ogni volta che lavori sul ticket clicca «+ Aggiungi intervento», scrivi cosa hai fatto e il tempo, poi «Registra intervento».",
                     "Compila i dati tecnici (componente guasto, causa, ore di fermo macchina) e clicca «Salva dati tecnici».",
-                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Chiudi ticket»: registra l'intervento, chiude il ticket e propone il prossimo da fare.",
+                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Segna risolto»: registra l'intervento, porta il ticket a «Risolto» e propone il prossimo da fare. Il ticket si chiude solo quando chi l'ha aperto conferma «Sì, è risolto» (o lo riapre). Se il ticket l'hai aperto tu il pulsante è «Chiudi ticket» e lo chiude subito.",
                     "«Tecnico interno» e «Fornitore esterno» si salvano appena scegli. Se serve, un ticket chiuso si riapre con «Riapri».",
                     "La scheda è una pagina sola: problema e allegati, aggiornamenti con le risposte rapide e la spunta «Nota interna», poi «Interventi» e «Dati tecnici e costi» da aprire quando servono. A destra gestione, «Asset collegato» e riepilogo.",
                     "Da smartphone «Prendo io» o «Risolvi» e «Foto» restano sempre in basso.",
-                    "Se lavori con un OdL: «Apri OdL» riprende titolo e descrizione dal ticket. Chiudendolo con esito «Risolto» si chiude anche il ticket, se non ci sono altri OdL aperti.",
+                    "Se lavori con un OdL: «Apri OdL» riprende titolo e descrizione dal ticket. Chiudendolo con esito «Risolto» il ticket passa a «Risolto» (da confermare da chi l'ha aperto), se non ci sono altri OdL aperti.",
                 ]),
                 ("ul", [
                     "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»). Anche i ticket IT si collegano: da Fornitori → «Accessi esterni» → «Collega…» o dal referente della visita in «Annuncia una visita» → «Le tue visite»; poi il riquadro compare anche nel ticket IT.",
