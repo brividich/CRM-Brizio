@@ -21,6 +21,7 @@ from .models import (
     TagliaDPI,
     ConsegnaDPI,
     DPIImpostazioni,
+    ModalitaNegozio,
     ModelloDPI,
     MovimentoMagazzinoDPI,
     RichiestaDPI,
@@ -422,7 +423,56 @@ class BancoConsegneTests(TestCase):
         attesa.refresh_from_db()
         self.assertEqual(attesa.stato, StatoRichiesta.INVIATA)
         self.assertFalse(resp.context["persone"][0]["attese"][0]["puo_approvare"])
-        self.assertNotContains(resp, "data-approva data-richiesta")
+        self.assertNotContains(resp, 'value="approva"')
+        self.assertContains(resp, 'value="senza_approvazione"')
+
+    def test_consegna_senza_approvazione_del_responsabile(self):
+        attesa = self._inviata(self.mod_guanti)
+        with mock.patch("dpi.views._can_approve", return_value=False):
+            pagina = self.client.get(self.url)
+            self.assertContains(pagina, "Consegna senza approvazione")
+            with mock.patch.object(flusso, "notifica_approvata") as avviso:
+                resp = self.client.post(self.url, {"azione": "senza_approvazione", "approva_richiesta": attesa.pk})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.APPROVATA)
+        self.assertEqual(avviso.call_count, 0)
+        self.assertIn("senza attendere l'approvazione", attesa.note_gestione)
+        self.assertIn("senza attendere l'approvazione", attesa.commenti.get().testo)
+        self.assertTrue(resp["Location"].endswith("#apri-p101"))
+        self.client.post(self.url, {"azione": "consegna", "ids": [attesa.pk], "data_consegna": "2026-11-16"})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.CONSEGNATA)
+
+    def test_dpi_rapidi_nella_scheda_prima_i_piu_consegnati(self):
+        tappi = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="TP-1", nome="Tappi")
+        con_taglie = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="GT-9", nome="Guanto taglia")
+        TagliaDPI.objects.create(modello=con_taglie, valore="9")
+        gia = self._richiesta(tappi, nome="Altro", legacy=150)
+        ConsegnaDPI.objects.create(richiesta=gia, data_consegna=timezone.localdate())
+        self._richiesta(self.mod_guanti)
+        resp = self.client.get(self.url)
+        rapidi = resp.context["rapidi"]
+        self.assertEqual(rapidi[0]["id"], tappi.pk)
+        self.assertTrue(next(m for m in rapidi if m["id"] == con_taglie.pk)["con_taglie"])
+        self.assertContains(resp, f'data-rapido="{tappi.pk}" data-persona="101"')
+        self.assertContains(resp, f'data-apri-diretta="101" data-modello="{con_taglie.pk}"')
+        self.assertContains(resp, "+ Altro DPI…")
+        self.assertContains(resp, 'name="modello_dpi_id" value="%d"' % tappi.pk)  # tessera del pannello
+
+    def test_consegna_ora_chiede_conferma_nella_riga(self):
+        self._inviata(self.mod_guanti)
+        with mock.patch("dpi.views._can_approve", return_value=False):
+            resp = self.client.get(self.url)
+        self.assertContains(resp, "data-consegna-ora>Consegna ora")
+        self.assertContains(resp, 'class="banco-conferma-ora" hidden')
+
+    def test_consegna_senza_approvazione_non_per_le_scarpe_al_negozio(self):
+        attesa = self._inviata(self.mod_guanti)
+        attesa.modalita_negozio = ModalitaNegozio.CONVENZIONE
+        attesa.save(update_fields=["modalita_negozio"])
+        self.client.post(self.url, {"azione": "senza_approvazione", "approva_richiesta": attesa.pk})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.INVIATA)
 
     def test_consegna_diretta_dipendente_non_selezionabile(self):
         self.guanti.consegna_diretta = True

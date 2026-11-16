@@ -374,6 +374,16 @@
     var canvas = card && card.querySelector('[data-firma]');
     if (canvas) card.querySelector('input[name=firma_immagine]').value = canvas._ink ? canvas.toDataURL('image/png') : '';
     var dati = new FormData(form);
+    // Consumabile rapido: solo persona e DPI, 1 pezzo; il resto della scheda non serve.
+    if (bottone && bottone.hasAttribute('data-rapido')) {
+      var rapido = new FormData();
+      rapido.set('csrfmiddlewaretoken', dati.get('csrfmiddlewaretoken'));
+      rapido.set('tutte', dati.get('tutte') || '');
+      rapido.set('dipendente', bottone.getAttribute('data-persona'));
+      rapido.set('modello_dpi_id', bottone.getAttribute('data-rapido'));
+      rapido.set('quantita', '1');
+      dati = rapido;
+    }
     if (bottone && bottone.value === 'pronta') dati.delete('cambia_richiesta');
     if (bottone && bottone.hasAttribute('data-approva')) dati.set('approva_richiesta', bottone.getAttribute('data-richiesta'));
     if (bottone && bottone.name) dati.set(bottone.name, bottone.value);
@@ -383,11 +393,8 @@
     if (bottone) { bottone.disabled = true; bottone.textContent = 'Un momento…'; }
     inCoda(function () { return chiedi(window.location.pathname + window.location.search, {method: 'POST', body: dati}); }).then(function (r) {
       var conBadge = azione === 'diretta' && bottone && bottone.hasAttribute('data-diretta-badge');
-      if (azione === 'diretta') {
-        form.reset();
-        var dip = document.getElementById('diretta-dip');
-        if (dip && dip.tomselect) dip.tomselect.clear(true);
-        document.getElementById('diretta').open = false;
+      if (azione === 'diretta' && form.closest('#diretta')) {
+        chiudiDiretta();
         if (bottone) { bottone.disabled = false; bottone.textContent = etichetta; }
       }
       aggiorna(r.html, r.apri);
@@ -445,18 +452,112 @@
       return;
     }
     if ((el = e.target.closest('[data-apri-diretta]'))) {
-      var box = document.getElementById('diretta');
-      if (!box) return;
-      box.open = true;
-      var dip = document.getElementById('diretta-dip');
-      var persona = el.getAttribute('data-apri-diretta');
-      if (persona && dip) { if (dip.tomselect) dip.tomselect.setValue(persona); else dip.value = persona; }
-      else if (dip && dip.tomselect && cerca.value.trim()) { dip.tomselect.clear(true); dip.tomselect.open(); dip.tomselect.setTextboxValue(cerca.value.trim()); dip.tomselect.refreshOptions(false); }
-      box.scrollIntoView({behavior: 'smooth', block: 'center'});
-      var mod = document.getElementById('diretta-mod');
-      if (mod) mod.focus();
+      apriDiretta(el.getAttribute('data-apri-diretta'), el.getAttribute('data-modello'));
+      return;
+    }
+    if ((el = e.target.closest('[data-chiudi-diretta]'))) { chiudiDiretta(); return; }
+    if ((el = e.target.closest('[data-qta]'))) {
+      var qta = document.getElementById('diretta-qta');
+      qta.value = Math.max(1, (parseInt(qta.value, 10) || 1) + Number(el.getAttribute('data-qta')));
+      return;
+    }
+    // Richiesta in attesa: «Consegna ora» chiede conferma nella riga stessa.
+    if ((el = e.target.closest('[data-consegna-ora]'))) {
+      var rigaOra = el.closest('li');
+      rigaOra.querySelector('.banco-conferma-ora').hidden = false;
+      el.hidden = true;
+      return;
+    }
+    if ((el = e.target.closest('[data-consegna-ora-no]'))) {
+      var rigaNo = el.closest('li');
+      rigaNo.querySelector('.banco-conferma-ora').hidden = true;
+      rigaNo.querySelector('[data-consegna-ora]').hidden = false;
     }
   });
+
+  // Pannello «Consegna senza richiesta»: persona gia' scelta dalla scheda, DPI a tessere.
+  var pannello = document.getElementById('diretta');
+  var velo = document.getElementById('diretta-velo');
+  var pannelloDa = null;
+
+  function aggiornaTaglie() {
+    var scelto = pannello.querySelector('input[name=modello_dpi_id]:checked');
+    var quante = 0;
+    pannello.querySelectorAll('.banco-chip').forEach(function (c) {
+      var si = !!scelto && c.getAttribute('data-modello') === scelto.value;
+      c.hidden = !si;
+      if (si) quante++;
+      else c.querySelector('input').checked = false;
+    });
+    document.getElementById('diretta-taglie').hidden = !quante;
+  }
+
+  function filtraTessere() {
+    var parole = norm(document.getElementById('diretta-cerca').value.trim()).split(/\s+/).filter(Boolean);
+    var totale = 0;
+    pannello.querySelectorAll('[data-gruppo]').forEach(function (g) {
+      var visibiliG = 0;
+      g.querySelectorAll('.banco-tessera').forEach(function (t) {
+        var testo = norm(t.getAttribute('data-cerca'));
+        var ok = t.querySelector('input').checked || parole.every(function (p) { return testo.indexOf(p) !== -1; });
+        t.hidden = !ok;
+        if (ok) visibiliG++;
+      });
+      g.hidden = !visibiliG;
+      totale += visibiliG;
+    });
+    document.getElementById('diretta-nessuno').hidden = totale > 0;
+  }
+
+  function apriDiretta(persona, modello) {
+    if (!pannello) return;
+    pannelloDa = document.activeElement;
+    pannello.querySelector('form').reset();
+    var dip = document.getElementById('diretta-dip');
+    if (dip.tomselect) dip.tomselect.clear(true);
+    if (persona) { if (dip.tomselect) dip.tomselect.setValue(persona, true); else dip.value = persona; }
+    if (modello) {
+      var radio = pannello.querySelector('input[name=modello_dpi_id][value="' + modello + '"]');
+      if (radio) radio.checked = true;
+    }
+    aggiornaTaglie();
+    filtraTessere();
+    velo.hidden = false;
+    pannello.hidden = false;
+    document.body.classList.add('banco-pannello-aperto');
+    if (!persona && dip.tomselect) {
+      dip.tomselect.focus();
+      if (cerca.value.trim()) { dip.tomselect.setTextboxValue(cerca.value.trim()); dip.tomselect.refreshOptions(true); }
+    } else if (modello) {
+      var chip = pannello.querySelector('.banco-chip:not([hidden]) input');
+      (chip || pannello.querySelector('[data-diretta-badge]')).focus();
+    } else {
+      document.getElementById('diretta-cerca').focus();
+    }
+  }
+
+  function chiudiDiretta() {
+    if (!pannello || pannello.hidden) return;
+    pannello.hidden = true;
+    velo.hidden = true;
+    document.body.classList.remove('banco-pannello-aperto');
+    if (pannelloDa && document.contains(pannelloDa)) pannelloDa.focus();
+    pannelloDa = null;
+  }
+
+  if (pannello) {
+    pannello.addEventListener('change', function (e) {
+      if (e.target.name === 'modello_dpi_id') {
+        aggiornaTaglie();
+        var chip = pannello.querySelector('.banco-chip:not([hidden]) input');
+        if (chip) chip.focus();
+      }
+    });
+    document.getElementById('diretta-cerca').addEventListener('input', filtraTessere);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !pannello.hidden) { e.preventDefault(); e.stopPropagation(); chiudiDiretta(); }
+    }, true);
+  }
 
   radice.addEventListener('change', function (e) {
     if (e.target.name === 'ids' || e.target.name === 'firmato_ricevuta') {
@@ -571,6 +672,7 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (pannello && !pannello.hidden) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
     if (e.key === '/') e.preventDefault();
     // Tasti con il fuoco su un pulsante: si scrive nella ricerca, cosi' l'Invio non conferma la consegna aperta.
@@ -579,22 +681,10 @@
     cerca.select();
   });
 
-  // Taglie del DPI scelto nella consegna diretta.
-  var mod = document.getElementById('diretta-mod');
-  var taglia = document.getElementById('diretta-taglia');
-  if (mod && taglia) {
-    mod.addEventListener('change', function () {
-      Array.prototype.forEach.call(taglia.options, function (o) {
-        if (o.value) o.hidden = o.getAttribute('data-modello') !== mod.value;
-      });
-      taglia.value = '';
-    });
-  }
-
   // Nuove richieste approvate: si aggiorna da solo, ma mai mentre si sta lavorando.
   setInterval(function () {
     if (document.hidden || occupato || sospesa || scelta || lettura || cerca.value.trim()) return;
-    if (radice.querySelector('details[open]#diretta')) return;
+    if (pannello && !pannello.hidden) return;
     occupato = true;
     chiedi(window.location.pathname + window.location.search).then(function (r) {
       if (!scelta && !cerca.value.trim()) aggiorna(r.html, '');
@@ -609,7 +699,9 @@
   // Arrivo: ?cerca= dalla home, #apri-<persona> o #<persona> da mail e home, #diretta, #conferme.
   applica();
   var hash = window.location.hash.slice(1);
-  if (hash === 'diretta' || hash === 'conferme') {
+  if (hash === 'diretta') {
+    apriDiretta('', '');
+  } else if (hash === 'conferme') {
     var dettagli = document.getElementById(hash);
     if (dettagli) { dettagli.open = true; dettagli.scrollIntoView({block: 'center'}); }
   } else if (hash) {
