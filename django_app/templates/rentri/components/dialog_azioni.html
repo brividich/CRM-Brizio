@@ -1,4 +1,4 @@
-{% comment %}Popup «Elimina» e «Consolida filo»: una volta per pagina. Pulsanti e logica in rentri/js/azioni_tabella.js.{% endcomment %}
+{% comment %}Popup «Elimina», «Consolida filo» e «Trasmetti filo»: una volta per pagina. Pulsanti e logica in rentri/js/azioni_tabella.js.{% endcomment %}
 {% load static %}
 {% if can_manage %}
 <dialog id="rn-rimuovi" class="rn-dlg" aria-labelledby="rn-rimuovi-t">
@@ -26,5 +26,5 @@
   </form>
 </dialog>
 <dialog id="rn-filo" class="rn-dlg rn-dlg-largo" aria-labelledby="rn-filo-t"><div class="rn-dlg-box"></div></dialog>
-<script src="{% static 'rentri/js/azioni_tabella.js' %}?v=20261113" defer></script>
+<script src="{% static 'rentri/js/azioni_tabella.js' %}?v=20261116" defer></script>
 {% endif %}

@@ -213,8 +213,8 @@ def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list
     """Copia nel movimento i campi del modulo; ritorna gli errori di formato.
 
     Le regole di validità (CER, quantità, collegamenti, giacenza) stanno in
-    ``validazione.py``. Il numero di registrazione non arriva mai dal modulo:
-    lo assegna il portale e non cambia più.
+    ``validazione.py``. Il numero di registrazione lo assegna il portale: in
+    modifica di una bozza si può correggere (vedi ``_salva_da_richiesta``).
     """
     errors = []
 
@@ -423,6 +423,9 @@ def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima:
         ))
     data = _parse_json_body(request)
     errors = _populate_registro(registro, data, tipo)
+    if prima is not None and "id_registrazione" in data:
+        # Correzione del numero su una bozza (le regole in validazione._errori_numero).
+        registro.id_registrazione = str(data.get("id_registrazione") or "").strip()[:50]
 
     # Allegato: scheda del carico o formulario (FIR) degli scarichi.
     allegato = request.FILES.get("allegato") if tipo in ("C", "O", "M") else None
@@ -542,6 +545,10 @@ def _render_form(request, tipo: str, registro=None):
         "origine": origine,
         "unita_choices": RegistroRifiuti.UNITA_CHOICES,
         "fir_leggibile": tipo in ("O", "M") and _can_manage_rentri(request),
+        "numero_bloccato": (
+            "Registrazione già trasmessa a RENTRI: il numero non si cambia."
+            if registro is not None and registro.rentri_si_no else ""
+        ),
     })
 
 
@@ -910,6 +917,7 @@ def elenco(request):
             vivi = [r for r in fam["carichi"] + fam["operazioni"] if not r.annullato]
             fam["n_vivi"] = len(vivi)
             fam["n_consolidati"] = sum(1 for r in vivi if r.salva)
+            fam["n_trasmessi"] = sum(1 for r in vivi if r.rentri_si_no)
             fam["ancora_pk"] = vivi[0].pk if vivi else None
         ctx["n_chiuse"] = sum(1 for f in families if f["chiusa"])
         ctx["n_aperte"] = len(families) - ctx["n_chiuse"]
@@ -1266,13 +1274,17 @@ def dettaglio(request, pk: int):
     figli = figli_attivi(registro)
     filo = _filo_scheda(registro)
     can_manage = _can_manage_rentri(request)
-    bozze_filo = 0
+    bozze_filo = trasmetti = 0
     if can_manage and not registro.annullato:
+        from .servizi import anteprima_trasmissione_filo
+
         _annota_righe([registro])
         anteprima = anteprima_filo(registro)
         bozze_filo = len(anteprima["pronte"]) + len(anteprima["incomplete"])
+        trasmetti = len(anteprima_trasmissione_filo(registro)["da_segnare"])
     return render(request, "rentri/pages/dettaglio.html", {
         "bozze_filo": bozze_filo,
+        "trasmetti_filo": trasmetti,
         "registro": registro,
         "genitori": genitori,
         "figli": figli,
@@ -1404,6 +1416,46 @@ def consolida_filo_view(request, pk: int):
                 request,
                 "Restano bozze perché incomplete: "
                 + "; ".join(f"{r.id_registrazione} ({', '.join(r.mancanti)})" for r in esito["incomplete"][:6]) + ".",
+            )
+        non_allineate = [r.id_registrazione for r in fatte if r.sync_errore]
+        if non_allineate:
+            messages.warning(request, f"Copia su SharePoint non allineata per: {', '.join(non_allineate[:8])}.")
+    return redirect(prossima or reverse("rentri_dettaglio", args=[pk]))
+
+
+@login_required
+def trasmetti_filo_view(request, pk: int):
+    """GET: anteprima per il popup. POST: segna trasmesse a RENTRI le righe consolidate del filo."""
+    from .servizi import anteprima_trasmissione_filo, trasmetti_filo
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    registro = get_object_or_404(RegistroRifiuti, pk=pk)
+    prossima = _prossima_rentri(request)
+    if request.method != "POST":
+        return render(request, "rentri/components/trasmetti_filo.html", {
+            "registro": registro,
+            "anteprima": anteprima_trasmissione_filo(registro),
+            "prossima": prossima,
+        })
+    try:
+        esito = trasmetti_filo(request, registro)
+    except ErroreRegistro as exc:
+        messages.error(request, " ".join(exc.errori))
+    else:
+        fatte = esito["fatte"]
+        messages.success(
+            request,
+            f"Segnat{'a' if len(fatte) == 1 else 'e'} come trasmess{'a' if len(fatte) == 1 else 'e'} a RENTRI: "
+            f"{len(fatte)} registrazion{'e' if len(fatte) == 1 else 'i'} "
+            f"({', '.join(r.id_registrazione for r in fatte[:8])}{'…' if len(fatte) > 8 else ''}).",
+        )
+        if esito["bozze"]:
+            messages.warning(
+                request,
+                "Non segnate perché ancora bozze: " + ", ".join(r.id_registrazione for r in esito["bozze"][:8])
+                + ". Consolidale e ripeti.",
             )
         non_allineate = [r.id_registrazione for r in fatte if r.sync_errore]
         if non_allineate:

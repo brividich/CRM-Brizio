@@ -97,6 +97,9 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     tipo = registro.tipo
     oggi = timezone.localdate()
 
+    if not nuovo and cambiato("id_registrazione"):
+        errori.extend(_errori_numero(registro, prima.get("id_registrazione")))
+
     if registro.data and cambiato("data") and registro.data > oggi:
         errori.append("La data non può essere nel futuro.")
 
@@ -147,9 +150,17 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
 
 
 def _errori_deposito(registro, uscita: Decimal) -> list[str]:
+    import copy
+
     from .fili import analizza_codice
 
-    an = analizza_codice(registro.codice, escludi_pk=registro.pk)
+    # Il movimento entra nel conto con quantità zero: misura quanto resta senza
+    # di lui, ma tiene il suo posto nel filo (una M che segue questa O non deve
+    # diventare un'uscita: succedeva correggendo il segno di una O storica).
+    segnaposto = copy.copy(registro)
+    segnaposto.quantita = Decimal(0)
+    segnaposto.rettifica_scarico = None
+    an = analizza_codice(registro.codice, escludi_pk=registro.pk, segnaposto=segnaposto)
     refs = split_rif_op(registro.rif_op)
     carichi = {c.id_registrazione: c for c in an.carichi.get(normalizza_cer(registro.codice), [])}
     collegati = []
@@ -166,15 +177,26 @@ def _errori_deposito(registro, uscita: Decimal) -> list[str]:
             f.tipo == "O" and f.id_registrazione in refs for c in carichi.values() for f in an.figli.get(c.pk, [])
         ):
             return []
+    from .fili import gia_presente
+
     if collegati:
         disponibile = sum((an.residuo[c.pk] for c in collegati), Decimal(0))
         if disponibile <= _EPS:
             nomi = ", ".join(c.id_registrazione for c in collegati)
             return [f"{nomi}: il carico è già scaricato per intero. Scegli un altro carico o lascia lo scarico senza collegamento."]
         if uscita > disponibile + _EPS:
-            return [f"Quantità oltre il residuo dei carichi collegati: disponibili {_fmt(disponibile)}."]
+            nomi = ", ".join(c.id_registrazione for c in collegati)
+            altri = [
+                c for c in carichi.values()
+                if c not in collegati and an.residuo[c.pk] > _EPS and gia_presente(c, registro)
+            ]
+            msg = f"Quantità oltre il residuo dei carichi collegati ({nomi}): disponibili {_fmt(disponibile)}."
+            if altri:
+                msg += " Se lo scarico porta via anche altri carichi, aggiungili in «Collegato a»: " + ", ".join(
+                    f"{c.id_registrazione} (residuo {_fmt(an.residuo[c.pk])})" for c in altri[:6]
+                ) + "."
+            return [msg]
         return []
-    from .fili import gia_presente
 
     # Senza collegamento contano solo i carichi presenti alla data dello scarico.
     disponibile = sum(
@@ -185,6 +207,42 @@ def _errori_deposito(registro, uscita: Decimal) -> list[str]:
             f"Quantità oltre la giacenza del codice {registro.codice} al {registro.data:%d/%m/%Y}: "
             f"disponibili {_fmt(max(disponibile, Decimal(0)))}. Controlla i carichi registrati e la data."
         ]
+    return []
+
+
+_NUMERO_RE = re.compile(r"^(\d{4})/(\d{1,6})$")
+
+
+def _errori_numero(registro, vecchio: str | None) -> list[str]:
+    """Numero corretto a mano su una bozza (errore di battitura dello storico).
+
+    Forma ``AAAA/NNNN`` con l'anno della data, e non già usato da un altro
+    movimento, annullati compresi: il numero resta la chiave dei collegamenti.
+    """
+    from .models import RegistroRifiuti
+
+    nuovo = (registro.id_registrazione or "").strip()
+    m = _NUMERO_RE.match(nuovo)
+    if not m:
+        return ["Numero di registrazione non valido: scrivilo come anno/progressivo (per esempio 2025/1874)."]
+    if registro.data and int(m.group(1)) != registro.data.year:
+        return [f"Il numero deve avere l'anno della data ({registro.data.year}/…)."]
+    if registro.rentri_si_no:
+        return ["Registrazione già trasmessa a RENTRI: il numero non si cambia."]
+    altro = RegistroRifiuti.objects.filter(id_registrazione=nuovo).exclude(pk=registro.pk).first()
+    if altro is not None:
+        stato = " (annullata)" if altro.annullato else ""
+        quando = f" del {altro.data:%d/%m/%Y}" if altro.data else ""
+        return [f"Il numero {nuovo} è già usato da un altro movimento ({altro.tipo}{quando}{stato})."]
+    if vecchio:
+        from .servizi import figli_del_numero
+
+        bloccati = [f.id_registrazione for f in figli_del_numero(registro, vecchio) if f.bloccato]
+        if bloccati:
+            return [
+                f"Il numero {vecchio} è citato da registrazioni consolidate ({', '.join(bloccati[:6])}): "
+                "cambiandolo perderebbero il collegamento."
+            ]
     return []
 
 

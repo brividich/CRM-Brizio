@@ -13,6 +13,7 @@
       {% if fam.stato == "deposito" %} · residuo <strong>{{ fam.residuo|floatformat:"-3" }}{% if fam.unita %} {{ fam.unita }}{% endif %}</strong>{% endif %}
     </span>
     {% if can_manage and fam.ancora_pk and fam.n_consolidati < fam.n_vivi %}<button type="button" class="rn-fam-consolida" data-consolida-filo="{% url 'rentri_consolida_filo' fam.ancora_pk %}" title="Consolida tutte le righe complete del filo">Consolida filo · {{ fam.n_consolidati }}/{{ fam.n_vivi }}</button>{% endif %}
+    {% if can_manage and fam.ancora_pk and fam.n_trasmessi < fam.n_consolidati %}<button type="button" class="rn-fam-trasmetti" data-trasmetti-filo="{% url 'rentri_trasmetti_filo' fam.ancora_pk %}" title="Segna come trasmesse a RENTRI tutte le righe consolidate del filo">Trasmetti filo · {{ fam.n_trasmessi }}/{{ fam.n_vivi }}</button>{% endif %}
     {% if fam.scollegati %}<span class="rn-state rn-state-scollegato" title="Il riferimento resta come traccia: ricollega lo scarico con «Modifica» o lascialo così.">COLLEGATO A ANNULLATO: {{ fam.scollegati|join:", " }}</span>{% endif %}
   </td>
 </tr>

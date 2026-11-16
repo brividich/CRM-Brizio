@@ -60,6 +60,14 @@
               value="{{ v.data }}">
             <div class="hub-err" id="err-data"></div>
           </div>
+          {% if edit_mode %}
+          <div class="hub-field" id="fld-numero">
+            <label for="f-numero">Numero di registrazione</label>
+            <input type="text" id="f-numero" value="{{ registro.id_registrazione }}" pattern="\d{4}/\d{1,6}"
+              {% if numero_bloccato %}readonly title="{{ numero_bloccato }}"{% endif %} autocomplete="off">
+            <div class="hub-help">{% if numero_bloccato %}{{ numero_bloccato }}{% else %}Correggilo solo se è stato scritto male: anno/progressivo, non già usato da un altro movimento.{% endif %}</div>
+          </div>
+          {% endif %}
           <div class="hub-field" id="fld-codice">
             <label for="f-codice">Codice CER<i class="hub-req">*</i></label>
             <div class="rnf-cer">
@@ -148,10 +156,10 @@
             <div class="rnf-proposto" id="peric-proposta" hidden>Proposta dall'ultimo carico con questo codice.</div>
           </div>
           {% endif %}
-          {% if tipo == 'M' or tipo == 'R' %}
+          {% if tipo == 'O' or tipo == 'M' or tipo == 'R' %}
           <div class="hub-field">
-            <label for="f-arrivo-fir">Arrivo FIR</label>
-            <input type="text" id="f-arrivo-fir" placeholder="Numero del FIR di ritorno"
+            <label for="f-arrivo-fir">{% if tipo == 'O' %}Numero FIR{% else %}Arrivo FIR{% endif %}</label>
+            <input type="text" id="f-arrivo-fir" placeholder="{% if tipo == 'O' %}Numero del formulario con cui parte il rifiuto{% else %}Numero del FIR di ritorno{% endif %}"
               value="{{ v.arrivo_fir }}">
           </div>
           {% endif %}
@@ -728,7 +736,7 @@
     else if (k === 'codice') cerInput.value = v;
     else if (k === 'quantita') { $('f-quantita').value = v; lastAutoQta = null; }
     else if (k === 'unita') { $('f-unita').value = v; $('unita-proposta').hidden = true; }
-    else if (k === 'numero_fir') { if (TIPO === 'M') { $('f-arrivo-fir').value = v; collegaPerFir(); } else aggiungiNota('FIR n. ' + v); }
+    else if (k === 'numero_fir') { if ($('f-arrivo-fir')) { $('f-arrivo-fir').value = v; if (TIPO === 'M') collegaPerFir(); } else aggiungiNota('FIR n. ' + v); }
     else if (k === 'destinatario') aggiungiNota('Destinatario: ' + v);
   }
 
@@ -833,6 +841,7 @@
     if ($('f-rettifica')) fd.append('rettifica_scarico', val('f-rettifica'));
     if ($('f-pericolosita')) fd.append('pericolosita', val('f-pericolosita'));
     if ($('f-arrivo-fir')) fd.append('arrivo_fir', val('f-arrivo-fir'));
+    if ($('f-numero') && !$('f-numero').readOnly) fd.append('id_registrazione', val('f-numero'));
     fd.append('rentri_si_no', $('f-rentri-si-no').checked ? 'true' : 'false');
     fd.append('note_rentri', val('f-note-rentri'));
     var file = $('f-allegato') && $('f-allegato').files[0];
