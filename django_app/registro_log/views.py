@@ -251,6 +251,8 @@ def eventi(request):
                                                                      host=g["host"], descrizione=g["descrizione"])
             g["host_breve"] = silenzi.nome_breve(g["host"])
             g["etichetta"] = regole.CATEGORIE.get(g["categoria"], (g["categoria"],))[0]
+            # la categoria sotto la descrizione solo se dice qualcosa in più
+            g["etichetta_utile"] = "" if g["etichetta"].lower() in (g["descrizione"] or "").lower() else g["etichetta"]
     else:
         pagina = Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina"))
         for e in pagina:

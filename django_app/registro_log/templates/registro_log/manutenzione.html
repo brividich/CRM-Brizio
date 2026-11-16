@@ -23,7 +23,7 @@
   <div class="sec-panel sec-kpi-card">
     <span class="sec-kpi-label">Spazio libero sul disco dell'archivio</span>
     <strong class="sec-kpi-value{% if arch.libero_mb is not None and arch.libero_mb < 2048 %} critical{% elif arch.libero_mb is not None and arch.libero_mb < 10240 %} warning{% endif %}">{% if arch.libero_mb is not None %}{% widthratio arch.libero_mb 1024 1 %} GB{% else %}—{% endif %}</strong>
-    <span class="sec-kpi-delta">{{ arch.cartella }}</span>
+    <span class="rl-percorso">{{ arch.cartella }}</span>
   </div>
 </section>
 
@@ -95,7 +95,7 @@
       <td class="sec-nowrap">{{ o.avviata_il|date:"d/m/Y H:i" }}</td>
       <td>{{ o.get_tipo_display }}{% if o.parametri.mesi %}<span class="rl-sub">tenere {{ o.parametri.mesi }} mesi</span>{% elif o.parametri.giorni %}<span class="rl-sub">{{ o.parametri.giorni }} giorn{{ o.parametri.giorni|pluralize:"o,i" }}</span>{% endif %}</td>
       <td>{{ o.avviata_da|default:"—" }}</td>
-      <td>{% if o.stato == "ok" %}<span class="sec-badge success">Riuscita</span>{% elif o.stato == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% else %}<span class="sec-badge warning">{{ o.get_stato_display }}</span>{% endif %}</td>
+      <td>{% if o.stato == "ok" %}<span class="sec-badge ok">Riuscita</span>{% elif o.stato == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% else %}<span class="sec-badge warning">{{ o.get_stato_display }}</span>{% endif %}</td>
       <td>{{ o.esito|default:"—" }}</td>
       <td class="sec-nowrap">{{ o.finita_il|date:"d/m/Y H:i"|default:"—" }}</td>
     </tr>{% endfor %}</tbody>
