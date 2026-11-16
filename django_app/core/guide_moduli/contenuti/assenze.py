@@ -164,6 +164,8 @@ GUIDA = {
                     "Per modificare una richiesta già approvata serve scrivere il «Motivo della modifica»: finisce nello storico "
                     "e nella mail «Richiesta modificata» che parte ad assenza@ e al capo reparto (non parte se cambia solo lo stato: "
                     "approvazione e rifiuto hanno già le loro mail).",
+                    "Se la richiesta approvata è tua e ne cambi giorni o ore, torna «In attesa»: la deve riapprovare "
+                    "un altro responsabile. Cambiare solo note o certificato la lascia approvata.",
                     "Nelle malattie la casella «Certificato arrivato» si spunta anche da qui. Su una malattia già "
                     "approvata, se cambi solo quella spunta il «Motivo della modifica» sparisce: la spunta vale come motivo "
                     "(nello storico e nella mail compare «Certificato medico arrivato»). Se cambi anche date, tipo o "
