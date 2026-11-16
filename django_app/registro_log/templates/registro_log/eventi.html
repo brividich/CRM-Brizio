@@ -17,17 +17,17 @@
   <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;vista=critici">
     <span class="sec-kpi-label">Eventi critici</span>
     <strong class="sec-kpi-value{% if kpi.critici %} critical{% endif %}">{{ kpi.critici }}</strong>
-    <span class="sec-kpi-delta{% if not kpi.critici %} sec-good{% endif %}">registri cancellati, gruppi di amministratori, audit</span>
+    <span class="sec-kpi-delta{% if not kpi.critici %} sec-good{% endif %}">da guardare subito</span>
   </a>
   <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;sezione=accessi&amp;vista=fuori">
     <span class="sec-kpi-label">Accessi fuori orario</span>
     <strong class="sec-kpi-value{% if kpi.fuori %} warning{% endif %}">{{ kpi.fuori }}</strong>
-    <span class="sec-kpi-delta">fuori dall'orario di lavoro o nel fine settimana</span>
+    <span class="sec-kpi-delta">sera, notte, fine settimana</span>
   </a>
   <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_silenzi' %}">
     <span class="sec-kpi-label">Eventi silenziati</span>
     <strong class="sec-kpi-value">{{ n_silenziati }}</strong>
-    <span class="sec-kpi-delta">{{ regole_silenzio }} regol{{ regole_silenzio|pluralize:"a,e" }} in vigore · restano nell'archivio</span>
+    <span class="sec-kpi-delta">{{ regole_silenzio }} regol{{ regole_silenzio|pluralize:"a,e" }} in vigore</span>
   </a>
 </section>
 
@@ -43,7 +43,7 @@
   {% if host %}<input type="hidden" name="host" value="{{ host }}">{% endif %}
   <p><label for="f-giorni">Periodo</label><select id="f-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
   <p><label for="f-vista">Mostra</label><select id="f-vista" name="vista">{% for codice, etichetta in rapidi %}<option value="{{ codice }}"{% if vista == codice %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select></p>
-  <p><label for="f-cat">Tipo di evento</label><select id="f-cat" name="categoria"><option value="">Tutti</option>{% for codice, info in categorie %}<option value="{{ codice }}"{% if codice == categoria %} selected{% endif %}>{{ info.0 }}</option>{% endfor %}</select></p>
+  <p><label for="f-cat">Tipo di evento</label><select id="f-cat" name="categoria" class="rl-select-largo"><option value="">Tutti</option>{% for codice, info in categorie %}<option value="{{ codice }}"{% if codice == categoria %} selected{% endif %}>{{ info.0 }}</option>{% endfor %}</select></p>
   <p><label for="f-fonte">Fonte</label><select id="f-fonte" name="fonte"><option value="">Tutte</option>{% for f in fonti %}<option value="{{ f.pk }}"{% if f.pk|stringformat:"s" == fonte %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}</select></p>
   <p><label for="f-q">Cerca</label><input id="f-q" type="search" name="q" value="{{ q }}" placeholder="Account, PC, IP, descrizione…"></p>
   <p class="rl-spunta-filtro"><label><input type="checkbox" name="silenziati" value="1"{% if con_silenziati %} checked{% endif %}> Mostra anche i silenziati</label></p>
@@ -69,7 +69,7 @@
       <td>
         {% if g.critici %}<span class="sec-badge critical">Critico</span>{% elif g.falliti %}<span class="sec-badge warning">Non riuscito</span>{% endif %}
         {% if g.silenziato %}<span class="rl-tag">silenziato</span>{% endif %}
-        <span class="rl-cat">{{ g.descrizione }}</span><span class="rl-sub">{{ g.etichetta }}</span>
+        <span class="rl-cat">{{ g.descrizione }}</span>{% if g.etichetta_utile %}<span class="rl-sub">{{ g.etichetta_utile }}</span>{% endif %}
       </td>
       <td>{% if g.account %}<a href="{% url 'security:registro_log_persona' %}?q={{ g.account|urlencode }}" title="Scheda di {{ g.account }}">{{ g.account }}</a>{% else %}—{% endif %}{% if g.admin %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if g.fuori %}<span class="rl-tag">fuori orario{% if g.fuori != g.n %} ({{ g.fuori }}){% endif %}</span>{% endif %}</td>
       <td>{{ g.host_breve|default:"—" }}</td>

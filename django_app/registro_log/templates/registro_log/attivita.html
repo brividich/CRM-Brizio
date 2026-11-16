@@ -40,7 +40,7 @@
       <td>{{ a.sistema|default:"—" }}</td>
       <td class="sec-num">{% if a.righe %}{{ a.righe }}{% else %}—{% endif %}</td>
       <td class="sec-num sec-nowrap">{% if a.durata_ms is not None %}{% if a.durata_ms >= 1000 %}{% widthratio a.durata_ms 1000 1 %} s{% else %}{{ a.durata_ms }} ms{% endif %}{% else %}—{% endif %}</td>
-      <td>{% if a.esito == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% elif a.esito == "avviso" %}<span class="sec-badge warning">Da guardare</span>{% else %}<span class="sec-badge success">Riuscita</span>{% endif %}{% if a.messaggio %}<span class="rl-sub">{{ a.messaggio }}</span>{% endif %}</td>
+      <td>{% if a.esito == "errore" %}<span class="sec-badge critical">Non riuscita</span>{% elif a.esito == "avviso" %}<span class="sec-badge warning">Da guardare</span>{% else %}<span class="sec-badge ok">Riuscita</span>{% endif %}{% if a.messaggio %}<span class="rl-sub">{{ a.messaggio }}</span>{% endif %}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
   {% else %}<p class="sec-muted">Nessuna attività nel periodo.</p>{% endif %}

@@ -3,7 +3,7 @@
 {% block page_title %}{{ etichetta }}{% endblock %}
 
 {% block soc_content %}
-<p class="rl-intro">{% if indagine %}<a href="{% url 'security:registro_log_indagine' indagine.pk %}">&larr; Torna all'indagine</a>{% else %}<a href="{% url 'security:registro_log_eventi' %}">&larr; Tutti gli eventi</a>{% endif %}</p>
+<p class="rl-intro">{% if indagine %}<a href="{% url 'security:registro_log_indagine' indagine.pk %}">&larr; Torna all'indagine</a>{% else %}<a href="{% url 'security:registro_log_eventi' %}">&larr; Catalogo</a>{% endif %}</p>
 <section class="sec-panel rl-spiega">
   <p class="rl-frase">{{ frase }}</p>
   {% if spiega.c_e %}
