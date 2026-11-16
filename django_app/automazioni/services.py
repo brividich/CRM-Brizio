@@ -1519,6 +1519,22 @@ def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
             logger.warning("_resolve_op_recipients: impossibile risolvere incaricato=%s", fullname, exc_info=True)
         return "", fullname
 
+    # Capocommessa affidato su tutto l'OP da Gestione anomalie («Cambia capocommessa»):
+    # le mail dell'OP vanno a lui al posto di quello del gestionale.
+    try:
+        from anomalie.incaricati import contatto_op_cc
+
+        affidato = contatto_op_cc(op_title_str)
+    except Exception:
+        logger.warning("_resolve_op_recipients: capocommessa affidato non letto op=%s", op_title_str, exc_info=True)
+        affidato = None
+    if affidato is not None:
+        if affidato[0]:
+            recipients.append({"email": affidato[0], "display": affidato[1] or affidato[0], "role": "CC"})
+        else:
+            logger.info("_resolve_op_recipients: nessuna email per il capocommessa affidato op=%s", op_title_str)
+        capocomessa_raw = ""
+
     if capocomessa_raw:
         # Il campo `capocomessa` storicamente conteneva solo il COGNOME, ma in pratica
         # può contenere "Nome Cognome" completo (es. "LORENZO CAPONE"). In quel caso il

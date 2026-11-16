@@ -312,6 +312,36 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "capocommessa-op",
+        "titolo": "«Cambia capocommessa» di tutto l'OP",
+        "blocchi": [
+            ("p", "Nella scheda dell'OP, accanto a «Capocommessa», c'è «Cambia» (lo vedono capocommessa e CAR "
+                  "dell'OP, chi ha già il capocommessa affidato su tutto l'OP e gli amministratori del modulo). "
+                  "Si apre la stessa finestra anche da «Cambia incaricato» di un'anomalia in mano al capocommessa."),
+            ("passi", [
+                "In «Vale per» resta scelto «Tutto l'OP»: tutte le anomalie, anche quelle che si apriranno, e le "
+                "mail dell'OP.",
+                "Solo se serve, scegli «Solo alcune anomalie / S/N» e spunta le anomalie aperte (con «Tutte» e "
+                "«Nessuna»).",
+                "In «Affida a» scegli la persona, scrivi una nota se serve e premi «Affida tutto l'OP» (o «Affida "
+                "le anomalie»).",
+            ]),
+            ("ul", [
+                "Tutto l'OP: il nuovo capocommessa trova le anomalie in «In carico a me», vede e gestisce l'OP, "
+                "decide al posto del capocommessa del gestionale e riceve notifica, mail con le anomalie aperte e "
+                "tutte le mail dell'OP (decisioni del controllo, riepiloghi, resoconti). Nella scheda dell'OP "
+                "compare «Capocommessa NOME · al posto di …». Le anomalie a cui era stato dato un capocommessa a "
+                "parte tornano a seguire l'OP.",
+                "Solo alcune anomalie: passano solo quelle spuntate; una scelta sulla singola anomalia prevale "
+                "su quella dell'OP.",
+                "«Torna di serie»: con «Tutto l'OP» l'OP torna al capocommessa del gestionale; con «Solo alcune» "
+                "le anomalie spuntate tornano a seguire l'OP.",
+                "Il dato dell'OP nel gestionale non cambia. Ogni cambio va nel registro attività («ha cambiato il "
+                "capocommessa di tutto l'OP di», filtro «Incaricati») con prima e dopo.",
+            ]),
+        ],
+    },
+    {
         "id": "incaricato",
         "titolo": "In carico e «Cambia incaricato»",
         "blocchi": [
@@ -339,6 +369,8 @@ SEZIONI: list[dict] = [
                 "l'anomalia compare tratteggiato con «· subentra quando tocca al …» (per esempio al controllore, se la "
                 "qualità gli chiede informazioni).",
                 "«Torna di serie» toglie l'incaricato. Ogni cambio va nel registro attività con prima e dopo.",
+                "Se l'anomalia è in mano al capocommessa, «Cambia incaricato» apre «Cambia capocommessa» (vedi "
+                "sotto): di serie il cambio vale per tutto l'OP.",
             ]),
         ],
     },

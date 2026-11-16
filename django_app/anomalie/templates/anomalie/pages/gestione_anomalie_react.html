@@ -434,6 +434,10 @@
     .ga-modop__check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
     .ga-modop__check input { width: 16px; height: 16px; accent-color: var(--accent); }
     @media (max-width: 520px) { .ga-modop__grid { grid-template-columns: 1fr; } }
+    /* Cambia capocommessa (popup): tutto l'OP o anomalie scelte */
+    .ga-check { display: flex; align-items: flex-start; gap: 8px; font-size: var(--fs-sm); color: var(--text); padding: 3px 0; cursor: pointer; }
+    .ga-check input { width: 16px; height: 16px; flex: 0 0 16px; margin-top: 2px; accent-color: var(--accent); }
+    .ga-capo__lista { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
     .ga-an__check { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; border: 2px solid var(--border-strong, #94a3b8); background: var(--surface); color: #fff; }
     .ga-an__check.is-on { background: var(--accent); border-color: var(--accent); }
     .ga-an.is-clona { background: var(--accent-light); }

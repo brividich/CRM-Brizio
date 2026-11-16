@@ -36,6 +36,7 @@ urlpatterns = [
     path("api/anomalie/incaricato/persone", incaricati_views.api_incaricato_persone,
          name="api_anomalie_incaricato_persone"),
     path("api/anomalie/incaricato", incaricati_views.api_incaricato_cambia, name="api_anomalie_incaricato"),
+    path("api/anomalie/incaricato/op", incaricati_views.api_incaricato_op, name="api_anomalie_incaricato_op"),
     path("api/anomalie/config/liste", views.api_anomalie_config_liste, name="api_anomalie_config_liste"),
     path("api/anomalie/config/notifiche", views.api_anomalie_notifiche, name="api_anomalie_notifiche"),
     path("api/anomalie/config/notifiche/silenziati/<int:pk>/riattiva", silenzia_views.api_op_silenziato_riattiva,
