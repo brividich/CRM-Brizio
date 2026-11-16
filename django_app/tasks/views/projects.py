@@ -159,8 +159,7 @@ def _create_first_meeting(project, user, primo=None) -> KickoffMeeting | None:
 
 
 def _contesto_filo(project, post) -> dict:
-    """Tappe «cosa serve» e dati del primo incontro per il form della commessa."""
-    from ..models import MeetingRoom
+    """Tappe «cosa serve», tipo di commessa e consegna per il form della commessa."""
     from ..services.tappe import AIUTO, tipi_per_tappa
 
     tipi = tipi_per_tappa()
@@ -186,12 +185,6 @@ def _contesto_filo(project, post) -> dict:
         "filo_consegna": consegna,
         "filo_modello_id": modello_id,
         "filo_tappe": tappe,
-        "filo_sale": list(MeetingRoom.objects.filter(attiva=True).order_by("ordine", "nome")),
-        "filo_primo": {
-            "data": (post.get("primo_data") if post is not None else "") or timezone.localdate().isoformat(),
-            "ora": post.get("primo_ora", "") if post is not None else "",
-            "sala": post.get("primo_sala", "") if post is not None else "",
-        },
     }
 
 
@@ -235,27 +228,6 @@ def _salva_tappe(project, post) -> None:
         project.save(update_fields=["tappe_escluse"])
 
 
-def _primo_incontro(post) -> dict:
-    from datetime import date, time
-
-    from ..models import MeetingRoom
-
-    dati = {}
-    try:
-        if (post.get("primo_data") or "").strip():
-            dati["data"] = date.fromisoformat(post["primo_data"].strip())
-    except ValueError:
-        pass
-    try:
-        if (post.get("primo_ora") or "").strip():
-            dati["ora"] = time.fromisoformat(post["primo_ora"].strip())
-    except ValueError:
-        pass
-    if (post.get("primo_sala") or "").isdigit():
-        dati["sala"] = MeetingRoom.objects.filter(pk=int(post["primo_sala"]), attiva=True).first()
-    return dati
-
-
 @task_permissions_required("tasks_view", "tasks_edit")
 def project_edit(request, project_id: int):
     """Modifica anagrafica e team di un kickoff esistente."""
@@ -295,17 +267,14 @@ def project_edit(request, project_id: int):
 
 @task_permissions_required("tasks_view", "tasks_create")
 def project_create(request):
-    """Crea un nuovo kickoff (Project) con il suo primo incontro.
+    """Crea un nuovo kickoff: dati commessa, preventivo e team.
 
-    Flow: anagrafica kickoff -> salvataggio Project -> creazione incontro 1 ->
-    redirect alla sua convocazione. La scheda VRF resta raggiungibile dalle tab
-    di commessa, dalla checklist di prontezza e dal centro «Da gestire»: non e'
-    piu' il primo passo imposto, perche' il passo che fa partire davvero una
-    commessa e' convocare l'incontro di avvio.
+    Il filo: kickoff -> scheda VRF (compilata o rimandata) -> «Come procedi?»
+    (`project_pianifica`): pianificazione delle attività o dell'incontro.
+    L'incontro non nasce più da solo: si sceglie dopo la VRF.
 
     Se l'utente compila P/N + revisione + versione gia' esistenti, il form
-    intercetta il duplicato e reindirizza al kickoff gia' presente (li' non c'e'
-    nessuna creazione, quindi nessun incontro nuovo).
+    intercetta il duplicato e reindirizza al kickoff gia' presente.
     """
     projects_qs = scoped_projects_queryset(request)
 
@@ -316,8 +285,7 @@ def project_create(request):
                 reused = form.reused_existing_project
                 messages.info(
                     request,
-                    f"Kickoff gia' esistente per questo P/N: riutilizzo '{reused.name}'. "
-                    "Procedi con la scheda VRF o aggiungi una nuova attivita.",
+                    f"Kickoff gia' esistente per questo P/N: riutilizzo '{reused.name}'.",
                 )
                 log_action(request, "kickoff_reused_on_create", "tasks", {
                     "project_id": reused.id,
@@ -330,33 +298,17 @@ def project_create(request):
                 project = form.save(commit=False)
                 project.created_by = request.user
                 project.save()
-                # Il team va scritto prima dell'incontro: i partecipanti di default
-                # si leggono dagli elenchi M2M appena salvati.
                 form.save_team(project)
                 _salva_tappe(project, request.POST)
-                meeting = _create_first_meeting(project, request.user, _primo_incontro(request.POST))
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
                 "part_number": project.part_number,
                 "client_name": project.client_name,
-                "meeting_id": meeting.id if meeting else None,
                 "message": f"Nuovo kickoff #{project.id} '{project.name}' creato",
             })
-            if meeting is not None:
-                messages.success(
-                    request,
-                    f"Kickoff '{project.name}' creato con il primo incontro. "
-                    "Completa data, luogo e partecipanti, poi invia la convocazione. "
-                    "La scheda VRF resta da compilare dalle tab della commessa.",
-                )
-                return redirect(
-                    "tasks:project_meeting_edit",
-                    project_id=project.id,
-                    meeting_id=meeting.id,
-                )
             messages.success(
                 request,
-                f"Kickoff '{project.name}' creato. Compila la scheda VRF per proseguire.",
+                f"Kickoff '{project.name}' creato. Compila la scheda VRF o rimandala, poi pianifica attività o incontro.",
             )
             return redirect("tasks:project_vrf_compile", project_id=project.id)
     else:
@@ -391,6 +343,7 @@ def project_list(request):
     if q_text:
         projects_base_qs = projects_base_qs.filter(
             Q(name__icontains=q_text) | Q(part_number__icontains=q_text) | Q(client_name__icontains=q_text)
+            | Q(descrizione_pezzo__icontains=q_text)
         )
     if q_client:
         projects_base_qs = projects_base_qs.filter(client_name__icontains=q_client)

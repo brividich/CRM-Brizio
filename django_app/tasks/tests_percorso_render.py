@@ -22,8 +22,8 @@ class PercorsoRenderTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode("utf-8")
         self.assertIn("kp-station", body)
-        self.assertIn("kp-rail", body)
-        self.assertIn('data-title="Identificazione"', body)
+        self.assertIn('data-title="Commessa"', body)
+        self.assertIn("kp-steps", body)
 
     def test_meeting_form_renders_percorso(self):
         from tasks.models import Project

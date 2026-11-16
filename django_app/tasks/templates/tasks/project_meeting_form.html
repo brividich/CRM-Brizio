@@ -28,7 +28,7 @@
     </div>
   </div>
 
-  <form method="post" novalidate id="meeting-form">
+  <form method="post" novalidate id="meeting-form" data-suggest-url="{% url 'tasks:identity_suggest' %}">
     {% csrf_token %}
     {{ form.agenda_items_raw }}
 
@@ -90,11 +90,13 @@
           <p class="sl-msg" data-sl-msg></p>
           <p class="mf-hint">Clicca un orario libero su una sala per sceglierla. La sala resta prenotata per la «Durata»; se la lasci su «Dall'ordine del giorno» vale la somma dei punti (un'ora se non ci sono).</p>
         </div>
+        {% if form.stato.field.choices|length > 1 %}
         <div class="mf-field" style="margin-bottom:0">
           <label class="mf-label" for="{{ form.stato.id_for_label }}">Stato</label>
           {{ form.stato }}
           <p class="mf-hint">«Svolto» non si sceglie qui: lo imposta la registrazione dell'esito.</p>
         </div>
+        {% else %}{{ form.stato.as_hidden }}{% endif %}
       </div>
     </div>
 
@@ -239,6 +241,10 @@
                   {% endfor %}
                 </select>
                 <p class="mf-hint">Solo tra i partecipanti convocati alla riunione.</p>
+                <label class="mf-check" style="display:flex;gap:8px;align-items:center;margin-top:8px">
+                  <input type="checkbox" id="new-agenda-crea"> Diventa un'attività del responsabile
+                </label>
+                <input type="date" id="new-agenda-scad" class="input" aria-label="Entro il (facoltativo)" title="Entro il (facoltativo)" style="width:100%;box-sizing:border-box;margin-top:6px" hidden>
               </div>
               <div class="mf-field">
                 <label class="mf-label" for="new-agenda-durata">Durata stimata (min)</label>
@@ -376,5 +382,6 @@
 {{ agenda_suggestions_json|json_script:"agenda-suggestions-data" }}
 
 <script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>
-<script src="{% static 'tasks/js/meeting_form.js' %}?v=20261110" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
+<script src="{% static 'tasks/js/suggerimenti.js' %}?v=1" defer></script>
+<script src="{% static 'tasks/js/meeting_form.js' %}?v=20261116" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
 {% endblock %}

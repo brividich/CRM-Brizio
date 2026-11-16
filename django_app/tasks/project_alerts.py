@@ -27,17 +27,16 @@ def _split_extra(extra_to) -> list[str]:
 
 
 def _kickoff(project) -> str:
-    return str(getattr(project, "kickoff_number", "") or "")
+    return str(getattr(project, "name", "") or "")
 
 
 def build_safety_alert(project) -> tuple[str, str, str]:
     from core.email_utils import email_facts_table
 
     n = _kickoff(project)
-    subject = f"⚠️ Impatto sicurezza — KICK-OFF {n}: {project.name}"
+    subject = f"⚠️ Impatto sicurezza — KICK-OFF {n}"
     facts = [
         ("KICK-OFF", n),
-        ("Progetto", project.name or "—"),
         ("Part number", (getattr(project, "part_number", "") or "—") or "—"),
         ("Cliente", (getattr(project, "client_name", "") or "—") or "—"),
         ("Fase", getattr(project, "get_phase_display", lambda: getattr(project, "phase", ""))()),
@@ -55,11 +54,10 @@ def build_vrf_pending_alert(project) -> tuple[str, str, str]:
     from core.email_utils import email_facts_table
 
     n = _kickoff(project)
-    subject = f"VRF non ancora caricato — KICK-OFF {n}: {project.name}"
+    subject = f"VRF non ancora caricato — KICK-OFF {n}"
     vrf_disp = getattr(project, "get_vrf_status_display", lambda: getattr(project, "vrf_status", ""))()
     facts = [
         ("KICK-OFF", n),
-        ("Progetto", project.name or "—"),
         ("Fase", getattr(project, "get_phase_display", lambda: getattr(project, "phase", ""))()),
         ("Stato VRF", vrf_disp),
     ]

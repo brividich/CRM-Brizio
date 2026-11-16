@@ -6,6 +6,7 @@ incontro: invio convocazione, invio minuta, download PDF.
 """
 from __future__ import annotations
 
+import json
 from datetime import date
 from unittest.mock import patch
 
@@ -348,29 +349,41 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
         payload.update(extra)
         return self.client.post(reverse("tasks:project_create"), payload)
 
-    def test_kickoff_nasce_con_il_suo_primo_incontro(self):
-        response = self._create_kickoff("PN-FIRST-001")
-        project = Project.objects.get(part_number="PN-FIRST-001")
-        meeting = project.meetings.get()
-
-        self.assertEqual(meeting.numero, 1)
-        self.assertEqual(meeting.stato, MeetingStatus.PIANIFICATO)
+    def test_creazione_va_alla_vrf_senza_incontro(self):
+        response = self._create_kickoff("PN-FIRST-000")
+        project = Project.objects.get(part_number="PN-FIRST-000")
+        self.assertFalse(project.meetings.exists())
         self.assertRedirects(
-            response, reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
+            response, reverse("tasks:project_vrf_compile", args=[project.id]), fetch_redirect_response=False
         )
 
-    def test_la_convocazione_di_arrivo_e_compilabile(self):
+    def test_vrf_rimandata_porta_a_come_procedi(self):
+        self._create_kickoff("PN-FIRST-001")
+        project = Project.objects.get(part_number="PN-FIRST-001")
+        response = self.client.post(
+            reverse("tasks:project_vrf_compile", args=[project.id]), {"action": "skip_with_reminder"}
+        )
+        self.assertRedirects(
+            response, reverse("tasks:project_pianifica", args=[project.id]), fetch_redirect_response=False
+        )
+
+    def test_punto_odg_diventa_attivita(self):
         self._create_kickoff("PN-FIRST-002")
         project = Project.objects.get(part_number="PN-FIRST-002")
-        meeting = project.meetings.get()
-
-        page = self.client.get(
-            reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
+        punti = [{"id": "p1", "titolo": "Preparare il programma", "responsabile_id": self.user.id,
+                  "crea_attivita": True, "scadenza": "2026-12-20"}]
+        response = self.client.post(
+            reverse("tasks:project_meeting_create", args=[project.id]),
+            {"data": "2026-12-01", "stato": MeetingStatus.PIANIFICATO, "partecipanti_utenti": [self.user.id],
+             "agenda_items_raw": json.dumps(punti)},
         )
-        self.assertEqual(page.status_code, 200)
-        body = page.content.decode()
-        self.assertIn('name="data"', body)
-        self.assertIn('name="luogo"', body)
+        self.assertEqual(response.status_code, 302)
+        task = project.tasks.get()
+        self.assertEqual((task.title, task.assigned_to, task.due_date.isoformat()),
+                         ("Preparare il programma", self.user, "2026-12-20"))
+        meeting = project.meetings.get()
+        self.assertEqual(meeting.agenda_items[0]["task_id"], task.id)
+        self.assertNotIn("crea_attivita", meeting.agenda_items[0])
 
     def test_helper_idempotente_non_crea_un_secondo_incontro(self):
         from tasks.views import _create_first_meeting

@@ -42,6 +42,8 @@ urlpatterns = [
     ),
     path("tasks/projects/<int:project_id>/modifica/", views.project_edit, name="project_edit"),
     path("tasks/projects/<int:project_id>/attivita-rapida/", views.project_quick_task, name="project_quick_task"),
+    path("tasks/projects/<int:project_id>/come-procedi/", views.project_pianifica, name="project_pianifica"),
+    path("tasks/projects/<int:project_id>/pianifica-attivita/", views.project_attivita_pianifica, name="project_attivita_pianifica"),
     path("tasks/projects/<int:project_id>/set-phase/", views.project_set_phase, name="project_set_phase"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),
     path(

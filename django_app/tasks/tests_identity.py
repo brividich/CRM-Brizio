@@ -59,15 +59,23 @@ class ProjectIdentityPersistenceTests(TasksBaseTestCase):
         super().setUp()
         self.user = User.objects.create_user(username="identity-owner", password="pass12345")
 
-    def test_il_nome_proposto_mette_cliente_e_pn_davanti_al_progressivo(self):
+    def test_l_oggetto_e_cliente_pn_rev_pezzo_senza_progressivo(self):
         project = Project.objects.create(
-            name="", client_name="ACME", part_number="PN-4471", created_by=self.user,
+            name="", client_name="ACME", part_number="PN-4471", revisione="B",
+            descrizione_pezzo="Staffa supporto", created_by=self.user,
         )
-        self.assertEqual(project.name, f"ACME · PN-4471 · KICK-OFF {project.kickoff_number}")
+        self.assertEqual(project.name, "ACME · PN-4471 rev. B · Staffa supporto")
+        self.assertIsNotNone(project.kickoff_number)
 
-    def test_senza_cliente_e_pn_il_nome_resta_il_solo_progressivo(self):
+    def test_senza_dati_l_oggetto_e_kickoff(self):
         project = Project.objects.create(name="", created_by=self.user)
-        self.assertEqual(project.name, f"KICK-OFF {project.kickoff_number}")
+        self.assertEqual(project.name, "Kickoff")
+
+    def test_nomi_automatici_vecchi_riconosciuti(self):
+        project = Project(name="ACME · PN-1 · KICK-OFF 12")
+        self.assertTrue(project.nome_automatico())
+        self.assertTrue(project.nome_automatico("KICK-OFF 3"))
+        self.assertFalse(project.nome_automatico("Ripristino stampo urgente"))
 
     def test_un_nome_scritto_a_mano_non_viene_sostituito(self):
         project = Project.objects.create(
@@ -121,8 +129,8 @@ class ProjectIdentityPersistenceTests(TasksBaseTestCase):
 
         self.assertEqual(calls["count"], 2)
         self.assertEqual(project.kickoff_number, 102)
-        # Il nome si ricompone col numero del tentativo andato a buon fine.
-        self.assertEqual(project.name, "Cliente Retry · PN-RETRY · KICK-OFF 102")
+        # Il nome non porta il numero: resta l'oggetto.
+        self.assertEqual(project.name, "Cliente Retry · PN-RETRY")
         self.assertEqual(project.client_name, "Cliente Retry")
         self.assertEqual(project.part_number, "PN-RETRY")
 
@@ -329,8 +337,20 @@ class ProjectIdentitySuggestTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_create"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="project-client-datalist"')
-        self.assertContains(response, 'id="project-part-number-datalist"')
+        # Ogni campo di testo propone i valori già usati (suggerimenti.js).
+        self.assertContains(response, 'data-suggest="client"')
+        self.assertContains(response, 'data-suggest="part_number"')
+        self.assertContains(response, 'data-suggest="descrizione_pezzo"')
         self.assertContains(response, reverse("tasks:identity_suggest"))
-        # window.portalReadJsonResponse sta in core/js/portal-json.js, caricato dalla base.
-        self.assertContains(response, "core/js/portal-json.js")
+        self.assertContains(response, "tasks/js/suggerimenti.js")
+
+    def test_identity_suggest_campo_vuoto_e_contiene(self):
+        Project.objects.create(name="", client_name="Cliente Visibile", descrizione_pezzo="Staffa supporto motore",
+                               created_by=self.user)
+        self.client.force_login(self.user)
+        vuoto = self.client.get(reverse("tasks:identity_suggest"), {"field": "descrizione_pezzo", "q": ""},
+                                **self._json_headers())
+        self.assertIn("Staffa supporto motore", vuoto.json()["values"])
+        contiene = self.client.get(reverse("tasks:identity_suggest"), {"field": "descrizione_pezzo", "q": "motore"},
+                                   **self._json_headers())
+        self.assertEqual(contiene.json()["values"], ["Staffa supporto motore"])

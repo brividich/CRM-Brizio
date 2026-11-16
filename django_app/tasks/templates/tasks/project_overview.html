@@ -23,7 +23,7 @@
     <a class="ts-hero-action" href="{% url 'tasks:project_vrf_compile' project.id %}">Gestisci VRF</a>
     {% if tasks_shell_can_create %}
       <a class="ts-hero-action" href="{% url 'tasks:project_meeting_create' project.id %}">Nuovo incontro</a>
-      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Nuova attività</a>
+      <a class="ts-hero-action primary" href="{% url 'tasks:project_attivita_pianifica' project.id %}">+ Pianifica attività</a>
     {% endif %}
   {% endif %}
 {% endblock %}
