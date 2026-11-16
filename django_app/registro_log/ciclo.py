@@ -160,6 +160,9 @@ def invia_al_soc() -> dict:
     source = _soc_source()
     creati = 0
     nuovi = list(EventoRegistro.objects.filter(inviato_soc=False).order_by("id")[:5000])
+    from .silenzi import regole_in_vigore, silenziato
+
+    regole_s = regole_in_vigore()
     server = set(FonteLog.objects.filter(ruolo__in=("dc", "server")).values_list("pk", flat=True))
     for ev in nuovi:
         if ev.categoria in regole.CATEGORIE_RISERVATE:
@@ -168,6 +171,9 @@ def invia_al_soc() -> dict:
                 creati += _evento_soc(source, "usb_server", f"Dispositivo USB collegato al server {ev.host or ev.fonte_nome}",
                                       Severity.HIGH, f"usb|{ev.pk}", ev.quando, {"host": ev.host, "fonte": ev.fonte_nome})
             continue
+        if regole_s and silenziato(regole_s, categoria=ev.categoria, account=ev.account, host=ev.host,
+                                   descrizione=ev.descrizione):
+            continue  # silenziato dal Catalogo: nessun alert
         regola = ALERT_CATEGORIE.get(ev.categoria)
         da_mandare = bool(regola and soc_settings.value(regola[0]))
         if not da_mandare and ev.privilegiato and ev.fuori_orario and ev.categoria in ("accesso", "accesso_privilegiato"):

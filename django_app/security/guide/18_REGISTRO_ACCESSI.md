@@ -34,7 +34,17 @@ File, stampe e USB non compaiono: si consultano solo dentro un'indagine. Ogni ri
 
 ## Catalogo
 
-Il catalogo degli eventi letti, diviso in sezioni come gli «Archivi log» di BusinessLog: **Tutti**, **Log accessi**, **Accessi falliti**, **Account e gruppi**, **Eventi di sistema**, **Syslog**. Accanto a ogni sezione il numero di eventi nel periodo scelto. Filtri rapidi che si aggiungono alla sezione: **Solo amministratori**, **Fuori orario**, **Critici**. Filtri per periodo (da 24 ore a un anno), tipo di evento, fonte e testo (account, server, IP).
+Il catalogo degli eventi letti. Si apre sulle ultime 24 ore.
+
+- **Riquadri in alto**, cliccabili: **Persone che sono entrate** (e quanti accessi riusciti), **Accessi falliti** (e su quanti account), **Eventi critici**, **Accessi fuori orario**, **Eventi silenziati** (e quante regole sono in vigore). Ogni numero è quello dell'elenco che apre.
+- **Sezioni** come gli «Archivi log» di BusinessLog: **Tutti**, **Log accessi**, **Accessi falliti**, **Account e gruppi**, **Eventi di sistema**, **Syslog**, ognuna col numero del periodo.
+- **Filtri**: periodo (da 24 ore a un anno), **Mostra** (tutti, solo amministratori, fuori orario, critici), tipo di evento, fonte, testo (account, PC, IP, descrizione), **Mostra anche i silenziati**.
+- **Raggruppati** (di serie): lo stesso evento della stessa persona sullo stesso sistema è una riga sola, con quante volte e dalla prima all'ultima ora. **Vedi tutti** apre le singole volte; **Uno per riga** mostra ogni evento.
+- Il nome dell'account apre la sua scheda in «Persona o PC»; l'ora apre il dettaglio dell'evento con la spiegazione.
+
+### Silenziare un evento che si ripete
+
+**Silenzia…** su una riga (solo chi configura il SOC) apre una finestra: vale per quell'account, quel sistema e, se si vuole, solo quella descrizione (togliendo le spunte vale per tutti); **motivo** obbligatorio; durata **Sempre**, 7, 30 (proposta) o 90 giorni. Gli eventi silenziati non compaiono nel catalogo, in «Da guardare» della Panoramica, nei riquadri e negli alert del SOC; restano nell'archivio sigillato e nella scheda «Persona o PC», e si rivedono con «Mostra anche i silenziati» (segnati «silenziato»). La pagina **Regole di silenzio** (riquadro «Eventi silenziati») elenca le regole con chi le ha create, motivo, quanti eventi hanno nascosto negli ultimi 7 giorni, scadenza; **Spegni**, **Riaccendi**, **Elimina** rimettono subito in vista gli eventi, anche quelli passati. Creazione e modifiche restano nell'audit.
 
 Cosa entra nel catalogo (il resto resta solo nell'archivio):
 
