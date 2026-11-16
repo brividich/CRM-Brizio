@@ -1,0 +1,8 @@
+{% comment %}Scelta di un ticket IT/MAN o di un OdL. Parametri: proposte ({"ticket": [...], "odl": [...]}), vuota (testo della prima voce).{% endcomment %}
+<select class="rc-input" name="intervento" aria-label="Ticket o OdL">
+  <option value="">{{ vuota|default:"— scegli —" }}</option>
+  {% regroup proposte.ticket by get_tipo_display as gruppi %}
+  {% for g in gruppi %}<optgroup label="{{ g.grouper }}">{% for t in g.list %}<option value="t:{{ t.pk }}">{{ t.numero_ticket }} · {{ t.titolo|truncatechars:60 }}</option>{% endfor %}</optgroup>{% endfor %}
+  {% if proposte.odl %}<optgroup label="Ordini di lavoro">{% for o in proposte.odl %}<option value="o:{{ o.pk }}">OdL #{{ o.pk }} · {{ o.asset.asset_tag }} · {{ o.title|truncatechars:50 }}</option>{% endfor %}</optgroup>{% endif %}
+</select>
+<input class="rc-input" name="numero" maxlength="30" placeholder="oppure numero: MAN-2026-0012, IT-2026-0003, 342" aria-label="Numero di ticket o OdL">

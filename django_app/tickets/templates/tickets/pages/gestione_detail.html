@@ -267,7 +267,7 @@
           {% else %}<div id="interv-empty" class="tkt-empty">Nessun intervento registrato.</div>{% endif %}
         </div>
       </details>
-        {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id %}
+        {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id or ticket.ingressi_esterni.exists %}
         <div id="pz-casa"><div id="pz-segnaposto" hx-get="{% url 'fornitori:presenze_intervento' 'ticket' ticket.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="tkt-empty">Caricamento presenze in azienda della ditta…</p></div></div>
         {% endif %}
 

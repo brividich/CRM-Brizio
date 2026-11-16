@@ -99,7 +99,7 @@ GUIDA = {
                     "Se lavori con un OdL: «Apri OdL» riprende titolo e descrizione dal ticket. Chiudendolo con esito «Risolto» si chiude anche il ticket, se non ci sono altri OdL aperti.",
                 ]),
                 ("ul", [
-                    "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»).",
+                    "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»). Anche i ticket IT si collegano: da Fornitori → «Accessi esterni» → «Collega…» o dal referente della visita in «Annuncia una visita» → «Le tue visite»; poi il riquadro compare anche nel ticket IT.",
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
                     "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, n. interno, tag, modello o reparto: ogni risultato mostra n. interno, tag e il badge «Reparto …» per distinguere asset con lo stesso nome.",

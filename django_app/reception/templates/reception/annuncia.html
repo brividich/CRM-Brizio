@@ -2,7 +2,20 @@
 {% block title %}Annuncia una visita{% endblock %}
 {% load static %}
 {% block extra_head %}{% include "reception/_stile.html" %}<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">{% endblock %}
-{% block extra_scripts %}<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>{% endblock %}
+{% block extra_scripts %}<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  // «Ticket o OdL» solo per i motivi di lavoro (Impostazioni della reception).
+  var motivo = document.getElementById('n-motivo'), box = document.getElementById('n-intervento');
+  if (!motivo || !box) return;
+  function aggiorna() {
+    var opt = motivo.options[motivo.selectedIndex];
+    box.hidden = !(opt && opt.getAttribute('data-lavoro') === '1');
+  }
+  motivo.addEventListener('change', aggiorna);
+  aggiorna();
+})();
+</script>{% endblock %}
 {% block content %}
 <div class="rc-page">
   <div class="rc-top">
@@ -58,34 +71,57 @@
         <div class="rc-field"><label for="n-nome">Nome e cognome *</label><input class="rc-input" id="n-nome" name="nome" maxlength="200" required></div>
         <div class="rc-field"><label for="n-email">Email *</label><input class="rc-input" id="n-email" type="email" name="email" maxlength="255" required></div>
         <div class="rc-field"><label for="n-azienda">Azienda</label><input class="rc-input" id="n-azienda" name="azienda" maxlength="200"></div>
-        <div class="rc-field"><label for="n-motivo">Motivo</label><select class="rc-input" id="n-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% endfor %}</select></div>
+        <div class="rc-field"><label for="n-motivo">Motivo</label><select class="rc-input" id="n-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}"{% if c.collega_interventi %} data-lavoro="1"{% endif %}>{{ c.nome }}</option>{% endfor %}</select></div>
         <div class="rc-field"><label for="n-data">Giorno *</label><input class="rc-input" id="n-data" type="date" name="data_visita" min="{{ oggi|date:'Y-m-d' }}" required></div>
         <div class="rc-field"><label for="n-ini">Dalle</label><input class="rc-input" id="n-ini" type="time" name="ora_inizio"></div>
         <div class="rc-field"><label for="n-fine">Alle</label><input class="rc-input" id="n-fine" type="time" name="ora_fine"></div>
         <div class="rc-field rc-field-largo">{% include "reception/_sala_scelta.html" with pfx="n" data_id="n-data" ora_id="n-ini" fine_id="n-fine" riga="" %}</div>
+        <div class="rc-field rc-field-largo" id="n-intervento"{% if not motivi_lavoro %} hidden{% endif %}>
+          <label>Ticket o OdL</label>
+          <div class="rc-collega-form" id="n-int">{% include "reception/_scelta_intervento.html" with proposte=proposte_mie vuota="— nessuno —" %}</div>
+        </div>
         <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit"{% if not nativa or not ha_email %} disabled{% endif %}>Annuncia e invia</button></div>
       </form>
       <p class="rc-note rc-muted">Il codice vale fino alla fine del giorno indicato.{% if not referente and ha_email %} Al primo annuncio entri nell'elenco dei referenti che i visitatori scelgono al chiosco.{% endif %}</p>
     </div>
   </div>
 
-  <div class="rc-card">
-    <div class="rc-card-head">I tuoi ospiti in arrivo</div>
+  <div class="rc-card" id="le-tue-visite">
+    <div class="rc-card-head">Le tue visite</div>
     <div class="rc-wrap">
       <table class="rc-table">
-        <thead><tr><th>Ospite</th><th>Azienda</th><th>Giorno</th><th>Sala</th><th>Codice</th><th>Stato</th></tr></thead>
+        <thead><tr><th>Ospite</th><th>Azienda</th><th>Quando</th><th>Motivo</th><th>Stato</th><th>Ticket o OdL</th></tr></thead>
         <tbody>
         {% for p in mie_visite %}
           <tr>
             <td>{{ p.ospite_nome }}</td><td>{{ p.ospite_azienda|default:"—" }}</td>
-            <td>{{ p.data_visita|date:"D d/m/Y"|default:"—" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %}</td>
-            <td>{{ p.sala.nome|default:"—" }}</td>
-            <td><strong>{{ p.codice }}</strong></td>
-            <td>{% if p.usata_il %}<span class="rc-pill rc-pill-ok">Entrato il {{ p.usata_il|date:"d/m H:i" }}</span>{% else %}<span class="rc-pill">Atteso</span>{% endif %}</td>
+            <td>{{ p.data_visita|date:"D d/m/Y"|default:"—" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %}{% if p.sala %}<br><span class="rc-muted">{{ p.sala.nome }}</span>{% endif %}</td>
+            <td>{{ p.motivo|default:"—" }}</td>
+            <td><span class="rc-pill">Atteso</span><br><span class="rc-codice">{{ p.codice }}</span></td>
+            <td>{% include "reception/_collega_intervento.html" with r=p cosa="invito" %}</td>
           </tr>
-        {% empty %}
-          <tr><td colspan="6" class="rc-empty">Nessun ospite annunciato.</td></tr>
         {% endfor %}
+        {% for v in presenti %}
+          <tr>
+            <td><strong>{{ v.ospite.nome_completo }}</strong></td><td>{{ v.ditta.nome|default:v.ospite.azienda|default:"—" }}</td>
+            <td>{{ v.ingresso|date:"D d/m H:i" }}</td>
+            <td>{{ v.motivo|default:"—" }}</td>
+            <td><span class="rc-pill rc-pill-ok">Presente</span></td>
+            <td>{% include "reception/_collega_intervento.html" with r=v cosa="visita" %}</td>
+          </tr>
+        {% endfor %}
+        {% for v in passate %}
+          <tr>
+            <td>{{ v.ospite.nome_completo }}</td><td>{{ v.ditta.nome|default:v.ospite.azienda|default:"—" }}</td>
+            <td>{{ v.ingresso|date:"D d/m H:i" }}{% if v.uscita %}–{{ v.uscita|time:"H:i" }}{% endif %}</td>
+            <td>{{ v.motivo|default:"—" }}</td>
+            <td><span class="rc-pill">{{ v.get_stato_display }}</span></td>
+            <td>{% include "reception/_collega_intervento.html" with r=v cosa="visita" %}</td>
+          </tr>
+        {% endfor %}
+        {% if not mie_visite and not presenti and not passate %}
+          <tr><td colspan="6" class="rc-empty">Nessun ospite atteso, presente o passato negli ultimi {{ giorni_visite }} giorni.</td></tr>
+        {% endif %}
         </tbody>
       </table>
     </div>

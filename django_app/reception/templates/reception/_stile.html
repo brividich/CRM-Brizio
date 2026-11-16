@@ -167,4 +167,14 @@ body.theme-dark .rc-sugg { box-shadow:0 12px 32px rgba(0,0,0,.45); }
 @media (max-width:900px) { .rc-due { grid-template-columns:minmax(0,1fr); } }
 @media (max-width:640px) { .rc-riga-2, .rc-riga-3 { grid-template-columns:minmax(0,1fr); } .rc-voce { padding:12px 14px; } .rc-sez { padding:16px; } .rc-sez-nota { margin-left:0; } .rc-azioni { padding:14px 16px; } .rc-azioni .rc-btn-p { width:100%; } }
 @media print { .subnav, .notice, .rc-top, .rc-noprint, header, nav { display:none !important; } }
+/* «Le tue visite»: collegamento a ticket e OdL */
+.rc-interventi { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.rc-interventi a.rc-pill { text-decoration:none; }
+.rc-legame { display:inline-flex; align-items:center; gap:2px; }
+.rc-x { border:0; background:none; color:var(--text-light,#64748b); cursor:pointer; font-size:15px; line-height:1; padding:0 4px; }
+.rc-x:hover { color:#dc2626; }
+.rc-collega summary { cursor:pointer; color:var(--accent,#1d4ed8); font-size:13px; font-weight:600; }
+.rc-collega-form { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:6px; }
+.rc-collega-form .rc-input { min-width:0; flex:1 1 200px; }
+.rc-spunta { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:13px; }
 </style>

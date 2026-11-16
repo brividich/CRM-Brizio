@@ -86,6 +86,12 @@ SEZIONI = [
             ("p", "Ogni dipendente può annunciare un ospite da «Annuncia una visita» nella barra in alto: l'ospite riceve codice e QR; con «Prenota una sala» si prenota anche una sala riunioni (le stesse del KICK-OFF) dal proprio calendario Outlook. "
                   "Gli esterni possono chiedere un appuntamento dal modulo pubblico /richiesta-visita/: dopo la conferma dell'email la richiesta "
                   "arriva alla persona indicata («Richieste per te») e in Reception → Inviti → «Richieste», dove si accetta o si rifiuta."),
+            ("p", "Nella stessa pagina «Le tue visite» elenca i tuoi ospiti attesi, presenti e passati negli ultimi 30 giorni. "
+                  "Per le visite di lavoro (motivi accesi in Reception → Configurazione → Impostazioni → «Motivi di visita collegabili a ticket e OdL», "
+                  "e le ditte accreditate) «Collega» lega la visita a un ticket IT, a un ticket manutenzione o a un OdL: scegli dall'elenco "
+                  "o scrivi il numero (MAN-2026-0012, IT-2026-0003, 342). Il collegamento compare nel riquadro «Presenze in azienda» del ticket/OdL "
+                  "e conta nelle ore in azienda; «×» lo toglie. Annunciando un ospite con un motivo di lavoro puoi scegliere subito il ticket o l'OdL: "
+                  "si collega quando l'ospite entra con il codice."),
         ],
     },
     {

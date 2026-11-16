@@ -10,6 +10,7 @@
   <span>{{ v.motivo|default:"—" }}</span>
   <span>Entrato <b>{{ v.ingresso|date:"d/m H:i"|default:"—" }}</b></span>
   <span>Uscito <b>{{ v.uscita|date:"d/m H:i"|default:"—" }}</b></span>
+  {% for c in collegati %}<a href="{{ c.url }}" title="{{ c.titolo }}">Per <b>{{ c.etichetta }}</b></a>{% endfor %}
 </div>
 <div class="rc-card">
   <div class="rc-card-head">Correggi l'uscita</div>

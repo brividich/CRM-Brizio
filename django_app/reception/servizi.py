@@ -294,6 +294,10 @@ def ingresso_da_codice(codice: str, *, ip: str = "", informativa: bool = True) -
                                    motivo=pre.motivo, tipo=Visita.PREREG, creata_da="PREREG")
         pre.usata_il, pre.visita = timezone.now(), visita
         pre.save(update_fields=["usata_il", "visita"])
+    if pre.ticket_id or pre.ordine_lavoro_id:
+        from .interventi import collega_da_invito
+
+        collega_da_invito(pre, visita)
     return visita
 
 
@@ -349,7 +353,7 @@ def errore_visita(data_visita, scade=None, *, giorno_obbligatorio: bool = False,
 
 def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Referente, creata_da: str,
                           ospite_azienda: str = "", motivo: str = "", data_visita=None, ora_inizio=None,
-                          ora_fine=None, scade_il=None, sala=None) -> Preregistrazione:
+                          ora_fine=None, scade_il=None, sala=None, ticket=None, ordine_lavoro=None) -> Preregistrazione:
     """Unico punto che crea le pre-registrazioni: pannello, «Annuncia una visita», richieste approvate.
 
     Senza scadenza vale fino a fine giornata della visita, o ``GIORNI_VALIDITA_CODICE`` giorni.
@@ -364,6 +368,7 @@ def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Ref
         ospite_azienda=(ospite_azienda or "").strip()[:200], referente_nome=referente.nome_elenco,
         referente_email=referente.email, motivo=(motivo or "")[:500], creata_da=(creata_da or "")[:100],
         scade_il=scade_il, data_visita=data_visita, ora_inizio=ora_inizio, ora_fine=ora_fine, sala=sala,
+        ticket=ticket, ordine_lavoro=ordine_lavoro,
     )
 
 
