@@ -82,6 +82,8 @@ class CategoriaVisita(models.Model):
     icona = models.CharField(max_length=10, blank=True)
     ordine = models.IntegerField(default=0)
     attiva = models.BooleanField(default=True)
+    # Visite di lavoro (manutenzione, assistenza): il referente le collega a un ticket IT/MAN o a un OdL.
+    collega_interventi = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -201,6 +203,10 @@ class Preregistrazione(models.Model):
     sala = models.ForeignKey("tasks.MeetingRoom", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     outlook_event_id = models.CharField(max_length=255, blank=True)
     outlook_organizer_email = models.CharField(max_length=255, blank=True)
+    # Ticket o OdL scelto annunciando l'ospite: all'ingresso diventa un collegamento della visita
+    # (``fornitori.IngressoIntervento``, vedi ``reception.interventi``).
+    ticket = models.ForeignKey("tickets.Ticket", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    ordine_lavoro = models.ForeignKey("assets.WorkOrder", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
 
     class Meta:
         ordering = ["-creata_il"]

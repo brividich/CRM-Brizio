@@ -105,7 +105,7 @@ GUIDA = {
                     ("Sale", "Configurazione → Sale: le sale riunioni proposte negli inviti. «Aggiungi la sala» con nome, casella Microsoft 365 e posti; «Modifica» per correggerle; «Proponi» / «Togli» per sceglierle. Sono le stesse sale del KICK-OFF."),
                     ("Inviti", "scheda «Inviti»: i codici validi e usati, con giorno, ora e sala; «+ Invito» apre al centro il modulo, l'ospite riceve codice e QR e, se indichi il giorno, ospite e referente ricevono anche l'invito in calendario. Il giorno va da oggi a un anno, come in «Annuncia una visita»; sotto «Validità del codice», «Valido fino al» vuoto = fino alla fine del giorno della visita (senza giorno, 7 giorni); una data prima della visita non è accettata. «Prenota una sala» prenota una sala riunioni dal calendario del referente (come in «Annuncia una visita»); «Elimina» su un invito con sala cancella anche l'evento Outlook e libera la sala. Scheda «Richieste»: le richieste di appuntamento dal modulo pubblico dopo la conferma dell'email; «Accetta» (con «Dalle», «Alle» e sala facoltativa) manda codice e QR (se la persona indicata non è riconosciuta scegli prima il referente), «Rifiuta» manda una mail con la nota. Le decise restano visibili 30 giorni."),
                     ("Storico", "le visite con i filtri; aprendone una correggi l'uscita, oppure «Riapri» entro 7 giorni. Le correzioni restano scritte nella visita."),
-                    ("Configurazione", "schede Referenti (i dipendenti scelti al chiosco, presi dall'anagrafica Novicrom con «Cerca un dipendente»; «Aggiorna dall'anagrafica» riallinea e disattiva chi non è più in forza), Ditte accreditate (ditte e nominativi del chiosco), Cartellini (stato, «Aggiungi», «Etichette con QR») e Impostazioni (logo del chiosco, avviso «Passa dalla reception» per le ditte non in regola, cancellazione dei dati oltre il termine)."),
+                    ("Configurazione", "schede Referenti (i dipendenti scelti al chiosco, presi dall'anagrafica Novicrom con «Cerca un dipendente»; «Aggiorna dall'anagrafica» riallinea e disattiva chi non è più in forza), Ditte accreditate (ditte e nominativi del chiosco), Cartellini (stato, «Aggiungi», «Etichette con QR») e Impostazioni (logo del chiosco, «Motivi di visita collegabili a ticket e OdL» per «Le tue visite», avviso «Passa dalla reception» per le ditte non in regola, cancellazione dei dati oltre il termine). Nella scheda di una visita collegata compare «Per» con il numero del ticket o dell'OdL."),
                 ]),
                 ("p", "A fine giornata, dal lunedì al venerdì alle 19, chi ha il ruolo indicato in «reception_usciti_ruoli» (per ora l'Information Technology Manager) riceve una notifica con chi risulta ancora dentro."),
             ],
@@ -123,6 +123,16 @@ GUIDA = {
                       "se in Outlook è già occupata rifiuta e ricevi la risposta. Una sala già prenotata nel portale in quell'orario blocca l'annuncio con un messaggio."),
                 ("p", "In «Richieste per te» trovi le richieste di appuntamento degli esterni che hanno indicato te: «Accetta» (puoi cambiare «Dalle», mettere «Alle», prenotare una sala e aggiungere una nota) "
                       "manda codice e QR, «Rifiuta» manda una mail con la nota. Puoi decidere solo le richieste rivolte a te; le altre le assegna la reception."),
+                ("p", "«Le tue visite» elenca gli ospiti di cui sei il referente: attesi (con il codice), presenti e passati negli ultimi 30 giorni. "
+                      "Le visite di lavoro (motivi accesi in Reception → Impostazioni → «Motivi di visita collegabili a ticket e OdL», e le ditte accreditate) "
+                      "hanno «Collega»: scegli un ticket IT, un ticket manutenzione o un ordine di lavoro dall'elenco, oppure scrivi il numero "
+                      "(MAN-2026-0012, IT-2026-0003, 342), e premi «Collega». È lo stesso collegamento del riquadro «Presenze in azienda della ditta»: "
+                      "lo vedi nel ticket/OdL, conta nelle ore in azienda e nel rapportino e resta anche dopo la cancellazione della visita. "
+                      "«×» accanto al numero toglie un collegamento fatto da te."),
+                ("p", "Nell'elenco trovi i ticket aperti da te o assegnati a te, quelli delegati alla ditta dell'ospite se li gestisci, e gli OdL assegnati a te, "
+                      "dei tuoi ticket o della ditta se esegui le manutenzioni. Un ticket che hai solo aperto si collega ma non passa alla ditta: "
+                      "la delega la decide chi lo gestisce. Annunciando un ospite con un motivo di lavoro compare «Ticket o OdL»: "
+                      "il collegamento si crea quando l'ospite entra con il codice; fino ad allora lo cambi o lo togli dalla riga dell'ospite atteso."),
                 ("p", "Il modulo pubblico per gli esterni è all'indirizzo https://hub.costruzioninovicrom.it/richiesta-visita/: chiede nome, email, chi vogliono incontrare, giorno (da domani a 90 giorni) e motivo. "
                       "La richiesta arriva solo dopo che l'esterno ha confermato l'email entro 48 ore."),
                 ("nota", "Funziona dopo il passaggio della reception all'HUB: prima la pagina mostra un avviso giallo e i pulsanti sono spenti, perché il codice non varrebbe al chiosco."),
@@ -167,7 +177,8 @@ GUIDA = {
                 ("p", "Si può partire da due parti: dall'ingresso (Fornitori → «Accessi esterni» → «Collega…» sulla riga "
                       "dell'esterno: si sceglie il ticket, la manutenzione straordinaria o l'OdL, la manutenzione ordinaria o la scadenza e si clicca «Collega»; "
                       "i filtri in alto mostrano un tipo solo e valgono anche per ticket e OdL già chiusi) oppure dall'intervento, "
-                      "con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione o delegati (scheda «Interventi» "
+                      "oppure dalla visita, da parte del referente («Annuncia una visita» → «Le tue visite» → «Collega»), "
+                      "oppure con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione o delegati, e nei ticket IT con ingressi già collegati (scheda «Interventi» "
                       "della gestione), negli ordini di lavoro aperti o chiusi, in «Chiudi intervento», in «Registra l'esecuzione» delle manutenzioni ordinarie, "
                       "nella pagina di modifica delle scadenze degli asset e nella scheda delle attività dello Scadenzario."),
                 ("p", "Il collegamento è una prova di presenza: non registra la manutenzione e non rinnova la scadenza. "

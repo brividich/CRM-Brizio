@@ -29,4 +29,5 @@ urlpatterns = [
     # Pagina personale di ogni dipendente (permesso reception.annuncia.view)
     path("annuncia/", views_richieste.annuncia, name="annuncia"),
     path("annuncia/richieste/<int:pk>/", views_richieste.annuncia_decidi, name="annuncia_decidi"),
+    path("annuncia/<str:cosa>/<int:pk>/collega/", views_richieste.annuncia_collega, name="annuncia_collega"),
 ]

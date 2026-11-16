@@ -614,22 +614,21 @@ def _filtro_chiusi(accesso: gp.Accesso | None, testo: str):
 def interventi_aperti(
     request, *, testo: str = "", fornitore=None, accesso: gp.Accesso | None = None,
 ) -> list[Intervento]:
-    """Ticket (MAN o delegati a una ditta) e OdL a cui l'utente può collegare un ingresso, per il
+    """Ticket (IT e manutenzione) e OdL a cui l'utente può collegare un ingresso, per il
     collegamento partendo dall'ingresso: gli aperti e i chiusi di quel periodo (vedi
     ``_filtro_chiusi``), più le sessioni formative in corso il giorno dell'ingresso.
     Prima quelli della stessa ditta o con quel docente."""
     from django.db.models import Q
 
     from assets.models import WorkOrder
-    from tickets.models import StatoTicket, Ticket, TipoTicket
+    from tickets.models import StatoTicket, Ticket
 
     testo = (testo or "").strip()
     esito: list[Intervento] = []
 
     filtro_chiusi = _filtro_chiusi(accesso, testo)
-    tickets = Ticket.objects.filter(
-        Q(tipo=TipoTicket.MAN) | Q(delegato_fornitore__isnull=False)
-    ).select_related("delegato_fornitore")
+    # Anche i ticket IT: un tecnico esterno può venire per un PC o la rete (dal 15/11/2026).
+    tickets = Ticket.objects.select_related("delegato_fornitore")
     if testo:
         tickets = tickets.filter(Q(numero_ticket__icontains=testo) | Q(titolo__icontains=testo))
     from tickets.services.accesso import utente_puo_gestire_ticket

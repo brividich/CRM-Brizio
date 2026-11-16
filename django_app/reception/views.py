@@ -23,7 +23,7 @@ from core.audit import log_action
 from core.models import SiteConfig
 from core.net import client_ip
 
-from . import mail, sale, servizi
+from . import interventi, mail, sale, servizi
 from .models import (
     Cartellino, CategoriaVisita, ContattoDitta, DittaAccreditata, EventoVisita, Preregistrazione, Referente,
     RichiestaAppuntamento, Visita,
@@ -206,6 +206,7 @@ def visita_scheda(request, visita_id):
         return redirect("reception:visita_scheda", visita_id=visita.pk)
     return render(request, "reception/visita.html", _ctx(
         request, "storico", v=visita, eventi=EventoVisita.objects.filter(visita_id_rif=visita.pk),
+        collegati=interventi.collegamenti([visita.pk]).get(visita.pk, []),
         liberi=servizi.cartellini_liberi(), giorni_riapertura=servizi.GIORNI_RIAPERTURA,
     ))
 
@@ -607,6 +608,15 @@ def impostazioni(request):
         if azione.startswith("prova_") and azione[6:] in gruppi:
             _prova_mail(request, azione[6:])
             return redirect(reverse("reception:impostazioni") + f"#mail-{azione[6:]}")
+        if azione == "motivi":
+            scelti = {int(x) for x in request.POST.getlist("motivo") if x.isdigit()}
+            for c in CategoriaVisita.objects.all():
+                if c.collega_interventi != (c.pk in scelti):
+                    c.collega_interventi = c.pk in scelti
+                    c.save(update_fields=["collega_interventi"])
+            log_action(request, "reception_motivi_interventi", "reception", {"motivi": sorted(scelti)})
+            messages.success(request, "Motivi salvati.")
+            return redirect(reverse("reception:impostazioni") + "#motivi")
         if azione in ("logo", "logo_togli"):
             _salva_logo(request, azione)
             return redirect("reception:impostazioni")
@@ -631,5 +641,5 @@ def impostazioni(request):
         logo_presente=bool(_logo_percorso()), testi=valori, gruppi_mail=gruppi_mail,
         pagina_accesa=bool(getattr(settings, "RECEPTION_RICHIESTE_PUBBLICHE", False)) and bool(getattr(settings, "RECEPTION_NATIVA", False)),
         link_pubblico=request.build_absolute_uri(reverse("reception_pubblica:richiesta")),
-        n_oltre=servizi.visite_oltre_conservazione(mesi).count(),
+        n_oltre=servizi.visite_oltre_conservazione(mesi).count(), motivi=CategoriaVisita.objects.all(),
     ))

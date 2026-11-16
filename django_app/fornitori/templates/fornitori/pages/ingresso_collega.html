@@ -109,7 +109,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
     </div>
     {% endif %}
     <div class="ic-note">Ticket e OdL: quelli aperti e quelli chiusi fino a due mesi dopo l'ingresso. Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutti.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
-    {% if not vede_ticket %}<div class="ic-note">Nessun ticket in elenco: si vedono quelli di manutenzione o delegati a una ditta, se sei gestore di quel tipo di ticket.</div>{% endif %}
+    {% if not vede_ticket %}<div class="ic-note">Nessun ticket in elenco: si vedono i ticket IT e di manutenzione dei tipi che gestisci.</div>{% endif %}
     {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
     {% if righe %}
     <form method="post" id="ic-piu" class="ic-multi">
