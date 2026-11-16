@@ -32,7 +32,7 @@ VERBI = {
     "approva": "ha approvato dal link della mail", "respingi": "ha respinto dal link della mail",
     "richiedi_modifica": "ha chiesto una modifica dal link della mail su", "aggiorna_avanzamento": "ha deciso dal link della mail su",
     "visualizza": "ha visto dal link della mail",
-    "incaricato": "ha cambiato l'incaricato di", "allegato": "ha allegato file a",
+    "incaricato": "ha cambiato l'incaricato di", "capo_op": "ha cambiato il capocommessa di tutto l'OP di", "allegato": "ha allegato file a",
     "allegato_tolto": "ha tolto un allegato da", "elimina": "ha eliminato",
     "passo": "ha aggiunto un passo a",
 }
@@ -47,7 +47,7 @@ GRUPPI = {
     "informazioni": {"richiesta_info", "risposta_info"},
     "spostamenti": {"spostata"},
     "azioni": {"azione"},
-    "incaricati": {"incaricato", "prendi_in_carico"},
+    "incaricati": {"incaricato", "capo_op", "prendi_in_carico"},
     "allegati": {"allegato", "allegato_tolto"},
     "eliminazioni": {"elimina"},
     "passi": {"passo"},

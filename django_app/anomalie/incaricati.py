@@ -11,11 +11,18 @@ Salvato in ``AnomaliaIncaricato`` (una riga per anomalia e ruolo). In memoria::
     {"cc": {"id": <utenti.id>, "nome": "ROSSI MARIO", "da": "...", "il": "dd/mm/aaaa hh:mm", "nota": "..."}}
 
 Togliere l'incaricato riporta il ruolo alla regola di serie.
+
+Il capocommessa si può cambiare anche su tutto l'OP (``AnomaliaOpIncaricato``):
+vale per tutte le sue anomalie, anche quelle che si apriranno, e per le mail
+dell'OP (``automazioni.services._resolve_op_recipients``). In memoria compare
+come l'incaricato della singola anomalia, con ``"op": True``; una scelta fatta
+sulla singola anomalia prevale su quella dell'OP.
 """
 from __future__ import annotations
 
 import logging
 
+from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -46,7 +53,8 @@ def ruolo_attuale(ruoli) -> str:
 
 
 def per_anomalie(ids) -> dict[int, dict]:
-    """``{anomalia_id: {ruolo: {...}}}`` per molte anomalie (una query)."""
+    """``{anomalia_id: {ruolo: {...}}}`` per molte anomalie (una query, più una se
+    qualche OP ha un incaricato su tutto l'OP)."""
     from .quality_models import AnomaliaIncaricato
 
     out: dict[int, dict] = {}
@@ -55,7 +63,82 @@ def per_anomalie(ids) -> dict[int, dict]:
         for x in AnomaliaIncaricato.objects.filter(anomalia_id__in=ids[i:i + 500]):
             if ruolo_valido(x.ruolo):
                 out.setdefault(x.anomalia_id, {})[x.ruolo] = _voce(x)
+    if ids:
+        try:
+            _aggiungi_da_op(ids, out)
+        except Exception:
+            # Tabella degli incaricati dell'OP non ancora creata (migrazione 0031).
+            logger.warning("incaricati: incaricati degli OP non letti", exc_info=True)
     return out
+
+
+def _aggiungi_da_op(ids: list[int], out: dict[int, dict]) -> None:
+    """Le anomalie di un OP con incaricato su tutto l'OP lo ereditano, se non ne
+    hanno uno proprio per quel ruolo."""
+    mappa = op_map()
+    if not mappa:
+        return
+    voluti = set(ids)
+    for aid, titolo in _anomalie_degli_op(list(mappa)):
+        if aid not in voluti:
+            continue
+        for ruolo, voce in (mappa.get(titolo) or {}).items():
+            out.setdefault(aid, {}).setdefault(ruolo, voce)
+
+
+def op_key(op_id) -> str:
+    return str(op_id or "").strip().lower()[:200]
+
+
+def op_map() -> dict[str, dict]:
+    """``{titolo OP minuscolo: {ruolo: {..., "op": True}}}`` (tabella piccola: una query)."""
+    from .quality_models import AnomaliaOpIncaricato
+
+    out: dict[str, dict] = {}
+    for x in AnomaliaOpIncaricato.objects.all():
+        if ruolo_valido(x.ruolo):
+            out.setdefault(x.op_key, {})[x.ruolo] = {**_voce(x), "op": True}
+    return out
+
+
+def per_op(op_id) -> dict:
+    """``{ruolo: {...}}`` affidati su tutto l'OP."""
+    from .quality_models import AnomaliaOpIncaricato
+
+    try:
+        return {x.ruolo: {**_voce(x), "op": True}
+                for x in AnomaliaOpIncaricato.objects.filter(op_key=op_key(op_id)) if ruolo_valido(x.ruolo)}
+    except Exception:
+        logger.warning("incaricati: incaricati dell'OP non letti", exc_info=True)
+        return {}
+
+
+_OP_SQL = "LOWER(LTRIM(RTRIM(CAST(ex_op_nominativo AS NVARCHAR(200)))))"
+
+
+def _anomalie_degli_op(chiavi: list[str]) -> list[tuple[int, str]]:
+    """(id, titolo OP minuscolo) delle anomalie di questi OP."""
+    from .views import _fetch_all_dict
+
+    out = []
+    for i in range(0, len(chiavi), 200):
+        blocco = chiavi[i:i + 200]
+        for r in _fetch_all_dict(
+                f"SELECT id, ex_op_nominativo FROM anomalie WHERE {_OP_SQL} IN ({','.join(['%s'] * len(blocco))})",
+                blocco):
+            if r.get("id") is not None:
+                out.append((int(r["id"]), op_key(r.get("ex_op_nominativo"))))
+    return out
+
+
+def anomalie_op(op_id) -> list[dict]:
+    """Anomalie dell'OP (aperte e chiuse) con S/N e descrizione."""
+    from .views import _fetch_all_dict, legacy_table_columns
+
+    cols = legacy_table_columns("anomalie") or set()
+    voluti = [c for c in ("id", "seriale", "descrizione", "chiudere") if c in cols]
+    return _fetch_all_dict(f"SELECT {', '.join(voluti)} FROM anomalie WHERE {_OP_SQL} = %s ORDER BY id",
+                           [op_key(op_id)])
 
 
 def _voce(x) -> dict:
@@ -123,8 +206,9 @@ def persona(uid) -> dict | None:
 # ── Permessi e OP ──────────────────────────────────────────────────────────
 
 
-def puo_cambiare_su_op(request, capo, car) -> bool:
-    """Amministratori del modulo, capocommessa e CAR dell'OP: su tutte le sue anomalie."""
+def puo_cambiare_su_op(request, capo, car, op_id=None) -> bool:
+    """Amministratori del modulo, capocommessa e CAR dell'OP, e chi ha il capocommessa
+    affidato su tutto l'OP: su tutte le sue anomalie."""
     from core.acl import user_can_modulo_action
 
     from .models import AnomalieRoleType
@@ -140,8 +224,17 @@ def puo_cambiare_su_op(request, capo, car) -> bool:
             return True
     except Exception:
         pass
+    if op_id and _incaricato_op_io(request, op_id):
+        return True
     return bool(set(_op_role_codes_da_persone(request, capo, car))
                 & {AnomalieRoleType.CAPO_COMMESSA, AnomalieRoleType.CAR})
+
+
+def _incaricato_op_io(request, op_id) -> bool:
+    from .views import _request_legacy_user_id
+
+    me = _request_legacy_user_id(request)
+    return me is not None and e_incaricato({"incaricati": per_op(op_id)}, "cc", me)
 
 
 def puo_cambiare_su_anomalia(request, info: dict | None) -> bool:
@@ -160,8 +253,9 @@ def puo_cambiare(request, row: dict, info: dict | None = None) -> bool:
     from . import decisione_qualita as dq
     from .views import _capo_car_di_op
 
-    capo, car = _capo_car_di_op(str((row or {}).get("ex_op_nominativo") or "").strip())
-    if puo_cambiare_su_op(request, capo, car):
+    op_id = str((row or {}).get("ex_op_nominativo") or "").strip()
+    capo, car = _capo_car_di_op(op_id)
+    if puo_cambiare_su_op(request, capo, car, op_id):
         return True
     if info is None:
         aid = (row or {}).get("id")
@@ -212,6 +306,14 @@ def op_incaricato(request, *, ruoli=None) -> set[str]:
         out |= _op_da_regole(me)
     except Exception:
         logger.warning("incaricati: OP dalla tabella «in carico» non letti", exc_info=True)
+    if me is not None:
+        try:
+            from .quality_models import AnomaliaOpIncaricato
+
+            out |= {k for k, r in AnomaliaOpIncaricato.objects.filter(legacy_user_id=int(me)).values_list(
+                "op_key", "ruolo") if not ruoli or r in ruoli}
+        except Exception:
+            logger.warning("incaricati: OP affidati per intero non letti", exc_info=True)
     for i in range(0, len(ids), 500):
         blocco = ids[i:i + 500]
         try:
@@ -271,6 +373,45 @@ def imposta(anomalia_id: int, ruolo: str, nuova: dict | None, *, chi: str, nota:
     return prima, _voce(x)
 
 
+def imposta_op(op_id: str, ruolo: str, nuova: dict | None, *, chi: str, nota: str = ""):
+    """Affida ``ruolo`` su tutto l'OP (``None``: torna a chi lo ha di serie). Le scelte
+    fatte sulle singole anomalie dell'OP per quel ruolo lasciano il posto: da qui in
+    poi l'OP intero è suo. Ritorna ``(prima, dopo, anomalie_ripulite)``."""
+    from .quality_models import AnomaliaIncaricato, AnomaliaOpIncaricato
+
+    key = op_key(op_id)
+    ids = [int(r["id"]) for r in anomalie_op(op_id) if r.get("id") is not None]
+    with transaction.atomic():
+        attuale = AnomaliaOpIncaricato.objects.filter(op_key=key, ruolo=ruolo).first()
+        prima = _voce(attuale) if attuale is not None else None
+        ripulite = 0
+        for i in range(0, len(ids), 500):
+            ripulite += AnomaliaIncaricato.objects.filter(anomalia_id__in=ids[i:i + 500], ruolo=ruolo).delete()[0]
+        if nuova is None:
+            if attuale is not None:
+                attuale.delete()
+            return prima, None, ripulite
+        x, _ = AnomaliaOpIncaricato.objects.update_or_create(
+            op_key=key, ruolo=ruolo,
+            defaults={"op_id": str(op_id or "").strip()[:200], "legacy_user_id": int(nuova["id"]),
+                      "nome": str(nuova["nome"] or "")[:200], "assegnato_da": str(chi or "")[:200],
+                      "nota": str(nota or "")[:500]},
+        )
+    return prima, _voce(x), ripulite
+
+
+def contatto_op_cc(op_id) -> tuple[str, str] | None:
+    """(email, nome) del capocommessa affidato su tutto l'OP, o ``None``: le mail
+    dell'OP vanno a lui al posto del capocommessa del gestionale."""
+    voce = per_op(op_id).get("cc")
+    if not voce:
+        return None
+    from .automazioni_service import contatto_operatore
+
+    email, nome = contatto_operatore(voce["id"])
+    return email, nome or voce.get("nome") or ""
+
+
 def togli_anomalia(anomalia_id: int) -> None:
     from .quality_models import AnomaliaIncaricato
 
@@ -299,6 +440,50 @@ def nome_di_serie(ruolo: str, row: dict, info: dict | None) -> str:
         return contatto_operatore(row.get("created_by_user_id"))[1] or "chi l'ha inserita"
     except Exception:
         return "chi l'ha inserita"
+
+
+def avvisa_op(*, op_id: str, persona_id: int, chi: str, nota: str = "", righe: list[dict],
+              tutto_op: bool) -> dict:
+    """Notifica e mail al nuovo capocommessa: tutto l'OP o alcune anomalie. Mai bloccante."""
+    from core.models import Notifica
+
+    from .automazioni_service import _render_mail, _send, contatto_operatore, op_portal_link, op_url
+    from .codice import codice_anomalia
+
+    esito = {"mail": False, "email": ""}
+    n = len(righe)
+    cosa = (f"ti ha affidato come capocommessa l'OP {op_id}" if tutto_op
+            else f"ti ha affidato come capocommessa {n} anomali{'a' if n == 1 else 'e'} dell'OP {op_id}")
+    try:
+        Notifica.objects.create(legacy_user_id=int(persona_id), tipo="anomalia_da_gestire",
+                                messaggio=f"{chi} {cosa}."[:500], url_azione=op_url(op_id))
+    except Exception:
+        logger.warning("capocommessa OP: notifica non creata op=%s", op_id, exc_info=True)
+    email, nome = contatto_operatore(persona_id)
+    esito["email"] = email
+    if not email:
+        return esito
+    link = op_portal_link(op_id)
+    elenco = [r for r in righe if not r.get("chiudere")] if tutto_op else righe
+    rows = [[codice_anomalia(r.get("id")) or "—", str(r.get("seriale") or "—"), str(r.get("descrizione") or "—")[:160]]
+            for r in elenco]
+    vale = " Vale per tutte le anomalie dell'OP, anche quelle che si apriranno, e per le mail dell'OP." if tutto_op else ""
+    lines = [f"{chi} {cosa}.{vale}", ""] + [f"  • {c} · S/N {sn} · {d}" for c, sn, d in rows]
+    if nota:
+        lines += ["", f"Nota: {nota[:300]}"]
+    if link:
+        lines += ["", f"Gestione anomalie: {link}"]
+    html = _render_mail(
+        badge="Capocommessa affidato a te", eyebrow=f"OP {op_id}",
+        title=f"OP {op_id}: ora sei tu il capocommessa" if tutto_op else f"OP {op_id}: anomalie affidate a te",
+        intro=f"{'Buongiorno ' + nome + ', ' if nome else ''}{chi} {cosa}.{vale}" + (f" Nota: {nota[:300]}" if nota else ""),
+        columns=["ID", "S/N", "Anomalia aperta"], rows=rows or [["—", "—", "Nessuna anomalia aperta"]],
+        cta_url=link, cta_label="Apri in Gestione anomalie",
+    )
+    esito["mail"] = bool(_send(kind="anomalia_incaricato", subject=f"[Novicrom Hub] OP {op_id} — capocommessa affidato a te",
+                               lines=lines, html=html, to=[email], op_id=op_id,
+                               context={"ruolo": "cc", "tutto_op": tutto_op, "da": chi}))
+    return esito
 
 
 def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: str, nota: str = "",
