@@ -1,0 +1,16 @@
+<div class="rc-wrap">
+  <table class="rc-table">
+    <thead><tr><th>Persona</th><th>Azienda / scuola</th><th>Stato</th><th></th></tr></thead>
+    <tbody>
+    {% for p in partecipanti %}
+      <tr>
+        <td>{{ p.cognome }} {{ p.nome }}</td><td>{{ p.azienda|default:"—" }}</td>
+        <td>{% if not p.visita_id %}<span class="rc-pill">Da entrare</span>{% elif p.visita.stato == "CHECKEDIN" %}<span class="rc-pill rc-pill-ok">Dentro dalle {{ p.visita.ingresso|time:"H:i" }}{% if p.visita.cartellino != "N/A" %} · cartellino {{ p.visita.cartellino }}{% endif %}</span>{% else %}<span class="rc-pill">Uscito {{ p.visita.uscita|time:"H:i" }}</span>{% endif %}</td>
+        <td><form class="rc-inline" method="post" action="{% url 'reception:partecipante_togli' p.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" type="submit" title="{% if p.visita.stato == 'CHECKEDIN' %}Toglie dal gruppo e registra l'uscita{% else %}Toglie dal gruppo{% endif %}">Togli</button></form></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="rc-empty">Nessun partecipante.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,18 @@
+{% extends "reception/_base.html" %}
+{% block title %}Gruppo | Reception{% endblock %}
+{% block rc_titolo %}Gruppo di {{ pre.ospite_nome }}{% endblock %}
+{% block rc_azioni %}{% if not pre.usata_il %}<a class="rc-btn rc-btn-p" href="{% url 'reception:importa' %}?invito={{ pre.pk }}">+ Aggiungi da Excel</a>{% endif %}{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-numeri">
+  <span>Codice <b>{{ pre.codice }}</b></span>
+  <span>{{ pre.data_visita|date:"d/m/Y"|default:"Senza giorno" }}{% if pre.ora_inizio %} {{ pre.ora_inizio|time:"H:i" }}{% endif %}</span>
+  <span>Da <b>{{ pre.referente_nome }}</b></span>
+  <span><b>{{ partecipanti|length }}</b> partecipanti</span>
+  {% if pre.visita_id %}<a href="{% url 'reception:visita_scheda' pre.visita_id %}">Visita del capogruppo</a>{% endif %}
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Partecipanti</div>
+  {% if not pre.usata_il %}<div class="rc-body"><p class="rc-note">Entrano quando {{ pre.ospite_nome }} usa il codice o si registra al chiosco con lo stesso nome{% if pre.ospite_email %} o email{% endif %}, ed escono con lui.</p></div>{% endif %}
+  {% include "reception/_gruppo.html" %}
+</div>
+{% endblock %}

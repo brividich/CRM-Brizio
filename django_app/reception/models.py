@@ -217,6 +217,71 @@ class Preregistrazione(models.Model):
         return self.codice
 
 
+class PartecipanteGruppo(models.Model):
+    """Una persona di un gruppo (classe, delegazione, evento) che entra ed esce con il capogruppo.
+
+    Si aggancia a un invito (entra quando il capogruppo usa il codice o si registra al chiosco con lo stesso
+    nome o email) oppure direttamente alla visita aperta del capogruppo. All'ingresso diventa una visita
+    sua (``visita``), di base senza cartellino; all'uscita del capogruppo esce anche lui."""
+
+    preregistrazione = models.ForeignKey(Preregistrazione, null=True, blank=True, on_delete=models.CASCADE,
+                                         related_name="partecipanti")
+    visita_capo = models.ForeignKey(Visita, null=True, blank=True, on_delete=models.SET_NULL, related_name="partecipanti_gruppo")
+    visita = models.ForeignKey(Visita, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    cognome = models.CharField(max_length=100)
+    nome = models.CharField(max_length=100)
+    azienda = models.CharField(max_length=255, blank=True)
+    email = models.CharField(max_length=255, blank=True)
+    telefono = models.CharField(max_length=50, blank=True)
+    con_cartellino = models.BooleanField(default=False)
+    creato_da = models.CharField(max_length=150, blank=True)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["cognome", "nome", "pk"]
+        verbose_name = "Partecipante di un gruppo"
+        verbose_name_plural = "Partecipanti dei gruppi"
+
+    def __str__(self) -> str:
+        return f"{self.cognome} {self.nome}"
+
+
+def _allegato_upload_to(instance, filename: str) -> str:
+    import uuid
+    from pathlib import PurePath
+
+    nome = PurePath(filename or "allegato").name[-80:]
+    return f"reception/visite/{instance.visita_id}/{uuid.uuid4().hex[:12]}_{nome}"
+
+
+def _storage_privato():
+    from anagrafica.storage import PrivateAnagraficaStorage
+
+    return PrivateAnagraficaStorage()
+
+
+class AllegatoVisita(models.Model):
+    """File legato a una visita, per esempio l'elenco degli studenti di una classe in gita.
+
+    Storage privato cifrato fuori dalla webroot (come i documenti dell'anagrafica): si scarica solo dalla
+    view ``reception:visita_allegato``. Sparisce con la visita alla scadenza della conservazione."""
+
+    visita = models.ForeignKey(Visita, on_delete=models.CASCADE, related_name="allegati")
+    file = models.FileField(upload_to=_allegato_upload_to, storage=_storage_privato, max_length=255)
+    nome = models.CharField(max_length=255)
+    dimensione = models.PositiveIntegerField(default=0)
+    caricato_da = models.CharField(max_length=150, blank=True)
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["caricato_il", "pk"]
+        verbose_name = "Allegato di una visita"
+        verbose_name_plural = "Allegati delle visite"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
 class EventoVisita(models.Model):
     """Correzioni a una visita: chi ha fatto cosa. Sparisce con la visita alla scadenza."""
 

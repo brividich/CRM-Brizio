@@ -13,7 +13,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -23,7 +23,7 @@ from core.audit import log_action
 from core.models import SiteConfig
 from core.net import client_ip
 
-from . import interventi, mail, sale, servizi
+from . import gruppi, interventi, mail, sale, servizi
 from .models import (
     Cartellino, CategoriaVisita, ContattoDitta, DittaAccreditata, EventoVisita, Preregistrazione, Referente,
     RichiestaAppuntamento, Visita,
@@ -39,13 +39,13 @@ def _autore(request) -> str:
 
 # Quattro voci in alto; dove una voce raggruppa più pagine, queste diventano schede sotto il titolo.
 GRUPPI_MENU = (
-    ("oggi", "Oggi", (("cruscotto", "Oggi"), ("registra", "Registra ingresso"))),
+    ("oggi", "Oggi", (("cruscotto", "Oggi"), ("registra", "Registra ingresso"), ("importa", "Importa elenco"))),
     ("inviti", "Inviti", (("preregistrazioni", "Inviti"), ("richieste", "Richieste"))),
     ("storico", "Storico", (("storico", "Storico"),)),
     ("config", "Configurazione", (("referenti", "Referenti"), ("ditte", "Ditte accreditate"), ("cartellini", "Cartellini"),
                                   ("sale", "Sale"), ("impostazioni", "Impostazioni"))),
 )
-SCHEDE_VISIBILI = {"inviti", "config"}
+SCHEDE_VISIBILI = {"oggi", "inviti", "config"}
 
 
 def _ammessa(request, url: str) -> bool:
@@ -101,7 +101,8 @@ def cruscotto(request):
     oggi = timezone.localdate()
     inizio = timezone.make_aware(datetime.combine(oggi, datetime.min.time()))
     presenti = Visita.objects.select_related("ospite", "ditta").filter(stato=Visita.DENTRO).order_by("ingresso")
-    attesi = Preregistrazione.objects.filter(data_visita=oggi, usata_il__isnull=True, scade_il__gte=timezone.now()).order_by("ora_inizio", "ospite_nome")
+    attesi = Preregistrazione.objects.filter(data_visita=oggi, usata_il__isnull=True, scade_il__gte=timezone.now()) \
+        .annotate(n_gruppo=Count("partecipanti")).order_by("ora_inizio", "ospite_nome")
     liberi = servizi.cartellini_liberi()
     return render(request, "reception/cruscotto.html", _ctx(
         request, "cruscotto", presenti=presenti, attesi=attesi,
@@ -206,7 +207,8 @@ def visita_scheda(request, visita_id):
         return redirect("reception:visita_scheda", visita_id=visita.pk)
     return render(request, "reception/visita.html", _ctx(
         request, "storico", v=visita, eventi=EventoVisita.objects.filter(visita_id_rif=visita.pk),
-        collegati=interventi.collegamenti([visita.pk]).get(visita.pk, []),
+        collegati=interventi.collegamenti([visita.pk]).get(visita.pk, []), allegati=visita.allegati.all(),
+        partecipanti=gruppi.partecipanti_di(visita_capo=visita),
         liberi=servizi.cartellini_liberi(), giorni_riapertura=servizi.GIORNI_RIAPERTURA,
     ))
 
@@ -245,7 +247,8 @@ def preregistrazioni(request):
     return render(request, "reception/preregistrazioni.html", _ctx(
         request, "preregistrazioni", referenti_json=_elenco_referenti(),
         categorie=CategoriaVisita.objects.filter(attiva=True), sale_riunioni=list(sale.sale_attive()),
-        righe=Preregistrazione.objects.select_related("sala").filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))[:100],
+        righe=Preregistrazione.objects.select_related("sala").filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))
+        .annotate(n_gruppo=Count("partecipanti"))[:100],
         apri=request.GET.get("nuovo") == "1",
     ))
 

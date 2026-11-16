@@ -1,15 +1,21 @@
 from django.urls import path
 
-from . import views, views_presenti, views_richieste, views_ricerca
+from . import views, views_import, views_presenti, views_richieste, views_ricerca
 
 app_name = "reception"
 
 urlpatterns = [
     path("", views.cruscotto, name="cruscotto"),
     path("registra/", views.registra, name="registra"),
+    path("importa/", views_import.importa, name="importa"),
+    path("importa/modello/", views_import.importa_modello, name="importa_modello"),
+    path("preregistrazioni/<int:pk>/gruppo/", views_import.invito_gruppo, name="invito_gruppo"),
+    path("gruppo/<int:pk>/togli/", views_import.partecipante_togli, name="partecipante_togli"),
     path("storico/", views.storico, name="storico"),
     path("visite/<int:visita_id>/", views.visita_scheda, name="visita_scheda"),
     path("visite/<int:visita_id>/uscita/", views.visita_uscita, name="visita_uscita"),
+    path("visite/<int:visita_id>/allegati/", views_import.visita_allegati, name="visita_allegati"),
+    path("visite/<int:visita_id>/allegati/<int:allegato_id>/", views_import.visita_allegato, name="visita_allegato"),
     path("preregistrazioni/", views.preregistrazioni, name="preregistrazioni"),
     path("preregistrazioni/<int:pk>/azione/", views.preregistrazione_azione, name="preregistrazione_azione"),
     path("referenti/", views.referenti, name="referenti"),

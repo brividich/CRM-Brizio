@@ -1,0 +1,75 @@
+{% extends "reception/_base.html" %}
+{% load static %}
+{% block title %}Importa elenco | Reception{% endblock %}
+{% block rc_titolo %}Importa elenco{% endblock %}
+{% block rc_azioni %}<a class="rc-btn rc-btn-g" href="{% url 'reception:importa_modello' %}">Scarica il modello Excel</a>{% endblock %}
+{% block rc_contenuto %}
+{{ referenti_json|json_script:"referenti-dati" }}
+{% if errori %}
+<div class="rc-card">
+  <div class="rc-card-head">Da correggere nel file</div>
+  <div class="rc-body"><ul class="rc-note">{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>
+</div>
+{% endif %}
+<div class="rc-card rc-card-modulo">
+  <form method="post" enctype="multipart/form-data" class="rc-modulo">
+    {% csrf_token %}
+    <p class="rc-note">Le persone del file entrano con il capogruppo, quando usa il codice dell'invito o si registra al chiosco con lo stesso nome o email, ed escono con lui. Colonne: Cognome, Nome, Azienda / scuola, Email, Telefono (obbligatori cognome e nome, al massimo {{ max_righe }} righe).</p>
+    <div class="rc-field"><label for="i-file">File Excel (.xlsx)</label><input class="rc-input" id="i-file" type="file" name="file" accept=".xlsx" required></div>
+    <div class="rc-field"><span class="rc-label">Collega l'elenco a</span>
+      <div class="rc-chips">
+        <label class="rc-chip"><input type="radio" name="destinazione" value="nuovo" data-mostra="#d-nuovo"{% if destinazione == "nuovo" %} checked{% endif %}><span>Nuovo invito</span></label>
+        <label class="rc-chip"><input type="radio" name="destinazione" value="invito" data-mostra="#d-invito"{% if destinazione == "invito" %} checked{% endif %}><span>Invito già fatto</span></label>
+        <label class="rc-chip"><input type="radio" name="destinazione" value="dentro" data-mostra="#d-dentro"{% if destinazione == "dentro" %} checked{% endif %}><span>Chi è già dentro</span></label>
+      </div>
+    </div>
+
+    <fieldset class="rc-destinazione" id="d-nuovo">
+      <div class="rc-riga rc-riga-2">
+        <div class="rc-field"><label for="i-ccog">Cognome del capogruppo</label><input class="rc-input" id="i-ccog" name="capo_cognome" value="{{ dati.capo_cognome|default:'' }}" maxlength="100"></div>
+        <div class="rc-field"><label for="i-cnom">Nome</label><input class="rc-input" id="i-cnom" name="capo_nome" value="{{ dati.capo_nome|default:'' }}" maxlength="100"></div>
+      </div>
+      <div class="rc-riga rc-riga-2">
+        <div class="rc-field"><label for="i-cema">Email <span class="rc-opz">facoltativa: se c'è riceve codice e QR</span></label><input class="rc-input" id="i-cema" type="email" name="capo_email" value="{{ dati.capo_email|default:'' }}" maxlength="255"></div>
+        <div class="rc-field"><label for="i-caz">Azienda / scuola <span class="rc-opz">facoltativa</span></label><input class="rc-input" id="i-caz" name="capo_azienda" value="{{ dati.capo_azienda|default:'' }}" maxlength="200"></div>
+      </div>
+      <div class="rc-field"><label for="i-ref-cerca">Chi li riceve</label>
+        <div class="rc-cerca"><input class="rc-input" id="i-ref-cerca" type="search" placeholder="Nome o reparto del dipendente" value="{{ referente_scelto.nome_elenco|default:'' }}"
+               data-scegli="#referenti-dati" data-valore="#i-ref" data-formato="referente"></div>
+        <input type="hidden" id="i-ref" name="referente" value="{{ referente_scelto.pk|default:'' }}"></div>
+      <div class="rc-riga rc-riga-2">
+        <div class="rc-field"><label for="i-giorno">Giorno</label><input class="rc-input" id="i-giorno" type="date" name="giorno" min="{{ oggi|date:'Y-m-d' }}" value="{{ dati.giorno|default:'' }}"></div>
+        <div class="rc-field"><label for="i-ora">Ora <span class="rc-opz">facoltativa</span></label><input class="rc-input" id="i-ora" type="time" name="ora_inizio" value="{{ dati.ora_inizio|default:'' }}"></div>
+      </div>
+      <div class="rc-field"><span class="rc-label">Motivo</span>
+        <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if dati.motivo == c.nome or not dati.motivo and forloop.first %} checked{% endif %}><span>{{ c.nome }}</span></label>{% empty %}<label class="rc-chip"><input type="radio" name="motivo" value="Altro" checked><span>Altro</span></label>{% endfor %}</div>
+      </div>
+    </fieldset>
+
+    <fieldset class="rc-destinazione" id="d-invito">
+      <div class="rc-field"><label for="i-inv">Invito</label>
+        <select class="rc-input" id="i-inv" name="invito"><option value="">Scegli</option>{% for p in inviti %}<option value="{{ p.pk }}"{% if dati.invito == p.pk|stringformat:"s" %} selected{% endif %}>{{ p.data_visita|date:"d/m"|default:"senza giorno" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %} · {{ p.ospite_nome }}{% if p.ospite_azienda %} · {{ p.ospite_azienda }}{% endif %} · da {{ p.referente_nome }}</option>{% endfor %}</select></div>
+    </fieldset>
+
+    <fieldset class="rc-destinazione" id="d-dentro">
+      <div class="rc-field"><label for="i-vis">Capogruppo</label>
+        <select class="rc-input" id="i-vis" name="visita"><option value="">Scegli</option>{% for p in presenti %}<option value="{{ p.pk }}"{% if dati.visita == p.pk|stringformat:"s" %} selected{% endif %}>{{ p.ospite.cognome }} {{ p.ospite.nome }}{% if p.ospite.azienda %} · {{ p.ospite.azienda }}{% endif %}</option>{% endfor %}</select></div>
+      <label class="rc-spunta"><input type="checkbox" name="allega" value="1"{% if request.method != "POST" or dati.allega %} checked{% endif %}> Allega anche il file alla sua visita</label>
+    </fieldset>
+
+    <label class="rc-spunta"><input type="checkbox" name="cartellini" value="1"{% if dati.cartellini %} checked{% endif %}> Assegna i cartellini ({{ n_liberi }} liberi adesso)</label>
+    <button class="rc-btn rc-btn-p rc-btn-largo" type="submit">Importa</button>
+  </form>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  const scelte = document.querySelectorAll('input[name="destinazione"]');
+  function aggiorna() {
+    scelte.forEach(function (r) { const box = document.querySelector(r.dataset.mostra); if (box) { box.hidden = !r.checked; } });
+  }
+  scelte.forEach(function (r) { r.addEventListener("change", aggiorna); });
+  aggiorna();
+})();
+</script>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}

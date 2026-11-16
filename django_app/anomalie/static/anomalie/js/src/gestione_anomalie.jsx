@@ -33,6 +33,7 @@
     API.qualita_rispondi_info = API.qualita_rispondi_info || "/api/anomalie/qualita/rispondi-info";
     API.incaricato = API.incaricato || "/api/anomalie/incaricato";
     API.incaricato_persone = API.incaricato_persone || "/api/anomalie/incaricato/persone";
+    API.incaricato_op = API.incaricato_op || "/api/anomalie/incaricato/op";
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
       : [];
@@ -1228,6 +1229,8 @@
       const [qBusy, setQBusy] = useState(false);
       const [infoModal, setInfoModal] = useState(null);  // null | { cc, controllore, messaggio, busy, err }
       const [incModal, setIncModal] = useState(null);  // null | { ruolo, persona, nota, persone, busy, err }
+      // «Cambia capocommessa»: di serie tutto l'OP, oppure solo le anomalie scelte.
+      const [capoModal, setCapoModal] = useState(null);  // null | { ambito, scelte, persona, nota, persone, busy, err }
       const [rispInfo, setRispInfo] = useState("");
       // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
       // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
@@ -1900,9 +1903,38 @@
         return ["cc", "qualita", "controllore", "car_op", "car"].find((r) => ruoli.includes(r))
           || ruoli.filter((r) => String(r).startsWith("p:")).sort()[0] || "";
       };
+      const apriCambiaCapo = (scelte) => {
+        setCapoModal({ ambito: "op", scelte: (scelte || []).map(String), persona: "", nota: "", persone: null, busy: false, err: "" });
+        fetch(`${API.incaricato_persone}?ruolo=cc`, { credentials: "same-origin" })
+          .then((r) => r.json().then((d) => {
+            if (!r.ok || d.success === false) throw new Error(d.error || `HTTP ${r.status}`);
+            setCapoModal((m) => (m ? { ...m, persone: d.persone || [] } : m));
+          }))
+          .catch((e) => setCapoModal((m) => (m ? { ...m, persone: [], err: "Elenco persone non caricato: " + e.message } : m)));
+      };
+      const salvaCapo = async (diSerie) => {
+        if (!capoModal || capoModal.busy) return;
+        if (!diSerie && !capoModal.persona) { setCapoModal({ ...capoModal, err: "Scegli la persona." }); return; }
+        if (capoModal.ambito === "anomalie" && !capoModal.scelte.length) { setCapoModal({ ...capoModal, err: "Spunta almeno un'anomalia." }); return; }
+        setCapoModal({ ...capoModal, busy: true, err: "" });
+        try {
+          const d = await postJson(API.incaricato_op, { op_id: op.id, ambito: capoModal.ambito, anomalie: capoModal.scelte,
+            persona_id: diSerie ? "" : capoModal.persona, nota: capoModal.nota.trim() }, "Cambio capocommessa");
+          setCapoModal(null);
+          const mail = `${d.mail ? " · mail inviata" : ""}${d.senza_email ? " · nessuna email in anagrafica" : ""}`;
+          flash({ ok: true, text: d.ambito === "op"
+            ? (diSerie ? "L'OP torna al capocommessa di serie" : `Capocommessa cambiato su tutto l'OP${mail}`)
+            : `Capocommessa cambiato su ${d.n} anomali${d.n === 1 ? "a" : "e"}${mail}` }, 6000);
+          loadOrdini();
+          ricaricaAnomalie().catch(() => {});
+        } catch (e) {
+          setCapoModal((m) => (m ? { ...m, busy: false, err: e.message } : m));
+        }
+      };
       const apriCambiaIncaricato = () => {
         const r = ruoloAttuale(sn);
         if (!r) { flash({ ok: false, text: "L'anomalia non è in carico a nessuno" }); return; }
+        if (r === "cc") { apriCambiaCapo([sn.local_id]); return; }
         setIncModal({ ruolo: r, persona: "", nota: "", persone: null, busy: false, err: "" });
         caricaPersone(r);
       };
@@ -2565,7 +2597,13 @@
                       </span>
                     </div>
                     <div className="ga-opsheet__people">
-                      <span><b>Capocommessa</b> {op.capo || "—"}</span>
+                      <span title={op.capo_affidato ? `Affidato da ${op.capo_affidato.da}${op.capo_affidato.il ? ` il ${op.capo_affidato.il}` : ""} su tutto l'OP · di serie ${op.capo_di_serie}` : undefined}>
+                        <b>Capocommessa</b> {op.capo || "—"}{op.capo_affidato ? ` · al posto di ${op.capo_di_serie}` : ""}
+                        {anomalie.some((a) => a.puo_cambiare_capo_op) && (
+                          <button type="button" className="ga-link" title="Cambia il capocommessa di tutto l'OP (o solo di alcune anomalie)"
+                            onClick={() => apriCambiaCapo(sn.local_id && !sn.chiudere ? [sn.local_id] : [])}> Cambia</button>
+                        )}
+                      </span>
                       <span><b>CAR</b> {op.car || "—"}</span>
                     </div>
                     {tot > 0 ? (
@@ -3222,6 +3260,77 @@
               </div>
             </div>
           )}
+
+          {/* Cambia capocommessa: tutto l'OP (di serie) o solo le anomalie scelte */}
+          {capoModal && (() => {
+            const aperte = anomalie.filter((a) => !a.chiudere && a.local_id);
+            const spunta = (id) => setCapoModal((m) => ({ ...m, scelte: m.scelte.includes(String(id))
+              ? m.scelte.filter((x) => x !== String(id)) : [...m.scelte, String(id)] }));
+            const proprie = aperte.filter((a) => { const i = (a.incaricati || {}).cc; return i && !i.op; });
+            const puoTornare = capoModal.ambito === "op" ? (!!op.capo_affidato || proprie.length > 0)
+              : capoModal.scelte.some((id) => proprie.some((a) => String(a.local_id) === id));
+            return (
+              <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-capo-t">
+                <div className="ga-modal__box">
+                  <div className="ga-modal__title" id="ga-capo-t">Cambia capocommessa · OP {op.id}</div>
+                  <div className="ga-carico">
+                    <span className="ga-carico__t">Ora</span>
+                    <span className="ga-carico__p"><b>Capocommessa</b> {op.capo || "—"}{op.capo_affidato ? ` (al posto di ${op.capo_di_serie})` : ""}</span>
+                  </div>
+                  <div className="ga-field"><FieldLabel>Vale per</FieldLabel>
+                    <label className="ga-check"><input type="radio" name="ga-capo-ambito" checked={capoModal.ambito === "op"} disabled={capoModal.busy}
+                      onChange={() => setCapoModal({ ...capoModal, ambito: "op" })} />
+                      <span><b>Tutto l'OP</b> · tutte le anomalie, anche quelle che si apriranno, e le mail dell'OP</span></label>
+                    <label className="ga-check"><input type="radio" name="ga-capo-ambito" checked={capoModal.ambito === "anomalie"} disabled={capoModal.busy || !aperte.length}
+                      onChange={() => setCapoModal({ ...capoModal, ambito: "anomalie" })} />
+                      <span>Solo alcune anomalie / S/N</span></label>
+                  </div>
+                  {capoModal.ambito === "anomalie" && (
+                    <div className="ga-capo__lista">
+                      <div className="ga-hint">
+                        {capoModal.scelte.length} di {aperte.length} aperte ·{" "}
+                        <button type="button" className="ga-link" onClick={() => setCapoModal({ ...capoModal, scelte: aperte.map((a) => String(a.local_id)) })}>Tutte</button>{" "}
+                        <button type="button" className="ga-link" onClick={() => setCapoModal({ ...capoModal, scelte: [] })}>Nessuna</button>
+                      </div>
+                      {aperte.map((a) => (
+                        <label key={a.local_id} className="ga-check">
+                          <input type="checkbox" checked={capoModal.scelte.includes(String(a.local_id))} disabled={capoModal.busy} onChange={() => spunta(a.local_id)} />
+                          <span><b>{codiceAnomalia(a.local_id)}</b> · S/N {a.seriale || "—"} · {String(a.descrizione || "—").slice(0, 70)}
+                            {(a.incaricati || {}).cc && !(a.incaricati || {}).cc.op ? ` · ora ${(a.incaricati || {}).cc.nome}` : ""}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div className="ga-hint">{capoModal.ambito === "op"
+                    ? "Il nuovo capocommessa trova le anomalie in «In carico a me», decide e riceve notifica, mail e riepiloghi dell'OP. Le anomalie a cui avevi dato un capocommessa a parte tornano a seguire l'OP."
+                    : "Solo le anomalie spuntate passano alla persona scelta; il resto dell'OP non cambia."}</div>
+                  <label className="ga-field"><FieldLabel>Affida a</FieldLabel>
+                    {capoModal.persone === null
+                      ? <div className="ga-hint">Caricamento…</div>
+                      : (
+                        <select className="ga-input" value={capoModal.persona} disabled={capoModal.busy}
+                          onChange={(e) => setCapoModal({ ...capoModal, persona: e.target.value })}>
+                          <option value="">— scegli —</option>
+                          {capoModal.persone.map((p) => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+                        </select>
+                      )}
+                  </label>
+                  <textarea className="ga-input" rows={2} value={capoModal.nota} placeholder="Nota (facoltativa): arriva nella mail"
+                    onChange={(e) => setCapoModal({ ...capoModal, nota: e.target.value })} />
+                  {capoModal.err && <div className="ga-note ga-note--warn">{capoModal.err}</div>}
+                  <div className="ga-modal__acts">
+                    <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={capoModal.busy} onClick={() => setCapoModal(null)}>Annulla</button>
+                    {puoTornare && (
+                      <button type="button" className="ga-btn ga-btn--outline" disabled={capoModal.busy} onClick={() => salvaCapo(true)}
+                        title={capoModal.ambito === "op" ? "Tutto l'OP torna al capocommessa del gestionale" : "Le anomalie spuntate tornano a seguire l'OP"}>Torna di serie</button>
+                    )}
+                    <button type="button" className="ga-btn ga-btn--accent" disabled={capoModal.busy || !capoModal.persona} onClick={() => salvaCapo(false)}>
+                      {capoModal.busy ? "Salvataggio…" : capoModal.ambito === "op" ? "Affida tutto l'OP" : "Affida le anomalie"}</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Modifica OP: solo chi l'ha inserito dal portale, con motivazione */}
           {modOp && (

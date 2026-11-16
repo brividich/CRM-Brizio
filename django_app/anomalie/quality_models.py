@@ -551,3 +551,26 @@ class AnomaliaIncaricato(models.Model):
 
     def __str__(self) -> str:
         return f"#{self.anomalia_id} {self.ruolo}: {self.nome}"
+
+
+class AnomaliaOpIncaricato(models.Model):
+    """Ruolo affidato a una persona su tutto un OP (oggi solo il capocommessa, ``cc``):
+    vale per tutte le anomalie dell'OP, anche quelle che si apriranno, e per le mail
+    dell'OP. Una scelta sulla singola anomalia (``AnomaliaIncaricato``) prevale."""
+
+    op_key = models.CharField(max_length=200, db_index=True)
+    op_id = models.CharField(max_length=200, blank=True, default="")
+    ruolo = models.CharField(max_length=16)
+    legacy_user_id = models.IntegerField(db_index=True)
+    nome = models.CharField(max_length=200, blank=True, default="")
+    assegnato_da = models.CharField(max_length=200, blank=True, default="")
+    assegnato_il = models.DateTimeField(auto_now=True)
+    nota = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Incaricato dell'OP"
+        verbose_name_plural = "Incaricati degli OP"
+        constraints = [models.UniqueConstraint(fields=["op_key", "ruolo"], name="anomalia_op_incaricato_ruolo_unico")]
+
+    def __str__(self) -> str:
+        return f"OP {self.op_id} {self.ruolo}: {self.nome}"

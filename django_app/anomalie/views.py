@@ -2571,7 +2571,7 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
         io = dq.chi_sono(request, capo, car)
         from anomalie import incaricati as inc
 
-        cambia_su_op = inc.puo_cambiare_su_op(request, capo, car)
+        cambia_su_op = inc.puo_cambiare_su_op(request, capo, car, op_title)
     except Exception:
         logger.warning("anomalie: decisione qualità / in carico non letti", exc_info=True)
         return
@@ -2607,6 +2607,8 @@ def _segna_qualita_e_carico(request, rows: list[dict], raw_by_id: dict, op_title
             r["persone_in_carico"] = {p: nomi.get(p) or f"utente {p}" for p in persone}
         r["puo_cambiare_incaricato"] = not raw.get("chiudere") and (
             cambia_su_op or inc.puo_cambiare_su_anomalia(request, info.get(aid)))
+        # «Cambia capocommessa» su tutto l'OP (stesso valore su ogni riga).
+        r["puo_cambiare_capo_op"] = cambia_su_op
         if any(q["aperta"] for q in r["richieste_info"]):
             r["ruoli_risposta"] = ruoli_risposta(request, riga)
 
@@ -3305,6 +3307,15 @@ def _ordini_payload(request, *, per_apertura: bool):
         except Exception:
             logger.warning("anomalie: OP modificabili non letti", exc_info=True)
 
+    # Capocommessa affidato su tutto l'OP («Cambia capocommessa»): si mostra lui.
+    try:
+        from .incaricati import op_map
+
+        capi_affidati = {k: v["cc"] for k, v in op_map().items() if v.get("cc")}
+    except Exception:
+        logger.warning("anomalie: capocommessa affidati agli OP non letti", exc_info=True)
+        capi_affidati = {}
+
     result = []
     for r in rows:
         capo = _row_capocommessa(r)
@@ -3325,7 +3336,9 @@ def _ordini_payload(request, *, per_apertura: bool):
             "item_id": r.get("item_id"),
             "id": r.get("op_title") or "—",
             "pn": r.get("part_number") or "—",
-            "capo": capo or "—",
+            "capo": (capi_affidati.get(titolo_l) or {}).get("nome") or capo or "—",
+            "capo_di_serie": capo or "—",
+            "capo_affidato": capi_affidati.get(titolo_l),
             "car": car or "—",
             "stato": r.get("stato"),
             "anomalie_count": int(r.get("anomalie_count") or 0),
@@ -5249,6 +5262,7 @@ _TIMELINE_ACTION_LABELS = {
     "richiedi_modifica": "Richiesta modifica",
     "visualizza": "Visualizzata",
     "incaricato": "Incaricato cambiato",
+    "capo_op": "Capocommessa di tutto l'OP cambiato",
     "allegato": "Allegati aggiunti",
     "allegato_tolto": "Allegato tolto",
     "elimina": "Anomalia eliminata",
