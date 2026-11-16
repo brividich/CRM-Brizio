@@ -24,6 +24,38 @@
     </form>
   </div>
 </div>
+{% if partecipanti or v.stato == "CHECKEDIN" and v.creata_da != "GRUPPO" %}
+<div class="rc-card">
+  <div class="rc-card-head">Gruppo{% if partecipanti %} · {{ partecipanti|length }} persone{% endif %}{% if v.stato == "CHECKEDIN" %} <a class="rc-gruppo-n" href="{% url 'reception:importa' %}?visita={{ v.pk }}">+ Aggiungi da Excel</a>{% endif %}</div>
+  {% if partecipanti %}<div class="rc-body"><p class="rc-note">Entrano ed escono con {{ v.ospite.nome_completo }}: con la sua «Uscita» escono anche quelli ancora dentro.</p></div>
+  {% include "reception/_gruppo.html" %}{% endif %}
+</div>
+{% endif %}
+<div class="rc-card">
+  <div class="rc-card-head">Allegati</div>
+  {% if v.note %}<div class="rc-body"><p class="rc-note">{{ v.note }}</p></div>{% endif %}
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>File</th><th>Caricato</th><th></th></tr></thead>
+      <tbody>
+      {% for a in allegati %}
+        <tr><td><a href="{% url 'reception:visita_allegato' v.pk a.pk %}">{{ a.nome }}</a> <span class="rc-opz">{{ a.dimensione|filesizeformat }}</span></td>
+          <td>{{ a.caricato_il|date:"d/m/Y H:i" }} · {{ a.caricato_da|default:"—" }}</td>
+          <td><form method="post" action="{% url 'reception:visita_allegati' v.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="allegato" value="{{ a.pk }}"><button class="rc-btn rc-btn-g" type="submit">Elimina</button></form></td></tr>
+      {% empty %}
+        <tr><td colspan="3" class="rc-empty">Nessun allegato. Per esempio l'elenco dei partecipanti di un gruppo.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="rc-body">
+    <form method="post" action="{% url 'reception:visita_allegati' v.pk %}" enctype="multipart/form-data" class="rc-form">
+      {% csrf_token %}
+      <div class="rc-field"><label for="v-file">Aggiungi un file <span class="rc-opz">PDF, Excel, Word o immagine, max 10 MB</span></label><input class="rc-input" id="v-file" type="file" name="file" required></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Allega</button></div>
+    </form>
+  </div>
+</div>
 {% if v.stato == "CHECKEDOUT" %}
 <div class="rc-card">
   <div class="rc-card-head">Riapri la visita</div>

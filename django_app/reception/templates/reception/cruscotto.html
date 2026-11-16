@@ -40,7 +40,7 @@
       {% for p in attesi %}
       <li class="rc-voce">
         <span class="rc-badge rc-badge-ora">{% if p.ora_inizio %}{{ p.ora_inizio|time:"H:i" }}{% else %}—{% endif %}</span>
-        <span class="rc-voce-testo"><strong>{{ p.ospite_nome }}</strong><span>{{ p.ospite_azienda|default:"Privato" }} · da {{ p.referente_nome }}</span></span>
+        <span class="rc-voce-testo"><strong>{{ p.ospite_nome }}</strong><span>{{ p.ospite_azienda|default:"Privato" }} · da {{ p.referente_nome }}</span></span>{% if p.n_gruppo %}<a class="rc-gruppo-n" href="{% url 'reception:invito_gruppo' p.pk %}">+{{ p.n_gruppo }} con lui</a>{% endif %}
         <span class="rc-codice">{{ p.codice }}</span>
       </li>
       {% endfor %}

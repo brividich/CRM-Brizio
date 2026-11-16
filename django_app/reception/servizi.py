@@ -10,7 +10,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import (
-    Cartellino, ContattoDitta, DittaAccreditata, EventoVisita, Ospite, Preregistrazione, Referente, RichiestaAppuntamento, Visita,
+    Cartellino, ContattoDitta, DittaAccreditata, EventoVisita, Ospite, PartecipanteGruppo, Preregistrazione, Referente,
+    RichiestaAppuntamento, Visita,
 )
 
 GIORNI_RIAPERTURA = 7
@@ -178,12 +179,16 @@ def registra_ingresso(ospite: Ospite, *, referente_nome: str, referente_email: s
             scelto.disponibile, scelto.ultima_assegnazione = False, adesso
             scelto.save(update_fields=["disponibile", "ultima_assegnazione"])
             numero = scelto.numero
-        return Visita.objects.create(
+        visita = Visita.objects.create(
             ospite=ospite, cartellino=numero, referente_nome=referente_nome.strip(),
             referente_email=(referente_email or "").strip(), motivo=(motivo or "").strip()[:500],
             ingresso=quando or adesso, stato=Visita.DENTRO, tipo=tipo, ditta=ditta, contatto=contatto,
             creata_da=creata_da[:50], mail_stato=Visita.MAIL_DA_INVIARE if invia_mail else Visita.MAIL_INVIATA,
         )
+        from .gruppi import dopo_ingresso
+
+        dopo_ingresso(visita)  # invito di gruppo per oggi: entrano anche i partecipanti
+    return visita
 
 
 def _libera_cartellino(numero: str, *, escludi: int, quando) -> bool:
@@ -208,8 +213,12 @@ def registra_uscita(visita_id: int, *, cartellino: str | None = None, quando: da
         visita.save(update_fields=["uscita", "stato"])
         liberato = _libera_cartellino(visita.cartellino, escludi=visita.pk, quando=adesso)
         if origine != "CHIOSCO":
-            _evento(visita.pk, "USCITA_FORZATA", autore, ip, cartellino=visita.cartellino, uscita=adesso,
-                    cartellino_liberato=liberato)
+            _evento(visita.pk, "USCITA_FORZATA" if origine != "GRUPPO" else "USCITA_CON_GRUPPO", autore, ip,
+                    cartellino=visita.cartellino, uscita=adesso, cartellino_liberato=liberato)
+    if origine != "GRUPPO":
+        from .gruppi import dopo_uscita
+
+        dopo_uscita(visita, autore=autore, ip=ip)  # con il capogruppo escono i partecipanti ancora dentro
     return visita
 
 
@@ -294,6 +303,9 @@ def ingresso_da_codice(codice: str, *, ip: str = "", informativa: bool = True) -
                                    motivo=pre.motivo, tipo=Visita.PREREG, creata_da="PREREG")
         pre.usata_il, pre.visita = timezone.now(), visita
         pre.save(update_fields=["usata_il", "visita"])
+    from .gruppi import dopo_codice
+
+    dopo_codice(pre, visita)
     if pre.ticket_id or pre.ordine_lavoro_id:
         from .interventi import collega_da_invito
 
@@ -317,10 +329,15 @@ def pulizia_conservazione(mesi: int, oggi=None) -> dict:
     # A blocchi: SQL Server accetta al massimo 2100 parametri per istruzione.
     for i in range(0, len(ids), 1000):
         blocco = ids[i:i + 1000]
+        from .importa import elimina_file_delle_visite
+
+        elimina_file_delle_visite(blocco)  # le righe degli allegati le toglie il CASCADE, i file no
         n_eventi += EventoVisita.objects.filter(visita_id_rif__in=blocco).delete()[0]
         Preregistrazione.objects.filter(visita_id__in=blocco).delete()
         Visita.objects.filter(pk__in=blocco).delete()
     n_pre = Preregistrazione.objects.filter(scade_il__lt=limite).delete()[0]
+    # Partecipanti dei gruppi rimasti senza invito e senza capogruppo (cancellati qui sopra).
+    PartecipanteGruppo.objects.filter(preregistrazione__isnull=True, visita_capo__isnull=True).delete()
     n_ospiti = Ospite.objects.filter(visite__isnull=True, creato_il__lt=limite).delete()[0]
     return {"visite": len(ids), "correzioni": n_eventi, "preregistrazioni": n_pre, "ospiti": n_ospiti}
 

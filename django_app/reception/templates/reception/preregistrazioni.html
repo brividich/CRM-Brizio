@@ -13,7 +13,7 @@
       <tbody>
       {% for p in righe %}
         <tr>
-          <td><strong>{{ p.codice }}</strong></td><td>{{ p.ospite_nome }}</td><td>{{ p.ospite_email|default:"—" }}</td><td>{{ p.referente_nome }}</td>
+          <td><strong>{{ p.codice }}</strong></td><td>{{ p.ospite_nome }}{% if p.n_gruppo %} <a class="rc-gruppo-n" href="{% url 'reception:invito_gruppo' p.pk %}">+{{ p.n_gruppo }} nel gruppo</a>{% elif not p.usata_il %} <a class="rc-gruppo-n" href="{% url 'reception:importa' %}?invito={{ p.pk }}">+ Gruppo</a>{% endif %}</td><td>{{ p.ospite_email|default:"—" }}</td><td>{{ p.referente_nome }}</td>
           <td>{{ p.data_visita|date:"d/m/Y"|default:"—" }}{% if p.ora_inizio %} {{ p.ora_inizio|time:"H:i" }}{% endif %}</td><td>{{ p.sala.nome|default:"—" }}</td><td>{{ p.scade_il|date:"d/m/Y" }}</td>
           <td>{% if p.usata_il %}<span class="rc-pill rc-pill-ok">Usato il {{ p.usata_il|date:"d/m H:i" }}</span>{% else %}<span class="rc-pill">Da usare</span>{% endif %}</td>
           <td>{% if not p.usata_il %}<form class="rc-inline" method="post" action="{% url 'reception:preregistrazione_azione' p.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" name="azione" value="invia">Invia</button> <button class="rc-btn rc-btn-d" name="azione" value="elimina">Elimina</button></form>{% endif %}</td>
