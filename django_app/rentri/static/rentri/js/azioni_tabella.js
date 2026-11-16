@@ -1,5 +1,5 @@
-/* RENTRI: popup «Elimina» (annulla o elimina definitivamente) e «Consolida filo».
-   Pulsanti: [data-rimuovi="<url>"] con i dati della riga, [data-consolida-filo="<url>"].
+/* RENTRI: popup «Elimina» (annulla o elimina definitivamente), «Consolida filo» e «Trasmetti filo».
+   Pulsanti: [data-rimuovi="<url>"] con i dati della riga, [data-consolida-filo="<url>"], [data-trasmetti-filo="<url>"].
    Ascolto in cattura: i pulsanti stanno anche nell'intestazione del filo, che al clic si apre/chiude. */
 (function () {
   function qui() { return location.pathname + location.search; }
@@ -51,17 +51,17 @@
     btn.textContent = elimina ? 'Elimina definitivamente' : 'Annulla registrazione';
   }
 
-  function apriFilo(btn) {
+  function apriFilo(btn, trasmetti) {
     var dlg = document.getElementById('rn-filo');
     if (!dlg) return;
     chiudibile(dlg);
     var corpo = dlg.querySelector('.rn-dlg-box');
     corpo.innerHTML = '<div class="rn-dlg-nota">Caricamento del filo…</div>';
     dlg.showModal();
-    var url = btn.dataset.consolidaFilo + '?next=' + encodeURIComponent(qui());
+    var url = (trasmetti ? btn.dataset.trasmettiFilo : btn.dataset.consolidaFilo) + '?next=' + encodeURIComponent(qui());
     fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) {
-        if (!r.ok) throw new Error(r.status === 403 ? 'Non hai i permessi per consolidare.' : 'Errore ' + r.status);
+        if (!r.ok) throw new Error(r.status === 403 ? 'Non hai i permessi per questa azione.' : 'Errore ' + r.status);
         return r.text();
       })
       .then(function (html) { corpo.innerHTML = html; })
@@ -79,10 +79,11 @@
   document.addEventListener('click', function (e) {
     var r = e.target.closest('[data-rimuovi]');
     var f = e.target.closest('[data-consolida-filo]');
-    if (!r && !f) return;
+    var t = e.target.closest('[data-trasmetti-filo]');
+    if (!r && !f && !t) return;
     e.preventDefault();
     e.stopPropagation();
-    if (r) apriRimuovi(r); else apriFilo(f);
+    if (r) apriRimuovi(r); else if (f) apriFilo(f, false); else apriFilo(t, true);
   }, true);
 
   document.addEventListener('change', function (e) {
