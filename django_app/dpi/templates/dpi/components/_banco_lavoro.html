@@ -51,11 +51,28 @@
             <div class="dpi-persona-nome">{{ p.nome|upper }}</div>
             {% if p.reparto %}<div class="dpi-persona-rep">{{ p.reparto }}</div>{% endif %}
           </div>
+          {% if p.righe %}
           <div class="banco-spunte">
             <button type="button" class="banco-link" data-spunta="1">Tutti</button>
             <button type="button" class="banco-link" data-spunta="0">Nessuno</button>
           </div>
+          {% endif %}
         </div>
+
+        {% if ha_diretta and p.legacy_id %}
+        <div class="banco-rapidi" aria-label="Aggiungi un DPI senza richiesta">
+          {% for m in rapidi %}
+          <button type="{% if m.con_taglie %}button{% else %}submit{% endif %}" class="banco-rapido"
+                  {% if m.con_taglie %}data-apri-diretta="{{ p.legacy_id }}" data-modello="{{ m.id }}"{% else %}name="azione" value="diretta" formnovalidate data-rapido="{{ m.id }}" data-persona="{{ p.legacy_id }}"{% endif %}
+                  title="{% if m.con_taglie %}Scegli la taglia e aggiungi{% else %}Aggiungi 1 pezzo, già spuntato{% endif %}">
+            <span class="banco-rapido-piu">+</span>
+            {% if m.categoria.immagine %}<img src="{{ m.categoria.immagine.url }}" alt="" class="banco-rapido-ico">{% else %}<svg class="banco-rapido-ico"><use href="#i-dpi-{{ m.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}
+            {{ m.nome }}
+          </button>
+          {% endfor %}
+          <button type="button" class="banco-rapido banco-rapido-altro" data-apri-diretta="{{ p.legacy_id }}">+ Altro DPI…</button>
+        </div>
+        {% endif %}
 
         <ul class="dpi-righe">
           {% for riga in p.righe %}{% with r=riga.r %}
@@ -89,13 +106,23 @@
                 <span class="dpi-riga-dpi">{% if r.modello_dpi %}{{ r.modello_dpi.nome }}{% elif r.tipo_dpi %}{{ r.tipo_dpi.nome }}{% else %}{{ r.categoria.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %}</span>
                 <span class="dpi-riga-meta" style="display:block;">
                   {{ r.categoria.nome }}{% if r.modello_dpi %} · {{ r.modello_dpi.codice }}{% endif %} ·
-                  <a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a> · richiesta il {{ r.created_at|date:"d-m" }} ·
-                  <strong>in attesa di approvazione{% if a.approvatori %} di {{ a.approvatori|join:", " }}{% endif %}</strong>
+                  <a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a> · richiesta il {{ r.created_at|date:"d-m" }}
                 </span>
+                <span class="banco-attende">⏳ in attesa di approvazione{% if a.approvatori %} di {{ a.approvatori|join:", " }}{% endif %}</span>
               </span>
               <span class="dpi-riga-qta">× {{ r.quantita }}</span>
-              {% if a.puo_approvare %}<button type="submit" name="azione" value="approva" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">Approva</button>{% elif not r.modalita_negozio %}<button type="submit" name="azione" value="senza_approvazione" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}" title="La persona è al banco: consegna subito, il report di consegna arriva al responsabile">Consegna senza approvazione</button>{% endif %}
+              {% if a.puo_approvare %}<button type="submit" name="azione" value="approva" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">Approva</button>
+              {% elif not r.modalita_negozio %}<button type="button" class="dpi-btn dpi-btn-orange dpi-btn-sm" data-consegna-ora>Consegna ora ▸</button>{% endif %}
             </div>
+            {% if not a.puo_approvare and not r.modalita_negozio %}
+            <div class="banco-conferma-ora" hidden>
+              <span>⚠ Consegni senza l'ok di {% if a.approvatori %}{{ a.approvatori|join:", " }}{% else %}chi approva{% endif %}: resta scritto nella richiesta e il report di consegna gli arriva.</span>
+              <span class="banco-conferma-ora-azioni">
+                <button type="button" class="dpi-btn dpi-btn-gray dpi-btn-sm" data-consegna-ora-no>Annulla</button>
+                <button type="submit" name="azione" value="senza_approvazione" class="dpi-btn dpi-btn-orange dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">✓ Consegna senza approvazione</button>
+              </span>
+            </div>
+            {% endif %}
           </li>
           {% endwith %}{% endfor %}
         </ul>
@@ -104,9 +131,6 @@
 
         <div class="banco-avviso" data-avviso-giacenza hidden>Giacenza insufficiente per un DPI spuntato: <a href="{% url 'dpi:magazzino' %}">registra il carico</a> oppure scrivi il motivo per consegnare lo stesso.</div>
 
-        {% if not p.righe and ha_diretta and p.legacy_id %}
-        <div class="dpi-azioni"><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ DPI senza richiesta</button></div>
-        {% endif %}
         <div class="dpi-consegna"{% if not p.righe %} hidden{% endif %}>
           <div class="dpi-consegna-grid">
             <div class="dpi-field">
@@ -128,9 +152,6 @@
             <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-blue" data-consegna>Consegna con mail</button>
             {% if p.n_da_preparare and not avviso_all_approvazione %}
             <button type="submit" name="azione" value="pronta" class="dpi-btn dpi-btn-gray" formnovalidate data-pronto>Pronto per il ritiro (avvisa)</button>
-            {% endif %}
-            {% if ha_diretta and p.legacy_id %}
-            <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ DPI senza richiesta</button>
             {% endif %}
           </div>
           <p class="dpi-hint" style="margin:10px 0 0;">«Consegna con badge»: la persona passa il proprio badge, senza mail. «Consegna con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>

@@ -2599,6 +2599,26 @@ def _modelli_banco():
     )
 
 
+RAPIDI_BANCO = 4
+
+
+def _banco_rapidi() -> list[dict]:
+    """DPI più consegnati negli ultimi 90 giorni (prima i consumabili «senza approvazione»):
+    bottoni «+» nella scheda della persona. Quelli con taglie aprono il pannello per sceglierla."""
+    from django.db.models import Count
+
+    dal = timezone.localdate() - timedelta(days=90)
+    modelli = list(
+        _modelli_banco().select_related("tipo__categoria").prefetch_related("taglie").annotate(
+            n_consegne=Count("richieste__consegna", filter=Q(richieste__consegna__data_consegna__gte=dal)),
+        ).order_by("-n_consegne", "-tipo__categoria__consegna_diretta", "tipo__categoria__order_index", "tipo__ordine", "nome")[:RAPIDI_BANCO]
+    )
+    return [{
+        "id": m.pk, "nome": m.nome, "categoria": m.tipo.categoria,
+        "con_taglie": any(t.is_active for t in m.taglie.all()),
+    } for m in modelli]
+
+
 def _banco_contesto(request, tutte: bool) -> dict:
     """La parte di lavoro del banco: numeri, persone, richieste in attesa, conferme."""
     qs = _banco_queryset(request)
@@ -2629,7 +2649,9 @@ def _banco_contesto(request, tutte: bool) -> dict:
         stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
     ).order_by("-decisa_il")[:30])
 
+    ha_diretta = _modelli_banco().exists()
     return {
+        "rapidi": _banco_rapidi() if ha_diretta else [],
         "conferme_attesa": conferme_attesa,
         "n_conferme_attesa": conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).count(),
         "conferme_contestate": conferme_contestate,
@@ -2645,5 +2667,5 @@ def _banco_contesto(request, tutte: bool) -> dict:
         "tutte": tutte,
         "oggi": timezone.localdate(),
         "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
-        "ha_diretta": _modelli_banco().exists(),
+        "ha_diretta": ha_diretta,
     }

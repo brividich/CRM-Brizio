@@ -106,11 +106,95 @@ details[open] > summary.dpi-card-title { margin-bottom:10px; }
 .dpi-conf-row a { color:#0369a1; font-weight:600; text-decoration:none; }
 .dpi-check { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#374151; margin-top:8px; }
 
-.dpi-diretta-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(0,1fr) 90px; gap:10px; align-items:end; }
 .dpi-hint { font-size:12px; color:#64748b; margin:0 0 10px; }
 .dpi-empty { padding:36px; text-align:center; color:#94a3b8; font-size:14px; }
 
+.dpi-btn-orange { background:#ea580c; color:#fff; }
+.dpi-btn-orange:hover { background:#c2410c; }
+
+/* Richiesta in attesa: chi deve approvare in evidenza, conferma nella riga */
+.banco-attende { display:inline-block; margin-top:5px; padding:2px 9px; border-radius:99px; background:#fef3c7; color:#92400e; font-size:11px; font-weight:700; }
+.banco-conferma-ora { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:4px; padding:9px 12px; border:1px solid #fdba74; border-radius:10px; background:#fff7ed; color:#9a3412; font-size:13px; font-weight:600; }
+.banco-conferma-ora-azioni { display:flex; gap:6px; margin-left:auto; }
+
+/* Consumabili rapidi nella scheda della persona */
+.banco-rapidi { display:flex; gap:6px; flex-wrap:wrap; margin:-2px 0 12px; }
+.banco-rapido { display:inline-flex; align-items:center; gap:6px; padding:6px 12px 6px 8px; border:1px solid #bbf7d0; border-radius:99px; background:#f0fdf4; color:#166534; font:inherit; font-size:13px; font-weight:700; cursor:pointer; min-height:34px; }
+.banco-rapido:hover { background:#dcfce7; border-color:#86efac; }
+.banco-rapido:disabled { opacity:.6; cursor:wait; }
+.banco-rapido-piu { font-size:15px; font-weight:900; line-height:1; }
+.banco-rapido-ico { width:18px; height:18px; color:#166534; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; object-fit:contain; }
+.banco-rapido-altro { border-style:dashed; border-color:#cbd5e1; background:#fff; color:#475569; padding-left:12px; }
+.banco-rapido-altro:hover { background:#f8fafc; border-color:#94a3b8; }
+
+/* Pannello laterale «Consegna senza richiesta» */
+.banco-velo { position:fixed; inset:0; z-index:1100; background:rgba(15,23,42,.35); }
+.banco-pannello { position:fixed; top:0; right:0; bottom:0; z-index:1101; width:min(460px,100%); background:#fff; box-shadow:-12px 0 32px rgba(15,23,42,.18); animation:banco-entra .18s ease-out; }
+@keyframes banco-entra { from { transform:translateX(24px); opacity:0; } to { transform:none; opacity:1; } }
+body.banco-pannello-aperto { overflow:hidden; }
+.banco-pannello-form { display:flex; flex-direction:column; height:100%; }
+.banco-pannello-testa { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:16px 18px 12px; border-bottom:1px solid #e2e8f0; }
+.banco-pannello-titolo { font-size:17px; font-weight:900; color:#0f172a; }
+.banco-chiudi { border:none; background:#f1f5f9; color:#475569; width:34px; height:34px; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; flex-shrink:0; }
+.banco-chiudi:hover { background:#e2e8f0; }
+.banco-pannello-corpo { flex:1; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
+.banco-pannello-cerca { flex:none; min-width:0; width:100%; font-size:15px; padding:9px 12px; }
+.banco-gruppo-titolo { font-size:11px; font-weight:800; color:#334155; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.banco-gruppo-nota { text-transform:none; letter-spacing:0; font-weight:700; padding:1px 8px; border-radius:99px; background:#f1f5f9; color:#64748b; }
+.banco-gruppo-nota.libera { background:#dcfce7; color:#166534; }
+.banco-tessere { display:grid; grid-template-columns:repeat(auto-fill,minmax(122px,1fr)); gap:8px; }
+.banco-tessera { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; gap:3px; padding:12px 8px 10px; border:1.5px solid #e2e8f0; border-radius:12px; background:#f8fafc; cursor:pointer; transition:border-color .12s, background .12s; }
+.banco-tessera:hover { border-color:#94a3b8; background:#fff; }
+.banco-tessera input { position:absolute; opacity:0; pointer-events:none; }
+.banco-tessera:has(input:checked) { border-color:#16a34a; background:#f0fdf4; box-shadow:0 0 0 3px rgba(22,163,74,.18); }
+.banco-tessera:has(input:focus-visible) { outline:2px solid #0369a1; outline-offset:2px; }
+.banco-tessera-ico { width:30px; height:30px; color:#166534; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; object-fit:contain; }
+.banco-tessera-nome { font-size:13px; font-weight:800; color:#0f172a; line-height:1.2; }
+.banco-tessera-cod { font-size:11px; color:#64748b; }
+.banco-tessera-giac { font-size:11px; font-weight:700; color:#15803d; }
+.banco-tessera.vuota .banco-tessera-giac { color:#b91c1c; }
+.banco-nessun-dpi { font-size:13px; color:#94a3b8; text-align:center; padding:12px; }
+.banco-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.banco-chip { cursor:pointer; }
+.banco-chip input { position:absolute; opacity:0; pointer-events:none; }
+.banco-chip span { display:inline-block; min-width:42px; padding:7px 12px; border:1.5px solid #e2e8f0; border-radius:10px; background:#fff; text-align:center; font-size:14px; font-weight:800; color:#334155; }
+.banco-chip input:checked + span { border-color:#16a34a; background:#16a34a; color:#fff; }
+.banco-chip input:focus-visible + span { outline:2px solid #0369a1; outline-offset:2px; }
+.banco-pannello-riga { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.banco-stepper { display:flex; align-items:stretch; border:1px solid #d1d5db; border-radius:8px; overflow:hidden; background:#fff; }
+.banco-stepper button { border:none; background:#f1f5f9; color:#0f172a; width:38px; font-size:18px; font-weight:800; cursor:pointer; }
+.banco-stepper button:hover { background:#e2e8f0; }
+.dpi-field .banco-stepper input[type=number] { width:56px; border:none; border-radius:0; text-align:center; font-weight:800; -moz-appearance:textfield; }
+.banco-stepper input::-webkit-outer-spin-button, .banco-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.banco-pannello-piede { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; padding:12px 18px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .banco-attende { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .banco-conferma-ora { background:rgba(234,88,12,.12); border-color:rgba(251,146,60,.4); color:#fdba74; }
+body.theme-dark .banco-rapido { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.4); color:#86efac; }
+body.theme-dark .banco-rapido:hover { background:rgba(21,128,61,.25); }
+body.theme-dark .banco-rapido-ico { color:#86efac; }
+body.theme-dark .banco-rapido-altro { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .banco-velo { background:rgba(0,0,0,.5); }
+body.theme-dark .banco-pannello { background:var(--surface); }
+body.theme-dark .banco-pannello-testa, body.theme-dark .banco-pannello-piede { border-color:var(--border); }
+body.theme-dark .banco-pannello-piede { background:var(--surface-alt); }
+body.theme-dark .banco-pannello-titolo, body.theme-dark .banco-tessera-nome { color:var(--text); }
+body.theme-dark .banco-chiudi, body.theme-dark .banco-stepper button { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .banco-gruppo-titolo { color:var(--text-mid); }
+body.theme-dark .banco-gruppo-nota { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .banco-gruppo-nota.libera { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .banco-tessera { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .banco-tessera:hover { border-color:var(--text-light); }
+body.theme-dark .banco-tessera:has(input:checked) { background:rgba(21,128,61,.18); border-color:#16a34a; }
+body.theme-dark .banco-tessera-ico { color:#86efac; }
+body.theme-dark .banco-tessera-cod { color:var(--text-light); }
+body.theme-dark .banco-tessera-giac { color:#86efac; }
+body.theme-dark .banco-tessera.vuota .banco-tessera-giac { color:#fca5a5; }
+body.theme-dark .banco-chip span { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .banco-chip input:checked + span { background:#16a34a; border-color:#16a34a; color:#fff; }
+body.theme-dark .banco-stepper { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dpi-field .banco-stepper input[type=number] { background:var(--surface-alt); }
 body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
 body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
@@ -161,7 +245,10 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 @media (max-width:720px) {
   .dpi-kpi { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .dpi-kpi-box:last-child { grid-column:1/-1; }
-  .dpi-consegna-grid, .dpi-diretta-grid { grid-template-columns:minmax(0,1fr); }
+  .dpi-consegna-grid { grid-template-columns:minmax(0,1fr); }
+  .banco-pannello { width:100%; }
+  .banco-pannello-piede .dpi-btn { flex:1 1 auto; }
+  .banco-conferma-ora-azioni { margin-left:0; width:100%; justify-content:flex-end; }
   .dpi-card { padding:14px; }
   .dpi-riga { flex-wrap:wrap; }
 }
