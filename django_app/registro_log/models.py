@@ -604,3 +604,33 @@ class AttivitaRaccolta(models.Model):
 
     def __str__(self):
         return f"{self.quando:%Y-%m-%d %H:%M} {self.tipo} {self.sistema}"
+
+
+class RegolaSilenzio(models.Model):
+    """Un tipo di evento che si ripete e non serve vedere: esce dal catalogo, da «Da guardare» e dagli alert.
+
+    Resta nell'archivio sigillato e si rivede con «mostra anche i silenziati». Vale per una categoria e,
+    se indicati, per un account, un sistema o un testo nella descrizione; può scadere.
+    """
+
+    categoria = models.CharField(max_length=32)
+    account = models.CharField(max_length=150, blank=True, default="")  # vuoto = tutti gli account
+    host = models.CharField(max_length=255, blank=True, default="")  # vuoto = tutti i sistemi
+    testo = models.CharField(max_length=200, blank=True, default="")  # vuoto = qualsiasi descrizione
+    motivo = models.CharField(max_length=500)
+    creata_da = models.CharField(max_length=150, blank=True, default="")
+    creata_il = models.DateTimeField(default=timezone.now)
+    scade_il = models.DateTimeField(null=True, blank=True)
+    attiva = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-creata_il", "-id"]
+        verbose_name = "Regola di silenzio"
+        verbose_name_plural = "Regole di silenzio"
+
+    def __str__(self):
+        return f"{self.categoria} {self.account or '*'} {self.host or '*'}"
+
+    @property
+    def in_vigore(self) -> bool:
+        return self.attiva and (self.scade_il is None or self.scade_il > timezone.now())

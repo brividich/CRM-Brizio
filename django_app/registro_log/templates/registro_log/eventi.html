@@ -3,43 +3,100 @@
 {% block page_title %}Catalogo del registro accessi{% endblock %}
 
 {% block soc_content %}
-<nav class="rl-chips rl-sezioni" aria-label="Sezioni del catalogo">
-  {% for s in sezioni %}<a class="rl-chip{% if sezione == s.codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if s.codice %}&amp;sezione={{ s.codice }}{% endif %}"{% if sezione == s.codice %} aria-current="true"{% endif %}>{{ s.etichetta }} <span class="rl-n">{{ s.n }}</span></a>{% endfor %}
+<section class="sec-grid sec-kpi-grid rl-kpi-catalogo">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;sezione=accessi&amp;categoria=accesso">
+    <span class="sec-kpi-label">Persone che sono entrate</span>
+    <strong class="sec-kpi-value">{{ kpi.persone }}</strong>
+    <span class="sec-kpi-delta">{{ kpi.accessi }} accessi riusciti</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;sezione=falliti">
+    <span class="sec-kpi-label">Accessi falliti</span>
+    <strong class="sec-kpi-value{% if kpi.falliti %} warning{% endif %}">{{ kpi.falliti }}</strong>
+    <span class="sec-kpi-delta">{% if kpi.falliti %}su {{ kpi.falliti_account }} account{% else %}nessun tentativo sbagliato{% endif %}</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;vista=critici">
+    <span class="sec-kpi-label">Eventi critici</span>
+    <strong class="sec-kpi-value{% if kpi.critici %} critical{% endif %}">{{ kpi.critici }}</strong>
+    <span class="sec-kpi-delta{% if not kpi.critici %} sec-good{% endif %}">registri cancellati, gruppi di amministratori, audit</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?giorni={{ giorni }}&amp;sezione=accessi&amp;vista=fuori">
+    <span class="sec-kpi-label">Accessi fuori orario</span>
+    <strong class="sec-kpi-value{% if kpi.fuori %} warning{% endif %}">{{ kpi.fuori }}</strong>
+    <span class="sec-kpi-delta">fuori dall'orario di lavoro o nel fine settimana</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_silenzi' %}">
+    <span class="sec-kpi-label">Eventi silenziati</span>
+    <strong class="sec-kpi-value">{{ n_silenziati }}</strong>
+    <span class="sec-kpi-delta">{{ regole_silenzio }} regol{{ regole_silenzio|pluralize:"a,e" }} in vigore · restano nell'archivio</span>
+  </a>
+</section>
+
+<nav class="rl-chips rl-sezioni" aria-label="Sezioni del catalogo" style="margin-top:12px">
+  {% for s in sezioni %}<a class="rl-chip{% if sezione == s.codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if s.codice %}&amp;sezione={{ s.codice }}{% endif %}{% if con_silenziati %}&amp;silenziati=1{% endif %}"{% if sezione == s.codice %} aria-current="true"{% endif %}>{{ s.etichetta }} <span class="rl-n">{{ s.n }}</span></a>{% endfor %}
 </nav>
-{% if testo_sezione %}<p class="rl-intro">{{ testo_sezione }} Clic sull'ora di una riga: cosa vuol dire l'evento, quando è normale e cosa fare.</p>{% endif %}
-<nav class="rl-chips" aria-label="Filtri rapidi">
-  {% for codice, etichetta in rapidi %}<a class="rl-chip rl-chip-piccolo{% if vista == codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if sezione %}&amp;sezione={{ sezione }}{% endif %}{% if codice %}&amp;vista={{ codice }}{% endif %}"{% if vista == codice %} aria-current="true"{% endif %}>{{ etichetta }}</a>{% endfor %}
-</nav>
+{% if testo_sezione %}<p class="rl-intro">{{ testo_sezione }}</p>{% endif %}
 
 <form class="rl-filtri sec-form" method="get">
-  <input type="hidden" name="vista" value="{{ vista }}">
   <input type="hidden" name="sezione" value="{{ sezione }}">
+  {% if not raggruppa %}<input type="hidden" name="righe" value="tutte">{% endif %}
+  {% if account %}<input type="hidden" name="account" value="{{ account }}">{% endif %}
+  {% if host %}<input type="hidden" name="host" value="{{ host }}">{% endif %}
   <p><label for="f-giorni">Periodo</label><select id="f-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="f-vista">Mostra</label><select id="f-vista" name="vista">{% for codice, etichetta in rapidi %}<option value="{{ codice }}"{% if vista == codice %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select></p>
   <p><label for="f-cat">Tipo di evento</label><select id="f-cat" name="categoria"><option value="">Tutti</option>{% for codice, info in categorie %}<option value="{{ codice }}"{% if codice == categoria %} selected{% endif %}>{{ info.0 }}</option>{% endfor %}</select></p>
   <p><label for="f-fonte">Fonte</label><select id="f-fonte" name="fonte"><option value="">Tutte</option>{% for f in fonti %}<option value="{{ f.pk }}"{% if f.pk|stringformat:"s" == fonte %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}</select></p>
-  <p><label for="f-q">Cerca</label><input id="f-q" type="search" name="q" value="{{ q }}" placeholder="Account, server, IP…"></p>
+  <p><label for="f-q">Cerca</label><input id="f-q" type="search" name="q" value="{{ q }}" placeholder="Account, PC, IP, descrizione…"></p>
+  <p class="rl-spunta-filtro"><label><input type="checkbox" name="silenziati" value="1"{% if con_silenziati %} checked{% endif %}> Mostra anche i silenziati</label></p>
   <button class="sec-button sec-button-primary" type="submit">Filtra</button>
-  {% if q or categoria or fonte %}<a class="sec-button" href="?giorni={{ giorni }}&amp;sezione={{ sezione }}&amp;vista={{ vista }}">Togli i filtri</a>{% endif %}
+  {% if q or categoria or fonte or vista or account or host %}<a class="sec-button" href="?giorni={{ giorni }}&amp;sezione={{ sezione }}">Togli i filtri</a>{% endif %}
   <a class="sec-button" href="?{{ parametri }}&amp;export=csv" style="margin-left:auto">Scarica CSV</a>
 </form>
 
 <section class="sec-panel">
-  <div class="sec-section-head"><h2>{{ titolo_sezione }}: {{ pagina.paginator.count }} event{{ pagina.paginator.count|pluralize:"o,i" }}</h2><span class="sec-muted sec-small">i più recenti per primi</span></div>
+  <div class="sec-section-head">
+    <h2>{{ titolo_sezione }}: {{ totale }} event{{ totale|pluralize:"o,i" }}{% if raggruppa %} in {{ pagina.paginator.count }} grupp{{ pagina.paginator.count|pluralize:"o,i" }}{% endif %}</h2>
+    <nav class="rl-chips" aria-label="Come mostrare" style="margin:0">
+      <a class="rl-chip rl-chip-piccolo{% if raggruppa %} attivo{% endif %}" href="?{{ parametri_senza_righe }}"{% if raggruppa %} aria-current="true"{% endif %}>Raggruppati</a>
+      <a class="rl-chip rl-chip-piccolo{% if not raggruppa %} attivo{% endif %}" href="?{{ parametri_senza_righe }}&amp;righe=tutte"{% if not raggruppa %} aria-current="true"{% endif %}>Uno per riga</a>
+    </nav>
+  </div>
+  {% if account or host %}<p class="sec-small">Solo {% if account %}l'account <strong>{{ account }}</strong>{% endif %}{% if account and host %} su {% endif %}{% if host %}il sistema <strong>{{ host }}</strong>{% endif %} · <a href="?giorni={{ giorni }}&amp;sezione={{ sezione }}">tutti</a></p>{% endif %}
   {% if pagina %}
-  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
-    <thead><tr><th>Quando</th><th>Cosa</th><th>Chi</th><th>Da dove</th><th>Sistema</th></tr></thead>
-    <tbody>{% for e in pagina %}<tr>
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact rl-catalogo" data-table-enhanced="0">
+    {% if raggruppa %}
+    <thead><tr><th>Cosa</th><th>Chi</th><th>Sistema</th><th class="sec-num">Volte</th><th>Quando</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+    <tbody>{% for g in pagina %}<tr{% if g.silenziato %} class="rl-silenziato"{% endif %}>
+      <td>
+        {% if g.critici %}<span class="sec-badge critical">Critico</span>{% elif g.falliti %}<span class="sec-badge warning">Non riuscito</span>{% endif %}
+        {% if g.silenziato %}<span class="rl-tag">silenziato</span>{% endif %}
+        <span class="rl-cat">{{ g.descrizione }}</span><span class="rl-sub">{{ g.etichetta }}</span>
+      </td>
+      <td>{% if g.account %}<a href="{% url 'security:registro_log_persona' %}?q={{ g.account|urlencode }}" title="Scheda di {{ g.account }}">{{ g.account }}</a>{% else %}—{% endif %}{% if g.admin %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if g.fuori %}<span class="rl-tag">fuori orario{% if g.fuori != g.n %} ({{ g.fuori }}){% endif %}</span>{% endif %}</td>
+      <td>{{ g.host_breve|default:"—" }}</td>
+      <td class="sec-num"><strong>{{ g.n }}</strong></td>
+      <td class="sec-nowrap">{% if g.n == 1 %}<a href="{% url 'security:registro_log_evento' g.ultimo_id %}">{{ g.ultimo|date:"d/m H:i" }}</a>{% else %}<a href="{% url 'security:registro_log_evento' g.ultimo_id %}" title="Ultimo">{{ g.ultimo|date:"d/m H:i" }}</a><span class="rl-sub">dal {{ g.primo|date:"d/m H:i" }}</span>{% endif %}</td>
+      <td class="rl-azioni-riga">
+        {% if g.n > 1 %}<a class="sec-button sec-button-small" href="?giorni={{ giorni }}&amp;righe=tutte&amp;categoria={{ g.categoria }}&amp;account={{ g.account|urlencode }}&amp;host={{ g.host|urlencode }}{% if con_silenziati %}&amp;silenziati=1{% endif %}">Vedi tutti</a>{% endif %}
+        {% if puo_configurare and not g.silenziato %}<button type="button" class="sec-button sec-button-small" data-silenzia data-categoria="{{ g.categoria }}" data-etichetta="{{ g.etichetta }}" data-account="{{ g.account }}" data-host="{{ g.host }}" data-descrizione="{{ g.descrizione }}" data-volte="{{ g.n }}">Silenzia…</button>{% endif %}
+      </td>
+    </tr>{% endfor %}</tbody>
+    {% else %}
+    <thead><tr><th>Quando</th><th>Cosa</th><th>Chi</th><th>Da dove</th><th>Sistema</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+    <tbody>{% for e in pagina %}<tr{% if e.silenziato %} class="rl-silenziato"{% endif %}>
       <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}">{{ e.quando|date:"d/m/Y H:i:s" }}</a></td>
       <td>
         {% if e.gravita == "high" %}<span class="sec-badge critical">Critico</span>{% elif e.esito == "ko" %}<span class="sec-badge warning">Non riuscito</span>{% endif %}
+        {% if e.silenziato %}<span class="rl-tag">silenziato</span>{% endif %}
         <span class="rl-cat">{{ e.descrizione }}</span>
         {% if e.tipo_accesso %}<span class="rl-sub">{{ e.tipo_accesso }}</span>{% endif %}
       </td>
-      <td>{% if e.account %}<a href="?giorni={{ giorni }}&amp;q={{ e.account|urlencode }}" title="Solo gli eventi di {{ e.account }}">{{ e.account }}</a>{% else %}—{% endif %}{% if e.privilegiato %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if e.fuori_orario and e.privilegiato %}<span class="rl-tag">fuori orario</span>{% endif %}
+      <td>{% if e.account %}<a href="{% url 'security:registro_log_persona' %}?q={{ e.account|urlencode }}" title="Scheda di {{ e.account }}">{{ e.account }}</a>{% else %}—{% endif %}{% if e.privilegiato %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if e.fuori_orario %}<span class="rl-tag">fuori orario</span>{% endif %}
         {% if e.account_target %}<span class="rl-sub">su {{ e.account_target }}</span>{% endif %}</td>
       <td>{{ e.ip_origine|default:"—" }}</td>
-      <td>{% if e.host %}<a href="?giorni={{ giorni }}&amp;q={{ e.host|urlencode }}" title="Solo gli eventi di {{ e.host }}">{{ e.host }}</a>{% else %}{{ e.fonte_nome }}{% endif %}<span class="rl-sub">{{ e.fonte_nome }}</span></td>
+      <td>{{ e.host_breve|default:e.fonte_nome }}</td>
+      <td class="rl-azioni-riga">{% if puo_configurare and not e.silenziato %}<button type="button" class="sec-button sec-button-small" data-silenzia data-categoria="{{ e.categoria }}" data-etichetta="{{ e.descrizione }}" data-account="{{ e.account }}" data-host="{{ e.host }}" data-descrizione="{{ e.descrizione }}" data-volte="">Silenzia…</button>{% endif %}</td>
     </tr>{% endfor %}</tbody>
+    {% endif %}
   </table></div>
   {% if pagina.has_other_pages %}
   <nav class="rl-chips" style="margin-top:10px" aria-label="Pagine">
@@ -49,7 +106,50 @@
   </nav>
   {% endif %}
   {% else %}
-    <p class="sec-empty">Nessun evento con questi filtri. Gli accessi di rete degli utenti normali restano solo nell'archivio: qui compaiono gli accessi alla console, in desktop remoto e quelli degli amministratori.</p>
+    <p class="sec-empty">Nessun evento con questi filtri{% if n_silenziati and not con_silenziati %} ({{ n_silenziati }} silenziati: spunta «Mostra anche i silenziati»){% endif %}.</p>
   {% endif %}
 </section>
+
+{% if puo_configurare %}
+<dialog class="rl-dialog" id="rl-silenzia" aria-labelledby="rl-silenzia-titolo">
+  <form method="post" action="{% url 'security:registro_log_silenzia' %}">
+    {% csrf_token %}
+    <input type="hidden" name="categoria"><input type="hidden" name="account"><input type="hidden" name="host">
+    <input type="hidden" name="descrizione"><input type="hidden" name="torna" value="{{ torna }}">
+    <h2 id="rl-silenzia-titolo">Silenzia questo evento</h2>
+    <p class="rl-sub" data-riepilogo></p>
+    <fieldset>
+      <legend>Vale per</legend>
+      <label><input type="checkbox" name="solo_account" value="1" checked> solo l'account <strong data-mostra="account"></strong></label>
+      <label><input type="checkbox" name="solo_host" value="1" checked> solo il sistema <strong data-mostra="host"></strong></label>
+      <label><input type="checkbox" name="solo_testo" value="1"> solo questa descrizione: <em data-mostra="descrizione"></em></label>
+      <span class="rl-sub">Togliendo le spunte vale per tutti gli account, tutti i sistemi o tutte le descrizioni di questo tipo di evento.</span>
+    </fieldset>
+    <p class="rl-campo"><label for="rl-motivo">Motivo</label><input id="rl-motivo" name="motivo" required minlength="5" maxlength="500" placeholder="es. account di servizio di Qlik: accede con privilegi ogni ora, è previsto"></p>
+    <p class="rl-campo"><label for="rl-giorni">Per quanto tempo</label><select id="rl-giorni" name="giorni">{% for v, l in durate %}<option value="{{ v }}"{% if v == "30" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+    <p class="rl-sub">Gli eventi silenziati non compaiono nel catalogo, in «Da guardare» e negli alert del SOC, ma restano nell'archivio sigillato e nella scheda «Persona o PC». La regola si toglie da «Regole di silenzio».</p>
+    <div class="rl-dialog-azioni"><button type="button" class="sec-button" data-chiudi>Annulla</button><button type="submit" class="sec-button sec-button-primary">Silenzia</button></div>
+  </form>
+</dialog>
+<script>
+(function () {
+  var d = document.getElementById("rl-silenzia");
+  if (!d || !d.showModal) { return; }
+  var f = d.querySelector("form");
+  document.querySelectorAll("[data-silenzia]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      ["categoria", "account", "host", "descrizione"].forEach(function (k) { f.elements[k].value = b.dataset[k] || ""; });
+      d.querySelectorAll("[data-mostra]").forEach(function (el) { el.textContent = b.dataset[el.dataset.mostra] || "(nessuno)"; });
+      f.elements.solo_account.checked = !!b.dataset.account; f.elements.solo_account.disabled = !b.dataset.account;
+      f.elements.solo_host.checked = !!b.dataset.host; f.elements.solo_host.disabled = !b.dataset.host;
+      f.elements.solo_testo.checked = false;
+      d.querySelector("[data-riepilogo]").textContent = b.dataset.etichetta + (b.dataset.volte ? " · " + b.dataset.volte + " volte nel periodo" : "");
+      d.showModal();
+      f.elements.motivo.focus();
+    });
+  });
+  d.querySelector("[data-chiudi]").addEventListener("click", function () { d.close(); });
+})();
+</script>
+{% endif %}
 {% endblock %}

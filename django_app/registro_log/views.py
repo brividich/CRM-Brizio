@@ -83,6 +83,10 @@ def panoramica(request):
     oggi_inizio = timezone.localtime(ora).replace(hour=0, minute=0, second=0, microsecond=0)
     ieri = ora - timedelta(hours=24)
     eventi_24 = EventoRegistro.objects.filter(quando__gte=ieri).exclude(categoria__in=regole.CATEGORIE_RISERVATE)
+    from . import silenzi as _silenzi
+
+    _regole_s = _silenzi.regole_in_vigore()
+    eventi_24 = _silenzi.escludi(eventi_24, _regole_s)  # i silenziati non contano nei riquadri
     conta = dict(eventi_24.values_list("categoria").annotate(n=Count("id")).values_list("categoria", "n"))
     ultimo_sigillo = SigilloGiorno.objects.order_by("-giorno").first()
     non_integri = SigilloGiorno.objects.filter(verifica_ok=False).count()
@@ -105,7 +109,7 @@ def panoramica(request):
     passi = _passi(imp, fonti, b, ads_n, bool(imp.copia_cartella or imp.copia_sharepoint))
     from . import spiegazioni
 
-    importanti = list(EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
+    importanti = list(_silenzi.escludi(EventoRegistro.objects, _regole_s).exclude(categoria__in=regole.CATEGORIE_RISERVATE)
                       .filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
                       .order_by("-quando")[:12])
     for e in importanti:
@@ -159,20 +163,41 @@ def _filtra_sezione(qs, sezione: str):
     return qs
 
 
+def _kpi_catalogo(periodo) -> dict:
+    """Riquadri in alto nel Catalogo: ognuno conta con gli stessi filtri del link che apre."""
+    accessi = _filtra_sezione(periodo, "accessi").filter(categoria="accesso", esito="ok")
+    falliti = _filtra_sezione(periodo, "falliti")
+    return {
+        "persone": accessi.exclude(account="").values("account").distinct().count(),
+        "accessi": accessi.count(),
+        "falliti": falliti.count(),
+        "falliti_account": falliti.exclude(account="").values("account").distinct().count(),
+        "critici": periodo.filter(gravita="high").count(),
+        "fuori": periodo.filter(fuori_orario=True, categoria__in=("accesso", "accesso_privilegiato")).count(),
+    }
+
+
 def eventi(request):
-    giorni = request.GET.get("giorni") or "7"
+    from django.db.models import Max, Min
+
+    from . import silenzi
+
+    giorni = request.GET.get("giorni") or "1"
     if giorni not in dict(PERIODI):
-        giorni = "7"
-    qs = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=int(giorni))).exclude(
+        giorni = "1"
+    base = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=int(giorni))).exclude(
         categoria__in=regole.CATEGORIE_RISERVATE)
-    periodo = qs
+    regole_s = silenzi.regole_in_vigore()
+    con_silenziati = request.GET.get("silenziati") == "1"
+    periodo = base if con_silenziati else silenzi.escludi(base, regole_s)
+    n_silenziati = silenzi.solo_silenziati(base, regole_s).count() if regole_s else 0
     rapido = request.GET.get("vista", "")
     sezione = request.GET.get("sezione", "")
     if rapido in VISTE_DIVENTATE_SEZIONI:
         sezione, rapido = VISTE_DIVENTATE_SEZIONI[rapido], ""
     if sezione not in regole.SEZIONI:
         sezione = ""
-    qs = _filtra_sezione(qs, sezione)
+    qs = _filtra_sezione(periodo, sezione)
     if rapido == "ads":
         qs = qs.filter(privilegiato=True)
     elif rapido == "fuori":
@@ -185,6 +210,12 @@ def eventi(request):
     fonte = request.GET.get("fonte", "")
     if fonte.isdigit():
         qs = qs.filter(fonte_id=int(fonte))
+    account = (request.GET.get("account") or "").strip()[:150]
+    if account:
+        qs = qs.filter(account__iexact=account)
+    host = (request.GET.get("host") or "").strip()[:255]
+    if host:
+        qs = qs.filter(host__iexact=host)
     testo = (request.GET.get("q") or "").strip()
     if testo:
         qs = qs.filter(Q(account__icontains=testo) | Q(host__icontains=testo) | Q(ip_origine__icontains=testo)
@@ -202,27 +233,114 @@ def eventi(request):
                         e.account_target, e.ip_origine, e.host, e.fonte_nome, e.event_id or "", e.archivio_giorno or "",
                         e.archivio_riga or ""])
         log_action(request, "registro_log_eventi_export", MODULO, {"filtri": request.GET.urlencode()[:500], "righe": len(righe)})
-        resp = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
+        resp = HttpResponse("﻿" + buf.getvalue(), content_type="text/csv; charset=utf-8")
         resp["Content-Disposition"] = f'attachment; filename="registro-eventi-{timezone.localdate():%Y%m%d}.csv"'
         return resp
-    pagina = Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina"))
+
+    raggruppa = request.GET.get("righe") != "tutte"
+    totale = qs.count()
+    if raggruppa:
+        gruppi = (qs.values("categoria", "descrizione", "account", "host")
+                  .annotate(n=Count("id"), primo=Min("quando"), ultimo=Max("quando"), ultimo_id=Max("id"),
+                            critici=Count("id", filter=Q(gravita="high")), falliti=Count("id", filter=Q(esito="ko")),
+                            admin=Count("id", filter=Q(privilegiato=True)), fuori=Count("id", filter=Q(fuori_orario=True)))
+                  .order_by("-ultimo"))
+        pagina = Paginator(gruppi, 100).get_page(request.GET.get("pagina"))
+        for g in pagina:
+            g["silenziato"] = bool(regole_s) and silenzi.silenziato(regole_s, categoria=g["categoria"], account=g["account"],
+                                                                     host=g["host"], descrizione=g["descrizione"])
+            g["host_breve"] = silenzi.nome_breve(g["host"])
+            g["etichetta"] = regole.CATEGORIE.get(g["categoria"], (g["categoria"],))[0]
+    else:
+        pagina = Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina"))
+        for e in pagina:
+            e.silenziato = bool(regole_s) and silenzi.silenziato(regole_s, categoria=e.categoria, account=e.account,
+                                                                  host=e.host, descrizione=e.descrizione)
+            e.host_breve = silenzi.nome_breve(e.host)
     parametri = request.GET.copy()
     parametri.pop("pagina", None)
-    # Una voce per sezione del catalogo, col numero di eventi nel periodo scelto.
+    senza_righe = parametri.copy()
+    senza_righe.pop("righe", None)
+    # Una voce per sezione del catalogo, col numero di eventi nel periodo scelto (senza i silenziati).
     sezioni = [{"codice": "", "etichetta": "Tutti", "n": periodo.count()}] + [
         {"codice": codice, "etichetta": etichetta, "n": _filtra_sezione(periodo, codice).count()}
         for codice, (etichetta, _categorie) in regole.SEZIONI.items()]
     return render(request, "registro_log/eventi.html", {
-        "pagina": pagina, "giorni": giorni, "periodi": PERIODI, "rapidi": FILTRI_RAPIDI, "vista": rapido,
+        "pagina": pagina, "raggruppa": raggruppa, "totale": totale, "giorni": giorni, "periodi": PERIODI,
+        "rapidi": FILTRI_RAPIDI, "vista": rapido, "kpi": _kpi_catalogo(periodo), "n_silenziati": n_silenziati,
+        "con_silenziati": con_silenziati, "regole_silenzio": len(regole_s),
         "sezione": sezione, "sezioni": sezioni, "testo_sezione": _testo_sezione(sezione),
-        "titolo_sezione": regole.SEZIONI[sezione][0] if sezione else "Eventi",
+        "titolo_sezione": regole.SEZIONI[sezione][0] if sezione else "Tutti gli eventi",
         "categoria": categoria, "categorie": sorted(((k, v) for k, v in regole.CATEGORIE.items()
                                                      if k not in regole.CATEGORIE_RISERVATE
                                                      and (not sezione or sezione == "syslog" or k in regole.SEZIONI[sezione][1])),
                                                     key=lambda x: x[1][0]),
-        "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "parametri": parametri.urlencode(),
-        "etichette": regole.CATEGORIE,
+        "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "account": account, "host": host,
+        "parametri": parametri.urlencode(), "parametri_senza_righe": senza_righe.urlencode(),
+        "etichette": regole.CATEGORIE, "puo_configurare": _puo_configurare(request),
+        "durate": silenzi.DURATE,
+        "torna": request.get_full_path()[:1000],
     })
+
+
+@require_POST
+def silenzia(request):
+    """Crea una regola di silenzio dal Catalogo (solo chi configura il SOC)."""
+    from . import silenzi
+
+    if not _puo_configurare(request):
+        return _nego()
+    categoria = request.POST.get("categoria", "")
+    motivo = (request.POST.get("motivo") or "").strip()
+    torna = request.POST.get("torna") or reverse("security:registro_log_eventi")
+    if not torna.startswith("/"):
+        torna = reverse("security:registro_log_eventi")
+    if categoria not in regole.CATEGORIE or categoria in regole.CATEGORIE_RISERVATE:
+        messages.error(request, "Tipo di evento non valido.")
+        return redirect(torna)
+    if len(motivo) < 5:
+        messages.error(request, "Scrivere il motivo (almeno qualche parola): resta nel registro delle regole e nell'audit.")
+        return redirect(torna)
+    r = silenzi.crea(
+        categoria=categoria,
+        account=(request.POST.get("account") or "").strip() if request.POST.get("solo_account") else "",
+        host=silenzi.nome_breve((request.POST.get("host") or "").strip()) if request.POST.get("solo_host") else "",
+        testo=(request.POST.get("descrizione") or "").strip() if request.POST.get("solo_testo") else "",
+        motivo=motivo, giorni=request.POST.get("giorni", ""), utente=_utente(request))
+    log_action(request, "registro_log_silenzio_creato", MODULO, {"regola": r.pk, "categoria": r.categoria, "account": r.account,
+                                                                "host": r.host, "testo": r.testo, "motivo": r.motivo,
+                                                                "scade": r.scade_il.isoformat() if r.scade_il else ""})
+    messages.success(request, "Silenziato: questi eventi non compaiono più nel catalogo, in «Da guardare» e negli alert. "
+                              "Restano nell'archivio; la regola si toglie da «Regole di silenzio».")
+    return redirect(torna)
+
+
+def silenzi_pagina(request):
+    from . import silenzi
+    from .models import RegolaSilenzio
+
+    puo = _puo_configurare(request)
+    if request.method == "POST":
+        if not puo:
+            return _nego()
+        r = get_object_or_404(RegolaSilenzio, pk=request.POST.get("id"))
+        azione = request.POST.get("azione")
+        if azione == "elimina":
+            log_action(request, "registro_log_silenzio_eliminato", MODULO, {"regola": r.pk, "categoria": r.categoria,
+                                                                           "account": r.account, "host": r.host})
+            r.delete()
+            messages.success(request, "Regola eliminata: gli eventi tornano visibili nel catalogo.")
+        elif azione in ("spegni", "accendi"):
+            RegolaSilenzio.objects.filter(pk=r.pk).update(attiva=azione == "accendi")
+            log_action(request, f"registro_log_silenzio_{azione}", MODULO, {"regola": r.pk})
+            messages.success(request, "Regola riaccesa." if azione == "accendi" else "Regola spenta: gli eventi tornano visibili.")
+        return redirect("security:registro_log_silenzi")
+    settimana = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=7))
+    righe = []
+    for r in RegolaSilenzio.objects.all():
+        righe.append({"r": r, "etichetta": regole.CATEGORIE.get(r.categoria, (r.categoria,))[0],
+                      "nascosti": settimana.filter(silenzi.q_regola(r)).count()})
+    return render(request, "registro_log/silenzi.html", {"righe": righe, "puo_configurare": puo})
 
 
 # ── Persona o PC ────────────────────────────────────────────────────────────

@@ -232,6 +232,9 @@ GUIDA = {
                     "accessi falliti e la giornata in ordine di ora (file, stampe e USB no: solo nelle indagini).",
                     "Ogni evento ha la sua spiegazione: una frase su cosa è successo, cosa vuol dire, quando è normale e cosa fare, "
                     "con i dati di Windows tradotti in italiano.",
+                    "«Catalogo»: riquadri cliccabili (persone entrate, accessi falliti, critici, fuori orario, silenziati), eventi "
+                    "ripetuti raggruppati in una riga con quante volte, e «Silenzia…» per nascondere un evento che si ripete "
+                    "(per account, sistema o descrizione, con motivo e scadenza; resta nell'archivio, regole in «Regole di silenzio»).",
                     "«Catalogo»: il catalogo di ciò che è stato letto, a sezioni come in BusinessLog: «Log accessi» (accesso al dominio, "
                     "console, desktop remoto, sblocco; gli accessi di rete solo degli amministratori), «Accessi falliti», «Account e gruppi», «Eventi di sistema», «Syslog», ognuna "
                     "col numero di eventi del periodo; filtri rapidi «Solo amministratori», «Fuori orario», «Critici». Clic sulla "
