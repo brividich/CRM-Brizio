@@ -22,6 +22,10 @@
     .kc-toggle input { width: 18px; height: 18px; }
     .kc-incontro[hidden] { display: none; }
     .kc-incontro { margin-top: 12px; }
+    .kc-team { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .kc-mail .kp-field > label.kc-toggle { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); font-weight: 600; }
+    @media (max-width: 1100px) { .kc-team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 760px) { .kc-team { grid-template-columns: minmax(0, 1fr); } }
     .kc-altro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
     .kc-altro > summary { padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text); }
     .kc-altro > summary small { font-weight: 400; color: var(--text-light); margin-left: 6px; }

@@ -29,6 +29,7 @@ def _stato(project) -> dict:
         "attivita_senza_responsabile": tasks.filter(assigned_to__isnull=True).count(),
         "incontri": project.meetings.count(),
         "vrf": _vrf_status_detail(project, TaskImpostazioni.get_singleton()),
+        "vrf_da_fare": project.vrf_status == "PENDING",
     }
 
 
@@ -124,5 +125,6 @@ def project_attivita_pianifica(request, project_id: int):
             "att_utenti_json": json.dumps(utenti).replace("</", "<\\/"),
             "att_righe": _righe_iniziali(request.POST if request.method == "POST" else None, utenti_per_id),
             "attivita_esistenti": esistenti,
+            "vrf_da_fare": project.vrf_status == "PENDING",
         },
     )
