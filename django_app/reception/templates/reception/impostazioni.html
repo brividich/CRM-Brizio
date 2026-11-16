@@ -46,6 +46,16 @@
     {% if logo_presente %}<form method="post">{% csrf_token %}<input type="hidden" name="azione" value="logo_togli"><button class="rc-btn rc-btn-g" type="submit">Togli il logo</button></form>{% endif %}
   </div>
 </div>
+<div class="rc-card" id="motivi">
+  <div class="rc-card-head">Motivi di visita collegabili a ticket e OdL</div>
+  <div class="rc-body">
+    <p class="rc-note">Per i motivi accesi il referente collega la visita a un ticket IT, a un ticket manutenzione o a un ordine di lavoro da «Annuncia una visita». Le visite delle ditte accreditate si collegano sempre.</p>
+    <form method="post" class="rc-collega-form">{% csrf_token %}<input type="hidden" name="azione" value="motivi">
+      {% for c in motivi %}<label class="rc-spunta"><input type="checkbox" name="motivo" value="{{ c.pk }}"{% if c.collega_interventi %} checked{% endif %}> {{ c.nome }}{% if not c.attiva %} <span class="rc-muted">(non attivo)</span>{% endif %}</label>{% empty %}<span class="rc-muted">Nessun motivo di visita.</span>{% endfor %}
+      {% if motivi %}<button class="rc-btn rc-btn-g" type="submit">Salva</button>{% endif %}
+    </form>
+  </div>
+</div>
 <div class="rc-card">
   <div class="rc-card-head">Ditte con i documenti non in regola</div>
   <div class="rc-body">

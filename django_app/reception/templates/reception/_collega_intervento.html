@@ -1,0 +1,22 @@
+{% comment %}«Le tue visite»: collegamenti a ticket/OdL di una riga. Parametri: r (Visita o Preregistrazione), cosa ("visita"|"invito").{% endcomment %}
+<div class="rc-interventi">
+  {% if cosa == "visita" %}
+    {% for c in r.collegati %}
+      <span class="rc-legame"><a class="rc-pill rc-pill-ok" href="{{ c.url }}" title="{{ c.titolo }}">{{ c.etichetta }}</a>{% if c.collegato_da_id == request.user.pk and not c.chiuso %}<form method="post" action="{% url 'reception:annuncia_collega' cosa r.pk %}" class="rc-inline">{% csrf_token %}<input type="hidden" name="link" value="{{ c.pk }}"><button class="rc-x" name="azione" value="togli" title="Togli il collegamento" aria-label="Togli il collegamento a {{ c.etichetta }}">×</button></form>{% endif %}</span>
+    {% endfor %}
+  {% else %}
+    {% if r.ticket %}<span class="rc-pill" title="Si collega quando l'ospite entra">{{ r.ticket.numero_ticket }}</span>{% endif %}
+    {% if r.ordine_lavoro %}<span class="rc-pill" title="Si collega quando l'ospite entra">OdL #{{ r.ordine_lavoro.pk }}</span>{% endif %}
+    {% if r.ticket or r.ordine_lavoro %}<form method="post" action="{% url 'reception:annuncia_collega' cosa r.pk %}" class="rc-inline">{% csrf_token %}<button class="rc-x" name="azione" value="togli" title="Togli" aria-label="Togli il ticket o l'OdL">×</button></form>{% endif %}
+  {% endif %}
+  {% if r.collegabile %}
+  <details class="rc-collega">
+    <summary>{% if cosa == "invito" and r.ticket or cosa == "invito" and r.ordine_lavoro %}Cambia{% else %}Collega{% endif %}</summary>
+    <form method="post" action="{% url 'reception:annuncia_collega' cosa r.pk %}" class="rc-collega-form">
+      {% csrf_token %}
+      {% include "reception/_scelta_intervento.html" with proposte=r.proposte %}
+      <button class="rc-btn rc-btn-p" name="azione" value="collega">Collega</button>
+    </form>
+  </details>
+  {% elif cosa == "visita" and not r.collegati %}—{% elif cosa == "invito" and not r.ticket and not r.ordine_lavoro %}—{% endif %}
+</div>
