@@ -207,6 +207,10 @@ GUIDA = {
                     ("Cambio capo reparto", "chi può cambiare il capo proposto nella nuova richiesta: le persone spuntate "
                      "scelgono dall'elenco dei capi, gli altri vedono il capo assegnato e non possono modificarlo. Chi non ha un capo "
                      "assegnato può comunque sceglierlo. Elenco vuoto = tutti possono cambiarlo. Si salva con «Salva cambio capo reparto»."),
+                    ("Capi reparto a mano", "«Aggiunti all'elenco «Capo reparto»»: persone da aggiungere ai capi dell'organigramma "
+                     "nel menu della richiesta («Salva capi aggiunti»). «Capo fisso per dipendente»: scegli dipendente e capo e premi "
+                     "«Imposta capo fisso»; le nuove richieste del dipendente vanno a quel capo, che le vede e le approva da solo "
+                     "(il capo dell'organigramma non le vede). «Togli» lo rimuove. Il capo deve avere un utente del portale collegato."),
                     ("Gestione admin · Tutte le assenze", "tutte le richieste con filtri, ordinamento, approvazione o rifiuto in blocco (fino a 200 alla volta, nota obbligatoria) ed «Export CSV»."),
                     ("Certificati arrivati in blocco", "filtro «Certificato» = «Malattie senza certificato» (con «Tutti gli stati»), "
                                                        "seleziona le righe e premi «Certificato arrivato (senza mail)». Non parte nessuna mail; "
@@ -234,14 +238,15 @@ GUIDA = {
                     "ruoli (prima del passaggio alle mansioni: responsabile dell'area e poi caporeparto scelti a mano). "
                     "Si cambia in Anagrafica → Reparti, aree e capi, nel Mansionario («Responsabilità del reparto») "
                     "o in Impostazioni → Reparti, non qui: sono collegati, cambiarlo in uno lo cambia negli altri. "
-                    "Il menu «Capo reparto» elenca caporeparto, responsabili delle aree e i loro co-capo.",
+                    "Il menu «Capo reparto» elenca caporeparto, responsabili delle aree e i loro co-capo, più i capi "
+                    "aggiunti in Impostazioni → «Capi reparto a mano». Un «Capo fisso per dipendente» prevale su tutto.",
                     "Nessuno approva le proprie assenze: se il capo così trovato è il dipendente stesso (es. il CAR "
                     "capo del suo reparto), si propone chi gli sta sopra nella gerarchia dei ruoli, partendo dal suo "
                     "ruolo più alto (Caporeparto → Operations Manager, anche se lavora in un altro reparto).",
                     "Chi è abilitato in Impostazioni → «Cambio capo reparto» (se l'elenco è vuoto, tutti) può scegliere un "
                     "altro capo nella richiesta. Se lo fa, la richiesta compare in coda "
-                    "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
-                    "ancora nel calendario ma non la approva.",
+                    "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma non la "
+                    "vede più, né in coda né nel calendario o negli elenchi del team.",
                     "La visibilità si assegna in Amministrazione → «Accessi» con i permessi «view_all_assenze» "
                     "(tutta l'azienda) e «view_reparto_assenze» (solo il reparto), a un ruolo o a una singola persona.",
                     "Se il sistema unico «Ruoli e permessi» è acceso, valgono le righe Assenze della matrice (vedere, approvare, esportare).",

@@ -363,13 +363,99 @@
       </div>
     </section>
 
+    <section class="ms-card" id="capi-a-mano">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Capi reparto a mano</h2>
+          <p class="ms-card-subtitle">
+            Capi da aggiungere all'elenco della richiesta e capo fisso per singolo dipendente,
+            al posto di quello dell'organigramma.
+          </p>
+        </div>
+        <span class="ms-card-badge">{{ capi_aggiunti_count }} aggiunti · {{ capi_fissi|length }} fissi</span>
+      </div>
+      <div class="ms-card-body">
+        <form method="post" action="{% url 'assenze_impostazioni' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="capi_aggiunti">
+          <div class="ms-field">
+            <label for="abs-capi-aggiunti-filtro">Aggiunti all'elenco «Capo reparto»</label>
+            <input type="text" id="abs-capi-aggiunti-filtro" placeholder="Filtra per nominativo..." autocomplete="off">
+            <div class="ms-field-help">
+              Si sommano ai capi dell'organigramma. Per approvare serve un utente del portale
+              collegato all'anagrafica.
+            </div>
+          </div>
+          <div class="abs-fless-list" id="abs-capi-aggiunti-list" role="group" aria-label="Capi aggiunti a mano">
+            {% for dip in capi_aggiunti_dipendenti %}
+              <label class="abs-fless-item" data-nome="{{ dip.full_name|lower }}">
+                <input type="checkbox" name="capi_aggiunti" value="{{ dip.id }}" {% if dip.abilitato %}checked{% endif %}>
+                <span>{{ dip.full_name }}</span>
+                {% if dip.fuori_elenco %}<span class="abs-fless-tag">non più in elenco</span>{% endif %}
+              </label>
+            {% empty %}
+              <p class="ms-field-help">Nessun dipendente attivo trovato in anagrafica.</p>
+            {% endfor %}
+          </div>
+          <div class="abs-fless-actions">
+            <button type="submit" class="btn btn-primary">Salva capi aggiunti</button>
+            <span class="ms-field-help" id="abs-capi-aggiunti-count"></span>
+          </div>
+        </form>
+
+        <h3 class="ms-card-title" style="margin-top:22px;">Capo fisso per dipendente</h3>
+        <p class="ms-field-help">
+          Le nuove richieste del dipendente vanno al capo fisso, che le vede e le approva da solo:
+          il capo dell'organigramma non le vede. Se il capo fisso è assente quel giorno, passa al suo superiore.
+        </p>
+        {% if capi_fissi %}
+          <table class="fm-table" style="margin:10px 0;">
+            <thead><tr><th>Dipendente</th><th>Capo fisso</th><th>Impostato da</th><th></th></tr></thead>
+            <tbody>
+              {% for riga in capi_fissi %}
+                <tr>
+                  <td>{{ riga.dipendente_nominativo|default:riga.dipendente_legacy_anagrafica_id }}</td>
+                  <td>{{ riga.capo_nominativo|default:riga.capo_legacy_anagrafica_id }}</td>
+                  <td>{{ riga.created_by }} · {{ riga.created_at|date:"d/m/Y" }}</td>
+                  <td>
+                    <form method="post" action="{% url 'assenze_impostazioni' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="form" value="capo_fisso">
+                      <input type="hidden" name="togli" value="{{ riga.dipendente_legacy_anagrafica_id }}">
+                      <button type="submit" class="btn btn-secondary btn-sm">Togli</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+        <form method="post" action="{% url 'assenze_impostazioni' %}" class="abs-fless-actions" style="flex-wrap:wrap;gap:10px;">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="capo_fisso">
+          <label class="sr-only" for="abs-capo-fisso-dip">Dipendente</label>
+          <select id="abs-capo-fisso-dip" name="dipendente" class="abs-select" required>
+            <option value="">-- Dipendente --</option>
+            {% for dip in capi_fissi_dipendenti %}<option value="{{ dip.id }}">{{ dip.full_name }}</option>{% endfor %}
+          </select>
+          <label class="sr-only" for="abs-capo-fisso-capo">Capo fisso</label>
+          <select id="abs-capo-fisso-capo" name="capo" class="abs-select" required>
+            <option value="">-- Capo fisso --</option>
+            {% for dip in capi_fissi_dipendenti %}<option value="{{ dip.id }}">{{ dip.full_name }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary">Imposta capo fisso</button>
+        </form>
+      </div>
+    </section>
+
     {% include "assenze/partials/_gestione_admin_panel.html" %}
   </div>
 
   <script>
   [
     ["malattia", "malattia_abilitati", "Nessuno selezionato: tutti vedono «Malattia»"],
-    ["cambio-capo", "cambio_capo_abilitati", "Nessuno selezionato: tutti possono cambiarlo"]
+    ["cambio-capo", "cambio_capo_abilitati", "Nessuno selezionato: tutti possono cambiarlo"],
+    ["capi-aggiunti", "capi_aggiunti", "Nessun capo aggiunto a mano"]
   ].forEach(function (sezione) {
     var filtro = document.getElementById("abs-" + sezione[0] + "-filtro");
     var lista = document.getElementById("abs-" + sezione[0] + "-list");

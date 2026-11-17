@@ -172,12 +172,21 @@ class LoadEventsScopeSqlTests(SimpleTestCase):
                 "manager_email": "",
             },
         )
-        # Il secondo 7 e' il capo scelto a mano (AssenzaCapoScelto), sempre
-        # nel perimetro del capo che e' stato scelto.
+        # Il secondo 7 esclude le richieste inviate a un altro capo, il terzo
+        # le include se il capo scelto a mano (AssenzaCapoScelto) e' lui.
         self.assertEqual(
             catturato["params"],
-            [7, 7, datetime(2026, 1, 1), datetime(2026, 1, 31)],
+            [7, 7, 7, datetime(2026, 1, 1), datetime(2026, 1, 31)],
         )
+
+    def test_calendario_a_ruoli_esclude_le_richieste_inviate_ad_altro_capo(self):
+        # Team d'organigramma (10, 11) + se stesso (7): le richieste del team
+        # inviate a un altro capo restano fuori, le proprie entrano sempre.
+        with patch("assenze.views._helpers._where_utenti", side_effect=lambda ids, alias: (f"U{sorted(ids)}", list(ids))):
+            catturato = self._capture(manager_scope={"utenti_ids": [7, 10, 11], "se_stesso": 7, "reparto": True})
+        self.assertIn("NOT EXISTS", catturato["sql"])
+        self.assertIn("U[7]", catturato["sql"])
+        self.assertIn("U[10, 11]", catturato["sql"])
 
     def test_scope_senza_criteri_e_fail_closed(self):
         # Nessun modo di sapere di chi e' capo: non si mostra nulla, invece di
