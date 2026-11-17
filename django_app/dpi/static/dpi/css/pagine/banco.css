@@ -132,6 +132,8 @@ details[open] > summary.dpi-card-title { margin-bottom:10px; }
 .banco-pannello { position:fixed; top:0; right:0; bottom:0; z-index:1101; width:min(460px,100%); background:#fff; box-shadow:-12px 0 32px rgba(15,23,42,.18); animation:banco-entra .18s ease-out; }
 @keyframes banco-entra { from { transform:translateX(24px); opacity:0; } to { transform:none; opacity:1; } }
 body.banco-pannello-aperto { overflow:hidden; }
+/* La tendina di Tom Select si appende al body: sopra il pannello, altrimenti la ricerca del dipendente non si vede. */
+body.banco-pannello-aperto > .ts-dropdown { z-index:1200; }
 .banco-pannello-form { display:flex; flex-direction:column; height:100%; }
 .banco-pannello-testa { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:16px 18px 12px; border-bottom:1px solid #e2e8f0; }
 .banco-pannello-titolo { font-size:17px; font-weight:900; color:#0f172a; }
