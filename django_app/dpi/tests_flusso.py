@@ -51,6 +51,17 @@ class ApprovatoriTests(TestCase):
         self.assertEqual(flusso.approvatori_di(DIPENDENTE), {200, PREPOSTO})
         self.assertNotIn(DIPENDENTE, flusso.dipendenti_di_approvatore(CAPO))
 
+    def test_scelta_preposto_tutti_i_preposti_incaricato_della_sua_area(self):
+        altro = 300
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=altro, ruolo=RuoloOperativo.objects.get(nome="Preposto"))
+        tutti, incaricati = flusso.scelta_preposto(DIPENDENTE)
+        self.assertEqual(tutti, {CAPO, PREPOSTO, altro})
+        self.assertEqual(incaricati, {PREPOSTO})
+
+    def test_scelta_preposto_senza_preposto_in_area_incaricato_il_responsabile(self):
+        DipendenteRuoloOperativo.objects.all().delete()
+        self.assertEqual(flusso.scelta_preposto(DIPENDENTE)[1], {CAPO})
+
     def test_dipendenti_di_approvatore_e_inverso(self):
         self.assertEqual(flusso.dipendenti_di_approvatore(CAPO), {DIPENDENTE, PREPOSTO})
         self.assertEqual(flusso.dipendenti_di_approvatore(PREPOSTO), {DIPENDENTE})
@@ -240,6 +251,41 @@ class FlussoViewTests(TestCase):
         nuova = RichiestaDPI.objects.exclude(pk=self.richiesta.pk).get()
         self.assertEqual(nuova.stato, StatoRichiesta.INVIATA)
         self.assertTrue(da_approvare.called)
+
+    def _come_dipendente(self):
+        return mock.patch.multiple(
+            "dpi.views", _is_gestore=mock.Mock(return_value=False), _legacy_id=mock.Mock(return_value=DIPENDENTE),
+            _nomi_anagrafiche=mock.Mock(return_value={CAPO: "Anna Capo", PREPOSTO: "Piero Preposto", ESTRANEO: "Ugo Altro"}),
+        )
+
+    def test_tendina_chi_approva_con_l_incaricato_gia_scelto(self):
+        with self._come_dipendente(), mock.patch.object(flusso, "scelta_preposto", return_value=({CAPO, PREPOSTO, ESTRANEO}, {PREPOSTO})):
+            pagina = self.client.get(reverse("dpi:nuova"))
+        self.assertContains(pagina, 'name="preposto"')
+        self.assertContains(pagina, f'<option value="{PREPOSTO}" selected>Piero Preposto · incaricato</option>', html=True)
+        self.assertEqual([p["id"] for p in pagina.context["preposti_scelta"]][0], PREPOSTO)
+
+    def test_preposto_scelto_riceve_la_mail_e_approva(self):
+        with self._come_dipendente(), mock.patch.object(flusso, "scelta_preposto", return_value=({CAPO, PREPOSTO, ESTRANEO}, {PREPOSTO})), \
+                mock.patch("dpi.flusso._email_persona", side_effect=lambda i: {ESTRANEO: "ugo@example.test"}.get(i, "")):
+            self.client.post(reverse("dpi:nuova"), {"categoria_id": self.categoria.pk, "quantita": "1", "preposto": ESTRANEO})
+        nuova = RichiestaDPI.objects.exclude(pk=self.richiesta.pk).get()
+        self.assertEqual(nuova.preposto_legacy_id, ESTRANEO)
+        self.assertIn("Approvazione chiesta a Ugo Altro (scelto al posto dell'incaricato)", nuova.commenti.get().testo)
+        self.assertEqual([m.to for m in mail.outbox if "da approvare" in m.subject], [["ugo@example.test"]])
+        # Ugo non e' nell'area del dipendente, ma e' stato scelto: vede e approva.
+        with mock.patch.multiple("dpi.views", _is_gestore=mock.Mock(return_value=False), _legacy_id=mock.Mock(return_value=ESTRANEO)):
+            elenco = self.client.get(reverse("dpi:gestione_list"))
+            self.client.post(reverse("dpi:approva", args=[nuova.pk]), {"nota": "ok"})
+        self.assertContains(elenco, nuova.numero)
+        nuova.refresh_from_db()
+        self.assertEqual(nuova.stato, StatoRichiesta.APPROVATA)
+
+    def test_preposto_fuori_elenco_resta_l_incaricato(self):
+        with self._come_dipendente(), mock.patch.object(flusso, "scelta_preposto", return_value=({CAPO, PREPOSTO}, {PREPOSTO})), \
+                mock.patch("dpi.flusso.notifica_nuova_richiesta"):
+            self.client.post(reverse("dpi:nuova"), {"categoria_id": self.categoria.pk, "quantita": "1", "preposto": 9999})
+        self.assertEqual(RichiestaDPI.objects.exclude(pk=self.richiesta.pk).get().preposto_legacy_id, PREPOSTO)
 
     def test_non_si_richiede_per_chi_non_e_nel_proprio_ambito(self):
         with self._come_capo():
