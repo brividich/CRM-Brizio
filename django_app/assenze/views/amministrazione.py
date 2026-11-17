@@ -133,6 +133,10 @@ def impostazioni_admin(request):
             return _salva_impostazioni_malattia(request)
         if str(request.POST.get("form") or "").strip() == "cambio_capo":
             return _salva_impostazioni_cambio_capo(request)
+        if str(request.POST.get("form") or "").strip() == "capi_aggiunti":
+            return _salva_capi_aggiunti(request)
+        if str(request.POST.get("form") or "").strip() == "capo_fisso":
+            return _salva_capo_fisso(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -188,6 +192,7 @@ def impostazioni_admin(request):
             **_flessibilita_admin_context(),
             **_malattia_admin_context(),
             **_cambio_capo_admin_context(),
+            **_capi_a_mano_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),
         },
@@ -317,6 +322,103 @@ def _salva_impostazioni_cambio_capo(request):
     else:
         messages.success(request, "Cambio capo reparto aggiornato: elenco vuoto, tutti possono cambiarlo come prima.")
     return redirect(f"{reverse('assenze_impostazioni')}#cambio-capo")
+
+
+def _capi_a_mano_admin_context() -> dict:
+    """Dati della sezione «Capi reparto a mano» di Impostazioni."""
+    from ..models import CapoAggiunto, CapoFissoDipendente
+
+    aggiunti_ids = _helpers._capi_aggiunti_ids()
+    dipendenti = [
+        {"id": _helpers._as_int(d.get("id")), "full_name": d.get("full_name") or ""}
+        for d in _helpers._load_dipendenti_attivi_list()
+        if _helpers._as_int(d.get("id")) is not None
+    ]
+    dipendenti.sort(key=lambda row: str(row["full_name"]).casefold())
+    return {
+        "capi_aggiunti_dipendenti": _elenco_abilitati(CapoAggiunto, aggiunti_ids),
+        "capi_aggiunti_count": len(aggiunti_ids),
+        "capi_fissi": list(CapoFissoDipendente.objects.all()),
+        "capi_fissi_dipendenti": dipendenti,
+    }
+
+
+def _salva_capi_aggiunti(request):
+    """Salva i capi aggiunti a mano all'elenco «Capo reparto» della richiesta."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import CapoAggiunto
+
+    precedenti = _helpers._capi_aggiunti_ids()
+    selezionati = _aggiorna_abilitati(request, CapoAggiunto, "capi_aggiunti", precedenti)
+    _helpers.log_action(
+        request,
+        "impostazioni_capi_aggiunti_salvati",
+        "assenze",
+        {
+            "aggiunti_a_mano": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    messages.success(request, f"Capi aggiunti a mano: {len(selezionati)}.")
+    return redirect(f"{reverse('assenze_impostazioni')}#capi-a-mano")
+
+
+def _salva_capo_fisso(request):
+    """Aggiunge, cambia o toglie il capo fisso di un dipendente."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import CapoFissoDipendente
+
+    destinazione = f"{reverse('assenze_impostazioni')}#capi-a-mano"
+    togli = _helpers._as_int(request.POST.get("togli"))
+    if togli is not None:
+        riga = CapoFissoDipendente.objects.filter(dipendente_legacy_anagrafica_id=togli).first()
+        if riga is not None:
+            riga.delete()
+            _helpers.log_action(
+                request, "impostazioni_capo_fisso_tolto", "assenze",
+                {"dipendente": togli, "capo": riga.capo_legacy_anagrafica_id},
+            )
+            messages.success(request, f"Capo fisso tolto per {riga.dipendente_nominativo or togli}.")
+        return redirect(destinazione)
+
+    dip_id = _helpers._as_int(request.POST.get("dipendente"))
+    capo_id = _helpers._as_int(request.POST.get("capo"))
+    if dip_id is None or capo_id is None:
+        messages.error(request, "Scegli sia il dipendente sia il capo.")
+        return redirect(destinazione)
+    if dip_id == capo_id:
+        messages.error(request, "Un dipendente non può essere il capo di sé stesso.")
+        return redirect(destinazione)
+    if _helpers._legacy_user_id_from_anagrafica_employee_id(capo_id) is None:
+        messages.error(request, "Il capo scelto non ha un utente del portale collegato: non potrebbe approvare.")
+        return redirect(destinazione)
+
+    nomi = {
+        _helpers._as_int(d.get("id")): str(d.get("full_name") or "")
+        for d in _helpers._load_dipendenti_attivi_list()
+    }
+    CapoFissoDipendente.objects.update_or_create(
+        dipendente_legacy_anagrafica_id=dip_id,
+        defaults={
+            "dipendente_nominativo": (nomi.get(dip_id) or "")[:200],
+            "capo_legacy_anagrafica_id": capo_id,
+            "capo_nominativo": (nomi.get(capo_id) or "")[:200],
+            "created_by": (request.user.get_username() or "")[:200],
+        },
+    )
+    _helpers.log_action(
+        request, "impostazioni_capo_fisso_salvato", "assenze", {"dipendente": dip_id, "capo": capo_id},
+    )
+    messages.success(
+        request,
+        f"Capo fisso salvato: le nuove richieste di {nomi.get(dip_id) or dip_id} vanno a {nomi.get(capo_id) or capo_id}.",
+    )
+    return redirect(destinazione)
 
 
 def _malattia_admin_context() -> dict:

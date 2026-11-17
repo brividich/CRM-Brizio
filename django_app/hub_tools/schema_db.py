@@ -30,7 +30,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, centri di costo, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, processi qualificati MOD.128 con persone qualificate (requisiti per ruolo) e macchine qualificate (verifiche con misure), utensili critici, Technical Plan con revisioni e registro MOD.176, classificazione e coefficienti delle mansioni, costo orario mensile, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint, "
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
-                "permessi ripetuti (serie di richieste con una sola approvazione)"),
+                "permessi ripetuti (serie di richieste con una sola approvazione), capi aggiunti a mano e "
+                "capo fisso per dipendente"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
                    "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli"),

@@ -2531,9 +2531,10 @@ class CapoSceltoTests(TestCase):
         where, params = views._con_capo_scelto("a.capo_reparto_id = %s", [5], legacy_user_id=5, alias="a", per_approvazione=True)
         self.assertIn("NOT EXISTS", where)
         self.assertEqual(params, [5, 5, 5])
+        # Anche la consultazione esclude le richieste inviate a un altro capo.
         where, params = views._con_capo_scelto("a.capo_reparto_id = %s", [5], legacy_user_id=5, alias="a", per_approvazione=False)
-        self.assertNotIn("NOT EXISTS", where)
-        self.assertEqual(params, [5, 5])
+        self.assertIn("NOT EXISTS", where)
+        self.assertEqual(params, [5, 5, 5])
         where, params = views._con_capo_scelto("", [], legacy_user_id=5, alias="a", per_approvazione=True)
         self.assertTrue(where.startswith("EXISTS"))
         self.assertEqual(params, [5])

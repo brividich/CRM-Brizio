@@ -62,9 +62,11 @@ def _events_manager_scope(request) -> dict | None:
     if perms.get("view_scope_source") == "ruoli":
         # Ruoli del portale: perimetro per persone (sé stessi + team d'organigramma).
         ids = set(perms.get("team_utenti_ids") or ()) if perms.get("view_scope") == "reparto" else set()
+        se_stesso = None
         if perms.get("legacy_user_id") and perms.get("view_scope") != "none":
-            ids.add(int(perms["legacy_user_id"]))
-        return {"utenti_ids": sorted(ids)}
+            se_stesso = int(perms["legacy_user_id"])
+            ids.add(se_stesso)
+        return {"utenti_ids": sorted(ids), "se_stesso": se_stesso, "reparto": perms.get("view_scope") == "reparto"}
     return {
         "legacy_user_id": perms.get("legacy_user_id"),
         "manager_name": perms.get("manager_name") or "",
@@ -327,7 +329,20 @@ def _load_events(
     if manager_scope is not None and "utenti_ids" in manager_scope:
         # Perimetro dei ruoli del portale: elenco esplicito di persone. Vuoto o
         # colonna assente = fail-closed.
-        team_where, team_params = _helpers._where_utenti(manager_scope.get("utenti_ids"), "a")
+        se_stesso = manager_scope.get("se_stesso")
+        altri = [u for u in (manager_scope.get("utenti_ids") or ()) if u != se_stesso]
+        team_where, team_params = _helpers._where_utenti(altri, "a") if altri else ("", [])
+        if se_stesso is not None and manager_scope.get("reparto") and _helpers._has_assenze_column("id"):
+            # Le richieste del team inviate a un altro capo (scelto o fisso) le
+            # vede solo quel capo; quelle inviate a me entrano anche da fuori team.
+            team_where, team_params = _helpers._con_capo_scelto(
+                team_where, team_params, legacy_user_id=se_stesso, alias="a", per_approvazione=False
+            )
+        if se_stesso is not None:
+            mio_where, mio_params = _helpers._where_utenti([se_stesso], "a")
+            if mio_where:
+                team_where = f"({team_where} OR {mio_where})" if team_where else mio_where
+                team_params = [*team_params, *mio_params]
         if not team_where:
             return []
         where_clauses.append(team_where)

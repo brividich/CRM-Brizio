@@ -1783,7 +1783,15 @@ def invio_placeholder(request):
                 capo_final = _helpers._capo_option_value(chosen) or capo_raw
                 capo_escalated = False
                 capo_scelto = True
+        # Capo fisso (Impostazioni): la richiesta la vede e la approva solo lui
+        # (o il suo superiore se è assente), non il capo dell'organigramma.
+        if capo_fisso is not None and capo_effective and capo_final == capo_effective:
+            capo_scelto = True
         return capo_final, capo_escalated, capo_scelto
+
+    capo_fisso = _helpers._capo_fisso_per_utente(
+        legacy_user_id=legacy_id, email=email, username=capo_username, name=display_name,
+    )
 
     capi_giorno = []
     for occ_start, _occ_end in occorrenze:

@@ -250,3 +250,60 @@ class CambioCapoAbilitatiTests(_Base):
     def test_senza_permesso_impostazioni_non_salva(self, *_m):
         self.client.post(reverse("assenze_impostazioni"), {"form": "cambio_capo", "cambio_capo_abilitati": ["42"]})
         self.assertFalse(CambioCapoAbilitato.objects.exists())
+
+
+_DIPENDENTI = [
+    {"id": 41, "full_name": "Anna Bianchi"}, {"id": 42, "full_name": "Luca Verdi"}, {"id": 43, "full_name": "Rita Neri"},
+]
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CapiAManoTests(_Base):
+    @patch("assenze.views._helpers.puo_impostazioni_assenze", return_value=True)
+    @patch("assenze.views._helpers._load_dipendenti_attivi_list", return_value=_DIPENDENTI)
+    def test_capi_aggiunti_entrano_nell_elenco_del_menu(self, *_m):
+        from .models import CapoAggiunto
+        from .views._helpers import _anagrafica_hr_capo_ids
+
+        url = reverse("assenze_impostazioni")
+        resp = self.client.post(url, {"form": "capi_aggiunti", "capi_aggiunti": ["43"]})
+        self.assertRedirects(resp, f"{url}#capi-a-mano", fetch_redirect_response=False)
+        self.assertEqual(list(CapoAggiunto.objects.values_list("legacy_anagrafica_id", "nominativo")), [(43, "Rita Neri")])
+        self.assertIn(43, _anagrafica_hr_capo_ids())
+        self.client.post(url, {"form": "capi_aggiunti"})
+        self.assertFalse(CapoAggiunto.objects.exists())
+
+    @patch("assenze.views._helpers.puo_impostazioni_assenze", return_value=True)
+    @patch("assenze.views._helpers._load_dipendenti_attivi_list", return_value=_DIPENDENTI)
+    @patch("assenze.views._helpers._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda v: 900 + v if v else None)
+    def test_capo_fisso_salva_toglie_e_rifiuta_se_stesso(self, *_m):
+        from .models import CapoFissoDipendente
+
+        url = reverse("assenze_impostazioni")
+        self.client.post(url, {"form": "capo_fisso", "dipendente": "41", "capo": "41"})
+        self.assertFalse(CapoFissoDipendente.objects.exists())
+        self.client.post(url, {"form": "capo_fisso", "dipendente": "41", "capo": "43"})
+        riga = CapoFissoDipendente.objects.get()
+        self.assertEqual((riga.dipendente_nominativo, riga.capo_nominativo), ("Anna Bianchi", "Rita Neri"))
+        self.client.post(url, {"form": "capo_fisso", "togli": "41"})
+        self.assertFalse(CapoFissoDipendente.objects.exists())
+
+    @patch("assenze.views._helpers.puo_impostazioni_assenze", return_value=True)
+    @patch("assenze.views._helpers._load_dipendenti_attivi_list", return_value=_DIPENDENTI)
+    @patch("assenze.views._helpers._legacy_user_id_from_anagrafica_employee_id", return_value=None)
+    def test_capo_fisso_senza_utente_rifiutato(self, *_m):
+        from .models import CapoFissoDipendente
+
+        self.client.post(reverse("assenze_impostazioni"), {"form": "capo_fisso", "dipendente": "41", "capo": "43"})
+        self.assertFalse(CapoFissoDipendente.objects.exists())
+
+    @patch("assenze.views._helpers._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda v: 900 + v if v else None)
+    @patch("assenze.views._helpers._resolve_anagrafica_employee_id_for_user", return_value=41)
+    def test_capo_fisso_prevale_sull_organigramma(self, *_m):
+        from .models import CapoFissoDipendente
+        from .views._helpers import _anagrafica_hr_capo_ids, _resolve_anagrafica_hr_effective_capo_ids
+
+        CapoFissoDipendente.objects.create(dipendente_legacy_anagrafica_id=41, capo_legacy_anagrafica_id=43)
+        esito = _resolve_anagrafica_hr_effective_capo_ids(legacy_user_id=7, email="", username="", name="")
+        self.assertEqual(esito, (943, 43))
+        self.assertIn(43, _anagrafica_hr_capo_ids())

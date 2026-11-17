@@ -301,6 +301,54 @@ class CambioCapoAbilitato(models.Model):
         return self.nominativo or str(self.legacy_anagrafica_id)
 
 
+class CapoAggiunto(models.Model):
+    """Persona aggiunta a mano all'elenco «Capo reparto» della richiesta.
+
+    L'elenco nasce dall'organigramma (responsabili di reparti e aree). Qui si
+    aggiungono capi che l'organigramma non dà, così si possono scegliere nella
+    richiesta o usare come capo fisso (``CapoFissoDipendente``).
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Capo reparto aggiunto a mano"
+        verbose_name_plural = "Capi reparto aggiunti a mano"
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+
+    def __str__(self):
+        return self.nominativo or str(self.legacy_anagrafica_id)
+
+
+class CapoFissoDipendente(models.Model):
+    """Capo fisso di un dipendente: prende il posto di quello dell'organigramma.
+
+    Le nuove richieste del dipendente vanno a questo capo, che le vede e le
+    approva lui solo (si registra ``AssenzaCapoScelto``). Se il capo fisso è
+    assente quel giorno, vale il passaggio al suo superiore.
+    """
+
+    dipendente_legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    dipendente_nominativo = models.CharField(max_length=200, blank=True, default="")
+    capo_legacy_anagrafica_id = models.IntegerField(db_index=True)
+    capo_nominativo = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Capo fisso del dipendente"
+        verbose_name_plural = "Capi fissi dei dipendenti"
+        ordering = ["dipendente_nominativo", "dipendente_legacy_anagrafica_id"]
+
+    def __str__(self):
+        dip = self.dipendente_nominativo or self.dipendente_legacy_anagrafica_id
+        capo = self.capo_nominativo or self.capo_legacy_anagrafica_id
+        return f"{dip} → {capo}"
+
+
 class MalattiaAbilitato(models.Model):
     """Chi vede il pulsante «Malattia» nella nuova richiesta e la inserisce per tutti.
 

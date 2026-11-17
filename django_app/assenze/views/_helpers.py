@@ -633,10 +633,11 @@ def _con_capo_scelto(
 ) -> tuple[str, list]:
     """Aggiunge al perimetro le richieste con capo scelto a mano.
 
-    Le richieste che hanno scelto questo capo entrano sempre. Per la coda e
-    l'approvazione (``per_approvazione``) escono invece quelle che hanno scelto
-    un altro capo: le approva solo il capo scelto. La consultazione (calendario,
-    elenchi del reparto) le lascia al capo dell'organigramma.
+    Le richieste che hanno scelto questo capo entrano sempre; escono invece
+    quelle che hanno scelto un altro capo, sia dalla coda sia dalla
+    consultazione (calendario, storico, elenchi): le vede e le approva solo il
+    capo scelto, non quello dell'organigramma. ``per_approvazione`` resta per
+    compatibilità dei chiamanti.
     """
     if legacy_user_id is None:
         return where, params
@@ -653,12 +654,10 @@ def _con_capo_scelto(
     mia = f"EXISTS ({scelta} = %s)"
     if not where:
         return mia, [int(legacy_user_id)]
-    if per_approvazione:
-        return (
-            f"((({where}) AND NOT EXISTS ({scelta} <> %s)) OR {mia})",
-            [*params, int(legacy_user_id), int(legacy_user_id)],
-        )
-    return f"(({where}) OR {mia})", [*params, int(legacy_user_id)]
+    return (
+        f"((({where}) AND NOT EXISTS ({scelta} <> %s)) OR {mia})",
+        [*params, int(legacy_user_id), int(legacy_user_id)],
+    )
 
 
 def _combined_manager_assignment_where_clause(
@@ -2544,7 +2543,57 @@ def _anagrafica_hr_capo_ids() -> set[int]:
                     ids.add(capo_id)
     except Exception:
         pass
+    # Capi aggiunti a mano in Impostazioni e capi fissi dei dipendenti.
+    ids.update(_capi_aggiunti_ids())
+    ids.update(v for v in _capi_fissi_map().values() if v > 0)
     return ids
+
+
+def _capi_aggiunti_ids() -> set[int]:
+    """Id anagrafica dei capi aggiunti a mano all'elenco (Impostazioni)."""
+    try:
+        from ..models import CapoAggiunto
+
+        return {
+            int(v) for v in CapoAggiunto.objects.values_list("legacy_anagrafica_id", flat=True)
+            if _as_int(v) is not None and int(v) > 0
+        }
+    except Exception:
+        logger.warning("[assenze] elenco capi aggiunti non leggibile", exc_info=True)
+        return set()
+
+
+def _capi_fissi_map() -> dict[int, int]:
+    """Capo fisso per dipendente: id anagrafica dipendente -> id anagrafica capo."""
+    try:
+        from ..models import CapoFissoDipendente
+
+        return {
+            int(dip): int(capo)
+            for dip, capo in CapoFissoDipendente.objects.values_list(
+                "dipendente_legacy_anagrafica_id", "capo_legacy_anagrafica_id"
+            )
+            if _as_int(dip) is not None and _as_int(capo) is not None
+        }
+    except Exception:
+        logger.warning("[assenze] capi fissi non leggibili", exc_info=True)
+        return {}
+
+
+def _capo_fisso_per_dipendente(anagrafica_id) -> int | None:
+    """Capo fisso (id anagrafica) del dipendente, se impostato e diverso da lui."""
+    dip = _as_int(anagrafica_id)
+    if dip is None:
+        return None
+    capo = _capi_fissi_map().get(dip)
+    return capo if capo and capo != dip else None
+
+
+def _capo_fisso_per_utente(*, legacy_user_id: int | None, email: str, username: str, name: str) -> int | None:
+    employee_id = _resolve_anagrafica_employee_id_for_user(
+        legacy_user_id=legacy_user_id, email=email, username=username, name=name,
+    )
+    return _capo_fisso_per_dipendente(employee_id)
 
 
 def _anagrafica_row_label(row: dict) -> str:
@@ -3140,6 +3189,10 @@ def _resolve_anagrafica_hr_effective_capo_ids(
         username=username,
         name=name,
     )
+    # Capo fisso impostato in Impostazioni: prevale sull'organigramma.
+    capo_fisso = _capo_fisso_per_dipendente(employee_id)
+    if capo_fisso is not None:
+        return _legacy_user_id_from_anagrafica_employee_id(capo_fisso), capo_fisso
     capo_anagrafica_id: int | None = None
     reparto = ""
     try:
