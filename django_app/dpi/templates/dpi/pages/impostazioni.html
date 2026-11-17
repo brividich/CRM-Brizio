@@ -158,6 +158,13 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
           <label>Email notifiche aggiuntive (una per riga)</label>
           <textarea name="notifica_email_extra" rows="3">{{ impost.notifica_email_extra }}</textarea>
         </div>
+        {% if incaricati_senza_utente %}
+        <div class="dpi-field" role="alert" style="border-left:3px solid var(--warning, #d97706); padding-left:10px;">
+          <strong>Indirizzi senza un utente del portale</strong>
+          <p style="margin:4px 0 0;">Ricevono la mail ma non vedono nulla in «Le mie attività»: usa l'indirizzo con cui la persona entra nel portale.
+          {% for v in incaricati_senza_utente %}{{ v.elenco }}: {{ v.email }}{% if not forloop.last %}; {% endif %}{% endfor %}</p>
+        </div>
+        {% endif %}
         <div class="dpi-field">
           <label>Magazzino: email per l'avviso di consegna (una per riga)</label>
           <textarea name="magazzino_emails" rows="3">{{ impost.magazzino_emails }}</textarea>

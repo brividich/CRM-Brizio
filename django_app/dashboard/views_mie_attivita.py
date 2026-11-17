@@ -229,6 +229,17 @@ def _my_dpi(legacy_user_id) -> list[dict]:
     return out
 
 
+def _dpi_da_fare(request) -> list[dict]:
+    """DPI che aspettano l'utente: da approvare, scarpe da ordinare, consegne da preparare."""
+    try:
+        from dpi.mie_attivita import voci_da_fare
+
+        return voci_da_fare(request)
+    except Exception:
+        logger.exception("Le mie attività: DPI da gestire non calcolabili")
+        return []
+
+
 def _my_elearning(request) -> list[dict]:
     """Micro-corsi e-learning assegnati (obbligo) all'utente e non ancora completati."""
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -524,6 +535,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": _my_procedure(request.user),
             "all_url": _safe_url("procedure_refresh:my_assignments"),
             "empty": "Nessuna procedura da leggere.",
+        },
+        {
+            "key": "dpi_da_fare",
+            "label": "DPI da gestire",
+            "tone": "warning",
+            "icon": "🥾",
+            "items": _dpi_da_fare(request),
+            "all_url": _safe_url("dpi:dashboard"),
+            "empty": "Nessun DPI da approvare, ordinare o consegnare.",
         },
         {
             "key": "dpi",

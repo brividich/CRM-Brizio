@@ -72,7 +72,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "Chiedendo le scarpe scegli dove ritirarle. «In convenzione»: entrano nell'ordine al negozio, che parte ogni 15 giorni "
                       "(si cambia in Impostazioni), e le ritiri in ufficio amministrativo quando ti avvisiamo. «Fuori convenzione»: le ritiri al negozio."),
-                ("p", "Dopo l'approvazione la mail va all'operatore incaricato, non al magazzino. L'operatore lavora in DPI → «Scarpe»:"),
+                ("p", "Dopo l'approvazione la mail va all'operatore incaricato, non al magazzino. Le stesse scarpe compaiono nelle sue "
+                      "«Le mie attività», sezione «DPI da gestire», finché non sono ordinate, arrivate e chiuse. L'operatore lavora in DPI → «Scarpe»:"),
                 ("passi", [
                     "«Convenzione: da ordinare»: controlla le righe e clicca «Invia l'ordine». Se scrivi tu al negozio usa «Copia il testo» e poi "
                     "«Ho già scritto io al negozio». Se sono passati i giorni del riepilogo arriva un promemoria.",
@@ -215,6 +216,11 @@ GUIDA = {
                     "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»). "
                     "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "
                     "Windows attivo, dai PC del dominio si entra senza password).",
+                    "«Le mie attività» → «DPI da gestire» mostra le stesse cose a chi riceve la mail: richieste da approvare (preposto scelto, "
+                    "altrimenti responsabile o preposto del dipendente), scarpe all'operatore incaricato, consegne a Magazzino o referenti. "
+                    "La persona si riconosce dall'indirizzo: negli elenchi di Impostazioni va scritto quello con cui entra nel portale "
+                    "(se non corrisponde a nessun utente, Impostazioni lo segnala). Scarpe e Banco consegne si aprono solo con il permesso "
+                    "«Gestire» del modulo DPI: a chi non lo ha la voce lo dice.",
                     "Consegna senza richiesta dal banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "Consegna senza badge, firma né ricevuta su carta: nessuna mail; la ricevuta si conferma da sola dopo 24 ore "
                     "(task «dpi_avvisi_consegna», ogni 5 minuti). Solo per le mail di conferma inviate fino al 17/11/2026, «Non li ho "
