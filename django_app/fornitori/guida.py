@@ -81,6 +81,9 @@ SEZIONI = [
                   "e le visite compaiono qui come sempre. Si apre solo dalle postazioni abilitate dall'amministratore. "
                   "Una domanda alla volta: cognome e nome (dalla terza lettera il totem suggerisce cognomi e nomi già presenti); se qualcuno con quel nome è già venuto compare solo la sua azienda da confermare "
                   "(più righe se ci sono omonimi) e referente e motivo dell'ultima volta sono già scelti; poi l'informativa da spuntare. "
+                  "«Registrato: ditta fidata» (in partenza e nel primo passo) è per i tecnici delle ditte accreditate: si tocca la ditta, poi il proprio nome (cognome e iniziale), "
+                  "e si entra senza referente né motivo; ditte e tecnici sono in ordine di ingressi, i più frequenti in alto. L'avviso va all'email della ditta "
+                  "(Configurazione → Ditte accreditate) o, se manca, a quella di Configurazione → Impostazioni → «Chiosco «Registrato»: chi avvisare». "
                   "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello «Reception» (menu di Fornitori) ha quattro voci: Oggi (chi è dentro, gli attesi, "
                   "«+ Registra ingresso», «Importa elenco» per i gruppi da Excel che entrano ed escono con il capogruppo), Inviti (codici e richieste), Storico "
                   "(nella scheda della visita gli allegati) e Configurazione."),

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -30,6 +31,7 @@ from .models import (
 )
 
 CHIAVE_AVVISO_REQUISITI = "chiosco_avviso_requisiti"
+_EMAIL_REFERENTE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 STORICO_MAX = 500
 
 
@@ -379,6 +381,8 @@ def _aggiorna_da_anagrafica(dati_dipendenti) -> dict:
 
 @login_required
 def ditte(request):
+    from fornitori import chiosco
+
     if request.method == "POST":
         dati = request.POST
         azione = dati.get("azione")
@@ -390,6 +394,16 @@ def ditte(request):
             c = get_object_or_404(ContattoDitta, pk=dati.get("pk"))
             c.attivo = not c.attivo
             c.save(update_fields=["attivo"])
+        elif azione == "referente":
+            d = get_object_or_404(DittaAccreditata, pk=dati.get("pk"))
+            email = dati.get("referente_email", "").strip()[:255]
+            if email and not _EMAIL_REFERENTE.match(email):
+                messages.error(request, "L'email da avvisare non è valida.")
+            else:
+                d.referente_email = email
+                d.save(update_fields=["referente_email"])
+                log_action(request, "reception_ditta_referente", "reception", {"ditta": d.pk, "email": email})
+                messages.success(request, f"{d.nome}: chi avvisare salvato.")
         elif azione == "contatto":
             d = get_object_or_404(DittaAccreditata, pk=dati.get("pk"))
             nome, cognome = dati.get("nome", "").strip()[:100], dati.get("cognome", "").strip()[:100]
@@ -409,6 +423,8 @@ def ditte(request):
         return redirect("reception:ditte")
     return render(request, "reception/ditte.html", _ctx(
         request, "ditte", righe=DittaAccreditata.objects.prefetch_related("contatti"),
+        referente_predefinito=SiteConfig.get(chiosco.CHIAVE_REFERENTE_REGISTRATO, "") or "",
+        email_referenti=Referente.objects.filter(attivo=True).exclude(email="").values_list("email", flat=True),
     ))
 
 
@@ -590,6 +606,8 @@ def _prova_mail(request, tipo: str) -> None:
 
 
 def impostazioni(request):
+    from fornitori import chiosco
+
     from . import personalizza
 
     if request.method == "POST":
@@ -623,6 +641,15 @@ def impostazioni(request):
         if azione in ("logo", "logo_togli"):
             _salva_logo(request, azione)
             return redirect("reception:impostazioni")
+        if azione == "registrato":
+            email = request.POST.get("referente_email", "").strip()[:255]
+            if email and not _EMAIL_REFERENTE.match(email):
+                messages.error(request, "L'email da avvisare non è valida.")
+            else:
+                SiteConfig.set(chiosco.CHIAVE_REFERENTE_REGISTRATO, email, "Chiosco «Registrato»: chi avvisare se la ditta non ne ha uno")
+                log_action(request, "reception_registrato_referente", "reception", {"email": email})
+                messages.success(request, "Chi avvisare per «Registrato» salvato.")
+            return redirect(reverse("reception:impostazioni") + "#registrato")
         if azione == "pulisci":
             mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
             esito = servizi.pulizia_conservazione(mesi)
@@ -645,4 +672,6 @@ def impostazioni(request):
         pagina_accesa=bool(getattr(settings, "RECEPTION_RICHIESTE_PUBBLICHE", False)) and bool(getattr(settings, "RECEPTION_NATIVA", False)),
         link_pubblico=request.build_absolute_uri(reverse("reception_pubblica:richiesta")),
         n_oltre=servizi.visite_oltre_conservazione(mesi).count(), motivi=CategoriaVisita.objects.all(),
+        referente_registrato=SiteConfig.get(chiosco.CHIAVE_REFERENTE_REGISTRATO, "") or "",
+        email_referenti=Referente.objects.filter(attivo=True).exclude(email="").values_list("email", flat=True),
     ))

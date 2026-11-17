@@ -56,6 +56,17 @@
     </form>
   </div>
 </div>
+<div class="rc-card" id="registrato">
+  <div class="rc-card-head">Chiosco «Registrato»: chi avvisare</div>
+  <div class="rc-body">
+    <p class="rc-note">Il tecnico di una ditta accreditata sceglie la ditta e il suo nome ed entra senza altre domande. L'avviso va all'email impostata sulla ditta in Configurazione → Ditte accreditate; se la ditta non ne ha una, a questa. Vuota: nessun avviso, sul chiosco compare «Reception».</p>
+    <form method="post" class="rc-form">{% csrf_token %}<input type="hidden" name="azione" value="registrato">
+      <div class="rc-field"><label for="r-email">Email da avvisare</label><input class="rc-input" id="r-email" name="referente_email" type="email" maxlength="255" value="{{ referente_registrato }}" list="r-email-elenco" placeholder="es. reception@…"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-g" type="submit">Salva</button></div>
+    </form>
+    <datalist id="r-email-elenco">{% for e in email_referenti %}<option value="{{ e }}"></option>{% endfor %}</datalist>
+  </div>
+</div>
 <div class="rc-card">
   <div class="rc-card-head">Ditte con i documenti non in regola</div>
   <div class="rc-body">

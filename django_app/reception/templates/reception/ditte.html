@@ -28,6 +28,12 @@
     <form method="post" class="rc-form" style="margin-top:12px">
       {% csrf_token %}
       <input type="hidden" name="pk" value="{{ d.pk }}">
+      <div class="rc-field"><label for="r-e{{ d.pk }}">Chi avvisare quando entra con «Registrato»</label><input class="rc-input" id="r-e{{ d.pk }}" name="referente_email" type="email" maxlength="255" value="{{ d.referente_email }}" list="r-email-elenco" placeholder="{% if referente_predefinito %}{{ referente_predefinito }} (da Impostazioni){% else %}Email{% endif %}"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-g" name="azione" value="referente">Salva</button></div>
+    </form>
+    <form method="post" class="rc-form" style="margin-top:12px">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ d.pk }}">
       <div class="rc-field"><label for="c-n{{ d.pk }}">Nome</label><input class="rc-input" id="c-n{{ d.pk }}" name="nome" maxlength="100" required></div>
       <div class="rc-field"><label for="c-c{{ d.pk }}">Cognome</label><input class="rc-input" id="c-c{{ d.pk }}" name="cognome" maxlength="100" required></div>
       <div class="rc-field"><button class="rc-btn rc-btn-g" name="azione" value="contatto">Aggiungi nominativo</button></div>
@@ -37,4 +43,5 @@
 {% empty %}
 <div class="rc-card"><div class="rc-empty">Nessuna ditta.</div></div>
 {% endfor %}
+<datalist id="r-email-elenco">{% for e in email_referenti %}<option value="{{ e }}"></option>{% endfor %}</datalist>
 {% endblock %}

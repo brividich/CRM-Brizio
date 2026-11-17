@@ -201,6 +201,70 @@ def nominativi(azienda_id: int) -> list[dict]:
             for c in esito.get("contacts") or []]
 
 
+# ─── «Registrato»: ditte fidate e loro tecnici, chi entra più spesso in testa ────────────────
+# Elenco voluto dall'utente (17/11/2026, come nel vecchio chiosco): solo le ditte accreditate attive
+# con almeno un tecnico attivo; i tecnici compaiono come «Cognome N.». Per ora tutte le ditte attive
+# valgono «in regola». Con il GuestPortal non ci sono i conteggi: ordine alfabetico.
+CHIAVE_REFERENTE_REGISTRATO = "chiosco_registrato_referente"
+
+
+def _abbrevia(nome: str, cognome: str) -> str:
+    iniziale = (nome or "").strip()[:1].upper()
+    return f"{(cognome or '').strip()} {iniziale}.".strip() if iniziale else (cognome or "").strip()
+
+
+def ditte_registrate() -> list[dict]:
+    """``{id, nome, tecnici}``: per numero di ingressi decrescente, poi per nome."""
+    if not nativa():
+        return sorted(({**a, "tecnici": 0} for a in aziende() if a["nome"]), key=lambda a: a["nome"].lower())
+    from django.db.models import Count, Q
+
+    from reception.models import DittaAccreditata
+
+    righe = (DittaAccreditata.objects.filter(attiva=True)
+             .annotate(n_tecnici=Count("contatti", filter=Q(contatti__attivo=True), distinct=True),
+                       n_ingressi=Count("visite", distinct=True))
+             .filter(n_tecnici__gt=0).order_by("-n_ingressi", "nome"))
+    return [{"id": d.pk, "nome": d.nome, "tecnici": d.n_tecnici} for d in righe]
+
+
+def tecnici_registrati(azienda_id: int) -> list[dict]:
+    """``{id, nome, dentro, privacy_ok}`` dei tecnici attivi della ditta, chi entra più spesso in testa."""
+    if not nativa():
+        return sorted(({"id": c["id"], "nome": _abbrevia(c["nome"], c["cognome"]), "dentro": False, "privacy_ok": False}
+                       for c in nominativi(azienda_id)), key=lambda c: c["nome"].lower())
+    from django.db.models import Count
+
+    from reception import informativa
+    from reception.models import ContattoDitta, Visita
+    from reception.servizi import trova_ospite_fornitore
+
+    righe = list(ContattoDitta.objects.select_related("ditta")
+                 .filter(ditta_id=azienda_id, ditta__attiva=True, attivo=True)
+                 .annotate(n_ingressi=Count("visite")).order_by("-n_ingressi", "cognome", "nome"))
+    dentro = set(Visita.objects.filter(stato=Visita.DENTRO, contatto__in=righe).values_list("contatto_id", flat=True))
+    return [{"id": c.pk, "nome": _abbrevia(c.nome, c.cognome), "dentro": c.pk in dentro,
+             "privacy_ok": informativa.gia_accettata(trova_ospite_fornitore(c.nome, c.cognome, c.ditta.nome))}
+            for c in righe]
+
+
+def referente_registrato(azienda_id: int | None) -> dict:
+    """Chi avvisare per un ingresso «Registrato»: l'email della ditta, altrimenti quella di
+    Reception → Impostazioni. Il nome è quello del referente con quell'email, se c'è."""
+    from core.models import SiteConfig
+
+    email = ""
+    if nativa() and azienda_id:
+        from reception.models import DittaAccreditata
+
+        email = (DittaAccreditata.objects.filter(pk=azienda_id).values_list("referente_email", flat=True).first() or "").strip()
+    email = email or (SiteConfig.get(CHIAVE_REFERENTE_REGISTRATO, "") or "").strip()
+    if not email:
+        return {"nome": "Reception", "email": ""}
+    trovato = next((r for r in referenti() if (r.get("email") or "").lower() == email.lower()), None)
+    return {"nome": trovato["nome"] if trovato else email, "email": email}
+
+
 # ─── Riconoscimento dal totem ─────────────────────────────────────────────────────────────
 # Il visitatore scrive nome e cognome. Se qualcuno con esattamente quel nome è già venuto, il totem
 # mostra solo la sua azienda e chiede conferma: più righe = omonimi. Nessun elenco di nomi né di
