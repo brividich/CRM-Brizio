@@ -90,9 +90,12 @@ SEZIONI: list[dict] = [
                 "«Banco consegne DPI» (in cima, solo per chi gestisce le consegne DPI, per esempio il Magazzino): numeri del banco, "
                 "le prime 6 persone da servire con «Consegna», la ricerca «Chi è al banco?» e «Consegna diretta». "
                 "Tutto porta alla pagina DPI → Banco consegne.",
-                "«Le mie attività» raccoglie le cose che aspettano una tua azione, dai vari moduli: approvazioni assenze, ticket, "
-                "anomalie, non conformità, procedure da leggere, richieste DPI, corsi e-learning, refresh abilitazioni macchina e KICK-OFF "
-                "(attività, azioni, problemi, programmi e FAI assegnati a te). I riquadri in alto filtrano Scadute ed Entro 7 giorni, i pulsanti filtrano per modulo, "
+                "«Le mie attività» raccoglie le cose che aspettano una tua azione, dai vari moduli: KICK-OFF "
+                "(attività, anche senza commessa, sotto-attività, azioni, problemi, programmi e FAI assegnati a te), ordini di lavoro assegnati, approvazioni assenze, ticket "
+                "(aperti da te o per tuo conto, assegnati a te o in cui hai fatto un intervento), anomalie, non conformità, procedure da leggere, richieste DPI, corsi e-learning, "
+                "refresh abilitazioni macchina, «Approvazioni e richieste» (modifiche SGI, approvazioni dei flussi, richieste di visita da decidere), "
+                "«Altre voci assegnate a te» (MOD.133 e specifiche, registro OFI, CAR, obiettivi del riesame, Suggestion Corner, attrezzature, checklist chiusure) "
+                "e «Le mie scadenze» (scadute ed entro 30 giorni, senza ripetere le voci già elencate). I riquadri in alto filtrano Scadute ed Entro 7 giorni, i pulsanti filtrano per modulo, "
                 "la ricerca cerca nei titoli e «Per urgenza» mette tutte le voci in un unico elenco. Azioni, problemi, programmi e FAI si chiudono dalla riga con «Fatto» o «Risolto», "
                 "e «Annulla» li riapre. «Apri modulo →» porta al modulo. I moduli senza voci stanno nella riga «Niente da fare in» in fondo.",
                 "«Il tuo brief di oggi» è un riepilogo preparato dall'assistente AI. Il pulsante ↻ lo rigenera.",

@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.urls import reverse
 from django.utils import timezone
 
-from ..access import has_task_permission, scoped_projects_queryset
+from ..access import has_task_permission, scoped_projects_queryset, scoped_tasks_queryset
 from .programmi import senza_attivita_aperta
 from ..models import (
     MeetingActionItem,
@@ -14,6 +14,7 @@ from ..models import (
     MeetingIssue,
     MeetingIssueStatus,
     ProjectTechRef,
+    SubTask,
     Task,
     TaskStatus,
     TechRefStatus,
@@ -53,8 +54,16 @@ def voci_kickoff(request) -> dict:
     comuni = {"assigned_to": user, "project_id__in": progetti}
 
     voci: list[dict] = []
-    for t in Task.objects.filter(status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS], **comuni).select_related("project"):
+    aperte = [TaskStatus.TODO, TaskStatus.IN_PROGRESS]
+    # Le attività senza commessa restano dell'utente: il filtro sulle commesse le scartava.
+    visibili = scoped_tasks_queryset(request)
+    for t in visibili.filter(status__in=aperte, assigned_to=user):
         voci.append(_voce("Attività", t.title, t.project, t.due_date, reverse("tasks:detail", args=[t.pk]), oggi, done=("attivita", t.pk)))
+    sotto = (SubTask.objects.filter(status__in=aperte, assigned_to=user, task__in=visibili.values("id"))
+             .exclude(task__status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).select_related("task__project"))
+    for st in sotto:
+        url = reverse("tasks:detail", args=[st.task_id])
+        voci.append(_voce("Sotto-attività", f"{st.title} · {st.task.title}", st.task.project, st.due_date, url, oggi))
     for a in MeetingActionItem.objects.filter(status=MeetingActionStatus.OPEN, **comuni).select_related("project"):
         voci.append(_voce("Azione", a.title, a.project, a.due_date, reverse("tasks:mie_azioni"), oggi, done=("azione", a.pk)))
     for i in MeetingIssue.objects.filter(status=MeetingIssueStatus.OPEN, **comuni).select_related("project"):

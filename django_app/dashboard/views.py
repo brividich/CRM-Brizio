@@ -1427,9 +1427,13 @@ def _board_identity_candidates(request_user: Any, legacy_user: Any, legacy_user_
         request_user.get_username() if request_user else "",
         getattr(legacy_user, "nome", "") if legacy_user else "",
     ]:
-        value = str(raw_name or "").strip()
+        value = " ".join(str(raw_name or "").split())
         if value:
             names.add(value)
+            parti = value.split(" ")
+            # «Nome Cognome» e «Cognome Nome»: i ticket assegnati con l'ordine inverso sparivano.
+            if len(parti) == 2:
+                names.add(f"{parti[1]} {parti[0]}")
     for raw_email in [
         getattr(request_user, "email", "") if request_user else "",
         getattr(legacy_user, "email", "") if legacy_user else "",
@@ -1451,12 +1455,17 @@ def _board_related_tickets_queryset(request_user: Any, legacy_user: Any, legacy_
     filters = Q()
     if identity["legacy_user_id"]:
         filters |= Q(richiedente_legacy_user_id=identity["legacy_user_id"])
+    if getattr(request_user, "pk", None):
+        # Aperti a mio nome o da me per conto di altri: il solo nome testuale non li trovava.
+        filters |= Q(richiedente_user=request_user) | Q(aperto_da_user=request_user)
     for name in identity["names"]:
         filters |= Q(richiedente_nome__iexact=name)
         filters |= Q(assegnato_a__iexact=name)
+        filters |= Q(interventi__tecnico_nome__iexact=name)
     for email in identity["emails"]:
         filters |= Q(richiedente_email__iexact=email)
         filters |= Q(assegnato_email__iexact=email)
+        filters |= Q(interventi__tecnico_email__iexact=email)
     if not filters:
         return Ticket.objects.none()
     return Ticket.objects.filter(filters).distinct()
