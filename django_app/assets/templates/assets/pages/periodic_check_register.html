@@ -42,9 +42,8 @@
         <p class="pc-muted">Caricamento degli ingressi della ditta…</p>
       </div>
     </div>
-    {% if check_type.administrative_deadline_id and check_type.administrative_deadline.is_active %}
-      <p class="pc-muted">Registrando la verifica si rinnova anche la scadenza amministrativa «<a href="{% url 'assets:asset_administrative_deadline_edit' check_type.administrative_deadline_id %}">{{ check_type.administrative_deadline.title }}</a>» di {{ check_type.administrative_deadline.asset.asset_tag }} (oggi al {{ check_type.administrative_deadline.due_date|date:"d/m/Y" }}).</p>
-    {% endif %}
+    <input type="hidden" name="deadlines_shown" value="1">
+    {% include "assets/components/_md_field.html" with field=form.deadlines %}
   </fieldset>
 
   {% if item_rows %}
