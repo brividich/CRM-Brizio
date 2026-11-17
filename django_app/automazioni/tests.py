@@ -306,6 +306,70 @@ GO
 
         self.assertEqual([path.name for path in files], ["trg_assenze_automation_after_update.sql"])
 
+    def test_discover_trigger_files_stesso_nome_vince_migrations(self):
+        """Una copia omonima in sql/ non deve sovrascrivere il trigger di automazioni/migrations/."""
+        from .management.commands import apply_sql_triggers as command_module
+
+        class _FakePath:
+            def __init__(self, name: str, origine: str):
+                self.name = name
+                self.origine = origine
+
+            def __str__(self):
+                return f"{self.origine}/{self.name}"
+
+        class _FakeDir:
+            def __init__(self, origine: str, files: list[str]):
+                self._files = [_FakePath(name, origine) for name in files]
+
+            def exists(self):
+                return True
+
+            def glob(self, pattern: str):
+                return list(self._files)
+
+        migrations_dir = _FakeDir("migrations", ["trg_tickets_automation.sql"])
+        sql_dir = _FakeDir("sql", ["trg_tickets_automation.sql", "trg_altro.sql"])
+
+        with patch.object(command_module, "_TRIGGER_SEARCH_DIRS", (migrations_dir, sql_dir)):
+            files = command_module.discover_trigger_files()
+
+        self.assertEqual([str(path) for path in files], ["migrations/trg_tickets_automation.sql", "sql/trg_altro.sql"])
+
+    def test_trigger_ticket_unico_e_con_old_payload(self):
+        """Il cambio stato del ticket deve arrivare con old_payload_json, o la mail al richiedente non parte."""
+        from .management.commands import apply_sql_triggers as command_module
+
+        self.assertFalse((command_module._SQL_DIR / "trg_tickets_automation.sql").exists())
+        sql = (command_module._MIGRATIONS_DIR / "trg_tickets_automation.sql").read_text(encoding="utf-8")
+        self.assertIn("(SELECT d.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)", sql)
+        self.assertIn("BEGIN TRY", sql)
+
+
+class TicketCambioStatoMatchingTests(TestCase):
+    def test_regola_cambio_stato_ticket_corrisponde_con_old_payload(self):
+        from .services import find_matching_rules
+
+        rule = AutomationRule.objects.create(
+            code="test-ticket-cambio-stato",
+            name="Ticket cambio stato",
+            source_code="tickets",
+            operation_type="update",
+            trigger_scope="specific_field",
+            watched_field="stato",
+            is_active=True,
+            is_draft=False,
+        )
+        evento = {
+            "source_code": "tickets",
+            "operation_type": "update",
+            "payload": {"id": 1, "stato": "CHIUSO", "old_stato": "IN_CARICO"},
+            "old_payload": {"id": 1, "stato": "IN_CARICO"},
+        }
+        self.assertIn(rule, find_matching_rules(evento))
+        # Senza old_payload (trigger vecchio) non corrispondeva: era il difetto di produzione.
+        self.assertNotIn(rule, find_matching_rules({**evento, "old_payload": None}))
+
 
 @override_settings(AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED=True)
 class TriggerGeneratorAuditTests(TestCase):
