@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
@@ -148,6 +148,18 @@ def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
     return out
 
 
+def _my_tickets_totale(request_user, legacy_user, legacy_user_id) -> int:
+    """Tutti i ticket aperti correlati, non solo i 15 mostrati."""
+    try:
+        from tickets.models import StatoTicket
+
+        return _board_related_tickets_queryset(request_user, legacy_user, legacy_user_id).filter(
+            stato__in=(StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA)
+        ).count()
+    except Exception:
+        return 0
+
+
 def _my_workorders(request_user) -> dict:
     """Ordini di lavoro aperti assegnati all'utente (manutentore), i più urgenti in testa."""
     vuoto = {"items": [], "total": 0}
@@ -199,34 +211,49 @@ def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
     return out
 
 
-def _my_dpi(legacy_user_id) -> list[dict]:
-    if not legacy_user_id:
-        return []
+def _anagrafica_id(request) -> int | None:
+    """Id anagrafica del dipendente (``AnagraficaDipendente.id``): NON è l'id dell'utente legacy."""
+    try:
+        from core.operational_roles import get_legacy_anagrafica_id
+
+        return get_legacy_anagrafica_id(request.user)
+    except Exception:
+        return None
+
+
+def _my_dpi(request) -> dict:
+    """Le richieste DPI dell'utente ancora in corso: fatte da lui o intestate alla sua anagrafica."""
+    vuoto = {"items": [], "total": 0}
+    if not getattr(request.user, "is_authenticated", False):
+        return vuoto
     try:
         from dpi.models import RichiestaDPI, StatoRichiesta
 
-        qs = (
-            RichiestaDPI.objects.filter(richiedente_legacy_id=legacy_user_id)
-            .filter(stato__in=(StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA))
-            .order_by("-created_at")[:15]
-        )
+        mie = Q(created_by=request.user)
+        anagrafica_id = _anagrafica_id(request)
+        if anagrafica_id:
+            # Chi inserisce per un altro non la vede come sua; il dipendente intestatario sì.
+            mie = Q(richiedente_legacy_id=anagrafica_id) | Q(created_by=request.user, richiedente_legacy_id__isnull=True)
+        qs = RichiestaDPI.objects.filter(mie, stato__in=(StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA))
+        total = qs.count()
+        righe = list(qs.select_related("categoria").order_by("-created_at")[:15]) if total else []
     except Exception:
-        return []
-    url = _safe_url("dpi:dashboard")
+        logger.exception("Richieste DPI in corso non calcolabili")
+        return vuoto
     out = []
-    for r in qs:
-        try:
-            status_label = r.label_stato
-        except Exception:
-            status_label = getattr(r, "stato", "")
+    for r in righe:
+        if r.stato == StatoRichiesta.APPROVATA and r.pronta_ritiro_il:
+            stato = "Pronto: passa a ritirarlo"
+        else:
+            stato = r.get_stato_display()
         out.append({
             "code": r.numero,
-            "title": str(getattr(r, "categoria", "") or "Richiesta DPI"),
-            "meta": f"Qtà {getattr(r, 'quantita', '') or '—'}",
-            "status": status_label,
-            "url": url,
+            "title": str(r.categoria or "Richiesta DPI"),
+            "meta": f"Qtà {r.quantita or '—'}",
+            "status": stato,
+            "url": _safe_url("dpi:detail", r.pk),
         })
-    return out
+    return {"items": out, "total": total}
 
 
 def _dpi_da_fare(request) -> list[dict]:
@@ -468,6 +495,8 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
 
     kickoff = _my_kickoff(request)
     odl = _my_workorders(request.user)
+    dpi_mie = _my_dpi(request)
+    ticket = _my_tickets(request.user, legacy_user, legacy_user_id)
     sections = [
         {
             "key": "kickoff",
@@ -505,7 +534,8 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Ticket aperti",
             "tone": "warning",
             "icon": "🎫",
-            "items": _my_tickets(request.user, legacy_user, legacy_user_id),
+            "items": ticket,
+            "total": max(len(ticket), _my_tickets_totale(request.user, legacy_user, legacy_user_id)),
             "all_url": _safe_url("tickets:dashboard"),
             "empty": "Nessun ticket aperto correlato.",
         },
@@ -550,7 +580,8 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Richieste DPI in corso",
             "tone": "info",
             "icon": "🦺",
-            "items": _my_dpi(legacy_user_id),
+            "items": dpi_mie["items"],
+            "total": dpi_mie["total"],
             "all_url": _safe_url("dpi:dashboard"),
             "empty": "Nessuna richiesta DPI in corso.",
         },
@@ -568,7 +599,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Refresh abilitazioni macchina",
             "tone": "warning",
             "icon": "🔧",
-            "items": _my_skm_refresh(legacy_user_id),
+            "items": _my_skm_refresh(_anagrafica_id(request)),
             "all_url": _safe_url("anagrafica:skm_scadenzario"),
             "empty": "Nessun refresh abilitazioni da gestire.",
         },

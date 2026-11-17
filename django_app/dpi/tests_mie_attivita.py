@@ -104,3 +104,44 @@ class MieAttivitaDpiTests(TestCase):
         self.assertEqual(mie_attivita.incaricati_senza_utente(), [
             {"elenco": "Scarpe: operatore incaricato", "email": "Operatore@esempio.example"},
         ])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RichiesteDpiInCorsoTests(TestCase):
+    """«Richieste DPI in corso»: la persona è l'anagrafica del dipendente, non l'utente legacy."""
+
+    def setUp(self):
+        self.guanti = CategoriaDPI.objects.create(nome="Guanti")
+        self.request = RequestFactory().get("/")
+        self.request.user = User.objects.create_user(username="dip", password="x")
+
+    def _mie(self, anagrafica_id):
+        from dashboard import views_mie_attivita as ma
+
+        with mock.patch.object(ma, "_anagrafica_id", return_value=anagrafica_id):
+            return ma._my_dpi(self.request)
+
+    def test_trova_le_richieste_intestate_alla_propria_anagrafica(self):
+        mia = RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Io", richiedente_legacy_id=501)
+        RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Altro", richiedente_legacy_id=7)
+        # Inserita da me per un collega: non è una mia richiesta.
+        RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Collega", richiedente_legacy_id=9, created_by=self.request.user)
+        RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Io", richiedente_legacy_id=501, stato=StatoRichiesta.CONSEGNATA)
+        esito = self._mie(501)
+        self.assertEqual([v["code"] for v in esito["items"]], [mia.numero])
+        self.assertEqual(esito["items"][0]["url"], reverse("dpi:detail", args=[mia.pk]))
+
+    def test_pronta_per_il_ritiro_e_totale_oltre_le_voci_mostrate(self):
+        for _ in range(17):
+            RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Io", richiedente_legacy_id=501)
+        RichiestaDPI.objects.create(
+            categoria=self.guanti, richiedente_nome="Io", richiedente_legacy_id=501,
+            stato=StatoRichiesta.APPROVATA, pronta_ritiro_il=timezone.now(),
+        )
+        esito = self._mie(501)
+        self.assertEqual((len(esito["items"]), esito["total"]), (15, 18))
+        self.assertEqual(esito["items"][0]["status"], "Pronto: passa a ritirarlo")
+
+    def test_senza_anagrafica_restano_le_richieste_fatte_da_se(self):
+        mia = RichiestaDPI.objects.create(categoria=self.guanti, richiedente_nome="Io", created_by=self.request.user)
+        self.assertEqual([v["code"] for v in self._mie(None)["items"]], [mia.numero])
