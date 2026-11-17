@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import F
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
@@ -33,6 +34,9 @@ from dashboard.views import (
     _board_related_tickets_queryset,
 )
 from core import naming
+
+
+GIORNI_SCADENZE = 30
 
 
 def _safe_url(name: str, *args) -> str:
@@ -142,6 +146,40 @@ def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
             "url": _safe_url("tickets:detail", t.pk),
         })
     return out
+
+
+def _my_workorders(request_user) -> dict:
+    """Ordini di lavoro aperti assegnati all'utente (manutentore), i più urgenti in testa."""
+    vuoto = {"items": [], "total": 0}
+    if not getattr(request_user, "is_authenticated", False):
+        return vuoto
+    try:
+        from assets.models import WorkOrder
+
+        qs = WorkOrder.objects.filter(assigned_to=request_user, status=WorkOrder.STATUS_OPEN).select_related("asset")
+        total = qs.count()
+        if not total:
+            return vuoto
+        righe = list(qs.order_by(F("due_at").asc(nulls_last=True), "-id")[:15])
+    except Exception:
+        logger.exception("Ordini di lavoro non calcolabili")
+        return vuoto
+    out = []
+    for wo in righe:
+        due = timezone.localtime(wo.due_at).date() if wo.due_at else None
+        asset = getattr(wo, "asset", None)
+        out.append({
+            "code": f"OdL {wo.pk}",
+            "title": wo.title or wo.get_kind_display(),
+            "meta": " · ".join(x for x in (
+                str(getattr(asset, "asset_tag", "") or ""), str(getattr(asset, "name", "") or ""),
+                f"entro il {due:%d/%m/%Y}" if due else "",
+            ) if x) or "—",
+            "status": wo.get_priority_display() if wo.priority else wo.get_status_display(),
+            "due": due,
+            "url": _safe_url("assets:wo_view", wo.pk),
+        })
+    return {"items": out, "total": total}
 
 
 def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
@@ -333,7 +371,7 @@ def _my_skm_refresh(legacy_user_id) -> list[dict]:
 
 
 def _mie_scadenze(request: HttpRequest) -> list[dict]:
-    """Scadute ed entro 7 giorni che riguardano la persona, dalle fonti senza sezione propria, tranne l'HR
+    """Scadute ed entro ``GIORNI_SCADENZE`` giorni che riguardano la persona, dalle fonti senza sezione propria, tranne l'HR
     (dati sanitari: vedi sotto). Il risultato resta in cache 5 minuti: la Home non deve
     interrogare ogni modulo a ogni apertura."""
     from django.core.cache import cache
@@ -341,7 +379,7 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
     user_id = getattr(request.user, "id", None)
     if not user_id:
         return []
-    chiave = f"scadenzario:mie:v2:{user_id}"
+    chiave = f"scadenzario:mie:v3:{user_id}"
     salvate = cache.get(chiave)
     if salvate is not None:
         return salvate
@@ -354,7 +392,10 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
         # Attività, azioni, NC e procedure hanno già la loro sezione: qui le stesse voci
         # verrebbero contate due volte nel totale.
         escluse = {"hr", SOURCE_LAVORO, SOURCE_ANOMALIE, SOURCE_PROCEDURE}
-        voci = [v for v in collect_all(request, sources=set(PROVIDERS) - escluse) if v.giorni is not None and v.giorni <= 7]
+        # Con 7 giorni le voci assegnate più avanti non comparivano da nessuna parte.
+        orizzonte = timezone.localdate() + timedelta(days=GIORNI_SCADENZE)
+        voci = [v for v in collect_all(request, sources=set(PROVIDERS) - escluse, orizzonte=orizzonte)
+                if v.giorni is not None and v.giorni <= GIORNI_SCADENZE]
         _azioni(request, voci)
         persona = chiavi_persona_di(request)
         righe = [v for v in voci if e_mia(v, user_id=user_id, chiavi_persona=persona)]
@@ -366,7 +407,7 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
             "status": "Scaduta" if v.giorni < 0 else ("Oggi" if v.giorni == 0 else f"Tra {v.giorni} gg"),
             "due": v.data_scadenza,
             "url": v.url,
-        } for v in righe[:10]]
+        } for v in righe[:15]]
     except Exception:
         logger.exception("Le mie scadenze non calcolabili")
         return []
@@ -415,6 +456,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     legacy_user_id = int(legacy_user.id) if legacy_user else None
 
     kickoff = _my_kickoff(request)
+    odl = _my_workorders(request.user)
     sections = [
         {
             "key": "kickoff",
@@ -427,6 +469,16 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "soon_total": kickoff["soon"],
             "all_url": _safe_url("tasks:mie_azioni"),
             "empty": "Niente da fare nelle commesse.",
+        },
+        {
+            "key": "ordini_lavoro",
+            "label": "Ordini di lavoro",
+            "tone": "warning",
+            "icon": "🛠",
+            "items": odl["items"],
+            "total": odl["total"],
+            "all_url": _safe_url("assets:wo_list") + f"?status=OPEN&assigned={request.user.pk}",
+            "empty": "Nessun ordine di lavoro aperto assegnato a te.",
         },
         {
             "key": "approvazioni",
@@ -515,7 +567,30 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": "Nessuna qualifica scaduta o in scadenza.",
         })
 
-    mie = _mie_scadenze(request)
+    from dashboard import mie_attivita_fonti as fonti
+
+    sections.append({
+        "key": "approvazioni_varie",
+        "label": "Approvazioni e richieste",
+        "tone": "info",
+        "icon": "🖊",
+        "items": fonti.approvazioni(request),
+        "all_url": _safe_url("procedure_refresh:modifiche") + "?mie=1",
+        "empty": "Nessuna modifica SGI, approvazione o richiesta di visita in attesa di te.",
+    })
+    sections.append({
+        "key": "assegnate",
+        "label": "Altre voci assegnate a te",
+        "tone": "warning",
+        "icon": "📌",
+        "items": fonti.assegnate(request),
+        "all_url": _safe_url("scadenze_globali") + "?mie=1",
+        "empty": "Nessuna voce assegnata in specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
+    })
+
+    # Le voci già presenti in un'altra sezione non si ripetono fra le scadenze (stesso link).
+    gia = {it["url"] for s in sections for it in s["items"] if it.get("url") not in (None, "", "#")}
+    mie = [v for v in _mie_scadenze(request) if v.get("url") not in gia]
     if mie:
         sections.append({
             "key": "scadenze",
@@ -524,7 +599,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "icon": "📅",
             "items": mie,
             "all_url": _safe_url("scadenze_globali") + "?mie=1",
-            "empty": "Nessuna scadenza nei prossimi 7 giorni.",
+            "empty": f"Nessuna scadenza nei prossimi {GIORNI_SCADENZE} giorni.",
         })
 
     total = sum(s.get("total", len(s["items"])) for s in sections)

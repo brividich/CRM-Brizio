@@ -23,6 +23,33 @@ from django.utils import timezone
 
 from .models import ChecklistTaskTemplate, ChiusuraEvento, ChiusuraProposta, ChiusuraVoce
 
+
+def dipendente_di(request):
+    """Scheda anagrafica di chi guarda: ``AnagraficaDipendente.utente`` punta a ``utenti.id`` (legacy).
+
+    Cercarla con l'id Django non trovava il responsabile quando i due id non coincidono:
+    le sue voci non comparivano né in Gestione né in «Le mie attività». L'id Django resta
+    come ripiego per chi non ha un utente legacy.
+    """
+    from core.legacy_models import AnagraficaDipendente
+    from core.legacy_utils import get_legacy_user
+
+    legacy = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy is not None:
+        trovato = AnagraficaDipendente.objects.filter(utente_id=legacy.id).first()
+        if trovato is not None:
+            return trovato
+    return AnagraficaDipendente.objects.filter(utente_id=request.user.id).first()
+
+
+def voci_da_confermare(dipendente):
+    """Voci non confermate di cui la persona è responsabile o vice, negli eventi aperti."""
+    if dipendente is None:
+        return ChiusuraVoce.objects.none()
+    return (ChiusuraVoce.objects.filter(Q(responsabile=dipendente) | Q(vice_responsabili=dipendente),
+                                        confermato=False, evento__stato=ChiusuraEvento.STATO_APERTA)
+            .select_related("evento").distinct())
+
 __all__ = [
     "ChecklistStatoError",
     "eventi_con_progresso",
