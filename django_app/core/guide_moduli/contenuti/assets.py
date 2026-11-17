@@ -212,6 +212,9 @@ GUIDA = {
                     "Una verifica può adempiere una scadenza amministrativa (es. verifica SAT): campo «Scadenza amministrativa "
                     "che adempie» nella verifica. Registrando la verifica la scadenza si rinnova da sola, con la stessa data e i "
                     "documenti; nei calendari e negli scadenzari compare una volta sola, con «Registra» che apre la verifica.",
+                    "Registrando una verifica, il campo «Scadenze amministrative da chiudere e rinnovare» chiude e "
+                    "rinnova anche altre scadenze (es. certificati dello stesso asset): ognuna prende la data e i documenti "
+                    "della verifica e passa alla prossima data (sua periodicità, altrimenti quella della verifica).",
                     "Scadenzario della manutenzione: scheda «Verifiche impianti» e «Registra» su ogni scadenza amministrativa e "
                     "verifica. In «Da fare» il blocco «Scadenze amministrative e verifiche impianti» mostra quelle scadute o "
                     "entro 30 giorni.",
