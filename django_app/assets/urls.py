@@ -5,6 +5,7 @@ from . import views, views_asset_qr, views_asset_rete, views_mtconnect, views_re
 
 from .api_meters import api as meters_api
 from . import views_spare_parts
+from . import views_scadenze_piani
 
 app_name = "assets"
 
@@ -39,6 +40,7 @@ urlpatterns = [
         name="admin_deadline_attachment_download",
     ),
     path("assets/scadenze/new/", views.asset_administrative_deadline_create, name="asset_administrative_deadline_create"),
+    path("assets/scadenze/sposta-nei-piani/", views_scadenze_piani.scadenze_sposta_nei_piani, name="scadenze_sposta_nei_piani"),
     path(
         "assets/scadenze/edit/<int:id>/",
         views.asset_administrative_deadline_edit,

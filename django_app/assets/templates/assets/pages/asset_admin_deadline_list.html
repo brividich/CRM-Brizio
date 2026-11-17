@@ -89,6 +89,12 @@
   <div class="ad-chipbar" style="justify-content:flex-end">
     <a class="btn btn-secondary" href="{% url 'assets:guida' %}#scadenze-amministrative">? Guida</a>
   </div>
+  {% if sposta_nei_piani_n %}
+    <div class="md-preview" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <span><strong>Accorpa nella manutenzione:</strong> {{ sposta_nei_piani_n }} scadenz{{ sposta_nei_piani_n|pluralize:"a,e" }} si possono spostare nei piani di manutenzione, con controllo dei doppioni.</span>
+      <a class="btn btn-primary btn-sm" href="{% url 'assets:scadenze_sposta_nei_piani' %}">Sposta nei piani</a>
+    </div>
+  {% endif %}
 
   {% if selected_asset %}
     <div class="md-scope-note">
