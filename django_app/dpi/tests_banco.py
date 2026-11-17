@@ -260,7 +260,7 @@ class BancoConsegneTests(TestCase):
         self.assertNotContains(pagina, "B-777")
         self.assertContains(pagina, 'data-ha-badge="1"')
         self.assertContains(pagina, "Consegna con badge")
-        self.assertContains(pagina, "Consegna con mail")
+        self.assertContains(pagina, "Consegna senza badge")
 
     def test_lista_di_prelievo_somma_per_modello_e_taglia(self):
         self._richiesta(self.mod_guanti, quantita=2)
@@ -507,7 +507,7 @@ class ConsegnaSalvataSubitoTests(TestCase):
         self.modello = ModelloDPI.objects.create(tipo=self.tipo, codice="GT-1", nome="Blade Safe")
         self.url = reverse("dpi:banco")
         for bersaglio in ("dpi.pdf.render_modulo_consegna_dpi", "dpi.flusso.notifica_consegnata", "dpi.conferme.richiedi"):
-            patcher = mock.patch(bersaglio, return_value=(None, "", 0) if bersaglio.endswith("richiedi") else b"%PDF")
+            patcher = mock.patch(bersaglio, return_value=None if bersaglio.endswith("richiedi") else b"%PDF")
             setattr(self, bersaglio.rpartition(".")[2], patcher.start())
             self.addCleanup(patcher.stop)
 

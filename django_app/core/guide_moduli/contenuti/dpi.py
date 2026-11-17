@@ -100,9 +100,9 @@ GUIDA = {
                     "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. Il cursore torna sulla ricerca, pronto per la persona dopo. "
                     "La consegna è registrata subito. In basso una barra conta 6 secondi prima di mail e PDF: «Annulla» (o Esc) riporta i DPI da consegnare "
                     "e rimette i pezzi a magazzino, «Invia ora» non aspetta. Se chiudi la pagina la consegna resta salva e gli avvisi partono comunque. "
-                    "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
+                    "La ricevuta si conferma col badge della persona; senza badge si conferma da sola dopo 24 ore (vedi sotto).",
                     "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
-                    "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
+                    "(o la spunta «Ricevuta firmata su carta») la ricevuta è già confermata.",
                 ]),
                 ("ul", [
                     "Da tastiera: / va alla ricerca, frecce su e giù scelgono la persona, Invio porta sul pulsante di consegna e un secondo Invio registra, Esc pulisce la ricerca.",
@@ -112,22 +112,20 @@ GUIDA = {
                     "Se la persona non ha DPI da ritirare lo dice e offre «Consegna senza richiesta».",
                     "«Lista di prelievo» raccoglie tutto ciò che è da preparare, sommato per modello e taglia con le persone: si stampa e con «Pronti: avvisa gli spuntati» manda l'avviso di ritiro in blocco.",
                 ]),
-                ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
-                      "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
-                      "in Impostazioni, «Domini della mail aziendale»), altrimenti al suo caporeparto/responsabile; se non c'è "
-                      "nessuno dei due, ai referenti DPI. Il link si apre anche dal telefono, senza entrare nel portale, e vale una volta."),
+                ("p", "Conferma della ricevuta: col badge della persona al banco («Consegna con badge»), oppure con la firma o la "
+                      "ricevuta su carta. «Consegna senza badge», per chi non l'ha con sé: la ricevuta resta «Da confermare» e si "
+                      "conferma da sola 24 ore dopo la consegna, con un commento nella richiesta. Nessuna mail di conferma."),
                 ("ul", [
-                    "«Non li ho ricevuti» (con una nota facoltativa) manda la mail «Consegna contestata» al Magazzino.",
-                    "Senza risposta dopo 3 giorni parte un solo promemoria con un link nuovo (il vecchio non vale più).",
-                    "In fondo al banco il riquadro «Conferme di ricevuta» elenca quelle da confermare e le contestate degli ultimi 30 giorni.",
+                    "In fondo al banco il riquadro «Conferme di ricevuta» elenca quelle da confermare con l'ora in cui si confermano da sole, e le contestate degli ultimi 30 giorni.",
+                    "Le mail di conferma inviate fino al 17/11/2026 valgono finché la conferma è in attesa: «Non li ho ricevuti» avvisa ancora il Magazzino.",
                     "La consegna vale subito per magazzino e scadenze; l'esito della conferma compare nella scheda della richiesta e nel PDF del modulo di consegna.",
                 ]),
                 ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
                 ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
                       "collega da solo). Il permesso vale per quell'indirizzo del portale: se apri il portale da un altro indirizzo va dato di nuovo. Con più schede aperte il lettore passa da solo alla scheda che stai usando. Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
-                      "«Consegna con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
-                      "«Consegna con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
+                      "«Consegna con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta (per qualche secondo puoi ancora «Annulla»); "
+                      "«Consegna senza badge», per chi non l'ha con sé: ritira subito e la ricevuta si conferma da sola dopo 24 ore. Un badge di un'altra persona non conferma nulla. "
                       "Il numero del badge non si può scrivere a mano e la ricerca non lo cerca: funziona solo la lettura dal lettore. "
                       "Nel Registro consegne la ricevuta risulta «Confermata con badge». Se la persona non ha DPI da ritirare lo dice; «Badge non riconosciuto» vuol dire "
                       "che il numero non è nell'Anagrafica, è su due persone o la persona è fuori dal tuo perimetro: cerca per nome. Dopo 20 badge non riconosciuti in 10 minuti la lettura si sospende per qualche minuto. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
@@ -144,7 +142,7 @@ GUIDA = {
                       "Il riquadro «In attesa di approvazione» in alto le filtra."),
                 ("p", "DPI rapidi: in cima alla scheda di ogni persona ci sono i bottoni verdi dei 4 DPI più consegnati negli "
                       "ultimi 90 giorni (a parità, prima i consumabili). Un tocco su «+ Guanti…» aggiunge 1 pezzo senza richiesta, già "
-                      "spuntato: poi «Consegna con badge» o con mail. Se il DPI ha le taglie, il bottone apre il pannello con il DPI già "
+                      "spuntato: poi «Consegna con badge» (o senza badge). Se il DPI ha le taglie, il bottone apre il pannello con il DPI già "
                       "scelto per indicare la taglia. «+ Altro DPI…» apre il pannello con tutto il catalogo."),
                 ("p", "«Consegna senza richiesta»: la persona è al banco e chiede un DPI che nessuno ha richiesto. Nella sua scheda "
                       "«+ Altro DPI…» (o il pulsante «Consegna senza richiesta» quando la ricerca non trova nessuno) apre il "
@@ -152,8 +150,8 @@ GUIDA = {
                       "finita), «Cerca DPI…» le filtra; poi taglia, quantità con − e +, motivo facoltativo. Esc o ✕ chiude. "
                       "«Aggiungi e consegna con badge» crea la richiesta già approvata, apre la "
                       "scheda con il DPI spuntato e aspetta subito il badge della persona (serve il lettore collegato e il badge in "
-                      "Anagrafica, altrimenti la scheda resta aperta e confermi con mail); «Aggiungi al banco» apre solo la scheda, "
-                      "per confermare con mail o firma come le altre. Vale per "
+                      "Anagrafica, altrimenti la scheda resta aperta e consegni senza badge); «Aggiungi al banco» apre solo la scheda, "
+                      "per consegnare senza badge o con la firma come le altre. Vale per "
                       "tutto il catalogo tranne le scarpe che si ordinano al negozio. Le categorie segnate «senza approvazione» sono i "
                       "consumabili (spunta «Consegna diretta dal banco» in Impostazioni); per le altre nella richiesta resta scritto che di "
                       "norma passano dal responsabile, e il report di consegna gli arriva come sempre."),
@@ -163,8 +161,8 @@ GUIDA = {
                       "(se il nome trova una sola persona si apre subito la sua consegna) e «Consegna senza richiesta». "
                       "Si nasconde da «⚙ Personalizza» togliendo la spunta «Banco consegne DPI»."),
                 ("p", "Il PDF del modulo di consegna riporta numero della richiesta, DPI, modello con codice, taglia, quantità e "
-                      "scadenza; nel riquadro «Ricevuta» la firma del banco, oppure l'esito della conferma via mail (chi ha "
-                      "confermato e quando). La riga per la firma su carta compare solo se non c'è né firma né conferma."),
+                      "scadenza; nel riquadro «Ricevuta» la firma del banco, oppure l'esito della conferma (con il badge, automatica dopo 24 ore "
+                      "o, per le consegne fino al 17/11/2026, via mail con chi e quando). La riga per la firma su carta compare solo se non c'è né firma né conferma."),
                 ("nota", "Il banco mostra solo le categorie con «La consegna la fa il magazzino». Le altre (per esempio le scarpe) "
                          "si vedono con «Mostra anche gli altri DPI»."),
             ],
@@ -212,11 +210,9 @@ GUIDA = {
                     "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "
                     "Windows attivo, dai PC del dominio si entra senza password).",
                     "Consegna senza richiesta dal banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
-                    "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
-                    "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
-                    "senza risposta un promemoria (task delle 07:10). Le due mail sono le regole «DPI consegnato - conferma "
-                    "della ricevuta via mail» e «DPI - consegna contestata» in Automazioni: spegnendo la prima la mail non "
-                    "parte e il banco lo segnala.",
+                    "Consegna senza badge, firma né ricevuta su carta: nessuna mail; la ricevuta si conferma da sola dopo 24 ore "
+                    "(task «dpi_avvisi_consegna», ogni 5 minuti). Solo per le mail di conferma inviate fino al 17/11/2026, «Non li ho "
+                    "ricevuti» manda ancora la mail «Consegna contestata» al Magazzino (regola «DPI - consegna contestata» in Automazioni).",
                     "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
                     "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
                     "magazzino non serve.",
@@ -268,7 +264,7 @@ GUIDA = {
                     "Una persona conta in ogni stato che ha: con un DPI scaduto e uno mancante è in entrambi i numeri, e l'esito mostra il più grave. Clicca un numero in alto per filtrare, un nome per aprire il dettaglio. «Da sistemare» dice cosa manca e se c'è già una richiesta in corso.",
                     "Un DPI è dovuto se la categoria ha «Obbligatoria nel report conformità» oppure se lo prevede la mansione di rischio della persona. "
                     "Nel dettaglio, la colonna «Perché» dice quale delle due: «Per tutti» o «Dalla mansione».",
-                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata con badge», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
+                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata con badge», «Confermata (dopo 24 ore o via mail)», «Da confermare», «Contestata» o «Senza firma». "
                     "Senza date scelte mostra gli ultimi 90 giorni.",
                     "Conformità, Registro consegne e Gestione richieste si filtrano anche per centro di costo; negli export di Conformità e Registro c'è la colonna.",
                     "«Consumi e magazzino»: consumi, coperture, cosa riordinare e consegne senza giacenza.",
@@ -283,7 +279,6 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Gestire (consegne, Banco consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
-                    "Il link della mail di conferma della ricevuta non chiede il login: vale solo per chi l'ha ricevuto e una volta.",
                     "Approvare: caporeparto e preposti, solo per i loro dipendenti (team dell'organigramma).",
                     "Si assegnano in Amministrazione → «Accessi» o in «Ruoli e permessi».",
                 ]),
@@ -351,17 +346,12 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "La conferma di ricevuta va al caporeparto anche se il dipendente ha la mail",
-            "perche": "la mail di notifica del dipendente non è di un dominio aziendale.",
+            "sintomo": "Una ricevuta resta «Da confermare» oltre le 24 ore",
+            "perche": "la conferma automatica la fa il task «dpi_avvisi_consegna» (ogni 5 minuti) o l'apertura del Banco consegne.",
             "fare": [
-                "DPI → Impostazioni: controlla «Domini della mail aziendale» (es. azienda.it).",
-                "Controlla la mail di notifica nella scheda anagrafica del dipendente.",
+                "Apri DPI → Banco consegne: all'apertura le ricevute scadute si confermano.",
+                "Automazioni → Task pianificati: controlla che «dpi_avvisi_consegna» sia attivo e che il qcluster giri.",
             ],
-        },
-        {
-            "sintomo": "Il link della mail di conferma dice «Link non valido»",
-            "perche": "dopo il promemoria vale solo l'ultimo link, oppure il link è stato copiato a metà.",
-            "fare": ["Usa il link dell'ultima mail ricevuta («Promemoria: conferma la ricevuta dei DPI»)."],
         },
         {
             "sintomo": "Il magazzino non riceve la mail di consegna",

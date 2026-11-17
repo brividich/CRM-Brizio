@@ -546,9 +546,10 @@ class ConsegnaDPI(models.Model):
 # ---------------------------------------------------------------------------
 
 class ConfermaConsegnaDPI(models.Model):
-    """Il magazzino registra la consegna; chi ha ricevuto i DPI (o, senza mail
-    aziendale, il suo caporeparto) conferma dal link personale della mail.
-    Una conferma copre tutte le consegne fatte insieme alla stessa persona."""
+    """Ricevuta di una consegna fatta senza badge, firma o ricevuta su carta: si conferma
+    da sola dopo 24 ore (``conferme.autoconferma``). Fino al 17/11/2026 la confermava chi
+    riceveva la mail con il link personale. Una conferma copre le consegne fatte insieme
+    alla stessa persona."""
 
     class Stato(models.TextChoices):
         IN_ATTESA = "IN_ATTESA", "Da confermare"
@@ -577,6 +578,15 @@ class ConfermaConsegnaDPI(models.Model):
 
     def __str__(self) -> str:
         return f"Conferma {self.richiedente_nome} - {self.get_stato_display()}"
+
+    @property
+    def autoconferma_il(self):
+        """Quando la ricevuta senza badge si conferma da sola."""
+        from datetime import timedelta
+
+        from .conferme import ORE_AUTOCONFERMA
+
+        return self.created_at + timedelta(hours=ORE_AUTOCONFERMA) if self.created_at else None
 
 
 class LinkConfermaDPI(models.Model):

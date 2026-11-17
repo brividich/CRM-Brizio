@@ -127,8 +127,8 @@ def _righe_consegna(consegne: Sequence[ConsegnaDPI]) -> list[tuple[str, str]]:
 
 
 def _ricevuta_flowables(consegna: ConsegnaDPI, theme: PdfTheme, styles: dict) -> list:
-    """Come il dipendente ha confermato di aver ricevuto i DPI: firma al banco,
-    conferma via mail (dipendente o responsabile) o firma su carta di questo modulo."""
+    """Come il dipendente ha confermato di aver ricevuto i DPI: firma al banco, conferma
+    automatica dopo 24 ore senza badge (prima del 17/11/2026: via mail) o firma su carta."""
     body = styles["body"]
     flow: list = [Paragraph("Ricevuta", styles["section"])]
     png_bytes = _decode_firma_data_uri(consegna.firma_immagine or "")
@@ -143,16 +143,20 @@ def _ricevuta_flowables(consegna: ConsegnaDPI, theme: PdfTheme, styles: dict) ->
             logger.warning("Impossibile inserire la firma nel PDF", exc_info=True)
     conferma = getattr(consegna, "conferma", None)
     if conferma is not None:
-        chi = conferma.get_destinatario_tipo_display().lower()
         if conferma.decisa_il:
             quando = timezone.localtime(conferma.decisa_il).strftime("%d-%m-%Y alle %H:%M")
             esito = "confermata" if conferma.stato == conferma.Stato.CONFERMATA else "CONTESTATA"
-            testo = f"Ricevuta <b>{esito}</b> via mail il {quando} da {_e(conferma.decisa_da_email)} ({_e(chi)})."
-            if conferma.nota:
+            if conferma.decisa_da_email:
+                chi = conferma.get_destinatario_tipo_display().lower()
+                testo = f"Ricevuta <b>{esito}</b> via mail il {quando} da {_e(conferma.decisa_da_email)} ({_e(chi)})."
+            else:
+                testo = f"Ricevuta <b>{esito}</b> automaticamente il {quando} (consegna senza badge)."
+            if conferma.nota and conferma.decisa_da_email:
                 testo += f"<br/>Nota: {_e(conferma.nota)}"
         else:
-            testo = f"Conferma di ricevuta richiesta via mail ({_e(chi)}): <b>in attesa</b>."
-        flow.append(_kv_table([("Conferma via mail", testo)], theme, styles))
+            quando = timezone.localtime(conferma.autoconferma_il).strftime("%d-%m-%Y alle %H:%M")
+            testo = f"Consegna senza badge: <b>in attesa</b>, si conferma da sola il {quando}."
+        flow.append(_kv_table([("Conferma ricevuta", testo)], theme, styles))
         if conferma.decisa_il:
             return flow
     elif consegna.confermata_badge_il:
