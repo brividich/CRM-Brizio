@@ -6,4 +6,6 @@
   <span class="pc-meta">{{ check_type.frequency_label }}</span>
   <span class="pc-meta">{{ check_type.get_method_display }}</span>
   {% if check_type.performer_label %}<span class="pc-meta">{{ check_type.performer_label }}</span>{% endif %}
+  {% if check_type.system.asset_id %}<a class="pc-meta" href="{% url 'assets:asset_view' check_type.system.asset_id %}">{{ check_type.system.asset.asset_tag }}</a>{% endif %}
+  {% if check_type.administrative_deadline_id %}<a class="pc-meta" href="{% url 'assets:asset_administrative_deadline_edit' check_type.administrative_deadline_id %}" title="Scadenza amministrativa rinnovata da questa verifica">Adempie: {{ check_type.administrative_deadline.title }}</a>{% endif %}
 </div>

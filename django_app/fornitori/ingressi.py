@@ -38,7 +38,9 @@ TIPO_FORMAZIONE = "formazione"
 TIPO_ORDINARIA = "ordinaria"
 TIPO_AMMINISTRATIVA = "amministrativa"
 TIPO_SCADENZA = "scadenza"
-TIPI = (TIPO_TICKET, TIPO_ODL, TIPO_ORDINARIA, TIPO_AMMINISTRATIVA, TIPO_SCADENZA)  # interventi con una ditta
+TIPO_VERIFICA = "verifica"
+# Interventi con una ditta.
+TIPI = (TIPO_TICKET, TIPO_ODL, TIPO_ORDINARIA, TIPO_AMMINISTRATIVA, TIPO_SCADENZA, TIPO_VERIFICA)
 TIPI_TUTTI = (*TIPI, TIPO_FORMAZIONE)
 FINESTRA_MAX_GIORNI = 90
 TOLLERANZA_MINUTI = 15
@@ -47,13 +49,20 @@ ELENCO_MAX_SCADENZE = 200
 GIORNI_DA_COLLEGARE = 30
 FILTRI_TIPO = (
     (TIPO_TICKET, "Ticket"), (TIPO_ODL, "Straordinarie e OdL"), (TIPO_ORDINARIA, "Ordinarie"),
-    (TIPO_AMMINISTRATIVA, "Scadenze asset"), (TIPO_SCADENZA, "Scadenzario"), (TIPO_FORMAZIONE, "Formazione"),
+    (TIPO_AMMINISTRATIVA, "Scadenze asset"), (TIPO_VERIFICA, "Verifiche impianti"), (TIPO_SCADENZA, "Scadenzario"),
+    (TIPO_FORMAZIONE, "Formazione"),
 )
+# Verifica impianto: il giorno dell'ingresso è quello della verifica, con qualche giorno di margine
+# (il tecnico può tornare per finire, il verbale si registra spesso dopo).
+GIORNI_VERIFICA_PRIMA = 3
+GIORNI_VERIFICA_DOPO = 1
+GIORNI_VERIFICA_DITTA = 30
 GIORNI_PRIMA_ELENCO = 60
 GIORNI_DOPO_ELENCO = 60
 _CAMPI_DESTINAZIONE = {
     TIPO_TICKET: "ticket", TIPO_ODL: "work_order", TIPO_FORMAZIONE: "sessione_formazione",
     TIPO_ORDINARIA: "occorrenza", TIPO_AMMINISTRATIVA: "scadenza_asset", TIPO_SCADENZA: "scadenza",
+    TIPO_VERIFICA: "verifica",
 }
 _NON_LETTA = object()
 
@@ -82,6 +91,8 @@ class Intervento:
             return self.oggetto.supplier
         if self.tipo == TIPO_SCADENZA:
             return self.oggetto.fornitore
+        if self.tipo == TIPO_VERIFICA:
+            return self.oggetto.supplier or self.oggetto.check_type.supplier
         if self.tipo == TIPO_AMMINISTRATIVA:
             # L'ente è un testo: vale la stessa ragione sociale, se è di un solo fornitore.
             if self.ditta_letta is _NON_LETTA:
@@ -101,7 +112,8 @@ class Intervento:
 
     @property
     def dove_la_ditta(self) -> str:
-        return {TIPO_TICKET: "delegata", TIPO_ODL: "dell'OdL", TIPO_ORDINARIA: "della manutenzione"}.get(
+        return {TIPO_TICKET: "delegata", TIPO_ODL: "dell'OdL", TIPO_ORDINARIA: "della manutenzione",
+                TIPO_VERIFICA: "della verifica"}.get(
             self.tipo, "della scadenza",
         )
 
@@ -117,6 +129,8 @@ class Intervento:
             return self.oggetto.title
         if self.tipo == TIPO_SCADENZA:
             return self.oggetto.titolo
+        if self.tipo == TIPO_VERIFICA:
+            return f"{self.oggetto.check_type.name} del {self.oggetto.performed_on:%d/%m/%Y}"
         return f"Sessione {self.oggetto.codice_sessione}"
 
     @property
@@ -125,7 +139,7 @@ class Intervento:
             return "Straordinaria"
         return {
             TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione", TIPO_ORDINARIA: "Ordinaria",
-            TIPO_AMMINISTRATIVA: "Scadenza asset", TIPO_SCADENZA: "Scadenzario",
+            TIPO_AMMINISTRATIVA: "Scadenza asset", TIPO_SCADENZA: "Scadenzario", TIPO_VERIFICA: "Verifica impianto",
         }[self.tipo]
 
     @property
@@ -139,6 +153,9 @@ class Intervento:
             return o.asset.name
         if self.tipo == TIPO_SCADENZA:
             return o.categoria.nome
+        if self.tipo == TIPO_VERIFICA:
+            sistema = o.check_type.system
+            return f"{sistema.name} · {sistema.asset.name}" if sistema.asset_id else sistema.name
         return o.corso.titolo
 
     @property
@@ -152,6 +169,8 @@ class Intervento:
             return o.due_date
         if self.tipo == TIPO_SCADENZA:
             return o.data_scadenza
+        if self.tipo == TIPO_VERIFICA:
+            return o.performed_on
         return o.data_inizio
 
     @property
@@ -171,6 +190,8 @@ class Intervento:
             return reverse("assets:asset_administrative_deadline_edit", args=[self.pk])
         if self.tipo == TIPO_SCADENZA:
             return reverse("scadenzario:scadenza_dettaglio", args=[self.pk])
+        if self.tipo == TIPO_VERIFICA:
+            return reverse("assets:periodic_check_session_detail", args=[self.pk])
         return reverse("anagrafica:formazione_sessione_detail", args=[self.pk])
 
     @property
@@ -189,6 +210,8 @@ class Intervento:
             return bool(self.oggetto.is_chiuso)
         if self.tipo in (TIPO_ODL, TIPO_ORDINARIA):
             return self.oggetto.status == self.oggetto.STATUS_DONE
+        if self.tipo == TIPO_VERIFICA:
+            return self.oggetto.is_confirmed
         return False
 
     @property
@@ -202,6 +225,8 @@ class Intervento:
             return self.oggetto.status == self.oggetto.STATUS_CANCELED
         if self.tipo in (TIPO_AMMINISTRATIVA, TIPO_SCADENZA):
             return not self.oggetto.is_active
+        if self.tipo == TIPO_VERIFICA:
+            return False
         # Sessione: l'ingresso del docente si collega anche a edizione chiusa o
         # approvata (è una prova di presenza, non tocca il registro); non se annullata.
         return self.oggetto.stato == "ANNULLATA"
@@ -218,6 +243,8 @@ class Intervento:
             if (al - dal).days > FINESTRA_MAX_GIORNI:
                 dal = al - timedelta(days=FINESTRA_MAX_GIORNI)
             return dal, al
+        if self.tipo == TIPO_VERIFICA:
+            return finestra_verifica(o.performed_on)
         if self.tipo in (TIPO_ORDINARIA, TIPO_AMMINISTRATIVA, TIPO_SCADENZA):
             # Queste non hanno una data di apertura: gli ultimi giorni, fino all'esecuzione se c'è.
             al = min(getattr(o, "completed_on", None) or oggi, oggi)
@@ -234,6 +261,23 @@ class Intervento:
     def collegamenti(self):
         filtro = {_CAMPI_DESTINAZIONE[self.tipo]: self.oggetto}
         return IngressoIntervento.objects.filter(**filtro).select_related("collegato_da")
+
+
+def finestra_verifica(giorno: date) -> tuple[date, date]:
+    """Periodo degli ingressi da proporre per una verifica eseguita in quel giorno."""
+    oggi = timezone.localdate()
+    al = min(giorno + timedelta(days=GIORNI_VERIFICA_DOPO), oggi)
+    dal = min(giorno - timedelta(days=GIORNI_VERIFICA_PRIMA), al)
+    return dal, al
+
+
+def ingressi_della_ditta(fornitore, dal: date, al: date) -> list[gp.Accesso]:
+    """Ingressi di una ditta nel periodo, anche prima che esista l'intervento
+    (pagina di registrazione della verifica)."""
+    if fornitore is None:
+        return []
+    ditte, nomi = ditte_e_nomi(fornitore)
+    return gp.ingressi_ditta(ditte_gp=ditte, nomi=nomi, dal=dal, al=al)
 
 
 def intervento(tipo: str, pk: int) -> Intervento | None:
@@ -263,6 +307,12 @@ def intervento(tipo: str, pk: int) -> Intervento | None:
         from scadenzario.models import ScadenzaGenerica
 
         oggetto = ScadenzaGenerica.objects.select_related("categoria", "fornitore").filter(pk=pk).first()
+    elif tipo == TIPO_VERIFICA:
+        from assets.models import PeriodicCheckSession
+
+        oggetto = PeriodicCheckSession.objects.select_related(
+            "check_type", "check_type__system", "check_type__system__asset", "check_type__supplier", "supplier",
+        ).filter(pk=pk).first()
     else:
         return None
     return Intervento(tipo, oggetto) if oggetto else None
@@ -279,6 +329,8 @@ def intervento_del_link(link: IngressoIntervento) -> Intervento:
         return Intervento(TIPO_AMMINISTRATIVA, link.scadenza_asset)
     if link.scadenza_id:
         return Intervento(TIPO_SCADENZA, link.scadenza)
+    if link.verifica_id:
+        return Intervento(TIPO_VERIFICA, link.verifica)
     return Intervento(TIPO_FORMAZIONE, link.sessione_formazione)
 
 
@@ -463,6 +515,10 @@ def _imposta_ditta(iv: Intervento, fornitore, *, utente, autore: tuple[str, str]
         o.fornitore = fornitore
         o.save(update_fields=["fornitore", "aggiornato_il"])
         return f"L'attività ora è collegata a «{fornitore.ragione_sociale}»."
+    if iv.tipo == TIPO_VERIFICA:
+        o.supplier = fornitore
+        o.save(update_fields=["supplier", "updated_at"])
+        return f"La verifica ora riporta come ditta «{fornitore.ragione_sociale}»."
     nota = (f"Ditta impostata a «{fornitore.ragione_sociale}» collegando l'ingresso "
             "dal GuestPortal (Presenze in azienda).")
     if iv.tipo == TIPO_TICKET:
@@ -695,6 +751,13 @@ def puo_collegare_scadenza_asset(request) -> bool:
     return _apre_percorso(request, "assets:asset_administrative_deadline_edit")
 
 
+def puo_collegare_verifica(request) -> bool:
+    """Stessa regola della registrazione delle verifiche: apre le verifiche ed esegue la manutenzione."""
+    from assets.views_maintenance import can_execute_maintenance
+
+    return _apre_percorso(request, "assets:periodic_check_session_detail") and bool(can_execute_maintenance(request))
+
+
 def scadenze_da_collegare(request, *, testo: str = "", fornitore=None, accesso: gp.Accesso | None = None,
                           ) -> tuple[list[Intervento], bool]:
     """Manutenzioni aperte, scadenze degli asset e attività dello Scadenzario a cui l'utente può
@@ -748,6 +811,27 @@ def scadenze_da_collegare(request, *, testo: str = "", fornitore=None, accesso: 
                     filtro |= Q(issuer__icontains=chiavi[0])
             qs = qs.filter(filtro)
         aggiungi(TIPO_AMMINISTRATIVA, qs.order_by("due_date", "pk"))
+
+    if puo_collegare_verifica(request):
+        from assets.models import PeriodicCheckSession
+
+        qs = PeriodicCheckSession.objects.exclude(source=PeriodicCheckSession.SOURCE_IMPORT).select_related(
+            "check_type", "check_type__system", "check_type__system__asset", "check_type__supplier", "supplier",
+        )
+        if testo:
+            qs = qs.filter(Q(check_type__name__icontains=testo) | Q(check_type__system__name__icontains=testo)
+                           | Q(check_type__reference_code__icontains=testo) | Q(technician__icontains=testo)
+                           | Q(check_type__system__asset__asset_tag__icontains=testo)
+                           | Q(check_type__system__asset__name__icontains=testo))
+        else:
+            filtro = Q(performed_on__range=(giorno - timedelta(days=GIORNI_VERIFICA_PRIMA),
+                                            giorno + timedelta(days=GIORNI_VERIFICA_PRIMA)))
+            if fornitore is not None:
+                della_ditta = Q(supplier=fornitore) | Q(supplier__isnull=True, check_type__supplier=fornitore)
+                filtro |= della_ditta & Q(performed_on__range=(giorno - timedelta(days=GIORNI_VERIFICA_DITTA),
+                                                               giorno + timedelta(days=GIORNI_VERIFICA_DITTA)))
+            qs = qs.filter(filtro)
+        aggiungi(TIPO_VERIFICA, qs.order_by("-performed_on", "-pk"))
 
     gestibili = categorie_gestibili(request)
     if gestibili is None or gestibili:
@@ -935,7 +1019,7 @@ def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, st
         return esito
     righe = IngressoIntervento.objects.filter(visita_gp_id__in=visita_ids).select_related(
         "ticket", "work_order", "sessione_formazione", "occorrenza", "occorrenza__plan", "occorrenza__asset",
-        "scadenza_asset", "scadenza_asset__asset", "scadenza",
+        "scadenza_asset", "scadenza_asset__asset", "scadenza", "verifica", "verifica__check_type",
     )
     for link in righe:
         if link.ticket_id:
@@ -943,7 +1027,7 @@ def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, st
                     reverse("tickets:gestione_detail", args=[link.ticket_id]))
         elif link.work_order_id:
             voce = (f"OdL #{link.work_order.display_number}", reverse("assets:wo_view", args=[link.work_order_id]))
-        elif link.occorrenza_id or link.scadenza_asset_id or link.scadenza_id:
+        elif link.occorrenza_id or link.scadenza_asset_id or link.scadenza_id or link.verifica_id:
             iv = intervento_del_link(link)
             voce = (f"{iv.tipo_label}: {iv.etichetta}", iv.url)
         else:

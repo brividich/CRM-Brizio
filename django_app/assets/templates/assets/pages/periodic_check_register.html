@@ -36,6 +36,15 @@
       </div>
       {{ form.outcome.errors }}
     </div>
+    <div class="md-field">
+      <span class="pc-label">Visita della ditta</span>
+      <div id="pc-visite" hx-get="{% url 'assets:periodic_check_register_visits' check_type.id %}" hx-trigger="load, change from:#id_performed_on, change from:#id_supplier" hx-include="#id_performed_on, #id_supplier, #pc-visite" hx-swap="innerHTML">
+        <p class="pc-muted">Caricamento degli ingressi della ditta…</p>
+      </div>
+    </div>
+    {% if check_type.administrative_deadline_id and check_type.administrative_deadline.is_active %}
+      <p class="pc-muted">Registrando la verifica si rinnova anche la scadenza amministrativa «<a href="{% url 'assets:asset_administrative_deadline_edit' check_type.administrative_deadline_id %}">{{ check_type.administrative_deadline.title }}</a>» di {{ check_type.administrative_deadline.asset.asset_tag }} (oggi al {{ check_type.administrative_deadline.due_date|date:"d/m/Y" }}).</p>
+    {% endif %}
   </fieldset>
 
   {% if item_rows %}

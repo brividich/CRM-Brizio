@@ -50,7 +50,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
   <div class="ic-top">
     <div>
       <div class="ic-title">Collega l'ingresso a un intervento</div>
-      <div class="ic-sub">Scegli il ticket, la manutenzione straordinaria (OdL) o ordinaria, la scadenza amministrativa o l'attività per cui la persona è entrata: anche se è già chiusa, spesso il rapportino arriva dopo. Se è aperta e non ha ancora una ditta, prende quella dell'ingresso.</div>
+      <div class="ic-sub">Scegli il ticket, la manutenzione straordinaria (OdL) o ordinaria, la scadenza amministrativa, la verifica dell'impianto o l'attività per cui la persona è entrata: anche se è già chiusa, spesso il rapportino arriva dopo. Se è aperta e non ha ancora una ditta, prende quella dell'ingresso.</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="ic-btn ic-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi">? Guida</a>
@@ -96,19 +96,21 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
   <div class="ic-card">
     <div class="ic-card-head">
       <span>Ticket, manutenzioni straordinarie e ordinarie, scadenze{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
-      <form method="get" class="ic-search">
+      <form method="get" class="ic-search" hx-get="{{ request.path }}" hx-trigger="input changed delay:300ms from:find input[name=q], submit" hx-target="#ic-risultati" hx-select="#ic-risultati" hx-swap="outerHTML" hx-push-url="true" hx-indicator="#ic-cerca-ind">
         {% if filtro_tipo %}<input type="hidden" name="tipo" value="{{ filtro_tipo }}">{% endif %}
-        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Titolo, macchina, scadenza…" aria-label="Cerca intervento">
+        <input class="ic-input" type="search" name="q" value="{{ q }}" maxlength="80" placeholder="Titolo, macchina, impianto, scadenza…" aria-label="Cerca intervento" autocomplete="off">
+        <span id="ic-cerca-ind" class="htmx-indicator ic-muted" aria-hidden="true">…</span>
         <button class="ic-btn ic-btn-ghost" type="submit">Cerca</button>
       </form>
     </div>
+    <div id="ic-risultati">
     {% if filtri_tipo %}
     <div class="ic-filtri">
       <a class="ic-filtro{% if not filtro_tipo %} is-on{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">Tutti</a>
       {% for f in filtri_tipo %}<a class="ic-filtro{% if filtro_tipo == f.val %} is-on{% endif %}" href="?tipo={{ f.val }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ f.label }} <span>{{ f.n }}</span></a>{% endfor %}
     </div>
     {% endif %}
-    <div class="ic-note">Ticket e OdL: quelli aperti e quelli chiusi fino a due mesi dopo l'ingresso. Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutti.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
+    <div class="ic-note">Ticket e OdL: quelli aperti e quelli chiusi fino a due mesi dopo l'ingresso. Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Verifiche impianti: quelle eseguite a tre giorni dall'ingresso e quelle della ditta nel mese. Con la ricerca, tutti.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
     {% if not vede_ticket %}<div class="ic-note">Nessun ticket in elenco: si vedono i ticket IT e di manutenzione dei tipi che gestisci.</div>{% endif %}
     {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
     {% if righe %}
@@ -145,24 +147,30 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
         </tbody>
       </table>
     </div>
+    </div>
   </div>
 </div>
 <script>
 (function () {
-  var invia = document.getElementById('ic-invia');
-  if (!invia) { return; }
-  var spunte = Array.prototype.slice.call(document.querySelectorAll('.ic-spunta'));
-  var tutte = document.getElementById('ic-tutte');
+  /* Delegato: l'elenco si ricarica con la ricerca live (HTMX). */
+  function spunte() { return Array.prototype.slice.call(document.querySelectorAll('.ic-spunta')); }
   function aggiorna() {
-    var n = spunte.filter(function (s) { return s.checked; }).length;
+    var invia = document.getElementById('ic-invia');
+    if (!invia) { return; }
+    var tutte = spunte();
+    var n = tutte.filter(function (s) { return s.checked; }).length;
     document.getElementById('ic-n').textContent = n;
     invia.disabled = n === 0;
-    tutte.textContent = n === spunte.length ? 'Togli tutte' : 'Spunta tutte';
+    document.getElementById('ic-tutte').textContent = n && n === tutte.length ? 'Togli tutte' : 'Spunta tutte';
   }
-  spunte.forEach(function (s) { s.addEventListener('change', aggiorna); });
-  tutte.addEventListener('click', function () {
-    var accese = spunte.every(function (s) { return s.checked; });
-    spunte.forEach(function (s) { s.checked = !accese; });
+  document.addEventListener('change', function (e) {
+    if (e.target.classList && e.target.classList.contains('ic-spunta')) { aggiorna(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target || e.target.id !== 'ic-tutte') { return; }
+    var tutte = spunte();
+    var accese = tutte.every(function (s) { return s.checked; });
+    tutte.forEach(function (s) { s.checked = !accese; });
     aggiorna();
   });
 })();

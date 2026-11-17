@@ -471,7 +471,7 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
             "is_overdue": dl.due_date < today,
             "asset_tag": dl.asset_tag,
             "asset_name": dl.asset_name or dl.target_label,
-            "url": dl.detail_url,
+            "url": (dl.actions[0]["url"] if dl.actions else dl.detail_url),
             "action_label": (dl.actions[0]["label"] if dl.actions else "Apri"),
             "work_order_id": dl.work_order_id,
         })
@@ -501,7 +501,7 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         })
     rows.sort(key=lambda r: (r["due_date"], r["title"]))
     overdue = [r for r in rows if r["is_overdue"]]
-    plan_sources = {feed.KIND_ORDINARY, "verification"}
+    plan_sources = {feed.KIND_ORDINARY, feed.KIND_CHECK, "verification"}
     return {
         "items": rows[:limit],
         "total": len(rows),

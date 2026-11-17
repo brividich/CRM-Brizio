@@ -315,3 +315,12 @@ body.theme-dark .pc-map-view{background:var(--surface)}
 body.theme-dark .pc-pt.is-fixed{background:var(--surface)}
 body.theme-dark .pc-pt span{background:var(--surface);color:var(--text)}
 body.theme-dark .pc-scan-view{background:var(--surface)}
+/* Registrazione: ingressi della ditta da collegare alla verifica */
+.pc-visite{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.pc-visita{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--border,#dbe1ea);border-radius:10px;background:var(--surface,#fff);color:var(--text,#0f172a);cursor:pointer}
+.pc-visita:hover{border-color:var(--mk-chk,#0f766e)}
+.pc-visita.is-on,.pc-visita:has(input:checked){border-color:var(--mk-chk,#0f766e);background:var(--mk-chk-bg,rgba(15,118,110,.08))}
+.pc-visita-when{font-weight:800;font-variant-numeric:tabular-nums;min-width:110px}
+.pc-visita-who{flex:1 1 200px;min-width:0}
+.pc-visite-altri{margin-top:8px}
+.pc-visite-altri summary{cursor:pointer;color:var(--text-mid,#64748b);font-size:var(--fs-sm);font-weight:700}

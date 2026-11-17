@@ -29,6 +29,7 @@ from ..models import (
     AssetAdministrativeDeadlineCompletion,
     AssetCategory,
     AssetCategoryDocumentFolder,
+    AssetDocumentFolder,
     AssetCustomField,
     AssetDetailField,
     AssetDetailSectionLayout,
@@ -567,6 +568,40 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
                 messages.success(request, f"Documento \"{doc_label}\" eliminato.")
             return redirect("assets:asset_view", id=asset.id)
+        if action == "add_asset_document_folder" and request.POST.get("folder_scope") == "asset":
+            # Cartella del solo asset: basta poter modificare l'asset.
+            if not (_can_manage_asset_document_folders(request) or _can_edit_asset(request, asset.id)):
+                messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            raw_name = _clean_string(request.POST.get("folder_name"))[:120]
+            slug = slugify(raw_name)[:60]
+            taken = {code.lower() for code, _ in AssetDocument.CATEGORY_CHOICES}
+            if asset.asset_category_id:
+                taken |= set(asset.asset_category.document_folders.values_list("slug", flat=True))
+            if not raw_name or not slug:
+                messages.error(request, "Nome cartella non valido.")
+            elif slug in taken:
+                messages.error(request, "Esiste gia una cartella con questo nome per questo asset.")
+            elif asset.document_folders.filter(slug=slug).exists():
+                folder = asset.document_folders.get(slug=slug)
+                if folder.is_active:
+                    messages.error(request, "Esiste gia una cartella con questo nome per questo asset.")
+                else:
+                    folder.is_active = True
+                    folder.name = raw_name
+                    folder.save(update_fields=["is_active", "name"])
+                    messages.success(request, f"Cartella \"{raw_name}\" riattivata su questo asset.")
+            else:
+                next_order = (asset.document_folders.aggregate(m=Max("order"))["m"] or 0) + 1
+                AssetDocumentFolder.objects.create(asset=asset, name=raw_name, slug=slug, order=next_order)
+                log_action(
+                    request,
+                    "add_asset_document_folder",
+                    "assets",
+                    {"asset_id": asset.id, "scope": "asset", "slug": slug, "name": raw_name},
+                )
+                messages.success(request, f"Cartella documento \"{raw_name}\" aggiunta a questo asset.")
+            return redirect("assets:asset_view", id=asset.id)
         if action == "add_asset_document_folder":
             if not _can_manage_asset_document_folders(request):
                 messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
@@ -584,6 +619,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 messages.error(request, "Esiste gia una cartella di base con questo nome.")
             elif category.document_folders.filter(slug=slug).exists():
                 messages.error(request, "Esiste gia una cartella documento con questo nome per la categoria.")
+            elif AssetDocumentFolder.objects.filter(asset__asset_category=category, slug=slug, is_active=True).exists():
+                messages.error(
+                    request,
+                    "Un asset della categoria ha gia una sua cartella con questo nome: rinominala o scegli un altro nome.",
+                )
             else:
                 next_order = (category.document_folders.aggregate(m=Max("order"))["m"] or 0) + 1
                 AssetCategoryDocumentFolder.objects.create(
@@ -599,6 +639,26 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     request,
                     f"Cartella documento \"{raw_name}\" aggiunta alla categoria {category.label}.",
                 )
+            return redirect("assets:asset_view", id=asset.id)
+        if action == "deactivate_asset_document_folder" and request.POST.get("folder_scope") == "asset":
+            if not (_can_manage_asset_document_folders(request) or _can_edit_asset(request, asset.id)):
+                messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            folder = asset.document_folders.filter(id=_as_int(request.POST.get("folder_id"), default=0), is_active=True).first()
+            if folder is None:
+                messages.error(request, "Cartella documento non trovata.")
+            elif AssetDocument.objects.filter(asset=asset, category=folder.slug).exists():
+                messages.error(request, "Impossibile disattivare: la cartella contiene ancora documenti.")
+            else:
+                folder.is_active = False
+                folder.save(update_fields=["is_active"])
+                log_action(
+                    request,
+                    "deactivate_asset_document_folder",
+                    "assets",
+                    {"asset_id": asset.id, "folder_id": folder.id, "scope": "asset", "slug": folder.slug},
+                )
+                messages.success(request, f"Cartella documento \"{folder.name}\" disattivata.")
             return redirect("assets:asset_view", id=asset.id)
         if action == "deactivate_asset_document_folder":
             if not _can_manage_asset_document_folders(request):
@@ -1064,6 +1124,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     doc_category_specs = _asset_document_folder_specs(asset)
     doc_upload_field_map = {spec["code"]: spec["field"] for spec in doc_category_specs}
     can_manage_doc_folders = _can_manage_asset_document_folders(request)
+    can_manage_asset_doc_folders = can_manage_doc_folders or _can_edit_asset(request, asset.id)
     can_manage_asset_timeline = _can_manage_asset_timeline_entries(request)
     asset_timeline_manual_enabled = _asset_timeline_manual_enabled(asset)
     periodic_verification_rows = []
@@ -1440,6 +1501,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "documents_by_category": dict(documents_by_category),
             "document_upload_field_map": doc_upload_field_map,
             "can_manage_doc_folders": can_manage_doc_folders,
+            "can_manage_asset_doc_folders": can_manage_asset_doc_folders,
             "asset_report_pdf_url": _asset_report_pdf_url(asset.id),
             "asset_qr_url": reverse("assets:asset_qr_label", kwargs={"id": asset.id}),
             "asset_label_designer_url": (

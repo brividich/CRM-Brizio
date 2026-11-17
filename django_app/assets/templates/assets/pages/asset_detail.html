@@ -97,6 +97,17 @@
             <button class="af-btn af-btn-primary" type="button" data-ui-action="{{ button.data_action|default:'' }}">{{ button.label }}</button>
           {% endif %}
         {% endif %}{% endfor %}
+        {% if asset_register_menu %}
+          {# Registra: esecuzione di una scadenza, verifica o intervento su questa macchina. #}
+          <details class="af-export-menu af-register-menu">
+            <summary class="af-btn af-btn-primary">Registra &#9662;</summary>
+            <div class="af-export-pop af-register-pop">
+              {% for voce in asset_register_menu %}
+                <a href="{{ voce.url }}"><span class="mk-kind mk-k-{{ voce.kind }}">{{ voce.kind_label }}</span> {{ voce.label }}{% if voce.when %} <small>· {{ voce.when }}</small>{% endif %}</a>
+              {% endfor %}
+            </div>
+          </details>
+        {% endif %}
         {# Azioni meno frequenti in un unico menu: la testata resta su poche righe. #}
         <details class="af-export-menu">
           <summary class="af-btn af-btn-secondary">Altro &#9662;</summary>
@@ -326,7 +337,7 @@
                       <td><span class="mk-kind mk-k-{{ row.kind }}">{{ row.kind_label }}</span></td>
                       <td>{{ row.title }}{% if row.supplier %}<span style="display:block;font-size:11px;color:#94a3b8;">{{ row.supplier }}</span>{% endif %}</td>
                       <td><span class="as-badge as-badge--{% if row.state == 'overdue' %}danger{% elif row.state == 'due_soon' %}warning{% else %}muted{% endif %}">{{ row.state_label }}</span></td>
-                      <td style="white-space:nowrap;">{% if row.detail_url %}<a class="as-link-subtle" href="{{ row.detail_url }}">Apri</a>{% endif %}</td>
+                      <td style="white-space:nowrap;">{% if asset_can_register and row.register_action %}<a class="af-btn af-btn-primary af-btn-sm" href="{{ row.register_action.url }}">Registra</a> {% endif %}{% if row.detail_url %}<a class="as-link-subtle" href="{{ row.detail_url }}">Apri</a>{% endif %}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -1105,19 +1116,27 @@
                 type="button"
                 class="af-doc-tab {% if forloop.first %}is-active{% endif %}"
                 data-doc-tab="{{ spec.code }}"
+                {% if spec.scope == "asset" %}title="Cartella di questo asset"{% elif spec.scope == "category" %}title="Cartella di tutta la categoria"{% endif %}
               >
-                {{ spec.label }}
+                {{ spec.label }}{% if spec.scope == "asset" %} <span class="af-doc-tab-scope">solo qui</span>{% endif %}
               </button>
             {% endfor %}
           </div>
 
-          {% if can_manage_doc_folders %}
+          {% if can_manage_asset_doc_folders %}
             <form class="af-doc-folder-add" method="post">
               {% csrf_token %}
               <input type="hidden" name="action" value="add_asset_document_folder">
               <input type="text" name="folder_name" maxlength="120" placeholder="Nome nuova cartella documento" required>
+              {% if can_manage_doc_folders and asset.asset_category_id %}
+                <span class="af-doc-folder-scope" role="radiogroup" aria-label="Per chi vale la cartella">
+                  <label><input type="radio" name="folder_scope" value="asset" checked> Solo questo asset</label>
+                  <label><input type="radio" name="folder_scope" value="category"> Tutta la categoria {{ asset.asset_category.label }}</label>
+                </span>
+              {% else %}
+                <input type="hidden" name="folder_scope" value="asset">
+              {% endif %}
               <button class="af-btn af-btn-secondary" type="submit">+ Aggiungi cartella</button>
-              <span class="af-note" style="flex-basis:100%;">La cartella vale per tutti gli asset della categoria.</span>
             </form>
           {% endif %}
 
@@ -1209,10 +1228,11 @@
                 {% else %}
                   <div class="af-doc-empty">Nessun documento nella categoria {{ label }}.</div>
                 {% endif %}
-                {% if can_manage_doc_folders and spec.removable %}
-                  <form method="post" class="af-doc-folder-remove" data-hub-confirm="Disattivare la cartella documento &quot;{{ label }}&quot;? Sara possibile solo se non contiene documenti; vale per tutti gli asset della categoria.">
+                {% if spec.removable and spec.scope == "asset" and can_manage_asset_doc_folders or spec.removable and spec.scope == "category" and can_manage_doc_folders %}
+                  <form method="post" class="af-doc-folder-remove" data-hub-confirm="Disattivare la cartella documento &quot;{{ label }}&quot;? Sara possibile solo se non contiene documenti{% if spec.scope == 'category' %}; vale per tutti gli asset della categoria{% endif %}.">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="deactivate_asset_document_folder">
+                    <input type="hidden" name="folder_scope" value="{{ spec.scope }}">
                     <input type="hidden" name="folder_id" value="{{ spec.folder_id }}">
                     <button class="af-btn af-btn-danger" type="submit">Disattiva questa cartella</button>
                   </form>
@@ -1395,7 +1415,7 @@
 <div id="af-lightbox" class="af-lightbox" hidden aria-hidden="true">
   <img class="af-lightbox-img" src="" alt="Immagine ingrandita">
 </div>
-<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-4.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-4.css' %}?v=20261116">
 <script>
 (function () {
   var overlay = document.getElementById('af-lightbox');

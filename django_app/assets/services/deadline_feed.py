@@ -39,10 +39,12 @@ KIND_ORDINARY = "ordinary"
 KIND_ADMINISTRATIVE = "administrative"
 KIND_LICENSE = "license"
 KIND_CONTRACT = "contract"
+KIND_CHECK = "check"
 
 KIND_LABELS = {
     KIND_ORDINARY: "Ordinaria",
     KIND_ADMINISTRATIVE: "Amministrativa",
+    KIND_CHECK: "Verifica impianto",
     KIND_LICENSE: "Licenza",
     KIND_CONTRACT: "Contratto",
 }
@@ -69,6 +71,7 @@ DEFAULT_WARNING_DAYS = 30
 
 LICENSES_PATH = "/assets/licenze/"
 CONTRACTS_PATH = "/assets/manutenzione/contratti/"
+CHECKS_PATH = "/assets/manutenzione/verifiche-impianti/"
 
 
 @dataclass
@@ -104,6 +107,11 @@ class Deadline:
     @property
     def state_label(self) -> str:
         return STATE_LABELS.get(self.state, "")
+
+    @property
+    def register_action(self) -> dict[str, str] | None:
+        """L'azione che registra l'esecuzione (occorrenza, scadenza, verifica), se c'e'."""
+        return next((a for a in self.actions if a["label"].startswith("Registra")), None)
 
     def days_until(self, today: date) -> int:
         return (self.due_date - today).days
@@ -456,21 +464,115 @@ def _legacy_deadlines(start: date | None, end: date | None, filters: FeedFilters
     if filters.asset_id:
         qs = qs.filter(asset_id=filters.asset_id)
     rows = []
-    for deadline in qs.order_by("due_date", "id").distinct()[:1000]:
+    deadlines = list(qs.order_by("due_date", "id").distinct()[:1000])
+    linked = _linked_check_types({d.id for d in deadlines})
+    for deadline in deadlines:
         edit_url = reverse("assets:asset_administrative_deadline_edit", args=[deadline.id])
+        check_type = linked.get(deadline.id)
+        if check_type is not None:
+            # Adempiuta da una verifica impianto (es. SAT): si registra la verifica e la
+            # scadenza si rinnova da sola. Una riga sola, non due.
+            actions = [
+                {"label": "Registra verifica", "url": reverse("assets:periodic_check_register", args=[check_type.id])},
+                {"label": "Apri verifica", "url": reverse("assets:periodic_check_type_detail", args=[check_type.id])},
+                {"label": "Apri scadenza", "url": edit_url},
+            ]
+        else:
+            actions = [
+                {"label": "Registra esecuzione", "url": administrative_register_url(deadline.id)},
+                {"label": "Apri scadenza", "url": edit_url},
+            ]
+        actions.append({"label": "Apri asset", "url": reverse("assets:asset_view", args=[deadline.asset_id])})
         rows.append(Deadline(
             key=f"dl-{deadline.id}",
             kind=KIND_ADMINISTRATIVE,
             title=deadline.title,
             due_date=deadline.due_date,
             state=_simple_state(deadline.due_date, today, int(deadline.warning_days or DEFAULT_WARNING_DAYS)),
-            supplier=deadline.issuer or "",
+            supplier=deadline.issuer or (check_type.performer_label if check_type is not None else ""),
             detail_url=edit_url,
-            actions=[
-                {"label": "Apri scadenza", "url": edit_url},
-                {"label": "Apri asset", "url": reverse("assets:asset_view", args=[deadline.asset_id])},
-            ],
+            actions=actions,
             **_asset_fields(deadline.asset),
+        ))
+    return rows
+
+
+def administrative_register_url(deadline_id: int) -> str:
+    """Dove si registra l'esecuzione di una scadenza amministrativa: l'elenco con la voce aperta."""
+    return f"{reverse('assets:asset_administrative_deadline_list')}?focus_deadline={deadline_id}"
+
+
+def _linked_check_types(deadline_ids: set[int]) -> dict:
+    """Scadenza amministrativa -> tipo di verifica attivo che la adempie."""
+    from ..models import PeriodicCheckType
+
+    if not deadline_ids:
+        return {}
+    return {
+        t.administrative_deadline_id: t
+        for t in PeriodicCheckType.objects.filter(administrative_deadline_id__in=deadline_ids, is_active=True)
+        .select_related("supplier").order_by("-id")
+    }
+
+
+# ---------------------------------------------------------------------------
+# Verifiche impianti (``PeriodicCheckType``)
+# ---------------------------------------------------------------------------
+#
+# Una riga per tipo di verifica con la prossima scadenza. L'asset e' quello
+# dell'impianto (facoltativo): senza asset la verifica compare nelle viste di
+# modulo, non in quelle filtrate per asset/categoria/reparto. Le verifiche che
+# adempiono una scadenza amministrativa attiva compaiono una volta sola, come
+# scadenza amministrativa (``_legacy_deadlines``).
+
+def checks_without_active_deadline(qs):
+    """Tipi di verifica che non adempiono una scadenza amministrativa attiva (niente doppioni)."""
+    return qs.exclude(administrative_deadline__is_active=True)
+
+
+def _checks(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
+    from ..models import PeriodicCheckType
+
+    if KIND_CHECK not in filters.kinds or filters.execution_mode:
+        return []
+    qs = checks_without_active_deadline(
+        PeriodicCheckType.objects.filter(is_active=True, next_due_date__isnull=False)
+    ).select_related("system", "system__asset", "system__asset__asset_category", "supplier")
+    if start:
+        qs = qs.filter(next_due_date__gte=start)
+    if end:
+        qs = qs.filter(next_due_date__lte=end)
+    if filters.category_ids is not None:
+        qs = qs.filter(system__asset__asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        qs = qs.filter(system__asset__reparto=filters.reparto)
+    if filters.group_id:
+        qs = qs.filter(system__asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        qs = qs.filter(system__asset_id=filters.asset_id)
+    rows = []
+    for check_type in qs.order_by("next_due_date", "id").distinct()[:1000]:
+        register_url = reverse("assets:periodic_check_register", args=[check_type.id])
+        detail_url = reverse("assets:periodic_check_type_detail", args=[check_type.id])
+        asset = check_type.system.asset if check_type.system.asset_id else None
+        actions = [
+            {"label": "Registra verifica", "url": register_url},
+            {"label": "Apri verifica", "url": detail_url},
+        ]
+        if asset is not None:
+            actions.append({"label": "Apri asset", "url": reverse("assets:asset_view", args=[asset.id])})
+        rows.append(Deadline(
+            key=f"chk-{check_type.id}",
+            kind=KIND_CHECK,
+            title=check_type.name,
+            due_date=check_type.next_due_date,
+            state=_simple_state(check_type.next_due_date, today, int(check_type.warning_days or DEFAULT_WARNING_DAYS)),
+            target_label="" if asset is not None else check_type.system.name,
+            is_external=bool(check_type.supplier_id),
+            supplier=check_type.performer_label or "",
+            detail_url=detail_url,
+            actions=actions,
+            **_asset_fields(asset),
         ))
     return rows
 
@@ -500,7 +602,7 @@ class AdministrativeDue:
         vecchia lista con la scadenza evidenziata."""
         if self.source == "occurrence":
             return reverse("assets:occurrence_complete", args=[self.id])
-        return f"{reverse('assets:asset_administrative_deadline_list')}?focus_deadline={self.id}"
+        return administrative_register_url(self.id)
 
 
 def administrative_dues(
@@ -669,7 +771,7 @@ def allowed_kinds(request) -> frozenset[str]:
 
     kinds = {KIND_ORDINARY, KIND_ADMINISTRATIVE}
     user = getattr(request, "user", None)
-    for kind, path in ((KIND_LICENSE, LICENSES_PATH), (KIND_CONTRACT, CONTRACTS_PATH)):
+    for kind, path in ((KIND_LICENSE, LICENSES_PATH), (KIND_CONTRACT, CONTRACTS_PATH), (KIND_CHECK, CHECKS_PATH)):
         try:
             if acl_allows_path(path, django_user=user, request=request):
                 kinds.add(kind)
@@ -698,6 +800,7 @@ def collect(
         + _licenses(start, end, filters, today)
         + _contracts(start, end, filters, today)
         + _legacy_deadlines(start, end, filters, today)
+        + _checks(start, end, filters, today)
     )
     state_order = {STATE_OVERDUE: 0, STATE_DUE_SOON: 1, STATE_OPEN: 2, STATE_PLANNED: 3, STATE_DONE: 4, "forecast": 5}
     rows.sort(key=lambda d: (d.due_date, state_order.get(d.state, 9), d.kind, d.title))

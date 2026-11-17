@@ -818,6 +818,16 @@ def _puo_presenze(request, iv, *, modifica: bool) -> bool:
 
     from core.middleware import acl_allows_path
 
+    if iv.tipo == ing.TIPO_VERIFICA:
+        vede = acl_allows_path(
+            reverse("assets:periodic_check_session_detail", args=[iv.pk]), django_user=request.user,
+            legacy_user=getattr(request, "legacy_user", None), request=request,
+        )
+        if not vede or not modifica:
+            return bool(vede)
+        from assets.views_maintenance import can_execute_maintenance
+
+        return bool(can_execute_maintenance(request))
     if iv.tipo in (ing.TIPO_ORDINARIA, ing.TIPO_AMMINISTRATIVA):
         from assets.registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
         from assets.services.visibilita import puo_vedere
@@ -1080,6 +1090,7 @@ def ingresso_collega(request, visita_id):
                      .select_related("ticket", "work_order", "work_order__asset", "sessione_formazione",
                                      "sessione_formazione__corso", "occorrenza", "occorrenza__plan", "occorrenza__asset",
                                      "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria",
+                                     "verifica", "verifica__check_type", "verifica__check_type__system",
                                      "collegato_da"))
     for c in collegati:
         c.iv = ing.intervento_del_link(c)
