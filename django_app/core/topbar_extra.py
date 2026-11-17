@@ -118,7 +118,8 @@ def _griglia(request, gruppi: list[dict]) -> dict:
     per_id: dict[str, dict] = {}
 
     def voce(item) -> dict:
-        v = {"label": item.label, "href": item.href, "active": item.active, "star": id_preferito(item)}
+        v = {"label": item.label, "href": item.href, "active": item.active, "star": id_preferito(item),
+             "new_tab": bool(getattr(item, "new_tab", False))}
         v["preferito"] = v["star"] in salvati
         per_id.setdefault(v["star"], v)
         return v

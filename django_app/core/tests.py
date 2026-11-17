@@ -1542,6 +1542,39 @@ class TopnavUnifiedSearchTests(TestCase):
         self.assertNotIn('class="logout-a"', html)
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TopnavNuovaSchedaTests(TestCase):
+    """«Apri in una nuova scheda» del menu: il flag salvato deve arrivare al link."""
+
+    def setUp(self):
+        from core.models import NavigationItem
+
+        cache.clear()
+        self.addCleanup(cache.clear)  # il menu compilato in cache non deve passare ai test dopo
+        self.user = get_user_model().objects.create_superuser(username="topnav-tab", password="pass12345")
+        NavigationItem.objects.create(
+            code="sonda_esterna", label="Sonda esterna", section="topbar",
+            url_path="https://esterno.example/login.aspx", order=36, is_visible=True, is_enabled=True,
+            open_in_new_tab=True,
+        )
+        NavigationItem.objects.create(
+            code="sonda_interna", label="Sonda interna", section="topbar",
+            route_name="dashboard_home", order=37, is_visible=True, is_enabled=True,
+        )
+
+    def test_nodo_topbar_porta_il_flag(self):
+        from core.navigation_registry import get_topbar_nodes
+
+        nodi = {n.codice: n for n in get_topbar_nodes(current_path="/", role_id=None, is_admin=True)}
+        self.assertTrue(nodi["sonda_esterna"].new_tab)
+        self.assertFalse(nodi["sonda_interna"].new_tab)
+
+    def test_link_nel_menu_ha_target_blank(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("ui_prefs_page")).content.decode()
+        self.assertRegex(html, r'href="https://esterno\.example/login\.aspx"[^>]*target="_blank" rel="noopener"')
+
+
 class TopbarGroupingTests(SimpleTestCase):
     def _item(self, label, group="", cat="c1", **kw):
         from core.context_processors import NavItem

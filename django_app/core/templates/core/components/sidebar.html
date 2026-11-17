@@ -60,7 +60,7 @@
           </div>
         </div>
       {% else %}
-        <a class="sb-item{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" title="{{ grp.item.label }}"{% if grp.item.active %} aria-current="page"{% endif %}>
+        <a class="sb-item{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}"{% if grp.item.new_tab %} target="_blank" rel="noopener"{% endif %} title="{{ grp.item.label }}"{% if grp.item.active %} aria-current="page"{% endif %}>
           <span class="sb-icon" aria-hidden="true">{% render_icon grp.item.icon grp.item.label %}</span>
           <span class="sb-label">{{ grp.item.label }}</span>
           {% if grp.item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
@@ -68,7 +68,7 @@
       {% endif %}
     {% empty %}
       {% for item in nav_items %}
-        <a class="sb-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
+        <a class="sb-item{% if item.active %} active{% endif %}" href="{{ item.href }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %} title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
           <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
           <span class="sb-label">{{ item.label }}</span>
           {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
