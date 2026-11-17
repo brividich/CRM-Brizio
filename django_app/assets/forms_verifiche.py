@@ -240,11 +240,34 @@ class PeriodicCheckRegisterForm(forms.Form):
         widget=forms.DateInput(attrs=_DATE, format="%Y-%m-%d"),
         help_text="Vuota = calcolata dalla frequenza. Compilala se il verbale indica una data diversa.",
     )
+    deadlines = forms.ModelMultipleChoiceField(
+        label="Scadenze amministrative da chiudere e rinnovare",
+        queryset=None,
+        required=False,
+        help_text=(
+            "Ognuna registra l'esecuzione con la data e i documenti della verifica e passa alla prossima data: "
+            "la sua periodicità, altrimenti quella della verifica. Senza periodicità si chiude."
+        ),
+    )
 
     def __init__(self, *args, check_type: PeriodicCheckType, **kwargs):
         super().__init__(*args, **kwargs)
         self.check_type = check_type
         self.fields["supplier"].queryset = _supplier_queryset()
+        from django.db.models import Case, IntegerField, Value, When
+
+        from .models import AssetAdministrativeDeadline
+
+        asset_id = check_type.system.asset_id if check_type.system_id else None
+        field = self.fields["deadlines"]
+        # Prima quelle dell'asset dell'impianto, poi le altre per asset.
+        field.queryset = AssetAdministrativeDeadline.objects.filter(is_active=True).select_related("asset").annotate(
+            _prima=Case(When(asset_id=asset_id, then=Value(0)), default=Value(1), output_field=IntegerField())
+        ).order_by("_prima", "asset__asset_tag", "due_date", "title")
+        field.label_from_instance = lambda d: f"{d.asset.asset_tag} · {d.title} (scade il {d.due_date:%d/%m/%Y})"
+        field.widget.attrs["class"] = "js-searchable"
+        if not self.is_bound and check_type.administrative_deadline_id:
+            field.initial = [check_type.administrative_deadline_id]
         if not self.is_bound:
             self.fields["performed_on"].initial = timezone.localdate()
             if check_type.supplier_id:

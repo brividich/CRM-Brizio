@@ -681,6 +681,9 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
                     notes=form.cleaned_data.get("notes") or "",
                     next_due_date=form.cleaned_data.get("next_due_date"),
                     results=results,
+                    # Il campo c'e' sempre nella pagina: senza (registrazioni esterne) vale quella collegata.
+                    deadline_ids=([d.id for d in form.cleaned_data.get("deadlines") or []]
+                                  if request.POST.get("deadlines_shown") else None),
                 ),
                 user=request.user,
                 files=uploads,
@@ -753,11 +756,10 @@ def _collega_visite_scelte(request: HttpRequest, session: PeriodicCheckSession) 
 
 
 def _messaggio_scadenza_collegata(request: HttpRequest, session: PeriodicCheckSession) -> None:
-    completion = session.deadline_completions.select_related("deadline").first()
-    if completion is not None:
+    for completion in session.deadline_completions.select_related("deadline", "deadline__asset"):
         deadline = completion.deadline
-        nuova = f": nuova scadenza {deadline.due_date:%d/%m/%Y}" if deadline.is_active else ""
-        messages.info(request, f"Scadenza amministrativa «{deadline.title}» rinnovata{nuova}.")
+        esito = f"rinnovata al {deadline.due_date:%d/%m/%Y}" if deadline.is_active else "chiusa"
+        messages.info(request, f"Scadenza amministrativa «{deadline.title}» di {deadline.asset.asset_tag} {esito}.")
 
 
 @login_required

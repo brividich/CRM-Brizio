@@ -73,6 +73,8 @@ class SessionInput:
     source: str = PeriodicCheckSession.SOURCE_MANUAL
     status: str = PeriodicCheckSession.STATUS_CONFIRMED
     import_key: str = ""
+    # Scadenze amministrative da chiudere e rinnovare (None = quella collegata al tipo).
+    deadline_ids: list[int] | None = None
 
 
 def outcome_from_results(results: Iterable[ResultInput], *, fallback: str) -> str:
@@ -117,7 +119,7 @@ def register_session(data: SessionInput, *, user=None, files: Iterable = ()) -> 
     if session.status == PeriodicCheckSession.STATUS_CONFIRMED:
         _stamp_confirmation(session, user)
         refresh_next_due(session.check_type)
-        renew_linked_deadline(session, user=user)
+        renew_deadlines(session, data.deadline_ids, user=user)
     return session
 
 
@@ -146,14 +148,25 @@ def confirm_session(session: PeriodicCheckSession, *, user=None) -> None:
 
 
 def renew_linked_deadline(session: PeriodicCheckSession, *, user=None):
-    """Verifica che adempie una scadenza amministrativa (es. verifica SAT): la scadenza
-    si rinnova con la stessa data della verifica, senza registrarla due volte.
+    """Rinnova la scadenza amministrativa collegata al tipo di verifica (es. verifica SAT).
 
-    Si registra un'esecuzione sulla scadenza (con i documenti della verifica, senza
-    copiarli) e la nuova scadenza diventa quella del tipo di verifica. Non fa niente se
-    la scadenza non c'e' o non e' attiva, se questa verifica l'ha gia' rinnovata o se la
-    scadenza ha gia' un'esecuzione piu' recente (verifica vecchia registrata dopo).
-    Ritorna l'esecuzione creata, o None.
+    Ritorna l'esecuzione creata, o None. Vedi ``renew_deadlines``.
+    """
+    completions = renew_deadlines(session, None, user=user)
+    return completions[0] if completions else None
+
+
+def renew_deadlines(session: PeriodicCheckSession, deadline_ids=None, *, user=None) -> list:
+    """Chiude e rinnova le scadenze amministrative adempiute da questa verifica.
+
+    ``deadline_ids`` = scelte nella registrazione; ``None`` = solo quella collegata al tipo
+    di verifica (registrazioni senza scelta: conferma di una scansione, import).
+    Per ogni scadenza si registra un'esecuzione con la data e i documenti della verifica
+    (senza copiarli) e la scadenza passa alla prossima data: per quella collegata la
+    prossima scadenza della verifica; per le altre la periodicita' della scadenza,
+    altrimenti quella della verifica; senza nessuna delle due la scadenza si chiude.
+    Saltate: non attive, gia' rinnovate da questa verifica, con un'esecuzione piu' recente
+    (verifica vecchia registrata dopo).
     """
     from ..models import (
         AssetAdministrativeDeadline,
@@ -162,43 +175,53 @@ def renew_linked_deadline(session: PeriodicCheckSession, *, user=None):
     )
 
     check_type = session.check_type
-    if not check_type.administrative_deadline_id or session.status != PeriodicCheckSession.STATUS_CONFIRMED:
-        return None
-    deadline = AssetAdministrativeDeadline.objects.select_for_update().filter(
-        pk=check_type.administrative_deadline_id, is_active=True,
-    ).first()
-    if deadline is None or deadline.completions.filter(periodic_check_session=session).exists():
-        return None
-    if deadline.completions.filter(completed_on__gt=session.performed_on).exists():
-        return None
+    if session.status != PeriodicCheckSession.STATUS_CONFIRMED:
+        return []
+    if deadline_ids is None:
+        deadline_ids = [check_type.administrative_deadline_id] if check_type.administrative_deadline_id else []
+    ids = list(dict.fromkeys(int(i) for i in deadline_ids if i))
+    if not ids:
+        return []
     check_type.refresh_from_db(fields=["next_due_date"])
-    next_due = check_type.next_due_date if check_type.next_due_date and check_type.next_due_date > session.performed_on         else deadline.next_due_after(session.performed_on)
+    check_due = check_type.next_due_date if check_type.next_due_date and check_type.next_due_date > session.performed_on else None
     author = user if getattr(user, "is_authenticated", False) else None
     note = f"Dalla verifica impianto «{check_type.name}» del {session.performed_on:%d/%m/%Y}: {session.get_outcome_display()}."
     if session.technician:
         note += f" Tecnico: {session.technician}."
-    completion = AssetAdministrativeDeadlineCompletion.objects.create(
-        deadline=deadline,
-        completed_on=session.performed_on,
-        completed_by=author,
-        notes=note,
-        next_due_date=next_due,
-        periodic_check_session=session,
-    )
-    for attachment in session.attachments.all():
-        AssetAdministrativeDeadlineCompletionAttachment.objects.create(
-            completion=completion,
-            file=attachment.file.name,
-            original_name=attachment.original_name,
-            uploaded_by=author,
+    attachments = list(session.attachments.all())
+    completions = []
+    for deadline in AssetAdministrativeDeadline.objects.select_for_update().filter(pk__in=ids, is_active=True).order_by("pk"):
+        if deadline.completions.filter(periodic_check_session=session).exists():
+            continue
+        if deadline.completions.filter(completed_on__gt=session.performed_on).exists():
+            continue
+        if deadline.pk == check_type.administrative_deadline_id:
+            next_due = check_due or deadline.next_due_after(session.performed_on)
+        else:
+            next_due = deadline.next_due_after(session.performed_on) or check_due
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=session.performed_on,
+            completed_by=author,
+            notes=note,
+            next_due_date=next_due,
+            periodic_check_session=session,
         )
-    if next_due is not None:
-        deadline.due_date = next_due
-        deadline.save(update_fields=["due_date", "updated_at"])
-    else:
-        deadline.is_active = False
-        deadline.save(update_fields=["is_active", "updated_at"])
-    return completion
+        for attachment in attachments:
+            AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                completion=completion,
+                file=attachment.file.name,
+                original_name=attachment.original_name,
+                uploaded_by=author,
+            )
+        if next_due is not None:
+            deadline.due_date = next_due
+            deadline.save(update_fields=["due_date", "updated_at"])
+        else:
+            deadline.is_active = False
+            deadline.save(update_fields=["is_active", "updated_at"])
+        completions.append(completion)
+    return completions
 
 
 def deadline_link_issues(check_type: PeriodicCheckType) -> list[str]:

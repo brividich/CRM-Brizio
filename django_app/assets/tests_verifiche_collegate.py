@@ -284,3 +284,49 @@ class SchedaAssetTests(Base):
         self.client.post(reverse("assets:asset_view", args=[self.asset.id]),
                          {"action": "add_asset_document_folder", "folder_name": "Collaudi", "folder_scope": "category"})
         self.assertTrue(AssetCategoryDocumentFolder.objects.filter(category=self.categoria, slug="collaudi").exists())
+
+
+class RegistraChiudeScadenzeTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.sat = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset, title="Verifica SAT", due_date=self.oggi + timedelta(days=5), recurrence_months=12,
+        )
+        self.check_type.administrative_deadline = self.sat
+        self.check_type.save()
+        self.altra = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset, title="Certificato funi", due_date=self.oggi, recurrence_months=6,
+        )
+        self.senza_periodo = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset, title="Collaudo una tantum", due_date=self.oggi,
+        )
+
+    def _registra(self, **extra):
+        data = {"performed_on": self.oggi.isoformat(), "outcome": PeriodicCheckSession.OUTCOME_OK,
+                "supplier": self.fornitore.pk, "deadlines_shown": "1"}
+        data.update(extra)
+        return self.client.post(reverse("assets:periodic_check_register", args=[self.check_type.pk]), data)
+
+    def test_campo_con_la_collegata_gia_scelta(self):
+        response = self.client.get(reverse("assets:periodic_check_register", args=[self.check_type.pk]))
+        self.assertContains(response, "Scadenze amministrative da chiudere e rinnovare")
+        self.assertContains(response, f'value="{self.sat.pk}" selected')
+
+    def test_chiude_e_rinnova_le_scadenze_scelte(self):
+        self._registra(deadlines=[self.sat.pk, self.altra.pk, self.senza_periodo.pk])
+        session = PeriodicCheckSession.objects.get(check_type=self.check_type)
+        self.check_type.refresh_from_db()
+        for dl in (self.sat, self.altra, self.senza_periodo):
+            dl.refresh_from_db()
+            self.assertEqual(dl.completions.get().periodic_check_session, session)
+        self.assertEqual(self.sat.due_date, self.check_type.next_due_date)
+        self.assertEqual(self.altra.due_date, self.altra.next_due_after(self.oggi))
+        # Senza periodicità propria prende quella della verifica.
+        self.assertEqual(self.senza_periodo.due_date, self.check_type.next_due_date)
+        self.assertTrue(self.senza_periodo.is_active)
+
+    def test_togliere_la_collegata_non_la_rinnova(self):
+        self._registra(deadlines=[self.altra.pk])
+        self.sat.refresh_from_db()
+        self.assertFalse(self.sat.completions.exists())
+        self.assertTrue(AssetAdministrativeDeadline.objects.get(pk=self.altra.pk).completions.exists())
