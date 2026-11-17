@@ -169,8 +169,11 @@ def discover_trigger_files(*, filter_files: list[str] | None = None) -> list[Pat
         if not directory.exists():
             continue
         for sql_path in sorted(directory.glob("trg_*.sql"), key=lambda item: item.name.lower()):
-            key = str(sql_path.resolve())
+            # Stesso nome in due cartelle = stesso trigger: vince automazioni/migrations/.
+            # Prima la copia in sql/ veniva applicata per seconda e sovrascriveva l'altra.
+            key = sql_path.name.lower()
             if key in seen:
+                logger.warning("apply_sql_triggers: %s duplicato, ignorato (vale %s)", sql_path, key)
                 continue
             if requested and sql_path.name not in requested:
                 continue

@@ -9,6 +9,15 @@ BEGIN
     IF OBJECT_ID(N'dbo.automation_event_queue', N'U') IS NULL
         RETURN;
 
+    -- Audit S3: un errore sulla coda automazioni non deve annullare la richiesta
+    -- dell utente. Errori di istruzione intercettati qui; se la transazione e
+    -- compromessa (XACT_STATE = -1) l errore viene rilanciato.
+    -- Unico file del trigger: una copia in sql/ veniva applicata dopo questa e
+    -- non scriveva old_payload_json, quindi le regole «specific_field» (es. mail
+    -- al richiedente al cambio stato) non partivano mai.
+    SET XACT_ABORT OFF;
+    BEGIN TRY
+
     -- Gestione INSERT (Nuovo Ticket)
     IF EXISTS (SELECT * FROM inserted) AND NOT EXISTS (SELECT * FROM deleted)
     BEGIN
@@ -75,4 +84,10 @@ BEGIN
         WHERE ISNULL(i.stato, N'') <> ISNULL(d.stato, N'')
            OR ISNULL(i.assegnato_a, N'') <> ISNULL(d.assegnato_a, N'');
     END
+
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() = -1
+            THROW;
+    END CATCH;
 END

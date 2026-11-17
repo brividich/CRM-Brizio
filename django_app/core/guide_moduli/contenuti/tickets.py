@@ -192,6 +192,17 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Chiudo o cambio stato a un ticket e il richiedente non riceve la mail",
+            "fare": [
+                "La mail la manda la regola «tickets-cambio-stato-email-richiedente» (Automazioni → Regole): deve essere attiva "
+                "e non in bozza, e il ticket deve avere la mail del richiedente.",
+                "Non mandano mail, apposta: «Già risolto» in apertura (chiusura al volo), l'import da file e le modifiche arrivate da SharePoint.",
+                "Fino a novembre 2026 il trigger dei ticket sul database non passava lo stato precedente e la regola non partiva mai: "
+                "serve un deploy con il trigger aggiornato (lo riapplica deploy-release.ps1). In Automazioni → «Esecuzioni» "
+                "la regola deve comparire a ogni cambio di stato.",
+            ],
+        },
+        {
             "sintomo": "«List ID non valido» o «Site ID non valido» al salvataggio delle impostazioni",
             "fare": [
                 "Il List ID è il GUID della lista (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx), non il nome né l'indirizzo della pagina.",
