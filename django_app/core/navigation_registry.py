@@ -51,6 +51,7 @@ class NavigationNode:
     category_label: str = ""
     category_icon: str = ""
     category_order: int = 0
+    new_tab: bool = False
 
 
 def _safe_int(value, default: int) -> int:
@@ -380,6 +381,7 @@ def _compiled_items_for_role(
                 "category_label": (item.category.label if item.category_id and item.category else ""),
                 "category_icon": (item.category.icon if item.category_id and item.category else ""),
                 "category_order": (item.category.order if item.category_id and item.category else 0),
+                "new_tab": bool(item.open_in_new_tab),
             }
         )
     # ── Dedup guard (stesso target) ──────────────────────────────────────────
@@ -548,6 +550,7 @@ def get_sidebar_children_map(
                 icon=row.get("icon", ""),
                 group=row.get("group", ""),
                 active_patterns=row.get("active_patterns", ""),
+                new_tab=bool(row.get("new_tab", False)),
             )
         )
     for parent in out:
@@ -594,6 +597,7 @@ def get_topbar_nodes(
                 category_label=row.get("category_label", ""),
                 category_icon=row.get("category_icon", ""),
                 category_order=row.get("category_order", 0),
+                new_tab=bool(row.get("new_tab", False)),
             )
         )
     nodes.sort(key=lambda n: (n.order_hint, n.label.lower()))

@@ -203,6 +203,7 @@ class NavItem:
     category_order: int = 0
     children: list = field(default_factory=list)
     descrizione: str = ""
+    new_tab: bool = False
 
 
 def _group_nav_items(items: list) -> list[dict]:
@@ -493,6 +494,7 @@ def _build_sidebar_children(child_nodes: list, request) -> tuple[list[NavItem], 
                 icon=n.icon,
                 group=n.group,
                 order_hint=n.order_hint,
+                new_tab=n.new_tab,
             )
         )
     return children, any_active
@@ -551,6 +553,7 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
                 category_icon=node.category_icon,
                 category_order=node.category_order,
                 children=children,
+                new_tab=node.new_tab,
             )
         )
     return items
