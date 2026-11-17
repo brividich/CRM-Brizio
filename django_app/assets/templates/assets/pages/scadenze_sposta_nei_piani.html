@@ -1,0 +1,119 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Sposta nei piani — Scadenze amministrative{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Sposta nei piani{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Le scadenze amministrative diventano piani di manutenzione di tipo «Scadenza amministrativa»: da lì si registrano come le altre manutenzioni.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{{ registro_url }}">‹ Scadenze amministrative</a>
+  <a class="btn btn-secondary" href="{% url 'assets:guida' %}#sposta-nei-piani">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <div class="md-tabs" aria-label="Filtra per esito" data-sp-tabs>
+    <button type="button" class="md-tab active" data-sp-filtro="">Tutte <span class="md-badge badge-muted">{{ analisi.proposte|length }}</span></button>
+    {% for c in conteggi %}{% if c.n %}
+      <button type="button" class="md-tab" data-sp-filtro="{{ c.azione }}">{{ c.label }} <span class="md-badge {% if c.azione == 'doppione' %}badge-warning{% elif c.azione == 'senza_periodo' %}badge-info{% else %}badge-muted{% endif %}">{{ c.n }}</span></button>
+    {% endif %}{% endfor %}
+  </div>
+
+  {% if analisi.proposte %}
+  <form method="post" id="sp-form" data-hub-confirm="Spostare nei piani le scadenze scelte? Le righe del registro restano, non attive, con il loro storico.">
+    {% csrf_token %}
+    <section class="md-section">
+      <div class="md-section-head">
+        <h2>Anteprima</h2>
+        <span class="md-sub">Controlla i doppioni prima di spostare: niente viene cancellato.</span>
+      </div>
+      <div class="md-filters" style="border:0;box-shadow:none;padding:8px 16px">
+        <div class="md-field" style="flex:1 1 280px">
+          <label for="sp-cerca">Cerca</label>
+          <input id="sp-cerca" type="search" placeholder="Asset, titolo, piano…" autocomplete="off" data-sp-cerca>
+        </div>
+        <div class="md-actions">
+          <button type="button" class="btn btn-secondary" data-sp-tutte>Spunta le visibili</button>
+          <button type="submit" class="btn btn-primary" data-sp-invia disabled>Sposta le scelte (<span data-sp-n>0</span>)</button>
+        </div>
+      </div>
+      <div class="md-scroll">
+        <table class="md-table" data-fm-hide-search="1">
+          <thead>
+            <tr><th></th><th>Esito</th><th>Asset</th><th>Scadenza</th><th>Scade il</th><th>Ogni (mesi)</th><th>Diventa / doppione di</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+          {% for p in analisi.proposte %}
+            <tr data-sp-riga data-sp-azione="{{ p.azione }}">
+              <td>{% if p.selezionabile %}<input type="checkbox" name="scelta" value="{{ p.chiave }}" class="sp-scelta" aria-label="Scegli {{ p.prima.title }} di {{ p.asset.asset_tag }}"{% if p.scelta_di_base %} checked{% endif %}>{% endif %}</td>
+              <td><span class="md-badge {% if p.azione == 'sposta' %}badge-success{% elif p.azione == 'doppione' %}badge-warning{% elif p.azione == 'senza_periodo' %}badge-info{% else %}badge-muted{% endif %}">{{ p.azione_label }}</span></td>
+              <td><a class="md-asset" href="{% url 'assets:asset_view' p.asset.id %}">{{ p.asset.asset_tag }}</a><span class="md-sub">{{ p.asset.name }}</span></td>
+              <td>{{ p.prima.title }}{% if p.righe|length > 1 %}<span class="md-sub">{{ p.righe|length }} righe</span>{% endif %}{% if p.prima.issuer %}<span class="md-sub">{{ p.prima.issuer }}</span>{% endif %}</td>
+              <td class="md-nowrap">{{ p.scadenza|date:"d/m/Y" }}</td>
+              <td>{% if p.azione == 'sposta' or p.azione == 'senza_periodo' %}<input type="number" name="mesi_{{ p.chiave }}" value="{{ p.mesi|default:'' }}" min="1" max="{{ mesi_max }}" style="width:76px" aria-label="Ogni quanti mesi" data-sp-mesi>{% else %}—{% endif %}</td>
+              <td>{% if p.piano_esistente %}<a href="{% url 'assets:maintenance_plan_detail' p.piano_esistente.id %}">{{ p.piano_esistente.label }}</a>{% if p.prossima_del_piano %}<span class="md-sub">prossima {{ p.prossima_del_piano|date:"d/m/Y" }}</span>{% endif %}{% elif p.azione == 'resta' %}—{% else %}Piano «{{ p.etichetta_piano }}»{% endif %}</td>
+              <td><span class="md-sub">{{ p.motivo }}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </form>
+  {% else %}
+    <section class="md-section"><p class="md-empty">Nessuna scadenza amministrativa attiva da spostare.</p></section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+{{ block.super }}
+<script>
+(function () {
+  var form = document.getElementById("sp-form");
+  if (!form) { return; }
+  var righe = Array.prototype.slice.call(form.querySelectorAll("[data-sp-riga]"));
+  var cerca = form.querySelector("[data-sp-cerca]");
+  var filtro = "";
+  function visibili() { return righe.filter(function (r) { return !r.hidden; }); }
+  function aggiorna() {
+    var n = form.querySelectorAll(".sp-scelta:checked").length;
+    form.querySelector("[data-sp-n]").textContent = n;
+    form.querySelector("[data-sp-invia]").disabled = n === 0;
+  }
+  function applicaFiltri() {
+    var q = (cerca.value || "").trim().toLowerCase();
+    righe.forEach(function (r) {
+      var ok = (!filtro || r.getAttribute("data-sp-azione") === filtro) && (!q || r.textContent.toLowerCase().indexOf(q) !== -1);
+      r.hidden = !ok;
+    });
+  }
+  cerca.addEventListener("input", applicaFiltri);
+  document.querySelectorAll("[data-sp-filtro]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      filtro = b.getAttribute("data-sp-filtro");
+      document.querySelectorAll("[data-sp-filtro]").forEach(function (x) { x.classList.toggle("active", x === b); });
+      applicaFiltri();
+    });
+  });
+  form.querySelector("[data-sp-tutte]").addEventListener("click", function () {
+    var boxes = visibili().map(function (r) { return r.querySelector(".sp-scelta"); }).filter(Boolean);
+    var tutte = boxes.every(function (c) { return c.checked; });
+    boxes.forEach(function (c) { c.checked = !tutte; });
+    aggiorna();
+  });
+  form.addEventListener("change", function (e) {
+    if (e.target.matches("[data-sp-mesi]") && e.target.value) {
+      var box = e.target.closest("tr").querySelector(".sp-scelta");
+      if (box) { box.checked = true; }
+    }
+    aggiorna();
+  });
+  aggiorna();
+})();
+</script>
+{% endblock %}

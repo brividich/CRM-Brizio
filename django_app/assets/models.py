@@ -924,6 +924,15 @@ class AssetAdministrativeDeadline(models.Model):
     )
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
+    # Spostata nei piani di manutenzione («Sposta nei piani»): fa fede il piano. La riga
+    # resta, non attiva, con il suo storico; le occorrenze del piano non sono sue copie.
+    moved_to_plan = models.ForeignKey(
+        "MaintenanceInterventionTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="moved_administrative_deadlines",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

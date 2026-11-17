@@ -564,6 +564,19 @@ def _deadline_category_choices() -> list[tuple[str, str]]:
 
 
 @login_required
+def _da_spostare_nei_piani(request: HttpRequest) -> int:
+    """Quante scadenze attive si possono spostare nei piani (per l'avviso; solo a chi configura i piani)."""
+    from ..models import PeriodicCheckType
+    from ..views_maintenance import can_manage_maintenance_plans
+
+    if not can_manage_maintenance_plans(request):
+        return 0
+    collegate = PeriodicCheckType.objects.filter(is_active=True, administrative_deadline__isnull=False).values(
+        "administrative_deadline_id"
+    )
+    return AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(pk__in=collegate).count()
+
+
 def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     can_manage_outlook_calendar = _is_assets_admin(request)
     calendar_user_choices: list[tuple[str, str]] = []
@@ -978,6 +991,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
         "assets/pages/asset_admin_deadline_list.html",
         {
             "page_title": "Scadenze amministrative",
+            "sposta_nei_piani_n": _da_spostare_nei_piani(request),
             "deadline_rows": deadline_rows,
             "deadline_total": len(deadline_rows),
             "deadline_dates_total": sum(1 + len(row["series"]) for row in deadline_rows),

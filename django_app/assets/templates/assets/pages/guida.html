@@ -29,6 +29,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#menu">Il menu a sinistra</a>
     <a href="#rinvio">Rinvio di una manutenzione</a>
     <a href="#scadenze-amministrative">Scadenze amministrative</a>
+    <a href="#sposta-nei-piani">Spostare le scadenze nei piani</a>
     <a href="#verifiche-collegate">Verifiche impianti, ditta e «Registra»</a>
     <a href="#registra-insieme">Registrare insieme su più asset</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
@@ -105,6 +106,18 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Le scadenze svolte si ritrovano con <span class="ag-btn">Svolte →</span>: apre Manutenzione &rsaquo; <strong>Storico</strong> con ogni esecuzione registrata (data, chi, costo, prossima scadenza), anche delle voci che si sono rinnovate. Le voci senza periodicità, una volta registrate, sono nella scheda <strong>Chiuse</strong>.</li>
       </ul>
       <p class="ag-note">Registrare è riservato all'amministrazione del modulo Asset. Per spostare nei piani le manutenzioni finite nel registro c'è il comando <code>riordina_scadenze_amministrative</code> (prima in prova, poi con <code>--apply</code>).</p>
+    </section>
+
+    <section class="ag-sec" id="sposta-nei-piani">
+      <h2>Spostare le scadenze amministrative nei piani</h2>
+      <p>Scadenze amministrative &rsaquo; <span class="ag-btn">Sposta nei piani</span> (a chi configura i piani di manutenzione) accorpa il registro nella manutenzione: ogni scadenza diventa l'applicazione su quell'asset di un piano di tipo <strong>«Scadenza amministrativa»</strong> con lo stesso titolo (un piano per titolo, riusato su tutti gli asset), ogni N mesi, prima scadenza = la data della scadenza, contata dalla scadenza teorica. Da lì si registra da Da fare, Scadenzario, scheda asset e OdL come le altre manutenzioni.</p>
+      <ul>
+        <li><strong>Diventa piano</strong>: la periodicità è «Si ripete ogni (mesi)» della scadenza, altrimenti la distanza fra le date della serie (stesso titolo e asset, una riga per data: diventa un'applicazione sola). Si può correggere nella colonna «Ogni (mesi)».</li>
+        <li><strong>Doppione di un piano</strong>: sull'asset c'è già un piano attivo con lo stesso titolo o la stessa sigla (VTS, SAT…), anche ereditato da gruppo o categoria. Non si crea niente: la scadenza si spegne e fa fede il piano (la colonna mostra la sua prossima scadenza per confronto). Se non è davvero lo stesso adempimento, togli la spunta.</li>
+        <li><strong>Senza periodicità</strong>: indica ogni quanti mesi si ripete (la riga si spunta da sola), altrimenti resta nel registro.</li>
+        <li><strong>Resta nel registro</strong>: le scadenze adempiute da una verifica impianto, che si rinnovano registrando la verifica.</li>
+      </ul>
+      <p class="ag-note">Non si cancella niente: la scadenza resta, non attiva, con il suo storico e la nota «Spostata nel piano…». Le scelte si ricontrollano al momento dello spostamento.</p>
     </section>
 
     <section class="ag-sec" id="verifiche-collegate">
