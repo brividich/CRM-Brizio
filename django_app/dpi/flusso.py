@@ -132,6 +132,35 @@ def approvatori_di(legacy_id: int | None) -> set[int]:
     return ids
 
 
+def preposti_attivi() -> set[int]:
+    """Chi ha oggi il ruolo operativo «Preposto» (id legacy anagrafica)."""
+    from anagrafica.models import DipendenteRuoloOperativo
+
+    try:
+        return {
+            int(i) for i in DipendenteRuoloOperativo.objects.filter(
+                ruolo_id__in=ruoli_preposto_ids(), data_fine__isnull=True, legacy_anagrafica_id__isnull=False,
+            ).values_list("legacy_anagrafica_id", flat=True)
+        }
+    except Exception:
+        logger.warning("preposti_attivi fallita", exc_info=True)
+        return set()
+
+
+def scelta_preposto(legacy_id: int | None) -> tuple[set[int], set[int]]:
+    """Per la tendina «Chi approva» della richiesta: (tutti i preposti piu' gli approvatori
+    del dipendente, incaricati del dipendente).
+
+    Gli incaricati sono i preposti della sua area; se l'area non ne ha, i suoi
+    responsabili. Quale mettere per primo (per nome) lo decide la vista."""
+    if not legacy_id:
+        return set(), set()
+    suoi = approvatori_di(legacy_id)
+    preposti = preposti_attivi()
+    tutti = (preposti | suoi) - {int(legacy_id)}
+    return tutti, (suoi & preposti) or suoi
+
+
 def dipendenti_di_approvatore(approvatore_legacy_id: int | None) -> set[int]:
     """ID legacy dei dipendenti le cui richieste puo' approvare ``approvatore_legacy_id``.
 
@@ -211,7 +240,9 @@ def email_dipendente(richiesta) -> str:
 
 
 def _destinatari_approvatori(richiesta) -> list[str]:
-    emails = email_preposti(richiesta)
+    scelto = _email_persona(richiesta.preposto_legacy_id) if getattr(richiesta, "preposto_legacy_id", None) else ""
+    # Preposto scelto nella richiesta: la mail va a lui; senza email, regola di sempre.
+    emails = [scelto] if scelto else email_preposti(richiesta)
     if not emails:
         from anagrafica.services.reminders import get_reminder_recipients
 
