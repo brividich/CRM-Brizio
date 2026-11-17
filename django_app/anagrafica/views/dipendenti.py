@@ -1908,6 +1908,16 @@ def dipendente_detail(request, legacy_id: int):
         if not _helpers._can_view_documenti_riservati(request):
             qs_doc = qs_doc.exclude(cartella__solo_admin=True)
         documenti_dipendente = list(qs_doc.order_by("-created_at")[:100])
+        # Il template raggruppa con {% regroup %}, che unisce solo elementi consecutivi:
+        # senza questo ordinamento la stessa cartella compariva due volte (sembrava una
+        # cartella nuova a ogni caricamento). Ordine stabile: dentro la cartella resta
+        # il più recente in alto; «Senza cartella» in fondo.
+        documenti_dipendente.sort(key=lambda d: (
+            d.cartella is None,
+            d.cartella.ordine if d.cartella else 0,
+            (d.cartella.nome or "").lower() if d.cartella else "",
+            d.cartella_id or 0,
+        ))
         # Scheletro cartelle: solo quelle applicabili al dipendente (targeting per
         # reparto/ruoli operativi; cartella senza targeting = universale).
         from ..models import DipendenteAnagraficaAziendale as _Az, DipendenteRuoloOperativo as _RO
