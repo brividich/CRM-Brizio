@@ -399,7 +399,7 @@ def notifica_approvata(richiesta) -> None:
         passo = "il dipendente e' gia' stato avvisato di passare a ritirarlo: consegnalo e registra la consegna"
     else:
         passo = ("preparalo, poi in DPI > Banco consegne premi «Pronto per il ritiro» (avvisa il dipendente) "
-                 "e alla consegna registrala: la conferma di ricevuta arriva via mail, la firma è facoltativa")
+                 "e alla consegna registrala con il badge della persona (senza badge la ricevuta si conferma da sola dopo 24 ore)")
     try:
         _mail(
             f"[DPI] Da consegnare {richiesta.numero} - {richiesta.richiedente_nome}",

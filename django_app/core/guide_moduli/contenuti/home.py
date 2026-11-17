@@ -154,6 +154,10 @@ GUIDA = {
                       "La guida completa della home è nel collegamento qui sopra."),
                 ("ul", [
                     "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali e, per chi gestisce le consegne DPI, Banco consegne DPI) e «Rifai il tour».",
+                    "«Le mie attività» (stanza «Oggi» e pagina dedicata): tutto quello che è assegnato a te nei moduli, anche senza scadenza. "
+                    "Oltre a KICK-OFF (attività anche senza commessa e sotto-attività), ticket, anomalie, assenze, procedure, DPI e corsi ci sono «Ordini di lavoro», "
+                    "«Approvazioni e richieste» (modifiche SGI, approvazioni dei flussi, richieste di visita) e «Altre voci assegnate a te» "
+                    "(MOD.133 e specifiche, registro OFI, CAR, obiettivi del riesame, Suggestion Corner, attrezzature, checklist chiusure).",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
                     "Azioni rapide: in «⚙ Personalizza» scegli le tue (azioni come Segnala anomalia o moduli da aprire), le riordini con ↑ ↓ e le togli con ✕, fino a 12; «Torna alle predefinite» rimette quelle del tuo ruolo o del portale. Compaiono solo le pagine che i tuoi permessi ti fanno aprire. Senza scelte vedi lo standard: Le mie attività, Scadenzario e poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente (al massimo 6).",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
@@ -263,7 +267,7 @@ GUIDA = {
                     "«👤 Me ne occupo io» (sotto la scadenza, nel pannello del giorno e nell'agenda): la scadenza compare a tutti con il tuo nome e la nota (＋ nota); «✕ Lascia» la libera. "
                     "Chi gestisce lo scadenzario può liberare quelle degli altri; «Subentro io» prende il posto di chi l'aveva. Se la scadenza cambia data (rinnovo) la presa in carico decade da sola.",
                     "«✓ Rinnovato oggi» (solo scadenze generiche, per chi gestisce la categoria): registra il rinnovo con la data di oggi e calcola la prossima scadenza; per un'altra data o un allegato si usa la scheda.",
-                    "«→ Assegna» (per chi ha la scadenza o gestisce lo scadenzario): affida la scadenza a un collega, che riceve una notifica. In Home, «Cose da gestire» mostra «Le mie scadenze»: scadute ed entro 7 giorni, senza quelle sanitarie.",
+                    "«→ Assegna» (per chi ha la scadenza o gestisce lo scadenzario): affida la scadenza a un collega, che riceve una notifica. In Home, «Le mie attività» mostra «Le mie scadenze»: scadute ed entro 30 giorni, senza quelle sanitarie e senza ripetere le voci già in un'altra sezione.",
                     "«👤 Solo le mie»: le scadenze col tuo nome, di cui sei responsabile o che hai preso in carico.",
                     "«★ Viste»: salva i filtri e la vista attuali con un nome e li richiami con un clic; con ☆ una vista diventa quella che si apre entrando nello scadenzario (★ = attiva).",
                     "Festivi (nazionali, Pasqua e Pasquetta, santo patrono se impostato) in rosso nel calendario; una scadenza che cade di sabato, domenica o festivo mostra «⚠ domenica», «⚠ Natale»…",

@@ -265,7 +265,8 @@ def _readable_team_codes(role_map: dict[str, str]) -> list[str]:
 
 def _task_scope_filter_q(request) -> Q:
     user = request.user
-    q = Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user)
+    # Chi riceve una sotto-attività deve poter aprire l'attività che la contiene.
+    q = Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user) | Q(subtasks__assigned_to=user)
     role_map = _request_task_role_access_map(request)
     team_codes = _readable_team_codes(role_map)
     if team_codes:
@@ -287,6 +288,7 @@ def _project_scope_filter_q(request) -> Q:
         | Q(tasks__created_by=user)
         | Q(tasks__assigned_to=user)
         | Q(tasks__subscribers=user)
+        | Q(tasks__subtasks__assigned_to=user)
         # I kickoff programmati devono comparire a chi vi partecipa o li ha creati,
         # anche senza task nel progetto (bug: sparivano dalla dashboard).
         | Q(meetings__partecipanti_utenti=user)

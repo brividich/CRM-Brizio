@@ -34,6 +34,7 @@ from .services import (
     conferma_voce,
     crea_evento_con_voci,
     decidi_proposta,
+    dipendente_di,
     eventi_con_progresso,
     riapri_evento,
     salva_voce,
@@ -83,7 +84,7 @@ def impostazioni_required(view_func):
 def _current_dipendente(request) -> AnagraficaDipendente | None:
     if not request.user.is_authenticated:
         return None
-    return AnagraficaDipendente.objects.filter(utente_id=request.user.id).first()
+    return dipendente_di(request)
 
 
 # ---------------------------------------------------------------------------
