@@ -50,7 +50,7 @@ SENZA_FIRMA = "senza_firma"
 FILTRI_RICEVUTA = (
     (FIRMATA, "Firmata"),
     (CON_BADGE, "Confermata con badge"),
-    (CONFERMATA, "Confermata via mail"),
+    (CONFERMATA, "Confermata (dopo 24 ore o via mail)"),
     (DA_CONFERMARE, "Da confermare"),
     (CONTESTATA, "Contestata"),
     (SENZA_FIRMA, "Senza firma"),

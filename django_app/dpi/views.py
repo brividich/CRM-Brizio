@@ -1227,28 +1227,17 @@ def _testo_manca_motivo(mancanze: list[dict]) -> str:
 
 
 def _chiedi_conferma(request, consegne: list[ConsegnaDPI]) -> None:
-    """Senza firma ne' ricevuta su carta: mail di conferma al dipendente (mail aziendale)
-    o al suo caporeparto. La consegna resta registrata comunque."""
+    """Senza badge, firma ne' ricevuta su carta: la ricevuta resta «Da confermare» e si
+    conferma da sola dopo ``conferme.ORE_AUTOCONFERMA`` ore. Nessuna mail."""
     from . import conferme
 
     autore = consegne[0].consegnato_da_nome if consegne else ""
-    conferma, tipo, inviate = conferme.richiedi(consegne, autore=autore)
-    if getattr(request, "_senza_utente", False):  # dal task: nessuno a cui mostrare i messaggi
-        if conferma is not None:
-            log_action(request, "dpi_conferma_richiesta", "dpi", f"Conferma ricevuta {conferma.pk} per {conferma.richiedente_nome} ({tipo})")
-        return
-    if conferma is not None and not inviate:
-        messages.warning(request, "Mail di conferma della ricevuta non inviata (regola «DPI consegnato - conferma della "
-                                  "ricevuta via mail» spenta in Automazioni o invio fallito): fai firmare il dipendente "
-                                  "o conserva la ricevuta su carta.")
-        return
+    conferma = conferme.richiedi(consegne, autore=autore)
     if conferma is None:
-        messages.warning(request, "Nessuna mail a cui chiedere la conferma di ricevuta: fai firmare il dipendente o "
-                                  "conserva la ricevuta su carta.")
         return
-    chi = "al dipendente" if tipo == conferma.Destinatario.DIPENDENTE else "al caporeparto (il dipendente non ha la mail aziendale)"
-    log_action(request, "dpi_conferma_richiesta", "dpi", f"Conferma ricevuta {conferma.pk} per {conferma.richiedente_nome} ({tipo})")
-    messages.info(request, f"Mail di conferma della ricevuta inviata {chi}.")
+    log_action(request, "dpi_conferma_richiesta", "dpi", f"Conferma ricevuta {conferma.pk} per {conferma.richiedente_nome} (automatica tra {conferme.ORE_AUTOCONFERMA} ore)")
+    if not getattr(request, "_senza_utente", False):  # dal task: nessuno a cui mostrare i messaggi
+        messages.info(request, f"Consegna senza badge: la ricevuta si conferma da sola tra {conferme.ORE_AUTOCONFERMA} ore.")
 
 
 def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> None:
@@ -1419,7 +1408,6 @@ def impostazioni(request):
         impost.negozio_giorni_riepilogo = _parse_optional_positive_int(request.POST.get("negozio_giorni_riepilogo")) or impost.negozio_giorni_riepilogo
         impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
         impost.avviso_ritiro_all_approvazione = bool(request.POST.get("avviso_ritiro_all_approvazione"))
-        impost.domini_email_aziendali = request.POST.get("domini_email_aziendali", "").strip()[:300]
         impost.save()
         log_action(request, "modifica", "dpi", "Aggiornate impostazioni DPI")
         messages.success(request, "Impostazioni salvate.")
@@ -2497,6 +2485,9 @@ def banco(request):
 
     if not parziale:
         completa_consegne_in_sospeso()
+        from .conferme import autoconferma
+
+        autoconferma()
     tutte = request.GET.get("tutte") == "1"
     contesto = _banco_contesto(request, tutte)
     if parziale:

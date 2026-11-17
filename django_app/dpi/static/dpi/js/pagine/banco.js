@@ -24,7 +24,7 @@
     var btn = consegnaBtn(card);
     var conFirma = !!card.querySelector('input[name=firmato_ricevuta]:checked') || !!(card.querySelector('[data-firma]') || {})._ink;
     btn.disabled = !scelte.length;
-    btn.textContent = !scelte.length ? 'Spunta almeno un DPI' : (conFirma ? 'Consegna con la firma' : 'Consegna con mail');
+    btn.textContent = !scelte.length ? 'Spunta almeno un DPI' : (conFirma ? 'Consegna con la firma' : 'Consegna senza badge');
     var inAttesa = attesa && attesa.card === card;
     var btnBadge = card.querySelector('[data-conferma-badge]');
     var haBadge = !!card.getAttribute('data-ha-badge');
@@ -44,7 +44,7 @@
     invito.classList.toggle('attesa', !!inAttesa);
     invito.textContent = inAttesa
       ? 'Passa ora il badge di ' + card.getAttribute('data-nome') + ' per ' + scelte.length + ' DPI.'
-      : (!haBadge ? 'Nessun badge in Anagrafica per questa persona: usa la conferma con mail.' : 'Per confermare con il badge collega il lettore.');
+      : (!haBadge ? 'Nessun badge in Anagrafica per questa persona: «Consegna senza badge», la ricevuta si conferma da sola dopo 24 ore.' : 'Per confermare con il badge collega il lettore.');
   }
 
   function fermaAttesa() {
@@ -429,7 +429,7 @@
       if (manca_motivo(perBadge)) return;
       attesa = {card: perBadge, timer: setTimeout(function () {
         fermaAttesa();
-        errore('Tempo scaduto: clicca di nuovo «Consegna con badge» o usa la mail.');
+        errore('Tempo scaduto: clicca di nuovo «Consegna con badge» o «Consegna senza badge».');
       }, SECONDI_ATTESA_BADGE * 1000)};
       sincronizza(perBadge);
       return;
@@ -616,7 +616,7 @@
           var bottone = persona.querySelector('[data-conferma-badge]');
           avviaConsegna(bottone.form, bottone, r.prova);
         } else {
-          errore(r.esito === 'ok' ? 'Badge di un\'altra persona: DPI non consegnati. Passa il badge giusto o usa la mail.' : 'Badge non riconosciuto: DPI non consegnati. Passa il badge giusto o usa la mail.');
+          errore(r.esito === 'ok' ? 'Badge di un\'altra persona: DPI non consegnati. Passa il badge giusto o usa «Consegna senza badge».' : 'Badge non riconosciuto: DPI non consegnati. Passa il badge giusto o usa «Consegna senza badge».');
         }
         return;
       }

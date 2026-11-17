@@ -103,25 +103,13 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "notifica_rifiutata_dopo_approvazione",
     },
     {
-        "code": "dpi_conferma_ricevuta",
-        "label": "DPI consegnato - conferma della ricevuta via mail",
-        "module": "DPI",
-        "trigger": (
-            "Il magazzino registra una consegna senza firma né ricevuta su carta (Banco consegne o scheda richiesta); "
-            "promemoria unico dopo 3 giorni senza risposta (task dpi_expiry_reminders)."
-        ),
-        "destinatari": (
-            "Il dipendente se la sua email di notifica è aziendale (Impostazioni DPI: domini della mail aziendale), "
-            "altrimenti il suo caporeparto/responsabile/preposto; in mancanza i referenti DPI. Link personale monouso."
-        ),
-        "source": "dpi/conferme.py",
-        "func": "_invia",
-    },
-    {
         "code": "dpi_consegna_contestata",
         "label": "DPI - consegna contestata («Non li ho ricevuti»)",
         "module": "DPI",
-        "trigger": "Chi riceve la mail di conferma della ricevuta risponde «Non li ho ricevuti».",
+        "trigger": (
+            "Chi aveva ricevuto una mail di conferma della ricevuta (inviate fino al 17/11/2026, poi sostituite da badge "
+            "o conferma automatica dopo 24 ore) risponde «Non li ho ricevuti» prima della conferma automatica."
+        ),
         "destinatari": "Impostazioni DPI: email Magazzino (referenti DPI per le categorie che il magazzino non consegna)",
         "source": "dpi/conferme.py",
         "func": "_avvisa_contestazione",

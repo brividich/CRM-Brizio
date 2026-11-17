@@ -4,7 +4,7 @@
 {% block title %}Banco consegne DPI | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'dpi/css/pagine/banco.css' %}?v=20261117">
+<link rel="stylesheet" href="{% static 'dpi/css/pagine/banco.css' %}?v=20261117b">
 {% endblock %}
 
 {% block content %}
@@ -15,7 +15,7 @@
   <div class="dpi-hero">
     <div>
       <div class="dpi-hero-title">Banco consegne</div>
-      <div class="dpi-hero-sub">Passa il badge o cerca la persona, controlla i DPI, conferma con badge o con mail.</div>
+      <div class="dpi-hero-sub">Passa il badge o cerca la persona, controlla i DPI, conferma con il badge.</div>
     </div>
     <a href="{% url 'guida_modulo' 'dpi' %}#banco">? Guida</a>
   </div>
@@ -114,5 +114,5 @@
 </div>
 {{ catalogo_modelli|json_script:"banco-catalogo" }}
 <script src="{% static 'dpi/js/lettore_badge.js' %}"></script>
-<script src="{% static 'dpi/js/pagine/banco.js' %}?v=20261117"></script>
+<script src="{% static 'dpi/js/pagine/banco.js' %}?v=20261117b"></script>
 {% endblock %}
