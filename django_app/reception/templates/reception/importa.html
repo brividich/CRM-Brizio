@@ -2,7 +2,6 @@
 {% load static %}
 {% block title %}Importa elenco | Reception{% endblock %}
 {% block rc_titolo %}Importa elenco{% endblock %}
-{% block rc_azioni %}<a class="rc-btn rc-btn-g" href="{% url 'reception:importa_modello' %}">Scarica il modello Excel</a>{% endblock %}
 {% block rc_contenuto %}
 {{ referenti_json|json_script:"referenti-dati" }}
 {% if errori %}
@@ -15,7 +14,10 @@
   <form method="post" enctype="multipart/form-data" class="rc-modulo">
     {% csrf_token %}
     <p class="rc-note">Le persone del file entrano con il capogruppo, quando usa il codice dell'invito o si registra al chiosco con lo stesso nome o email, ed escono con lui. Colonne: Cognome, Nome, Azienda / scuola, Email, Telefono (obbligatori cognome e nome, al massimo {{ max_righe }} righe).</p>
-    <div class="rc-field"><label for="i-file">File Excel (.xlsx)</label><input class="rc-input" id="i-file" type="file" name="file" accept=".xlsx" required></div>
+    <div class="rc-riga rc-riga-2 rc-modello">
+      <div class="rc-field"><span class="rc-label">1. Scarica il modello e compilalo</span><a class="rc-btn rc-btn-p" href="{% url 'reception:importa_modello' %}" download>Scarica il modello Excel</a></div>
+      <div class="rc-field"><label for="i-file">2. Carica il file compilato (.xlsx)</label><input class="rc-input" id="i-file" type="file" name="file" accept=".xlsx" required></div>
+    </div>
     <div class="rc-field"><span class="rc-label">Collega l'elenco a</span>
       <div class="rc-chips">
         <label class="rc-chip"><input type="radio" name="destinazione" value="nuovo" data-mostra="#d-nuovo"{% if destinazione == "nuovo" %} checked{% endif %}><span>Nuovo invito</span></label>
