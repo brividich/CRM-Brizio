@@ -91,7 +91,9 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 "Scadenze amministrative",
                 "asset_administrative_deadline_list",
                 sidebar_code="maintenance_amministrative",
-                routes=frozenset({"asset_administrative_deadline_create", "asset_administrative_deadline_edit"}),
+                routes=frozenset({
+                    "asset_administrative_deadline_create", "asset_administrative_deadline_edit", "scadenze_sposta_nei_piani",
+                }),
             ),
             # Verifiche sugli impianti (luci di emergenza, quadri, terra...), non sul
             # singolo asset. Da non confondere con la vecchia "Manutenzioni periodiche".

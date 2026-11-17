@@ -212,6 +212,11 @@ GUIDA = {
                     "Una verifica può adempiere una scadenza amministrativa (es. verifica SAT): campo «Scadenza amministrativa "
                     "che adempie» nella verifica. Registrando la verifica la scadenza si rinnova da sola, con la stessa data e i "
                     "documenti; nei calendari e negli scadenzari compare una volta sola, con «Registra» che apre la verifica.",
+                    "Scadenze amministrative → «Sposta nei piani» (chi configura i piani): le scadenze diventano piani di "
+                    "manutenzione di tipo «Scadenza amministrativa» (un piano per titolo, un'applicazione per asset, ogni N "
+                    "mesi dalla scadenza teorica). Anteprima con «Doppione di un piano» (stesso titolo o sigla già "
+                    "pianificati sull'asset: si spegne la scadenza, fa fede il piano), «Senza periodicità» (si indica a mano) "
+                    "e «Resta nel registro» (adempiute da una verifica impianto). Niente si cancella.",
                     "Registrando una verifica, il campo «Scadenze amministrative da chiudere e rinnovare» chiude e "
                     "rinnova anche altre scadenze (es. certificati dello stesso asset): ognuna prende la data e i documenti "
                     "della verifica e passa alla prossima data (sua periodicità, altrimenti quella della verifica).",

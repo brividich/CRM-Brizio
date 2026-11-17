@@ -417,10 +417,14 @@ def _contracts(start: date | None, end: date | None, filters: FeedFilters, today
 # annulla. Cosi' i conteggi sono giusti prima, durante e dopo la pulizia.
 
 def mirrored_deadline_subquery():
-    """Scadenza amministrativa di cui un'occorrenza e' la copia migrata."""
+    """Scadenza amministrativa di cui un'occorrenza e' la copia migrata.
+
+    Le scadenze spostate nei piani («Sposta nei piani») non hanno copie: il piano e' la fonte.
+    """
     return AssetAdministrativeDeadline.objects.filter(
         asset_id=OuterRef("asset_id"),
         title=OuterRef("plan__label"),
+        moved_to_plan__isnull=True,
     )
 
 
@@ -439,7 +443,7 @@ def exclude_mirror_occurrences(qs):
 def _mirror_pairs() -> set[tuple[str, int]]:
     """(titolo, asset) delle scadenze amministrative: i piani con quell'etichetta
     su quell'asset sono copie e non proiettano scadenze previste."""
-    return set(AssetAdministrativeDeadline.objects.values_list("title", "asset_id"))
+    return set(AssetAdministrativeDeadline.objects.filter(moved_to_plan__isnull=True).values_list("title", "asset_id"))
 
 
 def administrative_deadlines_qs():
