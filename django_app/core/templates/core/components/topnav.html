@@ -97,16 +97,16 @@
         </div>
       {% elif grp.in_icona %}
         {# Sul computer è l'icona a destra; nel menu a hamburger resta una voce con il nome. #}
-        <a class="nav-a nav-solo-menu" href="{{ grp.item.href }}"><span class="nav-label">{{ grp.item.label }}</span></a>
+        <a class="nav-a nav-solo-menu" href="{{ grp.item.href }}"{% if grp.item.new_tab %} target="_blank" rel="noopener"{% endif %}><span class="nav-label">{{ grp.item.label }}</span></a>
       {% elif not grp.is_home %}
-        <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" data-nav-top{% if grp.item.active %} aria-current="page"{% endif %}>
+        <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}"{% if grp.item.new_tab %} target="_blank" rel="noopener"{% endif %} data-nav-top{% if grp.item.active %} aria-current="page"{% endif %}>
           <span class="nav-label">{{ grp.item.label }}</span>
           {% if grp.item.coming %}<span class="nav-soon">Presto</span>{% endif %}
         </a>
       {% endif %}
     {% empty %}
       {% for item in nav_items %}
-        <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" data-nav-top{% if item.active %} aria-current="page"{% endif %}>
+        <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %} data-nav-top{% if item.active %} aria-current="page"{% endif %}>
           {% if item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
           <span class="nav-label">{{ item.label }}</span>
           {% if item.coming %}<span class="nav-soon">Presto</span>{% endif %}
