@@ -1,0 +1,41 @@
+{% comment %}
+  Ingressi della ditta (GuestPortal) intorno alla data della verifica: quelli spuntati
+  si collegano alla verifica alla registrazione. Si ricarica cambiando data o fornitore.
+{% endcomment %}
+{% if not configurato %}
+  <p class="pc-muted">Accessi esterni non configurati: nessun ingresso da proporre.</p>
+{% elif errore %}
+  <p class="pc-muted">{{ errore }}</p>
+{% else %}
+  {% if not fornitore %}
+    <p class="pc-muted">Scegli il fornitore per vedere gli ingressi della ditta dal {{ dal|date:"d/m" }} al {{ al|date:"d/m/Y" }}.</p>
+  {% elif not della_ditta %}
+    <p class="pc-muted">Nessun ingresso di «{{ fornitore }}» dal {{ dal|date:"d/m" }} al {{ al|date:"d/m/Y" }}.</p>
+  {% else %}
+    <p class="pc-muted">Ingressi di «{{ fornitore }}» dal {{ dal|date:"d/m" }} al {{ al|date:"d/m/Y" }}: quelli spuntati si collegano alla verifica.</p>
+    <ul class="pc-visite">
+      {% for a in della_ditta %}
+        <li><label class="pc-visita{% if a.scelto %} is-on{% endif %}">
+          <input type="checkbox" name="visita_id" value="{{ a.visita_id }}"{% if a.scelto %} checked{% endif %}>
+          <span class="pc-visita-when">{{ a.ingresso|date:"d/m H:i" }}{% if a.uscita %}–{{ a.uscita|date:"H:i" }}{% else %} · ancora dentro{% endif %}</span>
+          <span class="pc-visita-who"><strong>{{ a.nome }}</strong>{% if a.azienda %} · {{ a.azienda }}{% endif %}</span>
+          {% if a.badge %}<span class="pc-chip is-static">Badge {{ a.badge }}</span>{% endif %}
+        </label></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if altri %}
+    <details class="pc-visite-altri"{% for a in altri %}{% if a.scelto %} open{% endif %}{% endfor %}>
+      <summary>Altre ditte entrate il {{ giorno|date:"d/m/Y" }} ({{ altri|length }})</summary>
+      <ul class="pc-visite">
+        {% for a in altri %}
+          <li><label class="pc-visita{% if a.scelto %} is-on{% endif %}">
+            <input type="checkbox" name="visita_id" value="{{ a.visita_id }}"{% if a.scelto %} checked{% endif %}>
+            <span class="pc-visita-when">{{ a.ingresso|date:"H:i" }}{% if a.uscita %}–{{ a.uscita|date:"H:i" }}{% endif %}</span>
+            <span class="pc-visita-who"><strong>{{ a.nome }}</strong>{% if a.azienda %} · {{ a.azienda }}{% endif %}</span>
+          </label></li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+{% endif %}

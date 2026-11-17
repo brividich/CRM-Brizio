@@ -482,6 +482,8 @@ def collect_impianti(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     qs = (
         PeriodicCheckType.objects.select_related("system", "supplier")
         .filter(is_active=True, next_due_date__isnull=False, next_due_date__lte=ctx.orizzonte)
+        # Le verifiche che adempiono una scadenza amministrativa attiva arrivano da collect_asset.
+        .exclude(administrative_deadline__is_active=True)
         .order_by("next_due_date", "id")
     )
     items: list[ScadenzaItem] = []

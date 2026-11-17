@@ -234,6 +234,21 @@
       {% endif %}
     </div>
   </section>
+
+  {% with completions=session.deadline_completions.all %}
+  {% if completions %}
+  <section class="md-section">
+    <div class="md-section-head"><h2>Scadenza amministrativa rinnovata</h2></div>
+    <div style="padding:12px 16px;display:grid;gap:6px">
+      {% for c in completions %}
+        <div>«<a href="{% url 'assets:asset_administrative_deadline_edit' c.deadline_id %}">{{ c.deadline.title }}</a>» di {{ c.deadline.asset.asset_tag }}: eseguita il {{ c.completed_on|date:"d/m/Y" }}{% if c.next_due_date %}, nuova scadenza {{ c.next_due_date|date:"d/m/Y" }}{% endif %}.</div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endwith %}
+
+  <div hx-get="{% url 'fornitori:presenze_intervento' 'verifica' session.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="pc-muted" style="padding:12px 16px">Caricamento presenze in azienda della ditta…</p></div>
   {% endif %}
 </div>
 {% include "assets/partials/periodic_check_form_js.html" %}

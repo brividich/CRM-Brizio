@@ -276,7 +276,10 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpResponse:
-    check_type = get_object_or_404(PeriodicCheckType.objects.select_related("system", "supplier"), pk=type_id)
+    check_type = get_object_or_404(
+        PeriodicCheckType.objects.select_related("system", "system__asset", "supplier", "administrative_deadline"),
+        pk=type_id,
+    )
     sessions = (
         check_type.sessions.select_related("supplier", "created_by")
         .prefetch_related("attachments", Prefetch("results", queryset=PeriodicCheckResult.objects.select_related("work_order")))
@@ -300,6 +303,7 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         "layout_points": layout.points.count() if layout else 0,
         "tab": tab,
         "guide": _guide(request, check_type, layout),
+        "deadline_issues": checks.deadline_link_issues(check_type),
         "layout_codes": [p.code for p in layout.points.all()] if layout and tab == "impostazioni" else [],
         **_object_page(check_type, tab),
     }
@@ -699,8 +703,106 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
             check_type.refresh_from_db()
             due = f" Prossima scadenza: {check_type.next_due_date:%d/%m/%Y}." if check_type.next_due_date else ""
             messages.success(request, f"Verifica del {session.performed_on:%d/%m/%Y} registrata.{due}")
+            _collega_visite_scelte(request, session)
+            _messaggio_scadenza_collegata(request, session)
             return redirect("assets:periodic_check_session_detail", session_id=session.id)
     return _register_page(request, check_type, form, item_rows, point_rows, grid)
+
+
+VISITE_MAX = 20
+
+
+def _parse_date(value: str | None) -> date | None:
+    try:
+        return date.fromisoformat((value or "").strip()[:10])
+    except ValueError:
+        return None
+
+
+def _collega_visite_scelte(request: HttpRequest, session: PeriodicCheckSession) -> None:
+    """Ingressi della ditta spuntati nella registrazione: si collegano alla verifica appena creata.
+
+    Ognuno si rilegge dal GuestPortal (``ingressi.collega``): un ingresso che non va non ferma gli altri.
+    """
+    scelte = [v for v in request.POST.getlist("visita_id") if v.isdigit()][:VISITE_MAX]
+    if not scelte:
+        return
+    from fornitori import guestportal as gp
+    from fornitori import ingressi as ing
+    from fornitori.models import IngressoIntervento
+
+    iv = ing.intervento(ing.TIPO_VERIFICA, session.id)
+    fatti, saltati = 0, []
+    for visita_id in dict.fromkeys(scelte):
+        try:
+            link = ing.collega(iv, int(visita_id), utente=request.user, modo=IngressoIntervento.MODO_PROPOSTA)
+        except ing.CollegamentoNonValido as exc:
+            saltati.append(str(exc))
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            saltati.append("il GuestPortal non risponde")
+            break
+        else:
+            fatti += 1
+            log_action(request, "ingresso_esterno_collegato", "fornitori",
+                       {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": "DA_REGISTRAZIONE"})
+            iv = ing.intervento(ing.TIPO_VERIFICA, session.id)
+    if fatti:
+        messages.success(request, f"{fatti} ingress{'o' if fatti == 1 else 'i'} della ditta collegat{'o' if fatti == 1 else 'i'} alla verifica.")
+    if saltati:
+        messages.warning(request, "Ingressi non collegati: " + "; ".join(dict.fromkeys(saltati)))
+
+
+def _messaggio_scadenza_collegata(request: HttpRequest, session: PeriodicCheckSession) -> None:
+    completion = session.deadline_completions.select_related("deadline").first()
+    if completion is not None:
+        deadline = completion.deadline
+        nuova = f": nuova scadenza {deadline.due_date:%d/%m/%Y}" if deadline.is_active else ""
+        messages.info(request, f"Scadenza amministrativa «{deadline.title}» rinnovata{nuova}.")
+
+
+@login_required
+def periodic_check_register_visits(request: HttpRequest, type_id: int) -> HttpResponse:
+    """Riquadro HTMX della registrazione: ingressi della ditta intorno alla data della verifica.
+
+    Si ricarica quando cambiano data o fornitore; le spunte già fatte restano.
+    """
+    check_type = get_object_or_404(PeriodicCheckType.objects.select_related("supplier"), pk=type_id)
+    if not can_execute_maintenance(request):
+        return HttpResponse(status=403)
+    from fornitori import guestportal as gp
+    from fornitori import ingressi as ing
+    from anagrafica.models import Fornitore
+
+    giorno = _parse_date(request.GET.get("performed_on")) or timezone.localdate()
+    supplier_id = request.GET.get("supplier") or ""
+    fornitore = (Fornitore.objects.filter(pk=int(supplier_id)).first() if supplier_id.isdigit()
+                 else check_type.supplier)
+    scelte = {int(v) for v in request.GET.getlist("visita_id") if v.isdigit()}
+    dal, al = ing.finestra_verifica(giorno)
+    ctx = {"check_type": check_type, "fornitore": fornitore, "giorno": giorno, "dal": dal, "al": al,
+           "configurato": gp.db_configurato(), "errore": "", "della_ditta": [], "altri": []}
+    if ctx["configurato"]:
+        try:
+            della_ditta = ing.ingressi_della_ditta(fornitore, dal, al)
+            ids = {a.visita_id for a in della_ditta}
+            altri, _troncato = gp.storico(dal=giorno, al=giorno, tipo="SUPPLIER")
+            altri = [a for a in altri if a.visita_id not in ids and a.nome != "Ospite anonimizzato"]
+        except gp.GuestPortalNonConfigurato:
+            ctx["configurato"] = False
+            della_ditta, altri = [], []
+        except gp.GuestPortalNonRaggiungibile:
+            ctx["errore"] = "Il GuestPortal non risponde: potrai collegare gli ingressi dalla verifica registrata."
+            della_ditta, altri = [], []
+        for a in della_ditta:
+            entrata = timezone.localtime(a.ingresso).date() if a.ingresso and timezone.is_aware(a.ingresso) else (
+                a.ingresso.date() if a.ingresso else None)
+            # Proposti già spuntati: quelli del giorno della verifica (o quelli scelti prima del ricarico).
+            a.scelto = a.visita_id in scelte if scelte else entrata == giorno
+        for a in altri:
+            a.scelto = a.visita_id in scelte
+        ctx["della_ditta"] = della_ditta[:VISITE_MAX]
+        ctx["altri"] = altri[:VISITE_MAX]
+    return render(request, "assets/partials/periodic_check_register_visits.html", ctx)
 
 
 def _register_page(request, check_type, form, item_rows, point_rows, grid=None):

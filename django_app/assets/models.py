@@ -987,6 +987,15 @@ class AssetAdministrativeDeadlineCompletion(models.Model):
     duration_minutes = models.PositiveIntegerField(default=0)
     notes = models.TextField(blank=True, default="")
     next_due_date = models.DateField(null=True, blank=True)
+    # Esecuzione nata da una verifica impianto collegata alla scadenza (es. verifica
+    # SAT): resta come traccia anche se la verifica viene poi eliminata.
+    periodic_check_session = models.ForeignKey(
+        "PeriodicCheckSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="deadline_completions",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -2341,6 +2350,30 @@ class AssetCategoryDocumentFolder(models.Model):
 
     def __str__(self) -> str:
         return f"AssetCategoryDocumentFolder<{self.category_id}:{self.slug}>"
+
+
+class AssetDocumentFolder(models.Model):
+    """Cartella documento di un solo asset (le cartelle di categoria valgono per tutti).
+
+    Lo ``slug`` e' la chiave salvata in ``AssetDocument.category``: non coincide mai
+    con una cartella di base o con una cartella della categoria dell'asset.
+    """
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="document_folders")
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=60)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "name", "id"]
+        unique_together = [("asset", "slug")]
+        verbose_name = "Cartella documento dell'asset"
+        verbose_name_plural = "Cartelle documento dell'asset"
+
+    def __str__(self) -> str:
+        return f"AssetDocumentFolder<{self.asset_id}:{self.slug}>"
 
 
 class AssetTimelineEntry(models.Model):
@@ -5151,6 +5184,16 @@ class PeriodicCheckType(models.Model):
         max_length=120, blank=True, default="", help_text="Chi esegue, se non e' un fornitore in anagrafica."
     )
     legal_reference = models.CharField(max_length=200, blank=True, default="")
+    # Verifica che adempie una scadenza amministrativa dell'asset (es. verifica SAT):
+    # registrandola, la scadenza si rinnova da sola con la stessa data.
+    administrative_deadline = models.ForeignKey(
+        "AssetAdministrativeDeadline",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_types",
+        verbose_name="Scadenza amministrativa collegata",
+    )
     instructions = models.TextField(blank=True, default="")
     # Cartella d'archivio dei documenti (solo riferimento, per l'import dello storico).
     archive_folder = models.CharField(max_length=255, blank=True, default="")

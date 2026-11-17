@@ -362,9 +362,11 @@ def collegamenti_del_fornitore(fornitore):
     return (
         IngressoIntervento.objects
         .filter(Q(fornitore=fornitore) | Q(ticket__delegato_fornitore=fornitore) | Q(work_order__supplier=fornitore)
-                | Q(occorrenza__supplier=fornitore) | Q(scadenza__fornitore=fornitore))
+                | Q(occorrenza__supplier=fornitore) | Q(scadenza__fornitore=fornitore)
+                | Q(verifica__supplier=fornitore))
         .select_related("ticket", "work_order", "sessione_formazione", "occorrenza", "occorrenza__plan",
-                        "occorrenza__asset", "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria")
+                        "occorrenza__asset", "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria",
+                        "verifica", "verifica__check_type", "verifica__check_type__system")
         .order_by("-ingresso", "-pk")
     )
 

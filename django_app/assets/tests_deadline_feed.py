@@ -339,7 +339,7 @@ class PanoramicaKpiTests(DeadlineFeedTestCase):
         response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "operativo"})
         self.assertEqual(response.status_code, 200)
         types = {t["kind"]: t for t in response.context["panoramica"]["types"]}
-        self.assertEqual(set(types), {"ordinary", "administrative", "license", "contract"})
+        self.assertEqual(set(types), {"ordinary", "administrative", "check", "license", "contract"})
         self.assertEqual(types["administrative"]["overdue"], 1)
         self.assertEqual(types["ordinary"]["due_30"], 1)
         self.assertEqual(types["license"]["next"].key, f"lic-{self.licenza.id}")

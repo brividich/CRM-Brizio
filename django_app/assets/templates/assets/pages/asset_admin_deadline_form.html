@@ -85,6 +85,12 @@
   </form>
 </section>
 {% if is_edit %}
+{% for ct in deadline.periodic_check_types.all %}{% if ct.is_active %}
+<div class="as-card" style="margin:12px 0;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+  <span>Si rinnova registrando la verifica impianto «<a href="{% url 'assets:periodic_check_type_detail' ct.id %}">{{ ct.name }}</a>»{% if ct.next_due_date %} (prossima {{ ct.next_due_date|date:"d/m/Y" }}){% endif %}.</span>
+  <a class="btn btn-primary btn-sm" href="{% url 'assets:periodic_check_register' ct.id %}">Registra verifica</a>
+</div>
+{% endif %}{% endfor %}
 <div hx-get="{% url 'fornitori:presenze_intervento' 'amministrativa' deadline.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="muted">Caricamento presenze in azienda della ditta…</p></div>
 {% endif %}
 {% if not is_edit %}

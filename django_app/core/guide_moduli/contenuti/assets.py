@@ -201,6 +201,20 @@ GUIDA = {
                     "qualificata compare l'avviso: alla chiusura passa a «Da valutare» e Qualità decide se riqualificarla.",
                     "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
                     "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
+                    "«+ Aggiungi cartella» nei Documenti crea di base una cartella «Solo questo asset» (segnata «solo qui»); "
+                    "gli amministratori asset possono scegliere «Tutta la categoria».",
+                    "In testata della scheda asset «Registra ▾» elenca cosa si può registrare su quella macchina: manutenzioni, "
+                    "scadenze amministrative, verifiche degli impianti collegati all'asset e nuovo intervento straordinario. "
+                    "Anche le righe di «Scadenze di questo asset» hanno «Registra».",
+                    "Verifiche periodiche → «Registra»: sotto «Quando e chi» la «Visita della ditta» propone gli ingressi del "
+                    "fornitore dal GuestPortal (da tre giorni prima a un giorno dopo la verifica; quelli del giorno già spuntati) "
+                    "e alla registrazione li collega alla verifica. Dalla verifica registrata si collegano anche dopo.",
+                    "Una verifica può adempiere una scadenza amministrativa (es. verifica SAT): campo «Scadenza amministrativa "
+                    "che adempie» nella verifica. Registrando la verifica la scadenza si rinnova da sola, con la stessa data e i "
+                    "documenti; nei calendari e negli scadenzari compare una volta sola, con «Registra» che apre la verifica.",
+                    "Scadenzario della manutenzione: scheda «Verifiche impianti» e «Registra» su ogni scadenza amministrativa e "
+                    "verifica. In «Da fare» il blocco «Scadenze amministrative e verifiche impianti» mostra quelle scadute o "
+                    "entro 30 giorni.",
                 ]),
             ],
         },

@@ -54,3 +54,12 @@ body.theme-dark .af-map-zone{background:var(--surface)}
 body.theme-dark .af-map-whole summary{color:#93c5fd}
 body.theme-dark .af-map-full{background:var(--surface)}
 body.theme-dark .af-lightbox-img{background:var(--surface)}
+/* Pulsante «Registra» della testata e delle righe scadenza */
+.af-register-pop{min-width:320px;max-width:min(440px,90vw)}
+.af-register-pop a{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.af-register-pop small{color:var(--text-mid,#64748b);font-weight:500}
+.af-btn.af-btn-sm{padding:3px 10px;font-size:var(--fs-xs);min-height:0}
+/* Cartelle documento: per chi vale */
+.af-doc-folder-scope{display:inline-flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:var(--fs-sm);color:var(--text,#0f172a)}
+.af-doc-folder-scope label{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
+.af-doc-tab-scope{font-size:var(--fs-2xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid,#64748b);margin-left:4px}

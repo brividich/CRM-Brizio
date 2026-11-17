@@ -14,6 +14,7 @@
   --cm-adm:var(--mk-adm); --cm-adm-bg:var(--mk-adm-bg);
   --cm-lic:var(--mk-lic); --cm-lic-bg:var(--mk-lic-bg);
   --cm-con:var(--mk-con); --cm-con-bg:var(--mk-con-bg);
+  --cm-chk:var(--mk-chk); --cm-chk-bg:var(--mk-chk-bg);
   --cm-mw:var(--mk-mw);   --cm-mw-bg:var(--mk-mw-bg);
   --cm-late:var(--mk-late);
   --cm-card:var(--surface,#fff); --cm-line:var(--border,#dbe1ea); --cm-soft:var(--mk-soft);
@@ -38,9 +39,10 @@
 .cm-chip[data-kind="administrative"][aria-pressed="true"] { background:var(--cm-adm-bg); border-color:transparent; color:var(--cm-adm); }
 .cm-chip[data-kind="license"][aria-pressed="true"] { background:var(--cm-lic-bg); border-color:transparent; color:var(--cm-lic); }
 .cm-chip[data-kind="contract"][aria-pressed="true"] { background:var(--cm-con-bg); border-color:transparent; color:var(--cm-con); }
+.cm-chip[data-kind="check"][aria-pressed="true"] { background:var(--cm-chk-bg); border-color:transparent; color:var(--cm-chk); }
 .cm-chip[data-kind="machine_work"][aria-pressed="true"] { background:var(--cm-mw-bg); border-color:transparent; color:var(--cm-mw); }
 .cm-dot-ordinary { background:var(--cm-ord); } .cm-dot-administrative { background:var(--cm-adm); }
-.cm-dot-license { background:var(--cm-lic); } .cm-dot-contract { background:var(--cm-con); } .cm-dot-machine_work { background:var(--cm-mw); }
+.cm-dot-license { background:var(--cm-lic); } .cm-dot-contract { background:var(--cm-con); } .cm-dot-check { background:var(--cm-chk); } .cm-dot-machine_work { background:var(--cm-mw); }
 .cm-field { display:flex; flex-direction:column; gap:3px; min-width:170px; }
 .cm-field label { font-size:var(--fs-2xs,11px); font-weight:700; color:var(--cm-faint); }
 .cm-field select { min-height:34px; padding:4px 8px; }
@@ -71,6 +73,7 @@
 .cm-kind.k-administrative { background:var(--cm-adm-bg); color:var(--cm-adm); }
 .cm-kind.k-license { background:var(--cm-lic-bg); color:var(--cm-lic); }
 .cm-kind.k-contract { background:var(--cm-con-bg); color:var(--cm-con); }
+.cm-kind.k-check { background:var(--cm-chk-bg); color:var(--cm-chk); }
 .cm-kind.k-machine_work { background:var(--cm-mw-bg); color:var(--cm-mw); }
 .cm-dl { display:grid; grid-template-columns:auto 1fr; gap:5px 12px; margin:0; font-size:var(--fs-sm,12px); }
 .cm-dl dt { color:var(--cm-faint); font-weight:700; }
@@ -108,6 +111,7 @@
 .cm-ev.k-administrative { --cm-k:var(--cm-adm); --cm-k-bg:var(--cm-adm-bg); }
 .cm-ev.k-license { --cm-k:var(--cm-lic); --cm-k-bg:var(--cm-lic-bg); }
 .cm-ev.k-contract { --cm-k:var(--cm-con); --cm-k-bg:var(--cm-con-bg); }
+.cm-ev.k-check { --cm-k:var(--cm-chk); --cm-k-bg:var(--cm-chk-bg); }
 .cm-ev.k-machine_work { --cm-k:var(--cm-mw); --cm-k-bg:var(--cm-mw-bg); }
 .fc-list-event.cm-ev .fc-list-event-dot { border-color:var(--cm-k) !important; }
 .fc-list-event.cm-ev { cursor:pointer; }
@@ -447,7 +451,7 @@ body.theme-dark .cm-page{--cm-card:var(--surface);--cm-line:var(--border);--cm-t
     row(ev.original_start ? "Rinviata al" : "Scadenza", whenLabel(ev), ev.state === "overdue" ? "is-late" : "");
     if (ev.original_start) { row("Scadenza originale", fmtDate(ev.original_start) + (ev.postponements ? " · rinvii: " + ev.postponements : "")); }
     row("Stato", ev.state_label);
-    row("Esecuzione", ev.kind === "ordinary" || ev.kind === "administrative" ? (ev.external ? "Esterna (ditta terza)" : "Interna") : "");
+    row("Esecuzione", ev.kind === "ordinary" || ev.kind === "administrative" ? (ev.external ? "Esterna (ditta terza)" : "Interna") : (ev.kind === "check" && ev.supplier ? "Esterna (ditta terza)" : ""));
     row("Fornitore", ev.supplier);
     row("Assegnata a", ev.assignee);
     drawer.appendChild(dl);

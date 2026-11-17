@@ -1000,12 +1000,53 @@ def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
     for row in rows:
         row.days = row.days_until(today)
         row.days_late = -row.days if row.days < 0 else 0
+    from ..views_maintenance import can_execute_maintenance
+
+    can_register = bool(can_execute_maintenance(request))
     return {
         "asset_deadline_rows": rows[:12],
         "asset_deadline_total": len(rows),
         "asset_deadline_overdue": sum(1 for row in rows if row.state == feed.STATE_OVERDUE),
         "asset_deadline_list_url": f"{reverse('assets:maintenance_scadenze')}?window=&asset={asset.id}",
+        "asset_can_register": can_register,
+        "asset_register_menu": _asset_register_menu(asset, rows) if can_register else [],
     }
+
+
+def _asset_register_menu(asset, rows) -> list[dict[str, str]]:
+    """Voci del pulsante «Registra» della scheda asset: cio' che si puo' registrare su questa macchina.
+
+    Prima le scadenze aperte (ordinarie, amministrative, verifiche impianti) in ordine di data,
+    poi le verifiche degli impianti dell'asset senza scadenza e l'intervento straordinario.
+    """
+    from ..models import PeriodicCheckType
+
+    menu: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        action = row.register_action
+        if action is None or action["url"] in seen:
+            continue
+        seen.add(action["url"])
+        menu.append({
+            "kind": row.kind,
+            "kind_label": row.kind_label,
+            "label": row.title,
+            "when": row.due_date.strftime("%d/%m/%Y"),
+            "url": action["url"],
+        })
+        if len(menu) >= 10:
+            break
+    for check_type in PeriodicCheckType.objects.filter(system__asset=asset, is_active=True).order_by("name")[:10]:
+        url = reverse("assets:periodic_check_register", args=[check_type.id])
+        if url not in seen:
+            seen.add(url)
+            menu.append({"kind": "check", "kind_label": "Verifica impianto", "label": check_type.name, "when": "", "url": url})
+    menu.append({
+        "kind": "corrective", "kind_label": "Straordinaria", "label": "Nuovo intervento straordinario", "when": "",
+        "url": f"{reverse('assets:wo_create', args=[asset.id])}?kind=CORRECTIVE&source=asset_detail",
+    })
+    return menu
 
 
 def _asset_maintenance_plans_context(asset) -> dict[str, object]:

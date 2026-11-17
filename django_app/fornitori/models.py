@@ -39,7 +39,9 @@ class DittaGuestPortal(models.Model):
         return f"{self.ditta_gp_nome} → {self.fornitore}"
 
 
-_DESTINAZIONI_INGRESSO = ("ticket", "work_order", "sessione_formazione", "occorrenza", "scadenza_asset", "scadenza")
+_DESTINAZIONI_INGRESSO = (
+    "ticket", "work_order", "sessione_formazione", "occorrenza", "scadenza_asset", "scadenza", "verifica",
+)
 
 
 def _un_solo_intervento() -> Q:
@@ -81,6 +83,10 @@ class IngressoIntervento(models.Model):
         "scadenzario.ScadenzaGenerica", null=True, blank=True, on_delete=models.CASCADE,
         related_name="ingressi_esterni", help_text="Attività dello Scadenzario",
     )
+    verifica = models.ForeignKey(
+        "assets.PeriodicCheckSession", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="ingressi_esterni", help_text="Verifica periodica di un impianto eseguita dalla ditta",
+    )
     fornitore = models.ForeignKey(
         "anagrafica.Fornitore", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -102,7 +108,7 @@ class IngressoIntervento(models.Model):
         verbose_name = "Ingresso esterno collegato"
         verbose_name_plural = "Ingressi esterni collegati"
         constraints = [
-            models.CheckConstraint(condition=_un_solo_intervento(), name="fornitori_ingresso_un_solo_intervento_v3"),
+            models.CheckConstraint(condition=_un_solo_intervento(), name="fornitori_ingresso_un_solo_intervento_v4"),
             models.UniqueConstraint(
                 fields=["visita_gp_id", "ticket"], condition=Q(ticket__isnull=False),
                 name="fornitori_ingresso_unico_per_ticket",
@@ -127,11 +133,15 @@ class IngressoIntervento(models.Model):
                 fields=["visita_gp_id", "scadenza"], condition=Q(scadenza__isnull=False),
                 name="fornitori_ingresso_unico_per_scadenza",
             ),
+            models.UniqueConstraint(
+                fields=["visita_gp_id", "verifica"], condition=Q(verifica__isnull=False),
+                name="fornitori_ingresso_unico_per_verifica",
+            ),
         ]
 
     def __str__(self) -> str:
         destinazione = (self.ticket or self.work_order or self.sessione_formazione or self.occorrenza
-                        or self.scadenza_asset or self.scadenza)
+                        or self.scadenza_asset or self.scadenza or self.verifica)
         return f"Visita {self.visita_gp_id} → {destinazione}"
 
     @property
