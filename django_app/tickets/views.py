@@ -1591,6 +1591,30 @@ def ticket_gestione_data_apertura(request, pk: int):
     messages.success(request, f"Data di apertura aggiornata al {timezone.localtime(quando):%d-%m-%Y %H:%M}.")
     return redirect(url)
 
+
+@require_POST
+@_tickets_gestione_required
+def ticket_gestione_rimanda_mail_chiusura(request, pk: int):
+    """Il gestore rimanda al richiedente la mail di chiusura (regola automazioni)."""
+    from .services.mail_chiusura import rimanda_mail_chiusura
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    access = _ticket_access_flags(request, ticket)
+    if not (access["is_gestore"] or access["is_admin"]):
+        return render(request, "core/pages/forbidden.html", status=403)
+    riuscito, messaggio = rimanda_mail_chiusura(ticket, request.user)
+    log_action(request, "ticket_mail_chiusura_rimandata", "tickets",
+               {"ticket": ticket.numero_ticket, "esito": "ok" if riuscito else "ko"})
+    if riuscito:
+        TicketCommento.objects.create(
+            ticket=ticket, autore_nome=access["name"], autore_email=access["email"], is_interno=True,
+            testo="Mail di chiusura rimandata al richiedente.",
+        )
+        messages.success(request, messaggio)
+    else:
+        messages.error(request, messaggio)
+    return redirect(reverse("tickets:gestione_detail", args=[ticket.pk]))
+
 @login_required
 def ticket_download_allegato(request, allegato_id: int):
     allegato = get_object_or_404(TicketAllegato.objects.select_related("ticket"), pk=allegato_id)

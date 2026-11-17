@@ -192,14 +192,16 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": "Chiudo o cambio stato a un ticket e il richiedente non riceve la mail",
+            "sintomo": "Chiudo un ticket e il richiedente non riceve la mail",
             "fare": [
-                "La mail la manda la regola «tickets-cambio-stato-email-richiedente» (Automazioni → Regole): deve essere attiva "
-                "e non in bozza, e il ticket deve avere la mail del richiedente.",
+                "La mail parte solo alla chiusura (stato «Chiuso»), non agli altri cambi di stato. La manda la regola "
+                "«tickets-cambio-stato-email-richiedente» (Automazioni → Regole): deve essere attiva e non in bozza, "
+                "e il ticket deve avere la mail del richiedente.",
+                "Per rimandarla: nella scheda del ticket chiuso, riquadro dettagli, «Rimanda la mail» accanto a «Chiusura». "
+                "Resta una nota interna e l'invio compare in Automazioni → Mail inviate.",
                 "Non mandano mail, apposta: «Già risolto» in apertura (chiusura al volo), l'import da file e le modifiche arrivate da SharePoint.",
-                "Fino a novembre 2026 il trigger dei ticket sul database non passava lo stato precedente e la regola non partiva mai: "
-                "serve un deploy con il trigger aggiornato (lo riapplica deploy-release.ps1). In Automazioni → «Esecuzioni» "
-                "la regola deve comparire a ogni cambio di stato.",
+                "Fino al 17/11/2026 il trigger dei ticket sul database non passava lo stato precedente e la regola non partiva mai: "
+                "per i ticket chiusi prima usa «Rimanda la mail».",
             ],
         },
         {
