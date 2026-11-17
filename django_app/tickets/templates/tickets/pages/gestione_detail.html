@@ -12,7 +12,7 @@
 <div id="tkt-root">
   {% include "tickets/components/subnav.html" %}
   <a href="{% url 'tickets:gestione_list' %}" class="tkt-back">&larr; Torna alla lista</a>
-<link rel="stylesheet" href="{% static 'tickets/css/pagine/gestione_detail-2.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'tickets/css/pagine/gestione_detail-2.css' %}?v=20261117">
 
   {% if appena_chiuso %}
   <div class="tkt-chiuso-ok" role="status">
@@ -376,7 +376,7 @@
           <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d-m-Y H:i" }} <details class="tkt-data-corr"><summary title="Correggi la data di apertura">Correggi</summary><form method="post" action="{% url 'tickets:gestione_data_apertura' ticket.pk %}"><input type="hidden" name="azione_data" value="1">{% csrf_token %}<input type="datetime-local" name="aperto_il" required value="{{ ticket.created_at|date:'Y-m-d\TH:i' }}" max="{% now 'Y-m-d\TH:i' %}"><button type="submit">Salva</button></form></details></span></div>
           {% if ticket.data_presa_in_carico %}<div class="tkt-meta-item"><span class="tkt-meta-key">Presa in carico</span><span class="tkt-meta-val">{{ ticket.data_presa_in_carico|date:"d-m-Y H:i" }}</span></div>{% endif %}
           {% if ticket.data_prevista_risoluzione %}<div class="tkt-meta-item"><span class="tkt-meta-key">Prevista il</span><span class="tkt-meta-val" style="color:#6b21a8;font-weight:700;">{{ ticket.data_prevista_risoluzione|date:"d-m-Y" }}</span></div>{% endif %}
-          {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d-m-Y H:i" }}</span></div>{% endif %}
+          {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d-m-Y H:i" }}{% if ticket.stato == 'CHIUSO' and ticket.richiedente_email %} <form method="post" action="{% url 'tickets:gestione_rimanda_mail_chiusura' ticket.pk %}" class="tkt-rimanda-mail">{% csrf_token %}<button type="submit" title="Rimanda al richiedente la mail di chiusura">Rimanda la mail</button></form>{% endif %}</span></div>{% endif %}
           {% if ticket.risolto_da_nome %}<div class="tkt-meta-item"><span class="tkt-meta-key">Risolto da</span><span class="tkt-meta-val">{{ ticket.risolto_da_nome }}</span></div>{% endif %}
           {% if ticket.ticket_origine %}<div class="tkt-meta-item"><span class="tkt-meta-key">Ticket origine</span><span class="tkt-meta-val"><a href="{% url 'tickets:gestione_detail' ticket.ticket_origine.pk %}">{{ ticket.ticket_origine.numero_ticket }}</a></span></div>{% endif %}
           {% if ticket.tipo == 'MAN' %}<div class="tkt-meta-item"><span class="tkt-meta-key">Registro manutenzione</span><span class="tkt-meta-val">{% if ticket.include_in_maintenance_register %}<span style="color:#15803d;font-weight:700;">Incluso</span>{% else %}<span style="color:#94a3b8;">Escluso</span>{% endif %}</span></div>{% endif %}

@@ -14,6 +14,8 @@ urlpatterns = [
     path("gestione/",                 views.ticket_gestione_list,    name="gestione_list"),
     path("gestione/<int:pk>/",        views.ticket_gestione_detail,  name="gestione_detail"),
     path("gestione/<int:pk>/data-apertura/", views.ticket_gestione_data_apertura, name="gestione_data_apertura"),
+    path("gestione/<int:pk>/rimanda-mail-chiusura/", views.ticket_gestione_rimanda_mail_chiusura,
+         name="gestione_rimanda_mail_chiusura"),
     path("impostazioni/",             views.ticket_impostazioni,     name="impostazioni"),
     # API
     path("api/commento/",             views.api_commento,            name="api_commento"),
