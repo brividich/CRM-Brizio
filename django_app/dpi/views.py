@@ -136,8 +136,16 @@ def _scope_approvatore(request) -> set[int]:
     return flusso.dipendenti_di_approvatore(_legacy_id(request))
 
 
+def _scelto_come_preposto(request, richiesta: RichiestaDPI) -> bool:
+    """Il preposto scelto nella richiesta (mai per la propria)."""
+    me = _legacy_id(request)
+    return bool(me and richiesta.preposto_legacy_id == me and richiesta.richiedente_legacy_id != me)
+
+
 def _can_approve(request, richiesta: RichiestaDPI, *, scope: set[int] | None = None) -> bool:
-    """Gestori DPI (ripiego) oppure responsabile/preposto del dipendente della richiesta."""
+    """Gestori DPI (ripiego), responsabile/preposto del dipendente o preposto scelto nella richiesta."""
+    if _scelto_come_preposto(request, richiesta):
+        return True
     if sistema_ruoli_attivo():
         if richiesta.richiedente_legacy_id and richiesta.richiedente_legacy_id == _legacy_id(request):
             return False  # la propria richiesta non si approva
@@ -488,7 +496,10 @@ def dashboard(request):
     legacy_id = _legacy_id(request)
     return render(request, "dpi/pages/dashboard.html", {
         "is_gestore": is_gestore,
-        "is_approvatore": bool(_scope_approvatore(request)),
+        "is_approvatore": bool(_scope_approvatore(request)) or bool(
+            legacy_id and RichiestaDPI.objects.filter(preposto_legacy_id=legacy_id, stato=StatoRichiesta.INVIATA)
+            .exclude(richiedente_legacy_id=legacy_id).exists()
+        ),
         "da_fare": _da_fare(request, is_gestore),
         "situazione": dotazione_dpi.dotazione(legacy_id) if legacy_id else None,
         "ultime": ultime,
@@ -596,6 +607,25 @@ def nuova_richiesta(request):
     motivi_precompilati = {"scadenza": "Sostituzione alla scadenza", "prima": "Prima dotazione"}
     testo_motivazione = motivi_precompilati.get(request.GET.get("motivo", ""), "")
 
+    # Chi approva: tendina dei preposti, predefinito l'incaricato del dipendente. Non serve
+    # quando la richiesta e' approvata da sola (la inserisce un CAR/preposto).
+    approvata_da_sola = bool(_own_legacy and flusso.e_capo_o_preposto(_own_legacy))
+    preposti_scelta: list[dict] = []
+    preposto_predefinito = None
+    if not approvata_da_sola and _req_legacy:
+        tutti, incaricati = flusso.scelta_preposto(_req_legacy)
+        nomi = _nomi_anagrafiche(tutti)
+        preposti_scelta = sorted(
+            ({"id": i, "nome": nomi[i], "incaricato": i in incaricati} for i in tutti if i in nomi),
+            key=lambda p: (not p["incaricato"], p["nome"].casefold()),
+        )
+        preposto_predefinito = next((p["id"] for p in preposti_scelta if p["incaricato"]), None)
+    preposto_scelto = preposto_predefinito
+    if request.method == "POST" and preposti_scelta:
+        richiesto = _parse_optional_positive_int(request.POST.get("preposto"))
+        if richiesto in {p["id"] for p in preposti_scelta}:
+            preposto_scelto = richiesto
+
     if request.method == "POST":
         testo_motivazione = request.POST.get("motivazione", "")
         quantita_raw = request.POST.get("quantita", "1").strip()
@@ -647,11 +677,19 @@ def nuova_richiesta(request):
                 richiedente_email=info["email"],
                 richiedente_reparto=info["reparto"],
                 note_gestione=note_iniziali,
+                preposto_legacy_id=preposto_scelto,
                 created_by=request.user,
             )
             log_action(request, "crea", "dpi", f"Nuova richiesta DPI {r.numero} — {r.categoria}" + (f" (per conto di {info['nome']})" if per_altri else ""))
+            if preposto_scelto:
+                nome_preposto = next(p["nome"] for p in preposti_scelta if p["id"] == preposto_scelto)
+                cambiato = "" if preposto_scelto == preposto_predefinito else " (scelto al posto dell'incaricato)"
+                RichiestaDPICommento.objects.create(
+                    richiesta=r, autore_nome="Portale", is_interno=False,
+                    testo=f"Approvazione chiesta a {nome_preposto}{cambiato}.",
+                )
             # Chi la inserisce e' CAR/preposto (per se' o per un suo dipendente): approvata da sola.
-            if _own_legacy and flusso.e_capo_o_preposto(_own_legacy):
+            if approvata_da_sola:
                 _approva(request, r, "Approvata automaticamente: richiesta inserita da un CAR/preposto.", automatica=True)
                 messages.success(request, f"Richiesta {r.numero} approvata automaticamente: il magazzino è stato avvisato.")
                 return redirect("dpi:detail", pk=r.pk)
@@ -667,6 +705,8 @@ def nuova_richiesta(request):
         "is_approvatore": bool(per_conto_di) or bool(_scope_approvatore(request)),
         "richiedente_scelto": _req_legacy,
         "richiedente_proprio": _own_legacy,
+        "preposti_scelta": preposti_scelta,
+        "preposto_scelto": preposto_scelto,
         "aiuti": {str(k): v for k, v in aiuti.items()},
         "scelta": scelta,
         "testo_motivazione": testo_motivazione,
@@ -896,6 +936,11 @@ def _gestione_scope(request, is_gestore: bool) -> tuple[bool, set[int] | None]:
 def gestione_list(request):
     is_gestore = _is_gestore(request)
     consentito, scope = _gestione_scope(request, is_gestore)
+    # Preposto scelto in una richiesta fuori dal suo perimetro: la vede e la approva.
+    me = _legacy_id(request)
+    scelto_da = Q(preposto_legacy_id=me) & ~Q(richiedente_legacy_id=me) if me else None
+    if not consentito and scelto_da is not None and RichiestaDPI.objects.filter(scelto_da).exists():
+        consentito, scope = True, set()
     if not consentito:
         if sistema_ruoli_attivo():
             return risposta_negata(request, pagina="DPI — gestione richieste")
@@ -904,7 +949,8 @@ def gestione_list(request):
 
     base_qs = RichiestaDPI.objects.all()
     if scope is not None:
-        base_qs = base_qs.filter(richiedente_legacy_id__in=list(scope))
+        filtro = Q(richiedente_legacy_id__in=list(scope))
+        base_qs = base_qs.filter(filtro | scelto_da if scelto_da is not None else filtro)
     qs = base_qs.select_related(
         "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "consegna"
     ).order_by("-created_at")
@@ -2154,7 +2200,10 @@ def _banco_persone(qs, giac: dict, inviate=None, puo_approvare=None) -> list[dic
         g["n_mancanti"] += int(manca)
     if inviate is not None:
         attese = list(inviate.order_by("richiedente_nome", "created_at"))
-        approvatori = {r.pk: flusso.approvatori_di(r.richiedente_legacy_id) for r in attese}
+        approvatori = {
+            r.pk: {r.preposto_legacy_id} if r.preposto_legacy_id else flusso.approvatori_di(r.richiedente_legacy_id)
+            for r in attese
+        }
         nomi = _nomi_anagrafiche(set().union(*approvatori.values()) if approvatori else set())
         for r in attese:
             g = gruppo(r)

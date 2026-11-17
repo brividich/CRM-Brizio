@@ -369,6 +369,9 @@ class RichiestaDPI(models.Model):
     richiedente_nome = models.CharField(max_length=200)
     richiedente_email = models.CharField(max_length=200, blank=True, default="")
     richiedente_reparto = models.CharField(max_length=100, blank=True, default="")
+    # Preposto scelto nella richiesta per l'approvazione (id legacy anagrafica): riceve la
+    # mail «da approvare» e puo' approvarla anche fuori dalla sua area. Vuoto = regola di sempre.
+    preposto_legacy_id = models.IntegerField(null=True, blank=True, db_index=True)
 
     note_gestione = models.TextField(blank=True, default="")
 

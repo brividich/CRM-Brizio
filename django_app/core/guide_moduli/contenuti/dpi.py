@@ -21,6 +21,9 @@ GUIDA = {
                     "Se hai già ricevuto quel DPI, «Uguale all'ultima volta» riprende tipo, modello e taglia.",
                     "Indica la «Quantità» e il «Motivo»: clicca Usura, Rotto, Perso, Prima dotazione o Cambio taglia, oppure scrivilo. "
                     "Per un DPI fuori dal profilo della tua mansione il motivo è obbligatorio.",
+                    "«Chi approva» è già sul preposto incaricato della tua area (con «· incaricato»; se l'area non ha un "
+                    "preposto, sul tuo responsabile). Se oggi non c'è, scegli un altro preposto dall'elenco: la mail per "
+                    "approvare arriva a lui, che può approvare anche se è di un'altra area.",
                     "Clicca «Invia richiesta». Il numero della richiesta ha la forma DPI-anno-numero.",
                 ]),
                 ("p", "La richiesta passa per questi stati: inviata → approvata → pronta al ritiro → consegnata "
@@ -207,6 +210,9 @@ GUIDA = {
                     "Con la spunta «Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta» la mail va "
                     "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
                     "Richiesta di un CAR o di un preposto (per sé o per un suo dipendente): approvata da sola, nessuna mail «da approvare».",
+                    "Preposto scelto in «Chi approva»: la mail «da approvare» va solo a lui (se non ha un'email di notifica, si torna "
+                    "alla regola di sempre); la richiesta compare nella sua «Gestione richieste» e al Banco come «in attesa di approvazione di …». "
+                    "Responsabili e gestori DPI possono comunque approvarla.",
                     "Richiesta approvata: mail «Da consegnare» al Magazzino; per le categorie senza «La consegna la fa il "
                     "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»). "
                     "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "

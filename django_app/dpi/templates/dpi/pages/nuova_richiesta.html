@@ -192,6 +192,16 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
       </div>
       {% endif %}
 
+      {% if preposti_scelta %}
+      <div class="dpi-field">
+        <label for="preposto">Chi approva</label>
+        <select name="preposto" id="preposto" class="js-searchable">
+          {% for p in preposti_scelta %}<option value="{{ p.id }}"{% if p.id == preposto_scelto %} selected{% endif %}>{{ p.nome }}{% if p.incaricato %} · incaricato{% endif %}</option>{% endfor %}
+        </select>
+        <div class="dpi-card-sub" style="margin-top:4px; margin-bottom:0;">Già scelto il preposto incaricato: cambialo se oggi non c'è. La mail per approvare arriva a chi scegli.</div>
+      </div>
+      {% endif %}
+
       <!-- Card picker categorie DPI -->
       <div class="dpi-field">
         <span class="dpi-picker-label">Tipo di DPI <span class="dpi-picker-required">*</span></span>
