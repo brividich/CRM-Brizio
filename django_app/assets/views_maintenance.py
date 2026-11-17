@@ -493,6 +493,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
         },
     ]
 
+    adempimenti = _da_fare_adempimenti(request, form, today=today, scoped_reparti=scoped_reparti)
+
     # Il parametro si chiama "by" e non "group": "group" e' gia' il filtro per gruppo.
     view_mode = _clean_string(request.GET.get("by")) or "plan"
     if view_mode not in {key for key, _label in _GROUP_MODES}:
@@ -572,6 +574,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "my_workorder_rows": my_workorder_rows,
             "filter_form": form,
             "blocks": blocks,
+            "adempimenti": adempimenti,
+            "adempimenti_url": f"{reverse('assets:maintenance_scadenze')}?window=30&plan_type=administrative",
             "groups": _group_rows(rows, view_mode),
             "view_mode": view_mode,
             "group_links": _group_mode_links(request, view_mode, with_none=False),
@@ -587,6 +591,47 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "scoped_reparti": scoped_reparti,
         },
     )
+
+
+DA_FARE_ADEMPIMENTI_GIORNI = 30
+
+
+def _da_fare_adempimenti(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti) -> list:
+    """Scadenze amministrative e verifiche impianti scadute o entro 30 giorni, per «Da fare».
+
+    Non sono occorrenze: si registrano dalla loro pagina (pulsante «Registra»), ma il
+    manutentore le deve vedere nella stessa lista del lavoro. Stessa fonte dello
+    Scadenzario (``deadline_feed``), stessi filtri famiglia/reparto/gruppo/asset.
+    """
+    from .services import deadline_feed as feed
+
+    data = form.cleaned_data if form.is_valid() else {}
+    if data.get("plan") or data.get("plan_type") in ("ordinary",):
+        return []
+    kinds = feed.allowed_kinds(request) & {feed.KIND_ADMINISTRATIVE, feed.KIND_CHECK}
+    if data.get("plan_type") == "administrative":
+        kinds &= {feed.KIND_ADMINISTRATIVE}
+    if not kinds:
+        return []
+    category_id = int(data["category"]) if data.get("category") else 0
+    filters = feed.FeedFilters(
+        kinds=frozenset(kinds),
+        category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
+        reparto=data.get("reparto") or "",
+        group_id=data["group"].id if data.get("group") else None,
+        asset_id=data["asset"].id if data.get("asset") else None,
+    )
+    end = today + timedelta(days=DA_FARE_ADEMPIMENTI_GIORNI)
+    rows = [r for r in feed.collect(start=None, end=end, filters=filters, today=today) if not r.key.startswith("occ-")]
+    term = (data.get("q") or "").strip().lower()
+    if term:
+        rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier} {r.target_label}".lower()]
+    if scoped_reparti and not data.get("reparto"):
+        rows = [r for r in rows if r.reparto in scoped_reparti]
+    for row in rows:
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -605,8 +650,11 @@ _SCADENZE_TYPE_TABS = [
     ("", "Tutte le tipologie"),
     ("ordinary", "Ordinarie"),
     ("administrative", "Amministrative"),
+    ("checks", "Verifiche impianti"),
     ("renewals", "Licenze e contratti"),
 ]
+# Tipologie che non sono occorrenze: si leggono dal registro scadenze unico.
+_PLAN_TYPES_FEED = ("", "renewals", "administrative", "checks")
 
 
 def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[dict[str, Any]]:
@@ -637,14 +685,19 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
 
     data = form.cleaned_data if form.is_valid() else {}
     wanted = {
-        "": {feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_ADMINISTRATIVE},
+        "": {feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_ADMINISTRATIVE, feed.KIND_CHECK},
         "renewals": {feed.KIND_LICENSE, feed.KIND_CONTRACT},
         "administrative": {feed.KIND_ADMINISTRATIVE},
+        "checks": {feed.KIND_CHECK},
     }.get(plan_type, set())
     kinds = feed.allowed_kinds(request) & wanted
-    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("supplier"):
-        # Filtri che su licenze e contratti non hanno senso: meglio nessuna riga
-        # che righe che sembrano rispettarli.
+    if data.get("execution_mode") or data.get("supplier"):
+        # Esecuzione e fornitore su licenze e contratti non hanno senso: meglio nessuna
+        # riga che righe che sembrano rispettarli. Su scadenze amministrative e verifiche
+        # impianti si applicano (ente / ditta che esegue).
+        kinds &= {feed.KIND_ADMINISTRATIVE, feed.KIND_CHECK}
+    if not kinds or data.get("plan"):
+        # Il piano riguarda solo le occorrenze.
         return []
     window = data.get("window") or ""
     start = end = None
@@ -665,7 +718,16 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
             if not row.key.startswith("occ-")]
     term = (data.get("q") or "").strip().lower()
     if term:
-        rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier}".lower()]
+        rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier} {r.target_label}".lower()]
+    supplier = data.get("supplier")
+    if supplier is not None:
+        # Fornitore: sulle scadenze e' un testo (ente, esecutore, vendor), si confronta il nome.
+        nome = (supplier.ragione_sociale or "").strip().lower()
+        rows = [r for r in rows if nome and nome in (r.supplier or "").lower()]
+    mode = data.get("execution_mode")
+    if mode:
+        external = mode == MaintenanceInterventionTemplate.MODE_EXTERNAL
+        rows = [r for r in rows if bool(r.is_external or (r.kind == feed.KIND_ADMINISTRATIVE and r.supplier)) == external]
     if scoped_reparti and not data.get("reparto"):
         rows = [r for r in rows if r.reparto in scoped_reparti]
     for row in rows:
@@ -749,13 +811,15 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     form.tab_fields = ("window", "plan_type")
     # Solo qui la tipologia comprende anche licenze e contratti: non sono
     # occorrenze e in "Da fare" non c'e' niente da eseguire su di loro.
-    form.fields["plan_type"].choices = list(form.fields["plan_type"].choices) + [("renewals", "Licenze e contratti")]
+    form.fields["plan_type"].choices = list(form.fields["plan_type"].choices) + [
+        ("checks", "Verifiche impianti"), ("renewals", "Licenze e contratti"),
+    ]
     form.is_valid()
     plan_type = form.cleaned_data.get("plan_type", "") if form.is_valid() else ""
 
     queryset = _apply_occurrence_filters(_base_occurrence_queryset(), form, today=today)
     queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
-    if plan_type == "renewals":
+    if plan_type in ("renewals", "checks"):
         rows = []
     else:
         rows = _decorate(list(queryset[:2000]), today=today)
@@ -763,7 +827,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             rows = _report_missing_rows(rows)
     renewals = (
         _renewal_rows(request, form, today=today, scoped_reparti=scoped_reparti, plan_type=plan_type)
-        if plan_type in ("", "renewals", "administrative") and not form.cleaned_data.get("report_missing")
+        if plan_type in _PLAN_TYPES_FEED and not form.cleaned_data.get("report_missing")
         else []
     )
 
@@ -791,8 +855,9 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "group_mode": group_mode,
             "groups": _group_rows(rows, group_mode) if group_mode else [],
             "group_links": _group_mode_links(request, group_mode, with_none=True),
-            "show_occurrences": plan_type != "renewals",
-            "show_renewals": plan_type in ("", "renewals", "administrative"),
+            "show_occurrences": plan_type not in ("renewals", "checks"),
+            "show_renewals": plan_type in _PLAN_TYPES_FEED,
+            "plan_type": plan_type,
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
             "type_tabs": _tab_links(
                 request, "plan_type", _SCADENZE_TYPE_TABS, _clean_string(initial.get("plan_type"))
@@ -1004,7 +1069,7 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
     scadenzario_url = reverse("assets:maintenance_scadenze")
     calendario_url = reverse("assets:calendario_asset")
     plan_type_for = {feed.KIND_ORDINARY: "ordinary", feed.KIND_ADMINISTRATIVE: "administrative",
-                     feed.KIND_LICENSE: "renewals", feed.KIND_CONTRACT: "renewals"}
+                     feed.KIND_CHECK: "checks", feed.KIND_LICENSE: "renewals", feed.KIND_CONTRACT: "renewals"}
 
     types = []
     for kind, label in feed.KIND_LABELS.items():
@@ -1017,6 +1082,7 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
             "label": {
                 feed.KIND_ORDINARY: "Manutenzione ordinaria",
                 feed.KIND_ADMINISTRATIVE: "Scadenze amministrative",
+                feed.KIND_CHECK: "Verifiche impianti",
                 feed.KIND_LICENSE: "Licenze software",
                 feed.KIND_CONTRACT: "Contratti di assistenza",
             }[kind],

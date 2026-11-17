@@ -158,6 +158,7 @@ def collegamenti(visita_ids: list[int]) -> dict[int, list]:
     righe = IngressoIntervento.objects.filter(visita_gp_id__in=visita_ids).select_related(
         "ticket", "work_order", "work_order__asset", "sessione_formazione", "sessione_formazione__corso", "occorrenza",
         "occorrenza__plan", "occorrenza__asset", "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria",
+        "verifica", "verifica__check_type", "verifica__check_type__system",
     ).order_by("pk")
     for link in righe:
         iv = ingressi.intervento_del_link(link)

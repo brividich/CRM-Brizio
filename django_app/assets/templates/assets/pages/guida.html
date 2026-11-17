@@ -29,6 +29,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#menu">Il menu a sinistra</a>
     <a href="#rinvio">Rinvio di una manutenzione</a>
     <a href="#scadenze-amministrative">Scadenze amministrative</a>
+    <a href="#verifiche-collegate">Verifiche impianti, ditta e «Registra»</a>
     <a href="#registra-insieme">Registrare insieme su più asset</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
     <a href="#contatori">Contatori e piani a contatore</a>
@@ -104,6 +105,20 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Le scadenze svolte si ritrovano con <span class="ag-btn">Svolte →</span>: apre Manutenzione &rsaquo; <strong>Storico</strong> con ogni esecuzione registrata (data, chi, costo, prossima scadenza), anche delle voci che si sono rinnovate. Le voci senza periodicità, una volta registrate, sono nella scheda <strong>Chiuse</strong>.</li>
       </ul>
       <p class="ag-note">Registrare è riservato all'amministrazione del modulo Asset. Per spostare nei piani le manutenzioni finite nel registro c'è il comando <code>riordina_scadenze_amministrative</code> (prima in prova, poi con <code>--apply</code>).</p>
+    </section>
+
+    <section class="ag-sec" id="verifiche-collegate">
+      <h2>Verifiche impianti, ditta e «Registra»</h2>
+      <ul>
+        <li><strong>Visita della ditta</strong>: in Verifiche periodiche &rsaquo; <span class="ag-btn">Registra</span>, sotto «Quando e chi», compaiono gli ingressi del fornitore della verifica dal GuestPortal, da tre giorni prima a un giorno dopo la data della verifica. Quelli del giorno sono già spuntati; cambiando data o fornitore l'elenco si aggiorna da solo. In «Altre ditte entrate il …» ci sono le altre ditte del giorno. Alla registrazione gli ingressi spuntati si collegano alla verifica. Dalla verifica registrata il riquadro «Presenze in azienda della ditta» collega o toglie ingressi anche dopo, come negli OdL.</li>
+        <li><strong>Da Accessi esterni</strong>: <span class="ag-btn">Collega</span> su un ingresso elenca anche le verifiche impianti (filtro «Verifiche impianti»): quelle eseguite a tre giorni dall'ingresso e quelle della ditta nel mese. La ricerca si aggiorna mentre scrivi.</li>
+        <li><strong>Verifica che adempie una scadenza amministrativa</strong> (es. verifica SAT di un carroponte): nella verifica &rsaquo; Modifica, campo <strong>«Scadenza amministrativa che adempie»</strong>. Registrando la verifica la scadenza si rinnova da sola con la stessa data della verifica e i suoi documenti (nell'elenco delle scadenze compare l'esecuzione «Dalla verifica impianto …»). Una verifica più vecchia dell'ultima esecuzione non la riporta indietro. Nei calendari e negli scadenzari la voce compare <strong>una volta sola</strong>, come scadenza amministrativa, con <span class="ag-btn">Registra</span> che apre la registrazione della verifica.</li>
+        <li>Se verifica e scadenza non sono allineate (date diverse, asset diverso, scadenza non più attiva) la scheda della verifica mostra l'avviso giallo «Verifica e scadenza amministrativa non allineate».</li>
+        <li><strong>Scadenzario</strong>: la scheda <strong>«Verifiche impianti»</strong> elenca le verifiche in scadenza; ogni riga di scadenze amministrative e verifiche ha <span class="ag-btn">Registra</span>. Il filtro Fornitore vale anche su queste righe (confronta il nome dell'ente o della ditta); il filtro Esecuzione separa interne ed esterne.</li>
+        <li><strong>Da fare</strong>: il blocco <strong>«Scadenze amministrative e verifiche impianti»</strong> mostra quelle scadute o entro 30 giorni, con <span class="ag-btn">Registra</span>.</li>
+        <li><strong>Scheda asset</strong>: in testata <span class="ag-btn">Registra ▾</span> elenca cosa si può registrare su quella macchina (manutenzioni, scadenze amministrative, verifiche dei suoi impianti, nuovo intervento straordinario); anche le righe di «Scadenze di questo asset» hanno <span class="ag-btn">Registra</span>. Le verifiche compaiono sulla scheda dell'asset collegato all'impianto (Verifiche periodiche &rsaquo; Impianti).</li>
+      </ul>
+      <p class="ag-note">«Registra» compare a chi può eseguire le manutenzioni; collegare un ingresso segue lo stesso permesso.</p>
     </section>
 
     <section class="ag-sec" id="registra-insieme">
@@ -238,13 +253,14 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="documenti">
       <h2>Documenti, cartelle e video</h2>
-      <p>Nella scheda asset, riquadro <strong>Documenti</strong>, scegli la cartella (Specifiche, Manuali, Interventi o quelle della categoria) e:</p>
+      <p>Nella scheda asset, riquadro <strong>Documenti</strong>, scegli la cartella (Specifiche, Manuali, Interventi, quelle della categoria o quelle del solo asset) e:</p>
       <ul>
         <li>clicca il riquadro o trascinaci sopra <strong>file e cartelle</strong>, oppure usa <span class="ag-btn">Carica cartella</span>; poi <span class="ag-btn">Carica</span>;</li>
         <li>le <strong>sottocartelle</strong> restano: ogni cartella caricata diventa un riquadro con il suo percorso;</li>
         <li>formati ammessi: PDF, Word, Excel, CSV, immagini JPG/PNG/WEBP, messaggi Outlook <code>.msg</code> e video <code>.avi</code>; massimo {{ upload_max_mb }} MB per file;</li>
         <li>una cartella grande parte <strong>a lotti</strong> (circa 80 MB per invio) con l'avanzamento «Caricamento 2 di 5…»;</li>
         <li>i file non ammessi (formato, troppo grandi, vuoti) <strong>non bloccano gli altri</strong>: alla fine trovi l'elenco di quelli scartati e il motivo. <code>Thumbs.db</code> e <code>desktop.ini</code> si ignorano.</li>
+        <li><span class="ag-btn">+ Aggiungi cartella</span> crea di base una cartella <strong>«Solo questo asset»</strong> (la scheda la segna «solo qui»): basta poter modificare l'asset. Gli amministratori asset possono scegliere <strong>«Tutta la categoria»</strong> per darla a tutti gli asset della categoria. Una cartella si disattiva solo vuota; il nome non può ripetere una cartella di base o della categoria.</li>
       </ul>
     </section>
 

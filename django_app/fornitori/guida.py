@@ -154,7 +154,8 @@ SEZIONI = [
                                             "Contatori; i ticket sono quelli che la persona può gestire."),
                 ("Collegare un ingresso a manutenzione o scadenza", "manutenzione ordinaria: chi la può registrare; "
                                                                     "scadenza dell'asset: chi apre la modifica della scadenza; "
-                                                                    "attività dello Scadenzario: chi gestisce la categoria."),
+                                                                    "attività dello Scadenzario: chi gestisce la categoria; "
+                                                                    "verifica impianto: chi registra le verifiche periodiche."),
                 ("Tecnici", "il registro con la scheda del fornitore; ingressi e ore con il permesso di «Accessi "
                             "esterni»; aggiungere, modificare ed eliminare con il permesso di modifica del fornitore."),
                 ("Accessi esterni", "chi ha il permesso del portale esterno (in produzione amministratori)."),

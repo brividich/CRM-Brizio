@@ -91,8 +91,9 @@ GUIDA = {
                       "collegato con il tuo utente, senza ridigitare la password, se sei abilitato nel pannello."),
                 ("nota", "I dati si leggono dal GuestPortal ogni volta che apri la pagina e non vengono copiati nell'HUB: "
                          "quando il GuestPortal cancella le visite vecchie (pulizia GDPR) spariscono anche qui."),
-                ("p", "La colonna «Incaricato per» mostra i ticket e gli ordini di lavoro a cui l'ingresso è stato collegato; "
-                      "«Collega…» (o «+ altro») apre la scelta dell'intervento."),
+                ("p", "La colonna «Incaricato per» mostra i ticket, gli ordini di lavoro, le manutenzioni, le scadenze e le "
+                      "verifiche impianti a cui l'ingresso è stato collegato; «Collega…» (o «+ altro») apre la scelta "
+                      "dell'intervento, con la ricerca che si aggiorna mentre scrivi e il filtro «Verifiche impianti»."),
             ],
         },
         {

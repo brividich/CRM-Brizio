@@ -45,6 +45,8 @@ body.theme-dark {
 .mk-k-administrative { --mk-k:var(--mk-adm); --mk-k-bg:var(--mk-adm-bg); }
 .mk-k-license        { --mk-k:var(--mk-lic); --mk-k-bg:var(--mk-lic-bg); }
 .mk-k-contract       { --mk-k:var(--mk-con); --mk-k-bg:var(--mk-con-bg); }
+.mk-k-check          { --mk-k:var(--mk-chk); --mk-k-bg:var(--mk-chk-bg); }
+.mk-k-corrective     { --mk-k:#b45309; --mk-k-bg:rgba(180,83,9,.1); }
 .mk-k-machine_work   { --mk-k:var(--mk-mw);  --mk-k-bg:var(--mk-mw-bg); }
 .mk-kind { display:inline-flex; align-items:center; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em;
   text-transform:uppercase; padding:2px 8px; border-radius:6px; background:var(--mk-k-bg); color:var(--mk-k); white-space:nowrap; }
@@ -313,3 +315,4 @@ body.theme-dark{--mk-ord-bg:var(--surface);--mk-adm-bg:var(--surface);--mk-lic-b
 body.theme-dark .md-kpi.is-danger .md-kpi-value{color:#fca5a5}
 body.theme-dark .md-kpi.is-ok .md-kpi-value{color:#86efac}
 body.theme-dark .md-field .errorlist{color:#fca5a5}
+body.theme-dark .mk-k-corrective{--mk-k:#fbbf24;--mk-k-bg:var(--surface)}

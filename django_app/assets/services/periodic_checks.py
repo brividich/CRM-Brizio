@@ -117,6 +117,7 @@ def register_session(data: SessionInput, *, user=None, files: Iterable = ()) -> 
     if session.status == PeriodicCheckSession.STATUS_CONFIRMED:
         _stamp_confirmation(session, user)
         refresh_next_due(session.check_type)
+        renew_linked_deadline(session, user=user)
     return session
 
 
@@ -141,6 +142,83 @@ def confirm_session(session: PeriodicCheckSession, *, user=None) -> None:
     session.save(update_fields=["status", "updated_at"])
     _stamp_confirmation(session, user)
     refresh_next_due(session.check_type)
+    renew_linked_deadline(session, user=user)
+
+
+def renew_linked_deadline(session: PeriodicCheckSession, *, user=None):
+    """Verifica che adempie una scadenza amministrativa (es. verifica SAT): la scadenza
+    si rinnova con la stessa data della verifica, senza registrarla due volte.
+
+    Si registra un'esecuzione sulla scadenza (con i documenti della verifica, senza
+    copiarli) e la nuova scadenza diventa quella del tipo di verifica. Non fa niente se
+    la scadenza non c'e' o non e' attiva, se questa verifica l'ha gia' rinnovata o se la
+    scadenza ha gia' un'esecuzione piu' recente (verifica vecchia registrata dopo).
+    Ritorna l'esecuzione creata, o None.
+    """
+    from ..models import (
+        AssetAdministrativeDeadline,
+        AssetAdministrativeDeadlineCompletion,
+        AssetAdministrativeDeadlineCompletionAttachment,
+    )
+
+    check_type = session.check_type
+    if not check_type.administrative_deadline_id or session.status != PeriodicCheckSession.STATUS_CONFIRMED:
+        return None
+    deadline = AssetAdministrativeDeadline.objects.select_for_update().filter(
+        pk=check_type.administrative_deadline_id, is_active=True,
+    ).first()
+    if deadline is None or deadline.completions.filter(periodic_check_session=session).exists():
+        return None
+    if deadline.completions.filter(completed_on__gt=session.performed_on).exists():
+        return None
+    check_type.refresh_from_db(fields=["next_due_date"])
+    next_due = check_type.next_due_date if check_type.next_due_date and check_type.next_due_date > session.performed_on         else deadline.next_due_after(session.performed_on)
+    author = user if getattr(user, "is_authenticated", False) else None
+    note = f"Dalla verifica impianto «{check_type.name}» del {session.performed_on:%d/%m/%Y}: {session.get_outcome_display()}."
+    if session.technician:
+        note += f" Tecnico: {session.technician}."
+    completion = AssetAdministrativeDeadlineCompletion.objects.create(
+        deadline=deadline,
+        completed_on=session.performed_on,
+        completed_by=author,
+        notes=note,
+        next_due_date=next_due,
+        periodic_check_session=session,
+    )
+    for attachment in session.attachments.all():
+        AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+            completion=completion,
+            file=attachment.file.name,
+            original_name=attachment.original_name,
+            uploaded_by=author,
+        )
+    if next_due is not None:
+        deadline.due_date = next_due
+        deadline.save(update_fields=["due_date", "updated_at"])
+    else:
+        deadline.is_active = False
+        deadline.save(update_fields=["is_active", "updated_at"])
+    return completion
+
+
+def deadline_link_issues(check_type: PeriodicCheckType) -> list[str]:
+    """Controllo di coerenza verifica ↔ scadenza amministrativa, per la scheda della verifica."""
+    issues: list[str] = []
+    deadline = check_type.administrative_deadline
+    if deadline is None:
+        return issues
+    if not deadline.is_active:
+        issues.append("La scadenza amministrativa collegata non è più attiva.")
+        return issues
+    asset_id = check_type.system.asset_id if check_type.system_id else None
+    if asset_id and deadline.asset_id != asset_id:
+        issues.append("La scadenza è di un asset diverso da quello dell'impianto.")
+    if check_type.next_due_date and deadline.due_date != check_type.next_due_date:
+        issues.append(
+            f"Date diverse: la verifica scade il {check_type.next_due_date:%d/%m/%Y}, "
+            f"la scadenza amministrativa il {deadline.due_date:%d/%m/%Y}."
+        )
+    return issues
 
 
 @transaction.atomic

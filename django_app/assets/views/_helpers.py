@@ -1103,12 +1103,14 @@ def _asset_document_custom_field_name(slug: str) -> str:
 
 
 def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
-    """Cartelle documento disponibili: le 3 di base piu le extra della AssetCategory.
+    """Cartelle documento disponibili: le 3 di base, le extra della AssetCategory e
+    quelle del solo asset (``AssetDocumentFolder``).
 
     Ogni spec contiene: ``code`` (chiave salvata in ``AssetDocument.category``),
     ``label`` visibile,
-    ``field`` nome del campo upload, ``removable`` (True solo per le extra) e
-    ``folder_id`` (pk della ``AssetCategoryDocumentFolder`` o ``None`` per le base).
+    ``field`` nome del campo upload, ``removable`` (True solo per le extra),
+    ``folder_id`` (pk della cartella o ``None`` per le base) e ``scope``
+    (``base`` / ``category`` / ``asset``).
     """
     specs: list[dict] = []
     for code, label in AssetDocument.CATEGORY_CHOICES:
@@ -1119,6 +1121,7 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                 "field": ASSET_DOCUMENT_UPLOAD_FIELDS[code],
                 "removable": False,
                 "folder_id": None,
+                "scope": "base",
             }
         )
     category = getattr(asset, "asset_category", None)
@@ -1131,6 +1134,22 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                     "field": _asset_document_custom_field_name(folder.slug),
                     "removable": True,
                     "folder_id": folder.id,
+                    "scope": "category",
+                }
+            )
+    if asset is not None and getattr(asset, "pk", None):
+        codes = {spec["code"] for spec in specs}
+        for folder in asset.document_folders.filter(is_active=True):
+            if folder.slug in codes:
+                continue
+            specs.append(
+                {
+                    "code": folder.slug,
+                    "label": folder.name,
+                    "field": _asset_document_custom_field_name(folder.slug),
+                    "removable": True,
+                    "folder_id": folder.id,
+                    "scope": "asset",
                 }
             )
     return specs

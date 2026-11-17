@@ -4,6 +4,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from anagrafica.models import Fornitore
@@ -95,8 +96,8 @@ class PeriodicCheckTypeForm(forms.ModelForm):
         model = PeriodicCheckType
         fields = [
             "system", "category", "name", "reference_code", "method", "frequency_months", "warning_days",
-            "supplier", "executor_label", "legal_reference", "next_due_date", "archive_folder",
-            "instructions", "point_categories", "sort_order", "is_active",
+            "supplier", "executor_label", "legal_reference", "administrative_deadline", "next_due_date",
+            "archive_folder", "instructions", "point_categories", "sort_order", "is_active",
         ]
         labels = {
             "system": "Impianto",
@@ -108,6 +109,7 @@ class PeriodicCheckTypeForm(forms.ModelForm):
             "supplier": "Fornitore",
             "executor_label": "Esecutore (se non in anagrafica)",
             "legal_reference": "Riferimento normativo",
+            "administrative_deadline": "Scadenza amministrativa che adempie",
             "next_due_date": "Prossima scadenza",
             "archive_folder": "Cartella d'archivio",
             "instructions": "Istruzioni",
@@ -117,6 +119,10 @@ class PeriodicCheckTypeForm(forms.ModelForm):
         }
         help_texts = {
             "next_due_date": "Si ricalcola da sola a ogni verifica registrata; qui si imposta la prima.",
+            "administrative_deadline": (
+                "Es. verifica SAT di un asset: registrando la verifica la scadenza si rinnova da sola, "
+                "con la stessa data e i documenti della verifica."
+            ),
             "archive_folder": "Solo riferimento: dove stavano i documenti prima del portale.",
             "category": "Per filtrare e raggruppare l'elenco (es. Antincendio, Elettrico).",
             "point_categories": "Uno per riga. Sul foglio il primo si segna con l'evidenziatore, il secondo con un cerchio a penna.",
@@ -133,6 +139,19 @@ class PeriodicCheckTypeForm(forms.ModelForm):
         self.fields["system"].queryset = PeriodicCheckSystem.objects.filter(is_active=True)
         self.fields["category"].queryset = PeriodicCheckCategory.objects.filter(is_active=True)
         self.fields["category"].required = False
+        from .models import AssetAdministrativeDeadline
+
+        deadlines = AssetAdministrativeDeadline.objects.filter(is_active=True)
+        if self.instance and self.instance.administrative_deadline_id:
+            deadlines = AssetAdministrativeDeadline.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.administrative_deadline_id)
+            )
+        field = self.fields["administrative_deadline"]
+        field.required = False
+        field.queryset = deadlines.select_related("asset").order_by("asset__asset_tag", "title", "due_date")
+        field.label_from_instance = lambda d: f"{d.asset.asset_tag} · {d.title} (scade il {d.due_date:%d/%m/%Y})"
+        field.empty_label = "Nessuna"
+        field.widget.attrs["class"] = "js-searchable"
         self.fields["category"].empty_label = "Nessuna categoria"
         self.fields["supplier"].queryset = _supplier_queryset()
         self.fields["supplier"].required = False

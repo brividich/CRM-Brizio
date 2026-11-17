@@ -25,6 +25,9 @@
 <div class="md-page">
   {% include "scadenzario/components/riquadro.html" with fonti="impianti" collegata_tipo="verifica" collegata_id=check_type.pk nome=check_type.name %}
   {% include "assets/partials/periodic_check_type_tabs.html" %}
+  {% if deadline_issues %}
+    <div class="pc-draft" role="status"><span><strong>Verifica e scadenza amministrativa non allineate.</strong> {% for i in deadline_issues %}{{ i }} {% endfor %}</span>{% if can_configure %}<a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_type_edit' check_type.id %}">Correggi</a>{% endif %}</div>
+  {% endif %}
   {% if tab == "panoramica" %}{% include "assets/partials/periodic_check_tab_panoramica.html" %}
   {% elif tab == "storico" %}{% include "assets/partials/periodic_check_tab_storico.html" %}  {% elif tab == "documenti" %}{% include "assets/partials/periodic_check_tab_documenti.html" %}
   {% else %}{% include "assets/partials/periodic_check_tab_impostazioni.html" %}{% endif %}
