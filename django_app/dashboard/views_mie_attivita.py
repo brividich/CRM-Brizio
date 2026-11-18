@@ -37,6 +37,9 @@ from core import naming
 
 
 GIORNI_SCADENZE = 30
+# Voci personali (letture e corsi): si mostrano tutte, così il numero della sezione è quello vero.
+MAX_PROCEDURE = 100
+MAX_ELEARNING = 100
 
 
 def _safe_url(name: str, *args) -> str:
@@ -195,8 +198,17 @@ def _my_workorders(request_user) -> dict:
 
 
 def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
+    """Assenze che aspettano l'utente come capo. Un amministratore vede le sue, non quelle di
+    tutta l'azienda; l'ufficio Amministrazione (che le gestisce tutte) le vede tutte."""
+    if not legacy_user:
+        return []
     try:
-        raw = _board_data_assenze_da_approvare(legacy_user, is_admin, {"max_items": 12})
+        if str(getattr(legacy_user, "ruolo", "") or "").strip().upper() == "AMMINISTRAZIONE":
+            raw = _board_data_assenze_da_approvare(legacy_user, True, {"max_items": 12})
+        else:
+            from assenze.views import _load_pending_for_manager
+
+            raw = _load_pending_for_manager(int(legacy_user.id), limit=12)
     except Exception:
         return []
     url = _safe_url("assenze_gestione")
@@ -205,7 +217,7 @@ def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
         out.append({
             "title": f"{a.get('tipo', 'Assenza')}",
             "meta": a.get("dipendente", "") or "—",
-            "status": a.get("inizio", "") or "",
+            "status": " → ".join(x for x in (a.get("inizio_label") or "", a.get("fine_label") or "") if x),
             "url": url,
         })
     return out
@@ -286,7 +298,7 @@ def _my_elearning(request) -> list[dict]:
             )
             .exclude(stato__in=("COMPLETATO", "ESONERATO"))
             .select_related("corso")
-            .order_by("due_date")[:15]
+            .order_by("due_date")[:MAX_ELEARNING]
         )
     except Exception:
         return []
@@ -314,7 +326,7 @@ def _my_procedure(request_user) -> list[dict]:
         qs = (
             ProcedureAssignment.objects.filter(user=request_user, status__in=da_leggere)
             .select_related("campaign", "revision")
-            .order_by("due_date", "-assigned_at")[:15]
+            .order_by("due_date", "-assigned_at")[:MAX_PROCEDURE]
         )
     except Exception:
         return []

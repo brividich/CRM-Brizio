@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -96,3 +97,31 @@ class MieAttivitaFontiTests(TasksBaseTestCase):
         self.assertIn("Approvazioni e richieste", pagina)
         self.assertIn("Altre voci assegnate a te", pagina)
         self.assertIn("Ordini di lavoro", pagina)
+
+
+class ApprovazioniAssenzeMieTests(TestCase):
+    """«Approvazioni assenze»: le richieste che aspettano me come capo, con le date."""
+
+    RIGA = {"tipo": "Ferie", "dipendente": "Persona Prova", "inizio_label": "20/11/2026", "fine_label": "21/11/2026"}
+
+    def _voci(self, ruolo):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from dashboard import views_mie_attivita as ma
+
+        utente = SimpleNamespace(id=42, ruolo=ruolo)
+        with mock.patch("assenze.views._load_pending_for_manager", return_value=[self.RIGA]) as mie, \
+                mock.patch.object(ma, "_board_data_assenze_da_approvare", return_value=[self.RIGA, self.RIGA]) as tutte:
+            return ma._my_approvals(utente, True), mie, tutte
+
+    def test_un_amministratore_vede_solo_le_sue_con_le_date(self):
+        voci, mie, tutte = self._voci("ADMIN")
+        self.assertEqual([(v["title"], v["meta"], v["status"]) for v in voci], [("Ferie", "Persona Prova", "20/11/2026 → 21/11/2026")])
+        mie.assert_called_once_with(42, limit=12)
+        tutte.assert_not_called()
+
+    def test_l_ufficio_amministrazione_le_vede_tutte(self):
+        voci, mie, _ = self._voci("Amministrazione")
+        self.assertEqual(len(voci), 2)
+        mie.assert_not_called()
