@@ -230,6 +230,11 @@
     .ga-att__acts { display: flex; gap: 10px; padding: 3px 8px 7px; }
     .ga-att__acts a, .ga-att__acts button { background: none; border: 0; padding: 0; font: inherit; font-size: var(--fs-xs); font-weight: 700; color: var(--primary-mid); cursor: pointer; text-decoration: none; }
     .ga-att__acts .is-danger, .ga-att__acts button:last-child { color: var(--danger); }
+    .ga-att__tolti { margin-top: 8px; font-size: var(--fs-xs); }
+    .ga-att__tolti .ga-link { margin-left: 0; }
+    .ga-att__tolti ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+    .ga-att__tolti li { display: flex; gap: 10px; align-items: baseline; color: var(--text-light); }
+    .ga-att__tolti li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .ga-flags { display: flex; flex-wrap: wrap; gap: 8px; }
     .ga-flag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; user-select: none; }
     .ga-flag input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -553,6 +558,7 @@
       allegati_list: "{% url 'api_anomalie_allegati' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
       allegati_delete: "{% url 'api_anomalie_allegati_delete' %}",
+      allegati_ripristina: "{% url 'api_anomalie_allegati_ripristina' %}",
       allegati_file: "{% url 'api_anomalie_allegati_file' %}",
       report: "{% url 'anomalie_report_segnalazione' %}",
       timeline: "{% url 'api_anomalie_timeline' %}",

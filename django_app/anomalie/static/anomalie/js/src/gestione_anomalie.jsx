@@ -21,6 +21,7 @@
       allegati_list: "/api/anomalie/allegati",
       allegati_upload: "/api/anomalie/allegati/upload",
       allegati_delete: "/api/anomalie/allegati/delete",
+      allegati_ripristina: "/api/anomalie/allegati/ripristina",
       allegati_file: "/api/anomalie/allegati/file",
       segnalato: "/api/anomalie/segnalato",
       elimina: "/api/anomalie/elimina",
@@ -465,7 +466,7 @@
       ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"], ["passi", "Passi aggiunti a mano"]];
     const STRISCIA_REGISTRO = { crea: "info", aggiorna: "acc", qualita: "qa", chiudi: "ok", riapri: "warn", segnalato: "info",
       richiesta_info: "warn", risposta_info: "ok", spostata: "warn", aggiorna_avanzamento: "acc", approva: "acc",
-      incaricato: "qa", allegato: "info", allegato_tolto: "warn", elimina: "warn", passo: "acc" };
+      incaricato: "qa", allegato: "info", allegato_tolto: "warn", allegato_ripristinato: "info", elimina: "warn", passo: "acc" };
     const postStoria = async (url, body) => {
       const r = await fetch(url, { method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() }, body: JSON.stringify(body) });
@@ -1116,6 +1117,9 @@
       const [currentItemId, setCurrentItemId] = useState(null);
       const [currentLocalId, setCurrentLocalId] = useState(null);
       const [attachments, setAttachments] = useState([]);
+      // Allegati tolti: restano nel cestino dell'anomalia e si possono ripristinare.
+      const [removedAttachments, setRemovedAttachments] = useState([]);
+      const [showRemoved, setShowRemoved] = useState(false);
       const [loadingAttachments, setLoadingAttachments] = useState(false);
       const [uploadingAttachments, setUploadingAttachments] = useState(false);
       const fileInputRef = useRef(null);
@@ -1618,6 +1622,8 @@
       const loadAttachments = async (localId) => {
         attachmentsFor.current = localId;
         setAttachments([]);
+        setRemovedAttachments([]);
+        setShowRemoved(false);
         if (!localId) return;
         setLoadingAttachments(true);
         try {
@@ -1626,6 +1632,7 @@
           if (attachmentsFor.current !== localId) return;
           if (!r.ok || !d.success) throw new Error(d.error || "Errore caricamento allegati");
           setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+          setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
         } catch (e) {
           setAttachments([]);
           flash({ ok: false, text: "Errore allegati: " + e.message });
@@ -1669,8 +1676,29 @@
           const d = await readJsonOrThrow(r, "Elimina allegato");
           if (!r.ok || !d.success) throw new Error(d.error || "Eliminazione non riuscita");
           setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+          setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
+          flash({ ok: true, text: "Allegato tolto: lo ritrovi in «Allegati tolti» e puoi ripristinarlo" }, 6000);
         } catch (e) {
           flash({ ok: false, text: "Errore eliminazione allegato: " + e.message });
+        }
+      };
+
+      const handleRestoreAttachment = async (fileId) => {
+        if (!currentLocalId || !fileId) return;
+        try {
+          const r = await fetch(API.allegati_ripristina, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: currentLocalId, file_id: fileId }),
+            credentials: "same-origin",
+          });
+          const d = await readJsonOrThrow(r, "Ripristina allegato");
+          if (!r.ok || !d.success) throw new Error(d.error || "Ripristino non riuscito");
+          setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+          setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
+          flash({ ok: true, text: "Allegato ripristinato" });
+        } catch (e) {
+          flash({ ok: false, text: "Errore ripristino allegato: " + e.message });
         }
       };
 
@@ -2827,6 +2855,23 @@
                         {loadingAttachments ? <div className="ga-hint">Caricamento allegati…</div>
                           : attAnomalia.length === 0 ? <div className="ga-hint">Nessun allegato.</div>
                           : renderAttGrid(attAnomalia)}
+                        {removedAttachments.length > 0 && (
+                          <div className="ga-att__tolti">
+                            <button type="button" className="ga-link" aria-expanded={showRemoved} onClick={() => setShowRemoved((v) => !v)}>
+                              Allegati tolti ({removedAttachments.length})
+                            </button>
+                            {showRemoved && (
+                              <ul>
+                                {removedAttachments.map((file) => (
+                                  <li key={file.file_id}>
+                                    <span title={`${file.name} · ${formatBytes(file.size)}`}>{file.name}</span>
+                                    {canEditCurrentOp && <button type="button" className="ga-link" onClick={() => handleRestoreAttachment(file.file_id)}>Ripristina</button>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -33,7 +33,8 @@ VERBI = {
     "richiedi_modifica": "ha chiesto una modifica dal link della mail su", "aggiorna_avanzamento": "ha deciso dal link della mail su",
     "visualizza": "ha visto dal link della mail",
     "incaricato": "ha cambiato l'incaricato di", "capo_op": "ha cambiato il capocommessa di tutto l'OP di", "allegato": "ha allegato file a",
-    "allegato_tolto": "ha tolto un allegato da", "elimina": "ha eliminato",
+    "allegato_tolto": "ha tolto un allegato da", "allegato_ripristinato": "ha ripristinato un allegato di",
+    "elimina": "ha eliminato",
     "passo": "ha aggiunto un passo a",
 }
 # Filtro «Azione» della pagina → azioni registrate.
@@ -48,7 +49,7 @@ GRUPPI = {
     "spostamenti": {"spostata"},
     "azioni": {"azione"},
     "incaricati": {"incaricato", "capo_op", "prendi_in_carico"},
-    "allegati": {"allegato", "allegato_tolto"},
+    "allegati": {"allegato", "allegato_tolto", "allegato_ripristinato"},
     "eliminazioni": {"elimina"},
     "passi": {"passo"},
 }

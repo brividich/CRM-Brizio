@@ -53,6 +53,7 @@ urlpatterns = [
     path("api/anomalie/allegati/copia", views.api_anomalie_allegati_copia, name="api_anomalie_allegati_copia"),
     path("api/anomalie/descrizione-allegati/upload", views.api_anomalie_descrizione_allegati_upload, name="api_anomalie_descrizione_allegati_upload"),
     path("api/anomalie/allegati/delete", views.api_anomalie_allegati_delete, name="api_anomalie_allegati_delete"),
+    path("api/anomalie/allegati/ripristina", views.api_anomalie_allegati_ripristina, name="api_anomalie_allegati_ripristina"),
     path("api/anomalie/allegati/file", views.api_anomalie_allegati_file, name="api_anomalie_allegati_file"),
     path("api/anomalie/campi", views.api_campi, name="api_anomalie_campi"),
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),

@@ -834,6 +834,51 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
     return items
 
 
+# Allegati tolti: non si cancellano, vanno in questa sottocartella dell'anomalia
+# e si possono rimettere («Ripristina»). L'elenco allegati legge solo i file
+# del primo livello, quindi qui dentro restano invisibili a mail, report e copie.
+ALLEGATI_CESTINO_DIRNAME = "_cestino"
+
+
+def _cestino_dir_for_local(local_id: int, *, create: bool = False) -> Path:
+    folder = _attachment_dir_for_local(local_id, create=create) / ALLEGATI_CESTINO_DIRNAME
+    if create:
+        folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _cestina_allegato(local_id: int, path: Path) -> str:
+    """Sposta il file nel cestino dell'anomalia; ritorna il ``file_id`` con cui ripristinarlo."""
+    cestino = _cestino_dir_for_local(local_id, create=True)
+    file_id = path.name
+    if not _ALLEGATI_FILE_ID_RE.match(file_id) or (cestino / file_id).exists():
+        file_id = f"{uuid4().hex}__{_safe_attachment_filename(_attachment_display_name(path.name)) or 'allegato'}"
+    path.replace(cestino / file_id)
+    return file_id
+
+
+def _list_removed_attachments(local_id: int) -> list[dict]:
+    """Allegati tolti e ancora ripristinabili, dal più recente."""
+    cestino = _cestino_dir_for_local(local_id, create=False)
+    if not cestino.is_dir():
+        return []
+    righe = []
+    for path in cestino.iterdir():
+        if not path.is_file() or not _ALLEGATI_FILE_ID_RE.match(path.name):
+            continue
+        stat = path.stat()
+        righe.append((stat.st_ctime, {
+            "file_id": path.name,
+            "name": _attachment_display_name(path.name),
+            "size": int(stat.st_size),
+            "is_image": _is_image_attachment(path.name),
+            "decisione": _is_allegato_decisione(path.name),
+            "qualita": _is_allegato_qualita(path.name),
+        }))
+    righe.sort(key=lambda r: r[0], reverse=True)
+    return [r[1] for r in righe]
+
+
 ANOMALIE_CONFIG_SITECONFIG_KEY = "anomalie_config_json"
 
 
@@ -3830,6 +3875,7 @@ def api_anomalie_allegati(request):
             {
                 "success": True,
                 "attachments": _list_attachments_for_local(local_id),
+                "removed": _list_removed_attachments(local_id),
                 "local_id": local_id,
                 "can_edit": bool(can_edit),
             }
@@ -4087,8 +4133,9 @@ def api_anomalie_allegati_delete(request):
         if not path or not path.exists() or not path.is_file():
             return _json_error("Allegato non trovato", status=404)
         deleted_name = _attachment_display_name(path.name)
+        # Non si cancella: il file va nel cestino dell'anomalia e si può ripristinare.
         try:
-            path.unlink()
+            _cestina_allegato(local_id, path)
         except OSError as exc:
             return _json_error(str(exc), status=500)
         if file_id.startswith("descrizione:") and attached:
@@ -4104,10 +4151,68 @@ def api_anomalie_allegati_delete(request):
             )
         except Exception:
             pass
-        return JsonResponse({"success": True, "attachments": _list_attachments_for_local(local_id), "local_id": local_id})
+        return JsonResponse({"success": True, "attachments": _list_attachments_for_local(local_id),
+                             "removed": _list_removed_attachments(local_id), "local_id": local_id})
     except Exception as exc:
         logger.exception("[anomalie] errore api_anomalie_allegati_delete")
         return _json_error(f"Errore eliminazione allegato: {exc}", status=500)
+
+
+
+@login_required
+def api_anomalie_allegati_ripristina(request):
+    """Rimette tra gli allegati un file tolto (stessi permessi di chi può toglierlo)."""
+    try:
+        if request.method != "POST":
+            return _json_error("Metodo non consentito", status=405)
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        local_id_raw = str(payload.get("local_id") or "").strip()
+        file_id = str(payload.get("file_id") or "").strip()
+        if not local_id_raw.isdigit():
+            return _json_error("local_id non valido", status=400)
+        local_id = int(local_id_raw)
+        row = _anomaly_local_row(local_id)
+        if not row:
+            return _json_error("Anomalia non trovata", status=404)
+        op_id = str(row.get("ex_op_nominativo") or "").strip()
+        if not _can_attach_anomalia(request, local_id, op_id):
+            return _json_error("Permesso negato", status=403)
+        if not file_id or not _ALLEGATI_FILE_ID_RE.match(file_id) or file_id == ALLEGATI_SYNC_META_FILENAME:
+            return _json_error("Allegato non trovato", status=404)
+        cestino = _cestino_dir_for_local(local_id, create=False)
+        path = cestino / file_id
+        try:
+            dentro = cestino.resolve() in path.resolve().parents
+        except OSError:
+            dentro = False
+        if not dentro or not path.is_file():
+            return _json_error("Allegato non trovato", status=404)
+        folder = _attachment_dir_for_local(local_id, create=True)
+        nuovo_id = file_id
+        if (folder / nuovo_id).exists():
+            prefisso, _sep, nome = file_id.partition("__")
+            suffisso = next((x for x in (ALLEGATI_QUALITA_SUFFIX, ALLEGATI_DECISIONE_SUFFIX) if prefisso.endswith(x)), "")
+            nuovo_id = f"{uuid4().hex}{suffisso}__{nome or 'allegato'}"
+        try:
+            path.replace(folder / nuovo_id)
+        except OSError as exc:
+            return _json_error(str(exc), status=500)
+        _mark_attachment_pending(local_id, [nuovo_id])
+        nome = _attachment_display_name(nuovo_id)
+        _registro_allegati(request, local_id, op_id, "allegato_ripristinato", [nome])
+        try:
+            log_action(request, "anomalia_allegato_ripristina", "anomalie",
+                       {"local_id": local_id, "op_id": op_id, "file_id": nuovo_id, "file_name": nome})
+        except Exception:
+            pass
+        return JsonResponse({"success": True, "attachments": _list_attachments_for_local(local_id),
+                             "removed": _list_removed_attachments(local_id), "local_id": local_id})
+    except Exception as exc:
+        logger.exception("[anomalie] errore api_anomalie_allegati_ripristina")
+        return _json_error(f"Errore ripristino allegato: {exc}", status=500)
 
 
 @login_required
@@ -5266,6 +5371,7 @@ _TIMELINE_ACTION_LABELS = {
     "capo_op": "Capocommessa di tutto l'OP cambiato",
     "allegato": "Allegati aggiunti",
     "allegato_tolto": "Allegato tolto",
+    "allegato_ripristinato": "Allegato ripristinato",
     "elimina": "Anomalia eliminata",
 }
 
