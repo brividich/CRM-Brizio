@@ -320,3 +320,9 @@ textarea:focus { border-color: #1f5c91; background: #fff; box-shadow: 0 0 0 3px 
   .anomalia-sn { display: none; }
 }
 
+
+/* «A quale CAR?»: come in Gestione anomalie, fra il CAR dell'OP e i capi reparto. */
+.car-scelta { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; padding: 10px 12px; margin: 10px 0; font-size: 13px; }
+.car-scelta[hidden] { display: none; }
+.car-scelta-voci { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0; }
+.car-scelta-voci label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #1e293b; }
