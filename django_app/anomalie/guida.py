@@ -386,7 +386,7 @@ SEZIONI: list[dict] = [
                 "sistema) e i campi cambiati, per esempio «Avanzamento: In attesa → In attesa risposta cliente».",
                 "Ci sono inserimenti, clonazioni («ha clonato da AN-…»), modifiche e decisioni, chiusure, "
                 "segnalazioni e risposte, richieste di informazioni, «Taglia», azioni effettuate, cambi di incaricato, "
-                "allegati aggiunti o tolti (con i nomi dei file) ed eliminazioni.",
+                "allegati aggiunti, tolti o ripristinati (con i nomi dei file) ed eliminazioni.",
                 "Filtri: codice AN, OP, persona, tipo di azione, provenienza e periodo (fino a un anno).",
                 "Un'anomalia eliminata resta nel registro: la sua storia si ritrova cercando il codice.",
                 "«Storia», accanto al titolo dell'anomalia, apre il registro già filtrato su quell'anomalia (la vede "
@@ -469,6 +469,8 @@ SEZIONI: list[dict] = [
                 "Quelle in «Azione di recupero» senza azione effettuata ricevono la decisione ma restano aperte.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
+                "«Elimina» e poi «Conferma» sotto un allegato lo toglie senza cancellarlo: resta in «Allegati tolti», "
+                "sotto la griglia, e «Ripristina» lo rimette. Caricare un file nuovo non sostituisce quelli già presenti.",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",
             ]),
             ("p", "Dopo il salvataggio parte da sola la mail di riepilogo al segnalante, al capocommessa, al CAR e alla "
