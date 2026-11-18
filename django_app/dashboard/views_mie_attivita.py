@@ -208,7 +208,12 @@ def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
         else:
             from assenze.views import _load_pending_for_manager
 
-            raw = _load_pending_for_manager(int(legacy_user.id), limit=12)
+            # Stessa identità della pagina Assenze: id, nome ed email del capo.
+            raw = _load_pending_for_manager(
+                int(legacy_user.id), limit=12,
+                manager_name=str(getattr(legacy_user, "nome", "") or ""),
+                manager_email=str(getattr(legacy_user, "email", "") or ""),
+            )
     except Exception:
         return []
     url = _safe_url("assenze_gestione")
@@ -509,6 +514,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     odl = _my_workorders(request.user)
     dpi_mie = _my_dpi(request)
     ticket = _my_tickets(request.user, legacy_user, legacy_user_id)
+    ticket_totale = max(len(ticket), _my_tickets_totale(request.user, legacy_user, legacy_user_id))
+    # Ticket del mio team che nessuno ha preso: non sono «miei» per identità, ma aspettano me.
+    from dashboard.mie_attivita_fonti import ticket_team_da_assegnare
+
+    del_team = ticket_team_da_assegnare(request)
+    gia_ticket = {t["code"] for t in ticket}
+    nuovi = [t for t in del_team["items"] if t["code"] not in gia_ticket]
+    ticket = nuovi + ticket
+    ticket_totale += del_team["total"] - (len(del_team["items"]) - len(nuovi))
     sections = [
         {
             "key": "kickoff",
@@ -547,7 +561,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "tone": "warning",
             "icon": "🎫",
             "items": ticket,
-            "total": max(len(ticket), _my_tickets_totale(request.user, legacy_user, legacy_user_id)),
+            "total": max(len(ticket), ticket_totale),
             "all_url": _safe_url("tickets:dashboard"),
             "empty": "Nessun ticket aperto correlato.",
         },
@@ -639,7 +653,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "🖊",
         "items": fonti.approvazioni(request),
         "all_url": _safe_url("procedure_refresh:modifiche") + "?mie=1",
-        "empty": "Nessuna modifica SGI, approvazione o richiesta di visita in attesa di te.",
+        "empty": "Nessuna modifica SGI, approvazione, richiesta di visita o spostamento date in attesa di te.",
     })
     sections.append({
         "key": "assegnate",
@@ -648,7 +662,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "📌",
         "items": fonti.assegnate(request),
         "all_url": _safe_url("scadenze_globali") + "?mie=1",
-        "empty": "Nessuna voce assegnata in specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
+        "empty": "Nessuna voce assegnata in schede di sicurezza, specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
     })
 
     # Le voci già presenti in un'altra sezione non si ripetono fra le scadenze (stesso link).
