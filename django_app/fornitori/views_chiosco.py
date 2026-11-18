@@ -162,7 +162,8 @@ def _ditta_non_in_regola(azienda: str, ditta_id: int | None = None) -> bool:
         return False
 
 
-def _esito_ingresso(stato: int, esito: dict, azienda: str = "", ditta_id: int | None = None) -> JsonResponse:
+def _esito_ingresso(stato: int, esito: dict, azienda: str = "", ditta_id: int | None = None,
+                    extra: dict | None = None) -> JsonResponse:
     """Esito di un check-in: solo i dati per lo schermo. Gli errori tecnici del GuestPortal
     e il nome di chi usa già un'email non arrivano al visitatore."""
     if esito.get("success"):
@@ -170,7 +171,7 @@ def _esito_ingresso(stato: int, esito: dict, azienda: str = "", ditta_id: int | 
                     "guest_name": esito.get("guest_name"), "host_employee": esito.get("host_employee")}
         if _ditta_non_in_regola(azienda, ditta_id):
             risposta["passa_reception"] = True
-        return JsonResponse(risposta)
+        return JsonResponse({**risposta, **(extra or {})})
     if esito.get("already_in"):
         return _errore("Sei già registrato come presente in azienda.", already_in=True)
     if esito.get("no_badges"):
@@ -283,12 +284,48 @@ def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
     host = chiosco.referente(_intero(dati, "referente_id"))
     if host is None:
         return _errore("Scegli il referente interno.")
+    return _check_in_fornitore(azienda, persona, host, consenso, ip)
+
+
+def _check_in_fornitore(azienda: dict, persona: dict, host: dict, consenso: bool, ip: str,
+                        extra: dict | None = None) -> JsonResponse:
     stato, esito = chiosco.chiama("supplier_checkin", {
         "supplier_id": azienda["id"], "contact_id": persona["id"], "company_name": azienda["nome"],
         "first_name": persona["nome"], "last_name": persona["cognome"],
         "host_employee": host["nome"], "host_email": host["email"], "gdpr_consent": consenso,
     }, ip=ip)
-    return _esito_ingresso(stato, esito, azienda=azienda["nome"], ditta_id=azienda["id"])
+    return _esito_ingresso(stato, esito, azienda=azienda["nome"], ditta_id=azienda["id"], extra=extra)
+
+
+def _registrato_ditte(_dati: dict) -> JsonResponse:
+    """«Vengo qui spesso»: le ditte accreditate, quelle che entrano più spesso in testa."""
+    return JsonResponse({"success": True, "ditte": chiosco.ditte_registrate()})
+
+
+def _registrato_tecnici(dati: dict) -> JsonResponse:
+    azienda_id = _intero(dati, "azienda_id")
+    if azienda_id is None or not any(d["id"] == azienda_id for d in chiosco.ditte_registrate()):
+        return _errore("Scegli la ditta.")
+    return JsonResponse({"success": True, "tecnici": chiosco.tecnici_registrati(azienda_id)})
+
+
+def _ingresso_registrato(dati: dict, ip: str) -> JsonResponse:
+    """Tecnico di una ditta accreditata («Vengo qui spesso»): niente referente né motivo da scegliere, l'avviso va all'email
+    della ditta o a quella di Reception → Impostazioni. Informativa: come per chi è riconosciuto,
+    non si rilegge se il tecnico ha già accettato la versione in vigore (decide il server)."""
+    azienda_id, nominativo_id = _intero(dati, "azienda_id"), _intero(dati, "nominativo_id")
+    azienda = next((d for d in chiosco.ditte_registrate() if d["id"] == azienda_id), None)
+    if azienda is None:
+        return _errore("Scegli la ditta.")
+    persona = next((c for c in chiosco.nominativi(azienda["id"]) if c["id"] == nominativo_id), None)
+    if persona is None:
+        return _errore("Scegli il tuo nome.")
+    consenso = _consenso(dati, lambda: chiosco.privacy_ricordata_fornitore(azienda_id, nominativo_id))
+    if consenso is None:
+        return _errore("Per continuare conferma di aver letto l'informativa.")
+    host = chiosco.referente_registrato(azienda_id)
+    # Senza email nessuno riceve l'avviso: lo schermo manda in reception invece di dire «è stato avvisato».
+    return _check_in_fornitore(azienda, persona, host, consenso, ip, extra={"avvisato": bool(host["email"])})
 
 
 def _cerca_uscita(dati: dict) -> JsonResponse:
@@ -368,6 +405,9 @@ AZIONI = {
     "aziende": _aziende,
     "nominativi": _nominativi,
     "ingresso-fornitore": _ingresso_fornitore,
+    "registrato-ditte": _registrato_ditte,
+    "registrato-tecnici": _registrato_tecnici,
+    "ingresso-registrato": _ingresso_registrato,
     "cerca-uscita": _cerca_uscita,
     "uscita": _uscita,
     "prereg-cerca": _prereg_cerca,
@@ -375,7 +415,7 @@ AZIONI = {
 }
 
 
-CON_IP = {_ingresso, _ingresso_ospite, _ingresso_fornitore, _prereg_entra}
+CON_IP = {_ingresso, _ingresso_ospite, _ingresso_fornitore, _ingresso_registrato, _prereg_entra}
 
 
 @require_POST

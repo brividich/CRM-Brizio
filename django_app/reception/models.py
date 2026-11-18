@@ -113,6 +113,9 @@ class DittaAccreditata(models.Model):
     nome = models.CharField(max_length=200, unique=True)
     note = models.CharField(max_length=500, blank=True)
     attiva = models.BooleanField(default=True)
+    # Chi avvisare quando un tecnico entra con «Registrato» al chiosco. Vuoto = quella di
+    # Reception → Impostazioni.
+    referente_email = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ["nome"]

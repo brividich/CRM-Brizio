@@ -87,6 +87,19 @@ button { font:inherit; color:inherit; }
 .ck-start-l { font-size:clamp(44px,5.4vw,66px); font-weight:700; letter-spacing:-1px; }
 .ck-start-d { font-size:23px; color:var(--muted); margin-top:-12px; }
 .ck-home-b { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; }
+.ck-home-scelte { display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:40px 110px; }
+.ck-home-scelte .ck-start { width:390px; gap:22px; text-align:center; }
+.ck-home-scelte .ck-pulse { width:230px; height:230px; }
+.ck-home-scelte .ck-pulse span { width:170px; height:170px; }
+.ck-home-scelte .ck-start-l { font-size:clamp(40px,4.4vw,54px); line-height:1.05; }
+.ck-home-scelte .ck-start-d { font-size:21px; margin-top:-8px; line-height:1.35; }
+.ck-start.reg .ck-pulse::before, .ck-start.reg .ck-pulse span { background:var(--green); }
+.ck-ghost.reg { border-color:var(--green); background:#052e16; }
+.ck-ghost.reg svg { stroke:var(--green); }
+.ck-opt[disabled] { border-style:dashed; background:transparent; opacity:.55; cursor:default; }
+.ck-opt[disabled]:hover { border-color:var(--border); }
+.ck-reg-ditta { display:inline-flex; align-items:center; gap:12px; margin:-8px 0 22px; padding:8px 18px 8px 8px; border-radius:999px; background:var(--surface); border:2px solid var(--border); font-size:19px; font-weight:600; }
+.ck-reg-ditta .ck-av { width:40px; height:40px; font-size:16px; }
 
 /* Pass che si compila */
 .ck-pass { width:380px; flex:none; display:none; flex-direction:column; gap:18px; padding:20px 32px 40px; border-left:1px solid var(--border); background:var(--surface2); }
@@ -108,6 +121,7 @@ button { font:inherit; color:inherit; }
 .ck-gdpr p { margin:0 0 12px; }
 .ck-ricordata { margin:0; padding:22px; border-radius:20px; border:2px solid #22c55e; background:rgba(34,197,94,.08); font-size:20px; line-height:1.5; }
 .ck-ricordata strong { color:#4ade80; }
+.ck-check[hidden] { display:none; }
 .ck-gdpr a { color:var(--accent); }
 .ck-check { display:flex; align-items:center; gap:18px; margin-top:18px; padding:18px 22px; border:2px solid var(--border2); border-radius:20px; background:var(--surface); font-size:21px; cursor:pointer; }
 .ck-check input { width:36px; height:36px; flex:none; accent-color:var(--green); }
@@ -198,11 +212,18 @@ button { font:inherit; color:inherit; }
 
     <section class="ck-step on" id="s-home">
       <div class="ck-home">
-        <button type="button" class="ck-start" id="b-inizia">
-          <span class="ck-pulse"><span><svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span></span>
-          <span class="ck-start-l">Tocca per entrare</span>
-          <span class="ck-start-d">Poche domande, una alla volta.</span>
-        </button>
+        <div class="ck-home-scelte">
+          <button type="button" class="ck-start" id="b-inizia">
+            <span class="ck-pulse"><span><svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span></span>
+            <span class="ck-start-l">Tocca per entrare</span>
+            <span class="ck-start-d">Prima volta o ospite. Poche domande, una alla volta.</span>
+          </button>
+          <button type="button" class="ck-start reg" data-registrato>
+            <span class="ck-pulse"><span><svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span></span>
+            <span class="ck-start-l">Vengo qui spesso</span>
+            <span class="ck-start-d">Tecnici e manutentori delle ditte: ditta, nome, fatto.</span>
+          </button>
+        </div>
         <div class="ck-home-b">
           <button type="button" class="ck-ghost" data-vai="s-uscita"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Esco, restituisco il cartellino</button>
           <button type="button" class="ck-ghost" data-vai="s-codice"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>Ho un codice d'invito</button>
@@ -216,7 +237,7 @@ button { font:inherit; color:inherit; }
         <div><label class="ck-label" for="f-cognome">Cognome</label><input class="ck-big" id="f-cognome" data-kb="text" data-sugg="cognome" readonly autocomplete="off" placeholder="Cognome"><div class="ck-sugg" id="f-cognome-sugg"></div></div>
         <div><label class="ck-label" for="f-nome">Nome</label><input class="ck-big" id="f-nome" data-kb="text" data-sugg="nome" readonly autocomplete="off" placeholder="Nome"><div class="ck-sugg" id="f-nome-sugg"></div></div>
       </div>
-      <div class="ck-actions"><button type="button" class="ck-next" id="b-nome" disabled>Avanti</button></div>
+      <div class="ck-actions"><button type="button" class="ck-next" id="b-nome" disabled>Avanti</button><button type="button" class="ck-ghost reg" data-registrato><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Vengo qui spesso</button></div>
       <div class="ck-err" id="e-nome"></div>
     </section>
 
@@ -261,6 +282,36 @@ button { font:inherit; color:inherit; }
       <label class="ck-check" id="l-gdpr"><input type="checkbox" id="f-gdpr"><span><strong>Ho letto e accetto</strong> l'informativa sul trattamento dei miei dati personali.</span></label>
       <button type="button" class="ck-go" id="b-entra" disabled><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Confermo l'ingresso</button>
       <div class="ck-err" id="e-privacy"></div>
+    </section>
+
+    <section class="ck-step" id="s-reg-ditte">
+      <h1 class="ck-title">Di quale ditta sei?</h1>
+      <p class="ck-sub">In alto le ditte che entrano più spesso.</p>
+      <div class="ck-lettere" id="reg-lettere" aria-label="Iniziale della ditta"></div>
+      <div class="ck-ref-list" id="reg-ditte"></div>
+      <div class="ck-actions"><button type="button" class="ck-ghost" data-indietro>Indietro</button><button type="button" class="ck-ghost" id="b-reg-prima">La mia ditta non c'è: prima volta</button></div>
+      <div class="ck-err" id="e-reg-ditte"></div>
+    </section>
+
+    <section class="ck-step" id="s-reg-tecnici">
+      <div class="ck-reg-ditta"><span class="ck-av" id="reg-ditta-av">–</span><span id="reg-ditta-nome">–</span></div>
+      <h1 class="ck-title">Chi sei?</h1>
+      <div class="ck-opts" id="reg-tecnici"></div>
+      <div class="ck-actions"><button type="button" class="ck-ghost" data-indietro>Cambia ditta</button></div>
+      <div class="ck-err" id="e-reg-tecnici"></div>
+    </section>
+
+    <section class="ck-step" id="s-reg-privacy">
+      <div class="ck-who">
+        <div class="ck-who-av" id="reg-av">–</div>
+        <div><div class="ck-who-n" id="reg-nome">–</div><div class="ck-who-d" id="reg-dett"></div></div>
+      </div>
+      <p class="ck-ricordata ck-mt" id="r-gdpr-r" hidden><strong>Informativa già accettata.</strong> Non serve rileggerla: conferma l'ingresso.</p>
+      <div class="ck-gdpr ck-mt" id="g-gdpr-r">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
+      <label class="ck-check" id="l-gdpr-r"><input type="checkbox" id="f-gdpr-r"><span><strong>Ho letto e accetto</strong> l'informativa sul trattamento dei miei dati personali.</span></label>
+      <button type="button" class="ck-go" id="b-reg" disabled><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Confermo l'ingresso</button>
+      <div class="ck-actions"><button type="button" class="ck-ghost" data-indietro>Indietro</button></div>
+      <div class="ck-err" id="e-reg"></div>
     </section>
 
     <section class="ck-step" id="s-uscita">
@@ -442,7 +493,8 @@ button { font:inherit; color:inherit; }
     stato = {}; storia = [];
     document.querySelectorAll('input.ck-input, input.ck-big').forEach(function (i) { i.value = ''; });
     document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; c.dispatchEvent(new Event('change')); });
-    privacyRicordata('', 'b-entra', false); privacyRicordata('-p', 'b-prereg', false);
+    privacyRicordata('', 'b-entra', false); privacyRicordata('-p', 'b-prereg', false); privacyRicordata('-r', 'b-reg', false);
+    regLettera = '';
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
     $('f-host').value = ''; $('f-host').dataset.nome = ''; $('f-host').dataset.reparto = ''; $('f-host').dataset.foto = ''; $('f-host-cerca').value = ''; lettera = ''; disegnaReferenti();
     $('visite').innerHTML = ''; $('pad-box').hidden = true;
@@ -674,6 +726,7 @@ button { font:inherit; color:inherit; }
   }
   legaSpunta('f-gdpr', 'l-gdpr', 'b-entra');
   legaSpunta('f-gdpr-p', 'l-gdpr-p', 'b-prereg');
+  legaSpunta('f-gdpr-r', 'l-gdpr-r', 'b-reg');
   // Già accettata (stessa versione del testo): niente testo né spunta, solo la conferma. Decide il server.
   function privacyRicordata(suff, bottone, ok) {
     $('r-gdpr' + suff).hidden = !ok;
@@ -791,6 +844,87 @@ button { font:inherit; color:inherit; }
     if (!$('f-gdpr-p').checked && !stato.privacyCodice) { return errore('e-prereg', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
     chiama('prereg-entra', { code: codice, gdpr_consent: $('f-gdpr-p').checked }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
   });
+
+  // ─── «Vengo qui spesso»: ditta accreditata → tecnico → conferma. Niente referente né motivo da scegliere ───
+  // L'elenco arriva già ordinato dal server (chi entra più spesso in testa); le lettere filtrano senza riordinare.
+  var regDitte = [], regLettera = '';
+  function inizialeDitta(x) { return normalizza(x.nome).trim().charAt(0).toUpperCase(); }
+  function apriRegistrato() {
+    chiudiTastiera();
+    chiama('registrato-ditte', {}).then(function (d) {
+      regDitte = (d && d.success && d.ditte) || [];
+      regLettera = '';
+      vai('s-reg-ditte');
+      disegnaDitte();
+      if (!d || !d.success) { errore('e-reg-ditte', (d && d.error) || 'Elenco non disponibile. Rivolgiti alla reception.'); }
+      else if (!regDitte.length) { errore('e-reg-ditte', 'Nessuna ditta in elenco. Usa «Tocca per entrare».'); }
+    });
+  }
+  function disegnaDitte() {
+    var box = $('reg-lettere'), lista = $('reg-ditte');
+    box.innerHTML = ''; lista.innerHTML = '';
+    var viste = {};
+    regDitte.forEach(function (x) { viste[inizialeDitta(x)] = true; });
+    var tutte = Object.keys(viste).sort();
+    box.hidden = tutte.length < 2 || regDitte.length <= 12;
+    if (!box.hidden) {
+      ['Tutte'].concat(tutte).forEach(function (l) {
+        var b = el('button', (l === 'Tutte' ? !regLettera : regLettera === l) ? 'on' : '', l); b.type = 'button';
+        b.addEventListener('click', function () { regLettera = l === 'Tutte' ? '' : l; disegnaDitte(); });
+        box.appendChild(b);
+      });
+    }
+    regDitte.filter(function (x) { return !regLettera || inizialeDitta(x) === regLettera; }).forEach(function (x) {
+      var b = el('button', 'ck-opt'); b.type = 'button';
+      b.appendChild(el('span', 'ck-av', iniziali(x.nome)));
+      var t = el('span'); t.appendChild(document.createTextNode(x.nome));
+      if (x.tecnici) { t.appendChild(el('small', '', x.tecnici === 1 ? '1 tecnico' : x.tecnici + ' tecnici')); }
+      b.appendChild(t);
+      b.addEventListener('click', function () { scegliDitta(x); });
+      lista.appendChild(b);
+    });
+    lista.scrollTop = 0;
+  }
+  function scegliDitta(x) {
+    chiama('registrato-tecnici', { azienda_id: x.id }).then(function (d) {
+      if (!d.success) { return errore('e-reg-ditte', d.error); }
+      stato.regDitta = x;
+      $('reg-ditta-av').textContent = iniziali(x.nome); $('reg-ditta-nome').textContent = x.nome;
+      var box = $('reg-tecnici'); box.innerHTML = '';
+      (d.tecnici || []).forEach(function (t) {
+        var b = el('button', 'ck-opt'); b.type = 'button'; b.disabled = !!t.dentro;
+        b.appendChild(el('span', 'ck-av', iniziali(t.nome)));
+        var s = el('span'); s.appendChild(document.createTextNode(t.nome));
+        if (t.dentro) { s.appendChild(el('small', '', "Già entrato: prima registra l'uscita")); }
+        b.appendChild(s);
+        if (!t.dentro) { b.addEventListener('click', function () { scegliTecnico(t); }); }
+        box.appendChild(b);
+      });
+      vai('s-reg-tecnici');
+      if (!(d.tecnici || []).length) { errore('e-reg-tecnici', 'Nessun tecnico per questa ditta. Rivolgiti alla reception.'); }
+    });
+  }
+  function scegliTecnico(t) {
+    stato.regTecnico = t;
+    $('reg-av').textContent = iniziali(t.nome);
+    $('reg-nome').textContent = t.nome;
+    $('reg-dett').textContent = stato.regDitta.nome;
+    $('f-gdpr-r').checked = false; $('f-gdpr-r').dispatchEvent(new Event('change'));
+    privacyRicordata('-r', 'b-reg', !!t.privacy_ok);
+    vai('s-reg-privacy');
+  }
+  $('b-reg').addEventListener('click', function () {
+    if (!$('f-gdpr-r').checked && !stato.regTecnico.privacy_ok) { return errore('e-reg', "Per entrare spunta «Ho letto e accetto l'informativa»."); }
+    chiama('ingresso-registrato', { azienda_id: stato.regDitta.id, nominativo_id: stato.regTecnico.id, gdpr_consent: $('f-gdpr-r').checked })
+      .then(function (d) {
+        // Nessuna email da avvisare: il tecnico passa dalla reception invece di leggere «è stato avvisato».
+        if (d.success && d.avvisato === false) { d.passa_reception = true; }
+        esitoIngresso(d, 'e-reg');
+      });
+  });
+  $('b-reg-prima').addEventListener('click', function () { vai('s-nome'); $('f-cognome').click(); });
+  document.querySelectorAll('[data-registrato]').forEach(function (b) { b.addEventListener('click', apriRegistrato); });
+  document.querySelectorAll('[data-indietro]').forEach(function (b) { b.addEventListener('click', indietro); });
 
   // ─── QR: la fotocamera funziona solo in HTTPS, altrimenti i pulsanti non compaiono ───
   var qrFlusso = null, qrFrame = null, qrUso = '';
