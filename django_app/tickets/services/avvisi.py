@@ -2,7 +2,7 @@
 
 Un solo punto per tutti i percorsi (scheda, elenco, API, azioni di massa, OdL):
 
-- ticket nuovo → team gestori del tipo (campanella + mail) e conferma al richiedente;
+- ticket nuovo → team gestori del tipo (campanella; mail solo se nessuna regola Automazioni la manda già) e conferma al richiedente;
 - assegnato / preso in carico → al tecnico assegnato (se non è lui stesso) e al richiedente;
 - risolto → al richiedente, che conferma o riapre; in attesa e annullato dal gestore → al richiedente;
 - commento visibile → all'altra parte (richiedente ↔ tecnico o team);
@@ -105,7 +105,7 @@ def _al_richiedente(ticket: Ticket, *, autore_email: str, tipo: str, messaggio: 
 
 
 def _a_chi_gestisce(ticket: Ticket, *, autore_email: str, tipo: str, messaggio: str, oggetto: str,
-                    testo: str, solo_team: bool = False) -> None:
+                    testo: str, solo_team: bool = False, mail: bool = True) -> None:
     """Al tecnico assegnato; se nessuno lo segue (o ``solo_team``), al team del tipo."""
     autore = _norm(autore_email)
     assegnato = _norm(ticket.assegnato_email)
@@ -115,7 +115,37 @@ def _a_chi_gestisce(ticket: Ticket, *, autore_email: str, tipo: str, messaggio: 
         if email == autore:
             continue
         _campanella(email=email, tipo=tipo, messaggio=messaggio, url=url)
-        _mail(email, oggetto=oggetto, testo=testo, url=url, pulsante="Gestisci il ticket", titolo=messaggio)
+        if mail:
+            _mail(email, oggetto=oggetto, testo=testo, url=url, pulsante="Gestisci il ticket", titolo=messaggio)
+
+
+def regola_mail_nuovo_attiva(ticket: Ticket) -> bool:
+    """Una regola Automazioni attiva manda già la mail per i ticket nuovi di questo tipo?
+
+    In produzione ``au57-ticket-nuovo-it-mail`` / ``-man-mail`` scrivono alle caselle IT e
+    Manutenzione: allora al team arriva solo la campanella, la mail resta una.
+    Vale una regola su inserimento, attiva e non in bozza, con un «Invia mail» acceso e
+    senza condizioni oppure con la sola condizione ``tipo`` uguale al tipo del ticket.
+    """
+    try:
+        from automazioni.models import AutomationRule
+    except Exception:
+        return False
+    try:
+        regole = (AutomationRule.objects.filter(source_code="tickets", operation_type="insert",
+                                                is_active=True, is_draft=False,
+                                                actions__action_type="send_email", actions__is_enabled=True)
+                  .distinct().prefetch_related("conditions"))
+        for r in regole:
+            condizioni = [c for c in r.conditions.all() if c.is_enabled]
+            if not condizioni:
+                return True
+            if all(c.field_name == "tipo" and c.operator == "equals" and c.expected_value == ticket.tipo
+                   for c in condizioni):
+                return True
+    except Exception:
+        logger.warning("Regole mail ticket nuovo non lette", exc_info=True)
+    return False
 
 
 def _dopo(fn, *args, **kwargs) -> None:
@@ -147,7 +177,7 @@ def _nuovo(ticket_id: int, autore_email: str) -> None:
         return
     priorita = t.get_priorita_display() if hasattr(t, "get_priorita_display") else t.priorita
     _a_chi_gestisce(
-        t, autore_email=autore_email, solo_team=True, tipo="ticket_nuovo",
+        t, autore_email=autore_email, solo_team=True, tipo="ticket_nuovo", mail=not regola_mail_nuovo_attiva(t),
         messaggio=f"{t.numero_ticket} · {t.titolo} — da {t.richiedente_nome} (priorità {priorita})",
         oggetto=f"Nuovo ticket {t.numero_ticket}: {t.titolo}",
         testo=(f"{t.richiedente_nome} ha aperto il ticket {t.numero_ticket} (priorità {priorita}).\n"
