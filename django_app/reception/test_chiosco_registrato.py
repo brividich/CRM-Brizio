@@ -95,6 +95,11 @@ class RegistratoTests(Base):
     def test_pulsante_in_home_e_nel_primo_passo(self):
         self.assertContains(self.client.get(reverse("chiosco:pagina")), "Vengo qui spesso</", count=2)
 
+    def test_salvaschermo_in_pagina(self):
+        r = self.client.get(reverse("chiosco:pagina"))
+        self.assertContains(r, 'id="saver"')
+        self.assertContains(r, "SAVER_SEC = 180")
+
 
 class ImpostazioniRegistratoTests(Base):
     def setUp(self):
