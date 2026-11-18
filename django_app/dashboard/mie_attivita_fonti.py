@@ -136,13 +136,35 @@ def _richieste_visita(request) -> list[dict]:
     } for r in qs]
 
 
+def _spostamenti(request) -> list[dict]:
+    """KICK-OFF: richieste di spostamento date da decidere, dove l'utente ha pieni poteri
+    (stesso elenco di «Le mie azioni»)."""
+    from tasks.access import scoped_projects_queryset
+    from tasks.services.spostamenti import richieste_da_decidere
+
+    out = []
+    for sp in richieste_da_decidere(request, scoped_projects_queryset(request).values("id"))[:MAX_PER_FONTE]:
+        chi = (sp.richiesto_da.get_full_name() or sp.richiesto_da.get_username()) if sp.richiesto_da else ""
+        nuove = " → ".join(f"{d:%d/%m/%Y}" for d in (sp.inizio_nuovo, sp.fine_nuovo) if d)
+        out.append({
+            "code": "Spostamento",
+            "title": _meta(sp.task.title, getattr(sp.task.project, "name", "")),
+            "meta": _meta(f"chiesto da {chi}" if chi else "", f"nuove date {nuove}" if nuove else "", sp.motivo[:80]),
+            "status": "Da decidere",
+            "due": None,
+            "url": _url("tasks:mie_azioni"),
+        })
+    return out
+
+
 def approvazioni(request) -> list[dict]:
     """Decisioni che spettano all'utente: modifiche SGI, approvazioni dei flussi, richieste di visita."""
     if not getattr(request.user, "is_authenticated", False):
         return []
     return (_sicura("modifiche SGI", _modifiche_sgi, request)
             + _sicura("approvazioni automazioni", _approvazioni_automazioni, request)
-            + _sicura("richieste di visita", _richieste_visita, request))
+            + _sicura("richieste di visita", _richieste_visita, request)
+            + _sicura("spostamenti KICK-OFF", _spostamenti, request))
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +263,40 @@ def _suggestion(user) -> list[dict]:
     return out
 
 
+def _suggestion_team(user) -> list[dict]:
+    """Suggestion Corner: segnalazioni che aspettano il team SMS (da classificare o pianificare).
+    Solo i membri del gruppo: un superuser fuori dal team non le riceve fra le sue."""
+    from suggestion_corner.models import SuggestionCorner, SuggestionCornerConfig
+
+    if not user.groups.filter(name=SuggestionCornerConfig.load().sms_team_group_name).exists():
+        return []
+    S = SuggestionCorner.Stato
+    qs = SuggestionCorner.objects.filter(stato__in=(S.INSERITA, S.DA_CLASSIFICARE, S.CLASSIFICATA)).order_by("id")[:MAX_PER_FONTE]
+    return [{
+        "code": f"SC#{sc.pk}",
+        "title": (sc.opportunity or str(sc))[:140],
+        "meta": "team SMS",
+        "status": sc.get_stato_display(),
+        "due": None,
+        "url": _url("suggestion_corner:dettaglio", sc.pk),
+    } for sc in qs]
+
+
+def _sds(user) -> list[dict]:
+    """Schede di sicurezza dovute per la mansione e non ancora prese in visione."""
+    from schede_sicurezza.services.assegnazioni import profilo_sds_utente
+
+    url = _url("schede_sicurezza:sds_da_leggere")
+    return [{
+        "code": "SDS",
+        "title": str(getattr(scheda.prodotto, "nome", "") or "Scheda di sicurezza"),
+        "meta": "scheda di sicurezza da leggere",
+        "status": "Da leggere",
+        "due": None,
+        "url": url,
+    } for scheda in profilo_sds_utente(user).da_leggere[:MAX_PER_FONTE]]
+
+
 def _attrezzature(user) -> list[dict]:
     from attrezzature.models import AttrezzaturaTask
 
@@ -274,10 +330,52 @@ def assegnate(request) -> list[dict]:
     user = request.user
     if not getattr(user, "is_authenticated", False):
         return []
-    return (_sicura("specifiche", _specifiche, user)
+    return (_sicura("schede di sicurezza", _sds, user)
+            + _sicura("specifiche", _specifiche, user)
             + _sicura("registro OFI", _ofi, user)
             + _sicura("CAR", _car, user)
             + _sicura("obiettivi riesame", _obiettivi, user)
             + _sicura("Suggestion Corner", _suggestion, user)
+            + _sicura("Suggestion Corner team", _suggestion_team, user)
             + _sicura("attrezzature", _attrezzature, user)
             + _sicura("checklist chiusure", _checklist, request))
+
+
+# ---------------------------------------------------------------------------
+# Ticket del proprio team ancora senza un assegnatario
+# ---------------------------------------------------------------------------
+
+def ticket_team_da_assegnare(request) -> dict:
+    """Ticket aperti che nessuno ha preso, dei tipi in cui l'utente è nel team dei gestori
+    (Impostazioni ticket) e può gestire. {"items": [...], "total": n}."""
+    vuoto = {"items": [], "total": 0}
+    try:
+        from tickets.models import StatoTicket, Ticket, TicketImpostazioni
+        from tickets.views import _can_manage_tickets, _user_acl_identities
+
+        mie = set(_user_acl_identities(request)) | {_email(request.user)}
+        mie.discard("")
+        tipi = [
+            cfg.tipo for cfg in TicketImpostazioni.objects.all()
+            if any(
+                str(g.get("email", "")).strip().lower() in mie
+                for g in (cfg.team_gestori or []) if isinstance(g, dict)
+            ) and _can_manage_tickets(request, cfg.tipo)
+        ]
+        if not tipi:
+            return vuoto
+        qs = Ticket.objects.filter(tipo__in=tipi, stato=StatoTicket.APERTA, assegnato_a="", delegato_fornitore__isnull=True)
+        total = qs.count()
+        righe = list(qs.order_by("created_at", "id")[:MAX_PER_FONTE]) if total else []
+    except Exception:
+        logger.exception("Le mie attività: ticket del team non calcolabili")
+        return vuoto
+    return {"total": total, "items": [{
+        "code": t.numero_ticket or f"T-{t.pk}",
+        "title": t.titolo or "Ticket",
+        "meta": "nessuno lo ha preso in carico",
+        "status": "Da assegnare",
+        "priority": getattr(t, "priorita", "") or "",
+        "due": None,
+        "url": _url("tickets:gestione_detail", t.pk),
+    } for t in righe]}
