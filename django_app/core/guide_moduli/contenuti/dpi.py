@@ -183,7 +183,7 @@ GUIDA = {
             "id": 'avvisi',
             "titolo": 'Chi viene avvisato',
             "blocchi": [
-                ('def', [('Richiesta nuova', 'chi deve approvare riceve mail con «Approva o rifiuta» e la campanella «DPI da approvare».'), ('Approvata o rifiutata', "chi l'ha chiesta riceve campanella e mail (il rifiuto con il motivo). Con «avviso ritiro all'approvazione» arriva direttamente la mail «pronto»."), ('Pronta, ordinata', 'campanella «DPI pronta da ritirare» o «DPI ordinata», oltre alla mail.'), ("Annullata da chi l'ha chiesta", 'chi doveva approvarla riceve mail e campanella: non serve più decidere.'), ('Commento del gestore', "se non è interno arriva a chi l'ha chiesta, in campanella e per mail.")]),
+                ('def', [('Richiesta nuova', 'chi deve approvare riceve una mail personale con i pulsanti «Accetta» e «Rifiuta» (aprono una pagina di conferma senza login: decide il pulsante della pagina, a nome di chi ha ricevuto la mail; il link vale 30 giorni e finché la richiesta è da approvare), «Apri nel portale» e la campanella «DPI da approvare».'), ('Approvata o rifiutata', "chi l'ha chiesta riceve campanella e mail (il rifiuto con il motivo). Con «avviso ritiro all'approvazione» arriva direttamente la mail «pronto»."), ('Pronta, ordinata', 'campanella «DPI pronta da ritirare» o «DPI ordinata», oltre alla mail.'), ("Annullata da chi l'ha chiesta", 'chi doveva approvarla riceve mail e campanella: non serve più decidere.'), ('Commento del gestore', "se non è interno arriva a chi l'ha chiesta, in campanella e per mail.")]),
             ],
         },
     ],

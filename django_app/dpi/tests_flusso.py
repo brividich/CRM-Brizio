@@ -208,7 +208,9 @@ class FlussoViewTests(TestCase):
         with mock.patch("dpi.flusso._email_persona", return_value="capo@example.test"):
             flusso.notifica_nuova_richiesta(self.richiesta)
         avviso = [m for m in mail.outbox if "da approvare" in m.subject]
-        self.assertEqual(set(avviso[0].to), {"capo@example.test", "rspp@example.test", "hse@example.test"})
+        # Una mail a testa: i pulsanti Accetta/Rifiuta sono link personali.
+        self.assertEqual({m.to[0] for m in avviso}, {"capo@example.test", "rspp@example.test", "hse@example.test"})
+        self.assertTrue(all(len(m.to) == 1 for m in avviso))
 
     def test_rifiuto_dopo_approvazione_annulla_la_consegna(self):
         self.richiesta.stato = StatoRichiesta.APPROVATA
