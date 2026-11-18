@@ -42,12 +42,27 @@ def elenco(request):
     for a in audit_list:
         a.n_rilievi = service.rilievi(a).count()
         a.n_nc_aperte = service.nc_aperte(a)
+    scadenze = service.scadenze()
+    certificazioni = list(Certificazione.objects.prefetch_related("documenti"))
+    # «In vigore» = attivo e non ancora scaduto (lo stato «scaduta» resta attivo finché non lo si
+    # ritira: prima veniva contato fra quelli in vigore). Le tessere filtrano la tabella
+    # «Certificazioni» con gli stessi insiemi che contano.
+    insiemi = {
+        "in_vigore": [c for c in certificazioni if c.stato in ("valida", "in_scadenza")],
+        "scadenza": [c for c in certificazioni if c.pk in {x.pk for x in scadenze["certificati"]}],
+        "sorveglianza": [c for c in certificazioni if c.pk in {x.pk for x in scadenze["sorveglianze"]}],
+    }
+    filtro = request.GET.get("filtro", "")
+    if filtro not in insiemi:
+        filtro = ""
     return render(request, "sistema_gestione/pages/esterni_elenco.html", {
         "page_title": "Certificazioni e audit esterni",
-        "certificazioni": Certificazione.objects.prefetch_related("documenti"),
-        "n_in_vigore": Certificazione.objects.filter(attiva=True).count(),
+        "certificazioni": insiemi[filtro] if filtro else certificazioni,
+        "n_certificazioni": len(certificazioni),
+        "filtro": filtro,
+        "n_in_vigore": len(insiemi["in_vigore"]),
         "audit_list": audit_list,
-        "scadenze": service.scadenze(),
+        "scadenze": scadenze,
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
     })
 

@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -31,12 +31,12 @@
     </div>
 
     <div class="mns-stats" aria-label="Regole in vigore">
-      <div class="mns-stat"><b>{{ config.soglia_operativa }}</b><span>operativo da · {{ config.get_soglia_operativa_display|lower }}</span></div>
-      <div class="mns-stat"><b>{{ config.soglia_uomo_solo }}</b><span>operativi minimi per mansione</span></div>
-      <div class="mns-stat mns-stat-largo"><span>{{ config.get_regola_multivoce_display }}</span></div>
+      <a class="mns-stat kpi-link" href="#cambia-regole" title="Vai a «Cambia le regole»: da che livello si è operativi"><b>{{ config.soglia_operativa }}</b><span>operativo da · {{ config.get_soglia_operativa_display|lower }}</span></a>
+      <a class="mns-stat kpi-link" href="#cambia-regole" title="Vai a «Cambia le regole»: operativi minimi per mansione"><b>{{ config.soglia_uomo_solo }}</b><span>operativi minimi per mansione</span></a>
+      <a class="mns-stat mns-stat-largo kpi-link" href="#cambia-regole" title="Vai a «Cambia le regole»: come si calcola il livello dalle competenze"><span>{{ config.get_regola_multivoce_display }}</span></a>
     </div>
 
-    <form method="post" class="fmd-panel fmd-block mns-set" data-reg-form>
+    <form method="post" class="fmd-panel fmd-block mns-set" id="cambia-regole" data-reg-form>
       {% csrf_token %}
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-edit"/></svg>Cambia le regole</div>
@@ -106,10 +106,10 @@
         <div class="mns-stat"><b>{{ impatto.operativi_prima }} → {{ impatto.operativi_dopo }}</b><span>persone operative</span></div>
         <div class="mns-stat{% if impatto.scoperte_dopo > impatto.scoperte_prima %} mns-ko{% endif %}"><b>{{ impatto.scoperte_prima }} → {{ impatto.scoperte_dopo }}</b><span>mansioni senza operativi</span></div>
         <div class="mns-stat{% if impatto.uomo_solo_dopo > impatto.uomo_solo_prima %} mns-mid{% endif %}"><b>{{ impatto.uomo_solo_prima }} → {{ impatto.uomo_solo_dopo }}</b><span>mansioni a rischio uomo solo</span></div>
-        <div class="mns-stat"><b>{{ impatto.n_cambi }}</b><span>person{{ impatto.n_cambi|pluralize:"a,e" }} con livello o esito diverso</span></div>
+        {% if impatto.cambi %}<a class="mns-stat kpi-link" href="#impatto-cambi" title="Vai all'elenco delle persone con livello o esito diverso"><b>{{ impatto.n_cambi }}</b><span>person{{ impatto.n_cambi|pluralize:"a,e" }} con livello o esito diverso</span></a>{% else %}<div class="mns-stat"><b>{{ impatto.n_cambi }}</b><span>person{{ impatto.n_cambi|pluralize:"a,e" }} con livello o esito diverso</span></div>{% endif %}
       </div>
       {% if impatto.cambi %}
-      <div class="fmd-tablewrap mst-scroll" style="max-height:420px;">
+      <div class="fmd-tablewrap mst-scroll" id="impatto-cambi" style="max-height:420px;">
         <table class="fmd-table">
           <thead><tr><th>Persona</th><th>Mansione</th><th>Livello</th><th>Esito</th></tr></thead>
           <tbody>

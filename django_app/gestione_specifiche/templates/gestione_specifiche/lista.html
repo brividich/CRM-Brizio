@@ -17,7 +17,7 @@
       </div>
       <div class="gs-hero__side">
         {% if kpi.verifica_scad %}
-        <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-hero__chip" style="text-decoration:none;">
+        <a href="{% url 'gestione_specifiche:lista' %}?verifica=in_scadenza" class="gs-hero__chip" style="text-decoration:none;" title="Apri l'elenco filtrato: specifiche in validità con verifica in scadenza">
           <i>{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=15 %}</i>
           {{ kpi.verifica_scad }} verifica{{ kpi.verifica_scad|pluralize:"e" }} in scadenza
         </a>
@@ -42,7 +42,7 @@
 
   {# ---- KPI ----------------------------------------------------------- #}
   <div class="gs-kpis">
-    <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-kpi gs-kpi--link">
+    <a href="{% url 'gestione_specifiche:lista' %}?stato={{ C.STATO_IN_VALIDITA }}" class="gs-kpi gs-kpi--link" title="Apri l'elenco filtrato: specifiche in validità">
       <div class="gs-kpi__top">
         <div class="gs-kpi__icon is-green">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=20 %}</div>
         <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
@@ -50,7 +50,7 @@
       <div class="gs-kpi__num">{{ kpi.in_validita }}</div>
       <div class="gs-kpi__label">In validità</div>
     </a>
-    <a href="?stato={{ C.STATO_FLOW_DOWN }}" class="gs-kpi gs-kpi--link">
+    <a href="{% url 'gestione_specifiche:lista' %}?stato={{ C.STATO_FLOW_DOWN }}" class="gs-kpi gs-kpi--link" title="Apri l'elenco filtrato: specifiche in flow-down">
       <div class="gs-kpi__top">
         <div class="gs-kpi__icon is-blue">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=20 %}</div>
         <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
@@ -58,7 +58,7 @@
       <div class="gs-kpi__num">{{ kpi.flow_down }}</div>
       <div class="gs-kpi__label">In flow-down</div>
     </a>
-    <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-kpi gs-kpi--link gs-kpi--warn">
+    <a href="{% url 'gestione_specifiche:lista' %}?verifica=in_scadenza" class="gs-kpi gs-kpi--link gs-kpi--warn" title="Apri l'elenco filtrato: specifiche in validità con verifica in scadenza o già scaduta">
       <div class="gs-kpi__top">
         <div class="gs-kpi__icon is-amber">{% include "gestione_specifiche/partials/_icon.html" with name="clock" size=20 %}</div>
         <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
@@ -66,7 +66,7 @@
       <div class="gs-kpi__num is-amber">{{ kpi.verifica_scad }}</div>
       <div class="gs-kpi__label">Verifica in scadenza</div>
     </a>
-    <a href="?stato={{ C.STATO_SOSPESO }}" class="gs-kpi gs-kpi--link">
+    <a href="{% url 'gestione_specifiche:lista' %}?stato={{ C.STATO_SOSPESO }}" class="gs-kpi gs-kpi--link" title="Apri l'elenco filtrato: specifiche sospese">
       <div class="gs-kpi__top">
         <div class="gs-kpi__icon is-amber">{% include "gestione_specifiche/partials/_icon.html" with name="pause" size=18 %}</div>
         <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
@@ -85,6 +85,8 @@
       </div>
       {% if mostra_storico %}<input type="hidden" name="storico" value="1">{% endif %}
       {% if f_cartella %}<input type="hidden" name="cartella" value="{{ f_cartella }}">{% endif %}
+      {% if f.verifica %}<input type="hidden" name="verifica" value="{{ f.verifica }}">{% endif %}
+      {% if f.ofi %}<input type="hidden" name="ofi" value="{{ f.ofi }}">{% endif %}
       <label class="gs-bar__sel">Cliente
         <input type="text" name="cliente" value="{{ f.cliente }}" placeholder="—" style="width:110px; border:none; outline:none; background:transparent; font-family:inherit; font-weight:600; color:#5b6b82;">
       </label>
@@ -114,6 +116,14 @@
         <span>Mostra storico</span>
       </a>
     </form>
+
+    {% if f.verifica or f.ofi %}
+    <div style="padding:10px 18px; font-size:12.5px; color:#5b6b82;">
+      Filtro dalle tessere:
+      <strong>{% if f.verifica == "scaduta" %}verifica periodica già scaduta{% elif f.verifica == "f30" %}verifica periodica entro 30 giorni (scadute comprese){% elif f.verifica == "f60" %}verifica periodica fra 31 e 60 giorni{% elif f.verifica == "f90" %}verifica periodica fra 61 e 90 giorni{% elif f.verifica %}verifica periodica in scadenza o scaduta{% endif %}{% if f.verifica and f.ofi %} · {% endif %}{% if f.ofi %}con OFI aperti{% if n_ofi_aperti_filtro is not None %} ({{ n_ofi_aperti_filtro }} OFI){% endif %}{% endif %}</strong>
+      · <a href="{% url 'gestione_specifiche:lista' %}?vista=elenco" style="color:#1f87cd; font-weight:700; text-decoration:none;">rimuovi</a>
+    </div>
+    {% endif %}
 
     {% if cartella or f_cartella %}
     <div class="gs-cliente" style="--col:{{ cartella.colore|default:'#64748b' }}">

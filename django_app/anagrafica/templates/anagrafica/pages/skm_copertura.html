@@ -53,14 +53,15 @@ body.theme-dark .sc-cert{color:var(--text-light)}
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Copertura in sintesi">
-    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-shield" valore=kpi.totali label="Soglie configurate" sub="copertura minima richiesta" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.scoperte|yesno:"orange,green" icona="i-alert-tri" valore=kpi.scoperte label="Non coperte" sub="soglie sotto il minimo" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.gap_totale|yesno:"amber,green" icona="i-users" valore=kpi.gap_totale label="Gap totale" sub="persone mancanti" %}
-    {% if kpi.non_valutabili %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-edit" valore=kpi.non_valutabili label="Ambiti manuali" sub="da valutare a mano" %}{% endif %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-shield" valore=kpi.totali label="Soglie configurate" sub="copertura minima richiesta" url="?#skm-soglie" title="Apri l'elenco di tutte le soglie attive" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.scoperte|yesno:"orange,green" icona="i-alert-tri" valore=kpi.scoperte label="Non coperte" sub="soglie sotto il minimo" url="?coperta=no#skm-soglie" title="Apri l'elenco filtrato: soglie sotto il minimo" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.gap_totale|yesno:"amber,green" icona="i-users" valore=kpi.gap_totale label="Gap totale" sub="persone mancanti" url="?coperta=no#skm-soglie" title="Apri le soglie non coperte: la colonna Gap somma a questo numero" %}
+    {% if kpi.non_valutabili %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-edit" valore=kpi.non_valutabili label="Ambiti manuali" sub="da valutare a mano" url="?coperta=manuale#skm-soglie" title="Apri l'elenco filtrato: ambiti da valutare a mano" %}{% endif %}
   </section>
 
+  {% if filtro_coperta %}<p id="skm-soglie" style="font-size:12.5px;color:#64748b;margin:0 0 8px;">{% if filtro_coperta == "no" %}Solo le soglie non coperte{% else %}Solo gli ambiti da valutare a mano{% endif %} · <a href="{% url 'anagrafica:skm_copertura' %}#skm-soglie">mostra tutte</a></p>{% endif %}
   {% if righe %}
-  <table class="sc-table">
+  <table class="sc-table"{% if not filtro_coperta %} id="skm-soglie"{% endif %}>
     <thead>
       <tr><th>Soglia</th><th>Ambito</th><th>Certificazione</th><th>Liv. min.</th><th>Richiesti</th><th>Disponibili</th><th>Gap</th><th>Stato</th></tr>
     </thead>

@@ -214,10 +214,35 @@ def mpq_cruscotto(request):
     n_abilitazioni = abil_attive.count()
     n_persone = abil_attive.values("legacy_anagrafica_id").distinct().count()
 
+    # Filtri del registro in fondo alla pagina, aperti dalle tessere con la stessa
+    # regola del conteggio: ?stato=<codice> oppure ?scad=scaduta|60 (≤30 + ≤60).
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    filtro_scad = (request.GET.get("scad") or "").strip()
+    if filtro_stato not in stato_labels:
+        filtro_stato = ""
+    if filtro_scad not in ("scaduta", "60"):
+        filtro_scad = ""
+    processi_elenco = righe
+    if filtro_stato:
+        processi_elenco = [r for r in processi_elenco if r["obj"].stato == filtro_stato]
+    if filtro_scad == "scaduta":
+        processi_elenco = [r for r in processi_elenco if r["scad_stato"] == "scaduta"]
+    elif filtro_scad == "60":
+        processi_elenco = [r for r in processi_elenco if r["scad_stato"] in ("s30", "s60")]
+    filtro_label = ""
+    if filtro_stato:
+        filtro_label = f"Stato: {stato_labels[filtro_stato]}"
+    elif filtro_scad == "scaduta":
+        filtro_label = "Processi scaduti"
+    elif filtro_scad == "60":
+        filtro_label = "Processi in scadenza entro 60 giorni"
+
     return render(request, "anagrafica/pages/mpq_cruscotto.html", {
         "oggi": oggi,
         "can_manage": _check_manage(request),
-        "processi": righe,
+        "processi": processi_elenco,
+        "filtro_label": filtro_label,
+        "STATO_ATTIVO": ProcessoQualificato.STATO_ATTIVO,
         "n_processi": len(processi),
         "n_attivi": stato_count.get(ProcessoQualificato.STATO_ATTIVO, 0),
         "n_sospesi": stato_count.get(ProcessoQualificato.STATO_SOSPESO, 0),

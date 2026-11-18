@@ -67,7 +67,7 @@ def backup_log(request):
     return render(request, "security/backup_log.html", {
         "rows": rows,
         "jobs": sorted(set(jobs)),
-        "filters": {k: request.GET.get(k, "") for k in ("esito", "job", "giorni", "q")},
+        "filters": {k: request.GET.get(k, "") for k in ("esito", "job", "giorni", "q", "dal", "al")},
         "status_choices": [(k, v) for k, v in svc.STATUS_LABELS.items() if k != "unknown"],
         "periods": svc.PERIODS,
         "esiti": ESITI,
@@ -84,7 +84,7 @@ def _log_csv(request, rows):
         ([esporta_csv.data_ora(r["at"]), r["label"], r["objects_error"] or "", r["record"].job_name, (r["vendor"] or "").capitalize(),
           (r["record"].payload or {}).get("nas_name") or "", ", ".join(r["devices"]), esporta_csv.numero(r["gb"]),
           esporta_csv.numero(r["minutes"], 0), r["record"].source.name] for r in rows),
-        azione="soc_backup_log_export", filtri=esporta_csv.filtri_get(request, "esito", "job", "giorni", "q"),
+        azione="soc_backup_log_export", filtri=esporta_csv.filtri_get(request, "esito", "job", "giorni", "q", "dal", "al"),
     )
 
 

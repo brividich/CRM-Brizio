@@ -5,36 +5,37 @@
 
 {% if manutenzione %}
 <div class="fr-sez">Manutenzione</div>
+{% url 'assets:maintenance_supplier_detail' fornitore.pk as url_scheda_man %}
 <div class="fr-kpis">
-  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.odl_chiusi }}</div><div class="ana-metric-label">OdL chiusi</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.odl_aperti }}</div><div class="ana-metric-label">OdL aperti adesso</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">€ {{ manutenzione.costo|floatformat:2 }}</div><div class="ana-metric-label">Costo su {{ manutenzione.odl_con_costo }} OdL su {{ manutenzione.odl_chiusi }}</div></div>
-  {% if manutenzione.ordinarie is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.ordinarie }}</div><div class="ana-metric-label">Ordinarie eseguite, {{ manutenzione.ordinarie_in_ritardo }} in ritardo</div></div>{% endif %}
-  <div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.ticket }}</div><div class="ana-metric-label">Ticket delegati, {{ manutenzione.ticket_chiusi }} chiusi</div></div>
-  {% if manutenzione.verifiche is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ manutenzione.verifiche }}</div><div class="ana-metric-label">Verifiche impianti</div></div>{% endif %}
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: interventi conclusi"><div class="ana-metric-val">{{ manutenzione.odl_chiusi }}</div><div class="ana-metric-label">OdL chiusi</div></a>
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: interventi aperti"><div class="ana-metric-val">{{ manutenzione.odl_aperti }}</div><div class="ana-metric-label">OdL aperti adesso</div></a>
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: costi e copertura del dato"><div class="ana-metric-val">€ {{ manutenzione.costo|floatformat:2 }}</div><div class="ana-metric-label">Costo su {{ manutenzione.odl_con_costo }} OdL su {{ manutenzione.odl_chiusi }}</div></a>
+  {% if manutenzione.ordinarie is not None %}<a class="ana-metric kpi-link" href="#tab-manutenzione" title="Apri la scheda Manutenzione della ditta"><div class="ana-metric-val">{{ manutenzione.ordinarie }}</div><div class="ana-metric-label">Ordinarie eseguite, {{ manutenzione.ordinarie_in_ritardo }} in ritardo</div></a>{% endif %}
+  <a class="ana-metric kpi-link" href="#tab-manutenzione" title="Apri la scheda Manutenzione: ticket delegati alla ditta"><div class="ana-metric-val">{{ manutenzione.ticket }}</div><div class="ana-metric-label">Ticket delegati, {{ manutenzione.ticket_chiusi }} chiusi</div></a>
+  {% if manutenzione.verifiche is not None %}<a class="ana-metric kpi-link" href="#tab-manutenzione" title="Apri la scheda Manutenzione: verifiche impianti eseguite"><div class="ana-metric-val">{{ manutenzione.verifiche }}</div><div class="ana-metric-label">Verifiche impianti</div></a>{% endif %}
 </div>
 {% endif %}
 
 {% if presenze %}
 <div class="fr-sez">Presenze in azienda</div>
 <div class="fr-kpis">
-  {% if presenze.totali is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ presenze.totali }}{% if presenze.totali_troncati %}+{% endif %}</div><div class="ana-metric-label">Ingressi nel GuestPortal</div></div>{% endif %}
-  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.collegati }}</div><div class="ana-metric-label">Collegati a un intervento</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.ore_label }}</div><div class="ana-metric-label">Ore degli ingressi collegati</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ presenze.tecnici }}</div><div class="ana-metric-label">Tecnici diversi</div></div>
+  {% if presenze.totali is not None %}<a class="ana-metric kpi-link" href="#tab-tecnici" title="Apri la scheda Tecnici: ingressi dal GuestPortal"><div class="ana-metric-val">{{ presenze.totali }}{% if presenze.totali_troncati %}+{% endif %}</div><div class="ana-metric-label">Ingressi nel GuestPortal</div></a>{% endif %}
+  <a class="ana-metric kpi-link" href="#tab-tecnici" title="Apri la scheda Tecnici: ingressi collegati agli interventi"><div class="ana-metric-val">{{ presenze.collegati }}</div><div class="ana-metric-label">Collegati a un intervento</div></a>
+  <a class="ana-metric kpi-link" href="#tab-tecnici" title="Apri la scheda Tecnici: ore degli ingressi collegati"><div class="ana-metric-val">{{ presenze.ore_label }}</div><div class="ana-metric-label">Ore degli ingressi collegati</div></a>
+  <a class="ana-metric kpi-link" href="#tab-tecnici" title="Apri la scheda Tecnici della ditta"><div class="ana-metric-val">{{ presenze.tecnici }}</div><div class="ana-metric-label">Tecnici diversi</div></a>
 </div>
 {% endif %}
 
 <div class="fr-sez">Ordini, copie e valutazioni</div>
 <div class="fr-kpis">
-  <div class="ana-metric"><div class="ana-metric-val">{{ ordini.n }}</div><div class="ana-metric-label">Ordini, annullati esclusi</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">€ {{ ordini.importo|floatformat:2 }}</div><div class="ana-metric-label">Importo ordini</div></div>
-  {% if n_fatture_copie is not None %}<div class="ana-metric"><div class="ana-metric-val">{{ n_fatture_copie }}</div><div class="ana-metric-label">Fatture copie</div></div>{% endif %}
-  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.n }}</div><div class="ana-metric-label">Valutazioni</div></div>
+  <a class="ana-metric kpi-link" href="#tab-ordini" title="Apri la scheda Ordini (con data e stato di ciascuno)"><div class="ana-metric-val">{{ ordini.n }}</div><div class="ana-metric-label">Ordini, annullati esclusi</div></a>
+  <a class="ana-metric kpi-link" href="#tab-ordini" title="Apri la scheda Ordini (con data e importo di ciascuno)"><div class="ana-metric-val">€ {{ ordini.importo|floatformat:2 }}</div><div class="ana-metric-label">Importo ordini</div></a>
+  {% if n_fatture_copie is not None %}<a class="ana-metric kpi-link" href="#tab-copie" title="Apri la scheda Copie MFC: fatture copie della ditta"><div class="ana-metric-val">{{ n_fatture_copie }}</div><div class="ana-metric-label">Fatture copie</div></a>{% endif %}
+  <a class="ana-metric kpi-link" href="#tab-val" title="Apri la scheda Valutazioni"><div class="ana-metric-val">{{ valutazioni.n }}</div><div class="ana-metric-label">Valutazioni</div></a>
   {% if valutazioni.n %}
-  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.q|floatformat:1 }}</div><div class="ana-metric-label">Qualità media (su 5)</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.p|floatformat:1 }}</div><div class="ana-metric-label">Puntualità media (su 5)</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ valutazioni.c|floatformat:1 }}</div><div class="ana-metric-label">Comunicazione media (su 5)</div></div>
+  <a class="ana-metric kpi-link" href="#tab-val" title="Apri la scheda Valutazioni: la media è calcolata da queste"><div class="ana-metric-val">{{ valutazioni.q|floatformat:1 }}</div><div class="ana-metric-label">Qualità media (su 5)</div></a>
+  <a class="ana-metric kpi-link" href="#tab-val" title="Apri la scheda Valutazioni: la media è calcolata da queste"><div class="ana-metric-val">{{ valutazioni.p|floatformat:1 }}</div><div class="ana-metric-label">Puntualità media (su 5)</div></a>
+  <a class="ana-metric kpi-link" href="#tab-val" title="Apri la scheda Valutazioni: la media è calcolata da queste"><div class="ana-metric-val">{{ valutazioni.c|floatformat:1 }}</div><div class="ana-metric-label">Comunicazione media (su 5)</div></a>
   {% endif %}
 </div>
 

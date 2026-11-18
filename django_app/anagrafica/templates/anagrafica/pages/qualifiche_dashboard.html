@@ -33,16 +33,16 @@
           </div>
         </div>
         <div class="fmd-hero-side">
-          <div class="fmd-hero-tile">
+          <a class="fmd-hero-tile kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte{{ filtro_centro.suffisso }}" title="Apri lo scadenzario con tutte le qualifiche correnti">
             <span class="fmd-corner"></span>
             <span class="fmd-bignum">{{ tot_assegnazioni }}</span>
             <span class="fmd-lbl">Qualifiche registrate</span>
-          </div>
-          <div class="fmd-hero-tile fmd-alt">
+          </a>
+          <a class="fmd-hero-tile fmd-alt kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte{{ filtro_centro.suffisso }}" title="Apri lo scadenzario con tutte le qualifiche: le persone distinte sono questo numero">
             <span class="fmd-corner"></span>
             <span class="fmd-bignum">{{ dipendenti_con_qualifica }}</span>
             <span class="fmd-lbl">Dipendenti coinvolti</span>
-          </div>
+          </a>
         </div>
       </div>
     </section>
@@ -53,38 +53,38 @@
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
     {% include "anagrafica/partials/_filtro_centro.html" with nota="Tipi a catalogo, processi MOD.128 e sessioni restano di tutta l'azienda." %}
     <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide{{ filtro_centro.suffisso }}" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_valide }}</span></div>
         <div class="fmd-mtr-lbl">Valide</div>
         <div class="fmd-mtr-sub">Di cui {{ n_permanenti }} senza scadenza</div>
       </a>
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60{{ filtro_centro.suffisso }}" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
         <div class="fmd-mtr-lbl">In scadenza ≤60gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
       </a>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta{{ filtro_centro.suffisso }}" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div>
         <div class="fmd-mtr-lbl">Scadute</div>
         <div class="fmd-mtr-sub">Da rinnovare con priorità</div>
       </a>
-      <a class="fmd-mtr fmd-t-cyan" href="{% url 'anagrafica:qualifiche_list' %}" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-cyan kpi-link" href="{% url 'anagrafica:qualifiche_list' %}?attivi=1" style="text-decoration:none;" title="Apri il catalogo filtrato: tipi di qualifica attivi">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span><span class="fmd-mtr-val">{{ tipi_attivi }}</span></div>
         <div class="fmd-mtr-lbl">Tipi a catalogo</div>
         <div class="fmd-mtr-sub">Sicurezza · Professionali · Gestionali</div>
       </a>
-      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte{{ filtro_centro.suffisso }}" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte&amp;verifica=da_fare{{ filtro_centro.suffisso }}" style="text-decoration:none;" title="Apri lo scadenzario filtrato: evidenze caricate e non ancora verificate">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_da_verificare }}</span></div>
         <div class="fmd-mtr-lbl">Da verificare (HR){% info_hint "qualifica_verifica" %}</div>
         <div class="fmd-mtr-sub">{{ n_con_evidenza }} con evidenza caricata</div>
       </a>
       {% if mpq and mpq.n %}
-      <a class="fmd-mtr fmd-t-{% if mpq.scaduti %}amber{% else %}navy{% endif %}" href="{% url 'anagrafica:mpq_cruscotto' %}" style="text-decoration:none;" title="Apri i processi qualificati (MOD.128)">
+      <a class="fmd-mtr fmd-t-{% if mpq.scaduti %}amber{% else %}navy{% endif %} kpi-link" href="{% url 'anagrafica:mpq_cruscotto' %}" style="text-decoration:none;" title="Apri i processi qualificati (MOD.128)">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ mpq.n }}</span></div>
         <div class="fmd-mtr-lbl">Processi MOD.128</div>

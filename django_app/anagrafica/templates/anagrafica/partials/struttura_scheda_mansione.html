@@ -10,30 +10,30 @@
 <p style="margin:0 0 10px;font-size:12.5px;"><a class="fmd-data-link" href="{% url 'anagrafica:esplora_struttura' %}?mansione={{ mansione.pk }}">Esplora la struttura da qui</a></p>
 
 <div class="sto-sch-kpi">
-  <div><b>{{ persone|length }}</b><span>in lista</span></div>
-  <div><b>{{ operativi }}</b><span>operativ{{ operativi|pluralize:"o,i" }}</span></div>
-  <div><b>{{ ruoli|length }}</b><span>ruol{{ ruoli|length|pluralize:"o,i" }}</span></div>
-  <div><b>{{ rischi|length }}</b><span>mansion{{ rischi|length|pluralize:"e,i" }} di rischio</span></div>
+  <a class="kpi-link" href="#sch-mns-persone" title="Vai a «Persone e livello»"><b>{{ persone|length }}</b><span>in lista</span></a>
+  <a class="kpi-link" href="#sch-mns-persone" title="Vai a «Persone e livello»: chi è operativo"><b>{{ operativi }}</b><span>operativ{{ operativi|pluralize:"o,i" }}</span></a>
+  <a class="kpi-link" href="#sch-mns-ruoli" title="Vai a «Ruoli che la svolgono»"><b>{{ ruoli|length }}</b><span>ruol{{ ruoli|length|pluralize:"o,i" }}</span></a>
+  <a class="kpi-link" href="#sch-mns-rischi" title="Vai a «Mansione di rischio»"><b>{{ rischi|length }}</b><span>mansion{{ rischi|length|pluralize:"e,i" }} di rischio</span></a>
 </div>
 {% if carico_riga and not mansione.is_responsabilita %}
 <p class="sto-nota">Stato: <strong>{{ carico_riga.stato }}</strong>{% if carico_riga.concentrazione is not None %} · carico {{ carico_riga.concentrazione }}%{% if carico_riga.concentrato %} (<strong>concentrato</strong>){% endif %}{% endif %}.{% if mansione.area.centro_di_costo_id %} Centro di costo: {{ mansione.area.centro_di_costo.nome }}.{% endif %}{% if fuori_forza %} {{ fuori_forza }} in lista non più in forza: gli operativi non li contano.{% endif %}</p>
 {% endif %}
 
 <section class="sto-sch-sez">
-  <h3>Ruoli che la svolgono</h3>
+  <h3 id="sch-mns-ruoli">Ruoli che la svolgono</h3>
   {% if ruoli %}<ul class="sto-sch-lista">{% for r in ruoli %}<li><a href="#" data-sto-apri="ruolo" data-id="{{ r.pk }}">{{ r.etichetta }}</a></li>{% endfor %}</ul>
   {% else %}<p class="sto-sch-vuoto">Nessun ruolo: va indicato nell'editor.</p>{% endif %}
 </section>
 
 <section class="sto-sch-sez">
-  <h3>Mansione di rischio</h3>
+  <h3 id="sch-mns-rischi">Mansione di rischio</h3>
   {% if rischi %}<ul class="sto-sch-lista">{% for m in rischi %}<li>{{ m.nome }}</li>{% endfor %}</ul>
   {% elif rischi_proposti %}<p class="sto-sch-vuoto">Proposta, da confermare da HSE: {{ rischi_proposti|join:", " }}. <a class="sto-link" href="{% url 'anagrafica:struttura_rischi' %}">Rischi da confermare →</a></p>
   {% else %}<p class="sto-sch-vuoto">Nessuna mansione di rischio.</p>{% endif %}
 </section>
 
 <section class="sto-sch-sez">
-  <h3>Persone e livello</h3>
+  <h3 id="sch-mns-persone">Persone e livello</h3>
   {% if persone %}
   <ul class="sto-sch-lista sto-sch-col2">{% for p in persone %}<li><a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a> <span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b></span>{% if p.sospesa %} <span class="fmd-badge fmd-b-red">sospesa</span>{% endif %}</li>{% endfor %}</ul>
   {% else %}<p class="sto-sch-vuoto">Nessuno in lista.</p>{% endif %}

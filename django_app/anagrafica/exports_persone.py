@@ -576,6 +576,11 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
                 continue
             _add("Contratto", legacy_id, descrizione, data_fine)
 
+    # Con un periodo lo stato si applica sopra (come la pagina e le sue tessere).
+    if periodo and filtro_stato == "scaduta":
+        voci = [v for v in voci if v["_giorni"] < 0]
+    elif periodo and filtro_stato in ("30", "60"):
+        voci = [v for v in voci if 0 <= v["_giorni"] <= int(filtro_stato)]
     voci.sort(key=lambda v: v["_giorni"])
     for v in voci:
         v.pop("_giorni", None)
@@ -607,6 +612,8 @@ def _scadenzario_filters(request: HttpRequest) -> str:
     if periodo:
         estremi = " ".join(x for x in (f"dal {dal:%d/%m/%Y}" if dal else "", f"al {al:%d/%m/%Y}" if al else "") if x)
         parts.append(f"Periodo: {estremi}")
+        if filtro_stato in stati:
+            parts.append(f"Stato: {stati[filtro_stato]}")
     elif filtro_stato in stati:
         parts.append(f"Stato: {stati[filtro_stato]}")
     else:

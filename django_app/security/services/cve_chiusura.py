@@ -470,6 +470,8 @@ def metriche(giorni=90, dal=None, al=None):
     totale = len(chiuso_il)
     return {
         "giorni": (al_giorno - dal_giorno).days,
+        # Estremi (date incluse) per i link dei riquadri all'elenco alert filtrato.
+        "dal": dal_giorno, "al": al_giorno,
         "correzioni": len(corrette),
         "correzioni_gravi": len(gravi),
         "giorni_medi": giorni_medi(corrette),

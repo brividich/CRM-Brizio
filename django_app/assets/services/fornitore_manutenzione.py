@@ -60,7 +60,11 @@ def rapporto_ditta(supplier, today: date | None = None) -> RapportoDitta:
     open_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_OPEN]
     closed_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_DONE]
     ultimo_anno = un_anno_prima(today)
-    closed_12m = [wo for wo in closed_wos if wo.closed_at and wo.closed_at.date() >= ultimo_anno]
+    # Giorno locale della chiusura (closed_at e' in UTC): come il filtro «chiusi dal»
+    # dell'elenco OdL a cui porta il KPI.
+    closed_12m = [
+        wo for wo in closed_wos if wo.closed_at and timezone.localtime(wo.closed_at).date() >= ultimo_anno
+    ]
     return RapportoDitta(
         contracts=contracts,
         rules=rules,

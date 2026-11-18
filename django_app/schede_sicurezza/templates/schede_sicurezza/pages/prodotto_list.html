@@ -68,8 +68,8 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
         <p class="fmd-sub">Prodotti collegati alle mansioni di rischio, SDS corrente e pittogrammi di pericolo secondo il regolamento CLP.</p>
       </div>
       <div class="fmd-hero-side">
-        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mostrati }}</span><span class="fmd-lbl">Prodotti</span></div>
-        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_senza_scheda }}</span><span class="fmd-lbl">Senza SDS</span></div>
+        <a class="fmd-hero-tile kpi-link" href="{% url 'schede_sicurezza:prodotto_list' %}{% querystring %}#sds-elenco" title="Vai all'elenco dei prodotti mostrati con i filtri attuali" style="display:block;color:#fff;text-decoration:none;"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mostrati }}</span><span class="fmd-lbl">Prodotti</span></a>
+        <a class="fmd-hero-tile fmd-alt kpi-link" href="{% url 'schede_sicurezza:prodotto_list' %}{% querystring stato='senza_scheda' %}#sds-elenco" title="Apri l'elenco filtrato: prodotti senza SDS corrente" style="display:block;color:#fff;text-decoration:none;"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_senza_scheda }}</span><span class="fmd-lbl">Senza SDS</span></a>
       </div>
     </div>
   </section>
@@ -131,6 +131,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
   </section>
 
   {# Prodotti raggruppati per mansione di rischio. #}
+  <div id="sds-elenco"></div>
   {% for gruppo in gruppi %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">

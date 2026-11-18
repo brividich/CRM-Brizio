@@ -5,7 +5,7 @@
 {% block title %}ACL Canonico | Admin Portale{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'admin_portale/css/pagine/acl_canonico.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'admin_portale/css/pagine/acl_canonico.css' %}?v=20261117">
 {% endblock %}
 
 {% block subnav %}
@@ -22,15 +22,17 @@
       <div class="cell-muted">Metriche per capire subito completezza e rischi pre-UAT.</div>
     </div>
     <div class="card-body">
+      {% url 'admin_portale:acl_canonico' as acl_url %}
+      {% url 'admin_portale:acl_route_coverage' as acl_cov_url %}
       <div class="acl-grid">
-        <div class="acl-stat"><div class="n">{{ summary.permissions_total }}</div><div class="l">Permission code</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.permissions_active }}</div><div class="l">Permission attivi</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.permissions_unassigned }}</div><div class="l">Code senza ruoli</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.bindings_total }}</div><div class="l">Binding canonici</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.bindings_missing_grant }}</div><div class="l">Binding senza grant</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.overrides_total }}</div><div class="l">Override utente</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.legacy_only_routes }}</div><div class="l">Route solo legacy</div></div>
-        <div class="acl-stat"><div class="n">{{ summary.unbound_routes }}</div><div class="l">Route non coperte</div></div>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=permissions" title="Apri l'elenco: tutti i permission code"><div class="n">{{ summary.permissions_total }}</div><div class="l">Permission code</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=permissions&amp;permission_state=active" title="Apri l'elenco filtrato: permission code attivi"><div class="n">{{ summary.permissions_active }}</div><div class="l">Permission attivi</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=permissions&amp;permission_state=unassigned" title="Apri l'elenco filtrato: permission code senza ruoli abilitati"><div class="n">{{ summary.permissions_unassigned }}</div><div class="l">Code senza ruoli</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=bindings" title="Apri l'elenco: tutti i binding canonici"><div class="n">{{ summary.bindings_total }}</div><div class="l">Binding canonici</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=bindings&amp;binding_state=missing_grant" title="Apri l'elenco filtrato: binding senza alcun grant di ruolo"><div class="n">{{ summary.bindings_missing_grant }}</div><div class="l">Binding senza grant</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_url }}?tab=overrides" title="Apri l'elenco degli override utente"><div class="n">{{ summary.overrides_total }}</div><div class="l">Override utente</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_cov_url }}?status=LEGACY_FALLBACK" title="Apri il report route filtrato: solo fallback legacy"><div class="n">{{ summary.legacy_only_routes }}</div><div class="l">Route solo legacy</div></a>
+        <a class="acl-stat kpi-link" href="{{ acl_cov_url }}?status=UNBOUND" title="Apri il report route filtrato: route non coperte"><div class="n">{{ summary.unbound_routes }}</div><div class="l">Route non coperte</div></a>
       </div>
 
       {% if summary.legacy_only_routes %}
@@ -742,6 +744,25 @@
           <div class="acl-notice critical" style="margin-top:12px;">Utente #{{ selected_user_id }} non trovato.</div>
         {% elif not selected_user %}
           <div style="margin-top:14px;color:#64748b;font-size:13px;">Cerca e seleziona un utente per visualizzare e modificare i suoi override canonici.</div>
+          {% if user_overrides %}
+            <div class="table-wrap" style="margin-top:12px;">
+              <p class="cell-muted" style="margin:0 0 6px;font-size:12px;">Override registrati: {{ summary.overrides_total }}{% if user_overrides|length >= user_overrides_limit %}, mostrati i {{ user_overrides|length }} modificati più di recente{% endif %}{% if filters.q %} (filtro «{{ filters.q }}»){% endif %}.</p>
+              <table class="admin-table">
+                <thead><tr><th>Utente</th><th>Permission code</th><th>Stato</th><th>Nota</th><th>Aggiornato</th></tr></thead>
+                <tbody>
+                  {% for ov in user_overrides %}
+                    <tr>
+                      <td><a href="{{ acl_url }}?tab=overrides&amp;selected_user_id={{ ov.legacy_user_id }}{% if selected_role_id %}&amp;role_id={{ selected_role_id }}{% endif %}">#{{ ov.legacy_user_id }}</a></td>
+                      <td><code>{{ ov.permission_id }}</code></td>
+                      <td>{% if ov.enabled %}<span class="acl-badge ok">ALLOW</span>{% else %}<span class="acl-badge warn">DENY</span>{% endif %}</td>
+                      <td>{{ ov.note|default:"" }}</td>
+                      <td>{{ ov.updated_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
         {% endif %}
 
       </div>

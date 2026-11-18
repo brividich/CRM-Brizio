@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -41,17 +41,18 @@
     </div>
 
     {# ── Situazione in breve ────────────────────────────────────────────── #}
+    {% url 'anagrafica:mansionario_mansione' mansione.pk as u_mns %}
     <div class="mns-stats" aria-label="Situazione delle persone">
-      <div class="mns-stat mns-ok"><b>{{ stato.operativi }}</b><span>abilitat{{ stato.operativi|pluralize:"o,i" }}</span></div>
-      <div class="mns-stat mns-mid"><b>{{ stato.addestramento }}</b><span>in addestramento</span></div>
-      <div class="mns-stat mns-ko"><b>{{ stato.non_abilitati }}</b><span>non abilitat{{ stato.non_abilitati|pluralize:"o,i" }}</span></div>
-      {% if stato.da_valutare %}<div class="mns-stat"><b>{{ stato.da_valutare }}</b><span>da valutare sulle competenze</span></div>{% endif %}
-      {% if stato.sospese %}<div class="mns-stat"><b>{{ stato.sospese }}</b><span>sospes{{ stato.sospese|pluralize:"a,e" }}</span></div>{% endif %}
+      <a class="mns-stat mns-ok kpi-link" href="{{ u_mns }}?stato=abilitato#persone" title="Apri l'elenco filtrato: abilitati"><b>{{ stato.operativi }}</b><span>abilitat{{ stato.operativi|pluralize:"o,i" }}</span></a>
+      <a class="mns-stat mns-mid kpi-link" href="{{ u_mns }}?stato=in_addestramento#persone" title="Apri l'elenco filtrato: in addestramento"><b>{{ stato.addestramento }}</b><span>in addestramento</span></a>
+      <a class="mns-stat mns-ko kpi-link" href="{{ u_mns }}?stato=non_abilitato#persone" title="Apri l'elenco filtrato: non abilitati"><b>{{ stato.non_abilitati }}</b><span>non abilitat{{ stato.non_abilitati|pluralize:"o,i" }}</span></a>
+      {% if stato.da_valutare %}<a class="mns-stat kpi-link" href="{{ u_mns }}?stato=da_valutare#persone" title="Apri l'elenco filtrato: da valutare sulle competenze"><b>{{ stato.da_valutare }}</b><span>da valutare sulle competenze</span></a>{% endif %}
+      {% if stato.sospese %}<a class="mns-stat kpi-link" href="{{ u_mns }}?stato=sospesa#persone" title="Apri l'elenco filtrato: abilitazioni sospese"><b>{{ stato.sospese }}</b><span>sospes{{ stato.sospese|pluralize:"a,e" }}</span></a>{% endif %}
       {% if carico_mansione and not mansione.is_responsabilita %}
       <div class="mns-stat{% if carico_mansione.stato != 'ok' %} mns-ko{% endif %}" title="Livello sulla mansione e persone in forza: stesso conteggio di Prospetto e report"><b>{{ carico_mansione.operativi }}</b><span>operativ{{ carico_mansione.operativi|pluralize:"o,i" }} in forza{% if carico_mansione.stato != 'ok' %} · {{ carico_mansione.stato }}{% endif %}</span></div>
       {% if carico_mansione.concentrazione is not None %}<div class="mns-stat{% if carico_mansione.concentrato %} mns-mid{% endif %}" title="Quanta parte del loro tempo danno qui gli operativi: un segnale dai coefficienti, non le ore"><b>{{ carico_mansione.concentrazione }}%</b><span>carico{% if carico_mansione.concentrato %} concentrato{% endif %}</span></div>{% endif %}
       {% endif %}
-      {% if n_fuori_forza %}<div class="mns-stat mns-ko"><b>{{ n_fuori_forza }}</b><span>non più in forza: da togliere</span></div>{% endif %}
+      {% if n_fuori_forza %}<a class="mns-stat mns-ko kpi-link" href="{{ u_mns }}?stato=fuori_forza#persone" title="Apri l'elenco filtrato: persone non più in forza, da togliere"><b>{{ n_fuori_forza }}</b><span>non più in forza: da togliere</span></a>{% endif %}
     </div>
 
     <section class="fmd-panel fmd-block" data-mns-tabs>
@@ -88,6 +89,7 @@
         </form>
         {% endif %}
 
+        {% if filtro_stato %}<p class="mns-filtro">Filtro: <strong>{{ filtro_stato_label }}</strong> · {{ persone|length }} su {{ n_persone }} · <a href="{{ u_mns }}#persone">Mostra tutte</a></p>{% endif %}
         {% if persone %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">

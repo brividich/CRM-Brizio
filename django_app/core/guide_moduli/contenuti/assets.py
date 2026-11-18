@@ -657,6 +657,15 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Un numero del cruscotto asset non coincideva con lo Scadenzario o con Gestione ticket",
+            "perche": "cruscotto ed elenchi ora usano le stesse regole: lo Scadenzario mostra solo gli asset che il tuo ruolo vede e comprende i piani periodici non ancora convertiti («Piano periodico da convertire»).",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+                "Le etichette sono «Scadenze entro 90 gg» e «In ritardo»; l'antincendio comprende le sottocategorie.",
+                "In Gestione ticket la riga «Elenco filtrato: … ✕ Togli» dice quale filtro è arrivato dal cruscotto.",
+            ],
+        },
+        {
             "sintomo": "Cartella scansioni delle verifiche periodiche: «Leggi la cartella ora» dice «Lettura avviata» ma l'esito non cambia subito",
             "perche": "la lettura gira in background (stesso lock del giro automatico), non nella pagina.",
             "fare": [

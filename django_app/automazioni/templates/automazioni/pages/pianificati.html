@@ -5,8 +5,9 @@
 {% block extra_head %}
 <style>
   .pian-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:18px; }
-  .pian-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
+  .pian-stat { display:block; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
   .pian-stat .n { font-size:26px; font-weight:800; color:#0f172a; }
+  .pian-stat.is-active { border-color:#f39200; box-shadow:0 0 0 2px rgba(243,146,0,.2); }
   .pian-stat .l { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
   .pian-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:14px; }
   .pian-table { width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
@@ -80,11 +81,13 @@ body.theme-dark .pian-note{color:var(--text-light)}
     Ultimo controllo: {{ health.watchdog_checked_at|date:"d/m/Y H:i"|default:"mai eseguito" }}. Verificare il task watchdog: gli avvisi automatici potrebbero non arrivare.
   </div>
   {% endif %}
+  {% url 'admin_portale:automazioni_pianificati' as pian_url %}
   <div class="pian-stats">
-    <div class="pian-stat"><div class="n">{{ totale }}</div><div class="l">Task pianificati</div></div>
-    <div class="pian-stat"><div class="n" style="color:#166534;">{{ attivi }}</div><div class="l">Attivi</div></div>
-    <div class="pian-stat"><div class="n" style="color:#991b1b;">{{ disattivi }}</div><div class="l">Disattivati</div></div>
+    <a class="pian-stat kpi-link{% if not stato_filtro %} is-active{% endif %}" href="{{ pian_url }}" title="Apri l'elenco completo dei task pianificati"><div class="n">{{ totale }}</div><div class="l">Task pianificati</div></a>
+    <a class="pian-stat kpi-link{% if stato_filtro == 'attivi' %} is-active{% endif %}" href="{{ pian_url }}?stato=attivi" title="Apri l'elenco filtrato: task attivi"><div class="n" style="color:#166534;">{{ attivi }}</div><div class="l">Attivi</div></a>
+    <a class="pian-stat kpi-link{% if stato_filtro == 'disattivi' %} is-active{% endif %}" href="{{ pian_url }}?stato=disattivi" title="Apri l'elenco filtrato: task disattivati"><div class="n" style="color:#991b1b;">{{ disattivi }}</div><div class="l">Disattivati</div></a>
   </div>
+  {% if stato_filtro %}<p class="pian-note">Filtro: task {% if stato_filtro == 'attivi' %}attivi{% else %}disattivati{% endif %} · {{ righe_mostrate }} task nelle due tabelle · <a href="{{ pian_url }}">mostra tutti</a></p>{% endif %}
 
   <section id="digest" class="pian-digest">
     <div class="pian-digest-head">

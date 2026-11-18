@@ -70,17 +70,47 @@ def _gruppi() -> list[dict]:
     return gruppi
 
 
+# Filtri dell'elenco «Ruoli e mansioni» aperti dai KPI: (etichetta, regola sulla mansione).
+# KPI e filtro usano la stessa regola. «ruoli» tiene i ruoli con mansioni, «senza_ruolo»
+# il solo gruppo senza ruolo.
+FILTRI_STRUTTURA = {
+    "ruoli": ("Ruoli con mansioni", None),
+    "attive": ("Mansioni attive", lambda m: m.attiva),
+    "senza_competenze": ("Mansioni attive senza competenze", lambda m: m.attiva and not m.n_comp),
+    "senza_ruolo": ("Mansioni senza ruolo", None),
+}
+
+
+def _filtra_gruppi(gruppi: list[dict], filtro: str) -> list[dict]:
+    if filtro == "ruoli":
+        return [g for g in gruppi if g["ruolo"] and g["mansioni"]]
+    if filtro == "senza_ruolo":
+        return [g for g in gruppi if g["ruolo"] is None]
+    regola = FILTRI_STRUTTURA[filtro][1]
+    out = []
+    for g in gruppi:
+        mansioni = [m for m in g["mansioni"] if regola(m)]
+        if mansioni:
+            out.append({**g, "mansioni": mansioni})
+    return out
+
+
 def _contesto_pagina(request, **extra) -> dict:
     gruppi = _gruppi()
-    tutte = {m.pk: m for g in gruppi for m in g["mansioni"]}.values()
+    tutte = list({m.pk: m for g in gruppi for m in g["mansioni"]}.values())
+    filtro = request.GET.get("filtro") or ""
+    if filtro not in FILTRI_STRUTTURA:
+        filtro = ""
     return {
         "page_title": "Struttura del Mansionario",
-        "gruppi": gruppi,
+        "gruppi": _filtra_gruppi(gruppi, filtro) if filtro else gruppi,
+        "filtro": filtro,
+        "filtro_label": FILTRI_STRUTTURA[filtro][0] if filtro else "",
         "kpi": {
             "ruoli": sum(1 for g in gruppi if g["ruolo"] and g["mansioni"]),
-            "mansioni": sum(1 for m in tutte if m.attiva),
+            "mansioni": sum(1 for m in tutte if FILTRI_STRUTTURA["attive"][1](m)),
             "competenze": sum(m.n_comp for m in tutte if m.attiva),
-            "senza_competenze": sum(1 for m in tutte if m.attiva and not m.n_comp),
+            "senza_competenze": sum(1 for m in tutte if FILTRI_STRUTTURA["senza_competenze"][1](m)),
             "senza_ruolo": sum(len(g["mansioni"]) for g in gruppi if g["ruolo"] is None),
         },
         "ruoli_opts": [g["ruolo"] for g in gruppi if g["ruolo"]],

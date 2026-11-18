@@ -139,19 +139,19 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
       {% endif %}
 
       <section class="abs-kpis" style="margin-bottom:14px;">
-        <article class="abs-kpi teal">
+        <a class="ga-kpi-link kpi-link" href="?stato=tutti#admin-assenze-panel" title="Mostra nella tabella tutte le assenze, in ogni stato"><article class="abs-kpi teal">
           <div class="abs-kpi-top"><div class="abs-kpi-label">Totali</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.total }}</div><div class="abs-kpi-note">Storico complessivo locale.</div>
-        </article>
-        <a class="ga-kpi-link" href="?stato=in_attesa#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi amber">
+        </article></a>
+        <a class="ga-kpi-link kpi-link" href="?stato=in_attesa#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi amber">
           <div class="abs-kpi-top"><div class="abs-kpi-label">In attesa</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.in_attesa }}</div><div class="abs-kpi-note">Record da processare.</div>
         </article></a>
-        <a class="ga-kpi-link" href="?stato=approvate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi green">
+        <a class="ga-kpi-link kpi-link" href="?stato=approvate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi green">
           <div class="abs-kpi-top"><div class="abs-kpi-label">Approvate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.approvate }}</div><div class="abs-kpi-note">Richieste confermate.</div>
         </article></a>
-        <a class="ga-kpi-link" href="?stato=rifiutate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi red">
+        <a class="ga-kpi-link kpi-link" href="?stato=rifiutate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi red">
           <div class="abs-kpi-top"><div class="abs-kpi-label">Rifiutate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-x"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.rifiutate }}</div><div class="abs-kpi-note">Chiuse negativamente.</div>
         </article></a>

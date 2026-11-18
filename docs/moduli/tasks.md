@@ -172,3 +172,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): 
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 Incontri «da gestire»: le tre categorie si leggono intere, il totale (badge) non è più limitato a 18.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri `open`, `overdue`, `stato=aperte|chiuse` usati dalle tessere.

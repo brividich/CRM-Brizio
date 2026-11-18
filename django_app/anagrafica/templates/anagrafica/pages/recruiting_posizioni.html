@@ -30,13 +30,15 @@
       </div>
     </div>
 
+    {% url 'anagrafica:recruiting_posizioni' as u_pos %}
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Posizioni in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-building" valore=kpi.aperte label="Posizioni attive" sub="aperte o sospese" url="?" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-users" valore=kpi.posti_aperti label="Posti richiesti" sub="sulle posizioni attive" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="oltre la data entro cui servono" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.coperte_12m label="Coperte" sub="negli ultimi 12 mesi" url="?stato=COPERTA" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=kpi.giorni_medi_copertura|default:"—" label="Giorni medi" sub="dalla richiesta alla copertura" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-building" valore=kpi.aperte label="Posizioni attive" sub="aperte o sospese" url=u_pos title="Apri l'elenco: posizioni aperte o sospese" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-users" valore=kpi.posti_aperti label="Posti richiesti" sub="sulle posizioni attive" url=u_pos title="Apri le posizioni attive con i loro posti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="oltre la data entro cui servono" url=u_pos|add:"?ritardo=1" title="Apri l'elenco filtrato: posizioni in ritardo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.coperte_12m label="Coperte" sub="negli ultimi 12 mesi" url=u_pos|add:"?periodo=12m" title="Apri l'elenco filtrato: posizioni coperte negli ultimi 12 mesi" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=kpi.giorni_medi_copertura|default:"—" label="Giorni medi" sub="dalla richiesta alla copertura" url=u_pos|add:"?periodo=12m" title="Apri le posizioni coperte negli ultimi 12 mesi da cui è calcolata la media" %}
     </section>
+    {% if filtro_kpi %}<p class="fmd-muted" style="margin:10px 0 0;font-size:13px;">Solo: <strong>{{ filtro_kpi }}</strong> · <a class="fmd-data-link" href="{{ u_pos }}">mostra le attive</a></p>{% endif %}
 
     <section class="fmd-panel">
       <form method="get" class="fmd-toolbar">

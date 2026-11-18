@@ -23,6 +23,7 @@
 .ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
+a.kpi, a.cat-metric { display: block; }
 .kpi-label { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
 .kpi-val { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
 .kpi-sub { font-size: var(--fs-sm); color: #8fa5c0; margin-top: 2px; }
@@ -445,9 +446,9 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
       <div class="ga-hero-sub">Configurazione, categorie, sidebar e log operativo del modulo inventario.</div>
     </div>
     <div class="ga-hero-kpis">
-      <div class="ga-hkpi"><div class="ga-hkpi-val">{{ total_assets }}</div><div class="ga-hkpi-label">Asset</div></div>
-      <div class="ga-hkpi"><div class="ga-hkpi-val">{{ total_wo }}</div><div class="ga-hkpi-label">Work order</div></div>
-      <div class="ga-hkpi ga-hkpi--accent"><div class="ga-hkpi-val">{{ wo_by_status.OPEN|default:0 }}</div><div class="ga-hkpi-label">OdL aperti</div></div>
+      <a class="ga-hkpi kpi-link" href="{% url 'assets:asset_list' %}" title="Apri l’inventario: tutti gli asset"><div class="ga-hkpi-val">{{ total_assets }}</div><div class="ga-hkpi-label">Asset</div></a>
+      <a class="ga-hkpi kpi-link" href="{% url 'assets:wo_list' %}?view=all" title="Apri l’elenco: tutti gli ordini di lavoro"><div class="ga-hkpi-val">{{ total_wo }}</div><div class="ga-hkpi-label">Work order</div></a>
+      <a class="ga-hkpi ga-hkpi--accent kpi-link" href="{% url 'assets:wo_list' %}?status=OPEN" title="Apri l’elenco filtrato: OdL aperti"><div class="ga-hkpi-val">{{ wo_by_status.OPEN|default:0 }}</div><div class="ga-hkpi-label">OdL aperti</div></a>
     </div>
   </div>
 
@@ -469,14 +470,14 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
   {# ========== TAB RIEPILOGO ========== #}
   {% if tab == 'riepilogo' %}
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">Asset totali</div><div class="kpi-val">{{ total_assets }}</div></div>
-    <div class="kpi"><div class="kpi-label">In uso</div><div class="kpi-val">{{ assets_by_status.IN_USE|default:0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">In magazzino</div><div class="kpi-val">{{ assets_by_status.IN_STOCK|default:0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">In riparazione</div><div class="kpi-val">{{ assets_by_status.IN_REPAIR|default:0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">Dismessi</div><div class="kpi-val">{{ assets_by_status.RETIRED|default:0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">Work order totali</div><div class="kpi-val">{{ total_wo }}</div></div>
-    <div class="kpi"><div class="kpi-label">WO aperti</div><div class="kpi-val">{{ wo_by_status.OPEN|default:0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">WO chiusi</div><div class="kpi-val">{{ wo_by_status.DONE|default:0 }}</div></div>
+    <a class="kpi kpi-link" href="{% url 'assets:asset_list' %}" title="Apri l’inventario: tutti gli asset"><div class="kpi-label">Asset totali</div><div class="kpi-val">{{ total_assets }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:asset_list' %}?status=IN_USE" title="Apri l’elenco filtrato: asset in uso"><div class="kpi-label">In uso</div><div class="kpi-val">{{ assets_by_status.IN_USE|default:0 }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:asset_list' %}?status=IN_STOCK" title="Apri l’elenco filtrato: asset in magazzino"><div class="kpi-label">In magazzino</div><div class="kpi-val">{{ assets_by_status.IN_STOCK|default:0 }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:asset_list' %}?status=IN_REPAIR" title="Apri l’elenco filtrato: asset in riparazione"><div class="kpi-label">In riparazione</div><div class="kpi-val">{{ assets_by_status.IN_REPAIR|default:0 }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:asset_list' %}?status=RETIRED" title="Apri l’elenco filtrato: asset dismessi"><div class="kpi-label">Dismessi</div><div class="kpi-val">{{ assets_by_status.RETIRED|default:0 }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:wo_list' %}?view=all" title="Apri l’elenco: tutti gli ordini di lavoro"><div class="kpi-label">Work order totali</div><div class="kpi-val">{{ total_wo }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:wo_list' %}?status=OPEN" title="Apri l’elenco filtrato: OdL aperti"><div class="kpi-label">WO aperti</div><div class="kpi-val">{{ wo_by_status.OPEN|default:0 }}</div></a>
+    <a class="kpi kpi-link" href="{% url 'assets:wo_list' %}?status=DONE" title="Apri l’elenco filtrato: OdL chiusi (eseguiti)"><div class="kpi-label">WO chiusi</div><div class="kpi-val">{{ wo_by_status.DONE|default:0 }}</div></a>
   </div>
 
   <div class="section-grid">
@@ -987,26 +988,26 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
   {# ========== TAB CATEGORIE ASSET ========== #}
   {% if tab == 'categorie' %}
   <div class="kpi-row">
-    <div class="kpi">
+    <a class="kpi kpi-link" href="#asset-category-workbench" title="Vai al banco categorie qui sotto">
       <div class="kpi-label">Categorie totali</div>
       <div class="kpi-val">{{ asset_categories|length }}</div>
       <div class="kpi-sub">Business categories configurate</div>
-    </div>
-    <div class="kpi">
+    </a>
+    <a class="kpi kpi-link" href="#asset-category-workbench" title="Vai al banco categorie qui sotto (le attive non hanno il segno «disattiva»)">
       <div class="kpi-label">Categorie attive</div>
       <div class="kpi-val">{{ asset_categories_active_count }}</div>
       <div class="kpi-sub">Disponibili nei form asset</div>
-    </div>
-    <div class="kpi">
+    </a>
+    <a class="kpi kpi-link" href="#asset-category-fields" title="Vai ai campi dinamici qui sotto">
       <div class="kpi-label">Campi dinamici</div>
       <div class="kpi-val">{{ asset_category_fields|length }}</div>
       <div class="kpi-sub">Campi legati alle categorie</div>
-    </div>
-    <div class="kpi">
+    </a>
+    <a class="kpi kpi-link" href="#asset-category-fields" title="Vai ai campi dinamici qui sotto">
       <div class="kpi-label">Campi attivi</div>
       <div class="kpi-val">{{ asset_category_fields_active_count }}</div>
       <div class="kpi-sub">Usati in form e dettaglio</div>
-    </div>
+    </a>
   </div>
 
   <div class="cat-intro" style="margin-bottom:14px;">
@@ -1132,11 +1133,11 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
 
           <div class="cat-body">
             <div class="cat-metrics">
-              <div class="cat-metric"><div class="cat-metric-label">Asset</div><div class="cat-metric-value">{{ row.asset_count }}</div></div>
-              <div class="cat-metric"><div class="cat-metric-label">In uso</div><div class="cat-metric-value">{{ row.in_use_count }}</div></div>
-              <div class="cat-metric"><div class="cat-metric-label">Riparazione</div><div class="cat-metric-value">{{ row.in_repair_count }}</div></div>
-              <div class="cat-metric"><div class="cat-metric-label">OdL aperti</div><div class="cat-metric-value">{{ row.open_workorder_count }}</div></div>
-              <div class="cat-metric"><div class="cat-metric-label">Campi attivi</div><div class="cat-metric-value">{{ row.active_field_count }}/{{ row.field_count }}</div></div>
+              <a class="cat-metric kpi-link" href="{{ row.kpi_links.assets }}" title="Apri l’elenco filtrato: asset di {{ row.category.label }}"><div class="cat-metric-label">Asset</div><div class="cat-metric-value">{{ row.asset_count }}</div></a>
+              <a class="cat-metric kpi-link" href="{{ row.kpi_links.in_use }}" title="Apri l’elenco filtrato: asset in uso di {{ row.category.label }}"><div class="cat-metric-label">In uso</div><div class="cat-metric-value">{{ row.in_use_count }}</div></a>
+              <a class="cat-metric kpi-link" href="{{ row.kpi_links.in_repair }}" title="Apri l’elenco filtrato: asset in riparazione di {{ row.category.label }}"><div class="cat-metric-label">Riparazione</div><div class="cat-metric-value">{{ row.in_repair_count }}</div></a>
+              <a class="cat-metric kpi-link" href="{{ row.kpi_links.wo_open }}" title="Apri l’elenco filtrato: OdL aperti di {{ row.category.label }}"><div class="cat-metric-label">OdL aperti</div><div class="cat-metric-value">{{ row.open_workorder_count }}</div></a>
+              <a class="cat-metric kpi-link" href="#asset-category-fields" title="Vai ai campi dinamici qui sotto"><div class="cat-metric-label">Campi attivi</div><div class="cat-metric-value">{{ row.active_field_count }}/{{ row.field_count }}</div></a>
             </div>
 
             <div class="cat-split">

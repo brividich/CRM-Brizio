@@ -12,6 +12,7 @@
 .ms-wide { grid-column:1 / -1; }
 .ms-kpi { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; padding:14px 16px; }
 .ms-kpi-val { font-size:22px; font-weight:800; color:var(--hr-title); }
+.ms-kpi > a { display:block; border-radius:10px; padding:4px 6px; margin:-4px -6px; }
 .ms-kpi-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--hr-muted); }
 .ms-muted { color:var(--hr-muted); font-size:12px; }
 .ms-table-wrap { overflow-x:auto; }
@@ -43,10 +44,18 @@
         </div></div>
         {% if saldo %}
         <div class="ms-kpi">
+          {% comment %}Il saldo viene dal cedolino: se quel mese è tra quelli mostrati sotto, la tessera lo apre.{% endcomment %}
+          {% if saldo.data_competenza in cedolino_mesi %}
+          <a class="kpi-link" href="?cedolino={{ saldo.data_competenza|date:'Y-m-d' }}#ms-cedolino" title="Apri il cedolino da cui viene il saldo: Ferie residue"><div class="ms-kpi-val">{{ saldo.ferie_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ferie residue</div></a>
+          <a class="kpi-link" href="?cedolino={{ saldo.data_competenza|date:'Y-m-d' }}#ms-cedolino" title="Apri il cedolino da cui viene il saldo: ROL residui"><div class="ms-kpi-val">{{ saldo.rol_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">ROL residui</div></a>
+          <a class="kpi-link" href="?cedolino={{ saldo.data_competenza|date:'Y-m-d' }}#ms-cedolino" title="Apri il cedolino da cui viene il saldo: Ex festività"><div class="ms-kpi-val">{{ saldo.ex_fest_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ex festività</div></a>
+          <a class="kpi-link" href="?cedolino={{ saldo.data_competenza|date:'Y-m-d' }}#ms-cedolino" title="Apri il cedolino da cui viene il saldo: Permessi"><div class="ms-kpi-val">{{ saldo.permessi_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Permessi</div></a>
+          {% else %}
           <div><div class="ms-kpi-val">{{ saldo.ferie_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ferie residue</div></div>
           <div><div class="ms-kpi-val">{{ saldo.rol_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">ROL residui</div></div>
           <div><div class="ms-kpi-val">{{ saldo.ex_fest_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ex festività</div></div>
           <div><div class="ms-kpi-val">{{ saldo.permessi_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Permessi</div></div>
+          {% endif %}
         </div>
         {% endif %}
       </section>

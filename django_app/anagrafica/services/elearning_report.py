@@ -69,28 +69,39 @@ def copertura(*, reparto: str = "", corso_id: int | None = None) -> dict:
     }
 
 
-def andamento(mesi: int = 12) -> dict:
-    """Completamenti per mese, ore effettive, punteggio e tempo medi per corso."""
+def andamento(mesi: int = 12, *, corso_id: int | None = None) -> dict:
+    """Completamenti per mese, ore effettive, punteggio e tempo medi per corso.
+
+    Il periodo parte da una data (``dal``, giorno locale) e non da un istante:
+    è lo stesso filtro ``creato_il__date__gte`` del registro, così la tessera
+    «Completamenti (12 mesi)» conta le righe di ``registro(dal=...)``.
+    Con ``corso_id`` tutti i numeri sono del solo corso (filtro del cruscotto).
+    """
     from ..models_elearning import TrainingElearningCompletamento
     from ..models_formazione import TrainingElearningEnrollment
 
-    dal = timezone.now() - timedelta(days=31 * mesi)
+    dal = timezone.localdate() - timedelta(days=31 * mesi)
+    completamenti = TrainingElearningCompletamento.objects.filter(creato_il__date__gte=dal)
+    iscrizioni = TrainingElearningEnrollment.objects.all()
+    if corso_id:
+        completamenti = completamenti.filter(enrollment__corso_id=corso_id)
+        iscrizioni = iscrizioni.filter(corso_id=corso_id)
     per_mese = list(
-        TrainingElearningCompletamento.objects.filter(creato_il__gte=dal)
+        completamenti
         .annotate(mese=TruncMonth("creato_il")).values("mese").annotate(n=Count("pk")).order_by("mese")
     )
     per_corso = list(
-        TrainingElearningEnrollment.objects.filter(stato="COMPLETATO")
+        iscrizioni.filter(stato="COMPLETATO")
         .values("corso_id", "corso__titolo")
         .annotate(n=Count("pk"), punteggio=Avg("best_punteggio_pct"), secondi=Avg("secondi_accreditati"))
         .order_by("corso__titolo")
     )
-    ore = (TrainingElearningEnrollment.objects.aggregate(s=Sum("secondi_accreditati"))["s"] or 0) / 3600
+    ore = (iscrizioni.aggregate(s=Sum("secondi_accreditati"))["s"] or 0) / 3600
     for r in per_corso:
         r["minuti_medi"] = round((r["secondi"] or 0) / 60)
         r["punteggio"] = round(float(r["punteggio"] or 0), 1)
     return {"per_mese": per_mese, "per_corso": per_corso, "ore_erogate": round(ore, 1),
-            "totale_periodo": sum(m["n"] for m in per_mese)}
+            "totale_periodo": sum(m["n"] for m in per_mese), "dal": dal}
 
 
 def domande_piu_sbagliate(limite: int = 10, ultimi: int = 2000) -> list[dict]:

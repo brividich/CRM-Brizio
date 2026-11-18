@@ -1,7 +1,7 @@
-<div class="hub-kpi-card{% if tone %} hub-kpi-card--{{ tone }}{% endif %}">
+{% comment %}Tessera KPI generica. Con url la tessera e' un link alla lista filtrata che conta lo stesso numero.{% endcomment %}{% if url %}<a class="hub-kpi-card kpi-link{% if tone %} hub-kpi-card--{{ tone }}{% endif %}" href="{{ url }}"{% if title %} title="{{ title }}"{% endif %}>{% else %}<div class="hub-kpi-card{% if tone %} hub-kpi-card--{{ tone }}{% endif %}">{% endif %}
   <div class="hub-kpi-card__label">{{ label }}</div>
   <div class="hub-kpi-card__value">{{ value|default:"-" }}</div>
   {% if meta %}
     <div class="hub-kpi-card__meta">{{ meta }}</div>
   {% endif %}
-</div>
+{% if url %}</a>{% else %}</div>{% endif %}

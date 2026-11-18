@@ -5,7 +5,7 @@
 {% block title %}Planimetrie impianti{% endblock %}
 
 {% block assets_shell_head %}
-<link rel="stylesheet" href="{% static 'assets/css/pagine/plant_layout_map.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'assets/css/pagine/plant_layout_map.css' %}?v=20261117">
 {% endblock %}
 
 {% block assets_shell_title %}Planimetrie impianti{% endblock %}
@@ -42,11 +42,11 @@
 
   {% if layout %}
   <section class="pl-kpis">
-    <div class="pl-kpi">
+    <a class="pl-kpi kpi-link" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}" title="Mostra tutte le macchine sulla mappa">
       <span class="pl-kpi-label">Macchine sulla mappa</span>
       <span class="pl-kpi-value">{{ plant_layout_payload.markers|length }}</span>
       <span class="pl-kpi-sub">{{ plant_layout_payload.areas|length }} repart{{ plant_layout_payload.areas|length|pluralize:"o,i" }} disegnat{{ plant_layout_payload.areas|length|pluralize:"o,i" }}</span>
-    </div>
+    </a>
     {% if plant_layout_payload.cnc.total %}
     <div class="pl-kpi {% if plant_layout_payload.cnc.allarme %}is-danger{% endif %}" data-pl-kpi="cnc">
       <span class="pl-kpi-label">CNC collegate</span>
@@ -54,28 +54,28 @@
       <span class="pl-kpi-sub" data-pl-cnc-sub>{{ plant_layout_payload.cnc.ferma }} ferm{{ plant_layout_payload.cnc.ferma|pluralize:"a,e" }} · {{ plant_layout_payload.cnc.allarme }} in allarme · {{ plant_layout_payload.cnc.spenta }} offline</span>
     </div>
     {% endif %}
-    <div class="pl-kpi {% if alert_total %}is-warn{% endif %}">
+    <a class="pl-kpi kpi-link {% if alert_total %}is-warn{% endif %}" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}&amp;mostra=da_guardare" title="Mostra sulla mappa solo le macchine da guardare">
       <span class="pl-kpi-label">Da guardare</span>
       <span class="pl-kpi-value" data-pl-kpi-alerts>{{ alert_total }}</span>
       <span class="pl-kpi-sub">macchine con ticket, OdL, manutenzioni o verifiche</span>
-    </div>
-    <div class="pl-kpi {% if plant_layout_payload.alert_counts.ticket %}is-danger{% endif %}">
+    </a>
+    <a class="pl-kpi kpi-link {% if plant_layout_payload.alert_counts.ticket %}is-danger{% endif %}" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}&amp;mostra=ticket_aperti" title="Mostra sulla mappa solo le macchine con ticket aperti">
       <span class="pl-kpi-label">Con ticket aperti</span>
       <span class="pl-kpi-value" data-pl-kpi-tickets>{{ plant_layout_payload.markers_with_tickets }}</span>
       <span class="pl-kpi-sub">in rosso sulla mappa</span>
-    </div>
+    </a>
     {% if plant_layout_payload.alert_counts.alarm %}
-    <div class="pl-kpi is-danger">
+    <a class="pl-kpi kpi-link is-danger" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}&amp;mostra=alarm" title="Mostra sulla mappa solo le CNC in allarme">
       <span class="pl-kpi-label">Allarmi sulle CNC</span>
       <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.alarm }}</span>
       <span class="pl-kpi-sub">dal controllo della macchina (MTConnect)</span>
-    </div>
+    </a>
     {% endif %}
-    <div class="pl-kpi {% if plant_layout_payload.alert_counts.overdue or plant_layout_payload.alert_counts.legal %}is-danger{% elif plant_layout_payload.alert_counts.late %}is-warn{% endif %}">
+    <a class="pl-kpi kpi-link {% if plant_layout_payload.alert_counts.overdue or plant_layout_payload.alert_counts.legal %}is-danger{% elif plant_layout_payload.alert_counts.late %}is-warn{% endif %}" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}&amp;mostra=overdue,late,legal" title="Mostra sulla mappa solo le macchine con scadenze superate">
       <span class="pl-kpi-label">Scadute</span>
       <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.overdue|add:plant_layout_payload.alert_counts.late|add:plant_layout_payload.alert_counts.legal }}</span>
       <span class="pl-kpi-sub">{{ plant_layout_payload.alert_counts.overdue }} da oltre 30 giorni · {{ plant_layout_payload.alert_counts.late }} da poco{% if plant_layout_payload.alert_counts.legal %} · {{ plant_layout_payload.alert_counts.legal }} verifiche di legge{% endif %}</span>
-    </div>
+    </a>
   </section>
   {% if plant_layout_payload.unplaced_count or plant_layout_payload.retired_hidden %}
   <p class="pl-note">
@@ -135,7 +135,7 @@
               <span class="pl-pin-altrui" style="left:{{ altro.x_percent }}%;top:{{ altro.y_percent }}%;" title="{{ altro.label }} · non di tua competenza" aria-hidden="true"></span>
               {% endfor %}
               {% for marker in plant_layout_payload.markers %}
-              <button type="button" class="pl-pin is-{{ marker.alert }}{% if marker.machine.live %} is-cnc{% endif %}" data-marker-id="{{ marker.id }}"{% if marker.machine.live %} data-live="{{ marker.machine.live.stato }}"{% endif %}
+              <button type="button" class="pl-pin is-{{ marker.alert }}{% if marker.machine.live %} is-cnc{% endif %}{% if marker.open_tickets %} has-tickets{% endif %}" data-marker-id="{{ marker.id }}"{% if marker.machine.live %} data-live="{{ marker.machine.live.stato }}"{% endif %}
                 style="left:{{ marker.x_percent }}%;top:{{ marker.y_percent }}%;"
                 title="{{ marker.label }}{% if marker.machine.name %} · {{ marker.machine.name }}{% endif %} · {{ marker.alert_label }}"
                 aria-label="{{ marker.label }}, {{ marker.alert_label }}">
@@ -315,6 +315,19 @@
       if (view) view.classList.toggle("hide-" + chip.getAttribute("data-pl-filter"), !on);
     });
   });
+  /* ---- KPI cliccabili: ?mostra= apre la mappa con i soli pin che il numero conta ---- */
+  (function () {
+    var mostra = new URLSearchParams(window.location.search).get("mostra") || "";
+    if (!mostra || !view) return;
+    if (mostra === "ticket_aperti") { view.classList.add("only-tickets"); return; }
+    var keep = mostra === "da_guardare" ? null : mostra.split(",");
+    document.querySelectorAll("[data-pl-filter]").forEach(function (chip) {
+      var code = chip.getAttribute("data-pl-filter");
+      var on = keep === null ? code !== "ok" : keep.indexOf(code) !== -1;
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+      view.classList.toggle("hide-" + code, !on);
+    });
+  })();
   var areasChip = document.querySelector("[data-pl-areas]");
   if (areasChip) areasChip.addEventListener("click", function () {
     var on = areasChip.getAttribute("aria-pressed") !== "true";
@@ -887,6 +900,7 @@
       p.classList.toggle("is-cnc", !!live);
       if (live) p.setAttribute("data-live", live.stato); else p.removeAttribute("data-live");
       p.title = m.label + (m.machine && m.machine.name ? " · " + m.machine.name : "") + " · " + (labels[m.alert] || "") + (live ? " · " + live.label : "");
+      p.classList.toggle("has-tickets", !!m.open_tickets);
       var badge = p.querySelector(".pl-pin-badge");
       if (m.open_tickets) {
         if (!badge) { badge = el("span", "pl-pin-badge"); p.insertBefore(badge, p.firstChild); }

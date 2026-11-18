@@ -38,3 +38,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) m
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 Con i ruoli attivi la lettura segue la matrice («Vedere») e l'elenco l'ambito propri/team/tutti; «Record attivi» sulle righe mostrate, «Da gestire» conteggio pieno.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtro `stato=con|attivi` usato dalle tessere.

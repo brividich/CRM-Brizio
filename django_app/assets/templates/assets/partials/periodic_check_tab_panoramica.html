@@ -4,33 +4,33 @@
 <div class="md-page">
   {% include "assets/partials/periodic_check_guide.html" %}
   <div class="md-kpis pc-kpis">
-    <div class="md-kpi {% if stats.state == 'overdue' %}is-danger{% elif stats.state == 'due_soon' %}is-warn{% endif %}">
+    <a class="md-kpi {% if stats.state == 'overdue' %}is-danger{% elif stats.state == 'due_soon' %}is-warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?plan_type=checks&amp;window=" title="Apri lo scadenzario delle verifiche impianti">
       <span class="md-kpi-label">Prossima verifica</span>
       <span class="md-kpi-value pc-kpi-date">{{ check_type.next_due_date|date:"d/m/Y"|default:"—" }}</span>
       <span class="md-kpi-sub"><span class="pc-state is-{{ stats.state }}">{{ stats.state_label }}</span></span>
-    </div>
-    <div class="md-kpi">
+    </a>
+    {% if stats.last_session %}<a class="md-kpi" href="{% url 'assets:periodic_check_session_detail' stats.last_session.id %}" title="Apri l’ultima verifica registrata">{% else %}<div class="md-kpi">{% endif %}
       <span class="md-kpi-label">Ultima verifica</span>
       <span class="md-kpi-value pc-kpi-date">{{ stats.last_session.performed_on|date:"d/m/Y"|default:"—" }}</span>
       <span class="md-kpi-sub">{% if stats.last_session %}<span class="pc-outcome is-{{ stats.last_session.outcome }}">{{ stats.last_session.get_outcome_display }}</span>{% else %}mai registrata{% endif %}</span>
-    </div>
+    {% if stats.last_session %}</a>{% else %}</div>{% endif %}
     {% if stats.efficiency_pct is not None %}
-      <div class="md-kpi {% if stats.defective %}is-warn{% else %}is-ok{% endif %}">
+      {% if is_layout and map %}<a class="md-kpi {% if stats.defective %}is-warn{% else %}is-ok{% endif %}" href="#pc-stato-attuale" title="Vai allo stato attuale dei punti qui sotto">{% else %}<div class="md-kpi {% if stats.defective %}is-warn{% else %}is-ok{% endif %}">{% endif %}
         <span class="md-kpi-label">Punti in ordine</span>
         <span class="md-kpi-value">{{ stats.efficiency_pct }}%</span>
         <span class="md-kpi-sub">{{ stats.defective|length }} da sistemare su {{ stats.points_total }}</span>
-      </div>
+      {% if is_layout and map %}</a>{% else %}</div>{% endif %}
     {% endif %}
-    <div class="md-kpi">
+    <a class="md-kpi" href="?tab=storico" title="Apri lo storico delle verifiche: da qui si conta la puntualità">
       <span class="md-kpi-label">Nei tempi</span>
       <span class="md-kpi-value">{% if stats.on_time_total %}{{ stats.on_time }}/{{ stats.on_time_total }}{% else %}—{% endif %}</span>
       <span class="md-kpi-sub">verifiche entro la scadenza, ultimi 24 mesi</span>
-    </div>
-    <div class="md-kpi">
+    </a>
+    <a class="md-kpi" href="?tab=storico" title="Apri lo storico delle verifiche fatte">
       <span class="md-kpi-label">Ultimi 12 mesi</span>
       <span class="md-kpi-value">{{ stats.last_12m }}</span>
       <span class="md-kpi-sub">verifiche fatte, ne sono attese {{ stats.expected_12m }}</span>
-    </div>
+    </a>
     <a class="md-kpi {% if stats.open_findings %}is-danger{% endif %}" href="?tab=storico">
       <span class="md-kpi-label">Rilievi</span>
       <span class="md-kpi-value">{{ stats.open_findings }}</span>
@@ -47,7 +47,7 @@
   {% endif %}
 
   {% if is_layout and map %}
-    <section class="md-section">
+    <section class="md-section" id="pc-stato-attuale">
       <div class="md-section-head">
         <h2>Stato attuale{% if stats.layout_session %} <span class="pc-muted pc-h-sub">dalla verifica del <a href="{% url 'assets:periodic_check_session_detail' stats.layout_session.id %}">{{ stats.layout_session.performed_on|date:"d/m/Y" }}</a></span>{% endif %}</h2>
         <span class="md-badge badge-muted">planimetria v{{ stats.layout.version }}</span>

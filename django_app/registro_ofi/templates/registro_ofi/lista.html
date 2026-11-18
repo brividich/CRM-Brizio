@@ -38,6 +38,7 @@
 /* la tappa in corso: stesso colore pieno + anello arancio per dire «sei qui» */
 .ofi-mini-current{ box-shadow:0 0 0 2.5px rgba(255,138,31,.9); }
 .ofi-legend{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.ofi-legend a.hub-pill{ text-decoration:none; }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ofi-table td.ofi-pdca.ofi-on{color:#86efac}
@@ -95,6 +96,9 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       </select>
       {% if in_scadenza %}<input type="hidden" name="in_scadenza" value="1">{% endif %}
       {% if senza_responsabile %}<input type="hidden" name="senza_responsabile" value="1">{% endif %}
+      {% if fase_almeno %}<input type="hidden" name="fase_almeno" value="{{ fase_almeno }}">{% endif %}
+      {% if chiuse_12m %}<input type="hidden" name="chiuse_12m" value="1">{% endif %}
+      {% if norma %}<input type="hidden" name="norma" value="{{ norma }}">{% endif %}
       <select class="fmd-select" name="fase" onchange="this.form.submit()" aria-label="Filtra per fase">
         <option value="">Tutte le fasi</option>
         {% for val, lab in FASE_CHOICES %}<option value="{{ val }}" {% if fase == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
@@ -114,6 +118,9 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       </label>
       {% if in_scadenza %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">In scadenza entro 30 giorni ✕</a>{% endif %}
       {% if senza_responsabile %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Senza responsabile ✕</a>{% endif %}
+      {% if fase_almeno %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Arrivate almeno a {{ fase_almeno_label }} ✕</a>{% endif %}
+      {% if chiuse_12m %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Chiuse negli ultimi 12 mesi ✕</a>{% endif %}
+      {% if norma %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro" data-filtro-norma>Norma {{ norma }} ✕</a>{% endif %}
       <span class="fmd-spacer"></span>
       <a href="{% url 'registro_ofi:home' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Dashboard</a>
       <a href="?{% if filtri_query %}{{ filtri_query }}&amp;{% endif %}export=xlsx" class="fmd-btn fmd-btn-ghost" title="Scarica le voci filtrate nel formato del MOD.174"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta Excel</a>
@@ -126,12 +133,12 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
     <div class="fmd-block-head">
       <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Registro (MOD.174) <span class="fmd-count">{{ voci|length }}</span></div>
       <div class="fmd-block-aside ofi-legend">
-        <span class="hub-pill info">P {{ counters.p }}</span>
-        <span class="hub-pill info">D {{ counters.d }}</span>
-        <span class="hub-pill info">C {{ counters.c }}</span>
-        <span class="hub-pill ok">A {{ counters.a }}</span>
-        <span class="hub-pill {% if counters.over90 %}ok{% else %}hot{% endif %}">A/P {{ counters.pct }}% · {% if counters.over90 %}&ge;90%{% else %}&lt;90%{% endif %}</span>
-        <span class="hub-pill {% if n_scaduti %}bad{% else %}neutral{% endif %}">Scaduti {{ n_scaduti }}</span>
+        <a class="hub-pill info kpi-link" href="{% url 'registro_ofi:lista' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco: tutte le voci (P = arrivate almeno a Plan)">P {{ counters.p }}</a>
+        <a class="hub-pill info kpi-link" href="{% url 'registro_ofi:lista' %}?fase_almeno=DO{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci arrivate almeno a Do">D {{ counters.d }}</a>
+        <a class="hub-pill info kpi-link" href="{% url 'registro_ofi:lista' %}?fase_almeno=CHECK{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci arrivate almeno a Check">C {{ counters.c }}</a>
+        <a class="hub-pill ok kpi-link" href="{% url 'registro_ofi:lista' %}?fase_almeno=ACT{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci arrivate almeno ad Act">A {{ counters.a }}</a>
+        <a class="hub-pill {% if counters.over90 %}ok{% else %}hot{% endif %} kpi-link" href="{% url 'registro_ofi:lista' %}?fase_almeno=ACT{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci arrivate almeno ad Act (A), il numeratore della percentuale A/P">A/P {{ counters.pct }}% · {% if counters.over90 %}&ge;90%{% else %}&lt;90%{% endif %}</a>
+        <a class="hub-pill {% if n_scaduti %}bad{% else %}neutral{% endif %} kpi-link" href="{% url 'registro_ofi:lista' %}?scaduti=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci scadute">Scaduti {{ n_scaduti }}</a>
       </div>
     </div>
 
@@ -201,7 +208,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
     {% else %}
     <div class="fmd-empty">
       <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or solo_mie or solo_aperte or modulo or tipo or q %} con questi filtri{% endif %}</span>
+      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or solo_mie or solo_aperte or modulo or tipo or q or fase_almeno or chiuse_12m or in_scadenza or senza_responsabile or norma %} con questi filtri{% endif %}</span>
       <span class="fmd-em">Le voci nascono dai rilievi degli audit interni e dalle righe MOD.133 con impatto{% if can_add %}, oppure con «Nuovo inserimento»{% endif %}.</span>
     </div>
     {% endif %}

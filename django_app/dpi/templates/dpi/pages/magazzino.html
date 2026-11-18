@@ -127,10 +127,10 @@ body.theme-dark .dpi-hbtn:hover{background:rgba(56,161,105,.18)}
   </div>
 
   <div class="dpi-kpi-row">
-    <div class="dpi-kpi dpi-kpi-green"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Pezzi a magazzino</span></div>
-    <a class="dpi-kpi{% if not filtro_stato %} is-active{% endif %}" href="{% url 'dpi:magazzino' %}"><span class="dpi-kpi-val">{{ n_modelli }}</span><span class="dpi-kpi-lbl">Modelli a catalogo</span></a>
-    <a class="dpi-kpi dpi-kpi-orange{% if filtro_stato == 'sotto' %} is-active{% endif %}" href="?stato=sotto"><span class="dpi-kpi-val">{{ n_sotto }}</span><span class="dpi-kpi-lbl">Sotto scorta minima</span></a>
-    <a class="dpi-kpi dpi-kpi-red{% if filtro_stato == 'esaurito' %} is-active{% endif %}" href="?stato=esaurito"><span class="dpi-kpi-val">{{ n_esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></a>
+    <a class="dpi-kpi dpi-kpi-green kpi-link" href="{% url 'dpi:magazzino' %}#giacenze" title="Apri la giacenza di tutti i modelli a catalogo"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Pezzi a magazzino</span></a>
+    <a class="dpi-kpi{% if not filtro_stato %} is-active{% endif %}" href="{% url 'dpi:magazzino' %}#giacenze" title="Apri l'elenco di tutti i modelli a catalogo"><span class="dpi-kpi-val">{{ n_modelli }}</span><span class="dpi-kpi-lbl">Modelli a catalogo</span></a>
+    <a class="dpi-kpi dpi-kpi-orange{% if filtro_stato == 'sotto' %} is-active{% endif %}" href="{% url 'dpi:magazzino' %}?stato=sotto#giacenze" title="Apri l'elenco filtrato: modelli sotto scorta minima"><span class="dpi-kpi-val">{{ n_sotto }}</span><span class="dpi-kpi-lbl">Sotto scorta minima</span></a>
+    <a class="dpi-kpi dpi-kpi-red{% if filtro_stato == 'esaurito' %} is-active{% endif %}" href="{% url 'dpi:magazzino' %}?stato=esaurito#giacenze" title="Apri l'elenco filtrato: modelli esauriti"><span class="dpi-kpi-val">{{ n_esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></a>
   </div>
 
   <div class="dpi-card">
@@ -190,7 +190,7 @@ body.theme-dark .dpi-hbtn:hover{background:rgba(56,161,105,.18)}
     </form>
   </div>
 
-  <div class="dpi-table-wrap">
+  <div class="dpi-table-wrap" id="giacenze">
     {% if righe %}
     <table class="dpi-table">
       <thead><tr><th>DPI</th><th>Giacenza</th><th>Stato</th><th>Scorta minima</th><th></th></tr></thead>
@@ -221,7 +221,7 @@ body.theme-dark .dpi-hbtn:hover{background:rgba(56,161,105,.18)}
   </div>
 
   <div class="dpi-card" id="movimenti">
-    <div class="dpi-card-title">Ultimi movimenti{% if modello_mov %} <a href="{% url 'dpi:magazzino' %}" class="dpi-muted">· mostra tutti</a>{% endif %}</div>
+    <div class="dpi-card-title">{% if movimenti_filtrati %}Movimenti{% if tipo_mov_label %}: {{ tipo_mov_label }}{% endif %}{% if da_mov %} dal {{ da_mov|date:"d/m/Y" }}{% endif %} · {{ movimenti|length }} moviment{{ movimenti|length|pluralize:"o,i" }}{% if movimenti_pezzi is not None %} · {{ movimenti_pezzi }} pezzi{% endif %}{% else %}Ultimi movimenti{% endif %}{% if modello_mov or movimenti_filtrati %} <a href="{% url 'dpi:magazzino' %}#movimenti" class="dpi-muted">· mostra tutti</a>{% endif %}</div>
     {% if movimenti %}
     <div class="dpi-table-wrap" style="border:none;">
     <table class="dpi-table" data-fm-table-skip="1">

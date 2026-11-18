@@ -28,6 +28,9 @@
 .ad-count.amber { background:#fef3c7; color:#92400e; }
 .ad-count.green { background:#dcfce7; color:#15803d; }
 .ad-count.blue { background:#dbeafe; color:#1d4ed8; }
+/* Conteggi cliccabili: portano all'elenco filtrato che conta lo stesso numero. */
+a.ad-count { text-decoration:none; }
+a.ad-count:hover { text-decoration:underline; }
 
 /* ── Stato generale ────────────────────────────────────────────────── */
 .ad-status { display:flex; align-items:center; gap:14px; padding:12px 16px; border-radius:12px; border:1px solid; flex-wrap:wrap; }
@@ -172,6 +175,10 @@ details.ad-cats-more[open] > summary { display:none; }
 .ad-w-val.danger { color:#dc2626; }
 .ad-w-val.warn { color:#b45309; }
 .ad-w-val.ok { color:#15803d; }
+/* Valori cliccabili dei widget e delle metriche: aprono l'elenco filtrato. */
+a.ad-w-val, a.ad-bar-count, a.ad-metric-val, a.ad-mini-count { display:block; width:fit-content; text-decoration:none; }
+a.ad-w-val:hover, a.ad-bar-count:hover, a.ad-metric-val:hover, a.ad-mini-count:hover { text-decoration:underline; }
+a.ad-bar-count { width:32px; }
 .ad-w-remove { position:absolute; top:8px; right:8px; opacity:0; border:none; background:none; color:var(--text-light); cursor:pointer; padding:2px 5px; border-radius:5px; }
 .ad-widget:hover .ad-w-remove { opacity:1; }
 .ad-w-remove:hover { color:#dc2626; background:#fee2e2; }
@@ -328,16 +335,16 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       </div>
     </div>
     <div class="ad-status-chips">
-      {% if dash_wo.urgent %}<a class="ad-chip red" href="{% url 'assets:wo_list' %}?status=OPEN&priority=URGENT"><b>{{ dash_wo.urgent }}</b> OdL urgenti</a>{% endif %}
-      {% if dash_wo.late %}<a class="ad-chip amber" href="{% url 'assets:wo_list' %}?status=OPEN"><b>{{ dash_wo.late }}</b> OdL in ritardo</a>{% endif %}
-      {% if segnalazioni.urgenti %}<a class="ad-chip red" href="{% url 'tickets:gestione_list' %}?tipo=MAN"><b>{{ segnalazioni.urgenti }}</b> segnalazioni urgenti</a>{% endif %}
-      {% if dash_deadlines.overdue %}<a class="ad-chip red" href="{% url 'assets:maintenance_scadenze' %}?window=overdue"><b>{{ dash_deadlines.overdue }}</b> scadenze superate</a>{% endif %}
+      {% if dash_wo.urgent %}<a class="ad-chip red" href="{% url 'assets:wo_list' %}?status=OPEN&amp;priority=URGENT&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti urgenti"><b>{{ dash_wo.urgent }}</b> OdL urgenti</a>{% endif %}
+      {% if dash_wo.late %}<a class="ad-chip amber" href="{% url 'assets:wo_list' %}?status=OPEN&amp;ritardo=1&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti in ritardo"><b>{{ dash_wo.late }}</b> OdL in ritardo</a>{% endif %}
+      {% if segnalazioni.urgenti %}<a class="ad-chip red" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=fare&amp;registro=1&amp;urgenza=1" title="Apri l'elenco filtrato: segnalazioni urgenti aperte"><b>{{ segnalazioni.urgenti }}</b> segnalazioni urgenti</a>{% endif %}
+      {% if dash_deadlines.overdue %}<a class="ad-chip red" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;window=overdue"><b>{{ dash_deadlines.overdue }}</b> scadenze superate</a>{% endif %}
     </div>
   </div>
 
   {# ── KPI a colpo d'occhio ──────────────────────────────────────────── #}
   <section class="ad-kpis" aria-label="Indicatori principali">
-    <a class="ad-kpi blue" href="{% url 'assets:asset_list' %}">
+    <a class="ad-kpi blue kpi-link" href="{% url 'assets:asset_list' %}?status=ATTIVI" title="Apri l'elenco filtrato: asset non dismessi">
       <div class="ad-kpi-top">
         <span class="ad-kpi-label">Parco asset</span>
         <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
@@ -351,7 +358,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       {% endif %}
     </a>
 
-    <a class="ad-kpi {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN">
+    <a class="ad-kpi kpi-link {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti su asset non dismessi">
       <div class="ad-kpi-top">
         <span class="ad-kpi-label">Interventi aperti</span>
         <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
@@ -360,7 +367,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       <div class="ad-kpi-sub"><b>{{ dash_wo.unassigned }}</b> da assegnare &middot; <b>{{ dash_wo.late }}</b> in ritardo</div>
     </a>
 
-    <a class="ad-kpi {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% else %}green{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN">
+    <a class="ad-kpi kpi-link {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% else %}green{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=fare&amp;registro=1" title="Apri le segnalazioni di manutenzione aperte">
       <div class="ad-kpi-top">
         <span class="ad-kpi-label">Segnalazioni</span>
         <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
@@ -369,7 +376,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       <div class="ad-kpi-sub"><b>{{ segnalazioni.nuove }}</b> nuove &middot; <b>{{ segnalazioni.urgenti }}</b> urgenti</div>
     </a>
 
-    <a class="ad-kpi {% if dash_deadlines.maintenance_overdue %}red{% elif dash_deadlines.maintenance_due_soon %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_da_fare' %}">
+    <a class="ad-kpi kpi-link {% if dash_deadlines.maintenance_overdue %}red{% elif dash_deadlines.maintenance_due_soon %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=ordinary&amp;window=overdue" title="Apri lo scadenzario filtrato: manutenzioni ordinarie scadute">
       <div class="ad-kpi-top">
         <span class="ad-kpi-label">Manutenzioni scadute</span>
         <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
@@ -378,7 +385,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       <div class="ad-kpi-sub"><b>{{ dash_deadlines.maintenance_due_soon }}</b> nei prossimi 30 giorni</div>
     </a>
 
-    <a class="ad-kpi {% if kpis.scadenze_scadute %}red{% elif kpis.scadenze_30gg %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=overdue">
+    <a class="ad-kpi kpi-link {% if kpis.scadenze_scadute %}red{% elif kpis.scadenze_30gg %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=overdue" title="Apri lo scadenzario filtrato: adempimenti scaduti">
       <div class="ad-kpi-top">
         <span class="ad-kpi-label">Adempimenti scaduti</span>
         <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>
@@ -404,13 +411,13 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <div class="ad-panel-head">
           <span class="ad-panel-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
           <span class="ad-panel-title">Interventi aperti<small>Ordini di lavoro da eseguire</small></span>
-          <span class="ad-count {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}">{{ dash_wo.total }}</span>
+          <a class="ad-count {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti su asset non dismessi">{{ dash_wo.total }}</a>
         </div>
         <div class="ad-facets">
-          <a class="ad-facet {% if dash_wo.urgent %}red{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&priority=URGENT">Urgenti <b>{{ dash_wo.urgent }}</b></a>
-          <a class="ad-facet {% if dash_wo.late %}amber{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN">In ritardo <b>{{ dash_wo.late }}</b></a>
-          <a class="ad-facet" href="{% url 'assets:wo_list' %}?status=OPEN">Da assegnare <b>{{ dash_wo.unassigned }}</b></a>
-          <a class="ad-facet" href="{% url 'assets:maintenance_da_fare' %}?mio=1">Miei <b>{{ dash_wo.mine }}</b></a>
+          <a class="ad-facet {% if dash_wo.urgent %}red{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&amp;priority=URGENT&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti urgenti">Urgenti <b>{{ dash_wo.urgent }}</b></a>
+          <a class="ad-facet {% if dash_wo.late %}amber{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&amp;ritardo=1&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti in ritardo">In ritardo <b>{{ dash_wo.late }}</b></a>
+          <a class="ad-facet" href="{% url 'assets:wo_list' %}?view=unassigned&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti senza assegnatario">Da assegnare <b>{{ dash_wo.unassigned }}</b></a>
+          <a class="ad-facet" href="{% url 'assets:wo_list' %}?view=mine&amp;attivi=1" title="Apri l'elenco filtrato: OdL aperti assegnati a te">Miei <b>{{ dash_wo.mine }}</b></a>
         </div>
         {% if dash_wo.items %}
         <ul class="ad-rows">
@@ -446,7 +453,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         {% endif %}
         <div class="ad-panel-foot">
           <a class="ad-foot-link cta" href="{% url 'assets:wo_list' %}?create=1">+ Nuovo intervento</a>
-          <a class="ad-foot-link" href="{% url 'assets:wo_list' %}?status=OPEN">Tutti gli OdL &rsaquo;</a>
+          <a class="ad-foot-link" href="{% url 'assets:wo_list' %}?status=OPEN">Tutti gli OdL aperti &rsaquo;</a>
         </div>
       </div>
 
@@ -455,13 +462,13 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <div class="ad-panel-head">
           <span class="ad-panel-icon amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
           <span class="ad-panel-title">Segnalazioni arrivate<small>Ticket di manutenzione dagli operatori</small></span>
-          <span class="ad-count {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% elif segnalazioni.open_total %}blue{% else %}green{% endif %}">{{ segnalazioni.open_total }}</span>
+          <a class="ad-count {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% elif segnalazioni.open_total %}blue{% else %}green{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=fare&amp;registro=1" title="Apri le segnalazioni di manutenzione aperte">{{ segnalazioni.open_total }}</a>
         </div>
         <div class="ad-facets">
-          <a class="ad-facet {% if segnalazioni.nuove %}amber{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=APERTA">Nuove <b>{{ segnalazioni.nuove }}</b></a>
-          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_CARICO">In carico <b>{{ segnalazioni.in_carico }}</b></a>
-          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_ATTESA">In attesa <b>{{ segnalazioni.in_attesa }}</b></a>
-          <a class="ad-facet {% if segnalazioni.urgenti %}red{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN">Urgenti <b>{{ segnalazioni.urgenti }}</b></a>
+          <a class="ad-facet {% if segnalazioni.nuove %}amber{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;stato=APERTA&amp;registro=1">Nuove <b>{{ segnalazioni.nuove }}</b></a>
+          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;stato=IN_CARICO&amp;registro=1">In carico <b>{{ segnalazioni.in_carico }}</b></a>
+          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;stato=IN_ATTESA&amp;registro=1">In attesa <b>{{ segnalazioni.in_attesa }}</b></a>
+          <a class="ad-facet {% if segnalazioni.urgenti %}red{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=fare&amp;registro=1&amp;urgenza=1" title="Apri l'elenco filtrato: segnalazioni urgenti aperte">Urgenti <b>{{ segnalazioni.urgenti }}</b></a>
         </div>
         {% if segnalazioni.items %}
         <ul class="ad-rows">
@@ -503,11 +510,11 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <div class="ad-panel-head">
           <span class="ad-panel-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
           <span class="ad-panel-title">Scadenze<small>Superate ed entro 30 giorni</small></span>
-          <span class="ad-count {% if dash_deadlines.overdue %}red{% elif dash_deadlines.total %}amber{% else %}green{% endif %}">{{ dash_deadlines.total }}</span>
+          <a class="ad-count {% if dash_deadlines.overdue %}red{% elif dash_deadlines.total %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;window=30" title="Apri lo scadenzario: il numero somma «Superate» ed «Entro 30 gg» qui sotto">{{ dash_deadlines.total }}</a>
         </div>
         <div class="ad-facets">
-          <a class="ad-facet {% if dash_deadlines.overdue %}red{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">Superate <b>{{ dash_deadlines.overdue }}</b></a>
-          <a class="ad-facet {% if dash_deadlines.due_soon %}amber{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=30">Entro 30 gg <b>{{ dash_deadlines.due_soon }}</b></a>
+          <a class="ad-facet {% if dash_deadlines.overdue %}red{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;window=overdue">Superate <b>{{ dash_deadlines.overdue }}</b></a>
+          <a class="ad-facet {% if dash_deadlines.due_soon %}amber{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;window=30">Entro 30 gg <b>{{ dash_deadlines.due_soon }}</b></a>
         </div>
         {% if dash_deadlines.items %}
         <ul class="ad-rows">
@@ -579,9 +586,9 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
     </nav>
     <div class="ad-cats">
       <span class="ad-cats-label">Inventario per categoria</span>
-      <a href="{% url 'assets:asset_list' %}" class="ad-cat all">Tutti <span class="ad-cat-count">{{ kpis.totale_asset }}</span></a>
+      <a href="{% url 'assets:asset_list' %}?status=ATTIVI" class="ad-cat all" title="Apri l'elenco filtrato: asset non dismessi">Tutti <span class="ad-cat-count">{{ kpis.totale_asset }}</span></a>
       {% for cat in categories_top %}
-      <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">{{ cat.label }} <span class="ad-cat-count">{{ cat.asset_count }}</span></a>
+      <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}&amp;sottocategorie=0&amp;status=ATTIVI" class="ad-cat" title="Apri l'elenco filtrato: asset non dismessi di {{ cat.label }}">{{ cat.label }} <span class="ad-cat-count">{{ cat.asset_count }}</span></a>
       {% empty %}
       {% if not categories_rest %}<span class="ad-muted">Nessuna categoria configurata</span>{% endif %}
       {% endfor %}
@@ -589,7 +596,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       <details class="ad-cats-more">
         <summary>+ altre {{ categories_rest|length }}</summary>
         {% for cat in categories_rest %}
-        <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">{{ cat.label }}{% if cat.asset_count %} <span class="ad-cat-count">{{ cat.asset_count }}</span>{% endif %}</a>
+        <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}&amp;sottocategorie=0&amp;status=ATTIVI" class="ad-cat" title="Apri l'elenco filtrato: asset non dismessi di {{ cat.label }}">{{ cat.label }}{% if cat.asset_count %} <span class="ad-cat-count">{{ cat.asset_count }}</span>{% endif %}</a>
         {% endfor %}
       </details>
       {% endif %}
@@ -617,8 +624,8 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
       </div>
       <div class="ad-w-label">Totale asset attivi</div>
-      <div class="ad-w-val">{{ kpis.totale_asset }}</div>
-      <a href="{% url 'assets:asset_list' %}" class="ad-w-link">Vedi inventario →</a>
+      <a class="ad-w-val" href="{% url 'assets:asset_list' %}?status=ATTIVI" title="Apri l'elenco filtrato: asset non dismessi">{{ kpis.totale_asset }}</a>
+      <a href="{% url 'assets:asset_list' %}?status=ATTIVI" class="ad-w-link">Vedi inventario →</a>
     </div>
 
     {# == asset_in_uso ================================================ #}
@@ -629,7 +636,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div class="ad-w-label">In uso</div>
-      <div class="ad-w-val ok">{{ kpis.asset_in_uso }}</div>
+      <a class="ad-w-val ok" href="{% url 'assets:asset_list' %}?status=IN_USE" title="Apri l'elenco filtrato: asset in uso">{{ kpis.asset_in_uso }}</a>
       <a href="{% url 'assets:asset_list' %}?status=IN_USE" class="ad-w-link">Filtra →</a>
     </div>
 
@@ -641,7 +648,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       </div>
       <div class="ad-w-label">In riparazione</div>
-      <div class="ad-w-val {% if kpis.asset_in_riparazione > 0 %}warn{% endif %}">{{ kpis.asset_in_riparazione }}</div>
+      <a class="ad-w-val {% if kpis.asset_in_riparazione > 0 %}warn{% endif %}" href="{% url 'assets:asset_list' %}?status=IN_REPAIR" title="Apri l'elenco filtrato: asset in riparazione">{{ kpis.asset_in_riparazione }}</a>
       <a href="{% url 'assets:asset_list' %}?status=IN_REPAIR" class="ad-w-link">Filtra →</a>
     </div>
 
@@ -653,7 +660,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
       <div class="ad-w-label">Scadenze scadute</div>
-      <div class="ad-w-val {% if kpis.scadenze_scadute > 0 %}danger{% endif %}">{{ kpis.scadenze_scadute }}</div>
+      <a class="ad-w-val {% if kpis.scadenze_scadute > 0 %}danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=overdue" title="Apri lo scadenzario filtrato: adempimenti scaduti">{{ kpis.scadenze_scadute }}</a>
       {% if kpis.scadenze_arretrate %}
       <ul class="ad-list">
         {% for dl in kpis.scadenze_arretrate %}
@@ -664,7 +671,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=overdue" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&window=overdue" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -676,7 +683,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </div>
       <div class="ad-w-label">Scadenze nei prossimi 30 gg</div>
-      <div class="ad-w-val {% if kpis.scadenze_30gg > 0 %}warn{% endif %}">{{ kpis.scadenze_30gg }}</div>
+      <a class="ad-w-val {% if kpis.scadenze_30gg > 0 %}warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=30" title="Apri lo scadenzario filtrato: adempimenti entro 30 giorni">{{ kpis.scadenze_30gg }}</a>
       {% if kpis.prossime_scadenze %}
       <ul class="ad-list">
         {% for dl in kpis.prossime_scadenze %}
@@ -687,7 +694,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=30" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&window=30" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -698,9 +705,9 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       <div class="ad-w-icon slate">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </div>
-      <div class="ad-w-label">Scadenze 31–90 gg</div>
-      <div class="ad-w-val">{{ kpis.scadenze_90gg }}</div>
-      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=" class="ad-w-link">Vedi scadenzario →</a>
+      <div class="ad-w-label">Scadenze entro 90 gg</div>
+      <a class="ad-w-val" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=90" title="Apri lo scadenzario filtrato: adempimenti entro 90 giorni">{{ kpis.scadenze_90gg }}</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=90" class="ad-w-link">Vedi scadenzario →</a>
     </div>
 
     {# == wo_aperte =================================================== #}
@@ -711,7 +718,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       </div>
       <div class="ad-w-label">Ordini di lavoro aperti</div>
-      <div class="ad-w-val {% if kpis.wo_aperte > 0 %}warn{% endif %}">{{ kpis.wo_aperte }}</div>
+      <a class="ad-w-val {% if kpis.wo_aperte > 0 %}warn{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN" title="Apri l'elenco filtrato: OdL aperti">{{ kpis.wo_aperte }}</a>
       <a href="{% url 'assets:wo_list' %}?status=OPEN" class="ad-w-link">Vedi OdL →</a>
     </div>
 
@@ -723,8 +730,8 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       </div>
       <div class="ad-w-label">OdL chiuse questo mese</div>
-      <div class="ad-w-val ok">{{ kpis.wo_chiuse_mese }}</div>
-      <a href="{% url 'assets:wo_list' %}?status=DONE" class="ad-w-link">Vedi OdL →</a>
+      <a class="ad-w-val ok" href="{% url 'assets:wo_list' %}?status=DONE&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}" title="Apri l'elenco filtrato: OdL chiusi da inizio mese">{{ kpis.wo_chiuse_mese }}</a>
+      <a href="{% url 'assets:wo_list' %}?status=DONE&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}" class="ad-w-link">Vedi OdL →</a>
     </div>
 
     {# == verifiche_scadute =========================================== #}
@@ -735,8 +742,8 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
       <div class="ad-w-label">Piani di manutenzione scaduti</div>
-      <div class="ad-w-val {% if kpis.verifiche_scadute > 0 %}danger{% endif %}">{{ kpis.verifiche_scadute }}</div>
-      <a href="{% url 'assets:maintenance_scadenze' %}?window=overdue" class="ad-w-link">Apri lo scadenzario →</a>
+      <a class="ad-w-val {% if kpis.verifiche_scadute > 0 %}danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=piani&amp;window=overdue" title="Apri lo scadenzario filtrato: piani e verifiche impianti scaduti">{{ kpis.verifiche_scadute }}</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=piani&amp;window=overdue" class="ad-w-link">Apri lo scadenzario →</a>
     </div>
 
     {# == verifiche_30gg ============================================== #}
@@ -747,7 +754,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       </div>
       <div class="ad-w-label">Piani in scadenza nei prossimi 30 gg</div>
-      <div class="ad-w-val {% if kpis.verifiche_30gg > 0 %}warn{% endif %}">{{ kpis.verifiche_30gg }}</div>
+      <a class="ad-w-val {% if kpis.verifiche_30gg > 0 %}warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=piani&amp;window=30" title="Apri lo scadenzario filtrato: piani e verifiche impianti entro 30 giorni">{{ kpis.verifiche_30gg }}</a>
       {% if kpis.prossime_verifiche %}
       <ul class="ad-list">
         {% for pv in kpis.prossime_verifiche %}
@@ -757,7 +764,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:maintenance_scadenze' %}?window=30" class="ad-w-link">Vedi tutte →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=piani&amp;window=30" class="ad-w-link">Vedi tutte →</a>
       {% endif %}
     </div>
 
@@ -775,7 +782,7 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
             <div class="ad-bar-fill {% cycle 'fill-green' 'fill-blue' 'fill-orange' 'fill-slate' 'fill-violet' %}"
                  style="width:{% if total %}{% widthratio row.count total 100 %}%{% else %}0%{% endif %}"></div>
           </div>
-          <span class="ad-bar-count">{{ row.count }}</span>
+          <a class="ad-bar-count" href="{% url 'assets:asset_list' %}?status={{ row.status|urlencode }}" title="Apri l'elenco filtrato: asset {{ row.label }}">{{ row.count }}</a>
         </div>
         {% empty %}
         <span class="ad-muted">Nessun dato</span>
@@ -795,13 +802,13 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         {% if row.count > 0 %}
         <div class="ad-bar-row">
           <span class="ad-bar-label">
-            {% if row.id %}<a href="{% url 'assets:asset_list' %}?asset_category={{ row.id }}" style="color:inherit;text-decoration:none;">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
+            {% if row.id %}<a href="{% url 'assets:asset_list' %}?asset_category={{ row.id }}&amp;sottocategorie=0" style="color:inherit;text-decoration:none;">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
           </span>
           <div class="ad-bar-track">
             <div class="ad-bar-fill {% cycle 'fill-blue' 'fill-teal' 'fill-violet' 'fill-green' 'fill-orange' 'fill-rose' 'fill-slate' %}"
                  style="width:{% if kpis.totale_asset %}{% widthratio row.count kpis.totale_asset 100 %}%{% else %}0%{% endif %}"></div>
           </div>
-          <span class="ad-bar-count">{{ row.count }}</span>
+          {% if row.id %}<a class="ad-bar-count" href="{% url 'assets:asset_list' %}?asset_category={{ row.id }}&amp;sottocategorie=0" title="Apri l'elenco filtrato: asset di {{ row.label }}">{{ row.count }}</a>{% else %}<span class="ad-bar-count">{{ row.count }}</span>{% endif %}
         </div>
         {% endif %}
         {% empty %}
@@ -844,14 +851,14 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
         </form>
       </div>
       <div class="ad-metrics">
-        <div class="ad-metric"><div class="ad-metric-label">Asset</div><div class="ad-metric-val">{{ family_kpis.totale_asset_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">In uso</div><div class="ad-metric-val">{{ family_kpis.asset_in_uso_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">In riparazione</div><div class="ad-metric-val {% if family_kpis.asset_in_riparazione_famiglia %}warn{% endif %}">{{ family_kpis.asset_in_riparazione_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><div class="ad-metric-val">{{ family_kpis.wo_aperte_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi mese</div><div class="ad-metric-val">{{ family_kpis.wo_chiuse_mese_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Ticket MAN aperti</div><div class="ad-metric-val">{{ family_kpis.ticket_man_aperti_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Ticket chiusi mese</div><div class="ad-metric-val">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Ore fermo mese</div><div class="ad-metric-val">{{ family_kpis.fermi_ore_mese_famiglia|kpi:1 }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Asset</div><a class="ad-metric-val" href="{% url 'assets:asset_list' %}?status=ATTIVI{% if selected_family_id %}&amp;asset_category={{ selected_family_id }}&amp;sottocategorie=0{% endif %}" title="Apri l’elenco filtrato: asset non dismessi{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.totale_asset_famiglia }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">In uso</div><a class="ad-metric-val" href="{% url 'assets:asset_list' %}?status=IN_USE{% if selected_family_id %}&amp;asset_category={{ selected_family_id }}&amp;sottocategorie=0{% endif %}" title="Apri l’elenco filtrato: asset in uso{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.asset_in_uso_famiglia }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">In riparazione</div><a class="ad-metric-val {% if family_kpis.asset_in_riparazione_famiglia %}warn{% endif %}" href="{% url 'assets:asset_list' %}?status=IN_REPAIR{% if selected_family_id %}&amp;asset_category={{ selected_family_id }}&amp;sottocategorie=0{% endif %}" title="Apri l’elenco filtrato: asset in riparazione{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.asset_in_riparazione_famiglia }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=OPEN&amp;attivi=1{% if selected_family_id %}&amp;category={{ selected_family_id }}{% endif %}" title="Apri l’elenco filtrato: OdL aperti su asset non dismessi{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.wo_aperte_famiglia }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi mese</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=DONE&amp;attivi=1&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}{% if selected_family_id %}&amp;category={{ selected_family_id }}{% endif %}" title="Apri l’elenco filtrato: OdL chiusi da inizio mese{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.wo_chiuse_mese_famiglia }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">Ticket MAN aperti</div>{% if can_manage_man %}<a class="ad-metric-val" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=fare&amp;registro=asset{% if selected_family_id %}&amp;famiglia={{ selected_family_id }}{% endif %}" title="Apri l’elenco filtrato: ticket di manutenzione aperti su asset non dismessi{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.ticket_man_aperti_famiglia }}</a>{% else %}<div class="ad-metric-val">{{ family_kpis.ticket_man_aperti_famiglia }}</div>{% endif %}</div>
+        <div class="ad-metric"><div class="ad-metric-label">Ticket chiusi mese</div>{% if can_manage_man %}<a class="ad-metric-val" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=chiusi&amp;registro=asset&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}&amp;chiusi_al={{ month_end|date:'Y-m-d' }}{% if selected_family_id %}&amp;famiglia={{ selected_family_id }}{% endif %}" title="Apri l’elenco filtrato: ticket di manutenzione chiusi nel mese{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</a>{% else %}<div class="ad-metric-val">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div>{% endif %}</div>
+        <div class="ad-metric"><div class="ad-metric-label">Ore fermo mese</div>{% if can_manage_man %}<a class="ad-metric-val" href="{% url 'tickets:gestione_list' %}?tipo=MAN&amp;vista=chiusi&amp;registro=asset&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}&amp;chiusi_al={{ month_end|date:'Y-m-d' }}{% if selected_family_id %}&amp;famiglia={{ selected_family_id }}{% endif %}" title="Apri i ticket di manutenzione chiusi nel mese: il fermo è la somma delle loro ore di fermo macchina{% if selected_family_label %} ({{ selected_family_label }}){% endif %}">{{ family_kpis.fermi_ore_mese_famiglia|kpi:1 }}</a>{% else %}<div class="ad-metric-val">{{ family_kpis.fermi_ore_mese_famiglia|kpi:1 }}</div>{% endif %}</div>
       </div>
 
       <div class="ad-panels">
@@ -896,20 +903,20 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       {% if maintenance_perf.has_data %}
       <h3 class="ad-subhead">Performance manutenzione del mese</h3>
       <div class="ad-metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));">
-        <div class="ad-metric"><div class="ad-metric-label">MTTR medio (correttive)</div><div class="ad-metric-val">{% if not maintenance_perf.mttr_hours|kpi_ok %}{{ maintenance_perf.mttr_hours }}{% elif maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }} h{% else %}&mdash;{% endif %}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Fermo macchina</div><div class="ad-metric-val {% if maintenance_perf.downtime_hours_month %}warn{% endif %}">{{ maintenance_perf.downtime_hours_month|kpi:1 }}{% if maintenance_perf.downtime_hours_month|kpi_ok %} h{% endif %}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Costo manutenzione</div><div class="ad-metric-val">{% if not maintenance_perf.maintenance_cost_month|kpi_ok %}{{ maintenance_perf.maintenance_cost_month }}{% elif maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi</div><div class="ad-metric-val"><a href="{% url 'assets:wo_list' %}?status=DONE">{{ maintenance_perf.wo_closed_month }}</a></div></div>
+        <div class="ad-metric"><div class="ad-metric-label">MTTR medio (correttive)</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=DONE&amp;kind=CORRECTIVE&amp;chiusi_dal={{ mttr_from|date:'Y-m-d' }}&amp;chiusi_al={{ today|date:'Y-m-d' }}" title="Apri gli OdL correttivi chiusi negli ultimi 30 giorni: la media usa quelli con durata registrata">{% if not maintenance_perf.mttr_hours|kpi_ok %}{{ maintenance_perf.mttr_hours }}{% elif maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }} h{% else %}&mdash;{% endif %}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">Fermo macchina</div><a class="ad-metric-val {% if maintenance_perf.downtime_hours_month %}warn{% endif %}" href="{% url 'assets:wo_list' %}?status=DONE&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}" title="Apri gli OdL chiusi da inizio mese: il fermo e’ la somma delle loro ore di fermo">{{ maintenance_perf.downtime_hours_month|kpi:1 }}{% if maintenance_perf.downtime_hours_month|kpi_ok %} h{% endif %}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">Costo manutenzione</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=DONE&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}" title="Apri gli OdL chiusi da inizio mese: il costo e’ la somma dei costi registrati">{% if not maintenance_perf.maintenance_cost_month|kpi_ok %}{{ maintenance_perf.maintenance_cost_month }}{% elif maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=DONE&amp;chiusi_dal={{ month_start|date:'Y-m-d' }}" title="Apri l’elenco filtrato: OdL chiusi da inizio mese">{{ maintenance_perf.wo_closed_month }}</a></div>
       </div>
       {% if maintenance_perf.wo_open_by_kind %}
       <div class="ad-mini-panel">
-        <h4 class="ad-mini-title">OdL aperti per tipo &middot; {{ maintenance_perf.wo_open_total }} in tutto</h4>
+        <h4 class="ad-mini-title">OdL aperti per tipo &middot; <a href="{% url 'assets:wo_list' %}?status=OPEN" title="Apri l’elenco filtrato: OdL aperti">{{ maintenance_perf.wo_open_total }} in tutto</a></h4>
         <div class="ad-mini-bars">
           {% for kind_code, kind_data in maintenance_perf.wo_open_by_kind.items %}
           <div class="ad-mini-row">
-            <span class="ad-mini-label"><a href="{% url 'assets:wo_list' %}?kind={{ kind_code }}&status=OPEN">{{ kind_data.label }}</a></span>
+            <span class="ad-mini-label"><a href="{% url 'assets:wo_list' %}?kind={{ kind_code|urlencode }}&amp;status=OPEN">{{ kind_data.label }}</a></span>
             <span class="ad-mini-track"><span class="ad-mini-fill {% if kind_code == 'CORRECTIVE' %}orange{% elif kind_code == 'PREVENTIVE' %}green{% endif %}" style="width:{{ kind_data.percent|default:0 }}%;"></span></span>
-            <span class="ad-mini-count">{{ kind_data.count }}</span>
+            <a class="ad-mini-count" href="{% url 'assets:wo_list' %}?kind={{ kind_code|urlencode }}&amp;status=OPEN" title="Apri l’elenco filtrato: OdL aperti {{ kind_data.label }}">{{ kind_data.count }}</a>
           </div>
           {% endfor %}
         </div>
@@ -920,10 +927,10 @@ body.theme-dark details.ad-cats-more > summary{color:#93c5fd}
       {% if fire_safety_kpis.has_fire_safety %}
       <h3 class="ad-subhead fire">Antincendio</h3>
       <div class="ad-metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));">
-        <div class="ad-metric"><div class="ad-metric-label">Asset antincendio</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_asset_totali }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Scadenze superate</div><div class="ad-metric-val {% if fire_safety_kpis.antincendio_scadenze_scadute %}warn{% endif %}">{{ fire_safety_kpis.antincendio_scadenze_scadute }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Scadenze 30 giorni</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_scadenze_30gg }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_wo_aperte }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Asset antincendio</div><a class="ad-metric-val" href="{% url 'assets:asset_list' %}?status=ATTIVI&amp;asset_category={{ fire_safety_kpis.category_id }}&amp;sottocategorie=0" title="Apri l’elenco filtrato: asset antincendio non dismessi">{{ fire_safety_kpis.antincendio_asset_totali }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">Scadenze superate</div><a class="ad-metric-val {% if fire_safety_kpis.antincendio_scadenze_scadute %}warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=overdue&amp;category={{ fire_safety_kpis.category_id }}" title="Apri lo scadenzario filtrato: adempimenti antincendio scaduti">{{ fire_safety_kpis.antincendio_scadenze_scadute }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">Scadenze 30 giorni</div><a class="ad-metric-val" href="{% url 'assets:maintenance_scadenze' %}?reparto=&amp;plan_type=administrative&amp;window=30&amp;category={{ fire_safety_kpis.category_id }}" title="Apri lo scadenzario filtrato: adempimenti antincendio entro 30 giorni">{{ fire_safety_kpis.antincendio_scadenze_30gg }}</a></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><a class="ad-metric-val" href="{% url 'assets:wo_list' %}?status=OPEN&amp;attivi=1&amp;category={{ fire_safety_kpis.category_id }}" title="Apri l’elenco filtrato: OdL aperti su asset antincendio">{{ fire_safety_kpis.antincendio_wo_aperte }}</a></div>
       </div>
       {% endif %}
     </div>

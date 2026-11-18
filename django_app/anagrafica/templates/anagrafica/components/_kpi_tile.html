@@ -7,7 +7,7 @@ _fm_icons.html arriva già dalla subnav). Parametri:
   url, title               se c'è url la tessera è un link
   tono                     navy|cyan|green|amber|yellow|orange|violet (default navy)
   icona                    id dello sprite, es. i-users (default i-grid)
-{% endcomment %}{% if url %}<a class="fmd-mtr fmd-t-{{ tono|default:'navy' }}" href="{{ url }}"{% if title %} title="{{ title }}"{% endif %}>{% else %}<div class="fmd-mtr fmd-t-{{ tono|default:'navy' }}"{% if title %} title="{{ title }}"{% endif %}>{% endif %}
+{% endcomment %}{% if url %}<a class="fmd-mtr kpi-link fmd-t-{{ tono|default:'navy' }}" href="{{ url }}"{% if title %} title="{{ title }}"{% endif %}>{% else %}<div class="fmd-mtr fmd-t-{{ tono|default:'navy' }}"{% if title %} title="{{ title }}"{% endif %}>{% endif %}
   <span class="fmd-ribbon"></span>
   <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#{{ icona|default:'i-grid' }}"/></svg></span><span class="fmd-mtr-val">{{ valore }}</span></div>
   <div class="fmd-mtr-lbl">{{ label }}</div>

@@ -130,16 +130,16 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
       <span class="md-kpi-label">Interventi aperti</span><span class="md-kpi-value">{{ headline.interventi_aperti }}</span>
       <span class="md-kpi-sub">correttivi compresi</span>
     </a>
-    <div class="md-kpi {% if headline.puntualita_90_pct != None and headline.puntualita_90_pct < 80 %}is-warn{% endif %}">
+    <a class="md-kpi {% if headline.puntualita_90_pct != None and headline.puntualita_90_pct < 80 %}is-warn{% endif %}" href="{% url 'assets:maintenance_history' %}?source=all&amp;date_from={{ since_90|date:'Y-m-d' }}" title="Fonte del dato: lavoro concluso negli ultimi 90 giorni nello Storico">
       <span class="md-kpi-label">Puntualità ultimi 90 giorni</span>
       <span class="md-kpi-value">{% if headline.puntualita_90_misurabile %}{{ headline.puntualita_90_pct }}%{% else %}n.d.{% endif %}</span>
       <span class="md-kpi-sub">{% if headline.puntualita_90_misurabile %}{{ headline.nei_tempi_90 }} su {{ headline.concluse_90 }} nei tempi{% else %}base insufficiente: {{ headline.concluse_90 }} concluse dal portale{% endif %}</span>
-    </div>
-    <div class="md-kpi {% if headline.arretrato_giorni %}is-danger{% endif %}">
+    </a>
+    <a class="md-kpi {% if headline.arretrato_giorni %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue" title="Apri lo scadenzario filtrato: manutenzioni scadute (la piu' vecchia da' l'arretrato)">
       <span class="md-kpi-label">Arretrato</span>
       <span class="md-kpi-value">{% if headline.arretrato_giorni %}{{ headline.arretrato_giorni }} gg{% else %}0{% endif %}</span>
       <span class="md-kpi-sub">{% if headline.arretrato_giorni %}da tanto e' scaduta la piu' vecchia{% else %}nessun arretrato{% endif %}</span>
-    </div>
+    </a>
   </div>
 
   {% if panoramica %}
@@ -271,10 +271,10 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
       <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
       <span class="md-kpi-sub">eseguite ma non documentate</span>
     </a>
-    <div class="md-kpi">
+    <a class="md-kpi" href="#odl-attivi" title="Vai agli interventi aperti qui sotto: quelli in attesa hanno lo stato «In attesa»">
       <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
       <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
-    </div>
+    </a>
   </div>
 
   <div class="md-kpis md-kpis--sub">
@@ -326,7 +326,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
       data di esecuzione: sono puntuali per costruzione. Se restano fuori troppe
       righe, la percentuale non si mostra affatto - si dice perche'.
     {% endcomment %}
-    <div class="md-kpi {% if sintesi.puntualita_pct != None and sintesi.puntualita_pct < 80 %}is-warn{% endif %}">
+    <a class="md-kpi {% if sintesi.puntualita_pct != None and sintesi.puntualita_pct < 80 %}is-warn{% endif %}" href="{% url 'assets:maintenance_history' %}?source=all&amp;date_from={{ since_365|date:'Y-m-d' }}" title="Fonte del dato: lavoro concluso negli ultimi 12 mesi nello Storico">
       <span class="md-kpi-label">Manutenzioni nei tempi</span>
       <span class="md-kpi-value">{% if sintesi.puntualita_misurabile %}{{ sintesi.puntualita_pct }}%{% else %}n.d.{% endif %}</span>
       {% if sintesi.puntualita_misurabile %}
@@ -334,27 +334,27 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
       {% else %}
         <span class="md-kpi-sub">base insufficiente: {{ sintesi.concluse_non_misurabili_12m }} delle {{ sintesi.concluse_totali_12m }} concluse vengono dalla migrazione, dove la scadenza e' dedotta dall'esecuzione</span>
       {% endif %}
-    </div>
+    </a>
     <a class="md-kpi {% if sintesi.scadute %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
       <span class="md-kpi-label">Scadute adesso</span>
       <span class="md-kpi-value">{{ sintesi.scadute }}</span>
       <span class="md-kpi-sub">{% if sintesi.arretrato_giorni %}la piu' vecchia da {{ sintesi.arretrato_giorni }} giorni{% else %}nessun arretrato{% endif %}</span>
     </a>
-    <div class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}">
+    <a class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}" href="#odl-attivi" title="Vai agli interventi aperti qui sotto">
       <span class="md-kpi-label">Interventi aperti</span>
       <span class="md-kpi-value">{{ kpi.workorders_open }}</span>
       <span class="md-kpi-sub">{{ kpi.workorders_overdue }} aperti da oltre {{ wo_overdue_days }} giorni</span>
-    </div>
-    <div class="md-kpi {% if sintesi.documentale_mancanti %}is-warn{% endif %}">
+    </a>
+    <a class="md-kpi {% if sintesi.documentale_mancanti %}is-warn{% endif %}" href="#rapporti-mancanti" title="Vai ai rapporti mancanti qui sotto">
       <span class="md-kpi-label">Copertura documentale</span>
       <span class="md-kpi-value">{% if sintesi.documentale_pct != None %}{{ sintesi.documentale_pct }}%{% else %}&mdash;{% endif %}</span>
       <span class="md-kpi-sub">{{ sintesi.documentale_mancanti }} rapporti mancanti su {{ sintesi.documentale_base }} (120 giorni)</span>
-    </div>
-    <div class="md-kpi">
+    </a>
+    <a class="md-kpi" href="{% url 'assets:maintenance_coverage' %}" title="Apri la copertura dei piani: quali asset in uso hanno un piano">
       <span class="md-kpi-label">Parco con un piano</span>
       <span class="md-kpi-value">{% if sintesi.asset_pct != None %}{{ sintesi.asset_pct }}%{% else %}&mdash;{% endif %}</span>
       <span class="md-kpi-sub">{{ sintesi.asset_con_piano }} asset su {{ sintesi.asset_in_uso }} in uso</span>
-    </div>
+    </a>
     <a class="md-kpi {% if kpi.conflicts %}is-danger{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
       <span class="md-kpi-label">Conflitti di periodicita'</span>
       <span class="md-kpi-value">{{ kpi.conflicts }}</span>

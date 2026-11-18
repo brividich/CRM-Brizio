@@ -35,18 +35,18 @@
 {# ========== TAB RIEPILOGO ========== #}
 {% if tab == 'riepilogo' %}
   <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
-    <div class="stat">
+    <a class="stat kpi-link" href="?tab=record" title="Apri i record: tutte le anomalie">
       <div class="stat-icon-wrap blue">&#128202;</div>
       <div><div class="stat-num">{{ stats.total }}</div><div class="stat-lbl">Anomalie totali</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="?tab=record&amp;stato_anomalie=aperte" title="Apri i record filtrati: anomalie aperte">
       <div class="stat-icon-wrap yellow">&#9888;</div>
       <div><div class="stat-num">{{ stats.aperte }}</div><div class="stat-lbl">Aperte</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="?tab=record&amp;stato_anomalie=chiuse" title="Apri i record filtrati: anomalie chiuse">
       <div class="stat-icon-wrap green">&#10003;</div>
       <div><div class="stat-num">{{ stats.chiuse }}</div><div class="stat-lbl">Chiuse</div></div>
-    </div>
+    </a>
   </div>
   <div class="card">
     <div class="card-head"><div class="card-title">Distribuzione per avanzamento</div></div>
@@ -929,22 +929,22 @@
 {# ========== TAB QUALITA ========== #}
 {% if tab == 'qualita' %}
   <div class="stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
-    <div class="stat">
+    <a class="stat kpi-link" href="{% url 'anomalie_statistiche_page' %}" title="Apri le statistiche: schede qualità e Pareto dei difetti">
       <div class="stat-icon-wrap blue">&#128203;</div>
       <div><div class="stat-num">{{ qualita_stats.schede }}</div><div class="stat-lbl">Schede qualit&agrave;</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="{% url 'anomalie_statistiche_page' %}" title="Apri le statistiche: Pareto per tipo difetto">
       <div class="stat-icon-wrap green">&#10003;</div>
       <div><div class="stat-num">{{ qualita_stats.classificate }}</div><div class="stat-lbl">Con tipo difetto</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="{% url 'anomalie_nc_lista' %}?stato=APERTE" title="Apri l'elenco filtrato: non conformità aperte">
       <div class="stat-icon-wrap yellow">&#9888;</div>
       <div><div class="stat-num">{{ qualita_stats.nc_aperte }}</div><div class="stat-lbl">NC aperte (su {{ qualita_stats.nc_totali }})</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#catalogo-tipi-difetto" title="Vai al catalogo dei tipi difetto">
       <div class="stat-icon-wrap blue">&#9776;</div>
       <div><div class="stat-num">{{ qualita_stats.tipi_attivi }}</div><div class="stat-lbl">Tipi difetto attivi</div></div>
-    </div>
+    </a>
   </div>
 
   <div class="card" style="margin-bottom:18px;">
@@ -1020,7 +1020,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="catalogo-tipi-difetto">
     <div class="card-head">
       <div>
         <div class="card-title">Catalogo tipi difetto</div>
@@ -1075,13 +1075,18 @@
 {# ========== TAB RECORD ========== #}
 {% if tab == 'record' %}
   <div class="card">
-    <div class="card-head"><div class="card-title">Anomalie (ultime 100)</div></div>
+    <div class="card-head"><div class="card-title">Anomalie {% if stato_anomalie %}{{ stato_anomalie }} {% endif %}(ultime 100{% if anomalie_record_totale > 100 %} di {{ anomalie_record_totale }}{% endif %})</div></div>
     <div class="card-body">
       <form method="get" style="display:flex;gap:8px;margin-bottom:12px;">
         <input type="hidden" name="tab" value="record">
+        <select class="input input-sm" name="stato_anomalie" aria-label="Stato">
+          <option value="">Tutti gli stati</option>
+          <option value="aperte"{% if stato_anomalie == "aperte" %} selected{% endif %}>Aperte</option>
+          <option value="chiuse"{% if stato_anomalie == "chiuse" %} selected{% endif %}>Chiuse</option>
+        </select>
         <input type="text" class="input input-sm" name="q_anomalie" value="{{ q_anomalie }}" placeholder="Cerca per nominativo o seriale..." style="flex:1;">
         <button type="submit" class="btn btn-sm">Cerca</button>
-        {% if q_anomalie %}<a href="?tab=record" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
+        {% if q_anomalie or stato_anomalie %}<a href="?tab=record" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
       </form>
       <div class="table-wrap">
         <table class="admin-table">

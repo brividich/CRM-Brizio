@@ -29,6 +29,20 @@ from .sources import COLUMN_SOURCES, allowed_links
 from .exports import PdfSection, render_pdf, report_pdf, report_xlsx, section_for
 from .registry import AREE, AREE_ORDINE, NORME, ReportParams, all_reports, get_report
 
+def kpi_cliccabili(request, kpis, fallback: str) -> list:
+    """Copie delle tessere con ``url`` risolto: quello del report se la persona può aprirlo
+    (stessa decisione del middleware ACL), altrimenti ``fallback`` (il dettaglio del report)."""
+    from dataclasses import replace
+
+    out = []
+    for k in kpis:
+        url = k.url
+        if url and not allowed_links(request, [("", url)]):
+            url = ""
+        out.append(replace(k, url=url or fallback))
+    return out
+
+
 logger = logging.getLogger(__name__)
 
 MODULE = "report_conformita"
@@ -135,6 +149,7 @@ def report(request, slug: str):
         "area_label": AREE[definition.area],
         "params": params,
         "result": result,
+        "kpis": kpi_cliccabili(request, result.kpis, "#rc-dettaglio"),
         "rows": [([{"value": v, "corrected": (i, j) in result.corrected_cells}
                    for j, v in enumerate(values)], result.row_tones[i])
                  for i, values in enumerate(result.rows)],
@@ -162,7 +177,12 @@ def riesame(request):
         except Exception:
             logger.exception("riesame: report %s non calcolabile", definition.slug)
             result = None
-        sezioni.append({"report": definition, "result": result, "area_label": AREE[definition.area]})
+        dettaglio = (reverse("report_conformita:report", args=[definition.slug])
+                     + f"?{urlencode({'da': params.date_from.isoformat(), 'a': params.date_to.isoformat()})}#rc-dettaglio")
+        sezioni.append({
+            "report": definition, "result": result, "area_label": AREE[definition.area],
+            "kpis": kpi_cliccabili(request, result.kpis, dettaglio) if result is not None else [],
+        })
 
     if (request.GET.get("formato") or "").strip().lower() == "pdf":
         pdf_sections = []

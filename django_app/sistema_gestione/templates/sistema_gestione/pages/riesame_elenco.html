@@ -9,11 +9,11 @@
   </div>
 
   <div class="sg-kpis">
-    <div class="sg-kpi{% if not prossimo %} is-warn{% elif prossimo < oggi %} is-danger{% endif %}"><span>Prossimo riesame entro</span><strong>{% if prossimo %}{{ prossimo|date:"d/m/Y" }}{% else %}Nessuno approvato{% endif %}</strong></div>
-    <div class="sg-kpi"><span>Obiettivi in corso</span><strong>{{ obiettivi|length }}</strong></div>
+    <a class="sg-kpi{% if not prossimo %} is-warn{% elif prossimo < oggi %} is-danger{% endif %} kpi-link" href="#sg-verbali" title="Vai ai verbali: la data è un anno dopo l'ultimo verbale approvato"><span>Prossimo riesame entro</span><strong>{% if prossimo %}{{ prossimo|date:"d/m/Y" }}{% else %}Nessuno approvato{% endif %}</strong></a>
+    <a class="sg-kpi kpi-link" href="#sg-obiettivi" title="Vai all'elenco degli obiettivi in corso"><span>Obiettivi in corso</span><strong>{{ obiettivi|length }}</strong></a>
   </div>
 
-  <section class="rc-card sg-section">
+  <section class="rc-card sg-section" id="sg-verbali">
     <h2>Verbali</h2>
     <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Anno</th><th>Data</th><th>Stato</th><th>Approvato</th></tr></thead><tbody>
       {% for v in verbali %}<tr>
@@ -24,7 +24,7 @@
     </tbody></table></div>
   </section>
 
-  <section class="rc-card sg-section">
+  <section class="rc-card sg-section" id="sg-obiettivi">
     <h2>Obiettivi in corso</h2>
     <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Risultato atteso</th><th>Responsabile</th><th>Scadenza</th><th>Verbale</th></tr></thead><tbody>
       {% for o in obiettivi %}<tr>

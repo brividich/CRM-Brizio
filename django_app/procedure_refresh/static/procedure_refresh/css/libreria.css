@@ -333,3 +333,5 @@ body.theme-dark .cn-res-t .mono, body.theme-dark .cn-mono-col { filter: brightne
 .cn-logo-mini { height: 26px; max-width: 70px; object-fit: contain; vertical-align: middle; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
 .cn-ro.vecchio i { background: var(--cn-warn); }
 .cn-vol-cover.con-logo .cn-vol-k { padding-right: 50%; }
+
+a.cn-stat { display: block; }

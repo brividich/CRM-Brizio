@@ -214,38 +214,39 @@
   </section>
 
   <section class="abs-kpis">
-    <article class="abs-kpi amber">
+    {% url 'assenze_car_dashboard' as u_car %}
+    <a class="abs-kpi amber kpi-link" href="{{ u_car }}{% if pending_scope == 'all' %}?scope=all{% endif %}#in-attesa" title="Vai all'elenco: richieste in attesa di decisione">
       <div class="abs-kpi-top">
         <div class="abs-kpi-label">In attesa</div>
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ n_in_attesa }}</div>
       <div class="abs-kpi-note">Richieste che aspettano una decisione{% if n_in_attesa > da_gestire|length %} (in elenco le prime {{ da_gestire|length }}){% endif %}.</div>
-    </article>
-    <article class="abs-kpi teal">
+    </a>
+    <a class="abs-kpi teal kpi-link" href="{{ u_car }}{% if pending_scope == 'all' %}?scope=all{% endif %}#oggi" title="Vai all'elenco: assenze di oggi">
       <div class="abs-kpi-top">
         <div class="abs-kpi-label">Oggi</div>
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ riepilogo_oggi|length }}</div>
       <div class="abs-kpi-note">Assenze previste o in corso per {{ data_oggi }}{% if team_attivo %} nel tuo team{% endif %}.</div>
-    </article>
-    <article class="abs-kpi green">
+    </a>
+    <a class="abs-kpi green kpi-link" href="{{ u_car }}{% if pending_scope == 'all' %}?scope=all{% endif %}#settimana" title="Vai all'elenco: assenze della settimana">
       <div class="abs-kpi-top">
         <div class="abs-kpi-label">Settimana</div>
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ riepilogo_settimana|length }}</div>
       <div class="abs-kpi-note">Finestra {{ data_lunedi }} - {{ data_domenica }}{% if team_attivo %} nel tuo team{% endif %}.</div>
-    </article>
-    <article class="abs-kpi red">
+    </a>
+    <a class="abs-kpi red kpi-link" href="{{ u_car }}?{% if pending_scope == 'all' %}scope=all&amp;{% endif %}periodo_storico={{ history_period|default:'tutte'|urlencode }}{% if history_page and history_page > 1 %}&amp;pagina_storico={{ history_page }}{% endif %}#storico" title="Vai allo storico: richieste già approvate o rifiutate in questa pagina">
       <div class="abs-kpi-top">
         <div class="abs-kpi-label">Gestite</div>
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ gestite|length }}{% if history_has_next %}+{% endif %}</div>
       <div class="abs-kpi-note">Richieste già approvate o rifiutate in questa pagina dello storico.</div>
-    </article>
+    </a>
   </section>
 
   {% if can_view_all %}
@@ -260,7 +261,7 @@
   {% endif %}
 
 
-  <section class="abs-panel">
+  <section class="abs-panel" id="in-attesa">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
         <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste in attesa</h2>
@@ -389,7 +390,7 @@
   </section>
 
   <div class="car-grid">
-    <section class="abs-panel">
+    <section class="abs-panel" id="oggi">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg>Assenze oggi</h2>
@@ -432,7 +433,7 @@
       </div>
     </section>
 
-    <section class="abs-panel">
+    <section class="abs-panel" id="settimana">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Questa settimana</h2>

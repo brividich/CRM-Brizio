@@ -17,19 +17,22 @@
 
   {# --- Filtri come card-contatore --- #}
   <div class="sc-filtri">
-    <a href="?filtro=tutte" class="sc-stat{% if filtro == 'tutte' %} is-active{% endif %}">
+    <a href="?filtro=tutte" class="sc-stat kpi-link{% if filtro == 'tutte' %} is-active{% endif %}">
       <span class="n">{{ conteggi.tutte }}</span><span class="l">{% if is_team %}Tutte{% else %}Le mie{% endif %}</span>
     </a>
-    <a href="?filtro=da_gestire" class="sc-stat{% if filtro == 'da_gestire' %} is-active{% endif %}">
+    <a href="?filtro=da_gestire" class="sc-stat kpi-link{% if filtro == 'da_gestire' %} is-active{% endif %}">
       <span class="n">{{ conteggi.da_gestire }}</span><span class="l">Da gestire</span>
     </a>
-    <a href="?filtro=sms_si" class="sc-stat{% if filtro == 'sms_si' %} is-active{% endif %}">
+    <a href="?filtro=sms_si" class="sc-stat kpi-link{% if filtro == 'sms_si' %} is-active{% endif %}">
       <span class="n">{{ conteggi.sms_si }}</span><span class="l">SMS Sì</span>
     </a>
-    <a href="?filtro=sms_no" class="sc-stat{% if filtro == 'sms_no' %} is-active{% endif %}">
+    <a href="?filtro=sms_no" class="sc-stat kpi-link{% if filtro == 'sms_no' %} is-active{% endif %}">
       <span class="n">{{ conteggi.sms_no }}</span><span class="l">SMS No</span>
     </a>
   </div>
+  {% if filtro_extra_label %}
+  <p class="sc-filtro-attivo" role="status">Filtro: <strong>{{ filtro_extra_label }}</strong> · {{ segnalazioni|length }} segnalazion{{ segnalazioni|length|pluralize:"e,i" }} · <a href="?filtro=tutte">mostra tutte</a></p>
+  {% endif %}
 
   {% if segnalazioni %}
   <table class="hub-table">

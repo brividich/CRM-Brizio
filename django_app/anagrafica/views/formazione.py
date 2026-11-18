@@ -9,6 +9,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -203,7 +204,7 @@ def attestato_impostazioni(request):
             mancanti = list(
                 TrainingEmployeeRecord.objects.exclude(
                     pk__in=DocumentoDipendente.objects.filter(
-                        oggetto_riferimento_tipo=RIFERIMENTO_TIPO
+                        oggetto_riferimento_tipo=RIFERIMENTO_TIPO, oggetto_riferimento_id__isnull=False,
                     ).values_list("oggetto_riferimento_id", flat=True)
                 ).order_by("-data_completamento", "-id")[:500]
             )
@@ -251,15 +252,22 @@ def attestato_impostazioni(request):
         messages.error(request, "Controlla i campi evidenziati.")
 
     # Statistiche archivio (per la sezione "Gestione report salvati").
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import timedelta as _timedelta
     arch_qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
     n_archiviati = arch_qs.count()
     ultimo = arch_qs.order_by("-created_at").values_list("created_at", flat=True).first()
     n_completamenti = TrainingEmployeeRecord.objects.count()
+    # «Da archiviare»: gli stessi completamenti che il pulsante di backfill genera
+    # (senza documento archiviato). La differenza completamenti − archiviati
+    # sbagliava con doppioni o documenti di completamenti eliminati.
+    n_mancanti = TrainingEmployeeRecord.objects.exclude(
+        pk__in=arch_qs.filter(oggetto_riferimento_id__isnull=False)
+        .values_list("oggetto_riferimento_id", flat=True)
+    ).count()
 
     # Stato conservazione GDPR (retention_until calcolata su DocumentoDipendente).
     # Il command `cleanup_expired_documents` elimina solo i doc scaduti di cessati.
-    _oggi = _date.today()
+    _oggi = django_timezone.localdate()
     n_retention_scaduta = arch_qs.filter(retention_until__lt=_oggi).count()
     n_retention_vicina = arch_qs.filter(
         retention_until__gte=_oggi, retention_until__lte=_oggi + _timedelta(days=90)
@@ -273,7 +281,7 @@ def attestato_impostazioni(request):
         "sample_record_id": sample.pk if sample else None,
         "n_archiviati": n_archiviati,
         "n_completamenti": n_completamenti,
-        "n_mancanti": max(0, n_completamenti - n_archiviati),
+        "n_mancanti": n_mancanti,
         "ultimo_archiviato": ultimo,
         "n_retention_scaduta": n_retention_scaduta,
         "n_retention_vicina": n_retention_vicina,
@@ -819,6 +827,17 @@ def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
     out.sort(key=lambda r: (-r["scoperti"], r["perc_ok"], r["corso"].titolo.casefold()))
     return out
 
+
+def _piani_attivi(qs):
+    """Piani «attivi» della tessera della dashboard e dell'elenco ``?stato=ATTIVO&attivi=1``."""
+    return qs.filter(stato="ATTIVO", is_active=True)
+
+
+def _corsi_attivi(qs):
+    """Corsi «attivi» della tessera della dashboard e dell'elenco ``?stato=ATTIVO&attivi=1``."""
+    return qs.filter(stato="ATTIVO", is_active=True)
+
+
 @login_required
 def formazione_dashboard(request):
     """Dashboard globale formazione HR.
@@ -851,17 +870,19 @@ def formazione_dashboard(request):
         .values("legacy_anagrafica_id").distinct().count()
     )
 
-    # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata)
-    kpi_scaduti         = scadenze_qs.filter(stato_scadenza="SCADUTO").count()
-    kpi_in_scadenza_30  = scadenze_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
-    kpi_obbligatori_mancanti = scadenze_qs.filter(
-        stato_scadenza__in=["MAI_FREQUENTATO", "SCADUTO"],
-        is_required=True,
+    # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata).
+    # Stessi filtri dello scadenzario a cui portano le tessere.
+    from ..services.training_deadline_service import STATO_MANCANTE, filtra_stato_scadenze
+
+    kpi_scaduti         = filtra_stato_scadenze(scadenze_qs, "SCADUTO").count()
+    kpi_in_scadenza_30  = filtra_stato_scadenze(scadenze_qs, "IN_SCADENZA_30").count()
+    kpi_obbligatori_mancanti = filtra_stato_scadenze(
+        scadenze_qs, STATO_MANCANTE, solo_obbligatori=True,
     ).count()
 
-    # KPI catalogo
-    kpi_piani_attivi = TrainingPlan.objects.filter(stato="ATTIVO", is_active=True).count()
-    kpi_corsi_attivi = TrainingCourse.objects.filter(stato="ATTIVO", is_active=True).count()
+    # KPI catalogo: stessa condizione dei filtri «attivi» degli elenchi piani e corsi.
+    kpi_piani_attivi = _piani_attivi(TrainingPlan.objects.all()).count()
+    kpi_corsi_attivi = _corsi_attivi(TrainingCourse.objects.all()).count()
 
     # Scadenzario urgente TOP 20 (ordinato per urgenza crescente)
     scadenze_raw = list(
@@ -888,6 +909,7 @@ def formazione_dashboard(request):
         "kpi_scaduti": kpi_scaduti,
         "kpi_in_scadenza_30": kpi_in_scadenza_30,
         "kpi_obbligatori_mancanti": kpi_obbligatori_mancanti,
+        "STATO_MANCANTE": STATO_MANCANTE,
         "kpi_piani_attivi": kpi_piani_attivi,
         "kpi_corsi_attivi": kpi_corsi_attivi,
         "scadenze_urgenti": scadenze_raw,
@@ -1109,9 +1131,12 @@ def formazione_piani_list(request):
 
     filtro_stato = request.GET.get("stato", "")
     filtro_cat   = request.GET.get("categoria", "")
+    filtro_attivi = request.GET.get("attivi", "") == "1"
     qs = TrainingPlan.objects.all()
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
+    if filtro_attivi:
+        qs = qs.filter(is_active=True)
     if filtro_cat:
         qs = qs.filter(categoria=filtro_cat)
     piani = list(qs.order_by("nome").annotate(n_corsi=Count("corsi")))
@@ -1122,6 +1147,7 @@ def formazione_piani_list(request):
         "form": form,
         "is_editor": is_editor,
         "filtro_stato": filtro_stato,
+        "filtro_attivi": filtro_attivi,
         "filtro_cat": filtro_cat,
         "STATO_CHOICES": TrainingPlan.STATO_CHOICES,
         "CATEGORIA_CHOICES": TrainingPlan.CATEGORIA_CHOICES,
@@ -1229,6 +1255,7 @@ def formazione_corsi_list(request):
     filtro_piano = request.GET.get("piano", "")
     filtro_stato = request.GET.get("stato", "")
     filtro_obbligatorio = request.GET.get("obbligatorio", "")
+    filtro_attivi = request.GET.get("attivi", "") == "1"
     q_search = (request.GET.get("q") or "").strip()
 
     qs = TrainingCourse.objects.select_related("piano", "ente_formativo").prefetch_related(
@@ -1241,6 +1268,8 @@ def formazione_corsi_list(request):
         qs = qs.filter(piano_id=filtro_piano)
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
+    if filtro_attivi:
+        qs = qs.filter(is_active=True)
     if filtro_obbligatorio == "1":
         qs = qs.filter(obbligatorio=True)
     elif filtro_obbligatorio == "0":
@@ -1280,6 +1309,7 @@ def formazione_corsi_list(request):
         "filtro_piano": filtro_piano,
         "filtro_stato": filtro_stato,
         "filtro_obbligatorio": filtro_obbligatorio,
+        "filtro_attivi": filtro_attivi,
         "q_search": q_search,
         "piani": piani,
         "STATO_CHOICES": TrainingCourse.STATO_CHOICES,
@@ -2162,12 +2192,15 @@ def formazione_istruttore_detail(request, istruttore_id: int):
         .order_by("-data_inizio")
     )
 
+    # Ore del docente per sessione: la colonna della tabella e la tessera «Ore
+    # erogate» (che ne è la somma) usano lo stesso calcolo.
     ore_erogate = 0.0
     for sess in sessioni:
-        ore_erogate += sum(
+        sess.ore_docente = round(sum(
             lz.durata_ore for lz in sess.lezioni.all()
             if lz.docente_id == istr.pk or (sess.docente_id == istr.pk and lz.docente_id is None)
-        )
+        ), 2)
+        ore_erogate += sess.ore_docente
     corsi_distinti = len({s.corso_id for s in sessioni})
     discenti = sum(s.n_iscritti for s in sessioni)
 
@@ -2276,8 +2309,14 @@ def formazione_enti_report(request):
     from ..services.formazione_enti import riepilogo_enti
 
     righe = riepilogo_enti(dal=dal, al=al)
+    # ?erogato=1: solo gli enti con almeno un'edizione nel periodo (tessera «Enti che hanno erogato»).
+    solo_erogato = request.GET.get("erogato") == "1"
+    periodo_qs = urlencode([(k, v.isoformat()) for k, v in (("dal", dal), ("al", al)) if v])
     return render(request, "anagrafica/pages/formazione_enti_report.html", {
         "righe": righe,
+        "righe_elenco": [r for r in righe if r["n_sessioni"]] if solo_erogato else righe,
+        "solo_erogato": solo_erogato,
+        "periodo_qs": periodo_qs,
         "dal": dal,
         "al": al,
         "periodo_attivo": bool(dal or al),
@@ -2545,13 +2584,17 @@ def formazione_sessioni_list(request):
     filtro_anno   = request.GET.get("anno", "")
     q_search      = (request.GET.get("q") or "").strip()
 
+    # Valori non numerici ignorati (prima davano errore 500 sul filtro).
+    filtro_corso = filtro_corso if filtro_corso.isdigit() else ""
+    filtro_anno = filtro_anno if filtro_anno.isdigit() else ""
+
     qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
     if filtro_corso:
-        qs = qs.filter(corso_id=filtro_corso)
+        qs = qs.filter(corso_id=int(filtro_corso))
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
     if filtro_anno:
-        qs = qs.filter(data_inizio__year=filtro_anno)
+        qs = qs.filter(data_inizio__year=int(filtro_anno))
     if q_search:
         qs = qs.filter(
             Q(codice_sessione__icontains=q_search) |
@@ -4385,49 +4428,64 @@ def formazione_scadenzario(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
 
+    from ..services import centro_filtro
+    from ..services.training_deadline_service import (
+        STATO_MANCANTE,
+        STATO_MANCANTE_LABEL,
+        filtra_stato_scadenze,
+    )
+
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_corso = request.GET.get("corso", "").strip()
     filtro_q     = request.GET.get("q", "").strip()
-    from ..services import centro_filtro
+    filtro_obbligatori = request.GET.get("obbligatori", "") == "1"
 
     filtro_centro = centro_filtro.leggi(request)
 
-    qs = filtro_centro.applica(
+    # Base comune a lista e tessere: centro, corso e ricerca. Le tessere cambiano
+    # solo lo stato, così il loro numero è quello della lista che aprono.
+    base_qs = filtro_centro.applica(
         TrainingDeadline.objects
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
     )
 
-    if filtro_stato:
-        qs = qs.filter(stato_scadenza=filtro_stato)
-    else:
-        qs = qs.filter(
-            stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"]
-        )
-
     if filtro_corso:
         try:
-            qs = qs.filter(corso_id=int(filtro_corso))
+            base_qs = base_qs.filter(corso_id=int(filtro_corso))
         except (ValueError, TypeError):
-            pass
+            filtro_corso = ""
+
+    # ?dipendente=<legacy_id>: le scadenze di una persona (tessera della scheda dipendente).
+    filtro_dipendente = (request.GET.get("dipendente") or "").strip()
+    filtro_dipendente = filtro_dipendente if filtro_dipendente.isdigit() else ""
+    if filtro_dipendente:
+        base_qs = base_qs.filter(legacy_anagrafica_id=int(filtro_dipendente))
 
     nomi_map = _helpers._build_nomi_map()
 
     if filtro_q:
         q_lower = filtro_q.lower()
         matched_ids = [lid for lid, nome in nomi_map.items() if q_lower in nome.lower()]
-        qs = qs.filter(legacy_anagrafica_id__in=matched_ids)
+        base_qs = base_qs.filter(legacy_anagrafica_id__in=matched_ids)
+
+    qs = filtra_stato_scadenze(base_qs, filtro_stato, filtro_obbligatori)
 
     scadenze = list(qs)
     for s in scadenze:
         s.nome_dip = nomi_map.get(s.legacy_anagrafica_id, f"#{s.legacy_anagrafica_id}")
 
-    # KPI su tutti gli stati e i corsi; col centro scelto, solo le sue persone (come la dashboard).
-    all_qs = filtro_centro.applica(TrainingDeadline.objects.all())
-    n_scaduti  = all_qs.filter(stato_scadenza="SCADUTO").count()
-    n_30gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
-    n_90gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
-    n_mai      = all_qs.filter(stato_scadenza="MAI_FREQUENTATO", is_required=True).count()
+    # KPI con gli stessi filtri della lista (centro, corso, ricerca), stato a parte.
+    n_scaduti  = filtra_stato_scadenze(base_qs, "SCADUTO").count()
+    n_30gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_30").count()
+    n_90gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_90").count()
+    n_mai      = filtra_stato_scadenze(base_qs, "MAI_FREQUENTATO", solo_obbligatori=True).count()
+
+    # Querystring dei filtri da conservare nei link delle tessere (stato escluso).
+    kpi_qs_extra = urlencode([(k, v) for k, v in (
+        ("corso", filtro_corso), ("q", filtro_q), ("dipendente", filtro_dipendente)) if v])
+    if kpi_qs_extra:
+        kpi_qs_extra = "&" + kpi_qs_extra
 
     is_cache_empty = not TrainingDeadline.objects.exists()
 
@@ -4442,6 +4500,14 @@ def formazione_scadenzario(request):
         "filtro_stato":  filtro_stato,
         "filtro_corso":  filtro_corso,
         "filtro_q":      filtro_q,
+        "filtro_obbligatori": filtro_obbligatori,
+        "filtro_dipendente": filtro_dipendente,
+        "filtro_dipendente_nome": (
+            nomi_map.get(int(filtro_dipendente), f"#{filtro_dipendente}") if filtro_dipendente else ""
+        ),
+        "kpi_qs_extra":  kpi_qs_extra,
+        "STATO_MANCANTE": STATO_MANCANTE,
+        "STATO_MANCANTE_LABEL": STATO_MANCANTE_LABEL,
         "corsi_list":    corsi_list,
         "n_scaduti":     n_scaduti,
         "n_30gg":        n_30gg,
@@ -4471,12 +4537,18 @@ def formazione_copertura(request):
     filtro_corso   = (request.GET.get("corso") or "").strip()
     filtro_stato   = (request.GET.get("stato") or "").strip()
 
-    corsi_all, reparti, righe = righe_gap_formativo(
-        filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato=filtro_stato,
+    # Un solo calcolo senza stato: la lista applica lo stato scelto, le tessere
+    # «Scaduti»/«Mai frequentati» contano sugli altri filtri (reparto, corso),
+    # come l'elenco che aprono (?stato=… con reparto e corso conservati).
+    corsi_all, reparti, tutte = righe_gap_formativo(
+        filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato="",
     )
+    righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato else tutte
 
     paginator = Paginator(righe, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
+
+    filtri_qs = urlencode([(k, v) for k, v in (("reparto", filtro_reparto), ("corso", filtro_corso)) if v])
 
     return render(request, "anagrafica/pages/formazione_copertura.html", {
         "page_obj": page_obj,
@@ -4484,8 +4556,11 @@ def formazione_copertura(request):
         "reparti": reparti,
         "n_dip": len({r["legacy_id"] for r in righe}),
         "n_gap": len(righe),
-        "n_scaduti": sum(1 for r in righe if r["stato"] == "SCADUTO"),
-        "n_mai": sum(1 for r in righe if r["stato"] == "MAI_FREQUENTATO"),
+        "n_scaduti": sum(1 for r in tutte if r["stato"] == "SCADUTO"),
+        "n_mai": sum(1 for r in tutte if r["stato"] == "MAI_FREQUENTATO"),
+        "filtri_qs": filtri_qs,
+        "lista_qs": urlencode([(k, v) for k, v in (
+            ("reparto", filtro_reparto), ("corso", filtro_corso), ("stato", filtro_stato)) if v]),
         "filtro_reparto": filtro_reparto,
         "filtro_corso": filtro_corso,
         "filtro_stato": filtro_stato,
@@ -4519,14 +4594,21 @@ def formazione_ccnl_dashboard(request):
     except ValueError:
         al_param = None
 
-    dal, al, reparti_set, righe = righe_dipendenti(
-        al=al_param, filtro_reparto=filtro_reparto, filtro_stato=filtro_stato, filtro_q=filtro_q,
+    # Calcolo senza stato: la lista applica lo stato scelto; le tessere «completo»
+    # e «da iniziare» contano sugli altri filtri, come l'elenco che aprono.
+    dal, al, reparti_set, tutte = righe_dipendenti(
+        al=al_param, filtro_reparto=filtro_reparto, filtro_stato="", filtro_q=filtro_q,
     )
+    righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato else tutte
 
     paginator = Paginator(righe, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
 
+    filtri_base = [(k, v) for k, v in (("reparto", filtro_reparto), ("q", filtro_q), ("al", al_raw)) if v]
+
     return render(request, "anagrafica/pages/formazione_ccnl_dashboard.html", {
+        "filtri_qs": urlencode(filtri_base),
+        "lista_qs": urlencode(filtri_base + ([("stato", filtro_stato)] if filtro_stato else [])),
         "page_obj": page_obj,
         "dal": dal,
         "al": al,
@@ -4537,8 +4619,8 @@ def formazione_ccnl_dashboard(request):
         "filtro_stato": filtro_stato,
         "filtro_q": filtro_q,
         "totale": len(righe),
-        "n_completi": sum(1 for r in righe if r["stato"] == "COMPLETO"),
-        "n_da_iniziare": sum(1 for r in righe if r["stato"] == "DA_INIZIARE"),
+        "n_completi": sum(1 for r in tutte if r["stato"] == "COMPLETO"),
+        "n_da_iniziare": sum(1 for r in tutte if r["stato"] == "DA_INIZIARE"),
         "media_ore_facoltative": round(sum(r["ore_facoltative"] for r in righe) / len(righe), 1) if righe else 0,
     })
 
@@ -5201,9 +5283,21 @@ def formazione_elearning_hub(request):
         tot["completati"] += c.n_completati
         if salute[0] in ("CRIT", "WARN"):
             tot["problemi"] += 1
-        rows.append({"corso": c, "n_invalid": n_invalid, "salute": salute})
+        rows.append({
+            "corso": c, "n_invalid": n_invalid, "salute": salute,
+            "pubblicato": c.stato == "ATTIVO" and c.is_active,
+        })
+    # ?vista=pubblicati|problemi: stesse condizioni delle tessere «Pubblicati» e «Da sistemare».
+    vista = (request.GET.get("vista") or "").strip()
+    if vista == "pubblicati":
+        rows_elenco = [r for r in rows if r["pubblicato"]]
+    elif vista == "problemi":
+        rows_elenco = [r for r in rows if r["salute"][0] in ("CRIT", "WARN")]
+    else:
+        vista, rows_elenco = "", rows
     return render(request, "anagrafica/pages/formazione_elearning_hub.html", {
-        "rows": rows,
+        "rows": rows_elenco,
+        "vista": vista,
         "tot": tot,
         "is_editor": _helpers._can_edit_formazione(request),
     })
@@ -5231,6 +5325,11 @@ def formazione_elearning_manage(request, corso_id: int):
             counts["non_superato"] += 1
         elif r["stato"] == "IN_CORSO":
             counts["in_corso"] += 1
+    # ?esito=IN_CORSO|COMPLETATO|NON_SUPERATO: le tessere aprono la tabella con lo stesso stato.
+    filtro_esito = (request.GET.get("esito") or "").strip()
+    if filtro_esito not in ("IN_CORSO", "COMPLETATO", "NON_SUPERATO"):
+        filtro_esito = ""
+    iscritti_elenco = [r for r in iscritti if r["stato"] == filtro_esito] if filtro_esito else iscritti
 
     is_editor = _helpers._can_edit_formazione(request)
 
@@ -5271,7 +5370,8 @@ def formazione_elearning_manage(request, corso_id: int):
         "n_domande": len(domande),
         "n_invalid": n_invalid,
         "salute": salute,
-        "iscritti": iscritti,
+        "iscritti": iscritti_elenco,
+        "filtro_esito": filtro_esito,
         "counts": counts,
         "pubblicato": corso.stato == "ATTIVO" and corso.is_active,
         "assegnazioni": assegnazioni,

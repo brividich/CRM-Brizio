@@ -104,21 +104,21 @@ body.theme-dark .auto-group-title{color:var(--text)}
     {# Chip rapidi #}
     {% url 'admin_portale:automazioni_run_log_list' as base_url %}
     <div class="auto-chips">
-      <a class="auto-chip {% if not filters.status and not filters.is_test and not filters.recent %}is-active{% endif %}" href="{{ base_url }}">
+      <a class="auto-chip {% if not filters.status and not filters.is_test and not filters.recent %}is-active{% endif %}" href="{{ base_url }}{% if chip_scope_qs %}?{{ chip_scope_qs }}{% endif %}">
         Tutti
       </a>
-      <a class="auto-chip chip-errors {% if filters.status == 'failed' or filters.status == 'error' %}is-active{% endif %}"
-         href="{{ base_url }}?status=failed" title="Mostra solo run falliti">
+      <a class="auto-chip chip-errors {% if filters.status == 'error' %}is-active{% endif %}"
+         href="{{ base_url }}?status=error{% if chip_scope_qs %}&amp;{{ chip_scope_qs }}{% endif %}" title="Apri l'elenco filtrato: run in errore">
         Solo errori
         {% if chip_counts.errors %}<span class="auto-chip-count">{{ chip_counts.errors }}</span>{% endif %}
       </a>
       <a class="auto-chip chip-tests {% if filters.is_test == 'true' %}is-active{% endif %}"
-         href="{{ base_url }}?is_test=true" title="Mostra solo run di test manuale">
+         href="{{ base_url }}?is_test=true{% if chip_scope_qs %}&amp;{{ chip_scope_qs }}{% endif %}" title="Apri l'elenco filtrato: run di test manuale">
         Solo test
         {% if chip_counts.tests %}<span class="auto-chip-count">{{ chip_counts.tests }}</span>{% endif %}
       </a>
       <a class="auto-chip chip-recent {% if filters.recent == '24h' %}is-active{% endif %}"
-         href="{{ base_url }}?recent=24h" title="Solo run delle ultime 24 ore">
+         href="{{ base_url }}?recent=24h{% if chip_scope_qs %}&amp;{{ chip_scope_qs }}{% endif %}" title="Apri l'elenco filtrato: run delle ultime 24 ore">
         Ultime 24h
         {% if chip_counts.recent_24h %}<span class="auto-chip-count">{{ chip_counts.recent_24h }}</span>{% endif %}
       </a>
@@ -188,7 +188,7 @@ body.theme-dark .auto-group-title{color:var(--text)}
     {# Vista piatta #}
     <div class="card" id="runlog-view-flat">
       <div class="card-head">
-        <div class="card-title">Run log ({{ run_logs|length }})</div>
+        <div class="card-title">Run log ({{ run_logs|length }}{% if run_logs_truncated %}, i più recenti: restringi i filtri per vederli tutti{% endif %})</div>
       </div>
       <div class="card-body auto-table-wrap">
         {% if run_logs %}

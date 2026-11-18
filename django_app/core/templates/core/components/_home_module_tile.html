@@ -38,10 +38,18 @@
         {% if mod.kpis %}
         <div class="hp-tile-panel-kpis">
           {% for k in mod.kpis %}
+          {% comment %}Con k.url il numero porta alla lista filtrata del modulo che conta lo stesso insieme.{% endcomment %}
+          {% if k.url and k.value is not None %}
+          <a class="hp-tile-panel-kpi kpi-link hp-tone-{{ k.tone }}" href="{{ k.url }}" title="Apri l'elenco filtrato: {{ k.value }} {{ k.unit }}">
+            <span class="hp-tile-panel-kpi-n">{{ k.value }}</span>
+            <span class="hp-tile-panel-kpi-u">{{ k.unit }}</span>
+          </a>
+          {% else %}
           <span class="hp-tile-panel-kpi hp-tone-{{ k.tone }}">
             {% if k.value is not None %}<span class="hp-tile-panel-kpi-n">{{ k.value }}</span>{% endif %}
             <span class="hp-tile-panel-kpi-u">{{ k.unit }}</span>
           </span>
+          {% endif %}
           {% endfor %}
         </div>
         {% endif %}

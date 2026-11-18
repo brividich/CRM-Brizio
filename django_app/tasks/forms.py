@@ -964,6 +964,8 @@ class TaskFilterForm(forms.Form):
         widget=forms.Select(attrs={"class": "input"}),
     )
     overdue = forms.BooleanField(required=False)
+    # Solo aperte (Da fare + In corso): serve alle tessere KPI «In 7 giorni».
+    open = forms.BooleanField(required=False)
     unassigned = forms.BooleanField(required=False)
     without_due_date = forms.BooleanField(required=False)
     due_from = forms.DateField(

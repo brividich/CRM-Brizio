@@ -1172,9 +1172,13 @@ def _board_data_tasks(legacy_user_id: int | None, params: dict) -> dict:
             "todo": all_qs.filter(status=TaskStatus.TODO).count(),
             "in_progress": all_qs.filter(status=TaskStatus.IN_PROGRESS).count(),
             "done": all_qs.filter(status=TaskStatus.DONE).count(),
-            "overdue": sum(1 for t in all_qs.filter(status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS]) if t.is_overdue),
+            # Stessa condizione del filtro «Solo scadute» dell'elenco attivita' (una query, niente loop).
+            "overdue": all_qs.filter(
+                status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS], due_date__lt=timezone.localdate()
+            ).count(),
         }
-        return {"items": items, "stats": stats}
+        # user_id: le tessere aprono l'elenco attivita' filtrato su «Assegnato a» = questa persona.
+        return {"items": items, "stats": stats, "user_id": user.pk}
     except Exception:
         return {"items": [], "stats": {}}
 
@@ -1600,9 +1604,17 @@ def _board_data_procedure_refresh(request_user: Any, params: dict) -> dict:
                     "due_date": assignment.due_date.strftime("%d-%m-%Y") if assignment.due_date else "",
                 }
             )
+        # Stesse condizioni delle tessere di «Le mie letture» (procedure_refresh:my_assignments),
+        # dove portano i riquadri: «Da completare» = ?status=pending (scadute comprese),
+        # «Scadute» = ?status=overdue (anche quelle non ancora marcate dal job notturno).
+        # Prima «Scadute» contava solo lo stato OVERDUE e «Pendenti» le escludeva.
+        from procedure_refresh.models import q_scadute
+
         stats = {
-            "pending": qs.filter(status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]).count(),
-            "overdue": qs.filter(status=AssignmentStatus.OVERDUE).count(),
+            "pending": qs.filter(
+                status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED, AssignmentStatus.OVERDUE]
+            ).count(),
+            "overdue": qs.filter(q_scadute(timezone.localdate())).count(),
             "confirmed": qs.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
         }
         return {"items": items, "stats": stats}
@@ -1629,7 +1641,12 @@ def _board_data_module_overview(
             "value": int(task_data.get("stats", {}).get("todo", 0)) + int(task_data.get("stats", {}).get("in_progress", 0)),
             "meta": f"{int(task_data.get('stats', {}).get('overdue', 0))} scaduti",
             "tone": "blue",
-            "url": reverse("tasks:list"),
+            # Stesso insieme del numero: aperte assegnate alla persona (prima apriva
+            # «le mie», che comprende anche create e seguite).
+            "url": (
+                f"{reverse('tasks:list')}?mine=0&assigned_to={task_data['user_id']}&open=on"
+                if task_data.get("user_id") else reverse("tasks:list")
+            ),
             "icon_url": _module_image_url_for(
                 icon_lookup, "tasks", "task", "vrf-kickoff", "kickoff", fallback_filename="vrf-kickoff.svg"
             ),
@@ -1662,11 +1679,11 @@ def _board_data_module_overview(
         },
         {
             "label": "Procedure aperte",
-            "value": int(procedure_data.get("stats", {}).get("pending", 0))
-            + int(procedure_data.get("stats", {}).get("overdue", 0)),
+            # «pending» comprende già le scadute: prima le sommava due volte.
+            "value": int(procedure_data.get("stats", {}).get("pending", 0)),
             "meta": f"{int(procedure_data.get('stats', {}).get('confirmed', 0))} confermate",
             "tone": "yellow",
-            "url": reverse("procedure_refresh:my_assignments"),
+            "url": f"{reverse('procedure_refresh:my_assignments')}?status=pending",
             "icon_url": _module_image_url_for(
                 icon_lookup,
                 "procedure-refresh",
@@ -2084,7 +2101,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     prima qui si contavano ticket, asset, anomalie e incidenti di tutta
     l'azienda e li vedeva chiunque.
     """
-    from dashboard.views_home_portale import _tile_kpi_counts, moduli_visibili
+    from dashboard.views_home_portale import _tile_kpi_counts, _url_lista, moduli_visibili
 
     kpis: list[dict] = []
     if request is None or not request.user.is_authenticated:
@@ -2098,7 +2115,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     for kpi_key, modulo, label, icon, icon_class in (
         ("assenze", "assenze", "Richieste in attesa", "ASS", "yellow"),
         ("anomalie", "anomalie", "Anomalie aperte", "ANO", "red"),
-        ("ticket", "ticket", "Ticket aperti", "TKT", "blue"),
+        ("ticket", "ticket", "Ticket attivi", "TKT", "blue"),
         ("asset", "asset", "Asset", "AST", "green"),
         ("task", "task", "Task attivi", "TSK", "blue"),
         ("diario", "diario", "Diario preposto", "DRP", "blue"),
@@ -2117,16 +2134,27 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "sub": sub,
             "icon": icon,
             "icon_class": icon_class,
+            # La lista filtrata del primo numero, quando la tessera della home la conosce.
+            "url": rows[0].get("url"),
         })
 
     # ── DPI richieste in attesa: stesso filtro della dashboard DPI ──
     if "dpi" in visibili:
         try:
             from dpi.models import RichiestaDPI
-            from dpi.views import _filtro_visibili
+            from dpi.views import _filtro_visibili, _gestione_scope, _is_gestore, _own_richiesta_filter
 
-            dpi_attesa = RichiestaDPI.objects.filter(stato="INVIATA").filter(_filtro_visibili(request)).count()
+            inviate = RichiestaDPI.objects.filter(stato="INVIATA")
+            dpi_attesa = inviate.filter(_filtro_visibili(request)).count()
             if dpi_attesa:
+                # Link solo dove un elenco mostra le stesse richieste: la coda di gestione per
+                # chi vede tutto, lo storico personale per chi vede solo le proprie.
+                dpi_url = None
+                consentito, scope = _gestione_scope(request, _is_gestore(request))
+                if consentito and scope is None and dpi_attesa == inviate.count():
+                    dpi_url = _url_lista("dpi:gestione_list", stato="INVIATA")
+                elif dpi_attesa == inviate.filter(_own_richiesta_filter(request)).count():
+                    dpi_url = _url_lista("dpi:storico", stato="INVIATA")
                 kpis.append({
                     "kpi_key": "dpi",
                     "label": "DPI in attesa",
@@ -2134,6 +2162,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
                     "sub": "richieste",
                     "icon": "DPI",
                     "icon_class": "yellow",
+                    "url": dpi_url,
                 })
         except Exception:
             logger.exception("Dashboard: KPI «dpi» non calcolato")
@@ -2153,6 +2182,8 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
                 is_active=True, next_verification_date__lte=horizon
             ).count()
             totale_scad = scad_amm + scad_man
+            # Somma di due registri (scadenze amministrative + verifiche periodiche): nessun
+            # elenco li mostra insieme con questa finestra, quindi la tessera resta senza link.
             kpis.append({
                 "kpi_key": "scadenze",
                 "label": "Scadenze imminenti",
@@ -2166,28 +2197,25 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
 
     # ── Notizie da leggere (personale) ──
     try:
-        from django.db.models import Exists, OuterRef
-        from notizie.models import Notizia, NotiziaLettura
-        from notizie.models import STATO_PUBBLICATA
+        from notizie.models import COMPLIANCE_NON_LETTO, get_compliance_status
+        from notizie.views import _get_legacy_role_id, _notizie_visibili
+
         if legacy_user:
-            confermata = NotiziaLettura.objects.filter(
-                notizia=OuterRef("pk"),
-                legacy_user_id=legacy_user.pk,
-                versione_letta=OuterRef("versione"),
-                ack_at__isnull=False,
-            )
-            da_leggere = (
-                Notizia.objects.filter(stato=STATO_PUBBLICATA)
-                .exclude(Exists(confermata))
-                .count()
+            # «Non lette» come nella pagina Notizie (stesse funzioni, stesso filtro di pubblico):
+            # prima si contavano anche le notizie riservate ad altri ruoli e quelle già aperte.
+            da_leggere = sum(
+                1
+                for notizia in _notizie_visibili(_get_legacy_role_id(request))
+                if get_compliance_status(notizia, legacy_user.pk) == COMPLIANCE_NON_LETTO
             )
             kpis.append({
                 "kpi_key": "notizie",
                 "label": "Notizie da leggere",
                 "value": da_leggere,
-                "sub": "bacheca comunicazioni",
+                "sub": "non ancora aperte",
                 "icon": "NOT",
                 "icon_class": "yellow" if da_leggere else "green",
+                "url": _url_lista("notizie_lista", stato=COMPLIANCE_NON_LETTO),
             })
     except Exception:
         logger.exception("Dashboard: KPI «notizie» non calcolato")
@@ -2195,9 +2223,11 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     # ── Procedure refresh da confermare (personale) ──
     try:
         from procedure_refresh.models import ProcedureAssignment, AssignmentStatus
+        # «Da completare» di «Le mie letture» (``?status=pending``): assegnate, aperte e
+        # scadute. Prima si contavano solo le assegnate mai aperte.
         da_confermare = ProcedureAssignment.objects.filter(
             user=request.user,
-            status=AssignmentStatus.ASSIGNED,
+            status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED, AssignmentStatus.OVERDUE],
         ).count()
         kpis.append({
             "kpi_key": "procedure",
@@ -2206,6 +2236,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "sub": "presa visione",
             "icon": "PRF",
             "icon_class": "yellow" if da_confermare else "green",
+            "url": _url_lista("procedure_refresh:my_assignments", status="pending"),
         })
     except Exception:
         logger.exception("Dashboard: KPI «procedure» non calcolato")
@@ -2213,10 +2244,9 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     # ── Applica overrides da SiteConfig ──
     try:
         from core.models import SiteConfig
-        cfg = {
-            row["key"]: row["value"]
-            for row in SiteConfig.objects.filter(key__startswith="hub_kpi_").values("key", "value")
-        }
+        # I campi del modello sono ``chiave``/``valore``: con ``key``/``value`` la query
+        # sollevava FieldError e le personalizzazioni non venivano mai applicate.
+        cfg = dict(SiteConfig.objects.filter(chiave__startswith="hub_kpi_").values_list("chiave", "valore"))
         filtered = []
         for kpi in kpis:
             key = kpi.get("kpi_key", "")
@@ -2241,6 +2271,60 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     return kpis
 
 
+def _hub_status_items(is_admin: bool) -> list[dict]:
+    """Striscia di stato della hub preview: solo valori letti dal sistema, solo per gli admin.
+
+    Ogni voce: ``label``, ``value``, ``ok`` (pallino verde o giallo) e ``url`` se esiste
+    una pagina che mostra il dettaglio. Una voce che non si riesce a leggere non compare.
+    """
+    if not is_admin:
+        return []
+    from django.conf import settings
+
+    from dashboard.views_home_portale import _sistema_ruoli_attivo, _url_lista
+
+    items: list[dict] = []
+    try:
+        from core.models import NavigationItem
+
+        registro = bool(getattr(settings, "NAVIGATION_REGISTRY_ENABLED", False))
+        voci = NavigationItem.objects.filter(is_visible=True).count()
+        items.append({
+            "label": "Navigation Registry",
+            "value": f"Attivo · {voci} voci visibili" if registro else "Spento",
+            "ok": registro,
+        })
+    except Exception:
+        logger.exception("Hub preview: stato del Navigation Registry non letto")
+    items.append({
+        "label": "Fallback legacy del menu",
+        "value": "Attivo" if getattr(settings, "NAVIGATION_LEGACY_FALLBACK_ENABLED", False) else "Spento",
+        "ok": True,
+    })
+    ruoli = _sistema_ruoli_attivo()
+    rigoroso = bool(getattr(settings, "ACL_STRICT_CANONICAL", False))
+    items.append({
+        "label": "Permessi",
+        "value": ("Sistema dei ruoli attivo" if ruoli else "Regole storiche")
+        + (" · ACL rigorosa" if rigoroso else " · ACL con fallback legacy"),
+        "ok": ruoli or rigoroso,
+    })
+    try:
+        from monitoring.views import failed_today_job_ids
+
+        falliti = len(failed_today_job_ids())
+        items.append({
+            "label": "Job falliti oggi",
+            "value": str(falliti),
+            "ok": falliti == 0,
+            # Stesso insieme del filtro ``?failed_today=1`` del monitor automazioni.
+            "url": _url_lista("monitoring_admin:automation_list", failed_today="1"),
+        })
+    except Exception:
+        logger.exception("Hub preview: job falliti oggi non letti")
+    return items
+
+
 @login_required
 def dashboard_hub_preview(request):
     ctx = _base_dashboard_context(request)
@@ -2258,14 +2342,21 @@ def dashboard_hub_preview(request):
             "hub_hero_title", "hub_hero_sub", "hub_bg_color",
             "hub_hero_color_1", "hub_hero_color_2", "hub_logo_url",
         }
-        for row in SiteConfig.objects.filter(key__in=branding_keys).values("key", "value"):
-            hub_branding[row["key"]] = row["value"] or ""
+        # Campi reali ``chiave``/``valore`` (con ``key``/``value`` il branding non si caricava mai).
+        for chiave, valore in SiteConfig.objects.filter(chiave__in=branding_keys).values_list("chiave", "valore"):
+            hub_branding[chiave] = valore or ""
     except Exception:
         logger.exception("Hub preview: branding non caricato")
 
     # Pannelli con dati di tutta l'azienda: solo a chi ha visibilità «tutti»
     # sul modulo, come le tessere senza proprietario della home.
-    from dashboard.views_home_portale import _TUTTI, _ambito_kpi, moduli_visibili
+    from dashboard.views_home_portale import (
+        _TUTTI,
+        _ambito_kpi,
+        _safe_url,
+        incidenti_elenco_locale,
+        moduli_visibili,
+    )
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
@@ -2287,17 +2378,45 @@ def dashboard_hub_preview(request):
         except Exception:
             logger.exception("Hub preview: KPI sicurezza non caricati")
 
+    hub_kpis = _hub_kpi_cards(ctx, request)
+
+    # «Le mie richieste»: stessi numeri della pagina «Le mie richieste» di assenze a cui
+    # portano i link (stesse funzioni, stesse righe caricate).
+    try:
+        from assenze.views import _helpers as assenze_helpers
+        from assenze.views.richieste import _summarize_personal_requests
+
+        nome, email, _legacy_id = assenze_helpers._legacy_identity(request)
+        riepilogo = _summarize_personal_requests(assenze_helpers._load_personal(nome, email, limit=40))
+        ctx.update({
+            "richieste_total": riepilogo["total"],
+            "richieste_attesa": riepilogo["waiting"],
+            "richieste_approvate": riepilogo["approved"],
+        })
+    except Exception:
+        logger.exception("Hub preview: riepilogo delle richieste personali non calcolato")
+
+    # Coda delle approvazioni: la stessa destinazione della tessera «Richieste in attesa».
+    approvazioni_url = next((k.get("url") for k in hub_kpis if k.get("kpi_key") == "assenze" and k.get("url")), None)
+    if not approvazioni_url:
+        approvazioni_url = _safe_url("assenze_gestione")
+
     ctx.update({
         "page_title": "Hub Preview",
         "greeting_name": display_name,
         "date_label": date_label,
-        "hub_kpis": _hub_kpi_cards(ctx, request),
+        "hub_kpis": hub_kpis,
         "modules": ctx.get("module_cards", []),
         "activities": list(ctx.get("richieste_recenti", []))[:5],
         "pending_approvals": ctx.get("ctx_widget", {}),
+        "approvazioni_url": approvazioni_url,
         "hub_branding": hub_branding,
         "hub_is_staff": request.user.is_staff,
         "maintenance_by_family": maintenance_by_family,
         "safety_kpis": safety_kpis,
+        # I KPI sicurezza contano il registro locale: il filtro per anno dell'elenco li
+        # riproduce solo se l'elenco legge la stessa fonte.
+        "safety_anno_link": bool(safety_kpis) and incidenti_elenco_locale(),
+        "hub_status_items": _hub_status_items(is_admin),
     })
     return render(request, "core/pages/dashboard_hub_preview.html", ctx)

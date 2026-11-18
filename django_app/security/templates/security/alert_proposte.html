@@ -17,18 +17,19 @@
   </p>
   {% if not attivo %}<p class="sec-error sec-small">Le proposte automatiche sono spente: si accendono in Impostazioni › Avvisi e automatismi.</p>{% endif %}
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ n_alert }}</strong> alert da decidere in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
-    <span><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</span> ·
-    <span><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</span>
+    {% url 'security:alert_proposte' as url_proposte %}
+    <a class="kpi-link" href="{{ url_proposte }}#prop-da-decidere" title="Vai ai gruppi di alert da decidere"><strong>{{ n_alert }}</strong> alert da decidere in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</a> ·
+    <a class="kpi-link" href="{{ url_proposte }}?auto=7#prop-chiusi-ai" title="Apri gli alert chiusi dall'AI negli ultimi 7 giorni"><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</a> ·
+    <a class="kpi-link" href="{{ url_proposte }}#prop-imparato" title="Vai a cosa ha imparato: i tipi che chiudono da soli sono in cima"><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</a>
   </div>
 </section>
 
-<section class="sec-panel" style="margin-top: 12px;">
+<section class="sec-panel" style="margin-top: 12px;" id="prop-da-decidere">
   <div class="sec-section-head"><h2>Da decidere</h2></div>
   <div class="prop-list">{% include "security/partials/alert_gruppi.html" %}</div>
 </section>
 
-<section class="sec-panel" style="margin-top: 12px;">
+<section class="sec-panel" style="margin-top: 12px;" id="prop-imparato">
   <div class="sec-section-head"><h2>Cosa ha imparato</h2></div>
   <p class="sec-muted sec-small">Conferme di fila per tipo di alert ed esito. Una correzione, una proposta scartata o un alert riaperto azzerano il conteggio.</p>
   <div class="sec-table-wrap">
@@ -50,8 +51,8 @@
   </div>
 </section>
 
-<section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Chiusi dall'AI (ultimi 30 giorni)</h2></div>
+<section class="sec-panel" style="margin-top: 12px;" id="prop-chiusi-ai">
+  <div class="sec-section-head"><h2>{% if auto_7 %}Chiusi da soli dall'AI (ultimi 7 giorni){% else %}Chiusi dall'AI (ultimi 30 giorni){% endif %}</h2><span class="sec-muted sec-small">{% if n_auto_lista > auto|length %}i {{ auto|length }} più recenti su {{ n_auto_lista }} · {% endif %}{% if auto_7 %}<a href="{% url 'security:alert_proposte' %}#prop-chiusi-ai">mostra 30 giorni</a>{% endif %}</span></div>
   <form method="post" action="{% url 'security:alert_proposte_riapri' %}" id="auto-bulk" data-bulk>
     {% csrf_token %}
     <div class="sec-bulk-bar">

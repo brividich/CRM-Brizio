@@ -212,6 +212,9 @@ def project_gantt(request, project_id: int):
         "progress_percent": progress_percent,
         "planned_start": gantt_meta["timeline_start"],
         "planned_end": gantt_meta["timeline_end"],
+        # Finestra della tessera «In 7 giorni»: il link all'elenco usa le stesse date.
+        "due_window_from": today,
+        "due_window_to": today + timedelta(days=7),
     }
 
     gestisce_progetto = can_manage_project(request, project)

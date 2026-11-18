@@ -272,14 +272,26 @@ def riconciliazione(request, trimestre=None):
     if trimestre:
         righe, riepilogo = services.riconcilia(trimestre)
     gruppi_tutti = riepilogo["gruppi"] if riepilogo else []
-    solo_da_verificare = request.GET.get("vista") == "da-verificare"
-    da_verificare = [gr for gr in gruppi_tutti if gr["livello"] != "ok"]
+    # Viste del confronto: ognuna riproduce il gruppo contato da una tessera del riepilogo
+    # (stesse condizioni di services.riconcilia: livello del contratto, MFC senza lettura).
+    viste = {
+        "da-verificare": lambda gr: gr["livello"] != "ok",
+        "allineati": lambda gr: gr["livello"] == "ok",
+        "da-controllare": lambda gr: gr["livello"] == "danger",
+        "letture-mancanti": lambda gr: bool(gr["mancanti"]),
+    }
+    vista = request.GET.get("vista", "")
+    if vista not in viste:
+        vista = ""
+    solo_da_verificare = vista == "da-verificare"
+    da_verificare = [gr for gr in gruppi_tutti if viste["da-verificare"](gr)]
     return render(request, "contatori/riconciliazione.html", {
         "trimestri": services.opzioni_trimestri(extra=[trimestre] if trimestre else ()),
         "trimestre": trimestre,
         "righe": righe, "riepilogo": riepilogo,
         "gruppi_tutti": gruppi_tutti,
-        "gruppi": da_verificare if solo_da_verificare else gruppi_tutti,
+        "gruppi": [gr for gr in gruppi_tutti if viste[vista](gr)] if vista else gruppi_tutti,
+        "vista": vista,
         "da_verificare": len(da_verificare), "solo_da_verificare": solo_da_verificare,
         "fatture": Fattura.objects.filter(trimestre=trimestre).prefetch_related("righe")
         if trimestre else [],
@@ -377,9 +389,21 @@ def fattura_edit(request, pk=None):
     })
 
 
+def _filtro_fornitori(request):
+    """Codici fornitore validi di ``?fornitore=`` (ripetibile): ``[(codice, etichetta)]``."""
+    from fornitori import collegamenti as forn
+
+    richiesti = request.GET.getlist("fornitore")
+    if not richiesti:
+        return []
+    catalogo = forn.catalogo_codici()
+    return [(c, catalogo[c]) for c in dict.fromkeys(richiesti) if c in catalogo]
+
+
 def fatture_elenco(request):
     """Archivio fatture per trimestre con esito della riconciliazione e trimestri scoperti."""
-    archivio = services.archivio_fatture()
+    filtro_fornitori = _filtro_fornitori(request)
+    archivio = services.archivio_fatture(fornitori=[c for c, _ in filtro_fornitori])
     # Collegamento facoltativo alla scheda del fornitore: senza abbinamento resta il solo codice.
     from fornitori import collegamenti as forn
 
@@ -395,6 +419,7 @@ def fatture_elenco(request):
         "archivio": archivio, "url_excel": _url_excel(request),
         "scoperti": [a for a in archivio if not a["fatture"] and not a["in_corso"]],
         "totale_fatture": sum(len(a["fatture"]) for a in archivio),
+        "filtro_fornitori": filtro_fornitori,
     })
 
 
@@ -764,6 +789,10 @@ def macchine_list(request):
     trimestre = services.trimestre_corrente()
     filtri = {k: request.GET.get(k, "").strip() for k in ("q", "stato", "lettura", "dismesse")}
     qs = Macchina.objects.select_related("asset", "profilo_snmp")
+    # Dalla scheda fornitore: solo le MFC di quel fornitore (codici validi, ripetibile).
+    filtro_fornitori = _filtro_fornitori(request)
+    if filtro_fornitori:
+        qs = qs.filter(fornitore__in=[c for c, _ in filtro_fornitori])
     dismesse_nascoste = 0 if filtri["dismesse"] == "1" else qs.filter(attiva=False).count()
     if filtri["dismesse"] != "1":
         qs = qs.filter(attiva=True)
@@ -794,7 +823,8 @@ def macchine_list(request):
         "url_excel": _url_excel(request),
         "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
         "mese_corrente": timezone.localdate().replace(day=1),
-        "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
+        "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")) or bool(filtro_fornitori),
+        "filtro_fornitori": filtro_fornitori,
         "consumabili": consumabili,
         "ultime": services.ultime_rilevazioni(),
     })

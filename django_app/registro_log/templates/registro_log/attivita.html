@@ -13,23 +13,23 @@
 
 {% if vista == "raccolta" %}
 <section class="sec-grid sec-kpi-grid">
-  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Letture con righe</span><strong class="sec-kpi-value">{{ riepilogo.letture }}</strong><span class="sec-kpi-delta">server e PC, nel periodo</span></div>
-  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Righe lette</span><strong class="sec-kpi-value">{{ riepilogo.righe }}</strong><span class="sec-kpi-delta">archiviate e sigillate</span></div>
-  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Errori</span><strong class="sec-kpi-value{% if riepilogo.errori %} warning{% endif %}">{{ riepilogo.errori }}</strong><span class="sec-kpi-delta">letture o lavori non riusciti</span></div>
-  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Avvii del raccoglitore</span><strong class="sec-kpi-value">{{ riepilogo.avvii }}</strong><span class="sec-kpi-delta">riavvii, release nuove</span></div>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_attivita' %}?vista=raccolta&amp;giorni={{ giorni }}&amp;tipo=letture#attivita" title="Apri l'elenco filtrato: letture di server e PC nel periodo"><span class="sec-kpi-label">Letture con righe</span><strong class="sec-kpi-value">{{ riepilogo.letture }}</strong><span class="sec-kpi-delta">server e PC, nel periodo</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_attivita' %}?vista=raccolta&amp;giorni={{ giorni }}&amp;tipo=letture#attivita" title="Apri le letture del periodo: la colonna Righe somma questo numero"><span class="sec-kpi-label">Righe lette</span><strong class="sec-kpi-value">{{ riepilogo.righe }}</strong><span class="sec-kpi-delta">archiviate e sigillate</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_attivita' %}?vista=raccolta&amp;giorni={{ giorni }}&amp;esito=errore#attivita" title="Apri l'elenco filtrato: attività non riuscite nel periodo"><span class="sec-kpi-label">Errori</span><strong class="sec-kpi-value{% if riepilogo.errori %} warning{% endif %}">{{ riepilogo.errori }}</strong><span class="sec-kpi-delta">letture o lavori non riusciti</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_attivita' %}?vista=raccolta&amp;giorni={{ giorni }}&amp;tipo=avvio#attivita" title="Apri l'elenco filtrato: avvii del raccoglitore nel periodo"><span class="sec-kpi-label">Avvii del raccoglitore</span><strong class="sec-kpi-value">{{ riepilogo.avvii }}</strong><span class="sec-kpi-delta">riavvii, release nuove</span></a>
 </section>
 
 <form class="rl-filtri sec-form" method="get" style="margin-top:12px">
   <input type="hidden" name="vista" value="raccolta">
   <p><label for="a-giorni">Periodo</label><select id="a-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
-  <p><label for="a-tipo">Cosa</label><select id="a-tipo" name="tipo"><option value="">Tutto</option>{% for v, l in tipi %}<option value="{{ v }}"{% if v == tipo %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="a-tipo">Cosa</label><select id="a-tipo" name="tipo"><option value="">Tutto</option><option value="letture"{% if tipo == "letture" %} selected{% endif %}>Letture di server e PC</option>{% for v, l in tipi %}<option value="{{ v }}"{% if v == tipo %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
   <p><label for="a-esito">Esito</label><select id="a-esito" name="esito"><option value="">Tutti</option>{% for v, l in esiti %}<option value="{{ v }}"{% if v == esito %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
   <p><label for="a-fonte">Fonte</label><select id="a-fonte" name="fonte"><option value="">Tutte</option>{% for f in fonti %}<option value="{{ f.pk }}"{% if f.pk|stringformat:"s" == fonte %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}</select></p>
   <p><label for="a-q">Cerca</label><input id="a-q" type="search" name="q" value="{{ q }}" placeholder="Server, PC, messaggio…"></p>
   <button class="sec-button sec-button-primary" type="submit">Filtra</button>
 </form>
 
-<section class="sec-panel">
+<section class="sec-panel" id="attivita">
   <div class="sec-section-head"><h2>{{ pagina.paginator.count }} attività</h2><span class="sec-muted sec-small">le letture senza righe nuove non compaiono · tenute 30 giorni</span></div>
   {% if pagina %}
   <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">

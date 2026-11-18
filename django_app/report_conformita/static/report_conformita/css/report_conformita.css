@@ -17,6 +17,7 @@ body.theme-dark .rc-chip.is-active{background:var(--primary-mid);border-color:va
 .rc-toolbar-spacer{flex:1}
 .rc-note-inline{font-size:var(--fs-sm);color:var(--text-mid);padding:0 2px}
 .rc-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+a.rc-kpi{display:block}
 .rc-kpi{position:relative;padding:12px 14px 12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .rc-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--border)}
 .rc-kpi.tone-ok::before{background:var(--success)}

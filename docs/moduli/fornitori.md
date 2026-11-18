@@ -45,3 +45,8 @@ Modulo dedicato all'anagrafica fornitori, scorporato da `anagrafica` per separar
 - **Configurazione** (`.env`): `GUESTPORTAL_ADMIN_URL`, `GUESTPORTAL_SSO_URL`, `GUESTPORTAL_SSO_SECRET`, `GUESTPORTAL_DB_HOST/PORT/NAME/USER/PASSWORD`. Lato GuestPortal e utente MySQL in sola lettura: [docs/integrazioni/guestportal/README.md](../integrazioni/guestportal/README.md)
 
 - **Ingressi collegati alle verifiche impianti** (16/11/2026, `fornitori 0015`): `IngressoIntervento.verifica` (`assets.PeriodicCheckSession`), tipo `ingressi.TIPO_VERIFICA`, vincolo `fornitori_ingresso_un_solo_intervento_v4`. Le verifiche compaiono in «Collega» da Accessi esterni (filtro «Verifiche impianti», ricerca live HTMX) e nella registrazione della verifica (`ingressi.ingressi_della_ditta`, `finestra_verifica`).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Scheda fornitore: copie MFC verso Contatori (`fornitore=`), ordini `ordini_di_spesa`/`spesa_ordini` (annullati esclusi), elenco `attivi=0|tutti`. «Da controllare» resta un'ancora in pagina.

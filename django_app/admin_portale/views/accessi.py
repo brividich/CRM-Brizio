@@ -1371,7 +1371,7 @@ def acl_diagnostica(request):
 def mappa_permessi_navigazione(request):
     q_filter = str(request.GET.get("q") or "").strip()
     source_filter = str(request.GET.get("source") or "all").strip().lower()
-    if source_filter not in {"all", "registry", "legacy", "redirect", "override", "fallback"}:
+    if source_filter not in {"all", "registry", "legacy", "redirect", "override", "fallback", "canonical"}:
         source_filter = "all"
 
     selected_role_id = _helpers._int_or_none(request.GET.get("legacy_role_id"))
@@ -1383,10 +1383,13 @@ def mappa_permessi_navigazione(request):
 
     rows = _build_permission_navigation_map_rows(
         q_filter=q_filter,
-        source_filter=source_filter,
+        source_filter="all" if source_filter == "canonical" else source_filter,
         selected_role_id=selected_role_id,
         role_name_map=role_name_map,
     )
+    if source_filter == "canonical":
+        # Tessera «Con Binding Canonico»: stessa condizione del conteggio qui sotto.
+        rows = [row for row in rows if row["canonical_permissions_count"] > 0]
     summary = {
         "rows_total": len(rows),
         "rows_canonical": sum(1 for row in rows if row["canonical_permissions_count"] > 0),
@@ -1413,6 +1416,8 @@ def mappa_permessi_navigazione(request):
             "role_choices": role_choices,
             "selected_role_id": selected_role_id,
             "selected_role_label": selected_role_label,
+            # Ricerca e ruolo correnti, conservati dai link delle tessere di riepilogo.
+            "mappa_scope_qs": urlencode({k: v for k, v in (("q", q_filter), ("legacy_role_id", selected_role_id)) if v not in (None, "")}),
             "api_permessi_toggle_url": reverse("admin_portale:api_permessi_toggle"),
             "api_acl_v2_role_grant_toggle_url": reverse("admin_portale:api_acl_v2_role_grant_toggle"),
         },

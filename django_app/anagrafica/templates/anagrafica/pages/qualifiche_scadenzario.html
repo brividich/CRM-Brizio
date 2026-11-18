@@ -56,6 +56,7 @@
             {% endfor %}
           </select>
         </label>
+        {% if filtro_verifica %}<input type="hidden" name="verifica" value="{{ filtro_verifica }}"><span style="align-self:flex-end;font-size:12px;color:#64748b;padding-bottom:8px;">Solo evidenze da verificare · <a href="?{% for k,v in request.GET.items %}{% if k != 'verifica' %}{{ k|urlencode }}={{ v|urlencode }}&amp;{% endif %}{% endfor %}">togli</a></span>{% endif %}
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Tipo
           <select name="tipo" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;max-width:240px;">
             <option value="">Tutti</option>

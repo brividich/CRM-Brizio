@@ -743,6 +743,8 @@ def index(request):
     record_attivi = sum(item["active_records"] for item in entries)
     stato = str(request.GET.get("stato") or "").strip()
     stato_filters = {
+        # «con» = tessera «Con timbri»: le stesse righe del suo conteggio.
+        "con": lambda item: item["timbri_count"] > 0,
         "attivi": lambda item: item["active_records"] > 0,
         "storico": lambda item: item["active_records"] == 0 and item["historical_records"] > 0,
         "senza": lambda item: item["timbri_count"] == 0,
@@ -759,6 +761,23 @@ def index(request):
     paginator = Paginator(entries, 30)
     page_obj = paginator.get_page(request.GET.get("page"))
     pending_issues = _pending_import_issues(100)
+
+    # Link delle tessere: stessi filtri (ricerca, reparto, qualifica) su cui
+    # contano, più il filtro rapido che riproduce il numero.
+    from urllib.parse import urlencode
+
+    base_filtri = {k: v for k, v in (("q", q), ("reparto", reparto), ("qualifica", qualifica)) if v}
+    index_url = reverse("timbri:index")
+
+    def _kpi_url(**extra):
+        params = {**base_filtri, **extra}
+        return f"{index_url}?{urlencode(params)}" if params else index_url
+
+    kpi_urls = {
+        "dipendenti": _kpi_url(),
+        "con_timbri": _kpi_url(stato="con"),
+        "record_attivi": _kpi_url(stato="attivi"),
+    }
 
     return render(
         request,
@@ -780,6 +799,7 @@ def index(request):
                 # Conteggio pieno: la lista sotto mostra i primi 100.
                 "da_gestire": TimbriImportIssue.objects.filter(is_resolved=False).count(),
             },
+            kpi_urls=kpi_urls,
             pending_issues=pending_issues,
         ),
     )

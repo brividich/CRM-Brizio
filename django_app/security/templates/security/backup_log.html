@@ -32,7 +32,10 @@
     <button class="sec-button sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:backup_log' %}">Reimposta</a>
     <a class="sec-button" href="{% querystring formato='csv' %}">Scarica CSV</a>
+    {% if filters.dal %}<input type="hidden" name="dal" value="{{ filters.dal }}">{% endif %}
+    {% if filters.al %}<input type="hidden" name="al" value="{{ filters.al }}">{% endif %}
   </form>
+  {% if filters.dal or filters.al %}<p class="sec-muted sec-small" style="margin:8px 0 0;">Esecuzioni{% if filters.dal %} dal {{ filters.dal }}{% endif %}{% if filters.al %} al {{ filters.al }}{% endif %} · <a href="{% url 'security:backup_log' %}">togli il periodo</a></p>{% endif %}
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">

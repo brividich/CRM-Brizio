@@ -1894,6 +1894,10 @@ def pulsanti(request):
     q_filter = (request.GET.get("q") or "").strip()
     modulo_filter = (request.GET.get("modulo") or "").strip()
     area_filter = (request.GET.get("area") or "").strip()
+    # «attivi» = stessa condizione della tessera «Pulsanti attivi» (ui_enabled).
+    stato_filter = (request.GET.get("stato") or "").strip()
+    if stato_filter not in {"attivi", "disattivi"}:
+        stato_filter = ""
     try:
         pulsanti_list = list(Pulsante.objects.all())
     except DatabaseError as exc:
@@ -1926,6 +1930,9 @@ def pulsanti(request):
     pulsanti_attivi_count = sum(1 for p in pulsanti_list if getattr(p, "ui_enabled", True))
     moduli_total = len(modules)
 
+    if stato_filter:
+        voluto = stato_filter == "attivi"
+        pulsanti_list = [p for p in pulsanti_list if bool(getattr(p, "ui_enabled", True)) == voluto]
     if modulo_filter:
         pulsanti_list = [p for p in pulsanti_list if (p.modulo or "").strip().lower() == modulo_filter.lower()]
     if area_filter:
@@ -2132,7 +2139,7 @@ def pulsanti(request):
             "has_ordine": _has_pulsanti_ordine(),
             "moduli": modules,
             "area_options": area_options,
-            "filters": {"q": q_filter, "modulo": modulo_filter, "area": area_filter},
+            "filters": {"q": q_filter, "modulo": modulo_filter, "area": area_filter, "stato": stato_filter},
             "route_catalog": _route_catalog(),
             "ui_slot_options": ui_slot_options,
             "ui_section_options": ui_section_options,

@@ -427,6 +427,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«Job falliti oggi» o «persone con ruolo» mostrano un numero diverso da prima",
+            "perche": "«Job falliti oggi» conta i job distinti falliti dalla mezzanotte, non le singole esecuzioni; «persone con ruolo» conta le persone attive con almeno un ruolo valido.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+            ],
+        },
+        {
             "sintomo": "Una persona vede «Troppi tentativi di accesso» (anche dalla postazione condivisa)",
             "fare": [
                 "Amministrazione → «Accessi bloccati»: trova la riga del suo nome utente e del suo IP e premi «Sblocca». Può riprovare subito.",

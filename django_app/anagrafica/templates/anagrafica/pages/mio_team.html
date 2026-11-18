@@ -25,18 +25,19 @@
   {% url 'guida_modulo' 'anagrafica' as guida_url %}
   {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Persone" title="Il mio team" desc="Le persone di cui sei responsabile (area aziendale o reparto) e se sono in regola con gli obblighi della loro mansione. Nessun dato sanitario: solo il semaforo." guida_url=guida_url|add:"#il-mio-team" %}
 
-  {% if righe %}
+  {% if righe or filtro %}
+  {% url 'anagrafica:mio_team' as u_team %}
   <section class="hr-card">
     <div class="hr-card-head">
       <div>
-        <div class="hr-card-title">{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}</div>
+        <div class="hr-card-title">{% if filtro %}{{ righe|length }} su {{ n_team }} person{{ n_team|pluralize:"a,e" }} · <a href="{{ u_team }}">mostra tutti</a>{% else %}{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}{% endif %}</div>
         <div class="hr-card-desc">Prima chi non è conforme, poi chi ha adempimenti in scadenza. {% info_hint "conformita" %}</div>
       </div>
       <div class="mt-kpi">
-        {% if conteggi.ko %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label=conteggi.ko|stringformat:"d"|add:" non conformi" %}{% endif %}
-        {% if conteggi.warn %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label=conteggi.warn|stringformat:"d"|add:" in scadenza" %}{% endif %}
-        {% if conteggi.ok %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label=conteggi.ok|stringformat:"d"|add:" in regola" %}{% endif %}
-        {% if conteggi.carico %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label=conteggi.carico|stringformat:"d"|add:" con segnali di carico" %}{% endif %}
+        {% if conteggi.ko %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label=conteggi.ko|stringformat:"d"|add:" non conformi" url=u_team|add:"?esito=ko" title="Apri l'elenco filtrato: persone non conformi" %}{% endif %}
+        {% if conteggi.warn %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label=conteggi.warn|stringformat:"d"|add:" in scadenza" url=u_team|add:"?esito=warn" title="Apri l'elenco filtrato: adempimenti in scadenza" %}{% endif %}
+        {% if conteggi.ok %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label=conteggi.ok|stringformat:"d"|add:" in regola" url=u_team|add:"?esito=ok" title="Apri l'elenco filtrato: persone in regola" %}{% endif %}
+        {% if conteggi.carico %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label=conteggi.carico|stringformat:"d"|add:" con segnali di carico" url=u_team|add:"?esito=carico" title="Apri l'elenco filtrato: persone con segnali di carico" %}{% endif %}
       </div>
     </div>
     <div class="mt-table-wrap">

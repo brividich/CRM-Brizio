@@ -32,12 +32,19 @@
     </div>
   </div>
 
+  {% url 'anagrafica:aree_list' as u_aree %}{% url 'anagrafica:coerenza_capi' as u_coer %}
   <div class="rc-kpis">
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></div>
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla «Responsabilità del reparto»</div></div>
-    <div class="rc-kpi {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></div>
-    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }}){% if kpi.senza_capo %} <a class="fmd-act" href="{% url 'anagrafica:coerenza_capi' %}?filtro=senza" title="Vedi chi è senza capo e risolvi">Risolvi</a>{% endif %}</div></div>
+    <a class="rc-kpi kpi-link" href="{{ u_aree }}?filtro=attivi#schede" title="Apri l'elenco filtrato: reparti attivi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></a>
+    <a class="rc-kpi kpi-link" href="{{ u_aree }}?filtro=con_capo#schede" title="Apri l'elenco filtrato: reparti attivi con il capo dalla mansione"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla «Responsabilità del reparto»</div></a>
+    <a class="rc-kpi kpi-link {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}" href="{{ u_aree }}?filtro=da_sistemare#schede" title="Apri l'elenco filtrato: reparti attivi da sistemare"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></a>
+    {% if is_admin %}
+    <a class="rc-kpi kpi-link {% if kpi.senza_capo %}rc-kpi-warn{% endif %}" href="{{ u_coer }}?filtro=senza" title="Apri l'elenco filtrato: persone senza capo, da risolvere"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></a>
+    <a class="rc-kpi kpi-link" href="{{ u_coer }}?filtro=eccezioni" title="Apri l'elenco filtrato: persone con un'eccezione sul capo"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></a>
+    {% else %}
+    {% comment %}«Capo di ogni persona» è riservato agli amministratori: per gli altri le tessere restano informative.{% endcomment %}
+    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></div>
+    {% endif %}
   </div>
 
   {% if not regola_attiva %}
@@ -80,7 +87,10 @@
   </section>
   {% endif %}
 
-  <div class="rc-grid">
+  {% if filtro %}
+  <div class="rc-filtro" id="schede">Filtro: <strong>{{ filtro_label }}</strong> · {{ schede|length }} repart{{ schede|length|pluralize:"o,i" }} · <a href="{{ u_aree }}">Mostra tutti</a></div>
+  {% endif %}
+  <div class="rc-grid"{% if not filtro %} id="schede"{% endif %}>
     {% for s in schede %}
     {% with r=s.reparto %}
     <article class="rc-card {% if not r.is_active %}is-off{% endif %}" id="rep-{{ r.pk }}" style="--rc-color:{{ r.colore }};">

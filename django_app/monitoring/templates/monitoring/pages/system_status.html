@@ -16,6 +16,7 @@
     .ss-card h3{margin:0 0 10px;font-size:15px;color:#0c2545}
     .ss-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px}
     .ss-row:last-child{border-bottom:0}
+    a.ss-row.kpi-link:hover{transform:none;box-shadow:none;background:rgba(148,163,184,.12)}
     .ss-row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .ss-check{align-items:flex-start}
     .ss-check .chk{min-width:0;flex:1;line-height:1.35}
@@ -157,19 +158,21 @@ body.theme-dark .ss-drift{background:rgba(229,62,62,.16);color:#fca5a5}
     {# Automazioni #}
     <div class="ss-card">
       <h3>Automazioni</h3>
-      <div class="ss-row"><span class="lbl">Job falliti oggi</span><span class="ss-badge {% if job_failed_today_count %}ss-fail{% else %}ss-ok{% endif %}">{{ job_failed_today_count }}</span></div>
-      <div class="ss-row"><span class="lbl">Job non eseguiti nei tempi</span><span class="ss-badge {% if job_missing_count %}ss-warn{% else %}ss-ok{% endif %}">{{ job_missing_count }}</span></div>
+      {% url 'monitoring_admin:automation_list' as ss_automation_list_url %}
+      <a class="ss-row kpi-link" href="{{ ss_automation_list_url }}?failed_today=1" title="Apri l'elenco filtrato: job con almeno un'esecuzione fallita oggi"><span class="lbl">Job falliti oggi</span><span class="ss-badge {% if job_failed_today_count %}ss-fail{% else %}ss-ok{% endif %}">{{ job_failed_today_count }}</span></a>
+      <a class="ss-row kpi-link" href="{{ ss_automation_list_url }}?missing=1" title="Apri l'elenco filtrato: job non eseguiti nei tempi attesi"><span class="lbl">Job non eseguiti nei tempi</span><span class="ss-badge {% if job_missing_count %}ss-warn{% else %}ss-ok{% endif %}">{{ job_missing_count }}</span></a>
       <p class="ss-note">Dettaglio in <a href="{% url 'monitoring_admin:automation_list' %}">Automazioni</a> · gestisci le <a href="{% url 'monitoring_admin:schedule_list' %}">schedule</a>.</p>
     </div>
 
     {# Issue per severità #}
     <div class="ss-card">
       <h3>Issue aperte per severità</h3>
-      <div class="ss-row"><span class="lbl">Critiche</span><span class="ss-badge ss-fail">{{ severity_counts.critical|default:0 }}</span></div>
-      <div class="ss-row"><span class="lbl">Alte</span><span class="ss-badge ss-fail">{{ severity_counts.high|default:0 }}</span></div>
-      <div class="ss-row"><span class="lbl">Medie</span><span class="ss-badge ss-warn">{{ severity_counts.medium|default:0 }}</span></div>
-      <div class="ss-row"><span class="lbl">Basse</span><span class="ss-badge ss-skip">{{ severity_counts.low|default:0 }}</span></div>
-      <div class="ss-row"><strong class="lbl">Totale aperte</strong><strong>{{ open_issues_count }}</strong></div>
+      {% url 'monitoring_admin:issue_list' as ss_issue_list_url %}
+      <a class="ss-row kpi-link" href="{{ ss_issue_list_url }}?open_only=1&amp;severity=critical" title="Apri l'elenco filtrato: issue aperte critiche"><span class="lbl">Critiche</span><span class="ss-badge ss-fail">{{ severity_counts.critical|default:0 }}</span></a>
+      <a class="ss-row kpi-link" href="{{ ss_issue_list_url }}?open_only=1&amp;severity=high" title="Apri l'elenco filtrato: issue aperte con severità alta"><span class="lbl">Alte</span><span class="ss-badge ss-fail">{{ severity_counts.high|default:0 }}</span></a>
+      <a class="ss-row kpi-link" href="{{ ss_issue_list_url }}?open_only=1&amp;severity=medium" title="Apri l'elenco filtrato: issue aperte con severità media"><span class="lbl">Medie</span><span class="ss-badge ss-warn">{{ severity_counts.medium|default:0 }}</span></a>
+      <a class="ss-row kpi-link" href="{{ ss_issue_list_url }}?open_only=1&amp;severity=low" title="Apri l'elenco filtrato: issue aperte con severità bassa"><span class="lbl">Basse</span><span class="ss-badge ss-skip">{{ severity_counts.low|default:0 }}</span></a>
+      <a class="ss-row kpi-link" href="{{ ss_issue_list_url }}?open_only=1" title="Apri l'elenco filtrato: tutte le issue aperte"><strong class="lbl">Totale aperte</strong><strong>{{ open_issues_count }}</strong></a>
     </div>
 
   </div>

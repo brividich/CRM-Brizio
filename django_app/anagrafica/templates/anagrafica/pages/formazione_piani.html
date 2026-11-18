@@ -47,6 +47,7 @@
             <option value="{{ code }}" {% if filtro_cat == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
+        {% if filtro_attivi %}<input type="hidden" name="attivi" value="1"><span class="fmd-muted" style="font-size:12px;" title="Esclusi i piani disattivati">Solo non disattivati</span>{% endif %}
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_piani_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
         <span class="fmd-spacer"></span>

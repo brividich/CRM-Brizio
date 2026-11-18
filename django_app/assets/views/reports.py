@@ -193,11 +193,11 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
 
     now = timezone.now()
     today = timezone.localdate()
-    period_start = now - timedelta(days=90)
+    period_start_day = today - timedelta(days=90)
     reports_scope = _normalize_reports_scope(request.GET.get("scope"))
     reports_context = _reports_scope_context(reports_scope)
     report_asset_types = list(reports_context["asset_types"])
-    from assets.maintenance import odl_in_ritardo, q_odl_in_ritardo
+    from assets.maintenance import get_workorder_overdue_days, odl_in_ritardo, q_odl_in_ritardo
 
     from ..services.visibilita import filtra as filtra_visibili
     from ..services.visibilita import filtra_odl
@@ -252,7 +252,9 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "supplier",
             "assistance_contract",
         )
-        .filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
+        # Per giorno locale (come il filtro «chiusi dal» dell'elenco OdL a cui
+        # porta il KPI «Chiusi 90 gg»), non per istante.
+        .filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=period_start_day)
         .filter(asset__asset_type__in=report_asset_types)
         .order_by("-closed_at", "-id")
     ))
@@ -282,15 +284,9 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
         if workorder.intervention_duration_minutes is not None
     ]
     avg_duration_minutes = round(sum(duration_values) / len(duration_values), 1) if duration_values else None
-    avg_downtime_minutes = (
-        WorkOrder.objects.filter(
-            status=WorkOrder.STATUS_DONE,
-            closed_at__gte=period_start,
-            asset__asset_type__in=report_asset_types,
-        )
-        .aggregate(value=Avg("downtime_minutes"))
-        .get("value")
-    )
+    # Stessi OdL del riepilogo (ambito del ruolo compreso: prima la media leggeva
+    # tutta l'azienda accanto a conteggi e costi ristretti all'ambito).
+    avg_downtime_minutes = recent_done_workorders.order_by().aggregate(value=Avg("downtime_minutes")).get("value")
     covered_count = sum(1 for workorder in done_rows if workorder.covered_by_contract)
     uncovered_count = len(done_rows) - covered_count
 
@@ -393,9 +389,23 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "pm_kpi": pm_kpi,
             "budget_kpi": budget_kpi,
             "budget_rows": budget_rows,
-            "open_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN),
-            "late_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN, open_age=30),
-            "done_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_DONE),
+            # Stessi insiemi dei KPI: tipi di asset dell'ambito del report, ritardo con
+            # la regola unica (soglia di SiteConfig, non 30 giorni fissi), chiusi da 90 gg.
+            "open_workorders_url": _workorder_list_page_url(
+                status=WorkOrder.STATUS_OPEN, tipo_asset=",".join(report_asset_types)
+            ),
+            "late_workorders_url": _workorder_list_page_url(
+                status=WorkOrder.STATUS_OPEN, ritardo=1, tipo_asset=",".join(report_asset_types)
+            ),
+            "done_workorders_url": _workorder_list_page_url(
+                status=WorkOrder.STATUS_DONE, chiusi_dal=period_start_day.isoformat(),
+                tipo_asset=",".join(report_asset_types),
+            ),
+            "budget_workorders_url": _workorder_list_page_url(
+                status=WorkOrder.STATUS_DONE, chiusi_dal=f"{budget_kpi['year']}-01-01",
+                tipo_asset=",".join(report_asset_types),
+            ),
+            "wo_overdue_days": get_workorder_overdue_days(),
             "maintenance_schedule_due_url": f"{reverse('assets:maintenance_scadenze')}?window=overdue",
             "maintenance_schedule_missing_url": reverse("assets:maintenance_coverage"),
             "maintenance_month_rows": maintenance_month_dataset["rows"][:10],

@@ -53,13 +53,24 @@ from .forms import (
 # Dashboard fornitori
 # ---------------------------------------------------------------------------
 
+def ordini_di_spesa(qs=None):
+    """Ordini che contano nella spesa: gli annullati non sono una spesa. Una sola definizione
+    per cruscotto, elenco e scheda fornitore (come il riepilogo annuale, «annullati esclusi»)."""
+    qs = FornitoreOrdine.objects.all() if qs is None else qs
+    return qs.exclude(stato=FornitoreOrdine.STATO_ANNULLATO)
+
+
+def spesa_ordini(qs=None) -> Decimal:
+    return ordini_di_spesa(qs).aggregate(t=Sum("importo"))["t"] or Decimal("0")
+
+
 @login_required
 def index(request):
     n_fornitori = Fornitore.objects.filter(is_active=True).count()
     n_fornitori_tutti = Fornitore.objects.count()
     n_fornitori_inattivi = n_fornitori_tutti - n_fornitori
 
-    spesa_totale = FornitoreOrdine.objects.aggregate(t=Sum("importo"))["t"] or Decimal("0")
+    spesa_totale = spesa_ordini()
     n_ordini = FornitoreOrdine.objects.count()
     n_asset_assegnati = FornitoreAsset.objects.count()
 
@@ -67,7 +78,7 @@ def index(request):
 
     # Spesa per categoria — top 5
     spesa_per_categoria = (
-        FornitoreOrdine.objects.values("fornitore__categoria")
+        ordini_di_spesa().values("fornitore__categoria")
         .annotate(totale=Sum("importo"), n=Count("id"))
         .order_by("-totale")[:5]
     )
@@ -153,7 +164,10 @@ def fornitori_list(request):
     q = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "").strip()
     # Il form manda sempre «q»: con la casella «Solo attivi» tolta «attivi» non c'è e vuol dire tutti.
-    solo_attivi = request.GET.get("attivi", "" if "q" in request.GET else "1") == "1"
+    # «attivi=0» (dalla tessera «Inattivi» del cruscotto) mostra solo i disattivati.
+    attivi_param = request.GET.get("attivi", "" if "q" in request.GET else "1")
+    solo_attivi = attivi_param == "1"
+    solo_inattivi = attivi_param == "0"
     requisiti_filtro = request.GET.get("requisiti", "").strip()
     if requisiti_filtro not in REQUISITI_FILTRO:
         requisiti_filtro = ""
@@ -161,6 +175,8 @@ def fornitori_list(request):
     qs = Fornitore.objects.all()
     if solo_attivi:
         qs = qs.filter(is_active=True)
+    elif solo_inattivi:
+        qs = qs.filter(is_active=False)
     if q:
         qs = qs.filter(
             Q(ragione_sociale__icontains=q)
@@ -183,7 +199,7 @@ def fornitori_list(request):
         totale=Count("id"),
         attivi=Count("id", filter=Q(is_active=True)),
     )
-    spesa_totale = FornitoreOrdine.objects.aggregate(s=Sum("importo"))["s"] or Decimal("0")
+    spesa_totale = spesa_ordini()
 
     paginator = Paginator(qs, 25)
     page = paginator.get_page(request.GET.get("page"))
@@ -196,14 +212,16 @@ def fornitori_list(request):
         "q": q,
         "categoria": categoria,
         "solo_attivi": solo_attivi,
+        "solo_inattivi": solo_inattivi,
         "requisiti_filtro": requisiti_filtro,
         "requisiti_scelte": list(REQUISITI_FILTRO.items()),
         "query_filtri": urlencode({
-            "q": q, "categoria": categoria, "attivi": "1" if solo_attivi else "", "requisiti": requisiti_filtro,
+            "q": q, "categoria": categoria, "attivi": "1" if solo_attivi else ("0" if solo_inattivi else ""), "requisiti": requisiti_filtro,
         }),
         "categoria_choices": Fornitore.CATEGORIA_CHOICES,
         "stats_totale": stats["totale"],
         "stats_attivi": stats["attivi"],
+        "stats_inattivi": stats["totale"] - stats["attivi"],
         "spesa_totale": spesa_totale,
     })
 
@@ -219,7 +237,7 @@ def fornitore_detail(request, fornitore_id):
     valutazioni = fornitore.valutazioni.all()
     documenti = fornitore.documenti.all()
     asset_assegnati = fornitore.asset_assegnati.select_related("asset", "created_by").all()
-    spesa = ordini.aggregate(t=Sum("importo"))["t"] or Decimal("0")
+    spesa = spesa_ordini(ordini)
     from .requisiti import GIORNI_PREAVVISO, stato_fornitore
 
     sezioni = col.sezioni_visibili(request)
@@ -268,8 +286,20 @@ def fornitore_sezione(request, fornitore_id, sezione):
         from contatori.permessi import puo_gestire
 
         dati = {**col.dati_copie(fornitore), "puo_gestire_fatture": puo_gestire(request)}
+        # Le tessere aprono gli elenchi di Contatori filtrati sui codici di questo fornitore.
+        from urllib.parse import urlencode
+
+        dati["query_fornitore"] = urlencode([("fornitore", c["codice"]) for c in dati["codici"]])
+        dati["apre_macchine"] = col.apre(request, "contatori:macchine")
     elif sezione == col.SEZIONE_SCADENZE:
         dati = col.dati_scadenze(request, fornitore)
+        # Le tessere «Scadute» / «Entro N giorni» ricaricano la scheda con l'elenco filtrato:
+        # stesso insieme di voci da cui sono contate, i contatori restano sul totale.
+        filtro_stato = request.GET.get("stato", "")
+        if filtro_stato not in col.STATI_SCADENZA_FILTRABILI:
+            filtro_stato = ""
+        dati["filtro_stato"] = filtro_stato
+        dati["voci_mostrate"] = [v for v in dati["voci"] if not filtro_stato or v["stato"] == filtro_stato]
     else:
         dati = {
             **col.dati_tecnici(fornitore, vede_ingressi=col.vede_ingressi(request)),

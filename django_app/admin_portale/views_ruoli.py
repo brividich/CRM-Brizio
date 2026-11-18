@@ -156,16 +156,34 @@ def ruoli_portale(request):
 
 # ── Persone ──────────────────────────────────────────────────────────────────
 
+PERSONE_ELENCO_LIMITE = 200
+
+
+def _id_con_ruolo_valido(solo_amministratori: bool = False):
+    """Persone con almeno un ruolo del portale dato a mano, ancora valido (non scaduto)
+    e su un ruolo attivo. Unica definizione per le tessere della scheda «Sistema» e per
+    i filtri ``con_ruoli`` / ``amministratori`` della scheda «Persone»."""
+    from core.permessi.scadenze import q_appartenenze_valide
+
+    qs = AccessGroupMembership.objects.filter(q_appartenenze_valide(), group__is_active=True)
+    if solo_amministratori:
+        qs = qs.filter(group__amministratore=True)
+    return qs.values("legacy_user_id")
+
 
 def _ctx_persone(request) -> dict:
     q = str(request.GET.get("q") or "").strip()
     solo_con_ruoli = request.GET.get("con_ruoli") == "1"
+    solo_amministratori = request.GET.get("amministratori") == "1"
     persone = UtenteLegacy.objects.filter(attivo=True)
     if q:
         persone = persone.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
     if solo_con_ruoli:
-        persone = persone.filter(id__in=AccessGroupMembership.objects.values("legacy_user_id"))
-    persone = list(persone.order_by("nome", "id")[:200])
+        persone = persone.filter(id__in=_id_con_ruolo_valido())
+    if solo_amministratori:
+        persone = persone.filter(id__in=_id_con_ruolo_valido(solo_amministratori=True))
+    persone_totale = persone.count()
+    persone = list(persone.order_by("nome", "id")[:PERSONE_ELENCO_LIMITE])
     ruoli_map = _ruoli_per_persona(p.id for p in persone)
     selezionata = None
     persona_id = _int(request.GET.get("persona"))
@@ -181,6 +199,8 @@ def _ctx_persone(request) -> dict:
     return {
         "q": q,
         "solo_con_ruoli": solo_con_ruoli,
+        "solo_amministratori": solo_amministratori,
+        "persone_totale": persone_totale,
         "persone": [
             {
                 "persona": p,
@@ -985,10 +1005,11 @@ def _ctx_registro(request) -> dict:
 
 
 def _ctx_sistema(request) -> dict:
-    con_ruolo = (
-        AccessGroupMembership.objects.filter(group__is_active=True).values("legacy_user_id").distinct().count()
-    )
-    attivi = UtenteLegacy.objects.filter(attivo=True).count()
+    # Prima contava anche persone disattivate e ruoli scaduti (e gli amministratori
+    # per appartenenza, non per persona): ora persone attive, stesso filtro della scheda Persone.
+    attive = UtenteLegacy.objects.filter(attivo=True)
+    con_ruolo = attive.filter(id__in=_id_con_ruolo_valido()).count()
+    attivi = attive.count()
     return {
         "persone_con_ruolo": con_ruolo,
         "persone_attive": attivi,
@@ -996,7 +1017,7 @@ def _ctx_sistema(request) -> dict:
             r for r in _ruoli()
             if r.preset != PRESET_BASE and not r.memberships.exists() and not r.ruoli_organigramma.exists()
         ],
-        "amministratori": AccessGroupMembership.objects.filter(group__amministratore=True, group__is_active=True).count(),
+        "amministratori": attive.filter(id__in=_id_con_ruolo_valido(solo_amministratori=True)).count(),
     }
 
 

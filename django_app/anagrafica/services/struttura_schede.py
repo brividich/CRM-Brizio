@@ -80,7 +80,10 @@ def scheda_reparto(reparto: Reparto) -> dict:
     from assets.models import Asset
 
     aree = [a for a in reparto.aree_aziendali.select_related("ruolo_responsabile").order_by("nome") if a.is_active]
-    persone_area = Counter(DipendenteAnagraficaAziendale.objects.filter(area_aziendale__in=aree)
+    # Solo chi è in forza: le schede degli ex dipendenti (data di cessazione) restano
+    # collegate all'area ma non sono persone del reparto.
+    persone_area = Counter(DipendenteAnagraficaAziendale.objects.filter(area_aziendale__in=aree,
+                                                                        data_cessazione__isnull=True)
                            .values_list("area_aziendale_id", flat=True))
     capi = _nomi([reparto.caporeparto_legacy_id] + [a.responsabile_legacy_id for a in aree])
     macchine = Asset.objects.filter(reparto__iexact=reparto.nome).order_by("name")

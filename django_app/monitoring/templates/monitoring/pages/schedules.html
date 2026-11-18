@@ -27,14 +27,15 @@
     .sch-actions{display:flex;gap:8px}
     .sch-actions form{margin:0}
     .sch-sum{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 4px}
-    .sch-sum div{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:10px 14px;min-width:130px}
+    .sch-sum div,.sch-sum a{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:10px 14px;min-width:130px}
     .sch-sum strong{display:block;font-size:20px}
     .sch-sum span{font-size:12px;color:#64748b}
+    .sch-sum a.is-active{border-color:#f39200;box-shadow:0 0 0 2px rgba(243,146,0,.25)}
     .sch-alert{margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid #fca5a5;background:#fef2f2;color:#991b1b;font-weight:600}
     .sch-okbar{margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid #86efac;background:#f0fdf4;color:#166534;font-weight:600}
     .sch-err-text{font-size:12px;color:#991b1b;margin-top:4px;max-width:420px;word-break:break-word}
     .sch-small{font-size:12px;color:#64748b}
-    body.theme-dark .sch-table,body.theme-dark .sch-sum div{background:var(--surface,#0f172a);border-color:var(--border,#334155);color:var(--text,#e2e8f0)}
+    body.theme-dark .sch-table,body.theme-dark .sch-sum div,body.theme-dark .sch-sum a{background:var(--surface,#0f172a);border-color:var(--border,#334155);color:var(--text,#e2e8f0)}
     body.theme-dark .sch-table th{background:var(--surface-alt,#1e293b);color:var(--text,#e2e8f0)}
     body.theme-dark .sch-table td{border-color:var(--border,#334155)}
     body.theme-dark .sch-btn{background:transparent;color:var(--text,#e2e8f0)}
@@ -63,14 +64,16 @@ body.theme-dark .sch-small{color:var(--text-light)}
   {% else %}
     <div class="sch-okbar">Cluster attivo{% if cluster.last_task %} (ultimo job completato alle {{ cluster.last_task|date:"H:i" }}){% endif %} e tutti gli schedule in regola.</div>
   {% endif %}
+  {% url 'monitoring_admin:schedule_list' as sch_list_url %}
   <div class="sch-sum">
-    <div><strong>{{ summary.counts.ok }}</strong><span>In regola</span></div>
-    <div><strong>{{ summary.counts.in_ritardo }}</strong><span>In ritardo</span></div>
-    <div><strong>{{ summary.counts.errore }}</strong><span>Ultimo run fallito</span></div>
-    <div><strong>{{ summary.counts.non_registrato }}</strong><span>Non registrati</span></div>
-    <div><strong>{{ summary.counts.mai_eseguito }}</strong><span>Mai eseguiti</span></div>
-    <div><strong>{{ summary.counts.disabilitato }}</strong><span>Disabilitati</span></div>
+    <a class="kpi-link{% if stato_filtro == 'ok' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=ok" title="Apri l'elenco filtrato: schedule in regola"><strong>{{ summary.counts.ok }}</strong><span>In regola</span></a>
+    <a class="kpi-link{% if stato_filtro == 'in_ritardo' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=in_ritardo" title="Apri l'elenco filtrato: schedule in ritardo"><strong>{{ summary.counts.in_ritardo }}</strong><span>In ritardo</span></a>
+    <a class="kpi-link{% if stato_filtro == 'errore' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=errore" title="Apri l'elenco filtrato: schedule ultimo run fallito"><strong>{{ summary.counts.errore }}</strong><span>Ultimo run fallito</span></a>
+    <a class="kpi-link{% if stato_filtro == 'non_registrato' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=non_registrato" title="Apri l'elenco filtrato: schedule non registrati"><strong>{{ summary.counts.non_registrato }}</strong><span>Non registrati</span></a>
+    <a class="kpi-link{% if stato_filtro == 'mai_eseguito' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=mai_eseguito" title="Apri l'elenco filtrato: schedule mai eseguiti"><strong>{{ summary.counts.mai_eseguito }}</strong><span>Mai eseguiti</span></a>
+    <a class="kpi-link{% if stato_filtro == 'disabilitato' %} is-active{% endif %}" href="{{ sch_list_url }}?stato=disabilitato" title="Apri l'elenco filtrato: schedule disabilitati"><strong>{{ summary.counts.disabilitato }}</strong><span>Disabilitati</span></a>
   </div>
+  {% if stato_filtro %}<p class="sch-small" style="margin:4px 0 8px">Filtro: {{ stato_filtro_label }} · {{ rows|length }} schedule · <a href="{{ sch_list_url }}">mostra tutti</a></p>{% endif %}
 
   <table class="sch-table">
     <thead>

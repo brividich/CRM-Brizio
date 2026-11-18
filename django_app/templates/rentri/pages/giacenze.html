@@ -19,6 +19,7 @@
   /* sintesi */
   .gi-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
   .gi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 16px; min-width:120px; }
+  a.gi-kpi { display:block; color:inherit; text-decoration:none; }
   .gi-kpi-n { font-size:1.4rem; font-weight:800; color:#0f172a; }
   .gi-kpi-l { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:#94a3b8; font-weight:700; }
   .gi-kpi.bad .gi-kpi-n { color:#b91c1c; }
@@ -87,20 +88,20 @@ body.theme-dark .gi-empty{color:#86efac}
       <p class="gi-sub">{{ totale }} codic{{ totale|pluralize:"e,i" }} EER · soglia deposito {{ soglie.giorni_max }}gg · aggiornato al {{ today|date:"d/m/Y" }}</p>
     </div>
     <div class="gi-actions">
-      <a class="gi-btn" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}export=csv">⬇ Esporta CSV</a>
+      <a class="gi-btn" href="?{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if q_oltre %}oltre=1&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}export=csv">⬇ Esporta CSV</a>
       <button type="button" class="gi-btn" onclick="window.print()">🖨 Stampa</button>
       <a class="gi-btn" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
     </div>
   </div>
 
   <div class="gi-kpis">
-    <div class="gi-kpi"><div class="gi-kpi-n">{{ totale }}</div><div class="gi-kpi-l">CER mostrati</div></div>
-    <div class="gi-kpi warn"><div class="gi-kpi-n">{{ n_allerta }}</div><div class="gi-kpi-l">In allerta</div></div>
-    <div class="gi-kpi bad"><div class="gi-kpi-n">{{ n_oltre }}</div><div class="gi-kpi-l">Oltre soglia</div></div>
-    <div class="gi-kpi{% if criterio.oltre %} bad{% endif %}" title="Criterio quantitativo del deposito temporaneo: giacenze aperte in m³ o litri">
+    <a class="gi-kpi kpi-link" href="{{ kpi_url.totale }}" title="Vai all'elenco dei CER mostrati con i filtri attuali"><div class="gi-kpi-n">{{ totale }}</div><div class="gi-kpi-l">CER mostrati</div></a>
+    <a class="gi-kpi warn kpi-link" href="{{ kpi_url.allerta }}" title="Apri l'elenco filtrato: giacenze in allerta (gialle e rosse)"><div class="gi-kpi-n">{{ n_allerta }}</div><div class="gi-kpi-l">In allerta</div></a>
+    <a class="gi-kpi bad kpi-link" href="{{ kpi_url.oltre }}" title="Apri l'elenco filtrato: giacenze oltre la soglia di deposito"><div class="gi-kpi-n">{{ n_oltre }}</div><div class="gi-kpi-l">Oltre soglia</div></a>
+    <a class="gi-kpi kpi-link{% if criterio.oltre %} bad{% endif %}" href="{{ kpi_url.volume }}" title="Criterio quantitativo del deposito temporaneo: giacenze aperte in m³ o litri. Apri tutte le giacenze aperte">
       <div class="gi-kpi-n">{{ criterio.m3_totale }} m³</div>
       <div class="gi-kpi-l">In volume (limite {{ criterio.m3_max }} m³, pericolosi {{ criterio.m3_pericolosi }} di {{ criterio.m3_pericolosi_max }})</div>
-    </div>
+    </a>
   </div>
   {% if criterio.non_convertibili %}
   <p class="gi-note" style="margin-top:0;">{{ criterio.non_convertibili }} codic{{ criterio.non_convertibili|pluralize:"e,i" }} in giacenza registrat{{ criterio.non_convertibili|pluralize:"o,i" }} a peso, senza unità o con unità miste: non entra{{ criterio.non_convertibili|pluralize:",no" }} nel totale in volume.</p>
@@ -112,13 +113,14 @@ body.theme-dark .gi-empty{color:#86efac}
     <a class="gi-chip {% if q_pericolosi %}active{% endif %}" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}pericolosi={% if q_pericolosi %}0{% else %}1{% endif %}">☣ Solo pericolosi</a>
     <input type="search" name="q" class="gi-search" placeholder="Cerca CER…" value="{{ q_search }}">
     {% if q_allerta %}<input type="hidden" name="allerta" value="1">{% endif %}
+    {% if q_oltre %}<input type="hidden" name="oltre" value="1">{% endif %}
     {% if q_pericolosi %}<input type="hidden" name="pericolosi" value="1">{% endif %}
     {% if not q_aperte %}<input type="hidden" name="aperte" value="0">{% endif %}
     <button type="submit" class="gi-btn">Cerca</button>
     {% if filtri_attivi %}<a class="gi-chip" href="?reset=1">&#10005; Azzera filtri</a>{% endif %}
   </form>
 
-  <div class="gi-card">
+  <div class="gi-card" id="gi-elenco">
     {% if rows %}
     <table class="gi-table">
       <thead>

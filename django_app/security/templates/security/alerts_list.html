@@ -21,6 +21,7 @@
       <select name="status">
         <option value="">Tutti</option>
         <option value="active" {% if filters.status == "active" %}selected{% endif %}>Da gestire (non chiusi)</option>
+        <option value="inactive" {% if filters.status == "inactive" %}selected{% endif %}>Chiusi (non da gestire)</option>
         {% for value, label in status_choices %}
           <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value|ui_label }}</option>
         {% endfor %}
@@ -35,10 +36,18 @@
       </select>
     </label>
     <label>Creato il <input type="date" name="date" value="{{ filters.date }}"></label>
+    {% if filters.tipo == "cve" %}<input type="hidden" name="tipo" value="cve">{% endif %}
+    {% if filters.dal %}<input type="hidden" name="dal" value="{{ filters.dal }}">{% endif %}
+    {% if filters.al %}<input type="hidden" name="al" value="{{ filters.al }}">{% endif %}
+    {% if filters.chiusi_dal %}<input type="hidden" name="chiusi_dal" value="{{ filters.chiusi_dal }}">{% endif %}
+    {% if filters.chiusi_al %}<input type="hidden" name="chiusi_al" value="{{ filters.chiusi_al }}">{% endif %}
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:alerts_list' %}">Reimposta</a>
     <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
+  {% if filters.dal or filters.al or filters.chiusi_dal or filters.chiusi_al or filters.tipo == "cve" %}
+  <p class="sec-muted sec-small" style="margin:8px 0 0;">{% if filters.tipo == "cve" %}Solo alert da CVE confermate{% if filters.dal or filters.al or filters.chiusi_dal or filters.chiusi_al %} · {% endif %}{% endif %}{% if filters.dal or filters.al %}Creati{% if filters.dal %} dal {{ filters.dal }}{% endif %}{% if filters.al %} al {{ filters.al }}{% endif %}{% endif %}{% if filters.chiusi_dal or filters.chiusi_al %}{% if filters.dal or filters.al %} · {% endif %}Chiusi{% if filters.chiusi_dal %} dal {{ filters.chiusi_dal }}{% endif %}{% if filters.chiusi_al %} al {{ filters.chiusi_al }}{% endif %}{% endif %} · <a href="{% url 'security:alerts_list' %}">togli i filtri</a></p>
+  {% endif %}
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">

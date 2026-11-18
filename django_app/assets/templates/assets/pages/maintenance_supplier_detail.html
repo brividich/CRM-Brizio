@@ -8,6 +8,7 @@
 .msd-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
 .msd-kpi,.msd-card{border:1px solid #dbe1ea;border-radius:12px;background:#fff}
 .msd-kpi{padding:12px 14px}
+a.msd-kpi{display:block}
 .msd-kpi strong{display:block;font-size:var(--fs-display-lg);color:#0f172a}
 .msd-kpi span{color:#64748b;font-size:var(--fs-sm)}
 .msd-kpi.is-alert strong{color:#b91c1c}
@@ -72,22 +73,22 @@ body.theme-dark .msd-cov span{color:var(--text-light)}
 <div class="msd-page">
 
   <div class="msd-kpis">
-    <article class="msd-kpi{% if open_overdue %} is-alert{% endif %}">
+    <a class="msd-kpi kpi-link{% if open_overdue %} is-alert{% endif %}" href="{{ supplier_kpi_links.open }}" title="Apri l’elenco filtrato: interventi aperti di questo fornitore">
       <strong>{{ open_total }}</strong>
       <span>interventi aperti{% if open_overdue %} · {{ open_overdue }} oltre la scadenza{% endif %}</span>
-    </article>
-    <article class="msd-kpi">
+    </a>
+    <a class="msd-kpi kpi-link" href="{{ supplier_kpi_links.closed_12m }}" title="Apri l’elenco filtrato: interventi conclusi negli ultimi 12 mesi">
       <strong>{{ closed_12m }}</strong>
       <span>conclusi negli ultimi 12 mesi ({{ closed_total }} in tutto)</span>
-    </article>
-    <article class="msd-kpi">
+    </a>
+    <a class="msd-kpi kpi-link" href="{{ supplier_kpi_links.contracts }}" title="Apri l’elenco filtrato: contratti non disattivati di questo fornitore">
       <strong>{{ contracts_active }}</strong>
       <span>contratti di assistenza attivi</span>
-    </article>
-    <article class="msd-kpi">
+    </a>
+    <a class="msd-kpi kpi-link" href="#asset-coperti" title="Vai agli asset coperti qui sotto">
       <strong>{{ covered_total }}</strong>
       <span>asset coperti da contratti, piani o verifiche</span>
-    </article>
+    </a>
   </div>
 
   {% comment %}
@@ -273,7 +274,7 @@ body.theme-dark .msd-cov span{color:var(--text-light)}
     </div>
   </section>
 
-  <section class="msd-card as-collapse as-collapse--cap">
+  <section class="msd-card as-collapse as-collapse--cap" id="asset-coperti">
     <div class="msd-head"><h2>Asset coperti ({{ covered_total }})</h2></div>
     {% if covered_assets %}
       <div class="msd-note">

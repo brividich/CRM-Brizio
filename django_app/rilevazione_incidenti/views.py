@@ -405,6 +405,29 @@ def _deriva_stato(fields: dict) -> str:
     return "APERTO"
 
 
+# Filtro ``?stato=IN_ANALISI`` della lista: tutto cio' che l'RSPP non ha ancora chiuso
+# (APERTO + APPROVATO). E' l'insieme della tessera «in analisi» della home.
+STATO_IN_ANALISI = "IN_ANALISI"
+
+
+def anno_rilevazione(fields: dict) -> int | None:
+    """Anno (ora locale) della data di rilevazione, per il filtro ``?anno=`` della lista.
+
+    Stessa regola dei conteggi per anno (``data_segnalazione__date`` e' in ora locale)."""
+    from django.utils import timezone
+
+    raw = str((fields or {}).get("Data_e_ora_rilevazione") or "").strip()
+    if not raw:
+        return None
+    try:
+        quando = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return int(raw[:4]) if raw[:4].isdigit() else None
+    if timezone.is_aware(quando):
+        quando = timezone.localtime(quando)
+    return quando.year
+
+
 def _safe_year(date_str: str) -> bool:
     try:
         datetime.fromisoformat(date_str[:10])
@@ -673,7 +696,12 @@ def lista(request):
     evento_filter = (request.GET.get("tipo_evento") or "").strip()
     stato_filter = (request.GET.get("stato") or "").strip()
     reparto_filter = (request.GET.get("reparto") or "").strip()
+    # «anno=AAAA» (tessere per anno di home e hub): solo le rilevazioni di quell'anno.
+    anno_raw = (request.GET.get("anno") or "").strip()
+    anno_filter = int(anno_raw) if anno_raw.isdigit() and len(anno_raw) == 4 else None
 
+    if anno_filter:
+        items = [f for f in items if anno_rilevazione(f) == anno_filter]
     if search:
         sl = search.lower()
         items = [
@@ -684,13 +712,16 @@ def lista(request):
             or sl in (f.get("Descrizione_x0020_avvenimento") or "").lower()
         ]
     if tipo_filter:
-        items = [f for f in items if (f.get("Tipologia_scheda") or "") == tipo_filter]
+        # strip() come nei conteggi delle tessere (_tipi_cnt): stesso insieme, stesso numero.
+        items = [f for f in items if (f.get("Tipologia_scheda") or "").strip() == tipo_filter]
     if evento_filter:
         items = [
             f for f in items
             if normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) == evento_filter
         ]
-    if stato_filter:
+    if stato_filter == STATO_IN_ANALISI:
+        items = [f for f in items if f["stato"] != "CHIUSO"]
+    elif stato_filter:
         items = [f for f in items if f["stato"] == stato_filter]
     if reparto_filter:
         items = [
@@ -708,6 +739,7 @@ def lista(request):
         "evento_filter": evento_filter,
         "stato_filter": stato_filter,
         "reparto_filter": reparto_filter,
+        "anno_filter": anno_filter or "",
         "tipologie": [t[0] for t in TIPOLOGIE],
         "tipi_evento": TIPI_EVENTO_NORMALIZZATI,
         "all_reparti": all_reparti,
@@ -1105,7 +1137,8 @@ def statistiche(request):
 
     # Aggregazioni
     totale = len(items)
-    per_tipologia = Counter(f.get("Tipologia_scheda", "N/D") for f in items)
+    # Stessa normalizzazione del filtro ?tipo= della lista, dove portano le tessere.
+    per_tipologia = Counter((f.get("Tipologia_scheda") or "").strip() or "N/D" for f in items)
     per_tipo_evento = Counter(normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) for f in items)
     per_reparto = Counter(f.get("Reparto", f.get("Reparto_txt", "N/D")) or "N/D" for f in items)
     per_stato = Counter(f["stato"] for f in items)
@@ -1177,7 +1210,7 @@ def statistiche(request):
         # resi nel template con |safe).
         s = json.dumps(obj)
         # Neutralizza la sequenza </script> (vettore XSS in contesto <script>).
-        return s.replace("<", "\u003c").replace(">", "\u003e").replace("&", "\u0026")
+        return s.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
     chart_tipologie = _safe_json({
         "labels": ["Unsafe Condition", "Unsafe Act", "Near Miss", "Accident"],

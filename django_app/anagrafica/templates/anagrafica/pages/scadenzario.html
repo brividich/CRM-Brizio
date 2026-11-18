@@ -50,14 +50,14 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi fmd-k4">
-      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da rinnovare subito</div></div>
-      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div><div class="fmd-mtr-lbl">Entro 30 giorni</div><div class="fmd-mtr-sub">Priorità alta</div></div>
-      <div class="fmd-mtr fmd-t-yellow"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock3"/></svg></span><span class="fmd-mtr-val">{{ n_60gg }}</span></div><div class="fmd-mtr-lbl">Entro 60 giorni</div><div class="fmd-mtr-sub">Pianificazione</div></div>
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ totale }}</span></div><div class="fmd-mtr-lbl">Totale</div><div class="fmd-mtr-sub">Con filtri attivi</div></div>
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta{% if kpi_qs_base %}&amp;{{ kpi_qs_base }}{% endif %}#scad-elenco" title="Apri l'elenco filtrato: scadenze già superate"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da rinnovare subito</div></a>
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:scadenzario' %}?stato=30{% if kpi_qs_base %}&amp;{{ kpi_qs_base }}{% endif %}#scad-elenco" title="Apri l'elenco filtrato: scadenze entro 30 giorni"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div><div class="fmd-mtr-lbl">Entro 30 giorni</div><div class="fmd-mtr-sub">Priorità alta</div></a>
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:scadenzario' %}?stato=60{% if kpi_qs_base %}&amp;{{ kpi_qs_base }}{% endif %}#scad-elenco" title="Apri l'elenco filtrato: scadenze entro 60 giorni (comprese quelle entro 30)"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock3"/></svg></span><span class="fmd-mtr-val">{{ n_60gg }}</span></div><div class="fmd-mtr-lbl">Entro 60 giorni</div><div class="fmd-mtr-sub">Pianificazione (comprese le 30)</div></a>
+      <a class="fmd-mtr fmd-t-cyan kpi-link" href="{% url 'anagrafica:scadenzario' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}#scad-elenco" title="Vai all'elenco con i filtri attivi"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ totale }}</span></div><div class="fmd-mtr-lbl">Totale</div><div class="fmd-mtr-sub">Con filtri attivi</div></a>
     </section>
 
     {# ── Tabella + filtri ───────────────────────────────────────────────── #}
-    <section class="fmd-panel">
+    <section class="fmd-panel" id="scad-elenco">
       <form method="get" action="" class="fmd-toolbar">
         <input type="hidden" name="layout" value="{{ layout }}">
         <select name="tipo" class="fmd-select" aria-label="Filtra per tipo" onchange="this.form.submit()">
@@ -73,7 +73,7 @@
           <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
           <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
         </select>
-        <select name="periodo" class="fmd-select" aria-label="Periodo di scadenza" onchange="document.getElementById('scad-intervallo').hidden = this.value !== 'intervallo'; if (this.value !== 'intervallo') this.form.submit();" title="Un periodo sostituisce il filtro di stato">
+        <select name="periodo" class="fmd-select" aria-label="Periodo di scadenza" onchange="document.getElementById('scad-intervallo').hidden = this.value !== 'intervallo'; if (this.value !== 'intervallo') this.form.submit();" title="Il periodo si combina con il filtro di stato">
           <option value="" {% if not filtro_periodo %}selected{% endif %}>Qualsiasi periodo</option>
           <option value="mese" {% if filtro_periodo == "mese" %}selected{% endif %}>Questo mese</option>
           <option value="prossimo" {% if filtro_periodo == "prossimo" %}selected{% endif %}>Prossimo mese</option>

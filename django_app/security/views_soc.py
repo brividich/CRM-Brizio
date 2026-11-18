@@ -202,7 +202,7 @@ def vpn_history(request):
             "page": page,
             "filters": filters,
             "summary": summary,
-            "tiles": _vpn_tiles(summary, previous, daily),
+            "tiles": _vpn_tile_links(_vpn_tiles(summary, previous, daily), query),
             "top_users": _with_share(summary["top_users"][:8]),
             "top_ips": _with_share(summary["top_ips"][:8]),
             "daily": daily,
@@ -219,6 +219,23 @@ def vpn_history(request):
             "day_to": day_to,
         },
     )
+
+
+def _vpn_tile_links(tiles, query):
+    """Ogni tessera porta al Registro accessi con gli stessi filtri della pagina (stesso queryset del
+    riepilogo); Consentiti/Negati aggiungono l'esito, Utenti distinti va alla classifica utenti."""
+    from django.urls import reverse
+
+    base = reverse("security:vpn_history")
+    for tile in tiles:
+        q = query.copy()
+        ancora = "#vpn-registro"
+        if tile["key"] in ("allowed", "denied"):
+            q["action"] = tile["key"]
+        elif tile["key"] == "unique_users":
+            ancora = "#vpn-utenti"
+        tile["url"] = f"{base}?{q.urlencode()}{ancora}" if q else f"{base}{ancora}"
+    return tiles
 
 
 def _with_share(rows):

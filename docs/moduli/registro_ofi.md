@@ -43,3 +43,8 @@ Area **Qualità** · URL `/ofi-registro/` · codice [`django_app/registro_ofi/`]
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «Aperta» ha una sola definizione: `RegistroOFI.q_aperte()` (registro, «Le mie», report MOD.174).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri `norma` (chip «Norma X ✕»), `fase_almeno`, `chiuse_12m`.

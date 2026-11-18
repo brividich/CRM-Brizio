@@ -18,9 +18,9 @@ Stati: forbidden / schema_issue / not_found / contenuto.
 
   <div class="tim-embed-bar">
     <div class="tim-embed-kpi">
-      <span class="tim-embed-k"><strong>{{ stats.totale }}</strong> totali</span>
-      <span class="tim-embed-k is-ok"><strong>{{ stats.attivi }}</strong> attivi</span>
-      <span class="tim-embed-k"><strong>{{ stats.storico }}</strong> storico</span>
+      <a class="tim-embed-k kpi-link" href="#tim-embed-{{ employee.legacy_id }}-attivi" title="Vai ai record: attivi e storico"><strong>{{ stats.totale }}</strong> totali</a>
+      <a class="tim-embed-k is-ok kpi-link" href="#tim-embed-{{ employee.legacy_id }}-attivi" title="Vai ai record attivi"><strong>{{ stats.attivi }}</strong> attivi</a>
+      <a class="tim-embed-k kpi-link" href="#tim-embed-{{ employee.legacy_id }}-storico" title="Vai allo storico dei record"><strong>{{ stats.storico }}</strong> storico</a>
     </div>
     <div class="tim-embed-actions">
       {% if can_edit_timbri and employee.legacy_id %}
@@ -35,12 +35,12 @@ Stati: forbidden / schema_issue / not_found / contenuto.
     </div>
   </div>
 
-  <div>
+  <div id="tim-embed-{{ employee.legacy_id }}-attivi">
     <div class="tim-embed-sec-h">Record attivi <span class="tim-seg-n">{{ stats.attivi }}</span></div>
     {% include "timbri/components/_records_attivi.html" %}
   </div>
 
-  <div>
+  <div id="tim-embed-{{ employee.legacy_id }}-storico">
     <div class="tim-embed-sec-h">Storico <span class="tim-seg-n">{{ stats.storico }}</span></div>
     {% if historical_records %}
       <div class="tim-recs">{% for record in historical_records %}{% include "timbri/components/detail_record.html" with record=record active=False %}{% endfor %}</div>

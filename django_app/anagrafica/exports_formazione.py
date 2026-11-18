@@ -46,6 +46,8 @@ def _formazione_corsi_qs(request: HttpRequest, scope: str):
                 pass
         if filtro_stato:
             qs = qs.filter(stato=filtro_stato)
+        if request.GET.get("attivi") == "1":
+            qs = qs.filter(is_active=True)
         if filtro_obbligatorio == "1":
             qs = qs.filter(obbligatorio=True)
         elif filtro_obbligatorio == "0":
@@ -220,6 +222,8 @@ def _formazione_piani_rows(request: HttpRequest, scope: str) -> list[dict]:
         filtro_cat = (request.GET.get("categoria") or "").strip()
         if filtro_stato:
             qs = qs.filter(stato=filtro_stato)
+        if request.GET.get("attivi") == "1":
+            qs = qs.filter(is_active=True)
         if filtro_cat:
             qs = qs.filter(categoria=filtro_cat)
 
@@ -551,13 +555,13 @@ def _formazione_scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]
         filtro_q = (request.GET.get("q") or "").strip()
         from anagrafica.services import centro_filtro
 
+        from anagrafica.services.training_deadline_service import filtra_stato_scadenze
+
         qs = centro_filtro.leggi(request).applica(qs)
-        if filtro_stato:
-            qs = qs.filter(stato_scadenza=filtro_stato)
-        else:
-            qs = qs.filter(
-                stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"]
-            )
+        qs = filtra_stato_scadenze(qs, filtro_stato, request.GET.get("obbligatori") == "1")
+        filtro_dipendente = (request.GET.get("dipendente") or "").strip()
+        if filtro_dipendente.isdigit():
+            qs = qs.filter(legacy_anagrafica_id=int(filtro_dipendente))
         if filtro_corso:
             try:
                 qs = qs.filter(corso_id=int(filtro_corso))
@@ -588,10 +592,16 @@ def _formazione_scadenzario_filters(request: HttpRequest) -> str:
     parts: list[str] = []
     filtro_stato = (request.GET.get("stato") or "").strip()
     labels = dict(TrainingDeadline.STATO_SCADENZA_CHOICES)
+    from anagrafica.services.training_deadline_service import STATO_MANCANTE, STATO_MANCANTE_LABEL
+
     if filtro_stato in labels:
         parts.append(f"Stato: {labels[filtro_stato]}")
+    elif filtro_stato == STATO_MANCANTE:
+        parts.append(f"Stato: {STATO_MANCANTE_LABEL}")
     else:
         parts.append("Scaduti + in scadenza + mai frequentati")
+    if request.GET.get("obbligatori") == "1":
+        parts.append("Solo obbligatori")
     filtro_corso = (request.GET.get("corso") or "").strip()
     if filtro_corso:
         corso = TrainingCourse.objects.filter(pk=filtro_corso).first() if filtro_corso.isdigit() else None

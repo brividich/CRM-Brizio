@@ -28,7 +28,7 @@
     border:1px solid var(--hub-color-navy); background:var(--hub-color-navy); color:#fff; }
   .ncfg-btn-ghost { background:var(--hub-color-surface); color:var(--hub-color-text); border-color:var(--hub-color-border); }
   .ncfg-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; padding:16px 18px; }
-  .ncfg-kpi { border:1px solid var(--hub-color-border); border-radius:var(--hub-radius-lg); padding:12px 14px;
+  .ncfg-kpi { display:block; border:1px solid var(--hub-color-border); border-radius:var(--hub-radius-lg); padding:12px 14px;
     background:var(--hub-color-surface-raised); }
   .ncfg-kpi-n { font-size:22px; font-weight:700; color:var(--hub-color-text); }
   .ncfg-kpi-l { font-size:12px; color:var(--hub-color-text-soft); margin-top:2px; }
@@ -118,9 +118,10 @@
 
       <div style="border-top:1px solid var(--hub-color-border);">
         <div class="ncfg-kpis">
-          <div class="ncfg-kpi"><div class="ncfg-kpi-n">{{ stats.attive }}</div><div class="ncfg-kpi-l">Attive</div></div>
-          <div class="ncfg-kpi"><div class="ncfg-kpi-n">{{ stats.non_lette }}</div><div class="ncfg-kpi-l">di cui non lette</div></div>
-          <div class="ncfg-kpi"><div class="ncfg-kpi-n">{{ stats.archiviate }}</div><div class="ncfg-kpi-l">Archiviate</div></div>
+          {% url 'hub_tools:hub_notifiche' as ncfg_notifiche_url %}
+          <a class="ncfg-kpi kpi-link" href="{{ ncfg_notifiche_url }}?letta=attive" title="Apri l'elenco filtrato: notifiche attive (non archiviate)"><div class="ncfg-kpi-n">{{ stats.attive }}</div><div class="ncfg-kpi-l">Attive</div></a>
+          <a class="ncfg-kpi kpi-link" href="{{ ncfg_notifiche_url }}?letta=no" title="Apri l'elenco filtrato: notifiche non lette"><div class="ncfg-kpi-n">{{ stats.non_lette }}</div><div class="ncfg-kpi-l">di cui non lette</div></a>
+          <a class="ncfg-kpi kpi-link" href="{{ ncfg_notifiche_url }}?letta=archiviate" title="Apri l'elenco filtrato: notifiche archiviate"><div class="ncfg-kpi-n">{{ stats.archiviate }}</div><div class="ncfg-kpi-l">Archiviate</div></a>
         </div>
         <form method="post" class="ncfg-foot" style="padding-top:0;">
           {% csrf_token %}

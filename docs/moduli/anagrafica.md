@@ -274,3 +274,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): 
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 Scadenzario (pagina, «Cose da gestire», badge subnav) ristretto a `_schede_visibili`; badge con versione in cache svuotata a ogni scrittura su anagrafica (`services.scadenze.invalida_badge`); `aggiorna_piani` dopo ogni ricalcolo scadenze; riquadro formazione dello scadenzario solo corsi obbligatori; «Senza visita» solo ruoli in essere (`_richiesti_per_ruoli`); «Il mio team» con la regola unica capo/team quando accesa; `aree_opts` locale (prima sovrascriveva `_helpers.aree_list`).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Scheda dipendente: «Ticket aperti»/«Ticket totali» contati per id utente e link a Gestione ticket (`richiedente=`), «Asset in carico» link all'inventario (`assegnatario=`), solo per chi può aprire quegli elenchi. Componente `_kpi_tile.html` con classe `kpi-link`.

@@ -13,6 +13,7 @@
 .dpi-btn-white { background:#fff; color:#03787C; }
 .dpi-btn-soft { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.42); }
 .dpi-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+a.dpi-kpi { display:block; }
 .dpi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
 .dpi-kpi-val { font-size:26px; font-weight:900; color:#0f766e; line-height:1.1; }
 .dpi-kpi-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-top:4px; }
@@ -63,27 +64,27 @@ body.theme-dark .dpi-pill-ko{background:rgba(229,62,62,.16);color:#fca5a5}
   </div>
 
   <div class="dpi-kpis">
-    <div class="dpi-kpi">
+    <a class="dpi-kpi kpi-link" href="#dpi-storico" title="Vai allo storico: ultime compilazioni registrate">
       <div class="dpi-kpi-val">{{ esecuzioni|length }}</div>
       <div class="dpi-kpi-lbl">Ispezioni recenti</div>
-    </div>
-    <div class="dpi-kpi">
+    </a>
+    {% if can_manage_settings %}<a class="dpi-kpi kpi-link" href="{% url 'diario_preposto:impostazioni' %}#ispezione_frequenza_giorni" title="Apri le impostazioni: frequenza delle ispezioni">{% else %}<div class="dpi-kpi">{% endif %}
       <div class="dpi-kpi-val">{{ frequenza_giorni }} gg</div>
       <div class="dpi-kpi-lbl">Frequenza attesa</div>
-    </div>
-    <div class="dpi-kpi{% if ispezione_scaduta %} dpi-kpi-alert{% endif %}">
+    {% if can_manage_settings %}</a>{% else %}</div>{% endif %}
+    <a class="dpi-kpi kpi-link{% if ispezione_scaduta %} dpi-kpi-alert{% endif %}" href="#dpi-storico" title="Vai allo storico: la scadenza parte dall'ultima ispezione">
       <div class="dpi-kpi-val">
         {% if prossima_scadenza %}{{ prossima_scadenza|date:"d-m-Y" }}{% else %}Da pianificare{% endif %}
       </div>
       <div class="dpi-kpi-lbl">Prossima scadenza</div>
-    </div>
+    </a>
     <div class="dpi-kpi">
       <div class="dpi-kpi-val">{{ voci|length }}</div>
       <div class="dpi-kpi-lbl">Voci template</div>
     </div>
   </div>
 
-  <section class="dpi-section">
+  <section class="dpi-section" id="dpi-storico">
     <div class="dpi-section-head">
       <div>
         <div class="dpi-section-title">Storico ispezioni</div>

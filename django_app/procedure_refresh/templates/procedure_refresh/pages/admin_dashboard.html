@@ -68,38 +68,38 @@ body.theme-dark .pr-kpi-red .pr-kpi-val{color:#fca5a5}
     {% include "core/components/module_settings_hero.html" with settings_variant="compact" settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="KPI, sessioni recenti e branding del modulo procedure MT / MTSI." %}
 
     <div class="pr-kpi-row">
-      <div class="pr-kpi pr-kpi-blue">
+      <a class="pr-kpi pr-kpi-blue kpi-link" href="{% url 'procedure_refresh:document_list' %}?filtro=attivi" title="Apri l'elenco filtrato: documenti attivi">
         <div class="pr-kpi-val">{{ n_documents }}</div>
         <div class="pr-kpi-lbl">Documenti attivi</div>
-      </div>
-      <div class="pr-kpi pr-kpi-blue">
+      </a>
+      <a class="pr-kpi pr-kpi-blue kpi-link" href="{% url 'procedure_refresh:campaign_list' %}" title="Apri l'elenco di tutte le sessioni">
         <div class="pr-kpi-val">{{ n_campaigns }}</div>
         <div class="pr-kpi-lbl">Sessioni totali</div>
-      </div>
-      <div class="pr-kpi pr-kpi-blue">
+      </a>
+      <a class="pr-kpi pr-kpi-blue kpi-link" href="{% url 'procedure_refresh:campaign_list' %}?stato=published" title="Apri l'elenco filtrato: sessioni pubblicate">
         <div class="pr-kpi-val">{{ n_published }}</div>
         <div class="pr-kpi-lbl">Sessioni attive</div>
-      </div>
-      <div class="pr-kpi">
+      </a>
+      <a class="pr-kpi kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id=tutte" title="Apri il report di tutte le sessioni: tutte le assegnazioni">
         <div class="pr-kpi-val">{{ n_assignments }}</div>
         <div class="pr-kpi-lbl">Assegnazioni totali</div>
-      </div>
-      <div class="pr-kpi pr-kpi-green">
+      </a>
+      <a class="pr-kpi pr-kpi-green kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id=tutte&amp;stato=confermate" title="Apri il report filtrato: assegnazioni confermate">
         <div class="pr-kpi-val">{{ n_confirmed }}</div>
         <div class="pr-kpi-lbl">Confermate</div>
-      </div>
-      <div class="pr-kpi pr-kpi-orange">
+      </a>
+      <a class="pr-kpi pr-kpi-orange kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id=tutte&amp;stato=in_attesa" title="Apri il report filtrato: assegnazioni in attesa">
         <div class="pr-kpi-val">{{ n_pending }}</div>
         <div class="pr-kpi-lbl">In attesa</div>
-      </div>
-      <div class="pr-kpi pr-kpi-red">
+      </a>
+      <a class="pr-kpi pr-kpi-red kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id=tutte&amp;stato=scadute" title="Apri il report filtrato: assegnazioni scadute">
         <div class="pr-kpi-val">{{ n_overdue }}</div>
         <div class="pr-kpi-lbl">Scadute</div>
-      </div>
-      <div class="pr-kpi pr-kpi-orange">
+      </a>
+      <a class="pr-kpi pr-kpi-orange kpi-link" href="{% url 'procedure_refresh:change_request_list' %}?stato=aperte" title="Apri l'elenco filtrato: segnalazioni aperte o prese in carico">
         <div class="pr-kpi-val">{{ n_change_requests_open }}</div>
         <div class="pr-kpi-lbl">Segnalazioni aperte</div>
-      </div>
+      </a>
     </div>
 
     {% include "core/components/module_branding_card.html" with branding_compact=True %}

@@ -25,12 +25,13 @@
 <section class="sec-panel" style="margin-top: 12px;" id="ciclo-cve">
   <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>Dalla segnalazione alla correzione (ultimi {{ ciclo.giorni }} giorni)</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#chiusura-con-prove">? Guida</a></div>
   <div class="sec-fact-grid">
-    <div class="sec-fact"><span>PC corretti (aggiornati o programma rimosso)</span><strong>{{ ciclo.correzioni }}</strong></div>
-    <div class="sec-fact"><span>Giorni medi da «esposto dal» alla correzione</span><strong>{% if ciclo.giorni_medi is not None %}{{ ciclo.giorni_medi }}{% else %}—{% endif %}</strong></div>
-    <div class="sec-fact"><span>…per CVE critiche o sfruttate ({{ ciclo.correzioni_gravi }} PC)</span><strong>{% if ciclo.giorni_medi_gravi is not None %}{{ ciclo.giorni_medi_gravi }}{% else %}—{% endif %}</strong></div>
-    <div class="sec-fact"><span>Alert CVE chiusi</span><strong>{{ ciclo.chiusi }}</strong> <small class="sec-muted">{% if ciclo.chiusi %}{{ ciclo.pct_auto }}% da soli con le prove, {{ ciclo.manuali }} a mano{% else %}nessuno{% endif %}</small></div>
+    {% url 'security:cve_correzioni' as url_correzioni %}{% url 'security:alerts_list' as url_alert %}
+    <a class="sec-fact kpi-link" href="{{ url_correzioni }}?periodo=90&amp;come=correzioni" title="Apri le correzioni CVE degli ultimi 90 giorni"><span>PC corretti (aggiornati o programma rimosso)</span><strong>{{ ciclo.correzioni }}</strong></a>
+    <a class="sec-fact kpi-link" href="{{ url_correzioni }}?periodo=90&amp;come=correzioni" title="Apri le correzioni da cui è calcolata la media (colonna Giorni)"><span>Giorni medi da «esposto dal» alla correzione</span><strong>{% if ciclo.giorni_medi is not None %}{{ ciclo.giorni_medi }}{% else %}—{% endif %}</strong></a>
+    <a class="sec-fact kpi-link" href="{{ url_correzioni }}?periodo=90&amp;come=correzioni" title="Apri le correzioni da cui è calcolata la media (colonna Giorni)"><span>…per CVE critiche o sfruttate ({{ ciclo.correzioni_gravi }} PC)</span><strong>{% if ciclo.giorni_medi_gravi is not None %}{{ ciclo.giorni_medi_gravi }}{% else %}—{% endif %}</strong></a>
+    <a class="sec-fact kpi-link" href="{{ url_alert }}?tipo=cve&amp;status=inactive&amp;chiusi_dal={{ ciclo.dal|date:'Y-m-d' }}&amp;chiusi_al={{ ciclo.al|date:'Y-m-d' }}" title="Apri gli alert CVE chiusi nel periodo"><span>Alert CVE chiusi</span><strong>{{ ciclo.chiusi }}</strong> <small class="sec-muted">{% if ciclo.chiusi %}{{ ciclo.pct_auto }}% da soli con le prove, {{ ciclo.manuali }} a mano{% else %}nessuno{% endif %}</small></a>
     <div class="sec-fact"><span>Recidive (versione vulnerabile ricomparsa)</span><strong>{{ ciclo.recidive }}</strong></div>
-    <div class="sec-fact"><span>Alert CVE ancora aperti</span><strong>{{ ciclo.aperti }}</strong></div>
+    <a class="sec-fact kpi-link" href="{{ url_alert }}?tipo=cve&amp;status=active" title="Apri gli alert CVE ancora da gestire"><span>Alert CVE ancora aperti</span><strong>{{ ciclo.aperti }}</strong></a>
   </div>
 </section>
 {% endif %}
@@ -40,23 +41,23 @@
   <div class="sec-section-head"><h2><svg class="sec-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Tempi di correzione (ISO 27001 8.8, ultimi {{ termini.giorni }} giorni)</h2><span class="sec-small"><a href="{% url 'security:accettazioni_rischio' %}">Rischi accettati</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">? Guida</a></span></div>
   {% with d=termini.differenze p=termini.prima %}
   <div class="sec-fact-grid sec-fact-grid--3" title="Confronto con i {{ termini.giorni }} giorni prima: dal {{ p.dal|date:'d/m/Y' }} al {{ p.al|date:'d/m/Y' }}, {{ p.corrette }} PC corretti{% if p.percentuale_in_tempo is not None %}, {{ p.percentuale_in_tempo }}% nel termine{% endif %}{% if p.giorni_mediani is not None %}, mediana {{ p.giorni_mediani }} giorni{% endif %}">
-    <div class="sec-fact sec-kpi{% if termini.percentuale_in_tempo is not None %}{% if termini.percentuale_in_tempo >= 80 %} is-good{% elif termini.percentuale_in_tempo < 50 %} is-bad{% else %} is-warn{% endif %}{% endif %}">
+    <a class="sec-fact sec-kpi kpi-link{% if termini.percentuale_in_tempo is not None %}{% if termini.percentuale_in_tempo >= 80 %} is-good{% elif termini.percentuale_in_tempo < 50 %} is-bad{% else %} is-warn{% endif %}{% endif %}" href="{% url 'security:cve_correzioni' %}?periodo=90&amp;come=correzioni" title="Apri le correzioni degli ultimi 90 giorni (colonna Termine)">
       <span>PC corretti nel termine</span>
       <strong>{% if termini.percentuale_in_tempo is not None %}{{ termini.percentuale_in_tempo }}%{% else %}—{% endif %} <small>{{ termini.in_tempo }} su {{ termini.corrette }}</small></strong>
       {% if d.percentuale_in_tempo is not None %}{% if d.percentuale_in_tempo > 0 %}<em class="sec-kpi-delta is-good" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.percentuale_in_tempo }}%)">▲ +{{ d.percentuale_in_tempo }} punti</em>{% elif d.percentuale_in_tempo < 0 %}<em class="sec-kpi-delta is-bad" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.percentuale_in_tempo }}%)">▼ {{ d.percentuale_in_tempo }} punti</em>{% else %}<em class="sec-kpi-delta" title="Come nei {{ termini.giorni }} giorni prima">= uguale a prima</em>{% endif %}{% else %}<em class="sec-kpi-delta" title="In uno dei due periodi non ci sono correzioni">senza confronto</em>{% endif %}
       {% with sp=termini.spark.percentuale_in_tempo %}{% if sp %}<svg class="sec-spark" viewBox="0 0 {{ sp.larghezza }} {{ sp.altezza }}" preserveAspectRatio="none" role="img" aria-label="Percentuale nel termine nelle ultime {{ termini.settimane|length }} settimane, da {{ sp.min }} a {{ sp.max }}"><polyline points="{{ sp.punti }}"/><circle cx="{{ sp.ultimo.0 }}" cy="{{ sp.ultimo.1 }}" r="2.5"/></svg>{% endif %}{% endwith %}
-    </div>
-    <div class="sec-fact sec-kpi{% if d.giorni_mediani is not None %}{% if d.giorni_mediani < 0 %} is-good{% elif d.giorni_mediani > 0 %} is-warn{% endif %}{% endif %}">
+    </a>
+    <a class="sec-fact sec-kpi kpi-link{% if d.giorni_mediani is not None %}{% if d.giorni_mediani < 0 %} is-good{% elif d.giorni_mediani > 0 %} is-warn{% endif %}{% endif %}" href="{% url 'security:cve_correzioni' %}?periodo=90&amp;come=correzioni" title="Apri le correzioni da cui è calcolata la mediana (colonna Giorni)">
       <span title="Metà dei PC corretti ci ha messo meno di così, da «esposto dal» alla correzione">Giorni mediani alla correzione</span>
       <strong>{% if termini.giorni_mediani is not None %}{{ termini.giorni_mediani }} <small>giorni</small>{% else %}—{% endif %}</strong>
       {% if d.giorni_mediani is not None %}{% if d.giorni_mediani < 0 %}<em class="sec-kpi-delta is-good" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.giorni_mediani }} giorni)">▼ {{ d.giorni_mediani }} giorni</em>{% elif d.giorni_mediani > 0 %}<em class="sec-kpi-delta is-bad" title="Rispetto ai {{ termini.giorni }} giorni prima ({{ p.giorni_mediani }} giorni)">▲ +{{ d.giorni_mediani }} giorni</em>{% else %}<em class="sec-kpi-delta">= uguale a prima</em>{% endif %}{% else %}<em class="sec-kpi-delta" title="In uno dei due periodi non ci sono correzioni">senza confronto</em>{% endif %}
       {% with sp=termini.spark.giorni_mediani %}{% if sp %}<svg class="sec-spark" viewBox="0 0 {{ sp.larghezza }} {{ sp.altezza }}" preserveAspectRatio="none" role="img" aria-label="Giorni mediani nelle ultime {{ termini.settimane|length }} settimane, da {{ sp.min }} a {{ sp.max }}"><polyline points="{{ sp.punti }}"/><circle cx="{{ sp.ultimo.0 }}" cy="{{ sp.ultimo.1 }}" r="2.5"/></svg>{% endif %}{% endwith %}
-    </div>
-    <div class="sec-fact sec-kpi{% if termini.aperte_scadute %} is-bad{% elif termini.aperte %} is-good{% endif %}">
+    </a>
+    <a class="sec-fact sec-kpi kpi-link{% if termini.aperte_scadute %} is-bad{% elif termini.aperte %} is-good{% endif %}" href="#pc-oltre-termine" title="Vai all'elenco dei PC oltre il termine">
       <span>PC oltre il termine</span>
       <strong>{{ termini.aperte_scadute_totale }} <small>su {{ termini.aperte }} esposizioni aperte</small></strong>
       <small class="sec-kpi-foot">{% if termini.accettate %}{{ termini.accettate }} con rischio accettato{% else %}nessun rischio accettato{% endif %}{% if not termini.attivo %} · <span class="sec-badge warning">Segnalazione oltre il termine spenta</span>{% endif %}</small>
-    </div>
+    </a>
   </div>
   {% endwith %}
   <div class="sec-table-wrap" style="margin-top:10px">
@@ -66,7 +67,7 @@
     </table>
   </div>
   {% if termini.aperte_scadute %}
-  <details style="margin-top: 8px;"><summary>PC oltre il termine ({% if termini.aperte_scadute_totale > termini.aperte_scadute|length %}i primi {{ termini.aperte_scadute|length }} su {{ termini.aperte_scadute_totale }}{% else %}{{ termini.aperte_scadute_totale }}{% endif %})</summary>
+  <details style="margin-top: 8px;" id="pc-oltre-termine"><summary>PC oltre il termine ({% if termini.aperte_scadute_totale > termini.aperte_scadute|length %}i primi {{ termini.aperte_scadute|length }} su {{ termini.aperte_scadute_totale }}{% else %}{{ termini.aperte_scadute_totale }}{% endif %})</summary>
     <div class="sec-table-wrap">
       <table class="sec-table sec-table-compact" data-fm-table-skip="1">
         <thead><tr><th>CVE</th><th>PC</th><th>Classe</th><th>Scadenza</th><th class="sec-num">Ritardo</th><th>Rischio</th></tr></thead>
@@ -85,9 +86,9 @@
     <span class="sec-small"><a class="sec-button" href="{% url 'security:cve_correzioni' %}">Correzioni CVE: cosa si è chiuso con gli aggiornamenti</a></span>
   </div>
   <div class="sec-fact-grid">
-    <div class="sec-fact"><span>CVE in elenco</span><strong>{{ elenco.totali.cve }}</strong> <small class="sec-muted">{{ elenco.totali.kev }} sfruttate (KEV)</small></div>
+    <a class="sec-fact kpi-link" href="#tabella-cve" title="Vai alla tabella delle CVE con i filtri attuali"><span>CVE in elenco</span><strong>{{ elenco.totali.cve }}</strong> <small class="sec-muted">{{ elenco.totali.kev }} sfruttate (KEV)</small></a>
     <div class="sec-fact"><span>PC esposti</span><strong>{{ elenco.totali.pc_esposti }}</strong></div>
-    <div class="sec-fact"><span>CVE con PC oltre il termine</span><strong>{{ elenco.totali.oltre }}</strong></div>
+    <a class="sec-fact kpi-link" href="{% url 'security:vulnerabilities' %}{% querystring termine='scaduta' page=None %}#elenco-cve" title="Apri l'elenco filtrato: CVE con PC oltre il termine"><span>CVE con PC oltre il termine</span><strong>{{ elenco.totali.oltre }}</strong></a>
     <div class="sec-fact" title="Solo le CVE di questo elenco: tutte le correzioni sono nella pagina Correzioni CVE"><span>PC corretti in 90 giorni, su queste CVE</span><strong><a href="{% url 'security:cve_correzioni' %}">{{ elenco.totali.corretti_90 }}</a></strong></div>
   </div>
   <form class="sec-filter-bar" method="get" action="#elenco-cve" style="margin-top: 10px;">
@@ -107,7 +108,7 @@
     <a class="sec-button" href="{% querystring formato='csv' %}">Scarica CSV</a>
   </form>
   <p class="sec-muted sec-small">Ordine: sfruttate, CVSS, EPSS, PC impattati. Clic sulla riga: pannello con PC, programmi e correzioni senza lasciare la pagina; clic sul codice della CVE: scheda completa.</p>
-  <div class="sec-table-wrap">
+  <div class="sec-table-wrap" id="tabella-cve">
     <table class="sec-table" data-preview-scope>
       <thead><tr><th>CVE</th><th>Gravità</th><th>Programmi coinvolti</th><th class="sec-num">PC impattati</th><th class="sec-num">Da verificare</th><th>Esposta dal</th><th>Termine</th><th class="sec-num">Corretti (90 gg)</th></tr></thead>
       <tbody>

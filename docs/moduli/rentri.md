@@ -75,3 +75,8 @@ Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Naz
 - **Numero FIR sulla O**: il modulo dello scarico originale ha il campo «Numero FIR» (`arrivo_fir`, lo stesso della colonna «FIR»); «Leggi i dati dal FIR» lo compila invece di scriverlo nelle note.
 - **Numero di registrazione correggibile** sulle bozze (campo «Numero di registrazione» solo in modifica): `validazione._errori_numero` (forma `AAAA/N`, anno della data, non usato da altri movimenti anche annullati, non trasmessa, nessun figlio consolidato che citi il vecchio numero). Se il vecchio numero era solo di quel movimento, `servizi._rinumera_figli` aggiorna il Rif. Op dei movimenti che lo citavano (audit `rif_op_aggiornati`); con un numero storico doppio i riferimenti non si toccano. `id_registrazione` entra in `CAMPI_DATI` (storico modifiche).
 - **Trasmetti filo**: GET/POST `rentri/<pk>/trasmetti-filo/` (`rentri_trasmetti_filo`, `servizi.anteprima_trasmissione_filo` / `trasmetti_filo`): segna `rentri_si_no` su tutte le righe consolidate del filo, bozze escluse, audit `rentri_movimento_trasmesso` con `filo: true`, invio SharePoint per riga. Pulsante «Trasmetti filo · n/m» sull'intestazione del filo e «Trasmetti filo…» nella scheda.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtro `oltre=1` usato dalle tessere.

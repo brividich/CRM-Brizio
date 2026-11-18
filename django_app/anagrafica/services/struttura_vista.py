@@ -154,6 +154,12 @@ def kpi(alb, procs, rls, mans) -> dict:
         "ruoli": len(rls),
         "mansioni": sum(1 for m in mans if not m.is_responsabilita),
         "processi": len(procs),
-        "rischi_da_confermare": sum(1 for m in mans if m.mansioni_rischio_proposte.all()
-                                    and not m.is_responsabilita),
+        # Stesso elenco della pagina «Mansioni di rischio da confermare» a cui porta il KPI.
+        "rischi_da_confermare": _da_confermare_count(),
     }
+
+
+def _da_confermare_count() -> int:
+    from .struttura_rischi import da_confermare
+
+    return da_confermare().count()

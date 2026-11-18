@@ -27,6 +27,7 @@
 .sic-btn-outline:hover { border-color:#fff; background:rgba(255,255,255,.1); }
 .sic-hero-kpi { display:flex; gap:24px; flex-wrap:wrap; align-items:center; }
 .sic-hero-kpi-item { text-align:center; }
+a.sic-hero-kpi-item, a.sic-kpi-card, a.sic-stato-card { color:inherit; text-decoration:none; }
 .sic-hero-kpi-num { font-size: var(--fs-display-2xl); font-weight:900; line-height:1; }
 .sic-hero-kpi-label { font-size: var(--fs-xs); opacity:.65; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
 .sic-hero-kpi-sep { width:1px; height:40px; background:rgba(255,255,255,.2); }
@@ -138,21 +139,22 @@ body.theme-dark .sic-stato-lbl{color:var(--text-light)}
         {% endif %}
       </div>
     </div>
+    {% url 'rilevazione_incidenti:lista' as url_lista %}
     <div class="sic-hero-kpi">
-      <div class="sic-hero-kpi-item">
+      <a class="sic-hero-kpi-item kpi-link" href="{{ url_lista }}#sic-elenco" title="Apri l'elenco di tutte le rilevazioni visibili">
         <div class="sic-hero-kpi-num">{{ totale }}</div>
         <div class="sic-hero-kpi-label">Totale</div>
-      </div>
+      </a>
       <div class="sic-hero-kpi-sep"></div>
-      <div class="sic-hero-kpi-item">
+      <a class="sic-hero-kpi-item kpi-link" href="{{ url_lista }}?stato=APERTO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni aperte">
         <div class="sic-hero-kpi-num">{{ n_aperto }}</div>
         <div class="sic-hero-kpi-label">Aperti</div>
-      </div>
+      </a>
       <div class="sic-hero-kpi-sep"></div>
-      <div class="sic-hero-kpi-item">
+      <a class="sic-hero-kpi-item kpi-link" href="{{ url_lista }}?stato=CHIUSO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni chiuse">
         <div class="sic-hero-kpi-num">{{ n_chiuso }}</div>
         <div class="sic-hero-kpi-label">Chiusi</div>
-      </div>
+      </a>
     </div>
   </div>
 
@@ -184,46 +186,46 @@ body.theme-dark .sic-stato-lbl{color:var(--text-light)}
 
   <!-- KPI tipologie -->
   <div class="sic-kpi-grid">
-    <div class="sic-kpi-card sic-kpi-uc">
+    <a class="sic-kpi-card sic-kpi-uc kpi-link" href="{{ url_lista }}?tipo=Unsafe+Condition#sic-elenco" title="Apri l'elenco filtrato: schede Unsafe Condition">
       <div class="sic-kpi-top"><span class="sic-kpi-icon">&#9888;&#65039;</span><span class="sic-kpi-pct">{% widthratio n_unsafe_condition totale 100 %}%</span></div>
       <div class="sic-kpi-num">{{ n_unsafe_condition }}</div>
       <div class="sic-kpi-lbl">Unsafe Condition</div>
       <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_unsafe_condition totale 100 %}%"></div></div>
-    </div>
-    <div class="sic-kpi-card sic-kpi-ua">
+    </a>
+    <a class="sic-kpi-card sic-kpi-ua kpi-link" href="{{ url_lista }}?tipo=Unsafe+Act#sic-elenco" title="Apri l'elenco filtrato: schede Unsafe Act">
       <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128694;</span><span class="sic-kpi-pct">{% widthratio n_unsafe_act totale 100 %}%</span></div>
       <div class="sic-kpi-num">{{ n_unsafe_act }}</div>
       <div class="sic-kpi-lbl">Unsafe Act</div>
       <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_unsafe_act totale 100 %}%"></div></div>
-    </div>
-    <div class="sic-kpi-card sic-kpi-nm">
+    </a>
+    <a class="sic-kpi-card sic-kpi-nm kpi-link" href="{{ url_lista }}?tipo=Near+Miss#sic-elenco" title="Apri l'elenco filtrato: schede Near Miss">
       <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128680;</span><span class="sic-kpi-pct">{% widthratio n_near_miss totale 100 %}%</span></div>
       <div class="sic-kpi-num">{{ n_near_miss }}</div>
       <div class="sic-kpi-lbl">Near Miss</div>
       <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_near_miss totale 100 %}%"></div></div>
-    </div>
-    <div class="sic-kpi-card sic-kpi-ac">
+    </a>
+    <a class="sic-kpi-card sic-kpi-ac kpi-link" href="{{ url_lista }}?tipo=Accident#sic-elenco" title="Apri l'elenco filtrato: schede Accident">
       <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128721;</span><span class="sic-kpi-pct">{% widthratio n_accident totale 100 %}%</span></div>
       <div class="sic-kpi-num">{{ n_accident }}</div>
       <div class="sic-kpi-lbl">Accident</div>
       <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_accident totale 100 %}%"></div></div>
-    </div>
+    </a>
   </div>
 
   <!-- Stato workflow -->
   <div class="sic-stato-grid">
-    <div class="sic-stato-card">
+    <a class="sic-stato-card kpi-link" href="{{ url_lista }}?stato=APERTO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni aperte">
       <span class="sic-stato-dot-big sic-dot-aperto"></span>
       <div><div class="sic-stato-num">{{ n_aperto }}</div><div class="sic-stato-lbl">Aperti (in lavorazione)</div><div class="sic-stato-pct">{% widthratio n_aperto totale 100 %}% del totale</div></div>
-    </div>
-    <div class="sic-stato-card">
+    </a>
+    <a class="sic-stato-card kpi-link" href="{{ url_lista }}?stato=APPROVATO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni approvate RLS">
       <span class="sic-stato-dot-big sic-dot-approvato"></span>
       <div><div class="sic-stato-num">{{ n_approvato }}</div><div class="sic-stato-lbl">Approvati RLS</div><div class="sic-stato-pct">{% widthratio n_approvato totale 100 %}% del totale</div></div>
-    </div>
-    <div class="sic-stato-card">
+    </a>
+    <a class="sic-stato-card kpi-link" href="{{ url_lista }}?stato=CHIUSO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni chiuse">
       <span class="sic-stato-dot-big sic-dot-chiuso"></span>
       <div><div class="sic-stato-num">{{ n_chiuso }}</div><div class="sic-stato-lbl">Chiusi RSPP/ASPP</div><div class="sic-stato-pct">{% widthratio n_chiuso totale 100 %}% del totale</div></div>
-    </div>
+    </a>
   </div>
 
   <!-- Trend + Tipologie doughnut -->

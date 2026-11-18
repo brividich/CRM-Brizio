@@ -39,6 +39,7 @@
     <form method="get" class="lc-form">
       <input type="hidden" name="chi" value="{{ filtri.chi }}">
       {% if not filtri.data %}<input type="hidden" name="giorni" value="{{ filtri.giorni }}">{% endif %}
+      {% if filtri.evento %}<input type="hidden" name="evento" value="{{ filtri.evento }}">{% endif %}
       <label>Persona
         <select name="legacy_user_id">
           <option value="">Tutte</option>
@@ -59,37 +60,38 @@
       </label>
       <span class="lc-actions">
         <button type="submit" class="btn">Filtra</button>
-        {% if filtri.utente or filtri.modulo or filtri.q or filtri.data or filtri.chi != "persone" %}<a class="btn btn-secondary" href="?">Azzera</a>{% endif %}
+        {% if filtri.evento %}<a class="btn btn-secondary" href="?{{ query_senza_chi_evento }}{% if query_senza_chi_evento %}&amp;{% endif %}chi={{ filtri.chi }}" title="Togli il filtro azione">Azione: {{ filtri.evento }} ×</a>{% endif %}
+        {% if filtri.utente or filtri.modulo or filtri.q or filtri.data or filtri.evento or filtri.chi != "persone" %}<a class="btn btn-secondary" href="?">Azzera</a>{% endif %}
       </span>
     </form>
   </section>
 
   <section class="lc-kpis" aria-label="Riepilogo del periodo">
-    <a class="lc-kpi is-people" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=persone">
+    <a class="lc-kpi is-people kpi-link" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=persone" title="Apri l'elenco filtrato: azioni delle persone">
       <span class="lc-kpi-label">Persone attive</span>
       <span class="lc-kpi-value">{{ indicatori.persone }}</span>
       <span class="lc-kpi-sub">{{ indicatori.persone_righe }} azioni</span>
     </a>
-    <a class="lc-kpi is-ok" href="?chi=persone&amp;q=login_ok{% if filtri.data %}&amp;data={{ filtri.data|date:'Y-m-d' }}{% else %}&amp;giorni={{ filtri.giorni }}{% endif %}">
+    <a class="lc-kpi is-ok kpi-link" href="?{{ query_senza_chi_evento }}{% if query_senza_chi_evento %}&amp;{% endif %}chi=tutti&amp;evento=login_ok" title="Apri l'elenco filtrato: login riusciti nel periodo">
       <span class="lc-kpi-label">Accessi</span>
       <span class="lc-kpi-value">{{ indicatori.accessi }}</span>
       <span class="lc-kpi-sub">login riusciti</span>
     </a>
-    <a class="lc-kpi{% if indicatori.falliti %} is-ko{% endif %}" href="?chi=tutti&amp;q=login_fallito{% if filtri.data %}&amp;data={{ filtri.data|date:'Y-m-d' }}{% else %}&amp;giorni={{ filtri.giorni }}{% endif %}">
+    <a class="lc-kpi kpi-link{% if indicatori.falliti %} is-ko{% endif %}" href="?{{ query_senza_chi_evento }}{% if query_senza_chi_evento %}&amp;{% endif %}chi=tutti&amp;evento=login_fallito" title="Apri l'elenco filtrato: login non riusciti nel periodo">
       <span class="lc-kpi-label">Accessi non riusciti</span>
       <span class="lc-kpi-value">{{ indicatori.falliti }}</span>
       <span class="lc-kpi-sub">{% if indicatori.falliti %}da controllare{% else %}nessuno{% endif %}</span>
     </a>
-    <a class="lc-kpi is-auto" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=automatico">
+    <a class="lc-kpi is-auto kpi-link" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=automatico" title="Apri l'elenco filtrato: processi automatici">
       <span class="lc-kpi-label">Processi automatici</span>
       <span class="lc-kpi-value">{{ indicatori.automatici }}</span>
       <span class="lc-kpi-sub">{{ indicatori.quota_automatici }}% delle righe</span>
     </a>
-    <div class="lc-kpi">
+    <a class="lc-kpi kpi-link" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=tutti" title="Apri l'elenco filtrato: tutte le righe del periodo">
       <span class="lc-kpi-label">Periodo</span>
       <span class="lc-kpi-value" style="font-size:20px;">{% if dal == al %}{{ dal|date:"d/m/Y" }}{% else %}{{ dal|date:"d/m" }} – {{ al|date:"d/m" }}{% endif %}</span>
       <span class="lc-kpi-sub">{{ indicatori.totale }} righe in tutto</span>
-    </div>
+    </a>
   </section>
 
   <div class="lc-grid">

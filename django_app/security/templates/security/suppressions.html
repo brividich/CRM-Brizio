@@ -21,9 +21,10 @@
     {% if can_edit %}· <a href="{% url 'security:admin_config_suppressions' %}">Nuova soppressione manuale</a>{% endif %}
   </p>
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ counts.learned_active }}</strong> apprese attive</span> ·
-    <span><strong>{{ counts.manual_active }}</strong> manuali attive</span> ·
-    <span title="{% if expiring_alert %}Per ognuna nasce un alert di attenzione {{ expiring_days }} giorni prima della scadenza{% else %}Alert sulle soppressioni in scadenza spento in Impostazioni{% endif %}"><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni{% if not expiring_alert %} (senza alert){% endif %}</span>
+    {% url 'security:suppressions' as url_sopp %}
+    <a class="kpi-link" href="{{ url_sopp }}?tipo=apprese&amp;stato=attive" title="Apri l'elenco filtrato: soppressioni apprese attive"><strong>{{ counts.learned_active }}</strong> apprese attive</a> ·
+    <a class="kpi-link" href="{{ url_sopp }}?tipo=manuali&amp;stato=attive" title="Apri l'elenco filtrato: soppressioni manuali attive"><strong>{{ counts.manual_active }}</strong> manuali attive</a> ·
+    <a class="kpi-link" href="{{ url_sopp }}?tipo=tutte&amp;stato=in-scadenza" title="{% if expiring_alert %}Per ognuna nasce un alert di attenzione {{ expiring_days }} giorni prima della scadenza{% else %}Alert sulle soppressioni in scadenza spento in Impostazioni{% endif %}"><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni{% if not expiring_alert %} (senza alert){% endif %}</a>
   </div>
   <div class="sec-actions" style="margin-top: 8px;">
     {% for code, label in kind_filters.items %}

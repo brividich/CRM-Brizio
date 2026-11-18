@@ -725,8 +725,11 @@ def _software_licenses_page_url(
     status: str = "",
     assignee: str = "",
     q: str = "",
+    apparati: bool = False,
 ) -> str:
     params: list[str] = []
+    if apparati:
+        params.append("apparati=1")
     if asset_id:
         params.append(f"asset={int(asset_id)}")
     if anagrafica_id:

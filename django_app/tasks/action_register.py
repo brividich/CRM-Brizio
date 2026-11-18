@@ -239,12 +239,18 @@ ACTION_ORIGIN_CHOICES = (
 
 def filter_action_rows(
     rows: list[ActionRow], *, tipo: str = "", responsabile: str = "", scadenza: str = "", q: str = "",
+    stato: str = "",
 ) -> list[ActionRow]:
-    """Filtri del registro: tipo, responsabile («nessuno» = non assegnate), scadenza, testo."""
+    """Filtri del registro: stato (aperte/chiuse), tipo, responsabile («nessuno» = non
+    assegnate), scadenza, testo. Le tessere KPI del registro contano con questa stessa funzione."""
     from datetime import timedelta
 
     today = timezone.localdate()
     out = rows
+    if stato == "aperte":
+        out = [row for row in out if row.is_open]
+    elif stato == "chiuse":
+        out = [row for row in out if not row.is_open]
     if tipo in {code for code, _label in ACTION_ORIGIN_CHOICES}:
         out = [row for row in out if row.origin == tipo]
     if responsabile == "nessuno":

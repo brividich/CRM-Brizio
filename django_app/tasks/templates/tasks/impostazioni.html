@@ -156,26 +156,27 @@
 {% block tasks_shell_kpis %}
   {% if tab == "riepilogo" %}
     <section class="ts-kpis">
-      <article class="ts-kpi blue">
+      {% url 'tasks:list' as u_tasks_list %}
+      <a class="ts-kpi blue kpi-link" href="{{ u_tasks_list }}?mine=0" title="Apri l'elenco filtrato: tutte le attività">
         <div class="ts-kpi-label">Attivita totali</div>
         <div class="ts-kpi-value">{{ total_tasks }}</div>
         <div class="ts-kpi-note">Volume complessivo gestito nel modulo.</div>
-      </article>
-      <article class="ts-kpi teal">
+      </a>
+      <a class="ts-kpi teal kpi-link" href="{% url 'tasks:project_list' %}" title="Apri il portfolio kickoff">
         <div class="ts-kpi-label">Kickoff</div>
         <div class="ts-kpi-value">{{ total_projects }}</div>
         <div class="ts-kpi-note">Anagrafiche kickoff presenti nel sistema.</div>
-      </article>
-      <article class="ts-kpi amber">
+      </a>
+      <a class="ts-kpi amber kpi-link" href="{{ u_tasks_list }}?mine=0&amp;status=IN_PROGRESS" title="Apri l'elenco filtrato: attività in corso">
         <div class="ts-kpi-label">In corso</div>
         <div class="ts-kpi-value">{{ in_progress_count }}</div>
         <div class="ts-kpi-note">Attivita aperte in lavorazione.</div>
-      </article>
-      <article class="ts-kpi red">
+      </a>
+      <a class="ts-kpi red kpi-link" href="{{ u_tasks_list }}?mine=0&amp;overdue=on" title="Apri l'elenco filtrato: attività scadute e ancora aperte">
         <div class="ts-kpi-label">Scadute</div>
         <div class="ts-kpi-value">{{ tasks_overdue }}</div>
         <div class="ts-kpi-note">Attivita aperte oltre la soglia.</div>
-      </article>
+      </a>
     </section>
   {% endif %}
 {% endblock %}

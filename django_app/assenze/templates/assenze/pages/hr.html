@@ -86,31 +86,31 @@
 
   {% if sezione == "cruscotto" %}
     <div class="hr-kpis">
-      <a class="hr-kpi" href="{% url 'assenze_impostazioni' %}?stato=in_attesa">
+      {% if coda_aziendale_visibile %}<a class="hr-kpi kpi-link" href="{% url 'assenze_car_dashboard' %}?scope=all#in-attesa" title="Apri la coda aziendale: richieste ancora da decidere">{% else %}<div class="hr-kpi">{% endif %}
         <div class="hr-kpi-label">Richieste in attesa</div>
         <div class="hr-kpi-value">{{ n_in_attesa }}</div>
         <div class="hr-kpi-note">in tutta l'azienda</div>
-      </a>
-      <a class="hr-kpi{% if n_saldi_negativi %} bad{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=negativi">
+      {% if coda_aziendale_visibile %}</a>{% else %}</div>{% endif %}
+      <a class="hr-kpi kpi-link{% if n_saldi_negativi %} bad{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=negativi" title="Apri i saldi filtrati: in negativo">
         <div class="hr-kpi-label">Saldi in negativo</div>
         <div class="hr-kpi-value">{{ n_saldi_negativi }}</div>
         <div class="hr-kpi-note">su {{ n_saldi }} saldi dai cedolini</div>
       </a>
-      <a class="hr-kpi{% if n_ferie_elevate %} warn{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=elevate">
+      <a class="hr-kpi kpi-link{% if n_ferie_elevate %} warn{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=elevate" title="Apri i saldi filtrati: ferie accumulate">
         <div class="hr-kpi-label">Ferie accumulate</div>
         <div class="hr-kpi-value">{{ n_ferie_elevate }}</div>
         <div class="hr-kpi-note">persone con almeno {{ giornate_ferie_elevate }} giornate residue</div>
       </a>
-      <a class="hr-kpi{% if n_contatori_oltre %} warn{% endif %}" href="{% url 'assenze_hr_contatori' %}">
+      <a class="hr-kpi kpi-link{% if n_contatori_oltre %} warn{% endif %}" href="{% url 'assenze_hr_contatori' %}" title="Apri i contatori">
         <div class="hr-kpi-label">Oltre un contatore</div>
         <div class="hr-kpi-value">{{ n_contatori_oltre }}</div>
         <div class="hr-kpi-note">assemblea, 104 e gli altri limiti</div>
       </a>
-      <div class="hr-kpi">
+      <a class="hr-kpi kpi-link" href="#hr-reparti" title="Vai al dettaglio per reparto da cui è calcolato il tasso">
         <div class="hr-kpi-label">Assenteismo</div>
         <div class="hr-kpi-value">{% if cruscotto.tasso_azienda is not None %}{{ cruscotto.tasso_azienda }}%{% else %}—{% endif %}</div>
         <div class="hr-kpi-note">malattia e altre assenze dall'inizio dell'anno, ferie e permessi esclusi</div>
-      </div>
+      </a>
     </div>
 
     <div class="hr-grid">
@@ -139,7 +139,7 @@
         </div>
       </section>
 
-      <section class="abs-panel">
+      <section class="abs-panel" id="hr-reparti">
         <div class="abs-panel-head">
           <div class="abs-panel-title-wrap">
             <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-users"></use></svg>Reparti, dall'inizio dell'anno</h2>

@@ -40,3 +40,8 @@ Area **Operations** · URL `/gestione-specifiche/` · codice [`django_app/gestio
 - Il tool **«Applica timbri»** (`/gestione-specifiche/<id>/applica-timbri/`) e la composizione usano solo i timbri delle persone del MOD.133: tutti i timbri attivi del **compilatore** (RICEVUTO e firma MOD.133) e la sola **firma MOD.133 dell'approvatore**, disponibile dall'approvazione (l'approvatore viene registrato sul MOD.133 in quel momento). Senza compilatore vale l'utente che sta lavorando. Filtro unico `timbri_views.timbri_ammessi`.
 - La pagina invia al browser solo le immagini di questi timbri; un salvataggio con un timbro non ammesso viene rifiutato per intero (403), un payload malformato con 400. Salvataggio atomico.
 - Ogni salvataggio scrive un `EventoSpecifica` (trigger `timbri_applicati`) con autore, data e timbri posizionati. In composizione una posizione su un timbro disattivato o non più ammesso non viene stampata.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri `verifica`, `ofi=aperti`.

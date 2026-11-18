@@ -23,14 +23,14 @@
   {% if not chiuso_il %}<div class="pres-avviso">L'appello è ancora aperto: i numeri cambiano finché non viene chiuso.</div>{% endif %}
 
   <div class="pres-kpi">
-    <div class="pres-card"><b>{{ n_contati }}/{{ n_totale }}</b><span>Contati</span></div>
-    <div class="pres-card"><b>{{ durata }}</b><span>Durata</span></div>
+    <a class="pres-card kpi-link" href="#pres-verbale-dati" title="Vai al dettaglio: persone in elenco e chi ha contato"><b>{{ n_contati }}/{{ n_totale }}</b><span>Contati</span></a>
+    <a class="pres-card kpi-link" href="#pres-verbale-dati" title="Vai al dettaglio: avvio e chiusura dell'appello"><b>{{ durata }}</b><span>Durata</span></a>
     {% for s in soglie %}
     <div class="pres-card"><b>{{ s.tempo }}</b><span>Tempo al {{ s.perc }} %</span></div>
     {% endfor %}
   </div>
 
-  <div class="pres-card" style="padding:0; overflow-x:auto; margin-bottom:12px;">
+  <div class="pres-card" style="padding:0; overflow-x:auto; margin-bottom:12px;" id="pres-verbale-dati">
     <table class="pres-tab" data-fm-table-skip="1">
       <tbody>
         <tr><th style="width:220px;">Tipo</th><td>{{ tipo }}</td></tr>

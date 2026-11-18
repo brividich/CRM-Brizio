@@ -49,7 +49,10 @@
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:incidents' %}">Reimposta</a>
     <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
+    {% if filters.dal %}<input type="hidden" name="dal" value="{{ filters.dal }}">{% endif %}
+    {% if filters.al %}<input type="hidden" name="al" value="{{ filters.al }}">{% endif %}
   </form>
+  {% if filters.dal or filters.al %}<p class="sec-muted sec-small" style="margin:8px 0 0;">Rilevati{% if filters.dal %} dal {{ filters.dal }}{% endif %}{% if filters.al %} al {{ filters.al }}{% endif %} · <a href="?status={{ filters.status }}">togli il periodo</a></p>{% endif %}
   <div class="sec-actions" style="margin-top: 10px;">
     <a class="sec-button sec-button-primary" href="{% url 'security:incident_create' %}">Registra incidente</a>
     <a class="sec-button" href="{% url 'security:incidents_register_pdf' %}{% if filters.year %}?year={{ filters.year }}{% endif %}">Scarica registro PDF{% if filters.year %} {{ filters.year }}{% endif %}</a>

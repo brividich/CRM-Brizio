@@ -85,7 +85,12 @@ def device_list(request: HttpRequest) -> HttpResponse:
     coverage_filter = _clean_string(request.GET.get("copertura"))
     if coverage_filter not in COVERAGE_FILTERS:
         coverage_filter = ""
-    devices_qs = apply_coverage_filter(devices_qs, coverage_filter)
+    # Contatori dei filtri rapidi di copertura: sugli stessi filtri della pagina e
+    # senza i dismessi, come l'elenco che si apre cliccandoli (prima contavano tutto
+    # il parco IT e l'elenco filtrato includeva anche i dismessi).
+    devices_for_coverage_counts = devices_qs.exclude(status=Asset.STATUS_RETIRED)
+    if coverage_filter:
+        devices_qs = apply_coverage_filter(devices_qs.exclude(status=Asset.STATUS_RETIRED), coverage_filter)
 
     device_base_qs = filtra_visibili(request, Asset.objects.filter(asset_type__in=IT_DEVICE_TYPES))
     total = device_base_qs.count()
@@ -116,7 +121,7 @@ def device_list(request: HttpRequest) -> HttpResponse:
     coverage = coverage_for_assets(request, [device.id for device in devices])
     for device in devices:
         device.coverage = coverage.get(device.id)
-    coverage_counts = coverage_totals(device_base_qs.exclude(status=Asset.STATUS_RETIRED))
+    coverage_counts = coverage_totals(devices_for_coverage_counts)
     coverage_options = [
         {
             "value": value,

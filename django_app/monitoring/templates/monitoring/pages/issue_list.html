@@ -63,6 +63,8 @@
         <div class="field field-checks">
           <label>&nbsp;</label>
           <label class="checkline"><input type="checkbox" name="open_only" value="1"{% if filters.open_only %} checked{% endif %}> Solo aperte</label>
+          <label class="checkline"><input type="checkbox" name="unassigned" value="1"{% if filters.unassigned %} checked{% endif %}> Non assegnate</label>
+          <label class="checkline"><input type="checkbox" name="new_24h" value="1"{% if filters.new_24h %} checked{% endif %}> Create nelle ultime 24h</label>
         </div>
         <div class="field field-actions" style="grid-column:1 / -1;">
           <button type="submit" class="btn">Applica filtri</button>
@@ -120,10 +122,10 @@
       <div class="cell-muted">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</div>
       <div class="pagination-links">
         {% if page_obj.has_previous %}
-          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}">Precedente</a>
+          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name|urlencode }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}&unassigned={{ filters.unassigned }}&new_24h={{ filters.new_24h }}">Precedente</a>
         {% endif %}
         {% if page_obj.has_next %}
-          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}">Successiva</a>
+          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name|urlencode }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}&unassigned={{ filters.unassigned }}&new_24h={{ filters.new_24h }}">Successiva</a>
         {% endif %}
       </div>
     </div>

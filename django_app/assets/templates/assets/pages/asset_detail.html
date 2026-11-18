@@ -20,7 +20,7 @@
 
 {% block assets_shell_content %}
 {% if it_presentation or switch_mappa or it_monitoring %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
-<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-3.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-3.css' %}?v=20261117">
 <section class="af-page{% if it_presentation %} af-it-page{% endif %}">
   <div class="af-header">
     <div class="af-hero-main">
@@ -171,7 +171,7 @@
             <span class="af-metric-label">{{ c.label }}</span>
             {% if c.badge_label %}<span class="as-badge as-badge--{{ c.badge_class }}">{{ c.badge_label }}</span>{% endif %}
           </div>
-          <span class="af-metric-value">{{ c.value }}</span>
+          {% if c.link_url %}<a class="af-metric-value af-metric-value--link" href="{{ c.link_url }}" title="Apri i contratti di assistenza di questo asset">{{ c.value }}</a>{% else %}<span class="af-metric-value">{{ c.value }}</span>{% endif %}
           {% if c.meta and c.meta != c.value %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
           {% if c.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ c.link_url }}">{{ c.link_label }}</a></div>{% endif %}
         </div>
@@ -183,7 +183,7 @@
             <span class="af-metric-label">{{ d.label }}</span>
             {% if d.badge_label %}<span class="as-badge as-badge--{{ d.badge_class }}">{{ d.badge_label }}</span>{% endif %}
           </div>
-          <span class="af-metric-value">{{ d.value }}</span>
+          {% if d.link_url %}<a class="af-metric-value af-metric-value--link" href="{{ d.link_url }}" title="Apri le scadenze amministrative di questo asset">{{ d.value }}</a>{% else %}<span class="af-metric-value">{{ d.value }}</span>{% endif %}
           {% if d.meta and d.meta != d.value %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
           {% if d.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ d.link_url }}">{{ d.link_label }}</a></div>{% endif %}
         </div>
@@ -201,7 +201,7 @@
               <span class="as-badge as-badge--{{ metric.badge_class }}">{{ metric.badge_label }}</span>
             {% endif %}
           </div>
-          <span class="af-metric-value">{{ metric.value }}</span>
+          {% if metric.link_url %}<a class="af-metric-value af-metric-value--link" href="{{ metric.link_url }}">{{ metric.value }}</a>{% else %}<span class="af-metric-value">{{ metric.value }}</span>{% endif %}
           {% if metric.meta %}
             <span class="af-metric-meta">{{ metric.meta }}</span>
           {% endif %}

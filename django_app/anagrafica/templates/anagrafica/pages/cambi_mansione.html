@@ -25,10 +25,11 @@
       </div>
     </div>
 
+    {% url 'anagrafica:cambi_mansione' as u_cm %}
     <section class="fmd-kpi fmd-kpi-auto" aria-label="Cambi mansione in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono=n_ritardo|yesno:"orange,green" icona="i-alert-tri" valore=n_ritardo label="In ritardo" sub="oltre la decorrenza" url="?stato=ritardo" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono=n_aperti|yesno:"amber,green" icona="i-clipboard" valore=n_aperti label="Da fare" sub="adempimenti aperti" url="?stato=aperti" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_persone label="Persone coinvolte" sub="con almeno un adempimento" url="?stato=aperti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=n_ritardo|yesno:"orange,green" icona="i-alert-tri" valore=n_ritardo label="In ritardo" sub="oltre la decorrenza" url=u_cm|add:"?stato=ritardo" title="Apri l'elenco filtrato: adempimenti oltre la decorrenza" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=n_aperti|yesno:"amber,green" icona="i-clipboard" valore=n_aperti label="Da fare" sub="adempimenti aperti" url=u_cm|add:"?stato=aperti" title="Apri l'elenco filtrato: adempimenti aperti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_persone label="Persone coinvolte" sub="con almeno un adempimento" url=u_cm|add:"?stato=aperti" title="Apri l'elenco filtrato: persone con adempimenti aperti" %}
     </section>
 
     {% if stati_operativi %}

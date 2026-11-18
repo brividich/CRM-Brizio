@@ -595,42 +595,43 @@ body.theme-dark #modal-error{color:#fca5a5}
     </section>
 
     <section class="abs-kpis">
-      <article class="abs-kpi teal">
+      {% url 'assenze_gestione' as u_mie %}
+      <a class="abs-kpi teal kpi-link" href="{{ u_mie }}?stato=all#mie-richieste" title="Vai all'elenco: tutte le mie richieste">
         <div class="abs-kpi-top">
           <div class="abs-kpi-label">Le mie richieste</div>
           <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
         </div>
         <div class="abs-kpi-value" id="kpi-my-total">{{ summary_personali.total }}</div>
-        <div class="abs-kpi-note">Storico personale disponibile in questa vista.</div>
-      </article>
-      <article class="abs-kpi amber">
+        <div class="abs-kpi-note">Storico personale disponibile in questa vista{% if summary_personali.total >= limite_elenco %} (ultime {{ limite_elenco }}){% endif %}.</div>
+      </a>
+      <a class="abs-kpi amber kpi-link" href="{{ u_mie }}?stato=waiting#mie-richieste" title="Vai all'elenco filtrato: le mie richieste in attesa">
         <div class="abs-kpi-top">
           <div class="abs-kpi-label">In attesa</div>
           <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span>
         </div>
         <div class="abs-kpi-value" id="kpi-my-waiting">{{ summary_personali.waiting }}</div>
         <div class="abs-kpi-note">{{ summary_personali.editable }} modificabil{{ summary_personali.editable|pluralize:"e,i" }} prima della gestione.</div>
-      </article>
-      <article class="abs-kpi green">
+      </a>
+      <a class="abs-kpi green kpi-link" href="{{ u_mie }}?stato=approved#mie-richieste" title="Vai all'elenco filtrato: le mie richieste approvate">
         <div class="abs-kpi-top">
           <div class="abs-kpi-label">Approvate</div>
           <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span>
         </div>
         <div class="abs-kpi-value" id="kpi-my-approved">{{ summary_personali.approved }}</div>
         <div class="abs-kpi-note">Richieste confermate e gia processate.</div>
-      </article>
-      <article class="abs-kpi red">
+      </a>
+      {% if assenze_can_view_team %}<a class="abs-kpi red kpi-link" href="{{ u_mie }}#dipendenti" title="Vai alla coda: richieste dei tuoi dipendenti da approvare">{% else %}<article class="abs-kpi red">{% endif %}
         <div class="abs-kpi-top">
           <div class="abs-kpi-label">Da approvare</div>
           <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
         </div>
-        <div class="abs-kpi-value">{{ summary_da_approvare.total }}</div>
-        <div class="abs-kpi-note">{{ summary_personali.rejected }} rifiutat{{ summary_personali.rejected|pluralize:"a,e" }} nel tuo storico.</div>
-      </article>
+        <div class="abs-kpi-value">{{ n_da_approvare }}</div>
+        <div class="abs-kpi-note">{% if n_da_approvare > summary_da_approvare.total %}In elenco le prime {{ summary_da_approvare.total }}. {% endif %}{{ summary_personali.rejected }} rifiutat{{ summary_personali.rejected|pluralize:"a,e" }} nel tuo storico.</div>
+      {% if assenze_can_view_team %}</a>{% else %}</article>{% endif %}
     </section>
 
     {% if assenze_can_view_team %}
-    <section class="abs-panel">
+    <section class="abs-panel" id="dipendenti">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste dei miei dipendenti</h2>
@@ -781,7 +782,7 @@ body.theme-dark #modal-error{color:#fca5a5}
     </section>
     {% endif %}
 
-    <section class="abs-panel">
+    <section class="abs-panel" id="mie-richieste">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Le mie richieste</h2>
@@ -1095,6 +1096,14 @@ body.theme-dark #modal-error{color:#fca5a5}
 
       if (searchInput) {
         searchInput.addEventListener("input", applyFilters);
+      }
+
+      // Tessere KPI: ?stato=waiting|approved|rejected|all apre l'elenco già filtrato.
+      const statoIniziale = new URLSearchParams(window.location.search).get("stato");
+      const bottoneIniziale = filterButtons.find(function (b) { return b.dataset.filterStatus === statoIniziale; });
+      if (bottoneIniziale) {
+        activeStatus = statoIniziale;
+        filterButtons.forEach(function (item) { item.classList.toggle("active", item === bottoneIniziale); });
       }
 
       applyFilters();

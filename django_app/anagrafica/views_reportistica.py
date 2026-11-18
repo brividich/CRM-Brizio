@@ -57,14 +57,25 @@ def reportistica_index(request):
         .order_by("nome")
     )
     archivio = ReportGenerato.objects.defer("contenuto").select_related("generato_da")
+    # KPI dell'archivio e filtro ``?filtro=`` dell'elenco con la stessa condizione.
+    filtri_archivio = {
+        "30g": ("Generati negli ultimi 30 giorni", Q(generato_il__gte=trenta_giorni_fa)),
+        "dati_personali": ("Con dati personali", Q(contiene_dati_personali=True)),
+    }
     kpi = {
         "modelli": len(modelli),
         "archivio": ReportGenerato.objects.count(),
-        "ultimi_30": ReportGenerato.objects.filter(generato_il__gte=trenta_giorni_fa).count(),
-        "dati_personali": ReportGenerato.objects.filter(contiene_dati_personali=True).count(),
+        "ultimi_30": ReportGenerato.objects.filter(filtri_archivio["30g"][1]).count(),
+        "dati_personali": ReportGenerato.objects.filter(filtri_archivio["dati_personali"][1]).count(),
     }
+    filtro = request.GET.get("filtro") or ""
+    if filtro in filtri_archivio:
+        archivio = archivio.filter(filtri_archivio[filtro][1])
+    else:
+        filtro = ""
     if q:
         archivio = archivio.filter(Q(titolo__icontains=q) | Q(destinatario__icontains=q) | Q(modello_nome__icontains=q))
+    n_archivio = archivio.count()
 
     # Stile C: una scheda per modello, filtrabile per norma.
     from .services import sezioni_c
@@ -90,6 +101,9 @@ def reportistica_index(request):
         "aree": aree,
         "modelli": modelli,
         "archivio": list(archivio[:60]),
+        "n_archivio": n_archivio,
+        "filtro": filtro,
+        "filtro_label": filtri_archivio[filtro][0] if filtro else "",
         "kpi": kpi,
         "q": q,
         "can_manage": can_manage(request),

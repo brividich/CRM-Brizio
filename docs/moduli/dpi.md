@@ -115,3 +115,8 @@ Logica in `dpi/report.py`, viste in `dpi/views_report.py`, gate `_is_gestore`, p
 - **Ricevuta** (`report.ricevuta`): firma, altrimenti stato di `ConfermaConsegnaDPI`, altrimenti «Senza firma».
 - Export Excel e PDF su tutte le righe filtrate, audit con `log_action`, catalogati in `core/report_centro/contenuti/dpi.py` con le varianti pianificabili.
 - Report magazzino: «Consegne senza giacenza» da `magazzino.SEGNO_SENZA_GIACENZA` nella nota del movimento; CSV con `core.csv_export`.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri `tipo`, `da`, `stato=da_riordinare` usati dalle tessere.

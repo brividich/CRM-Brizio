@@ -340,6 +340,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Un numero del SOC apre gli alert con date o con «Chiusi (non da gestire)»",
+            "perche": "ogni numero apre l'elenco con il periodo e lo stato usati per contarlo.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+                "Le accettazioni del rischio hanno il filtro «In scadenza (30 giorni)».",
+            ],
+        },
+        {
             "sintomo": "Tanti alert uguali: stesso PC (Endpoint Security «devices blocked»), stesso backup, stessa CVE",
             "fare": [
                 "Ora i report via mail aprono un alert solo per PC (Endpoint Security) o per job di backup: le mail successive aggiornano lo stesso alert, con il conteggio dell'ultima mail; nel dettaglio, «Occorrenze» elenca tutte le mail.",
