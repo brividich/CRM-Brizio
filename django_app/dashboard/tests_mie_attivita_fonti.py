@@ -100,7 +100,7 @@ class MieAttivitaFontiTests(TasksBaseTestCase):
 
 
 class ApprovazioniAssenzeMieTests(TestCase):
-    """«Approvazioni assenze»: le richieste che aspettano me come capo, con le date."""
+    """«Assenze della squadra»: le richieste che aspettano me come capo, con le date."""
 
     RIGA = {"tipo": "Ferie", "dipendente": "Persona Prova", "inizio_label": "20/11/2026", "fine_label": "21/11/2026"}
 
@@ -202,3 +202,95 @@ class FontiDaAuditTests(TestCase):
         self.assertEqual(esito["items"][0]["url"], reverse("tickets:gestione_detail", args=[libero.pk]))
         with mock.patch("tickets.views._can_manage_tickets", return_value=False):
             self.assertEqual(fonti.ticket_team_da_assegnare(self.request)["total"], 0)
+
+
+class FontiSecondaTornataTests(TestCase):
+    """Segnalazioni di modifica, rilevazioni di sicurezza, manutenzioni, onboarding, riepilogo assenze."""
+
+    def setUp(self):
+        from django.test import RequestFactory
+
+        self.user = get_user_model().objects.create_user(username="resp", password="x", email="resp@esempio.example")
+        self.request = RequestFactory().get("/")
+        self.request.user = self.user
+        self.request.legacy_user = SimpleNamespace(id=77, nome="Resp", email="resp@esempio.example", ruolo="")
+
+    def test_rilevazioni_di_sicurezza_solo_per_chi_chiude(self):
+        from unittest import mock
+
+        from dashboard import mie_attivita_fonti as fonti
+        from rilevazione_incidenti.models import RilevazioneIncidente
+
+        ora = timezone.now()
+        RilevazioneIncidente.objects.create(nominativo="Persona Prova", tipologia_scheda="Near Miss", reparto="Tornitura", data_segnalazione=ora)
+        RilevazioneIncidente.objects.create(nominativo="Persona Prova", tipologia_scheda="Near Miss", reparto="Fresatura",
+                                            data_segnalazione=ora, approvazione_rls="Approvato")
+        RilevazioneIncidente.objects.create(nominativo="Persona Prova", tipologia_scheda="Near Miss", reparto="Chiusa",
+                                            data_segnalazione=ora, chiusura_rspp=True)
+        RilevazioneIncidente.objects.create(nominativo="Persona Prova", tipologia_scheda="Near Miss", reparto="Vecchia",
+                                            data_segnalazione=ora - timedelta(days=500))
+        with mock.patch("rilevazione_incidenti.views._can_manage_rspp", return_value=False):
+            self.assertEqual(fonti._incidenti(self.request), [])
+        with mock.patch("rilevazione_incidenti.views._can_manage_rspp", return_value=True), \
+                mock.patch("rilevazione_incidenti.views._use_local", return_value=True):
+            voci = fonti._incidenti(self.request)
+        stati = {v["title"].split(" · ")[-1]: v["status"] for v in voci}
+        self.assertEqual(stati, {"Tornitura": "In attesa RLS", "Fresatura": "Da chiudere (RSPP)"})
+
+    def test_onboarding_una_riga_per_pratica(self):
+        from unittest import mock
+
+        from anagrafica.models import OnboardingPratica, OnboardingTask
+        from dashboard import mie_attivita_fonti as fonti
+
+        pr = OnboardingPratica.objects.create(dipendente_nome="Nuovo Assunto", reparto="Tornitura")
+        ieri = date.today() - timedelta(days=1)
+        OnboardingTask.objects.create(pratica=pr, codice="a", titolo="Contratto", categoria="HR", scadenza=ieri)
+        OnboardingTask.objects.create(pratica=pr, codice="b", titolo="Badge", categoria="HR")
+        OnboardingTask.objects.create(pratica=pr, codice="c", titolo="Account", categoria="IT")
+        OnboardingTask.objects.create(pratica=pr, codice="d", titolo="Fatto", categoria="HR", stato="COMPLETATO")
+        cfg = {"emails": [], "utenti_ids": [], "ticket": False}
+        with mock.patch("anagrafica.views._helpers._check_hr_permission", return_value=False), \
+                mock.patch("anagrafica.services.avviso_it_ingresso.configurazione", return_value=cfg):
+            self.assertEqual(fonti._onboarding(self.request), [])
+        with mock.patch("anagrafica.views._helpers._check_hr_permission", return_value=True), \
+                mock.patch("anagrafica.services.avviso_it_ingresso.configurazione", return_value=cfg):
+            voci = fonti._onboarding(self.request)
+        self.assertEqual([(v["title"], v["status"], v["due"]) for v in voci], [("Nuovo Assunto", "2 voci da fare, 1 in ritardo", ieri)])
+        self.assertEqual(voci[0]["url"], reverse("anagrafica:onboarding_detail", args=[pr.pk]))
+        solo_it = {"emails": ["resp@esempio.example"], "utenti_ids": [], "ticket": False}
+        with mock.patch("anagrafica.views._helpers._check_hr_permission", return_value=False), \
+                mock.patch("anagrafica.services.avviso_it_ingresso.configurazione", return_value=solo_it):
+            voci = fonti._onboarding(self.request)
+        self.assertEqual([(v["status"], v["url"]) for v in voci], [("1 voce da fare", "#")])
+
+    def test_segnalazioni_di_modifica_e_manutenzioni_interrogano_senza_errori(self):
+        from unittest import mock
+
+        from dashboard import mie_attivita_fonti as fonti
+
+        self.assertEqual(fonti._manutenzioni(self.user), [])
+        with mock.patch("procedure_refresh.segnalazioni.destinatari_gestori", return_value={77}), \
+                mock.patch("procedure_refresh.views._can_manage", return_value=True):
+            self.assertEqual(fonti._segnalazioni_modifica(self.request), [])
+        with mock.patch("procedure_refresh.segnalazioni.destinatari_gestori", return_value={1}), \
+                mock.patch("procedure_refresh.views._can_manage", return_value=True) as gate:
+            self.assertEqual(fonti._segnalazioni_modifica(self.request), [])
+            gate.assert_not_called()
+
+    def test_riepilogo_assenze_da_accettare_e_accettate(self):
+        from unittest import mock
+
+        from assenze.views._helpers import riepilogo_per_capo
+        from dashboard import views_mie_attivita as ma
+
+        self.assertEqual(set(riepilogo_per_capo(77, tutte=True)), {"da_approvare", "approvate", "prossime"})
+        da_fare = [{"title": "Ferie", "meta": "Persona Prova", "status": "20/11/2026 → 21/11/2026", "url": "/x"}]
+        riepilogo = {"da_approvare": 4, "approvate": 1, "prossime": [
+            {"dipendente": "Altra Persona", "tipo": "Permesso", "inizio_label": "25-11-2026 08:00", "fine_label": "25-11-2026 12:00"}]}
+        with mock.patch.object(ma, "_my_approvals", return_value=da_fare), \
+                mock.patch("assenze.views._helpers.riepilogo_per_capo", return_value=riepilogo):
+            s = ma._assenze_squadra(self.request.legacy_user, False)
+        self.assertEqual(s["nota"], "4 da accettare · 1 accettata in corso o in arrivo")
+        self.assertEqual([i["status"] for i in s["items"]], ["20/11/2026 → 21/11/2026", "Accettata"])
+        self.assertEqual((s["total"], s["informative"]), (5, 1))

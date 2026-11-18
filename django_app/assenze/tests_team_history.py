@@ -57,6 +57,21 @@ class TeamHistoryTests(TestCase):
         self.assertEqual([r["id"] for r in views._load_gestite_for_manager(7)], [3, 2])
         self.assertEqual(views.count_pending_for_manager(7), 1)
 
+    def test_riepilogo_per_capo_conta_da_accettare_e_accettate_non_finite(self):
+        from .views._helpers import riepilogo_per_capo
+
+        ora = timezone.localtime().replace(tzinfo=None)
+        self.insert(1, status=2, date=ora + timedelta(days=1))   # da accettare
+        self.insert(2, status=0, date=ora + timedelta(days=3))   # accettata, in arrivo
+        self.insert(3, status=0, date=ora + timedelta(days=2))   # accettata, in arrivo (prima)
+        self.insert(4, status=0, date=datetime(2025, 1, 1))      # accettata ma finita
+        self.insert(5, status=1, date=ora + timedelta(days=2))   # rifiutata
+        r = riepilogo_per_capo(7)
+        self.assertEqual((r["da_approvare"], r["approvate"]), (1, 2))
+        self.assertEqual([a["id"] for a in r["prossime"]], [3, 2])
+        self.assertEqual(riepilogo_per_capo(8)["approvate"], 0)
+        self.assertEqual(riepilogo_per_capo(None, tutte=True)["approvate"], 2)
+
     def test_current_assignment_wins_over_old_capo_and_denormalized_value(self):
         self.insert(1, capo=7)
         self.assertEqual([r["id"] for r in views._load_gestite_for_manager(7)], [1])
