@@ -23,6 +23,13 @@ button { font:inherit; color:inherit; }
 .ck-main { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; padding:8px 48px 48px; }
 .ck-step { display:none; width:100%; max-width:980px; animation:ck-in .35s ease-out; }
 .ck-step.on { display:block; }
+/* Salvaschermo: nero, ora che si sposta, contro il burn-in del totem sempre acceso */
+.ck-saver { position:fixed; inset:0; z-index:9999; display:none; background:#000; cursor:none; }
+.ck-saver.on { display:block; animation:ck-saver-in 1.5s ease-out; }
+.ck-saver-box { position:absolute; left:40px; top:40px; text-align:center; transition:left 3s ease-in-out, top 3s ease-in-out; }
+.ck-saver-ora { font-size:84px; font-weight:300; letter-spacing:-2px; color:#475569; }
+.ck-saver-txt { margin-top:6px; font-size:22px; color:#334155; }
+@keyframes ck-saver-in { from { opacity:0; } to { opacity:1; } }
 @keyframes ck-in { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
 
 /* Barra di avanzamento */
@@ -188,6 +195,7 @@ button { font:inherit; color:inherit; }
 </style>
 </head>
 <body>
+<div class="ck-saver" id="saver" aria-hidden="true"><div class="ck-saver-box" id="saver-box"><div class="ck-saver-ora" id="saver-ora"></div><div class="ck-saver-txt">Tocca lo schermo per entrare</div></div></div>
 <div class="ck-shell">
   <header class="ck-head">
     {% if logo_versione %}<img class="ck-logo" src="{% url "chiosco:logo" %}?v={{ logo_versione }}" alt="Logo">{% else %}<div class="ck-brand">NOVICROM</div>{% endif %}
@@ -413,10 +421,10 @@ button { font:inherit; color:inherit; }
   var API = '{% url "chiosco:pagina" %}api/';
   var FOTO = '{% url "chiosco:pagina" %}foto/';
   var CSRF = document.querySelector('meta[name=csrf-token]').content;
-  var IDLE_SEC = 120;
+  var IDLE_SEC = 120, SAVER_SEC = 180;
   var PASSI = ['s-nome', 's-conferma', 's-azienda', 's-chi', 's-motivo', 's-privacy'];
   var $ = function (id) { return document.getElementById(id); };
-  var stato = {}, storia = [], idle = null, ritorno = null;
+  var stato = {}, storia = [], idle = null, ritorno = null, saver = null, saverMuovi = null;
 
   function val(id) { return $(id).value.trim(); }
   function errore(id, testo) { var e = $(id); e.textContent = testo || ''; e.classList.toggle('on', !!testo); }
@@ -503,7 +511,29 @@ button { font:inherit; color:inherit; }
     mostraBadge(); mostraCodice(); controllaNome();
     mostra('s-home');
   }
-  function sveglia() { clearTimeout(idle); idle = setTimeout(casa, IDLE_SEC * 1000); }
+  // Salvaschermo: dopo SAVER_SEC senza tocchi lo schermo diventa nero con l'ora che cambia posto ogni 20 s.
+  // Il tocco che lo spegne non arriva ai pulsanti sotto: lo prende il salvaschermo stesso.
+  function muoviSaver() {
+    var b = $('saver-box');
+    b.style.left = Math.round(Math.random() * Math.max(0, window.innerWidth - b.offsetWidth)) + 'px';
+    b.style.top = Math.round(Math.random() * Math.max(0, window.innerHeight - b.offsetHeight)) + 'px';
+  }
+  function accendiSaver() {
+    if (stato.corrente !== 's-home') { casa(); }
+    orologio();
+    $('saver').classList.add('on');
+    muoviSaver();
+    clearInterval(saverMuovi); saverMuovi = setInterval(muoviSaver, 20000);
+  }
+  function spegniSaver() { clearInterval(saverMuovi); $('saver').classList.remove('on'); }
+  function sveglia(e) {
+    if ($('saver').classList.contains('on')) {
+      if (e && e.type !== 'click' && e.type !== 'keydown' && $('saver').contains(e.target)) { return; }
+      spegniSaver();
+    }
+    clearTimeout(idle); idle = setTimeout(casa, IDLE_SEC * 1000);
+    clearTimeout(saver); saver = setTimeout(accendiSaver, SAVER_SEC * 1000);
+  }
   ['click', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, sveglia, { passive: true }); });
 
   function successo(numero, titolo, testo, nota, chiave) {
@@ -1021,7 +1051,11 @@ button { font:inherit; color:inherit; }
   $('b-indietro').addEventListener('click', indietro);
   $('b-reset').addEventListener('click', casa);
   $('b-fine').addEventListener('click', casa);
-  function orologio() { $('orologio').textContent = new Date().toLocaleString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); }
+  function orologio() {
+    var ora = new Date();
+    $('orologio').textContent = ora.toLocaleString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    $('saver-ora').textContent = ora.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  }
   orologio(); setInterval(orologio, 30000);
   mostra('s-home');
   sveglia();
