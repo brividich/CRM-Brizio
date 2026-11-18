@@ -155,7 +155,7 @@ GUIDA = {
                 ("ul", [
                     "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali e, per chi gestisce le consegne DPI, Banco consegne DPI) e «Rifai il tour».",
                     "«Le mie attività» (stanza «Oggi» e pagina dedicata): tutto quello che è assegnato a te nei moduli, anche senza scadenza. "
-                    "Oltre a KICK-OFF (attività anche senza commessa e sotto-attività), ticket, anomalie, assenze, procedure, DPI e corsi ci sono «Ordini di lavoro», "
+                    "Oltre a KICK-OFF (attività anche senza commessa e sotto-attività), ticket, anomalie, assenze, procedure, DPI (le tue richieste e «DPI da gestire»: da approvare, scarpe da ordinare, consegne da preparare) e corsi ci sono «Ordini di lavoro», "
                     "«Approvazioni e richieste» (modifiche SGI, approvazioni dei flussi, richieste di visita) e «Altre voci assegnate a te» "
                     "(MOD.133 e specifiche, registro OFI, CAR, obiettivi del riesame, Suggestion Corner, attrezzature, checklist chiusure).",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",

@@ -341,6 +341,12 @@ def _catalog_context(impost: DPIImpostazioni, **extra) -> dict:
         ),
         **_catalog_select_related(),
     }
+    try:
+        from .mie_attivita import incaricati_senza_utente
+
+        context["incaricati_senza_utente"] = incaricati_senza_utente()
+    except Exception:
+        logger.warning("Impostazioni DPI: controllo incaricati non riuscito", exc_info=True)
     context.update(extra)
     return context
 
