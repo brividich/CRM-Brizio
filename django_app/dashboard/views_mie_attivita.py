@@ -534,6 +534,16 @@ def _segna_urgenze(sections: list[dict]) -> tuple[int, int]:
 
 
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
+    """Le voci personali, calcolate in vista personale: un amministratore, un superuser o un
+    ruolo che «vede tutto» trova qui solo ciò che è assegnato a lui o aspetta lui, non tutto
+    ciò che potrebbe aprire (vedi :mod:`core.vista_personale`). I permessi delle pagine non cambiano."""
+    from core.vista_personale import vista_personale
+
+    with vista_personale(request):
+        return _build_cose_da_gestire(request)
+
+
+def _build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     """Aggrega in un'unica struttura le "cose da gestire" dell'utente corrente,
     attraversando i moduli. Riusato sia dalla pagina dedicata `mie_attivita` sia
     dalla sezione in home. Ogni fonte è difensiva (un errore non rompe il resto).

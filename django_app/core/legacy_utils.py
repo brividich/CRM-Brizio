@@ -649,6 +649,11 @@ def get_admin_role_ids() -> set[int]:
 def is_legacy_admin(legacy_user: UtenteLegacy | None) -> bool:
     if not legacy_user:
         return False
+    # Dentro «Le mie attività» e simili l'amministratore conta per i ruoli che ha.
+    from core.vista_personale import attiva as _vista_personale
+
+    if _vista_personale():
+        return False
     admin_names = _get_admin_role_names()
     if str(legacy_user.ruolo or "").strip().lower() in admin_names:
         return True

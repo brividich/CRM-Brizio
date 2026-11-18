@@ -324,7 +324,7 @@ def _suggestion(user) -> list[dict]:
             "code": f"SC#{s.pk}",
             "title": (s.opportunity or str(s))[:140],
             "meta": _meta("controllo" if controllo else "esecuzione", _entro(due)),
-            "status": s.get_stato_display(),
+            "status": s.stato_label,
             "due": due,
             "url": _url("suggestion_corner:dettaglio", s.pk),
         })
@@ -344,7 +344,7 @@ def _suggestion_team(user) -> list[dict]:
         "code": f"SC#{sc.pk}",
         "title": (sc.opportunity or str(sc))[:140],
         "meta": "team SMS",
-        "status": sc.get_stato_display(),
+        "status": sc.stato_label,
         "due": None,
         "url": _url("suggestion_corner:dettaglio", sc.pk),
     } for sc in qs]

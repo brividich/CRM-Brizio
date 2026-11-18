@@ -97,7 +97,9 @@ SEZIONI: list[dict] = [
                 "«Altre voci assegnate a te» (schede di sicurezza da leggere, manutenzioni programmate tue scadute o entro 30 giorni e non ancora in un ordine di lavoro, inserimenti in corso con le voci di onboarding da fare, segnalazioni del Suggestion Corner da classificare per il team SMS, MOD.133 e specifiche, registro OFI, CAR, obiettivi del riesame, Suggestion Corner, attrezzature, checklist chiusure) "
                 "e «Le mie scadenze» (scadute ed entro 30 giorni, senza ripetere le voci già elencate). I riquadri in alto filtrano Scadute ed Entro 7 giorni, i pulsanti filtrano per modulo, "
                 "la ricerca cerca nei titoli e «Per urgenza» mette tutte le voci in un unico elenco. Azioni, problemi, programmi e FAI si chiudono dalla riga con «Fatto» o «Risolto», "
-                "e «Annulla» li riapre. «Apri modulo →» porta al modulo. I moduli senza voci stanno nella riga «Niente da fare in» in fondo.",
+                "e «Annulla» li riapre. «Apri modulo →» porta al modulo. I moduli senza voci stanno nella riga «Niente da fare in» in fondo. "
+                "Contano solo le voci tue: anche un amministratore o un ruolo che vede tutto (per esempio IT o Direzione) trova qui ciò che è assegnato a lui o aspetta lui, "
+                "non tutto ciò che può aprire; lo stesso vale per il pulsante «N da approvare».",
                 "Il pulsante «N da approvare» nella barra in alto somma tutto ciò che aspetta una tua decisione (assenze della squadra, DPI da approvare, "
                 "approvazioni dei flussi, richieste di visita, spostamenti date, modifiche SGI, segnalazioni di modifica, rilevazioni di sicurezza): "
                 "passandoci sopra dice quante per tipo; con un tipo solo apre quella pagina, con più tipi apre «Le mie attività».",

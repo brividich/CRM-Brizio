@@ -918,9 +918,12 @@ class CoseDaGestireSafetyTests(TestCase):
             legacy_anagrafica_id=9001, tipo=tipo,
             data_scadenza=timezone.localdate() - timedelta(days=3),
         )
+        # Chi gestisce la formazione (non l'amministratore in quanto tale: vista personale).
+        from unittest import mock
         req = RequestFactory().get("/")
-        req.user = self.admin
-        data = build_cose_da_gestire(req)
+        req.user = get_user_model().objects.create_user(username="cdg_hse", email="hse@x.local")
+        with mock.patch("anagrafica.views._can_view_formazione", return_value=True):
+            data = build_cose_da_gestire(req)
         safety = next((s for s in data["sections"] if s["key"] == "safety"), None)
         self.assertIsNotNone(safety)
         self.assertIn("Carrellista Home", [i["title"] for i in safety["items"]])
