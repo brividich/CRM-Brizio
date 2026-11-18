@@ -128,7 +128,7 @@ body.theme-dark .neg-fattura { border-top-color:var(--border); }
       <input type="checkbox" name="ids" value="{{ r.pk }}">
       <span class="neg-riga-testo">
         <span class="neg-nome">{{ r.richiedente_nome }}</span>
-        <span class="neg-dett">{{ r.numero }}{% if r.tipo_dpi %} · {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} · {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %} · ordinate il {{ r.ordine_negozio.created_at|date:"d-m-Y" }} · <a href="{% url 'dpi:banco' %}?tutte=1#apri-{{ r.chiave_banco }}">Registra la consegna</a></span>
+        <span class="neg-dett">{{ r.numero }}{% if r.tipo_dpi %} · {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} · {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %} · ordinate il {{ r.ordine_negozio.created_at|date:"d-m-Y" }}{% if is_gestore %} · <a href="{% url 'dpi:banco' %}?tutte=1#apri-{{ r.chiave_banco }}">Registra la consegna</a>{% endif %}</span>
       </span>
       {% if r.pronta_ritiro_il %}<span class="neg-tag neg-tag-ok">Avvisato il {{ r.pronta_ritiro_il|date:"d-m-Y" }}</span>{% else %}<span class="neg-tag">In arrivo</span>{% endif %}
     </label>

@@ -46,7 +46,14 @@ GUIDA = {
                     "La heatmap prende la posizione dal punto indicato, poi dalla macchina coinvolta, poi dal riquadro del reparto, "
                     "poi dalla zona delle macchine dello stesso reparto; sotto la pianta dice quante rilevazioni vengono da ogni fonte "
                     "e quante restano fuori (altre piante o senza indizi). Passando sul cerchio: reparti e tipi di evento.",
-                    "Nel dettaglio: «Modifica», «PDF», «Gestisci RSPP» (analisi delle cause e misure da adottare, per l'RSPP).",
+                    "Nel dettaglio: «Modifica», «Apri PDF», «Gestisci RSPP» (analisi delle cause e misure da adottare, per l'RSPP).",
+                    "In cima al dettaglio «Situazione della rilevazione»: giorni dal fatto, giorni per registrarla, perché del 5WHY "
+                    "compilati, azioni correttive, modifiche e notifiche; il percorso Fatto → Registrata → Notificata → Valutata RLS → "
+                    "Chiusa; i «Controlli» (registrata entro 2 giorni, dati completi, 5WHY, misure, notifiche, valutazione RLS, "
+                    "chiusura entro 30 giorni dal fatto, azioni correttive concluse) e «Il reparto» con le rilevazioni degli "
+                    "ultimi 12 mesi e i link a precedente e successiva.",
+                    "A destra «Storia della rilevazione»: inserimento, modifiche campo per campo, valutazione RLS, chiusura, "
+                    "azioni correttive e mail. Con i dati su SharePoint modifiche e mail non ci sono.",
                     "«Export CSV» scarica l'elenco.",
                     "Il dipendente vede le proprie segnalazioni, preposto e responsabile quelle del team, la Sicurezza tutte.",
                 ]),

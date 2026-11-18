@@ -14,5 +14,7 @@
   {% impostazioni_visibili "dpi" True as mostra_impostazioni %}{% if mostra_impostazioni %}
   <a href="{% url 'dpi:impostazioni' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'impostazioni' %} active{% endif %}">Impostazioni</a>
   {% endif %}
+  {% elif puo_scarpe %}
+  <a href="{% url 'dpi:negozio' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'negozio' %} active{% endif %}">Scarpe</a>
   {% endif %}
 </nav>

@@ -13,10 +13,10 @@ from django.urls import reverse
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from . import flusso, negozio as negozio_srv
+from .mie_attivita import puo_scarpe, scarpe_queryset
 from .models import DPIImpostazioni, FatturaNegozioDPI, ModalitaNegozio, OrdineNegozioDPI
 from .views import (
     DPI_DOCUMENT_MAX_BYTES,
-    _approvate_queryset,
     _chiave_persona,
     _int_or_none,
     _is_gestore,
@@ -86,7 +86,7 @@ def _chiudi_con_fattura(request, richieste, impost) -> None:
 
 def _azione(request, impost):
     azione = request.POST.get("azione", "")
-    base = _approvate_queryset(request)
+    base = scarpe_queryset(request)
     url = reverse("dpi:negozio")
 
     if azione in ("invia_ordine", "segna_ordinato"):
@@ -135,14 +135,15 @@ def _azione(request, impost):
 
 @login_required
 def negozio(request):
-    if not _is_gestore(request):
+    if not puo_scarpe(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
     impost = DPIImpostazioni.get_singleton()
     if request.method == "POST":
         return _azione(request, impost)
 
-    base = _approvate_queryset(request).select_related("ordine_negozio").order_by("richiedente_nome", "created_at")
+    gestore = _is_gestore(request)
+    base = scarpe_queryset(request).select_related("ordine_negozio").order_by("richiedente_nome", "created_at")
     da_ordinare = list(negozio_srv.da_ordinare(base))
     ordinate = list(negozio_srv.ordinate(base))
     fuori = list(negozio_srv.fuori_convenzione(base))
@@ -152,8 +153,10 @@ def negozio(request):
     for r in ordinate:
         r.chiave_banco = _chiave_persona(r)
     return render(request, "dpi/pages/negozio.html", {
-        "is_gestore": True,
-        "is_approvatore": True,
+        # L'incaricato senza «Gestire» non vede nel menu le pagine che non può aprire.
+        "is_gestore": gestore,
+        "is_approvatore": gestore,
+        "puo_scarpe": True,
         "impost": impost,
         "da_ordinare": da_ordinare,
         "ordinate": ordinate,
@@ -170,7 +173,7 @@ def negozio(request):
 
 @login_required
 def fattura_download(request, pk: int):
-    if not _is_gestore(request):
+    if not puo_scarpe(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
     fattura = get_object_or_404(FatturaNegozioDPI, pk=pk)

@@ -480,6 +480,14 @@ def _resolve_richiesta_catalog_selection(post_data) -> tuple[CategoriaDPI | None
 # ---------------------------------------------------------------------------
 
 @login_required
+def _incaricato_scarpe(request) -> bool:
+    """Operatore incaricato delle scarpe (Impostazioni): apre la pagina «Scarpe» anche senza «Gestire»."""
+    from .mie_attivita import incaricato_scarpe
+
+    return incaricato_scarpe(request)
+
+
+@login_required
 def dashboard(request):
     is_gestore = _is_gestore(request)
 
@@ -502,6 +510,7 @@ def dashboard(request):
     legacy_id = _legacy_id(request)
     return render(request, "dpi/pages/dashboard.html", {
         "is_gestore": is_gestore,
+        "puo_scarpe": is_gestore or _incaricato_scarpe(request),
         "is_approvatore": bool(_scope_approvatore(request)) or bool(
             legacy_id and RichiestaDPI.objects.filter(preposto_legacy_id=legacy_id, stato=StatoRichiesta.INVIATA)
             .exclude(richiedente_legacy_id=legacy_id).exists()
