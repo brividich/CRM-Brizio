@@ -170,7 +170,7 @@ class FontiDaAuditTests(TestCase):
         from suggestion_corner.models import SuggestionCorner, SuggestionCornerConfig
 
         S = SuggestionCorner.Stato
-        with_stato = SimpleNamespace(pk=5, opportunity="Corrimano scala", get_stato_display=lambda: "Da classificare")
+        with_stato = SimpleNamespace(pk=5, opportunity="Corrimano scala", stato_label="Da classificare")
         from unittest import mock
 
         with mock.patch.object(SuggestionCorner.objects, "filter") as filtro:

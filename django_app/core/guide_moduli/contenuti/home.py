@@ -348,6 +348,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Sono amministratore e in «Le mie attività» non vedo più le anomalie o le rilevazioni di tutti",
+            "perche": "«Le mie attività» e il pulsante «N da approvare» mostrano solo ciò che è assegnato a te o aspetta te. Essere amministratore, superuser o avere un ruolo che vede tutto (IT, Direzione) non aggiunge voci: i permessi delle pagine non cambiano.",
+            "fare": [
+                "Per l'elenco completo apri il modulo (Gestione anomalie, Rilevazione incidenti, KICK-OFF…): lì vedi tutto quello che i tuoi permessi ti fanno vedere.",
+            ],
+        },
+        {
             "sintomo": "Un numero della home è diverso da prima",
             "perche": "i numeri delle tessere ora si contano come l'elenco che aprono: «Ticket attivi» sono aperti più in carico, il Diario mostra «ultimi 7 giorni» e «ultimi 30 giorni», le notizie sono solo quelle del tuo ruolo.",
             "fare": [

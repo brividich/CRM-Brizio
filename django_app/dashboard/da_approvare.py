@@ -6,6 +6,8 @@ delle assenze sono già nel conteggio assenze), richieste di visita, spostamenti
 modifiche SGI, segnalazioni di modifica e rilevazioni di sicurezza. Con una fonte sola il
 pulsante apre quella pagina; con più fonti apre «Le mie attività».
 Il conto resta in cache un minuto per persona: la barra lo chiede a ogni pagina.
+Si calcola in vista personale (:mod:`core.vista_personale`): un amministratore conta solo ciò
+che aspetta lui, non tutto ciò che potrebbe approvare.
 """
 from __future__ import annotations
 
@@ -88,13 +90,16 @@ def riepilogo(request, legacy_user=None) -> dict:
     user = getattr(request, "user", None)
     if not getattr(user, "is_authenticated", False):
         return vuoto
-    chiave = f"nav_da_approvare:{user.pk}:{getattr(legacy_user, 'id', '')}"
+    chiave = f"nav_da_approvare:v2:{user.pk}:{getattr(legacy_user, 'id', '')}"
     try:
         dati = cache.get(chiave)
     except Exception:
         dati = None
     if dati is None:
-        fonti = _fonti(request, legacy_user)
+        from core.vista_personale import vista_personale
+
+        with vista_personale(request):
+            fonti = _fonti(request, legacy_user)
         totale = sum(f["n"] for f in fonti)
         url = fonti[0]["url"] if len(fonti) == 1 else _url("mie_attivita")
         titolo = "Da decidere: " + ", ".join(f"{f['n']} {f['label']}" for f in fonti) if fonti else ""
