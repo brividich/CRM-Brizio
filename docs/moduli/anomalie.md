@@ -113,3 +113,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) i
 - **Chi rileva non decide** (con il sistema dei ruoli acceso): `anomalie.views._decisione_su_propria_anomalia` impedisce all'autore (`created_by_user_id`) di cambiare note del capocommessa, segnalazione al cliente, RDC e chiusura.
 
 **NC Part 145** (ottobre 2026, anomalie 0019): `AnomaliaNC.part145` + azione `part145` nel dettaglio NC (pulsante «Segna come Part 145», chi può modificare la NC aperta; evento nello storico). Le NC Part 145 aperte compaiono nel Dossier PART 145 del modulo Asset (permesso `anomalie.nc.gestione`).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Statistiche: tessere che filtrano la pagina (`recuperato`, `stato_anomalie`).

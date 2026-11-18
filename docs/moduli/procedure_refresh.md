@@ -58,3 +58,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) c
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «Scadute» e «In attesa» (dashboard admin, report campagna, «Le mie procedure» e relativo filtro) usano `models.q_scadute` / `q_in_attesa` / `scaduta_ora`: una scadenza passata conta subito, senza aspettare `run_assignment_lifecycle` delle 06:45.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- `q_stato_assegnazione` e `conteggi_assegnazioni` per tessere ed elenchi; matrice: «Da confermare».

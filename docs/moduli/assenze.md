@@ -95,3 +95,8 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) v
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 Dashboard segnalazioni: «In attesa» = `count_pending_for_manager` / `count_all_pending` (stessa funzione del badge e del menu), oggi/settimana senza troncamento, «Gestite» = pagina dello storico.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Tessere con ancore e filtri di stato (`?stato=…#mie-richieste`); conteggio in attesa con `count_all_pending`.

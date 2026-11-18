@@ -97,3 +97,8 @@ Scheda processo: sezione «Chi possiede e chi esegue il processo» (`processi_vi
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «Audit pianificati nell'anno» dell'hub esclude gli annullati, come l'indice audit.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri sugli elenchi audit e audit esterni usati dalle tessere. «Giorni medi CAR» ed «Efficacia» restano senza link.

@@ -25,3 +25,8 @@ Superficie di monitoring del portale, issue tracking interno e segnalazioni uten
 - CSS dedicato in `static/monitoring/css/monitoring.css` verificato in `collectstatic`
 - **Controllo `graph_token` corretto** (19/10/2026): leggeva le credenziali solo dai settings Django e in produzione, dove stanno nel `.env`, risultava sempre «Credenziali Graph non configurate» (SKIPPED). Ora usa `core.m365_graph.credenziali()`, come il resto del portale.
 - **Stato dei servizi Microsoft 365** (19/10/2026, check `m365_servizi` in `monitoring/infra_checks.py`): legge `admin/serviceAnnouncement/healthOverviews` (permesso Graph `ServiceHealth.Read.All`, cache 15 minuti) e va in WARN se Exchange Online, SharePoint Online, OneDrive, Teams, Entra, Intune, Defender XDR o la suite segnalano un disservizio in corso; mai FAIL e mai critical. È nel registro di `/readyz` e nella Centrale di comando, non negli allarmi email del server (`INFRA_CHECK_NAMES`).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri `unassigned`, `new_24h`, `failed_today`, `missing`, `stato`; «Job falliti oggi» = job distinti dalla mezzanotte locale (`failed_today_job_ids`).

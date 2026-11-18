@@ -93,4 +93,7 @@ class FiloKpiTests(TestCase):
     def test_mpq_kpi_portano_alle_scadenze(self):
         resp = self.client.get(reverse("anagrafica:mpq_cruscotto"))
         self.assertContains(resp, 'id="scadenze-urgenti"')
-        self.assertContains(resp, 'href="#scadenze-urgenti"')
+        # Le tessere aprono il registro filtrato sulle stesse righe del numero.
+        url = reverse("anagrafica:mpq_cruscotto")
+        self.assertContains(resp, f'href="{url}?scad=60#registro-processi"')
+        self.assertContains(resp, f'href="{url}?scad=scaduta#registro-processi"')

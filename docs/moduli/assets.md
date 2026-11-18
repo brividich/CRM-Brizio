@@ -330,3 +330,7 @@ Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ri
 - Migration `assets 0163` (`sorgente_pdf`, `importazione`).
 - Associazione a mano (05/11/2026): `Risultato.da_associare` (`DaAssociare`: sigla, punto, motivo, candidati) raccoglie le sigle lette e non usate né da creare, comprese quelle ambigue (stessa chiave su più asset) e quelle di asset fuori dalle categorie della pianta. La pagina le mostra con «?» arancione; l'asset si sceglie fra i candidati o con la ricerca `?leggi=1&cerca=<testo>` (JSON, nome/n. interno/tag/matricola, asset non dismessi, max 20). «Aggiungi un asset a mano» crea una riga con il punto cliccato. In POST: `assoc` (indici) + `assoc_asset_<i>`, `assoc_x_<i>`, `assoc_y_<i>`, trattate come le proposte spuntate.
 
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtri: inventario `status=ATTIVI`, `assegnatario`, `sottocategorie=0`; ordini di lavoro `attivi`, `ritardo`, `chiusi_dal`/`chiusi_al`, `supplier`, `produzione`, `tipo_asset`; licenze `apparati=1`; contratti «Non disattivati». Cruscotto e Scadenzario usano le stesse funzioni (`pending_periodic_verifications`, `filtra_ticket_man_cruscotto`, `q_segnalazione_urgente`); lo Scadenzario applica l'ambito del ruolo anche alle righe da registro e mostra i piani periodici non convertiti («Piano periodico da convertire»). Etichette: «Scadenze entro 90 gg», «In ritardo».

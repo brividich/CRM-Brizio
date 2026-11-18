@@ -1276,6 +1276,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Nella scheda dipendente «Ticket aperti» o «Ticket totali» sono cambiati",
+            "perche": "prima erano cercati con l'identificativo sbagliato e potevano essere quelli di un'altra persona; ora sono i ticket chiesti da quella persona.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+                "Il link compare solo a chi può aprire Gestione ticket (IT e manutenzione) o l'inventario asset.",
+            ],
+        },
+        {
             "sintomo": "Una persona risulta «Incompleta» sul processo ma il corso l'ha fatto",
             "perche": "il requisito persona legge l'ultima frequenza registrata in Formazione per quel corso; se il "
                       "corso è un altro (o non è stato chiuso con presenze) non la trova. Con una frequenza del "

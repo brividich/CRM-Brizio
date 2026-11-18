@@ -18,3 +18,8 @@ Area **Operations** · URL `/suggestion-corner/` (+ `/suggestion-corner/nuova/` 
 ## Hardening ottobre 2026
 
 - Form pubblico: il limite di invii per IP non si aggira più con l'header `X-Forwarded-For` (letto solo da proxy fidati) e c'è un limite globale di 50 invii/ora. Allegati in storage privato cifrato (migrazione `suggestion_corner 0007`).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- `_filtri_elenco()` unico per tessere ed elenco.

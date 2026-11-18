@@ -290,6 +290,16 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "numeri-cliccabili",
+            "titolo": "I numeri si cliccano",
+            "blocchi": [
+                ("p", "In tutto il portale i numeri nelle tessere (ticket aperti, scadenze, richieste in attesa…) sono link: "
+                      "cliccandoli si apre l'elenco che contiene esattamente quelle righe, già filtrato."),
+                ("nota", "Un numero senza link è un indice o una media (per esempio una percentuale o dei giorni medi), "
+                         "oppure riguarda dati che il tuo ruolo non può aprire in elenco."),
+            ],
+        },
     ],
     "admin": [
         {
@@ -333,6 +343,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un numero della home è diverso da prima",
+            "perche": "i numeri delle tessere ora si contano come l'elenco che aprono: «Ticket attivi» sono aperti più in carico, il Diario mostra «ultimi 7 giorni» e «ultimi 30 giorni», le notizie sono solo quelle del tuo ruolo.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+                "Se il numero non è un link, nessun elenco lo riproduce con il tuo ambito: apri il modulo con «Vai al modulo».",
+            ],
+        },
         {
             "sintomo": "Un'azione rapida impostata dall'amministratore non compare nella mia home",
             "fare": [

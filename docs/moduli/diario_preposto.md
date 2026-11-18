@@ -56,3 +56,8 @@ Migrazione `diario_preposto 0007_integrita_eliminazione_impronta_allegati` (solo
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) le segnalazioni sono filtrate per autore (`creato_da`): il preposto vede e modifica le proprie, il responsabile vede quelle del suo team d'organigramma, la Sicurezza tutte. Dettaglio, modifica, eliminazione, export Excel/PDF, allegati e ispezioni applicano la stessa regola; la lista «acl_scrittura» delle impostazioni vale solo a sistema spento.
 
 **Rimanda la scheda** (15/11/2026): nel dettaglio, per chi gestisce il modulo (`_can_manage_settings`), pulsante «Rimanda la scheda» → `POST /diario-preposto/<pk>/rimanda-scheda/` (`diario_preposto:rimanda_scheda`). Rimanda la scheda come alla creazione passando dal flusso `diario_preposto_scheda` (`automazioni.ripeti.rimanda_evento_modulo` + `mail_scheda.invia_alla_creazione`): destinatari del flusso, regole «Invia mail», riga collegata in «Mail inviate»; flusso spento o senza destinatari = avviso, niente invio; non per le segnalazioni eliminate. Storico: `scheda_rimandata`.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Viste `VISTE`/`filtra_vista` (`?vista=7g|30g`) per tessere ed elenco.
