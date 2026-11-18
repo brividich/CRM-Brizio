@@ -226,7 +226,8 @@ GUIDA = {
                     "«Le mie attività» → «DPI da gestire» mostra le stesse cose a chi riceve la mail: richieste da approvare (preposto scelto, "
                     "altrimenti responsabile o preposto del dipendente), scarpe all'operatore incaricato, consegne a Magazzino o referenti. "
                     "La persona si riconosce dall'indirizzo: negli elenchi di Impostazioni va scritto quello con cui entra nel portale "
-                    "(se non corrisponde a nessun utente, Impostazioni lo segnala). Scarpe e Banco consegne si aprono solo con il permesso "
+                    "(se non corrisponde a nessun utente, Impostazioni lo segnala). La pagina Scarpe si apre anche all'operatore incaricato senza «Gestire» "
+                    "(vede solo le richieste che passano dal negozio). Il Banco consegne si apre solo con il permesso "
                     "«Gestire» del modulo DPI: a chi non lo ha la voce lo dice.",
                     "Consegna senza richiesta dal banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "Consegna senza badge, firma né ricevuta su carta: nessuna mail; la ricevuta si conferma da sola dopo 24 ore "
