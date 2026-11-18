@@ -96,11 +96,17 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     gruppi = _raggruppa(token_obj, anomalie_live)
     from .decisione_qualita import cc_puo_chiudere
 
+    op_car = _car_di_op(op_id)
     return render(
         request,
         "anomalie/pages/mail_action_form.html",
         {
-            "op_car": _car_di_op(op_id),
+            "op_car": op_car,
+            # Stesse scelte della pagina Gestione anomalie: stati da Configurazione e
+            # «A quale CAR?» fra il CAR dell'OP e i capi reparto.
+            "avanzamenti": _avanzamenti_config(),
+            "car_dell_op": _separa_nomi(op_car),
+            "car_opzioni": _car_opzioni(op_car, anomalie_live),
             "cc_puo_chiudere": cc_puo_chiudere(),
             "token": token_obj,
             "anomalie": anomalie_live,
@@ -273,24 +279,67 @@ def _car_di_op(op_id: str) -> str:
         return ""
 
 
+_AVANZAMENTI_DEFAULT = ["Accetto lo stato", "In attesa", "Finito trattato"]
+
+
+def _avanzamenti_config() -> list[str]:
+    """«Scelte Avanzamento» di Configurazione, come la pagina Gestione anomalie."""
+    try:
+        from .views import _load_anomalie_lists
+
+        voci = [str(v).strip() for v in ((_load_anomalie_lists() or {}).get("avanzamenti") or []) if str(v).strip()]
+        return voci or list(_AVANZAMENTI_DEFAULT)
+    except Exception:
+        logger.warning("mail_action: scelte avanzamento non lette", exc_info=True)
+        return list(_AVANZAMENTI_DEFAULT)
+
+
+def _separa_nomi(raw) -> list[str]:
+    from .automazioni_service import separa_car_scelti
+
+    return separa_car_scelti(str(raw or "").replace("|", ";"))
+
+
+def _car_opzioni(op_car: str, righe: list[dict] | None = None) -> list[str]:
+    """«A quale CAR?»: CAR dell'OP, capi reparto di Configurazione e quelli già scelti."""
+    try:
+        from .views import _load_anomalie_lists
+
+        capi = (_load_anomalie_lists() or {}).get("capi_reparto") or []
+    except Exception:
+        capi = []
+    voci = _separa_nomi(op_car) + [str(c or "") for c in capi]
+    for a in righe or []:
+        voci += list(a.get("car_segnalati") or [])
+    out, visti = [], set()
+    for v in voci:
+        nome = " ".join(str(v or "").split())[:120]
+        if nome and nome.lower() not in visti:
+            visti.add(nome.lower())
+            out.append(nome)
+    return out
+
+
 def _arricchisci_qualita(righe: list[dict]) -> None:
     """Decisione qualità, richieste al capocommessa e «Segnalato al CAR» per il form."""
     from .decisione_qualita import richieste_payload
 
     for a in righe:
         a.update({"avanzamento_qualita": "", "note_qualita": "", "segnala_car": False, "segnalato_car": None,
-                  "richieste_cc": [], "richiesta_cc_aperta": False, "chiarimenti_aperti": False})
+                  "car_segnalati": [], "richieste_cc": [], "richiesta_cc_aperta": False, "chiarimenti_aperti": False})
     try:
+        from .automazioni_service import separa_car_scelti
         from .quality_models import AnomaliaSchedaQualita
 
         ids = [int(a["id"]) for a in righe if a.get("id")]
         schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
-            "anomalia_id", "avanzamento_qualita", "note_qualita", "segnala_car", "car_segnalati_il")}
+            "anomalia_id", "avanzamento_qualita", "note_qualita", "segnala_car", "car_segnalati", "car_segnalati_il")}
         for a in righe:
             sc = schede.get(int(a.get("id") or 0)) or {}
             a["avanzamento_qualita"] = sc.get("avanzamento_qualita") or ""
             a["note_qualita"] = sc.get("note_qualita") or ""
             a["segnala_car"] = bool(sc.get("segnala_car"))
+            a["car_segnalati"] = separa_car_scelti(sc.get("car_segnalati")) if sc.get("segnala_car") else []
             if sc.get("segnala_car") and sc.get("car_segnalati_il"):
                 a["segnalato_car"] = {"il": timezone.localtime(sc["car_segnalati_il"]).strftime("%d/%m/%Y %H:%M")}
             richieste = richieste_payload(a["id"]) if a.get("id") else []
@@ -410,17 +459,27 @@ def _salva_segnalati_mail(token_obj, anomalia_id: int, stato: dict) -> None:
         if scheda is not None and scheda.segnala_terzista != stato["terzista"]:
             AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(
                 segnala_terzista=stato["terzista"], updated_at=timezone.now())
-        # «Segnala al CAR» dal link: il CAR dell'OP; la mail parte solo la prima volta.
-        car = _car_di_op(token_obj.op_id)
-        if scheda is not None and stato.get("car") is not None and car:
-            prima = bool(scheda.segnala_car)
-            valori = {"segnala_car": stato["car"], "car_segnalati": car if stato["car"] else "", "updated_at": timezone.now()}
-            if stato["car"] and not prima:
+        # «Segnala a CAR» dal link, come la pagina: i CAR scelti fra quelli proposti
+        # (CAR dell'OP, capi reparto); la mail va solo a quelli aggiunti ora.
+        if scheda is not None and stato.get("car") is not None:
+            from .automazioni_service import separa_car_scelti
+
+            prima = {n.lower() for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
+            ammessi = {n.lower(): n for n in _car_opzioni(_car_di_op(token_obj.op_id))}
+            ammessi.update({n.lower(): n for n in separa_car_scelti(scheda.car_segnalati)})
+            richiesti = stato.get("car_scelti")
+            if richiesti is None:  # form vecchio senza scelta: il CAR dell'OP
+                richiesti = _separa_nomi(_car_di_op(token_obj.op_id))
+            scelti = [ammessi[n.lower()] for n in separa_car_scelti(richiesti) if n.lower() in ammessi] if stato["car"] else []
+            segnala = bool(stato["car"] and scelti)
+            da_avvisare = [n for n in scelti if n.lower() not in prima]
+            valori = {"segnala_car": segnala, "car_segnalati": "; ".join(scelti)[:500], "updated_at": timezone.now()}
+            if da_avvisare:
                 valori["car_segnalati_il"] = timezone.now()
             AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**valori)
-            if stato["car"] and not prima:
+            if da_avvisare:
                 from .automazioni_service import invia_segnalazione_car
-                invia_segnalazione_car(anomalia_id=anomalia_id, op_id=token_obj.op_id, car=[car],
+                invia_segnalazione_car(anomalia_id=anomalia_id, op_id=token_obj.op_id, car=da_avvisare,
                                        seriale=stato.get("seriale", ""), descrizione=stato.get("descrizione", ""),
                                        note=stato.get("note", ""), dove_pezzi=scheda.dove_pezzi, deciso_da=chi_utente)
         if stato.get("risposta_info"):
@@ -467,6 +526,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
+            riga_pezzi_prec = bool(per_riga["pezzi_prec"]) if "pezzi_prec" in per_riga else None
             # Il numero RDC lo scrive la qualità: dal link si tocca solo se arriva.
             riga_numero_rdc = (str(per_riga.get("numero_rdc") or "").strip()[:100]
                                if "numero_rdc" in per_riga else None)
@@ -477,6 +537,8 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                                else gia[chi]) for chi in segn.DESTINATARI}
             segn_stato = {"terzista": riga_terzista, "segnalati": segnalati, "gia": gia,
                           "car": bool(per_riga.get("segnala_car")) if "segnala_car" in per_riga else None,
+                          "car_scelti": ([str(n) for n in per_riga["car_segnalati"]][:10]
+                                         if isinstance(per_riga.get("car_segnalati"), list) else None),
                           "risposta_info": str(per_riga.get("risposta_info") or "").strip()[:4000],
                           "seriale": str(anomalia.get("seriale") or ""), "descrizione": str(anomalia.get("descrizione") or ""),
                           "note": riga_note if riga_note is not None else str(anomalia.get("note_capocommessa") or ""),
@@ -502,7 +564,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                 riga_chiudere = regola or (bool(per_riga.get("chiudi_manuale")) and cc_chiude)
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
-            riga_aprire_rdc = riga_segnalare = riga_chiudere = None
+            riga_aprire_rdc = riga_segnalare = riga_chiudere = riga_pezzi_prec = None
             riga_numero_rdc = None
             if not riga_avanzamento and action != "chiudi":
                 continue
@@ -518,6 +580,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             segnalare=riga_segnalare,
             chiudere=riga_chiudere,
             numero_rdc=riga_numero_rdc,
+            pezzi_prec=riga_pezzi_prec,
         )
         if ok and isinstance(descrizioni_risposte, dict):
             try:
@@ -902,6 +965,7 @@ def _apply_action_to_anomalia(
     segnalare: bool | None = None,
     chiudere: bool | None = None,
     numero_rdc: str | None = None,
+    pezzi_prec: bool | None = None,
 ) -> bool:
     """Applica l'azione (update avanzamento / campi / flag) alla riga anomalia legacy."""
     try:
@@ -914,6 +978,8 @@ def _apply_action_to_anomalia(
             updates["aprire_rdc"] = 1 if aprire_rdc else 0
         if segnalare is not None:
             updates["segnalare_cliente"] = 1 if segnalare else 0
+        if pezzi_prec is not None:
+            updates["pezzo_recuperato"] = 1 if pezzi_prec else 0
         # chiudere: dall'azione "chiudi" oppure dal flag automatico per-riga
         if action == "chiudi" or chiudere:
             updates["chiudere"] = 1
