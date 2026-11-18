@@ -646,9 +646,9 @@ def impostazioni(request):
             if email and not _EMAIL_REFERENTE.match(email):
                 messages.error(request, "L'email da avvisare non è valida.")
             else:
-                SiteConfig.set(chiosco.CHIAVE_REFERENTE_REGISTRATO, email, "Chiosco «Vengo qui spesso»: chi avvisare se la ditta non ne ha uno")
+                SiteConfig.set(chiosco.CHIAVE_REFERENTE_REGISTRATO, email, "Chiosco «Sono già stato qui»: chi avvisare se la ditta non ne ha uno")
                 log_action(request, "reception_registrato_referente", "reception", {"email": email})
-                messages.success(request, "Chi avvisare per «Vengo qui spesso» salvato.")
+                messages.success(request, "Chi avvisare per «Sono già stato qui» salvato.")
             return redirect(reverse("reception:impostazioni") + "#registrato")
         if azione == "pulisci":
             mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
