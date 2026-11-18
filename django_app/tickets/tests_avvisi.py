@@ -43,6 +43,23 @@ class AvvisiTicketTests(TestCase):
         destinatari = sorted(m.to[0] for m in mail.outbox)
         self.assertEqual(destinatari, ["rich@example.test", "team1@example.test", "team2@example.test"])
 
+    def test_nuovo_con_regola_attiva_una_sola_mail(self):
+        """Se una regola Automazioni manda già la mail del ticket nuovo, al team solo la campanella."""
+        from automazioni.models import AutomationAction, AutomationCondition, AutomationRule
+
+        r = AutomationRule.objects.create(code="syn-nuovo-it", name="Nuovo IT", source_code="tickets",
+                                          operation_type="insert", is_active=True, is_draft=False)
+        AutomationCondition.objects.create(rule=r, field_name="tipo", operator="equals", expected_value="IT",
+                                           value_type="string")
+        AutomationAction.objects.create(rule=r, order=1, action_type="send_email", is_enabled=True,
+                                        config_json={"to": "it@example.test"})
+        with self.captureOnCommitCallbacks(execute=True):
+            avvisi.nuovo(self.t, autore_email="rich@example.test")
+        self.assertEqual(self._notifiche(301), [("ticket_nuovo", f"/tickets/gestione/{self.t.pk}/")])
+        self.assertEqual([m.to[0] for m in mail.outbox], ["rich@example.test"])
+        self.t.tipo = TipoTicket.MAN
+        self.assertFalse(avvisi.regola_mail_nuovo_attiva(self.t))
+
     def test_presa_in_carico_avvisa_il_richiedente_non_chi_la_prende(self):
         with self.captureOnCommitCallbacks(execute=True):
             prendi_in_carico(self.t, nome="Tec Nico", email="tec@example.test")
