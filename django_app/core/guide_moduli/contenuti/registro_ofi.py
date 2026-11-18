@@ -77,6 +77,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Dal report di conformità si apre il registro con il chip «Norma»",
+            "perche": "le tessere del report filtrate per norma aprono il registro sulle stesse voci.",
+            "fare": [
+                "Premi «✕» sul chip «Norma X» per togliere il filtro.",
+            ],
+        },
+        {
             "sintomo": "Una voce non compare nella scheda del processo",
             "fare": [
                 "Il «Processo/area» della voce non indica un solo processo del catalogo: apri la voce, «Modifica» e "

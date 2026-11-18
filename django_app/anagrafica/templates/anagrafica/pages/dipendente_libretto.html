@@ -114,6 +114,8 @@
       border: 1px solid var(--line); border-radius: 10px;
       padding: 10px 14px; background: var(--line-soft);
     }
+    a.lb-kpi { display: block; text-decoration: none; color: inherit; }
+    a.lb-kpi:hover { border-color: var(--primary); }
     .lb-kpi-val { font-size: 20px; font-weight: 800; color: var(--primary); }
     .lb-kpi-lbl { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
@@ -251,22 +253,22 @@
 
     <!-- KPI -->
     <div class="lb-kpis">
-      <div class="lb-kpi">
+      <a class="lb-kpi kpi-link" href="#libretto-storico" title="Vai allo storico dei corsi completati">
         <div class="lb-kpi-val">{{ record_storici|length }}</div>
         <div class="lb-kpi-lbl">Corsi completati{% if periodo_attivo %} nel periodo{% endif %}</div>
-      </div>
-      <div class="lb-kpi">
+      </a>
+      <a class="lb-kpi kpi-link" href="#libretto-storico" title="Vai allo storico: le ore dei corsi elencati sommano a questo numero">
         <div class="lb-kpi-val">{{ ore_totali|floatformat:"-2" }}</div>
         <div class="lb-kpi-lbl">Ore di formazione</div>
-      </div>
-      <div class="lb-kpi">
+      </a>
+      <a class="lb-kpi kpi-link" href="#libretto-obblighi" title="Vai agli obblighi formativi correnti">
         <div class="lb-kpi-val">{{ obblighi|length }}</div>
         <div class="lb-kpi-lbl">Obblighi formativi attivi</div>
-      </div>
+      </a>
     </div>
 
     <!-- ── Obblighi correnti ─────────────────────────────────── -->
-    <section class="pb-section">
+    <section class="pb-section" id="libretto-obblighi">
       <h2 class="pb-section-title">📌 Obblighi formativi correnti{% if periodo_attivo %}
         <span class="lb-periodo">stato di oggi, non filtrato</span>
       {% endif %}</h2>
@@ -311,7 +313,7 @@
     </section>
 
     <!-- ── Storico completamenti ─────────────────────────────── -->
-    <section class="pb-section">
+    <section class="pb-section" id="libretto-storico">
       <h2 class="pb-section-title">🎓 Storico corsi completati{% if periodo_attivo %}
         <span class="lb-periodo">{% if dal %}dal {{ dal|date:"d-m-Y" }}{% endif %}{% if al %} al {{ al|date:"d-m-Y" }}{% endif %}</span>
       {% endif %}</h2>

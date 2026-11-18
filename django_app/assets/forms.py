@@ -742,6 +742,9 @@ class AssetAssignmentForm(forms.ModelForm):
         _attach_input_css(self)
 
 
+ASSET_STATUS_ACTIVE = "ATTIVI"
+
+
 class AssetFilterForm(forms.Form):
     q = forms.CharField(required=False, label="Ricerca")
     asset_type = forms.ChoiceField(
@@ -756,6 +759,13 @@ class AssetFilterForm(forms.Form):
         empty_label="Tutte le categorie",
     )
     reparto = forms.CharField(required=False, label="Reparto")
+    # Stato: lo usano anche i KPI cliccabili (cruscotto, impostazioni) per aprire
+    # l'elenco con lo stesso insieme che contano. «Non dismessi» = tutto tranne RETIRED.
+    status = forms.ChoiceField(
+        required=False,
+        label="Stato",
+        choices=[("", "Tutti gli stati"), (ASSET_STATUS_ACTIVE, "Non dismessi"), *Asset.STATUS_CHOICES],
+    )
     vlan = forms.IntegerField(required=False, label="VLAN", min_value=1)
     ip = forms.CharField(required=False, label="IP")
     # Filtri di produzione: rilevanti solo nel contesto "Asset produzione"

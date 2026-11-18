@@ -56,9 +56,9 @@
     </div>
   </form>
 
-  {% include "report_conformita/components/_kpis.html" with kpis=result.kpis %}
+  {% include "report_conformita/components/_kpis.html" with kpis=kpis %}
 
-  <section class="rc-group">
+  <section class="rc-group" id="rc-dettaglio">
     <div class="rc-group-head">
       <h2 class="rc-section-title">Dettaglio</h2>
       <span class="rc-note-inline">{{ rows|length }} righe</span>

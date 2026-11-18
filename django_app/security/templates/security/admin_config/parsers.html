@@ -7,11 +7,12 @@
 {% include "security/admin_config/_section_help.html" %}
 
 <div class="sec-grid sec-kpi-grid">
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Parser funzionanti</span><strong class="sec-kpi-value">{{ parser_summary.ok }}/{{ parser_summary.total }}</strong><span class="sec-kpi-delta{% if parser_summary.ok == parser_summary.total %} sec-good{% endif %}">Hanno prodotto report</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Con problemi</span><strong class="sec-kpi-value{% if parser_summary.problems %} critical{% endif %}">{{ parser_summary.problems }}</strong><span class="sec-kpi-delta{% if not parser_summary.problems %} sec-good{% endif %}">In errore o inesistenti{% if parser_summary.to_check %} · {{ parser_summary.to_check }} con letture da verificare{% endif %}</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">In coda</span><strong class="sec-kpi-value">{{ queue_summary.pending }}</strong><span class="sec-kpi-delta{% if not queue_summary.pending %} sec-good{% endif %}">Da elaborare</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">In errore</span><strong class="sec-kpi-value{% if queue_summary.failed %} critical{% endif %}">{{ queue_summary.failed }}</strong><span class="sec-kpi-delta{% if not queue_summary.failed %} sec-good{% endif %}">Il parser è andato in eccezione</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Scartati</span><strong class="sec-kpi-value">{{ queue_summary.skipped }}</strong><span class="sec-kpi-delta">Nessun parser li riconosce</span></div>
+  {% url 'security:inbox' as url_inbox %}
+  <a class="sec-kpi-card sec-card-link kpi-link" href="#sec-parser-elenco" title="Vai all'elenco dei parser con il loro stato"><span class="sec-kpi-label">Parser funzionanti</span><strong class="sec-kpi-value">{{ parser_summary.ok }}/{{ parser_summary.total }}</strong><span class="sec-kpi-delta{% if parser_summary.ok == parser_summary.total %} sec-good{% endif %}">Hanno prodotto report</span></a>
+  <a class="sec-kpi-card sec-card-link kpi-link" href="#sec-parser-elenco" title="Vai all'elenco dei parser: quelli con problemi hanno lo stato in rosso"><span class="sec-kpi-label">Con problemi</span><strong class="sec-kpi-value{% if parser_summary.problems %} critical{% endif %}">{{ parser_summary.problems }}</strong><span class="sec-kpi-delta{% if not parser_summary.problems %} sec-good{% endif %}">In errore o inesistenti{% if parser_summary.to_check %} · {{ parser_summary.to_check }} con letture da verificare{% endif %}</span></a>
+  <a class="sec-kpi-card sec-card-link kpi-link" href="{{ url_inbox }}?stato=pending#inbox-messaggi" title="Apri mail e file in coda da elaborare"><span class="sec-kpi-label">In coda</span><strong class="sec-kpi-value">{{ queue_summary.pending }}</strong><span class="sec-kpi-delta{% if not queue_summary.pending %} sec-good{% endif %}">Da elaborare</span></a>
+  <a class="sec-kpi-card sec-card-link kpi-link" href="{{ url_inbox }}?stato=failed#inbox-messaggi" title="Apri mail e file su cui il parser è andato in errore"><span class="sec-kpi-label">In errore</span><strong class="sec-kpi-value{% if queue_summary.failed %} critical{% endif %}">{{ queue_summary.failed }}</strong><span class="sec-kpi-delta{% if not queue_summary.failed %} sec-good{% endif %}">Il parser è andato in eccezione</span></a>
+  <a class="sec-kpi-card sec-card-link kpi-link" href="{{ url_inbox }}?stato=skipped#inbox-messaggi" title="Apri mail e file scartati"><span class="sec-kpi-label">Scartati</span><strong class="sec-kpi-value">{{ queue_summary.skipped }}</strong><span class="sec-kpi-delta">Nessun parser li riconosce</span></a>
 </div>
 
 {% if parser_summary.missing_config %}
@@ -24,7 +25,7 @@
 </section>
 {% endif %}
 
-<section class="sec-panel" style="margin-top:12px">
+<section class="sec-panel" style="margin-top:12px" id="sec-parser-elenco">
   <div class="sec-section-head"><h2>Parser</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
   <p class="sec-muted">Ogni mail o file viene proposto ai parser in quest'ordine: lo elabora il primo parser attivo che lo riconosce. Priorità più bassa = valutato prima.</p>
   <div class="sec-table-wrap">

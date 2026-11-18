@@ -26,3 +26,8 @@ Sezione trasversale (`/report-conformita/`, menu **Qualità**) che raccoglie le 
 - **Audit**: ogni download PDF/Excel registra `report_conformita_download` con report, formato e periodo.
 - **Filtri**: periodo (default ultimi 12 mesi) per i report di flusso; i report «situazione» sono alla data odierna. Parametri non ammessi vengono ignorati.
 - **Limiti noti** (dati non ancora presenti nel portale): audit interni, consegne puntuali (OTD) per EN 9100, indici infortunistici (servono ore lavorate e giorni di prognosi), FAI / contraffazione / FOD. La dichiarazione di applicabilità ISO 27001 è ora nel modulo `sistema_gestione` (report «Dichiarazione di applicabilità»).
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- `Kpi.url`: le tessere OFI aprono il Registro OFI filtrato, anche per norma.

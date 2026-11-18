@@ -404,27 +404,27 @@ body.theme-dark .btn-icon.danger:hover{background:rgba(229,62,62,.16)}
 
   {# ── Stats row ──────────────────────────────────────────────────────────── #}
   <div class="stats">
-    <div class="stat">
+    <a class="stat kpi-link" href="{% url 'admin_portale:pulsanti' %}#elenco-pulsanti" title="Apri l'elenco di tutti i pulsanti">
       <div class="stat-icon-wrap blue">🧭</div>
       <div>
         <div class="stat-num">{{ pulsanti_total }}</div>
         <div class="stat-lbl">Pulsanti totali</div>
       </div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="{% url 'admin_portale:pulsanti' %}?stato=attivi#elenco-pulsanti" title="Apri l'elenco filtrato: pulsanti attivi">
       <div class="stat-icon-wrap green">✅</div>
       <div>
         <div class="stat-num">{{ pulsanti_attivi_count }}</div>
         <div class="stat-lbl">Pulsanti attivi</div>
       </div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="{% url 'admin_portale:pulsanti' %}#elenco-pulsanti" title="Apri l'elenco dei pulsanti raggruppati per modulo">
       <div class="stat-icon-wrap yellow">📦</div>
       <div>
         <div class="stat-num">{{ moduli_total }}</div>
         <div class="stat-lbl">Moduli configurati</div>
       </div>
-    </div>
+    </a>
   </div>
 
   {# ── Card: Moduli proposti dal catalogo ─────────────────────────────────── #}
@@ -496,6 +496,14 @@ body.theme-dark .btn-icon.danger:hover{background:rgba(229,62,62,.16)}
           </select>
         </div>
         <div class="fb-field">
+          <label for="stato">Stato</label>
+          <select class="input" id="stato" name="stato">
+            <option value="">Tutti</option>
+            <option value="attivi" {% if filters.stato == "attivi" %}selected{% endif %}>Attivi</option>
+            <option value="disattivi" {% if filters.stato == "disattivi" %}selected{% endif %}>Disattivati</option>
+          </select>
+        </div>
+        <div class="fb-field">
           <label for="area">Area UI</label>
           <select class="input" id="area" name="area">
             <option value="">Tutte</option>
@@ -557,13 +565,13 @@ body.theme-dark .btn-icon.danger:hover{background:rgba(229,62,62,.16)}
   {# ── Card: Pulsanti raggruppati per modulo ──────────────────────────────── #}
   {% if pulsanti_list %}
   {% regroup pulsanti_list by modulo as pulsanti_by_modulo %}
-  <div class="card">
+  <div class="card" id="elenco-pulsanti">
     <div class="card-head card-head-with-actions">
       <div>
         <div class="card-title">Moduli ({{ pulsanti_by_modulo|length }})</div>
         <div class="cell-muted" style="font-size:12px;margin-top:2px;">
           {{ pulsanti_list|length }} pulsant{% if pulsanti_list|length == 1 %}e{% else %}i{% endif %}
-          {% if filters.q or filters.modulo or filters.area %} — filtro attivo{% endif %}
+          {% if filters.q or filters.modulo or filters.area or filters.stato %} — filtro attivo{% endif %}
         </div>
       </div>
       <div style="display:flex;gap:8px;">

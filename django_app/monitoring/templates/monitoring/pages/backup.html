@@ -13,7 +13,7 @@
   <style>
     .bk-top{display:flex;justify-content:flex-end;gap:10px;margin:-4px 0 8px}
     .bk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 18px}
-    .bk-tile{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface)}
+    .bk-tile{display:block;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface)}
     .bk-tile h3{margin:0 0 6px;font-size:13px;color:var(--text-mid);font-weight:600}
     .bk-tile .val{font-size:22px;font-weight:700;color:var(--text)}
     .bk-tile .note{font-size:12.5px;color:var(--text-mid);margin-top:4px}
@@ -53,45 +53,45 @@
   {% if cfg_error %}<div class="bk-alert">Configurazione dei backup non valida: {{ cfg_error }}</div>{% endif %}
 
   <div class="bk-grid">
-    <div class="bk-tile {{ tiles.rpo.css|default:'skip' }}">
+    <a class="bk-tile {{ tiles.rpo.css|default:'skip' }} kpi-link" href="#controlli" title="Vai ai controlli del backup (calcolo RPO)">
       <h3>RPO attuale</h3>
       <div class="val">{{ tiles.rpo.value|default:"—" }}</div>
       <div class="note">{{ tiles.rpo.note|default:"" }}</div>
-    </div>
+    </a>
     {% with c=by_name.backup_full %}
-    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+    <a class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %} kpi-link" href="{% url 'monitoring_admin:backup_status' %}?kind=full#esecuzioni" title="Apri l'elenco filtrato: esecuzioni di backup completo">
       <h3>Ultimo backup completo</h3>
       <div class="val">{% if tiles.full_when %}{{ tiles.full_when|date:"d/m H:i" }}{% else %}—{% endif %}</div>
       <div class="note">{{ c.message }}</div>
-    </div>
+    </a>
     {% endwith %}
     {% with c=by_name.backup_log %}
-    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+    <a class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %} kpi-link" href="{% url 'monitoring_admin:backup_status' %}?kind=log#esecuzioni" title="Apri l'elenco filtrato: esecuzioni di backup dei log">
       <h3>Catena dei log</h3>
       <div class="val">{% if c.status == 'ok' %}Continua{% elif c.status == 'fail' %}Interrotta{% elif c.status == 'warn' %}In ritardo{% else %}Non attiva{% endif %}</div>
       <div class="note">{{ c.message }}</div>
-    </div>
+    </a>
     {% endwith %}
     {% with c=by_name.restore_drill %}
-    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+    <a class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %} kpi-link" href="#prove" title="Vai alle prove di ripristino">
       <h3>Ultima prova di ripristino</h3>
       <div class="val">{% if last_drill %}{{ last_drill.get_status_display }}{% else %}Mai{% endif %}</div>
       <div class="note">{% if last_drill %}{{ last_drill.started_at|date:"d/m/Y H:i" }} · RTO DB {{ last_drill.rto_seconds|default:"?" }} s{% else %}{{ c.message }}{% endif %}</div>
-    </div>
+    </a>
     {% endwith %}
     {% with c=by_name.db_capacity %}
-    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+    <a class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %} kpi-link" href="#controlli" title="Vai ai controlli (capacità database)">
       <h3>Capacità database</h3>
       <div class="val">{% if capacity.used_pct is not None %}{{ capacity.used_pct }}%{% else %}—{% endif %}</div>
       <div class="note">{{ c.message }}{% if capacity.recovery_model %} · recovery {{ capacity.recovery_model }}{% endif %}</div>
-    </div>
+    </a>
     {% endwith %}
     {% with c=by_name.recovery_kit %}
-    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+    <a class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %} kpi-link" href="#controlli" title="Vai ai controlli (Recovery Kit)">
       <h3>Recovery Kit</h3>
       <div class="val">{% if c.status == 'ok' %}Allineato{% else %}Da rigenerare{% endif %}</div>
       <div class="note">{{ c.message }}</div>
-    </div>
+    </a>
     {% endwith %}
   </div>
 
@@ -113,7 +113,7 @@
   </div>
 
   <div class="bk-card">
-    <h2>Controlli</h2>
+    <h2 id="controlli">Controlli</h2>
     <div class="bk-scroll"><table class="bk-table" data-fm-hide-controls="1">
       <thead><tr><th>Controllo</th><th>Stato</th><th>Dettaglio</th></tr></thead>
       <tbody>
@@ -126,7 +126,7 @@
   </div>
 
   <div class="bk-card">
-    <h2>Esecuzioni</h2>
+    <h2 id="esecuzioni">Esecuzioni</h2>
     <form method="get" class="bk-actions" style="margin-bottom:10px">
       <label>Tipo
         <select class="bk-input" name="kind"><option value="">Tutti</option>
@@ -177,7 +177,7 @@
   </div>
 
   <div class="bk-card">
-    <h2>Prove di ripristino</h2>
+    <h2 id="prove">Prove di ripristino</h2>
     <div class="bk-scroll"><table class="bk-table" data-fm-hide-controls="1">
       <thead><tr><th>Data</th><th>Esito</th><th>FULL</th><th class="hide-sm">Ultimo log</th><th class="num">RTO DB</th><th>Controlli</th></tr></thead>
       <tbody>

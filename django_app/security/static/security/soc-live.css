@@ -149,6 +149,8 @@ body.theme-dark .cvp-open--warn { color: #fcd34d; }
 .cvp-card-stat.is-critical strong { color: var(--danger, #dc2626); }
 .cvp-card-stat.is-ok { border-color: rgba(22, 163, 74, .4); background: rgba(22, 163, 74, .06); }
 .cvp-card-stat.is-ok strong { color: #15803d; }
+/* Contatori resi <button data-preview> (aprono il pannello CVE): stesso aspetto della tessera. */
+button.cvp-card-stat { font: inherit; color: inherit; text-align: left; background: transparent; cursor: pointer; width: 100%; }
 .cvp-card-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .cvp-card-item { width: 100%; display: grid; grid-template-columns: auto auto 1fr; gap: 3px 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--border, #dbe3ef); border-left: 4px solid var(--border, #dbe3ef); border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
 .cvp-card-item:hover, .cvp-card-item:focus-visible, .cvp-card-item.is-previewed { background: rgba(59, 130, 246, .06); border-color: rgba(59, 130, 246, .45); outline: none; }

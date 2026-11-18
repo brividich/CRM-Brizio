@@ -389,3 +389,8 @@ Le caselle mail dei report si leggono nel lavoro `security_caselle` (`security.t
 - CVE sfruttate: `services/kev.kev_tra(cve_ids)`, mai `SecurityCveRecord.objects.filter(kev=True, cve_id__in=<migliaia>)` (su SQL Server oltre 2.000 parametri mssql-django riempie una tabella temporanea riga per riga).
 - Liste lunghe di id in `__in`: passare un queryset (sottoquery), non una lista.
 - Cache condivisa in produzione: `core.cache_db.DatabaseCacheLeggera` (conta la tabella `django_cache` una scrittura ogni 100). Indici della migrazione `0044` scelti dalle DMV di SQL Server in produzione; per rivederli: `sys.dm_db_missing_index_details` e `sys.dm_exec_query_stats` col profilo `prod_readonly`.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Alert: `dal`/`al`, `chiusi_dal`/`chiusi_al`, `status=inactive` («Chiusi (non da gestire)»), `tipo=cve`; backup `periodo_q` unico per pagina e report; inbox `stato`; accettazioni «In scadenza (30 giorni)».

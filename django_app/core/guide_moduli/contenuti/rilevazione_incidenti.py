@@ -121,6 +121,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Dalla home o dall'anteprima si apre l'elenco con «filtrato · anno»",
+            "perche": "i numeri dell'anno aprono l'elenco delle sole rilevazioni di quell'anno; «in analisi» apre lo stato «In analisi (non chiuse)».",
+            "fare": [
+                "Togli il filtro dai campi in alto per rivedere tutto.",
+                "TRIR, giorni senza infortuni e headcount sono indici: non aprono un elenco.",
+            ],
+        },
+        {
             "sintomo": "La lista è vuota o lentissima",
             "perche": "in modalità SharePoint i dati arrivano da Microsoft Graph.",
             "fare": [

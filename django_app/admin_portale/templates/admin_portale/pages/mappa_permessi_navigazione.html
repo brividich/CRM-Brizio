@@ -25,6 +25,7 @@
     grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
   }
   .map-summary .mini {
+    display:block;
     border:1px solid var(--border,#d6dbe5);
     border-radius:10px;
     padding:10px 12px;
@@ -307,6 +308,7 @@ body.theme-dark .map-hint{color:var(--text-light)}
             <option value="redirect"{% if filters.source == 'redirect' %} selected{% endif %}>Solo REDIRECT</option>
             <option value="override"{% if filters.source == 'override' %} selected{% endif %}>Solo OVERRIDE</option>
             <option value="fallback"{% if filters.source == 'fallback' %} selected{% endif %}>Solo FALLBACK</option>
+            <option value="canonical"{% if filters.source == 'canonical' %} selected{% endif %}>Solo con binding canonico</option>
           </select>
         </div>
         <div class="field">
@@ -340,13 +342,14 @@ body.theme-dark .map-hint{color:var(--text-light)}
           Suggerimento: seleziona un ruolo legacy nei filtri per abilitare la modifica live dei grant canonici e dei permessi legacy dalla mappa.
         </div>
       {% endif %}
+      {% url 'admin_portale:mappa_permessi_navigazione' as mappa_url %}
       <div class="map-summary">
-        <div class="mini"><div class="n">{{ summary.rows_total }}</div><div class="l">Righe Mappa</div></div>
-        <div class="mini"><div class="n">{{ summary.rows_canonical }}</div><div class="l">Con Binding Canonico</div></div>
-        <div class="mini"><div class="n">{{ summary.rows_registry }}</div><div class="l">Con REGISTRY</div></div>
-        <div class="mini"><div class="n">{{ summary.rows_legacy }}</div><div class="l">Con LEGACY</div></div>
-        <div class="mini"><div class="n">{{ summary.rows_override }}</div><div class="l">Con OVERRIDE</div></div>
-        <div class="mini"><div class="n">{{ summary.rows_redirect }}</div><div class="l">Con REDIRECT</div></div>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=all{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: tutte le righe della mappa"><div class="n">{{ summary.rows_total }}</div><div class="l">Righe Mappa</div></a>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=canonical{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: righe con binding canonico"><div class="n">{{ summary.rows_canonical }}</div><div class="l">Con Binding Canonico</div></a>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=registry{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: righe con fonte REGISTRY"><div class="n">{{ summary.rows_registry }}</div><div class="l">Con REGISTRY</div></a>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=legacy{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: righe con fonte LEGACY"><div class="n">{{ summary.rows_legacy }}</div><div class="l">Con LEGACY</div></a>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=override{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: righe con override utente"><div class="n">{{ summary.rows_override }}</div><div class="l">Con OVERRIDE</div></a>
+        <a class="mini kpi-link" href="{{ mappa_url }}?source=redirect{% if mappa_scope_qs %}&amp;{{ mappa_scope_qs }}{% endif %}" title="Apri la mappa filtrata: righe con redirect legacy"><div class="n">{{ summary.rows_redirect }}</div><div class="l">Con REDIRECT</div></a>
       </div>
     </div>
   </div>

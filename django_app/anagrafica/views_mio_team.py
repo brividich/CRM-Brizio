@@ -102,8 +102,19 @@ def mio_team(request):
         righe.sort(key=lambda x: (_ORDINE.get(x["esito"], 9), x["nome"]))
     conteggi = {k: sum(1 for r in righe if r["esito"] == k) for k in ESITI}
     conteggi["carico"] = sum(1 for r in righe if r["carico"])
+    # Le pill dei conteggi aprono ``?esito=<chiave>``: stessa regola del conteggio.
+    n_team = len(righe)
+    filtro = request.GET.get("esito") or ""
+    if filtro == "carico":
+        righe = [r for r in righe if r["carico"]]
+    elif filtro in ESITI:
+        righe = [r for r in righe if r["esito"] == filtro]
+    else:
+        filtro = ""
     return render(request, "anagrafica/pages/mio_team.html", {
         "righe": righe,
+        "n_team": n_team,
+        "filtro": filtro,
         "collegato": io is not None,
         "conteggi": conteggi,
     })

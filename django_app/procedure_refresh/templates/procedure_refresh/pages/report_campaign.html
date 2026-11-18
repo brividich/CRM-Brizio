@@ -88,6 +88,7 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
     <form method="get" class="pr-filter-row">
       <select name="camp_id">
         <option value="">— Seleziona sessione —</option>
+        <option value="tutte" {% if tutte %}selected{% endif %}>Tutte le sessioni</option>
         {% for camp in campaigns %}
           <option value="{{ camp.pk }}" {% if selected_camp and selected_camp.pk == camp.pk %}selected{% endif %}>
             {{ camp.name }} ({{ camp.get_status_display }})
@@ -95,6 +96,13 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
         {% endfor %}
       </select>
       <button type="submit" class="pr-filter-btn">Visualizza</button>
+      {% if stato %}<input type="hidden" name="stato" value="{{ stato }}">{% endif %}
+      {% if tutte %}
+        <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments"
+           style="padding:8px 14px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+          ⬇ Export CSV
+        </a>
+      {% endif %}
       {% if selected_camp %}
         <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments&camp={{ selected_camp.pk }}"
            style="padding:8px 14px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
@@ -108,34 +116,41 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
     </form>
   </div>
 
-  {% if selected_camp %}
+  {% if selected_camp or tutte %}
     {% if report_stats.total %}
       <div class="pr-kpi-row">
-        <div class="pr-kpi">
+        <a class="pr-kpi kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ camp_param }}#pr-report-elenco" title="Mostra tutte le assegnazioni">
           <div class="pr-kpi-val">{{ report_stats.total }}</div>
           <div class="pr-kpi-lbl">Assegnazioni</div>
-        </div>
-        <div class="pr-kpi pr-kpi-green">
+        </a>
+        <a class="pr-kpi pr-kpi-green kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ camp_param }}&amp;stato=confermate#pr-report-elenco" title="Mostra l'elenco filtrato: assegnazioni confermate">
           <div class="pr-kpi-val">{{ report_stats.confirmed }}</div>
           <div class="pr-kpi-lbl">Confermate</div>
-        </div>
-        <div class="pr-kpi pr-kpi-orange">
+        </a>
+        <a class="pr-kpi pr-kpi-orange kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ camp_param }}&amp;stato=in_attesa#pr-report-elenco" title="Mostra l'elenco filtrato: assegnazioni in attesa">
           <div class="pr-kpi-val">{{ report_stats.pending }}</div>
           <div class="pr-kpi-lbl">In attesa</div>
-        </div>
-        <div class="pr-kpi pr-kpi-red">
+        </a>
+        <a class="pr-kpi pr-kpi-red kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ camp_param }}&amp;stato=scadute#pr-report-elenco" title="Mostra l'elenco filtrato: assegnazioni scadute">
           <div class="pr-kpi-val">{{ report_stats.overdue }}</div>
           <div class="pr-kpi-lbl">Scadute</div>
-        </div>
+        </a>
       </div>
     {% endif %}
 
-    <div class="pr-table-wrap">
+    {% if stato %}
+      <p class="pr-report-filtro" style="font-size:13px;margin:12px 0 0;">
+        Elenco filtrato: <strong>{{ stato_label }}</strong> ({{ assignments|length }} su {{ report_stats.total }}).
+        <a href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ camp_param }}">Mostra tutte</a>
+      </p>
+    {% endif %}
+    <div class="pr-table-wrap" id="pr-report-elenco">
       {% if assignments %}
         <table class="pr-table">
           <thead>
             <tr>
               <th>Utente</th>
+              {% if tutte %}<th>Sessione</th>{% endif %}
               <th>Documento</th>
               <th>Rev.</th>
               <th>Stato</th>
@@ -152,10 +167,12 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
                   <strong>{{ a.user.get_full_name|default:a.user.username }}</strong><br>
                   <span style="font-size:11px;color:#64748b;">{{ a.user.email }}</span>
                 </td>
+                {% if tutte %}<td>{{ a.campaign.name }}</td>{% endif %}
                 <td>{{ a.revision.document.code }}<br><span style="font-size:11px;color:#64748b;">{{ a.revision.document.document_type }}</span></td>
                 <td>{{ a.revision.revision_code }}</td>
                 <td>
-                  {% if a.status == 'assigned' %}<span class="pr-badge pr-badge-assigned">Assegnata</span>
+                  {% if a.scaduta_ora %}<span class="pr-badge pr-badge-overdue">Scaduta</span>
+                  {% elif a.status == 'assigned' %}<span class="pr-badge pr-badge-assigned">Assegnata</span>
                   {% elif a.status == 'opened' %}<span class="pr-badge pr-badge-opened">Aperta</span>
                   {% elif a.status == 'read_confirmed' %}<span class="pr-badge pr-badge-confirmed">✓ Confermata</span>
                   {% elif a.status == 'overdue' %}<span class="pr-badge pr-badge-overdue">Scaduta</span>
@@ -170,7 +187,7 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
           </tbody>
         </table>
       {% else %}
-        <div class="pr-empty">Nessuna assegnazione per questa sessione.</div>
+        <div class="pr-empty">{% if stato %}Nessuna assegnazione con questo stato.{% else %}Nessuna assegnazione per questa sessione.{% endif %}</div>
       {% endif %}
     </div>
   {% endif %}

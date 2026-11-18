@@ -151,6 +151,7 @@
   background: rgba(255,255,255,.16);
 }
 
+a.pr-hero-metric { display:block; }
 .pr-hero-metric {
   min-height: 76px;
   padding: 13px;
@@ -614,22 +615,22 @@ body.theme-dark .pr-doc-title:hover{color:#93c5fd}
       </div>
     </div>
     <div class="pr-hero-metrics" aria-label="Riepilogo letture">
-      <div class="pr-hero-metric">
+      <a class="pr-hero-metric kpi-link" href="{% url 'procedure_refresh:my_assignments' %}?status=pending" title="Apri l'elenco filtrato: letture da completare">
         <strong>{{ pr_stats.pending }}</strong>
         <span>Da completare</span>
-      </div>
-      <div class="pr-hero-metric">
+      </a>
+      <a class="pr-hero-metric kpi-link" href="{% url 'procedure_refresh:my_assignments' %}?status=overdue" title="Apri l'elenco filtrato: letture scadute">
         <strong>{{ pr_stats.overdue }}</strong>
         <span>Scadute</span>
-      </div>
-      <div class="pr-hero-metric">
+      </a>
+      <a class="pr-hero-metric kpi-link" href="{% url 'procedure_refresh:my_assignments' %}?status=due_soon" title="Apri l'elenco filtrato: letture in scadenza entro 7 giorni">
         <strong>{{ pr_stats.due_soon }}</strong>
         <span>In scadenza 7g</span>
-      </div>
-      <div class="pr-hero-metric">
+      </a>
+      <a class="pr-hero-metric kpi-link" href="{% url 'procedure_refresh:my_assignments' %}?status=read_confirmed" title="Apri l'elenco filtrato: letture confermate">
         <strong>{{ pr_stats.confirmed }}</strong>
         <span>Confermate</span>
-      </div>
+      </a>
     </div>
   </section>
 
@@ -645,7 +646,7 @@ body.theme-dark .pr-doc-title:hover{color:#93c5fd}
           <a href="{% url 'procedure_refresh:my_assignments' %}?status=read_confirmed" class="pr-tab{% if status_filter == 'read_confirmed' %} active{% endif %}">Confermate</a>
           <a href="{% url 'procedure_refresh:my_assignments' %}?status=cancelled" class="pr-tab{% if status_filter == 'cancelled' %} active{% endif %}">Annullate</a>
         </nav>
-        <div class="pr-result-count">{{ pr_stats.filtered }} risultati</div>
+        <div class="pr-result-count">{{ pr_stats.filtered }} risultati{% if status_filter == 'pending' %} da completare{% elif status_filter == 'due_soon' %} in scadenza entro 7 giorni{% endif %}</div>
       </div>
 
       {% if assignments %}

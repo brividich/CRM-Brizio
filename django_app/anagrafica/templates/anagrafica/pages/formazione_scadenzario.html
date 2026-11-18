@@ -49,22 +49,22 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi fmd-k4">
-      <a class="fmd-mtr fmd-t-amber" href="?stato=SCADUTO{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo i corsi scaduti">
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="?stato=SCADUTO{{ kpi_qs_extra }}{{ filtro_centro.suffisso }}" title="Mostra solo i corsi scaduti">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare subito</div>
       </a>
-      <div class="fmd-mtr fmd-t-orange">
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="?stato=IN_SCADENZA_30{{ kpi_qs_extra }}{{ filtro_centro.suffisso }}" title="Apri l'elenco filtrato: in scadenza entro 30 giorni">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div>
         <div class="fmd-mtr-lbl">Entro 30gg</div><div class="fmd-mtr-sub">Prossima scadenza</div>
-      </div>
-      <a class="fmd-mtr fmd-t-yellow" href="?stato=IN_SCADENZA_90{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo le scadenze entro 90 giorni">
+      </a>
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="?stato=IN_SCADENZA_90{{ kpi_qs_extra }}{{ filtro_centro.suffisso }}" title="Mostra solo le scadenze entro 90 giorni">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_90gg }}</span></div>
         <div class="fmd-mtr-lbl">Entro 90gg</div><div class="fmd-mtr-sub">Pianificazione</div>
       </a>
-      <a class="fmd-mtr fmd-t-navy" href="?stato=MAI_FREQUENTATO{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo i corsi mai frequentati">
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="?stato=MAI_FREQUENTATO&amp;obbligatori=1{{ kpi_qs_extra }}{{ filtro_centro.suffisso }}" title="Apri l'elenco filtrato: corsi obbligatori mai frequentati">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div>
         <div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Corsi obbligatori non svolti</div>
@@ -79,7 +79,10 @@
           {% for val, lbl in STATO_SCADENZA_CHOICES %}
           <option value="{{ val }}" {% if filtro_stato == val %}selected{% endif %}>{{ lbl }}</option>
           {% endfor %}
+          <option value="{{ STATO_MANCANTE }}" {% if filtro_stato == STATO_MANCANTE %}selected{% endif %}>{{ STATO_MANCANTE_LABEL }}</option>
         </select>
+        {% if filtro_dipendente %}<input type="hidden" name="dipendente" value="{{ filtro_dipendente }}"><span class="fmd-muted" style="font-size:12.5px;">Dipendente: <strong>{{ filtro_dipendente_nome }}</strong></span>{% endif %}
+        <label class="fmd-muted" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;" title="Mostra solo i corsi obbligatori per la persona"><input type="checkbox" name="obbligatori" value="1" {% if filtro_obbligatori %}checked{% endif %} onchange="this.form.submit()"> Solo obbligatori</label>
         {% include "anagrafica/partials/_filtro_centro_select.html" %}
         <select name="corso" class="fmd-select" aria-label="Filtra per corso" onchange="this.form.submit()">
           <option value="" {% if not filtro_corso %}selected{% endif %}>Tutti i corsi</option>

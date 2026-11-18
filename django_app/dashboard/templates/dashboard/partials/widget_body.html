@@ -40,6 +40,25 @@ Restituito da htmx_views.widget_partial. Contesto: w (widget def dict), widget_d
 {% elif w.id == "tasks_stats" %}
   {% with d=widget_data.tasks_stats %}
   <div class="eb-stats-row">
+    {% if d.user_id %}
+    {% url 'tasks:list' as u_tasks_list %}
+    <a class="eb-stat-box kpi-link" href="{{ u_tasks_list }}?mine=0&amp;assigned_to={{ d.user_id }}&amp;status=TODO" title="Apri l'elenco filtrato: attività assegnate a te da fare">
+      <div class="eb-stat-val blue">{{ d.stats.todo|default:0 }}</div>
+      <div class="eb-stat-label">Da fare</div>
+    </a>
+    <a class="eb-stat-box kpi-link" href="{{ u_tasks_list }}?mine=0&amp;assigned_to={{ d.user_id }}&amp;status=IN_PROGRESS" title="Apri l'elenco filtrato: attività assegnate a te in corso">
+      <div class="eb-stat-val yellow">{{ d.stats.in_progress|default:0 }}</div>
+      <div class="eb-stat-label">In corso</div>
+    </a>
+    <a class="eb-stat-box kpi-link" href="{{ u_tasks_list }}?mine=0&amp;assigned_to={{ d.user_id }}&amp;status=DONE" title="Apri l'elenco filtrato: attività assegnate a te completate">
+      <div class="eb-stat-val green">{{ d.stats.done|default:0 }}</div>
+      <div class="eb-stat-label">Completati</div>
+    </a>
+    <a class="eb-stat-box kpi-link" href="{{ u_tasks_list }}?mine=0&amp;assigned_to={{ d.user_id }}&amp;overdue=on" title="Apri l'elenco filtrato: attività assegnate a te scadute e ancora aperte">
+      <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+      <div class="eb-stat-label">Scaduti</div>
+    </a>
+    {% else %}
     <div class="eb-stat-box">
       <div class="eb-stat-val blue">{{ d.stats.todo|default:0 }}</div>
       <div class="eb-stat-label">Da fare</div>
@@ -56,6 +75,7 @@ Restituito da htmx_views.widget_partial. Contesto: w (widget def dict), widget_d
       <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
       <div class="eb-stat-label">Scaduti</div>
     </div>
+    {% endif %}
   </div>
   {% endwith %}
 
@@ -218,18 +238,19 @@ Restituito da htmx_views.widget_partial. Contesto: w (widget def dict), widget_d
 {% elif w.id == "procedure_da_leggere" %}
   {% with d=widget_data.procedure_da_leggere %}
   <div class="eb-stats-row compact-3">
-    <div class="eb-stat-box">
+    {% url 'procedure_refresh:my_assignments' as u_letture %}
+    <a class="eb-stat-box kpi-link" href="{{ u_letture }}?status=pending" title="Apri le tue letture filtrate: da completare (scadute comprese)">
       <div class="eb-stat-val yellow">{{ d.stats.pending|default:0 }}</div>
-      <div class="eb-stat-label">Pendenti</div>
-    </div>
-    <div class="eb-stat-box">
+      <div class="eb-stat-label">Da completare</div>
+    </a>
+    <a class="eb-stat-box kpi-link" href="{{ u_letture }}?status=overdue" title="Apri le tue letture filtrate: scadute">
       <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
       <div class="eb-stat-label">Scadute</div>
-    </div>
-    <div class="eb-stat-box">
+    </a>
+    <a class="eb-stat-box kpi-link" href="{{ u_letture }}?status=read_confirmed" title="Apri le tue letture filtrate: prese visione confermate">
       <div class="eb-stat-val green">{{ d.stats.confirmed|default:0 }}</div>
       <div class="eb-stat-label">Confermate</div>
-    </div>
+    </a>
   </div>
   {% if d.items %}
   <ul class="eb-list" style="margin-top:10px;">

@@ -121,3 +121,8 @@ SNMPv3: nel catalogo community scegli «SNMPv3» e inserisci utente, autenticazi
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 `centrale_snmp_riepilogo` deriva da `stato_flotta`: un solo numero di operativi/attenzione/errori/non interrogati su Centrale e Monitor SNMP.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Filtro `fornitore` (ripetibile, validato sul catalogo) su stampanti e archivio fatture; «Licenze degli apparati» apre l'elenco licenze con `apparati=1`; viste `?vista=`.

@@ -16,9 +16,12 @@
   </div>
 
   <div class="rk-kpi" role="group" aria-label="Riepilogo">
-    <div><span class="rk-kpi-n">{{ riepilogo.rack }}</span><span class="rk-kpi-l">Rack</span></div>
+    {% if racks %}<a href="#rack-elenco" class="kpi-link" title="Vai all’elenco dei rack qui sotto"><span class="rk-kpi-n">{{ riepilogo.rack }}</span><span class="rk-kpi-l">Rack</span></a>
+    <a href="#rack-elenco" class="kpi-link" title="Vai all’elenco dei rack qui sotto: switch per rack"><span class="rk-kpi-n">{{ riepilogo.switch }}</span><span class="rk-kpi-l">Switch nei rack</span></a>
+    <a href="#rack-elenco" class="kpi-link" title="Vai all’elenco dei rack qui sotto: dispositivi per rack"><span class="rk-kpi-n">{{ riepilogo.dispositivi }}</span><span class="rk-kpi-l">Dispositivi collegati</span></a>
+    {% else %}<div><span class="rk-kpi-n">{{ riepilogo.rack }}</span><span class="rk-kpi-l">Rack</span></div>
     <div><span class="rk-kpi-n">{{ riepilogo.switch }}</span><span class="rk-kpi-l">Switch nei rack</span></div>
-    <div><span class="rk-kpi-n">{{ riepilogo.dispositivi }}</span><span class="rk-kpi-l">Dispositivi collegati</span></div>
+    <div><span class="rk-kpi-n">{{ riepilogo.dispositivi }}</span><span class="rk-kpi-l">Dispositivi collegati</span></div>{% endif %}
     <a href="#porte-senza-switch" class="{% if riepilogo.porte_libere %}rk-kpi-warn{% else %}rk-kpi-ok{% endif %}"><span class="rk-kpi-n">{{ riepilogo.porte_libere }}</span><span class="rk-kpi-l">Punti rete senza switch</span></a>
     <a href="#senza-rack" class="{% if riepilogo.senza_rack %}rk-kpi-warn{% else %}rk-kpi-ok{% endif %}"><span class="rk-kpi-n">{{ riepilogo.senza_rack }}</span><span class="rk-kpi-l">Apparati senza rack</span></a>
   </div>
@@ -31,7 +34,7 @@
   {% endif %}
 
   {% if racks %}
-  <section class="rk-grid" aria-label="Rack">
+  <section class="rk-grid" id="rack-elenco" aria-label="Rack">
     {% for r in racks %}
     <article class="rk-card rk-rack">
       <div class="rk-rack-head">

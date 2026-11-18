@@ -100,6 +100,7 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
 
   <form method="get" class="dp-filters">
     {% if mostra_eliminate %}<input type="hidden" name="eliminate" value="1">{% endif %}
+    {% if vista %}<input type="hidden" name="vista" value="{{ vista }}">{% endif %}
     <label>Cerca
       <input type="text" name="q" value="{{ q }}" placeholder="ID, titolo, descrizione, nominativo...">
     </label>
@@ -118,7 +119,7 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
       &#128196; Esporta Excel
     </a>
     {% endif %}
-    {% if q or filtro_preposto %}
+    {% if q or filtro_preposto or vista %}
     <a href="{% url 'diario_preposto:lista' %}{% if mostra_eliminate %}?eliminate=1{% endif %}" class="dp-filters-reset">Reset</a>
     {% endif %}
   </form>
@@ -126,24 +127,26 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
   {% if cruscotto %}
   {% include "diario_preposto/partials/_cruscotto.html" %}
   {% else %}
+  {% url 'diario_preposto:lista' as u_dp %}
   <div class="dp-kpi-row">
-    <div class="dp-kpi">
+    <a class="dp-kpi kpi-link" href="{{ u_dp }}?{% if mostra_eliminate %}eliminate=1&amp;{% endif %}q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}#dp-elenco" title="Vai all'elenco con i filtri attuali">
       <div class="dp-kpi-val">{{ totale }}</div>
       <div class="dp-kpi-lbl">{% if mostra_eliminate %}Segnalazioni eliminate{% else %}Segnalazioni{% endif %}{% if q or filtro_preposto %} (filtrate){% endif %}</div>
-    </div>
+    </a>
     {% if can_manage_settings %}
-    <div class="dp-kpi">
+    <a class="dp-kpi kpi-link" href="{{ u_dp }}?eliminate=1#dp-elenco" title="Apri l'elenco delle segnalazioni eliminate">
       <div class="dp-kpi-val">{{ n_eliminate }}</div>
-      <div class="dp-kpi-lbl">
-        {% if mostra_eliminate %}<a href="{% url 'diario_preposto:lista' %}">Torna al registro</a>
-        {% else %}<a href="{% url 'diario_preposto:lista' %}?eliminate=1">Eliminate</a>{% endif %}
-      </div>
-    </div>
+      <div class="dp-kpi-lbl">Eliminate</div>
+    </a>
     {% endif %}
   </div>
+  {% if mostra_eliminate %}<p style="margin:8px 0 0;"><a href="{{ u_dp }}">Torna al registro</a></p>{% endif %}
   {% endif %}
 
-  <div class="dp-table-wrap">
+  {% if vista %}
+  <p class="dp-vista-attiva" role="status" style="margin:10px 0 0;">Vista: <strong>{{ vista_label }}</strong> · {{ totale }} segnalazion{{ totale|pluralize:"e,i" }} · <a href="{% url 'diario_preposto:lista' %}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}">mostra tutte</a></p>
+  {% endif %}
+  <div class="dp-table-wrap" id="dp-elenco">
     {% if segnalazioni %}
     <table class="dp-table">
       <thead>

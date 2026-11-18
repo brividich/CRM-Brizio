@@ -50,3 +50,28 @@ def refresh_deadlines(
 
     esito = ricalcola_formazione([legacy_id] if legacy_id is not None else None)
     return esito["righe"]
+
+
+# ── Filtri dello scadenzario formazione (pagina, export e KPI) ──────────────
+# Stessa metrica = una funzione: la dashboard, le tessere dello scadenzario e
+# l'export filtrano qui, così il numero della tessera è quello della lista.
+
+STATI_DA_GESTIRE = ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO")
+# Pseudo-stato del filtro: scaduti + mai frequentati («Obbligatori mancanti»).
+STATO_MANCANTE = "MANCANTE"
+STATO_MANCANTE_LABEL = "Scaduti + mai frequentati"
+
+
+def filtra_stato_scadenze(qs, stato: str = "", solo_obbligatori: bool = False):
+    """Applica i filtri ``stato`` e ``obbligatori`` dello scadenzario a un queryset
+    di ``TrainingDeadline``. Senza stato: scaduti + in scadenza + mai frequentati."""
+    stato = (stato or "").strip()
+    if stato == STATO_MANCANTE:
+        qs = qs.filter(stato_scadenza__in=["SCADUTO", "MAI_FREQUENTATO"])
+    elif stato:
+        qs = qs.filter(stato_scadenza=stato)
+    else:
+        qs = qs.filter(stato_scadenza__in=STATI_DA_GESTIRE)
+    if solo_obbligatori:
+        qs = qs.filter(is_required=True)
+    return qs

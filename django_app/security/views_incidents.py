@@ -50,6 +50,15 @@ def incidents_list(request):
     query = request.GET.get("q", "").strip()
     if query:
         rows = rows.filter(Q(title__icontains=query) | Q(code__icontains=query) | Q(csirt_reference__icontains=query))
+    # Intervallo di rilevazione (date locali, estremi inclusi): tessera «Incidenti» del Report periodico.
+    periodo = {}
+    for param, lookup in (("dal", "detected_at__date__gte"), ("al", "detected_at__date__lte")):
+        try:
+            valore = datetime.strptime(request.GET.get(param, "").strip(), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        periodo[param] = valore.isoformat()
+        rows = rows.filter(**{lookup: valore})
     now = timezone.now()
     from .services import esporta_csv
 
@@ -64,7 +73,7 @@ def incidents_list(request):
         "incidents": incidents,
         "page_obj": page_obj,
         "total": page_obj.paginator.count,
-        "filters": {"status": status, "scope": scope, "year": year, "q": query},
+        "filters": {"status": status, "scope": scope, "year": year, "q": query, **periodo},
         "status_choices": SecurityIncident.STATUS_CHOICES,
         "years": years,
         "urgent": svc.urgent_incidents(now),

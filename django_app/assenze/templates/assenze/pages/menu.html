@@ -427,27 +427,27 @@ body.theme-dark .abs-recent-icon.no{color:#fca5a5;background:rgba(229,62,62,.16)
       </div>
     </div>
     <div class="abs-hero-aside" aria-label="Riepilogo rapido Assenze">
-      <div class="abs-hero-stat">
+      <a class="abs-hero-stat kpi-link" href="#richieste-recenti" title="Vai all'elenco: le tue richieste più recenti">
         <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
         <span class="abs-hero-stat-copy">
           <span class="abs-hero-stat-value">{{ recenti|length }}</span>
           <span class="abs-hero-stat-label">recenti</span>
         </span>
-      </div>
-      <div class="abs-hero-stat">
+      </a>
+      {% if assenze_can_view_team %}<a class="abs-hero-stat kpi-link" href="{% url 'assenze_car_dashboard' %}#in-attesa" title="Apri la coda: richieste che aspettano la tua decisione">{% else %}<div class="abs-hero-stat">{% endif %}
         <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
         <span class="abs-hero-stat-copy">
           <span class="abs-hero-stat-value">{{ car_pending_count }}</span>
           <span class="abs-hero-stat-label">in coda</span>
         </span>
-      </div>
-      <div class="abs-hero-stat">
+      {% if assenze_can_view_team %}</a>{% else %}</div>{% endif %}
+      {% if assenze_can_view_calendar %}<a class="abs-hero-stat kpi-link" href="{% url 'assenze_calendario' %}" title="Apri il calendario assenze">{% else %}<div class="abs-hero-stat">{% endif %}
         <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
         <span class="abs-hero-stat-copy">
           <span class="abs-hero-stat-value">{% if assenze_can_view_calendar %}Si{% else %}--{% endif %}</span>
           <span class="abs-hero-stat-label">calendario</span>
         </span>
-      </div>
+      {% if assenze_can_view_calendar %}</a>{% else %}</div>{% endif %}
     </div>
   </section>
 
@@ -528,7 +528,7 @@ body.theme-dark .abs-recent-icon.no{color:#fca5a5;background:rgba(229,62,62,.16)
     {% endif %}
   </section>
 
-  <section class="abs-panel abs-menu-recent">
+  <section class="abs-panel abs-menu-recent" id="richieste-recenti">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
         <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Ultime richieste</h2>

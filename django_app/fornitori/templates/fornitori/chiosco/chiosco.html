@@ -30,6 +30,8 @@ button { font:inherit; color:inherit; }
 .ck-saver-ora { font-size:84px; font-weight:300; letter-spacing:-2px; color:#475569; }
 .ck-saver-txt { margin-top:6px; font-size:22px; color:#334155; }
 @keyframes ck-saver-in { from { opacity:0; } to { opacity:1; } }
+.ck-start-en { margin-top:-12px; font-size:24px; font-weight:600; font-style:italic; color:var(--green); }
+.ck-en { font-weight:500; font-style:italic; color:var(--muted); }
 @keyframes ck-in { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
 
 /* Barra di avanzamento */
@@ -228,7 +230,8 @@ button { font:inherit; color:inherit; }
           </button>
           <button type="button" class="ck-start reg" data-registrato>
             <span class="ck-pulse"><span><svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span></span>
-            <span class="ck-start-l">Vengo qui spesso</span>
+            <span class="ck-start-l">Sono già stato qui</span>
+            <span class="ck-start-en" lang="en">I've been here before</span>
             <span class="ck-start-d">Tecnici e manutentori delle ditte: ditta, nome, fatto.</span>
           </button>
         </div>
@@ -245,7 +248,7 @@ button { font:inherit; color:inherit; }
         <div><label class="ck-label" for="f-cognome">Cognome</label><input class="ck-big" id="f-cognome" data-kb="text" data-sugg="cognome" readonly autocomplete="off" placeholder="Cognome"><div class="ck-sugg" id="f-cognome-sugg"></div></div>
         <div><label class="ck-label" for="f-nome">Nome</label><input class="ck-big" id="f-nome" data-kb="text" data-sugg="nome" readonly autocomplete="off" placeholder="Nome"><div class="ck-sugg" id="f-nome-sugg"></div></div>
       </div>
-      <div class="ck-actions"><button type="button" class="ck-next" id="b-nome" disabled>Avanti</button><button type="button" class="ck-ghost reg" data-registrato><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Vengo qui spesso</button></div>
+      <div class="ck-actions"><button type="button" class="ck-next" id="b-nome" disabled>Avanti</button><button type="button" class="ck-ghost reg" data-registrato><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Sono già stato qui <span class="ck-en" lang="en">· I've been here before</span></button></div>
       <div class="ck-err" id="e-nome"></div>
     </section>
 
@@ -875,7 +878,7 @@ button { font:inherit; color:inherit; }
     chiama('prereg-entra', { code: codice, gdpr_consent: $('f-gdpr-p').checked }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
   });
 
-  // ─── «Vengo qui spesso»: ditta accreditata → tecnico → conferma. Niente referente né motivo da scegliere ───
+  // ─── «Sono già stato qui»: ditta accreditata → tecnico → conferma. Niente referente né motivo da scegliere ───
   // L'elenco arriva già ordinato dal server (chi entra più spesso in testa); le lettere filtrano senza riordinare.
   var regDitte = [], regLettera = '';
   function inizialeDitta(x) { return normalizza(x.nome).trim().charAt(0).toUpperCase(); }

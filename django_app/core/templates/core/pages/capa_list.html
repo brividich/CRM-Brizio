@@ -15,9 +15,10 @@ Context (vedi core/views_capa.py::capa_list).
   .capa-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
   .capa-sub { color:#64748b; font-size:.95rem; margin:4px 0 0; }
   .capa-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
-  .capa-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
+  .capa-kpi { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
   .capa-kpi b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
   .capa-kpi span { color:#64748b; font-size:.82rem; }
+  .capa-kpi.is-active { border-color:#f39200; box-shadow:0 0 0 2px rgba(243,146,0,.2); }
   .capa-kpi.danger b { color:#b91c1c; }
   .capa-kpi.warn b { color:#9a3412; }
   .capa-kpi.info b { color:#1e40af; }
@@ -89,12 +90,14 @@ body.theme-dark .capa-msg{background:rgba(56,161,105,.18);color:#86efac}
   </div>
 
   <div class="capa-kpis">
-    <div class="capa-kpi"><b>{{ n_aperte }}</b><span>Aperte</span></div>
-    <div class="capa-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
-    <div class="capa-kpi info"><b>{{ n_da_verificare }}</b><span>Da verificare</span></div>
+    {% url 'capa_list' as capa_url %}
+    <a class="capa-kpi kpi-link{% if solo_aperte and not f_stato and not f_scad %} is-active{% endif %}" href="{{ capa_url }}?aperte=1" title="Apri l'elenco filtrato: azioni aperte"><b>{{ n_aperte }}</b><span>Aperte</span></a>
+    <a class="capa-kpi danger kpi-link{% if f_scad == 'scaduta' %} is-active{% endif %}" href="{{ capa_url }}?scadenza=scaduta" title="Apri l'elenco filtrato: azioni aperte con scadenza superata"><b>{{ n_scadute }}</b><span>Scadute</span></a>
+    <a class="capa-kpi info kpi-link{% if f_stato == stato_da_verificare %} is-active{% endif %}" href="{{ capa_url }}?stato={{ stato_da_verificare }}" title="Apri l'elenco filtrato: azioni chiuse da verificare"><b>{{ n_da_verificare }}</b><span>Da verificare</span></a>
   </div>
 
   <form method="get" class="capa-filters">
+    {% if solo_aperte %}<input type="hidden" name="aperte" value="1">{% endif %}
     <label>Cerca
       <input type="text" name="q" value="{{ q }}" placeholder="Titolo / descrizione…">
     </label>
@@ -133,7 +136,7 @@ body.theme-dark .capa-msg{background:rgba(56,161,105,.18);color:#86efac}
     </label>
     {% endif %}
     <button type="submit" class="capa-btn">Filtra</button>
-    <a class="capa-btn ghost" href="?{% if q %}q={{ q }}&{% endif %}{% if f_stato %}stato={{ f_stato }}&{% endif %}{% if f_tipo %}tipo={{ f_tipo }}&{% endif %}{% if f_origine %}origine={{ f_origine }}&{% endif %}{% if f_scad %}scadenza={{ f_scad }}&{% endif %}{% if f_reparto %}reparto={{ f_reparto }}&{% endif %}export=csv">⬇ CSV</a>
+    <a class="capa-btn ghost" href="?{% if solo_aperte %}aperte=1&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}{% if f_stato %}stato={{ f_stato }}&{% endif %}{% if f_tipo %}tipo={{ f_tipo }}&{% endif %}{% if f_origine %}origine={{ f_origine }}&{% endif %}{% if f_scad %}scadenza={{ f_scad }}&{% endif %}{% if f_reparto %}reparto={{ f_reparto }}&{% endif %}export=csv">⬇ CSV</a>
   </form>
 
   <table class="capa-table">

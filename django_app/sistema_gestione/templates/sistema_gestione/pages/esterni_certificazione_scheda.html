@@ -17,9 +17,9 @@
   {% if cert.sorveglianza_superata %}<div class="sg-alert warn">La data della prossima sorveglianza ({{ cert.prossima_sorveglianza|date:"d/m/Y" }}) è passata: registra l'audit o aggiorna la data.</div>{% endif %}
 
   <div class="sg-kpis">
-    <div class="sg-kpi"><span>Emesso</span><strong>{{ cert.emesso_il|date:"d/m/Y"|default:"—" }}</strong></div>
-    <div class="sg-kpi{% if cert.sorveglianza_superata %} is-warn{% endif %}"><span>Prossima sorveglianza</span><strong>{{ cert.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</strong></div>
-    <div class="sg-kpi{% if cert.stato == "scaduta" %} is-danger{% elif cert.stato == "in_scadenza" %} is-warn{% endif %}"><span>Scadenza</span><strong>{{ cert.scade_il|date:"d/m/Y" }}</strong></div>
+    <a class="sg-kpi kpi-link" href="#sg-copia" title="Vai alle copie del certificato caricate, con data di emissione"><span>Emesso</span><strong>{{ cert.emesso_il|date:"d/m/Y"|default:"—" }}</strong></a>
+    <a class="sg-kpi{% if cert.sorveglianza_superata %} is-warn{% endif %} kpi-link" href="#sg-audit-certificato" title="Vai agli audit di questo certificato"><span>Prossima sorveglianza</span><strong>{{ cert.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</strong></a>
+    <a class="sg-kpi{% if cert.stato == "scaduta" %} is-danger{% elif cert.stato == "in_scadenza" %} is-warn{% endif %} kpi-link" href="#sg-copia" title="Vai alle copie del certificato caricate, con data di scadenza"><span>Scadenza</span><strong>{{ cert.scade_il|date:"d/m/Y" }}</strong></a>
   </div>
 
   {% if cert.campo_applicazione or cert.note %}<section class="rc-card sg-section">
@@ -27,7 +27,7 @@
     {% if cert.note %}<h2>Note</h2><p>{{ cert.note|linebreaksbr }}</p>{% endif %}
   </section>{% endif %}
 
-  <section class="rc-card sg-section">
+  <section class="rc-card sg-section" id="sg-copia">
     <h2>Copia del certificato</h2>
     {% if documenti %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>File</th><th>Emesso</th><th>Scadenza</th><th>Caricato</th></tr></thead><tbody>
       {% for doc in documenti %}<tr>
@@ -54,7 +54,7 @@
     </tbody></table></div>{% else %}<p class="sg-muted">Nessuna qualifica collegata.{% if puo_modificare %} Si scelgono da «Modifica».{% endif %}</p>{% endif %}
   </section>
 
-  <section class="rc-card sg-section">
+  <section class="rc-card sg-section" id="sg-audit-certificato">
     <h2>Audit di questo certificato</h2>
     {% if audit_list %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Date</th><th>Tipo</th><th>Stato</th><th>Esito</th><th>Rilievi</th><th>NC aperte</th></tr></thead><tbody>
       {% for a in audit_list %}<tr>

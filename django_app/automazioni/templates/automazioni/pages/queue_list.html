@@ -175,26 +175,26 @@ python manage.py apply_sql_triggers</pre>
         <div class="card-title">Riepilogo stati queue <span style="font-size:12px;font-weight:400;color:#64748b;">— click su una card per filtrare</span></div>
       </div>
       <div class="card-body auto-stats">
-        <a class="auto-stat is-pending {% if filters.status == 'PENDING' or filters.status == 'pending' %}is-active{% endif %}"
-           href="{% if filters.status == 'PENDING' or filters.status == 'pending' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=PENDING{% endif %}"
+        <a class="auto-stat kpi-link is-pending {% if filters.status == 'pending' %}is-active{% endif %}"
+           href="{% if filters.status == 'pending' %}{{ queue_base_url }}{% if queue_kpi_qs %}?{{ queue_kpi_qs }}{% endif %}{% else %}{{ queue_base_url }}?status=pending{% if queue_kpi_qs %}&amp;{{ queue_kpi_qs }}{% endif %}{% endif %}"
            title="Filtra eventi in attesa di elaborazione">
           <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">⏳</span> Pending <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.pending }}</div>
         </a>
-        <a class="auto-stat is-processing {% if filters.status == 'PROCESSING' or filters.status == 'processing' %}is-active{% endif %}"
-           href="{% if filters.status == 'PROCESSING' or filters.status == 'processing' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=PROCESSING{% endif %}"
+        <a class="auto-stat kpi-link is-processing {% if filters.status == 'processing' %}is-active{% endif %}"
+           href="{% if filters.status == 'processing' %}{{ queue_base_url }}{% if queue_kpi_qs %}?{{ queue_kpi_qs }}{% endif %}{% else %}{{ queue_base_url }}?status=processing{% if queue_kpi_qs %}&amp;{{ queue_kpi_qs }}{% endif %}{% endif %}"
            title="Filtra eventi in lavorazione">
           <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">⚙</span> Processing <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.processing }}</div>
         </a>
-        <a class="auto-stat is-done {% if filters.status == 'DONE' or filters.status == 'done' %}is-active{% endif %}"
-           href="{% if filters.status == 'DONE' or filters.status == 'done' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=DONE{% endif %}"
+        <a class="auto-stat kpi-link is-done {% if filters.status == 'done' %}is-active{% endif %}"
+           href="{% if filters.status == 'done' %}{{ queue_base_url }}{% if queue_kpi_qs %}?{{ queue_kpi_qs }}{% endif %}{% else %}{{ queue_base_url }}?status=done{% if queue_kpi_qs %}&amp;{{ queue_kpi_qs }}{% endif %}{% endif %}"
            title="Filtra eventi processati correttamente">
           <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">✓</span> Done <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.done }}</div>
         </a>
-        <a class="auto-stat is-error {% if filters.status == 'ERROR' or filters.status == 'error' %}is-active{% endif %}"
-           href="{% if filters.status == 'ERROR' or filters.status == 'error' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=ERROR{% endif %}"
+        <a class="auto-stat kpi-link is-error {% if filters.status == 'error' %}is-active{% endif %}"
+           href="{% if filters.status == 'error' %}{{ queue_base_url }}{% if queue_kpi_qs %}?{{ queue_kpi_qs }}{% endif %}{% else %}{{ queue_base_url }}?status=error{% if queue_kpi_qs %}&amp;{{ queue_kpi_qs }}{% endif %}{% endif %}"
            title="Filtra eventi finiti in errore">
           <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">!</span> Error <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.error }}</div>
@@ -245,7 +245,7 @@ python manage.py apply_sql_triggers</pre>
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Eventi queue</div>
+        <div class="card-title">Eventi queue <span style="font-size:12px;font-weight:400;color:#64748b;">{{ queue_events_total }} totali{% if queue_events_truncated %}, mostrati i {{ queue_events|length }} più recenti{% endif %}</span></div>
       </div>
       <div class="card-body auto-table-wrap">
         <table class="auto-table">

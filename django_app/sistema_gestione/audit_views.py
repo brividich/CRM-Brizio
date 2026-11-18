@@ -102,14 +102,24 @@ def audit_index(request):
         anno = oggi.year
     programmi = ProgrammaAudit.objects.filter(anno=anno).order_by("-revisione")
     audit = Audit.objects.filter(data_inizio__year=anno).select_related("lead_auditor", "programma")
+    # Le tessere filtrano l'elenco «Audit» qui sotto con la stessa condizione del numero.
+    filtri_stato = {
+        "programmati": audit.exclude(stato=Audit.STATO_ANNULLATO),
+        "chiusi": audit.filter(stato=Audit.STATO_CHIUSO),
+    }
+    stato = request.GET.get("stato", "")
+    if stato not in filtri_stato:
+        stato = ""
     return render(request, "sistema_gestione/pages/audit_index.html", {
         "page_title": "Audit interni",
         "anno": anno,
         "programmi": programmi,
-        "audit_list": audit,
+        "audit_list": filtri_stato[stato] if stato else audit,
+        "stato": stato,
+        "n_audit_anno": audit.count(),
         "auditor_attivi": Auditor.objects.filter(attivo=True).count(),
-        "audit_chiusi": audit.filter(stato=Audit.STATO_CHIUSO).count(),
-        "audit_programmati": audit.exclude(stato=Audit.STATO_ANNULLATO).count(),
+        "audit_chiusi": filtri_stato["chiusi"].count(),
+        "audit_programmati": filtri_stato["programmati"].count(),
         "da_verificare": [r for r in automation.priorita_processi(Processo.objects.filter(attivo=True))
                           if r["mesi_dall_ultimo"] is None or r["oltre_frequenza"]],
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
@@ -126,9 +136,15 @@ def audit_index(request):
 def auditor_elenco(request):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _deny(request)
+    auditor_list = Auditor.objects.select_related("user", "approvato_ceo_da")
+    # «?attivi=1» dalla tessera «Auditor attivi» degli Audit interni.
+    solo_attivi = request.GET.get("attivi") == "1"
+    if solo_attivi:
+        auditor_list = auditor_list.filter(attivo=True)
     return render(request, "sistema_gestione/pages/auditor_elenco.html", {
         "page_title": "Auditor",
-        "auditor_list": Auditor.objects.select_related("user", "approvato_ceo_da"),
+        "auditor_list": auditor_list,
+        "solo_attivi": solo_attivi,
         "formazione_collegata": bool(tipo_auditor_id()),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "puo_approvare": _has_perm(request, PERM_AUDIT_APPROVA),

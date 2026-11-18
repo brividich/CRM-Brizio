@@ -56,10 +56,9 @@ body.theme-dark .sc-empty{color:var(--text-mid)}
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Scadenzario in sintesi">
-    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.reparti_scaduti|yesno:"orange,green" icona="i-building" valore=kpi.reparti_scaduti label="Reparti con arretrati" sub="refresh semestrale scaduto" url="?stato=scaduto" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.abil_scadute|yesno:"amber,green" icona="i-alarm" valore=kpi.abil_scadute label="Abilitazioni scadute" sub="da rinnovare" url="?stato=scaduto" %}
-    {% url 'anagrafica:skm_refresh' as u_ref %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-refresh" valore=kpi.campagne_aperte label="Campagne aperte" sub="refresh in corso" url=u_ref %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.reparti_scaduti|yesno:"orange,green" icona="i-building" valore=kpi.reparti_scaduti label="Reparti con arretrati" sub="refresh semestrale scaduto" url="?stato=scaduto" title="Apri l'elenco filtrato: reparti con abilitazioni scadute" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.abil_scadute|yesno:"amber,green" icona="i-alarm" valore=kpi.abil_scadute label="Abilitazioni scadute" sub="da rinnovare" url="?stato=scaduto" title="Apri i reparti con arretrati: la colonna Scadute somma a questo numero" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-refresh" valore=kpi.campagne_aperte label="Campagne aperte" sub="refresh in corso" url="?campagna=aperta" title="Apri l'elenco filtrato: reparti con una campagna di refresh aperta" %}
   </section>
 
   <form method="get" class="sc-toolbar">
@@ -69,7 +68,8 @@ body.theme-dark .sc-empty{color:var(--text-mid)}
       <option value="scaduto" {% if filtro_stato == 'scaduto' %}selected{% endif %}>Scaduti</option>
       <option value="in_arrivo" {% if filtro_stato == 'in_arrivo' %}selected{% endif %}>In arrivo</option>
     </select>
-    <a class="hr-btn hr-btn-outline" href="?{% if filtro_stato %}stato={{ filtro_stato }}&amp;{% endif %}format=csv">⬇ CSV</a>
+    {% if filtro_campagna %}<input type="hidden" name="campagna" value="aperta"><span style="font-size:12px;color:#64748b;">Solo campagne aperte · <a href="?{% if filtro_stato %}stato={{ filtro_stato }}{% endif %}">togli</a></span>{% endif %}
+    <a class="hr-btn hr-btn-outline" href="?{% if filtro_stato %}stato={{ filtro_stato }}&amp;{% endif %}{% if filtro_campagna %}campagna=aperta&amp;{% endif %}format=csv">⬇ CSV</a>
   </form>
 
   {% if righe %}

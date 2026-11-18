@@ -131,15 +131,18 @@ def hr_cruscotto(request):
         "giornate_ferie_elevate": GIORNATE_FERIE_ELEVATE,
         "n_contatori_oltre": sum(c["oltre"] for c in calcoli.riepilogo_contatori()),
         "n_in_attesa": _n_coda_attiva(),
+        # La tessera apre la coda aziendale della dashboard segnalazioni, che conta
+        # con la stessa funzione; serve la visibilità «tutta l'azienda».
+        "coda_aziendale_visibile": _helpers._assenze_permissions(request).get("view_scope") == "all",
     })
 
 
 def _n_coda_attiva() -> int:
-    """Richieste ancora da decidere: la stessa coda della dashboard segnalazioni."""
-    if not _helpers._table_exists("assenze"):
-        return 0
-    coda_sql, coda_params = _helpers._sql_coda_attiva("assenze")
-    return len(_helpers._fetch_all_dict(f"SELECT id FROM assenze WHERE {coda_sql}", coda_params))
+    """Richieste ancora da decidere: la stessa coda (e la stessa funzione) della
+    dashboard segnalazioni «Tutta l'azienda». Prima contava caricando tutti gli id."""
+    from .richieste import count_all_pending
+
+    return count_all_pending()
 
 
 # ─── Saldi ───────────────────────────────────────────────────────────────────

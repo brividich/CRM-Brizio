@@ -6,15 +6,16 @@ tabella «Vedi i numeri». Stati (scaduta, errori) con icona + testo, mai solo c
 {% endcomment %}
 <section class="dpc" aria-label="Cruscotto del diario">
   <div class="dpc-tiles">
-    <div class="dpc-tile">
+    {% url 'diario_preposto:lista' as u_dp %}
+    <a class="dpc-tile dpc-tile-link kpi-link" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}#dp-elenco" title="Apri l'elenco: tutte le segnalazioni{% if cruscotto.filtrato %} con i filtri attuali{% endif %}">
       <div class="dpc-val">{{ cruscotto.totale }}</div>
       <div class="dpc-lbl">Segnalazioni{% if cruscotto.filtrato %} (filtrate){% endif %}</div>
-    </div>
-    <div class="dpc-tile">
+    </a>
+    <a class="dpc-tile dpc-tile-link kpi-link" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}&amp;vista=7g#dp-elenco" title="Apri l'elenco filtrato: segnalazioni degli ultimi 7 giorni">
       <div class="dpc-val">{{ cruscotto.ultimi_7 }}</div>
       <div class="dpc-lbl">Ultimi 7 giorni</div>
-    </div>
-    <div class="dpc-tile">
+    </a>
+    <a class="dpc-tile dpc-tile-link kpi-link" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}&amp;vista=30g#dp-elenco" title="Apri l'elenco filtrato: segnalazioni degli ultimi 30 giorni">
       <div class="dpc-val">{{ cruscotto.ultimi_30 }}</div>
       <div class="dpc-lbl">Ultimi 30 giorni</div>
       <div class="dpc-sub">
@@ -22,24 +23,24 @@ tabella «Vedi i numeri». Stati (scaduta, errori) con icona + testo, mai solo c
         {% elif cruscotto.delta_30 < 0 %}▼ {{ cruscotto.delta_30_abs }} in meno dei 30 precedenti ({{ cruscotto.precedenti_30 }})
         {% else %}come i 30 precedenti{% endif %}
       </div>
-    </div>
-    <div class="dpc-tile">
+    </a>
+    <a class="dpc-tile dpc-tile-link kpi-link" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}&amp;vista=mese#dp-elenco" title="Apri l'elenco filtrato: segnalazioni del mese corrente">
       <div class="dpc-val">{{ cruscotto.mese_corrente }}</div>
       <div class="dpc-lbl">Mese di {{ cruscotto.mese_corrente_label }}</div>
-    </div>
-    <div class="dpc-tile{% if cruscotto.senza_allegati %} is-avviso{% endif %}">
+    </a>
+    <a class="dpc-tile dpc-tile-link kpi-link{% if cruscotto.senza_allegati %} is-avviso{% endif %}" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}&amp;vista=senza_allegati#dp-elenco" title="Apri l'elenco filtrato: segnalazioni senza allegati">
       <div class="dpc-val">{{ cruscotto.senza_allegati }}</div>
       <div class="dpc-lbl">{% if cruscotto.senza_allegati %}! {% endif %}Senza allegati</div>
       <div class="dpc-sub">nessuna foto o documento di prova</div>
-    </div>
-    <div class="dpc-tile{% if cruscotto.in_ritardo %} is-avviso{% endif %}">
+    </a>
+    <a class="dpc-tile dpc-tile-link kpi-link{% if cruscotto.in_ritardo %} is-avviso{% endif %}" href="{{ u_dp }}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}&amp;vista=ritardo#dp-elenco" title="Apri l'elenco filtrato: segnalazioni registrate in ritardo">
       <div class="dpc-val">{{ cruscotto.in_ritardo }}</div>
       <div class="dpc-lbl">{% if cruscotto.in_ritardo %}! {% endif %}Registrate in ritardo</div>
       <div class="dpc-sub">inserite oltre {{ cruscotto.giorni_ritardo }} giorni dopo il fatto</div>
-    </div>
+    </a>
     {% with isp=cruscotto.ispezioni %}
-    <a class="dpc-tile dpc-tile-link{% if isp.scaduta or not isp.ultima %} is-critico{% elif isp.giorni_alla_scadenza <= 2 %} is-avviso{% endif %}"
-       href="{% url 'diario_preposto:ispezioni' %}">
+    <a class="dpc-tile dpc-tile-link kpi-link{% if isp.scaduta or not isp.ultima %} is-critico{% elif isp.giorni_alla_scadenza <= 2 %} is-avviso{% endif %}"
+       href="{% url 'diario_preposto:ispezioni' %}" title="Apri le ispezioni del preposto">
       {% if not isp.ultima %}
         <div class="dpc-val">✕</div>
         <div class="dpc-lbl">Nessuna ispezione</div>

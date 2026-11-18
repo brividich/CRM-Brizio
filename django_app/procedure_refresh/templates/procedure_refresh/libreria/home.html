@@ -21,13 +21,13 @@
     </div>
   </div>
   <div class="cn-stats">
-    <div class="cn-stat"><b>{{ totale }}</b><span>documenti in vigore</span></div>
-    <div class="cn-stat"><b>{{ novita|length }}</b><span>novità negli ultimi 30 giorni</span></div>
-    <div class="cn-stat"><b>{{ scaffali|length }}</b><span>scaffali</span></div>
+    <a class="cn-stat kpi-link" href="#cn-scaffali" title="Vai agli scaffali: i documenti in vigore divisi per certificazione"><b>{{ totale }}</b><span>documenti in vigore</span></a>
+    <a class="cn-stat kpi-link" href="#cn-novita" title="Vai alle nuove revisioni degli ultimi 30 giorni"><b>{{ n_novita }}</b><span>novità negli ultimi 30 giorni</span></a>
+    <a class="cn-stat kpi-link" href="#cn-scaffali" title="Vai all'elenco degli scaffali"><b>{{ scaffali|length }}</b><span>scaffali</span></a>
   </div>
 </section>
 
-<div class="cn-sec"><h2>Scaffali</h2><span>Uno per certificazione, come le cartelle del sistema di gestione</span></div>
+<div class="cn-sec" id="cn-scaffali"><h2>Scaffali</h2><span>Uno per certificazione, come le cartelle del sistema di gestione</span></div>
 {% if scaffali %}
 <div class="cn-shelves cn-carosello">
   {% for s in scaffali %}
@@ -65,7 +65,7 @@
 {% endif %}
 
 {% if novita %}
-<div class="cn-sec"><h2>Nuove revisioni</h2><span>Ultimi 30 giorni, prese dalla cartella SGI in automatico</span></div>
+<div class="cn-sec" id="cn-novita"><h2>Nuove revisioni</h2><span>Ultimi 30 giorni, prese dalla cartella SGI in automatico{% if n_novita > novita|length %} · le {{ novita|length }} più recenti su {{ n_novita }}{% endif %}</span></div>
 <div class="cn-row">{% for d in novita %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
 {% endif %}
 

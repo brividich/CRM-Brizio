@@ -279,6 +279,8 @@ body.theme-dark .ts-hero-action:not(.primary):hover {
   transition: box-shadow .15s ease, transform .15s ease;
 }
 
+a.ts-kpi { display: block; }
+
 .ts-kpi:hover {
   box-shadow: 0 6px 20px rgba(15,23,42,.09);
   transform: translateY(-1px);

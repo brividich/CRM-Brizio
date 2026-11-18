@@ -40,11 +40,11 @@
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Registro in sintesi">
       {% url 'timbri:index' as u_tutti %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=stats.dipendenti label="Dipendenti" sub="in elenco" url=u_tutti %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-award" valore=stats.con_timbri label="Con timbri" sub="almeno un record" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=stats.record_attivi label="Record attivi" sub="timbri, firme e sigle" url="?stato=attivi" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=stats.dipendenti label="Dipendenti" sub="in elenco" url=kpi_urls.dipendenti|default:u_tutti title="Apri l'elenco: tutti i dipendenti con i filtri attuali" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-award" valore=stats.con_timbri label="Con timbri" sub="almeno un record" url=kpi_urls.con_timbri|default:u_tutti title="Apri l'elenco filtrato: dipendenti con almeno un record" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=stats.record_attivi label="Record attivi" sub="timbri, firme e sigle" url=kpi_urls.record_attivi|default:u_tutti title="Apri l'elenco filtrato: dipendenti con record attivi (la tessera somma i loro record)" %}
       {% if stats.da_gestire %}
-        {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-cir" valore=stats.da_gestire label="Da gestire" sub="righe import scartate" url="#tim-da-gestire" %}
+        {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-cir" valore=stats.da_gestire label="Da gestire" sub="righe import scartate" url="#tim-da-gestire" title="Vai alle righe di import scartate" %}
       {% else %}
         {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=0 label="Da gestire" sub="nessuna riga scartata" %}
       {% endif %}
@@ -81,6 +81,7 @@
 
       <nav class="fmd-chips tim-stato-chips" aria-label="Filtro rapido">
         <a class="fmd-chip{% if not stato %} fmd-on{% endif %}" href="{% querystring stato=None page=None %}">Tutti</a>
+        <a class="fmd-chip{% if stato == 'con' %} fmd-on{% endif %}" href="{% querystring stato='con' page=None %}">Con timbri</a>
         <a class="fmd-chip{% if stato == 'attivi' %} fmd-on{% endif %}" href="{% querystring stato='attivi' page=None %}">Con record attivi</a>
         <a class="fmd-chip{% if stato == 'storico' %} fmd-on{% endif %}" href="{% querystring stato='storico' page=None %}">Solo storico</a>
         <a class="fmd-chip{% if stato == 'senza' %} fmd-on{% endif %}" href="{% querystring stato='senza' page=None %}">Senza timbri</a>

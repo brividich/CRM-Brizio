@@ -67,6 +67,43 @@ def _safe_url(name: str) -> str:
         return "#"
 
 
+def _url_lista(name: str, _ancora: str = "", **params) -> str | None:
+    """URL di un elenco filtrato per una tessera KPI; ``None`` se la pagina non esiste."""
+    from urllib.parse import urlencode
+
+    base = _safe_url(name)
+    if base == "#":
+        return None
+    if params:
+        base = f"{base}?{urlencode(params)}"
+    return f"{base}#{_ancora}" if _ancora else base
+
+
+def incidenti_elenco_locale() -> bool:
+    """L'elenco incidenti legge il registro locale (le stesse righe contate dai KPI)?
+
+    Con la lista SharePoint configurata l'elenco viene da un'altra fonte: i numeri
+    calcolati sul registro locale non hanno un elenco che li riproduca.
+    """
+    try:
+        from rilevazione_incidenti.views import _get_impostazioni, _use_local
+
+        return bool(_use_local(_get_impostazioni()))
+    except Exception:
+        logger.exception("Home: fonte dell'elenco incidenti non leggibile")
+        return False
+
+
+def _puo_gestire_procedure(request) -> bool:
+    try:
+        from procedure_refresh.views import _can_manage
+
+        return bool(_can_manage(request))
+    except Exception:
+        logger.exception("Home: permesso di gestione CN-SGI non leggibile")
+        return False
+
+
 # ── Catalogo moduli ───────────────────────────────────────────────────────────
 
 _CATEGORIES = [
@@ -225,8 +262,10 @@ def _priority_kpis(request, tile_kpis: dict | None = None) -> list[dict]:
 
     ticket_url = _safe_url("tickets:dashboard")
     anomalie_url = _safe_url("gestione_anomalie_page")
-    task_url = _safe_url("tasks:list")
-    assenze_url = _safe_url("assenze_menu")
+    # Dove il riquadro conosce la lista che riproduce il suo numero, la usa.
+    task_url = (task_stats[0].get("url") if task_stats else None) or _safe_url("tasks:list")
+    assenze_kpi = tile_kpis.get("assenze") or []
+    assenze_url = (assenze_kpi[0].get("url") if assenze_kpi else None) or _safe_url("assenze_menu")
 
     return [
         {"tone": "red",    "icon_char": "⚠", "value": anomalie_open, "label": "Anomalie aperte", "sub": "aggiornato in tempo reale", "url": anomalie_url},
@@ -281,7 +320,9 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
             from anomalie.views import conta_anomalie_aperte_visibili
 
             out["anomalie"] = [
-                {"value": conta_anomalie_aperte_visibili(request), "unit": "aperte", "tone": "danger"},
+                # «Con aperte» è il filtro dell'elenco OP: stesse anomalie, stesso ambito.
+                {"value": conta_anomalie_aperte_visibili(request), "unit": "aperte", "tone": "danger",
+                 "url": _url_lista("gestione_anomalie_page", filter="aperte")},
             ]
     # Un riquadro che si rompe non deve far cadere la home — ma se sparisce in
     # silenzio e' indistinguibile da "nessun dato", e nessuno lo scopre mai.
@@ -290,16 +331,24 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
 
     # ── TICKET ────────────────────────────────────────────────────────
     try:
-        from tickets.models import Ticket, StatoTicket
+        from tickets.models import Ticket
+        from tickets.views import STATI_ATTIVI_KPI
+
         legacy_user_id = int(legacy_user.id) if legacy_user else None
         if is_admin:
             qs = Ticket.objects.all()
         else:
             qs = _board_related_tickets_queryset(request_user, legacy_user, legacy_user_id)
-        attivi = qs.filter(stato=StatoTicket.APERTA).count()
-        out["ticket"] = [
-            {"value": attivi, "unit": "attivi", "tone": "warning"},
-        ]
+        # «Attivi» = aperti o in carico: la stessa regola del filtro ``?attivi=1`` dell'elenco
+        # (prima si contavano solo gli aperti, con l'etichetta «attivi»).
+        attivi = qs.filter(stato__in=STATI_ATTIVI_KPI).count()
+        kpi_ticket = {"value": attivi, "unit": "attivi", "tone": "warning"}
+        if is_admin:
+            # Solo chi vede tutta l'azienda: l'elenco «Ticket» mostra lo stesso insieme.
+            # Il numero di chi non è admin comprende anche i ticket seguiti come tecnico,
+            # che nessun elenco riproduce: resta senza link.
+            kpi_ticket["url"] = _url_lista("tickets:elenco", attivi="1")
+        out["ticket"] = [kpi_ticket]
     except Exception:
         logger.exception("Home: riquadro «Ticket» non calcolato")
 
@@ -313,21 +362,36 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
             {"value": s.get("todo", 0) + s.get("in_progress", 0), "unit": "in corso", "tone": "info"},
             {"value": scaduti, "unit": "scaduti", "tone": "danger" if scaduti else "info"},
         ]
+        if td.get("user_id"):
+            # Elenco attività con lo stesso insieme del numero: aperte assegnate alla persona.
+            out["task"][0]["url"] = f"{reverse('tasks:list')}?mine=0&assigned_to={td['user_id']}&open=on"
+            # «Scaduti»: stessa condizione del filtro «Solo scadute» dell'elenco.
+            out["task"][1]["url"] = f"{reverse('tasks:list')}?mine=0&assigned_to={td['user_id']}&overdue=on"
     except Exception:
         logger.exception("Home: riquadro «Task» non calcolato")
 
     # ── DIARIO PREPOSTO ───────────────────────────────────────────────
     try:
+        from diario_preposto.cruscotto import filtra_vista
         from diario_preposto.models import SegnalazionePreposto
         qs_diario = SegnalazionePreposto.objects.attive()
         ambito = _ambito_kpi(request_user, is_admin, "diario_preposto")
         if ambito is not _TUTTI:
+            # Stessa regola del registro (``diario_preposto.views._filtra_visibili``).
             qs_diario = qs_diario.filter(creato_da_id__in=_user_ids_da_legacy(ambito))
+        # «Ultimi 7 giorni» e «ultimi 30 giorni» con ``filtra_vista``: le stesse righe che
+        # il registro mostra con ``?vista=7g`` / ``?vista=30g`` (prima «questa settimana»
+        # contava 8 giorni e non aveva un elenco corrispondente). «Oggi» non ha una vista
+        # nel registro: resta un numero informativo.
         out["diario"] = [
+            {"value": filtra_vista(qs_diario, "7g", oggi=today).count(),
+             "unit": "ultimi 7 giorni", "tone": "warning",
+             "url": _url_lista("diario_preposto:lista", "dp-elenco", vista="7g")},
+            {"value": filtra_vista(qs_diario, "30g", oggi=today).count(),
+             "unit": "ultimi 30 giorni", "tone": "info",
+             "url": _url_lista("diario_preposto:lista", "dp-elenco", vista="30g")},
             {"value": qs_diario.filter(data_segnalazione__date=today).count(),
              "unit": "oggi", "tone": "info"},
-            {"value": qs_diario.filter(data_segnalazione__date__gte=week_ago).count(),
-             "unit": "questa settimana", "tone": "warning"},
         ]
     except Exception:
         logger.exception("Home: riquadro «Diario preposto» non calcolato")
@@ -340,29 +404,51 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
         if ambito is not _TUTTI:
             qs_inc = qs_inc.filter(segnalato_da_legacy_id__in=list(ambito))
         aperti = qs_inc.filter(chiusura_rspp=False).count()
+        # Solo l'anno in corso (prima contava anche le date future): come il filtro ``?anno=``.
         anno = qs_inc.filter(
-            data_segnalazione__date__gte=year_start
+            data_segnalazione__date__gte=year_start,
+            data_segnalazione__date__lt=year_start.replace(year=today.year + 1),
         ).count()
         out["incidenti"] = [
             {"value": aperti, "unit": "in analisi", "tone": "danger"},
             {"value": anno, "unit": str(today.year), "tone": "warning"},
         ]
+        if incidenti_elenco_locale():
+            # L'elenco legge le stesse righe (stesso ambito per autore) solo con il registro
+            # locale: con la lista SharePoint i numeri verrebbero da un'altra fonte.
+            out["incidenti"][0]["url"] = _url_lista("rilevazione_incidenti:lista", "sic-elenco", stato="IN_ANALISI")
+            out["incidenti"][1]["url"] = _url_lista("rilevazione_incidenti:lista", "sic-elenco", anno=today.year)
     except Exception:
         logger.exception("Home: riquadro «Incidenti» non calcolato")
 
     # ── PROCEDURE REFRESH ─────────────────────────────────────────────
     try:
-        from procedure_refresh.models import ProcedureAssignment, ProcedureCampaign
-        qs_proc = ProcedureAssignment.objects.filter(status__in=["assigned", "overdue"])
+        from procedure_refresh.models import CampaignStatus, ProcedureAssignment, ProcedureCampaign
+        from procedure_refresh.views import conteggi_assegnazioni
+
+        qs_proc = ProcedureAssignment.objects.all()
         ambito = _ambito_kpi(request_user, is_admin, "procedure")
         if ambito is not _TUTTI:
             qs_proc = qs_proc.filter(user_id__in=_user_ids_da_legacy(ambito))
-        da_rivedere = qs_proc.count()
-        campagne = ProcedureCampaign.objects.filter(status="published").count()
+        # Stessi conteggi del report «Tutte le sessioni» (``conteggi_assegnazioni``): «in
+        # attesa» = da leggere non scadute (anche quelle già aperte), «scadute» = scadute
+        # adesso. Prima «da rivedere» sommava assegnate e scadute e saltava le aperte.
+        conteggi = conteggi_assegnazioni(qs_proc, today)
+        campagne = ProcedureCampaign.objects.filter(status=CampaignStatus.PUBLISHED).count()
         out["procedure"] = [
-            {"value": da_rivedere, "unit": "da rivedere", "tone": "warning"},
+            {"value": conteggi["pending"], "unit": "letture in attesa", "tone": "warning"},
+            {"value": conteggi["overdue"], "unit": "scadute", "tone": "danger" if conteggi["overdue"] else "info"},
             {"value": campagne, "unit": "campagne attive", "tone": "info"},
         ]
+        if ambito is _TUTTI and request is not None and _puo_gestire_procedure(request):
+            # Il report elenca le letture di tutta l'azienda: solo a chi lo può aprire
+            # e ha un numero non ristretto al proprio ambito.
+            out["procedure"][0]["url"] = _url_lista(
+                "procedure_refresh:report_campaign", camp_id="tutte", stato="in_attesa")
+            out["procedure"][1]["url"] = _url_lista(
+                "procedure_refresh:report_campaign", camp_id="tutte", stato="scadute")
+            out["procedure"][2]["url"] = _url_lista(
+                "procedure_refresh:campaign_list", stato=CampaignStatus.PUBLISHED.value)
     except Exception:
         logger.exception("Home: riquadro «Procedure» non calcolato")
 
@@ -371,15 +457,27 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     # mostra il valore placeholder dal catalogo (value=None).
     if is_admin:
         try:
-            from django.db import connections
-            from anagrafica.services.conteggi_organico import esclusi_dai_conteggi_ids
-            with connections["default"].cursor() as cur:
-                cur.execute("SELECT id FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
-                attivi = {int(r[0]) for r in cur.fetchall()}
-            # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non si conta.
-            out["anagrafica"] = [
-                {"value": len(attivi - esclusi_dai_conteggi_ids()), "unit": "in forza", "tone": "info"},
-            ]
+            if request is not None:
+                # Stessa funzione della tessera «Attivi» dell'elenco dipendenti e del suo
+                # filtro ``?stato=attivi``: senza cessati, senza doppioni, senza chi è fuori
+                # conteggio. Prima era una query a parte sulla tabella legacy.
+                from anagrafica.views.dipendenti import build_dipendenti_rows, riepilogo_stati_dipendenti
+
+                in_forza = riepilogo_stati_dipendenti(build_dipendenti_rows(request, apply_filters=False))["attivi"]
+                out["anagrafica"] = [
+                    {"value": in_forza, "unit": "in forza", "tone": "info",
+                     "url": _url_lista("anagrafica:dipendenti_list", "elenco", stato="attivi", vf="0")},
+                ]
+            else:
+                from django.db import connections
+                from anagrafica.services.conteggi_organico import esclusi_dai_conteggi_ids
+                with connections["default"].cursor() as cur:
+                    cur.execute("SELECT id FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
+                    attivi = {int(r[0]) for r in cur.fetchall()}
+                # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non si conta.
+                out["anagrafica"] = [
+                    {"value": len(attivi - esclusi_dai_conteggi_ids()), "unit": "in forza", "tone": "info"},
+                ]
         except Exception:
             logger.exception("Home: riquadro «Anagrafica» non calcolato")
 
@@ -390,16 +488,33 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
         # con la stessa funzione del badge in alto, non con la lista troncata.
         if legacy_user:
             ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip().upper()
+            # Link alla coda della dashboard segnalazioni solo se la persona può aprirla
+            # con lo stesso perimetro del numero; altrimenti resta il menu assenze.
+            view_scope = ""
+            if request is not None:
+                try:
+                    from assenze.views._helpers import _assenze_permissions
+
+                    view_scope = str(_assenze_permissions(request).get("view_scope") or "")
+                except Exception:
+                    view_scope = ""
+            url_coda = None
             if is_admin or ruolo in ("AMMINISTRAZIONE", "ADMIN"):
                 from assenze.views import count_all_pending
 
                 in_attesa = count_all_pending()
+                # Coda aziendale: conta con count_all_pending.
+                if view_scope == "all":
+                    url_coda = f"{reverse('assenze_car_dashboard')}?scope=all#in-attesa"
             else:
                 from core.context_processors import _count_car_pending
 
                 in_attesa = _count_car_pending(int(legacy_user.id), legacy_user=legacy_user)
+                # Coda del capo: count_pending_for_manager, la stessa della pagina.
+                if view_scope in ("all", "reparto"):
+                    url_coda = f"{reverse('assenze_car_dashboard')}#in-attesa"
             out["assenze"] = [
-                {"value": in_attesa, "unit": "in approvazione", "tone": "warning"},
+                {"value": in_attesa, "unit": "in approvazione", "tone": "warning", "url": url_coda},
             ]
     except Exception:
         logger.exception("Home: riquadro «Assenze» non calcolato")
@@ -407,9 +522,20 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     # ── TIMBRI ────────────────────────────────────────────────────────
     try:
         from timbri.models import RegistroTimbro
+        from timbri.views import _legacy_employee_rows
+
+        # Come la tessera «Record attivi» del registro timbri: i record attivi delle persone
+        # in elenco (un record il cui operatore non è più in anagrafica lì non compare).
+        in_elenco = {int(r.get("id") or 0) for r in _legacy_employee_rows()} - {0}
+        record_attivi = sum(
+            1
+            for lid in RegistroTimbro.objects.filter(is_attivo=True, is_archived=False)
+            .values_list("operatore__legacy_anagrafica_id", flat=True)
+            if lid and int(lid) in in_elenco
+        )
         out["timbri"] = [
-            {"value": RegistroTimbro.objects.filter(is_attivo=True, is_archived=False).count(),
-             "unit": "badge attivi", "tone": "success"},
+            {"value": record_attivi, "unit": "record attivi", "tone": "success",
+             "url": _url_lista("timbri:index", stato="attivi")},
         ]
     except Exception:
         logger.exception("Home: riquadro «Timbri» non calcolato")
@@ -419,14 +545,26 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     if is_admin:
         try:
             from anagrafica.models import DipendenteQualifica
-            scadute = DipendenteQualifica.objects.filter(data_scadenza__lt=today).count()
-            in_scad = DipendenteQualifica.objects.filter(
-                data_scadenza__gte=today, data_scadenza__lte=days_30
-            ).count()
-            out["formazione"] = [
-                {"value": scadute, "unit": "qualifiche scadute", "tone": "danger"},
-                {"value": in_scad, "unit": "in scadenza 30gg", "tone": "warning"},
-            ]
+            qs_scadute = DipendenteQualifica.objects.filter(data_scadenza__isnull=False, data_scadenza__lt=today)
+            qs_in_scad = DipendenteQualifica.objects.filter(data_scadenza__gte=today, data_scadenza__lte=days_30)
+            if request is not None:
+                # Stessa regola dello scadenzario qualifiche (``_qualifica_nel_perimetro``): solo
+                # la qualifica corrente per persona e tipo, senza i cessati. Prima si contavano
+                # anche le righe superate da un rinnovo e quelle degli ex dipendenti.
+                from anagrafica.views.qualifiche import _qualifica_nel_perimetro
+
+                conta = _qualifica_nel_perimetro(request)
+                out["formazione"] = [
+                    {"value": sum(1 for q in qs_scadute if conta(q)), "unit": "qualifiche scadute", "tone": "danger",
+                     "url": _url_lista("anagrafica:qualifiche_scadenzario", stato="scaduta")},
+                    {"value": sum(1 for q in qs_in_scad if conta(q)), "unit": "in scadenza 30gg", "tone": "warning",
+                     "url": _url_lista("anagrafica:qualifiche_scadenzario", stato="30")},
+                ]
+            else:
+                out["formazione"] = [
+                    {"value": qs_scadute.count(), "unit": "qualifiche scadute", "tone": "danger"},
+                    {"value": qs_in_scad.count(), "unit": "in scadenza 30gg", "tone": "warning"},
+                ]
         except Exception:
             logger.exception("Home: riquadro «Formazione» non calcolato")
 
@@ -435,13 +573,23 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     if is_admin:
         try:
             from anagrafica.models import VisitaMedica
-            scadute_v = VisitaMedica.objects.filter(data_scadenza__lt=today).count()
-            in_scad_v = VisitaMedica.objects.filter(
-                data_scadenza__gte=today, data_scadenza__lte=days_30
+            from anagrafica.services.visite import ultime_visite_correnti_ids
+            from anagrafica.views._helpers import _cessati_legacy_ids
+
+            # Come il cruscotto «Visite mediche» e lo scadenzario a cui porta: solo l'ultima
+            # visita per persona e tipo, senza i cessati, finestra di 60 giorni. Prima si
+            # contavano anche le visite storiche già rinnovate, su 30 giorni.
+            correnti = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids()).exclude(
+                legacy_anagrafica_id__in=_cessati_legacy_ids())
+            scadute_v = correnti.filter(data_scadenza__isnull=False, data_scadenza__lt=today).count()
+            in_scad_v = correnti.filter(
+                data_scadenza__isnull=False, data_scadenza__range=[today, today + timedelta(days=60)]
             ).count()
             out["sicurezza"] = [
-                {"value": scadute_v, "unit": "visite scadute", "tone": "danger"},
-                {"value": in_scad_v, "unit": "in scadenza 30gg", "tone": "warning"},
+                {"value": scadute_v, "unit": "visite scadute", "tone": "danger",
+                 "url": _url_lista("anagrafica:scadenzario", tipo="visita", stato="scaduta")},
+                {"value": in_scad_v, "unit": "in scadenza 60gg", "tone": "warning",
+                 "url": _url_lista("anagrafica:scadenzario", tipo="visita", stato="60")},
             ]
         except Exception:
             logger.exception("Home: riquadro «Visite mediche» non calcolato")
@@ -449,12 +597,26 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     # ── NOTIZIE ───────────────────────────────────────────────────────
     try:
         from notizie.models import STATO_PUBBLICATA, Notizia
-        pubblicate = Notizia.objects.filter(stato=STATO_PUBBLICATA).count()
-        nuove = Notizia.objects.filter(stato=STATO_PUBBLICATA, pubblicato_il__gte=week_ago).count()
-        out["notizie"] = [
-            {"value": pubblicate, "unit": "pubblicate", "tone": "info"},
-            {"value": nuove, "unit": "ultima settimana", "tone": "success" if nuove else "info"},
-        ]
+        if request is not None:
+            # Le notizie che la persona trova nella pagina Notizie (stesso filtro di pubblico):
+            # prima si contavano tutte le pubblicate, anche quelle riservate ad altri ruoli.
+            from notizie.views import _get_legacy_role_id, _notizie_visibili
+
+            visibili = _notizie_visibili(_get_legacy_role_id(request))
+            limite = tz.now() - timedelta(days=7)
+            nuove = sum(1 for n in visibili if n.pubblicato_il and n.pubblicato_il >= limite)
+            out["notizie"] = [
+                {"value": len(visibili), "unit": "pubblicate", "tone": "info", "url": _url_lista("notizie_lista")},
+                # «Ultima settimana»: la pagina Notizie non ha un filtro per data, resta informativo.
+                {"value": nuove, "unit": "ultima settimana", "tone": "success" if nuove else "info"},
+            ]
+        else:
+            pubblicate = Notizia.objects.filter(stato=STATO_PUBBLICATA).count()
+            nuove = Notizia.objects.filter(stato=STATO_PUBBLICATA, pubblicato_il__gte=week_ago).count()
+            out["notizie"] = [
+                {"value": pubblicate, "unit": "pubblicate", "tone": "info"},
+                {"value": nuove, "unit": "ultima settimana", "tone": "success" if nuove else "info"},
+            ]
     except Exception:
         logger.exception("Home: riquadro «Notizie» non calcolato")
 
@@ -463,9 +625,13 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
         from assets.models import Asset
         _uid = int(legacy_user.id) if legacy_user else None
         if is_admin:
+            # Chi vede tutto l'inventario: il filtro «Stato» dell'elenco asset mostra le stesse righe.
+            # Il ramo «assegnati a me» qui sotto non ha un elenco corrispondente: senza link.
             out["asset"] = [
-                {"value": Asset.objects.filter(status="IN_USE").count(), "unit": "in uso", "tone": "info"},
-                {"value": Asset.objects.filter(status="IN_REPAIR").count(), "unit": "in riparazione", "tone": "warning"},
+                {"value": Asset.objects.filter(status=Asset.STATUS_IN_USE).count(), "unit": "in uso", "tone": "info",
+                 "url": _url_lista("assets:asset_list", status=Asset.STATUS_IN_USE)},
+                {"value": Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count(), "unit": "in riparazione",
+                 "tone": "warning", "url": _url_lista("assets:asset_list", status=Asset.STATUS_IN_REPAIR)},
             ]
         elif _uid:
             qs_mine = Asset.objects.filter(assigned_legacy_user_id=_uid)
@@ -480,7 +646,8 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     try:
         from anagrafica.models import Fornitore
         out["fornitori"] = [
-            {"value": Fornitore.objects.filter(is_active=True).count(), "unit": "attivi", "tone": "info"},
+            {"value": Fornitore.objects.filter(is_active=True).count(), "unit": "attivi", "tone": "info",
+             "url": _url_lista("fornitori:fornitori_list", attivi="1")},
         ]
     except Exception:
         logger.exception("Home: riquadro «Fornitori» non calcolato")
@@ -489,27 +656,34 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     try:
         from automazioni.models import AutomationRule, AutomationRunLog
         attive = AutomationRule.objects.filter(is_active=True, is_draft=False).count()
+        # Ultime 24 ore, come il filtro ``recent=24h`` del registro esecuzioni (che non ha un
+        # filtro «oggi»): prima era «eseguiti oggi», senza un elenco che lo riproducesse.
         eseguiti = AutomationRunLog.objects.filter(
-            started_at__date=today, is_test=False, status="success"
+            started_at__gte=tz.now() - timedelta(hours=24), is_test=False, status="success"
         ).count()
         out["automazioni"] = [
-            {"value": attive, "unit": "flussi attivi", "tone": "success"},
-            {"value": eseguiti, "unit": "eseguiti oggi", "tone": "info"},
+            {"value": attive, "unit": "flussi attivi", "tone": "success",
+             "url": _url_lista("automazioni:automazioni_rule_list", is_active="true", is_draft="false")},
+            {"value": eseguiti, "unit": "eseguiti nelle 24 ore", "tone": "info",
+             "url": _url_lista("automazioni:automazioni_run_log_list", status="success", is_test="false",
+                               recent="24h")},
         ]
     except Exception:
         logger.exception("Home: riquadro «Automazioni» non calcolato")
 
     # ── RENTRI ────────────────────────────────────────────────────────
     try:
-        from rentri.models import RegistroRifiuti
-        da_rentri = RegistroRifiuti.objects.attivi().filter(rentri_si_no=False, salva=True).count()
-        # arrivo_fir è una CharField (riferimento FIR): "FIR mancante" = stringa vuota
-        # sui soli scarichi (O/M/R). Il vecchio filtro `arrivo_fir=False` non matchava
-        # le stringhe vuote.
-        fir = RegistroRifiuti.objects.filter(arrivo_fir="", tipo__in=["O", "M", "R"]).count()
+        from rentri.views import _scadenzario_buckets
+
+        # Le stesse sezioni dello scadenzario RENTRI («Da comunicare», «FIR mancante»): prima
+        # i FIR mancanti contavano anche le rettifiche (R) e le registrazioni annullate.
+        sezioni = {b["key"]: len(b["rows"]) for b in _scadenzario_buckets(today)}
+        fir = sezioni.get("fir", 0)
+        url_scadenzario = _url_lista("rentri_scadenzario")
         out["rentri"] = [
-            {"value": da_rentri, "unit": "da comunicare RENTRI", "tone": "warning"},
-            {"value": fir, "unit": "FIR mancanti", "tone": "danger" if fir else "info"},
+            {"value": sezioni.get("comunicare", 0), "unit": "da comunicare RENTRI", "tone": "warning",
+             "url": url_scadenzario},
+            {"value": fir, "unit": "FIR mancanti", "tone": "danger" if fir else "info", "url": url_scadenzario},
         ]
     except Exception:
         logger.exception("Home: riquadro «RENTRI» non calcolato")
@@ -525,11 +699,21 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
 
     # ── UTENTI (admin) ────────────────────────────────────────────────
     try:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        out["admin"] = [
-            {"value": User.objects.filter(is_active=True).count(), "unit": "utenti attivi", "tone": "info"},
-        ]
+        if is_admin:
+            # Gli utenti del portale dell'elenco «Utenti» (filtro «Attivo: sì»): prima si
+            # contavano gli account Django, che quell'elenco non mostra.
+            from core.legacy_models import UtenteLegacy
+
+            out["admin"] = [
+                {"value": UtenteLegacy.objects.filter(attivo=True).count(), "unit": "utenti attivi", "tone": "info",
+                 "url": _url_lista("admin_portale:utenti_list", attivo="1")},
+            ]
+        else:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            out["admin"] = [
+                {"value": User.objects.filter(is_active=True).count(), "unit": "utenti attivi", "tone": "info"},
+            ]
     except Exception:
         logger.exception("Home: riquadro «Utenti» non calcolato")
 

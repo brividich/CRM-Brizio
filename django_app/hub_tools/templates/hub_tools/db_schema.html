@@ -7,7 +7,7 @@
 .dbs-page{color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .dbs-hero{background:linear-gradient(135deg,#10243f 0%,#1e3a8a 100%);color:#fff;padding:22px 26px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
 .dbs-hero h1{margin:0;font-size:23px;font-weight:800;color:#fff !important}.dbs-hero p{margin:5px 0 0;color:#cbd5e1;font-size:13.5px;max-width:70ch}
-.dbs-stats{display:flex;gap:10px;flex-wrap:wrap}.dbs-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:7px 11px;min-width:80px}.dbs-stat b{display:block;font-size:18px}.dbs-stat span{font-size:11px;color:#cbd5e1;text-transform:uppercase;letter-spacing:.05em}
+.dbs-stats{display:flex;gap:10px;flex-wrap:wrap}.dbs-stat{display:block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:7px 11px;min-width:80px}.dbs-stat b{display:block;font-size:18px}.dbs-stat span{font-size:11px;color:#cbd5e1;text-transform:uppercase;letter-spacing:.05em}
 .dbs-toolbar{position:relative;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 18px;background:var(--surface);border-bottom:1px solid var(--border)}
 .dbs-toolbar input{width:min(520px,100%);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);background:var(--bg)}
 .dbs-toolbar a{color:var(--primary-mid);text-decoration:none;font-weight:700;font-size:13px}
@@ -71,8 +71,8 @@ body.theme-dark .dbs-many{background:rgba(139,92,246,.2)}
       <p>Generato dai modelli del codice in esecuzione (versione {{ app_version }}): ogni nuova tabella compare da sola dopo l'aggiornamento. Clicca un modulo a sinistra per vederne le tabelle.</p>
     </div>
     <div class="dbs-stats">
-      <div class="dbs-stat"><b>{{ schema.totali.app }}</b><span>Moduli</span></div>
-      <div class="dbs-stat"><b>{{ schema.totali.modelli }}</b><span>Tabelle</span></div>
+      <a class="dbs-stat kpi-link" href="#dbs-moduli" title="Vai all'elenco dei moduli"><b>{{ schema.totali.app }}</b><span>Moduli</span></a>
+      <a class="dbs-stat kpi-link" href="#dbs-moduli" title="Vai all'elenco dei moduli con il numero di tabelle di ciascuno"><b>{{ schema.totali.modelli }}</b><span>Tabelle</span></a>
       <div class="dbs-stat"><b>{{ schema.totali.campi }}</b><span>Campi</span></div>
       <div class="dbs-stat"><b>{{ schema.totali.fk }}</b><span>FK</span></div>
       <div class="dbs-stat"><b>{{ schema.totali.uno_a_uno }}</b><span>1:1</span></div>
@@ -91,7 +91,7 @@ body.theme-dark .dbs-many{background:rgba(139,92,246,.2)}
   </div>
 
   <div class="dbs-layout">
-    <nav class="dbs-nav" aria-label="Moduli">
+    <nav class="dbs-nav" id="dbs-moduli" aria-label="Moduli">
       {% for area, membri in schema.gruppi %}
         <div class="dbs-nav-group">{{ area }}</div>
         {% for app in membri %}

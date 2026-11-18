@@ -1917,7 +1917,57 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
             | Q(description__icontains=q)
             | Q(resolution__icontains=q)
         )
+    return _apply_workorder_kpi_filters(qs, get_params)
+
+
+# Filtri usati dai KPI cliccabili (cruscotti → elenco OdL): riproducono lo stesso
+# insieme che il numero conta. ``attivi=1`` toglie gli OdL di asset dismessi,
+# ``ritardo=1`` usa la definizione unica di ``q_odl_in_ritardo``, ``chiusi_dal`` /
+# ``chiusi_al`` (AAAA-MM-GG, giorno locale) delimitano la data di chiusura.
+WORKORDER_KPI_FILTER_KEYS = ("attivi", "ritardo", "chiusi_dal", "chiusi_al", "supplier", "produzione", "tipo_asset")
+
+
+def _parse_iso_date(value):
+    from datetime import date as _date
+
+    try:
+        return _date.fromisoformat(_clean_string(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_workorder_kpi_filters(qs, get_params):
+    if _clean_string(get_params.get("attivi")) == "1":
+        qs = qs.exclude(asset__status=Asset.STATUS_RETIRED)
+    if _clean_string(get_params.get("ritardo")) == "1":
+        from ..maintenance import q_odl_in_ritardo
+
+        qs = qs.filter(q_odl_in_ritardo(), status=WorkOrder.STATUS_OPEN)
+    closed_from = _parse_iso_date(get_params.get("chiusi_dal"))
+    if closed_from:
+        qs = qs.filter(closed_at__date__gte=closed_from)
+    closed_to = _parse_iso_date(get_params.get("chiusi_al"))
+    if closed_to:
+        qs = qs.filter(closed_at__date__lte=closed_to)
+    supplier_id = _as_int(get_params.get("supplier"), default=0)
+    if supplier_id:
+        qs = qs.filter(supplier_id=supplier_id)
+    if _clean_string(get_params.get("produzione")) == "1":
+        # Solo OdL di macchine di produzione (cruscotto officina).
+        from ..forms import PRODUCTION_ASSET_TYPES
+
+        qs = qs.filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
+    asset_types = _workorder_kpi_asset_types(get_params)
+    if asset_types:
+        qs = qs.filter(asset__asset_type__in=asset_types)
     return qs
+
+
+def _workorder_kpi_asset_types(get_params) -> list[str]:
+    """``tipo_asset=CNC,WORK_MACHINE`` (report per ambito): solo tipi validi."""
+    valid = {code for code, _label in Asset.TYPE_CHOICES}
+    raw = _clean_string(get_params.get("tipo_asset"))
+    return [code for code in raw.split(",") if code in valid] if raw else []
 
 
 def _resolve_workorder_operational_view(get_params) -> str:

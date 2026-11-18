@@ -72,7 +72,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <div class="hr-metric-grid" style="margin-bottom:20px;">
-    <div class="hr-metric">
+    <a class="hr-metric kpi-link" href="#sessione-iscrizioni" title="Vai all'elenco delle iscrizioni alla sessione">
       <div class="hr-metric-ico blue">👥</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -81,8 +81,8 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         </div>
         <div class="hr-metric-sub">Dipendenti iscritti alla sessione</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}#sessione-lezioni" title="Apri le lezioni pianificate della sessione">
       <div class="hr-metric-ico green">📖</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -91,8 +91,8 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         </div>
         <div class="hr-metric-sub">Lezioni pianificate</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" title="Apri il dettaglio della sessione, dove se ne gestisce lo stato">
       <div class="hr-metric-ico amber">📅</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -106,7 +106,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         </div>
         <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>
       </div>
-    </div>
+    </a>
   </div>
 
   {# ── Panel aggiunta iscritto ─────────────────────────────────────────────── #}
@@ -232,7 +232,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
   {% endif %}
 
   {# ── Tabella iscrizioni ──────────────────────────────────────────────────── #}
-  <div class="hr-card">
+  <div class="hr-card" id="sessione-iscrizioni">
     <div class="hr-card-head">
       <div class="hr-card-title">👥 Iscrizioni ({{ iscrizioni|length }})</div>
     </div>

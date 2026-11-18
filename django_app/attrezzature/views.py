@@ -43,24 +43,50 @@ from .models import (
 from .services import excel_import, kickoff_integration, workflow
 
 
+# Stati di task considerati «aperti»: unica definizione per KPI e filtro ?aperte=1 della lista task.
+TASK_OPEN_STATUSES = (
+    AttrezzaturaTaskStato.APERTA,
+    AttrezzaturaTaskStato.IN_LAVORAZIONE,
+    AttrezzaturaTaskStato.BLOCCATA,
+)
+# Stati «pronta produzione» (legacy + nuovo workflow): KPI e filtro ?pronta_produzione=1.
+PRONTA_PRODUZIONE_STATUSES = (AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION)
+# Stati conclusi: un'attrezzatura in questi stati non e' mai «in ritardo».
+CONCLUSE_STATUSES = (
+    AttrezzaturaStato.FINITA,
+    AttrezzaturaStato.ANNULLATA,
+    AttrezzaturaStato.PRONTA_PRODUZIONE,
+    AttrezzaturaStato.READY_FOR_PRODUCTION,
+    AttrezzaturaStato.CLOSED,
+    AttrezzaturaStato.ARCHIVED,
+)
+
+
+def filter_in_ritardo(qs):
+    """Attrezzature con consegna prevista passata e non concluse (KPI + ?in_ritardo=1)."""
+    return qs.filter(data_consegna_prevista__lt=timezone.localdate()).exclude(stato__in=CONCLUSE_STATUSES)
+
+
+def filter_task_scadute(qs):
+    """Task aperte con scadenza passata (KPI + ?scadute=1)."""
+    return qs.filter(stato__in=TASK_OPEN_STATUSES, scadenza__lt=timezone.localdate())
+
+
 def _dashboard_counters() -> dict:
-    today = timezone.localdate()
-    open_statuses = [AttrezzaturaTaskStato.APERTA, AttrezzaturaTaskStato.IN_LAVORAZIONE, AttrezzaturaTaskStato.BLOCCATA]
+    tasks_aperte = AttrezzaturaTask.objects.filter(stato__in=TASK_OPEN_STATUSES)
     return {
         "totali": Attrezzatura.objects.count(),
         "in_corso": Attrezzatura.objects.filter(stato=AttrezzaturaStato.IN_CORSO).count(),
         "da_verificare": Attrezzatura.objects.filter(disponibilita_stato=DisponibilitaStato.DA_VERIFICARE).count(),
         "non_disponibili": Attrezzatura.objects.filter(disponibilita_stato=DisponibilitaStato.NON_DISPONIBILE).count(),
         "da_creare": Attrezzatura.objects.filter(stato=AttrezzaturaStato.DA_CREARE).count(),
-        "in_ritardo": Attrezzatura.objects.filter(
-            data_consegna_prevista__lt=today
-        ).exclude(stato__in=[AttrezzaturaStato.FINITA, AttrezzaturaStato.ANNULLATA, AttrezzaturaStato.PRONTA_PRODUZIONE]).count(),
+        "in_ritardo": filter_in_ritardo(Attrezzatura.objects.all()).count(),
         "finite": Attrezzatura.objects.filter(stato=AttrezzaturaStato.FINITA).count(),
-        "pronte_produzione": Attrezzatura.objects.filter(stato=AttrezzaturaStato.PRONTA_PRODUZIONE).count(),
-        "task_aperte": AttrezzaturaTask.objects.filter(stato__in=open_statuses).count(),
-        "task_scadute": AttrezzaturaTask.objects.filter(stato__in=open_statuses, scadenza__lt=today).count(),
-        "verifiche_disponibilita_aperte": AttrezzaturaTask.objects.filter(tipo=AttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA, stato__in=open_statuses).count(),
-        "creazioni_attrezzo_aperte": AttrezzaturaTask.objects.filter(tipo=AttrezzaturaTaskTipo.CREAZIONE_ATTREZZO, stato__in=open_statuses).count(),
+        "pronte_produzione": Attrezzatura.objects.filter(stato__in=PRONTA_PRODUZIONE_STATUSES).count(),
+        "task_aperte": tasks_aperte.count(),
+        "task_scadute": filter_task_scadute(AttrezzaturaTask.objects.all()).count(),
+        "verifiche_disponibilita_aperte": tasks_aperte.filter(tipo=AttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA).count(),
+        "creazioni_attrezzo_aperte": tasks_aperte.filter(tipo=AttrezzaturaTaskTipo.CREAZIONE_ATTREZZO).count(),
     }
 
 
@@ -151,16 +177,14 @@ def attrezzatura_list(request):
     if request.GET.get("codice"):
         qs = qs.filter(codice__icontains=request.GET["codice"].strip())
     if request.GET.get("in_ritardo"):
-        qs = qs.filter(data_consegna_prevista__lt=timezone.localdate()).exclude(
-            stato__in=[AttrezzaturaStato.FINITA, AttrezzaturaStato.ANNULLATA, AttrezzaturaStato.PRONTA_PRODUZIONE]
-        )
+        qs = filter_in_ritardo(qs)
     if request.GET.get("pronta_produzione"):
-        qs = qs.filter(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+        qs = qs.filter(stato__in=PRONTA_PRODUZIONE_STATUSES)
     ready = request.GET.get("ready")
     if ready == "1":
-        qs = qs.filter(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+        qs = qs.filter(stato__in=PRONTA_PRODUZIONE_STATUSES)
     elif ready == "0":
-        qs = qs.exclude(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+        qs = qs.exclude(stato__in=PRONTA_PRODUZIONE_STATUSES)
     linked = request.GET.get("linked_kickoff")
     if linked == "1":
         qs = qs.filter(kickoff_links__isnull=False).distinct()
@@ -316,8 +340,10 @@ def task_list(request):
             qs = qs.filter(**{field: request.GET[field]})
     if request.GET.get("part_number"):
         qs = qs.filter(part_number__icontains=request.GET["part_number"].strip())
+    if request.GET.get("aperte"):
+        qs = qs.filter(stato__in=TASK_OPEN_STATUSES)
     if request.GET.get("scadute"):
-        qs = qs.filter(scadenza__lt=timezone.localdate()).exclude(stato=AttrezzaturaTaskStato.COMPLETATA)
+        qs = filter_task_scadute(qs)
     page = Paginator(qs.order_by("scadenza", "-created_at"), 50).get_page(request.GET.get("page"))
     return render(request, "attrezzature/pages/task_list.html", {**_base_context("tasks"), "page": page})
 

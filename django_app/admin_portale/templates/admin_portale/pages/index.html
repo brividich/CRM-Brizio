@@ -360,34 +360,34 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
       {% endif %}
     </div>
     <div class="ap-hero-stats">
-      <div class="ap-hero-stat">
+      <a class="ap-hero-stat kpi-link" href="{% url 'admin_portale:utenti_list' %}?attivo=1" title="Apri l'elenco filtrato: utenti attivi">
         <div class="ap-hero-stat-icon blue">👤</div>
         <div>
           <div class="ap-hero-stat-num">{{ stats.utenti_attivi }}</div>
           <div class="ap-hero-stat-lbl">Utenti attivi</div>
         </div>
-      </div>
-      <div class="ap-hero-stat">
+      </a>
+      <a class="ap-hero-stat kpi-link" href="{% url 'admin_portale:ruoli_list' %}" title="Apri l'elenco dei ruoli">
         <div class="ap-hero-stat-icon yellow">🛡️</div>
         <div>
           <div class="ap-hero-stat-num">{{ stats.ruoli }}</div>
           <div class="ap-hero-stat-lbl">Ruoli</div>
         </div>
-      </div>
-      <div class="ap-hero-stat">
+      </a>
+      <a class="ap-hero-stat kpi-link" href="{% url 'admin_portale:pulsanti' %}#elenco-pulsanti" title="Apri l'elenco dei pulsanti">
         <div class="ap-hero-stat-icon green">🧭</div>
         <div>
           <div class="ap-hero-stat-num">{{ stats.pulsanti }}</div>
           <div class="ap-hero-stat-lbl">Pulsanti</div>
         </div>
-      </div>
-      <div class="ap-hero-stat">
+      </a>
+      <a class="ap-hero-stat kpi-link" href="{% url 'admin_portale:permessi' %}" title="Apri la gestione permessi">
         <div class="ap-hero-stat-icon red">🔐</div>
         <div>
           <div class="ap-hero-stat-num">{{ stats.permessi }}</div>
           <div class="ap-hero-stat-lbl">Permessi</div>
         </div>
-      </div>
+      </a>
     </div>
   </div>
 

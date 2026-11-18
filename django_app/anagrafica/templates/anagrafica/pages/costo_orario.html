@@ -87,15 +87,15 @@ body.theme-dark .co-mese.co-ora .co-col{ background:#5aa9e0; }
       <a class="fmd-chip" href="{% url 'anagrafica:costo_orario_storico' %}">Storico</a>
     </nav>
 
-    {% if righe %}
+    {% if righe_base %}
     <section class="fmd-kpi fmd-kpi-auto" aria-label="Costo orario in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media label="Costo orario medio" sub="€/h, con i filtri attivi" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.minimo label="Minimo" sub="€/h" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=kpi.massimo label="Massimo" sub="€/h" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.aumentati label="Aumentati sul mese prima" sub="▲ costo orario cresciuto" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.diminuiti label="Diminuiti sul mese prima" sub="▼ costo orario sceso" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-alert-cir" valore=kpi.lontani label="Lontani dalla media" sub="oltre ±10% dai filtrati" %}
-      {% if kpi.manuali %}{% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.manuali label="RML corretta a mano" sub="vale la correzione di HR" %}{% endif %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media label="Costo orario medio" sub="€/h, con i filtri attivi" url=kpi_url.tutti title="Apri la tabella dei dipendenti da cui è calcolata la media" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.minimo label="Minimo" sub="€/h" url=kpi_url.tutti title="Apri la tabella del mese da cui è preso il minimo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=kpi.massimo label="Massimo" sub="€/h" url=kpi_url.tutti title="Apri la tabella del mese da cui è preso il massimo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.aumentati label="Aumentati sul mese prima" sub="▲ costo orario cresciuto" url=kpi_url.aumentati title="Apri l'elenco filtrato: costo orario aumentato sul mese prima" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.diminuiti label="Diminuiti sul mese prima" sub="▼ costo orario sceso" url=kpi_url.diminuiti title="Apri l'elenco filtrato: costo orario diminuito sul mese prima" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-alert-cir" valore=kpi.lontani label="Lontani dalla media" sub="oltre ±10% dai filtrati" url=kpi_url.lontani title="Apri l'elenco filtrato: lontani dalla media oltre ±10%" %}
+      {% if kpi.manuali %}{% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.manuali label="RML corretta a mano" sub="vale la correzione di HR" url=kpi_url.manuali title="Apri l'elenco filtrato: RML corretta a mano da HR" %}{% endif %}
     </section>
     {% endif %}
 

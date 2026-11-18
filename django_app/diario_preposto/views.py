@@ -453,12 +453,14 @@ def lista(request):
         .order_by("preposto")
     )
 
-    from .cruscotto import attivita_recenti, calcola_cruscotto, notifiche_non_partite, stato_ispezioni
+    from .cruscotto import VISTE, attivita_recenti, calcola_cruscotto, filtra_vista, notifiche_non_partite, stato_ispezioni
 
     cruscotto = None
+    vista = ""
     if not mostra_eliminate:
         cfg = DiarioPrepostoImpostazioni.get_singleton()
         id_visibili = set(_base_registro(request).values_list("pk", flat=True))
+        # Le tessere contano sul registro filtrato (ricerca, preposto), prima della vista.
         cruscotto = {
             **calcola_cruscotto(qs),
             "ispezioni": stato_ispezioni(_ispezioni_visibili(request), cfg.ispezione_frequenza_giorni),
@@ -466,6 +468,12 @@ def lista(request):
             "notifiche_ko": notifiche_non_partite() if can_manage else 0,
             "filtrato": bool(q or filtro_preposto),
         }
+        # ?vista=... (link delle tessere): la tabella mostra le righe di quella tessera.
+        vista = request.GET.get("vista", "").strip()
+        if vista in VISTE:
+            qs = filtra_vista(qs, vista)
+        else:
+            vista = ""
 
     return render(
         request,
@@ -475,6 +483,8 @@ def lista(request):
             "segnalazioni": qs,
             "q": q,
             "filtro_preposto": filtro_preposto,
+            "vista": vista,
+            "vista_label": VISTE.get(vista, ""),
             "preposti": preposti,
             "can_write": _can_write(request),
             "can_manage_settings": can_manage,

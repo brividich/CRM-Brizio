@@ -39,40 +39,41 @@
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
-      <div class="fmd-mtr fmd-t-cyan">
+      <a class="fmd-mtr fmd-t-cyan kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi" title="Apri l'elenco di tutti i micro-corsi e-learning">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span><span class="fmd-mtr-val">{{ tot.corsi }}</span></div>
         <div class="fmd-mtr-lbl">Corsi e-learning</div>
         <div class="fmd-mtr-sub">Totale micro-corsi</div>
-      </div>
-      <div class="fmd-mtr fmd-t-green">
+      </a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}?vista=pubblicati#elearning-corsi" title="Apri l'elenco filtrato: corsi pubblicati">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ tot.pubblicati }}</span></div>
         <div class="fmd-mtr-lbl">Pubblicati</div>
         <div class="fmd-mtr-sub">Attivi e visibili ai discenti</div>
-      </div>
-      <div class="fmd-mtr fmd-t-navy">
+      </a>
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi" title="Apri l'elenco dei corsi: la colonna Iscritti somma a questo numero">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ tot.iscritti }}</span></div>
         <div class="fmd-mtr-lbl">Iscritti</div>
         <div class="fmd-mtr-sub">Dipendenti che hanno avviato</div>
-      </div>
-      <div class="fmd-mtr fmd-t-violet">
+      </a>
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi" title="Apri l'elenco dei corsi: la colonna Completati somma a questo numero">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ tot.completati }}</span></div>
         <div class="fmd-mtr-lbl">Completati</div>
         <div class="fmd-mtr-sub">Quiz superato</div>
-      </div>
-      <div class="fmd-mtr fmd-t-orange">
+      </a>
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}?vista=problemi#elearning-corsi" title="Apri l'elenco filtrato: corsi senza slide o con quiz incompleto">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ tot.problemi }}</span></div>
         <div class="fmd-mtr-lbl">Da sistemare</div>
         <div class="fmd-mtr-sub">Senza slide o quiz incompleto</div>
-      </div>
+      </a>
     </section>
 
     {# ── Tabella corsi e-learning ───────────────────────────────────────── #}
-    <section class="fmd-panel">
+    <section class="fmd-panel" id="elearning-corsi">
+      {% if vista %}<p class="fmd-muted" style="font-size:12.5px;margin:0 0 8px;">{% if vista == "pubblicati" %}Solo i corsi pubblicati{% else %}Solo i corsi da sistemare{% endif %} · <a class="fmd-data-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi">mostra tutti</a></p>{% endif %}
       {% if rows %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">

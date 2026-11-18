@@ -4,7 +4,7 @@
 
 {% block assets_shell_head %}
 <style>
-.mhs-page{display:grid;gap:14px}.mhs-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}.mhs-kpi,.mhs-card{border:1px solid #dbe1ea;border-radius:12px;background:#fff}.mhs-kpi{padding:12px 14px}.mhs-kpi strong{display:block;font-size:var(--fs-display-lg);color:#0f172a}.mhs-kpi span{color:#64748b;font-size:var(--fs-sm)}.mhs-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 150px 150px auto;gap:8px;padding:12px}.mhs-filters input,.mhs-filters select{min-height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;font:inherit;background:#fff}.mhs-table-wrap{overflow:auto}.mhs-table{width:100%;border-collapse:collapse}.mhs-table th{padding:9px 12px;text-align:left;background:#f8fafc;color:#64748b;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em}.mhs-table td{padding:11px 12px;border-top:1px solid #eef2f7;vertical-align:top;font-size:var(--fs-sm)}.mhs-title{font-weight:800;color:#0f172a;text-decoration:none}.mhs-meta{display:block;color:#64748b;font-size:var(--fs-xs);margin-top:3px}.mhs-source{display:inline-flex;padding:2px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:var(--fs-xs);font-weight:800}.mhs-source.ticket{background:#fef3c7;color:#92400e}.mhs-source.deadline{background:#ede9fe;color:#6d28d9}.mhs-empty{text-align:center;color:#64748b;padding:30px!important}body.theme-dark .mhs-kpi,body.theme-dark .mhs-card{background:var(--surface);border-color:var(--border)}body.theme-dark .mhs-kpi strong,body.theme-dark .mhs-title{color:var(--text)}body.theme-dark .mhs-filters input,body.theme-dark .mhs-filters select{background:var(--surface-alt);border-color:var(--border);color:var(--text)}body.theme-dark .mhs-table th{background:var(--surface-alt)}body.theme-dark .mhs-table td{border-color:var(--border)}body.theme-dark .mhs-source.deadline{background:rgba(139,92,246,.18);color:#c4b5fd}@media(max-width:900px){.mhs-summary{grid-template-columns:repeat(2,1fr)}.mhs-filters{grid-template-columns:1fr 1fr}}@media(max-width:560px){.mhs-summary,.mhs-filters{grid-template-columns:1fr}}
+.mhs-page{display:grid;gap:14px}.mhs-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}.mhs-kpi,.mhs-card{border:1px solid #dbe1ea;border-radius:12px;background:#fff}.mhs-kpi{padding:12px 14px}a.mhs-kpi{display:block}.mhs-kpi strong{display:block;font-size:var(--fs-display-lg);color:#0f172a}.mhs-kpi span{color:#64748b;font-size:var(--fs-sm)}.mhs-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 150px 150px auto;gap:8px;padding:12px}.mhs-filters input,.mhs-filters select{min-height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;font:inherit;background:#fff}.mhs-table-wrap{overflow:auto}.mhs-table{width:100%;border-collapse:collapse}.mhs-table th{padding:9px 12px;text-align:left;background:#f8fafc;color:#64748b;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em}.mhs-table td{padding:11px 12px;border-top:1px solid #eef2f7;vertical-align:top;font-size:var(--fs-sm)}.mhs-title{font-weight:800;color:#0f172a;text-decoration:none}.mhs-meta{display:block;color:#64748b;font-size:var(--fs-xs);margin-top:3px}.mhs-source{display:inline-flex;padding:2px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:var(--fs-xs);font-weight:800}.mhs-source.ticket{background:#fef3c7;color:#92400e}.mhs-source.deadline{background:#ede9fe;color:#6d28d9}.mhs-empty{text-align:center;color:#64748b;padding:30px!important}body.theme-dark .mhs-kpi,body.theme-dark .mhs-card{background:var(--surface);border-color:var(--border)}body.theme-dark .mhs-kpi strong,body.theme-dark .mhs-title{color:var(--text)}body.theme-dark .mhs-filters input,body.theme-dark .mhs-filters select{background:var(--surface-alt);border-color:var(--border);color:var(--text)}body.theme-dark .mhs-table th{background:var(--surface-alt)}body.theme-dark .mhs-table td{border-color:var(--border)}body.theme-dark .mhs-source.deadline{background:rgba(139,92,246,.18);color:#c4b5fd}@media(max-width:900px){.mhs-summary{grid-template-columns:repeat(2,1fr)}.mhs-filters{grid-template-columns:1fr 1fr}}@media(max-width:560px){.mhs-summary,.mhs-filters{grid-template-columns:1fr}}
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .mhs-kpi span{color:var(--text-light)}
@@ -23,11 +23,11 @@ body.theme-dark .mhs-empty{color:var(--text-light)}
 {% block assets_shell_content %}
 <section class="mhs-page">
   <div class="mhs-summary">
-    <article class="mhs-kpi"><strong>{{ history_total }}</strong><span>attivita concluse</span></article>
-    <article class="mhs-kpi"><strong>{{ history_workorder_count }}</strong><span>ordini di lavoro</span></article>
-    <article class="mhs-kpi"><strong>{{ history_occurrence_count }}</strong><span>manutenzioni senza OdL</span></article>
-    <article class="mhs-kpi"><strong>{{ history_deadline_count }}</strong><span>scadenze amministrative svolte</span></article>
-    <article class="mhs-kpi"><strong>{{ history_ticket_count }}</strong><span>ticket manutenzione</span></article>
+    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.all }}" title="Apri lo storico: tutte le attività concluse con ricerca e periodo correnti"><strong>{{ history_total }}</strong><span>attivita concluse</span></a>
+    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.workorders }}" title="Apri lo storico filtrato: solo ordini di lavoro"><strong>{{ history_workorder_count }}</strong><span>ordini di lavoro</span></a>
+    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.maintenance }}" title="Apri lo storico filtrato: manutenzioni registrate senza OdL"><strong>{{ history_occurrence_count }}</strong><span>manutenzioni senza OdL</span></a>
+    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.deadlines }}" title="Apri lo storico filtrato: scadenze amministrative svolte"><strong>{{ history_deadline_count }}</strong><span>scadenze amministrative svolte</span></a>
+    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.tickets }}" title="Apri lo storico filtrato: ticket di manutenzione"><strong>{{ history_ticket_count }}</strong><span>ticket manutenzione</span></a>
     {% comment %}
       Durata e costi si compilano a mano in chiusura, e quasi nessuno lo fa: un
       totale su un dato coperto all'1% non e' una statistica. Sopra la soglia si
@@ -37,19 +37,19 @@ body.theme-dark .mhs-empty{color:var(--text-light)}
     <article class="mhs-kpi">
       {% if history_duration_reliable %}
         <strong>{{ history_duration_hours }} h</strong>
-        <span>tempo consuntivato · su {{ history_duration_coverage }} degli interventi</span>
+        <span>tempo consuntivato · su {{ history_duration_coverage }} degli interventi{% if history_truncated %} (ultimi 500 per origine){% endif %}</span>
       {% else %}
         <strong>{{ history_duration_coverage }}</strong>
-        <span>degli interventi ha il tempo registrato ({{ history_duration_rows }} su {{ history_total }})</span>
+        <span>degli interventi ha il tempo registrato ({{ history_duration_rows }} su {{ history_loaded_total }}{% if history_truncated %}, ultimi 500 per origine{% endif %})</span>
       {% endif %}
     </article>
     <article class="mhs-kpi">
       {% if history_cost_reliable %}
         <strong>{{ history_total_cost|floatformat:2 }} €</strong>
-        <span>costo consuntivato · su {{ history_cost_coverage }} degli interventi</span>
+        <span>costo consuntivato · su {{ history_cost_coverage }} degli interventi{% if history_truncated %} (ultimi 500 per origine){% endif %}</span>
       {% else %}
         <strong>{{ history_cost_coverage }}</strong>
-        <span>degli interventi ha il costo registrato ({{ history_cost_rows }} su {{ history_total }})</span>
+        <span>degli interventi ha il costo registrato ({{ history_cost_rows }} su {{ history_loaded_total }}{% if history_truncated %}, ultimi 500 per origine{% endif %})</span>
       {% endif %}
     </article>
   </div>

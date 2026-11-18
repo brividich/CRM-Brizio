@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -35,12 +35,13 @@
       </div>
     </div>
 
+    {% url 'anagrafica:mansionario_struttura' as u_mst %}
     <div class="mns-stats">
-      <div class="mns-stat"><b>{{ kpi.ruoli }}</b><span>ruoli con mansioni</span></div>
-      <div class="mns-stat"><b>{{ kpi.mansioni }}</b><span>mansioni attive</span></div>
-      <div class="mns-stat"><b>{{ kpi.competenze }}</b><span>competenze</span></div>
-      <div class="mns-stat{% if kpi.senza_competenze %} mns-mid{% endif %}"><b>{{ kpi.senza_competenze }}</b><span>mansioni senza competenze</span></div>
-      <div class="mns-stat{% if kpi.senza_ruolo %} mns-ko{% endif %}"><b>{{ kpi.senza_ruolo }}</b><span>mansioni senza ruolo</span></div>
+      <a class="mns-stat kpi-link" href="{{ u_mst }}?filtro=ruoli#ruoli-mansioni" title="Apri l'elenco filtrato: ruoli con mansioni"><b>{{ kpi.ruoli }}</b><span>ruoli con mansioni</span></a>
+      <a class="mns-stat kpi-link" href="{{ u_mst }}?filtro=attive#ruoli-mansioni" title="Apri l'elenco filtrato: mansioni attive"><b>{{ kpi.mansioni }}</b><span>mansioni attive</span></a>
+      <a class="mns-stat kpi-link" href="{{ u_mst }}?filtro=attive#ruoli-mansioni" title="Apri le mansioni attive con le loro competenze"><b>{{ kpi.competenze }}</b><span>competenze</span></a>
+      <a class="mns-stat kpi-link{% if kpi.senza_competenze %} mns-mid{% endif %}" href="{{ u_mst }}?filtro=senza_competenze#ruoli-mansioni" title="Apri l'elenco filtrato: mansioni attive senza competenze"><b>{{ kpi.senza_competenze }}</b><span>mansioni senza competenze</span></a>
+      <a class="mns-stat kpi-link{% if kpi.senza_ruolo %} mns-ko{% endif %}" href="{{ u_mst }}?filtro=senza_ruolo#ruoli-mansioni" title="Apri l'elenco filtrato: mansioni senza ruolo"><b>{{ kpi.senza_ruolo }}</b><span>mansioni senza ruolo</span></a>
     </div>
 
     {% if esito %}
@@ -88,11 +89,12 @@
     </section>
     {% endif %}
 
-    <section class="fmd-panel fmd-block mns-box" data-mst-box aria-label="Ruoli e mansioni">
+    <section class="fmd-panel fmd-block mns-box" id="ruoli-mansioni" data-mst-box aria-label="Ruoli e mansioni">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni</div>
         <div class="fmd-block-aside">Clic su una mansione per modificarla qui</div>
       </div>
+      {% if filtro %}<p class="mns-filtro">Filtro: <strong>{{ filtro_label }}</strong> · <a href="{{ u_mst }}#ruoli-mansioni">Mostra tutto</a></p>{% endif %}
 
       <div class="mst-nuova">
         <a class="fmd-btn fmd-btn-navy fmd-btn-mini" href="{% url 'anagrafica:mansionario_struttura_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</a>

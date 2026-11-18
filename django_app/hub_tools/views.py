@@ -1705,6 +1705,12 @@ def notifiche_hub(request):
         qs = qs.filter(letta=False, archiviata=False)
     elif f_letta == "archiviate":
         qs = qs.filter(archiviata=True)
+    elif f_letta == "attive":
+        # Tessera «Attive» di Admin > Gestione notifiche (core.notifiche_archivio.statistiche).
+        qs = qs.filter(archiviata=False)
+    elif f_letta == "banner":
+        # Tessera «Banner in attesa»: stessa condizione di popup_pend qui sotto.
+        qs = qs.filter(letta=False, popup_shown=False, archiviata=False)
     if f_user_id and f_user_id.isdigit():
         qs = qs.filter(legacy_user_id=int(f_user_id))
     if f_q:

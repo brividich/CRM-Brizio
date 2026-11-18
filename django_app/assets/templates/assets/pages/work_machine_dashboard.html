@@ -12,6 +12,10 @@
 .wmd-chip.active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
 .wmd-kpis { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
 .wmd-kpi { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:14px 16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
+a.wmd-kpi { display:block; }
+.wmd-kpi a.kpi-value-link { display:block; width:fit-content; color:inherit; text-decoration:none; }
+.wmd-kpi .wmd-kpi-meta a.kpi-value-link { display:inline; }
+.wmd-kpi a.kpi-value-link:hover { text-decoration:underline; }
 .wmd-kpi-label { font-size: var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
 .wmd-kpi-value { margin-top:8px; font-size: var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
 .wmd-kpi-meta { margin-top:4px; color:#64748b; font-size: var(--fs-sm); }
@@ -182,36 +186,36 @@ body.theme-dark .wmd-td-empty{color:var(--text-light)}
   </div>
 
   <section class="wmd-kpis">
-    <article class="wmd-kpi">
+    <a class="wmd-kpi kpi-link" href="{{ wmd_kpi_links.machines }}" title="Apri l’inventario filtrato: macchine di produzione{% if reparto_filter %} del reparto {{ reparto_filter }}{% endif %}">
       <div class="wmd-kpi-label">Macchine monitorate</div>
       <div class="wmd-kpi-value">{{ total_machines }}</div>
       <div class="wmd-kpi-meta">Perimetro officina attuale</div>
-    </article>
-    <article class="wmd-kpi">
+    </a>
+    <a class="wmd-kpi kpi-link" href="{{ wmd_kpi_links.in_use }}" title="Apri l’inventario filtrato: macchine in uso">
       <div class="wmd-kpi-label">In uso</div>
       <div class="wmd-kpi-value">{{ in_use_machines }}</div>
       <div class="wmd-kpi-meta">Produzione attiva</div>
-    </article>
-    <article class="wmd-kpi">
+    </a>
+    <a class="wmd-kpi kpi-link" href="{{ wmd_kpi_links.in_repair }}" title="Apri l’inventario filtrato: macchine in riparazione">
       <div class="wmd-kpi-label">In riparazione</div>
       <div class="wmd-kpi-value">{{ in_repair_machines }}</div>
       <div class="wmd-kpi-meta">Fermo o criticita</div>
-    </article>
+    </a>
     <article class="wmd-kpi">
       <div class="wmd-kpi-label">WO aperti</div>
-      <div class="wmd-kpi-value">{{ open_count }}</div>
-      <div class="wmd-kpi-meta">{{ overdue_count }} oltre soglia {{ wo_overdue_days }} giorni</div>
+      <a class="wmd-kpi-value kpi-value-link" href="{{ wmd_kpi_links.wo_open }}" title="Apri l’elenco filtrato: OdL aperti sulle macchine di produzione">{{ open_count }}</a>
+      <div class="wmd-kpi-meta"><a class="kpi-value-link" href="{{ wmd_kpi_links.wo_late }}" title="Apri l’elenco filtrato: OdL aperti in ritardo">{{ overdue_count }} oltre soglia {{ wo_overdue_days }} giorni</a></div>
     </article>
-    <article class="wmd-kpi">
+    <a class="wmd-kpi kpi-link" href="#wmd-reminder" title="Vai al promemoria manutenzione qui sotto: scadute e in soglia">
       <div class="wmd-kpi-label">Scadenze manutenzione</div>
       <div class="wmd-kpi-value">{{ due_count }}</div>
       <div class="wmd-kpi-meta">{{ overdue_maintenance_count }} scadute · {{ warning_maintenance_count }} in soglia</div>
-    </article>
-    <article class="wmd-kpi">
+    </a>
+    <a class="wmd-kpi kpi-link" href="#wmd-reminder" title="Vai al promemoria manutenzione qui sotto: macchine senza piano">
       <div class="wmd-kpi-label">Pianificazione / documenti</div>
       <div class="wmd-kpi-value">{{ missing_maintenance_count }}/{{ manuals_count }}</div>
       <div class="wmd-kpi-meta">Senza piano / con manuali</div>
-    </article>
+    </a>
   </section>
 
   {# ── Striscia manutenzione in scadenza ──────────────────── #}
@@ -220,12 +224,12 @@ body.theme-dark .wmd-td-empty{color:var(--text-light)}
     {% if maint_kpis.coinvolti %}
     <div class="wmd-maint-strip-metrics">
       <div class="wmd-maint-metric">
-        <span class="wmd-maint-val wmd-maint-val-neutral"><a href="{% url 'assets:work_machine_list' %}" title="Vedi elenco macchine">{{ maint_kpis.coinvolti }}</a></span>
+        <span class="wmd-maint-val wmd-maint-val-neutral"><a href="{{ wmd_kpi_links.machines }}" title="Apri l’inventario filtrato: macchine di produzione">{{ maint_kpis.coinvolti }}</a></span>
         <span class="wmd-maint-lbl">Coinvolti</span>
       </div>
       <div class="wmd-maint-sep" aria-hidden="true"></div>
       <div class="wmd-maint-metric">
-        <span class="wmd-maint-val wmd-maint-val-ok">{{ maint_kpis.manutentati }}</span>
+        <span class="wmd-maint-val wmd-maint-val-ok"><a href="#wmd-reminder" title="Vai al promemoria manutenzione: le altre macchine sono scadute o senza piano">{{ maint_kpis.manutentati }}</a></span>
         <span class="wmd-maint-lbl">Manutentati</span>
       </div>
       <div class="wmd-maint-sep" aria-hidden="true"></div>

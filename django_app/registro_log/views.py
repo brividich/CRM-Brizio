@@ -12,7 +12,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -216,6 +216,10 @@ def eventi(request):
     host = (request.GET.get("host") or "").strip()[:255]
     if host:
         qs = qs.filter(host__iexact=host)
+    # ?chi= : stessi eventi della scheda Persona (account, PC o IP), per le sue tessere.
+    chi = (request.GET.get("chi") or "").strip()[:150]
+    if chi:
+        qs = qs.filter(_condizione_chi(chi)[2])
     testo = (request.GET.get("q") or "").strip()
     if testo:
         qs = qs.filter(Q(account__icontains=testo) | Q(host__icontains=testo) | Q(ip_origine__icontains=testo)
@@ -277,7 +281,7 @@ def eventi(request):
                                                      if k not in regole.CATEGORIE_RISERVATE
                                                      and (not sezione or sezione == "syslog" or k in regole.SEZIONI[sezione][1])),
                                                     key=lambda x: x[1][0]),
-        "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "account": account, "host": host,
+        "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "account": account, "host": host, "chi": chi,
         "parametri": parametri.urlencode(), "parametri_senza_righe": senza_righe.urlencode(),
         "etichette": regole.CATEGORIE, "puo_configurare": _puo_configurare(request),
         "durate": silenzi.DURATE,
@@ -367,6 +371,20 @@ def _nome_account(q: str) -> str:
     return q.split("\\")[-1].split("@")[0].strip()
 
 
+def _condizione_chi(q: str):
+    """(tipo, nome, Q) degli eventi di una persona, un PC o un IP: la usano la scheda Persona
+    e il filtro ?chi= del catalogo, così le tessere della scheda e l'elenco contano gli stessi eventi."""
+    tipo = _tipo_ricerca(q)
+    nome = _nome_account(q)
+    if tipo == "account":
+        cond = Q(account__iexact=nome) | Q(account__iendswith="\\" + nome) | Q(account_target__iexact=nome)
+    elif tipo == "pc":
+        cond = Q(host__iexact=q) | Q(host__istartswith=q + ".") | Q(ip_origine__iexact=q)
+    else:
+        cond = Q(ip_origine=q) | Q(host=q)
+    return tipo, nome, cond
+
+
 def persona(request):
     """Tutto ciò che il catalogo sa di una persona, di un PC o di un indirizzo IP, giorno per giorno.
 
@@ -390,27 +408,24 @@ def persona(request):
         ctx["falliti_top"] = list(_filtra_sezione(ultime, "falliti").values("account").annotate(n=Count("id")).order_by("-n")[:8])
         return render(request, "registro_log/persona.html", ctx)
 
-    tipo = _tipo_ricerca(q)
-    nome = _nome_account(q)
-    if tipo == "account":
-        cond = Q(account__iexact=nome) | Q(account__iendswith="\\" + nome) | Q(account_target__iexact=nome)
-    elif tipo == "pc":
-        cond = Q(host__iexact=q) | Q(host__istartswith=q + ".") | Q(ip_origine__iexact=q)
-    else:
-        cond = Q(ip_origine=q) | Q(host=q)
+    tipo, nome, cond = _condizione_chi(q)
     suoi = base.filter(cond)
     sette = suoi.filter(quando__gte=ora - timedelta(days=7))
     inizio = timezone.make_aware(datetime.combine(giorno, time.min))
     del_giorno = suoi.filter(quando__gte=inizio, quando__lt=inizio + timedelta(days=1))
     accessi_giorno = _filtra_sezione(del_giorno, "accessi").filter(esito="ok")
     primo = accessi_giorno.order_by("quando").first()
+    # Il numero della tessera conta tutti i gruppi; l'elenco laterale ne mostra i primi 10.
     if tipo == "account":
-        usati = (_filtra_sezione(sette, "accessi").values("ip_origine", "host").annotate(n=Count("id")).order_by("-n")[:10])
+        gruppi_usati = _filtra_sezione(sette, "accessi").values("ip_origine", "host").annotate(n=Count("id"))
         laterale = [{"titolo": r["ip_origine"] or r["host"], "sotto": r["host"] if r["ip_origine"] else "", "n": r["n"]}
-                    for r in usati]
+                    for r in gruppi_usati.order_by("-n")[:10]]
     else:
-        chi = _filtra_sezione(sette, "accessi").exclude(account="").values("account").annotate(n=Count("id")).order_by("-n")[:10]
-        laterale = [{"titolo": r["account"], "sotto": "", "n": r["n"], "q": r["account"]} for r in chi]
+        gruppi_usati = _filtra_sezione(sette, "accessi").exclude(account="").values("account").annotate(n=Count("id"))
+        laterale = [{"titolo": r["account"], "sotto": "", "n": r["n"], "q": r["account"]}
+                    for r in gruppi_usati.order_by("-n")[:10]]
+    n_usati = gruppi_usati.count()
+    giornata_qs = _filtra_sezione(del_giorno, filtro)
     scheda_ad = AccountAD.objects.filter(sam__iexact=nome).first() if tipo == "account" else None
     from .raccoglitore import privilegiati
 
@@ -420,11 +435,12 @@ def persona(request):
         "kpi": {
             "primo": timezone.localtime(primo.quando) if primo else None,
             "primo_dove": (primo.ip_origine or primo.host) if primo else "",
-            "usati": len(laterale),
+            "usati": n_usati,
             "falliti": _filtra_sezione(sette, "falliti").count(),
             "totale_giorno": del_giorno.count(),
         },
-        "giornata": list(_filtra_sezione(del_giorno, filtro).order_by("quando", "id")[:500]),
+        "giornata": list(giornata_qs.order_by("quando", "id")[:500]),
+        "giornata_totale": giornata_qs.count(),
         "laterale": laterale,
         "etichette": regole.CATEGORIE,
     })
@@ -482,13 +498,23 @@ def archivio_pagina(request):
             log_action(request, "registro_log_giustifica", MODULO, {"interruzione": i.pk, "testo": testo})
             messages.success(request, "Giustificazione salvata.")
         return redirect(reverse("security:registro_log_archivio") + ("#interruzioni" if azione == "giustifica" else ""))
-    sigilli = Paginator(SigilloGiorno.objects.order_by("-giorno"), 62).get_page(request.GET.get("pagina"))
+    # Tessere e filtro ?giorni= dell'elenco usano gli stessi insiemi.
+    insiemi = {
+        "non_integri": SigilloGiorno.objects.filter(verifica_ok=False),
+        "da_copiare": SigilloGiorno.objects.filter(copia_il__isnull=True, eliminato_il__isnull=True),
+    }
+    filtro_giorni = request.GET.get("giorni", "")
+    if filtro_giorni not in insiemi:
+        filtro_giorni = ""
+    base = insiemi[filtro_giorni] if filtro_giorni else SigilloGiorno.objects.all()
+    sigilli = Paginator(base.order_by("-giorno"), 62).get_page(request.GET.get("pagina"))
     imp = Impostazioni.corrente()
     return render(request, "registro_log/archivio.html", {
         "sigilli": sigilli, "interruzioni": Interruzione.objects.order_by("-dal")[:200], "imp": imp,
         "cartella": archivio.cartella(), "puo_configurare": puo, "come_verificare": archivio.COME_VERIFICARE,
-        "totali": {"giorni": SigilloGiorno.objects.count(), "non_integri": SigilloGiorno.objects.filter(verifica_ok=False).count(),
-                   "da_copiare": SigilloGiorno.objects.filter(copia_il__isnull=True, eliminato_il__isnull=True).count()},
+        "filtro_giorni": filtro_giorni,
+        "totali": {"giorni": SigilloGiorno.objects.count(), "non_integri": insiemi["non_integri"].count(),
+                   "da_copiare": insiemi["da_copiare"].count()},
     })
 
 
@@ -1012,8 +1038,14 @@ def attivita(request):
     if vista == "raccolta":
         qs = AttivitaRaccolta.objects.filter(quando__gte=da)
         tipo = request.GET.get("tipo", "")
-        if tipo in dict(AttivitaRaccolta.TIPI):
+        # «letture» = server + PC: lo stesso insieme della tessera «Letture con righe».
+        tipi_letture = ("lettura", "pc")
+        if tipo == "letture":
+            qs = qs.filter(tipo__in=tipi_letture)
+        elif tipo in dict(AttivitaRaccolta.TIPI):
             qs = qs.filter(tipo=tipo)
+        else:
+            tipo = ""
         esito = request.GET.get("esito", "")
         if esito in dict(AttivitaRaccolta.ESITI):
             qs = qs.filter(esito=esito)
@@ -1029,8 +1061,8 @@ def attivita(request):
             "tipo": tipo, "esito": esito, "fonte": fonte, "q": testo, "tipi": AttivitaRaccolta.TIPI,
             "esiti": AttivitaRaccolta.ESITI, "fonti": FonteLog.objects.all(),
             "riepilogo": {
-                "letture": periodo.filter(tipo__in=("lettura", "pc")).count(),
-                "righe": sum(periodo.filter(tipo__in=("lettura", "pc")).values_list("righe", flat=True)),
+                "letture": periodo.filter(tipo__in=tipi_letture).count(),
+                "righe": periodo.filter(tipo__in=tipi_letture).aggregate(t=Sum("righe"))["t"] or 0,
                 "errori": periodo.filter(esito="errore").count(),
                 "avvii": periodo.filter(tipo="avvio").count(),
             },

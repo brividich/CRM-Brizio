@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from datetime import time as datetime_time
 
 from django.db.models import Q
 from django.utils import timezone
@@ -105,11 +106,25 @@ def device_runs(record):
     ]
 
 
+def periodo_q(since, until=None):
+    """Esecuzioni con ``when()`` in [since, until): stesso criterio per Panoramica, Log e Report periodico."""
+    def campo(nome):
+        cond = {f"{nome}__gte": since}
+        if until is not None:
+            cond[f"{nome}__lt"] = until
+        return cond
+
+    return (
+        Q(**campo("completed_at")) | Q(completed_at__isnull=True, **campo("started_at"))
+        | Q(completed_at__isnull=True, started_at__isnull=True, **campo("created_at"))
+    )
+
+
+_periodo_q = periodo_q
+
+
 def _records(since):
-    return BackupJobRecord.objects.filter(
-        Q(completed_at__gte=since) | Q(completed_at__isnull=True, started_at__gte=since)
-        | Q(completed_at__isnull=True, started_at__isnull=True, created_at__gte=since)
-    ).select_related("source")
+    return BackupJobRecord.objects.filter(_periodo_q(since)).select_related("source")
 
 
 def _rate(ok, total):
@@ -278,6 +293,13 @@ def _hub_asset(name):
     return match.hub_asset if match else None
 
 
+def _data_param(valore):
+    try:
+        return date.fromisoformat((valore or "").strip())
+    except ValueError:
+        return None
+
+
 def log_rows(params, limit=300):
     """Log delle esecuzioni con filtri: esito, job, dispositivo o testo libero.
 
@@ -293,7 +315,18 @@ def log_rows(params, limit=300):
     days = params.get("giorni", "")
     if days.isdigit():
         since = timezone.now() - timedelta(days=int(days))
-        qs = qs.filter(Q(completed_at__gte=since) | Q(completed_at__isnull=True, created_at__gte=since))
+        # Stesso periodo della Panoramica (le sue tessere portano qui con ?giorni=).
+        qs = qs.filter(_periodo_q(since))
+    # ?dal=/&al= (date locali, estremi inclusi): tessera «Backup riusciti» del Report periodico.
+    dal, al = _data_param(params.get("dal")), _data_param(params.get("al"))
+    if dal or al:
+        tz = timezone.get_current_timezone()
+        inizio = timezone.make_aware(datetime.combine(dal, datetime_time.min), tz) if dal else None
+        fine = timezone.make_aware(datetime.combine(al + timedelta(days=1), datetime_time.min), tz) if al else None
+        if inizio is not None:
+            qs = qs.filter(periodo_q(inizio, fine))
+        else:
+            qs = qs.exclude(periodo_q(fine))
     text = params.get("q", "").strip().casefold()
     rows = []
     for record in (qs[:2000] if limit else qs.iterator(chunk_size=1000)):

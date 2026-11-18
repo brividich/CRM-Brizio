@@ -1155,6 +1155,8 @@ def giacenze(request):
     q_allerta = request.GET.get("allerta", "") == "1"
     q_pericolosi = request.GET.get("pericolosi", "") == "1"
     q_aperte = request.GET.get("aperte", "1") != "0"  # default: solo giacenze aperte
+    # ?oltre=1: solo le giacenze oltre soglia (tono rosso), la tessera «Oltre soglia».
+    q_oltre = request.GET.get("oltre", "") == "1"
 
     _TONO_ORDER = {"rosso": 0, "giallo": 1, "verde": 2, "chiuso": 3}
     rows = []
@@ -1168,6 +1170,8 @@ def giacenze(request):
             continue
         if q_pericolosi and not g.pericoloso:
             continue
+        if q_oltre and tono != "rosso":
+            continue
         if q_search and q_search.lower() not in g.codice.lower():
             continue
         rows.append((g, tono))
@@ -1179,7 +1183,31 @@ def giacenze(request):
 
     n_allerta = sum(1 for _, t in rows if t in ("rosso", "giallo"))
     n_oltre = sum(1 for _, t in rows if t == "rosso")
+    # Link delle tessere: stessi filtri della pagina (i numeri sono calcolati sulle righe mostrate),
+    # più il filtro della tessera.
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    filtri_pagina = {"aperte": "1" if q_aperte else "0"}
+    if q_search:
+        filtri_pagina["q"] = q_search
+    if q_allerta:
+        filtri_pagina["allerta"] = "1"
+    if q_pericolosi:
+        filtri_pagina["pericolosi"] = "1"
+    if q_oltre:
+        filtri_pagina["oltre"] = "1"
+    url_base = reverse("rentri_giacenze")
+    kpi_url = {
+        "totale": f"{url_base}?{urlencode(filtri_pagina)}#gi-elenco",
+        "allerta": f"{url_base}?{urlencode({**filtri_pagina, 'allerta': '1'})}#gi-elenco",
+        "oltre": f"{url_base}?{urlencode({**filtri_pagina, 'oltre': '1'})}#gi-elenco",
+        "volume": f"{url_base}?{urlencode({'aperte': '1'})}#gi-elenco",
+    }
     return render(request, "rentri/pages/giacenze.html", {
+        "kpi_url": kpi_url,
+        "q_oltre": q_oltre,
         "rows": rows,
         "today": today,
         "soglie": soglie,
@@ -1191,7 +1219,7 @@ def giacenze(request):
         "q_allerta": q_allerta,
         "q_pericolosi": q_pericolosi,
         "q_aperte": q_aperte,
-        "filtri_attivi": bool(q_search or q_allerta or q_pericolosi or not q_aperte),
+        "filtri_attivi": bool(q_search or q_allerta or q_pericolosi or q_oltre or not q_aperte),
         "can_manage": _can_manage_rentri(request),
     })
 

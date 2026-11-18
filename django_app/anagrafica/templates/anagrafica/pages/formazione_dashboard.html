@@ -98,36 +98,36 @@
         <div class="fmd-mtr-lbl">Dipendenti con formazione</div>
         <div class="fmd-mtr-sub">Con almeno un corso completato</div>
       </div>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=SCADUTO{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: scaduti">
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=SCADUTO{{ filtro_centro.suffisso }}" title="Apri l'elenco filtrato: corsi scaduti">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Scaduti</div>
         <div class="fmd-mtr-sub">Corsi da rinnovare con priorità</div>
       </a>
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=IN_SCADENZA_30{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: in scadenza entro 30 giorni">
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:formazione_scadenzario' %}?stato=IN_SCADENZA_30{{ filtro_centro.suffisso }}" title="Apri l'elenco filtrato: in scadenza entro 30 giorni">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scadenza_30 }}</span></div>
         <div class="fmd-mtr-lbl">In scadenza ≤30gg</div>
         <div class="fmd-mtr-sub">Scadenze in avvicinamento</div>
       </a>
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:formazione_scadenzario' %}{{ filtro_centro.prefisso }}" title="Apri lo scadenzario: scaduti e mai frequentati">
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_scadenzario' %}?stato={{ STATO_MANCANTE }}&amp;obbligatori=1{{ filtro_centro.suffisso }}" title="Apri l'elenco filtrato: corsi obbligatori scaduti o mai frequentati">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi_obbligatori_mancanti }}</span></div>
         <div class="fmd-mtr-lbl">Obbligatori mancanti</div>
         <div class="fmd-mtr-sub">Mai frequentati o scaduti (obbligatori)</div>
       </a>
-      <div class="fmd-mtr fmd-t-violet">
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="{% url 'anagrafica:formazione_piani_list' %}?stato=ATTIVO&amp;attivi=1" title="Apri l'elenco filtrato: piani formativi attivi">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ kpi_piani_attivi }}</span></div>
         <div class="fmd-mtr-lbl">Piani formativi attivi</div>
         <div class="fmd-mtr-sub">Catalogo piani</div>
-      </div>
-      <div class="fmd-mtr fmd-t-green">
+      </a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:formazione_corsi_list' %}?stato=ATTIVO&amp;attivi=1" title="Apri l'elenco filtrato: corsi attivi">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ kpi_corsi_attivi }}</span></div>
         <div class="fmd-mtr-lbl">Corsi attivi</div>
         <div class="fmd-mtr-sub">Catalogo corsi</div>
-      </div>
+      </a>
     </section>
 
     {# ── Copertura dei corsi obbligatori: una scheda per corso ─────────── #}

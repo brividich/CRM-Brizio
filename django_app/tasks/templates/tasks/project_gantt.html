@@ -75,37 +75,38 @@ body.tk-wide .content sta in tasks.css.
 {% block tasks_shell_kpis %}
 {% if project_summary.total_tasks %}
 <section class="ts-kpis">
-  <article class="ts-kpi blue">
+  {% url 'tasks:list' as u_tasks_list %}
+  <a class="ts-kpi blue kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}" title="Apri l'elenco filtrato: attività del kickoff">
     <div class="ts-kpi-label">Attività</div>
     <div class="ts-kpi-value">{{ project_summary.total_tasks }}</div>
     <div class="ts-kpi-note">{{ project_summary.open_tasks }} aperte, {{ project_summary.in_progress_tasks }} in corso.</div>
-  </article>
-  <article class="ts-kpi green">
+  </a>
+  <a class="ts-kpi green kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;status=DONE" title="Apri l'elenco filtrato: attività completate del kickoff">
     <div class="ts-kpi-label">Avanzamento</div>
     <div class="ts-kpi-value">{{ project_summary.progress_percent }}%</div>
     <div class="ts-kpi-note">{{ project_summary.done_tasks }} chiuse.</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{{ project_summary.progress_percent }}%"></div></div>
-  </article>
-  <article class="ts-kpi red">
+  </a>
+  <a class="ts-kpi red kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;overdue=on" title="Apri l'elenco filtrato: attività scadute e ancora aperte">
     <div class="ts-kpi-label">Scadute</div>
     <div class="ts-kpi-value">{{ project_summary.overdue_tasks }}</div>
     <div class="ts-kpi-note">Aperte con data fine superata.</div>
-  </article>
-  <article class="ts-kpi amber">
+  </a>
+  <a class="ts-kpi amber kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;open=on&amp;due_from={{ project_summary.due_window_from|date:'Y-m-d' }}&amp;due_to={{ project_summary.due_window_to|date:'Y-m-d' }}" title="Apri l'elenco filtrato: attività aperte che scadono nei prossimi 7 giorni">
     <div class="ts-kpi-label">In 7 giorni</div>
     <div class="ts-kpi-value">{{ project_summary.due_next_7d_tasks }}</div>
     <div class="ts-kpi-note">Attività che finiscono a breve.</div>
-  </article>
-  <article class="ts-kpi teal">
+  </a>
+  <a class="ts-kpi teal kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;unassigned=on" title="Apri l'elenco filtrato: attività senza responsabile">
     <div class="ts-kpi-label">Senza responsabile</div>
     <div class="ts-kpi-value">{{ project_summary.unassigned_tasks }}</div>
     <div class="ts-kpi-note">{{ project_summary.high_priority_open_tasks }} ad alta priorità aperte.</div>
-  </article>
-  <article class="ts-kpi slate">
+  </a>
+  <a class="ts-kpi slate kpi-link" href="#g-finestra" title="Vai al piano: le righe da controllare sono segnalate (assente, la fine è prima dell'inizio)">
     <div class="ts-kpi-label">Da controllare</div>
     <div class="ts-kpi-value">{{ project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
     <div class="ts-kpi-note">Conflitti con assenze, date non valide.</div>
-  </article>
+  </a>
 </section>
 {% endif %}
 {% endblock %}

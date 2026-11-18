@@ -63,6 +63,37 @@ def _scadenza_verifica_giorni() -> int:
     return int(cfg.get("SCADENZA_VERIFICA_GIORNI", 30))
 
 
+# Filtri condivisi fra tessere KPI e elenco (?verifica=..., ?ofi=aperti): stessa metrica, una funzione.
+VERIFICA_IN_SCADENZA = "in_scadenza"
+VERIFICA_SCADUTA = "scaduta"
+OFI_APERTI_STATI = (C.AZIONE_OFI_BOZZA, C.AZIONE_OFI_IN_APPROVAZIONE)
+
+
+# Fasce della dashboard KPI: (giorni da, giorni a) da oggi; «30» comprende anche le scadute.
+VERIFICA_FASCE = {"f30": (None, 30), "f60": (31, 60), "f90": (61, 90)}
+VERIFICA_CHIAVI = (VERIFICA_IN_SCADENZA, VERIFICA_SCADUTA, *VERIFICA_FASCE)
+
+
+def filtra_verifica(qs, chiave: str, oggi=None):
+    """Specifiche in validità con verifica periodica: in scadenza (entro la soglia, scadute
+    comprese), già scaduta, o nella fascia f30/f60/f90 della dashboard KPI."""
+    oggi = oggi or timezone.localdate()
+    qs = qs.filter(stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False)
+    if chiave == VERIFICA_SCADUTA:
+        return qs.filter(data_verifica__lt=oggi)
+    if chiave in VERIFICA_FASCE:
+        da, a = VERIFICA_FASCE[chiave]
+        if da is not None:
+            qs = qs.filter(data_verifica__gte=oggi + timedelta(days=da))
+        return qs.filter(data_verifica__lte=oggi + timedelta(days=a))
+    return qs.filter(data_verifica__lte=oggi + timedelta(days=_scadenza_verifica_giorni()))
+
+
+def azioni_ofi_aperte():
+    """Azioni OFI ancora aperte (bozza o in approvazione)."""
+    return AzioneOFI.objects.filter(stato__in=OFI_APERTI_STATI)
+
+
 def _stato_mod133(spec):
     """Etichetta + tipo grafico dello 'Stato MOD.133' per la riga di elenco.
 
@@ -114,6 +145,10 @@ def lista(request):
     # M12: date parse-ate in modo sicuro (None se vuote/invalide) -> niente 500 su input errato.
     f_dal = parse_date(request.GET.get("dal", "").strip())
     f_al = parse_date(request.GET.get("al", "").strip())
+    f_verifica = request.GET.get("verifica", "").strip()
+    if f_verifica not in VERIFICA_CHIAVI:
+        f_verifica = ""
+    f_ofi = "aperti" if request.GET.get("ofi", "").strip() == "aperti" else ""
 
     qs = Specifica.objects.all().select_related("mod133").annotate(
         n_righe=Count("mod133__righe", distinct=True),
@@ -139,24 +174,23 @@ def lista(request):
         qs = qs.filter(data_inserimento__date__gte=f_dal)
     if f_al:
         qs = qs.filter(data_inserimento__date__lte=f_al)
+    if f_verifica:
+        qs = filtra_verifica(qs, f_verifica)
+    if f_ofi:
+        qs = qs.filter(pk__in=azioni_ofi_aperte().values("riga_mod133__mod133__specifica_id"))
     qs = qs.order_by("-data_inserimento", "codice")
 
-    filtri = any([f_stato, f_tipo, f_cliente, f_tag, f_q, f_dal, f_al, f_cartella])
+    filtri = any([f_stato, f_tipo, f_cliente, f_tag, f_q, f_dal, f_al, f_cartella, f_verifica, f_ofi])
     mostra_copertine = vista == "copertine" and not filtri
     specifiche = [] if mostra_copertine else list(qs[:500])
     for s in specifiche:
         s.mod_label, s.mod_kind = _stato_mod133(s)
 
     # KPI cruscotto (su tutto l'archivio, indipendenti dai filtri di elenco).
-    oggi = timezone.now().date()
-    limite_verifica = oggi + timedelta(days=_scadenza_verifica_giorni())
     per_stato = dict(
         Specifica.objects.values_list("stato").order_by().annotate(n=Count("id"))
     )
-    n_verifica_scad = Specifica.objects.filter(
-        stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
-        data_verifica__lte=limite_verifica,
-    ).count()
+    n_verifica_scad = filtra_verifica(Specifica.objects.all(), VERIFICA_IN_SCADENZA).count()
     kpi = {
         "in_validita": per_stato.get(C.STATO_IN_VALIDITA, 0),
         "flow_down": per_stato.get(C.STATO_FLOW_DOWN, 0),
@@ -179,7 +213,11 @@ def lista(request):
         "mostra_storico": mostra_storico,
         "kpi": kpi,
         "f": {"stato": f_stato, "tipo": f_tipo, "cliente": f_cliente,
-              "tag": f_tag, "q": f_q, "dal": f_dal, "al": f_al},
+              "tag": f_tag, "q": f_q, "dal": f_dal, "al": f_al,
+              "verifica": f_verifica, "ofi": f_ofi},
+        "n_ofi_aperti_filtro": (
+            azioni_ofi_aperte().filter(riga_mod133__mod133__specifica_id__in=list(qs.values_list("pk", flat=True))).count() if f_ofi else None
+        ),
         "STATO_CHOICES": C.STATO_CHOICES,
         "TIPO_CHOICES": C.TIPO_CHOICES,
         "C": C,
@@ -996,8 +1034,8 @@ def _scala(valore, massimo, px):
 @login_required
 def kpi(request):
     """Dashboard direzionale: KPI di processo sulle specifiche (dati reali)."""
-    oggi = timezone.now().date()
-    now = timezone.now()
+    oggi = timezone.localdate()
+    now = timezone.localtime()
 
     per_stato = dict(
         Specifica.objects.values_list("stato").order_by().annotate(n=Count("id"))
@@ -1005,9 +1043,7 @@ def kpi(request):
     n_attive = sum(per_stato.get(s, 0) for s in C.STATI_ATTIVI)
 
     # OFI aperti (sotto-flusso documento CN non ancora chiuso) + clienti coinvolti.
-    aperti = AzioneOFI.objects.filter(
-        stato__in=[C.AZIONE_OFI_BOZZA, C.AZIONE_OFI_IN_APPROVAZIONE]
-    )
+    aperti = azioni_ofi_aperte()
     n_ofi_aperti = aperti.count()
     cli_field = "riga_mod133__mod133__specifica__cliente"
     n_clienti_ofi = aperti.exclude(**{f"{cli_field}": ""}).values(cli_field).distinct().count()
@@ -1053,9 +1089,7 @@ def kpi(request):
         trend.append({"label": _MESI_IT[m], "val": val, "h": _scala(val, max_trend, 100)})
 
     # Specifiche in ritardo: in validità con verifica scaduta.
-    n_ritardo = Specifica.objects.filter(
-        stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False, data_verifica__lt=oggi
-    ).count()
+    n_ritardo = filtra_verifica(Specifica.objects.all(), VERIFICA_SCADUTA, oggi).count()
     pct_ritardo = round(100 * n_ritardo / n_attive, 1) if n_attive else 0
 
     # Distribuzione per stato (barre orizzontali).
@@ -1068,25 +1102,15 @@ def kpi(request):
     ]
     max_stato = max([per_stato.get(s, 0) for _, s, _ in voci], default=0)
     dist_stato = [
-        {"label": lbl, "n": per_stato.get(s, 0), "colore": col,
+        {"label": lbl, "stato": s, "n": per_stato.get(s, 0), "colore": col,
          "pct": _scala(per_stato.get(s, 0), max_stato, 100)}
         for lbl, s, col in voci
     ]
 
-    # Verifiche periodiche in scadenza per fascia (≤30 / 31–60 / 61–90 gg).
-    def _fascia(d_da, d_a):
-        return Specifica.objects.filter(
-            stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
-            data_verifica__gte=oggi + timedelta(days=d_da),
-            data_verifica__lte=oggi + timedelta(days=d_a),
-        ).count()
-
+    # Verifiche periodiche in scadenza per fascia (≤30 / 31–60 / 61–90 gg): stessa funzione
+    # del filtro ?verifica=f30|f60|f90 dell'elenco.
     verifiche = {
-        "f30": Specifica.objects.filter(
-            stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
-            data_verifica__lte=oggi + timedelta(days=30)).count(),
-        "f60": _fascia(31, 60),
-        "f90": _fascia(61, 90),
+        chiave: filtra_verifica(Specifica.objects.all(), chiave, oggi).count() for chiave in VERIFICA_FASCE
     }
 
     # Azioni in scadenza (tabella sintetica).

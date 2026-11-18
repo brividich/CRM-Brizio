@@ -119,8 +119,13 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
   {% endif %}
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Referti in sintesi">
-    {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub="referti da abbinare" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=conteggi.pronti label="Pronti" sub="data di nascita confermata" %}
+    {% if righe %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub=conteggi.sub_coda url="#rf-form" title="Vai alla coda dei referti da abbinare" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=conteggi.pronti label="Pronti" sub=conteggi.sub_pronti url="#rf-form" title="Vai alla coda: le righe «pronte» hanno la data di nascita confermata" %}
+    {% else %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub=conteggi.sub_coda %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=conteggi.pronti label="Pronti" sub=conteggi.sub_pronti %}
+    {% endif %}
     {% url 'anagrafica:referti_registro' as u_reg %}
     {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-doc" valore=conteggi.registrati label="Già registrati" sub="nel registro referti" url=u_reg %}
   </section>

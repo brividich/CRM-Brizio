@@ -581,6 +581,41 @@ def _checks(start: date | None, end: date | None, filters: FeedFilters, today: d
     return rows
 
 
+def pending_periodic_verifications(
+    *, start: date | None, end: date | None, today: date, visibili: set[int] | None = None,
+) -> list[Deadline]:
+    """Piani periodici del vecchio registro non ancora convertiti in regole (``is_legacy=False``).
+
+    Una sola fonte per il cruscotto asset (KPI «Piani scaduti / in scadenza») e per lo
+    Scadenzario aperto da quelle tessere (``plan_type=piani``). ``visibili`` = id degli asset
+    dell'ambito del ruolo (``None`` = tutti)."""
+    from ..models import PeriodicVerification
+
+    qs = PeriodicVerification.objects.filter(
+        is_active=True, is_legacy=False, next_verification_date__isnull=False,
+    )
+    if start:
+        qs = qs.filter(next_verification_date__gte=start)
+    if end:
+        qs = qs.filter(next_verification_date__lte=end)
+    if visibili is not None:
+        qs = qs.filter(pk__in=PeriodicVerification.objects.filter(assets__in=visibili).values("pk"))
+    url = reverse("assets:periodic_verifications")
+    return [
+        Deadline(
+            key=f"pv-{pv.id}",
+            kind=KIND_CHECK,
+            title=pv.name,
+            due_date=pv.next_verification_date,
+            state=_simple_state(pv.next_verification_date, today, DEFAULT_WARNING_DAYS),
+            target_label="Piano periodico da convertire",
+            detail_url=url,
+            actions=[{"label": "Gestisci", "url": url}],
+        )
+        for pv in qs.order_by("next_verification_date", "id")[:200]
+    ]
+
+
 @dataclass(frozen=True)
 class AdministrativeDue:
     """Una scadenza amministrativa aperta: la scadenza vera e propria, oppure

@@ -228,7 +228,9 @@ def revisione(request):
     bozze = (Termine.objects.filter(stato=Termine.BOZZA)
              .prefetch_related("varianti").order_by("categoria", "termine"))
     etichette = dict(Termine.CATEGORIE)
-    proposte = list(services.proposte_in_attesa().order_by("-created_at")[:200])
+    in_attesa = services.proposte_in_attesa()
+    proposte_totale = in_attesa.count()
+    proposte = list(in_attesa.order_by("-created_at")[:200])
     for p in proposte:
         p.categoria_label = etichette.get((p.proposta or {}).get("categoria", ""), "")
     comuni = services.varianti_comuni_salvate()
@@ -239,6 +241,7 @@ def revisione(request):
         "page_title": "Glossario — revisione",
         "bozze": bozze,
         "proposte": proposte,
+        "proposte_totale": proposte_totale,
         "comuni": comuni,
         "soglia_comune": round(services.SOGLIA_PAROLA_COMUNE * 100),
     })

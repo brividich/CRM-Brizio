@@ -28,7 +28,7 @@
     <form method="post" class="rc-form" style="margin-top:12px">
       {% csrf_token %}
       <input type="hidden" name="pk" value="{{ d.pk }}">
-      <div class="rc-field"><label for="r-e{{ d.pk }}">Chi avvisare quando entra con «Vengo qui spesso»</label><input class="rc-input" id="r-e{{ d.pk }}" name="referente_email" type="email" maxlength="255" value="{{ d.referente_email }}" list="r-email-elenco" placeholder="{% if referente_predefinito %}{{ referente_predefinito }} (da Impostazioni){% else %}Email{% endif %}"></div>
+      <div class="rc-field"><label for="r-e{{ d.pk }}">Chi avvisare quando entra con «Sono già stato qui»</label><input class="rc-input" id="r-e{{ d.pk }}" name="referente_email" type="email" maxlength="255" value="{{ d.referente_email }}" list="r-email-elenco" placeholder="{% if referente_predefinito %}{{ referente_predefinito }} (da Impostazioni){% else %}Email{% endif %}"></div>
       <div class="rc-field"><button class="rc-btn rc-btn-g" name="azione" value="referente">Salva</button></div>
     </form>
     <form method="post" class="rc-form" style="margin-top:12px">

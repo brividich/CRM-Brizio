@@ -11,7 +11,7 @@
   {% include "admin_portale/components/page_header.html" with page_title=job.name page_subtitle=job.code page_secondary_action_label="Torna al monitor" page_secondary_action_url=monitoring_automation_list_url %}
 
   <div class="monitoring-kpis">
-    <div class="monitoring-kpi">
+    <a class="monitoring-kpi kpi-link" href="#esecuzioni" title="Vai allo storico delle ultime esecuzioni">
       <div class="monitoring-kpi-label">Ultimo stato</div>
       <div class="monitoring-kpi-value" style="font-size:20px;">
         {% if job_row.last_execution %}
@@ -20,11 +20,11 @@
           <span class="monitoring-pill status-new">n/d</span>
         {% endif %}
       </div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="#esecuzioni" title="Vai allo storico delle esecuzioni: i fallimenti consecutivi sono le ultime righe FAILED">
       <div class="monitoring-kpi-label">Fallimenti consecutivi</div>
       <div class="monitoring-kpi-value">{{ job_row.consecutive_failures }}</div>
-    </div>
+    </a>
     <div class="monitoring-kpi">
       <div class="monitoring-kpi-label">Missing / delayed</div>
       <div class="monitoring-kpi-value" style="font-size:20px;">
@@ -54,7 +54,7 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><div class="card-title">Storico ultime esecuzioni</div></div>
+        <div class="card-head" id="esecuzioni"><div class="card-title">Storico ultime esecuzioni</div></div>
         <div class="card-body" style="padding:0;">
           <div class="table-wrap">
             <table class="admin-table">

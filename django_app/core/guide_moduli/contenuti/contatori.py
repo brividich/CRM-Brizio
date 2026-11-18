@@ -134,6 +134,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«Licenze degli apparati» apriva un elenco più lungo del numero",
+            "perche": "l'elenco licenze ora si apre con «Solo licenze degli asset collegati ad apparati attivi», la stessa regola del numero.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+                "Stampanti e archivio fatture si possono filtrare per fornitore: arrivandoci dalla scheda del fornitore il filtro è già messo.",
+            ],
+        },
+        {
             "sintomo": "Un calo di lettura resta sempre in «Da fare»",
             "perche": "un contatore più basso della lettura prima può essere un refuso o un azzeramento vero.",
             "fare": [

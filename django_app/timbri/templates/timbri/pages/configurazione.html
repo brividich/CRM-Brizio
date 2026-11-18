@@ -44,10 +44,11 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
     {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Permessi copia/download, operazioni di manutenzione e log audit del modulo timbri." %}
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Stato del modulo" style="margin-top:16px;">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=local_stats.linked_anagrafica label="Collegati anagrafica" sub="operatori agganciati" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-clipboard" valore=local_stats.registri label="Registri totali" sub="timbri, firme e sigle" %}
+      {% url 'timbri:index' as u_tim_index %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=local_stats.linked_anagrafica label="Collegati anagrafica" sub="operatori agganciati" url=u_tim_index title="Apri il registro timbri: dipendenti dell'anagrafica e loro record" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-clipboard" valore=local_stats.registri label="Registri totali" sub="timbri, firme e sigle" url=u_tim_index|add:"?stato=con" title="Apri il registro filtrato: dipendenti con almeno un record" %}
       {% if local_stats.orphan_operatori %}
-        {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-cir" valore=local_stats.orphan_operatori label="Operatori orfani" sub="senza anagrafica" %}
+        {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-cir" valore=local_stats.orphan_operatori label="Operatori orfani" sub="senza anagrafica" url="#tim-orfani" title="Vai alla bonifica degli operatori senza anagrafica" %}
       {% else %}
         {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=0 label="Operatori orfani" sub="nessuno" %}
       {% endif %}
@@ -68,7 +69,7 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
     {% endif %}
 
     {% if local_stats.orphan_operatori %}
-      <div class="fmd-alert">
+      <div class="fmd-alert" id="tim-orfani">
         <span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
         <div class="fmd-alert-body">
           <div class="fmd-alert-t">Operatori senza collegamento</div>

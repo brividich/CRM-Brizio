@@ -7,15 +7,15 @@
     {% if puo_modificare %}<div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:esterni_audit_nuovo' %}">Nuovo audit esterno</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_certificazione_nuova' %}">Nuova certificazione</a></div>{% endif %}</div>
 
   <div class="sg-kpis">
-    <div class="sg-kpi"><span>Certificati in vigore</span><strong>{{ n_in_vigore }}</strong></div>
-    <div class="sg-kpi{% if scadenze.certificati %} is-warn{% endif %}"><span>Scaduti o in scadenza (90 giorni)</span><strong>{{ scadenze.certificati|length }}</strong></div>
-    <div class="sg-kpi{% if scadenze.sorveglianze %} is-warn{% endif %}"><span>Sorveglianze entro 30 giorni</span><strong>{{ scadenze.sorveglianze|length }}</strong></div>
-    <div class="sg-kpi{% if scadenze.risposte %} is-warn{% endif %}"><span>Piani azioni da inviare (7 giorni)</span><strong>{{ scadenze.risposte|length }}</strong></div>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:esterni_elenco' %}?filtro=in_vigore#sg-certificazioni" title="Apri l'elenco filtrato: certificati attivi e non scaduti"><span>Certificati in vigore</span><strong>{{ n_in_vigore }}</strong></a>
+    <a class="sg-kpi{% if scadenze.certificati %} is-warn{% endif %} kpi-link" href="{% url 'sistema_gestione:esterni_elenco' %}?filtro=scadenza#sg-certificazioni" title="Apri l'elenco filtrato: certificati scaduti o in scadenza"><span>Scaduti o in scadenza (90 giorni)</span><strong>{{ scadenze.certificati|length }}</strong></a>
+    <a class="sg-kpi{% if scadenze.sorveglianze %} is-warn{% endif %} kpi-link" href="{% url 'sistema_gestione:esterni_elenco' %}?filtro=sorveglianza#sg-certificazioni" title="Apri l'elenco filtrato: sorveglianze entro 30 giorni"><span>Sorveglianze entro 30 giorni</span><strong>{{ scadenze.sorveglianze|length }}</strong></a>
+    {% if scadenze.risposte %}<a class="sg-kpi is-warn kpi-link" href="#sg-risposte" title="Vai all'elenco dei piani azioni da inviare"><span>Piani azioni da inviare (7 giorni)</span><strong>{{ scadenze.risposte|length }}</strong></a>{% else %}<div class="sg-kpi"><span>Piani azioni da inviare (7 giorni)</span><strong>0</strong></div>{% endif %}
   </div>
 
-  {% if scadenze.risposte %}<div class="sg-alert warn">{% for a in scadenze.risposte %}Piano azioni per <a href="{% url 'sistema_gestione:esterni_audit' a.pk %}">{{ a }}</a> da inviare entro il {{ a.risposta_entro|date:"d/m/Y" }}.{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+  {% if scadenze.risposte %}<div class="sg-alert warn" id="sg-risposte">{% for a in scadenze.risposte %}Piano azioni per <a href="{% url 'sistema_gestione:esterni_audit' a.pk %}">{{ a }}</a> da inviare entro il {{ a.risposta_entro|date:"d/m/Y" }}.{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
 
-  <section class="rc-card sg-section"><h2>Certificazioni</h2>
+  <section class="rc-card sg-section" id="sg-certificazioni"><h2>Certificazioni{% if filtro %} <span class="sg-muted">· {% if filtro == "in_vigore" %}solo in vigore{% elif filtro == "scadenza" %}solo scaduti o in scadenza{% else %}solo con sorveglianza entro 30 giorni{% endif %} ({{ certificazioni|length }} su {{ n_certificazioni }}) <a href="{% url 'sistema_gestione:esterni_elenco' %}#sg-certificazioni">Mostra tutte</a></span>{% endif %}</h2>
   <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Norma</th><th>Ente</th><th>Numero</th><th>Emesso</th><th>Scadenza</th><th>Prossima sorveglianza</th><th>Stato</th><th></th></tr></thead><tbody>
     {% for c in certificazioni %}<tr>
       <td><a href="{% url 'sistema_gestione:esterni_certificazione_scheda' c.pk %}">{{ c.nome_breve }}</a>{% if not c.documento_corrente %} <span class="sg-badge warn">Senza PDF</span>{% endif %}</td>

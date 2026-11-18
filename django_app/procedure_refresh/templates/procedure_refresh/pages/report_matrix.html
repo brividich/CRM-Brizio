@@ -92,25 +92,25 @@ body.theme-dark .pr-pct-bar{background:var(--surface-alt,#0f1b2d)}
 
   {% if matrix %}
   <div class="pr-kpi-row">
-    <div class="pr-kpi">
+    <a class="pr-kpi kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ selected_camp.pk }}&amp;stato=richieste#pr-report-elenco" title="Apri il report della sessione filtrato: letture richieste (annullate escluse)">
       <div class="pr-kpi-val">{{ matrix.total }}</div>
       <div class="pr-kpi-lbl">Letture richieste</div>
-    </div>
-    <div class="pr-kpi pr-kpi-green">
+    </a>
+    <a class="pr-kpi pr-kpi-green kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ selected_camp.pk }}&amp;stato=richieste_confermate#pr-report-elenco" title="Apri il report della sessione filtrato: letture confermate">
       <div class="pr-kpi-val">{{ matrix.confirmed }}</div>
       <div class="pr-kpi-lbl">Confermate</div>
-    </div>
-    <div class="pr-kpi pr-kpi-orange">
+    </a>
+    <a class="pr-kpi pr-kpi-orange kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ selected_camp.pk }}&amp;stato=da_confermare#pr-report-elenco" title="Apri il report della sessione filtrato: letture da confermare, scadute comprese">
       <div class="pr-kpi-val">{{ matrix.pending }}</div>
-      <div class="pr-kpi-lbl">In attesa</div>
-    </div>
-    <div class="pr-kpi pr-kpi-green">
+      <div class="pr-kpi-lbl">Da confermare</div>
+    </a>
+    <a class="pr-kpi pr-kpi-green kpi-link" href="#pr-matrice" title="Vai alla matrice documento per reparto da cui è calcolata la percentuale">
       <div class="pr-kpi-val">{{ matrix.percent }}%</div>
       <div class="pr-kpi-lbl">Completamento</div>
-    </div>
+    </a>
   </div>
 
-  <div class="pr-table-wrap">
+  <div class="pr-table-wrap" id="pr-matrice">
     {% if matrix.rows and matrix.departments %}
     <table class="pr-table">
       <thead>

@@ -601,7 +601,7 @@ def elearning_cruscotto(request):
     corso_id = int(request.GET["corso"]) if (request.GET.get("corso") or "").isdigit() else None
     cop = report.copertura(reparto=reparto, corso_id=corso_id)
     ctx = {
-        "page_title": "Cruscotto e-learning", "copertura": cop, "andamento": report.andamento(),
+        "page_title": "Cruscotto e-learning", "copertura": cop, "andamento": report.andamento(corso_id=corso_id),
         "domande": report.domande_piu_sbagliate(), "reparto": reparto, "corso_id": corso_id,
         "corsi_opts": fruizione.corsi_pubblicati().order_by("titolo"),
         "persone": cop["persone"][:200] if reparto or corso_id else [],

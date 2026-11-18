@@ -1864,11 +1864,10 @@ def licenze_asset_apparati():
     Ritorna ``scadute``/``in_scadenza`` (numero di licenze attive degli asset collegati). Gli apparati
     senza asset sono in ``integrazione.quadro_integrazione``. Query a numero fisso.
     """
-    from assets.services.software_licenze import expiring_for_assets
+    from assets.services.software_licenze import device_asset_ids, expiring_for_assets
 
-    ids = set(Macchina.objects.filter(attiva=True, asset__isnull=False).values_list("asset_id", flat=True))
-    ids |= set(DispositivoSNMP.objects.filter(attivo=True, asset__isnull=False).values_list("asset_id", flat=True))
-    conteggi = expiring_for_assets(ids)
+    # Stesso insieme di asset del filtro ``?apparati=1`` dell'elenco licenze (tessera cliccabile).
+    conteggi = expiring_for_assets(device_asset_ids(solo_attivi=True))
     return {
         "scadute": sum(s for s, _ in conteggi.values()),
         "in_scadenza": sum(i for _, i in conteggi.values()),
@@ -2128,18 +2127,26 @@ def trimestri_fatturati_contratto(contratto):
             .values("fattura__trimestre").distinct().count())
 
 
-def archivio_fatture():
+def archivio_fatture(fornitori=None):
     """Fatture per trimestre, con l'esito della riconciliazione e i trimestri scoperti.
+
+    Con ``fornitori`` (codici) restano le fatture di quei fornitori e, per i trimestri
+    scoperti, le letture delle loro macchine: lo stesso insieme della scheda fornitore.
 
     [{trimestre, fatture: [Fattura], righe, riepilogo, letture}] dal piu' recente.
     Un trimestre con letture interne ma senza fattura compare con `fatture` vuoto
     (dal primo trimestre fatturato in poi: prima non c'era il confronto).
     """
     fatture = defaultdict(list)
-    for f in Fattura.objects.prefetch_related("righe").order_by("-trimestre", "-periodo_al", "numero"):
+    fatture_qs = Fattura.objects.prefetch_related("righe")
+    letture_qs = LetturaContatori.objects.all()
+    if fornitori:
+        fatture_qs = fatture_qs.filter(fornitore__in=fornitori)
+        letture_qs = letture_qs.filter(macchina__fornitore__in=fornitori)
+    for f in fatture_qs.order_by("-trimestre", "-periodo_al", "numero"):
         fatture[f.trimestre].append(f)
     # .order_by() vuoto: con l'ordering del Meta SQL Server rifiuta il GROUP BY (errore 8127).
-    letture = dict(LetturaContatori.objects.order_by().values("trimestre").annotate(n=Count("id"))
+    letture = dict(letture_qs.order_by().values("trimestre").annotate(n=Count("id"))
                    .values_list("trimestre", "n"))
     primo = min(fatture, default=None)
     trimestri = set(fatture) | {t for t in letture if primo and t >= primo}

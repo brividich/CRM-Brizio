@@ -66,7 +66,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <div class="hr-metric-grid" style="margin-bottom:20px;">
-    <div class="hr-metric">
+    <a class="hr-metric kpi-link" href="#lezione-registro" title="Vai al registro presenze della lezione: una riga per partecipante">
       <div class="hr-metric-ico blue">👥</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -75,8 +75,8 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         </div>
         <div class="hr-metric-sub">Iscritti alla sessione</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="#lezione-registro" title="Vai al registro presenze: le righe con una presenza registrata sono questo numero">
       <div class="hr-metric-ico green">✅</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -85,8 +85,8 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         </div>
         <div class="hr-metric-sub">Con presenza registrata</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}#sessione-lezioni" title="Apri le lezioni della sessione, dove si gestiscono orari e durata">
       <div class="hr-metric-ico amber">⏱</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -95,8 +95,8 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         </div>
         <div class="hr-metric-sub">{{ lezione.ora_inizio|time:"H:i" }} – {{ lezione.ora_fine|time:"H:i" }}</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}#sessione-lezioni" title="Apri le lezioni della sessione, dove si gestisce la data">
       <div class="hr-metric-ico navy">📅</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -105,7 +105,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         </div>
         <div class="hr-metric-sub">{{ sessione.codice_sessione }}</div>
       </div>
-    </div>
+    </a>
   </div>
 
   {# ── Lettura della scansione del foglio con QR ───────────────────────────── #}
@@ -187,7 +187,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
   {% endif %}
 
   {# ── Tabella presenze ────────────────────────────────────────────────────── #}
-  <div class="hr-card">
+  <div class="hr-card" id="lezione-registro">
     <div class="hr-card-head">
       <div class="hr-card-title">📋 Registro presenze</div>
       {% if is_editor %}

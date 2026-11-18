@@ -41,11 +41,12 @@
     {# ── Ricerca della sezione ── #}
     {% include "anagrafica/components/_fmd_ricerca.html" with ambito="report" placeholder="Cerca modelli di report e documenti in archivio…" %}
 
+    {% url 'anagrafica:reportistica_index' as u_rep %}
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Report in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-clipboard" valore=kpi.modelli label="Modelli" sub="pronti da generare" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-doc" valore=kpi.archivio label="In archivio" sub="documenti consegnati" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-cal-clock" valore=kpi.ultimi_30 label="Ultimi 30 giorni" sub="report generati" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-shield" valore=kpi.dati_personali label="Con dati personali" sub="da trattare come riservati" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-clipboard" valore=kpi.modelli label="Modelli" sub="pronti da generare" url=u_rep|add:"#fmd-modelli" title="Vai alle schede dei modelli attivi" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-doc" valore=kpi.archivio label="In archivio" sub="documenti consegnati" url=u_rep|add:"#archivio" title="Apri l'archivio dei documenti generati" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-cal-clock" valore=kpi.ultimi_30 label="Ultimi 30 giorni" sub="report generati" url=u_rep|add:"?filtro=30g#archivio" title="Apri l'archivio filtrato: generati negli ultimi 30 giorni" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-shield" valore=kpi.dati_personali label="Con dati personali" sub="da trattare come riservati" url=u_rep|add:"?filtro=dati_personali#archivio" title="Apri l'archivio filtrato: documenti con dati personali" %}
     </section>
 
     {# ── Stile C: una scheda per modello ───────────────────────────────── #}
@@ -59,12 +60,14 @@
     {% endif %}
 
     <div class="fmd-low">
-    <section class="fmd-panel fmd-block fmd-low-main">
+    <section class="fmd-panel fmd-block fmd-low-main" id="archivio">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Archivio dei documenti generati</div>
-        <span class="fmd-block-aside">ultimi 60 · chi, quando, per chi</span>
+        <span class="fmd-block-aside">{% if n_archivio > archivio|length %}i più recenti {{ archivio|length }} di {{ n_archivio }}{% else %}{{ n_archivio }} document{{ n_archivio|pluralize:"o,i" }}{% endif %} · chi, quando, per chi</span>
       </div>
+      {% if filtro %}<p class="fmd-muted" style="margin:0 0 8px;font-size:13px;">Solo: <strong>{{ filtro_label }}</strong> · <a class="fmd-data-link" href="{{ u_rep }}#archivio">mostra tutto</a></p>{% endif %}
       <form method="get" class="fmd-filterbar" style="margin-bottom:10px;">
+        {% if filtro %}<input type="hidden" name="filtro" value="{{ filtro }}">{% endif %}
         <div class="fmd-filtf">
           <label for="rp-q">Cerca</label>
           <input type="text" id="rp-q" name="q" value="{{ q }}" placeholder="Titolo, destinatario, modello…">

@@ -24,12 +24,14 @@
   </nav>
 
   {% if scheda == "catalogo" %}
+    {% url 'admin_portale:centro_report' as rc_url %}
     <div class="rc-kpis">
-      <div class="rc-kpi"><strong>{{ totale_voci }}</strong><span>report a catalogo</span></div>
-      <div class="rc-kpi"><strong>{{ totale_moduli }}</strong><span>moduli</span></div>
-      <div class="rc-kpi"><strong>{{ totale_personali }}</strong><span>con dati personali</span></div>
-      <div class="rc-kpi"><strong>{{ da_catalogare|length }}</strong><span>route da catalogare</span></div>
+      <a class="rc-kpi kpi-link" href="{{ rc_url }}?tab=catalogo#rc-catalogo" title="Apri il catalogo completo dei report"><strong>{{ totale_voci }}</strong><span>report a catalogo</span></a>
+      <a class="rc-kpi kpi-link" href="{{ rc_url }}?tab=catalogo#rc-catalogo" title="Apri il catalogo diviso per modulo"><strong>{{ totale_moduli }}</strong><span>moduli</span></a>
+      <a class="rc-kpi kpi-link" href="{{ rc_url }}?tab=catalogo&amp;personali=1#rc-catalogo" title="Apri il catalogo filtrato: report con dati personali"><strong>{{ totale_personali }}</strong><span>con dati personali</span></a>
+      <a class="rc-kpi kpi-link" href="{{ rc_url }}?tab=catalogo#da-catalogare" title="Vai all'elenco delle route da catalogare"><strong>{{ da_catalogare_totale }}</strong><span>route da catalogare</span></a>
     </div>
+    {% if solo_personali %}<p class="rc-muted" style="margin:8px 0 0;">Filtro: solo report con dati personali ({{ totale_personali }}) · <a href="{{ rc_url }}?tab=catalogo">mostra tutto il catalogo</a></p>{% endif %}
 
     <div class="card rc-cerca-box">
       <div class="card-body">
@@ -130,9 +132,9 @@
       })();
     </script>
 
-    <section class="card rc-modulo">
+    <section class="card rc-modulo" id="da-catalogare">
       <div class="card-head">
-        <div class="card-title">Route da catalogare</div>
+        <div class="card-title">Route da catalogare{% if da_catalogare_totale > da_catalogare|length %} <span class="rc-muted">(le {{ da_catalogare|length }} più recenti su {{ da_catalogare_totale }})</span>{% endif %}</div>
         <span class="rc-muted">File generati da route che il catalogo non conosce ancora</span>
       </div>
       <div class="card-body">

@@ -35,3 +35,8 @@ Workspace personale dell'utente autenticato. Widget multi-modulo con layout salv
 - **Shell viewport-aware** a tutta altezza, no bande vuote in fondo al viewport
 - Route legacy `/scheda-dipendente` mantenuto come alias compat
 - **Scadenzario nei calendari** (19/10/2026, `dashboard/scadenze_calendario.py`): «⬇ Calendario (.ics)» su `/scadenze` (`?format=ics`, stesse righe filtrate del CSV, eventi di un giorno con promemoria il giorno prima alle 9, UID stabile). Calendario Outlook personale «Scadenze NOVICROM HUB»: scelta in Impostazioni notifiche (`NotificaCanali.outlook_scadenze`), schedule `scadenze_outlook_sync` ogni giorno 06:30, voci di `voci_per_utente` a 90 giorni; eventi creati/aggiornati/tolti con la mappa `core.ScadenzaOutlook` (chiave senza data, impronta); evento cancellato dalla persona in Outlook = non ricreato finché la data non cambia; opzione spenta = calendario svuotato. Graph `Calendars.ReadWrite` (applicazione). Migrazione `core 0089`.
+
+## KPI cliccabili (18/11/2026)
+
+- Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
+- Home: ogni KPI dei moduli ha `url` quando esiste un elenco con lo stesso insieme e lo stesso ambito (`_tile_kpi_counts`); anteprima HUB `_hub_kpi_cards` con `url`. Corretta la lettura di `SiteConfig` (`chiave`/`valore`): personalizzazioni KPI e branding ora si applicano. Etichette: «Ticket attivi», Diario «ultimi 7 giorni · ultimi 30 giorni», «letture in attesa · scadute», «record attivi», «in scadenza 60gg», «eseguiti nelle 24 ore».

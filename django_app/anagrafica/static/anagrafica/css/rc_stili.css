@@ -23,6 +23,9 @@
 .rc-kpi-n { font-size:24px; font-weight:800; color:#0f172a; }
 .rc-kpi-l { font-size:12px; color:#64748b; }
 .rc-kpi-warn .rc-kpi-n { color:#b45309; }
+a.rc-kpi:hover { border-color:#cbd5e1; }
+.rc-filtro { margin:4px 0 10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; font-size:13px; color:#334155; }
+body.theme-dark .rc-filtro { background:var(--surface); border-color:var(--border); color:var(--text); }
 
 .rc-panel { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
 .rc-panel-warn { border-color:#fcd34d; background:#fffbeb; }

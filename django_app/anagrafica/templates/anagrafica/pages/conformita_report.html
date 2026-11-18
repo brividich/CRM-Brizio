@@ -70,10 +70,10 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
 
   <!-- KPI -->
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Conformità in sintesi">
-    {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-tri" valore=n_ko label="Non conformi" sub="almeno un adempimento scaduto o mancante" url="?esito=ko" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=n_warn label="In scadenza" sub="da rinnovare a breve" url="?esito=warn" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_ok label="In regola" sub="tutti gli adempimenti validi" url="?esito=ok" %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-grid" valore=n_na label="Senza requisiti" sub="nessun obbligo applicabile" url="?esito=na" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-tri" valore=n_ko label="Non conformi" sub="almeno un adempimento scaduto o mancante" url=kpi_links.ko title="Apri l'elenco filtrato: persone non conformi" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=n_warn label="In scadenza" sub="da rinnovare a breve" url=kpi_links.warn title="Apri l'elenco filtrato: persone con adempimenti in scadenza" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_ok label="In regola" sub="tutti gli adempimenti validi" url=kpi_links.ok title="Apri l'elenco filtrato: persone in regola" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-grid" valore=n_na label="Senza requisiti" sub="nessun obbligo applicabile" url=kpi_links.na title="Apri l'elenco filtrato: persone senza requisiti" %}
   </section>
 
   <!-- Filtri -->

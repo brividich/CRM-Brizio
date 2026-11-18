@@ -139,6 +139,9 @@ def leggi_filtri(request, giorni_default: int = 7) -> dict:
         "utente": (get.get("legacy_user_id") or "").strip(),
         "modulo": (get.get("modulo") or "").strip(),
         "q": (get.get("q") or get.get("azione") or "").strip(),
+        # Azione esatta (tessere «Accessi» / «Accessi non riusciti»): la ricerca ``q``
+        # e' un «contiene» su piu' campi e non riproduce il conteggio azione == X.
+        "evento": (get.get("evento") or "").strip(),
     }
 
 
@@ -164,6 +167,8 @@ def queryset_finestra(filtri: dict):
         qs = qs.filter(legacy_user_id=int(filtri["utente"]))
     if filtri["modulo"]:
         qs = qs.filter(modulo=filtri["modulo"])
+    if filtri.get("evento"):
+        qs = qs.filter(azione=filtri["evento"])
     if filtri["q"]:
         q = filtri["q"]
         qs = qs.filter(
@@ -272,6 +277,8 @@ def pagina(request, vista: str):
         query.pop(chiave, None)
     senza_chi = query.copy()
     senza_chi.pop("chi", None)
+    senza_chi_evento = senza_chi.copy()
+    senza_chi_evento.pop("evento", None)
     senza_periodo = query.copy()
     for chiave in ("giorni", "days", "data"):
         senza_periodo.pop(chiave, None)
@@ -302,6 +309,7 @@ def pagina(request, vista: str):
         "moduli_disponibili": AuditLog.objects.order_by().values_list("modulo", flat=True).distinct().order_by("modulo"),
         "query": query.urlencode(),
         "query_senza_chi": senza_chi.urlencode(),
+        "query_senza_chi_evento": senza_chi_evento.urlencode(),
         "query_senza_periodo": senza_periodo.urlencode(),
     })
 

@@ -484,6 +484,8 @@ def mansioni_list(request):
     if filtro_rischio not in dict(Mansione.LIVELLO_RISCHIO_CHOICES):
         filtro_rischio = ""
     solo_rischio = request.GET.get("solo_rischio") == "1"
+    # Solo il catalogo attivo: stesso insieme del KPI «Mansioni» della dashboard HR.
+    solo_attive = request.GET.get("solo_attive") == "1"
     q_text = (request.GET.get("q") or "").strip()
 
     mansioni = list(
@@ -540,9 +542,11 @@ def mansioni_list(request):
             return False
         if solo_rischio and not m.is_rischio:
             return False
+        if solo_attive and not m.is_active:
+            return False
         return True
 
-    if filtro_rischio or solo_rischio or q_text:
+    if filtro_rischio or solo_rischio or solo_attive or q_text:
         mansioni = [m for m in mansioni if _match(m)]
 
     # Raggruppa per categoria nell'ordine definito
@@ -574,6 +578,7 @@ def mansioni_list(request):
         "LIVELLO_RISCHIO_CHOICES": Mansione.LIVELLO_RISCHIO_CHOICES,
         "filtro_rischio": filtro_rischio,
         "solo_rischio": solo_rischio,
+        "solo_attive": solo_attive,
         "q_text": q_text,
         "n_rischio_tot": n_rischio_tot,
         "n_visibili": len(mansioni),
@@ -1165,7 +1170,13 @@ def organigramma(request):
     ensure_anagrafica_schema()
     filtro_reparto = (request.GET.get("reparto") or "").strip()
 
-    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    # Senza gli ex dipendenti (rapporto cessato): prima comparivano come membri
+    # dei reparti e nel KPI «Dipendenti attivi · in forza».
+    cessati_ids = _helpers._cessati_legacy_ids()
+    dip_rows = [
+        r for r in fetch_anagrafica_rows(deduplicate=True)
+        if r.get("attivo") and int(r.get("id") or 0) not in cessati_ids
+    ]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
 
     reparti = list(
@@ -1231,7 +1242,10 @@ def organigramma(request):
         blocchi = [b for b in blocchi if b["reparto"].nome.casefold() == filtro_reparto.casefold()]
 
     non_mappati.sort(key=_sort_key)
-    n_dipendenti = len(dip_rows)
+    # KPI «Dipendenti attivi»: stesso numero del KPI «Attivi» dell'elenco a cui
+    # porta (?stato=attivi), con la stessa funzione e lo stesso ambito del ruolo.
+    from .dipendenti import build_dipendenti_rows, riepilogo_stati_dipendenti
+    n_dipendenti = riepilogo_stati_dipendenti(build_dipendenti_rows(request, apply_filters=False))["attivi"]
 
     return render(request, "anagrafica/pages/organigramma.html", {
         "is_anagrafica_admin": _helpers._is_anagrafica_admin(request),

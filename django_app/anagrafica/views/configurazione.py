@@ -469,22 +469,41 @@ def scadenzario(request):
     # Periodo: «questo mese», «prossimo mese» o un intervallo dal/al libero.
     filtro_periodo, periodo_dal, periodo_al, periodo = _scadenzario_periodo(request, oggi)
 
-    voci = _helpers._build_scadenzario_voci(
+    # Le voci si raccolgono senza stato (finestra «scadute + entro 60 giorni», o il
+    # periodo scelto) e lo stato si applica qui: le tessere contano sulla stessa
+    # base con la stessa regola, quindi il numero è quello della lista che aprono.
+    voci_base = _helpers._build_scadenzario_voci(
         request,
         filtro_tipo=filtro_tipo,
-        filtro_stato=filtro_stato,
+        filtro_stato="",
         filtro_reparto=filtro_reparto,
         periodo=periodo,
     )
     from ..services import centro_filtro
 
     filtro_centro = centro_filtro.leggi(request)
-    voci = [v for v in voci if filtro_centro.contiene(v.get("legacy_id"))]
+    voci_base = [v for v in voci_base if filtro_centro.contiene(v.get("legacy_id"))]
 
-    # KPI
-    n_scadute = sum(1 for v in voci if v["scaduta"])
-    n_30gg    = sum(1 for v in voci if not v["scaduta"] and v["giorni"] <= 30)
-    n_60gg    = sum(1 for v in voci if not v["scaduta"] and 30 < v["giorni"] <= 60)
+    def _nello_stato(v, stato: str) -> bool:
+        if stato == "scaduta":
+            return v["scaduta"]
+        if stato in ("30", "60"):
+            return not v["scaduta"] and v["giorni"] <= int(stato)
+        return True
+
+    if filtro_stato not in ("scaduta", "30", "60"):
+        filtro_stato = ""
+    voci = [v for v in voci_base if _nello_stato(v, filtro_stato)] if filtro_stato else voci_base
+
+    # KPI: «entro 60 giorni» comprende i 30 (stessa regola di ?stato=60).
+    n_scadute = sum(1 for v in voci_base if _nello_stato(v, "scaduta"))
+    n_30gg    = sum(1 for v in voci_base if _nello_stato(v, "30"))
+    n_60gg    = sum(1 for v in voci_base if _nello_stato(v, "60"))
+    # Filtri correnti da conservare nei link delle tessere (stato e pagina esclusi).
+    from urllib.parse import urlencode
+
+    kpi_qs_base = urlencode([(k, val) for k, valori in request.GET.lists()
+                             if k not in ("stato", "page", "format") for val in valori])
 
     # Raggruppamento per TIPO (con espansione dei dipendenti): un gruppo per
     # (kind, tipo_nome), ordinato con i più urgenti (scaduti / meno giorni) in alto.
@@ -603,6 +622,7 @@ def scadenzario(request):
         "n_scadute":     n_scadute,
         "n_30gg":        n_30gg,
         "n_60gg":        n_60gg,
+        "kpi_qs_base":   kpi_qs_base,
         "oggi":          oggi,
         "filtro_tipo":   filtro_tipo,
         "filtro_stato":  filtro_stato,

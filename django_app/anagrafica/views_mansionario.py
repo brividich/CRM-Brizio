@@ -85,6 +85,16 @@ def _ids(request, nome) -> list[int]:
 LEGENDA_LIVELLI = [("ok", "autonomo o esperto"), ("s90", "intermedio"), ("mai", "in formazione")]
 
 
+# Caselle delle persone sulla scheda mansione (una sola per persona): chiave → etichetta del filtro.
+STATI_PERSONA_MANSIONE = {
+    "abilitato": "Abilitati",
+    "in_addestramento": "In addestramento",
+    "non_abilitato": "Non abilitati",
+    "da_valutare": "Da valutare sulle competenze",
+    "sospesa": "Sospese",
+}
+
+
 def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
     """Una scheda per mansione: barra per livello I/L/U/O, operativi in evidenza.
 
@@ -144,6 +154,8 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
         flag.append("concentrato")
     if r.get("fuori_forza"):
         flag.append("fuori-forza")
+    if r.get("da_guardare"):
+        flag.append("da-guardare")
     s = sezioni_c.scheda(
         titolo=r["nome"],
         href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
@@ -382,14 +394,28 @@ def mansionario_mansione(request, mansione_id: int):
     for p in persone:
         p["corsi_mancanti"] = [r["corso"] for r in formazione["corsi_mansione"]
                                if r["regola"] and r["obbligatorio"] and p["legacy_id"] in r["mancanti"]]
+    n_persone = len(persone)
+    n_fuori_forza = sum(1 for p in persone if p["fuori_forza"])
+    # KPI della testata → ?stato=<chiave>#persone: stessa casella di ``conta``
+    # (o ``fuori_forza``), filtrata solo a video dopo i calcoli sull'intera lista.
+    filtro_stato = request.GET.get("stato") or ""
+    if filtro_stato == "fuori_forza":
+        persone = [p for p in persone if p["fuori_forza"]]
+    elif filtro_stato in STATI_PERSONA_MANSIONE:
+        persone = [p for p in persone if p["stato"] == filtro_stato]
+    else:
+        filtro_stato = ""
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
         "competenze": competenze,
         "persone": persone,
+        "n_persone": n_persone,
+        "filtro_stato": filtro_stato,
+        "filtro_stato_label": ({**STATI_PERSONA_MANSIONE, "fuori_forza": "Non più in forza"}).get(filtro_stato, ""),
         "stato": stato,
         "carico_mansione": carico_mansione,
-        "n_fuori_forza": sum(1 for p in persone if p["fuori_forza"]),
+        "n_fuori_forza": n_fuori_forza,
         "candidati": candidati,
         **(_opzioni_requisiti() if is_admin else {}),
         "livelli": svc.LIVELLI,
@@ -400,7 +426,7 @@ def mansionario_mansione(request, mansione_id: int):
         "sel_ruoli": {r.pk for r in mansione.ruoli.all()},
         "sel_rischi": {m.pk for m in mansione.mansioni_rischio.all()},
         "nomi_precedenti": svc.nomi_precedenti(mansione),
-        "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=len(persone)),
+        "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=n_persone),
         "regole": svc.regole_correnti(),
         "catalogo_nomi": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome")
                               .values_list("nome", flat=True)) if is_admin else [],
@@ -1012,7 +1038,16 @@ def mansionario_competenza(request, catalogo_id: int):
 
     cat = get_object_or_404(CompetenzaCatalogo, pk=catalogo_id)
     dati = cat_svc.scheda(cat)
+    # KPI «la sanno fare / sotto il minimo / da valutare / senza requisito» →
+    # ?stato=<chiave>#persone: stessa regola di ``conta`` (stato e non sospesa).
+    filtro_stato = request.GET.get("stato") or ""
+    if filtro_stato in cat_svc.STATI_SCHEDA:
+        dati["persone"] = [p for p in dati["persone"] if p["stato"] == filtro_stato and not p["sospesa"]]
+    else:
+        filtro_stato = ""
     return render(request, "anagrafica/pages/mansionario_competenza.html", {
+        "filtro_stato": filtro_stato,
+        "filtro_stato_label": cat_svc.STATI_SCHEDA.get(filtro_stato, ""),
         "page_title": cat.nome,
         "cat": cat,
         **dati,

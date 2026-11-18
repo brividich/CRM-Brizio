@@ -439,11 +439,27 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         if asset.id in meters_by_asset_id
     ]
 
+    # KPI cliccabili: inventario produzione e OdL di produzione, stesso reparto.
+    _machine_params = [("group", "production")] + ([("reparto", reparto_filter)] if reparto_filter else [])
+    _wo_params = [("status", WorkOrder.STATUS_OPEN), ("produzione", "1")] + (
+        [("reparto", reparto_filter)] if reparto_filter else []
+    )
+    _asset_list_url = reverse("assets:asset_list")
+    _wo_list_url = reverse("assets:wo_list")
+    wmd_kpi_links = {
+        "machines": f"{_asset_list_url}?{urlencode(_machine_params)}",
+        "in_use": f"{_asset_list_url}?{urlencode(_machine_params + [('status', Asset.STATUS_IN_USE)])}",
+        "in_repair": f"{_asset_list_url}?{urlencode(_machine_params + [('status', Asset.STATUS_IN_REPAIR)])}",
+        "wo_open": f"{_wo_list_url}?{urlencode(_wo_params)}",
+        "wo_late": f"{_wo_list_url}?{urlencode(_wo_params + [('ritardo', '1')])}",
+    }
+
     return render(
         request,
         "assets/pages/work_machine_dashboard.html",
         {
             "page_title": "Dashboard officina",
+            "wmd_kpi_links": wmd_kpi_links,
             "reparto_filter": reparto_filter,
             "reparto_totals": reparto_totals,
             "total_machines": total_machines,

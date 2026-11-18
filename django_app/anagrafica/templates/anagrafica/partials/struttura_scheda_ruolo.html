@@ -10,14 +10,14 @@
 <p style="margin:0 0 10px;font-size:12.5px;"><a class="fmd-data-link" href="{% url 'anagrafica:esplora_struttura' %}?ruolo={{ ruolo.pk }}">Esplora la struttura da qui</a></p>
 
 <div class="sto-sch-kpi">
-  <div><b>{{ persone|length }}</b><span>person{{ persone|length|pluralize:"a,e" }}</span></div>
-  <div><b>{{ mansioni|length }}</b><span>mansion{{ mansioni|length|pluralize:"e,i" }}</span></div>
-  <div><b>{{ processi|length }}</b><span>process{{ processi|length|pluralize:"o,i" }} di cui è owner</span></div>
-  <div><b>{{ accessi|length }}</b><span>ruol{{ accessi|length|pluralize:"o,i" }} del portale</span></div>
+  <a class="kpi-link" href="#sch-ruo-persone" title="Vai a «Chi lo ricopre»"><b>{{ persone|length }}</b><span>person{{ persone|length|pluralize:"a,e" }}</span></a>
+  <a class="kpi-link" href="#sch-ruo-mansioni" title="Vai a «Mansioni previste»"><b>{{ mansioni|length }}</b><span>mansion{{ mansioni|length|pluralize:"e,i" }}</span></a>
+  {% if processi %}<a class="kpi-link" href="#sch-ruo-resp" title="Vai a «Responsabilità»: processi di cui è owner"><b>{{ processi|length }}</b><span>process{{ processi|length|pluralize:"o,i" }} di cui è owner</span></a>{% else %}<div><b>{{ processi|length }}</b><span>process{{ processi|length|pluralize:"o,i" }} di cui è owner</span></div>{% endif %}
+  {% if accessi %}<a class="kpi-link" href="#sch-ruo-accessi" title="Vai a «Accessi al portale che concede»"><b>{{ accessi|length }}</b><span>ruol{{ accessi|length|pluralize:"o,i" }} del portale</span></a>{% else %}<div><b>{{ accessi|length }}</b><span>ruol{{ accessi|length|pluralize:"o,i" }} del portale</span></div>{% endif %}
 </div>
 
 <section class="sto-sch-sez">
-  <h3>Chi lo ricopre</h3>
+  <h3 id="sch-ruo-persone">Chi lo ricopre</h3>
   {% if persone %}
   <ul class="sto-sch-lista sto-sch-col2">{% for p in persone %}<li><a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a></li>{% endfor %}</ul>
   {% else %}<p class="sto-sch-vuoto">Nessuno.</p>{% endif %}
@@ -25,7 +25,7 @@
 </section>
 
 <section class="sto-sch-sez">
-  <h3>Mansioni previste</h3>
+  <h3 id="sch-ruo-mansioni">Mansioni previste</h3>
   {% if mansioni %}
   <details class="sto-sch-det"{% if mansioni|length <= 12 %} open{% endif %}><summary>{{ mansioni|length }} mansion{{ mansioni|length|pluralize:"e,i" }}{% if mansioni|length > 12 %}: mostra l'elenco{% endif %}</summary>
   <ul class="sto-sch-lista">{% for m in mansioni %}<li><a href="#" data-sto-apri="mansione" data-id="{{ m.pk }}">{{ m.nome }}</a> <span class="sto-nota">{{ m.area.nome|default:m.reparto_effettivo }}</span></li>{% endfor %}</ul></details>
@@ -34,7 +34,7 @@
 
 {% if processi or reparti or aree or sotto %}
 <section class="sto-sch-sez">
-  <h3>Responsabilità</h3>
+  <h3 id="sch-ruo-resp">Responsabilità</h3>
   <ul class="sto-sch-lista">
     {% for p in processi %}<li>Owner del processo <strong>{{ p.codice }}</strong> {{ p.nome }}</li>{% endfor %}
     {% for r in reparti %}<li>Responsabile del reparto <a href="#" data-sto-apri="reparto" data-id="{{ r.pk }}">{{ r.nome }}</a></li>{% endfor %}
@@ -45,7 +45,7 @@
 {% endif %}
 
 <section class="sto-sch-sez">
-  <h3>Accessi al portale che concede</h3>
+  <h3 id="sch-ruo-accessi">Accessi al portale che concede</h3>
   {% if accessi %}
   <ul class="sto-sch-lista">{% for g in accessi %}<li>{% if vede_accessi %}<a href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice&amp;ruolo={{ g.pk }}">{{ g.label }}</a>{% else %}{{ g.label }}{% endif %}</li>{% endfor %}</ul>
   <p class="sto-nota">Chi ricopre il ruolo riceve questi ruoli del portale in automatico; li perde quando il ruolo si chiude.</p>

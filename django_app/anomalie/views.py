@@ -5711,16 +5711,23 @@ def anomalie_configurazione_page(request):
     stats = {"total": 0, "chiuse": 0, "aperte": 0}
     by_avanzamento = []
     anomalie_record = []
+    anomalie_record_totale = 0
+    # Stato del tab Record (?stato_anomalie=aperte|chiuse): stesse condizioni delle
+    # tessere del Riepilogo, che vi portano.
+    condizioni_stato = {"aperte": "COALESCE(chiudere, 0) = 0", "chiuse": "chiudere = 1"}
+    stato_anomalie = str(request.GET.get("stato_anomalie") or "").strip().lower()
+    if stato_anomalie not in condizioni_stato:
+        stato_anomalie = ""
     tabella_ok = _has_table("anomalie")
     if tabella_ok:
-        def _count(where=""):
+        def _count(where="", count_params=None):
             sql = "SELECT COUNT(*) FROM anomalie" + (f" WHERE {where}" if where else "")
             with connections["default"].cursor() as cur:
-                cur.execute(sql)
+                cur.execute(sql, count_params or [])
                 return cur.fetchone()[0]
         stats["total"] = _count()
-        stats["chiuse"] = _count("chiudere = 1")
-        stats["aperte"] = _count("COALESCE(chiudere, 0) = 0")
+        stats["chiuse"] = _count(condizioni_stato["chiuse"])
+        stats["aperte"] = _count(condizioni_stato["aperte"])
         try:
             by_avanzamento = _fetch_all_dict(
                 "SELECT TOP 20 avanzamento, COUNT(*) AS n FROM anomalie GROUP BY avanzamento ORDER BY n DESC"
@@ -5729,14 +5736,21 @@ def anomalie_configurazione_page(request):
             by_avanzamento = []
         if tab == "record":
             q_anomalie = request.GET.get("q_anomalie", "").strip()
-            where_q = ""
+            where_parts = []
             params_q = []
             if q_anomalie:
-                where_q = "WHERE (UPPER(COALESCE(ex_op_nominativo,'')) LIKE UPPER(%s) OR UPPER(COALESCE(seriale,'')) LIKE UPPER(%s))"
+                where_parts.append(
+                    "(UPPER(COALESCE(ex_op_nominativo,'')) LIKE UPPER(%s) OR UPPER(COALESCE(seriale,'')) LIKE UPPER(%s))"
+                )
                 params_q = [f"%{q_anomalie}%", f"%{q_anomalie}%"]
+            if stato_anomalie:
+                where_parts.append(condizioni_stato[stato_anomalie])
+            where_q = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
             sql_rec = f"SELECT TOP 100 id, ex_op_nominativo, seriale, avanzamento, chiudere, modified_datetime FROM anomalie {where_q} ORDER BY id DESC"
             try:
                 anomalie_record = _fetch_all_dict(sql_rec, params_q)
+                # Totale pieno dello stesso filtro: la tabella si ferma alle ultime 100.
+                anomalie_record_totale = _count(" AND ".join(where_parts), params_q)
             except Exception:
                 anomalie_record = []
         else:
@@ -6040,6 +6054,8 @@ def anomalie_configurazione_page(request):
         "stats": stats,
         "by_avanzamento": by_avanzamento,
         "anomalie_record": anomalie_record,
+        "anomalie_record_totale": anomalie_record_totale,
+        "stato_anomalie": stato_anomalie,
         "q_anomalie": q_anomalie,
         "audit_entries": audit_entries,
         "derived_list_labels": ANOMALIE_DERIVED_SOURCE_LABELS,
@@ -6628,6 +6644,7 @@ def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
     stato = request.GET.get("stato", "").strip().lower()          # "", "aperte", "chiuse"
     rdc = request.GET.get("rdc", "").strip().lower()              # "", "si", "no"
     segnalazione = request.GET.get("segnalazione", "").strip().lower()
+    recuperato = request.GET.get("recuperato", "").strip().lower()  # "", "si", "no"
     q = request.GET.get("q", "").strip()
 
     where_parts: list[str] = []
@@ -6657,6 +6674,11 @@ def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
         where_parts.append("COALESCE(segnalare_cliente, 0) = 1")
     elif segnalazione == "no" and "segnalare_cliente" in cols:
         where_parts.append("COALESCE(segnalare_cliente, 0) = 0")
+    # Tessera «Pezzi recuperati»: stessa condizione del suo conteggio.
+    if recuperato == "si" and "pezzo_recuperato" in cols:
+        where_parts.append("COALESCE(pezzo_recuperato, 0) = 1")
+    elif recuperato == "no" and "pezzo_recuperato" in cols:
+        where_parts.append("COALESCE(pezzo_recuperato, 0) = 0")
     if q:
         text_cols = [c for c in ("seriale", "descrizione", "ex_op_nominativo", "note_capocommessa", "numero_rdc") if c in cols]
         if text_cols:
@@ -6708,6 +6730,8 @@ def api_anomalie_statistiche(request):
 
     totale = _count()
     chiuse = _count("COALESCE(chiudere, 0) = 1")
+    # Stessa condizione del filtro «aperte» della ricerca (prima «totale - chiuse»).
+    aperte = _count("COALESCE(chiudere, 0) = 0")
     rdc_aperti = _count("COALESCE(aprire_rdc, 0) = 1") if "aprire_rdc" in cols else 0
     segnalazioni = _count("COALESCE(segnalare_cliente, 0) = 1") if "segnalare_cliente" in cols else 0
     recuperati = _count("COALESCE(pezzo_recuperato, 0) = 1") if "pezzo_recuperato" in cols else 0
@@ -6819,7 +6843,7 @@ def api_anomalie_statistiche(request):
         "qualita": qualita,
         "tempi": tempi,
         "totale": totale,
-        "aperte": totale - chiuse,
+        "aperte": aperte,
         "chiuse": chiuse,
         "rdc_aperti": rdc_aperti,
         "segnalazioni": segnalazioni,

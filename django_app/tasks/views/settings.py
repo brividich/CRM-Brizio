@@ -222,11 +222,17 @@ def _task_settings_users_queryset():
 def _build_tasks_settings_context(request, *, tab: str) -> dict:
     from django.core.paginator import Paginator
 
+    from ..access import scoped_projects_queryset, scoped_tasks_queryset
+
     today = timezone.localdate()
-    total_tasks = Task.objects.count()
-    total_projects = Project.objects.count()
-    tasks_by_status_raw = dict(Task.objects.values_list("status").annotate(n=Count("id")).order_by())
-    tasks_overdue = Task.objects.filter(
+    # Stessi insiemi delle pagine su cui portano le tessere del Riepilogo
+    # (elenco attivita' ?mine=0 e portfolio kickoff): per chi amministra il
+    # modulo sono tutti i record, per gli altri il loro perimetro.
+    tasks_base = scoped_tasks_queryset(request).order_by()
+    total_tasks = tasks_base.count()
+    total_projects = scoped_projects_queryset(request).order_by().count()
+    tasks_by_status_raw = dict(tasks_base.values_list("status").annotate(n=Count("id")).order_by())
+    tasks_overdue = tasks_base.filter(
         due_date__lt=today,
         status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS],
     ).count()

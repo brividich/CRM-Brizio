@@ -151,26 +151,26 @@ body.theme-dark .rd-budget-status.missing{color:var(--text-light)}
 <section class="rd-page">
   {% include "assets/partials/report_tabs.html" with tab_report="cruscotto" %}
   <section class="rd-kpis">
-    <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}">
+    <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}" title="Fonte del dato: lo scadenzario delle manutenzioni (scadute)">
       <div class="rd-kpi-label">PM compliance</div>
       <div class="rd-kpi-value">{% if pm_kpi.has_compliance %}{{ pm_kpi.compliance_pct }}%{% else %}-{% endif %}</div>
       <span class="rd-empty">{{ pm_kpi.compliant_rules }}/{{ pm_kpi.applicable_rules }} asset in linea</span>
     </a>
-    <a class="rd-kpi" href="{{ done_workorders_url }}">
+    <a class="rd-kpi" href="{{ budget_workorders_url }}" title="Fonte del dato: OdL eseguiti da inizio anno (il consuntivo e' la somma dei loro costi)">
       <div class="rd-kpi-label">Budget usato {{ budget_kpi.year }}</div>
       <div class="rd-kpi-value">{% if budget_kpi.has_percent %}{{ budget_kpi.percent_used }}%{% else %}-{% endif %}</div>
       <span class="rd-empty">{{ budget_kpi.actual_total }} / {{ budget_kpi.budget_total }} EUR</span>
     </a>
-    <article class="rd-kpi">
+    <a class="rd-kpi" href="{{ open_workorders_url }}" title="Apri l’elenco filtrato: interventi aperti di questo ambito">
       <div class="rd-kpi-label">Interventi aperti</div>
       <div class="rd-kpi-value">{{ open_count }}</div>
-      <a class="as-link-subtle" href="{{ open_workorders_url }}">Apri tutti gli aperti</a>
-    </article>
-    <a class="rd-kpi" href="{{ late_workorders_url }}"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></a>
-    <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></a>
-    <a class="rd-kpi" href="{{ maintenance_schedule_missing_url }}"><div class="rd-kpi-label">Senza piano</div><div class="rd-kpi-value">{{ missing_count }}</div></a>
-    <a class="rd-kpi" href="{{ done_workorders_url }}"><div class="rd-kpi-label">Chiusi 90 gg</div><div class="rd-kpi-value">{{ done_recent_count }}</div></a>
-    <article class="rd-kpi"><div class="rd-kpi-label">Costo 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></article>
+      <span class="as-link-subtle">Apri tutti gli aperti</span>
+    </a>
+    <a class="rd-kpi" href="{{ late_workorders_url }}" title="Apri l’elenco filtrato: interventi aperti in ritardo (scadenza superata o aperti da oltre {{ wo_overdue_days }} giorni)"><div class="rd-kpi-label">In ritardo</div><div class="rd-kpi-value">{{ late_count }}</div></a>
+    <a class="rd-kpi" href="#rd-focus" title="Vai alle criticità qui sotto: scadute, in soglia e senza piano"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></a>
+    <a class="rd-kpi" href="{{ maintenance_schedule_missing_url }}" title="Apri la copertura dei piani"><div class="rd-kpi-label">Senza piano</div><div class="rd-kpi-value">{{ missing_count }}</div></a>
+    <a class="rd-kpi" href="{{ done_workorders_url }}" title="Apri l’elenco filtrato: interventi chiusi negli ultimi 90 giorni"><div class="rd-kpi-label">Chiusi 90 gg</div><div class="rd-kpi-value">{{ done_recent_count }}</div></a>
+    <a class="rd-kpi" href="{{ done_workorders_url }}" title="Fonte del dato: interventi chiusi negli ultimi 90 giorni (il costo e' la somma dei loro costi)"><div class="rd-kpi-label">Costo 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></a>
   </section>
 
   <article class="rd-card">
@@ -189,9 +189,9 @@ body.theme-dark .rd-budget-status.missing{color:var(--text-light)}
           </div>
           <div class="rd-health-stat">
             <span>In linea: <strong>{{ pm_kpi.compliant_rules }}</strong></span>
-            <span>Scadute: <strong>{{ pm_kpi.overdue_rules }}</strong></span>
-            <span>Warning: <strong>{{ pm_kpi.warning_rules }}</strong></span>
-            <span>Senza piano: <strong>{{ pm_kpi.missing_baseline_rules }}</strong></span>
+            <span>Scadute: <a href="#rd-focus" title="Vai alle criticità qui sotto"><strong>{{ pm_kpi.overdue_rules }}</strong></a></span>
+            <span>Warning: <a href="#rd-focus" title="Vai alle criticità qui sotto"><strong>{{ pm_kpi.warning_rules }}</strong></a></span>
+            <span>Senza piano: <a href="{{ maintenance_schedule_missing_url }}" title="Apri la copertura dei piani"><strong>{{ pm_kpi.missing_baseline_rules }}</strong></a></span>
           </div>
         </section>
 
@@ -240,7 +240,7 @@ body.theme-dark .rd-budget-status.missing{color:var(--text-light)}
     </div>
     <div class="rd-card-body">
       <div class="rd-summary-meta">
-        <span>Interventi chiusi: <strong>{{ done_recent_count }}</strong></span>
+        <span>Interventi chiusi: <a href="{{ done_workorders_url }}" title="Apri l’elenco filtrato: interventi chiusi negli ultimi 90 giorni"><strong>{{ done_recent_count }}</strong></a></span>
         <span>Durata media: <strong>{% if avg_duration_minutes %}{{ avg_duration_minutes }} min{% else %}-{% endif %}</strong></span>
         <span>Fermo medio: <strong>{% if avg_downtime_minutes %}{{ avg_downtime_minutes }} min{% else %}-{% endif %}</strong></span>
         <span>Coperti: <strong>{{ covered_count }}</strong></span>
@@ -290,7 +290,7 @@ body.theme-dark .rd-budget-status.missing{color:var(--text-light)}
     </div>
   </article>
 
-  <article class="rd-card">
+  <article class="rd-card" id="rd-focus">
     <div class="rd-card-head">
       <div>
         <h2>Focus operativo</h2>

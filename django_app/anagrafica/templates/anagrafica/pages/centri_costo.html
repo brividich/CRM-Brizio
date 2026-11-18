@@ -48,12 +48,13 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
     </div>
   </div>
 
+  {% url 'anagrafica:centri_costo' as u_cc %}
   <div class="rc-kpis">
-    {% if kpi.da_guardare is not None %}<div class="rc-kpi {% if kpi.da_guardare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></div>{% endif %}
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.centri }}</div><div class="rc-kpi-l">Centri di costo attivi</div></div>
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti collegati</div></div>
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.persone }}</div><div class="rc-kpi-l">Persone nei reparti collegati</div></div>
-    <div class="rc-kpi {% if kpi.senza_centro %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></div>
+    {% if kpi.da_guardare is not None %}{% if is_admin or puo_costi %}<a class="rc-kpi kpi-link {% if kpi.da_guardare %}rc-kpi-warn{% endif %}" href="{% url 'anagrafica:mansionario' %}?flag=da-guardare" title="Apri il mansionario filtrato: mansioni scoperte, a uomo solo o a carico concentrato"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></a>{% else %}<div class="rc-kpi {% if kpi.da_guardare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></div>{% endif %}{% endif %}
+    <a class="rc-kpi kpi-link" href="{{ u_cc }}?filtro=attivi#centri" title="Apri l'elenco filtrato: centri di costo attivi"><div class="rc-kpi-n">{{ kpi.centri }}</div><div class="rc-kpi-l">Centri di costo attivi</div></a>
+    <a class="rc-kpi kpi-link" href="{{ u_cc }}#centri" title="Vai ai centri di costo con i reparti collegati"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti collegati</div></a>
+    <a class="rc-kpi kpi-link" href="{{ u_cc }}#centri" title="Vai ai centri di costo con le persone per reparto"><div class="rc-kpi-n">{{ kpi.persone }}</div><div class="rc-kpi-l">Persone nei reparti collegati</div></a>
+    {% if kpi.senza_centro %}<a class="rc-kpi kpi-link rc-kpi-warn" href="{{ u_cc }}#senza-centro" title="Vai ai reparti senza centro di costo"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></a>{% else %}<div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></div>{% endif %}
   </div>
 
   {% if carico %}<p class="rc-old cc-nota">Mansioni da guardare: scoperte, con meno di {{ carico.config.soglia_uomo_solo }} operativi o con carico concentrato da {{ carico.config.soglia_concentrazione }}%. Sono segnali dai coefficienti, solo persone in forza.{% if mese_costi %} RML e costo orario: {{ mese_costi|date:"F Y" }}.{% endif %}</p>{% endif %}
@@ -66,7 +67,8 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
   </section>
   {% endif %}
 
-  <div class="rc-grid">
+  {% if filtro %}<div class="rc-filtro">Filtro: <strong>Centri di costo attivi</strong> · {{ schede|length }} · <a href="{{ u_cc }}">Mostra tutti</a></div>{% endif %}
+  <div class="rc-grid" id="centri">
     {% for s in schede %}
     <article class="rc-card {% if not s.centro.is_active %}is-off{% endif %}" id="cc-{{ s.centro.pk }}">
       <div class="rc-card-head">

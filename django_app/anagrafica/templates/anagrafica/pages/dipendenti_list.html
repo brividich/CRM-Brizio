@@ -42,16 +42,18 @@
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Persone in sintesi">
       {% url 'anagrafica:dipendenti_list' as u_dip %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_totale label="In elenco" sub="schede dipendente" url=u_dip %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_attivi label="Attivi" sub="scheda attiva" %}
-      {% if n_esclusi_conteggi %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-users" valore=n_esclusi_conteggi label="Fuori conteggio" sub="in elenco, non nell'organico" %}{% endif %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_attivi label="Non attivi" sub="scheda disattivata" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="con almeno un dipendente" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_totale label="In elenco" sub="schede dipendente" url=u_dip|add:"?vf=0#elenco" title="Apri l'elenco completo, senza filtri" %}
+      {% with u_att=u_dip|add:"?stato=attivi&vf=0#elenco" u_fc=u_dip|add:"?stato=fuori_conteggio&vf=0#elenco" u_na=u_dip|add:"?stato=non_attivi&vf=0#elenco" u_rep=u_dip|add:"?vf=0#fmd-reparti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_attivi label="Attivi" sub="scheda attiva" url=u_att title="Apri l'elenco filtrato: dipendenti attivi nell'organico" %}
+      {% if n_esclusi_conteggi %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-users" valore=n_esclusi_conteggi label="Fuori conteggio" sub="in elenco, non nell'organico" url=u_fc title="Apri l'elenco filtrato: attivi esclusi dai conteggi dell'organico" %}{% endif %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_attivi label="Non attivi" sub="scheda disattivata" url=u_na title="Apri l'elenco filtrato: schede disattivate" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="con almeno un dipendente" url=u_rep title="Vai alle schede dei reparti con il loro organico" %}
+      {% endwith %}
       {% url 'anagrafica:ex_dipendenti_list' as u_ex %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=n_ex label="Ex dipendenti" sub="rapporti cessati" url=u_ex %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=n_ex label="Ex dipendenti" sub="rapporti cessati" url=u_ex title="Apri l'elenco degli ex dipendenti" %}
       {% if contratti_in_scadenza is not None %}
       {% url 'anagrafica:scadenzario' as u_scad %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono=contratti_in_scadenza|yesno:"orange,green" icona="i-alarm" valore=contratti_in_scadenza|length label="Contratti in scadenza" sub="a termine e prove entro 60gg" url=u_scad|add:"?tipo=contratto" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=contratti_in_scadenza|yesno:"orange,green" icona="i-alarm" valore=contratti_in_scadenza|length label="Contratti in scadenza" sub="a termine e prove entro 60gg" url=u_scad|add:"?tipo=contratto&stato=60" title="Apri lo scadenzario filtrato: contratti e prove che scadono entro 60 giorni" %}
       {% endif %}
     </section>
 
@@ -82,6 +84,10 @@
           {% for c in centri_costo %}<option value="{{ c }}"{% if c == centro_costo %} selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
         {% endif %}
+        <select class="fmd-select" name="stato" aria-label="Filtra per stato della scheda">
+          <option value="">Stato: tutti</option>
+          {% for k, v in stati_dipendente.items %}<option value="{{ k }}"{% if k == stato %} selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select>
         {% if tipologie_contratto %}
         <select class="fmd-select" name="tipologia_contratto" aria-label="Filtra per tipo contratto">
           <option value="">Tipo contratto: tutti</option>

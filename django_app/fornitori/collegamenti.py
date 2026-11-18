@@ -251,6 +251,9 @@ def dati_copie(fornitore) -> dict:
 # Scadenze della ditta
 # ---------------------------------------------------------------------------
 
+STATI_SCADENZA_FILTRABILI = ("scaduta", "in_scadenza")
+
+
 def _stato_data(data, oggi) -> tuple[str, str]:
     if data < oggi:
         return "scaduta", "Scaduta"

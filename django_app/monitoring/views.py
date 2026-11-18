@@ -118,11 +118,31 @@ def _build_django_q_stats() -> dict:
         return {"available": False}
 
 
+def _local_day_start(now):
+    """Mezzanotte di OGGI nel fuso locale (TIME_ZONE), non UTC: «oggi» per l'utente."""
+    return timezone.localtime(now).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def failed_today_job_ids(now=None) -> set[int]:
+    """Job con almeno un'esecuzione FALLITA da mezzanotte locale. Unica definizione
+    usata dal KPI «Job falliti oggi» (dashboard, centrale) e dal filtro
+    ``?failed_today=1`` del monitor automazioni: stesso insieme, stesso numero."""
+    now = now or timezone.now()
+    return set(
+        AutomationExecution.objects.filter(
+            status=AutomationExecution.Status.FAILED,
+            started_at__gte=_local_day_start(now),
+        ).values_list("job_id", flat=True).distinct()
+    )
+
+
+ISSUE_NEW_WINDOW_HOURS = 24
+
+
 @legacy_admin_or_acl_required("monitoring", "admin_dashboard")
 def admin_dashboard(request):
     now = timezone.now()
-    last_24h = now - timedelta(hours=24)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    last_24h = now - timedelta(hours=ISSUE_NEW_WINDOW_HOURS)
     open_filter = Q(status__in=OPEN_ISSUE_STATUSES)
     missing_jobs = detect_missed_jobs(now=now, create_issues=False)
 
@@ -131,10 +151,7 @@ def admin_dashboard(request):
         "critical_issues_count": Issue.objects.filter(open_filter, severity=Issue.Severity.CRITICAL).count(),
         "new_issues_24h_count": Issue.objects.filter(created_at__gte=last_24h).count(),
         "unassigned_open_issues_count": Issue.objects.filter(open_filter, assigned_to__isnull=True).count(),
-        "job_failed_today_count": AutomationExecution.objects.filter(
-            status=AutomationExecution.Status.FAILED,
-            started_at__gte=today_start,
-        ).count(),
+        "job_failed_today_count": len(failed_today_job_ids(now)),
         "job_missing_count": len(missing_jobs),
         "top_modules": list(
             Issue.objects.filter(open_filter)
@@ -173,7 +190,6 @@ def system_status(request):
     from monitoring.health import run_readyz_checks
 
     now = timezone.now()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     open_filter = Q(status__in=OPEN_ISSUE_STATUSES)
 
     readyz = run_readyz_checks()
@@ -212,8 +228,7 @@ def system_status(request):
         "rag_status": rag_status,
         "severity_counts": severity_counts,
         "open_issues_count": Issue.objects.filter(open_filter).count(),
-        "job_failed_today_count": AutomationExecution.objects.filter(
-            status=AutomationExecution.Status.FAILED, started_at__gte=today_start).count(),
+        "job_failed_today_count": len(failed_today_job_ids(now)),
         "job_missing_count": len(missing_jobs),
         "quick_actions": [
             ("ai_verify", "🔎 Verifica AI"),
@@ -281,13 +296,21 @@ def schedule_list(request):
     """Gestione schedule django-q dalla centrale (Ondata 3). Abilita/disabilita è
     DUREVOLE (monitoring.ScheduleControl, rispettato da setup_q_schedules anche dopo
     un redeploy); la cadenza resta definita nel codice (automazioni/schedules.py)."""
-    from .schedule_health import cluster_status, schedule_rows, summary
+    from .schedule_health import STATUS_LABELS, cluster_status, schedule_rows, summary
 
     rows = schedule_rows()
+    # Le tessere di riepilogo contano TUTTI gli schedule; ``?stato=`` mostra solo
+    # quelli di quello stato (stessa chiave ``status`` usata dal conteggio).
+    stato = (request.GET.get("stato") or "").strip()
+    if stato not in STATUS_LABELS:
+        stato = ""
+    shown = [r for r in rows if r["status"] == stato] if stato else rows
     return render(request, "monitoring/pages/schedules.html", {
-        "rows": rows,
+        "rows": shown,
         "summary": summary(rows),
         "cluster": cluster_status(),
+        "stato_filtro": stato,
+        "stato_filtro_label": STATUS_LABELS.get(stato, ""),
     })
 
 
@@ -345,7 +368,11 @@ def issue_list(request):
         "date_from": (request.GET.get("date_from") or "").strip(),
         "date_to": (request.GET.get("date_to") or "").strip(),
         "open_only": (request.GET.get("open_only") or "").strip(),
+        # Filtri dei KPI del cruscotto (stessa condizione del conteggio).
+        "unassigned": (request.GET.get("unassigned") or "").strip(),
+        "new_24h": (request.GET.get("new_24h") or "").strip(),
     }
+    truthy = {"1", "true", "on", "yes"}
 
     if filters["status"]:
         qs = qs.filter(status=filters["status"])
@@ -361,8 +388,12 @@ def issue_list(request):
         qs = qs.filter(last_seen_at__date__gte=filters["date_from"])
     if filters["date_to"]:
         qs = qs.filter(last_seen_at__date__lte=filters["date_to"])
-    if filters["open_only"] in {"1", "true", "on", "yes"}:
+    if filters["open_only"] in truthy:
         qs = qs.filter(status__in=OPEN_ISSUE_STATUSES)
+    if filters["unassigned"] in truthy:
+        qs = qs.filter(assigned_to__isnull=True)
+    if filters["new_24h"] in truthy:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(hours=ISSUE_NEW_WINDOW_HOURS))
 
     page_obj = Paginator(qs, 50).get_page(request.GET.get("page"))
     context = {
@@ -420,9 +451,18 @@ def automation_list(request):
     now = timezone.now()
     missing_jobs_map = {item["job"].pk: item for item in detect_missed_jobs(now=now, create_issues=False)}
     stuck_jobs_map = {item["job"].pk: item for item in detect_stuck_jobs(now=now, create_issues=False)}
-    jobs = list(AutomationJob.objects.all().order_by("name", "code"))
+    jobs_qs = AutomationJob.objects.all().order_by("name", "code")
+    # Filtri dei KPI del cruscotto: stesso insieme di job contato dalla tessera.
+    active_filter = ""
+    if (request.GET.get("failed_today") or "").strip() in {"1", "true", "on", "yes"}:
+        jobs_qs = jobs_qs.filter(pk__in=failed_today_job_ids(now))
+        active_filter = "Job con almeno un'esecuzione fallita oggi"
+    elif (request.GET.get("missing") or "").strip() in {"1", "true", "on", "yes"}:
+        jobs_qs = jobs_qs.filter(pk__in=list(missing_jobs_map))
+        active_filter = "Job non eseguiti nei tempi attesi (missing)"
+    jobs = list(jobs_qs)
     job_rows = [_build_job_row(job, missing_jobs_map=missing_jobs_map, stuck_jobs_map=stuck_jobs_map) for job in jobs]
-    return render(request, "monitoring/pages/automations.html", {"job_rows": job_rows})
+    return render(request, "monitoring/pages/automations.html", {"job_rows": job_rows, "active_filter": active_filter})
 
 
 @legacy_admin_or_acl_required("monitoring", "automation_detail")

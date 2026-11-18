@@ -126,6 +126,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Nella matrice la colonna «In attesa» ora si chiama «Da confermare»",
+            "perche": "è lo stesso stato degli elenchi: letture assegnate e non ancora confermate.",
+            "fare": [
+                "Clicca il numero: si apre l'elenco con esattamente quelle righe.",
+            ],
+        },
+        {
             "sintomo": "Le procedure non si aggiornano quando cambia la cartella",
             "fare": [
                 "Apri «Impostazioni» → «Sincronizzazione con la cartella SGI»: ogni riga con ✕ dice cosa fare (accendere l'interruttore, dare la lettura all'account del sito, lanciare «manage.py setup_q_schedules», riavviare il qcluster).",

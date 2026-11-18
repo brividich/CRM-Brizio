@@ -119,10 +119,11 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
   <!-- KPI -->
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Organigramma in sintesi">
     {% url 'anagrafica:dipendenti_list' as u_dip %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_dipendenti label="Dipendenti attivi" sub="in forza" url=u_dip %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_dipendenti label="Dipendenti attivi" sub="in forza" url=u_dip|add:"?stato=attivi&vf=0#elenco" title="Apri l'elenco filtrato: dipendenti attivi nell'organico" %}
     {% url 'anagrafica:aree_list' as u_aree %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="attivi a catalogo" url=u_aree %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono=n_non_mappati|yesno:"amber,green" icona="i-alert-cir" valore=n_non_mappati label="Non mappati" sub="reparto legacy non a catalogo" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="attivi a catalogo" url=u_aree|add:"?filtro=attivi#schede" title="Apri l'elenco filtrato: reparti attivi a catalogo" %}
+    {% url 'anagrafica:organigramma' as u_org %}
+    {% if n_non_mappati %}{% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_mappati label="Non mappati" sub="reparto legacy non a catalogo" url=u_org|add:"#non-mappati" title="Vai ai dipendenti con reparto non a catalogo" %}{% else %}{% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-alert-cir" valore=n_non_mappati label="Non mappati" sub="reparto legacy non a catalogo" %}{% endif %}
   </section>
 
   <!-- Filtro reparto -->
@@ -194,7 +195,7 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
 
   <!-- Bucket non mappati: visibile di proposito, fa emergere i disallineamenti -->
   {% if non_mappati and not filtro_reparto %}
-  <div class="hr-card">
+  <div class="hr-card" id="non-mappati">
     <div class="hr-card-head">
       <div class="hr-card-title">🧩 Dipendenti con reparto non a catalogo</div>
       <div class="org-nm-hint">Il reparto legacy non corrisponde a nessun reparto censito nelle impostazioni.</div>

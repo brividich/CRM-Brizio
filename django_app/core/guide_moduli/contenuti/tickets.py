@@ -192,6 +192,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Apro Gestione ticket da un numero e vedo la riga «Elenco filtrato»",
+            "perche": "il numero di un'altra pagina (cruscotto asset, scheda dipendente, home) apre l'elenco già filtrato sulle stesse righe.",
+            "fare": [
+                "Premi «✕ Togli» per tornare all'elenco completo.",
+            ],
+        },
+        {
             "sintomo": "Chiudo un ticket e il richiedente non riceve la mail",
             "fare": [
                 "La mail parte solo alla chiusura (stato «Chiuso»), non agli altri cambi di stato. La manda la regola "

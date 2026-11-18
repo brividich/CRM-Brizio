@@ -1139,6 +1139,35 @@ def ticket_elenco(request):
     return ticket_dashboard(request, sezione="tutti")
 
 
+# Stati della tessera «Urgenti aperti» e del filtro ``?attivi=1`` della lista.
+STATI_ATTIVI_KPI = (StatoTicket.APERTA, StatoTicket.IN_CARICO)
+
+
+def q_ticket_propri(user, legacy_id: int | None, email: str) -> Q:
+    """Ticket «miei»: aperti dalla persona o a suo nome, per identificativi stabili
+    (account, id legacy, email; mai il solo nome, ambiguo tra omonimi).
+
+    Unica regola per elenco e tessere KPI di «I miei ticket»: stesso insieme,
+    stesso numero."""
+    own = Q(richiedente_user=user) | Q(aperto_da_user=user)
+    if legacy_id:
+        own |= Q(richiedente_legacy_user_id=legacy_id)
+    if email:
+        own |= Q(richiedente_email__iexact=email)
+    return own
+
+
+def kpi_ticket_propri(qs) -> dict:
+    """Conteggi delle tessere di «I miei ticket» su ``qs`` (gia' ristretto)."""
+    return {
+        "da_confermare": qs.filter(stato=StatoTicket.RISOLTO).count(),
+        "aperte": qs.filter(stato=StatoTicket.APERTA).count(),
+        "in_carico": qs.filter(stato=StatoTicket.IN_CARICO).count(),
+        "in_attesa": qs.filter(stato=StatoTicket.IN_ATTESA).count(),
+        "urgenti": qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=STATI_ATTIVI_KPI).count(),
+    }
+
+
 @login_required
 def ticket_dashboard(request, sezione: str = "miei"):
     name, email, legacy_id = _legacy_identity(request)
@@ -1152,12 +1181,7 @@ def ticket_dashboard(request, sezione: str = "miei"):
     if sezione == "miei":
         # «I miei ticket»: solo quelli aperti dalla persona, per tutti (anche gestori
         # e CAR che vedono l'azienda: quelli stanno nella sezione «Ticket»).
-        from django.db.models import Q
-        own = Q(richiedente_user=request.user) | Q(aperto_da_user=request.user)
-        if legacy_id:
-            own |= Q(richiedente_legacy_user_id=legacy_id)
-        if email:
-            own |= Q(richiedente_email__iexact=email)
+        own = q_ticket_propri(request.user, legacy_id, email)
         qs = qs.filter(own)
         kpi_qs = kpi_qs.filter(own)
     # SEC: chi NON è gestore/admin vede solo i ticket di cui è richiedente.
@@ -1170,12 +1194,7 @@ def ticket_dashboard(request, sezione: str = "miei"):
         qs = qs.filter(visibili)
         kpi_qs = kpi_qs.filter(visibili)
     elif not (is_admin or is_gestore or request.user.is_superuser):
-        from django.db.models import Q
-        own = Q(richiedente_user=request.user) | Q(aperto_da_user=request.user)
-        if legacy_id:
-            own |= Q(richiedente_legacy_user_id=legacy_id)
-        if email:
-            own |= Q(richiedente_email__iexact=email)
+        own = q_ticket_propri(request.user, legacy_id, email)
         qs = qs.filter(own)
         kpi_qs = kpi_qs.filter(own)
 
@@ -1191,6 +1210,10 @@ def ticket_dashboard(request, sezione: str = "miei"):
         qs = qs.filter(stato=stato_f)
     if prio_f  in dict(PrioritaTicket.choices):
         qs = qs.filter(priorita=prio_f)
+    # «attivi=1» = aperti o in carico: lo stesso insieme della tessera «Urgenti aperti».
+    attivi_f = request.GET.get("attivi") == "1"
+    if attivi_f:
+        qs = qs.filter(stato__in=STATI_ATTIVI_KPI)
     if cerca_f:
         qs = qs.filter(titolo__icontains=cerca_f) | qs.filter(numero_ticket__icontains=cerca_f)
 
@@ -1213,11 +1236,9 @@ def ticket_dashboard(request, sezione: str = "miei"):
         "filtro_stato":  stato_f,
         "filtro_prio":   prio_f,
         "filtro_cerca":  cerca_f,
-        # KPI
-        "n_da_confermare": kpi_qs.filter(stato=StatoTicket.RISOLTO).count(),
-        "n_aperte":      kpi_qs.filter(stato=StatoTicket.APERTA).count(),
-        "n_urgenti":     kpi_qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
-        "n_in_carico":   kpi_qs.filter(stato=StatoTicket.IN_CARICO).count(),
+        "filtro_attivi": attivi_f,
+        # KPI (ogni tessera apre questa stessa pagina col filtro che riproduce il numero)
+        **{f"n_{k}": v for k, v in kpi_ticket_propri(kpi_qs).items()},
     }
     return render(request, "tickets/pages/dashboard.html", ctx)
 
@@ -1867,14 +1888,44 @@ def ticket_gestione_list(request):
     ordine_f     = request.GET.get("ordine", "").strip()
     allegati_f   = request.GET.get("allegati", "").strip()
     vista_f      = request.GET.get("vista", "").strip()
-    if vista_f not in VISTE_GESTIONE:
+    # ``vista=tutti`` (senza scheda propria): ogni stato, per i KPI «totali» che arrivano da altre pagine.
+    if vista_f not in VISTE_GESTIONE and vista_f != "tutti":
         vista_f = "fare"
+    # Filtri dei KPI cliccabili del cruscotto asset: restringono soltanto l'elenco
+    # che il gestore vede già, con le stesse funzioni che calcolano le tessere.
+    registro_f = request.GET.get("registro", "").strip().lower()
+    if registro_f not in ("1", "asset"):
+        registro_f = ""
+    urgenza_f = "1" if request.GET.get("urgenza", "").strip() == "1" else ""
+    famiglia_f = None
+    famiglia_label = ""
+    famiglia_raw = request.GET.get("famiglia", "").strip()
+    if famiglia_raw.isdigit():
+        from assets.models import AssetCategory
+
+        _famiglia = AssetCategory.objects.filter(pk=int(famiglia_raw), is_active=True).first()
+        if _famiglia:
+            famiglia_f, famiglia_label = _famiglia.pk, _famiglia.label
+
+    def _data_get(nome: str):
+        try:
+            return datetime.strptime(request.GET.get(nome, "").strip(), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    # Dalla scheda dipendente: i ticket chiesti da una persona (id utente, come nel conteggio).
+    richiedente_raw = request.GET.get("richiedente", "").strip()
+    richiedente_f = int(richiedente_raw) if richiedente_raw.isdigit() and len(richiedente_raw) < 10 else None
+    chiusi_dal_f = _data_get("chiusi_dal")
+    chiusi_al_f = _data_get("chiusi_al")
     # Un filtro esplicito di stato (link da cruscotti e filtri) vale più della vista.
     vista_attiva = "" if (stato_f or allegati_f) else vista_f
     nome_io, email_io, _legacy_io = _legacy_identity(request)
     miei_q = _q_miei(nome_io, email_io)
 
     def _q_vista(codice: str) -> Q:
+        if codice == "tutti":
+            return Q()
         if codice == "miei":
             return Q(stato__in=STATI_APERTI) & miei_q
         if codice == "liberi":
@@ -1929,6 +1980,28 @@ def ticket_gestione_list(request):
             qs = qs.filter(ricorrente=True)
         if allegati_f == "da_validare":
             qs = qs.filter(n_allegati_da_validare__gt=0)
+        if registro_f == "asset":
+            from assets.services.dashboard_kpi import filtra_ticket_man_cruscotto
+
+            qs = filtra_ticket_man_cruscotto(qs, request, famiglia_f)
+        else:
+            if registro_f == "1":
+                qs = qs.filter(tipo=TipoTicket.MAN, include_in_maintenance_register=True)
+            if famiglia_f:
+                qs = qs.filter(asset__asset_category_id=famiglia_f)
+        if richiedente_f:
+            qs = qs.filter(richiedente_legacy_user_id=richiedente_f)
+        if urgenza_f:
+            from assets.services.dashboard_kpi import q_segnalazione_urgente
+
+            qs = qs.filter(q_segnalazione_urgente())
+        if chiusi_dal_f or chiusi_al_f:
+            # «Chiusi nel periodo»: chiusi o risolti, per data di chiusura.
+            qs = qs.filter(stato__in=(StatoTicket.CHIUSO, StatoTicket.RISOLTO))
+            if chiusi_dal_f:
+                qs = qs.filter(closed_at__date__gte=chiusi_dal_f)
+            if chiusi_al_f:
+                qs = qs.filter(closed_at__date__lte=chiusi_al_f)
         if data_da_f:
             try:
                 qs = qs.filter(created_at__date__gte=datetime.strptime(data_da_f, "%Y-%m-%d").date())
@@ -2024,10 +2097,32 @@ def ticket_gestione_list(request):
         "filtro_ricorrente": ricorrente_f,
         "filtro_ordine":     ordine_f,
         "filtro_allegati":   allegati_f,
-        "n_allegati_da_validare": TicketAllegato.objects.filter(
-            stato_validazione=StatoValidazioneAllegato.DA_VALIDARE,
-            ticket__tipo__in=[t for t in (TipoTicket.IT, TipoTicket.MAN) if is_admin or _can_manage_tickets(request, t)],
-        ).count(),
+        "filtro_registro":   registro_f,
+        "filtro_urgenza":    urgenza_f,
+        "filtro_richiedente": richiedente_f or "",
+        "filtro_famiglia":   famiglia_f or "",
+        "filtro_chiusi_dal": chiusi_dal_f.isoformat() if chiusi_dal_f else "",
+        "filtro_chiusi_al":  chiusi_al_f.isoformat() if chiusi_al_f else "",
+        # Etichette dei filtri arrivati dai cruscotti (non hanno un campo nel modulo).
+        "filtri_cruscotto": [
+            etichetta for attivo, etichetta in (
+                (registro_f == "1", "solo registro manutenzione"),
+                (registro_f == "asset", "registro manutenzione, asset non dismessi"),
+                (famiglia_f, f"famiglia {famiglia_label}"),
+                (urgenza_f, "urgenti (priorità alta/urgente o sicurezza)"),
+                (richiedente_f, "ticket chiesti da una sola persona"),
+                (vista_f == "tutti" and not stato_f, "tutti gli stati"),
+                (chiusi_dal_f, f"chiusi dal {chiusi_dal_f:%d/%m/%Y}" if chiusi_dal_f else ""),
+                (chiusi_al_f, f"chiusi fino al {chiusi_al_f:%d/%m/%Y}" if chiusi_al_f else ""),
+            ) if attivo
+        ],
+        # Ticket (non allegati) dei tipi mostrati con almeno un allegato da validare:
+        # lo stesso insieme che la tessera apre con ?allegati=da_validare.
+        # Prima contava gli allegati di tutti i tipi gestiti, e il numero non
+        # coincideva con le righe dell'elenco filtrato.
+        "n_allegati_da_validare": base.filter(
+            tipo__in=tipi_mostrati, n_allegati_da_validare__gt=0,
+        ).count() if tipi_mostrati else 0,
         "categorie_it":    get_categorie(TipoTicket.IT),
         "categorie_man":   get_categorie(TipoTicket.MAN),
         "n_aperte":    kpi_qs.filter(stato=StatoTicket.APERTA).count(),

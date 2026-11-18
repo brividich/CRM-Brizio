@@ -19,42 +19,43 @@
 
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
-  <article class="ts-kpi blue">
+  {% url 'tasks:project_actions' project.id as u_actions %}
+  <a class="ts-kpi blue kpi-link" href="{{ u_actions }}?stato=aperte" title="Apri il registro filtrato: azioni aperte">
     <div class="ts-kpi-label">Aperte</div>
     <div class="ts-kpi-value">{{ open_count }}</div>
     <div class="ts-kpi-note">Problemi, azioni, attività e sotto-attività da chiudere.</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
-  </article>
-  <article class="ts-kpi red">
+  </a>
+  <a class="ts-kpi red kpi-link" href="{{ u_actions }}?scadenza=scadute" title="Apri il registro filtrato: azioni scadute e ancora aperte">
     <div class="ts-kpi-label">Scadute</div>
     <div class="ts-kpi-value">{{ overdue_count }}</div>
     <div class="ts-kpi-note">Con scadenza superata e ancora aperte.</div>
     {% if open_count %}
       <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio overdue_count open_count 100 %}%"></div></div>
     {% endif %}
-  </article>
-  <article class="ts-kpi amber">
+  </a>
+  <a class="ts-kpi amber kpi-link" href="{{ u_actions }}?stato=aperte&amp;responsabile=nessuno" title="Apri il registro filtrato: azioni aperte senza responsabile">
     <div class="ts-kpi-label">Senza responsabile</div>
     <div class="ts-kpi-value">{{ unassigned_count }}</div>
     <div class="ts-kpi-note">Aperte ma non assegnate a nessuno.</div>
     {% if open_count %}
       <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio unassigned_count open_count 100 %}%"></div></div>
     {% endif %}
-  </article>
-  <article class="ts-kpi teal">
+  </a>
+  <a class="ts-kpi teal kpi-link" href="{{ u_actions }}?scadenza=senza" title="Apri il registro filtrato: azioni aperte senza scadenza">
     <div class="ts-kpi-label">Senza scadenza</div>
     <div class="ts-kpi-value">{{ no_due_count }}</div>
     <div class="ts-kpi-note">Aperte senza data di chiusura attesa.</div>
     {% if open_count %}
       <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio no_due_count open_count 100 %}%"></div></div>
     {% endif %}
-  </article>
+  </a>
   {% if include_closed %}
-    <article class="ts-kpi slate">
+    <a class="ts-kpi slate kpi-link" href="{{ u_actions }}?closed=1&amp;stato=chiuse" title="Apri il registro filtrato: azioni chiuse">
       <div class="ts-kpi-label">Chiuse</div>
       <div class="ts-kpi-value">{{ closed_count }}</div>
       <div class="ts-kpi-note">Visibili perché il filtro le include.</div>
-    </article>
+    </a>
   {% endif %}
 </section>
 {% endblock %}
@@ -68,6 +69,7 @@
         <a class="ml-scope-btn{% if include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
       </div>
       {% if include_closed %}<input type="hidden" name="closed" value="1">{% endif %}
+      {% if filters.stato %}<input type="hidden" name="stato" value="{{ filters.stato }}">{% endif %}
       <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca nel titolo o nell'origine…">
       <select class="input" name="tipo" aria-label="Tipo">
         <option value="">Tutti i tipi</option>

@@ -45,21 +45,21 @@
 </section>
 
 <section class="sec-grid sec-kpi-grid" style="margin-top:12px">
-  <div class="sec-panel sec-kpi-card">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_persona' %}?q={{ q|urlencode }}&amp;giorno={{ giorno|date:'Y-m-d' }}&amp;filtro=accessi#rl-giornata" title="Apri gli accessi del {{ giorno|date:'d/m/Y' }}">
     <span class="sec-kpi-label">Primo accesso del giorno</span>
     <strong class="sec-kpi-value">{% if kpi.primo %}{{ kpi.primo|time:"H:i" }}{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta">{% if kpi.primo %}{{ kpi.primo_dove|default:"" }}{% else %}nessun accesso il {{ giorno|date:"d/m/Y" }}{% endif %}</span>
-  </div>
-  <div class="sec-panel sec-kpi-card">
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="#rl-laterale" title="Vai all'elenco degli ultimi 7 giorni">
     <span class="sec-kpi-label">{% if tipo == "account" %}PC e sistemi usati{% else %}Persone che hanno fatto accesso{% endif %}</span>
     <strong class="sec-kpi-value">{{ kpi.usati }}</strong>
     <span class="sec-kpi-delta">ultimi 7 giorni</span>
-  </div>
-  <div class="sec-panel sec-kpi-card">
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:registro_log_eventi' %}?giorni=7&amp;sezione=falliti&amp;silenziati=1&amp;righe=tutte&amp;chi={{ q|urlencode }}" title="Apri nel catalogo gli accessi falliti degli ultimi 7 giorni">
     <span class="sec-kpi-label">Accessi falliti</span>
     <strong class="sec-kpi-value{% if kpi.falliti %} warning{% endif %}">{{ kpi.falliti }}</strong>
     <span class="sec-kpi-delta">ultimi 7 giorni</span>
-  </div>
+  </a>
   {% if tipo == "account" %}
   <div class="sec-panel sec-kpi-card">
     <span class="sec-kpi-label">Privilegi di amministratore</span>
@@ -83,8 +83,8 @@
 </div>
 
 <div class="rl-due">
-  <section class="sec-panel">
-    <div class="sec-section-head"><h2>{% if giorno == oggi %}La giornata di oggi{% else %}{{ giorno|date:"l d/m/Y"|capfirst }}{% endif %}</h2><span class="sec-muted sec-small">{{ giornata|length }} event{{ giornata|length|pluralize:"o,i" }}, in ordine di ora</span></div>
+  <section class="sec-panel" id="rl-giornata">
+    <div class="sec-section-head"><h2>{% if giorno == oggi %}La giornata di oggi{% else %}{{ giorno|date:"l d/m/Y"|capfirst }}{% endif %}</h2><span class="sec-muted sec-small">{{ giornata_totale }} event{{ giornata_totale|pluralize:"o,i" }}{% if giornata|length < giornata_totale %} · primi {{ giornata|length }} mostrati{% endif %}, in ordine di ora</span></div>
     {% if giornata %}
     <ol class="rl-linea">
       {% for e in giornata %}
@@ -98,8 +98,8 @@
     </ol>
     {% else %}<p class="sec-muted">Nessun evento nel catalogo per questo giorno{% if filtro %} con questo filtro{% endif %}.</p>{% endif %}
   </section>
-  <aside class="sec-panel">
-    <div class="sec-section-head"><h2>{% if tipo == "account" %}PC e sistemi usati{% else %}Chi ha fatto accesso{% endif %}</h2><span class="sec-muted sec-small">ultimi 7 giorni</span></div>
+  <aside class="sec-panel" id="rl-laterale">
+    <div class="sec-section-head"><h2>{% if tipo == "account" %}PC e sistemi usati{% else %}Chi ha fatto accesso{% endif %}</h2><span class="sec-muted sec-small">ultimi 7 giorni{% if laterale|length < kpi.usati %} · i {{ laterale|length }} più frequenti su {{ kpi.usati }}{% endif %}</span></div>
     {% if laterale %}<ul class="rl-elenco">{% for r in laterale %}<li><span>{% if r.q %}<a href="?q={{ r.q|urlencode }}">{{ r.titolo }}</a>{% else %}<a href="?q={{ r.titolo|urlencode }}">{{ r.titolo }}</a>{% endif %}{% if r.sotto %}<span class="rl-sub">{{ r.sotto }}</span>{% endif %}</span><span class="rl-n">{{ r.n }}</span></li>{% endfor %}</ul>
     {% else %}<p class="sec-muted">Nessun accesso negli ultimi 7 giorni.</p>{% endif %}
     <p class="sec-muted sec-small">File, stampe e USB non compaiono qui: si consultano solo dentro un'indagine motivata.</p>

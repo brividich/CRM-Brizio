@@ -15,18 +15,18 @@
       <div class="monitoring-kpi-label">Severita</div>
       <div class="monitoring-kpi-value" style="font-size:20px;"><span class="monitoring-pill severity-{{ issue.severity }}">{{ issue.get_severity_display }}</span></div>
     </div>
-    <div class="monitoring-kpi">
+    <a class="monitoring-kpi kpi-link" href="#gestione" title="Vai a cambio stato e assegnazione">
       <div class="monitoring-kpi-label">Status</div>
       <div class="monitoring-kpi-value" style="font-size:20px;"><span class="monitoring-pill status-{{ issue.status }}">{{ issue.get_status_display }}</span></div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="#occorrenze" title="Vai alle occorrenze recenti (ultime 20)">
       <div class="monitoring-kpi-label">Occorrenze</div>
       <div class="monitoring-kpi-value">{{ issue.occurrences_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="#utenti" title="Vai agli utenti coinvolti (primi 10)">
       <div class="monitoring-kpi-label">Utenti coinvolti</div>
       <div class="monitoring-kpi-value">{{ issue.affected_users_count }}</div>
-    </div>
+    </a>
   </div>
 
   <div class="monitoring-grid two-col">
@@ -46,7 +46,7 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><div class="card-title">Occorrenze recenti</div></div>
+        <div class="card-head" id="occorrenze"><div class="card-title">Occorrenze recenti</div></div>
         <div class="card-body" style="padding:0;">
           <div class="table-wrap">
             <table class="admin-table">
@@ -91,7 +91,7 @@
 
     <div class="monitoring-grid">
       <div class="card">
-        <div class="card-head"><div class="card-title">Cambio stato e assegnazione</div></div>
+        <div class="card-head" id="gestione"><div class="card-title">Cambio stato e assegnazione</div></div>
         <div class="card-body">
           <form method="post" class="monitoring-grid">
             {% csrf_token %}
@@ -128,7 +128,7 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><div class="card-title">Utenti coinvolti</div></div>
+        <div class="card-head" id="utenti"><div class="card-title">Utenti coinvolti</div></div>
         <div class="card-body">
           <div class="monitoring-inline-list">
             {% for item in users_involved %}

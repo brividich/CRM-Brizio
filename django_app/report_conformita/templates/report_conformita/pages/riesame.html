@@ -40,7 +40,7 @@
         <div class="rc-tile-foot">{% for cl in s.report.clausole %}<span class="rc-clause">{{ cl }}</span>{% endfor %}</div>
       </div>
       {% if s.result %}
-        {% include "report_conformita/components/_kpis.html" with kpis=s.result.kpis %}
+        {% include "report_conformita/components/_kpis.html" with kpis=s.kpis %}
         {% if s.result.riesame_notes %}<ul class="rc-notes">{% for note in s.result.riesame_notes %}<li>{{ note }}</li>{% endfor %}</ul>{% endif %}
       {% else %}
         <div class="rc-empty">Report non calcolabile in questo momento.</div>

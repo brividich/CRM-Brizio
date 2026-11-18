@@ -299,7 +299,10 @@ def _compute_dashboard_kpis(request: HttpRequest, today: date) -> dict:
         admin_dues = [due for due in admin_dues if due.asset.id in visibili_man]
     dl_scadute = sum(1 for due in admin_dues if due.due_date < today)
     dl_30 = sum(1 for due in admin_dues if today <= due.due_date <= in_30)
-    dl_90 = sum(1 for due in admin_dues if in_30 < due.due_date <= in_90)
+    # «entro 90» e' cumulativo (oggi → 90 gg), come la scheda «90 giorni» dello
+    # Scadenzario a cui porta: prima contava solo 31-90 e la tessera «Adempimenti»
+    # lo leggeva come «entro 90».
+    dl_90 = sum(1 for due in admin_dues if today <= due.due_date <= in_90)
 
     # OdL
     wo_qs = filtra_odl(request, WorkOrder.objects.all())
@@ -449,8 +452,6 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         )
     except Exception:
         deadlines = []
-    from django.db.models import Q
-
     from ..registro_permessi import MODULO_MANUTENZIONE
     from ..services.visibilita import ids_visibili
 
@@ -475,27 +476,19 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
             "action_label": (dl.actions[0]["label"] if dl.actions else "Apri"),
             "work_order_id": dl.work_order_id,
         })
-    verifications = PeriodicVerification.objects.filter(
-        is_active=True, is_legacy=False, next_verification_date__isnull=False,
-        next_verification_date__lte=horizon,
-    )
-    if visibili is not None:
-        verifications = verifications.filter(
-            pk__in=PeriodicVerification.objects.filter(Q(assets__in=visibili)).values("pk")
-        )
-    verifications = verifications.order_by("next_verification_date")[:200]
-    pv_url = reverse("assets:periodic_verifications")
-    for pv in verifications:
+    # Piani periodici non ancora convertiti: la stessa funzione dello Scadenzario
+    # (``plan_type=piani``), a cui portano le tessere «Piani scaduti / in scadenza».
+    for pv in feed.pending_periodic_verifications(start=None, end=horizon, today=today, visibili=visibili):
         rows.append({
             "source": "verification",
             "source_label": "Verifica",
-            "title": pv.name,
-            "due_date": pv.next_verification_date,
-            "days": (pv.next_verification_date - today).days,
-            "is_overdue": pv.next_verification_date < today,
+            "title": pv.title,
+            "due_date": pv.due_date,
+            "days": (pv.due_date - today).days,
+            "is_overdue": pv.due_date < today,
             "asset_tag": "",
             "asset_name": "",
-            "url": pv_url,
+            "url": pv.detail_url,
             "action_label": "Gestisci",
             "work_order_id": None,
         })
@@ -582,13 +575,13 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     enabled = cfg.get_enabled_widgets()
 
     kpis = _compute_dashboard_kpis(request, today)
-    family_kpis = get_family_dashboard_kpis(selected_family_id, today=today)
+    family_kpis = get_family_dashboard_kpis(selected_family_id, today=today, request=request)
     family_distribution = get_families_distribution(today=today)
     maintenance_by_family = get_maintenance_by_family(today=today)
     downtime_by_family = get_downtime_by_family(today=today)
-    fire_safety_kpis = get_fire_safety_kpis(today=today)
+    fire_safety_kpis = get_fire_safety_kpis(today=today, request=request)
     try:
-        maintenance_perf = get_maintenance_performance_kpis(today=today)
+        maintenance_perf = get_maintenance_performance_kpis(today=today, request=request)
     except Exception:
         maintenance_perf = {
             "mttr_hours": 0, "downtime_hours_month": 0, "maintenance_cost_month": 0,
@@ -636,8 +629,12 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     family_options = categories
     # Categorie per la barra "Inventario per categoria": le piu' popolose in vista,
     # le altre dietro "+ altre" (sono decine e coprivano la pagina).
+    # Nell'ambito del ruolo, come l'elenco a cui porta ogni categoria (prima
+    # contava tutta l'azienda e cliccando si trovava una lista piu' corta).
+    from ..services.visibilita import filtra as _filtra_visibili
+
     category_counts = dict(
-        Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+        _filtra_visibili(request, Asset.objects.exclude(status=Asset.STATUS_RETIRED))
         .values_list("asset_category_id")
         .annotate(n=Count("id"))
         .order_by()
@@ -668,6 +665,10 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     ctx = _assets_shell_context(request, search_action=reverse("assets:asset_list"))
     ctx.update({
         "today": today,
+        # Date dei filtri dei KPI cliccabili (elenco OdL: chiusi dal/al).
+        "month_start": today.replace(day=1),
+        "month_end": (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1),
+        "mttr_from": today - timedelta(days=30),
         "kpis": kpis,
         "enabled_widgets": enabled,
         "enabled_widgets_json": json.dumps(enabled),

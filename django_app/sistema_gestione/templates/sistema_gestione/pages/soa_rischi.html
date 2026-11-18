@@ -21,11 +21,11 @@
   </section>
   {% else %}
   <div class="sg-kpis">
-    <div class="sg-kpi"><span>Minacce</span><strong>{{ analisi.minacce|length }}</strong></div>
-    <div class="sg-kpi"><span>Oltre la soglia</span><strong>{{ analisi.non_accettabili|length }}</strong></div>
-    <div class="sg-kpi"><span>Residuo massimo</span><strong>{{ analisi.residuo_massimo|default_if_none:"—" }}</strong></div>
-    <div class="sg-kpi"><span>Controlli oltre la soglia</span><strong>{{ analisi.controlli_oltre_soglia|length }}</strong></div>
-    <div class="sg-kpi"><span>Scenari OT</span><strong>{{ analisi.scenari|length }}</strong>{% if analisi.ot_oltre_soglia %}<small>{{ analisi.ot_oltre_soglia|length }} oltre la soglia</small>{% endif %}</div>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:soa_rischi' revisione.numero %}#minacce" title="Apri l'elenco di tutte le minacce"><span>Minacce</span><strong>{{ analisi.minacce|length }}</strong></a>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:soa_rischi' revisione.numero %}?filtro=oltre#minacce" title="Apri l'elenco filtrato: minacce oltre la soglia"><span>Oltre la soglia</span><strong>{{ analisi.non_accettabili|length }}</strong></a>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:soa_rischi' revisione.numero %}#minacce" title="Apri l'elenco delle minacce: il residuo massimo è il più alto della colonna Residuo"><span>Residuo massimo</span><strong>{{ analisi.residuo_massimo|default_if_none:"—" }}</strong></a>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:soa_rischi' revisione.numero %}#controlli" title="Vai al monitoraggio dei controlli"><span>Controlli oltre la soglia</span><strong>{{ analisi.controlli_oltre_soglia|length }}</strong></a>
+    <a class="sg-kpi kpi-link" href="{% url 'sistema_gestione:soa_rischi' revisione.numero %}#ot" title="Vai al piano di trattamento OT"><span>Scenari OT</span><strong>{{ analisi.scenari|length }}</strong>{% if analisi.ot_oltre_soglia %}<small>{{ analisi.ot_oltre_soglia|length }} oltre la soglia</small>{% endif %}</a>
   </div>
   {% if analisi.differenze_registrate %}<div class="sg-alert warn" role="status"><strong>{{ analisi.differenze_registrate|length }} minacce</strong> hanno un residuo diverso da quello del MOD.165 importato: sono cambiate le vulnerabilità nella SoA o i controlli collegati. Il valore del modulo resta visibile come «MOD.165».</div>{% endif %}
   {% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:soa_rischio_soglia' revisione.numero %}" class="sg-inline-form">{% csrf_token %}{% for field in form_soglia %}<div>{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<button class="btn btn-secondary" type="submit">Aggiorna soglia</button></form>{% endif %}

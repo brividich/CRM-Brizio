@@ -46,6 +46,7 @@
   margin-top: 16px;
 }
 .ai-kpi {
+  display: block;
   min-height: 72px;
   border: 1px solid #dbe4ef;
   border-radius: 8px;
@@ -308,23 +309,24 @@ body.theme-dark .ai-table th{color:var(--text-mid);background:var(--surface-alt,
         <a class="btn btn-secondary" href="{% url 'admin_portale:ai_knowledge' %}">Vista FAQ</a>
       </div>
     </div>
+    {% url 'admin_portale:ai_settings' as ai_settings_url %}
     <div class="ai-kpis">
-      <div class="ai-kpi">
+      <a class="ai-kpi kpi-link" href="{{ ai_settings_url }}?tab=runtime" title="Vai alla configurazione del runtime AI (provider)">
         <div class="ai-kpi-label">Provider</div>
         <div class="ai-kpi-value">{{ ollama_cfg.provider|default:"ollama" }}</div>
-      </div>
-      <div class="ai-kpi">
+      </a>
+      <a class="ai-kpi kpi-link" href="{{ ai_settings_url }}?tab=runtime" title="Vai alla configurazione del runtime AI (modello)">
         <div class="ai-kpi-label">Modello</div>
         <div class="ai-kpi-value">{{ ollama_cfg.model|default:"non configurato" }}</div>
-      </div>
-      <div class="ai-kpi">
+      </a>
+      <a class="ai-kpi kpi-link" href="{{ ai_settings_url }}?tab=runtime" title="Vai alla configurazione del runtime AI (RAG)">
         <div class="ai-kpi-label">RAG</div>
         <div class="ai-kpi-value">{% if ollama_cfg.rag_enabled %}abilitato{% else %}disabilitato{% endif %}</div>
-      </div>
-      <div class="ai-kpi">
+      </a>
+      <a class="ai-kpi kpi-link" href="{{ ai_settings_url }}?tab=faq&amp;active=1" title="Apri l'elenco filtrato: FAQ attive ({{ active_count }} su {{ total_count }} totali)">
         <div class="ai-kpi-label">FAQ AI</div>
         <div class="ai-kpi-value">{{ active_count }} / {{ total_count }}</div>
-      </div>
+      </a>
     </div>
   </div>
 

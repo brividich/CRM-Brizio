@@ -57,6 +57,7 @@
           <option value="1" {% if filtro_obbligatorio == "1" %}selected{% endif %}>Solo obbligatori</option>
           <option value="0" {% if filtro_obbligatorio == "0" %}selected{% endif %}>Solo facoltativi</option>
         </select>
+        {% if filtro_attivi %}<input type="hidden" name="attivi" value="1"><span class="fmd-muted" style="font-size:12px;" title="Esclusi i corsi disattivati">Solo non disattivati</span>{% endif %}
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
         <span class="fmd-spacer"></span>

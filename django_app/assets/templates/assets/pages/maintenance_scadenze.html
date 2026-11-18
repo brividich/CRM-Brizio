@@ -116,7 +116,7 @@
   {% if show_renewals and renewals %}
   <section class="md-section">
     <div class="md-section-head">
-      <h2>{% if plan_type == 'administrative' %}Scadenze amministrative{% elif plan_type == 'renewals' %}Licenze e contratti{% elif plan_type == 'checks' %}Verifiche impianti{% else %}Scadenze amministrative, verifiche impianti, licenze e contratti{% endif %}</h2>
+      <h2>{% if plan_type == 'administrative' %}Scadenze amministrative{% elif plan_type == 'renewals' %}Licenze e contratti{% elif plan_type == 'checks' %}Verifiche impianti{% elif plan_type == 'piani' %}Verifiche impianti e piani periodici{% else %}Scadenze amministrative, verifiche impianti, licenze e contratti{% endif %}</h2>
       <span class="md-badge badge-muted">{{ renewals|length }}</span>
       <span class="md-sub">Si registrano dalla loro pagina con «Registra»: qui non si crea un ordine di lavoro.</span>
     </div>

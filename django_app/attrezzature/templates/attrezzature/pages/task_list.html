@@ -6,7 +6,7 @@
 <section class="at-card">
   <div class="at-card-h">
     <strong>Filtri task</strong>
-    {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute %}
+    {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute or request.GET.aperte %}
     <span class="badge info">Filtri attivi</span>
     {% endif %}
   </div>
@@ -43,8 +43,12 @@
         <span>Scadenza</span>
         <span><input type="checkbox" name="scadute" value="1" {% if request.GET.scadute %}checked{% endif %}> Solo scadute</span>
       </label>
+      <label class="at-field">
+        <span>Stato aperto</span>
+        <span><input type="checkbox" name="aperte" value="1" {% if request.GET.aperte %}checked{% endif %}> Solo aperte</span>
+      </label>
       <button class="btn" type="submit">Filtra</button>
-      {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute %}
+      {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute or request.GET.aperte %}
       <a class="btn secondary" href="{% url 'attrezzature:task_list' %}">Reset</a>
       {% endif %}
     </form>

@@ -62,8 +62,15 @@ def _assegnazioni() -> dict[tuple[str, str], ReportProfiloLayout]:
         return {}
 
 
-def _contesto_catalogo() -> dict:
+DA_CATALOGARE_LIMITE = 50
+
+
+def _contesto_catalogo(solo_personali: bool = False) -> dict:
+    """Catalogo dei report. Le tessere contano sempre tutto il catalogo; con
+    ``solo_personali`` l'elenco mostra solo le voci con dati personali (stessa
+    condizione ``voce.dati_personali`` del conteggio «con dati personali»)."""
     da = timezone.now() - timedelta(days=30)
+    da_catalogare_totale = 0
     try:
         ultime = {
             r["report_chiave"]: r
@@ -80,12 +87,15 @@ def _contesto_catalogo() -> dict:
             .order_by()
         ):
             formati.setdefault(r["report_chiave"], []).append(r["formato"])
+        da_catalogare_qs = ReportEmissione.objects.filter(report_chiave="")
         da_catalogare = list(
-            ReportEmissione.objects.filter(report_chiave="")
+            da_catalogare_qs
             .values("route_name")
             .annotate(n=Count("id"), ultima=Max("created_at"))
-            .order_by("-ultima")[:50]
+            .order_by("-ultima")[:DA_CATALOGARE_LIMITE]
         )
+        # Il numero della tessera e' il totale delle route, non la lista troncata a 50.
+        da_catalogare_totale = da_catalogare_qs.values("route_name").distinct().count()
     except DatabaseError:
         ultime, formati, da_catalogare = {}, {}, []
     assegnazioni = _assegnazioni()
@@ -110,12 +120,21 @@ def _contesto_catalogo() -> dict:
                 "profilo": profilo,
             })
         gruppi.append({"modulo": modulo, "righe": righe})
+    totale_moduli = len(gruppi)
+    if solo_personali:
+        gruppi = [
+            {**g, "righe": [r for r in g["righe"] if r["voce"].dati_personali]}
+            for g in gruppi
+        ]
+        gruppi = [g for g in gruppi if g["righe"]]
     return {
         "gruppi": gruppi,
         "totale_voci": totale,
         "totale_personali": personali,
-        "totale_moduli": len(gruppi),
+        "totale_moduli": totale_moduli,
         "da_catalogare": da_catalogare,
+        "da_catalogare_totale": da_catalogare_totale,
+        "solo_personali": solo_personali,
     }
 
 
@@ -294,7 +313,7 @@ def centro_report(request):
         scheda = "catalogo"
     context = {"page_title": "Centro report", "scheda": scheda}
     if scheda == "catalogo":
-        context.update(_contesto_catalogo())
+        context.update(_contesto_catalogo(solo_personali=request.GET.get("personali") == "1"))
     elif scheda == "registro":
         context.update(_contesto_registro(request))
     elif scheda == "layout":

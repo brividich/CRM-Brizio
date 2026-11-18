@@ -21,7 +21,7 @@
 .fn-hbtn-outline:hover { background:rgba(255,255,255,.28); }
 
 .fn-kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
-.fn-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; }
+.fn-kpi { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; }
 .fn-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:3px 3px 0 0; }
 .fn-kpi.green::before  { background:#16a34a; }
 .fn-kpi.blue::before   { background:#1d4ed8; }
@@ -141,23 +141,23 @@ body.theme-dark .fn-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
 
   <!-- KPI -->
   <div class="fn-kpi-row">
-    <div class="fn-kpi green">
+    <a class="fn-kpi green kpi-link" href="{% url 'fornitori:fornitori_list' %}?attivi=1" title="Apri l'elenco filtrato: fornitori attivi">
       <div class="fn-kpi-icon">🏭</div>
       <div class="fn-kpi-value">{{ n_fornitori }}</div>
       <div class="fn-kpi-label">Fornitori attivi</div>
       <div class="fn-kpi-sub">{{ n_fornitori_tutti }} totali</div>
-    </div>
-    <div class="fn-kpi red">
+    </a>
+    <a class="fn-kpi red kpi-link" href="{% url 'fornitori:fornitori_list' %}?attivi=0" title="Apri l'elenco filtrato: fornitori disattivati">
       <div class="fn-kpi-icon">⚠️</div>
       <div class="fn-kpi-value">{{ n_fornitori_inattivi }}</div>
       <div class="fn-kpi-label">Inattivi</div>
       <div class="fn-kpi-sub">su {{ n_fornitori_tutti }} totali</div>
-    </div>
+    </a>
     <div class="fn-kpi orange">
       <div class="fn-kpi-icon">💶</div>
       <div class="fn-kpi-value">€ {{ spesa_totale|floatformat:0 }}</div>
       <div class="fn-kpi-label">Spesa totale</div>
-      <div class="fn-kpi-sub">somma ordini storici</div>
+      <div class="fn-kpi-sub">somma ordini, annullati esclusi</div>
     </div>
     <div class="fn-kpi blue">
       <div class="fn-kpi-icon">🧾</div>

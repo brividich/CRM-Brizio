@@ -121,10 +121,10 @@ def _alerts_section(since, until):
 
 
 def _backup_section(since, until):
-    jobs = BackupJobRecord.objects.filter(
-        Q(completed_at__gte=since, completed_at__lt=until)
-        | Q(completed_at__isnull=True, created_at__gte=since, created_at__lt=until)
-    )
+    from security.services.backup_center import periodo_q
+
+    # Stesso criterio di data del Log backup (completed/started/created): la tessera porta lì con ?dal=&al=.
+    jobs = BackupJobRecord.objects.filter(periodo_q(since, until))
     counts = Counter(jobs.values_list("status", flat=True))
     total = sum(counts.values())
     failed = [

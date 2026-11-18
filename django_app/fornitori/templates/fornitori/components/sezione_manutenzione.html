@@ -4,23 +4,24 @@
 <div class="fr-azioni">
   <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'assets:maintenance_supplier_detail' fornitore.pk %}">Scheda manutenzione completa →</a>
 </div>
+{% url 'assets:maintenance_supplier_detail' fornitore.pk as url_scheda_man %}
 <div class="fr-kpis">
-  <div class="ana-metric"><div class="ana-metric-val">{{ r.open_wos|length }}</div><div class="ana-metric-label">OdL aperti</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ r.closed_12m|length }}</div><div class="ana-metric-label">OdL chiusi 12 mesi</div></div>
-  <div class="ana-metric">
+  <a class="ana-metric kpi-link" href="{% if r.open_wos %}#fr-man-odl-aperti{% else %}{{ url_scheda_man }}{% endif %}" title="Apri l'elenco: ordini di lavoro aperti affidati a questa ditta"><div class="ana-metric-val">{{ r.open_wos|length }}</div><div class="ana-metric-label">OdL aperti</div></a>
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: interventi conclusi negli ultimi 12 mesi"><div class="ana-metric-val">{{ r.closed_12m|length }}</div><div class="ana-metric-label">OdL chiusi 12 mesi</div></a>
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: costo e copertura del dato negli ultimi 12 mesi">
     <div class="ana-metric-val">{% if r.costo_12m_coverage.rows %}€ {{ r.costo_12m|floatformat:0 }}{% else %}—{% endif %}</div>
     <div class="ana-metric-label">Costo OdL 12 mesi</div>
-  </div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ contratti_attivi }}</div><div class="ana-metric-label">Contratti attivi</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ piani_attivi }}</div><div class="ana-metric-label">Piani attivi</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ ticket_aperti|length }}</div><div class="ana-metric-label">Ticket aperti</div></div>
+  </a>
+  <a class="ana-metric kpi-link" href="{% if r.contracts %}#fr-man-contratti{% else %}{{ url_scheda_man }}{% endif %}" title="Apri l'elenco: contratti di assistenza della ditta"><div class="ana-metric-val">{{ contratti_attivi }}</div><div class="ana-metric-label">Contratti attivi</div></a>
+  <a class="ana-metric kpi-link" href="{{ url_scheda_man }}" title="Apri la scheda manutenzione della ditta: manutenzioni affidate"><div class="ana-metric-val">{{ piani_attivi }}</div><div class="ana-metric-label">Piani attivi</div></a>
+  {% if ticket_aperti %}<a class="ana-metric kpi-link" href="#fr-man-ticket" title="Apri l'elenco: ticket aperti delegati alla ditta"><div class="ana-metric-val">{{ ticket_aperti|length }}</div><div class="ana-metric-label">Ticket aperti</div></a>{% else %}<div class="ana-metric"><div class="ana-metric-val">0</div><div class="ana-metric-label">Ticket aperti</div></div>{% endif %}
 </div>
 {% if r.closed_12m %}
 <p class="fr-nota">Il costo è compilato su {{ r.costo_12m_coverage.rows }} OdL chiusi su {{ r.closed_12m|length }}: la cifra vale solo per quelli.</p>
 {% endif %}
 
 {% if r.open_wos %}
-<div class="fr-sez">Ordini di lavoro aperti</div>
+<div class="fr-sez" id="fr-man-odl-aperti">Ordini di lavoro aperti</div>
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
   <thead><tr><th>OdL</th><th>Asset</th><th>Aperto il</th><th>Scadenza</th><th>Assegnato a</th></tr></thead>
   <tbody>{% for wo in r.open_wos %}
@@ -52,7 +53,7 @@
 {% endif %}
 
 {% if ticket_aperti or ticket_chiusi %}
-<div class="fr-sez">Ticket delegati alla ditta{% if n_ticket_chiusi > ticket_chiusi|length %} <small>ultimi {{ ticket_chiusi|length }} chiusi su {{ n_ticket_chiusi }}</small>{% endif %}</div>
+<div class="fr-sez" id="fr-man-ticket">Ticket delegati alla ditta{% if n_ticket_chiusi > ticket_chiusi|length %} <small>ultimi {{ ticket_chiusi|length }} chiusi su {{ n_ticket_chiusi }}</small>{% endif %}</div>
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
   <thead><tr><th>Ticket</th><th>Titolo</th><th>Stato</th><th>Aperto il</th></tr></thead>
   <tbody>{% for t in ticket_aperti %}
@@ -64,7 +65,7 @@
 {% endif %}
 
 {% if r.contracts %}
-<div class="fr-sez">Contratti di assistenza</div>
+<div class="fr-sez" id="fr-man-contratti">Contratti di assistenza</div>
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
   <thead><tr><th>Contratto</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Canone</th><th>Stato</th></tr></thead>
   <tbody>{% for c in r.contracts %}

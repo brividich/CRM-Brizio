@@ -19,6 +19,7 @@
 .admin-hint { font-size: var(--fs-sm); color: #64748b; }
 .admin-metrics { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
 .admin-metric { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; }
+a.admin-metric { display:block; }
 .admin-metric .n { font-size: var(--fs-title-lg); font-weight:800; color:#0f172a; line-height:1; }
 .admin-metric .l { margin-top:4px; font-size: var(--fs-xs); color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
 .admin-checks { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; margin-top:8px; display:grid; gap:6px; }
@@ -122,34 +123,34 @@ body.theme-dark .admin-item { box-shadow:none; }
             <button type="button" class="admin-help-btn" data-admin-target="admin-tutorial">Come funziona</button>
           </div>
           <div class="admin-metrics">
-            <article class="admin-metric">
+            <a class="admin-metric kpi-link" href="#admin-custom-fields" data-admin-target="admin-custom-fields" title="Vai ai campi personalizzati">
               <div class="n">{{ admin_metrics.custom_fields_active }}/{{ admin_metrics.custom_fields_total }}</div>
               <div class="l">Campi personalizzati attivi</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="#admin-list-options" data-admin-target="admin-list-options" title="Vai ai valori delle liste">
               <div class="n">{{ admin_metrics.list_options_active }}/{{ admin_metrics.list_options_total }}</div>
               <div class="l">Valori lista attivi</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="#admin-action-buttons" data-admin-target="admin-action-buttons" title="Vai ai pulsanti azione">
               <div class="n">{{ admin_metrics.action_buttons_active }}/{{ admin_metrics.action_buttons_total }}</div>
               <div class="l">Pulsanti azione attivi</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="#admin-detail-fields" data-admin-target="admin-detail-fields" title="Vai ai campi del dettaglio asset">
               <div class="n">{{ admin_metrics.detail_fields_active }}/{{ admin_metrics.detail_fields_total }}</div>
               <div class="l">Campi dettaglio attivi</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="{% url 'assets:gestione_admin' %}?tab=categorie" title="Apri le categorie asset">
               <div class="n">{{ admin_metrics.asset_categories_active }}/{{ admin_metrics.asset_categories_total }}</div>
               <div class="l">Categorie asset attive</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="{% url 'assets:gestione_admin' %}?tab=categorie#asset-category-fields" title="Apri i campi delle categorie">
               <div class="n">{{ admin_metrics.asset_category_fields_active }}/{{ admin_metrics.asset_category_fields_total }}</div>
               <div class="l">Campi categoria attivi</div>
-            </article>
-            <article class="admin-metric">
+            </a>
+            <a class="admin-metric kpi-link" href="{% url 'assets:gestione_admin' %}?tab=sidebar" title="Apri il menu laterale">
               <div class="n">{{ admin_metrics.sidebar_visible }}/{{ admin_metrics.sidebar_total }}</div>
               <div class="l">Voci menu laterale visibili</div>
-            </article>
+            </a>
           </div>
           <div class="admin-checks">
             {% for row in admin_checks %}

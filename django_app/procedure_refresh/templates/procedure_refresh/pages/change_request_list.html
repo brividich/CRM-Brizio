@@ -51,7 +51,7 @@ body.theme-dark .pr-empty{color:var(--text-light)}
 
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div class="pr-page-title">Segnalazioni di modifica</div>
-    <div style="font-size:13px;color:#64748b;">Aperte: <strong>{{ n_open }}</strong></div>
+    <a class="kpi-link" style="font-size:13px;color:#64748b;" href="{% url 'procedure_refresh:change_request_list' %}?stato=aperte" title="Apri l'elenco filtrato: segnalazioni aperte o prese in carico">Aperte: <strong>{{ n_open }}</strong></a>
   </div>
 
 
@@ -70,6 +70,7 @@ body.theme-dark .pr-empty{color:var(--text-light)}
         <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px;">Stato</label>
         <select name="stato">
           <option value="">Tutti</option>
+          <option value="aperte" {% if status_filter == 'aperte' %}selected{% endif %}>Aperte o prese in carico</option>
           {% for value, label in ChangeRequestStatus.choices %}
             <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}

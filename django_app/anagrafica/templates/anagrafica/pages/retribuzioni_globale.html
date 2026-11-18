@@ -124,9 +124,10 @@ body.theme-dark .rg-page-btn:hover{background:var(--surface-alt,#0f1b2d)}
       {% else %}
         {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-calendar" valore="—" label="Ultima mensilità" sub="nessuna mensilità caricata" url=u_imp title="Importa retribuzioni" %}
       {% endif %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-cal-clock" valore=periodi|length label="Mensilità" sub="in archivio" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-users" valore=dipendenti_options|length label="Dipendenti" sub="con voci retributive" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=totale label="Righe" sub="dipendente × mese con i filtri attivi" %}
+      {% comment %}Mensilità e dipendenti sono le voci dei filtri qui sotto; le righe sono la tabella con i filtri attivi (l'ancora tiene la querystring).{% endcomment %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-cal-clock" valore=periodi|length label="Mensilità" sub="in archivio" url="#rg-filter-form" title="Vai al filtro «Mensilità»: le mensilità in archivio" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-users" valore=dipendenti_options|length label="Dipendenti" sub="con voci retributive" url="#rg-filter-form" title="Vai al filtro «Dipendente»: chi ha voci retributive" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=totale label="Righe" sub="dipendente × mese con i filtri attivi" url="#rg-tabella" title="Vai alla tabella con i filtri attivi" %}
       {% if ultima_importazione %}
         {% include "anagrafica/components/_kpi_tile.html" with tono=ultima_importazione.righe_errore|yesno:"orange,green" icona="i-download" valore=ultima_importazione.righe_ok label="Righe dell'ultimo import" sub=ultima_importazione.data_importazione|date:"d-m-Y" url=u_imp title="Importazione retribuzioni" %}
       {% endif %}
@@ -207,7 +208,7 @@ body.theme-dark .rg-page-btn:hover{background:var(--surface-alt,#0f1b2d)}
   </form>
 
   <!-- Tabella -->
-  <div class="rg-card">
+  <div class="rg-card" id="rg-tabella">
     {% if rows %}
     <div class="rg-scroll">
       <table class="rg-table">

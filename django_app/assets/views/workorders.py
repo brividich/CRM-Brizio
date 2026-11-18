@@ -397,6 +397,42 @@ def _workorder_list_filter_chips(
     return chips
 
 
+def _workorder_kpi_filter_chips(get_params) -> list[dict[str, str]]:
+    """Chip dei filtri che arrivano dai KPI cliccabili (vedi ``_apply_workorder_kpi_filters``)."""
+    from ._helpers_c import _parse_iso_date
+
+    chips: list[dict[str, str]] = []
+    if _clean_string(get_params.get("attivi")) == "1":
+        chips.append({"label": "Asset", "value": "non dismessi",
+                      "remove_url": _workorder_list_filter_remove_url(get_params, "attivi")})
+    if _clean_string(get_params.get("ritardo")) == "1":
+        chips.append({"label": "Ritardo", "value": "solo in ritardo",
+                      "remove_url": _workorder_list_filter_remove_url(get_params, "ritardo")})
+    if _clean_string(get_params.get("produzione")) == "1":
+        chips.append({"label": "Asset", "value": "macchine di produzione",
+                      "remove_url": _workorder_list_filter_remove_url(get_params, "produzione")})
+    from ._helpers_c import _workorder_kpi_asset_types
+
+    asset_types = _workorder_kpi_asset_types(get_params)
+    if asset_types:
+        type_labels = dict(Asset.TYPE_CHOICES)
+        chips.append({"label": "Tipo asset", "value": ", ".join(type_labels.get(code, code) for code in asset_types),
+                      "remove_url": _workorder_list_filter_remove_url(get_params, "tipo_asset")})
+    for key, label in (("chiusi_dal", "Chiusi dal"), ("chiusi_al", "Chiusi al")):
+        parsed = _parse_iso_date(get_params.get(key))
+        if parsed:
+            chips.append({"label": label, "value": parsed.strftime("%d/%m/%Y"),
+                          "remove_url": _workorder_list_filter_remove_url(get_params, key)})
+    supplier_id = _as_int(get_params.get("supplier"), default=0)
+    if supplier_id:
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.filter(pk=supplier_id).only("ragione_sociale").first()
+        chips.append({"label": "Fornitore", "value": supplier.ragione_sociale if supplier else f"ID {supplier_id}",
+                      "remove_url": _workorder_list_filter_remove_url(get_params, "supplier")})
+    return chips
+
+
 @login_required
 def workorder_list(request: HttpRequest) -> HttpResponse:
     status = _clean_string(request.GET.get("status"))
@@ -462,6 +498,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         user_options=user_options,
         asset_filter=asset_filter,
     )
+    active_filter_chips.extend(_workorder_kpi_filter_chips(request.GET))
 
     # "Raggruppa per": l'ordine resta quello della coda, i gruppi si leggono come
     # intestazioni dentro la stessa tabella (le azioni di riga non cambiano).

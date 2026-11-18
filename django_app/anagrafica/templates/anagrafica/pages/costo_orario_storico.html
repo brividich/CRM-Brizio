@@ -73,12 +73,12 @@ body.theme-dark .cs-vuoto{ color:#475569; }
       <a class="fmd-chip fmd-on" href="{% url 'anagrafica:costo_orario_storico' %}" aria-current="page">Storico</a>
     </nav>
 
-    {% if righe %}
+    {% if righe or andamento %}
     <section class="fmd-kpi fmd-kpi-auto" aria-label="Storico in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media_ultima label="Media dell'ultimo mese" sub="€/h, con i filtri attivi" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-cal-clock" valore=kpi.variazione label="Variazione della media" sub="dal primo all'ultimo mese" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-coins" valore=kpi.aumenti label="Costo aumentato" sub="dipendenti nel periodo" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-coins" valore=kpi.cali label="Costo diminuito" sub="dipendenti nel periodo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media_ultima label="Media dell'ultimo mese" sub="€/h, con i filtri attivi" url=kpi_url.tutti title="Apri la tabella da cui è calcolata la media (riga «Media» in fondo)" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-cal-clock" valore=kpi.variazione label="Variazione della media" sub="dal primo all'ultimo mese" url=kpi_url.tutti title="Apri la tabella mese per mese da cui è calcolata la variazione" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-coins" valore=kpi.aumenti label="Costo aumentato" sub="dipendenti nel periodo" url=kpi_url.aumentati title="Apri l'elenco filtrato: dipendenti con il costo aumentato nel periodo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-coins" valore=kpi.cali label="Costo diminuito" sub="dipendenti nel periodo" url=kpi_url.diminuiti title="Apri l'elenco filtrato: dipendenti con il costo diminuito nel periodo" %}
     </section>
     {% endif %}
 
@@ -97,6 +97,9 @@ body.theme-dark .cs-vuoto{ color:#475569; }
         <div class="fmd-filtf"><label for="cs-centro">Centro di costo</label>
           <select id="cs-centro" name="centro_costo"><option value="">Tutti</option>{% for c in centri %}<option value="{{ c }}"{% if c == centro %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
         </div>
+        <div class="fmd-filtf"><label for="cs-andamento">Andamento</label>
+          <select id="cs-andamento" name="andamento"><option value="">Tutti</option>{% for k, etichetta in andamenti %}<option value="{{ k }}"{% if k == andamento %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
+        </div>
         <div class="fmd-filtf"><label for="cs-q">Cerca</label><input id="cs-q" type="text" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></div>
         <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
         <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:costo_orario_storico' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
@@ -112,7 +115,7 @@ body.theme-dark .cs-vuoto{ color:#475569; }
         <span class="fmd-block-aside">{{ righe|length }} dipendent{{ righe|length|pluralize:"e,i" }}</span>
       </div>
       {% if righe %}
-      <div class="cs-scroll" data-fm-table-skip="1">
+      <div class="cs-scroll" id="cs-tabella" data-fm-table-skip="1">
         <table class="cs-table">
           <thead><tr>
             <th class="cs-l cs-pin" scope="col">Dipendente</th>

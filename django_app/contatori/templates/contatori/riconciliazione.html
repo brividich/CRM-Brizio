@@ -18,7 +18,7 @@
     </div>
     {% if gruppi_tutti %}
     <div class="riconc-vista" role="group" aria-label="Contratti mostrati">
-      <a class="{% if not solo_da_verificare %}active{% endif %}" href="?">Tutti ({{ riepilogo.contratti }})</a>
+      <a class="{% if not vista %}active{% endif %}" href="?">Tutti ({{ riepilogo.contratti }})</a>
       <a class="{% if solo_da_verificare %}active{% endif %}" href="?vista=da-verificare">Da verificare ({{ da_verificare }})</a>
     </div>
     {% endif %}
@@ -34,10 +34,11 @@
 
 {% if riepilogo and righe %}
 <div class="cards riconc-kpi">
-  <div class="card"><div class="k">Contratti</div><div class="v">{{ riepilogo.contratti }}</div><div class="meta">{{ riepilogo.fatture|length }} fattur{{ riepilogo.fatture|length|pluralize:"a,e" }}</div></div>
-  <div class="card"><div class="k">Allineati</div><div class="v riconc-ok">{{ riepilogo.contratti_ok }}</div><div class="meta">interno ≥ fornitore su ogni contatore</div></div>
-  <div class="card"><div class="k">Da controllare</div><div class="v {% if riepilogo.contratti_danger %}riconc-danger{% endif %}">{{ riepilogo.contratti_danger }}</div><div class="meta">{{ riepilogo.anomalie }} contator{{ riepilogo.anomalie|pluralize:"e,i" }} con fornitore &gt; interno</div></div>
-  <div class="card"><div class="k">Letture interne mancanti</div><div class="v {% if riepilogo.letture_mancanti %}riconc-warn{% endif %}">{{ riepilogo.letture_mancanti }}</div><div class="meta">MFC senza lettura nel {{ trimestre }}</div></div>
+  {% url 'contatori:riconciliazione_trim' trimestre as url_riconc %}
+  <a class="card kpi-link" href="{{ url_riconc }}#confronto" title="Apri il confronto di tutti i contratti del {{ trimestre }}"><div class="k">Contratti</div><div class="v">{{ riepilogo.contratti }}</div><div class="meta">{{ riepilogo.fatture|length }} fattur{{ riepilogo.fatture|length|pluralize:"a,e" }}</div></a>
+  <a class="card kpi-link" href="{{ url_riconc }}?vista=allineati#confronto" title="Apri il confronto filtrato: contratti allineati"><div class="k">Allineati</div><div class="v riconc-ok">{{ riepilogo.contratti_ok }}</div><div class="meta">interno ≥ fornitore su ogni contatore</div></a>
+  <a class="card kpi-link" href="{{ url_riconc }}?vista=da-controllare#confronto" title="Apri il confronto filtrato: contratti con fornitore maggiore dell'interno"><div class="k">Da controllare</div><div class="v {% if riepilogo.contratti_danger %}riconc-danger{% endif %}">{{ riepilogo.contratti_danger }}</div><div class="meta">{{ riepilogo.anomalie }} contator{{ riepilogo.anomalie|pluralize:"e,i" }} con fornitore &gt; interno</div></a>
+  <a class="card kpi-link" href="{{ url_riconc }}?vista=letture-mancanti#confronto" title="Apri il confronto filtrato: contratti con MFC senza lettura interna"><div class="k">Letture interne mancanti</div><div class="v {% if riepilogo.letture_mancanti %}riconc-warn{% endif %}">{{ riepilogo.letture_mancanti }}</div><div class="meta">MFC senza lettura nel {{ trimestre }}</div></a>
 </div>
 {% endif %}
 
@@ -55,7 +56,7 @@
 {% endif %}
 
 {% if righe %}
-<div class="panel-head riconc-titolo"><div><h2>Confronto per contratto</h2><p>Scarto = interno − fornitore. Negativo significa copie fatturate che la macchina non mostra.</p></div></div>
+<div class="panel-head riconc-titolo" id="confronto"><div><h2>Confronto per contratto</h2><p>Scarto = interno − fornitore. Negativo significa copie fatturate che la macchina non mostra.</p></div></div>
 {% for gr in gruppi %}
 <section class="panel riconc-unita {{ gr.livello }}">
   <header class="riconc-unita-head">
@@ -95,7 +96,7 @@
   </table></div>
 </section>
 {% empty %}
-<section class="panel"><p class="muted">Nessun contratto da verificare nel {{ trimestre }}: tutto allineato. <a class="plain" href="?">Mostra tutti</a></p></section>
+<section class="panel"><p class="muted">{% if vista == "da-verificare" or vista == "da-controllare" %}Nessun contratto da verificare nel {{ trimestre }}: tutto allineato.{% elif vista == "letture-mancanti" %}Nessuna lettura interna mancante nel {{ trimestre }}.{% else %}Nessun contratto in questa vista.{% endif %} <a class="plain" href="?">Mostra tutti</a></p></section>
 {% endfor %}
 {% elif trimestre and fatture %}
 <section class="panel"><p class="muted">Le fatture del trimestre non contengono righe.</p></section>

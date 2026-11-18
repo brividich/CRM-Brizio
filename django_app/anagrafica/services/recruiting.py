@@ -454,18 +454,28 @@ def righe_posizioni(qs) -> list[dict]:
     return righe
 
 
+def posizioni_in_ritardo(qs=None):
+    """Posizioni attive oltre la data entro cui servono (KPI «In ritardo» e ``?ritardo=1``)."""
+    qs = PosizioneAperta.objects.all() if qs is None else qs
+    return qs.filter(stato__in=PosizioneAperta.STATI_ATTIVI, entro_il__lt=timezone.localdate())
+
+
+def posizioni_coperte_12m(qs=None):
+    """Posizioni coperte negli ultimi 12 mesi (KPI «Coperte», «Giorni medi» e ``?periodo=12m``)."""
+    qs = PosizioneAperta.objects.all() if qs is None else qs
+    return qs.filter(stato=PosizioneAperta.STATO_COPERTA,
+                     chiusa_il__gte=timezone.localdate() - timedelta(days=365))
+
+
 def kpi_posizioni() -> dict:
     """KPI delle posizioni: aperte, in ritardo, coperte negli ultimi 12 mesi, giorni medi di copertura."""
-    oggi = timezone.localdate()
     attive = PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI)
-    coperte = list(PosizioneAperta.objects.filter(
-        stato=PosizioneAperta.STATO_COPERTA, chiusa_il__gte=oggi - timedelta(days=365),
-    ))
+    coperte = list(posizioni_coperte_12m())
     giorni = [p.giorni_copertura for p in coperte if p.giorni_copertura is not None]
     return {
         "aperte": attive.count(),
         "posti_aperti": sum(p.posti for p in attive),
-        "in_ritardo": attive.filter(entro_il__lt=oggi).count(),
+        "in_ritardo": posizioni_in_ritardo().count(),
         "coperte_12m": len(coperte),
         "giorni_medi_copertura": round(sum(giorni) / len(giorni)) if giorni else None,
     }

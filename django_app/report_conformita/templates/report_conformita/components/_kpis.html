@@ -1,9 +1,9 @@
 <div class="rc-kpis">
   {% for k in kpis %}
-    <div class="rc-kpi{% if k.tone %} tone-{{ k.tone }}{% endif %}">
+    {% if k.url %}<a class="rc-kpi{% if k.tone %} tone-{{ k.tone }}{% endif %} kpi-link" href="{{ k.url }}" title="{% if k.url|slice:':1' == '#' or '#rc-dettaglio' in k.url %}Apri il dettaglio del report da cui è calcolato: {{ k.label }}{% else %}Apri l'elenco filtrato: {{ k.label }}{% endif %}">{% else %}<div class="rc-kpi{% if k.tone %} tone-{{ k.tone }}{% endif %}">{% endif %}
       <div class="rc-kpi-label">{{ k.label }}</div>
       <div class="rc-kpi-value">{{ k.value }}</div>
       {% if k.hint %}<div class="rc-kpi-hint">{{ k.hint }}</div>{% endif %}
-    </div>
+    {% if k.url %}</a>{% else %}</div>{% endif %}
   {% endfor %}
 </div>

@@ -210,6 +210,64 @@ def _build_training_matrix(campaign: ProcedureCampaign) -> dict:
     }
 
 
+# Stati delle assegnazioni per le tessere KPI e per il filtro del report di sessione:
+# una sola definizione per contare e per elencare (stesse regole «dal vivo» di q_scadute).
+STATI_ASSEGNAZIONE = {
+    "confermate": "Confermate",
+    "in_attesa": "In attesa",
+    "scadute": "Scadute",
+    # Quelle della matrice di formazione (_build_training_matrix): documenti della sessione,
+    # annullate escluse, scadute comprese.
+    "richieste": "Letture richieste (annullate escluse)",
+    "richieste_confermate": "Letture confermate",
+    "da_confermare": "Da confermare (annullate escluse, scadute comprese)",
+}
+
+
+def _q_matrice():
+    """Stesso perimetro di ``_build_training_matrix``: non annullate, revisione fra i documenti della sessione."""
+    from django.db.models import Exists, OuterRef, Q
+
+    in_sessione = ProcedureCampaignDocument.objects.filter(campaign=OuterRef("campaign"), revision=OuterRef("revision"))
+    return ~Q(status=AssignmentStatus.CANCELLED) & Q(Exists(in_sessione))
+
+
+def _q_confermata_matrice():
+    from django.db.models import Q
+
+    return Q(read_confirmed_flag=True) | Q(status=AssignmentStatus.READ_CONFIRMED)
+
+
+def q_stato_assegnazione(stato: str, oggi):
+    from django.db.models import Q
+
+    if stato == "confermate":
+        return Q(status=AssignmentStatus.READ_CONFIRMED)
+    if stato == "in_attesa":
+        return q_in_attesa(oggi)
+    if stato == "scadute":
+        return q_scadute(oggi)
+    if stato == "richieste":
+        return _q_matrice()
+    if stato == "richieste_confermate":
+        return _q_matrice() & _q_confermata_matrice()
+    if stato == "da_confermare":
+        return _q_matrice() & ~_q_confermata_matrice()
+    return Q()
+
+
+def conteggi_assegnazioni(qs, oggi) -> dict:
+    """Totale, confermate, in attesa e scadute di un insieme di assegnazioni, in una query."""
+    from django.db.models import Count
+
+    return qs.aggregate(
+        total=Count("id"),
+        confirmed=Count("id", filter=q_stato_assegnazione("confermate", oggi)),
+        pending=Count("id", filter=q_stato_assegnazione("in_attesa", oggi)),
+        overdue=Count("id", filter=q_stato_assegnazione("scadute", oggi)),
+    )
+
+
 def _parse_quiz_questions(post) -> tuple[list[dict], list[str]]:
     questions: list[dict] = []
     errors: list[str] = []
@@ -286,6 +344,10 @@ def my_assignments(request):
         AssignmentStatus.OVERDUE,
     }
     today = timezone.localdate()
+
+    def in_scadenza_7g(a) -> bool:
+        return a.status in pending_statuses and bool(a.due_date) and 0 <= (a.due_date - today).days <= 7
+
     pr_stats = {
         "total": len(all_assignments),
         "filtered": 0,
@@ -295,15 +357,17 @@ def my_assignments(request):
         "confirmed": sum(1 for a in all_assignments if a.status == AssignmentStatus.READ_CONFIRMED),
         "overdue": sum(1 for a in all_assignments if scaduta_ora(a, today)),
         "cancelled": sum(1 for a in all_assignments if a.status == AssignmentStatus.CANCELLED),
-        "due_soon": sum(
-            1
-            for a in all_assignments
-            if a.status in pending_statuses and a.due_date and 0 <= (a.due_date - today).days <= 7
-        ),
+        "due_soon": sum(1 for a in all_assignments if in_scadenza_7g(a)),
     }
 
     assignments = all_assignments
-    if status_filter == AssignmentStatus.OVERDUE:
+    # «pending» e «due_soon» vengono dalle tessere «Da completare» e «In scadenza 7g»:
+    # stesse condizioni dei contatori qui sopra.
+    if status_filter == "pending":
+        assignments = [a for a in assignments if a.status in pending_statuses]
+    elif status_filter == "due_soon":
+        assignments = [a for a in assignments if in_scadenza_7g(a)]
+    elif status_filter == AssignmentStatus.OVERDUE:
         # Il filtro segue il contatore: anche le scadute non ancora marcate dal job.
         assignments = [a for a in assignments if scaduta_ora(a, today)]
     elif status_filter in (AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED):
@@ -570,15 +634,15 @@ def admin_dashboard(request):
     n_documents = ProcedureDocument.objects.filter(is_active=True).count()
     n_campaigns = ProcedureCampaign.objects.count()
     n_published = ProcedureCampaign.objects.filter(status=CampaignStatus.PUBLISHED).count()
-    n_assignments = ProcedureAssignment.objects.count()
-    n_confirmed = ProcedureAssignment.objects.filter(
-        status=AssignmentStatus.READ_CONFIRMED
-    ).count()
     # Scadute dal vivo: lo stato OVERDUE lo scrive il job delle 06:45, ma una
-    # scadenza passata ieri sera è già scaduta adesso.
+    # scadenza passata ieri sera è già scaduta adesso. Stessa funzione del report
+    # di sessione «Tutte le sessioni», dove portano le tessere.
     oggi = timezone.localdate()
-    n_pending = ProcedureAssignment.objects.filter(q_in_attesa(oggi)).count()
-    n_overdue = ProcedureAssignment.objects.filter(q_scadute(oggi)).count()
+    conteggi = conteggi_assegnazioni(ProcedureAssignment.objects.all(), oggi)
+    n_assignments = conteggi["total"]
+    n_confirmed = conteggi["confirmed"]
+    n_pending = conteggi["pending"]
+    n_overdue = conteggi["overdue"]
     n_change_requests_open = ProcedureChangeRequest.objects.filter(
         status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO]
     ).count()
@@ -661,7 +725,7 @@ def document_list(request):
     # Lista UNICA: presa visione e corpus AI sono flag ortogonali (requires_acknowledgement
     # vs escludi_dal_rag), non due tab esclusivi. Il filtro è solo una comodità.
     filtro = request.GET.get("filtro", "tutti").strip()
-    if filtro not in {"tutti", "pv", "ai", "sensibili"}:
+    if filtro not in {"tutti", "attivi", "pv", "ai", "sensibili"}:
         filtro = "tutti"
     query = request.GET.get("q", "").strip()
 
@@ -680,7 +744,9 @@ def document_list(request):
         )
         .order_by("document_type", "code")
     )
-    if filtro == "pv":
+    if filtro == "attivi":
+        qs = qs.filter(is_active=True)
+    elif filtro == "pv":
         qs = qs.filter(requires_acknowledgement=True)
     elif filtro == "ai":
         qs = qs.filter(escludi_dal_rag=False)
@@ -691,12 +757,14 @@ def document_list(request):
 
     base = ProcedureDocument.objects.all()
     n_tot = base.count()
+    n_attivi = base.filter(is_active=True).count()
     n_pv = base.filter(requires_acknowledgement=True).count()
     n_ai = base.filter(escludi_dal_rag=False).count()
     n_sensibili = base.filter(escludi_dal_rag=True).count()
 
     filtri = [
         ("tutti", "Tutti", n_tot),
+        ("attivi", "Attivi", n_attivi),
         ("pv", "Presa visione", n_pv),
         ("ai", "Corpus AI", n_ai),
         ("sensibili", "Sensibili (esclusi AI)", n_sensibili),
@@ -1038,9 +1106,17 @@ def campaign_list(request):
         return redirect("procedure_refresh:my_assignments")
 
     qs = ProcedureCampaign.objects.select_related("created_by").order_by("-created_at")
+    # «?stato=published» dalla tessera «Sessioni attive» delle Impostazioni.
+    stato = request.GET.get("stato", "").strip()
+    if stato not in CampaignStatus.values:
+        stato = ""
+    if stato:
+        qs = qs.filter(status=stato)
     return render(request, "procedure_refresh/pages/campaign_list.html", {
         "campaigns": qs,
         "CampaignStatus": CampaignStatus,
+        "stato_filtro": stato,
+        "stato_filtro_label": CampaignStatus(stato).label if stato else "",
     })
 
 
@@ -1148,11 +1224,13 @@ def campaign_detail(request, pk: int):
         for _rep, _us in sorted(_grouped.items(), key=lambda kv: (kv[0] == "Senza reparto", kv[0].lower()))
     ]
 
-    n_total = assignments.count()
-    n_confirmed = assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count()
-    n_pending = assignments.filter(
-        status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
-    ).count()
+    # Stessa funzione del report di sessione (dove portano le tessere): «In attesa»
+    # esclude le scadute dal vivo, come in Impostazioni e nel report.
+    conteggi = conteggi_assegnazioni(campaign.assignments.all(), timezone.localdate())
+    n_total = conteggi["total"]
+    n_confirmed = conteggi["confirmed"]
+    n_pending = conteggi["pending"]
+    n_overdue = conteggi["overdue"]
 
     # Helper mail manuale (supporto IT): elenco "Nome <email_notifica>" degli
     # assegnatari con presa visione ancora pendente, pronto per il client di posta.
@@ -1189,6 +1267,7 @@ def campaign_detail(request, pk: int):
         "n_total": n_total,
         "n_confirmed": n_confirmed,
         "n_pending": n_pending,
+        "n_overdue": n_overdue,
         "recipients_clipboard": "; ".join(recipients_lines),
         "recipients_count": len(recipients_lines),
         "recipients_senza_email": recipients_senza_email,
@@ -1503,7 +1582,10 @@ def change_request_list(request):
             qs = qs.filter(document_id=int(doc_filter))
         except ValueError:
             pass
-    if status_filter:
+    if status_filter == "aperte":
+        # Dalla tessera «Segnalazioni aperte»: stesse due fasi contate in n_open.
+        qs = qs.filter(status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO])
+    elif status_filter:
         qs = qs.filter(status=status_filter)
 
     change_requests = list(qs)
@@ -1735,36 +1817,49 @@ def report_campaign(request):
         return redirect("procedure_refresh:my_assignments")
 
     camp_id = request.GET.get("camp_id", "")
+    # «stato» filtra l'elenco (le tessere restano sul totale): stesse regole dei conteggi.
+    stato = request.GET.get("stato", "").strip()
+    if stato not in STATI_ASSEGNAZIONE:
+        stato = ""
     campaigns = ProcedureCampaign.objects.order_by("-created_at")
+    oggi = timezone.localdate()
 
     assignments = []
     selected_camp = None
+    # «Tutte le sessioni»: destinazione delle tessere delle Impostazioni, che contano tutto.
+    tutte = camp_id == "tutte"
     report_stats = {
         "total": 0,
         "confirmed": 0,
         "pending": 0,
         "overdue": 0,
     }
-    if camp_id:
+    base = None
+    if tutte:
+        base = ProcedureAssignment.objects.all()
+    elif camp_id:
         try:
             selected_camp = ProcedureCampaign.objects.get(pk=int(camp_id))
-            assignments = (
-                ProcedureAssignment.objects.filter(campaign=selected_camp)
-                .select_related("revision__document", "user")
-                .order_by("user__last_name", "user__first_name")
-            )
-            report_stats = {
-                "total": assignments.count(),
-                "confirmed": assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
-                "pending": assignments.filter(q_in_attesa(timezone.localdate())).count(),
-                "overdue": assignments.filter(q_scadute(timezone.localdate())).count(),
-            }
+            base = ProcedureAssignment.objects.filter(campaign=selected_camp)
         except (ProcedureCampaign.DoesNotExist, ValueError):
             pass
+    if base is not None:
+        report_stats = conteggi_assegnazioni(base, oggi)
+        assignments = list(
+            base.filter(q_stato_assegnazione(stato, oggi))
+            .select_related("campaign", "revision__document", "user")
+            .order_by("campaign__name", "user__last_name", "user__first_name")
+        )
+        for a in assignments:
+            a.scaduta_ora = scaduta_ora(a, oggi)
 
     return render(request, "procedure_refresh/pages/report_campaign.html", {
         "campaigns": campaigns,
         "selected_camp": selected_camp,
+        "tutte": tutte,
+        "camp_param": "tutte" if tutte else (selected_camp.pk if selected_camp else ""),
+        "stato": stato,
+        "stato_label": STATI_ASSEGNAZIONE.get(stato, ""),
         "assignments": assignments,
         "report_stats": report_stats,
         "AssignmentStatus": AssignmentStatus,

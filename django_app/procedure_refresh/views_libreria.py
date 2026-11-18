@@ -167,7 +167,9 @@ def libreria(request):
         s.giorni_scadenza = (cert.scade_il - oggi).days if cert and cert.scade_il else None
 
     letture = sorted((d for d in docs if d.lettura), key=lambda d: (d.lettura.due_date or oggi))
-    novita = sorted((d for d in docs if d.nuova), key=lambda d: nuove[d.code], reverse=True)[:14]
+    tutte_novita = sorted((d for d in docs if d.nuova), key=lambda d: nuove[d.code], reverse=True)
+    # La tessera conta tutte le novità; la sezione ne mostra le più recenti e lo dice.
+    novita = tutte_novita[:NOVITA_MOSTRATE]
     aperture = lib.aperture_recenti()
     consultati = sorted((d for d in docs if aperture.get(d.pk)), key=lambda d: -aperture[d.pk])[:12]
     ordine_preferiti = {pk: i for i, pk in enumerate(esp.preferiti_di(request.user))}
@@ -180,9 +182,13 @@ def libreria(request):
         letture=letture,
         preferiti=preferiti,
         novita=novita,
+        n_novita=len(tutte_novita),
         consultati=consultati,
         oggi=oggi,
     ))
+
+
+NOVITA_MOSTRATE = 14
 
 
 @login_required
