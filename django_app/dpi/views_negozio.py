@@ -44,7 +44,7 @@ def _registra_ordine(request, richieste, *, inviato_a: str) -> None:
     numeri = ", ".join(r.numero for r in richieste)
     log_action(request, "DPI_ORDINE_NEGOZIO", "dpi", f"Ordine al negozio {ordine.pk}: {numeri}")
     for r in richieste:
-        _notifica_richiedente(r, f"Le tue scarpe {r.numero} sono state ordinate: ti avvisiamo quando arrivano.")
+        _notifica_richiedente(r, f"Le tue scarpe {r.numero} sono state ordinate: ti avvisiamo quando arrivano.", "dpi_ordinata")
 
 
 def _chiudi_con_fattura(request, richieste, impost) -> None:

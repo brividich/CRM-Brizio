@@ -95,3 +95,7 @@ La colonna «Oggetto della mail» (12/11/2026) legge `automazioni.schedules.DIGE
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Tessere di coda e registro esecuzioni collegate agli elenchi filtrati; chip «Solo errori» corretto.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- `automazioni/campanella.py`: chi riceve la mail di un'azione «Invia mail» o la richiesta «Chiedi approvazione» trova anche la notifica in campanella. Di default per le sorgenti `tickets` e `assenze` (che non la creavano); per le altre `"campanella": true` nella config dell'azione, `false` la spegne. Solo destinatari `to`; niente in anteprima; doppione (stessa persona, stesso link, stesso modulo entro 3 minuti) scartato.

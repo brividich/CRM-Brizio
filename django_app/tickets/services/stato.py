@@ -126,3 +126,7 @@ def cambia_stato_ticket(
 
         ticket_id = ticket.pk
         transaction.on_commit(lambda: _sync_sharepoint(ticket_id))
+
+    from . import avvisi
+
+    avvisi.stato(ticket, vecchio=vecchio, nuovo_stato=nuovo_stato, autore_email=utente_email, nota=nota)

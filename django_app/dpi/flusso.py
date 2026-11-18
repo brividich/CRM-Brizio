@@ -19,6 +19,10 @@ from __future__ import annotations
 import logging
 from datetime import date
 
+from django.urls import reverse
+
+from core.accounts.portal_links import portal_link
+
 logger = logging.getLogger(__name__)
 
 RUOLO_PREPOSTO = "preposto"
@@ -390,14 +394,79 @@ def notifica_nuova_richiesta(richiesta) -> None:
     """Passo 1 -> 2: avvisa il responsabile/preposto che c'e' una richiesta da approvare."""
     try:
         destinatari = _destinatari_approvatori(richiesta)
+        path = reverse("dpi:gestione_detail", args=[richiesta.pk])
         _mail(
             f"[DPI] Richiesta da approvare {richiesta.numero} - {richiesta.richiedente_nome}",
-            _dettaglio_richiesta(richiesta) + "\n\nApri il portale (DPI > Gestione richieste) per approvarla o rifiutarla.",
+            _dettaglio_richiesta(richiesta),
             destinatari,
             title="Richiesta DPI da approvare",
+            cta=("Approva o rifiuta", portal_link(path)),
         )
+        _campanella(destinatari, "dpi_da_approvare",
+                    f"{richiesta.richiedente_nome}: {richiesta.numero} ({_riga_dpi(richiesta)}) da approvare", path)
     except Exception:
         logger.warning("Notifica nuova richiesta DPI fallita (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+
+
+def _campanella(emails, tipo: str, messaggio: str, path: str) -> None:
+    """Notifica nell'HUB alle persone di ``emails`` (best effort)."""
+    from core.notifiche import invia_notifica_email
+
+    for email in sorted({str(e or "").strip().lower() for e in emails or []} - {""}):
+        try:
+            invia_notifica_email(email, tipo, messaggio[:480], path)
+        except Exception:
+            logger.warning("Campanella DPI non creata per %s (%s)", email, tipo, exc_info=True)
+
+
+def notifica_esito_richiedente(richiesta, *, approvata: bool, nota: str = "") -> None:
+    """Mail al dipendente: richiesta approvata o rifiutata (la campanella la crea la vista)."""
+    try:
+        email = email_dipendente(richiesta)
+        if not email:
+            return
+        path = reverse("dpi:detail", args=[richiesta.pk])
+        if approvata:
+            oggetto = f"[DPI] Richiesta approvata {richiesta.numero}"
+            testo = ("La tua richiesta e' stata approvata: ti avvisiamo quando il DPI e' pronto da ritirare."
+                     if not richiesta.modalita_negozio else
+                     "La tua richiesta e' stata approvata: le scarpe vanno ordinate, ti avvisiamo quando arrivano.")
+        else:
+            oggetto = f"[DPI] Richiesta rifiutata {richiesta.numero}"
+            testo = "La tua richiesta e' stata rifiutata." + (f"\nMotivo: {nota}" if nota else "")
+        _mail(oggetto, _dettaglio_richiesta(richiesta) + f"\n\n{testo}", [email],
+              title="Richiesta DPI approvata" if approvata else "Richiesta DPI rifiutata",
+              cta=("Apri la richiesta", portal_link(path)))
+    except Exception:
+        logger.warning("Mail esito DPI al richiedente fallita (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+
+
+def notifica_annullata(richiesta) -> None:
+    """Il dipendente ha annullato: chi doveva approvarla lo sa (mail + campanella)."""
+    try:
+        destinatari = _destinatari_approvatori(richiesta)
+        path = reverse("dpi:gestione_detail", args=[richiesta.pk])
+        _mail(f"[DPI] Richiesta annullata {richiesta.numero} - {richiesta.richiedente_nome}",
+              _dettaglio_richiesta(richiesta) + "\n\nIl dipendente ha annullato la richiesta: non serve piu' approvarla.",
+              destinatari, title="Richiesta DPI annullata")
+        _campanella(destinatari, "dpi_annullata",
+                    f"{richiesta.richiedente_nome} ha annullato {richiesta.numero}: non serve più approvarla", path)
+    except Exception:
+        logger.warning("Avviso annullamento DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+
+
+def notifica_commento(richiesta, testo: str, autore: str) -> None:
+    """Commento visibile del gestore: mail al dipendente (la campanella la crea la vista)."""
+    try:
+        email = email_dipendente(richiesta)
+        if not email:
+            return
+        _mail(f"[DPI] Messaggio sulla tua richiesta {richiesta.numero}",
+              _dettaglio_richiesta(richiesta) + f"\n\n{autore} ha scritto:\n{testo}", [email],
+              title="Messaggio sulla richiesta DPI",
+              cta=("Apri la richiesta", portal_link(reverse("dpi:detail", args=[richiesta.pk]))))
+    except Exception:
+        logger.warning("Mail commento DPI fallita (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
 
 
 @event_flow("dpi_avviso_consegna", skipped_result=None)

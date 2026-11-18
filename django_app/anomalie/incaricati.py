@@ -20,6 +20,7 @@ sulla singola anomalia prevale su quella dell'OP.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 
 from django.db import transaction
@@ -445,7 +446,6 @@ def nome_di_serie(ruolo: str, row: dict, info: dict | None) -> str:
 def avvisa_op(*, op_id: str, persona_id: int, chi: str, nota: str = "", righe: list[dict],
               tutto_op: bool) -> dict:
     """Notifica e mail al nuovo capocommessa: tutto l'OP o alcune anomalie. Mai bloccante."""
-    from core.models import Notifica
 
     from .automazioni_service import _render_mail, _send, contatto_operatore, op_portal_link, op_url
     from .codice import codice_anomalia
@@ -455,7 +455,7 @@ def avvisa_op(*, op_id: str, persona_id: int, chi: str, nota: str = "", righe: l
     cosa = (f"ti ha affidato come capocommessa l'OP {op_id}" if tutto_op
             else f"ti ha affidato come capocommessa {n} anomali{'a' if n == 1 else 'e'} dell'OP {op_id}")
     try:
-        Notifica.objects.create(legacy_user_id=int(persona_id), tipo="anomalia_da_gestire",
+        _invia_notifica(legacy_user_id=int(persona_id), tipo="anomalia_da_gestire",
                                 messaggio=f"{chi} {cosa}."[:500], url_azione=op_url(op_id))
     except Exception:
         logger.warning("capocommessa OP: notifica non creata op=%s", op_id, exc_info=True)
@@ -489,7 +489,6 @@ def avvisa_op(*, op_id: str, persona_id: int, chi: str, nota: str = "", righe: l
 def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: str, nota: str = "",
            seriale: str = "", descrizione: str = "") -> dict:
     """Notifica in-app e mail al nuovo incaricato. Mai bloccante."""
-    from core.models import Notifica
 
     from .automazioni_service import _render_mail, _send, contatto_operatore, op_portal_link, op_url
     from .codice import codice_anomalia
@@ -497,7 +496,7 @@ def avvisa(*, anomalia_id: int, op_id: str, ruolo: str, persona_id: int, chi: st
     esito = {"mail": False, "email": ""}
     codice = codice_anomalia(anomalia_id) or "—"
     try:
-        Notifica.objects.create(
+        _invia_notifica(
             legacy_user_id=int(persona_id), tipo="anomalia_da_gestire",
             messaggio=f"OP {op_id}: {chi} ti ha affidato l'anomalia {codice}."[:500],
             url_azione=op_url(op_id),

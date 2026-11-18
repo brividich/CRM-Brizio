@@ -82,7 +82,7 @@ class Command(BaseCommand):
                 if not dry_run and voce.responsabile.utente_id:
                     invia_notifica(
                         voce.responsabile.utente_id,
-                        "generico",
+                        "checklist",
                         messaggio,
                         "/checklist-operativa/",
                     )

@@ -196,3 +196,10 @@ Pagina personale (voce «I miei report» nel menu utente, rotta condivisa in `_A
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - `core/components/kpi_card.html` accetta `url` e `title`; classe globale `a.kpi-link` in `components.css`. Anteprima HUB: striscia di stato con valori reali (solo amministratori), link reali al posto di `#`.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- **Campanella** (`core/templates/core/components/notification_center_panel.html`, `core/static/core/js/notify-center.js`): prima le non lette (fino a 15), poi «Già lette» (ultime 5); la riga intera apre `url_azione` e segna letta; ✓ e 🗄 per voce (`api_notifica_leggi`, `api_notifica_archivia`); tempo relativo (filtro `quando_notifica`).
+- **Registro tipi** `core/notifiche_meta.py`: ogni tipo ha `modulo` (`MODULI`, `tipi_del_modulo`); tipi nuovi per ticket, assenze, DPI, reception, KICK-OFF, RENTRI, checklist, IT. I moduli che mandavano `generico` ora usano il loro tipo. Pagina Notifiche: filtro «Modulo» (`?modulo=`).
+- **Un solo punto d'uscita**: le `Notifica.objects.create` dirette (anomalie, assenze, ticket) passano da `core.notifiche.invia_notifica` (preferenze e push valgono ovunque).
+- **Pulsante «N da approvare»** (topnav e barra laterale): `dashboard/da_approvare.py` somma assenze, DPI da approvare, approvazioni dei flussi (escluse quelle delle assenze), richieste di visita, spostamenti date, modifiche SGI, segnalazioni di modifica, rilevazioni di sicurezza; una fonte → quella pagina, più fonti → «Le mie attività». Cache 60 s per persona. Contesto `da_approvare` da `core/context_processors.legacy_nav`.

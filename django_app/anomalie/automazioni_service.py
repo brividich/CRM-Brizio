@@ -20,6 +20,7 @@ con SYSUTCDATETIME, quindi naive ma UTC.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import datetime as _dt
 import logging
 import re
@@ -313,7 +314,7 @@ def sync_rdc_reminders(rdc_rows: list[dict]) -> int:
                         exists.messaggio = messaggio
                         exists.save(update_fields=["messaggio"])
                     continue
-                Notifica.objects.create(
+                _invia_notifica(
                     legacy_user_id=legacy_uid, tipo=TIPO_REMINDER_RDC, messaggio=messaggio, url_azione=url,
                 )
                 created += 1
@@ -645,7 +646,6 @@ def prepara_decisioni_operatore(op_id: str, updates: list[dict], *, deciso_da_le
 def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str = "") -> int:
     """Mail (se l'operatore ha un'email di notifica) e notifica in-app per gruppo.
     Ritorna il numero di mail inviate. Mai bloccante."""
-    from core.models import Notifica
     from anomalie.mail_action_service import _fetch_pn_for_ops
     from anomalie.silenzia_op import email_silenziate
 
@@ -664,7 +664,7 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
         chi = ", ".join(g.get("deciso_da") or []) or deciso_da or "il capocommessa"
         cosa = f"{n} anomali{'a' if n == 1 else 'e'}"
         try:
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=g["legacy_uid"], tipo=TIPO_NOTIFICA_DECISIONE,
                 messaggio=f"OP {op_id}: decisione di {chi} su {cosa} che hai segnalato."[:500],
                 url_azione=op_url(op_id),
@@ -729,7 +729,6 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
     Un nominativo che non corrisponde a un solo utente non riceve nulla (meglio
     nessuna mail che una alla persona sbagliata) e torna in ``non_trovati``.
     """
-    from core.models import Notifica
     from anomalie.escalation_config import get_escalation_config
     from anomalie.mail_action_service import _fetch_pn_for_ops, find_legacy_user_by_name
 
@@ -755,7 +754,7 @@ def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seri
             continue
         email, nome_anag = contatto_operatore(utente.id)
         try:
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=utente.id, tipo=TIPO_NOTIFICA_SEGNALA_CAR,
                 messaggio=f"OP {op_id}: {chi} ti segnala l'anomalia {codice} (S/N {seriale or '—'})."[:500],
                 url_azione=op_url(op_id),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 from anomalie.codice import codice_anomalia
 from anomalie.guida import con_guida
 from anomalie.segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA, STATI_RISPOSTA
@@ -36,7 +37,7 @@ from core.upload_mime import (
 )
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns, sync_django_user_from_legacy
-from core.models import AuditLog, Notifica, Profile
+from core.models import AuditLog, Profile
 from core.operational_roles import (
     get_active_roles,
     get_anagrafica_ids_for_role,
@@ -3089,7 +3090,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
             except Exception:
                 pass
             if capo_user and event == "info_richieste":
-                Notifica.objects.create(
+                _invia_notifica(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_da_gestire",
                     messaggio=(f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}): servono ulteriori informazioni, "
@@ -3097,7 +3098,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                     url_azione="/gestione-anomalie",
                 )
             elif capo_user:
-                Notifica.objects.create(
+                _invia_notifica(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_segnalata",
                     messaggio=f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}) segnalata al cliente.",
@@ -3124,7 +3125,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
             current_id = current_legacy.id if current_legacy else None
             if creator_id == current_id:
                 return
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=int(creator_id),
                 tipo="anomalia_chiusa",
                 messaggio=f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}) è stata chiusa.",

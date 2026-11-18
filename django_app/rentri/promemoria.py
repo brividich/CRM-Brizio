@@ -86,7 +86,7 @@ def invia_promemoria(oggi: date | None = None, *, dry_run: bool = False) -> dict
             notifiche += len(destinatari)
             continue
         for uid in sorted(destinatari):
-            invia_notifica(uid, "generico", messaggio, url)
+            invia_notifica(uid, "rentri", messaggio, url)
             notifiche += 1
         RegistroRifiuti.objects.filter(pk=r.pk).update(promemoria_m_il=oggi)
     if da_avvisare and not referenti and not any(r.inserito_da_legacy_id for r in da_avvisare):

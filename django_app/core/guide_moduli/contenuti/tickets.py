@@ -111,6 +111,14 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": 'avvisi',
+            "titolo": 'Chi viene avvisato (campanella e mail)',
+            "blocchi": [
+                ('def', [('Ticket nuovo', 'il team gestori del tipo (IT o MAN) riceve campanella e mail; tu ricevi «Ticket … ricevuto».'), ('Preso in carico o assegnato', 'tu sai chi lo segue; il tecnico a cui lo assegna un altro riceve «Ticket assegnato a te».'), ('Risolto', 'ti arriva «Ticket risolto: confermi?»: apri il ticket e premi «Confermo», oppure riaprilo scrivendo cosa non va.'), ('In attesa o annullato dal gestore', "ti arriva l'avviso con la nota e, se c'è, la data prevista."), ('Chiuso', 'solo campanella: la mail di chiusura la manda già la regola delle Automazioni.'), ('Commenti', "un commento visibile va all'altra parte: dal tecnico a te, da te al tecnico (o al team, se nessuno lo segue). Le note interne non avvisano nessuno."), ('Riaperto o annullato da te', 'lo sa il tecnico che lo segue, o il team se non è assegnato.'), ('Allegato rifiutato', "lo sa chi l'ha caricato, con il motivo.")]),
+                ('p', "Chi compie l'azione non riceve l'avviso. Un ticket registrato a lavoro già fatto non avvisa nessuno."),
+            ],
+        },
     ],
     "admin": [
         {

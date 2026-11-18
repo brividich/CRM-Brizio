@@ -139,7 +139,7 @@ def invia_reminder_mod133(now=None) -> dict:
             [mod.avviato_da, mod.compilatore],
             oggetto=f"Promemoria MOD.133 — {spec.codice}",
             messaggio=f"Il MOD.133 della specifica {spec.codice} attende la presa in carico da {giorni} giorni.",
-            url=_url_dettaglio(spec), tipo="generico",
+            url=_url_dettaglio(spec), tipo="specifica",
             facts=[
                 ("Specifica", spec.codice),
                 ("Situazione", f"MOD.133 non preso in carico da {giorni} giorni"),
@@ -170,7 +170,7 @@ def invia_escalation_mod133(now=None) -> dict:
             [mod.approvatore, mod.avviato_da, mod.compilatore],
             oggetto=f"ESCALATION MOD.133 — {spec.codice}",
             messaggio=f"Il MOD.133 della specifica {spec.codice} è in flow-down da oltre {giorni} giorni senza approvazione.",
-            url=_url_dettaglio(spec), tipo="generico",
+            url=_url_dettaglio(spec), tipo="specifica",
             facts=[
                 ("Specifica", spec.codice),
                 ("Situazione", f"In flow-down da oltre {giorni} giorni senza approvazione"),
@@ -202,7 +202,7 @@ def esegui_verifica_periodica(now=None) -> dict:
             destinatari,
             oggetto=f"Verifica periodica — {spec.codice}",
             messaggio=f"La specifica {spec.codice} è in scadenza di verifica periodica (al {spec.data_verifica}).",
-            url=_url_dettaglio(spec), tipo="generico",
+            url=_url_dettaglio(spec), tipo="specifica",
             facts=[
                 ("Specifica", spec.codice),
                 ("Verifica periodica", f"prevista entro il {spec.data_verifica}"),

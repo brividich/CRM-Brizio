@@ -280,12 +280,19 @@ def _notification_panel_context(request) -> dict:
     if not legacy_user_id:
         return {"notifications": [], "unread_count": 0, "latest_count": 0}
     qs = Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False)
-    notifications = list(qs.order_by("-created_at")[:8])
+    # Prima le non lette (fino a 15), poi le ultime 5 già lette, separate.
+    notifications = list(qs.filter(letta=False).order_by("-created_at")[:15])
+    recenti = list(qs.filter(letta=True).order_by("-created_at")[:5])
     unread_count = qs.filter(letta=False).count()
+    gruppi = [{"titolo": "", "voci": notifications}]
+    if recenti:
+        gruppi.append({"titolo": "Già lette" if notifications else "Ultime", "voci": recenti})
     return {
         "notifications": notifications,
+        "recenti": recenti,
+        "gruppi": gruppi,
         "unread_count": unread_count,
-        "latest_count": len(notifications),
+        "latest_count": len(notifications) + len(recenti),
     }
 
 
@@ -882,6 +889,17 @@ def _filtra_categoria_notifiche(qs, categoria: str):
     return qs.filter(tipo__in=[t for t, m in TIPO_META.items() if m.get("categoria") == categoria])
 
 
+def _filtra_modulo_notifiche(qs, modulo: str):
+    """Filtra per modulo (core.notifiche_meta.MODULI): «altro» comprende anche i tipi non registrati."""
+    from core.notifiche_meta import MODULI, TIPO_META, tipi_del_modulo
+
+    if modulo not in MODULI:
+        return qs
+    if modulo == "altro":
+        return qs.exclude(tipo__in=[t for t, m in TIPO_META.items() if m.get("modulo") != "altro"])
+    return qs.filter(tipo__in=tipi_del_modulo(modulo))
+
+
 @login_required
 def notifiche(request):
     """Centro notifiche personale: attive / da leggere / archiviate, con filtri.
@@ -894,7 +912,7 @@ def notifiche(request):
 
     from core.models import Notifica
     from core.notifiche_archivio import data_archiviazione, get_politica
-    from core.notifiche_meta import CATEGORIE, notifica_meta
+    from core.notifiche_meta import CATEGORIE, MODULI, notifica_meta
 
     vista = (request.GET.get("vista") or "attive").strip()
     if vista not in _NOTIFICHE_VISTE:
@@ -902,6 +920,9 @@ def notifiche(request):
     categoria = (request.GET.get("categoria") or "").strip()
     if categoria not in CATEGORIE:
         categoria = ""
+    modulo = (request.GET.get("modulo") or "").strip()
+    if modulo not in MODULI:
+        modulo = ""
     q = (request.GET.get("q") or "").strip()[:100]
     politica = get_politica()
 
@@ -922,6 +943,7 @@ def notifiche(request):
         else:
             qs = base.filter(archiviata=False)
         qs = _filtra_categoria_notifiche(qs, categoria)
+        qs = _filtra_modulo_notifiche(qs, modulo)
         if q:
             qs = qs.filter(messaggio__icontains=q)
         qs = qs.order_by("-created_at")
@@ -945,7 +967,8 @@ def notifiche(request):
             n.archivio_il = data_archiviazione(n, politica)
             n.archivio_presto = bool(n.archivio_il and not n.letta and n.archivio_il <= presto)
 
-    filtri_qs = urlencode({k: v for k, v in (("vista", vista), ("categoria", categoria), ("q", q)) if v})
+    filtri_qs = urlencode({k: v for k, v in (("vista", vista), ("categoria", categoria), ("modulo", modulo), ("q", q)) if v})
+    filtri_tab = urlencode({k: v for k, v in (("categoria", categoria), ("modulo", modulo)) if v})
     return render(request, "core/pages/notifiche.html", {
         "page_title": "Notifiche",
         "page_obj": page,
@@ -954,6 +977,9 @@ def notifiche(request):
         "categoria": categoria,
         "q": q,
         "categorie": list(CATEGORIE.items()),
+        "modulo": modulo,
+        "moduli": list(MODULI.items()),
+        "filtri_tab": filtri_tab,
         "conteggi": conteggi,
         "unread_count": conteggi["non_lette"],
         "politica": politica,

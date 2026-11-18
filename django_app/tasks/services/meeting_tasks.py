@@ -252,7 +252,7 @@ def notify_meeting_item_assignment(item, *, actor=None) -> None:
             assignee,
             f"Sei responsabile {tipo} «{item.title}» [{item.project.name}]{scadenza}.",
             url,
-            tipo="generico",
+            tipo="kickoff_incontro",
         )
     except Exception:
         logger.exception("Notifica responsabile voce incontro fallita (%s=%s)", type(item).__name__, item.pk)

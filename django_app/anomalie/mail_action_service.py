@@ -19,6 +19,7 @@ Uso:
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -1187,7 +1188,7 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
                         exists.messaggio = messaggio
                         exists.save(update_fields=["messaggio"])
                     continue
-                Notifica.objects.create(
+                _invia_notifica(
                     legacy_user_id=legacy_uid,
                     tipo="anomalia_da_gestire",
                     messaggio=messaggio,

@@ -98,7 +98,7 @@ def avvisa_ingressi_non_in_regola() -> dict:
                  f"Entrata in azienda una ditta con i documenti di sicurezza non in regola: {a.azienda or '—'}. {problemi}.")
         url = reverse("fornitori:fornitore_detail", args=[a.fornitore_id])
         for uid in destinatari:
-            invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=url)
+            invia_notifica(legacy_user_id=uid, tipo="fornitore_accesso", messaggio=testo[:480], url_azione=url)
         AvvisoIngressoNonInRegola.objects.get_or_create(
             visita_id=a.visita_id,
             defaults={"fornitore_id": a.fornitore_id, "azienda": (a.azienda or "")[:200],
@@ -139,7 +139,7 @@ def avvisa_ditte_attese(oggi=None) -> dict:
                  f"sicurezza non in regola: {problemi}.")
         url = reverse("fornitori:fornitore_detail", args=[d.fornitore_id])
         for uid in destinatari:
-            invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=url)
+            invia_notifica(legacy_user_id=uid, tipo="fornitore_accesso", messaggio=testo[:480], url_azione=url)
         AvvisoDittaInArrivo.objects.update_or_create(
             fornitore_id=d.fornitore_id,
             defaults={"problemi": problemi, "destinatari": len(destinatari), "ultimo_il": oggi},
@@ -169,7 +169,7 @@ def avvisa_usciti_dimenticati() -> dict:
              f"{f' e altri {altri}' if altri > 0 else ''}. Controlla l'uscita e i cartellini.")
     url = reverse("fornitori:accessi_esterni")
     for uid in destinatari:
-        invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=url)
+        invia_notifica(legacy_user_id=uid, tipo="fornitore_accesso", messaggio=testo[:480], url_azione=url)
         esito["avvisati"] += 1
     return esito
 

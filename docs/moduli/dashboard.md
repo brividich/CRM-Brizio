@@ -40,3 +40,7 @@ Workspace personale dell'utente autenticato. Widget multi-modulo con layout salv
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Home: ogni KPI dei moduli ha `url` quando esiste un elenco con lo stesso insieme e lo stesso ambito (`_tile_kpi_counts`); anteprima HUB `_hub_kpi_cards` con `url`. Corretta la lettura di `SiteConfig` (`chiave`/`valore`): personalizzazioni KPI e branding ora si applicano. Etichette: «Ticket attivi», Diario «ultimi 7 giorni · ultimi 30 giorni», «letture in attesa · scadute», «record attivi», «in scadenza 60gg», «eseguiti nelle 24 ore».
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- `dashboard/da_approvare.py`: conteggio del pulsante «N da approvare» della barra (vedi scheda core).

@@ -88,6 +88,8 @@ SEZIONI = [
                   "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello «Reception» (menu di Fornitori) ha quattro voci: Oggi (chi è dentro, gli attesi, "
                   "«+ Registra ingresso», «Importa elenco» per i gruppi da Excel che entrano ed escono con il capogruppo), Inviti (codici e richieste), Storico "
                   "(nella scheda della visita gli allegati) e Configurazione."),
+            ("p", "Avvisi della reception: chi ha chiesto una visita rimasta senza risposta riceve una mail quando la richiesta viene tolta (7 giorni dopo il giorno chiesto); "
+                  "se un invito viene cancellato prima della visita l'ospite riceve la mail «Visita annullata»; se la reception decide al posto del referente, il referente lo sa in campanella e per mail."),
             ("p", "Ogni dipendente può annunciare un ospite da «Annuncia una visita» nella barra in alto: l'ospite riceve codice e QR; con «Prenota una sala» si prenota anche una sala riunioni (le stesse del KICK-OFF) dal proprio calendario Outlook. "
                   "Gli esterni possono chiedere un appuntamento dal modulo pubblico /richiesta-visita/: dopo la conferma dell'email la richiesta "
                   "arriva alla persona indicata («Richieste per te») e in Reception → Inviti → «Richieste», dove si accetta o si rifiuta."),

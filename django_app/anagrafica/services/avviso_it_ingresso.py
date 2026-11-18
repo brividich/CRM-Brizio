@@ -223,7 +223,7 @@ def _invia_notifiche(dati: DatiAvviso, utenti_ids: list[int]) -> int:
         messaggio += f" ({dati.reparto})"
     messaggio = f"{messaggio}: {stato}. Predisporre gli accessi IT."
     for uid in utenti_ids:
-        invia_notifica(uid, "generico", messaggio[:500], url_azione=dati.url_scheda_rel[:255])
+        invia_notifica(uid, "it_ingresso", messaggio[:500], url_azione=dati.url_scheda_rel[:255])
     return len(utenti_ids)
 
 

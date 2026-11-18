@@ -510,12 +510,19 @@ def _team(user, seg):
     return is_sms_team(user)
 
 
+def _esito_segnalatore(seg, fase: str) -> None:
+    from .notifications import notifica_esito_segnalatore
+
+    notifica_esito_segnalatore(seg, fase)
+
+
 @login_required
 @require_POST
 def azione_classifica(request, pk: int):
     return _do_transition(
         request, pk, authorize=_team, form_class=sc_forms.ClassificaForm,
         apply=lambda seg, user, cd: seg.classifica(cd["stato_sms"], attore=user),
+        on_success=lambda seg: _esito_segnalatore(seg, "classificata"),
     )
 
 
@@ -623,6 +630,7 @@ def azione_chiudi(request, pk: int):
     return _do_transition(
         request, pk, authorize=_team,
         apply=lambda seg, user, cd: seg.chiudi(attore=user),
+        on_success=lambda seg: _esito_segnalatore(seg, "chiusa"),
     )
 
 

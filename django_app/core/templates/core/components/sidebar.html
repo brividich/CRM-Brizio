@@ -110,11 +110,11 @@
       {% firstof user.get_full_name legacy_user.nome user.username as display_name %}
       {% for footer_key in ui_prefs.sidebar_footer_actions %}
         {% if footer_key == "car" %}
-          {% if car_pending_count %}
-            <a href="{% url 'assenze_car_dashboard' %}" class="sb-item sb-footer-item sb-footer-alert" title="{{ car_pending_count }} richieste CAR in attesa">
+          {% if da_approvare.totale %}
+            <a href="{{ da_approvare.url }}" class="sb-item sb-footer-item sb-footer-alert" title="{{ da_approvare.titolo }}">
               <span class="sb-icon" aria-hidden="true">&#9888;</span>
-              <span class="sb-label">CAR</span>
-              <span class="sb-item-badge">{{ car_pending_count }}</span>
+              <span class="sb-label">Da approvare</span>
+              <span class="sb-item-badge">{{ da_approvare.totale }}</span>
             </a>
           {% endif %}
         {% elif footer_key == "notifications" %}

@@ -3,34 +3,42 @@
   <div>
     <div class="notify-center-kicker">Centro notifiche</div>
     <div class="notify-center-title">
-      {% if unread_count %}{{ unread_count }} non lette{% else %}Tutto letto{% endif %}
+      {% if unread_count %}{{ unread_count }} non lett{{ unread_count|pluralize:"a,e" }}{% else %}Tutto letto{% endif %}
     </div>
   </div>
-  <a href="{% url 'notifiche' %}" class="notify-center-link">Apri</a>
+  <a href="{% url 'notifiche' %}" class="notify-center-link">Tutte</a>
 </div>
 
-{% if notifications %}
+{% if notifications or recenti %}
+  {% for gruppo in gruppi %}{% if gruppo.voci %}
+  {% if gruppo.titolo %}<div class="notify-center-group">{{ gruppo.titolo }}</div>{% endif %}
   <div class="notify-center-list">
-    {% for n in notifications %}
+    {% for n in gruppo.voci %}
       {% with m=n.tipo|notifica_meta %}
-      <article class="notify-center-item{% if not n.letta %} unread{% endif %}">
+      <article class="notify-center-item{% if not n.letta %} unread{% endif %}" data-notifica-item="{{ n.id }}">
         <span class="notify-center-dot notify-center-dot-{{ n.tipo }} notify-tono-{{ m.tono }}" aria-hidden="true"></span>
-        <div class="notify-center-copy">
-          <div class="notify-center-type"><span aria-hidden="true">{{ m.icona }}</span> {{ m.label }}</div>
-          <div class="notify-center-msg">{{ n.messaggio }}</div>
-          <div class="notify-center-time">{{ n.created_at|date:"d-m-Y H:i" }}</div>
-        </div>
         {% if n.url_azione %}
-          <a href="{{ n.url_azione }}" class="notify-center-open" data-notifica-open="{{ n.id }}">Apri</a>
+        <a class="notify-center-copy notify-center-go" href="{{ n.url_azione }}" data-notifica-open="{{ n.id }}">
+        {% else %}
+        <div class="notify-center-copy">
         {% endif %}
+          <span class="notify-center-type"><span aria-hidden="true">{{ m.icona }}</span> {{ m.label }}</span>
+          <span class="notify-center-msg">{{ n.messaggio }}</span>
+          <span class="notify-center-time" title="{{ n.created_at|date:'d-m-Y H:i' }}">{{ n.created_at|quando_notifica }}</span>
+        {% if n.url_azione %}</a>{% else %}</div>{% endif %}
+        <div class="notify-center-tools">
+          {% if not n.letta %}<button type="button" class="notify-center-tool" data-notifica-letta="{{ n.id }}" title="Segna come letta" aria-label="Segna come letta"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></button>{% endif %}
+          <button type="button" class="notify-center-tool" data-notifica-archivia="{{ n.id }}" title="Archivia" aria-label="Archivia"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg></button>
+        </div>
       </article>
       {% endwith %}
     {% endfor %}
   </div>
+  {% endif %}{% endfor %}
   <div class="notify-center-actions">
-    <button type="button" class="notify-center-mark" data-notification-mark-read>Segna tutte come lette</button>
+    {% if unread_count %}<button type="button" class="notify-center-mark" data-notification-mark-read>Segna tutte come lette</button>{% else %}<span></span>{% endif %}
     <a href="{% url 'notifiche' %}?vista=archiviate" class="notify-center-export">Archivio</a>
   </div>
 {% else %}
-  <div class="notify-center-empty">Nessuna notifica recente. <a href="{% url 'notifiche' %}?vista=archiviate">Apri l'archivio</a></div>
+  <div class="notify-center-empty">Nessuna notifica. <a href="{% url 'notifiche' %}?vista=archiviate">Apri l'archivio</a></div>
 {% endif %}

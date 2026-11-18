@@ -177,3 +177,7 @@ Incontri «da gestire»: le tre categorie si leggono intere, il totale (badge) n
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Filtri `open`, `overdue`, `stato=aperte|chiuse` usati dalle tessere.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- Spostamento date: esito anche per mail al richiedente (`decidi`); ritiro → campanella e mail agli approvatori (`avvisa_ritiro`). Tipo `kickoff_spostamento`.

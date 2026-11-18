@@ -5,6 +5,7 @@ Registrati via automazioni.schedules + setup_q_schedules. Speculare a
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 
 from automazioni.system_runlog import system_job_run
@@ -77,15 +78,17 @@ def _create_ticket_reminders(tickets) -> int:
         messaggio = (
             f"Ticket urgente {t.numero_ticket} non assegnato da {ore}h: {t.titolo}"
         )[:500]
-        url = f"/tickets/gestione/{t.pk}/"
+        url_gestione = f"/tickets/gestione/{t.pk}/"
 
-        destinatari_ids: set[int] = set()
-        for email in _team_emails(t.tipo):
-            destinatari_ids.update(legacy_user_ids_for_email(email))
+        # Il team apre la gestione; il richiedente la sua scheda (la gestione non la vede).
+        destinatari: dict[int, str] = {}
         if t.richiedente_legacy_user_id:
-            destinatari_ids.add(int(t.richiedente_legacy_user_id))
+            destinatari[int(t.richiedente_legacy_user_id)] = f"/tickets/{t.pk}/"
+        for email in _team_emails(t.tipo):
+            for uid in legacy_user_ids_for_email(email):
+                destinatari[int(uid)] = url_gestione
 
-        for legacy_uid in destinatari_ids:
+        for legacy_uid, url in destinatari.items():
             try:
                 exists = Notifica.objects.filter(
                     legacy_user_id=legacy_uid,
@@ -98,7 +101,7 @@ def _create_ticket_reminders(tickets) -> int:
                         exists.messaggio = messaggio
                         exists.save(update_fields=["messaggio"])
                     continue
-                Notifica.objects.create(
+                _invia_notifica(
                     legacy_user_id=legacy_uid,
                     tipo="ticket_sla",
                     messaggio=messaggio,
