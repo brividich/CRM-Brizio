@@ -51,6 +51,7 @@ Filtri e azioni in core/js/mie_attivita.js; lo stile è in core/css/mie_attivita
             <span class="ma-caret" aria-hidden="true">▾</span>
             <span class="ma-group-t">{{ s.icon }} {{ s.label }}</span>
             <span class="ma-count" data-ma-modn="{{ s.key }}">{{ s.n_totale }}</span>
+            {% if s.nota %}<span class="ma-pill">{{ s.nota }}</span>{% endif %}
             {% if s.n_scadute %}<span class="ma-pill ma-pill--bad">{{ s.n_scadute }} scadut{% if s.n_scadute == 1 %}a{% else %}e{% endif %}</span>{% endif %}
           </button>
           {% if s.all_url and s.all_url != "#" %}<a class="ma-open" href="{{ s.all_url }}">Apri modulo →</a>{% endif %}

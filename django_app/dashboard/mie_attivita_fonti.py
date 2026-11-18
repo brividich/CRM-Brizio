@@ -157,6 +157,72 @@ def _spostamenti(request) -> list[dict]:
     return out
 
 
+def _segnalazioni_modifica(request) -> list[dict]:
+    """CN-SGI: segnalazioni di modifica dei documenti ancora da chiudere, per chi le gestisce
+    (stessi destinatari dell'avviso) e può aprire l'elenco. Quelle prese in carico da un altro
+    restano a lui."""
+    from procedure_refresh.models import ChangeRequestStatus, ProcedureChangeRequest
+    from procedure_refresh.segnalazioni import destinatari_gestori
+    from procedure_refresh.views import _can_manage
+
+    mio_id = getattr(getattr(request, "legacy_user", None), "id", None)
+    if not mio_id or int(mio_id) not in destinatari_gestori() or not _can_manage(request):
+        return []
+    qs = (
+        ProcedureChangeRequest.objects
+        .filter(Q(status=ChangeRequestStatus.APERTA)
+                | Q(status=ChangeRequestStatus.IN_CARICO, gestita_da=request.user)
+                | Q(status=ChangeRequestStatus.IN_CARICO, gestita_da__isnull=True))
+        .select_related("document", "created_by")
+        .order_by("created_at", "id")[:MAX_PER_FONTE]
+    )
+    base = _url("procedure_refresh:change_request_list")
+    out = []
+    for cr in qs:
+        chi = (cr.created_by.get_full_name() or cr.created_by.get_username()) if cr.created_by else ""
+        out.append({
+            "code": str(getattr(cr.document, "code", "") or "Segnalazione"),
+            "title": (cr.testo or "Segnalazione di modifica")[:140],
+            "meta": _meta("segnalazione di modifica", f"da {chi}" if chi else ""),
+            "status": cr.get_status_display(),
+            "due": None,
+            "url": f"{base}?doc={cr.document_id}",
+        })
+    return out
+
+
+GIORNI_INCIDENTI = 365
+
+
+def _incidenti(request) -> list[dict]:
+    """Sicurezza: rilevazioni dell'ultimo anno che aspettano l'approvazione RLS o la chiusura
+    RSPP, per chi può approvare e chiudere. Legge l'archivio del portale: con la lista
+    SharePoint configurata il dato sta lì e qui non compare (niente chiamate esterne)."""
+    from datetime import timedelta
+
+    from rilevazione_incidenti.models import RilevazioneIncidente
+    from rilevazione_incidenti.views import _can_manage_rspp, _get_impostazioni, _use_local
+
+    if not _can_manage_rspp(request) or not _use_local(_get_impostazioni()):
+        return []
+    da = timezone.now() - timedelta(days=GIORNI_INCIDENTI)
+    qs = (RilevazioneIncidente.objects.filter(chiusura_rspp=False, data_segnalazione__gte=da)
+          .order_by("-data_segnalazione", "-id")[:MAX_PER_FONTE])
+    out = []
+    for r in qs:
+        rls = (r.approvazione_rls or "").strip().lower()
+        giorno = _data(r.data_segnalazione)
+        out.append({
+            "code": f"SIC-{r.pk}",
+            "title": _meta(r.get_tipo_evento_display() or r.tipologia_scheda, r.reparto),
+            "meta": _meta(f"del {giorno:%d/%m/%Y}" if giorno else "", (r.descrizione_avvenimento or "")[:80]),
+            "status": "Da chiudere (RSPP)" if rls in ("approvato", "non approvato") else "In attesa RLS",
+            "due": None,
+            "url": _url("rilevazione_incidenti:dettaglio", str(r.pk)),
+        })
+    return out
+
+
 def approvazioni(request) -> list[dict]:
     """Decisioni che spettano all'utente: modifiche SGI, approvazioni dei flussi, richieste di visita."""
     if not getattr(request.user, "is_authenticated", False):
@@ -164,7 +230,9 @@ def approvazioni(request) -> list[dict]:
     return (_sicura("modifiche SGI", _modifiche_sgi, request)
             + _sicura("approvazioni automazioni", _approvazioni_automazioni, request)
             + _sicura("richieste di visita", _richieste_visita, request)
-            + _sicura("spostamenti KICK-OFF", _spostamenti, request))
+            + _sicura("spostamenti KICK-OFF", _spostamenti, request)
+            + _sicura("segnalazioni di modifica", _segnalazioni_modifica, request)
+            + _sicura("rilevazioni di sicurezza", _incidenti, request))
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +365,83 @@ def _sds(user) -> list[dict]:
     } for scheda in profilo_sds_utente(user).da_leggere[:MAX_PER_FONTE]]
 
 
+GIORNI_MANUTENZIONI = 30
+
+
+def _manutenzioni(user) -> list[dict]:
+    """Manutenzioni programmate aperte dell'utente (assegnatario del piano sull'asset, o
+    manutentore predefinito del piano), scadute o in scadenza entro 30 giorni e non ancora
+    dentro un ordine di lavoro (quelle compaiono già fra gli OdL)."""
+    from datetime import timedelta
+
+    from assets.models import MaintenanceOccurrence
+
+    mie = (Q(assignment__assigned_to=user)
+           | Q(assignment__assigned_to__isnull=True, plan__default_assignee=user)
+           | Q(assignment__isnull=True, plan__default_assignee=user))
+    qs = (
+        MaintenanceOccurrence.objects
+        .filter(mie, status=MaintenanceOccurrence.STATUS_OPEN, work_order__isnull=True,
+                due_date__lte=timezone.localdate() + timedelta(days=GIORNI_MANUTENZIONI))
+        .select_related("plan", "asset").order_by("due_date", "id")[:MAX_PER_FONTE]
+    )
+    return [{
+        "code": str(getattr(o.asset, "asset_tag", "") or "Manutenzione"),
+        "title": str(getattr(o.plan, "name", "") or o.plan),
+        "meta": _meta("manutenzione programmata", getattr(o.asset, "name", ""), _entro(o.due_date)),
+        "status": "Da eseguire",
+        "due": o.due_date,
+        "url": _url("assets:occurrence_worksheet", o.pk),
+    } for o in qs]
+
+
+def _onboarding(request) -> list[dict]:
+    """Inserimenti in corso: una riga per pratica con le voci ancora da fare. Le voci IT vanno
+    ai destinatari dell'avviso IT, le altre a chi gestisce le pratiche (permesso HR)."""
+    from anagrafica.models import OnboardingPratica, OnboardingTask
+    from anagrafica.services.avviso_it_ingresso import configurazione
+    from anagrafica.views._helpers import _check_hr_permission
+
+    hr = bool(_check_hr_permission(request))
+    cfg = configurazione()
+    mio_id = getattr(getattr(request, "legacy_user", None), "id", None)
+    it = _email(request.user) in {str(e).strip().lower() for e in cfg["emails"]} or (
+        bool(mio_id) and int(mio_id) in cfg["utenti_ids"])
+    if not hr and not it:
+        return []
+    voci = OnboardingTask.objects.filter(
+        stato=OnboardingTask.STATO_DA_FARE, pratica__stato__in=OnboardingPratica.STATI_APERTI)
+    if not hr:
+        voci = voci.filter(categoria=OnboardingTask.CATEGORIA_IT)
+    elif not it:
+        voci = voci.exclude(categoria=OnboardingTask.CATEGORIA_IT)
+    per_pratica: dict[int, dict] = {}
+    oggi = timezone.localdate()
+    for t in voci.select_related("pratica").order_by("pratica_id", "ordine", "id"):
+        riga = per_pratica.setdefault(t.pratica_id, {"pratica": t.pratica, "n": 0, "ritardo": 0, "prima": None})
+        riga["n"] += 1
+        if t.scadenza:
+            riga["ritardo"] += t.scadenza < oggi
+            riga["prima"] = min(riga["prima"], t.scadenza) if riga["prima"] else t.scadenza
+    out = []
+    for riga in list(per_pratica.values())[:MAX_PER_FONTE]:
+        pr = riga["pratica"]
+        n, ritardo = riga["n"], riga["ritardo"]
+        out.append({
+            "code": "Ingresso",
+            "title": pr.dipendente_nome or f"Pratica {pr.pk}",
+            "meta": _meta(
+                "onboarding", pr.reparto,
+                f"ingresso il {pr.data_assunzione:%d/%m/%Y}" if pr.data_assunzione else "",
+                "" if hr else "la pratica si apre con il permesso HR",
+            ),
+            "status": f"{n} voc{'e' if n == 1 else 'i'} da fare" + (f", {ritardo} in ritardo" if ritardo else ""),
+            "due": riga["prima"],
+            "url": _url("anagrafica:onboarding_detail", pr.pk) if hr else "#",
+        })
+    return out
+
+
 def _attrezzature(user) -> list[dict]:
     from attrezzature.models import AttrezzaturaTask
 
@@ -331,6 +476,8 @@ def assegnate(request) -> list[dict]:
     if not getattr(user, "is_authenticated", False):
         return []
     return (_sicura("schede di sicurezza", _sds, user)
+            + _sicura("manutenzioni programmate", _manutenzioni, user)
+            + _sicura("onboarding", _onboarding, request)
             + _sicura("specifiche", _specifiche, user)
             + _sicura("registro OFI", _ofi, user)
             + _sicura("CAR", _car, user)

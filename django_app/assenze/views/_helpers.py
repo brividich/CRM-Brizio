@@ -2377,6 +2377,75 @@ def _load_pending_for_manager(
     return out
 
 
+def riepilogo_per_capo(
+    legacy_user_id: int | None,
+    *,
+    manager_name: str = "",
+    manager_email: str = "",
+    tutte: bool = False,
+    limit: int = 8,
+) -> dict:
+    """Riepilogo per «Le mie attività»: quante richieste aspettano il capo e quali ha già
+    accettato e non sono ancora finite. Stesso perimetro della coda (`_load_pending_for_manager`);
+    ``tutte`` = intera azienda (ufficio Amministrazione).
+
+    ``{"da_approvare": n, "approvate": n, "prossime": [{dipendente, tipo, inizio_label, fine_label}]}``
+    """
+    vuoto = {"da_approvare": 0, "approvate": 0, "prossime": []}
+    if not _table_exists("assenze"):
+        return vuoto
+    if tutte:
+        where_sql, where_params, join_sql = "1 = 1", [], ""
+    else:
+        where_sql, where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+            per_approvazione=True,
+            legacy_user_id=legacy_user_id,
+            manager_name=manager_name,
+            manager_email=manager_email,
+            assenze_alias="a",
+            capi_alias="cr",
+        )
+        if not where_sql:
+            return vuoto
+        join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
+    coda_sql, coda_params = _sql_coda_attiva("a")
+    oggi = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    if timezone.is_aware(oggi) and not getattr(connections["default"].features, "supports_timezones", False):
+        oggi = timezone.make_naive(oggi)
+    approvate_sql = "a.moderation_status = 0 AND a.data_fine >= %s"
+
+    def _conta(condizione: str, parametri: list) -> int:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(
+                f"SELECT COUNT(*) FROM assenze a {join_sql} WHERE ({where_sql}) AND {condizione}",
+                [*where_params, *parametri],
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else 0
+
+    da_approvare = _conta(coda_sql, coda_params)
+    approvate = _conta(approvate_sql, [oggi])
+    prossime = []
+    if approvate and limit > 0:
+        base_sql = f"""
+            SELECT a.id, a.copia_nome AS dipendente, a.tipo_assenza, a.data_inizio, a.data_fine,
+                   a.motivazione_richiesta{_col_utente_id("a")}
+            FROM assenze a
+            {join_sql}
+            WHERE ({where_sql}) AND {approvate_sql}
+        """
+        sql = _select_limited(base_sql, "ORDER BY a.data_inizio ASC, a.id ASC", limit)
+        for row in _applica_nominativo(_fetch_all_dict(sql, [*where_params, oggi])):
+            prossime.append({
+                "id": row.get("id"),
+                "dipendente": str(row.get("dipendente") or "N/D"),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
+                "inizio_label": _dt_label(row.get("data_inizio")),
+                "fine_label": _dt_label(row.get("data_fine")),
+            })
+    return {"da_approvare": da_approvare, "approvate": approvate, "prossime": prossime}
+
+
 def count_pending_for_manager(
     legacy_user_id: int | None,
     *,
