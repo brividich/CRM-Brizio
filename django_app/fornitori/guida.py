@@ -84,6 +84,7 @@ SEZIONI = [
                   "«Vengo qui spesso» (il cerchio verde accanto a «Tocca per entrare», e anche in «Come ti chiami?») è per i tecnici delle ditte accreditate: si tocca la ditta, poi il proprio nome (cognome e iniziale), "
                   "e si entra senza referente né motivo; ditte e tecnici sono in ordine di ingressi, i più frequenti in alto. L'avviso va all'email della ditta "
                   "(Configurazione → Ditte accreditate) o, se manca, a quella di Configurazione → Impostazioni → «Chiosco «Vengo qui spesso»: chi avvisare». "
+                  "Dopo 2 minuti senza tocchi il totem torna all'inizio; dopo 3 lo schermo diventa nero con l'ora che cambia posto ogni 20 secondi, per non rovinarlo: un tocco o il lettore di badge lo riaccende (quel tocco non preme nessun pulsante). "
                   "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello «Reception» (menu di Fornitori) ha quattro voci: Oggi (chi è dentro, gli attesi, "
                   "«+ Registra ingresso», «Importa elenco» per i gruppi da Excel che entrano ed escono con il capogruppo), Inviti (codici e richieste), Storico "
                   "(nella scheda della visita gli allegati) e Configurazione."),
