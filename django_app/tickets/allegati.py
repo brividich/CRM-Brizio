@@ -11,6 +11,7 @@ dimensione, stesso audit, stessa notifica.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 
 from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
@@ -222,7 +223,7 @@ def notifica_team(ticket: Ticket, n: int) -> int:
                 esistente.messaggio = messaggio
                 esistente.save(update_fields=["messaggio"])
                 continue
-            Notifica.objects.create(legacy_user_id=uid, tipo=NOTIFICA_TIPO, messaggio=messaggio, url_azione=url)
+            _invia_notifica(legacy_user_id=uid, tipo=NOTIFICA_TIPO, messaggio=messaggio, url_azione=url)
             created += 1
         except Exception:
             logger.warning("notifica allegato fallita ticket=%s uid=%s", ticket.pk, uid, exc_info=True)
@@ -252,3 +253,7 @@ def valida_allegato(allegato: TicketAllegato, *, esito: str, nome: str, email: s
         testo=testo,
         is_interno=False,
     )
+    if esito == StatoValidazioneAllegato.RIFIUTATO:
+        from .services import avvisi
+
+        avvisi.allegato_rifiutato(allegato, nota=nota, autore_email=email or "")

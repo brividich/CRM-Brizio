@@ -172,8 +172,8 @@ document.addEventListener("htmx:configRequest", function(evt) {
 });
 </script>
 {% if user.is_authenticated %}
-<script>window.NHUB_NOTIFY={live:"{% url 'api_notifiche_live' %}",ack:"{% url 'api_notifiche_popup_ack' %}",readAll:"{% url 'api_notifiche_mark_all_read' %}",readOne:"{% url 'api_notifica_leggi' 0 %}"};</script>
-<script src="{% static 'core/js/notify-center.js' %}?v=20261112"></script>
+<script>window.NHUB_NOTIFY={live:"{% url 'api_notifiche_live' %}",ack:"{% url 'api_notifiche_popup_ack' %}",readAll:"{% url 'api_notifiche_mark_all_read' %}",readOne:"{% url 'api_notifica_leggi' 0 %}",archiveOne:"{% url 'api_notifica_archivia' 0 %}"};</script>
+<script src="{% static 'core/js/notify-center.js' %}?v=20261118"></script>
 {% endif %}
 {% if dev_git %}{% include "core/components/_dev_git_badge.html" %}{% endif %}
 {# Ultimo: mostra solo i messaggi che il template della pagina non ha già stampato. #}

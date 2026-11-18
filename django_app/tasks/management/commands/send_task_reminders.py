@@ -70,7 +70,7 @@ class Command(BaseCommand):
                 continue
 
             with transaction.atomic():
-                invia_notifica(int(reminder.legacy_user_id), "generico", message, url_action)
+                invia_notifica(int(reminder.legacy_user_id), "promemoria", message, url_action)
                 reminder.fired = True
                 reminder.fired_at = timezone.now()
                 reminder.save(update_fields=["fired", "fired_at"])

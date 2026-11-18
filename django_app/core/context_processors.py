@@ -815,6 +815,15 @@ def legacy_nav(request):
             result["car_pending_count"] = _count_car_pending(int(legacy_user_id), legacy_user=legacy_user)
         except Exception:
             pass
+    # Pulsante «N da approvare»: tutte le decisioni che aspettano l'utente, non solo le assenze.
+    try:
+        from dashboard.da_approvare import riepilogo
+
+        result["da_approvare"] = riepilogo(request, legacy_user)
+    except Exception:
+        logger.debug("riepilogo «da approvare» non calcolato", exc_info=True)
+        result["da_approvare"] = {"totale": 0}
+    if legacy_user_id:
         try:
             from core.models import Notifica
             result["notifiche_count"] = Notifica.objects.filter(

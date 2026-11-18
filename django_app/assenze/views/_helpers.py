@@ -3681,30 +3681,6 @@ def _applica_moderazione(request, item_id: int, current: dict, consenso: str, no
     except Exception:
         pass
 
-    try:
-        from core.legacy_models import UtenteLegacy
-        from core.models import Notifica
-
-        richiedente_id = None
-        email_rich = (current.get("email_esterna") or "").strip()
-        if email_rich:
-            u = UtenteLegacy.objects.filter(email__iexact=email_rich).first()
-            if u:
-                richiedente_id = u.id
-        if richiedente_id:
-            stato_label = "approvata" if consenso == "Approvato" else "rifiutata"
-            msg = f"La tua richiesta di assenza è stata {stato_label}."
-            if note_gestione and consenso == "Rifiutato":
-                msg += f" Nota: {note_gestione}"
-            Notifica.objects.create(
-                legacy_user_id=richiedente_id,
-                tipo=f"assenza_{stato_label}",
-                messaggio=msg,
-                url_azione="/assenze/richiesta_assenze",
-            )
-    except Exception:
-        logger.exception("Assenze: notifica al richiedente non creata")
-
     _notify_esito_dipendente(request, current, consenso, note_gestione)
     return _sp_enqueue_upsert(item_id)
 
@@ -3729,16 +3705,20 @@ def _notify_esito_dipendente(request, record: dict, consenso: str, note: str = "
     except Exception:
         logger.warning("Assenze: richiesta di approvazione via mail non chiusa (id=%s)", record.get("id"), exc_info=True)
 
+    tipo_display = _tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta"))
     try:
         send_esito_dipendente(
             record,
             consenso=consenso,
-            tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")),
+            tipo_display=tipo_display,
             note=note,
             deciso_da=nome or email or request.user.get_username(),
         )
     except Exception:
         logger.warning("Assenze: mail di esito al dipendente non inviata (id=%s)", record.get("id"), exc_info=True)
+    from .. import avvisi
+
+    avvisi.esito(record, consenso=consenso, tipo_display=tipo_display, note=note, deciso_da=nome)
 
 
 def _e_propria_assenza(request, current: dict) -> bool:
@@ -3816,6 +3796,14 @@ def _notify_assenza_modificata(request, record: dict, modifiche: list[dict], *, 
         )
     except Exception:
         logger.warning("Notifica modifica assenza id=%s non inviata", record.get("id"), exc_info=True)
+    try:
+        from .. import avvisi
+
+        nome, email, _ = _legacy_identity(request)
+        avvisi.modificata(record, capo_email=capo_email, chi=nome, autore_email=email,
+                          tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")))
+    except Exception:
+        logger.warning("Campanella modifica assenza id=%s non creata", record.get("id"), exc_info=True)
 
 
 def _notify_assenza_deleted(request, record: dict) -> None:
@@ -3843,6 +3831,18 @@ def _notify_assenza_deleted(request, record: dict) -> None:
         deleted_by_name=deleted_by_name,
         deleted_by_email=deleted_by_email,
     )
+    # La richiesta non c'è più: il link Approva/Rifiuta nella mail del capo si chiude.
+    try:
+        from automazioni.services import chiudi_approvazioni_pendenti
+
+        chiudi_approvazioni_pendenti("assenze", record.get("id"), "rejected",
+                                     decided_by=deleted_by_email or deleted_by_name or request.user.get_username())
+    except Exception:
+        logger.warning("Assenza cancellata id=%s: link di approvazione non chiuso", record.get("id"), exc_info=True)
+    from .. import avvisi
+
+    avvisi.cancellata(record, capo_email=capo_email, tipo_display=tipo_display, chi=deleted_by_name,
+                      autore_email=deleted_by_email)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

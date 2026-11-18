@@ -1082,7 +1082,8 @@ class TicketEscalationTests(TestCase):
         notif = Notifica.objects.filter(legacy_user_id=77, tipo="ticket_sla").first()
         self.assertIsNotNone(notif)
         self.assertIn(t.numero_ticket, notif.messaggio)
-        self.assertEqual(notif.url_azione, f"/tickets/gestione/{t.pk}/")
+        # Il richiedente apre la sua scheda: la pagina di gestione non la vede.
+        self.assertEqual(notif.url_azione, f"/tickets/{t.pk}/")
 
     def test_run_reminder_idempotente(self):
         from core.models import Notifica

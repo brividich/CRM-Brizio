@@ -50,3 +50,7 @@ Modulo dedicato all'anagrafica fornitori, scorporato da `anagrafica` per separar
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Scheda fornitore: copie MFC verso Contatori (`fornitore=`), ordini `ordini_di_spesa`/`spesa_ordini` (annullati esclusi), elenco `attivi=0|tutti`. «Da controllare» resta un'ancora in pagina.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- Reception: `mail.invia_scadenza` (richiesta in attesa tolta da `pulizia_richieste`), `mail.invia_annullamento` (invito cancellato prima della visita), `mail.avvisa_referente_decisione` (la reception decide al posto del referente: campanella `reception_decisa` + mail).

@@ -187,6 +187,29 @@
       }).catch(function () {});
     } catch (e) {}
   });
+  // ✓ «Segna come letta» e 🗄 «Archivia» sulla singola voce, senza aprire la pagina.
+  var archiveUrlTpl = (window.NHUB_NOTIFY || {}).archiveOne;
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-notifica-letta],[data-notifica-archivia]');
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    var archivia = btn.hasAttribute('data-notifica-archivia');
+    var id = Number(btn.getAttribute(archivia ? 'data-notifica-archivia' : 'data-notifica-letta'));
+    var tpl = archivia ? archiveUrlTpl : readUrlTpl;
+    if (!id || !tpl) return;
+    btn.disabled = true;
+    var item = btn.closest('[data-notifica-item]');
+    fetch(tpl.replace('/0/', '/' + id + '/'), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      if (!data || data.ok === false) { btn.disabled = false; return; }
+      if (typeof data.unread_count !== 'undefined') setNotificationBadges(data.unread_count);
+      if (archivia && item) { item.style.opacity = '0'; }
+      refreshPanel();
+    }).catch(function () { btn.disabled = false; });
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') pollLiveNotifications();
   });

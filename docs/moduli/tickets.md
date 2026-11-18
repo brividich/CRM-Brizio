@@ -68,3 +68,9 @@ Dal 06/11/2026 vale anche per i ticket IT (chi li gestisce). Le stesse persone h
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Gestione ticket: filtri `registro` (`1` registro manutenzione, `asset` definizione del cruscotto asset), `famiglia`, `urgenza=1`, `chiusi_dal`/`chiusi_al`, `richiedente`, `vista=tutti`, `attivi=1`; riga «Elenco filtrato: … ✕ Togli».
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- `tickets/services/avvisi.py` (campanella + mail, `on_commit`, chi agisce escluso): nuovo → team gestori + conferma al richiedente; assegnato/preso → tecnico (se assegnato da altri) e richiedente; RISOLTO → richiedente con «Conferma o riapri»; IN_ATTESA e ANNULLATO → richiedente; CHIUSO → solo campanella (la mail resta della regola `tickets-cambio-stato-email-richiedente`); commento non interno → l'altra parte; riaperto/annullato dal richiedente → tecnico o team; allegato rifiutato → chi l'ha caricato. `avvisi.silenzio()` per i ticket registrati a lavoro fatto.
+- Promemoria urgenti non assegnati: il richiedente riceve il link alla sua scheda (`/tickets/<id>/`), non alla gestione.
+- Attenzione: se in produzione esistono regole delle Automazioni attive che mandano già mail su apertura/assegnazione, la mail arriverebbe due volte.

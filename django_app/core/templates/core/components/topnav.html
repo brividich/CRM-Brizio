@@ -133,10 +133,10 @@
         <kbd class="nav-search-kbd">Ctrl K</kbd>
       </button>
 
-      {% if car_pending_count %}
-        <a href="{% url 'assenze_car_dashboard' %}" class="nav-pending" title="Richieste di assenza in attesa della tua approvazione">
+      {% if da_approvare.totale %}
+        <a href="{{ da_approvare.url }}" class="nav-pending" title="{{ da_approvare.titolo }}" aria-label="{{ da_approvare.titolo }}">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
-          <span class="nav-pending-num">{{ car_pending_count }}</span>
+          <span class="nav-pending-num">{{ da_approvare.totale }}</span>
           <span class="nav-pending-text">da approvare</span>
         </a>
       {% endif %}

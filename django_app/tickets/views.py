@@ -53,6 +53,7 @@ from core import naming
 from core.upload_limits import DOCUMENT_MAX_BYTES
 
 from .registro_permessi import MODULO_PER_TIPO
+from .services import avvisi as avvisi_ticket
 from .services.accesso import utente_puo_gestire_ticket
 from .services.lavorazione import chiudi_con_intervento, prendi_in_carico
 from .services.stato import STATI_APERTI, cambia_stato_ticket
@@ -1403,10 +1404,11 @@ def ticket_nuovo(request):
                 # momento della registrazione resta nel log di stato e nell'audit.
                 Ticket.objects.filter(pk=ticket.pk).update(created_at=al_volo["inizio"])
                 ticket.created_at = al_volo["inizio"]
-                chiudi_con_intervento(
-                    ticket, nome=name, email=email, lavoro=al_volo["lavoro"], inizio=al_volo["inizio"],
-                    fine=al_volo["fine"], ore=al_volo["ore"], nota="Registrato a intervento concluso.",
-                )
+                with avvisi_ticket.silenzio():
+                    chiudi_con_intervento(
+                        ticket, nome=name, email=email, lavoro=al_volo["lavoro"], inizio=al_volo["inizio"],
+                        fine=al_volo["fine"], ore=al_volo["ore"], nota="Registrato a intervento concluso.",
+                    )
                 # Niente da gestire: le regole «nuovo ticket» non devono chiamare il
                 # team. Se incide sulla sicurezza gli avvisi restano.
                 if not sicurezza:
@@ -1417,6 +1419,8 @@ def ticket_nuovo(request):
                 # auto_now_add ignora il valore passato: si aggiorna dopo il save.
                 Ticket.objects.filter(pk=ticket.pk).update(created_at=aperto_il)
                 ticket.created_at = aperto_il
+            if not al_volo:
+                avvisi_ticket.nuovo(ticket, autore_email=email)
         if al_volo:
             log_action(
                 request, "ticket_chiuso_al_volo", "tickets",
@@ -1579,6 +1583,7 @@ def ticket_azione_richiedente(request, pk: int):
         testo = f"Non è risolto, riapro il ticket.\n{nota}"
         evento, msg = "ticket_riaperto_richiedente", f"Ticket {ticket.numero_ticket} riaperto: il team riceve la tua nota."
     TicketCommento.objects.create(ticket=ticket, autore_nome=name, autore_email=email, testo=testo, is_interno=False)
+    avvisi_ticket.azione_richiedente(ticket, azione=azione, autore_email=email, nota=nota)
     log_action(request, evento, "tickets", {"ticket": ticket.numero_ticket, "nota": nota[:200]})
     messages.success(request, msg)
     return redirect(url)
@@ -2471,6 +2476,8 @@ def api_commento(request):
         testo=testo,
         is_interno=is_interno,
     )
+    avvisi_ticket.commento(ticket, autore_email=email, testo=testo, interno=is_interno,
+                           da_richiedente=bool(is_richiedente and not (is_gestore or is_admin)))
 
     # Auto presa in carico: se il gestore commenta su un ticket ancora APERTA,
     # lo porta automaticamente in IN_CARICO (prima risposta operativa)
@@ -2717,6 +2724,7 @@ def api_assegna(request):
         testo=f"Ticket assegnato a: {desc}",
         is_interno=True,
     )
+    avvisi_ticket.assegnato(ticket, autore_email=email, autore_nome=name)
 
     try:
         _update_ticket_sharepoint(ticket)
@@ -3471,6 +3479,7 @@ def api_bulk(request):
                 testo=f"Ticket assegnato (bulk) a: {assegnato_a or '—'}",
                 is_interno=True,
             )
+            avvisi_ticket.assegnato(t, autore_email=email, autore_nome=name)
             try:
                 _update_ticket_sharepoint(t)
             except Exception:

@@ -1941,6 +1941,14 @@ def aggiorna_consenso_placeholder(request, item_id: int):
     if managed_error:
         return managed_error
     consenso = _helpers._norm_consenso(request.POST.get("consenso"))
+    current = _helpers._get_assenza(item_id)
+    if current and consenso in ("Approvato", "Rifiutato"):
+        # Approva/rifiuta: stessa strada della dashboard (audit, avviso al dipendente,
+        # link della mail del capo chiuso), non una scrittura muta.
+        ok = _helpers._applica_moderazione(
+            request, item_id, current, consenso, str(current.get("note_gestione") or "")
+        ) is not None
+        return JsonResponse({"ok": ok, "item_id": item_id, "consenso": consenso})
     updates = {
         "consenso": consenso,
         "moderation_status": _helpers._CONSENSO_TO_MOD.get(consenso, 2),

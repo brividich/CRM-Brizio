@@ -102,6 +102,13 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": 'avvisi-spostamenti',
+            "titolo": 'Spostamento date: chi viene avvisato',
+            "blocchi": [
+                ('ul', ["Chi chiede lo spostamento riceve l'esito anche per mail, oltre che in campanella.", 'Se ritira la richiesta, chi doveva decidere riceve campanella e mail: non serve più decidere.']),
+            ],
+        },
     ],
     "admin": [
         {

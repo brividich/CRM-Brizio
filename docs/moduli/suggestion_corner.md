@@ -23,3 +23,7 @@ Area **Operations** · URL `/suggestion-corner/` (+ `/suggestion-corner/nuova/` 
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - `_filtri_elenco()` unico per tessere ed elenco.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- `notifications.notifica_esito_segnalatore`: chi ha segnalato dal portale riceve campanella `sc_esito` e mail a classificazione e chiusura.

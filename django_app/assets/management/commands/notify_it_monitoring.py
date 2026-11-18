@@ -125,7 +125,7 @@ class Command(BaseCommand):
         notified = 0
         for email in recipients:
             for p in new:
-                notified += invia_notifica_email(email, "generico", f"Monitoraggio IT: {p['title']}", p["url"])
+                notified += invia_notifica_email(email, "it_monitoraggio", f"Monitoraggio IT: {p['title']}", p["url"])
         self.stdout.write(self.style.SUCCESS(
             f"Digest inviato a {len(recipients)} destinatari; {notified} notifiche in app per {len(new)} problemi nuovi."
         ))

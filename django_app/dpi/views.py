@@ -776,6 +776,7 @@ def annulla_richiesta(request, pk: int):
         return redirect("dpi:detail", pk=pk)
     richiesta.stato = StatoRichiesta.ANNULLATA
     richiesta.save(update_fields=["stato", "updated_at"])
+    flusso.notifica_annullata(richiesta)
     log_action(request, "annulla", "dpi", f"Annullata richiesta DPI {richiesta.numero}")
     messages.success(request, f"Richiesta {richiesta.numero} annullata.")
     return redirect("dpi:dashboard")
@@ -1070,13 +1071,13 @@ def approva_richiesta(request, pk: int):
     return redirect("dpi:gestione_detail", pk=pk)
 
 
-def _notifica_richiedente(richiesta: RichiestaDPI, messaggio: str) -> None:
+def _notifica_richiedente(richiesta: RichiestaDPI, messaggio: str, tipo: str = "dpi_approvata") -> None:
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse
         invia_notifica(
             legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
-            tipo="dpi_approvata",
+            tipo=tipo,
             messaggio=messaggio,
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
@@ -1107,6 +1108,9 @@ def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bo
     flusso.notifica_approvata(richiesta)
     if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione and not richiesta.modalita_negozio:
         _segna_pronta(request, richiesta, da_nome="Portale (all'approvazione)")
+    elif not automatica:
+        # Chi l'ha chiesta lo sa anche per mail (con il ritiro subito basta la mail «pronto»).
+        flusso.notifica_esito_richiedente(richiesta, approvata=True)
 
 
 def _segna_pronta(request, richiesta: RichiestaDPI, *, da_nome: str) -> None:
@@ -1114,7 +1118,7 @@ def _segna_pronta(request, richiesta: RichiestaDPI, *, da_nome: str) -> None:
     richiesta.pronta_ritiro_da_nome = da_nome[:200]
     richiesta.save(update_fields=["pronta_ritiro_il", "pronta_ritiro_da_nome", "updated_at"])
     log_action(request, "pronta_ritiro", "dpi", f"DPI {richiesta.numero} pronto per il ritiro")
-    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa {flusso.luogo_ritiro(richiesta)} a ritirarlo.")
+    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa {flusso.luogo_ritiro(richiesta)} a ritirarlo.", "dpi_pronta")
     flusso.notifica_pronta_ritiro(richiesta)
 
 
@@ -1171,9 +1175,11 @@ def rifiuta_richiesta(request, pk: int):
         invia_notifica(
             legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
             tipo="dpi_rifiutata",
-            messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata rifiutata.",
+            messaggio=(f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata rifiutata."
+                       + (f" Motivo: {motivazione}" if motivazione else ""))[:480],
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
+    flusso.notifica_esito_richiedente(richiesta, approvata=False, nota=motivazione)
     if era_approvata:
         flusso.notifica_rifiutata_dopo_approvazione(richiesta)
     messages.success(request, f"Richiesta {richiesta.numero} rifiutata.")
@@ -1423,12 +1429,17 @@ def aggiungi_commento(request, pk: int):
     testo = request.POST.get("testo", "").strip()
     is_interno = bool(request.POST.get("is_interno"))
     if testo:
+        autore = request.user.get_full_name() or request.user.username
         RichiestaDPICommento.objects.create(
             richiesta=richiesta,
-            autore_nome=request.user.get_full_name() or request.user.username,
+            autore_nome=autore,
             testo=testo,
             is_interno=is_interno,
         )
+        if not is_interno and richiesta.created_by_id != request.user.id:
+            _notifica_richiesta_commento = f"{autore} sulla tua richiesta {richiesta.numero}: {' '.join(testo.split())[:200]}"
+            _notifica_richiedente(richiesta, _notifica_richiesta_commento, "dpi_commento")
+            flusso.notifica_commento(richiesta, testo, autore)
     return redirect("dpi:gestione_detail", pk=pk)
 
 

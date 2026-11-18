@@ -234,6 +234,13 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": 'avvisi-reception',
+            "titolo": 'Avvisi della reception',
+            "blocchi": [
+                ('ul', ["Richiesta di visita rimasta senza risposta: quando viene tolta (7 giorni dopo il giorno chiesto) chi l'ha mandata riceve una mail che non è più valida.", "Invito cancellato dall'elenco Inviti prima della visita: l'ospite riceve una mail che la visita è annullata e il codice non vale più.", 'Se la reception approva o rifiuta una richiesta al posto del referente, il referente lo trova in campanella e per mail.']),
+            ],
+        },
     ],
     "admin": [
         {

@@ -21,6 +21,7 @@ solo per i controlli aperti prima del 16/10/2026.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 import re
 from datetime import timedelta
@@ -366,9 +367,8 @@ def prendi_in_carico(controllo, user, nome: str) -> dict:
     legacy_da = _legacy_id_utente(da_user) if da_user is not None else None
     if legacy_da:
         try:
-            from core.models import Notifica
 
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=legacy_da,
                 tipo=TIPO_NOTIFICA_PROMEMORIA,
                 messaggio=(f"{nome} ha preso in carico il tuo controllo su OP {controllo.op_id} "
@@ -1042,7 +1042,7 @@ def invia_promemoria_bozza(controllo) -> bool:
             Notifica.objects.filter(
                 legacy_user_id=legacy_id, tipo=TIPO_NOTIFICA_PROMEMORIA, url_azione=url, letta=False,
             ).update(letta=True)
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=legacy_id,
                 tipo=TIPO_NOTIFICA_PROMEMORIA,
                 messaggio=(f"{op_txt} · fase {controllo.fase}: hai anomalie scritte ma non salvate. Riprendi il "
@@ -1152,7 +1152,7 @@ def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = N
             Notifica.objects.filter(
                 legacy_user_id=legacy_id, tipo=TIPO_NOTIFICA_PROMEMORIA, url_azione=url, letta=False,
             ).update(letta=True)
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=legacy_id,
                 tipo=TIPO_NOTIFICA_PROMEMORIA,
                 messaggio=(f"OP {controllo.op_id} · fase {controllo.fase}: {cosa} non ancora inviate al "

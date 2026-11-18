@@ -295,6 +295,11 @@ def preregistrazione_azione(request, pk):
     pre = get_object_or_404(Preregistrazione, pk=pk)
     if request.POST.get("azione") == "elimina":
         sale.libera(pre)
+        if not pre.usata_il and (pre.data_visita is None or pre.data_visita >= timezone.localdate()):
+            try:
+                mail.invia_annullamento(pre)
+            except Exception:  # noqa: BLE001 - l'eliminazione va avanti; si avvisa chi elimina
+                messages.warning(request, f"La mail di annullamento a {pre.ospite_email} non è partita: avvisalo tu.")
         pre.delete()
         log_action(request, "reception_preregistrazione_eliminata", "reception", {"preregistrazione": pk})
         messages.success(request, "Pre-registrazione eliminata.")

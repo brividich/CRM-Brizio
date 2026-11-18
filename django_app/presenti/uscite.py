@@ -94,7 +94,7 @@ def invia_avvisi(oggi: date | None = None) -> dict:
             for v in voci)
         breve = (f"Uscita non timbrata: {voci[0]['cognome']} {voci[0]['nome']} il {voci[0]['giorno']:%d/%m/%Y}"
                  if len(voci) == 1 else f"{len(voci)} uscite non timbrate nella tua squadra")
-        invia_notifica(legacy_user_id=utente_id, tipo="generico",
+        invia_notifica(legacy_user_id=utente_id, tipo="presenze_uscita",
                        messaggio=f"{breve}. Fai regolarizzare la timbratura o inserire l'assenza.", url_azione=url)
         nota = "notifica" if utente_id else ""
         if email:

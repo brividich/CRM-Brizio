@@ -137,3 +137,33 @@ def _escalation(seg, fase: str) -> int:
         title=f"Escalation {fase}", email_type=EMAIL_TYPE,
         badge="Escalation", fail_silently=True,
     )
+
+
+def notifica_esito_segnalatore(seg, fase: str) -> int:
+    """A chi ha fatto la segnalazione (se ha un account): classificata e chiusa.
+
+    ``fase``: "classificata" o "chiusa". Campanella + mail, best effort.
+    """
+    user = getattr(seg, "created_by", None)
+    email = (getattr(user, "email", "") or "").strip()
+    if not email:
+        return 0
+    if fase == "classificata":
+        presa = str(getattr(seg, "stato_sms", "")) == "SMS_SI"
+        testo = (f"La tua segnalazione SC#{seg.pk} è stata presa in carico dal team: diventa un'azione di miglioramento."
+                 if presa else
+                 f"La tua segnalazione SC#{seg.pk} è stata valutata dal team: per ora non diventa un'azione di miglioramento.")
+    else:
+        testo = f"La tua segnalazione SC#{seg.pk} è chiusa: l'azione è stata fatta e controllata. Grazie."
+    from core.notifiche import invia_notifica_email
+
+    n = invia_notifica_email(email, "sc_esito", testo, f"/suggestion-corner/{seg.pk}/")
+    try:
+        send_hub_mail(
+            f"Suggestion Corner: la tua segnalazione SC#{seg.pk}",
+            f"{testo}\n\nApri la segnalazione: {_dettaglio_url(seg)}", [email],
+            title="La tua segnalazione", email_type=EMAIL_TYPE, fail_silently=True,
+        )
+    except Exception:
+        pass
+    return n
