@@ -1297,7 +1297,7 @@ def project_meeting_proposal_create(request, project_id: int, meeting_id: int):
                 manager,
                 f'{autore} propone un punto per l\'incontro {meeting.numero}: "{titolo}".',
                 _meeting_public_url(meeting),
-                tipo="generico",
+                tipo="kickoff_incontro",
             )
     messages.success(request, "Punto proposto: lo vedrà chi gestisce la commessa.")
     return detail
@@ -1369,7 +1369,7 @@ def project_meeting_proposal_decide(request, project_id: int, meeting_id: int, p
             proposal.proposed_by,
             f'La tua proposta "{proposal.titolo}" per l\'incontro {meeting.numero} è {esito_msg}.',
             _meeting_public_url(meeting),
-            tipo="generico",
+            tipo="kickoff_incontro",
         )
     messages.success(request, f"Proposta {proposal.get_stato_display().lower()}.")
     return detail

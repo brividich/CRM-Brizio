@@ -4644,6 +4644,10 @@ def _execute_action(
                                subject=subject, errore="Il backend email non ha confermato l'invio del messaggio.")
                 raise ValueError("Il backend email non ha confermato l'invio del messaggio.")
             _registra_mail(action, run_log, payload_context, origine="automazione", to=to, cc=cc + bcc, subject=subject)
+            if not getattr(run_log, "is_test", False):
+                from .campanella import da_mail
+
+                da_mail(action, payload_context, to, subject)
 
             recipients = ", ".join(to + cc + bcc)
             result_message = f"Email inviata a [{recipients}] con subject='{subject[:120]}'."
@@ -4895,6 +4899,10 @@ def _execute_action(
                         result_message_parts.append(
                             f"Email approvazione inviata a {', '.join(delivered_now)}."
                         )
+                    if delivered_now and not getattr(run_log, "is_test", False):
+                        from .campanella import da_mail
+
+                        da_mail(action, payload_context, delivered_now, subject, approvazione=True)
 
                 if delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY and not reused_approval:
                     # Canale Teams condiviso: nessun destinatario individuale, quindi

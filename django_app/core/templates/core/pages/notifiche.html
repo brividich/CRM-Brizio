@@ -95,22 +95,23 @@
      data-url-archivia-lette="{% url 'api_notifiche_archivia_lette' %}">
   <div class="ntf-toolbar">
     <nav class="ntf-tabs" aria-label="Viste notifiche">
-      <a class="ntf-tab{% if vista == 'attive' %} is-active{% endif %}" href="?vista=attive{% if categoria %}&categoria={{ categoria }}{% endif %}">
+      <a class="ntf-tab{% if vista == 'attive' %} is-active{% endif %}" href="?vista=attive{% if filtri_tab %}&{{ filtri_tab }}{% endif %}">
         🔔 Attive <span class="ntf-tab-count">{{ conteggi.attive }}</span>
       </a>
-      <a class="ntf-tab{% if vista == 'non_lette' %} is-active{% endif %}" href="?vista=non_lette{% if categoria %}&categoria={{ categoria }}{% endif %}">
+      <a class="ntf-tab{% if vista == 'non_lette' %} is-active{% endif %}" href="?vista=non_lette{% if filtri_tab %}&{{ filtri_tab }}{% endif %}">
         ● Da leggere <span class="ntf-tab-count">{{ conteggi.non_lette }}</span>
       </a>
-      <a class="ntf-tab{% if vista == 'archiviate' %} is-active{% endif %}" href="?vista=archiviate{% if categoria %}&categoria={{ categoria }}{% endif %}">
+      <a class="ntf-tab{% if vista == 'archiviate' %} is-active{% endif %}" href="?vista=archiviate{% if filtri_tab %}&{{ filtri_tab }}{% endif %}">
         🗄️ Archiviate <span class="ntf-tab-count">{{ conteggi.archiviate }}</span>
       </a>
     </nav>
     <form class="ntf-filters" method="get">
       <input type="hidden" name="vista" value="{{ vista }}">
-      <select name="categoria" aria-label="Categoria" onchange="this.form.submit()">
-        <option value="">Tutte le categorie</option>
-        {% for key, label in categorie %}
-          <option value="{{ key }}"{% if key == categoria %} selected{% endif %}>{{ label }}</option>
+      {% if categoria %}<input type="hidden" name="categoria" value="{{ categoria }}">{% endif %}
+      <select name="modulo" aria-label="Modulo" onchange="this.form.submit()">
+        <option value="">Tutti i moduli</option>
+        {% for key, label in moduli %}
+          <option value="{{ key }}"{% if key == modulo %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
       <input type="search" name="q" value="{{ q }}" placeholder="Cerca nel testo…" aria-label="Cerca nel testo">
@@ -166,7 +167,7 @@
     {% else %}
       <div class="ntf-empty">
         <div class="ntf-empty-ico">{% if vista == 'archiviate' %}🗄️{% else %}🔔{% endif %}</div>
-        {% if q or categoria %}
+        {% if q or categoria or modulo %}
           <div>Nessuna notifica corrisponde ai filtri.</div>
         {% elif vista == 'archiviate' %}
           <div>L'archivio è vuoto.</div>

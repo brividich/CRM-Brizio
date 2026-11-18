@@ -120,3 +120,8 @@ Logica in `dpi/report.py`, viste in `dpi/views_report.py`, gate `_is_gestore`, p
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Filtri `tipo`, `da`, `stato=da_riordinare` usati dalle tessere.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- Nuova richiesta: campanella `dpi_da_approvare` agli stessi destinatari della mail (`flusso._campanella`), mail con pulsante «Approva o rifiuta».
+- `flusso.notifica_esito_richiedente` (approvata/rifiutata), `notifica_annullata` (agli approvatori), `notifica_commento` (commento non interno del gestore). `_notifica_richiedente` ha il parametro `tipo` (`dpi_pronta`, `dpi_ordinata`, `dpi_commento`).

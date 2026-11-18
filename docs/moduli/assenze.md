@@ -100,3 +100,9 @@ Dashboard segnalazioni: «In attesa» = `count_pending_for_manager` / `count_all
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Tessere con ancore e filtri di stato (`?stato=…#mie-richieste`); conteggio in attesa con `count_all_pending`.
+
+## Avvisi a chi chiede e a chi gestisce (18/11/2026)
+
+- `assenze/avvisi.py`: esito in campanella su ogni percorso (dashboard, massa, calendario: passa da `_notify_esito_dipendente`), modifica e cancellazione a capo e dipendente; link con `?richiesta=<id>`. La cancellazione chiude il link Approva/Rifiuta (`chiudi_approvazioni_pendenti`).
+- Richiesta da approvare: la campanella al capo arriva dalla richiesta «Chiedi approvazione» della regola (`automazioni/campanella.py`).
+- `aggiorna_consenso/<id>` con Approvato/Rifiutato passa da `_applica_moderazione` (audit, avvisi, link chiuso).

@@ -16,6 +16,7 @@ gia' come booleani.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 from datetime import timedelta
 
@@ -333,7 +334,6 @@ def notifica_azioni_in_scadenza(*, oggi=None, giorni: int = GIORNI_PREAVVISO_AZI
     """
     from django.urls import reverse
 
-    from core.models import Notifica
 
     oggi = oggi or timezone.localdate()
     limite = oggi + timedelta(days=giorni)
@@ -347,7 +347,7 @@ def notifica_azioni_in_scadenza(*, oggi=None, giorni: int = GIORNI_PREAVVISO_AZI
             continue
         quando = "scaduta" if a.scadenza < oggi else f"in scadenza il {a.scadenza:%d/%m/%Y}"
         try:
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=a.responsabile_legacy_id, tipo=TIPO_NOTIFICA_AZIONE,
                 messaggio=f"{a.nc.protocollo} · OP {a.nc.op_titolo}: azione {quando} — {a.descrizione[:300]}",
                 url_azione=reverse("anomalie_nc_dettaglio", args=[a.nc_id]) + "#azioni",

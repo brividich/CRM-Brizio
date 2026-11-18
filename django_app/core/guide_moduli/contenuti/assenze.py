@@ -186,6 +186,13 @@ GUIDA = {
                       "Se il nome corrisponde a più persone con indirizzi diversi, al dipendente non scrive."),
             ],
         },
+        {
+            "id": 'avvisi',
+            "titolo": 'Avvisi nella campanella',
+            "blocchi": [
+                ('ul', ["Il capo trova in campanella «Da decidere: …» per ogni richiesta che deve approvare (oltre alla mail con Approva/Rifiuta); l'avviso apre «Assenze del reparto».", "Approvata o rifiutata, dal portale, dal calendario o dal link nella mail: il dipendente lo trova in campanella, con il periodo; l'avviso apre «Le mie richieste».", "Richiesta modificata o cancellata: avviso al capo e al dipendente (non a chi l'ha fatto). Se è cancellata, il link Approva/Rifiuta nella mail del capo non funziona più."]),
+            ],
+        },
     ],
     "admin": [
         {

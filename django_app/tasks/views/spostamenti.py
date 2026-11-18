@@ -48,6 +48,7 @@ def spostamento_annulla(request, sp_id: int):
         sp.stato = SpostamentoStato.ANNULLATA
         sp.nota_decisione = "Ritirata dal richiedente."
         sp.save(update_fields=["stato", "nota_decisione"])
+        svc.avvisa_ritiro(sp)
         log_action(request, "kickoff_spostamento_annulla", "tasks", {"id": sp.pk, "task_id": sp.task_id})
         messages.info(request, "Richiesta ritirata.")
     return redirect(f"/tasks/{sp.task_id}/")

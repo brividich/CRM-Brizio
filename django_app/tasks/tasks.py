@@ -138,7 +138,7 @@ def run_meetings_digest(**kwargs) -> dict:
                 try:
                     invia_notifica(
                         int(legacy_id),
-                        "generico",
+                        "kickoff_incontro",
                         f'{_quando(meeting.data, today)} hai l\'incontro "{label}" [{getattr(meeting.project, "name", "")}].'[:500],
                         meeting_url(meeting),
                     )
@@ -222,7 +222,7 @@ def run_meetings_digest(**kwargs) -> dict:
                 for luid in legacy_user_ids_for_email(email):
                     invia_notifica(
                         luid,
-                        "generico",
+                        "kickoff_incontro",
                         f"Hai {len(issue_list)} problema/i aperto/i scaduto/i su incontri KICK-OFF.",
                     )
             except Exception:

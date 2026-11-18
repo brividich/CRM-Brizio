@@ -62,6 +62,13 @@ GUIDA = {
                 ("p", "Nel dettaglio di ogni segnalazione «Segnalata da» dice «Anonima», il nome dell'account o il nome scritto («nome dichiarato», non verificato). La foto si apre cliccandola."),
             ],
         },
+        {
+            "id": 'avvisi',
+            "titolo": 'Come sai a che punto è la tua segnalazione',
+            "blocchi": [
+                ('p', "Se hai fatto la segnalazione dal portale ricevi campanella e mail quando il team la classifica (diventa un'azione di miglioramento oppure no) e quando è chiusa."),
+            ],
+        },
     ],
     "admin": [
         {

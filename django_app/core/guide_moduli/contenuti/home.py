@@ -106,7 +106,11 @@ GUIDA = {
                 ("def", [
                     ("?", "apre la guida del modulo in cui ti trovi (questa pagina)."),
                     ("Stella", "l'Assistente AI: fai una domanda in italiano, per esempio «come chiedo un permesso?»."),
-                    ("Campanella", "le notifiche. Il numero rosso dice quante non hai ancora letto."),
+                    ("Campanella", "le notifiche. Il numero rosso dice quante non hai ancora letto. In alto le non lette, sotto «Già lette»: "
+                     "tocca la riga per aprire la pagina (diventa letta), ✓ la segna letta, 🗄 la archivia. «Tutte» apre la pagina Notifiche, con il filtro «Modulo»."),
+                    ("N da approvare", "compare quando qualcosa aspetta una tua decisione: assenze della squadra, DPI, approvazioni dei flussi, richieste di visita, "
+                     "spostamenti date, modifiche SGI, segnalazioni di modifica, rilevazioni di sicurezza. Passandoci sopra vedi quante per tipo; "
+                     "se è un tipo solo apre quella pagina, altrimenti «Le mie attività»."),
                     ("Il tuo nome", "profilo, preferenze, tema chiaro/scuro, «Segnala un problema» ed «Esci»."),
                 ]),
             ],

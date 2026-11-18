@@ -46,7 +46,8 @@ def crea_richiesta(user, task, inizio, fine, *, motivo: str = "") -> TaskSpostam
     if inizio and fine and fine < inizio:
         raise SpostamentoNonValido("La fine non può venire prima dell'inizio.")
     with transaction.atomic():
-        # Una sola richiesta aperta per attività: la nuova sostituisce la precedente.
+        # Una sola richiesta aperta per attività: la nuova sostituisce la precedente
+        # (gli approvatori ricevono subito l'avviso della nuova, che dice le date giuste).
         TaskSpostamento.objects.filter(task=task, stato=SpostamentoStato.IN_ATTESA).update(
             stato=SpostamentoStato.ANNULLATA, deciso_at=timezone.now(), nota_decisione="Sostituita da una nuova richiesta.",
         )
@@ -76,12 +77,32 @@ def _avvisa_approvatori(sp: TaskSpostamento) -> None:
         if u.pk == sp.richiesto_da_id:
             continue
         try:
-            notify_user(u, testo, url)
+            notify_user(u, testo, url, tipo="kickoff_spostamento")
             from .avvisi import mail_cambiamento
 
             mail_cambiamento(task, u, testo)
         except Exception:
             logger.exception("Avviso richiesta spostamento non inviato (sp=%s)", sp.pk)
+
+
+def avvisa_ritiro(sp: TaskSpostamento) -> None:
+    """Il richiedente ha ritirato la richiesta: chi doveva decidere non la cerca più (campanella + mail)."""
+    task = sp.task
+    if not task.project_id:
+        return
+    chi = (sp.richiesto_da.get_full_name() or sp.richiesto_da.get_username()) if sp.richiesto_da else "Il richiedente"
+    testo = f"{chi} ha ritirato la richiesta di spostare «{task.title}» [{task.project.name}]: non serve più decidere."
+    url = reverse("tasks:detail", kwargs={"task_id": task.pk}) + "#spostamenti"
+    for u in utenti_pieni_poteri(task.project):
+        if u.pk == sp.richiesto_da_id:
+            continue
+        try:
+            notify_user(u, testo, url, tipo="kickoff_spostamento")
+            from .avvisi import mail_cambiamento
+
+            mail_cambiamento(task, u, testo)
+        except Exception:
+            logger.exception("Avviso ritiro spostamento non inviato (sp=%s)", sp.pk)
 
 
 def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizio=None, fine=None) -> TaskSpostamento:
@@ -116,7 +137,13 @@ def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizi
     if sp.richiesto_da_id and sp.richiesto_da_id != request.user.pk:
         esito = "approvata" if approva else "rifiutata"
         testo = f"Richiesta di spostamento di «{task.title}» {esito}" + (f": {sp.nota_decisione}" if sp.nota_decisione else ".")
-        notify_user(sp.richiesto_da, testo, reverse("tasks:detail", kwargs={"task_id": task.pk}))
+        notify_user(sp.richiesto_da, testo, reverse("tasks:detail", kwargs={"task_id": task.pk}), tipo="kickoff_spostamento")
+        try:
+            from .avvisi import mail_cambiamento
+
+            mail_cambiamento(task, sp.richiesto_da, testo)
+        except Exception:
+            logger.exception("Mail esito spostamento non inviata (sp=%s)", sp.pk)
     return sp
 
 

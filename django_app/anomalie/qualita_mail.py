@@ -7,6 +7,7 @@ risposta torna a chi l'ha chiesta. Mai bloccanti.
 """
 from __future__ import annotations
 
+from core.notifiche import invia_notifica as _invia_notifica
 import logging
 from datetime import timedelta
 
@@ -67,7 +68,6 @@ def _destinatari_legacy(anomalia_id: int, op_id: str, destinatari: list[str]) ->
 
 def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: str) -> dict:
     """Notifica nel portale e mail con il link per rispondere a ogni destinatario."""
-    from core.models import Notifica
 
     from .automazioni_service import _render_mail, _send, contatto_operatore, op_portal_link, op_url
     from .mail_action_models import AnomaliaMailActionToken
@@ -77,7 +77,7 @@ def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: st
     codice = codice_anomalia(richiesta.anomalia_id)
     for ruolo, utente in _destinatari_legacy(richiesta.anomalia_id, op_id, richiesta.destinatari or []):
         try:
-            Notifica.objects.create(
+            _invia_notifica(
                 legacy_user_id=utente.pk, tipo="anomalia_da_gestire",
                 messaggio=f"OP {op_id}, {codice} (S/N {seriale or '—'}): {chi} chiede informazioni sulla segnalazione."[:500],
                 url_azione=op_url(op_id),
@@ -127,7 +127,6 @@ def invia_richiesta_info(*, richiesta, op_id: str, seriale: str, descrizione: st
 
 def invia_risposta_info(*, richiesta, op_id: str, seriale: str) -> None:
     """Avvisa chi ha chiesto le informazioni che è arrivata la risposta."""
-    from core.models import Notifica
 
     from .automazioni_service import _render_mail, _send, contatto_operatore, op_portal_link, op_url
 
@@ -145,7 +144,7 @@ def invia_risposta_info(*, richiesta, op_id: str, seriale: str) -> None:
     chi = richiesta.risposta_da_display or "Il capocommessa"
     codice = codice_anomalia(richiesta.anomalia_id)
     try:
-        Notifica.objects.create(
+        _invia_notifica(
             legacy_user_id=legacy.pk, tipo="anomalia_da_gestire",
             messaggio=f"OP {op_id}, {codice} (S/N {seriale or '—'}): {chi} ha risposto alla tua richiesta di informazioni."[:500],
             url_azione=op_url(op_id),

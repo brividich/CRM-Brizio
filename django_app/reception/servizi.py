@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta
 
@@ -13,6 +14,9 @@ from .models import (
     Cartellino, ContattoDitta, DittaAccreditata, EventoVisita, Ospite, PartecipanteGruppo, Preregistrazione, Referente,
     RichiestaAppuntamento, Visita,
 )
+
+logger = logging.getLogger(__name__)
+
 
 GIORNI_RIAPERTURA = 7
 CARATTERI_CODICE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # niente O, 0, 1, I: si confondono
@@ -492,6 +496,15 @@ def pulizia_richieste(adesso=None) -> int:
     """Non confermate dopo 48 ore, decise dopo 30 giorni, in attesa a 7 giorni dal giorno chiesto."""
     adesso = adesso or timezone.now()
     oggi = timezone.localdate(adesso)
+    # Chi aspetta ancora una risposta lo sa prima che la richiesta sparisca.
+    from . import mail
+
+    for scaduta in RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA,
+                                                        data_visita__lt=oggi - timedelta(days=7)):
+        try:
+            mail.invia_scadenza(scaduta)
+        except Exception:  # noqa: BLE001 - la pulizia va avanti comunque
+            logger.warning("Mail di richiesta scaduta non inviata (richiesta %s)", scaduta.pk, exc_info=True)
     return RichiestaAppuntamento.objects.filter(
         Q(stato=RichiestaAppuntamento.DA_CONFERMARE, creata_il__lt=adesso - timedelta(hours=ORE_CONFERMA_RICHIESTA))
         | Q(decisa_il__lt=adesso - timedelta(days=GIORNI_CONSERVAZIONE_RICHIESTE))

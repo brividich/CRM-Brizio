@@ -15,6 +15,7 @@ from ..models import (
     TicketIntervento,
     TipoFermo,
 )
+from . import avvisi
 from .stato import _sync_sharepoint, cambia_stato_ticket
 
 
@@ -36,6 +37,7 @@ def prendi_in_carico(ticket: Ticket, *, nome: str, email: str = "") -> None:
         else:
             ticket_id = ticket.pk
             transaction.on_commit(lambda: _sync_sharepoint(ticket_id))
+        avvisi.assegnato(ticket, autore_email=email, autore_nome=nome)
 
 
 def chiudi_con_intervento(

@@ -153,7 +153,7 @@ def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -
     testo = riepilogo + (f" Per {richiesta.referente.nome_elenco}." if richiesta.referente
                          else f" Persona indicata: «{richiesta.referente_indicato}», da assegnare.")
     for uid in _destinatari(CHIAVE_RUOLI_RICHIESTE, RUOLI_RICHIESTE_PREDEFINITI):
-        invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=link_pannello)
+        invia_notifica(legacy_user_id=uid, tipo="reception_richiesta", messaggio=testo[:480], url_azione=link_pannello)
 
 
 @event_flow("reception_nuova_richiesta")
@@ -178,3 +178,51 @@ def invia_rifiuto(richiesta) -> None:
     send_hub_mail(personalizza.componi(personalizza.leggi("rifiuto_oggetto"), valori)[:200],
                   personalizza.componi(personalizza.leggi("rifiuto_testo"), valori), [richiesta.email],
                   title="Richiesta non accolta", email_type="Reception", badge="Visita", **PIEDE_ESTERNI)
+
+
+def invia_scadenza(richiesta) -> None:
+    """All'esterno: la sua richiesta è rimasta senza risposta e non vale più (prima di cancellarla)."""
+    from core.email_utils import send_hub_mail
+
+    if not (richiesta.email or "").strip():
+        return
+    send_hub_mail(
+        f"Richiesta di visita del {richiesta.data_visita:%d/%m/%Y}: nessuna risposta",
+        f"Gentile {richiesta.nome_completo},\n\nla sua richiesta di visita per il {richiesta.data_visita:%d/%m/%Y} "
+        "non ha ricevuto risposta in tempo e non è più valida. Se desidera ancora venire, invii una nuova richiesta "
+        "oppure contatti direttamente la persona che voleva incontrare.",
+        [richiesta.email], title="Richiesta non più valida", email_type="Reception", badge="Visita", **PIEDE_ESTERNI)
+
+
+def invia_annullamento(pre) -> None:
+    """All'ospite: il suo invito è stato cancellato, il codice non vale più al chiosco."""
+    from core.email_utils import send_hub_mail
+
+    if not (pre.ospite_email or "").strip():
+        return
+    quando = f" del {pre.data_visita:%d/%m/%Y}" if pre.data_visita else ""
+    send_hub_mail(
+        f"Visita{quando} annullata",
+        f"Gentile {pre.ospite_nome},\n\nla visita{quando} con {pre.referente_nome} è stata annullata e il codice "
+        f"{pre.codice} non è più valido. Per un nuovo appuntamento contatti {pre.referente_nome}.",
+        [pre.ospite_email], title="Visita annullata", email_type="Reception", badge="Visita", **PIEDE_ESTERNI)
+
+
+def avvisa_referente_decisione(richiesta, *, approvata: bool, chi: str, link: str) -> None:
+    """Al referente: la reception ha deciso al posto suo (campanella + mail)."""
+    from core.email_utils import send_hub_mail
+    from core.notifiche import invia_notifica_email
+
+    referente = getattr(richiesta, "referente", None)
+    email = (getattr(referente, "email", "") or "").strip()
+    if not email:
+        return
+    esito = "approvata" if approvata else "rifiutata"
+    testo = (f"{chi or 'La reception'} ha {esito.replace('ata', 'ato')} la richiesta di visita di {richiesta.nome_completo}"
+             f" per il {richiesta.data_visita:%d/%m/%Y}.")
+    if richiesta.nota_decisione:
+        testo += f" Nota: {richiesta.nota_decisione}"
+    invia_notifica_email(email, "reception_decisa", testo[:480], link)
+    send_hub_mail(f"Richiesta di visita {esito}: {richiesta.nome_completo}", testo, [email],
+                  title=f"Richiesta di visita {esito}", email_type="Reception")
+

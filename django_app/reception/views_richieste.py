@@ -12,6 +12,7 @@ Codici e QR valgono solo al chiosco dell'HUB: senza ``RECEPTION_NATIVA`` si può
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -30,6 +31,9 @@ from . import interventi, mail, sale, servizi
 from .models import CategoriaVisita, Preregistrazione, Referente, RichiestaAppuntamento, Visita
 from .views import _autore, _ctx, _manda_invito, _ora, prenota_sala, sala_dal_post
 
+logger = logging.getLogger(__name__)
+
+
 def _nativa() -> bool:
     return bool(getattr(settings, "RECEPTION_NATIVA", False))
 
@@ -39,6 +43,20 @@ def _data(valore: str):
         return datetime.strptime(valore or "", "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def _avvisa_referente(request, richiesta, referente, *, approvata: bool) -> None:
+    """La reception ha deciso al posto del referente: lui lo sa (campanella + mail)."""
+    ref = getattr(richiesta, "referente", None)
+    if referente is not None or ref is None:
+        return
+    if (ref.email or "").strip().lower() == (request.user.email or "").strip().lower():
+        return
+    try:
+        mail.avvisa_referente_decisione(richiesta, approvata=approvata, chi=_autore(request),
+                                        link=reverse("reception:annuncia") + "#le-tue-visite")
+    except Exception:  # noqa: BLE001 - la decisione resta valida
+        logger.warning("Avviso al referente non inviato (richiesta %s)", richiesta.pk, exc_info=True)
 
 
 def _decidi(request, richiesta: RichiestaAppuntamento, *, referente: Referente | None = None) -> None:
@@ -62,6 +80,7 @@ def _decidi(request, richiesta: RichiestaAppuntamento, *, referente: Referente |
             prenota_sala(request, richiesta.preregistrazione)
             if _manda_invito(request, richiesta.preregistrazione):
                 messages.success(request, f"Richiesta approvata: codice inviato a {richiesta.email}.")
+            _avvisa_referente(request, richiesta, referente, approvata=True)
         elif azione == "rifiuta":
             richiesta = servizi.rifiuta_richiesta(richiesta.pk, autore=_autore(request), nota=nota)
             log_action(request, "reception_richiesta_rifiutata", "reception", {"richiesta": richiesta.pk})
@@ -70,6 +89,7 @@ def _decidi(request, richiesta: RichiestaAppuntamento, *, referente: Referente |
                 messages.success(request, f"Richiesta rifiutata: risposta inviata a {richiesta.email}.")
             except Exception:  # noqa: BLE001 - la decisione resta; si avvisa chi ha deciso
                 messages.warning(request, f"Richiesta rifiutata, ma la mail a {richiesta.email} non è partita: avvisalo tu.")
+            _avvisa_referente(request, richiesta, referente, approvata=False)
         else:
             messages.error(request, "Azione non riconosciuta.")
     except servizi.OperazioneNonValida as exc:
