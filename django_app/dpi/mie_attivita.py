@@ -50,6 +50,27 @@ def incaricato_scarpe(request) -> bool:
     return _tra(flusso.destinatari_operatore_negozio(), email_utente(request))
 
 
+def puo_scarpe(request) -> bool:
+    """Chi apre la pagina «Scarpe»: chi gestisce il modulo e l'operatore incaricato in
+    Impostazioni (lo stesso che riceve la mail), anche senza il permesso «Gestire»."""
+    from .views import _is_gestore
+
+    return _is_gestore(request) or incaricato_scarpe(request)
+
+
+def scarpe_queryset(request):
+    """Richieste approvate su cui lavora la pagina «Scarpe». Chi gestisce resta nel suo
+    perimetro; l'operatore incaricato senza «Gestire» vede solo quelle che passano dal negozio."""
+    from .views import _approvate_queryset, _is_gestore
+
+    if _is_gestore(request):
+        return _approvate_queryset(request)
+    return (
+        RichiestaDPI.objects.filter(stato=StatoRichiesta.APPROVATA).exclude(modalita_negozio="")
+        .select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
+    )
+
+
 def _voce(r: RichiestaDPI, stato: str, url: str, *, permesso: bool = True) -> dict:
     return {
         "code": r.numero,
@@ -90,12 +111,10 @@ def da_approvare(request) -> list[dict]:
 
 def scarpe(request) -> list[dict]:
     """Scarpe che aspettano l'operatore incaricato (gli stessi destinatari della mail)."""
-    from .views import _approvate_queryset, _is_gestore
-
     if not incaricato_scarpe(request):
         return []
-    permesso = _is_gestore(request)
-    base = _select(_approvate_queryset(request))
+    permesso = True  # l'incaricato apre la pagina «Scarpe» anche senza «Gestire»
+    base = _select(scarpe_queryset(request))
     url = reverse("dpi:negozio")
     voci = [_voce(r, "Scarpe da ordinare", url + "#da-ordinare", permesso=permesso) for r in negozio.da_ordinare(base)]
     voci += [

@@ -66,12 +66,30 @@ class MieAttivitaDpiTests(TestCase):
         self._richiesta(self.scarpe, modalita_negozio=CONV)
         self.assertEqual(len(mie_attivita.scarpe(self._request("referente@esempio.example"))), 1)
 
-    def test_incaricato_senza_permesso_lo_legge_nella_voce(self):
-        self._richiesta(self.scarpe, modalita_negozio=CONV)
+    def test_incaricato_senza_gestire_apre_la_pagina_scarpe(self):
+        scarpe = self._richiesta(self.scarpe, modalita_negozio=CONV)
+        self._richiesta(self.guanti)  # non passa dal negozio: l'incaricato non la vede
+        request = self._request("operatore@esempio.example", superuser=False)
         with mock.patch("dpi.views._is_gestore", return_value=False):
-            voce = mie_attivita.scarpe(self._request("operatore@esempio.example"))[0]
-        self.assertIn("Ti manca il permesso", voce["meta"])
-        self.assertEqual(voce["url"], reverse("dpi:dashboard"))
+            voce = mie_attivita.scarpe(request)[0]
+            self.assertNotIn("Ti manca il permesso", voce["meta"])
+            self.assertTrue(voce["url"].startswith(reverse("dpi:negozio")))
+            self.assertTrue(mie_attivita.puo_scarpe(request))
+            self.assertEqual(list(mie_attivita.scarpe_queryset(request)), [scarpe])
+            altro = self._request("altro@esempio.example", superuser=False)
+            self.assertFalse(mie_attivita.puo_scarpe(altro))
+
+    def test_pagina_scarpe_aperta_all_incaricato_e_chiusa_agli_altri(self):
+        from . import views_negozio
+
+        self._richiesta(self.scarpe, modalita_negozio=CONV)
+        with mock.patch("dpi.views._is_gestore", return_value=False),                 mock.patch("dpi.views_negozio._is_gestore", return_value=False),                 mock.patch("dpi.views_negozio.render", return_value="pagina") as render,                 mock.patch("dpi.views_negozio.messages"):
+            self.assertEqual(views_negozio.negozio(self._request("operatore@esempio.example", superuser=False)), "pagina")
+            contesto = render.call_args[0][2]
+            self.assertEqual((contesto["is_gestore"], len(contesto["da_ordinare"])), (False, 1))
+            negata = views_negozio.negozio(self._request("altro@esempio.example", superuser=False))
+            self.assertEqual(negata.status_code, 302)
+            self.assertEqual(views_negozio.fattura_download(self._request("terzo@esempio.example", superuser=False), 1).status_code, 302)
 
     def test_magazzino_vede_le_consegne_sue_e_non_le_scarpe(self):
         guanti = self._richiesta(self.guanti)
