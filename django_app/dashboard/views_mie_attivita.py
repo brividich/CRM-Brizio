@@ -228,6 +228,42 @@ def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
     return out
 
 
+def _assenze_squadra(legacy_user, is_admin: bool) -> dict:
+    """Sezione «Assenze della squadra»: le richieste da accettare e, sotto, quelle già
+    accettate e non ancora finite. ``informative`` = righe accettate (non sono cose da fare)."""
+    da_fare = _my_approvals(legacy_user, is_admin)
+    vuoto = {"items": da_fare, "total": len(da_fare), "informative": 0, "nota": ""}
+    if not legacy_user:
+        return vuoto
+    try:
+        from assenze.views._helpers import riepilogo_per_capo
+
+        r = riepilogo_per_capo(
+            int(legacy_user.id),
+            manager_name=str(getattr(legacy_user, "nome", "") or ""),
+            manager_email=str(getattr(legacy_user, "email", "") or ""),
+            tutte=str(getattr(legacy_user, "ruolo", "") or "").strip().upper() == "AMMINISTRAZIONE",
+        )
+    except Exception:
+        logger.exception("Riepilogo assenze della squadra non calcolabile")
+        return vuoto
+    url = _safe_url("assenze_gestione")
+    accettate = [{
+        "title": a.get("tipo") or "Assenza",
+        "meta": " · ".join(x for x in (
+            a.get("dipendente") or "",
+            " → ".join(x for x in (a.get("inizio_label") or "", a.get("fine_label") or "") if x),
+        ) if x) or "—",
+        "status": "Accettata",
+        "url": url,
+    } for a in r["prossime"]]
+    da_approvare = max(len(da_fare), r["da_approvare"])
+    nota = ""
+    if da_approvare or r["approvate"]:
+        nota = f"{da_approvare} da accettare · {r['approvate']} accettat{'a' if r['approvate'] == 1 else 'e'} in corso o in arrivo"
+    return {"items": da_fare + accettate, "total": da_approvare + len(accettate), "informative": len(accettate), "nota": nota}
+
+
 def _anagrafica_id(request) -> int | None:
     """Id anagrafica del dipendente (``AnagraficaDipendente.id``): NON è l'id dell'utente legacy."""
     try:
@@ -523,6 +559,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     nuovi = [t for t in del_team["items"] if t["code"] not in gia_ticket]
     ticket = nuovi + ticket
     ticket_totale += del_team["total"] - (len(del_team["items"]) - len(nuovi))
+    assenze_squadra = _assenze_squadra(legacy_user, is_admin)
     sections = [
         {
             "key": "kickoff",
@@ -548,12 +585,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         },
         {
             "key": "approvazioni",
-            "label": "Approvazioni assenze",
+            "label": "Assenze della squadra",
             "tone": "info",
             "icon": "✅",
-            "items": _my_approvals(legacy_user, is_admin),
+            "items": assenze_squadra["items"],
+            "total": assenze_squadra["total"],
+            "informative": assenze_squadra["informative"],
+            "nota": assenze_squadra["nota"],
             "all_url": _safe_url("assenze_gestione"),
-            "empty": "Nessuna richiesta in attesa di approvazione.",
+            "empty": "Nessuna assenza da accettare o accettata in arrivo.",
         },
         {
             "key": "ticket",
@@ -653,7 +693,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "🖊",
         "items": fonti.approvazioni(request),
         "all_url": _safe_url("procedure_refresh:modifiche") + "?mie=1",
-        "empty": "Nessuna modifica SGI, approvazione, richiesta di visita o spostamento date in attesa di te.",
+        "empty": "Nessuna modifica SGI, approvazione, richiesta di visita, spostamento date, segnalazione di modifica o rilevazione di sicurezza in attesa di te.",
     })
     sections.append({
         "key": "assegnate",
@@ -662,7 +702,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "📌",
         "items": fonti.assegnate(request),
         "all_url": _safe_url("scadenze_globali") + "?mie=1",
-        "empty": "Nessuna voce assegnata in schede di sicurezza, specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
+        "empty": "Nessuna voce assegnata in schede di sicurezza, manutenzioni, onboarding, specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
     })
 
     # Le voci già presenti in un'altra sezione non si ripetono fra le scadenze (stesso link).
@@ -679,7 +719,8 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": f"Nessuna scadenza nei prossimi {GIORNI_SCADENZE} giorni.",
         })
 
-    total = sum(s.get("total", len(s["items"])) for s in sections)
+    # Le righe informative (assenze già accettate) non sono cose da fare: fuori dal totale.
+    total = sum(s.get("total", len(s["items"])) - s.get("informative", 0) for s in sections)
     overdue, soon = _segna_urgenze(sections)
     return {"sections": sections, "total": total, "overdue": overdue, "soon": soon}
 
