@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
@@ -37,6 +37,9 @@ from core import naming
 
 
 GIORNI_SCADENZE = 30
+# Voci personali (letture e corsi): si mostrano tutte, così il numero della sezione è quello vero.
+MAX_PROCEDURE = 100
+MAX_ELEARNING = 100
 
 
 def _safe_url(name: str, *args) -> str:
@@ -148,6 +151,18 @@ def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
     return out
 
 
+def _my_tickets_totale(request_user, legacy_user, legacy_user_id) -> int:
+    """Tutti i ticket aperti correlati, non solo i 15 mostrati."""
+    try:
+        from tickets.models import StatoTicket
+
+        return _board_related_tickets_queryset(request_user, legacy_user, legacy_user_id).filter(
+            stato__in=(StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA)
+        ).count()
+    except Exception:
+        return 0
+
+
 def _my_workorders(request_user) -> dict:
     """Ordini di lavoro aperti assegnati all'utente (manutentore), i più urgenti in testa."""
     vuoto = {"items": [], "total": 0}
@@ -183,8 +198,22 @@ def _my_workorders(request_user) -> dict:
 
 
 def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
+    """Assenze che aspettano l'utente come capo. Un amministratore vede le sue, non quelle di
+    tutta l'azienda; l'ufficio Amministrazione (che le gestisce tutte) le vede tutte."""
+    if not legacy_user:
+        return []
     try:
-        raw = _board_data_assenze_da_approvare(legacy_user, is_admin, {"max_items": 12})
+        if str(getattr(legacy_user, "ruolo", "") or "").strip().upper() == "AMMINISTRAZIONE":
+            raw = _board_data_assenze_da_approvare(legacy_user, True, {"max_items": 12})
+        else:
+            from assenze.views import _load_pending_for_manager
+
+            # Stessa identità della pagina Assenze: id, nome ed email del capo.
+            raw = _load_pending_for_manager(
+                int(legacy_user.id), limit=12,
+                manager_name=str(getattr(legacy_user, "nome", "") or ""),
+                manager_email=str(getattr(legacy_user, "email", "") or ""),
+            )
     except Exception:
         return []
     url = _safe_url("assenze_gestione")
@@ -193,40 +222,66 @@ def _my_approvals(legacy_user, is_admin: bool) -> list[dict]:
         out.append({
             "title": f"{a.get('tipo', 'Assenza')}",
             "meta": a.get("dipendente", "") or "—",
-            "status": a.get("inizio", "") or "",
+            "status": " → ".join(x for x in (a.get("inizio_label") or "", a.get("fine_label") or "") if x),
             "url": url,
         })
     return out
 
 
-def _my_dpi(legacy_user_id) -> list[dict]:
-    if not legacy_user_id:
-        return []
+def _anagrafica_id(request) -> int | None:
+    """Id anagrafica del dipendente (``AnagraficaDipendente.id``): NON è l'id dell'utente legacy."""
+    try:
+        from core.operational_roles import get_legacy_anagrafica_id
+
+        return get_legacy_anagrafica_id(request.user)
+    except Exception:
+        return None
+
+
+def _my_dpi(request) -> dict:
+    """Le richieste DPI dell'utente ancora in corso: fatte da lui o intestate alla sua anagrafica."""
+    vuoto = {"items": [], "total": 0}
+    if not getattr(request.user, "is_authenticated", False):
+        return vuoto
     try:
         from dpi.models import RichiestaDPI, StatoRichiesta
 
-        qs = (
-            RichiestaDPI.objects.filter(richiedente_legacy_id=legacy_user_id)
-            .filter(stato__in=(StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA))
-            .order_by("-created_at")[:15]
-        )
+        mie = Q(created_by=request.user)
+        anagrafica_id = _anagrafica_id(request)
+        if anagrafica_id:
+            # Chi inserisce per un altro non la vede come sua; il dipendente intestatario sì.
+            mie = Q(richiedente_legacy_id=anagrafica_id) | Q(created_by=request.user, richiedente_legacy_id__isnull=True)
+        qs = RichiestaDPI.objects.filter(mie, stato__in=(StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA))
+        total = qs.count()
+        righe = list(qs.select_related("categoria").order_by("-created_at")[:15]) if total else []
     except Exception:
-        return []
-    url = _safe_url("dpi:dashboard")
+        logger.exception("Richieste DPI in corso non calcolabili")
+        return vuoto
     out = []
-    for r in qs:
-        try:
-            status_label = r.label_stato
-        except Exception:
-            status_label = getattr(r, "stato", "")
+    for r in righe:
+        if r.stato == StatoRichiesta.APPROVATA and r.pronta_ritiro_il:
+            stato = "Pronto: passa a ritirarlo"
+        else:
+            stato = r.get_stato_display()
         out.append({
             "code": r.numero,
-            "title": str(getattr(r, "categoria", "") or "Richiesta DPI"),
-            "meta": f"Qtà {getattr(r, 'quantita', '') or '—'}",
-            "status": status_label,
-            "url": url,
+            "title": str(r.categoria or "Richiesta DPI"),
+            "meta": f"Qtà {r.quantita or '—'}",
+            "status": stato,
+            "url": _safe_url("dpi:detail", r.pk),
         })
-    return out
+    return {"items": out, "total": total}
+
+
+def _dpi_da_fare(request) -> list[dict]:
+    """DPI che aspettano l'utente: da approvare, scarpe da ordinare, consegne da preparare."""
+    try:
+        from dpi.mie_attivita import voci_da_fare
+
+        return voci_da_fare(request)
+    except Exception:
+        logger.exception("Le mie attività: DPI da gestire non calcolabili")
+        return []
 
 
 def _my_elearning(request) -> list[dict]:
@@ -248,7 +303,7 @@ def _my_elearning(request) -> list[dict]:
             )
             .exclude(stato__in=("COMPLETATO", "ESONERATO"))
             .select_related("corso")
-            .order_by("due_date")[:15]
+            .order_by("due_date")[:MAX_ELEARNING]
         )
     except Exception:
         return []
@@ -276,7 +331,7 @@ def _my_procedure(request_user) -> list[dict]:
         qs = (
             ProcedureAssignment.objects.filter(user=request_user, status__in=da_leggere)
             .select_related("campaign", "revision")
-            .order_by("due_date", "-assigned_at")[:15]
+            .order_by("due_date", "-assigned_at")[:MAX_PROCEDURE]
         )
     except Exception:
         return []
@@ -457,6 +512,17 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
 
     kickoff = _my_kickoff(request)
     odl = _my_workorders(request.user)
+    dpi_mie = _my_dpi(request)
+    ticket = _my_tickets(request.user, legacy_user, legacy_user_id)
+    ticket_totale = max(len(ticket), _my_tickets_totale(request.user, legacy_user, legacy_user_id))
+    # Ticket del mio team che nessuno ha preso: non sono «miei» per identità, ma aspettano me.
+    from dashboard.mie_attivita_fonti import ticket_team_da_assegnare
+
+    del_team = ticket_team_da_assegnare(request)
+    gia_ticket = {t["code"] for t in ticket}
+    nuovi = [t for t in del_team["items"] if t["code"] not in gia_ticket]
+    ticket = nuovi + ticket
+    ticket_totale += del_team["total"] - (len(del_team["items"]) - len(nuovi))
     sections = [
         {
             "key": "kickoff",
@@ -494,7 +560,8 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Ticket aperti",
             "tone": "warning",
             "icon": "🎫",
-            "items": _my_tickets(request.user, legacy_user, legacy_user_id),
+            "items": ticket,
+            "total": max(len(ticket), ticket_totale),
             "all_url": _safe_url("tickets:dashboard"),
             "empty": "Nessun ticket aperto correlato.",
         },
@@ -526,11 +593,21 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": "Nessuna procedura da leggere.",
         },
         {
+            "key": "dpi_da_fare",
+            "label": "DPI da gestire",
+            "tone": "warning",
+            "icon": "🥾",
+            "items": _dpi_da_fare(request),
+            "all_url": _safe_url("dpi:dashboard"),
+            "empty": "Nessun DPI da approvare, ordinare o consegnare.",
+        },
+        {
             "key": "dpi",
             "label": "Richieste DPI in corso",
             "tone": "info",
             "icon": "🦺",
-            "items": _my_dpi(legacy_user_id),
+            "items": dpi_mie["items"],
+            "total": dpi_mie["total"],
             "all_url": _safe_url("dpi:dashboard"),
             "empty": "Nessuna richiesta DPI in corso.",
         },
@@ -548,7 +625,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Refresh abilitazioni macchina",
             "tone": "warning",
             "icon": "🔧",
-            "items": _my_skm_refresh(legacy_user_id),
+            "items": _my_skm_refresh(_anagrafica_id(request)),
             "all_url": _safe_url("anagrafica:skm_scadenzario"),
             "empty": "Nessun refresh abilitazioni da gestire.",
         },
@@ -576,7 +653,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "🖊",
         "items": fonti.approvazioni(request),
         "all_url": _safe_url("procedure_refresh:modifiche") + "?mie=1",
-        "empty": "Nessuna modifica SGI, approvazione o richiesta di visita in attesa di te.",
+        "empty": "Nessuna modifica SGI, approvazione, richiesta di visita o spostamento date in attesa di te.",
     })
     sections.append({
         "key": "assegnate",
@@ -585,7 +662,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
         "icon": "📌",
         "items": fonti.assegnate(request),
         "all_url": _safe_url("scadenze_globali") + "?mie=1",
-        "empty": "Nessuna voce assegnata in specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
+        "empty": "Nessuna voce assegnata in schede di sicurezza, specifiche, OFI, CAR, obiettivi, Suggestion Corner, attrezzature o checklist.",
     })
 
     # Le voci già presenti in un'altra sezione non si ripetono fra le scadenze (stesso link).
