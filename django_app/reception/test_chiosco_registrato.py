@@ -93,7 +93,7 @@ class RegistratoTests(Base):
         self.assertTrue(r["success"])
 
     def test_pulsante_in_home_e_nel_primo_passo(self):
-        self.assertContains(self.client.get(reverse("chiosco:pagina")), "data-registrato><svg", count=2)
+        self.assertContains(self.client.get(reverse("chiosco:pagina")), "Vengo qui spesso</", count=2)
 
 
 class ImpostazioniRegistratoTests(Base):

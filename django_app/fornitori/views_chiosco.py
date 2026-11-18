@@ -298,7 +298,7 @@ def _check_in_fornitore(azienda: dict, persona: dict, host: dict, consenso: bool
 
 
 def _registrato_ditte(_dati: dict) -> JsonResponse:
-    """«Registrato»: le ditte fidate, quelle che entrano più spesso in testa."""
+    """«Vengo qui spesso»: le ditte accreditate, quelle che entrano più spesso in testa."""
     return JsonResponse({"success": True, "ditte": chiosco.ditte_registrate()})
 
 
@@ -310,7 +310,7 @@ def _registrato_tecnici(dati: dict) -> JsonResponse:
 
 
 def _ingresso_registrato(dati: dict, ip: str) -> JsonResponse:
-    """Tecnico di una ditta fidata: niente referente né motivo da scegliere, l'avviso va all'email
+    """Tecnico di una ditta accreditata («Vengo qui spesso»): niente referente né motivo da scegliere, l'avviso va all'email
     della ditta o a quella di Reception → Impostazioni. Informativa: come per chi è riconosciuto,
     non si rilegge se il tecnico ha già accettato la versione in vigore (decide il server)."""
     azienda_id, nominativo_id = _intero(dati, "azienda_id"), _intero(dati, "nominativo_id")
