@@ -3,17 +3,17 @@
   <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'contatori:riconciliazione' %}">Riconciliazione →</a>
 </div>
 <div class="fr-kpis">
-  <div class="ana-metric"><div class="ana-metric-val">{{ macchine_attive|default:0 }}</div><div class="ana-metric-label">Macchine attive</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ fatture|length }}</div><div class="ana-metric-label">Fatture copie</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ da_controllare|default:0 }}</div><div class="ana-metric-label">Da controllare</div></div>
-  <div class="ana-metric"><div class="ana-metric-val">{{ scoperti|length }}</div><div class="ana-metric-label">Trimestri senza fattura</div></div>
+  <a class="ana-metric kpi-link" href="#fr-copie-macchine" title="Apri l'elenco delle macchine della ditta (attive e non attive, con lo stato)"><div class="ana-metric-val">{{ macchine_attive|default:0 }}</div><div class="ana-metric-label">Macchine attive</div></a>
+  <a class="ana-metric kpi-link" href="#fr-copie-fatture" title="Apri l'elenco: fatture copie della ditta"><div class="ana-metric-val">{{ fatture|length }}</div><div class="ana-metric-label">Fatture copie</div></a>
+  <a class="ana-metric kpi-link" href="#fr-copie-fatture" title="Apri l'elenco delle fatture: quelle da controllare hanno l'esito in rosso"><div class="ana-metric-val">{{ da_controllare|default:0 }}</div><div class="ana-metric-label">Da controllare</div></a>
+  {% if scoperti %}<a class="ana-metric kpi-link" href="#fr-copie-scoperti" title="Apri l'elenco: trimestri con letture e senza fattura di questa ditta"><div class="ana-metric-val">{{ scoperti|length }}</div><div class="ana-metric-label">Trimestri senza fattura</div></a>{% else %}<div class="ana-metric"><div class="ana-metric-val">0</div><div class="ana-metric-label">Trimestri senza fattura</div></div>{% endif %}
 </div>
 
 {% if scoperti %}
-<div class="fr-avviso">Letture presenti ma nessuna fattura di questa ditta per: {% for t in scoperti %}<a class="fr-link" href="{% url 'contatori:riconciliazione_trim' t %}">{{ t }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</div>
+<div class="fr-avviso" id="fr-copie-scoperti">Letture presenti ma nessuna fattura di questa ditta per: {% for t in scoperti %}<a class="fr-link" href="{% url 'contatori:riconciliazione_trim' t %}">{{ t }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</div>
 {% endif %}
 
-<div class="fr-sez">Fatture copie</div>
+<div class="fr-sez" id="fr-copie-fatture">Fatture copie</div>
 {% if fatture %}
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
   <thead><tr><th>Numero</th><th>Data</th><th>Trimestre</th><th>Chiusura letture</th><th>Contratti</th><th>Riconciliazione</th></tr></thead>
@@ -35,7 +35,7 @@
 <div class="ana-empty">Nessuna fattura caricata per questa ditta.</div>
 {% endif %}
 
-<div class="fr-sez">Macchine</div>
+<div class="fr-sez" id="fr-copie-macchine">Macchine</div>
 {% if macchine %}
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
   <thead><tr><th>Reparto</th><th>Matricola</th><th>Modello</th><th>Contratto</th><th>Stato</th></tr></thead>

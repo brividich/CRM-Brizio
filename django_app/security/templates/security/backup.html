@@ -23,31 +23,32 @@
 </div>
 
 <section class="sec-grid sec-kpi-grid" >
-  <div class="sec-panel sec-kpi-card">
+  {% url 'security:backup_log' as url_backup_log %}
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{{ url_backup_log }}?giorni={{ days }}" title="Apri il log delle esecuzioni del periodo">
     <span class="sec-kpi-label">Esecuzioni riuscite</span>
     <strong class="sec-kpi-value{% if kpi.fail %} critical{% endif %}">{% if kpi.rate is not None %}{{ kpi.rate|floatformat:1 }}%{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta{% if not kpi.fail %} sec-good{% endif %}">{{ kpi.ok }} ok · {{ kpi.warn }} avvisi · {{ kpi.fail }} fallit{{ kpi.fail|pluralize:"o,i" }}</span>
-  </div>
-  <a class="sec-panel sec-kpi-card sec-card-link" href="#pc">
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="#pc" title="Vai all'elenco dei PC e server protetti">
     <span class="sec-kpi-label">PC e server protetti</span>
     <strong class="sec-kpi-value">{{ kpi.devices }}</strong>
     <span class="sec-kpi-delta{% if not kpi.devices_stale %} sec-good{% endif %}">{{ kpi.devices_stale }} senza backup riuscito da oltre {{ stale_days }} giorni</span>
   </a>
-  <a class="sec-panel sec-kpi-card sec-card-link" href="#job">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="#job" title="Vai all'elenco dei job">
     <span class="sec-kpi-label">Job</span>
     <strong class="sec-kpi-value{% if kpi.missing %} critical{% endif %}">{{ kpi.jobs }}</strong>
     <span class="sec-kpi-delta{% if not kpi.missing %} sec-good{% endif %}">{% if kpi.missing %}{{ kpi.missing }} attes{{ kpi.missing|pluralize:"o,i" }} non arrivat{{ kpi.missing|pluralize:"o,i" }}{% else %}nessun job atteso mancante{% endif %}</span>
   </a>
-  <div class="sec-panel sec-kpi-card">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{{ url_backup_log }}?giorni={{ days }}" title="Apri il log del periodo: la colonna Dati somma questo valore">
     <span class="sec-kpi-label">Dati trasferiti</span>
     <strong class="sec-kpi-value">{{ kpi.gb|floatformat:1 }} GB</strong>
     <span class="sec-kpi-delta sec-good">nel periodo</span>
-  </div>
-  <div class="sec-panel sec-kpi-card">
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{{ url_backup_log }}?giorni={{ days }}" title="Apri il log del periodo: la media è calcolata sulla colonna Durata">
     <span class="sec-kpi-label">Durata media</span>
     <strong class="sec-kpi-value">{% if kpi.avg_minutes is not None %}{{ kpi.avg_minutes|floatformat:0 }} min{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta sec-good">{{ kpi.runs }} esecuzion{{ kpi.runs|pluralize:"e,i" }}</span>
-  </div>
+  </a>
 </section>
 
 <section class="vpn-row" style="margin-top: 12px;">

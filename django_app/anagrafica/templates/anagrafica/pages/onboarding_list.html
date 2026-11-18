@@ -31,13 +31,14 @@
       </div>
     </div>
 
+    {% url 'anagrafica:onboarding_list' as u_onb %}
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Onboarding in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=kpi.in_corso label="In corso" sub="pratiche aperte" url="?" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="pratiche con voci scadute" url="?ritardo=1" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-calendar" valore=kpi.ingressi_30 label="Ingressi a 30 giorni" sub="nuovi assunti in arrivo" url="?vista=ingressi" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-award" valore=kpi.fine_prova_30 label="Fine prova a 30 giorni" sub="valutazioni da preparare" url="?vista=prova" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-doc" valore=kpi.pre_ingresso label="Pre-ingresso" sub="offerta accettata, non ancora assunti" url="?vista=pre" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.chiuse label="Chiuse" sub="inserimento completato" url="?stato=CHIUSA" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=kpi.in_corso label="In corso" sub="pratiche aperte" url=u_onb title="Apri l'elenco: pratiche aperte" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="pratiche con voci scadute" url=u_onb|add:"?ritardo=1" title="Apri l'elenco filtrato: pratiche con voci scadute" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-calendar" valore=kpi.ingressi_30 label="Ingressi a 30 giorni" sub="nuovi assunti in arrivo" url=u_onb|add:"?vista=ingressi" title="Apri l'elenco filtrato: ingressi nei prossimi 30 giorni" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-award" valore=kpi.fine_prova_30 label="Fine prova a 30 giorni" sub="valutazioni da preparare" url=u_onb|add:"?vista=prova" title="Apri l'elenco filtrato: fine prova nei prossimi 30 giorni" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-doc" valore=kpi.pre_ingresso label="Pre-ingresso" sub="offerta accettata, non ancora assunti" url=u_onb|add:"?vista=pre" title="Apri l'elenco filtrato: pratiche in pre-ingresso" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.chiuse label="Chiuse" sub="inserimento completato" url=u_onb|add:"?stato=CHIUSA" title="Apri l'elenco filtrato: pratiche chiuse" %}
     </section>
     {% if filtro_vista %}
     <p class="fmd-muted" style="margin:10px 0 0;font-size:13px;">Solo {% if filtro_vista == "ingressi" %}gli ingressi nei prossimi 30 giorni{% elif filtro_vista == "prova" %}chi finisce la prova nei prossimi 30 giorni{% else %}le pratiche in pre-ingresso{% endif %} · <a class="fmd-data-link" href="?">mostra tutte</a></p>

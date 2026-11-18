@@ -107,22 +107,22 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
   <!-- KPI -->
   {# Le righe di dettaglio con plurali restano scritte qui: l'include accetta solo valori singoli. #}
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Libretto sanitario in sintesi">
-    <a class="fmd-mtr fmd-t-orange" href="?vista=requisiti&amp;stato=ko" title="Elenca solo i requisiti scaduti"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-orange kpi-link" href="{{ kpi_links.ko }}" title="Apri l'elenco filtrato: requisiti scaduti"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.ko }}</span></div>
       <div class="fmd-mtr-lbl">Requisiti scaduti</div>
       <div class="fmd-mtr-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
     </a>
-    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=conta_stato.warn label="In scadenza (60 gg)" sub="da rinnovare prima della scadenza" %}
-    <a class="fmd-mtr fmd-t-cyan" href="?vista=requisiti&amp;stato=mancante" title="Elenca solo i requisiti mai assolti"><span class="fmd-ribbon"></span>
+    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=conta_stato.warn label="In scadenza (60 gg)" sub="da rinnovare prima della scadenza" url=kpi_links.warn title="Apri l'elenco filtrato: requisiti in scadenza entro 60 giorni" %}
+    <a class="fmd-mtr fmd-t-cyan kpi-link" href="{{ kpi_links.mancante }}" title="Apri l'elenco filtrato: requisiti mai assolti"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.mancante }}</span></div>
       <div class="fmd-mtr-lbl">Da acquisire</div>
       <div class="fmd-mtr-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con requisiti mai assolti</div>
     </a>
-    <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-green kpi-link" href="{{ kpi_links.tutti }}" title="Apri l'elenco di tutti i requisiti su cui è calcolata la copertura"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ copertura }}%</span></div>
       <div class="fmd-mtr-lbl">Copertura</div>
       <div class="fmd-mtr-sub">{{ conta_stato.ok }} requisiti validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
-    </div>
+    </a>
   </section>
 
   <!-- Composizione per ambito -->

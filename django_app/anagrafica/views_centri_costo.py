@@ -85,17 +85,22 @@ def centri_costo(request):
         schede.append({"centro": centro, "righe": righe, "persone": sum(r["persone"] for r in righe),
                        "segnali": segnali_centro.get(centro.pk), "costi": costi["centri"].get(centro.pk)})
     senza = per_centro.get(None, [])
+    kpi = {
+        "centri": sum(1 for s in schede if s["centro"].is_active),
+        "reparti": sum(len(s["righe"]) for s in schede),
+        "persone": sum(s["persone"] for s in schede),
+        "senza_centro": len(senza),
+        "persone_senza_centro": sum(r["persone"] for r in senza),
+        "da_guardare": carico.conteggi()["da_guardare"] if carico else None,
+    }
+    # KPI «Centri di costo attivi» → ?filtro=attivi: stesse schede contate sopra.
+    filtro = "attivi" if request.GET.get("filtro") == "attivi" else ""
+    schede_mostrate = [s for s in schede if s["centro"].is_active] if filtro else schede
     return render(request, "anagrafica/pages/centri_costo.html", {
-        "schede": schede,
+        "schede": schede_mostrate,
+        "filtro": filtro,
         "senza_centro": senza,
-        "kpi": {
-            "centri": sum(1 for s in schede if s["centro"].is_active),
-            "reparti": sum(len(s["righe"]) for s in schede),
-            "persone": sum(s["persone"] for s in schede),
-            "senza_centro": len(senza),
-            "persone_senza_centro": sum(r["persone"] for r in senza),
-            "da_guardare": carico.conteggi()["da_guardare"] if carico else None,
-        },
+        "kpi": kpi,
         "carico": carico,
         "mese_costi": costi["mese"],
         "centri_opts": [s["centro"] for s in schede if s["centro"].is_active],

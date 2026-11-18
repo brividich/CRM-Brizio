@@ -22,6 +22,7 @@ from .forms import (
 )
 from .models import (
     BackupExpectedJobConfig,
+    ParseStatus,
     SecurityAlert,
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
@@ -129,8 +130,17 @@ def alerts_list(request):
     status = request.GET.get("status", "")
     if status == "active":
         alerts = alerts.filter(status__in=ACTIVE_ALERT_STATUSES)
+    elif status == "inactive":
+        # Tutto ciò che non è «da gestire»: gli alert chiusi contati dai riquadri del SOC.
+        alerts = alerts.exclude(status__in=ACTIVE_ALERT_STATUSES)
     elif status in {s[0] for s in Status.choices}:
         alerts = alerts.filter(status=status)
+    # ?tipo=cve: solo gli alert nati dall'impatto confermato di una CVE (riquadro «Dalla segnalazione
+    # alla correzione» della pagina Vulnerabilità, cve_chiusura.metriche).
+    if request.GET.get("tipo") == "cve":
+        from security.services.cve_impact import IMPACT_EVENT_TYPE
+
+        alerts = alerts.filter(event__event_type=IMPACT_EVENT_TYPE)
 
     source_id = request.GET.get("source")
     if source_id and source_id.isdigit():
@@ -139,6 +149,13 @@ def alerts_list(request):
     date_obj = _parse_date(request.GET.get("date"))
     if date_obj:
         alerts = alerts.filter(created_at__date=date_obj)
+    # Intervalli (date locali, estremi inclusi) usati dalle tessere del Report periodico:
+    # dal/al = creati nel periodo, chiusi_dal/chiusi_al = chiusi nel periodo.
+    for param, lookup in (("dal", "created_at__date__gte"), ("al", "created_at__date__lte"),
+                          ("chiusi_dal", "closed_at__date__gte"), ("chiusi_al", "closed_at__date__lte")):
+        valore = _parse_date(request.GET.get(param))
+        if valore:
+            alerts = alerts.filter(**{lookup: valore})
 
     # Conteggi per severità calcolati PRIMA del filtro severità: i chip mostrano quanti
     # alert ci sono per ciascuna severità con gli altri filtri applicati.
@@ -211,7 +228,7 @@ def _alerts_csv(request, alerts):
         request, "alert",
         ["N.", "Creato il", "Severità", "Alert", "Sorgente", "Asset", "Stato", "Ultimo evento", "Responsabile", "Ticket",
          "Preso in carico il", "Chiuso il", "Motivo dello stato"],
-        righe, azione="soc_alert_export", filtri=esporta_csv.filtri_get(request, "status", "source", "date", "severity"),
+        righe, azione="soc_alert_export", filtri=esporta_csv.filtri_get(request, "status", "tipo", "source", "date", "dal", "al", "chiusi_dal", "chiusi_al", "severity"),
     )
 
 
@@ -384,7 +401,7 @@ def alert_proposte(request):
 
     if not can_view_security_center(request.user):
         return _security_center_denied(request)
-    return render(request, "security/alert_proposte.html", ai_proposte.pagina())
+    return render(request, "security/alert_proposte.html", ai_proposte.pagina(auto_7=request.GET.get("auto") == "7"))
 
 
 @require_POST
@@ -618,7 +635,7 @@ def inbox_page(request):
         if request.headers.get("HX-Request"):
             return render(request, "security/partials/inbox_result.html", {"inbox_result": result})
 
-    context = _inbox_context(result)
+    context = _inbox_context(result, stato=request.GET.get("stato", ""))
     return render(request, "security/inbox.html", context)
 
 
@@ -1122,12 +1139,32 @@ def _latest_pipeline_reports():
     return reports
 
 
-def _inbox_context(result=None):
+INBOX_FILTRO_LIMITE = 200
+
+
+def _inbox_context(result=None, stato=""):
+    """Contesto della pagina Inbox. Con ``stato`` (pending/failed/skipped, le tessere «In coda»,
+    «In errore», «Scartati» della configurazione parser) mail e file sono filtrati per stato di
+    lettura, con lo stesso conteggio di ``parser_catalog._queue_summary``."""
+    messaggi = SecurityMailboxMessage.objects.select_related("source").order_by("-received_at")
+    files = SecuritySourceFile.objects.select_related("source").order_by("-uploaded_at")
+    filtro = stato if stato in (ParseStatus.PENDING, ParseStatus.FAILED, ParseStatus.SKIPPED) else ""
+    if filtro:
+        messaggi = messaggi.filter(parse_status=filtro)
+        files = files.filter(parse_status=filtro)
+        limite = INBOX_FILTRO_LIMITE
+    else:
+        limite = 10
     return {
         "inbox_result": result,
+        "inbox_stato": filtro,
+        "inbox_stato_label": dict(ParseStatus.choices).get(filtro, ""),
+        "inbox_limite": limite,
+        "inbox_n_messaggi": messaggi.count() if filtro else None,
+        "inbox_n_file": files.count() if filtro else None,
         "recent_reports": SecurityReport.objects.select_related("source").order_by("-created_at")[:10],
-        "recent_mailbox_messages": SecurityMailboxMessage.objects.select_related("source").order_by("-received_at")[:10],
-        "recent_source_files": SecuritySourceFile.objects.select_related("source").order_by("-uploaded_at")[:10],
+        "recent_mailbox_messages": messaggi[:limite],
+        "recent_source_files": files[:limite],
         "source_configs": SecuritySourceConfig.objects.order_by("-enabled", "vendor", "name")[:30],
         "parser_configs": SecurityParserConfig.objects.order_by("-enabled", "priority", "parser_name")[:30],
         "allowed_extensions": sorted(INBOX_ALLOWED_EXTENSIONS),

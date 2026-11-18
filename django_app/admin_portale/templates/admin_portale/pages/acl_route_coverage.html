@@ -5,7 +5,7 @@
 {% block extra_head %}
 <style>
   .cov-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); }
-  .cov-mini { border:1px solid var(--border,#d6dbe5); border-radius:10px; padding:10px 12px; background:#f8fafc; }
+  .cov-mini { display:block; border:1px solid var(--border,#d6dbe5); border-radius:10px; padding:10px 12px; background:#f8fafc; }
   .cov-mini .n { font-size:22px; font-weight:800; color:#0f172a; line-height:1; }
   .cov-mini .l { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-top:6px; }
   .cov-badges { display:flex; flex-wrap:wrap; gap:6px; }
@@ -72,6 +72,7 @@ body.theme-dark .cov-badge.danger{background:rgba(229,62,62,.16);color:#fca5a5}
             {% endfor %}
           </select>
         </div>
+        {% if filters.admin_bypass %}<input type="hidden" name="admin_bypass" value="1">{% endif %}
         <div class="field">
           <label>Solo warning</label>
           <select class="input" name="only_warnings">
@@ -82,7 +83,7 @@ body.theme-dark .cov-badge.danger{background:rgba(229,62,62,.16);color:#fca5a5}
         <div class="field field-actions">
           <button class="btn" type="submit">Applica</button>
           <a class="btn btn-secondary" href="{% url 'admin_portale:acl_route_coverage' %}">Reset</a>
-          <a class="btn btn-secondary" href="?status={{ filters.status }}&app={{ filters.app }}&q={{ filters.q }}&only_warnings={% if filters.only_warnings %}1{% else %}0{% endif %}&export=csv">Export CSV</a>
+          <a class="btn btn-secondary" href="?status={{ filters.status }}&app={{ filters.app }}&q={{ filters.q|urlencode }}&only_warnings={% if filters.only_warnings %}1{% else %}0{% endif %}{% if filters.admin_bypass %}&admin_bypass=1{% endif %}&export=csv">Export CSV</a>
           <a class="btn btn-secondary" href="{% url 'admin_portale:acl_canonico' %}">Torna ACL canonico</a>
         </div>
       </form>
@@ -93,13 +94,14 @@ body.theme-dark .cov-badge.danger{background:rgba(229,62,62,.16);color:#fca5a5}
     {% include "admin_portale/components/card_head.html" with card_title="Riepilogo Totale" %}
     <div class="card-body">
       <div class="cov-grid">
-        <div class="cov-mini"><div class="n">{{ summary.total }}</div><div class="l">Route totali</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.canonical_bound }}</div><div class="l">Canonical Bound</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.legacy_fallback }}</div><div class="l">Legacy Fallback</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.unbound }}</div><div class="l">Unbound</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.coming_or_excluded }}</div><div class="l">Coming/Excluded</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.redirect_only }}</div><div class="l">Redirect Only</div></div>
-        <div class="cov-mini"><div class="n">{{ summary.admin_bypass }}</div><div class="l">Admin bypass</div></div>
+        {% url 'admin_portale:acl_route_coverage' as cov_url %}
+        <a class="cov-mini kpi-link" href="{{ cov_url }}" title="Apri l'elenco: tutte le route"><div class="n">{{ summary.total }}</div><div class="l">Route totali</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=CANONICAL_BOUND" title="Apri l'elenco filtrato: Canonical Bound"><div class="n">{{ summary.canonical_bound }}</div><div class="l">Canonical Bound</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=LEGACY_FALLBACK" title="Apri l'elenco filtrato: Legacy Fallback"><div class="n">{{ summary.legacy_fallback }}</div><div class="l">Legacy Fallback</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=UNBOUND" title="Apri l'elenco filtrato: Unbound"><div class="n">{{ summary.unbound }}</div><div class="l">Unbound</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=COMING_SOON_EXCLUDED" title="Apri l'elenco filtrato: Coming/Excluded"><div class="n">{{ summary.coming_or_excluded }}</div><div class="l">Coming/Excluded</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=REDIRECT_ONLY" title="Apri l'elenco filtrato: Redirect Only"><div class="n">{{ summary.redirect_only }}</div><div class="l">Redirect Only</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?admin_bypass=1" title="Apri l'elenco filtrato: route in admin bypass"><div class="n">{{ summary.admin_bypass }}</div><div class="l">Admin bypass</div></a>
       </div>
     </div>
   </div>
@@ -108,20 +110,20 @@ body.theme-dark .cov-badge.danger{background:rgba(229,62,62,.16);color:#fca5a5}
     {% include "admin_portale/components/card_head.html" with card_title="Riepilogo Filtrato" %}
     <div class="card-body">
       <div class="cov-grid">
-        <div class="cov-mini"><div class="n">{{ filtered_summary.total }}</div><div class="l">Righe filtro</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.canonical_bound }}</div><div class="l">Canonical</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.legacy_fallback }}</div><div class="l">Legacy fallback</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.unbound }}</div><div class="l">Unbound</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.redirect_only }}</div><div class="l">Redirect only</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.admin_bypass }}</div><div class="l">Admin bypass</div></div>
-        <div class="cov-mini"><div class="n">{{ filtered_summary.warnings }}</div><div class="l">Con warning</div></div>
+                <a class="cov-mini kpi-link" href="#elenco-route" title="Vai alle righe filtrate"><div class="n">{{ filtered_summary.total }}</div><div class="l">Righe filtro</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=CANONICAL_BOUND{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}{% if filters.admin_bypass %}&amp;admin_bypass=1{% endif %}" title="Restringi il filtro: Canonical"><div class="n">{{ filtered_summary.canonical_bound }}</div><div class="l">Canonical</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=LEGACY_FALLBACK{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}{% if filters.admin_bypass %}&amp;admin_bypass=1{% endif %}" title="Restringi il filtro: Legacy fallback"><div class="n">{{ filtered_summary.legacy_fallback }}</div><div class="l">Legacy fallback</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=UNBOUND{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}{% if filters.admin_bypass %}&amp;admin_bypass=1{% endif %}" title="Restringi il filtro: Unbound"><div class="n">{{ filtered_summary.unbound }}</div><div class="l">Unbound</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status=REDIRECT_ONLY{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}{% if filters.admin_bypass %}&amp;admin_bypass=1{% endif %}" title="Restringi il filtro: Redirect only"><div class="n">{{ filtered_summary.redirect_only }}</div><div class="l">Redirect only</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status={{ filters.status }}{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}&amp;admin_bypass=1" title="Restringi il filtro: Admin bypass"><div class="n">{{ filtered_summary.admin_bypass }}</div><div class="l">Admin bypass</div></a>
+        <a class="cov-mini kpi-link" href="{{ cov_url }}?status={{ filters.status }}{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}&amp;only_warnings=1{% if filters.admin_bypass %}&amp;admin_bypass=1{% endif %}" title="Restringi il filtro: solo route con warning"><div class="n">{{ filtered_summary.warnings }}</div><div class="l">Con warning</div></a>
       </div>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="elenco-route">
     <div class="card-head">
-      <div class="card-title">Dettaglio Route</div>
+      <div class="card-title">Dettaglio Route{% if filters.admin_bypass %} <span class="cell-muted">· solo admin bypass (<a href="{% url 'admin_portale:acl_route_coverage' %}?status={{ filters.status }}{% if filtro_scope_qs %}&amp;{{ filtro_scope_qs }}{% endif %}{% if filters.only_warnings %}&amp;only_warnings=1{% endif %}">togli</a>)</span>{% endif %}</div>
       <div class="cell-muted">Warning principali: BINDING_WITHOUT_ENABLED_ROLE_GRANT, AMBIGUOUS_CANONICAL_BINDING, DUPLICATE_ROUTE_PATH. Admin bypass segnala le route volutamente governate da legacy_admin_required.</div>
     </div>
     <div class="card-body" style="padding:0;">

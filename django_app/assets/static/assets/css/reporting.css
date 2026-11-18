@@ -23,3 +23,5 @@ body.theme-dark .rp{--rp-surface:var(--surface);--rp-border:var(--border);--rp-t
 body.theme-dark .rp .errorlist{color:#fca5a5}
 body.theme-dark .rp .rp-badge.DONE{color:#86efac;background:rgba(56,161,105,.18)}
 body.theme-dark .rp .rp-badge.ERROR{color:#fca5a5;background:rgba(229,62,62,.16)}
+/* KPI cliccabili: la tessera porta alla tabella / sezione da cui e' calcolata. */
+.rp a.rp-kpi{display:block;color:inherit;text-decoration:none}

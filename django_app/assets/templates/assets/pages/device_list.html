@@ -11,6 +11,7 @@
 /* ── KPI ─────────────────────────────────────────────────── */
 .dv-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
 .dv-kpi { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:14px 16px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+a.dv-kpi { display:block; }
 .dv-kpi-label { font-size:var(--fs-xs); color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:.05em; }
 .dv-kpi-value { margin-top:8px; font-size:var(--fs-display-2xl); font-weight:800; color:#0f172a; line-height:1; }
 .dv-kpi-meta { margin-top:4px; color:#64748b; font-size:var(--fs-sm); }
@@ -331,26 +332,26 @@ body.theme-dark .dv-maint-bar-label{color:var(--text-light)}
 
   <!-- KPI -->
   <section class="dv-kpis">
-    <article class="dv-kpi">
+    <a class="dv-kpi kpi-link" href="{% url 'assets:device_list' %}" title="Apri l’elenco: tutti i dispositivi IT">
       <div class="dv-kpi-label">Totale dispositivi</div>
       <div class="dv-kpi-value">{{ total }}</div>
       <div class="dv-kpi-meta">{{ visible_count }} visibili con i filtri correnti</div>
-    </article>
-    <article class="dv-kpi">
+    </a>
+    <a class="dv-kpi kpi-link" href="{% url 'assets:device_list' %}?status=IN_USE" title="Apri l’elenco filtrato: dispositivi in uso">
       <div class="dv-kpi-label">In uso</div>
       <div class="dv-kpi-value">{{ in_use_total }}</div>
       <div class="dv-kpi-meta">Assegnati e operativi</div>
-    </article>
-    <article class="dv-kpi">
+    </a>
+    <a class="dv-kpi kpi-link" href="{% url 'assets:device_list' %}?status=IN_STOCK" title="Apri l’elenco filtrato: dispositivi in magazzino">
       <div class="dv-kpi-label">In magazzino</div>
       <div class="dv-kpi-value">{{ in_stock_total }}</div>
       <div class="dv-kpi-meta">Disponibili per assegnazione</div>
-    </article>
-    <article class="dv-kpi">
+    </a>
+    <a class="dv-kpi kpi-link" href="{% url 'assets:device_list' %}?status=IN_REPAIR" title="Apri l’elenco filtrato: dispositivi in riparazione">
       <div class="dv-kpi-label">In riparazione</div>
       <div class="dv-kpi-value">{{ in_repair_total }}</div>
       <div class="dv-kpi-meta">Momentaneamente non disponibili</div>
-    </article>
+    </a>
   </section>
 
   {# ── Striscia manutenzione in scadenza ──────────────────── #}
@@ -359,17 +360,17 @@ body.theme-dark .dv-maint-bar-label{color:var(--text-light)}
     {% if maint_kpis.coinvolti %}
     <div class="dv-maint-strip-metrics">
       <div class="dv-maint-metric">
-        <span class="dv-maint-val dv-maint-val-neutral"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=" title="Vedi scadenze amministrative">{{ maint_kpis.coinvolti }}</a></span>
+        <span class="dv-maint-val dv-maint-val-neutral"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&amp;window=90" title="Fonte del dato: scadenze amministrative entro 90 giorni (il numero conta gli asset coinvolti)">{{ maint_kpis.coinvolti }}</a></span>
         <span class="dv-maint-lbl">Coinvolti</span>
       </div>
       <div class="dv-maint-sep" aria-hidden="true"></div>
       <div class="dv-maint-metric">
-        <span class="dv-maint-val dv-maint-val-ok">{{ maint_kpis.manutentati }}</span>
+        <span class="dv-maint-val dv-maint-val-ok"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&amp;window=90" title="Fonte del dato: scadenze amministrative entro 90 giorni (asset con un adempimento svolto nell’ultimo anno)">{{ maint_kpis.manutentati }}</a></span>
         <span class="dv-maint-lbl">Manutentati</span>
       </div>
       <div class="dv-maint-sep" aria-hidden="true"></div>
       <div class="dv-maint-metric">
-        <span class="dv-maint-val {% if maint_kpis.da_manutentare %}dv-maint-val-warn{% else %}dv-maint-val-ok{% endif %}"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window={% if maint_kpis.da_manutentare %}overdue{% endif %}" title="Vedi scadenze da completare">{{ maint_kpis.da_manutentare }}</a></span>
+        <span class="dv-maint-val {% if maint_kpis.da_manutentare %}dv-maint-val-warn{% else %}dv-maint-val-ok{% endif %}"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&amp;window=90" title="Fonte del dato: scadenze amministrative entro 90 giorni (asset senza adempimento svolto nell’ultimo anno)">{{ maint_kpis.da_manutentare }}</a></span>
         <span class="dv-maint-lbl">Da manutentare</span>
       </div>
       <div class="dv-maint-bar-wrap" title="{{ maint_kpis.percent_done }}% eseguiti">

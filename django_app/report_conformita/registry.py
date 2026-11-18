@@ -97,6 +97,10 @@ class Kpi:
     value: object
     tone: str = ""
     hint: str = ""
+    # Pagina che elenca esattamente gli elementi contati (stesso filtro). Vuoto = la tessera
+    # porta al «Dettaglio» del report, da cui il numero è calcolato. Solo sulle pagine web:
+    # PDF ed Excel la ignorano.
+    url: str = ""
 
 
 @dataclass

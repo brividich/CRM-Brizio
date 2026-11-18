@@ -5,13 +5,33 @@
 <form method="post" action="{% url 'attrezzature:import_confirm' %}">{% csrf_token %}<button class="btn" type="submit">Conferma import</button></form>
 {% endblock %}
 {% block attrezzature_content %}
-<section class="at-kpis">
-  <div class="at-kpi"><b>{{ preview.summary.created }}</b><span>Create</span></div>
-  <div class="at-kpi"><b>{{ preview.summary.updated }}</b><span>Aggiornate</span></div>
-  <div class="at-kpi"><b>{{ preview.summary.unchanged }}</b><span>Invariate</span></div>
-  <div class="at-kpi"><b>{{ preview.summary.skipped }}</b><span>Saltate</span></div>
-  <div class="at-kpi"><b>{{ preview.summary.warning_count }}</b><span>Warning</span></div>
-  <div class="at-kpi"><b>{{ preview.summary.error_count }}</b><span>Errori</span></div>
+<section class="at-kpis" id="at-import-kpis">
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="created" title="Mostra solo le righe che verranno create"><b>{{ preview.summary.created }}</b><span>Create</span></a>
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="updated" title="Mostra solo le righe che aggiorneranno un'attrezzatura"><b>{{ preview.summary.updated }}</b><span>Aggiornate</span></a>
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="unchanged" title="Mostra solo le righe invariate"><b>{{ preview.summary.unchanged }}</b><span>Invariate</span></a>
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="skipped" title="Mostra solo le righe saltate"><b>{{ preview.summary.skipped }}</b><span>Saltate</span></a>
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="warning" title="Mostra solo le righe con warning"><b>{{ preview.summary.warning_count }}</b><span>Warning</span></a>
+  <a class="at-kpi kpi-link" href="#at-import-righe" data-filtro="error" title="Mostra solo le righe in errore"><b>{{ preview.summary.error_count }}</b><span>Errori</span></a>
 </section>
-<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Riga</th><th>Azione</th><th>Codice</th><th>P/N</th><th>Stato</th><th>Warning/Errori</th></tr></thead><tbody>{% for row in preview.row_previews %}<tr><td>{{ row.excel_row_number }}</td><td><span class="badge">{{ row.proposed_action }}</span></td><td>{{ row.normalized.codice|default:"-" }}</td><td>{{ row.normalized.part_number|default:"-" }}</td><td>{{ row.normalized.stato|default:"-" }}</td><td>{% for w in row.warnings %}<div class="badge warn">{{ w }}</div>{% endfor %}{% for e in row.errors %}<div class="badge danger">{{ e }}</div>{% endfor %}</td></tr>{% empty %}<tr><td colspan="6"><div class="at-empty">Nessuna riga in preview.</div></td></tr>{% endfor %}</tbody></table></div>
+<p class="at-muted" id="at-import-filtro" hidden>Filtro attivo: <strong data-filtro-label></strong> · <a href="#at-import-righe" data-filtro="">mostra tutte le righe</a></p>
+<div class="at-table-wrap" id="at-import-righe"><table class="at-table"><thead><tr><th>Riga</th><th>Azione</th><th>Codice</th><th>P/N</th><th>Stato</th><th>Warning/Errori</th></tr></thead><tbody>{% for row in preview.row_previews %}<tr data-azione="{{ row.proposed_action }}"{% if row.warnings or row.proposed_action == "warning" %} data-warning="1"{% endif %}><td>{{ row.excel_row_number }}</td><td><span class="badge">{{ row.proposed_action }}</span></td><td>{{ row.normalized.codice|default:"-" }}</td><td>{{ row.normalized.part_number|default:"-" }}</td><td>{{ row.normalized.stato|default:"-" }}</td><td>{% for w in row.warnings %}<div class="badge warn">{{ w }}</div>{% endfor %}{% for e in row.errors %}<div class="badge danger">{{ e }}</div>{% endfor %}</td></tr>{% empty %}<tr><td colspan="6"><div class="at-empty">Nessuna riga in preview.</div></td></tr>{% endfor %}</tbody></table></div>
+<script>
+(function () {
+  // Le tessere filtrano la tabella sotto: stesso insieme contato in preview.summary.
+  var etichette = {created: "Create", updated: "Aggiornate", unchanged: "Invariate", skipped: "Saltate", warning: "Warning", error: "Errori"};
+  var righe = document.querySelectorAll("#at-import-righe tbody tr[data-azione]");
+  var box = document.getElementById("at-import-filtro");
+  function applica(filtro) {
+    righe.forEach(function (tr) {
+      var ok = !filtro || (filtro === "warning" ? tr.hasAttribute("data-warning") : tr.getAttribute("data-azione") === filtro);
+      tr.hidden = !ok;
+    });
+    box.hidden = !filtro;
+    if (filtro) { box.querySelector("[data-filtro-label]").textContent = etichette[filtro] || filtro; }
+  }
+  document.querySelectorAll("a[data-filtro]").forEach(function (a) {
+    a.addEventListener("click", function () { applica(a.getAttribute("data-filtro")); });
+  });
+})();
+</script>
 {% endblock %}

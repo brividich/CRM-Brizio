@@ -533,7 +533,7 @@ def _da_fare(request, is_gestore: bool) -> list[dict]:
             "Da consegnare", n_magazzino, reverse("dpi:banco") + ("" if n_magazzino or not altre else "?tutte=1"), "arancione",
             f"+ {altre} non del magazzino" if altre else "",
         ))
-        tessere.append(_tessera("Da riordinare", magazzino.da_riordinare(), reverse("dpi:magazzino"), "arancione"))
+        tessere.append(_tessera("Da riordinare", magazzino.da_riordinare(), reverse("dpi:magazzino") + "?stato=da_riordinare#giacenze", "arancione"))
         if CategoriaDPI.objects.filter(si_ordina_al_negozio=True, is_active=True).exists():
             from . import negozio
 
@@ -2034,10 +2034,30 @@ def magazzino_view(request):
     solo = request.GET.get("stato", "")
     if solo in (magazzino.STATO_ESAURITO, magazzino.STATO_SOTTO_SCORTA, magazzino.STATO_OK):
         righe = [r for r in righe if r["stato"] == solo]
+    elif solo == "da_riordinare":
+        # Esauriti + sotto scorta: stesso insieme di magazzino.da_riordinare() (tessera della home DPI).
+        righe = [r for r in righe if r["stato"] != magazzino.STATO_OK]
+    else:
+        solo = ""
     movimenti = MovimentoMagazzinoDPI.objects.select_related("modello", "created_by")
     modello_mov = _parse_optional_positive_int(request.GET.get("modello"))
     if modello_mov:
         movimenti = movimenti.filter(modello_id=modello_mov)
+    # Filtri dalle tessere del report: ?tipo=SCARICO|CARICO e ?da=AAAA-MM-GG riproducono
+    # gli stessi movimenti sommati da magazzino.report(); con un filtro l'elenco e' completo.
+    tipo_mov = request.GET.get("tipo", "").strip().upper()
+    if tipo_mov not in MovimentoMagazzinoDPI.Tipo.values:
+        tipo_mov = ""
+    try:
+        da_mov = date.fromisoformat(request.GET.get("da", "").strip()) if request.GET.get("da") else None
+    except ValueError:
+        da_mov = None
+    if tipo_mov:
+        movimenti = movimenti.filter(tipo=tipo_mov)
+    if da_mov:
+        movimenti = movimenti.filter(data__gte=da_mov)
+    movimenti_filtrati = bool(tipo_mov or da_mov)
+    movimenti = list(movimenti) if movimenti_filtrati else movimenti[:40]
     return render(request, "dpi/pages/magazzino.html", {
         "is_gestore": True,
         "righe": righe,
@@ -2048,7 +2068,12 @@ def magazzino_view(request):
         "pezzi_totali": sum(per_modello.get(m.pk, 0) for m in modelli),
         "filtro_stato": solo,
         "modello_mov": modello_mov,
-        "movimenti": movimenti[:40],
+        "movimenti": movimenti,
+        "tipo_mov": tipo_mov,
+        "tipo_mov_label": dict(MovimentoMagazzinoDPI.Tipo.choices).get(tipo_mov, ""),
+        "da_mov": da_mov,
+        "movimenti_filtrati": movimenti_filtrati,
+        "movimenti_pezzi": abs(sum(m.quantita for m in movimenti)) if tipo_mov else None,
         "oggi": timezone.localdate(),
     })
 

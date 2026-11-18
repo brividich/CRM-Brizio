@@ -165,19 +165,51 @@ def _add_percent(rows: list[dict[str, Any]], value_key: str) -> list[dict[str, A
     return rows
 
 
-def get_family_dashboard_kpis(family_id=None, today: date | None = None) -> dict:
+def _scope_assets(qs, request):
+    """Con ``request`` gli asset seguono l'ambito del ruolo come l'elenco inventario."""
+    if request is None:
+        return qs
+    from .visibilita import filtra
+
+    return filtra(request, qs)
+
+
+def _scope_workorders(qs, request):
+    """Con ``request`` gli OdL seguono l'ambito del ruolo come l'elenco OdL (``filtra_odl``)."""
+    if request is None:
+        return qs
+    from .visibilita import filtra_odl
+
+    return filtra_odl(request, qs)
+
+
+def _scope_tickets(qs, request):
+    """Con ``request`` i ticket MAN restano quelli degli asset visibili in manutenzione."""
+    if request is None:
+        return qs
+    from ..registro_permessi import MODULO_MANUTENZIONE
+    from .visibilita import filtra_per_asset
+
+    return filtra_per_asset(request, qs, MODULO_MANUTENZIONE)
+
+
+def get_family_dashboard_kpis(family_id=None, today: date | None = None, request=None) -> dict:
+    """KPI per famiglia del cruscotto. Con ``request`` ogni numero segue l'ambito del
+    ruolo, come l'elenco (inventario / OdL) a cui la tessera porta."""
     today = today or timezone.localdate()
     first_day, next_month = _month_bounds(today)
     resolved_family_id = _resolve_family_id(family_id)
 
-    assets_qs = _apply_family(_active_assets_qs(), resolved_family_id)
+    assets_qs = _apply_family(_scope_assets(_active_assets_qs(), request), resolved_family_id)
 
     workorders_qs = _apply_family(
-        WorkOrder.objects.exclude(asset__status=Asset.STATUS_RETIRED),
+        _scope_workorders(WorkOrder.objects.exclude(asset__status=Asset.STATUS_RETIRED), request),
         resolved_family_id,
         asset_prefix="asset__",
     )
-    tickets_qs = _apply_family(_base_ticket_man_qs(), resolved_family_id, asset_prefix="asset__")
+    tickets_qs = _apply_family(
+        _scope_tickets(_base_ticket_man_qs(), request), resolved_family_id, asset_prefix="asset__"
+    )
 
     ticket_closed_month_qs = tickets_qs.filter(
         stato__in=_ticket_closed_statuses(),
@@ -382,38 +414,50 @@ def get_maintenance_status_by_family(
     return results
 
 
-def get_fire_safety_kpis(today: date | None = None) -> dict:
+def get_fire_safety_kpis(today: date | None = None, request=None) -> dict:
     today = today or timezone.localdate()
     in_30 = today + timedelta(days=30)
     category = AssetCategory.objects.filter(code=FIRE_SAFETY_CATEGORY_CODE).first()
     if not category:
         return {
             "has_fire_safety": False,
+            "category_id": None,
             "antincendio_asset_totali": 0,
             "antincendio_scadenze_scadute": 0,
             "antincendio_scadenze_30gg": 0,
             "antincendio_wo_aperte": 0,
         }
 
-    assets_qs = _active_assets_qs().filter(asset_category=category)
+    assets_qs = _scope_assets(_active_assets_qs().filter(asset_category=category), request)
     # Scadenze amministrative della categoria, da occorrenze e vecchia tabella.
     # Se non ne sono censite, i KPI restano correttamente a 0.
     dues = feed.administrative_dues(asset_filter={"asset_category": category})
+    if request is not None:
+        from ..registro_permessi import MODULO_MANUTENZIONE
+        from .visibilita import ids_visibili
+
+        visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+        if visibili is not None:
+            dues = [due for due in dues if due.asset.id in visibili]
     return {
         "has_fire_safety": True,
+        "category_id": category.id,
         "antincendio_asset_totali": _safe_count(assets_qs),
         "antincendio_scadenze_scadute": sum(1 for due in dues if due.due_date < today),
         "antincendio_scadenze_30gg": sum(1 for due in dues if today <= due.due_date <= in_30),
         "antincendio_wo_aperte": _safe_count(
-            WorkOrder.objects.filter(
-                asset__asset_category=category,
-                status=WorkOrder.STATUS_OPEN,
-            ).exclude(asset__status=Asset.STATUS_RETIRED)
+            _scope_workorders(
+                WorkOrder.objects.filter(
+                    asset__asset_category=category,
+                    status=WorkOrder.STATUS_OPEN,
+                ).exclude(asset__status=Asset.STATUS_RETIRED),
+                request,
+            )
         ),
     }
 
 
-def get_maintenance_performance_kpis(today: date | None = None, lookback_days: int = 30) -> dict:
+def get_maintenance_performance_kpis(today: date | None = None, lookback_days: int = 30, request=None) -> dict:
     """
     KPI di performance manutenzione: MTTR, downtime, costi, backlog per tipo.
 
@@ -434,12 +478,14 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
     today = today or timezone.localdate()
     first_day, next_month = _month_bounds(today)
     lookback_from = today - timedelta(days=lookback_days)
+    # Con ``request`` gli OdL seguono l'ambito del ruolo, come l'elenco OdL a cui portano.
+    wo_base = _scope_workorders(WorkOrder.objects.all(), request)
 
     # --- mttr_hours: media minuti/60 degli OdL correttivi chiusi nella finestra --------
     mttr_hours: Decimal = Decimal("0")
     try:
         result = (
-            WorkOrder.objects
+            wo_base
             .filter(
                 kind=WorkOrder.KIND_CORRECTIVE,
                 status=WorkOrder.STATUS_DONE,
@@ -460,7 +506,7 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
     # --- downtime_hours_month: somma minuti/60 degli OdL chiusi nel mese ---------------
     downtime_hours_month: Decimal = Decimal("0")
     try:
-        wo_closed_month_qs = WorkOrder.objects.filter(
+        wo_closed_month_qs = wo_base.filter(
             status=WorkOrder.STATUS_DONE,
             closed_at__date__gte=first_day,
             closed_at__date__lt=next_month,
@@ -476,7 +522,7 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
     # --- maintenance_cost_month: somma costi OdL chiusi nel mese -----------------------
     maintenance_cost_month: Decimal = Decimal("0")
     try:
-        wo_cost_qs = WorkOrder.objects.filter(
+        wo_cost_qs = wo_base.filter(
             status=WorkOrder.STATUS_DONE,
             closed_at__date__gte=first_day,
             closed_at__date__lt=next_month,
@@ -494,7 +540,7 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
     wo_closed_month: int = 0
     try:
         wo_closed_month = int(
-            WorkOrder.objects.filter(
+            wo_base.filter(
                 status=WorkOrder.STATUS_DONE,
                 closed_at__date__gte=first_day,
                 closed_at__date__lt=next_month,
@@ -512,7 +558,7 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
         kind_counts = {
             row["kind"]: int(row["count"] or 0)
             for row in (
-                WorkOrder.objects
+                wo_base
                 .filter(status=WorkOrder.STATUS_OPEN)
                 .order_by()
                 .values("kind")
@@ -536,7 +582,7 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
     ticket_man_open: int = 0
     try:
         ticket_man_open = int(
-            _base_ticket_man_qs().filter(stato__in=_ticket_open_statuses()).count()
+            _scope_tickets(_base_ticket_man_qs(), request).filter(stato__in=_ticket_open_statuses()).count()
         )
     except Exception:
         # Audit S10 + PROMPT 06: nel log e in pagina «dato non disponibile», mai uno 0 muto.

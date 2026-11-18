@@ -13,6 +13,7 @@ from datetime import date
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from core.audit import log_action, log_consultazione
 
@@ -156,10 +157,13 @@ def _righe_costo(request):
         x["scost_rep"] = _pct(x["c"].costo_orario - media_rep, media_rep) if media_rep and len(valori) > 1 else None
         x["barra"] = min(50, abs(float(x["scost"] or 0)) * 2)
     mostra = request.GET.get("mostra") or ""
+    # Righe con i filtri della barra ma senza «Mostra»: base dei KPI, che a loro
+    # volta aprono ``?mostra=<chiave>`` (stessa regola di FILTRI_MOSTRA).
+    base = sorted(out, key=lambda x: x["ordine"])
     if mostra in FILTRI_MOSTRA:
         out = [x for x in out if FILTRI_MOSTRA[mostra][1](x)]
     out.sort(key=lambda x: x["ordine"])
-    return {"mesi": mesi, "mese": mese, "righe": out, "reparti": reparti, "q": request.GET.get("q", ""),
+    return {"mesi": mesi, "mese": mese, "righe": out, "righe_base": base, "reparti": reparti, "q": request.GET.get("q", ""),
             "reparto": reparto, "centri": centri, "centro": centro, "media": media, "mostra": mostra if mostra in FILTRI_MOSTRA else "",
             "filtri_mostra": [(k, v[0]) for k, v in FILTRI_MOSTRA.items()]}
 
@@ -185,6 +189,7 @@ FILTRI_MOSTRA = {
                 lambda x: x["scost"] is not None and abs(x["scost"]) > SOGLIA_SCOSTAMENTO),
     "aumentati": ("Aumentati sul mese prima", lambda x: x["delta"] is not None and x["delta"] > 0),
     "diminuiti": ("Diminuiti sul mese prima", lambda x: x["delta"] is not None and x["delta"] < 0),
+    "manuali": ("RML corretta a mano", lambda x: bool(x["c"].rml_manuale)),
 }
 
 
@@ -235,20 +240,41 @@ def costo_orario(request):
                       {"filtri": sorted(k for k in request.GET.keys())}, chiave="costo_orario")
     ctx = _righe_costo(request)
     giorni, ore = costo_svc.divisori()
-    costi = [x["c"].costo_orario for x in ctx["righe"]]
+    # KPI sulle righe filtrate dalla barra ma non da «Mostra»: prima si contavano
+    # sulle righe già ristrette da «Mostra» (con «Aumentati» scelto, «Diminuiti»
+    # diventava 0). I conteggi usano le regole di FILTRI_MOSTRA, che i link aprono.
+    base = ctx["righe_base"]
+    costi = [x["c"].costo_orario for x in base]
+    conta = {k: sum(1 for x in base if regola(x)) for k, (_etichetta, regola) in FILTRI_MOSTRA.items()}
     kpi = {
         "media": _euro(sum(costi) / len(costi)) if costi else "—",
         "minimo": _euro(min(costi)) if costi else "—",
         "massimo": _euro(max(costi)) if costi else "—",
-        "manuali": sum(1 for x in ctx["righe"] if x["c"].rml_manuale),
-        "aumentati": sum(1 for x in ctx["righe"] if x["delta"] is not None and x["delta"] > 0),
-        "diminuiti": sum(1 for x in ctx["righe"] if x["delta"] is not None and x["delta"] < 0),
-        "lontani": sum(1 for x in ctx["righe"] if x["scost"] is not None and abs(x["scost"]) > SOGLIA_SCOSTAMENTO),
+        "manuali": conta["manuali"],
+        "aumentati": conta["aumentati"],
+        "diminuiti": conta["diminuiti"],
+        "lontani": conta["lontani"],
     }
+    kpi_url = _kpi_url_costo(ctx)
     return render(request, "anagrafica/pages/costo_orario.html", {
-        **ctx, "page_title": "Costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi,
+        **ctx, "page_title": "Costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi, "kpi_url": kpi_url,
         "soglia": SOGLIA_SCOSTAMENTO, "media_euro": _euro(ctx["media"]) if ctx["media"] is not None else "—",
     })
+
+
+def _kpi_url_costo(ctx: dict) -> dict:
+    """Link dei KPI del costo orario: stessi filtri della barra, più ``mostra``."""
+    from urllib.parse import urlencode
+
+    filtri = {k: v for k, v in (
+        ("mese", ctx["mese"].isoformat() if ctx["mese"] else ""), ("reparto", ctx["reparto"]),
+        ("centro_costo", ctx["centro"]), ("q", ctx["q"]),
+    ) if v}
+    base = reverse("anagrafica:costo_orario")
+    out = {"tutti": (f"{base}?{urlencode(filtri)}" if filtri else base) + "#co-tabella"}
+    for chiave in FILTRI_MOSTRA:
+        out[chiave] = f"{base}?{urlencode({**filtri, 'mostra': chiave})}#co-tabella"
+    return out
 
 
 def _report_costi(request) -> int | None:
@@ -276,6 +302,27 @@ def _mese_da(valore, mesi):
     except ValueError:
         return None
     return d.replace(day=1) if d else None
+
+
+ANDAMENTI_STORICO = {
+    "aumentati": ("Costo aumentato nel periodo", lambda r: r["var"] is not None and r["var"] > 0),
+    "diminuiti": ("Costo diminuito nel periodo", lambda r: r["var"] is not None and r["var"] < 0),
+}
+
+
+def _kpi_url_storico(ctx: dict) -> dict:
+    """Link dei KPI dello storico: stessi filtri della barra, più ``andamento``."""
+    from urllib.parse import urlencode
+
+    filtri = {k: v for k, v in (
+        ("dal", ctx["dal"].isoformat() if ctx["dal"] else ""), ("al", ctx["al"].isoformat() if ctx["al"] else ""),
+        ("reparto", ctx["reparto"]), ("centro_costo", ctx["centro"]), ("q", ctx["q"]), ("persona", ctx["persona"]),
+    ) if v}
+    base = reverse("anagrafica:costo_orario_storico")
+    out = {"tutti": (f"{base}?{urlencode(filtri)}" if filtri else base) + "#cs-tabella"}
+    for chiave in ANDAMENTI_STORICO:
+        out[chiave] = f"{base}?{urlencode({**filtri, 'andamento': chiave})}#cs-tabella"
+    return out
 
 
 def _storico(request) -> dict:
@@ -345,14 +392,29 @@ def _storico(request) -> dict:
     if centro:
         righe = [r for r in righe if r["centro_costo"] == centro]
     righe.sort(key=lambda r: r["ordine"])
-    medie = []
-    for i, _m in enumerate(mesi):
-        valori = [r["celle"][i]["c"].costo_orario for r in righe if r["celle"][i]["c"]]
-        medie.append(sum(valori) / len(valori) if valori else None)
+
+    def _medie(righe_):
+        out = []
+        for i, _m in enumerate(mesi):
+            valori = [r["celle"][i]["c"].costo_orario for r in righe_ if r["celle"][i]["c"]]
+            out.append(sum(valori) / len(valori) if valori else None)
+        return out
+
+    # KPI sulle righe della barra filtri, prima di «andamento»: i KPI «Costo
+    # aumentato / diminuito» aprono ``?andamento=`` con la stessa regola.
+    medie = _medie(righe)
     media_prima = next((x for x in medie if x is not None), None)
     media_ultima = next((x for x in reversed(medie) if x is not None), None)
+    n_andamento = {k: sum(1 for r in righe if regola(r)) for k, (_e, regola) in ANDAMENTI_STORICO.items()}
+    andamento = g.get("andamento") or ""
+    if andamento in ANDAMENTI_STORICO:
+        righe = [r for r in righe if ANDAMENTI_STORICO[andamento][1](r)]
+        medie = _medie(righe)
+    else:
+        andamento = ""
     persona_nome = righe[0]["nome"] if persona.isdigit() and righe else ""
     return {
+        "andamento": andamento, "andamenti": [(k, v[0]) for k, v in ANDAMENTI_STORICO.items()],
         "tutti_mesi": list(reversed(tutti)), "mesi": mesi, "dal": dal, "al": al, "righe": righe, "medie": medie,
         "reparti": reparti, "reparto": reparto, "centri": centri, "centro": centro, "q": g.get("q", ""), "persona": persona if persona.isdigit() else "",
         "persona_nome": persona_nome,
@@ -361,8 +423,8 @@ def _storico(request) -> dict:
             "media_ultima": _euro(media_ultima) if media_ultima is not None else "—",
             "variazione": (f"{(media_ultima - media_prima) / media_prima * 100:+.1f}%".replace(".", ",")
                            if media_prima and media_ultima is not None and len(mesi) > 1 else "—"),
-            "aumenti": sum(1 for r in righe if r["var"] is not None and r["var"] > 0),
-            "cali": sum(1 for r in righe if r["var"] is not None and r["var"] < 0),
+            "aumenti": n_andamento["aumentati"],
+            "cali": n_andamento["diminuiti"],
         },
     }
 
@@ -377,5 +439,5 @@ def costo_orario_storico(request):
     ctx = _storico(request)
     giorni, ore = costo_svc.divisori()
     return render(request, "anagrafica/pages/costo_orario_storico.html", {
-        **ctx, "page_title": "Storico del costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
+        **ctx, "kpi_url": _kpi_url_storico(ctx), "page_title": "Storico del costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
     })

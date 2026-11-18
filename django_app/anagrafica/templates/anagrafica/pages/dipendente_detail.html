@@ -1615,17 +1615,17 @@
         <div class="dp-abs-kpi">
           {% for k in assenze_kpi_annuali %}
           <div class="dp-abs-kpi-year">
-            <div class="dp-abs-kpi-head">
+            <a class="dp-abs-kpi-head kpi-link" href="#dp-abs-anno-{{ k.anno }}" title="Vai allo storico delle richieste del {{ k.anno }}">
               <span class="dp-abs-kpi-anno">{{ k.anno }}</span>
               <span class="dp-abs-kpi-tot">{{ k.totale }} richiest{{ k.totale|pluralize:"a,e" }}</span>
-            </div>
+            </a>
             <div class="dp-abs-kpi-chips">
               {% for t in k.tipi %}
-              <span class="dp-abs-kpi-chip dp-abs-{{ t.accent }}" title="{{ t.tipo }}">
+              <a class="dp-abs-kpi-chip dp-abs-{{ t.accent }} kpi-link" href="#dp-abs-anno-{{ k.anno }}" title="{{ t.tipo }}: vai allo storico delle richieste del {{ k.anno }}">
                 <span class="dp-abs-kpi-ic">{{ t.icona }}</span>
                 <span class="dp-abs-kpi-n">{{ t.conteggio }}</span>
                 <span class="dp-abs-kpi-tipo">{{ t.tipo }}</span>
-              </span>
+              </a>
               {% endfor %}
             </div>
           </div>
@@ -1636,7 +1636,7 @@
         <div class="dp-abs-list-title">Storico ultimi 2 anni</div>
         <div class="dp-abs-tl">
           {% for anno in assenze_cronologia %}
-          <div class="dp-abs-year">
+          <div class="dp-abs-year" id="dp-abs-anno-{{ anno.anno }}">
             <span class="dp-abs-year-num">{{ anno.anno|default:"—" }}</span>
             <span class="dp-abs-year-line"></span>
             <span class="dp-abs-year-count">{{ anno.totale }} assenz{{ anno.totale|pluralize:"a,e" }}</span>

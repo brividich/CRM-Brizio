@@ -6,9 +6,9 @@
 <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'glossario_tecnico:guida' %}">Guida</a>{% if puo_gestire %}<a class="btn btn-secondary" href="{% url 'glossario_tecnico:revisione' %}">Da rivedere{% if conteggi.bozza or proposte_in_attesa %} ({{ conteggi.bozza|default:0|add:proposte_in_attesa }}){% endif %}</a><a class="btn" href="{% url 'glossario_tecnico:termine_nuovo' %}">Nuovo termine</a>{% endif %}</div></div>
 
 <div class="sg-kpis">
-  <div class="sg-kpi"><span>Validati</span><strong>{{ conteggi.validato|default:0 }}</strong></div>
-  <div class="sg-kpi"><span>In bozza</span><strong>{{ conteggi.bozza|default:0 }}</strong></div>
-  {% if puo_gestire %}<div class="sg-kpi"><span>Proposte AI da decidere</span><strong>{{ proposte_in_attesa }}</strong></div>{% endif %}
+  <a class="sg-kpi kpi-link" href="{% url 'glossario_tecnico:index' %}?stato=validato" title="Apri l'elenco filtrato: termini validati"><span>Validati</span><strong>{{ conteggi.validato|default:0 }}</strong></a>
+  <a class="sg-kpi kpi-link" href="{% url 'glossario_tecnico:index' %}?stato=bozza" title="Apri l'elenco filtrato: termini in bozza"><span>In bozza</span><strong>{{ conteggi.bozza|default:0 }}</strong></a>
+  {% if puo_gestire %}<a class="sg-kpi kpi-link" href="{% url 'glossario_tecnico:revisione' %}#gl-proposte" title="Apri le proposte dell'AI in attesa di decisione"><span>Proposte AI da decidere</span><strong>{{ proposte_in_attesa }}</strong></a>{% endif %}
 </div>
 
 <section class="rc-card sg-section"><form method="get" class="sg-actions">

@@ -53,6 +53,26 @@
 .hub-kpi-card--info { --hub-kpi-accent: var(--hub-status-info); }
 .hub-kpi-card--accent { --hub-kpi-accent: var(--hub-color-orange); }
 
+/* KPI cliccabili: qualsiasi tessera KPI resa <a class="... kpi-link"> porta alla lista filtrata
+   che conta lo stesso numero. Niente sottolineatura, colori ereditati, focus visibile. */
+a.kpi-link,
+a.kpi-link:visited {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+a.kpi-link:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
+  box-shadow: var(--hub-shadow-md, 0 4px 14px rgba(0, 0, 0, .12));
+}
+a.kpi-link:focus-visible {
+  outline: 2px solid var(--hub-color-orange, #f39200);
+  outline-offset: 2px;
+}
+a.kpi-link * { cursor: pointer; }
+
 .hub-kpi-card__label {
   color: var(--hub-color-text-soft);
   font-size: var(--hub-font-xs);

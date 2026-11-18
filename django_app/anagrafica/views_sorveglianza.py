@@ -220,6 +220,15 @@ def referti_coda(request):
             esito=RefertoIntakeRiga.ESITO_OK).count(),
         "pronti": pronti,
     }
+    # La coda mostra le prime 200 righe e «Pronti» si calcola su quelle: se la coda
+    # è più lunga lo si dice, invece di far passare il numero per il totale.
+    troncata = conteggi["da_rivedere"] > len(righe)
+    conteggi["sub_coda"] = (
+        f"referti da abbinare · a schermo i primi {len(righe)}" if troncata else "referti da abbinare"
+    )
+    conteggi["sub_pronti"] = (
+        f"data di nascita confermata · tra i primi {len(righe)}" if troncata else "data di nascita confermata"
+    )
 
     return render(request, "anagrafica/pages/referti_coda.html", {
         "puo_modificare": _puo_modificare(request),

@@ -39,6 +39,7 @@
 .fr-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
 .fr-kpis .ana-metric { padding:12px 14px; }
 .fr-kpis .ana-metric-val { font-size:20px; }
+.fr-kpis a.ana-metric[aria-current="true"] { border-color:var(--hub-color-orange,#f39200); }
 .fr-sez { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13px; font-weight:700; color:var(--text,#1e293b); margin:18px 0 6px; }
 .fr-sez small { font-weight:400; color:var(--text-mid,#64748b); }
 .fr-nota { font-size:12px; color:var(--text-mid,#64748b); margin:6px 0 0; }
@@ -52,7 +53,7 @@
 .ana-pill-gray { background:#f1f5f9; color:#475569; }
 .ana-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .ana-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-.ana-metric { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+.ana-metric { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
 .ana-metric-val { font-size:26px; font-weight:800; color:#0f172a; line-height:1; }
 .ana-metric-label { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:5px; }
 .ana-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:20px; }
@@ -213,24 +214,24 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
 
   <!-- Metrics -->
   <div class="ana-metrics">
-    <div class="ana-metric">
+    <a class="ana-metric kpi-link" href="#tab-ordini" title="Apri la scheda Ordini di questo fornitore">
       <div class="ana-metric-val">{{ ordini.count }}</div>
       <div class="ana-metric-label">Ordini</div>
-    </div>
-    <div class="ana-metric">
+    </a>
+    <a class="ana-metric kpi-link" href="#tab-ordini" title="Apri la scheda Ordini: la spesa somma gli importi, annullati esclusi">
       <div class="ana-metric-val">€ {{ spesa_totale|floatformat:0 }}</div>
-      <div class="ana-metric-label">Spesa totale</div>
-    </div>
-    <div class="ana-metric">
+      <div class="ana-metric-label">Spesa totale (annullati esclusi)</div>
+    </a>
+    <a class="ana-metric kpi-link" href="#tab-val" title="Apri la scheda Valutazioni: il rating è la media delle valutazioni">
       <div class="ana-metric-val">
         {% with pm=fornitore.punteggio_medio %}{% if pm %}<span class="ana-stars">★</span> {{ pm }}{% else %}—{% endif %}{% endwith %}
       </div>
       <div class="ana-metric-label">Rating /5</div>
-    </div>
-    <div class="ana-metric">
+    </a>
+    <a class="ana-metric kpi-link" href="#tab-asset" title="Apri la scheda Asset assegnati a questo fornitore">
       <div class="ana-metric-val">{{ asset_assegnati.count }}</div>
       <div class="ana-metric-label">Asset assegnati</div>
-    </div>
+    </a>
   </div>
 
   <!-- 2-col layout -->
@@ -558,6 +559,17 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
   // Link diretto a una scheda (#tab-copie) e ritorno dopo un salvataggio. htmx è caricato
   // in differita: esiste solo da DOMContentLoaded in poi.
   window.addEventListener('hashchange', apriDaIndirizzo);
+  // Tessere KPI (anche quelle delle schede caricate dopo) che puntano a una scheda: la aprono
+  // anche quando l'indirizzo ha già quel #, e la portano in vista.
+  document.addEventListener('click', ev => {
+    const link = ev.target.closest('a[href^="#tab-"]');
+    if (!link) return;
+    const tab = document.querySelector('.ana-tab[data-tab="' + link.getAttribute('href').slice(1) + '"]');
+    if (!tab) return;
+    ev.preventDefault();
+    apri(tab, true);
+    tab.scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apriDaIndirizzo);
   else apriDaIndirizzo();
 })();

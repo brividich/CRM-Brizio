@@ -35,7 +35,8 @@
 
 {% if risultato.riepilogo %}
 <section class="rp-riepilogo" aria-label="Riepilogo">
-  {% for etichetta, valore in risultato.riepilogo %}<div class="rp-kpi"><span>{{ etichetta }}</span><strong>{{ valore }}</strong></div>{% endfor %}
+  {% comment %}Il riepilogo e' calcolato sulle righe del report: ogni valore porta alla tabella qui sotto.{% endcomment %}
+  {% for etichetta, valore in risultato.riepilogo %}<a class="rp-kpi kpi-link" href="#rp-tabella" title="Vai alle righe del report da cui e' calcolato: {{ etichetta }}"><span>{{ etichetta }}</span><strong>{{ valore }}</strong></a>{% endfor %}
 </section>
 {% endif %}
 

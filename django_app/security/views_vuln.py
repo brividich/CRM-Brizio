@@ -424,28 +424,28 @@ def rischio_accettazioni(request):
     stato = request.GET.get("stato", "attive")
     stato = stato if stato in STATI_ACCETTAZIONI else "attive"
     oggi = timezone.localdate()
+    # Una definizione per stato: la usano sia il filtro dell'elenco sia i contatori in testa.
+    filtri_stato = {
+        "attive": Q(revocata_il__isnull=True, scadenza__gte=oggi),
+        "in_scadenza": Q(revocata_il__isnull=True, scadenza__gte=oggi, scadenza__lte=oggi + timezone.timedelta(days=30)),
+        "scadute": Q(revocata_il__isnull=True, scadenza__lt=oggi),
+        "revocate": Q(revocata_il__isnull=False),
+    }
     qs = SecurityAccettazioneRischio.objects.select_related("cve", "approvata_da", "revocata_da")
-    if stato == "attive":
-        qs = qs.filter(revocata_il__isnull=True, scadenza__gte=oggi)
-    elif stato == "scadute":
-        qs = qs.filter(revocata_il__isnull=True, scadenza__lt=oggi)
-    elif stato == "revocate":
-        qs = qs.filter(revocata_il__isnull=False)
+    if stato in filtri_stato:
+        qs = qs.filter(filtri_stato[stato])
     righe = list(qs.order_by("scadenza", "-approvata_il")[:500])
     tutte = SecurityAccettazioneRischio.objects.all()
     return render(request, "security/vuln_accettazioni.html", {
         "righe": righe, "stato": stato, "stati": STATI_ACCETTAZIONI, "oggi": oggi,
         "in_scadenza": oggi + timezone.timedelta(days=30),
-        "counts": {
-            "attive": tutte.filter(revocata_il__isnull=True, scadenza__gte=oggi).count(),
-            "in_scadenza": tutte.filter(revocata_il__isnull=True, scadenza__gte=oggi, scadenza__lte=oggi + timezone.timedelta(days=30)).count(),
-            "scadute": tutte.filter(revocata_il__isnull=True, scadenza__lt=oggi).count(),
-        },
+        "counts": {chiave: tutte.filter(filtri_stato[chiave]).count() for chiave in ("attive", "in_scadenza", "scadute")},
         "can_edit": can_manage_security_config(request.user),
     })
 
 
-STATI_ACCETTAZIONI = {"attive": "Attive", "scadute": "Scadute", "revocate": "Revocate", "tutte": "Tutte"}
+STATI_ACCETTAZIONI = {"attive": "Attive", "in_scadenza": "In scadenza (30 giorni)", "scadute": "Scadute", "revocate": "Revocate",
+                      "tutte": "Tutte"}
 
 
 @require_POST

@@ -51,6 +51,82 @@ def _barre(valori: list[tuple[str, int, str]]) -> list[dict]:
     ]
 
 
+# Viste dell'elenco aperte dalle tessere del cruscotto (?vista=...): stessa
+# regola del conteggio, così la tabella mostra esattamente quel numero.
+VISTE = {
+    "7g": "Ultimi 7 giorni",
+    "30g": "Ultimi 30 giorni",
+    "mese": "Mese corrente",
+    "senza_allegati": "Senza allegati",
+    "ritardo": "Registrate in ritardo",
+}
+
+
+def finestra_vista(vista: str, oggi: date) -> tuple[date | None, date | None]:
+    """Date locali [da, a) della segnalazione per le viste a finestra temporale."""
+    if vista == "7g":
+        return oggi - timedelta(days=6), None
+    if vista == "30g":
+        return oggi - timedelta(days=29), None
+    if vista == "mese":
+        primo = oggi.replace(day=1)
+        successivo = date(primo.year + 1, 1, 1) if primo.month == 12 else date(primo.year, primo.month + 1, 1)
+        return primo, successivo
+    return None, None
+
+
+def _in_finestra(d: date, vista: str, oggi: date) -> bool:
+    da, a = finestra_vista(vista, oggi)
+    return (da is None or d >= da) and (a is None or d < a)
+
+
+def _in_ritardo(d: date, creata) -> bool:
+    return (creata.date() - d).days > GIORNI_RITARDO_REGISTRAZIONE
+
+
+def filtra_vista(qs, vista: str, *, oggi: date | None = None):
+    """Restringe ``qs`` (già filtrato per visibilità, ricerca, preposto) alla vista.
+
+    Vista sconosciuta o vuota: ``qs`` invariato. Le finestre temporali sono in ora
+    locale come il conteggio delle tessere (mezzanotte locale -> datetime aware).
+    """
+    from datetime import datetime, time
+
+    from django.conf import settings
+
+    oggi = oggi or timezone.localdate()
+    if vista in ("7g", "30g", "mese"):
+        da, a = finestra_vista(vista, oggi)
+
+        def _mezzanotte(d):
+            dt = datetime.combine(d, time.min)
+            return timezone.make_aware(dt) if settings.USE_TZ else dt
+
+        qs = qs.filter(data_segnalazione__gte=_mezzanotte(da))
+        if a is not None:
+            qs = qs.filter(data_segnalazione__lt=_mezzanotte(a))
+        return qs
+    if vista == "senza_allegati":
+        # Senza data della segnalazione la riga non entra nel conteggio: fuori anche qui.
+        return qs.filter(data_segnalazione__isnull=False).annotate(
+            n_allegati_vista=Count("allegati", filter=Q(allegati__rimosso_il__isnull=True))
+        ).filter(n_allegati_vista=0)
+    if vista == "ritardo":
+        # Confronto fra date locali: non si esprime in SQL in modo portabile.
+        # Di norma sono poche righe; a blocchi per il limite di parametri di SQL Server.
+        ids = [
+            pk for pk, ds, cr in qs.order_by().values_list("pk", "data_segnalazione", "created_at")
+            if ds and cr and _in_ritardo(_locale(ds).date(), _locale(cr))
+        ]
+        if not ids:
+            return qs.none()
+        q = Q()
+        for i in range(0, len(ids), 1000):
+            q |= Q(pk__in=ids[i:i + 1000])
+        return qs.filter(q)
+    return qs
+
+
 def calcola_cruscotto(qs, *, oggi: date | None = None) -> dict:
     """Numeri e grafici del registro per il queryset ricevuto (già filtrato)."""
     oggi = oggi or timezone.localdate()
@@ -63,14 +139,12 @@ def calcola_cruscotto(qs, *, oggi: date | None = None) -> dict:
     )
     date_locali = [(_locale(ds).date(), _locale(cr), n) for ds, cr, n in righe if ds]
 
-    ultimi_7 = sum(1 for d, _c, _n in date_locali if d > oggi - timedelta(days=7))
-    ultimi_30 = sum(1 for d, _c, _n in date_locali if d > oggi - timedelta(days=30))
+    ultimi_7 = sum(1 for d, _c, _n in date_locali if _in_finestra(d, "7g", oggi))
+    ultimi_30 = sum(1 for d, _c, _n in date_locali if _in_finestra(d, "30g", oggi))
     precedenti_30 = sum(1 for d, _c, _n in date_locali if oggi - timedelta(days=60) < d <= oggi - timedelta(days=30))
-    mese_corrente = sum(1 for d, _c, _n in date_locali if d.year == oggi.year and d.month == oggi.month)
+    mese_corrente = sum(1 for d, _c, _n in date_locali if _in_finestra(d, "mese", oggi))
     senza_allegati = sum(1 for _d, _c, n in date_locali if not n)
-    in_ritardo = sum(
-        1 for d, creata, _n in date_locali if (creata.date() - d).days > GIORNI_RITARDO_REGISTRAZIONE
-    )
+    in_ritardo = sum(1 for d, creata, _n in date_locali if _in_ritardo(d, creata))
 
     # Andamento: ultimi 12 mesi, mese corrente compreso.
     per_mese = Counter((d.year, d.month) for d, _c, _n in date_locali if d >= inizio_andamento)

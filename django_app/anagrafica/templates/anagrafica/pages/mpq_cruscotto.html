@@ -45,11 +45,11 @@
           </div>
         </div>
         <div class="fmd-hero-side">
-          <div class="fmd-hero-tile">
+          <a class="fmd-hero-tile kpi-link" href="{% url 'anagrafica:mpq_cruscotto' %}#registro-processi" title="Vai al registro dei processi qualificati">
             <span class="fmd-corner"></span>
             <span class="fmd-bignum">{{ n_processi }}</span>
             <span class="fmd-lbl">Processi a registro</span>
-          </div>
+          </a>
           <div class="fmd-hero-tile fmd-alt">
             <span class="fmd-corner"></span>
             <span class="fmd-bignum">{{ n_persone }}</span>
@@ -61,19 +61,19 @@
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
-      <div class="fmd-mtr fmd-t-green">
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:mpq_cruscotto' %}?stato={{ STATO_ATTIVO }}#registro-processi" title="Apri il registro filtrato: processi attivi">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_attivi }}</span></div>
         <div class="fmd-mtr-lbl">Processi attivi</div>
         <div class="fmd-mtr-sub">{{ n_sospesi }} sospesi · {{ n_dismessi }} dismessi/non rinnovati</div>
-      </div>
-      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-yellow">
+      </a>
+      <a href="{% url 'anagrafica:mpq_cruscotto' %}?scad=60#registro-processi" title="Apri il registro filtrato: processi in scadenza entro 60 giorni" class="fmd-mtr fmd-t-yellow kpi-link">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
         <div class="fmd-mtr-lbl">Processi in scadenza ≤60gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
       </a>
-      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-amber">
+      <a href="{% url 'anagrafica:mpq_cruscotto' %}?scad=scaduta#registro-processi" title="Apri il registro filtrato: processi scaduti" class="fmd-mtr fmd-t-amber kpi-link">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Processi scaduti</div>
@@ -186,10 +186,10 @@
     </section>
 
     {# ── Elenco processi ────────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="registro-processi" style="scroll-margin-top:90px;">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro processi qualificati</div>
-        <div class="fmd-block-aside">La "vista MOD.128" completa (export dedicato in arrivo)</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro processi qualificati{% if filtro_label %} <span class="fmd-count">{{ processi|length }}</span>{% endif %}</div>
+        <div class="fmd-block-aside">{% if filtro_label %}{{ filtro_label }} · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_cruscotto' %}#registro-processi">mostra tutti</a>{% else %}La "vista MOD.128" completa (export dedicato in arrivo){% endif %}</div>
       </div>
       {% if processi %}
       <div class="fmd-tablewrap" style="margin:0 -22px;">

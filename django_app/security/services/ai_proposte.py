@@ -594,13 +594,22 @@ def riapri(proposta, user, nota=""):
 
 # --- Dati per la pagina ------------------------------------------------------------------------------
 
-def pagina():
+def chiuse_auto_7():
+    """Alert chiusi da soli dall'AI negli ultimi 7 giorni: tessera e filtro ?auto=7 della pagina."""
+    return SecurityAlertProposta.objects.filter(stato=SecurityAlertProposta.CHIUSA_AUTO,
+                                                decisa_il__gte=timezone.now() - timedelta(days=7))
+
+
+def pagina(auto_7=False):
     from security.services.alert_gruppi import per_pagina
 
-    since = timezone.now() - timedelta(days=30)
-    auto = list(SecurityAlertProposta.objects.filter(stato__in=(SecurityAlertProposta.CHIUSA_AUTO, SecurityAlertProposta.ANNULLATA),
-                                                     decisa_il__gte=since)
-                .select_related("alert", "alert__source").order_by("-decisa_il")[:100])
+    if auto_7:
+        auto_qs = chiuse_auto_7()
+    else:
+        auto_qs = SecurityAlertProposta.objects.filter(
+            stato__in=(SecurityAlertProposta.CHIUSA_AUTO, SecurityAlertProposta.ANNULLATA),
+            decisa_il__gte=timezone.now() - timedelta(days=30))
+    auto = list(auto_qs.select_related("alert", "alert__source").order_by("-decisa_il")[:100])
     gruppi = {}
     for p in SecurityAlertProposta.objects.filter(creata_il__gte=timezone.now() - timedelta(days=GIORNI_DECISIONI)).exclude(esito="aperto"):
         gruppi.setdefault((p.schema, p.esito), p.schema_label)
@@ -614,7 +623,10 @@ def pagina():
         **per_pagina(),
         "auto": auto,
         "imparato": imparato,
-        "n_auto_7": sum(1 for p in auto if p.stato == SecurityAlertProposta.CHIUSA_AUTO and p.decisa_il >= timezone.now() - timedelta(days=7)),
+        # Conteggio sul database: la lista «auto» e' limitata a 100 righe.
+        "n_auto_7": chiuse_auto_7().count(),
+        "auto_7": auto_7,
+        "n_auto_lista": auto_qs.count(),
         "n_affidabili": sum(1 for r in imparato if r["affidabile"]),
         "attivo": attivo(),
         "chiusura_auto": chiusura_auto_attiva(),

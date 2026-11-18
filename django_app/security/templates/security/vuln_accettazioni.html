@@ -15,9 +15,10 @@
     <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#accettazione-del-rischio">? Guida</a>
   </p>
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ counts.attive }}</strong> attive</span> ·
-    <span><strong>{{ counts.in_scadenza }}</strong> in scadenza entro 30 giorni</span> ·
-    <span><strong>{{ counts.scadute }}</strong> scadute</span>
+    {% url 'security:accettazioni_rischio' as url_acc %}
+    <a class="kpi-link" href="{{ url_acc }}?stato=attive" title="Apri l'elenco filtrato: accettazioni attive"><strong>{{ counts.attive }}</strong> attive</a> ·
+    <a class="kpi-link" href="{{ url_acc }}?stato=in_scadenza" title="Apri l'elenco filtrato: accettazioni che scadono entro 30 giorni"><strong>{{ counts.in_scadenza }}</strong> in scadenza entro 30 giorni</a> ·
+    <a class="kpi-link" href="{{ url_acc }}?stato=scadute" title="Apri l'elenco filtrato: accettazioni scadute"><strong>{{ counts.scadute }}</strong> scadute</a>
   </div>
   <div class="sec-actions" style="margin-top: 8px;">
     {% for code, label in stati.items %}<a class="sec-button{% if stato == code %} sec-button-primary{% endif %}" href="?stato={{ code }}">{{ label }}</a>{% endfor %}

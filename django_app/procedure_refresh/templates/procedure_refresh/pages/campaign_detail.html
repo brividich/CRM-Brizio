@@ -142,28 +142,28 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
   </div>
 
   <div class="pr-kpi-row">
-    <div class="pr-kpi">
+    <a class="pr-kpi kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ campaign.pk }}" title="Apri il report della sessione: tutte le assegnazioni">
       <div class="pr-kpi-val">{{ n_total }}</div>
       <div class="pr-kpi-lbl">Assegnazioni totali</div>
-    </div>
-    <div class="pr-kpi pr-kpi-green">
+    </a>
+    <a class="pr-kpi pr-kpi-green kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ campaign.pk }}&amp;stato=confermate" title="Apri il report filtrato: assegnazioni confermate">
       <div class="pr-kpi-val">{{ n_confirmed }}</div>
       <div class="pr-kpi-lbl">Confermate</div>
-    </div>
-    <div class="pr-kpi pr-kpi-orange">
+    </a>
+    <a class="pr-kpi pr-kpi-orange kpi-link" href="{% url 'procedure_refresh:report_campaign' %}?camp_id={{ campaign.pk }}&amp;stato=in_attesa" title="Apri il report filtrato: assegnazioni in attesa (scadute escluse)">
       <div class="pr-kpi-val">{{ n_pending }}</div>
       <div class="pr-kpi-lbl">In attesa</div>
-    </div>
-    <div class="pr-kpi">
+    </a>
+    <a class="pr-kpi kpi-link" href="#pr-documenti-sessione" title="Vai all'elenco dei documenti in sessione">
       <div class="pr-kpi-val">{{ campaign_docs|length }}</div>
       <div class="pr-kpi-lbl">Documenti in sessione</div>
-    </div>
+    </a>
   </div>
 
   <div class="pr-grid">
 
     <!-- Documenti sessione -->
-    <div class="pr-card">
+    <div class="pr-card" id="pr-documenti-sessione">
       <div class="pr-card-title">Documenti in sessione</div>
 
       {% if campaign.status == 'draft' %}

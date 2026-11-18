@@ -63,7 +63,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
 
 
   <div class="pr-header-row">
-    <div class="pr-page-title">Sessioni refresh</div>
+    <div class="pr-page-title">Sessioni refresh{% if stato_filtro %} · {{ stato_filtro_label|lower }} <a href="{% url 'procedure_refresh:campaign_list' %}" style="font-size:13px;font-weight:600;">Mostra tutte</a>{% endif %}</div>
     <a href="{% url 'procedure_refresh:campaign_create' %}" class="pr-btn">+ Nuova sessione</a>
   </div>
 

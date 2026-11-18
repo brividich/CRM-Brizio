@@ -27,6 +27,34 @@ from .permissions import (
 )
 
 
+def _filtri_elenco(oggi) -> dict:
+    """Filtri ``?filtro=`` dell'elenco: unica definizione per pulsanti-contatore,
+    tessere KPI della console di gestione e lista filtrata (stesso numero)."""
+    from django.db.models import Q
+
+    S, SMS = SuggestionCorner.Stato, SuggestionCorner.StatoSMS
+    in_corso = ~Q(stato__in=[S.CHIUSA, S.INSERITA, S.DA_CLASSIFICARE])
+    return {
+        "da_gestire": Q(stato=S.DA_CLASSIFICARE),
+        "sms_si": Q(stato_sms=SMS.SMS_SI),
+        "sms_no": Q(stato_sms=SMS.SMS_NO),
+        "aperte": ~Q(stato=S.CHIUSA),
+        "chiuse": Q(stato=S.CHIUSA),
+        "scaduti_do": Q(do_eseguito=False, data_limite_esecuzione__lt=oggi) & in_corso,
+        "scaduti_check": Q(check_eseguito=False, data_limite_controllo__lt=oggi) & in_corso,
+    }
+
+
+# Filtri che non hanno un pulsante-contatore nell'elenco: arrivano dalle tessere
+# della console di gestione, l'elenco li mostra con la loro etichetta.
+_ETICHETTE_FILTRI_EXTRA = {
+    "aperte": "Aperte",
+    "chiuse": "Chiuse",
+    "scaduti_do": "DO scaduti",
+    "scaduti_check": "CHECK scaduti",
+}
+
+
 @login_required
 def home(request):
     """Dashboard/elenco segnalazioni con scope per-utente e filtro per stato SMS.
@@ -41,20 +69,18 @@ def home(request):
     base = visible_segnalazioni(request.user).select_related(
         "reparto_provenienza", "incaricato", "controllore",
     )
-    S, SMS = SuggestionCorner.Stato, SuggestionCorner.StatoSMS
+    from django.utils import timezone
+
+    filtri = _filtri_elenco(timezone.localdate())
     conteggi = {
         "tutte": base.count(),
-        "da_gestire": base.filter(stato=S.DA_CLASSIFICARE).count(),
-        "sms_si": base.filter(stato_sms=SMS.SMS_SI).count(),
-        "sms_no": base.filter(stato_sms=SMS.SMS_NO).count(),
+        "da_gestire": base.filter(filtri["da_gestire"]).count(),
+        "sms_si": base.filter(filtri["sms_si"]).count(),
+        "sms_no": base.filter(filtri["sms_no"]).count(),
     }
     filtro = (request.GET.get("filtro") or "tutte").strip()
-    if filtro == "da_gestire":
-        segnalazioni = base.filter(stato=S.DA_CLASSIFICARE)
-    elif filtro == "sms_si":
-        segnalazioni = base.filter(stato_sms=SMS.SMS_SI)
-    elif filtro == "sms_no":
-        segnalazioni = base.filter(stato_sms=SMS.SMS_NO)
+    if filtro in filtri:
+        segnalazioni = base.filter(filtri[filtro])
     else:
         filtro = "tutte"
         segnalazioni = base
@@ -62,6 +88,7 @@ def home(request):
         "segnalazioni": segnalazioni,
         "conteggi": conteggi,
         "filtro": filtro,
+        "filtro_extra_label": _ETICHETTE_FILTRI_EXTRA.get(filtro, ""),
         "is_team": team,
     })
 
@@ -94,7 +121,7 @@ def gestione(request, *args, **kwargs):
     else:
         form_config = sc_forms.ConfigForm(instance=config)
 
-    S, SMS = SuggestionCorner.Stato, SuggestionCorner.StatoSMS
+    S = SuggestionCorner.Stato
     qs = SuggestionCorner.objects.all()
     oggi = timezone.localdate()
 
@@ -103,22 +130,18 @@ def gestione(request, *args, **kwargs):
         .select_related("reparto_provenienza", "area_provenienza")
         .order_by("data_segnalazione")
     )
-    scaduti_do = qs.filter(
-        do_eseguito=False, data_limite_esecuzione__lt=oggi,
-    ).exclude(stato__in=[S.CHIUSA, S.INSERITA, S.DA_CLASSIFICARE]).count()
-    scaduti_check = qs.filter(
-        check_eseguito=False, data_limite_controllo__lt=oggi,
-    ).exclude(stato__in=[S.CHIUSA, S.INSERITA, S.DA_CLASSIFICARE]).count()
-
+    # Stessi filtri dell'elenco (?filtro=...), dove portano le tessere: la console
+    # è del team SMS, che nell'elenco vede tutte le segnalazioni come qui.
+    filtri = _filtri_elenco(oggi)
     kpi = {
         "totali": qs.count(),
         "da_classificare": da_classificare.count(),
-        "aperte": qs.exclude(stato=S.CHIUSA).count(),
-        "chiuse": qs.filter(stato=S.CHIUSA).count(),
-        "sms_si": qs.filter(stato_sms=SMS.SMS_SI).count(),
-        "sms_no": qs.filter(stato_sms=SMS.SMS_NO).count(),
-        "scaduti_do": scaduti_do,
-        "scaduti_check": scaduti_check,
+        "aperte": qs.filter(filtri["aperte"]).count(),
+        "chiuse": qs.filter(filtri["chiuse"]).count(),
+        "sms_si": qs.filter(filtri["sms_si"]).count(),
+        "sms_no": qs.filter(filtri["sms_no"]).count(),
+        "scaduti_do": qs.filter(filtri["scaduti_do"]).count(),
+        "scaduti_check": qs.filter(filtri["scaduti_check"]).count(),
     }
 
     User = get_user_model()

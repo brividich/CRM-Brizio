@@ -21,19 +21,20 @@
   {# --- KPI: stato delle segnalazioni --- #}
   <span class="sc-sec-lab">Segnalazioni</span>
   <div class="sc-kpi">
-    <div class="sc-stat{% if not kpi.totali %} is-zero{% endif %}"><span class="n">{{ kpi.totali }}</span><span class="l">Totali</span></div>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=tutte" class="sc-stat{% if not kpi.aperte %} is-zero{% endif %}"><span class="n">{{ kpi.aperte }}</span><span class="l">Aperte</span></a>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=da_gestire" class="sc-stat warn{% if not kpi.da_classificare %} is-zero{% endif %}"><span class="n">{{ kpi.da_classificare }}</span><span class="l">Da classificare</span></a>
-    <div class="sc-stat ok{% if not kpi.chiuse %} is-zero{% endif %}"><span class="n">{{ kpi.chiuse }}</span><span class="l">Chiuse</span></div>
+    {% url 'suggestion_corner:home' as u_sc %}
+    <a href="{{ u_sc }}?filtro=tutte" class="sc-stat kpi-link{% if not kpi.totali %} is-zero{% endif %}" title="Apri l'elenco: tutte le segnalazioni"><span class="n">{{ kpi.totali }}</span><span class="l">Totali</span></a>
+    <a href="{{ u_sc }}?filtro=aperte" class="sc-stat kpi-link{% if not kpi.aperte %} is-zero{% endif %}" title="Apri l'elenco filtrato: segnalazioni non chiuse"><span class="n">{{ kpi.aperte }}</span><span class="l">Aperte</span></a>
+    <a href="{{ u_sc }}?filtro=da_gestire" class="sc-stat warn kpi-link{% if not kpi.da_classificare %} is-zero{% endif %}" title="Apri l'elenco filtrato: da classificare"><span class="n">{{ kpi.da_classificare }}</span><span class="l">Da classificare</span></a>
+    <a href="{{ u_sc }}?filtro=chiuse" class="sc-stat ok kpi-link{% if not kpi.chiuse %} is-zero{% endif %}" title="Apri l'elenco filtrato: segnalazioni chiuse"><span class="n">{{ kpi.chiuse }}</span><span class="l">Chiuse</span></a>
   </div>
 
   {# --- KPI: esito SMS e ritardi --- #}
   <span class="sc-sec-lab">Esito SMS e ritardi</span>
   <div class="sc-kpi">
-    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_si" class="sc-stat{% if not kpi.sms_si %} is-zero{% endif %}"><span class="n">{{ kpi.sms_si }}</span><span class="l">SMS Sì</span></a>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_no" class="sc-stat{% if not kpi.sms_no %} is-zero{% endif %}"><span class="n">{{ kpi.sms_no }}</span><span class="l">SMS No</span></a>
-    <div class="sc-stat danger{% if not kpi.scaduti_do %} is-zero{% endif %}"><span class="n">{{ kpi.scaduti_do }}</span><span class="l">DO scaduti</span></div>
-    <div class="sc-stat danger{% if not kpi.scaduti_check %} is-zero{% endif %}"><span class="n">{{ kpi.scaduti_check }}</span><span class="l">CHECK scaduti</span></div>
+    <a href="{{ u_sc }}?filtro=sms_si" class="sc-stat kpi-link{% if not kpi.sms_si %} is-zero{% endif %}" title="Apri l'elenco filtrato: esito SMS Sì"><span class="n">{{ kpi.sms_si }}</span><span class="l">SMS Sì</span></a>
+    <a href="{{ u_sc }}?filtro=sms_no" class="sc-stat kpi-link{% if not kpi.sms_no %} is-zero{% endif %}" title="Apri l'elenco filtrato: esito SMS No"><span class="n">{{ kpi.sms_no }}</span><span class="l">SMS No</span></a>
+    <a href="{{ u_sc }}?filtro=scaduti_do" class="sc-stat danger kpi-link{% if not kpi.scaduti_do %} is-zero{% endif %}" title="Apri l'elenco filtrato: esecuzione (DO) scaduta"><span class="n">{{ kpi.scaduti_do }}</span><span class="l">DO scaduti</span></a>
+    <a href="{{ u_sc }}?filtro=scaduti_check" class="sc-stat danger kpi-link{% if not kpi.scaduti_check %} is-zero{% endif %}" title="Apri l'elenco filtrato: controllo (CHECK) scaduto"><span class="n">{{ kpi.scaduti_check }}</span><span class="l">CHECK scaduti</span></a>
   </div>
 
   {# --- Coda di triage --- #}

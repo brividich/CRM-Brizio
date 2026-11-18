@@ -44,8 +44,10 @@
         <input type="hidden" name="tab" value="persone">
         <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca per nome o email" aria-label="Cerca persona">
         <label class="rp-check"><input type="checkbox" name="con_ruoli" value="1"{% if solo_con_ruoli %} checked{% endif %}> solo con ruoli</label>
+        <label class="rp-check"><input type="checkbox" name="amministratori" value="1"{% if solo_amministratori %} checked{% endif %}> solo amministratori</label>
         <button class="btn" type="submit">Cerca</button>
       </form>
+      <p class="acl-muted" style="margin:6px 0;">{{ persone_totale }} person{{ persone_totale|pluralize:"a,e" }}{% if persone_totale > persone|length %}, mostrate le prime {{ persone|length }}: restringi la ricerca{% endif %}.</p>
       {% if persone %}
       <div class="acl-table-wrap">
         <table class="acl-table">
@@ -854,12 +856,13 @@
   {% if tab == "sistema" %}
   <div class="card"><div class="card-body">
     <div class="rp-kpis">
-      <div class="rp-kpi"><strong>{{ persone_con_ruolo }}</strong><span>persone con almeno un ruolo, su {{ persone_attive }} attive</span></div>
-      <div class="rp-kpi"><strong>{{ amministratori }}</strong><span>amministratori da ruolo</span></div>
-      <div class="rp-kpi"><strong>{{ ruoli_senza_persone|length }}</strong><span>ruoli ancora senza persone</span></div>
+      {% url 'admin_portale:ruoli_portale' as rp_url %}
+      <a class="rp-kpi kpi-link" href="{{ rp_url }}?tab=persone&amp;con_ruoli=1" title="Apri l'elenco filtrato: persone attive con almeno un ruolo valido"><strong>{{ persone_con_ruolo }}</strong><span>persone con almeno un ruolo, su {{ persone_attive }} attive</span></a>
+      <a class="rp-kpi kpi-link" href="{{ rp_url }}?tab=persone&amp;amministratori=1" title="Apri l'elenco filtrato: persone con un ruolo amministratore"><strong>{{ amministratori }}</strong><span>amministratori da ruolo</span></a>
+      <a class="rp-kpi kpi-link" href="#ruoli-senza-persone" title="Vai all'elenco dei ruoli senza persone"><strong>{{ ruoli_senza_persone|length }}</strong><span>ruoli ancora senza persone</span></a>
     </div>
     {% if ruoli_senza_persone %}
-      <p class="acl-muted">Ruoli senza persone: {% for r in ruoli_senza_persone %}{{ r.label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+      <p class="acl-muted" id="ruoli-senza-persone">Ruoli senza persone: {% for r in ruoli_senza_persone %}{{ r.label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
     {% endif %}
 
     <div class="acl-actions" style="margin:12px 0 18px;">

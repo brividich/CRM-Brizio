@@ -43,10 +43,10 @@
 
     {# ── KPI di erogazione ────────────────────────────────────────────────── #}
     <section class="fmd-kpi fmd-k4">
-      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Sessioni erogate</div><div class="fmd-mtr-sub">Come titolare o docente di lezione</div></div>
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ corsi_distinti }}</span></div><div class="fmd-mtr-lbl">Corsi distinti</div><div class="fmd-mtr-sub">Titoli diversi insegnati</div></div>
-      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ ore_erogate|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Al netto delle pause</div></div>
-      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma degli iscritti alle sessioni</div></div>
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="#docente-sessioni" title="Vai all'elenco delle sessioni in cui ha insegnato"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Sessioni erogate</div><div class="fmd-mtr-sub">Come titolare o docente di lezione</div></a>
+      <a class="fmd-mtr fmd-t-cyan kpi-link" href="#docente-sessioni" title="Vai all'elenco delle sessioni: corsi distinti tra quelle righe"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ corsi_distinti }}</span></div><div class="fmd-mtr-lbl">Corsi distinti</div><div class="fmd-mtr-sub">Titoli diversi insegnati</div></a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="#docente-sessioni" title="Vai all'elenco delle sessioni: la colonna Ore somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ ore_erogate|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Al netto delle pause</div></a>
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="#docente-sessioni" title="Vai all'elenco delle sessioni: la colonna Iscritti somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma degli iscritti alle sessioni</div></a>
     </section>
 
     {# ── Anagrafica docente ───────────────────────────────────────────────── #}
@@ -84,7 +84,7 @@
     {% include "anagrafica/partials/_ente_documenti.html" with add_url=doc_add_url %}
 
     {# ── Corsi svolti ─────────────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="docente-sessioni">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Corsi svolti <span class="fmd-count">{{ sessioni|length }}</span></div>
         <div class="fmd-block-aside">sessioni in cui ha insegnato</div>
@@ -98,7 +98,7 @@
               <th>Corso</th>
               <th>Periodo</th>
               <th class="fmd-c">Iscritti</th>
-              <th class="fmd-c">Ore</th>
+              <th class="fmd-c" title="Ore delle lezioni tenute da questo docente">Ore insegnate</th>
               <th>Ruolo</th>
               <th>Stato</th>
             </tr>
@@ -113,7 +113,7 @@
               </td>
               <td class="fmd-nowrap">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td>
               <td class="fmd-c">{{ s.n_iscritti }}</td>
-              <td class="fmd-c">{{ s.ore_pianificate|floatformat:"-2" }}</td>
+              <td class="fmd-c">{{ s.ore_docente|floatformat:"-2" }}</td>
               <td>
                 {% if s.docente_id == istr.pk %}<span class="fmd-badge fmd-b-cyan">Titolare</span>
                 {% else %}<span class="fmd-badge fmd-plain">Lezioni</span>{% endif %}

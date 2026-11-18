@@ -225,8 +225,10 @@ def _priority_kpis(request, tile_kpis: dict | None = None) -> list[dict]:
 
     ticket_url = _safe_url("tickets:dashboard")
     anomalie_url = _safe_url("gestione_anomalie_page")
-    task_url = _safe_url("tasks:list")
-    assenze_url = _safe_url("assenze_menu")
+    # Dove il riquadro conosce la lista che riproduce il suo numero, la usa.
+    task_url = (task_stats[0].get("url") if task_stats else None) or _safe_url("tasks:list")
+    assenze_kpi = tile_kpis.get("assenze") or []
+    assenze_url = (assenze_kpi[0].get("url") if assenze_kpi else None) or _safe_url("assenze_menu")
 
     return [
         {"tone": "red",    "icon_char": "⚠", "value": anomalie_open, "label": "Anomalie aperte", "sub": "aggiornato in tempo reale", "url": anomalie_url},
@@ -313,6 +315,9 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
             {"value": s.get("todo", 0) + s.get("in_progress", 0), "unit": "in corso", "tone": "info"},
             {"value": scaduti, "unit": "scaduti", "tone": "danger" if scaduti else "info"},
         ]
+        if td.get("user_id"):
+            # Elenco attività con lo stesso insieme del numero: aperte assegnate alla persona.
+            out["task"][0]["url"] = f"{reverse('tasks:list')}?mine=0&assigned_to={td['user_id']}&open=on"
     except Exception:
         logger.exception("Home: riquadro «Task» non calcolato")
 
@@ -390,16 +395,33 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
         # con la stessa funzione del badge in alto, non con la lista troncata.
         if legacy_user:
             ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip().upper()
+            # Link alla coda della dashboard segnalazioni solo se la persona può aprirla
+            # con lo stesso perimetro del numero; altrimenti resta il menu assenze.
+            view_scope = ""
+            if request is not None:
+                try:
+                    from assenze.views._helpers import _assenze_permissions
+
+                    view_scope = str(_assenze_permissions(request).get("view_scope") or "")
+                except Exception:
+                    view_scope = ""
+            url_coda = None
             if is_admin or ruolo in ("AMMINISTRAZIONE", "ADMIN"):
                 from assenze.views import count_all_pending
 
                 in_attesa = count_all_pending()
+                # Coda aziendale: conta con count_all_pending.
+                if view_scope == "all":
+                    url_coda = f"{reverse('assenze_car_dashboard')}?scope=all#in-attesa"
             else:
                 from core.context_processors import _count_car_pending
 
                 in_attesa = _count_car_pending(int(legacy_user.id), legacy_user=legacy_user)
+                # Coda del capo: count_pending_for_manager, la stessa della pagina.
+                if view_scope in ("all", "reparto"):
+                    url_coda = f"{reverse('assenze_car_dashboard')}#in-attesa"
             out["assenze"] = [
-                {"value": in_attesa, "unit": "in approvazione", "tone": "warning"},
+                {"value": in_attesa, "unit": "in approvazione", "tone": "warning", "url": url_coda},
             ]
     except Exception:
         logger.exception("Home: riquadro «Assenze» non calcolato")

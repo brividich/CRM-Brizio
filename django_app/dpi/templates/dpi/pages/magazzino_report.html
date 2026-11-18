@@ -139,11 +139,12 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
   </div>
 
   <div class="dpi-kpi-row">
-    <div class="dpi-kpi"><span class="dpi-kpi-val">{{ consumati }}</span><span class="dpi-kpi-lbl">Pezzi consegnati</span></div>
-    <div class="dpi-kpi dpi-kpi-green"><span class="dpi-kpi-val">{{ caricati }}</span><span class="dpi-kpi-lbl">Pezzi caricati da DDT</span></div>
-    <div class="dpi-kpi"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Giacenza attuale</span></div>
-    <div class="dpi-kpi dpi-kpi-orange"><span class="dpi-kpi-val">{{ sotto }}</span><span class="dpi-kpi-lbl">Da riordinare</span></div>
-    <div class="dpi-kpi dpi-kpi-red"><span class="dpi-kpi-val">{{ esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></div>
+    {% url 'dpi:magazzino' as url_magazzino %}
+    <a class="dpi-kpi kpi-link" href="{{ url_magazzino }}?tipo=SCARICO&amp;da={{ da|date:'Y-m-d' }}#movimenti" title="Apri i movimenti di consegna dal {{ da|date:'d/m/Y' }}"><span class="dpi-kpi-val">{{ consumati }}</span><span class="dpi-kpi-lbl">Pezzi consegnati</span></a>
+    <a class="dpi-kpi dpi-kpi-green kpi-link" href="{{ url_magazzino }}?tipo=CARICO&amp;da={{ da|date:'Y-m-d' }}#movimenti" title="Apri i carichi da DDT dal {{ da|date:'d/m/Y' }}"><span class="dpi-kpi-val">{{ caricati }}</span><span class="dpi-kpi-lbl">Pezzi caricati da DDT</span></a>
+    <a class="dpi-kpi kpi-link" href="{{ url_magazzino }}#giacenze" title="Apri la giacenza di tutti i modelli a catalogo"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Giacenza attuale</span></a>
+    <a class="dpi-kpi dpi-kpi-orange kpi-link" href="{{ url_magazzino }}?stato=sotto#giacenze" title="Apri l'elenco filtrato: modelli sotto scorta minima"><span class="dpi-kpi-val">{{ sotto }}</span><span class="dpi-kpi-lbl">Da riordinare</span></a>
+    <a class="dpi-kpi dpi-kpi-red kpi-link" href="{{ url_magazzino }}?stato=esaurito#giacenze" title="Apri l'elenco filtrato: modelli esauriti"><span class="dpi-kpi-val">{{ esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></a>
   </div>
 
   <div class="dpi-grid">

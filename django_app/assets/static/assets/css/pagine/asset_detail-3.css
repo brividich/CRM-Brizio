@@ -190,3 +190,6 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
 .af-map-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .af-map-actions .af-btn { flex:1 1 auto; justify-content:center; }
 body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rgba(0,0,0,.5); }
+/* KPI cliccabili: il valore della metrica porta alla pagina collegata. */
+a.af-metric-value--link{color:inherit;text-decoration:none}
+a.af-metric-value--link:hover{text-decoration:underline}

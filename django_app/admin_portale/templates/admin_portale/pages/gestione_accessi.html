@@ -219,8 +219,8 @@ body.theme-dark .unsaved-badge{background:rgba(214,158,46,.16);color:#fcd34d}
     </form>
     {% if selected_role %}
     <div class="role-stats">
-      <span class="role-stat"><strong>{{ module_data|length }}</strong> moduli</span>
-      <span class="role-stat"><strong>{{ total_active }}</strong> / {{ total_pulsanti }} pulsanti con can_view</span>
+      <a class="role-stat kpi-link" href="#accessi-form" title="Vai alla matrice dei moduli del ruolo"><strong>{{ module_data|length }}</strong> moduli</a>
+      <a class="role-stat kpi-link" href="#accessi-form" title="Vai alla matrice: pulsanti con can_view attivo per questo ruolo"><strong>{{ total_active }}</strong> / {{ total_pulsanti }} pulsanti con can_view</a>
     </div>
     {% endif %}
   </div>

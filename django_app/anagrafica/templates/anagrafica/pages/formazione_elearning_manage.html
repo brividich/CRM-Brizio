@@ -71,26 +71,26 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
 
     {# ── KPI iscritti ───────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
-      <div class="fmd-mtr fmd-t-navy">
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}#elearning-iscritti" title="Apri l'elenco di tutti gli iscritti al corso">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ counts.iscritti }}</span></div>
         <div class="fmd-mtr-lbl">Iscritti</div>
-      </div>
-      <div class="fmd-mtr fmd-t-yellow">
+      </a>
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=IN_CORSO#elearning-iscritti" title="Apri l'elenco filtrato: iscritti in corso">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ counts.in_corso }}</span></div>
         <div class="fmd-mtr-lbl">In corso</div>
-      </div>
-      <div class="fmd-mtr fmd-t-green">
+      </a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=COMPLETATO#elearning-iscritti" title="Apri l'elenco filtrato: iscritti che hanno completato">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ counts.completati }}</span></div>
         <div class="fmd-mtr-lbl">Completati</div>
-      </div>
-      <div class="fmd-mtr fmd-t-orange">
+      </a>
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=NON_SUPERATO#elearning-iscritti" title="Apri l'elenco filtrato: quiz non superato">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ counts.non_superato }}</span></div>
         <div class="fmd-mtr-lbl">Non superato</div>
-      </div>
+      </a>
     </section>
 
     {# ── Contenuti (riepilogo) ──────────────────────────────────────────── #}
@@ -199,9 +199,10 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
     </section>
 
     {# ── Iscritti & esiti ───────────────────────────────────────────────── #}
-    <section class="fmd-panel">
+    <section class="fmd-panel" id="elearning-iscritti">
       <div class="fmd-toolbar">
-        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg> Iscritti & esiti <span class="fmd-count">{{ counts.iscritti }}</span></span>
+        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg> Iscritti & esiti <span class="fmd-count">{{ iscritti|length }}</span></span>
+        {% if filtro_esito %}<span class="fmd-muted" style="font-size:12.5px;">Solo esito «{% if filtro_esito == "IN_CORSO" %}In corso{% elif filtro_esito == "COMPLETATO" %}Completato{% else %}Non superato{% endif %}» · <a class="fmd-data-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}#elearning-iscritti">mostra tutti</a></span>{% endif %}
         <span class="fmd-spacer" style="flex:1;"></span>
         <a href="{% url 'anagrafica:formazione_elearning_iscritti_csv' corso.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV</a>
       </div>

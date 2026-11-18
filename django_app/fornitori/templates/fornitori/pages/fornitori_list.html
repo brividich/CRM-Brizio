@@ -18,7 +18,7 @@
 
 /* ── KPI row ── */
 .ana-kpi { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-.ana-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
+.ana-k { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
 .ana-k-val { font-size:32px; font-weight:800; color:#0f172a; line-height:1; }
 .ana-k-label { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-top:6px; }
 .ana-k-sub { font-size:12px; color:#94a3b8; margin-top:3px; }
@@ -125,20 +125,20 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
 
   <!-- KPI -->
   <div class="ana-kpi">
-    <div class="ana-k">
+    <a class="ana-k kpi-link" href="{% url 'fornitori:fornitori_list' %}?attivi=tutti" title="Apri l'elenco filtrato: tutti i fornitori, attivi e disattivati">
       <div class="ana-k-val">{{ stats_totale }}</div>
       <div class="ana-k-label">Fornitori totali</div>
       <div class="ana-k-sub">{{ stats_attivi }} attivi</div>
-    </div>
-    <div class="ana-k">
+    </a>
+    <a class="ana-k kpi-link" href="{% url 'fornitori:fornitori_list' %}?attivi=1" title="Apri l'elenco filtrato: fornitori attivi">
       <div class="ana-k-val">{{ stats_attivi }}</div>
       <div class="ana-k-label">Fornitori attivi</div>
-      <div class="ana-k-sub">{{ stats_totale|add:"-"|add:stats_attivi }} inattivi</div>
-    </div>
+      <div class="ana-k-sub">{{ stats_inattivi }} inattivi</div>
+    </a>
     <div class="ana-k">
       <div class="ana-k-val">€ {{ spesa_totale|floatformat:0 }}</div>
       <div class="ana-k-label">Spesa totale ordini</div>
-      <div class="ana-k-sub">Tutti i fornitori</div>
+      <div class="ana-k-sub">Tutti i fornitori, annullati esclusi</div>
     </div>
   </div>
 
@@ -180,7 +180,7 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
   <!-- Tabella -->
   <div class="ana-card">
     <div class="ana-card-head">
-      <div class="ana-card-title">Risultati — {{ page_obj.paginator.count }} fornitori</div>
+      <div class="ana-card-title">Risultati — {{ page_obj.paginator.count }} fornitori{% if solo_inattivi %} disattivati <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:fornitori_list' %}">Togli il filtro</a>{% endif %}</div>
       <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?{{ query_filtri }}&formato=csv">Esporta CSV</a>
     </div>
     <div class="ana-table-wrap">

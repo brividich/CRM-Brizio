@@ -85,8 +85,18 @@ def ciclo_dettaglio(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _nega(request, "Non puoi consultare il programma audit.")
     ciclo = get_object_or_404(CicloAudit, pk=pk)
+    copertura = programma_service.copertura_ciclo(ciclo)
+    # Le tessere filtrano la tabella con la stessa condizione dei contatori di copertura_ciclo.
+    filtri = {
+        "senza_audit": lambda r: not any(a["stato"] for a in r["anni"]),
+        "clausole": lambda r: bool(r["clausole_scoperte"]),
+    }
+    filtro = request.GET.get("filtro", "")
+    if filtro not in filtri:
+        filtro = ""
+    righe = [r for r in copertura["righe"] if filtri[filtro](r)] if filtro else copertura["righe"]
     return render(request, "sistema_gestione/pages/audit_ciclo.html", {
-        "page_title": str(ciclo), "ciclo": ciclo, "copertura": programma_service.copertura_ciclo(ciclo),
+        "page_title": str(ciclo), "ciclo": ciclo, "copertura": copertura, "righe": righe, "filtro": filtro,
     })
 
 

@@ -5,7 +5,7 @@
 {% block extra_head %}
 <style>
   .evn-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:18px; }
-  .evn-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
+  .evn-stat { display:block; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
   .evn-stat .n { font-size:26px; font-weight:800; color:#0f172a; }
   .evn-stat .l { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
   .evn-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:14px; }
@@ -42,12 +42,12 @@ body.theme-dark .evn-note{color:var(--text-light)}
   {% include "automazioni/components/subnav.html" %}
 
   <div class="evn-stats">
-    <div class="evn-stat"><div class="n">{{ totale }}</div><div class="l">Notifiche censite</div></div>
+    <a class="evn-stat kpi-link" href="#elenco-notifiche" title="Vai all'elenco delle notifiche censite"><div class="n">{{ totale }}</div><div class="l">Notifiche censite</div></a>
   </div>
 
   <p class="evn-note">Ogni evento installato apre un flusso nel designer: puoi gestire attivazione, condizioni, azioni e consultare lo storico. Il salvataggio dei dati del modulo rimane indipendente dalla notifica.</p>
 
-  <div class="evn-table-wrap">
+  <div class="evn-table-wrap" id="elenco-notifiche">
     <table class="evn-table">
       <thead>
         <tr>

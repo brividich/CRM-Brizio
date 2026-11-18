@@ -101,14 +101,18 @@ def project_actions(request, project_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     include_closed = request.GET.get("closed") == "1"
     all_actions = build_project_actions(project, include_closed=include_closed)
-    open_count = sum(row.is_open for row in all_actions)
-    overdue_count = sum(row.is_overdue for row in all_actions)
-    closed_count = sum(not row.is_open for row in all_actions)
-    unassigned_count = sum(row.is_open and not row.owner_label for row in all_actions)
-    no_due_count = sum(row.is_open and row.due_date is None for row in all_actions)
+    # KPI = stessa funzione dei filtri della tabella: ogni tessera apre il
+    # registro con il filtro che riproduce esattamente il suo numero.
+    open_count = len(filter_action_rows(all_actions, stato="aperte"))
+    overdue_count = len(filter_action_rows(all_actions, scadenza="scadute"))
+    closed_count = len(filter_action_rows(all_actions, stato="chiuse"))
+    unassigned_count = len(filter_action_rows(all_actions, stato="aperte", responsabile="nessuno"))
+    no_due_count = len(filter_action_rows(all_actions, scadenza="senza"))
 
     # Filtri: i KPI restano sull'intero registro, la tabella mostra il filtrato.
+    stato = (request.GET.get("stato") or "").strip()
     filters = {
+        "stato": stato if stato in {"aperte", "chiuse"} else "",
         "tipo": (request.GET.get("tipo") or "").strip(),
         "responsabile": (request.GET.get("responsabile") or "").strip(),
         "scadenza": (request.GET.get("scadenza") or "").strip(),

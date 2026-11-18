@@ -10,31 +10,32 @@
   {% url 'monitoring_admin:issue_list' as monitoring_issue_list_url %}
   {% include "admin_portale/components/page_header.html" with page_title="Monitoring" page_subtitle="Cruscotto unificato per errori applicativi, segnalazioni utente e automazioni interne." page_action_label="Lista issue" page_action_url=monitoring_issue_list_url %}
 
+  {% url 'monitoring_admin:automation_list' as monitoring_automation_list_url %}
   <div class="monitoring-kpis">
-    <div class="monitoring-kpi">
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_issue_list_url }}?open_only=1" title="Apri l'elenco filtrato: issue aperte">
       <div class="monitoring-kpi-label">Issue aperte</div>
       <div class="monitoring-kpi-value">{{ open_issues_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_issue_list_url }}?open_only=1&amp;severity=critical" title="Apri l'elenco filtrato: issue aperte con severità critica">
       <div class="monitoring-kpi-label">Issue critiche</div>
       <div class="monitoring-kpi-value">{{ critical_issues_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_issue_list_url }}?new_24h=1" title="Apri l'elenco filtrato: issue create nelle ultime 24 ore">
       <div class="monitoring-kpi-label">Nuove ultime 24h</div>
       <div class="monitoring-kpi-value">{{ new_issues_24h_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_issue_list_url }}?open_only=1&amp;unassigned=1" title="Apri l'elenco filtrato: issue aperte senza assegnatario">
       <div class="monitoring-kpi-label">Non assegnate</div>
       <div class="monitoring-kpi-value">{{ unassigned_open_issues_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_automation_list_url }}?failed_today=1" title="Apri l'elenco filtrato: job con almeno un'esecuzione fallita oggi">
       <div class="monitoring-kpi-label">Job falliti oggi</div>
       <div class="monitoring-kpi-value">{{ job_failed_today_count }}</div>
-    </div>
-    <div class="monitoring-kpi">
+    </a>
+    <a class="monitoring-kpi kpi-link" href="{{ monitoring_automation_list_url }}?missing=1" title="Apri l'elenco filtrato: job non eseguiti nei tempi attesi">
       <div class="monitoring-kpi-label">Job missing</div>
       <div class="monitoring-kpi-value">{{ job_missing_count }}</div>
-    </div>
+    </a>
   </div>
 
   <p style="margin:4px 0 12px"><a href="{% url 'monitoring_admin:system_status' %}">→ Stato sistema (centrale di comando)</a></p>

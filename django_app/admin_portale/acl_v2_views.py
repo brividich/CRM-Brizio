@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlencode
 from collections import Counter, defaultdict
 
 from django.contrib import messages
@@ -564,6 +565,9 @@ def _group_permission_rows_by_area(permission_rows: list) -> list[dict]:
     return areas_out
 
 
+USER_OVERRIDES_LIST_LIMIT = 150
+
+
 @legacy_admin_required
 @require_http_methods(["GET", "POST"])
 def acl_canonico(request):
@@ -893,7 +897,7 @@ def acl_canonico(request):
         bindings_qs = bindings_qs.filter(
             Q(route_name__icontains=q_filter)
             | Q(path_pattern__icontains=q_filter)
-            | Q(permission_id__icontains=q_filter)
+            | Q(permission__code__icontains=q_filter)
             | Q(source_app__icontains=q_filter)
             | Q(note__icontains=q_filter)
         )
@@ -1040,13 +1044,13 @@ def acl_canonico(request):
     user_override_qs = UserPermissionGrant.objects.select_related("permission").all().order_by("-updated_at", "-id")
     if q_filter:
         user_override_qs = user_override_qs.filter(
-            Q(permission_id__icontains=q_filter)
+            Q(permission__code__icontains=q_filter)
             | Q(note__icontains=q_filter)
             | Q(legacy_user_id__icontains=q_filter)
         )
     if selected_user_id is not None and active_tab == "overrides":
         user_override_qs = user_override_qs.filter(legacy_user_id=selected_user_id)
-    user_overrides = list(user_override_qs[:150])
+    user_overrides = list(user_override_qs[:USER_OVERRIDES_LIST_LIMIT])
 
     coverage_rows, coverage_summary = _collect_route_coverage_rows()
     legacy_only_routes = [row for row in coverage_rows if row["status"] == STATUS_LEGACY_FALLBACK][:8]
@@ -1071,7 +1075,11 @@ def acl_canonico(request):
             if code not in enabled_grants_count
         ),
         "bindings_total": RoutePermissionBinding.objects.count(),
-        "bindings_missing_grant": sum(1 for row in bindings if row["warning_missing_any_grant"]),
+        # Globale come le altre tessere (prima contava solo i binding gia' filtrati da
+        # modulo/ricerca/stato): stessa condizione del filtro binding_state=missing_grant.
+        "bindings_missing_grant": sum(
+            n for code, n in binding_counts.items() if int(enabled_grants_count.get(code, 0)) == 0
+        ),
         "overrides_total": UserPermissionGrant.objects.count(),
         "legacy_only_routes": int(coverage_summary["legacy_fallback"]),
         "unbound_routes": int(coverage_summary["unbound"]),
@@ -1085,6 +1093,7 @@ def acl_canonico(request):
         "selected_role_id": selected_role_id,
         "route_catalog": _route_catalog(),
         "user_overrides": user_overrides,
+        "user_overrides_limit": USER_OVERRIDES_LIST_LIMIT,
         "summary": summary,
         "filters": {
             "q": q_filter,
@@ -1127,6 +1136,8 @@ def acl_route_coverage(request):
     app_filter = str(request.GET.get("app") or "").strip()
     q_filter = str(request.GET.get("q") or "").strip()
     only_warnings = str(request.GET.get("only_warnings") or "0").strip() == "1"
+    # Tessera «Admin bypass»: stessa condizione row["admin_bypass"] del conteggio.
+    only_admin_bypass = str(request.GET.get("admin_bypass") or "0").strip() == "1"
 
     if status_filter not in {"ALL", *ROUTE_STATUS_CHOICES}:
         status_filter = "ALL"
@@ -1138,6 +1149,8 @@ def acl_route_coverage(request):
         q_filter=q_filter,
         only_warnings=only_warnings,
     )
+    if only_admin_bypass:
+        filtered_rows = [row for row in filtered_rows if row["admin_bypass"]]
     filtered_summary = {
         "total": len(filtered_rows),
         "canonical_bound": sum(1 for row in filtered_rows if row["status"] == STATUS_CANONICAL_BOUND),
@@ -1202,7 +1215,10 @@ def acl_route_coverage(request):
                 "app": app_filter,
                 "q": q_filter,
                 "only_warnings": only_warnings,
+                "admin_bypass": only_admin_bypass,
             },
+            # Filtri app/ricerca correnti, per i link del «Riepilogo filtrato».
+            "filtro_scope_qs": urlencode({k: v for k, v in (("app", app_filter), ("q", q_filter)) if v}),
             "app_choices": app_choices,
         },
     )

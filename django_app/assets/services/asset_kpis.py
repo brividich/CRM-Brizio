@@ -132,7 +132,8 @@ def _printer_tiles(asset, now):
             tiles.append(tile)
         tiles.append(_tile("Pagine totali", _fmt_int(total), "Contatore cumulativo", "none", TAB_MONITORING))
         if total:
-            tiles.append(_tile("Quota colore", f"{round(100 * colour / total)}%", "Sul totale stampato", "none"))
+            # Fonte del dato: i contatori nella scheda Monitoraggio (come le altre tessere).
+            tiles.append(_tile("Quota colore", f"{round(100 * colour / total)}%", "Sul totale stampato", "none", TAB_MONITORING))
     # Toner: ultimo livello per consumabile (MFC) o dall'ultima rilevazione SNMP (dispositivi).
     levels = []
     seen = set()

@@ -1247,6 +1247,13 @@ def gestione_assenze(request):
             "summary_personali": _summarize_personal_requests(richieste_personali),
             "summary_da_approvare": _summarize_pending_requests(richieste_da_approvare),
             "summary_dipendenti_gestite": _summarize_pending_requests(richieste_dipendenti_gestite),
+            # Tessera «Da approvare»: conteggio pieno con lo stesso perimetro della coda
+            # (la lista sotto si ferma alle prime 40, come avvisa la nota).
+            "n_da_approvare": (
+                _helpers.count_pending_for_manager(legacy_id, manager_name=name, manager_email=email)
+                if e_capo else 0
+            ),
+            "limite_elenco": 40,
             "ruolo_corrente": "",
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),

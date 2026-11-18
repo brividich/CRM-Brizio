@@ -7,6 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
 <style>
+a.fmd-hero-tile{ display:block; }
 .ofic-kpi{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:16px; }
 .ofic-kpi a, .ofic-kpi div{ display:flex; flex-direction:column; gap:4px; padding:14px 16px; border-radius:14px;
   border:1px solid #e2e8f0; background:#fff; color:inherit; text-decoration:none; }
@@ -94,8 +95,8 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
         </div>
         <div class="fmd-hero-side">
           {% if ofi_vede_registro %}
-          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ c.aperte }}</span><span class="fmd-lbl">Voci aperte</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.pct }}%</span><span class="fmd-lbl">Completamento A/P</span></div>
+          <a class="fmd-hero-tile kpi-link" href="{% url 'registro_ofi:lista' %}?aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci aperte"><span class="fmd-corner"></span><span class="fmd-bignum">{{ c.aperte }}</span><span class="fmd-lbl">Voci aperte</span></a>
+          <a class="fmd-hero-tile fmd-alt kpi-link" href="{% url 'registro_ofi:lista' %}?fase_almeno=ACT{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci arrivate almeno ad Act (A), il numeratore della percentuale A/P"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.pct }}%</span><span class="fmd-lbl">Completamento A/P</span></a>
           {% endif %}
           {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo inserimento</a>{% endif %}
         </div>
@@ -142,9 +143,9 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
       <a href="{% url 'registro_ofi:lista' %}?scaduti=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if c.scadute %}is-bad{% endif %}"><span class="ofic-num">{{ c.scadute }}</span><span class="ofic-lbl">Scadute</span></a>
       <a href="{% url 'registro_ofi:lista' %}?in_scadenza=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if n_in_scadenza %}is-warn{% endif %}"><span class="ofic-num">{{ n_in_scadenza }}</span><span class="ofic-lbl">In scadenza entro 30 giorni</span></a>
       <a href="{% url 'registro_ofi:lista' %}?senza_responsabile=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if c.senza_responsabile %}is-warn{% endif %}"><span class="ofic-num">{{ c.senza_responsabile }}</span><span class="ofic-lbl">Aperte senza responsabile</span></a>
-      <div><span class="ofic-num">{{ c.chiuse_anno }}</span><span class="ofic-lbl">Chiuse negli ultimi 12 mesi</span></div>
-      <div><span class="ofic-num">{% if c.giorni_medi_chiusura is not None %}{{ c.giorni_medi_chiusura }} gg{% else %}—{% endif %}</span><span class="ofic-lbl">Tempo medio di chiusura</span></div>
-      <div class="{% if c.pct_in_tempo is not None and c.pct_in_tempo >= 90 %}is-ok{% endif %}"><span class="ofic-num">{% if c.pct_in_tempo is not None %}{{ c.pct_in_tempo }}%{% else %}—{% endif %}</span><span class="ofic-lbl">Chiuse entro la scadenza</span></div>
+      <a href="{% url 'registro_ofi:lista' %}?chiuse_12m=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri l'elenco filtrato: voci chiuse negli ultimi 12 mesi"><span class="ofic-num">{{ c.chiuse_anno }}</span><span class="ofic-lbl">Chiuse negli ultimi 12 mesi</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?chiuse_12m=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri le voci chiuse negli ultimi 12 mesi da cui è calcolata la media"><span class="ofic-num">{% if c.giorni_medi_chiusura is not None %}{{ c.giorni_medi_chiusura }} gg{% else %}—{% endif %}</span><span class="ofic-lbl">Tempo medio di chiusura</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?chiuse_12m=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" title="Apri le voci chiuse negli ultimi 12 mesi da cui è calcolata la percentuale" class="{% if c.pct_in_tempo is not None and c.pct_in_tempo >= 90 %}is-ok{% endif %}"><span class="ofic-num">{% if c.pct_in_tempo is not None %}{{ c.pct_in_tempo }}%{% else %}—{% endif %}</span><span class="ofic-lbl">Chiuse entro la scadenza</span></a>
     </div>
 
     {# ── Da guardare adesso ─────────────────────────────────────────────── #}
@@ -155,7 +156,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
           {% for v in scadute %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
             <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.processo_sgi.codice|default:v.processo|default:"—" }}</span>
             <span class="ofih-data is-bad">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
-        </ul>{% if n_scadute > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?scaduti=1">Tutte le {{ n_scadute }} →</a>{% endif %}
+        </ul>{% if n_scadute > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?scaduti=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Tutte le {{ n_scadute }} →</a>{% endif %}
         {% else %}<p class="ofic-vuoto">Nessuna voce scaduta.</p>{% endif %}
       </section>
       <section class="fmd-panel fmd-block">
@@ -164,7 +165,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
           {% for v in in_scadenza %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
             <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.get_fase_display }}</span>
             <span class="ofih-data">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
-        </ul>{% if n_in_scadenza > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?in_scadenza=1">Tutte le {{ n_in_scadenza }} →</a>{% endif %}
+        </ul>{% if n_in_scadenza > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?in_scadenza=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Tutte le {{ n_in_scadenza }} →</a>{% endif %}
         {% else %}<p class="ofic-vuoto">Nessuna scadenza nei prossimi 30 giorni.</p>{% endif %}
       </section>
       <section class="fmd-panel fmd-block">
@@ -173,7 +174,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
           {% for v in senza_resp %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
             <span class="ofih-testo" title="{{ v.opportunita }}">{{ v.processo_sgi.codice|default:v.processo|default:"—" }} · {{ v.opportunita|truncatechars:60 }}</span>
             <span class="ofih-data">{{ v.data_apertura|date:"d/m/Y" }}</span></li>{% endfor %}
-        </ul>{% if n_senza_resp > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?senza_responsabile=1">Tutte le {{ n_senza_resp }} →</a>{% endif %}
+        </ul>{% if n_senza_resp > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?senza_responsabile=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Tutte le {{ n_senza_resp }} →</a>{% endif %}
         <p class="ofic-vuoto" style="margin-top:6px;">Senza responsabile i solleciti vanno solo alla Qualità.</p>
         {% else %}<p class="ofic-vuoto">Ogni voce aperta ha un responsabile.</p>{% endif %}
       </section>
@@ -184,7 +185,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Da dove arrivano le voci</div></div>
       <div class="ofih-origini">
         {% for r in origini %}
-        <a href="{% url 'registro_ofi:lista' %}?origine={{ r.chiave }}&amp;aperte=1"><b>{{ r.n }}</b><span>{{ r.etichetta }}</span><small>aperte · {{ r.totale }} in totale</small></a>
+        <a href="{% url 'registro_ofi:lista' %}?origine={{ r.chiave }}&amp;aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}"><b>{{ r.n }}</b><span>{{ r.etichetta }}</span><small>aperte · {{ r.totale }} in totale</small></a>
         {% endfor %}
       </div>
     </section>
@@ -193,7 +194,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Voci aperte per processo del catalogo</div>
-        {% if n_senza_processo %}<div class="fmd-block-aside"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo=0&amp;aperte=1">{{ n_senza_processo }} senza processo del catalogo</a></div>{% endif %}
+        {% if n_senza_processo %}<div class="fmd-block-aside"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo=0&amp;aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">{{ n_senza_processo }} senza processo del catalogo</a></div>{% endif %}
       </div>
       {% if righe_processo %}
       <div class="fmd-tablewrap" data-fm-table-skip="1"><table class="ofih-tab">
@@ -204,7 +205,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
             <td class="n">{{ r.aperte }}</td>
             <td class="n">{% if r.nc %}<span class="fmd-badge fmd-b-red">{{ r.nc }}</span>{% else %}0{% endif %}</td>
             <td class="n">{% if r.scadute %}<span class="fmd-badge fmd-b-red">{{ r.scadute }}</span>{% else %}0{% endif %}</td>
-            <td style="text-align:right;"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo={{ r.processo.pk }}&amp;aperte=1">Voci →</a></td></tr>
+            <td style="text-align:right;"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo={{ r.processo.pk }}&amp;aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Voci →</a></td></tr>
           {% endfor %}
         </tbody>
       </table></div>
@@ -229,7 +230,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
       <section class="fmd-panel fmd-block">
         <div class="fmd-block-head"><div class="fmd-block-title">Aperte per fase PDCA</div></div>
         <ul class="ofic-bars">
-          {% for r in c.per_fase %}<li><a class="ofic-nome" href="{% url 'registro_ofi:lista' %}?fase={{ r.chiave }}{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">{{ r.nome }}</a><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
+          {% for r in c.per_fase %}<li><a class="ofic-nome" href="{% url 'registro_ofi:lista' %}?fase={{ r.chiave }}&amp;aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">{{ r.nome }}</a><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
         </ul>
       </section>
       <section class="fmd-panel fmd-block">

@@ -1172,9 +1172,13 @@ def _board_data_tasks(legacy_user_id: int | None, params: dict) -> dict:
             "todo": all_qs.filter(status=TaskStatus.TODO).count(),
             "in_progress": all_qs.filter(status=TaskStatus.IN_PROGRESS).count(),
             "done": all_qs.filter(status=TaskStatus.DONE).count(),
-            "overdue": sum(1 for t in all_qs.filter(status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS]) if t.is_overdue),
+            # Stessa condizione del filtro «Solo scadute» dell'elenco attivita' (una query, niente loop).
+            "overdue": all_qs.filter(
+                status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS], due_date__lt=timezone.localdate()
+            ).count(),
         }
-        return {"items": items, "stats": stats}
+        # user_id: le tessere aprono l'elenco attivita' filtrato su «Assegnato a» = questa persona.
+        return {"items": items, "stats": stats, "user_id": user.pk}
     except Exception:
         return {"items": [], "stats": {}}
 
@@ -1600,9 +1604,17 @@ def _board_data_procedure_refresh(request_user: Any, params: dict) -> dict:
                     "due_date": assignment.due_date.strftime("%d-%m-%Y") if assignment.due_date else "",
                 }
             )
+        # Stesse condizioni delle tessere di «Le mie letture» (procedure_refresh:my_assignments),
+        # dove portano i riquadri: «Da completare» = ?status=pending (scadute comprese),
+        # «Scadute» = ?status=overdue (anche quelle non ancora marcate dal job notturno).
+        # Prima «Scadute» contava solo lo stato OVERDUE e «Pendenti» le escludeva.
+        from procedure_refresh.models import q_scadute
+
         stats = {
-            "pending": qs.filter(status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]).count(),
-            "overdue": qs.filter(status=AssignmentStatus.OVERDUE).count(),
+            "pending": qs.filter(
+                status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED, AssignmentStatus.OVERDUE]
+            ).count(),
+            "overdue": qs.filter(q_scadute(timezone.localdate())).count(),
             "confirmed": qs.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
         }
         return {"items": items, "stats": stats}
@@ -1629,7 +1641,12 @@ def _board_data_module_overview(
             "value": int(task_data.get("stats", {}).get("todo", 0)) + int(task_data.get("stats", {}).get("in_progress", 0)),
             "meta": f"{int(task_data.get('stats', {}).get('overdue', 0))} scaduti",
             "tone": "blue",
-            "url": reverse("tasks:list"),
+            # Stesso insieme del numero: aperte assegnate alla persona (prima apriva
+            # «le mie», che comprende anche create e seguite).
+            "url": (
+                f"{reverse('tasks:list')}?mine=0&assigned_to={task_data['user_id']}&open=on"
+                if task_data.get("user_id") else reverse("tasks:list")
+            ),
             "icon_url": _module_image_url_for(
                 icon_lookup, "tasks", "task", "vrf-kickoff", "kickoff", fallback_filename="vrf-kickoff.svg"
             ),
@@ -1662,11 +1679,11 @@ def _board_data_module_overview(
         },
         {
             "label": "Procedure aperte",
-            "value": int(procedure_data.get("stats", {}).get("pending", 0))
-            + int(procedure_data.get("stats", {}).get("overdue", 0)),
+            # «pending» comprende già le scadute: prima le sommava due volte.
+            "value": int(procedure_data.get("stats", {}).get("pending", 0)),
             "meta": f"{int(procedure_data.get('stats', {}).get('confirmed', 0))} confermate",
             "tone": "yellow",
-            "url": reverse("procedure_refresh:my_assignments"),
+            "url": f"{reverse('procedure_refresh:my_assignments')}?status=pending",
             "icon_url": _module_image_url_for(
                 icon_lookup,
                 "procedure-refresh",

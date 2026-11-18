@@ -89,15 +89,35 @@ def _category_inventory_url(category_id: int, rows: int = 25) -> str:
     return f"{reverse('assets:asset_list')}?asset_category={int(category_id)}&rows={int(rows)}"
 
 
-def _build_asset_category_admin_rows(categories: list[AssetCategory]) -> list[dict[str, object]]:
+def _category_kpi_links(category_id: int) -> dict[str, str]:
+    """Elenco inventario / OdL con la stessa categoria esatta (``sottocategorie=0``)
+    che le metriche del banco categorie contano."""
+    asset_url = reverse("assets:asset_list")
+    wo_url = reverse("assets:wo_list")
+    base = f"asset_category={int(category_id)}&sottocategorie=0"
+    return {
+        "assets": f"{asset_url}?{base}",
+        "in_use": f"{asset_url}?{base}&status={Asset.STATUS_IN_USE}",
+        "in_repair": f"{asset_url}?{base}&status={Asset.STATUS_IN_REPAIR}",
+        "wo_open": f"{wo_url}?status={WorkOrder.STATUS_OPEN}&category={int(category_id)}",
+    }
+
+
+def _build_asset_category_admin_rows(categories: list[AssetCategory], request=None) -> list[dict[str, object]]:
+    """Righe del banco categorie. Con ``request`` i conteggi seguono l'ambito del
+    ruolo, come l'inventario e l'elenco OdL a cui portano le metriche."""
+    from ..services.visibilita import filtra as _filtra_asset, filtra_odl as _filtra_odl
+
     category_ids = [category.id for category in categories]
     if not category_ids:
         return []
+    asset_source = _filtra_asset(request, Asset.objects.all()) if request is not None else Asset.objects.all()
+    workorder_source = _filtra_odl(request, WorkOrder.objects.all()) if request is not None else WorkOrder.objects.all()
 
     asset_stats = {
         row["asset_category_id"]: row
         for row in (
-            Asset.objects.filter(asset_category_id__in=category_ids)
+            asset_source.filter(asset_category_id__in=category_ids)
             .values("asset_category_id")
             .annotate(
                 total=Count("id"),
@@ -127,7 +147,7 @@ def _build_asset_category_admin_rows(categories: list[AssetCategory]) -> list[di
     open_workorders = {
         row["asset__asset_category_id"]: row["total"]
         for row in (
-            WorkOrder.objects.filter(asset__asset_category_id__in=category_ids, status=WorkOrder.STATUS_OPEN)
+            workorder_source.filter(asset__asset_category_id__in=category_ids, status=WorkOrder.STATUS_OPEN)
             .values("asset__asset_category_id")
             .annotate(total=Count("id"))
             .order_by()
@@ -174,6 +194,8 @@ def _build_asset_category_admin_rows(categories: list[AssetCategory]) -> list[di
                 "last_updated": stats.get("last_updated"),
                 "sample_assets": sample_assets_by_category.get(category.id, []),
                 "inventory_url": _category_inventory_url(category.id),
+                # KPI cliccabili della riga: stessa categoria esatta delle metriche.
+                "kpi_links": _category_kpi_links(category.id),
                 "sidebar_target_url": sidebar_target,
                 "sidebar_active_match": sidebar_match,
                 "sidebar_button": sidebar_by_target.get(sidebar_target) or sidebar_by_match.get(sidebar_match),
@@ -572,16 +594,21 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
     """
 
     # --- Statistiche ---
-    total_assets = Asset.objects.count()
+    # Nell'ambito del ruolo, come l'inventario e l'elenco OdL a cui portano i KPI.
+    from ..services.visibilita import filtra as _filtra_asset, filtra_odl as _filtra_odl
+
+    _assets_scope = _filtra_asset(request, Asset.objects.all())
+    _wo_scope = _filtra_odl(request, WorkOrder.objects.all())
+    total_assets = _assets_scope.count()
     assets_by_status = dict(
-        Asset.objects.values_list("status").annotate(n=Count("id")).order_by()
+        _assets_scope.values_list("status").annotate(n=Count("id")).order_by()
     )
     assets_by_type = list(
-        Asset.objects.values("asset_type").annotate(n=Count("id")).order_by("-n")
+        _assets_scope.values("asset_type").annotate(n=Count("id")).order_by("-n")
     )
-    total_wo = WorkOrder.objects.count()
+    total_wo = _wo_scope.count()
     wo_by_status = dict(
-        WorkOrder.objects.values_list("status").annotate(n=Count("id")).order_by()
+        _wo_scope.values_list("status").annotate(n=Count("id")).order_by()
     )
 
     # --- Configurazione: AssetListOption per campo ---
@@ -883,7 +910,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 "id",
             )
         )
-        asset_category_rows = _build_asset_category_admin_rows(asset_categories)
+        asset_category_rows = _build_asset_category_admin_rows(asset_categories, request=request)
 
     document_folder_rows = []
     document_folder_categories = []

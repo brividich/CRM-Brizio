@@ -6,9 +6,21 @@
 (() => {
   const filter = document.getElementById("filtro-verifiche");
   if (filter) filter.addEventListener("change", () => {
+    const esito = filter.value.startsWith("esito:") ? filter.value.slice(6) : "";
     document.querySelectorAll(".sg-esito-card").forEach(card => {
-      card.hidden = filter.value === "aperte" ? card.dataset.completo === "1"
+      card.hidden = esito ? card.dataset.esito !== esito
+        : filter.value === "aperte" ? card.dataset.completo === "1"
         : filter.value === "rilievi" ? !["NC", "OFI", "OSS"].includes(card.dataset.esito) : false;
+    });
+  });
+  // Tessere dei contatori: portano alla checklist filtrata con lo stesso esito che contano.
+  document.querySelectorAll("a[data-filtro-verifiche]").forEach(link => {
+    link.addEventListener("click", ev => {
+      if (!filter) return;
+      filter.value = link.dataset.filtroVerifiche;
+      filter.dispatchEvent(new Event("change"));
+      const dest = document.getElementById("checklist");
+      if (dest) { ev.preventDefault(); dest.scrollIntoView({behavior: "smooth", block: "start"}); }
     });
   });
 

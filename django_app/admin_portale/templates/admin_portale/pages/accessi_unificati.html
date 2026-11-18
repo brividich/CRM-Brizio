@@ -77,6 +77,7 @@
 /* Il conteggio e' il dato che comanda la pagina: e' l'unico elemento grande. */
 .acl-meter { text-align: right; }
 .acl-meter__count {
+  display: block;
   font-size: clamp(40px, 6vw, 64px);
   font-weight: 800;
   line-height: .95;
@@ -301,6 +302,7 @@ body.theme-dark .acl-submodule__meta--warn { color: #fc8181; }
   margin-bottom: var(--hub-space-3, 12px);
 }
 .acl-figure {
+  display: block;
   border: 1px solid var(--hub-color-border, #d7e0ea);
   border-radius: var(--hub-radius-sm, 6px);
   padding: 8px 10px;
@@ -430,7 +432,7 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
 
     <div class="acl-meter">
       <div class="acl-console__kind">Permessi concessi</div>
-      <div class="acl-meter__count"><b>{{ total_active }}</b> / {{ total_permissions }}</div>
+      <a class="acl-meter__count kpi-link" href="#accessi-form" title="Vai al quadro dei permessi concessi"><b>{{ total_active }}</b> / {{ total_permissions }}</a>
       <div class="acl-meter__bar" aria-hidden="true"><div class="acl-meter__fill" data-fill-of="{{ total_permissions }}" data-fill-value="{{ total_active }}"></div></div>
       <div class="acl-meter__tags">
         {% if selected_group %}
@@ -527,12 +529,13 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
       {{ link_summary.permissions }} permessi in {{ link_summary.modules }} moduli e {{ link_summary.categories }} categorie.
     </p>
     <div class="acl-verify__figures">
-      <div class="acl-figure"><b>{{ link_summary.with_pages }}</b><span>permessi che aprono pagine</span></div>
-      <div class="acl-figure"><b>{{ link_summary.menu_only }}</b><span>che comandano solo voci di menu</span></div>
-      <div class="acl-figure"><b>{{ link_summary.section_only }}</b><span>di sezione (verificati dentro la pagina)</span></div>
-      <div class="acl-figure{% if link_summary.shadowed %} acl-figure--warn{% endif %}"><b>{{ link_summary.shadowed }}</b><span>con collegamento oscurato</span></div>
-      <div class="acl-figure"><b>{{ link_summary.routes_bound }}/{{ link_summary.routes_total }}</b><span>rotte con un permesso canonico</span></div>
-      <div class="acl-figure{% if link_summary.stale_bindings %} acl-figure--warn{% endif %}"><b>{{ link_summary.stale_bindings|length }}</b><span>binding che non decidono nulla</span></div>
+      {% comment %}Le prime quattro filtrano il quadro dei permessi qui sotto (stesso link_status del conteggio).{% endcomment %}
+      <a class="acl-figure kpi-link" href="#accessi-form" data-link-filter="pagine" title="Filtra il quadro qui sotto: permessi che aprono pagine"><b>{{ link_summary.with_pages }}</b><span>permessi che aprono pagine</span></a>
+      <a class="acl-figure kpi-link" href="#accessi-form" data-link-filter="menu" title="Filtra il quadro qui sotto: permessi che comandano solo voci di menu"><b>{{ link_summary.menu_only }}</b><span>che comandano solo voci di menu</span></a>
+      <a class="acl-figure kpi-link" href="#accessi-form" data-link-filter="sezione" title="Filtra il quadro qui sotto: permessi di sezione"><b>{{ link_summary.section_only }}</b><span>di sezione (verificati dentro la pagina)</span></a>
+      <a class="acl-figure kpi-link{% if link_summary.shadowed %} acl-figure--warn{% endif %}" href="#accessi-form" data-link-filter="oscurato" title="Filtra il quadro qui sotto: collegamenti oscurati"><b>{{ link_summary.shadowed }}</b><span>con collegamento oscurato</span></a>
+      <a class="acl-figure kpi-link" href="{% url 'admin_portale:acl_route_coverage' %}?status=CANONICAL_BOUND" title="Apri il report copertura route: rotte con binding canonico"><b>{{ link_summary.routes_bound }}/{{ link_summary.routes_total }}</b><span>rotte con un permesso canonico</span></a>
+      {% if link_summary.stale_bindings %}<a class="acl-figure kpi-link acl-figure--warn" href="#acl-binding-da-rivedere" data-open-details="1" title="Vai all'elenco dei binding da rivedere"><b>{{ link_summary.stale_bindings|length }}</b><span>binding che non decidono nulla</span></a>{% else %}<div class="acl-figure"><b>0</b><span>binding che non decidono nulla</span></div>{% endif %}
     </div>
     <p class="acl-note" style="margin:0">
       <b>Pagine</b>: il permesso governa le rotte elencate passando il mouse sul numero.
@@ -543,7 +546,7 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
       i binding si correggono in <a href="{% url 'admin_portale:acl_canonico' %}">ACL canonico</a>.
     </p>
     {% if link_summary.stale_bindings %}
-    <details>
+    <details id="acl-binding-da-rivedere">
       <summary>Binding da rivedere ({{ link_summary.stale_missing_route }} verso rotte inesistenti, {{ link_summary.stale_shadowed }} sempre scavalcati)</summary>
       <div class="acl-verify__scroll">
         <table data-fm-table-skip="1">
@@ -1059,6 +1062,21 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
   }
   if (search) { search.addEventListener('input', applyFilter); }
   if (linkFilter) { linkFilter.addEventListener('change', applyFilter); }
+  // Tessere della «Verifica dei collegamenti»: impostano il filtro collegamento
+  // e portano al quadro; quella dei binding apre l'elenco da rivedere.
+  document.querySelectorAll('[data-link-filter]').forEach(function (tile) {
+    tile.addEventListener('click', function () {
+      if (!linkFilter) { return; }
+      linkFilter.value = tile.getAttribute('data-link-filter');
+      applyFilter();
+    });
+  });
+  document.querySelectorAll('[data-open-details]').forEach(function (tile) {
+    tile.addEventListener('click', function () {
+      var box = document.getElementById('acl-binding-da-rivedere');
+      if (box) { box.open = true; }
+    });
+  });
 })();
 </script>
 {% endblock %}

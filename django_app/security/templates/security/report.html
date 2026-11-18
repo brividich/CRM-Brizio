@@ -24,27 +24,27 @@
 </section>
 
 <section class="sec-grid sec-kpi-grid" style="margin-top: 12px;">
-  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:alerts_list' %}?status=all">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:alerts_list' %}?status=all&amp;dal={{ report.start|date:'Y-m-d' }}&amp;al={{ report.end|date:'Y-m-d' }}" title="Apri gli alert creati nel periodo">
     <span class="sec-kpi-label">Alert creati</span>
     <strong class="sec-kpi-value">{{ a.created }}</strong>
     <span class="sec-kpi-delta{% if not a.open_now %} sec-good{% endif %}">{{ a.open_now }} ancora apert{{ a.open_now|pluralize:"o,i" }}</span>
   </a>
-  <div class="sec-panel sec-kpi-card">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:alerts_list' %}?status=all&amp;chiusi_dal={{ report.start|date:'Y-m-d' }}&amp;chiusi_al={{ report.end|date:'Y-m-d' }}" title="Apri gli alert chiusi nel periodo: la media è calcolata su questi">
     <span class="sec-kpi-label">Tempo medio di chiusura</span>
     <strong class="sec-kpi-value">{% if a.mean_hours_to_close is not None %}{{ a.mean_hours_to_close|floatformat:1 }} h{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta sec-good">{{ a.closed }} alert chius{{ a.closed|pluralize:"o,i" }}</span>
-  </div>
-  <div class="sec-panel sec-kpi-card">
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:backup_log' %}?dal={{ report.start|date:'Y-m-d' }}&amp;al={{ report.end|date:'Y-m-d' }}" title="Apri il log delle esecuzioni di backup del periodo">
     <span class="sec-kpi-label">Backup riusciti</span>
     <strong class="sec-kpi-value{% if b.failed %} critical{% endif %}">{% if b.success_rate is not None %}{{ b.success_rate|floatformat:1 }}%{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta{% if not b.failed %} sec-good{% endif %}">{{ b.failed }} fallit{{ b.failed|pluralize:"o,i" }} su {{ b.total }}</span>
-  </div>
+  </a>
   <div class="sec-panel sec-kpi-card">
     <span class="sec-kpi-label">CVE aperte esposte</span>
     <strong class="sec-kpi-value{% if v.top %} critical{% endif %}">{{ v.open_now }}</strong>
     <span class="sec-kpi-delta{% if not v.new_in_period %} sec-good{% endif %}">{{ v.new_in_period }} nuov{{ v.new_in_period|pluralize:"a,e" }} nel periodo</span>
   </div>
-  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:incidents' %}?status=all">
+  <a class="sec-panel sec-kpi-card sec-card-link kpi-link" href="{% url 'security:incidents' %}?status=all&amp;dal={{ report.start|date:'Y-m-d' }}&amp;al={{ report.end|date:'Y-m-d' }}" title="Apri gli incidenti rilevati nel periodo">
     <span class="sec-kpi-label">Incidenti</span>
     <strong class="sec-kpi-value{% if inc.significant %} critical{% endif %}">{{ inc.total }}</strong>
     <span class="sec-kpi-delta{% if not inc.significant %} sec-good{% endif %}">{{ inc.significant }} significativ{{ inc.significant|pluralize:"o,i" }} NIS2</span>

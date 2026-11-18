@@ -31,6 +31,7 @@ body.theme-dark .sl-cov-group h3 { color:#e2e8f0; }
   box-shadow:0 10px 24px rgba(15, 23, 42, .05);
 }
 .sl-kpi { padding:14px 16px; }
+a.sl-kpi { display:block; }
 .sl-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
 .sl-kpi-value { margin-top:8px; font-size:var(--fs-display-lg); font-weight:800; color:#0f172a; }
 .sl-card-head {
@@ -149,11 +150,11 @@ body.theme-dark .sl-empty{color:var(--text-light)}
   {% endif %}
 
   <section class="sl-kpis">
-    <article class="sl-kpi"><div class="sl-kpi-label">Licenze visibili</div><div class="sl-kpi-value">{{ license_total }}</div></article>
-    <article class="sl-kpi"><div class="sl-kpi-label">Attive</div><div class="sl-kpi-value">{{ active_count }}</div></article>
-    <article class="sl-kpi"><div class="sl-kpi-label">In scadenza</div><div class="sl-kpi-value">{{ expiring_count }}</div></article>
-    <article class="sl-kpi"><div class="sl-kpi-label">Scadute</div><div class="sl-kpi-value">{{ expired_count }}</div></article>
-    <article class="sl-kpi"><div class="sl-kpi-label">Da assegnare</div><div class="sl-kpi-value">{{ unassigned_count }}</div></article>
+    <a class="sl-kpi kpi-link" href="{{ license_kpi_links.visible }}" title="Apri l’elenco filtrato: licenze con i filtri correnti"><div class="sl-kpi-label">Licenze visibili</div><div class="sl-kpi-value">{{ license_total }}</div></a>
+    <a class="sl-kpi kpi-link" href="{{ license_kpi_links.active }}" title="Apri l’elenco filtrato: licenze attive"><div class="sl-kpi-label">Attive</div><div class="sl-kpi-value">{{ active_count }}</div></a>
+    <a class="sl-kpi kpi-link" href="{{ license_kpi_links.expiring }}" title="Apri l’elenco filtrato: licenze in scadenza entro 30 giorni"><div class="sl-kpi-label">In scadenza</div><div class="sl-kpi-value">{{ expiring_count }}</div></a>
+    <a class="sl-kpi kpi-link" href="{{ license_kpi_links.expired }}" title="Apri l’elenco filtrato: licenze scadute"><div class="sl-kpi-label">Scadute</div><div class="sl-kpi-value">{{ expired_count }}</div></a>
+    <a class="sl-kpi kpi-link" href="{{ license_kpi_links.unassigned }}" title="Apri l’elenco filtrato: licenze da assegnare"><div class="sl-kpi-label">Da assegnare</div><div class="sl-kpi-value">{{ unassigned_count }}</div></a>
   </section>
 
   {% if coverage and coverage.total %}

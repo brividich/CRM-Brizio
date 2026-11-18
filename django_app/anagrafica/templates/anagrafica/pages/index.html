@@ -130,7 +130,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       </div>
     </div>
     <div class="hr-hero-stats">
-      <a class="hr-hero-stat" href="{% url 'anagrafica:dipendenti_list' %}">
+      <a class="hr-hero-stat" href="{% url 'anagrafica:dipendenti_list' %}?stato=attivi&amp;vf=0#elenco" title="Apri l'elenco filtrato: dipendenti attivi nell'organico">
         <div class="hr-hero-stat-val">{{ n_dipendenti }}</div>
         <div class="hr-hero-stat-lbl">Persone in forza</div>
       </a>
@@ -317,63 +317,63 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       <button class="ana-widget-hide" data-wid="kpi" title="Nascondi">✕</button>
     </div>
     <div class="hr-metric-grid">
-      <div class="hr-metric">
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:dipendenti_list' %}?stato=attivi&amp;vf=0#elenco" title="Apri l'elenco filtrato: dipendenti attivi nell'organico">
         <div class="hr-metric-ico blue">👥</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Dipendenti</span><span class="hr-metric-val">{{ n_dipendenti }}</span></div>
           <div class="hr-metric-sub">{{ n_reparti }} reparti</div>
         </div>
-      </div>
-      <div class="hr-metric">
+      </a>
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:mansioni_list' %}?solo_attive=1" title="Apri l'elenco filtrato: mansioni attive del catalogo">
         <div class="hr-metric-ico green">👷</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Mansioni</span><span class="hr-metric-val">{{ n_mansioni }}</span></div>
           <div class="hr-metric-sub">Catalogo attivo</div>
         </div>
-      </div>
-      <div class="hr-metric">
+      </a>
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:aree_list' %}?filtro=attivi#schede" title="Apri l'elenco filtrato: reparti attivi del catalogo">
         <div class="hr-metric-ico navy">🏢</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Reparti (catalogo)</span><span class="hr-metric-val">{{ n_reparti_catalog }}</span></div>
           <div class="hr-metric-sub">{{ n_aree }} aree aziendali</div>
         </div>
-      </div>
-      <div class="hr-metric">
+      </a>
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:qualifiche_list' %}?attivi=1" title="Apri il catalogo filtrato: tipi di qualifica attivi">
         <div class="hr-metric-ico amber">🎓</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Tipi qualifica</span><span class="hr-metric-val">{{ n_qualifiche }}</span></div>
           <div class="hr-metric-sub">Catalogo attivo</div>
         </div>
-      </div>
-      <div class="hr-metric">
+      </a>
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&amp;stato=scaduta" title="Apri lo scadenzario filtrato: qualifiche scadute">
         <div class="hr-metric-ico red">⚠️</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Qualifiche scadute</span><span class="hr-metric-val">{{ n_qualifiche_scadute }}</span></div>
-          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=scaduta" style="color:#1f87cd;">Vedi scadenzario →</a></div>
+          <div class="hr-metric-sub">Vedi scadenzario →</div>
         </div>
-      </div>
-      <div class="hr-metric">
+      </a>
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&amp;stato=60" title="Apri lo scadenzario filtrato: qualifiche in scadenza nei prossimi 60 giorni">
         <div class="hr-metric-ico amber">⏰</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza</span><span class="hr-metric-val">{{ n_qualifiche_scadenza }}</span></div>
-          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=60" style="color:#1f87cd;">Prossimi 60 giorni →</a></div>
+          <div class="hr-metric-sub">Prossimi 60 giorni →</div>
         </div>
-      </div>
+      </a>
       {% if carico_home %}
       <div class="hr-metric">
         <div class="hr-metric-ico red">🧭</div>
         <div class="hr-metric-body">
-          <div class="hr-metric-top"><span class="hr-metric-lbl">Mansioni da guardare</span><span class="hr-metric-val">{{ carico_home.da_guardare }}</span></div>
+          <a class="hr-metric-top kpi-link" href="{% url 'anagrafica:mansionario' %}?flag=da-guardare" title="Apri il mansionario filtrato: mansioni scoperte, a uomo solo o a carico concentrato"><span class="hr-metric-lbl">Mansioni da guardare</span><span class="hr-metric-val">{{ carico_home.da_guardare }}</span></a>
           <div class="hr-metric-sub"><a href="{% url 'anagrafica:mansionario' %}?flag=scoperta" style="color:#1f87cd;">{{ carico_home.scoperte }} scoperte</a> · <a href="{% url 'anagrafica:mansionario' %}?flag=uomo-solo" style="color:#1f87cd;">{{ carico_home.uomo_solo }} uomo solo</a> · <a href="{% url 'anagrafica:mansionario' %}?flag=concentrato" style="color:#1f87cd;">{{ carico_home.concentrate }} concentrate</a></div>
         </div>
       </div>
-      <div class="hr-metric">
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:centri_costo' %}" title="Apri i centri di costo attivi con reparti, carico e costi">
         <div class="hr-metric-ico navy">🗂️</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Centri di costo</span><span class="hr-metric-val">{{ carico_home.centri }}</span></div>
-          <div class="hr-metric-sub"><a href="{% url 'anagrafica:centri_costo' %}" style="color:#1f87cd;">Reparti, carico e costi →</a></div>
+          <div class="hr-metric-sub">Reparti, carico e costi →</div>
         </div>
-      </div>
+      </a>
       {% endif %}
     </div>
   </div>

@@ -108,42 +108,40 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
     </div>
   </div>
 
+  {% comment %}Tessere: ognuna apre «Ricerca dettaglio» con i filtri correnti più la propria condizione (data-kpi-filtro), cioè le stesse righe che conta.{% endcomment %}
   <div class="stats" id="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px;">
-    <div class="stat">
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{}' data-kpi-label="" title="Apri la ricerca dettaglio: tutte le anomalie del filtro">
       <div class="stat-icon-wrap blue">&#128202;</div>
       <div><div class="stat-num" id="kpi-totale">&mdash;</div><div class="stat-lbl">Totale anomalie</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"stato":"aperte"}' data-kpi-label="Aperte" title="Apri la ricerca dettaglio filtrata: anomalie aperte">
       <div class="stat-icon-wrap yellow">&#9888;</div>
       <div><div class="stat-num" id="kpi-aperte">&mdash;</div><div class="stat-lbl">Aperte</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"stato":"chiuse"}' data-kpi-label="Chiuse" title="Apri la ricerca dettaglio filtrata: anomalie chiuse">
       <div class="stat-icon-wrap green">&#10003;</div>
-      <div>
-        <div class="stat-num" id="kpi-chiuse">&mdash;</div>
-        <div class="stat-lbl">Chiuse <span id="kpi-perc" style="font-weight:500;color:var(--text-light);"></span></div>
-      </div>
-    </div>
-    <div class="stat">
+      <div><div class="stat-num" id="kpi-chiuse">&mdash;</div><div class="stat-lbl">Chiuse <span id="kpi-perc" style="font-weight:500;color:var(--text-light);"></span></div></div>
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"avanzamento":"In attesa"}' data-kpi-label="In attesa" title="Apri la ricerca dettaglio filtrata: avanzamento In attesa">
       <div class="stat-icon-wrap yellow">&#8987;</div>
       <div><div class="stat-num" id="kpi-attesa">&mdash;</div><div class="stat-lbl">In attesa</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"rdc":"si"}' data-kpi-label="Con RDC" title="Apri la ricerca dettaglio filtrata: con RDC">
       <div class="stat-icon-wrap red">&#128221;</div>
       <div><div class="stat-num" id="kpi-rdc">&mdash;</div><div class="stat-lbl">Con RDC</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"segnalazione":"si"}' data-kpi-label="Segnalate cliente" title="Apri la ricerca dettaglio filtrata: segnalate al cliente">
       <div class="stat-icon-wrap blue">&#128231;</div>
       <div><div class="stat-num" id="kpi-segnalazioni">&mdash;</div><div class="stat-lbl">Segnalate cliente</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"recuperato":"si"}' data-kpi-label="Pezzi recuperati" title="Apri la ricerca dettaglio filtrata: pezzo recuperato">
       <div class="stat-icon-wrap green">&#9851;</div>
       <div><div class="stat-num" id="kpi-recuperati">&mdash;</div><div class="stat-lbl">Pezzi recuperati</div></div>
-    </div>
-    <div class="stat">
+    </a>
+    <a class="stat kpi-link" href="#ricerca-dettaglio" data-kpi-filtro='{"stato":"chiuse"}' data-kpi-label="Chiuse (base della media)" title="Apri la ricerca dettaglio: le anomalie chiuse da cui è calcolata la media">
       <div class="stat-icon-wrap blue">&#9201;</div>
       <div><div class="stat-num" id="kpi-tempo">&mdash;</div><div class="stat-lbl">Gg medi gestione</div></div>
-    </div>
+    </a>
   </div>
 
   <div class="two-col" style="margin-bottom:16px;">
@@ -202,9 +200,9 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:16px;">
+  <div class="card" style="margin-bottom:16px;" id="ricerca-dettaglio">
     <div class="card-head">
-      <div class="card-title">Ricerca dettaglio</div>
+      <div class="card-title">Ricerca dettaglio <span id="ricerca-kpi-filtro" class="pill" hidden></span> <button type="button" class="btn btn-secondary btn-sm" id="btn-ricerca-kpi-via" hidden>Togli il filtro della tessera</button></div>
       <a id="btn-export-csv" href="/api/anomalie/export-csv-filtrato" class="btn btn-sm">&#8595; Esporta CSV</a>
     </div>
     <div class="card-body" style="overflow-x:auto;">
@@ -243,6 +241,16 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
 
   let ricercaPage = 1;
   let ricercaPages = 0;
+  // Condizione della tessera KPI cliccata: si aggiunge ai filtri solo nella ricerca dettaglio.
+  let ricercaExtra = {};
+  const ricercaKpiFiltro = $('ricerca-kpi-filtro'), btnRicercaKpiVia = $('btn-ricerca-kpi-via');
+
+  function setRicercaExtra(extra, label) {
+    ricercaExtra = extra || {};
+    const attivo = Object.keys(ricercaExtra).length > 0;
+    if (ricercaKpiFiltro) { ricercaKpiFiltro.hidden = !attivo; ricercaKpiFiltro.textContent = label || ''; }
+    if (btnRicercaKpiVia) btnRicercaKpiVia.hidden = !attivo;
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -393,7 +401,7 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
   async function loadRicerca() {
     tblRic.innerHTML = '<div class="loading">Caricamento...</div>';
     try {
-      const r = await fetch('/api/anomalie/ricerca?' + buildParams({ page: ricercaPage }).toString());
+      const r = await fetch('/api/anomalie/ricerca?' + buildParams(Object.assign({}, ricercaExtra, { page: ricercaPage })).toString());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
       ricercaPages = d.pages || 0;
@@ -458,9 +466,28 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
 
   function loadAll() {
     ricercaPage = 1;
+    setRicercaExtra({}, '');
     loadStats();
     loadRicerca();
   }
+
+  document.querySelectorAll('#kpi-row [data-kpi-filtro]').forEach(function (tessera) {
+    tessera.addEventListener('click', function (e) {
+      e.preventDefault();
+      let extra = {};
+      try { extra = JSON.parse(tessera.dataset.kpiFiltro || '{}'); } catch (err) { extra = {}; }
+      ricercaPage = 1;
+      setRicercaExtra(extra, tessera.dataset.kpiLabel || '');
+      loadRicerca();
+      const dest = $('ricerca-dettaglio');
+      if (dest) dest.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  if (btnRicercaKpiVia) btnRicercaKpiVia.addEventListener('click', function () {
+    ricercaPage = 1;
+    setRicercaExtra({}, '');
+    loadRicerca();
+  });
 
   btnCerca.addEventListener('click', loadAll);
   btnReset.addEventListener('click', function () {

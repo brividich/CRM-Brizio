@@ -98,10 +98,12 @@ def cambi_mansione(request):
 
     filtro = (request.GET.get("stato") or "aperti").strip()
     qs = AdempimentoCambioMansione.objects.select_related("assegnazione", "chiuso_da")
+    # «Da fare» e «In ritardo» con la stessa condizione dei KPI qui sotto (solo
+    # adempimenti attivi): prima l'elenco mostrava anche quelli disattivati.
     if filtro == "aperti":
-        qs = qs.filter(stato=AdempimentoCambioMansione.STATO_APERTO)
+        qs = qs.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
     elif filtro == "ritardo":
-        qs = qs.filter(stato=AdempimentoCambioMansione.STATO_APERTO, entro_il__lt=timezone.localdate())
+        qs = qs.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True, entro_il__lt=timezone.localdate())
     adempimenti = list(qs.order_by("entro_il", "legacy_anagrafica_id", "tipo")[:500])
 
     nomi = {}

@@ -399,12 +399,14 @@ def index(request):
     rows = fetch_anagrafica_rows(deduplicate=True)
     # Esclude gli ex dipendenti (rapporto cessato) dai KPI "in organico":
     # restano a sistema solo per storico ma non concorrono al conteggio attivi.
-    cessati_ids = _helpers._cessati_legacy_ids()
-    from ..services.conteggi_organico import righe_in_organico
-    # Senza le persone escluse dai conteggi dell'organico (CEO, RSPP esterno...).
-    rows_attivi = righe_in_organico([row for row in rows if int(row.get("id") or 0) not in cessati_ids])
-    n_dipendenti = len(rows_attivi)
-    n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows_attivi if str(row.get("reparto") or "").strip()})
+    # «Persone in forza» / «Dipendenti» e «reparti»: stessi numeri dei KPI
+    # «Attivi» e «Reparti» dell'elenco dipendenti a cui portano (stesso ambito del
+    # ruolo, senza cessati né esclusi dai conteggi, stessa funzione del filtro
+    # ``?stato=attivi``). Prima: righe senza ambito con anche le schede
+    # disattivate, poi sovrascritte dal cruscotto (altra fonte, altro numero).
+    riepilogo_elenco = riepilogo_stati_dipendenti(build_dipendenti_rows(request, apply_filters=False))
+    n_dipendenti = riepilogo_elenco["attivi"]
+    n_reparti = riepilogo_elenco["reparti"]
 
     # Conteggi catalogo per dashboard HR
     n_mansioni = Mansione.objects.filter(is_active=True).count()
@@ -449,7 +451,6 @@ def index(request):
             include_formazione=_helpers._can_view_formazione(request),
             visibili=_schede_visibili(request) if _helpers._ruoli_attivi() else None,
         )
-        n_dipendenti = cruscotto.persone
         n_qualifiche_scadute = cruscotto.n_qualifiche_scadute
         n_qualifiche_scadenza = cruscotto.n_qualifiche_in_scadenza
     except Exception:
@@ -541,9 +542,60 @@ def _dipendenti_base_rows() -> list[dict]:
     return rows
 
 
+STATI_DIPENDENTE = {
+    "attivi": "Attivi",
+    "fuori_conteggio": "Fuori conteggio",
+    "non_attivi": "Non attivi",
+}
+
+
+def stato_dipendente(row: dict, esclusi: set[int]) -> str:
+    """Stato di una riga dell'elenco: ``attivi`` / ``fuori_conteggio`` / ``non_attivi``.
+
+    Fonte unica dei KPI «Attivi», «Fuori conteggio», «Non attivi» dell'elenco
+    e del filtro ``?stato=`` che li apre: stessa funzione, stesso numero.
+    ``attivo`` NULL vale attivo (come ``COALESCE(attivo, 1)``).
+    """
+    from ..services.conteggi_organico import _ids_riga
+
+    if row.get("attivo") in {0, False, "0"}:
+        return "non_attivi"
+    if esclusi and (_ids_riga(row) & esclusi):
+        return "fuori_conteggio"
+    return "attivi"
+
+
+def riepilogo_stati_dipendenti(rows_ambito: list[dict], esclusi: set[int] | None = None) -> dict:
+    """KPI di stato dell'elenco dipendenti sulle righe in ambito (pre-filtri).
+
+    Usato da ``dipendenti_list`` e dalla dashboard ``index``: «Attivi»,
+    «Fuori conteggio», «Non attivi» con ``stato_dipendente`` (la stessa funzione
+    del filtro ``?stato=``) e «Reparti» = schede della griglia reparti
+    dell'elenco (organico visibile, reparto non vuoto).
+    """
+    from ..services.conteggi_organico import esclusi_dai_conteggi_ids, righe_in_organico
+
+    esclusi = esclusi_dai_conteggi_ids() if esclusi is None else esclusi
+    conta = {chiave: 0 for chiave in STATI_DIPENDENTE}
+    for row in rows_ambito:
+        conta[stato_dipendente(row, esclusi)] += 1
+    organico = righe_in_organico(rows_ambito, esclusi)
+    return {
+        **conta,
+        "organico": organico,
+        "reparti": len({str(r.get("reparto") or "").strip() for r in organico} - {""}),
+    }
+
+
 def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
-    """Filtri della lista dipendenti (q / reparto / area / centro di costo / tipologia_contratto)."""
+    """Filtri della lista dipendenti (q / reparto / area / centro di costo / tipologia_contratto / stato)."""
     q = request.GET.get("q", "").strip()
+    stato = request.GET.get("stato", "").strip()
+    if stato in STATI_DIPENDENTE:
+        from ..services.conteggi_organico import esclusi_dai_conteggi_ids
+
+        esclusi = esclusi_dai_conteggi_ids()
+        rows = [row for row in rows if stato_dipendente(row, esclusi) == stato]
     reparto = request.GET.get("reparto", "").strip()
     centro = request.GET.get("centro_costo", "").strip()
     area_filter = request.GET.get("area", "").strip()
@@ -660,7 +712,7 @@ def dipendenti_list(request):
     # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
     vista = viste_elenco.vista_corrente(request)
     if (vista and vista.filtri and request.GET.get("vf") != "0"
-            and not any(k in request.GET for k in ("q", "reparto", "area", "centro_costo", "tipologia_contratto"))):
+            and not any(k in request.GET for k in ("q", "reparto", "area", "centro_costo", "tipologia_contratto", "stato"))):
         filtri = request.GET.copy()
         for chiave, valore in vista.filtri.items():
             if chiave in ("reparto", "area", "tipologia_contratto") and valore:
@@ -781,16 +833,13 @@ def dipendenti_list(request):
         dip["ruoli"] = ruoli_map.get(int(dip.get("id") or 0), [])
     colonne_elenco.arricchisci(list(page.object_list), [c["colonna"] for c in colonne])
 
-    status_stats = count_anagrafica_statuses()
     # «Attivi» e organico per reparto non contano chi e' escluso dai conteggi
     # dell'organico (CEO, RSPP esterno...): resta comunque in elenco.
-    from ..services.conteggi_organico import esclusi_dai_conteggi_ids, righe_in_organico
-    esclusi_ids = esclusi_dai_conteggi_ids()
-    righe_organico = righe_in_organico(rows_all, esclusi_ids)
-    n_esclusi_conteggi = sum(
-        1 for r in rows_all
-        if r not in righe_organico and r.get("attivo") not in {None, 0, False, "0"}
-    ) if esclusi_ids else 0
+    # I tre KPI di stato si contano sulle stesse righe di «In elenco» (in forza e
+    # nell'ambito del ruolo) con la stessa funzione del filtro ``?stato=``: prima
+    # venivano da ``count_anagrafica_statuses()``, che contava tutta l'anagrafica
+    # (cessati compresi e senza ambito), e la somma non tornava con «In elenco».
+    conta_stati = riepilogo_stati_dipendenti(rows_ambito)
     tipologie_contratto_list = list(
         TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")
     )
@@ -798,9 +847,7 @@ def dipendenti_list(request):
     # Stile C: una scheda per reparto con l'organico per tipo di contratto, sullo
     # stesso perimetro visibile dell'elenco (senza i filtri della barra).
     from ..services import sezioni_c
-    visibili = righe_in_organico(
-        build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False), esclusi_ids,
-    )
+    visibili = conta_stati["organico"]
     tipologia_per_id = dict(
         DipendenteAnagraficaAziendale.objects
         .filter(legacy_anagrafica_id__in=[int(r.get("id") or 0) for r in visibili])
@@ -844,11 +891,19 @@ def dipendenti_list(request):
         "centri_costo": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)),
         "tipologie_contratto": tipologie_contratto_list,
         "n_totale": n_totale,
-        "n_reparti": len(reparti_list),
-        "n_attivi": max(status_stats["active"] - n_esclusi_conteggi, 0),
-        "n_esclusi_conteggi": n_esclusi_conteggi,
-        "n_non_attivi": status_stats["inactive"],
-        "n_ex": len(cessati_ids),
+        # Le stesse schede della griglia «Reparti» a cui porta il KPI (senza «Senza reparto»).
+        "n_reparti": conta_stati["reparti"],
+        "n_attivi": conta_stati["attivi"],
+        "n_esclusi_conteggi": conta_stati["fuori_conteggio"],
+        "n_non_attivi": conta_stati["non_attivi"],
+        "stato": request.GET.get("stato", "").strip() if request.GET.get("stato", "").strip() in STATI_DIPENDENTE else "",
+        "stati_dipendente": STATI_DIPENDENTE,
+        # Stesso insieme di ``ex_dipendenti_list`` (righe anagrafica con rapporto
+        # cessato): ``len(cessati_ids)`` contava anche schede aziendali senza riga.
+        "n_ex": sum(
+            1 for row in fetch_anagrafica_rows(deduplicate=True)
+            if int(row.get("id") or 0) in cessati_ids
+        ) if cessati_ids else 0,
         "vista": vista,
         "viste": viste_elenco.viste_per_utente(request),
         "colonne": colonne,
@@ -2214,6 +2269,7 @@ def dipendente_detail(request, legacy_id: int):
     can_view_formazione_tab = _helpers._can_view_formazione(request)
     fm_storico: list = []
     fm_scadenze_urgenti: list = []
+    fm_n_scadenze_urgenti = 0
     fm_n_completati = 0
     fm_ore_totali = 0.0
     fm_n_attestati = 0
@@ -2253,13 +2309,16 @@ def dipendente_detail(request, legacy_id: int):
             )
             fm_n_completati = fm_kpi_anno_corrente["n"] + fm_kpi_precedenti_totale["n"]
             fm_ore_totali = fm_kpi_anno_corrente["ore"] + fm_kpi_precedenti_totale["ore"]
+            # Stesso filtro dello scadenzario (?dipendente=): la tessera conta il
+            # totale, la tabella della scheda ne mostra le prime 20.
+            from ..services.training_deadline_service import filtra_stato_scadenze
+
+            _fm_scad_qs = filtra_stato_scadenze(
+                TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id)
+            )
+            fm_n_scadenze_urgenti = _fm_scad_qs.count()
             fm_scadenze_urgenti = list(
-                TrainingDeadline.objects.filter(
-                    legacy_anagrafica_id=legacy_id,
-                    stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"],
-                )
-                .select_related("corso", "corso__piano")
-                .order_by("data_scadenza")[:20]
+                _fm_scad_qs.select_related("corso", "corso__piano").order_by("data_scadenza")[:20]
             )
             fm_n_attestati = TrainingCertificate.objects.filter(
                 legacy_anagrafica_id=legacy_id
@@ -2508,6 +2567,7 @@ def dipendente_detail(request, legacy_id: int):
         "can_edit_formazione": can_view_formazione_tab and _helpers._can_edit_formazione(request),
         "fm_storico": fm_storico,
         "fm_scadenze_urgenti": fm_scadenze_urgenti,
+        "fm_n_scadenze_urgenti": fm_n_scadenze_urgenti,
         "fm_n_completati": fm_n_completati,
         "fm_ore_totali": fm_ore_totali,
         "fm_n_attestati": fm_n_attestati,

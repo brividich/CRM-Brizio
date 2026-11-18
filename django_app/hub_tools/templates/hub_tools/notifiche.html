@@ -9,7 +9,7 @@
 
 /* Stats */
 .hn-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px}
-.hn-stat{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center}
+.hn-stat{display:block;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center}
 .hn-stat-num{font-size:28px;font-weight:800;color:#0f172a;line-height:1}
 .hn-stat-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
 
@@ -135,27 +135,28 @@ body.theme-dark .hn-tipo-bar{background:rgba(59,130,246,.18)}
   </div>
 
   <!-- Stats -->
+  {% url 'hub_tools:hub_notifiche' as hn_url %}
   <div class="hn-stats">
-    <div class="hn-stat">
+    <a class="hn-stat kpi-link" href="{{ hn_url }}" title="Apri l'elenco completo delle notifiche">
       <div class="hn-stat-num">{{ totale }}</div>
       <div class="hn-stat-label">Totali</div>
-    </div>
-    <div class="hn-stat" style="border-color:#fde68a;">
+    </a>
+    <a class="hn-stat kpi-link" href="{{ hn_url }}?letta=no" title="Apri l'elenco filtrato: notifiche non lette" style="border-color:#fde68a;">
       <div class="hn-stat-num" style="color:#d97706;">{{ non_lette }}</div>
       <div class="hn-stat-label">Non lette</div>
-    </div>
-    <div class="hn-stat" style="border-color:#bbf7d0;">
+    </a>
+    <a class="hn-stat kpi-link" href="{{ hn_url }}?letta=si" title="Apri l'elenco filtrato: notifiche lette" style="border-color:#bbf7d0;">
       <div class="hn-stat-num" style="color:#16a34a;">{{ lette }}</div>
       <div class="hn-stat-label">Lette</div>
-    </div>
-    <div class="hn-stat" style="border-color:#bfdbfe;">
+    </a>
+    <a class="hn-stat kpi-link" href="{{ hn_url }}?letta=banner" title="Apri l'elenco filtrato: banner non ancora mostrati" style="border-color:#bfdbfe;">
       <div class="hn-stat-num" style="color:#1d4ed8;">{{ popup_pend }}</div>
       <div class="hn-stat-label">Banner in attesa</div>
-    </div>
-    <div class="hn-stat" style="border-color:#cbd5e1;">
+    </a>
+    <a class="hn-stat kpi-link" href="{{ hn_url }}?letta=archiviate" title="Apri l'elenco filtrato: notifiche archiviate" style="border-color:#cbd5e1;">
       <div class="hn-stat-num" style="color:#64748b;">{{ archiviate }}</div>
       <div class="hn-stat-label">Archiviate</div>
-    </div>
+    </a>
   </div>
 
   <div class="hn-layout">
@@ -188,6 +189,8 @@ body.theme-dark .hn-tipo-bar{background:rgba(59,130,246,.18)}
           <option value="no" {% if f_letta == "no" %}selected{% endif %}>Non lette</option>
           <option value="si" {% if f_letta == "si" %}selected{% endif %}>Lette</option>
           <option value="archiviate" {% if f_letta == "archiviate" %}selected{% endif %}>Archiviate</option>
+          <option value="attive" {% if f_letta == "attive" %}selected{% endif %}>Attive (non archiviate)</option>
+          <option value="banner" {% if f_letta == "banner" %}selected{% endif %}>Banner in attesa</option>
         </select>
         <select class="hn-select" name="user_id" style="min-width:180px;">
           <option value="">Tutti gli utenti</option>
@@ -273,17 +276,17 @@ body.theme-dark .hn-tipo-bar{background:rgba(59,130,246,.18)}
         <div style="padding:12px 20px;border-top:1px solid #f1f5f9;">
           <div class="hn-pagination">
             {% if page_obj.has_previous %}
-              <a class="hn-page-btn" href="?page={{ page_obj.previous_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">&laquo;</a>
+              <a class="hn-page-btn" href="?page={{ page_obj.previous_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q|urlencode }}">&laquo;</a>
             {% endif %}
             {% for num in page_obj.paginator.page_range %}
               {% if num == page_obj.number %}
                 <span class="hn-page-btn active">{{ num }}</span>
               {% elif num >= page_obj.number|add:"-3" and num <= page_obj.number|add:"3" %}
-                <a class="hn-page-btn" href="?page={{ num }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">{{ num }}</a>
+                <a class="hn-page-btn" href="?page={{ num }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q|urlencode }}">{{ num }}</a>
               {% endif %}
             {% endfor %}
             {% if page_obj.has_next %}
-              <a class="hn-page-btn" href="?page={{ page_obj.next_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">&raquo;</a>
+              <a class="hn-page-btn" href="?page={{ page_obj.next_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q|urlencode }}">&raquo;</a>
             {% endif %}
           </div>
         </div>

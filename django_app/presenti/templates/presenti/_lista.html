@@ -5,15 +5,16 @@
 <div class="pres-avviso">{{ stato.errore_esterni }}</div>
 {% endif %}
 
+{% url 'presenti:home' as u_pres %}
 <div class="pres-kpi">
-  <div class="pres-card"><b>{{ riepilogo.totale }}</b><span>Dipendenti presenti</span></div>
-  <div class="pres-card"><b>{{ n_esterni }}</b><span>Esterni in azienda</span></div>
+  <a class="pres-card kpi-link" href="{{ u_pres }}#pres-dipendenti" title="Apri l'elenco: tutti i dipendenti presenti"><b>{{ riepilogo.totale }}</b><span>Dipendenti presenti</span></a>
+  <a class="pres-card kpi-link" href="{{ u_pres }}#pres-esterni" title="Apri l'elenco: esterni in azienda"><b>{{ n_esterni }}</b><span>Esterni in azienda</span></a>
   {% for inc in riepilogo.incarichi %}
-  <div class="pres-card"><b>{{ inc.n }}</b><span><i style="background:{{ inc.colore }}"></i>{{ inc.nome }}</span></div>
+  <a class="pres-card kpi-link" href="{{ u_pres }}?incarico={{ inc.nome|urlencode }}#pres-dipendenti" title="Apri l'elenco filtrato: presenti con incarico {{ inc.nome }}"><b>{{ inc.n }}</b><span><i style="background:{{ inc.colore }}"></i>{{ inc.nome }}</span></a>
   {% endfor %}
 </div>
 
-<div class="pres-card" style="padding:0; overflow-x:auto;">
+<div class="pres-card" style="padding:0; overflow-x:auto;" id="pres-dipendenti">
   {# Niente barra fm-table: la pagina ha già ricerca e filtri, e la tabella viene sostituita ogni 30 s. #}
   <table class="pres-tab" data-fm-table-skip="1">
     <thead>
@@ -47,7 +48,7 @@
   </table>
 </div>
 
-<div class="pres-gruppo-riga">
+<div class="pres-gruppo-riga" id="pres-esterni">
   <h2 class="pres-gruppo" style="margin-top:18px;">Esterni in azienda ({% if filtrato %}{{ esterni|length }} su {% endif %}{{ n_esterni }})</h2>
   {% if puo_registrare %}<button type="button" class="pres-btn" data-apri-registra>+ Registra chi è dentro</button>{% endif %}
 </div>

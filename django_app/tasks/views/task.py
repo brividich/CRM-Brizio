@@ -125,6 +125,8 @@ def task_list(request):
             tasks_qs = tasks_qs.filter(priority=data["priority"])
         if data.get("overdue"):
             tasks_qs = tasks_qs.filter(due_date__lt=timezone.localdate(), status__in=OPEN_STATUSES)
+        if data.get("open"):
+            tasks_qs = tasks_qs.filter(status__in=OPEN_STATUSES)
         if data.get("due_from"):
             tasks_qs = tasks_qs.filter(due_date__gte=data["due_from"])
         if data.get("due_to"):
@@ -148,8 +150,12 @@ def task_list(request):
 
     active_project = filter_form.cleaned_data.get("project") if filter_form.is_valid() else None
 
-    # Stats source: project-scoped when filtering by project, global otherwise
-    stats_qs = tasks_qs.order_by() if active_project else scoped_base_qs.order_by()
+    # Stats source: perimetro dell'utente, ristretto al kickoff quando ?project=N.
+    # Non dipende dagli altri filtri (mine/stato/priorita'): ogni tessera KPI
+    # apre ?mine=0[&project=N]&<filtro> e la lista conta esattamente lo stesso numero.
+    stats_qs = scoped_base_qs.order_by()
+    if active_project:
+        stats_qs = stats_qs.filter(project=active_project)
     status_counter = {
         row["status"]: row["total"]
         for row in stats_qs.values("status").annotate(total=Count("id")).order_by()

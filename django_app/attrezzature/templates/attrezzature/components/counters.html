@@ -1,14 +1,14 @@
 <section class="at-kpis">
-  <div class="at-kpi"><b>{{ counters.totali }}</b><span>Totali</span></div>
-  <div class="at-kpi"><b>{{ counters.in_corso }}</b><span>In corso</span></div>
-  <div class="at-kpi"><b>{{ counters.da_verificare }}</b><span>Da verificare</span></div>
-  <div class="at-kpi"><b>{{ counters.non_disponibili }}</b><span>Non disponibili</span></div>
-  <div class="at-kpi"><b>{{ counters.da_creare }}</b><span>Da creare</span></div>
-  <div class="at-kpi"><b>{{ counters.in_ritardo }}</b><span>In ritardo</span></div>
-  <div class="at-kpi"><b>{{ counters.finite }}</b><span>Finite</span></div>
-  <div class="at-kpi"><b>{{ counters.pronte_produzione }}</b><span>Pronte produzione</span></div>
-  <div class="at-kpi"><b>{{ counters.task_aperte }}</b><span>Task aperte</span></div>
-  <div class="at-kpi"><b>{{ counters.task_scadute }}</b><span>Task scadute</span></div>
-  <div class="at-kpi"><b>{{ counters.verifiche_disponibilita_aperte }}</b><span>Verifiche aperte</span></div>
-  <div class="at-kpi"><b>{{ counters.creazioni_attrezzo_aperte }}</b><span>Creazioni aperte</span></div>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}" title="Apri l'elenco di tutte le attrezzature"><b>{{ counters.totali }}</b><span>Totali</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?stato=in_corso" title="Apri l'elenco filtrato: attrezzature in corso"><b>{{ counters.in_corso }}</b><span>In corso</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?disponibilita_stato=da_verificare" title="Apri l'elenco filtrato: disponibilità da verificare"><b>{{ counters.da_verificare }}</b><span>Da verificare</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?disponibilita_stato=non_disponibile" title="Apri l'elenco filtrato: attrezzature non disponibili"><b>{{ counters.non_disponibili }}</b><span>Non disponibili</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?stato=da_creare" title="Apri l'elenco filtrato: attrezzature da creare"><b>{{ counters.da_creare }}</b><span>Da creare</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?in_ritardo=1" title="Apri l'elenco filtrato: consegna prevista passata e non concluse"><b>{{ counters.in_ritardo }}</b><span>In ritardo</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?stato=finita" title="Apri l'elenco filtrato: attrezzature finite"><b>{{ counters.finite }}</b><span>Finite</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:list' %}?ready=1" title="Apri l'elenco filtrato: attrezzature pronte per la produzione"><b>{{ counters.pronte_produzione }}</b><span>Pronte produzione</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:task_list' %}?aperte=1" title="Apri l'elenco filtrato: task aperte, in lavorazione o bloccate"><b>{{ counters.task_aperte }}</b><span>Task aperte</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:task_list' %}?scadute=1" title="Apri l'elenco filtrato: task aperte con scadenza passata"><b>{{ counters.task_scadute }}</b><span>Task scadute</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:task_list' %}?tipo=verifica_disponibilita&amp;aperte=1" title="Apri l'elenco filtrato: verifiche di disponibilità aperte"><b>{{ counters.verifiche_disponibilita_aperte }}</b><span>Verifiche aperte</span></a>
+  <a class="at-kpi kpi-link" href="{% url 'attrezzature:task_list' %}?tipo=creazione_attrezzo&amp;aperte=1" title="Apri l'elenco filtrato: creazioni attrezzo aperte"><b>{{ counters.creazioni_attrezzo_aperte }}</b><span>Creazioni aperte</span></a>
 </section>

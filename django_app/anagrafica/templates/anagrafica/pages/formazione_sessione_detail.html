@@ -161,7 +161,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>
       </div>
     </div>
-    <div class="hr-metric">
+    <a class="hr-metric kpi-link" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" title="Apri l'elenco degli iscritti alla sessione">
       <div class="hr-metric-ico navy">👥</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -170,8 +170,8 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
         <div class="hr-metric-sub">Dipendenti iscritti</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="#sessione-lezioni" title="Vai alle lezioni: la somma delle loro durate (pause escluse) è questo numero">
       <div class="hr-metric-ico green">📖</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -188,8 +188,9 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
           {% endif %}
         </div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    {% if sessione.docente_id %}{% url 'anagrafica:formazione_istruttore_detail' sessione.docente_id as erogatore_url %}{% elif sessione.docente_ente_id %}{% url 'anagrafica:formazione_azienda_detail' sessione.docente_ente_id as erogatore_url %}{% elif sessione.corso.ente_formativo_id %}{% url 'anagrafica:formazione_azienda_detail' sessione.corso.ente_formativo_id as erogatore_url %}{% endif %}
+    {% if erogatore_url %}<a class="hr-metric kpi-link" href="{{ erogatore_url }}" title="Apri la scheda del docente o dell'ente che ha erogato la sessione">{% else %}<div class="hr-metric">{% endif %}
       <div class="hr-metric-ico amber">👤</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
@@ -198,11 +199,11 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
         <div class="hr-metric-sub">{{ sessione.sede|default:"Sede non specificata"|truncatechars:30 }}</div>
       </div>
-    </div>
+    {% if erogatore_url %}</a>{% else %}</div>{% endif %}
   </div>
 
   {# ── Lezioni ─────────────────────────────────────────────────────────────── #}
-  <div class="hr-card fm-section">
+  <div class="hr-card fm-section" id="sessione-lezioni">
     <div class="fm-section-head">
       <div class="fm-section-title">📖 Lezioni <span class="fm-count">{{ lezioni|length }}</span></div>
       {% if is_editor %}

@@ -16,7 +16,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1558,14 +1558,23 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             | Q(coverage_summary__icontains=q)
         )
 
+    # KPI per stato: contati con gli altri filtri (asset, fornitore, ricerca, ambito)
+    # ma PRIMA del filtro di stato, cosi' ogni tessera porta a ?state=<stato> con lo
+    # stesso numero (prima si contavano le righe gia' filtrate per stato).
+    contract_state_counts: dict[str, int] = defaultdict(int)
     for contract in contract_qs:
         state = contract_state_payload(contract, today=today)
         scope = "asset" if contract.asset_id else "category" if contract.asset_category_id else "global"
         if selected_asset is not None and not contract.applies_to_asset(selected_asset):
             continue
-        if state_filter != "all" and state["status"] != state_filter:
-            continue
         if scope_filter != "all" and scope != scope_filter:
+            continue
+        contract_state_counts[state["status"]] += 1
+        if state_filter == "enabled":
+            # «Non disattivati» (is_active): il KPI «contratti attivi» della scheda fornitore.
+            if state["status"] == "inactive":
+                continue
+        elif state_filter != "all" and state["status"] != state_filter:
             continue
         scope_payload = _contract_scope_payload(contract)
         contract_rows.append(
@@ -1636,9 +1645,27 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             "form": form,
             "contract_rows": contract_rows,
             "contract_total": len(contract_rows),
-            "active_count": sum(1 for row in contract_rows if row["state"]["status"] == "active"),
-            "expiring_count": sum(1 for row in contract_rows if row["state"]["status"] == "expiring"),
-            "expired_count": sum(1 for row in contract_rows if row["state"]["status"] == "expired"),
+            "active_count": contract_state_counts["active"],
+            "expiring_count": contract_state_counts["expiring"],
+            "expired_count": contract_state_counts["expired"],
+            "contract_kpi_links": {
+                key: _assistance_contracts_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    supplier_filter=supplier_filter,
+                    state=key,
+                    scope=scope_filter,
+                    q=q,
+                )
+                for key in ("active", "expiring", "expired")
+            } | {
+                "visible": _assistance_contracts_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    supplier_filter=supplier_filter,
+                    state=state_filter,
+                    scope=scope_filter,
+                    q=q,
+                ),
+            },
             "periodic_cost_total": periodic_cost_total,
             "can_manage_contracts": can_manage_contracts,
             "today": today,
@@ -1658,6 +1685,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                 ("expired", "Scaduti"),
                 ("inactive", "Disattivi"),
                 ("scheduled", "Non ancora attivi"),
+                ("enabled", "Non disattivati"),
             ],
             "scope_choices": [
                 ("all", "Tutti"),
@@ -2131,26 +2159,23 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             license_qs = license_qs.filter(assigned_anagrafica_id=selected_anagrafica_id)
     if category_filter != "all":
         license_qs = license_qs.filter(category=category_filter)
-    if assignee_filter == "asset":
-        license_qs = license_qs.filter(asset_id__isnull=False)
-    elif assignee_filter == "user":
-        license_qs = license_qs.filter(assigned_anagrafica_id__isnull=False)
-    elif assignee_filter == "unassigned":
-        license_qs = license_qs.filter(asset_id__isnull=True, assigned_anagrafica_id__isnull=True)
 
-    if status_filter != "all":
-        if status_filter == "inactive":
-            license_qs = license_qs.filter(is_active=False)
-        else:
-            license_qs = license_qs.filter(is_active=True)
-            if status_filter == "expired":
-                license_qs = license_qs.filter(expiry_date__lt=today)
-            elif status_filter == "expiring":
-                license_qs = license_qs.filter(expiry_date__gte=today, expiry_date__lte=today + timedelta(days=30))
-            elif status_filter == "active":
-                license_qs = license_qs.filter(
-                    Q(expiry_date__isnull=True) | Q(expiry_date__gt=today + timedelta(days=30))
-                )
+    # Assegnazione e stato: le stesse regole di ``SoftwareLicense.assignment_scope`` e
+    # ``_software_license_state_payload`` (prima «Da assegnare» ignorava le licenze
+    # assegnate solo all'utente legacy e il KPI non tornava con il filtro).
+    _user_q = Q(assigned_anagrafica_id__isnull=False) | Q(assigned_legacy_user_id__isnull=False)
+    assignee_q = {
+        "asset": Q(asset_id__isnull=False),
+        "user": Q(asset_id__isnull=True) & _user_q,
+        "unassigned": Q(asset_id__isnull=True, assigned_anagrafica_id__isnull=True, assigned_legacy_user_id__isnull=True),
+    }
+    _in_30 = today + timedelta(days=30)
+    status_q = {
+        "inactive": Q(is_active=False),
+        "expired": Q(is_active=True, expiry_date__lt=today),
+        "expiring": Q(is_active=True, expiry_date__gte=today, expiry_date__lte=_in_30),
+        "active": Q(is_active=True) & (Q(expiry_date__isnull=True) | Q(expiry_date__gt=_in_30)),
+    }
 
     if q:
         license_qs = license_qs.filter(
@@ -2163,6 +2188,38 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             | Q(asset__asset_tag__icontains=q)
             | Q(asset__name__icontains=q)
         )
+
+    # KPI: ogni stato si conta con gli altri filtri ma senza quello di stato, «Da
+    # assegnare» con gli altri filtri ma senza quello di assegnazione: cosi' la
+    # tessera porta a ?status=<stato> / ?assignee=unassigned con lo stesso numero.
+    _assignee_cond = assignee_q.get(assignee_filter, Q())
+    _status_cond = status_q.get(status_filter, Q())
+    _license_kpi = license_qs.order_by().aggregate(
+        **{f"n_{key}": Count("id", filter=_assignee_cond & cond) for key, cond in status_q.items()},
+        n_unassigned=Count("id", filter=_status_cond & assignee_q["unassigned"]),
+    )
+
+    def _license_kpi_url(**overrides) -> str:
+        params = {
+            "asset_id": selected_asset.id if selected_asset else 0,
+            "anagrafica_id": selected_anagrafica_id,
+            "category": category_filter,
+            "status": status_filter,
+            "assignee": assignee_filter,
+            "q": q,
+        }
+        params.update(overrides)
+        return _software_licenses_page_url(**params)
+
+    license_kpi_links = {
+        "visible": _license_kpi_url(),
+        "active": _license_kpi_url(status="active"),
+        "expiring": _license_kpi_url(status="expiring"),
+        "expired": _license_kpi_url(status="expired"),
+        "inactive": _license_kpi_url(status="inactive"),
+        "unassigned": _license_kpi_url(assignee="unassigned"),
+    }
+    license_qs = license_qs.filter(_assignee_cond & _status_cond)
 
     license_rows: list[dict[str, object]] = []
     for license_row in license_qs:
@@ -2236,15 +2293,12 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             "form": form,
             "license_rows": license_rows,
             "license_total": len(license_rows),
-            "active_count": sum(1 for row in license_rows if row["state"]["status"] == "active"),
-            "expiring_count": sum(1 for row in license_rows if row["state"]["status"] == "expiring"),
-            "expired_count": sum(1 for row in license_rows if row["state"]["status"] == "expired"),
-            "inactive_count": sum(1 for row in license_rows if row["state"]["status"] == "inactive"),
-            "unassigned_count": sum(
-                1
-                for row in license_rows
-                if row["license"].assignment_scope == "unassigned"
-            ),
+            "active_count": _license_kpi["n_active"] or 0,
+            "expiring_count": _license_kpi["n_expiring"] or 0,
+            "expired_count": _license_kpi["n_expired"] or 0,
+            "inactive_count": _license_kpi["n_inactive"] or 0,
+            "unassigned_count": _license_kpi["n_unassigned"] or 0,
+            "license_kpi_links": license_kpi_links,
             "can_manage_licenses": can_manage_licenses,
             "renewal_supplier_options": (
                 _active_supplier_options() if can_manage_licenses else []

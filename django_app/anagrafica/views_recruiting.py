@@ -25,6 +25,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core import naming
@@ -124,6 +125,19 @@ def _audit(request, azione: str, dettaglio: dict) -> None:
 # Lista + ricerca
 # ---------------------------------------------------------------------------
 
+# Valore di ``?stato=`` per «Iter aperti» (non è uno stato del modello: tutti i non chiusi).
+STATO_ITER_APERTI = "in_corso"
+
+
+def _url_candidati(filtri: dict, **extra) -> str:
+    """Elenco candidati con i filtri del cruscotto (stessa ``_filtra_candidati``) più ``extra``."""
+    from urllib.parse import urlencode
+
+    parametri = {k: v for k, v in {**filtri, **extra}.items() if v}
+    base = reverse("anagrafica:recruiting_list")
+    return f"{base}?{urlencode(parametri)}" if parametri else base
+
+
 def _filtra_candidati(request):
     """Queryset filtrato dai parametri GET. Usato da lista e cruscotto KPI."""
     qs = Candidato.objects.all()
@@ -140,6 +154,9 @@ def _filtra_candidati(request):
     stato = (request.GET.get("stato") or "").strip()
     if stato in {c[0] for c in Candidato.STATO_CHOICES}:
         qs = qs.filter(stato=stato)
+    elif stato == STATO_ITER_APERTI:
+        # KPI «Iter aperti» dell'elenco: stessa regola del conteggio ``n_in_corso``.
+        qs = qs.exclude(stato__in=Candidato.STATI_CHIUSI)
     elif not q:
         # In navigazione le schede annullate/archiviate sono fuori dal lavoro
         # corrente: compaiono solo selezionandole dal filtro stato. Una ricerca
@@ -206,7 +223,7 @@ def recruiting_list(request):
         "page_obj": page_obj,
         "totale": totale,
         "filtri": _filtri_correnti(request),
-        "stato_choices": Candidato.STATO_CHOICES,
+        "stato_choices": [*Candidato.STATO_CHOICES, (STATO_ITER_APERTI, "Iter aperti (tutti i non chiusi)")],
         "canale_choices": Candidato.CANALE_CHOICES,
         "giudizio_choices": Candidato.GIUDIZIO_CHOICES,
         "can_manage": _can_manage_recruiting(request),
@@ -678,13 +695,20 @@ def recruiting_posizioni(request):
 
     stato = (request.GET.get("stato") or "").strip()
     qs = PosizioneAperta.objects.all()
-    if stato in {c[0] for c in PosizioneAperta.STATO_CHOICES}:
+    # Filtri aperti dai KPI: stessi queryset dei conteggi (services.recruiting).
+    filtro_kpi = ""
+    if request.GET.get("ritardo") == "1":
+        qs, filtro_kpi, stato = recruiting_service.posizioni_in_ritardo(qs), "In ritardo", ""
+    elif request.GET.get("periodo") == "12m":
+        qs, filtro_kpi, stato = recruiting_service.posizioni_coperte_12m(qs), "Coperte negli ultimi 12 mesi", ""
+    elif stato in {c[0] for c in PosizioneAperta.STATO_CHOICES}:
         qs = qs.filter(stato=stato)
     elif stato != "tutte":
         qs = qs.filter(stato__in=PosizioneAperta.STATI_ATTIVI)
     return render(request, "anagrafica/pages/recruiting_posizioni.html", {
         "righe": recruiting_service.righe_posizioni(qs.order_by("entro_il", "-data_richiesta")),
         "kpi": recruiting_service.kpi_posizioni(),
+        "filtro_kpi": filtro_kpi,
         "filtro_stato": stato,
         "stato_choices": PosizioneAperta.STATO_CHOICES,
         "can_manage": _can_manage_recruiting(request),
@@ -700,10 +724,21 @@ def recruiting_posizione_detail(request, posizione_id: int):
     posizione = get_object_or_404(PosizioneAperta, pk=posizione_id)
     riga = recruiting_service.righe_posizioni([posizione])[0]
     candidati = list(posizione.candidati.select_related("onboarding_pratica").order_by("-punteggio_ponderato"))
+    n_candidati = len(candidati)
+    # KPI «Assunti» / «In selezione» → ?fase=: stesse regole di ``righe_posizioni``.
+    fase = request.GET.get("fase") or ""
+    if fase == "assunti":
+        candidati = [c for c in candidati if c.stato == Candidato.STATO_ASSUNTO]
+    elif fase == "in_selezione":
+        candidati = [c for c in candidati if c.stato not in Candidato.STATI_CHIUSI]
+    else:
+        fase = ""
     return render(request, "anagrafica/pages/recruiting_posizione_detail.html", {
         "posizione": posizione,
         "riga": riga,
         "candidati": candidati,
+        "n_candidati": n_candidati,
+        "fase": fase,
         "can_manage": _can_manage_recruiting(request),
     })
 
@@ -818,8 +853,18 @@ def recruiting_dashboard(request):
         sezioni_c.Area("anagrafica:onboarding_list", "Onboarding", "Checklist di ingresso", icona="i-check"),
     ])
 
+    # Stessi parametri che ``_filtra_candidati`` ha applicato ai KPI qui sopra.
+    filtri_kpi = _filtri_correnti(request)
+    kpi_url = {
+        "tutti": _url_candidati(filtri_kpi),
+        "assunti": _url_candidati(filtri_kpi, stato=Candidato.STATO_ASSUNTO),
+        "offerte": _url_candidati(filtri_kpi, stato=Candidato.STATO_OFFERTA),
+        "positivi": _url_candidati(filtri_kpi, giudizio=Candidato.GIUDIZIO_POSITIVO),
+        "negativi": _url_candidati(filtri_kpi, giudizio=Candidato.GIUDIZIO_NEGATIVO),
+    }
     return render(request, "anagrafica/pages/recruiting_dashboard.html", {
         "kpi": kpi,
+        "kpi_url": kpi_url,
         "kpi_posizioni": recruiting_service.kpi_posizioni(),
         "posizioni_aperte": posizioni_aperte,
         "onboarding_aperti": onboarding_aperti,

@@ -12,6 +12,9 @@
   <div class="card">
     <div class="card-head">
       <div class="card-title">Job monitorati</div>
+      {% if active_filter %}
+        <div class="cell-muted">Filtro: {{ active_filter }} · {{ job_rows|length }} job · <a href="{% url 'monitoring_admin:automation_list' %}">mostra tutti</a></div>
+      {% endif %}
     </div>
     <div class="card-body" style="padding:0;">
       <div class="table-wrap">

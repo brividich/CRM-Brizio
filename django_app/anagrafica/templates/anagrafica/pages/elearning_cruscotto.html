@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .elc-kpi { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:12px; margin-bottom:16px; }
-.elc-kpi .fmd-panel { padding:14px 16px; }
+.elc-kpi .fmd-panel { display:block; padding:14px 16px; }
 .elc-kpi strong { display:block; font-size:26px; }
 .elc-commento { margin:0 0 10px; padding:8px 12px; border-left:3px solid #1f87cd; background:rgba(31,135,205,.06); border-radius:6px; }
 .elc-commento p { margin:0 0 4px; overflow-wrap:anywhere; }
@@ -51,13 +51,13 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
     </form>
 
     <div class="elc-kpi">
-      <div class="fmd-panel"><span class="fmd-muted">Obblighi in regola</span><strong>{{ copertura.pct }}%</strong><span class="fmd-muted">{{ copertura.in_regola }} su {{ copertura.obblighi }}</span></div>
-      <div class="fmd-panel"><span class="fmd-muted">Ore di fruizione effettiva</span><strong>{{ andamento.ore_erogate }}</strong><span class="fmd-muted">misurate lato server</span></div>
-      <div class="fmd-panel"><span class="fmd-muted">Completamenti (12 mesi)</span><strong>{{ andamento.totale_periodo }}</strong><span class="fmd-muted">registrati nel registro</span></div>
+      <a class="fmd-panel kpi-link" href="#elc-copertura" title="Vai alla copertura per reparto: le righe sommano a questi obblighi"><span class="fmd-muted">Obblighi in regola</span><strong>{{ copertura.pct }}%</strong><span class="fmd-muted">{{ copertura.in_regola }} su {{ copertura.obblighi }}</span></a>
+      <div class="fmd-panel" title="Somma del tempo accreditato a tutte le iscrizioni{% if corso_id %} del corso scelto{% endif %}"><span class="fmd-muted">Ore di fruizione effettiva</span><strong>{{ andamento.ore_erogate }}</strong><span class="fmd-muted">misurate lato server{% if reparto %} · tutti i reparti{% endif %}</span></div>
+      <a class="fmd-panel kpi-link" href="{% url 'anagrafica:elearning_registro' %}?dal={{ andamento.dal|date:'Y-m-d' }}{% if corso_id %}&amp;corso={{ corso_id }}{% endif %}" title="Apri il registro filtrato: completamenti dal {{ andamento.dal|date:'d/m/Y' }}"><span class="fmd-muted">Completamenti (12 mesi)</span><strong>{{ andamento.totale_periodo }}</strong><span class="fmd-muted">registrati nel registro{% if reparto %} · tutti i reparti{% endif %}</span></a>
     </div>
 
     <div class="elc-cols">
-      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Copertura per reparto</div>
+      <section class="fmd-panel fmd-block" id="elc-copertura"><div class="fmd-block-title" style="margin-bottom:8px;">Copertura per reparto</div>
         <div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Reparto</th><th>In regola</th><th></th></tr></thead><tbody>
         {% for r in copertura.per_reparto %}<tr><td><a class="fmd-data-link" href="?reparto={{ r.nome|urlencode }}{% if corso_id %}&amp;corso={{ corso_id }}{% endif %}">{{ r.nome }}</a></td>
           <td class="fmd-num">{{ r.in_regola }}/{{ r.obblighi }}</td>

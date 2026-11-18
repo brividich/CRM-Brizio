@@ -195,6 +195,7 @@ def capa_list(request: HttpRequest) -> HttpResponse:
         "n_aperte": n_aperte,
         "n_scadute": n_scadute,
         "n_da_verificare": n_da_verificare,
+        "stato_da_verificare": ActionItem.STATO_CHIUSA,
         "reparti": reparti,
         "origini": list(ActionItem.ORIGINE_LABELS.items()),
         "stati": ActionItem.STATO_CHOICES,

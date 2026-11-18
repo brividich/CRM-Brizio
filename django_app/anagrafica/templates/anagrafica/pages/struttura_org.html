@@ -6,8 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
-<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -46,12 +46,12 @@
     </div>
 
     <div class="mns-stats">
-      <div class="mns-stat"><b>{{ kpi.processi }}</b><span>processi</span></div>
-      <div class="mns-stat"><b>{{ kpi.reparti }}</b><span>reparti</span></div>
-      <div class="mns-stat"><b>{{ kpi.aree }}</b><span>aree</span></div>
-      <div class="mns-stat"><b>{{ kpi.ruoli }}</b><span>ruoli</span></div>
-      <div class="mns-stat"><b>{{ kpi.mansioni }}</b><span>mansioni</span></div>
-      <div class="mns-stat{% if kpi.rischi_da_confermare %} mns-mid{% endif %}"><b>{{ kpi.rischi_da_confermare }}</b><span>rischi da confermare</span></div>
+      <a class="mns-stat kpi-link" href="#processi" title="Vai all'elenco dei processi"><b>{{ kpi.processi }}</b><span>processi</span></a>
+      <a class="mns-stat kpi-link" href="#reparti" title="Vai a reparti e aree"><b>{{ kpi.reparti }}</b><span>reparti</span></a>
+      <a class="mns-stat kpi-link" href="#reparti" title="Vai a reparti e aree: le aree dentro ogni reparto"><b>{{ kpi.aree }}</b><span>aree</span></a>
+      <a class="mns-stat kpi-link" href="#ruoli" title="Vai all'elenco dei ruoli"><b>{{ kpi.ruoli }}</b><span>ruoli</span></a>
+      <a class="mns-stat kpi-link" href="#reparti" title="Vai a reparti e aree: le mansioni di ogni area"><b>{{ kpi.mansioni }}</b><span>mansioni</span></a>
+      <a class="mns-stat kpi-link{% if kpi.rischi_da_confermare %} mns-mid{% endif %}" href="{% url 'anagrafica:struttura_rischi' %}" title="Apri l'elenco: mansioni di rischio proposte da confermare"><b>{{ kpi.rischi_da_confermare }}</b><span>rischi da confermare</span></a>
     </div>
 
     <nav class="fmd-chips sto-nav" aria-label="Sezioni della pagina">

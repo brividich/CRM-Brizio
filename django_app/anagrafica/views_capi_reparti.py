@@ -36,6 +36,16 @@ def _ruoli_opts():
     return list(RuoloOperativo.objects.filter(is_active=True).order_by("nome"))
 
 
+# Filtri delle schede reparto aperti dai KPI della pagina: (etichetta, regola).
+# KPI e filtro usano la stessa regola, quindi lo stesso numero.
+FILTRI_REPARTI = {
+    "attivi": ("Reparti attivi", lambda s: s["reparto"].is_active),
+    "con_capo": ("Reparti attivi con qualcuno sulla «Responsabilità del reparto»",
+                 lambda s: s["reparto"].is_active and bool(s["capi"])),
+    "da_sistemare": ("Reparti attivi da sistemare", lambda s: s["reparto"].is_active and bool(s["avvisi"])),
+}
+
+
 def _contesto(request) -> dict:
     regola = capo_team.regola_unica_attiva()
     mappa = capo_team.mappa_capi()
@@ -122,7 +132,7 @@ def _contesto(request) -> dict:
             "aree": righe_aree,
             "avvisi": avvisi,
         })
-    attivi = [s for s in schede if s["reparto"].is_active]
+    attivi = [s for s in schede if FILTRI_REPARTI["attivi"][1](s)]
     proposta = None if regola else capi_mansione.proposta()
     for a in proposta.assegnazioni if proposta else []:
         a["nome"] = nomi.get(a["legacy_id"], "")
@@ -131,9 +141,10 @@ def _contesto(request) -> dict:
         "schede": schede,
         "aree_senza_reparto": aree_per_reparto.get(None, []),
         "kpi": {
+            # Stesse regole del filtro ``?filtro=`` delle schede (FILTRI_REPARTI).
             "reparti": len(attivi),
-            "con_capo": sum(1 for s in attivi if s["capi"]),
-            "da_sistemare": sum(1 for s in attivi if s["avvisi"]),
+            "con_capo": sum(1 for s in schede if FILTRI_REPARTI["con_capo"][1](s)),
+            "da_sistemare": sum(1 for s in schede if FILTRI_REPARTI["da_sistemare"][1](s)),
             "persone": len(mappa),
             "senza_capo": sum(1 for c in mappa.values() if not c.legacy_id),
             "eccezioni": origini.get(capo_team.ORIGINE_PERSONA, 0),
@@ -150,7 +161,13 @@ def _contesto(request) -> dict:
 
 @login_required
 def reparti_capi(request):
-    return render(request, "anagrafica/pages/aree_list.html", _contesto(request))
+    ctx = _contesto(request)
+    filtro = (request.GET.get("filtro") or "").strip()
+    if filtro in FILTRI_REPARTI:
+        etichetta, regola = FILTRI_REPARTI[filtro]
+        ctx["schede"] = [s for s in ctx["schede"] if regola(s)]
+        ctx["filtro"], ctx["filtro_label"] = filtro, etichetta
+    return render(request, "anagrafica/pages/aree_list.html", ctx)
 
 
 def _solo_admin(request):

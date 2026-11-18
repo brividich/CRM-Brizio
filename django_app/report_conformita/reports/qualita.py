@@ -62,11 +62,18 @@ def _registro_nc_ofi(params: ReportParams) -> ReportResult:
 
     n_aperte = aperte.count()
     n_ritardo = in_ritardo.count()
+    n_nc_aperte = aperte.filter(tipo=RegistroOFI.TIPO_NC).count()
+    # Il Registro OFI filtra aperte / NC / scadute con le stesse condizioni (q_aperte,
+    # is_scaduto), ma non per norma: con il filtro norma le tessere portano al dettaglio.
+    from django.urls import reverse
+
+    registro = reverse("registro_ofi:lista") if not norma else ""
     result.kpis = [
-        Kpi("Aperte", n_aperte),
-        Kpi("di cui non conformità", aperte.filter(tipo=RegistroOFI.TIPO_NC).count(),
-            TONE_WARN if aperte.filter(tipo=RegistroOFI.TIPO_NC).exists() else ""),
-        Kpi("Oltre la data di chiusura", n_ritardo, TONE_DANGER if n_ritardo else TONE_OK),
+        Kpi("Aperte", n_aperte, url=f"{registro}?aperte=1" if registro else ""),
+        Kpi("di cui non conformità", n_nc_aperte, TONE_WARN if n_nc_aperte else "",
+            url=f"{registro}?aperte=1&tipo=NC" if registro else ""),
+        Kpi("Oltre la data di chiusura", n_ritardo, TONE_DANGER if n_ritardo else TONE_OK,
+            url=f"{registro}?scaduti=1" if registro else ""),
         Kpi("Aperte nel periodo", nel_periodo.count()),
         Kpi("Chiuse nel periodo", chiuse_periodo.count()),
         Kpi("Giorni medi di chiusura", media if media is not None else "n/d"),
@@ -181,8 +188,10 @@ def _albo_fornitori(params: ReportParams) -> ReportResult:
         )
 
     totale = len(fornitori)
+    from django.urls import reverse
+
     result.kpis = [
-        Kpi("Fornitori attivi", totale),
+        Kpi("Fornitori attivi", totale, url=reverse("fornitori:fornitori_list") + "?attivi=1"),
         Kpi("Qualificati", counts["ok"], TONE_OK, pct(counts["ok"], totale)),
         Kpi("Da rivalutare", counts["rivalutare"], TONE_WARN if counts["rivalutare"] else ""),
         Kpi("Insufficienti (media < 3)", counts["insufficiente"], TONE_DANGER if counts["insufficiente"] else ""),

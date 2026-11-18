@@ -45,21 +45,25 @@
       </div>
       {% endif %}
       {% if dettaglio.testo %}<p>{{ dettaglio.testo }}</p>{% endif %}
-      <div class="es-kpis-det">{% for etichetta, valore, avviso in dettaglio.kpi %}<div class="{% if avviso %}is-avviso{% endif %}"><b>{{ valore }}</b><span>{{ etichetta }}</span></div>{% endfor %}</div>
+      {% comment %}
+      Ogni numero porta all'elenco qui sotto che conta le stesse voci (stesso calcolo
+      in services/esplora_struttura.py); quelli senza un elenco in pagina restano informativi.
+      {% endcomment %}
+      <div class="es-kpis-det">{% for etichetta, valore, avviso in dettaglio.kpi %}{% if etichetta == "Reparti" and dettaglio.reparti %}{% firstof "es-det-reparti" as ancora %}{% elif etichetta == "Mansioni da guardare" and dettaglio.da_guardare %}{% firstof "es-det-da-guardare" as ancora %}{% elif etichetta == "Persone" or etichetta == "Persone qui" or etichetta == "Persone in lista" or etichetta == "Persone valutate" or etichetta == "Con segnali di carico" or etichetta == "Non conformi" %}{% if dettaglio.persone %}{% firstof "es-det-persone" as ancora %}{% else %}{% firstof "" as ancora %}{% endif %}{% elif etichetta == "Altre mansioni" and dettaglio.altre_mansioni %}{% firstof "es-det-altre-mansioni" as ancora %}{% else %}{% firstof "" as ancora %}{% endif %}{% if ancora %}<a class="kpi-link{% if avviso %} is-avviso{% endif %}" href="#{{ ancora }}" title="Vai all'elenco: {{ etichetta|lower }}"><b>{{ valore }}</b><span>{{ etichetta }}</span></a>{% else %}<div class="{% if avviso %}is-avviso{% endif %}"><b>{{ valore }}</b><span>{{ etichetta }}</span></div>{% endif %}{% endfor %}</div>
       {% if dettaglio.dati %}<dl class="es-dati">{% for k, v in dettaglio.dati %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% endif %}
       {% if dettaglio.reparti %}
-      <div class="es-sotto-h">Reparti del centro ({{ dettaglio.reparti|length }})</div>
+      <div class="es-sotto-h" id="es-det-reparti">Reparti del centro ({{ dettaglio.reparti|length }})</div>
       <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab">
         <thead><tr><th>Reparto</th><th>Responsabile</th><th class="es-num">Persone</th><th class="es-num">Ruoli</th><th class="es-num">Mansioni</th><th class="es-num">Da guardare</th>{% if dettaglio.colonne_persone.riservati %}<th class="es-num">€/ora medio</th>{% endif %}</tr></thead>
         <tbody>{% for r in dettaglio.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"—" }}</td><td class="es-num">{{ r.persone }}</td><td class="es-num">{{ r.ruoli }}</td><td class="es-num">{{ r.mansioni }}</td><td class="es-num{% if r.da_guardare %} es-rosso{% endif %}">{{ r.da_guardare }}</td>{% if dettaglio.colonne_persone.riservati %}<td class="es-num">{{ r.costo|default:"—" }}</td>{% endif %}</tr>{% endfor %}</tbody>
       </table></div>
       {% endif %}
       {% if dettaglio.da_guardare %}
-      <div class="es-sotto-h">Mansioni da guardare ({{ dettaglio.da_guardare|length }})</div>
+      <div class="es-sotto-h" id="es-det-da-guardare">Mansioni da guardare ({{ dettaglio.da_guardare|length }})</div>
       <ul class="es-persone">{% for x in dettaglio.da_guardare %}<li><a href="{{ x.url }}">{{ x.nome }}</a> <small>{{ x.sotto }}</small></li>{% endfor %}</ul>
       {% endif %}
       {% if dettaglio.persone is not None %}
-        <div class="es-sotto-h">{{ dettaglio.persone_titolo|default:"Persone" }} ({{ dettaglio.persone|length }})</div>
+        <div class="es-sotto-h" id="es-det-persone">{{ dettaglio.persone_titolo|default:"Persone" }} ({{ dettaglio.persone|length }})</div>
         {% if dettaglio.persone %}
         {% include "anagrafica/partials/_esplora_persone.html" %}
         {% else %}<span class="rc-none">Nessuna persona.</span>{% endif %}
@@ -72,7 +76,7 @@
       <ul class="es-strade">{% for x in dettaglio.gerarchia %}{% if x.url %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endif %}{% endfor %}</ul>
       {% endif %}
       {% if dettaglio.altri_reparti %}
-      <div class="es-sotto-h">Stesso ruolo in altri reparti ({{ dettaglio.altri_reparti|length }})</div>
+      <div class="es-sotto-h" id="es-det-altri-reparti">Stesso ruolo in altri reparti ({{ dettaglio.altri_reparti|length }})</div>
       <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altri_reparti %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
       {% endif %}
       {% if dettaglio.altri_ruoli %}
@@ -80,7 +84,7 @@
       <ul class="es-strade">{% for x in dettaglio.altri_ruoli %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
       {% endif %}
       {% if dettaglio.altre_mansioni %}
-      <div class="es-sotto-h">Stessa competenza su altre mansioni</div>
+      <div class="es-sotto-h" id="es-det-altre-mansioni">Stessa competenza su altre mansioni</div>
       <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altre_mansioni %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
       {% endif %}
       <div class="es-sotto-h">Apri nelle altre pagine</div>

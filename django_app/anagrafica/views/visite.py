@@ -1875,6 +1875,26 @@ def visite_mediche_export_copertura(request):
     return response
 
 
+def _perimetro_conformita(request) -> dict[int, dict]:
+    """Persone su cui si calcola la conformità: attive, senza cessati e solo le
+    schede che il ruolo può vedere (come dashboard HR e scadenzari).
+
+    Una funzione sola per il report Conformità e per le tessere del cruscotto
+    Sicurezza che vi portano: prima il cruscotto contava anche cessati e schede
+    fuori ambito, e il suo «Non conformi» non tornava con l'elenco.
+    """
+    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    cessati = _helpers._cessati_legacy_ids()
+    visibili = None
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+    return {k: v for k, v in dip_map.items()
+            if k not in cessati and (visibili is None or k in visibili)}
+
+
 @login_required
 def sicurezza_hub(request):
     """Cruscotto "Sicurezza & Idoneità": numeri chiave e collegamenti a tutte le
@@ -1900,8 +1920,8 @@ def sicurezza_hub(request):
     conformita_kpi = None
     stati = None
     if can_hr:
-        dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
-        dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+        # Stesso perimetro del report Conformità a cui portano le tessere.
+        dip_map = _perimetro_conformita(request)
         mansioni_per_legacy = {
             lid: str(d.get("mansione") or "").strip()
             for lid, d in dip_map.items() if str(d.get("mansione") or "").strip()
@@ -2251,20 +2271,7 @@ def conformita_report(request):
     filtro_mansione = (request.GET.get("mansione") or "").strip()
     export_csv = request.GET.get("format") == "csv"
 
-    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
-    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
-    legacy_ids = list(dip_map.keys())
-
-    # Stesso perimetro di dashboard HR e scadenzari: senza i cessati e solo le
-    # schede che il ruolo può vedere.
-    _cessati = _helpers._cessati_legacy_ids()
-    _visibili = None
-    if _helpers._ruoli_attivi():
-        from .dipendenti import _schede_visibili
-
-        _visibili = _schede_visibili(request)
-    dip_map = {k: v for k, v in dip_map.items()
-               if k not in _cessati and (_visibili is None or k in _visibili)}
+    dip_map = _perimetro_conformita(request)
     legacy_ids = list(dip_map.keys())
 
     # Mappa nome mansione → id (per collegare ogni riga alla sua pagina Requisiti).
@@ -2303,8 +2310,6 @@ def conformita_report(request):
             continue
         stato = stati.get(legacy_id, {"complessivo": conformita_service.ESITO_NA})
         complessivo = stato.get("complessivo", conformita_service.ESITO_NA)
-        if filtro_esito and complessivo != filtro_esito:
-            continue
         idoneita = stato.get("idoneita", {"esito": conformita_service.ESITO_NA})
         if filtro_idoneita and idoneita.get("esito") != filtro_idoneita:
             continue
@@ -2329,13 +2334,27 @@ def conformita_report(request):
         r["nome"].casefold(),
     ))
 
-    # KPI
+    # KPI sugli altri filtri (reparto, mansione, idoneità), esito a parte: ogni
+    # tessera apre ?esito=… con gli stessi filtri e conta le righe che mostra.
     n_ko = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_KO)
     n_warn = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_WARN)
     n_ok = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_OK)
     n_na = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_NA)
 
     reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
+    if filtro_esito:
+        righe = [r for r in righe if r["complessivo"] == filtro_esito]
+
+    from urllib.parse import urlencode
+
+    _base = [(k, v) for k, v in (
+        ("reparto", filtro_reparto), ("mansione", filtro_mansione), ("idoneita", filtro_idoneita)) if v]
+    _url = reverse("anagrafica:conformita_report")
+    kpi_links = {
+        esito: f"{_url}?{urlencode(_base + [('esito', esito)])}"
+        for esito in (conformita_service.ESITO_KO, conformita_service.ESITO_WARN,
+                      conformita_service.ESITO_OK, conformita_service.ESITO_NA)
+    }
 
     if export_csv:
         _LABEL = {
@@ -2380,6 +2399,7 @@ def conformita_report(request):
 
     return render(request, "anagrafica/pages/conformita_report.html", {
         "page_obj": page_obj,
+        "kpi_links": kpi_links,
         "totale": len(righe),
         "n_ko": n_ko,
         "n_warn": n_warn,
@@ -2446,8 +2466,23 @@ def libretto_sanitario_generale(request):
     paginator = Paginator(elenco, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
 
+    # Link delle tessere: i conteggi per stato rispettano reparto, mansione e
+    # verdetto (non dominio e stato), quindi i link conservano solo quei filtri.
+    from urllib.parse import urlencode
+
+    _base = [("vista", "requisiti")] + [
+        (k, filtri[k]) for k in ("reparto", "mansione", "verdetto") if filtri[k]
+    ]
+    _url = reverse("anagrafica:libretto_sanitario_generale")
+    kpi_links = {
+        stato: f"{_url}?{urlencode(_base + [('stato', stato)])}"
+        for stato in ("ko", "warn", "mancante", "ok")
+    }
+    kpi_links["tutti"] = f"{_url}?{urlencode(_base)}"
+
     return render(request, "anagrafica/pages/libretto_sanitario_generale.html", {
         "page_obj": page_obj,
+        "kpi_links": kpi_links,
         "vista": vista,
         "totale": len(elenco),
         "export_key": (

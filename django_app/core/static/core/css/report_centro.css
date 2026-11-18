@@ -9,7 +9,7 @@
 .rc-tabs .rc-guida { margin-left: auto; }
 
 .rc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.rc-kpi { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--surface); }
+.rc-kpi { display: block; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--surface); }
 .rc-kpi strong { display: block; font-size: var(--fs-xl, 20px); color: var(--text); }
 .rc-kpi span { font-size: 12px; color: var(--text-mid); }
 

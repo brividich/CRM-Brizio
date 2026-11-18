@@ -40,6 +40,7 @@
   transition:box-shadow .15s;
 }
 .sic-kpi-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.07); }
+a.sic-kpi-card, a.sic-tipo-card { color:inherit; text-decoration:none; }
 .sic-kpi-label { font-size: var(--fs-xs); font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
 .sic-kpi-value { font-size: var(--fs-display-lg); font-weight:900; line-height:1; color:#0f172a; }
 .sic-kpi-sub { font-size: var(--fs-xs); color:#94a3b8; margin-top:2px; }
@@ -247,81 +248,82 @@ body.theme-dark .sic-tipo-early-warning{color:#c4b5fd}
   <!-- KPI principali -->
   {% if stats %}
   <div class="sic-kpi-row">
-    <div class="sic-kpi-card">
+    {% url 'rilevazione_incidenti:lista' as url_lista %}
+    <a class="sic-kpi-card kpi-link" href="{{ url_lista }}#sic-elenco" title="Apri l'elenco di tutte le rilevazioni visibili">
       <div class="sic-kpi-label">Totale rilevazioni</div>
       <div class="sic-kpi-value">{{ stats.totale }}</div>
       <div class="sic-kpi-sub">tutte le tipologie</div>
       <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:100%;background:#065f46;"></div></div>
-    </div>
-    <div class="sic-kpi-card kpi-aperti">
+    </a>
+    <a class="sic-kpi-card kpi-aperti kpi-link" href="{{ url_lista }}?stato=APERTO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni aperte, in attesa del preposto">
       <div class="sic-kpi-label">Aperti</div>
       <div class="sic-kpi-value">{{ stats.aperti }}</div>
       <div class="sic-kpi-sub">in attesa preposto</div>
       <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.aperti stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
-    </div>
-    <div class="sic-kpi-card kpi-approvati">
+    </a>
+    <a class="sic-kpi-card kpi-approvati kpi-link" href="{{ url_lista }}?stato=APPROVATO#sic-elenco" title="Apri l'elenco filtrato: approvate dall'RLS, in attesa dell'RSPP">
       <div class="sic-kpi-label">Approvati RLS</div>
       <div class="sic-kpi-value">{{ stats.approvati }}</div>
       <div class="sic-kpi-sub">in attesa RSPP</div>
       <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.approvati stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
-    </div>
-    <div class="sic-kpi-card kpi-chiusi">
+    </a>
+    <a class="sic-kpi-card kpi-chiusi kpi-link" href="{{ url_lista }}?stato=CHIUSO#sic-elenco" title="Apri l'elenco filtrato: rilevazioni chiuse dall'RSPP">
       <div class="sic-kpi-label">Chiusi RSPP</div>
       <div class="sic-kpi-value">{{ stats.chiusi }}</div>
       <div class="sic-kpi-sub">completati</div>
       <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.chiusi stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
-    </div>
+    </a>
   </div>
 
   <!-- KPI tipologie -->
   <div class="sic-tipo-row">
-    <div class="sic-tipo-card sic-tipo-card-uc">
+    <a class="sic-tipo-card sic-tipo-card-uc kpi-link" href="{{ url_lista }}?tipo=Unsafe+Condition#sic-elenco" title="Apri l'elenco filtrato: schede Unsafe Condition">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Unsafe Condition</div>
       <div class="sic-tipo-card-num">{{ stats.unsafe_condition }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-ua">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-ua kpi-link" href="{{ url_lista }}?tipo=Unsafe+Act#sic-elenco" title="Apri l'elenco filtrato: schede Unsafe Act">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Unsafe Act</div>
       <div class="sic-tipo-card-num">{{ stats.unsafe_act }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-nm">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-nm kpi-link" href="{{ url_lista }}?tipo=Near+Miss#sic-elenco" title="Apri l'elenco filtrato: schede Near Miss">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Near Miss</div>
       <div class="sic-tipo-card-num">{{ stats.near_miss }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-ac">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-ac kpi-link" href="{{ url_lista }}?tipo=Accident#sic-elenco" title="Apri l'elenco filtrato: schede Accident">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Accident</div>
       <div class="sic-tipo-card-num">{{ stats.accident }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-ew">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-ew kpi-link" href="{{ url_lista }}?tipo=Early+Warning#sic-elenco" title="Apri l'elenco filtrato: schede Early Warning">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Early Warning</div>
       <div class="sic-tipo-card-num">{{ stats.early_warning }}</div>
-    </div>
+    </a>
   </div>
   <div class="sic-tipo-row">
-    <div class="sic-tipo-card sic-tipo-card-uc">
+    <a class="sic-tipo-card sic-tipo-card-uc kpi-link" href="{{ url_lista }}?tipo_evento=unsafe_condition#sic-elenco" title="Apri l'elenco filtrato: tipo di evento unsafe condition / atti non sicuri">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Unsafe condition / atti non sicuri</div>
       <div class="sic-tipo-card-num">{{ stats.eventi_unsafe_condition }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-nm">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-nm kpi-link" href="{{ url_lista }}?tipo_evento=near_miss#sic-elenco" title="Apri l'elenco filtrato: tipo di evento near miss">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Near miss</div>
       <div class="sic-tipo-card-num">{{ stats.eventi_near_miss }}</div>
-    </div>
-    <div class="sic-tipo-card sic-tipo-card-ac">
+    </a>
+    <a class="sic-tipo-card sic-tipo-card-ac kpi-link" href="{{ url_lista }}?tipo_evento=incidente#sic-elenco" title="Apri l'elenco filtrato: tipo di evento incidenti">
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Incidenti</div>
       <div class="sic-tipo-card-num">{{ stats.eventi_incidente }}</div>
-    </div>
+    </a>
   </div>
   {% endif %}
 
   <!-- Filtri -->
-  <form method="get" class="sic-filters">
+  <form method="get" class="sic-filters" id="sic-elenco">
     <input type="text" name="q" value="{{ search }}" placeholder="Cerca per nominativo, reparto..."
            class="sic-filter-input">
     <select name="tipo" class="sic-filter-select">

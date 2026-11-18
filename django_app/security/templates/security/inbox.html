@@ -70,7 +70,7 @@
   </div>
 
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Ultimi 10 messaggi ricevuti</h2></div>
+    <div class="sec-section-head" id="inbox-messaggi"><h2>{% if inbox_stato %}Messaggi «{{ inbox_stato|ui_label }}»: {{ inbox_n_messaggi }}{% else %}Ultimi 10 messaggi ricevuti{% endif %}</h2>{% if inbox_stato %}<span class="sec-muted sec-small">{% if inbox_n_messaggi > inbox_limite %}primi {{ inbox_limite }} · {% endif %}<a href="{% url 'security:inbox' %}">togli il filtro</a></span>{% endif %}</div>
     {% if recent_mailbox_messages %}
       <div class="sec-table-wrap">
         <table class="sec-table">
@@ -83,14 +83,14 @@
         </table>
       </div>
     {% else %}
-      <p class="sec-empty">Nessun messaggio recente.</p>
+      <p class="sec-empty">{% if inbox_stato %}Nessun messaggio in questo stato.{% else %}Nessun messaggio recente.{% endif %}</p>
     {% endif %}
   </div>
 </section>
 
 <section class="sec-grid" style="margin-top: 12px;">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Ultimi 10 file caricati</h2></div>
+    <div class="sec-section-head" id="inbox-file"><h2>{% if inbox_stato %}File «{{ inbox_stato|ui_label }}»: {{ inbox_n_file }}{% else %}Ultimi 10 file caricati{% endif %}</h2>{% if inbox_stato %}<span class="sec-muted sec-small">{% if inbox_n_file > inbox_limite %}primi {{ inbox_limite }} · {% endif %}<a href="{% url 'security:inbox' %}">togli il filtro</a></span>{% endif %}</div>
     {% if recent_source_files %}
       <div class="sec-table-wrap">
         <table class="sec-table">
@@ -103,7 +103,7 @@
         </table>
       </div>
     {% else %}
-      <p class="sec-empty">Nessun file caricato di recente.</p>
+      <p class="sec-empty">{% if inbox_stato %}Nessun file in questo stato.{% else %}Nessun file caricato di recente.{% endif %}</p>
     {% endif %}
   </div>
 

@@ -17,12 +17,12 @@
 
 <section class="vpn-tiles">
   {% for t in tiles %}
-    <div class="kpi-tile{% if t.warn %} kpi-warn{% endif %}">
+    <a class="kpi-tile kpi-link{% if t.warn %} kpi-warn{% endif %}" href="{{ t.url }}" title="{% if t.key == 'unique_users' %}Vai alla classifica degli utenti del periodo{% else %}Apri il registro accessi con gli stessi filtri{% if t.key == 'allowed' %}: solo consentiti{% elif t.key == 'denied' %}: solo negati{% endif %}{% endif %}">
       <span class="kpi-label">{{ t.label }}</span>
       <strong class="kpi-value">{% if t.key == "avg" %}{{ t.value|duration_hms }}{% else %}{{ t.value }}{% endif %}</strong>
       <span class="kpi-delta">{% if t.delta is not None %}{% if t.delta > 0 %}▲ +{% elif t.delta < 0 %}▼ −{% else %}= {% endif %}{% if t.key == "avg" %}{{ t.delta|abs_value|duration_hms }}{% elif t.delta %}{{ t.delta|abs_value }}{% else %}invariato{% endif %}{% endif %}{% if t.key == "denied" %} · {{ summary.denied_pct }}% del totale{% endif %}</span>
       {% if t.spark %}<svg class="kpi-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ t.spark }}"></polyline></svg>{% endif %}
-    </div>
+    </a>
   {% endfor %}
 </section>
 
@@ -108,8 +108,8 @@
       {% for h in hours %}<span class="{% if h.night %}night{% endif %}{% if not h.n %} zero{% endif %}" style="--h: {{ h.pct|unlocalize }}%;" data-tip-title="Ore {{ h.hour }}:00–{{ h.hour }}:59" data-tip="{{ h.n }} accessi consentiti{% if h.night %}|orario notturno{% endif %}"><i></i><b>{% if h.hour|divisibleby:6 %}{{ h.hour }}{% endif %}</b></span>{% endfor %}
     </div>
   </div>
-  <div class="sec-panel">
-    <div class="sec-section-head"><h3>Utenti più attivi</h3></div>
+  <div class="sec-panel" id="vpn-utenti">
+    <div class="sec-section-head"><h3>Utenti più attivi</h3>{% if summary.unique_users > top_users|length %}<span class="sec-muted sec-small">i {{ top_users|length }} più attivi su {{ summary.unique_users }}</span>{% endif %}</div>
     <ul class="vpn-rank">
       {% for row in top_users %}
         <li><a href="?user={{ row.username|urlencode }}" title="{{ row.total }} accessi, {{ row.denied }} negati"><span class="vpn-rank-name">{{ row.username }}</span><span class="vpn-rank-num">{{ row.total }}{% if row.denied %} <em>· {{ row.denied }} negati</em>{% endif %}</span><span class="vpn-rank-bar" style="--w: {{ row.share|unlocalize }}%;"></span></a></li>
@@ -126,7 +126,7 @@
   </div>
 </section>
 
-<section class="sec-panel" style="margin-top: 12px;">
+<section class="sec-panel" style="margin-top: 12px;" id="vpn-registro">
   <div class="sec-section-head">
     <h2>Registro accessi</h2>
     <span class="sec-badge">{{ page.paginator.count }} risultati</span>

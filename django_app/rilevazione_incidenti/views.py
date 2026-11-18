@@ -684,7 +684,8 @@ def lista(request):
             or sl in (f.get("Descrizione_x0020_avvenimento") or "").lower()
         ]
     if tipo_filter:
-        items = [f for f in items if (f.get("Tipologia_scheda") or "") == tipo_filter]
+        # strip() come nei conteggi delle tessere (_tipi_cnt): stesso insieme, stesso numero.
+        items = [f for f in items if (f.get("Tipologia_scheda") or "").strip() == tipo_filter]
     if evento_filter:
         items = [
             f for f in items
@@ -1105,7 +1106,8 @@ def statistiche(request):
 
     # Aggregazioni
     totale = len(items)
-    per_tipologia = Counter(f.get("Tipologia_scheda", "N/D") for f in items)
+    # Stessa normalizzazione del filtro ?tipo= della lista, dove portano le tessere.
+    per_tipologia = Counter((f.get("Tipologia_scheda") or "").strip() or "N/D" for f in items)
     per_tipo_evento = Counter(normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) for f in items)
     per_reparto = Counter(f.get("Reparto", f.get("Reparto_txt", "N/D")) or "N/D" for f in items)
     per_stato = Counter(f["stato"] for f in items)

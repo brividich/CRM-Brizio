@@ -10,6 +10,7 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.db.models import Count
@@ -51,6 +52,7 @@ from . import _helpers  # noqa: E402
 
 QUEUE_STATUS_CHOICES = ("pending", "processing", "done", "error")
 QUEUE_OPERATION_CHOICES = ("insert", "update")
+QUEUE_LIST_LIMIT = 200
 QUEUE_POLLER_JOB_CODE = "automazioni_process_queue"
 QUEUE_POLLER_TASK_NAME = "Portale Hub Polling Mail"
 QUEUE_POLLER_LOG_PATH = Path(__file__).resolve().parents[1] / "logs" / "automation_queue.log"
@@ -287,7 +289,9 @@ def _queue_table_exists() -> bool:
 @legacy_admin_or_acl_required("automazioni", "queue_list_page")
 @require_GET
 def queue_list_page(request):
-    status = _helpers._get_filter_value(request, "status")
+    # Stati in minuscolo come nella tabella (e nelle chiavi di count_queue_by_status):
+    # «?status=PENDING» funzionava solo con collation case-insensitive.
+    status = _helpers._get_filter_value(request, "status").lower()
     source_code = _helpers._get_filter_value(request, "source_code")
     operation_type = _helpers._get_filter_value(request, "operation_type")
     poller_health = _build_queue_poller_health_snapshot()
@@ -310,7 +314,7 @@ def queue_list_page(request):
         status=status or None,
         source_code=source_code or None,
         operation_type=operation_type or None,
-        limit=200,
+        limit=QUEUE_LIST_LIMIT,
     )
     queue_ids = [int(event["id"]) for event in queue_events]
     run_log_counts = {
@@ -328,15 +332,22 @@ def queue_list_page(request):
         event["can_stop"] = event.get("status") == "pending"
         event["can_delete"] = event.get("status") in {"pending", "error"} and event["run_log_count"] == 0
 
+    queue_counts = count_queue_by_status(
+        source_code=source_code or None,
+        operation_type=operation_type or None,
+    )
+    queue_events_total = int(queue_counts.get(status, 0)) if status else sum(queue_counts.values())
     context = {
         **_helpers._base_context(),
         "queue_table_missing": False,
         "poller_health": poller_health,
         "queue_events": queue_events,
-        "queue_counts": count_queue_by_status(
-            source_code=source_code or None,
-            operation_type=operation_type or None,
-        ),
+        "queue_counts": queue_counts,
+        # Le tessere di stato contano rispettando sorgente/operazione: i loro link le
+        # conservano, così la lista mostra lo stesso insieme del numero.
+        "queue_kpi_qs": urlencode({k: v for k, v in (("source_code", source_code), ("operation_type", operation_type)) if v}),
+        "queue_events_total": queue_events_total,
+        "queue_events_truncated": queue_events_total > len(queue_events),
         "filters": {
             "status": status,
             "source_code": source_code,
@@ -518,8 +529,10 @@ def run_log_list_page(request):
         _global = _global.filter(rule_id=rule_id)
     if queue_event_id:
         _global = _global.filter(queue_event_id=queue_event_id)
+    # Stessa condizione del filtro del chip (?status=error): «failed» non è uno stato
+    # di AutomationRunLogStatus, il vecchio link ?status=failed mostrava sempre 0 righe.
     chip_counts = {
-        "errors": _global.filter(status__in=("failed", "error")).count(),
+        "errors": _global.filter(status=AutomationRunLogStatus.ERROR).count(),
         "tests": _global.filter(is_test=True).count(),
         "recent_24h": _global.filter(started_at__gte=_tz.now() - timedelta(hours=24)).count(),
     }
@@ -529,6 +542,10 @@ def run_log_list_page(request):
         "run_logs": run_logs,
         "max_execution_ms": max_execution_ms,
         "chip_counts": chip_counts,
+        # I chip contano dentro sorgente/regola/evento: i loro link conservano quei filtri.
+        "chip_scope_qs": urlencode({k: v for k, v in (("source_code", source_code), ("rule", rule_id),
+                                                      ("queue_event_id", queue_event_id)) if v}),
+        "run_logs_truncated": len(run_logs) >= 200 and queryset.count() > len(run_logs),
         "filters": {
             "status": status,
             "source_code": source_code,
@@ -696,7 +713,7 @@ def pianificati_page(request):
     rispettato anche dopo un redeploy); la cadenza è definita nel codice.
     """
     from ..mail_config import is_configurable
-    from ..schedules import SCHEDULES, schedule_rows
+    from ..schedules import schedule_rows
 
     from ..schedules import SOSPENSIONE_MAX_GIORNI
 
@@ -710,6 +727,17 @@ def pianificati_page(request):
         # Chi riceve davvero (elenco + regole del flusso + ripiego), non solo l'elenco salvato.
         r["destinatari"] = descrivi_effettivi(destinatari_effettivi(r["name"])) if r["configurable"] else ""
     enabled_n = sum(1 for r in rows if r["enabled"])
+    totale = len(rows)
+    digest_sospesi = sum(1 for r in rows if r["digest"] and r["sospeso_fino"])
+    # Tessere «Attivi»/«Disattivati»: ``?stato=`` mostra nelle due tabelle solo quelle
+    # righe (stessa condizione ``enabled`` del conteggio). Le tessere contano sempre tutto.
+    stato = (request.GET.get("stato") or "").strip()
+    if stato == "attivi":
+        rows = [r for r in rows if r["enabled"]]
+    elif stato == "disattivi":
+        rows = [r for r in rows if not r["enabled"]]
+    else:
+        stato = ""
     # Raccoglitore «Digest e promemoria» in ordine di orario; il resto nell'elenco generale.
     digest_rows = sorted((r for r in rows if r["digest"]), key=lambda r: (r["orario"] or "99", r["name"]))
     oggi = timezone.localdate()
@@ -719,14 +747,17 @@ def pianificati_page(request):
         **_helpers._base_context(),
         "rows": [r for r in rows if not r["digest"]],
         "digest_rows": digest_rows,
-        "digest_sospesi": sum(1 for r in digest_rows if r["sospeso_fino"]),
+        "digest_sospesi": digest_sospesi,
         "oggi_iso": oggi.isoformat(),
         "domani_iso": (oggi + timedelta(days=1)).isoformat(),
         "max_iso": (oggi + timedelta(days=SOSPENSIONE_MAX_GIORNI)).isoformat(),
         "health": health,
-        "totale": len(SCHEDULES),
+        # Totale dalle stesse righe di attivi/disattivi: totale = attivi + disattivi.
+        "totale": totale,
         "attivi": enabled_n,
-        "disattivi": len(rows) - enabled_n,
+        "disattivi": totale - enabled_n,
+        "stato_filtro": stato,
+        "righe_mostrate": len(rows),
     }
     return render(request, "automazioni/pages/pianificati.html", context)
 

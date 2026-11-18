@@ -1161,6 +1161,18 @@ def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, 
     return _validate_workorder_attachment_uploads(request, field_name="execution_files")
 
 
+def _history_url(request: HttpRequest, *, source: str) -> str:
+    """Storico con la stessa ricerca e lo stesso periodo, per una sola origine (KPI cliccabili)."""
+    from urllib.parse import urlencode as _urlencode
+
+    params = {"source": source}
+    for key in ("q", "date_from", "date_to"):
+        value = _clean_string(request.GET.get(key))
+        if value:
+            params[key] = value
+    return f"{reverse('assets:maintenance_history')}?{_urlencode(params)}"
+
+
 @login_required
 def maintenance_history(request: HttpRequest) -> HttpResponse:
     """Storico aziendale unico: OdL conclusi, manutenzioni registrate, scadenze
@@ -1182,6 +1194,9 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
     date_from = parsed_date("date_from")
     date_to = parsed_date("date_to")
     rows: list[dict[str, object]] = []
+    # Conteggi per origine sul queryset intero: le righe caricate sono al massimo
+    # 500 per origine e prima i KPI contavano la lista troncata.
+    source_counts = {"workorder": 0, "occurrence": 0, "deadline": 0, "ticket": 0}
 
     if source in {"all", "workorders"}:
         workorders = WorkOrder.objects.filter(
@@ -1202,6 +1217,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             workorders = workorders.filter(closed_at__date__gte=date_from)
         if date_to:
             workorders = workorders.filter(closed_at__date__lte=date_to)
+        source_counts["workorder"] = workorders.count()
         for workorder in workorders.order_by("-closed_at", "-id")[:500]:
             technician = workorder.executed_by or workorder.assigned_to
             rows.append(
@@ -1240,6 +1256,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             registered = registered.filter(completed_on__gte=date_from)
         if date_to:
             registered = registered.filter(completed_on__lte=date_to)
+        source_counts["occurrence"] = registered.count()
         for occ in registered.order_by("-completed_on", "-id")[:500]:
             rows.append(
                 {
@@ -1284,6 +1301,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         if date_to:
             completions = completions.filter(completed_on__lte=date_to)
         deadlines_url = reverse("assets:asset_administrative_deadline_list")
+        source_counts["deadline"] = completions.count()
         for completion in completions.order_by("-completed_on", "-id")[:500]:
             deadline = completion.deadline
             rows.append(
@@ -1324,6 +1342,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             tickets = tickets.filter(closed_at__date__gte=date_from)
         if date_to:
             tickets = tickets.filter(closed_at__date__lte=date_to)
+        source_counts["ticket"] = tickets.count()
         for ticket in tickets.order_by("-closed_at", "-id")[:500]:
             rows.append(
                 {
@@ -1364,11 +1383,19 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request),
             "page_title": "Storico manutenzione aziendale",
             "history_rows": rows[:500],
-            "history_total": len(rows),
-            "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
-            "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
-            "history_occurrence_count": sum(1 for row in rows if row["source"] == "occurrence"),
-            "history_deadline_count": sum(1 for row in rows if row["source"] == "deadline"),
+            "history_total": sum(source_counts.values()),
+            "history_workorder_count": source_counts["workorder"],
+            "history_ticket_count": source_counts["ticket"],
+            "history_occurrence_count": source_counts["occurrence"],
+            "history_deadline_count": source_counts["deadline"],
+            # Durata, costo e copertura si calcolano sulle righe caricate (max 500 per
+            # origine): con piu' righe la pagina lo dichiara.
+            "history_loaded_total": totale_righe,
+            "history_truncated": totale_righe < sum(source_counts.values()),
+            "history_kpi_links": {
+                key: _history_url(request, source=key)
+                for key in ("all", "workorders", "maintenance", "deadlines", "tickets")
+            },
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
             "history_duration_coverage": copertura_durata["label"],
@@ -1519,7 +1546,7 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
     today = timezone.localdate()
     now = timezone.now()
 
-    from ..services.fornitore_manutenzione import rapporto_ditta
+    from ..services.fornitore_manutenzione import rapporto_ditta, un_anno_prima
 
     rapporto = rapporto_ditta(supplier, today)
     contracts = rapporto.contracts
@@ -1645,6 +1672,15 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
             "url_suppliers": reverse("assets:maintenance_suppliers"),
             "url_anagrafica": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}),
             "url_contracts": reverse("assets:assistance_contract_list"),
+            # KPI cliccabili: gli stessi insiemi che le tessere contano.
+            "supplier_kpi_links": {
+                "open": f"{reverse('assets:wo_list')}?status={WorkOrder.STATUS_OPEN}&supplier={supplier.id}",
+                "closed_12m": (
+                    f"{reverse('assets:wo_list')}?status={WorkOrder.STATUS_DONE}&supplier={supplier.id}"
+                    f"&chiusi_dal={un_anno_prima(today).isoformat()}"
+                ),
+                "contracts": f"{reverse('assets:assistance_contract_list')}?supplier={supplier.id}&state=enabled",
+            },
         },
     )
 

@@ -64,20 +64,20 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansioni_list' %}" title="Vai alle mansioni di rischio">
+      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:mansioni_list' %}" title="Vai alle mansioni di rischio">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_mansioni_rischio }}</span></div>
         <div class="fmd-mtr-lbl">Mansioni di rischio</div>
         <div class="fmd-mtr-sub">{% if n_mansioni %}{{ n_mansioni }} senza DPI né visite{% else %}tutte con un profilo{% endif %}</div>
       </a>
       {% if conformita_kpi %}
-      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:conformita_report' %}" title="Report conformità completo">
+      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:conformita_report' %}?esito=ok" title="Apri il report filtrato: persone in regola (la percentuale è su chi ha requisiti)">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{% if conformita_kpi.valutati %}{{ conformita_kpi.perc }}%{% else %}—{% endif %}</span></div>
         <div class="fmd-mtr-lbl">Persone in regola</div>
         <div class="fmd-mtr-sub">{% if conformita_kpi.valutati %}{{ conformita_kpi.in_regola }} su {{ conformita_kpi.valutati }} con requisiti{% else %}nessuno ha requisiti da verificare{% endif %}</div>
       </a>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:conformita_report' %}?esito=ko" title="Elenco non conformi">
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:conformita_report' %}?esito=ko" title="Elenco non conformi">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ conformita_kpi.non_conformi }}</span></div>
         <div class="fmd-mtr-lbl">Non conformi</div>
@@ -85,7 +85,7 @@
       </a>
       {% endif %}
       {% if cambi_aperti %}
-      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:cambi_mansione' %}" title="Quadro dei cambi mansione">
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="{% url 'anagrafica:cambi_mansione' %}" title="Quadro dei cambi mansione">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ cambi_aperti|length }}</span></div>
         <div class="fmd-mtr-lbl">Cambi mansione aperti</div>
@@ -93,13 +93,13 @@
       </a>
       {% endif %}
       {% if idoneita_kpi %}
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko" title="Elenco non idonei">
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko" title="Elenco non idonei">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ idoneita_kpi.non_idonei }}</span></div>
         <div class="fmd-mtr-lbl">Non idonei</div>
         <div class="fmd-mtr-sub">Requisito mansione scaduto</div>
       </a>
-      <a class="fmd-mtr fmd-t-navy" href="{% url 'anagrafica:conformita_report' %}?idoneita=warn" title="Elenco idonei con riserve">
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:conformita_report' %}?idoneita=warn" title="Elenco idonei con riserve">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ idoneita_kpi.riserve }}</span></div>
         <div class="fmd-mtr-lbl">Idonei con riserve</div>

@@ -82,8 +82,13 @@ def qualifiche_list(request):
     if cat_filter not in valid_cats:
         cat_filter = ""
 
+    tipi_qs = TipoQualifica.objects.all()
+    # ?attivi=1: solo i tipi attivi (tessera «Tipi a catalogo» del cruscotto).
+    solo_attivi = request.GET.get("attivi") == "1"
+    if solo_attivi:
+        tipi_qs = tipi_qs.filter(is_active=True)
     tipi = list(
-        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni"))
+        tipi_qs.annotate(n_assegnazioni=Count("assegnazioni"))
         .prefetch_related("corsi")  # corso(i) che rilasciano la qualifica (Step 3)
         .order_by("categoria", "nome")
     )
@@ -487,6 +492,11 @@ def qualifiche_scadenzario(request):
     filtro_cat = (request.GET.get("categoria") or "").strip().upper()
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     filtro_tipo = (request.GET.get("tipo") or "").strip()
+    # ?verifica=da_fare: evidenza caricata ma non ancora verificata da HR (tessera
+    # «Da verificare» del cruscotto, stessa condizione).
+    filtro_verifica = (request.GET.get("verifica") or "").strip()
+    if filtro_verifica != "da_fare":
+        filtro_verifica = ""
     export_csv = request.GET.get("format") == "csv"
     valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
     if filtro_cat not in valid_cats:
@@ -526,6 +536,8 @@ def qualifiche_scadenzario(request):
     counts = {"scaduta": 0, "s30": 0, "s60": 0, "valida": 0, "permanente": 0}
     for q in qs:
         if not conta(q) or not filtro_centro.contiene(q.legacy_anagrafica_id):
+            continue
+        if filtro_verifica and not (q.documento and not q.verificata):
             continue
         dip = dip_map.get(q.legacy_anagrafica_id, {})
         reparto = str(dip.get("reparto") or "").strip()
@@ -596,6 +608,7 @@ def qualifiche_scadenzario(request):
         "filtro_categoria": filtro_cat,
         "filtro_reparto": filtro_reparto,
         "filtro_tipo": filtro_tipo,
+        "filtro_verifica": filtro_verifica,
         "reparti": reparti,
         "tipi_opts": tipi_opts,
         "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
@@ -1542,10 +1555,24 @@ def skill_matrix_macchina(request):
     reparti = sorted({
         (c.asset.reparto or "").strip() for c in comp_all if (c.asset.reparto or "").strip()
     })
-    comp_macchine = [
+    comp_reparto = [
         c for c in comp_all
         if not filtro_reparto or (c.asset.reparto or "").strip().casefold() == filtro_reparto.casefold()
     ]
+    # Macchine scoperte e a rischio uomo-solo calcolate una volta sulle colonne del
+    # reparto: le tessere le contano, ?macchine=scoperte|uomo_solo le mostra.
+    _scoperte_tutte = set(resolver.macchine_scoperte(None))
+    scoperte_ids = {c.asset_id for c in comp_reparto if c.asset_id in _scoperte_tutte}
+    uomo_solo_ids = {
+        c.asset_id for c in comp_reparto if resolver.kpi_uomo_solo(c.asset, config=config)["a_rischio"]
+    }
+    filtro_macchine = (request.GET.get("macchine") or "").strip()
+    if filtro_macchine == "scoperte":
+        comp_macchine = [c for c in comp_reparto if c.asset_id in scoperte_ids]
+    elif filtro_macchine == "uomo_solo":
+        comp_macchine = [c for c in comp_reparto if c.asset_id in uomo_solo_ids]
+    else:
+        filtro_macchine, comp_macchine = "", comp_reparto
     asset_ids = [c.asset_id for c in comp_macchine]
 
     # Abilitazioni su quelle macchine (vuoto finché non c'è la baseline F2b).
@@ -1654,12 +1681,13 @@ def skill_matrix_macchina(request):
         return resp
 
     # KPI dal resolver (rispettano il filtro reparto).
+    from urllib.parse import quote as _quote
     rep = filtro_reparto or None
     prontezza = resolver.prontezza_squadra(rep, config=config)
-    n_scoperte = len(resolver.macchine_scoperte(rep))
-    n_uomo_solo = sum(
-        1 for c in comp_macchine if resolver.kpi_uomo_solo(c.asset, config=config)["a_rischio"]
-    )
+    # Stesso insieme di colonne della matrice (filtro reparto senza differenze di
+    # maiuscole/spazi): prima «scoperte» usava il confronto esatto del resolver.
+    n_scoperte = len(scoperte_ids)
+    n_uomo_solo = len(uomo_solo_ids)
     n_cont_persa = sum(
         1 for co in ContinuitaOperativa.objects.all()
         if co.stato() == ContinuitaOperativa.STATO_PERSA
@@ -1688,8 +1716,14 @@ def skill_matrix_macchina(request):
             "uomo_solo": n_uomo_solo,
             "continuita_persa": n_cont_persa,
         },
-        "matrice_vuota": len(righe) == 0,
+        "matrice_vuota": len(righe) == 0 and not filtro_macchine,
         "n_macchine": len(comp_macchine),
+        "filtro_macchine": filtro_macchine,
+        "kpi_qs_reparto": f"reparto={_quote(filtro_reparto)}" if filtro_reparto else "",
+        "kpi_url_scoperte": (
+            reverse("anagrafica:skill_matrix_macchina") + "?macchine=scoperte"
+            + (f"&reparto={_quote(filtro_reparto)}" if filtro_reparto else "") + "#sm-matrice"
+        ),
         "data_sel": data_sel,
         "n_assenti": n_assenti,
         "n_da_confermare": n_da_confermare,
@@ -1871,6 +1905,12 @@ def skm_scadenzario(request):
 
     filtro_stato = (request.GET.get("stato") or "").strip()
     righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato in ("scaduto", "in_arrivo") else tutte
+    # ?campagna=aperta: i reparti con refresh in corso (tessera «Campagne aperte»).
+    filtro_campagna = (request.GET.get("campagna") or "").strip()
+    if filtro_campagna == "aperta":
+        righe = [r for r in righe if r["campagna_aperta"]]
+    else:
+        filtro_campagna = ""
 
     if request.GET.get("format") == "csv":
         resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
@@ -1889,6 +1929,7 @@ def skm_scadenzario(request):
 
     return render(request, "anagrafica/pages/skm_scadenzario.html", {
         "oggi": oggi, "righe": righe, "kpi": kpi, "filtro_stato": filtro_stato,
+        "filtro_campagna": filtro_campagna,
         "totale": len(righe),
     })
 
@@ -1913,8 +1954,17 @@ def skm_copertura(request):
         "gap_totale": sum((r["gap"] or 0) for r in righe),
         "non_valutabili": sum(1 for r in righe if r["coperta"] is None),
     }
+    # ?coperta=no|manuale: le righe delle tessere «Non coperte»/«Gap totale» e
+    # «Ambiti manuali», con la stessa condizione del conteggio.
+    filtro_coperta = (request.GET.get("coperta") or "").strip()
+    if filtro_coperta == "no":
+        righe_elenco = [r for r in righe if r["coperta"] is False]
+    elif filtro_coperta == "manuale":
+        righe_elenco = [r for r in righe if r["coperta"] is None]
+    else:
+        filtro_coperta, righe_elenco = "", righe
     return render(request, "anagrafica/pages/skm_copertura.html", {
-        "righe": righe, "kpi": kpi,
+        "righe": righe_elenco, "kpi": kpi, "filtro_coperta": filtro_coperta,
     })
 
 

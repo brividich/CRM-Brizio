@@ -392,11 +392,11 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
     {% for v in viste_gestione %}<a class="tkt-vista{% if v.attiva %} is-active{% endif %}" href="{{ v.url }}"{% if v.attiva %} aria-current="true"{% endif %}>{{ v.etichetta }} <span class="tkt-vista-n">{{ v.conta }}</span></a>{% endfor %}
   </nav>
   {% if n_allegati_da_validare or filtro_allegati %}<div class="tkt-kpi-row">
-    <a class="tkt-kpi tkt-kpi-violet{% if filtro_allegati == 'da_validare' %} is-active{% endif %}"
-       href="{% if filtro_allegati == 'da_validare' %}?tipo={{ tab_attivo }}{% else %}?tipo={{ tab_attivo }}&allegati=da_validare{% endif %}"
+    <a class="tkt-kpi tkt-kpi-violet kpi-link{% if filtro_allegati == 'da_validare' %} is-active{% endif %}"
+       href="{% if filtro_allegati == 'da_validare' %}?tipo={{ tab_attivo }}{% else %}?tipo={{ tab_attivo }}&amp;allegati=da_validare{% endif %}"
        title="{% if filtro_allegati == 'da_validare' %}Rimuovi il filtro{% else %}Mostra i ticket con allegati da validare{% endif %}">
       <div class="tkt-kpi-val">{{ n_allegati_da_validare }}</div>
-      <div class="tkt-kpi-lbl">Allegati da validare</div>
+      <div class="tkt-kpi-lbl">Ticket con allegati da validare</div>
     </a>
   </div>{% endif %}
 

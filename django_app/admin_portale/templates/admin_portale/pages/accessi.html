@@ -68,31 +68,31 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div class="stats">
-    <div class="stat">
-      <div class="stat-icon-wrap yellow">ðŸ›¡ï¸</div>
+    <a class="stat kpi-link" href="#ruoli" title="Vai all'elenco dei ruoli configurati">
+      <div class="stat-icon-wrap yellow">🛡️</div>
       <div>
         <div class="stat-num">{{ ruoli_info|length }}</div>
         <div class="stat-lbl">Ruoli configurati</div>
       </div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon-wrap blue">ðŸ§­</div>
+    </a>
+    <a class="stat kpi-link" href="{% url 'admin_portale:pulsanti' %}" title="Apri l'elenco di tutti i pulsanti registrati">
+      <div class="stat-icon-wrap blue">🧭</div>
       <div>
         <div class="stat-num">{{ pulsanti_count }}</div>
         <div class="stat-lbl">Pulsanti registrati</div>
       </div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon-wrap red">â†©ï¸</div>
+    </a>
+    <a class="stat kpi-link" href="#override" title="Vai agli override utenti (ultimi inseriti)">
+      <div class="stat-icon-wrap red">↩️</div>
       <div>
         <div class="stat-num">{{ override_count }}</div>
         <div class="stat-lbl">Override utenti</div>
       </div>
-    </div>
+    </a>
   </div>
 
   {# Ruoli #}
-  <div class="card">
+  <div class="card" id="ruoli">
     <div class="card-head card-head-with-actions">
       <div class="card-title">Ruoli e permessi</div>
       <div style="display:flex;gap:8px;">
@@ -142,7 +142,7 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
                     </a>
                     <a class="btn btn-sm"
                        href="{% url 'admin_portale:wizard_ruolo' %}?ruolo_id={{ info.ruolo.id }}">
-                      Wizard â–¶
+                      Wizard ▶
                     </a>
                   </div>
                 </td>
@@ -158,7 +158,7 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
   </div>
 
   {# Override utenti recenti #}
-  <div class="card">
+  <div class="card" id="override">
     <div class="card-head card-head-with-actions">
       <div>
         <div class="card-title">Override utenti recenti</div>
@@ -175,7 +175,7 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
           <thead>
             <tr>
               <th>Utente</th>
-              <th>Modulo â€º Azione</th>
+              <th>Modulo › Azione</th>
               <th>can_view</th>
               <th>can_edit</th>
               <th>can_delete</th>
@@ -190,7 +190,7 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
                   <strong>{{ ov.nome_utente }}</strong>
                   <span style="font-size:11px;color:var(--text-muted,#999);"> #{{ ov.legacy_user_id }}</span>
                 </td>
-                <td><span class="ov-path">{{ ov.modulo }} â€º {{ ov.azione }}</span></td>
+                <td><span class="ov-path">{{ ov.modulo }} › {{ ov.azione }}</span></td>
                 <td>
                   {% if ov.can_view is None %}<span class="chip-null">ruolo</span>
                   {% elif ov.can_view %}<span class="chip-on">ON</span>
@@ -212,7 +212,7 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
                   {% else %}<span class="chip-off">OFF</span>{% endif %}
                 </td>
                 <td style="text-align:right;">
-                  <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' ov.legacy_user_id %}">Scheda â†’</a>
+                  <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' ov.legacy_user_id %}">Scheda →</a>
                 </td>
               </tr>
             {% endfor %}
@@ -238,21 +238,21 @@ body.theme-dark .chip-null{background:var(--surface-alt,#0f1b2d);color:var(--tex
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:permessi' %}">
-          <div class="mod-icon">ðŸ”</div>
+          <div class="mod-icon">🔐</div>
           <div>
             <div class="mod-name">Matrice Permessi</div>
             <div class="mod-sub">Toggle granulare per ruolo o singolo utente</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
-          <div class="mod-icon">ðŸ§™</div>
+          <div class="mod-icon">🧙</div>
           <div>
             <div class="mod-name">Wizard Configura Ruolo</div>
             <div class="mod-sub">Flusso guidato step-by-step per configurare un ruolo</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
-          <div class="mod-icon">ðŸ§­</div>
+          <div class="mod-icon">🧭</div>
           <div>
             <div class="mod-name">Gestione Pulsanti</div>
             <div class="mod-sub">Aggiungi, modifica o disabilita pulsanti del menu</div>

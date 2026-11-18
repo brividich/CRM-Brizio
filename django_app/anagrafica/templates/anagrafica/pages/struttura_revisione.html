@@ -6,8 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
-<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -31,12 +31,12 @@
     </div>
 
     <div class="mns-stats">
-      <div class="mns-stat"><b>{{ r.riepilogo.processi }}</b><span>processi</span></div>
-      <div class="mns-stat"><b>{{ r.riepilogo.reparti }}</b><span>reparti</span></div>
-      <div class="mns-stat"><b>{{ r.riepilogo.aree }}</b><span>aree</span></div>
-      <div class="mns-stat"><b>{{ r.riepilogo.ruoli }}</b><span>ruoli</span></div>
-      <div class="mns-stat"><b>{{ r.riepilogo.mansioni }}</b><span>mansioni</span></div>
-      <div class="mns-stat"><b>{{ r.riepilogo.competenze }}</b><span>competenze</span></div>
+      <a class="mns-stat kpi-link" href="#rev-processi" title="Vai ai processi della revisione"><b>{{ r.riepilogo.processi }}</b><span>processi</span></a>
+      <a class="mns-stat kpi-link" href="#rev-aree" title="Vai a reparti e aree della revisione"><b>{{ r.riepilogo.reparti }}</b><span>reparti</span></a>
+      <a class="mns-stat kpi-link" href="#rev-aree" title="Vai alle aree della revisione"><b>{{ r.riepilogo.aree }}</b><span>aree</span></a>
+      <a class="mns-stat kpi-link" href="#rev-ruoli" title="Vai ai ruoli della revisione"><b>{{ r.riepilogo.ruoli }}</b><span>ruoli</span></a>
+      <a class="mns-stat kpi-link" href="#rev-mansioni" title="Vai alle mansioni della revisione"><b>{{ r.riepilogo.mansioni }}</b><span>mansioni</span></a>
+      <a class="mns-stat kpi-link" href="#rev-mansioni" title="Vai alle mansioni della revisione: colonna «Competenze»"><b>{{ r.riepilogo.competenze }}</b><span>competenze</span></a>
     </div>
 
     <section class="fmd-panel fmd-block" aria-label="Confronto">
@@ -68,22 +68,22 @@
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Contenuto</div>
       </div>
-      <h3 class="sto-area-nome">Processi</h3>
+      <h3 class="sto-area-nome" id="rev-processi">Processi</h3>
       <table class="fmd-table">
         <thead><tr><th>Codice</th><th>Processo</th><th>Tipo</th><th>Owner</th></tr></thead>
         <tbody>{% for p in r.dati.processi %}<tr><td>{{ p.codice }}</td><td>{{ p.nome }}</td><td>{{ p.tipo|default:"—" }}</td><td>{{ p.owner|default:"—" }}</td></tr>{% endfor %}</tbody>
       </table>
-      <h3 class="sto-area-nome">Reparti e aree</h3>
+      <h3 class="sto-area-nome" id="rev-aree">Reparti e aree</h3>
       <table class="fmd-table">
         <thead><tr><th>Area</th><th>Reparto</th><th>Responsabile (ruolo)</th></tr></thead>
         <tbody>{% for a in r.dati.aree %}<tr><td>{{ a.nome }}</td><td>{{ a.reparto }}</td><td>{{ a.ruolo_responsabile|default:"come il reparto" }}</td></tr>{% endfor %}</tbody>
       </table>
-      <h3 class="sto-area-nome">Ruoli</h3>
+      <h3 class="sto-area-nome" id="rev-ruoli">Ruoli</h3>
       <table class="fmd-table">
         <thead><tr><th>Sigla</th><th>Ruolo</th><th>Diretto / indiretto</th><th>Organigramma</th></tr></thead>
         <tbody>{% for x in r.dati.ruoli %}<tr><td>{{ x.sigla|default:"—" }}</td><td>{{ x.nome }}</td><td>{{ x.classe|default:"—" }}</td><td>{{ x.organigramma }}</td></tr>{% endfor %}</tbody>
       </table>
-      <h3 class="sto-area-nome">Mansioni</h3>
+      <h3 class="sto-area-nome" id="rev-mansioni">Mansioni</h3>
       <table class="fmd-table">
         <thead><tr><th>Area</th><th>Mansione</th><th>Ruoli</th><th>Processo</th><th>Rischio</th><th>Competenze</th></tr></thead>
         <tbody>{% for m in r.dati.mansioni %}<tr><td>{{ m.area|default:m.reparto }}</td><td>{{ m.nome }}{% if m.abilitazione_con_scadenza %} <span class="fmd-badge sto-badge">abilitazione</span>{% endif %}</td><td class="sto-small">{{ m.ruoli|join:", " }}</td><td class="sto-small">{{ m.processo|default:"—" }}</td><td class="sto-small">{{ m.mansioni_rischio|join:", "|default:"—" }}</td><td>{{ m.competenze|length }}</td></tr>{% endfor %}</tbody>

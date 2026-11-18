@@ -63,11 +63,11 @@
 
     {# Situazione in breve #}
     <div class="mns-stats" aria-label="Situazione del processo">
-      <div class="mns-stat"><b>{{ n_mansioni }}</b><span>mansion{{ n_mansioni|pluralize:"e,i" }} collegat{{ n_mansioni|pluralize:"a,e" }}</span></div>
-      <div class="mns-stat {% if n_domande_attive %}mns-ok{% else %}mns-mid{% endif %}"><b>{{ n_domande_attive }}</b><span>domand{{ n_domande_attive|pluralize:"a,e" }} attiv{{ n_domande_attive|pluralize:"a,e" }} in checklist</span></div>
-      <div class="mns-stat"><b>{{ audit_list|length }}</b><span>audit collegat{{ audit_list|length|pluralize:"o,i" }}</span></div>
-      <a class="mns-stat {% if n_ofi_nc_aperte %}mns-ko{% elif n_ofi_aperte %}mns-mid{% else %}mns-ok{% endif %}" href="#ofi" style="text-decoration:none;"><b>{{ n_ofi_aperte }}</b><span>OFI / NC apert{{ n_ofi_aperte|pluralize:"a,e" }}{% if n_ofi_nc_aperte %}, {{ n_ofi_nc_aperte }} NC{% endif %}</span></a>
-      <div class="mns-stat"><b>{{ revisioni|length }}</b><span>revision{{ revisioni|length|pluralize:"e,i" }} registrat{{ revisioni|length|pluralize:"a,e" }}</span></div>
+      <a class="mns-stat kpi-link" href="#persone" title="Apri la sezione Persone: mansioni collegate al processo"><b>{{ n_mansioni }}</b><span>mansion{{ n_mansioni|pluralize:"e,i" }} collegat{{ n_mansioni|pluralize:"a,e" }}</span></a>
+      <a class="mns-stat {% if n_domande_attive %}mns-ok{% else %}mns-mid{% endif %} kpi-link" href="#checklist" title="Apri la sezione Checklist: domande attive"><b>{{ n_domande_attive }}</b><span>domand{{ n_domande_attive|pluralize:"a,e" }} attiv{{ n_domande_attive|pluralize:"a,e" }} in checklist</span></a>
+      <a class="mns-stat kpi-link" href="#audit" title="Apri la sezione Audit: audit collegati al processo"><b>{{ audit_list|length }}</b><span>audit collegat{{ audit_list|length|pluralize:"o,i" }}</span></a>
+      <a class="mns-stat {% if n_ofi_nc_aperte %}mns-ko{% elif n_ofi_aperte %}mns-mid{% else %}mns-ok{% endif %} kpi-link" href="#ofi" title="Apri la sezione OFI / NC: voci aperte del processo"><b>{{ n_ofi_aperte }}</b><span>OFI / NC apert{{ n_ofi_aperte|pluralize:"a,e" }}{% if n_ofi_nc_aperte %}, {{ n_ofi_nc_aperte }} NC{% endif %}</span></a>
+      <a class="mns-stat kpi-link" href="#revisioni" title="Apri la sezione Revisioni del processo"><b>{{ revisioni|length }}</b><span>revision{{ revisioni|length|pluralize:"e,i" }} registrat{{ revisioni|length|pluralize:"a,e" }}</span></a>
     </div>
 
     <section class="fmd-panel fmd-block" data-mns-tabs>

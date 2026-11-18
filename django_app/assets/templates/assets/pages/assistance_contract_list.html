@@ -21,6 +21,7 @@ body.theme-dark .ac-new > summary { color:#93c5fd; }
   box-shadow:0 1px 4px rgba(15, 23, 42, .04);
 }
 .ac-kpi { padding:14px 16px; }
+a.ac-kpi { display:block; }
 .ac-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
 .ac-kpi-value { margin-top:8px; font-size:var(--fs-display-lg); font-weight:800; color:#0f172a; }
 .ac-card-head {
@@ -148,10 +149,10 @@ body.theme-dark .ac-empty{color:var(--text-light)}
   {% endif %}
 
   <section class="ac-kpis">
-    <article class="ac-kpi"><div class="ac-kpi-label">Contratti visibili</div><div class="ac-kpi-value">{{ contract_total }}</div></article>
-    <article class="ac-kpi"><div class="ac-kpi-label">Attivi</div><div class="ac-kpi-value">{{ active_count }}</div></article>
-    <article class="ac-kpi"><div class="ac-kpi-label">In scadenza</div><div class="ac-kpi-value">{{ expiring_count }}</div></article>
-    <article class="ac-kpi"><div class="ac-kpi-label">Scaduti</div><div class="ac-kpi-value">{{ expired_count }}</div></article>
+    <a class="ac-kpi kpi-link" href="{{ contract_kpi_links.visible }}" title="Apri l’elenco filtrato: contratti con i filtri correnti"><div class="ac-kpi-label">Contratti visibili</div><div class="ac-kpi-value">{{ contract_total }}</div></a>
+    <a class="ac-kpi kpi-link" href="{{ contract_kpi_links.active }}" title="Apri l’elenco filtrato: contratti attivi"><div class="ac-kpi-label">Attivi</div><div class="ac-kpi-value">{{ active_count }}</div></a>
+    <a class="ac-kpi kpi-link" href="{{ contract_kpi_links.expiring }}" title="Apri l’elenco filtrato: contratti in scadenza"><div class="ac-kpi-label">In scadenza</div><div class="ac-kpi-value">{{ expiring_count }}</div></a>
+    <a class="ac-kpi kpi-link" href="{{ contract_kpi_links.expired }}" title="Apri l’elenco filtrato: contratti scaduti"><div class="ac-kpi-label">Scaduti</div><div class="ac-kpi-value">{{ expired_count }}</div></a>
     <article class="ac-kpi"><div class="ac-kpi-label">Costo periodico attivo</div><div class="ac-kpi-value">{{ periodic_cost_total|default:"0" }} €</div></article>
   </section>
 

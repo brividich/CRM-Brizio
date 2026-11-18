@@ -10,7 +10,7 @@ import json
 import os
 import tempfile
 from datetime import timedelta
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from uuid import uuid4
 
 from django.contrib import messages
@@ -18,7 +18,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch, reverse
@@ -39,6 +39,7 @@ from core.models import UserDashboardLayout
 from ..forms import (
     AssetAssignmentForm,
     AssetComponentForm,
+    ASSET_STATUS_ACTIVE,
     AssetFilterForm,
     AssetForm,
     ChemicalAssetForm,
@@ -870,6 +871,13 @@ def _studio_redirect(request: HttpRequest) -> HttpResponse:
     return redirect("assets:asset_list")
 
 
+def _asset_list_category_ids(request: HttpRequest, category) -> list[int]:
+    """Categorie del filtro elenco: sottoalbero (predefinito) o solo quella con ``sottocategorie=0``."""
+    if _clean_string(request.GET.get("sottocategorie")) == "0":
+        return [category.id]
+    return _category_subtree_ids(category)
+
+
 # Soglie del sottotitolo «Salute asset» nella lista (percentuale di asset non in
 # riparazione): >= 90 Buona, 70-89 Da monitorare, < 70 Critica.
 ASSET_HEALTH_GOOD_MIN = 90
@@ -1076,9 +1084,15 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if asset_category:
             # Filtro per sottoalbero: la categoria selezionata e tutte le sue
             # discendenti (clic su una radice mostra tutti i suoi asset).
-            assets = assets.filter(asset_category_id__in=_category_subtree_ids(asset_category))
+            # ``sottocategorie=0`` (KPI per categoria esatta del cruscotto): solo quella.
+            assets = assets.filter(asset_category_id__in=_asset_list_category_ids(request, asset_category))
         if reparto:
             assets = assets.filter(reparto__icontains=reparto)
+        status_filter = _clean_string(form.cleaned_data.get("status"))
+        if status_filter == ASSET_STATUS_ACTIVE:
+            assets = assets.exclude(status=Asset.STATUS_RETIRED)
+        elif status_filter:
+            assets = assets.filter(status=status_filter)
         if vlan is not None:
             assets = assets.filter(endpoints__vlan=vlan)
         if ip:
@@ -1186,13 +1200,43 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if _kf_type:
             kpi_qs = kpi_qs.filter(asset_type=_kf_type)
         if _kf_cat:
-            kpi_qs = kpi_qs.filter(asset_category_id__in=_category_subtree_ids(_kf_cat))
+            kpi_qs = kpi_qs.filter(asset_category_id__in=_asset_list_category_ids(request, _kf_cat))
 
     total_assets = kpi_qs.count()
     in_use_count = kpi_qs.filter(status=Asset.STATUS_IN_USE).count()
     in_repair_count = kpi_qs.filter(status=Asset.STATUS_IN_REPAIR).count()
     assigned_count = kpi_qs.exclude(assignment_to__isnull=True).exclude(assignment_to="").count()
-    _kpi_wo_qs = WorkOrder.objects.filter(asset__in=kpi_qs)
+    # KPI cliccabili: stessi filtri strutturali (tipo + categoria) del numero.
+    _kpi_link_params: dict[str, str] = {}
+    if form.is_valid():
+        if _clean_string(form.cleaned_data.get("asset_type")):
+            _kpi_link_params["asset_type"] = _clean_string(form.cleaned_data.get("asset_type"))
+        if form.cleaned_data.get("asset_category"):
+            _kpi_link_params["asset_category"] = str(form.cleaned_data["asset_category"].pk)
+            if _clean_string(request.GET.get("sottocategorie")) == "0":
+                _kpi_link_params["sottocategorie"] = "0"
+    _asset_list_url = reverse("assets:asset_list")
+
+    def _kpi_asset_url(**extra) -> str:
+        query = urlencode({**_kpi_link_params, **extra})
+        return f"{_asset_list_url}?{query}" if query else _asset_list_url
+
+    kpi_links = {
+        "total": _kpi_asset_url(),
+        "in_use": _kpi_asset_url(status=Asset.STATUS_IN_USE),
+        "in_repair": _kpi_asset_url(status=Asset.STATUS_IN_REPAIR),
+        # Gli OdL si aprono dall'elenco OdL solo senza filtri di tipo/categoria:
+        # l'elenco OdL non filtra per tipo asset ne' per sottoalbero di categoria.
+        "wo_open": "" if _kpi_link_params else f"{reverse('assets:wo_list')}?status={WorkOrder.STATUS_OPEN}",
+        "wo_late": "" if _kpi_link_params else f"{reverse('assets:wo_list')}?status={WorkOrder.STATUS_OPEN}&ritardo=1",
+    }
+    if _kpi_link_params:
+        _kpi_wo_qs = WorkOrder.objects.filter(asset__in=kpi_qs)
+    else:
+        # Senza filtri il numero e' quello dell'elenco OdL (stesso ambito: filtra_odl).
+        from ..services.visibilita import filtra_odl as _filtra_odl
+
+        _kpi_wo_qs = _filtra_odl(request, WorkOrder.objects.all())
     open_wo_count = _kpi_wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
     from assets.maintenance import q_odl_in_ritardo
 
@@ -1343,6 +1387,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "open_wo_count": open_wo_count,
             "in_use_percent": in_use_percent,
             "risk_count": risk_count,
+            "kpi_links": kpi_links,
             "maintenance_due_count": maintenance_due_count,
             "assigned_count": assigned_count,
             "work_machine_total": work_machine_total,
@@ -1653,6 +1698,28 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
             )
             | Q(notes__icontains=q)
         )
+    # KPI Attivi / Disattivi: contati con asset e ricerca correnti ma PRIMA del
+    # filtro di stato (prima si contavano le righe gia' filtrate: con il filtro
+    # predefinito «attivi» i disattivi risultavano sempre 0).
+    stato_counts = component_qs.order_by().aggregate(
+        attivi=Count("id", filter=Q(is_active=True)),
+        disattivi=Count("id", filter=Q(is_active=False)),
+    )
+    _component_base_url = _asset_component_page_url(asset_id=asset_id or 0)
+
+    def _component_kpi_url(stato: str) -> str:
+        params = {"active": stato}
+        if q:
+            params["q"] = q
+        if selected_asset is not None and asset_id is None:
+            params["asset"] = selected_asset.id
+        return f"{_component_base_url}?{urlencode(params)}"
+
+    component_kpi_links = {
+        "visible": _component_kpi_url(active_filter),
+        "active": _component_kpi_url("active"),
+        "inactive": _component_kpi_url("inactive"),
+    }
     if active_filter == "active":
         component_qs = component_qs.filter(is_active=True)
     elif active_filter == "inactive":
@@ -1678,7 +1745,7 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
     asset_options = list(
         Asset.objects.only("id", "asset_tag", "name").order_by("name", "asset_tag", "id")
     )
-    selected_asset_component_count = sum(1 for row in component_rows if row["component"].is_active)
+    selected_asset_component_count = stato_counts["attivi"] or 0
     create_url = _asset_component_create_page_url(asset_id=selected_asset.id if selected_asset else 0)
 
     return render(
@@ -1688,8 +1755,9 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
             "page_title": "Componenti asset",
             "component_rows": component_rows,
             "component_total": len(component_rows),
-            "active_component_count": sum(1 for row in component_rows if row["component"].is_active),
-            "inactive_component_count": sum(1 for row in component_rows if not row["component"].is_active),
+            "active_component_count": stato_counts["attivi"] or 0,
+            "inactive_component_count": stato_counts["disattivi"] or 0,
+            "component_kpi_links": component_kpi_links,
             "selected_asset": selected_asset,
             "selected_asset_component_count": selected_asset_component_count,
             "asset_options": asset_options,

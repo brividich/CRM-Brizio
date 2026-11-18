@@ -1,6 +1,6 @@
 /* NOVICROM HUB — da admin_portale/pages/acl_canonico.html (blocco 1), spostato dall'inline il 12/11/2026: stesso punto, ora in cache. */
   .acl-grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
-  .acl-stat { border:1px solid var(--border,#d6dbe5); border-radius:12px; padding:12px; background:#f8fafc; }
+  .acl-stat { display:block; border:1px solid var(--border,#d6dbe5); border-radius:12px; padding:12px; background:#f8fafc; }
   .acl-stat .n { font-size:24px; font-weight:800; color:#0f172a; line-height:1; }
   .acl-stat .l { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-top:6px; }
   .acl-notice { border:1px solid #fbbf24; background:#fffbeb; color:#92400e; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; }

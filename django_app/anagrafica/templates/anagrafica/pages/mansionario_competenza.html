@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -54,11 +54,12 @@
     </nav>
 
     {# ── Situazione in breve ───────────────────────────────────────────── #}
+    {% url 'anagrafica:mansionario_competenza' cat.pk as u_cmp %}
     <div class="mns-stats" aria-label="Situazione delle persone">
-      <div class="mns-stat mns-ok"><b>{{ conta.ok }}</b><span>la sanno fare</span></div>
-      <div class="mns-stat mns-mid"><b>{{ conta.sotto }}</b><span>sotto il minimo</span></div>
-      <div class="mns-stat"><b>{{ conta.da_valutare }}</b><span>da valutare</span></div>
-      <div class="mns-stat mns-ko"><b>{{ conta.requisito }}</b><span>senza il requisito formale</span></div>
+      <a class="mns-stat mns-ok kpi-link" href="{{ u_cmp }}?stato=ok#persone" title="Apri l'elenco filtrato: chi la sa fare"><b>{{ conta.ok }}</b><span>la sanno fare</span></a>
+      <a class="mns-stat mns-mid kpi-link" href="{{ u_cmp }}?stato=sotto#persone" title="Apri l'elenco filtrato: sotto il minimo"><b>{{ conta.sotto }}</b><span>sotto il minimo</span></a>
+      <a class="mns-stat kpi-link" href="{{ u_cmp }}?stato=da_valutare#persone" title="Apri l'elenco filtrato: da valutare"><b>{{ conta.da_valutare }}</b><span>da valutare</span></a>
+      <a class="mns-stat mns-ko kpi-link" href="{{ u_cmp }}?stato=requisito#persone" title="Apri l'elenco filtrato: senza il requisito formale"><b>{{ conta.requisito }}</b><span>senza il requisito formale</span></a>
     </div>
 
     <section class="fmd-panel fmd-block" data-mns-tabs>
@@ -71,6 +72,7 @@
 
       {# ── Persone ───────────────────────────────────────────────────── #}
       <div class="mns-pane mns-pane-on" id="persone" role="tabpanel" aria-labelledby="tab-persone">
+        {% if filtro_stato %}<p class="mns-filtro">Filtro: <strong>{{ filtro_stato_label }}</strong> · {{ persone|length }} person{{ persone|length|pluralize:"a,e" }} · <a href="{{ u_cmp }}#persone">Mostra tutte</a></p>{% endif %}
         <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Chi è in lista su una mansione che chiede la competenza. Il livello vale per mansione, perché ogni mansione ha il suo minimo. In cima chi ha qualcosa da sistemare.</p>
         {% if persone %}
         <div class="fmd-tablewrap">

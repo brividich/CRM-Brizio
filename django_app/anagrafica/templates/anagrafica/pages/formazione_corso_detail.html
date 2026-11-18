@@ -53,8 +53,8 @@
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ corso.durata_ore_teorica }}h</span></div><div class="fmd-mtr-lbl">Durata teorica</div><div class="fmd-mtr-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div></div>
-    <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni totali</div><div class="fmd-mtr-sub">Sessioni pianificate</div></div>
-    <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Dipendenti con storico</div></div>
+    <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}" title="Apri l'elenco filtrato: tutte le sessioni del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni totali</div><div class="fmd-mtr-sub">Sessioni pianificate</div></a>
+    <a class="fmd-mtr fmd-t-green kpi-link" href="#corso-dipendenti" title="Vai ai dipendenti del corso: la colonna dei completati somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Registrati, rinnovi compresi</div></a>
   </section>
 
   {# ── Report rapidi del corso ─────────────────────────────────────────────── #}
@@ -297,7 +297,7 @@
 </div>
 
 {# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
-<div class="hr-card fm-section">
+<div class="hr-card fm-section" id="corso-dipendenti">
   <div class="fm-section-head">
     <div class="fm-section-title">
       👥 Dipendenti iscritti <span class="fm-count">{{ n_dipendenti_iscritti }}</span>

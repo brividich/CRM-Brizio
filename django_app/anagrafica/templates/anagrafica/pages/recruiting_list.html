@@ -31,10 +31,11 @@
       </div>
     </section>
 
+    {% url 'anagrafica:recruiting_list' as u_rec %}
     <section class="fmd-kpi rcr-kpi-3">
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">Iter aperti</div><div class="fmd-mtr-sub">Selezioni in corso</div></div>
-      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_assunti }}</span></div><div class="fmd-mtr-lbl">Assunti</div><div class="fmd-mtr-sub">Passati a onboarding</div></div>
-      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_in_database }}</span></div><div class="fmd-mtr-lbl">In database</div><div class="fmd-mtr-sub">Profili per future opportunità</div></div>
+      <a class="fmd-mtr fmd-t-cyan" href="{{ u_rec }}?stato=in_corso" title="Apri l'elenco filtrato: iter di selezione aperti"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">Iter aperti</div><div class="fmd-mtr-sub">Selezioni in corso</div></a>
+      <a class="fmd-mtr fmd-t-green" href="{{ u_rec }}?stato=ASSUNTO" title="Apri l'elenco filtrato: candidati assunti"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_assunti }}</span></div><div class="fmd-mtr-lbl">Assunti</div><div class="fmd-mtr-sub">Passati a onboarding</div></a>
+      <a class="fmd-mtr fmd-t-violet" href="{{ u_rec }}?stato=IN_DATABASE" title="Apri l'elenco filtrato: profili in database"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_in_database }}</span></div><div class="fmd-mtr-lbl">In database</div><div class="fmd-mtr-sub">Profili per future opportunità</div></a>
     </section>
 
     {% if n_da_completare %}
@@ -42,7 +43,7 @@
       <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
       <span><strong>{{ n_da_completare }}</strong> schede importate senza nominativo, da completare.
       Aprile e inserisci nome e cognome.</span>
-      <a href="?da_completare=1" class="fmd-btn-mini rcr-todo-link">Mostra solo queste</a>
+      <a href="{{ u_rec }}?da_completare=1" class="fmd-btn-mini rcr-todo-link">Mostra solo queste</a>
     </section>
     {% endif %}
 

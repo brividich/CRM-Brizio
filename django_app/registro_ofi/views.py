@@ -85,6 +85,12 @@ def _voci_filtrate(request):
     solo_aperte = request.GET.get("aperte") == "1"
     in_scadenza = request.GET.get("in_scadenza") == "1"
     senza_responsabile = request.GET.get("senza_responsabile") == "1"
+    # Dalle tessere: «fase_almeno» = contatori cumulativi P/D/C/A del MOD.174 (fase raggiunta
+    # almeno), «chiuse_12m» = voci chiuse negli ultimi 365 giorni (come reg.cruscotto).
+    fase_almeno = (request.GET.get("fase_almeno") or "").strip().upper()
+    if fase_almeno not in RegistroOFI._FASE_RANK:
+        fase_almeno = ""
+    chiuse_12m = request.GET.get("chiuse_12m") == "1"
 
     qs = RegistroOFI.objects.all().select_related("content_type", "responsabile", "processo_sgi")
     if solo_mie:
@@ -96,6 +102,11 @@ def _voci_filtrate(request):
         qs = qs.filter(data_richiesta__gte=oggi, data_richiesta__lte=oggi + timedelta(days=30))
     if senza_responsabile:
         qs = qs.filter(responsabile__isnull=True)
+    if fase_almeno:
+        rango = RegistroOFI._FASE_RANK[fase_almeno]
+        qs = qs.filter(fase__in=[f for f, r in RegistroOFI._FASE_RANK.items() if r >= rango])
+    if chiuse_12m:
+        qs = qs.filter(data_chiusura__isnull=False, data_chiusura__gte=timezone.localdate() - timedelta(days=365))
     if origine in _FILTRO_ORIGINE:
         qs = qs.filter(_FILTRO_ORIGINE[origine])
     processo_obj = None
@@ -127,7 +138,8 @@ def _voci_filtrate(request):
                   "solo_scaduti": solo_scaduti, "solo_mie": solo_mie, "solo_aperte": solo_aperte,
                   "origine": origine if origine in _FILTRO_ORIGINE else "", "processo": processo,
                   "processo_obj": processo_obj, "in_scadenza": in_scadenza,
-                  "senza_responsabile": senza_responsabile}
+                  "senza_responsabile": senza_responsabile, "fase_almeno": fase_almeno,
+                  "chiuse_12m": chiuse_12m}
 
 
 # Intestazioni del MOD.174 Rev.0, nell'ordine del modulo (colonna «27001» = fonte del rilievo).
@@ -203,6 +215,8 @@ def lista(request):
         fase=f["fase"], priorita=f["priorita"], solo_scaduti=f["solo_scaduti"],
         solo_mie=f["solo_mie"], solo_aperte=f["solo_aperte"],
         in_scadenza=f["in_scadenza"], senza_responsabile=f["senza_responsabile"],
+        fase_almeno=f["fase_almeno"], fase_almeno_label=dict(RegistroOFI.FASE_CHOICES).get(f["fase_almeno"], ""),
+        chiuse_12m=f["chiuse_12m"],
         n_mie=_aperte(RegistroOFI.objects.filter(responsabile=request.user)).count(),
         tipo=f["tipo"], q=f["q"], TIPO_CHOICES=RegistroOFI.TIPO_CHOICES,
         filtri_query=request.GET.urlencode(),

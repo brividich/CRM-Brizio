@@ -60,10 +60,10 @@
 
     {# ── KPI di erogazione ────────────────────────────────────────────────── #}
     <section class="fmd-kpi fmd-k4">
-      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Edizioni erogate</div><div class="fmd-mtr-sub">Con un docente dell'ente</div></div>
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ n_corsi }}</span></div><div class="fmd-mtr-lbl">Corsi distinti</div><div class="fmd-mtr-sub">Titoli diversi erogati</div></div>
-      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ ore|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Solo le ore dei suoi docenti</div></div>
-      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma degli iscritti alle edizioni</div></div>
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="#ente-erogazioni" title="Vai alle erogazioni dell'ente: la colonna Edizioni somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Edizioni erogate</div><div class="fmd-mtr-sub">Con un docente dell'ente</div></a>
+      <a class="fmd-mtr fmd-t-cyan kpi-link" href="#ente-erogazioni" title="Vai alle erogazioni dell'ente: una riga per corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ n_corsi }}</span></div><div class="fmd-mtr-lbl">Corsi distinti</div><div class="fmd-mtr-sub">Titoli diversi erogati</div></a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="#ente-erogazioni" title="Vai alle erogazioni dell'ente: la colonna Ore dell'ente somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ ore|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Solo le ore dei suoi docenti</div></a>
+      <a class="fmd-mtr fmd-t-violet kpi-link" href="#ente-erogazioni" title="Vai alle erogazioni dell'ente: la colonna Iscritti somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma degli iscritti alle edizioni</div></a>
     </section>
 
     {# ── Anagrafica ───────────────────────────────────────────────────────── #}
@@ -116,7 +116,7 @@
     </section>
 
     {# ── Corsi erogati ────────────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="ente-erogazioni">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Corsi erogati <span class="fmd-count">{{ per_corso|length }}</span></div>
         <div class="fmd-block-aside">{{ sessioni|length }} edizion{{ sessioni|length|pluralize:"e,i" }} · {% if periodo_attivo %}nel periodo selezionato{% else %}tutto lo storico{% endif %}</div>

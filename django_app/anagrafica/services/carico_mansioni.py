@@ -66,13 +66,18 @@ def _riga_vuota(m) -> dict:
             "persone_ids": set(), "operativi_ids": set(), "livelli": Counter()}
 
 
+def _da_guardare(r: dict) -> bool:
+    """Mansione da guardare: scoperta, uomo solo o a carico concentrato (le responsabilità no)."""
+    return not r["mansione"].is_responsabilita and (r["stato"] != OK or bool(r["concentrato"]))
+
+
 def _conteggi(righe) -> dict:
     contate = [r for r in righe if not r["mansione"].is_responsabilita]
     scoperte = sum(1 for r in contate if r["stato"] == SCOPERTA)
     uomo_solo = sum(1 for r in contate if r["stato"] == UOMO_SOLO)
     concentrate = sum(1 for r in contate if r["concentrato"])
     return {"mansioni": len(contate), "scoperte": scoperte, "uomo_solo": uomo_solo, "concentrate": concentrate,
-            "da_guardare": sum(1 for r in contate if r["stato"] != OK or r["concentrato"])}
+            "da_guardare": sum(1 for r in contate if _da_guardare(r))}
 
 
 @dataclass
@@ -188,7 +193,7 @@ def su_riepilogo(righe: list, c: Carico | None) -> list:
     numeri delle liste; le mansioni non attive non sono nel carico e restano come sono.
     """
     for r in righe:
-        r.update(fuori_forza=0, concentrazione=None, concentrato=False)
+        r.update(fuori_forza=0, concentrazione=None, concentrato=False, da_guardare=False)
         x = c.per_mansione.get(r["mansione"].pk) if c else None
         if x is None:
             continue
@@ -196,6 +201,8 @@ def su_riepilogo(righe: list, c: Carico | None) -> list:
         r["uomo_solo"] = x["operativi"] < c.config.soglia_uomo_solo
         r["concentrazione"], r["concentrato"] = x["concentrazione"], x["concentrato"]
         r["fuori_forza"] = sum(1 for i in r["persone_ids"] if c.alias.get(i, i) not in c.in_forza)
+        # Stessa regola di ``_conteggi()["da_guardare"]`` (KPI «Mansioni da guardare»).
+        r["da_guardare"] = _da_guardare(x)
     return righe
 
 

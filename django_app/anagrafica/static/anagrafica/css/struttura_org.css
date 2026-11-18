@@ -106,7 +106,7 @@ body.theme-dark .sto-sch-titolo{ color:var(--text); }
 .sto-sch-x{ border:0; background:transparent; color:var(--fmd-muted); font-size:24px; line-height:1; cursor:pointer; padding:0 4px; }
 .sto-sch-x:hover{ color:var(--fmd-ink); }
 .sto-sch-kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0 6px; }
-.sto-sch-kpi div{ padding:8px; border:1px solid var(--border,#d7e0ea); border-radius:8px; text-align:center; }
+.sto-sch-kpi > div, .sto-sch-kpi > a{ display:block; padding:8px; border:1px solid var(--border,#d7e0ea); border-radius:8px; text-align:center; }
 .sto-sch-kpi b{ display:block; font-size:18px; color:var(--fmd-navy); }
 body.theme-dark .sto-sch-kpi b{ color:var(--text); }
 .sto-sch-kpi span{ font-size:11px; color:var(--fmd-muted); }

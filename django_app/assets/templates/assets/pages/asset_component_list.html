@@ -17,6 +17,7 @@
 .ac-banner-note { margin-top:4px; color:#64748b; font-size:var(--fs-base); }
 .ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
 .ac-kpi { padding:14px 16px; }
+a.ac-kpi { display:block; }
 .ac-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
 .ac-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
 .ac-card-head {
@@ -129,18 +130,18 @@ body.theme-dark .ac-empty{color:var(--text-light)}
   {% endif %}
 
   <section class="ac-kpis">
-    <article class="ac-kpi">
+    <a class="ac-kpi kpi-link" href="{{ component_kpi_links.visible }}" title="Apri l’elenco filtrato: componenti con i filtri correnti">
       <div class="ac-kpi-label">Componenti visibili</div>
       <div class="ac-kpi-value">{{ component_total }}</div>
-    </article>
-    <article class="ac-kpi">
+    </a>
+    <a class="ac-kpi kpi-link" href="{{ component_kpi_links.active }}" title="Apri l’elenco filtrato: componenti attivi">
       <div class="ac-kpi-label">Attivi</div>
       <div class="ac-kpi-value">{{ active_component_count }}</div>
-    </article>
-    <article class="ac-kpi">
+    </a>
+    <a class="ac-kpi kpi-link" href="{{ component_kpi_links.inactive }}" title="Apri l’elenco filtrato: componenti disattivi">
       <div class="ac-kpi-label">Disattivi</div>
       <div class="ac-kpi-value">{{ inactive_component_count }}</div>
-    </article>
+    </a>
   </section>
 
   <article class="ac-card">

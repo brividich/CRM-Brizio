@@ -66,42 +66,43 @@
 
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
-  <article class="ts-kpi blue">
+  {% url 'tasks:list' as u_tasks_list %}
+  <a class="ts-kpi blue kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}" title="Apri l'elenco filtrato: tutte le attività{% if active_project %} del kickoff{% else %} del perimetro{% endif %}">
     <div class="ts-kpi-label">{% if active_project %}Attivita kickoff{% else %}Attività{% endif %}</div>
     <div class="ts-kpi-value">{{ dashboard_stats.total }}</div>
     <div class="ts-kpi-note">{% if active_project %}Totale in questo kickoff.{% else %}Attivita nel perimetro.{% endif %}</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
-  </article>
-  <article class="ts-kpi amber">
+  </a>
+  <a class="ts-kpi amber kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}&amp;status=IN_PROGRESS" title="Apri l'elenco filtrato: attività in corso">
     <div class="ts-kpi-label">In corso</div>
     <div class="ts-kpi-value">{{ dashboard_stats.in_progress }}</div>
     <div class="ts-kpi-note">Richiedono attenzione attiva.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.in_progress dashboard_stats.total 100 %}%"></div></div>{% endif %}
-  </article>
-  <article class="ts-kpi teal">
+  </a>
+  <a class="ts-kpi teal kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}&amp;status=TODO" title="Apri l'elenco filtrato: attività da fare">
     <div class="ts-kpi-label">Da fare</div>
     <div class="ts-kpi-value">{{ dashboard_stats.todo }}</div>
     <div class="ts-kpi-note">Ancora da avviare.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.todo dashboard_stats.total 100 %}%"></div></div>{% endif %}
-  </article>
-  <article class="ts-kpi red">
+  </a>
+  <a class="ts-kpi red kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}&amp;overdue=on" title="Apri l'elenco filtrato: attività scadute e ancora aperte">
     <div class="ts-kpi-label">Scadute</div>
     <div class="ts-kpi-value">{{ dashboard_stats.overdue }}</div>
     <div class="ts-kpi-note">Scadute e ancora aperte.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.overdue dashboard_stats.total 100 %}%"></div></div>{% endif %}
-  </article>
-  <article class="ts-kpi green">
+  </a>
+  <a class="ts-kpi green kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}&amp;status=DONE" title="Apri l'elenco filtrato: attività completate">
     <div class="ts-kpi-label">Completate</div>
     <div class="ts-kpi-value">{{ dashboard_stats.done }}</div>
     <div class="ts-kpi-note">Chiuse correttamente.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.done dashboard_stats.total 100 %}%"></div></div>{% endif %}
-  </article>
-  <article class="ts-kpi slate">
+  </a>
+  <a class="ts-kpi slate kpi-link" href="{{ u_tasks_list }}?mine=0{% if active_project %}&amp;project={{ active_project.pk }}{% endif %}&amp;status=CANCELED" title="Apri l'elenco filtrato: attività annullate">
     <div class="ts-kpi-label">Annullate</div>
     <div class="ts-kpi-value">{{ dashboard_stats.canceled }}</div>
     <div class="ts-kpi-note">Chiuse senza esecuzione.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.canceled dashboard_stats.total 100 %}%"></div></div>{% endif %}
-  </article>
+  </a>
 </section>
 {% endblock %}
 
@@ -222,6 +223,7 @@
           </div>
           <div class="ts-checkline-group">
             <label class="ts-checkline">{{ filter_form.overdue }} Solo scadute</label>
+            <label class="ts-checkline">{{ filter_form.open }} Solo aperte</label>
             <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
             <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
           </div>
@@ -486,6 +488,7 @@
           <div class="ts-checkline-group">
             <label class="ts-checkline">{{ filter_form.mine }} Solo le mie</label>
             <label class="ts-checkline">{{ filter_form.overdue }} Solo scadute</label>
+            <label class="ts-checkline">{{ filter_form.open }} Solo aperte</label>
             <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
             <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
           </div>

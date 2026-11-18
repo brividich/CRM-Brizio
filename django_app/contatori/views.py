@@ -272,14 +272,26 @@ def riconciliazione(request, trimestre=None):
     if trimestre:
         righe, riepilogo = services.riconcilia(trimestre)
     gruppi_tutti = riepilogo["gruppi"] if riepilogo else []
-    solo_da_verificare = request.GET.get("vista") == "da-verificare"
-    da_verificare = [gr for gr in gruppi_tutti if gr["livello"] != "ok"]
+    # Viste del confronto: ognuna riproduce il gruppo contato da una tessera del riepilogo
+    # (stesse condizioni di services.riconcilia: livello del contratto, MFC senza lettura).
+    viste = {
+        "da-verificare": lambda gr: gr["livello"] != "ok",
+        "allineati": lambda gr: gr["livello"] == "ok",
+        "da-controllare": lambda gr: gr["livello"] == "danger",
+        "letture-mancanti": lambda gr: bool(gr["mancanti"]),
+    }
+    vista = request.GET.get("vista", "")
+    if vista not in viste:
+        vista = ""
+    solo_da_verificare = vista == "da-verificare"
+    da_verificare = [gr for gr in gruppi_tutti if viste["da-verificare"](gr)]
     return render(request, "contatori/riconciliazione.html", {
         "trimestri": services.opzioni_trimestri(extra=[trimestre] if trimestre else ()),
         "trimestre": trimestre,
         "righe": righe, "riepilogo": riepilogo,
         "gruppi_tutti": gruppi_tutti,
-        "gruppi": da_verificare if solo_da_verificare else gruppi_tutti,
+        "gruppi": [gr for gr in gruppi_tutti if viste[vista](gr)] if vista else gruppi_tutti,
+        "vista": vista,
         "da_verificare": len(da_verificare), "solo_da_verificare": solo_da_verificare,
         "fatture": Fattura.objects.filter(trimestre=trimestre).prefetch_related("righe")
         if trimestre else [],

@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -209,7 +209,7 @@
   var box=document.querySelector('[data-mns-box]');if(!box)return;
   var q=box.querySelector('[data-mns-q]'),tipo='',flag='',sel={};
   box.querySelectorAll('[data-mns-f]').forEach(function(x){sel[x.dataset.mnsF]=x;});
-  var etichette={'scoperta':'Mansioni scoperte','concentrato':'Mansioni a carico concentrato','fuori-forza':'Liste con persone non più in forza','senza-ruolo':'Mansioni senza ruolo','senza-rischio':'Mansioni senza mansione di rischio',
+  var etichette={'da-guardare':'Mansioni da guardare','scoperta':'Mansioni scoperte','concentrato':'Mansioni a carico concentrato','fuori-forza':'Liste con persone non più in forza','senza-ruolo':'Mansioni senza ruolo','senza-rischio':'Mansioni senza mansione di rischio',
     'senza-titolare':'Responsabilità senza titolare','uomo-solo':'Mansioni a rischio uomo solo','ruolo-senza-mansione':'Ruoli con persone senza le loro mansioni'};
   var GRUPPO={'ruolo-senza-mansione':1};
   function val(k){return sel[k]?sel[k].value:'';}

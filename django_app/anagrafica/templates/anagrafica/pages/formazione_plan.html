@@ -214,30 +214,30 @@ body.theme-dark .fm-mat tbody tr:hover td.fm-mat-empname{background:rgba(59,130,
 
   {# ── KPI ─────────────────────────────────────────────────────────────── #}
   <div class="hr-metric-grid" style="margin-bottom:16px;">
-    <div class="hr-metric">
+    <a class="hr-metric kpi-link" href="#plan-eventi" title="Vai agli eventi del periodo, mese per mese">
       <div class="hr-metric-ico blue">📅</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top"><span class="hr-metric-lbl">Eventi totali</span><span class="hr-metric-val">{{ totale_eventi }}</span></div>
         <div class="hr-metric-sub">{{ range_from|date:"d-m-Y" }} → {{ range_to|date:"d-m-Y" }}</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="#plan-eventi" title="Vai agli eventi del periodo: le sessioni (in azzurro) sono questo numero">
       <div class="hr-metric-ico navy">🎓</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top"><span class="hr-metric-lbl">Corsi</span><span class="hr-metric-val">{{ totale_corsi }}</span></div>
         <div class="hr-metric-sub">Sessioni nel periodo</div>
       </div>
-    </div>
-    <div class="hr-metric">
+    </a>
+    <a class="hr-metric kpi-link" href="#plan-eventi" title="Vai agli eventi del periodo: le scadenze (in rosso) sono questo numero">
       <div class="hr-metric-ico red">⚠️</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top"><span class="hr-metric-lbl">Scadenze</span><span class="hr-metric-val">{{ totale_scadenze }}</span></div>
-        <div class="hr-metric-sub">Da rinnovare/mai frequentati</div>
+        <div class="hr-metric-sub">Attestati che scadono nel periodo</div>
       </div>
-    </div>
+    </a>
   </div>
 
-  <div class="fm-plan-legend">
+  <div class="fm-plan-legend" id="plan-eventi">
     <span class="legend-chip"><span class="legend-dot" style="background:#bfdbfe;"></span>Corso</span>
     <span class="legend-chip"><span class="legend-dot" style="background:#fecaca;"></span>Scadenza</span>
     <span class="legend-chip" style="opacity:.6;"><span class="legend-dot" style="background:#e2e8f0;"></span>DPI / Assenze — prossima patch</span>

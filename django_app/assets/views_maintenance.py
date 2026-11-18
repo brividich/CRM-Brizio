@@ -270,7 +270,9 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
     plan_type = data.get("plan_type")
     if plan_type == "administrative":
         queryset = queryset.filter(plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE)
-    elif plan_type == "ordinary":
+    elif plan_type in ("ordinary", "piani"):
+        # «piani» = ordinarie + verifiche impianti (le verifiche arrivano dal registro
+        # scadenze in _renewal_rows): e' l'insieme dei KPI «Piani scaduti / in scadenza».
         queryset = queryset.exclude(plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE)
 
     mode = data.get("execution_mode")
@@ -654,7 +656,7 @@ _SCADENZE_TYPE_TABS = [
     ("renewals", "Licenze e contratti"),
 ]
 # Tipologie che non sono occorrenze: si leggono dal registro scadenze unico.
-_PLAN_TYPES_FEED = ("", "renewals", "administrative", "checks")
+_PLAN_TYPES_FEED = ("", "renewals", "administrative", "checks", "piani")
 
 
 def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[dict[str, Any]]:
@@ -689,6 +691,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         "renewals": {feed.KIND_LICENSE, feed.KIND_CONTRACT},
         "administrative": {feed.KIND_ADMINISTRATIVE},
         "checks": {feed.KIND_CHECK},
+        "piani": {feed.KIND_CHECK},
     }.get(plan_type, set())
     kinds = feed.allowed_kinds(request) & wanted
     if data.get("execution_mode") or data.get("supplier"):
@@ -813,6 +816,8 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     # occorrenze e in "Da fare" non c'e' niente da eseguire su di loro.
     form.fields["plan_type"].choices = list(form.fields["plan_type"].choices) + [
         ("checks", "Verifiche impianti"), ("renewals", "Licenze e contratti"),
+        # Solo da link (KPI «Piani scaduti / in scadenza» del cruscotto), non una scheda.
+        ("piani", "Piani e verifiche impianti"),
     ]
     form.is_valid()
     plan_type = form.cleaned_data.get("plan_type", "") if form.is_valid() else ""
@@ -1400,6 +1405,9 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request),
             "page_title": "Panoramica manutenzione",
             "today": today,
+            # Inizio dei periodi delle percentuali di puntualita' (link allo Storico).
+            "since_90": today - timedelta(days=90),
+            "since_365": today - timedelta(days=365),
             "headline": headline,
             "sintesi": sintesi,
             "panoramica": _panoramica(request, today=today),
