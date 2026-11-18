@@ -412,6 +412,7 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
     </div>
   </div>
 
+  {% if filtri_cruscotto %}<div class="tkt-filter-active-badge" style="margin:0 0 8px;" data-filtri-cruscotto>Elenco filtrato: {{ filtri_cruscotto|join:" · " }} &nbsp;<a href="?tipo={{ tab_attivo }}">✕ Togli</a></div>{% endif %}
   <!-- Filtri avanzati -->
   {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza|add:filtro_ricorrente|add:filtro_allegati %}
   <div class="tkt-filter-card">
@@ -435,6 +436,12 @@ body.theme-dark .bulk-btn-desel:hover{background:rgba(255,255,255,.06)}
         <input type="hidden" name="vista" value="{{ filtro_vista }}">
         <input type="hidden" name="ordine" value="{{ filtro_ordine }}">
         {% if filtro_allegati %}<input type="hidden" name="allegati" value="{{ filtro_allegati }}">{% endif %}
+        {% if filtro_registro %}<input type="hidden" name="registro" value="{{ filtro_registro }}">{% endif %}
+        {% if filtro_famiglia %}<input type="hidden" name="famiglia" value="{{ filtro_famiglia }}">{% endif %}
+        {% if filtro_urgenza %}<input type="hidden" name="urgenza" value="1">{% endif %}
+        {% if filtro_richiedente %}<input type="hidden" name="richiedente" value="{{ filtro_richiedente }}">{% endif %}
+        {% if filtro_chiusi_dal %}<input type="hidden" name="chiusi_dal" value="{{ filtro_chiusi_dal }}">{% endif %}
+        {% if filtro_chiusi_al %}<input type="hidden" name="chiusi_al" value="{{ filtro_chiusi_al }}">{% endif %}
 
         <!-- Riga 1: stato, priorità, assegnato, sicurezza -->
         <div class="tkt-filter-row">

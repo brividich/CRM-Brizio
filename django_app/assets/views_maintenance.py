@@ -674,6 +674,36 @@ def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[d
     return links
 
 
+def _pending_verification_rows(request: HttpRequest, data: dict, *, today: date) -> list:
+    """Piani periodici non ancora convertiti, per le viste «piani» e «tutte le tipologie»
+    aperte dai KPI del cruscotto: la stessa funzione che li conta li'. Non hanno un asset solo ne' un piano:
+    con un filtro su asset, famiglia, reparto, gruppo, piano, fornitore o esecuzione
+    non compaiono."""
+    from .services import deadline_feed as feed
+
+    if data.get("report_missing") or any(
+        data.get(key) for key in ("asset", "category", "reparto", "group", "plan", "supplier",
+                                  "execution_mode", "assignee", "planning")
+    ):
+        return []
+    window = data.get("window") or ""
+    start = end = None
+    if window == "overdue":
+        end = today - timedelta(days=1)
+    elif window:
+        start, end = today, today + timedelta(days=int(window))
+    rows = feed.pending_periodic_verifications(
+        start=start, end=end, today=today, visibili=ids_visibili(request, MODULO_MANUTENZIONE),
+    )
+    term = (data.get("q") or "").strip().lower()
+    if term:
+        rows = [r for r in rows if term in r.title.lower()]
+    for row in rows:
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+    return rows
+
+
 def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti,
                   plan_type: str = "") -> list:
     """Scadenze che non sono occorrenze, dallo stesso servizio del Calendario:
@@ -733,6 +763,11 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         rows = [r for r in rows if bool(r.is_external or (r.kind == feed.KIND_ADMINISTRATIVE and r.supplier)) == external]
     if scoped_reparti and not data.get("reparto"):
         rows = [r for r in rows if r.reparto in scoped_reparti]
+    # Ambito «Propri / del team» (matrice ruoli): come le occorrenze qui sopra, il
+    # calendario e i KPI del cruscotto, solo le scadenze degli asset visibili.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        rows = [r for r in rows if r.asset_id in visibili]
     for row in rows:
         # Il template non fa aritmetica: giorni al netto e ritardo gia' positivo.
         row.days = row.days_until(today)
@@ -835,6 +870,10 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
         if plan_type in _PLAN_TYPES_FEED and not form.cleaned_data.get("report_missing")
         else []
     )
+
+    # Anche in «Tutte le tipologie»: e' l'insieme di «Superate» / «Entro 30 gg» del cruscotto.
+    if plan_type in ("", "piani") and form.is_valid():
+        renewals = renewals + _pending_verification_rows(request, form.cleaned_data, today=today)
 
     active_tab = _clean_string(initial.get("window"))
     group_mode = _clean_string(request.GET.get("by"))

@@ -452,8 +452,6 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         )
     except Exception:
         deadlines = []
-    from django.db.models import Q
-
     from ..registro_permessi import MODULO_MANUTENZIONE
     from ..services.visibilita import ids_visibili
 
@@ -478,27 +476,19 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
             "action_label": (dl.actions[0]["label"] if dl.actions else "Apri"),
             "work_order_id": dl.work_order_id,
         })
-    verifications = PeriodicVerification.objects.filter(
-        is_active=True, is_legacy=False, next_verification_date__isnull=False,
-        next_verification_date__lte=horizon,
-    )
-    if visibili is not None:
-        verifications = verifications.filter(
-            pk__in=PeriodicVerification.objects.filter(Q(assets__in=visibili)).values("pk")
-        )
-    verifications = verifications.order_by("next_verification_date")[:200]
-    pv_url = reverse("assets:periodic_verifications")
-    for pv in verifications:
+    # Piani periodici non ancora convertiti: la stessa funzione dello Scadenzario
+    # (``plan_type=piani``), a cui portano le tessere «Piani scaduti / in scadenza».
+    for pv in feed.pending_periodic_verifications(start=None, end=horizon, today=today, visibili=visibili):
         rows.append({
             "source": "verification",
             "source_label": "Verifica",
-            "title": pv.name,
-            "due_date": pv.next_verification_date,
-            "days": (pv.next_verification_date - today).days,
-            "is_overdue": pv.next_verification_date < today,
+            "title": pv.title,
+            "due_date": pv.due_date,
+            "days": (pv.due_date - today).days,
+            "is_overdue": pv.due_date < today,
             "asset_tag": "",
             "asset_name": "",
-            "url": pv_url,
+            "url": pv.detail_url,
             "action_label": "Gestisci",
             "work_order_id": None,
         })
@@ -677,6 +667,7 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "today": today,
         # Date dei filtri dei KPI cliccabili (elenco OdL: chiusi dal/al).
         "month_start": today.replace(day=1),
+        "month_end": (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1),
         "mttr_from": today - timedelta(days=30),
         "kpis": kpis,
         "enabled_widgets": enabled,

@@ -286,6 +286,11 @@ def fornitore_sezione(request, fornitore_id, sezione):
         from contatori.permessi import puo_gestire
 
         dati = {**col.dati_copie(fornitore), "puo_gestire_fatture": puo_gestire(request)}
+        # Le tessere aprono gli elenchi di Contatori filtrati sui codici di questo fornitore.
+        from urllib.parse import urlencode
+
+        dati["query_fornitore"] = urlencode([("fornitore", c["codice"]) for c in dati["codici"]])
+        dati["apre_macchine"] = col.apre(request, "contatori:macchine")
     elif sezione == col.SEZIONE_SCADENZE:
         dati = col.dati_scadenze(request, fornitore)
         # Le tessere «Scadute» / «Entro N giorni» ricaricano la scheda con l'elenco filtrato:

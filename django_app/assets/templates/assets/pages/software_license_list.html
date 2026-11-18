@@ -209,6 +209,7 @@ body.theme-dark .sl-empty{color:var(--text-light)}
       <form method="get" class="sl-filters">
         {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
         {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica" value="{{ selected_anagrafica_id }}">{% endif %}
+        {% if apparati_filter %}<input type="hidden" name="apparati" value="1"><p class="sl-field" data-filtro-apparati style="grid-column:1/-1;margin:0;">Solo licenze degli asset collegati ad apparati attivi (stampanti MFC e dispositivi SNMP). «Reset» toglie il filtro.</p>{% endif %}
         <div class="sl-field">
           <label for="id_category">Categoria</label>
           <select id="id_category" name="category">

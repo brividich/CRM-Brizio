@@ -58,15 +58,25 @@ def expiring_for_assets(asset_ids, today=None):
     return out
 
 
-def _device_asset_ids():
-    """Asset collegati a un apparato del modulo contatori (vuoto se il modulo non c'è)."""
+def device_asset_ids(solo_attivi: bool = False):
+    """Asset collegati a un apparato del modulo contatori (vuoto se il modulo non c'è).
+
+    Con ``solo_attivi`` restano MFC e dispositivi SNMP attivi: è l'insieme della tessera
+    «Licenze degli apparati» di Contatori e del filtro ``?apparati=1`` dell'elenco licenze.
+    """
     try:
         from contatori.models import DispositivoSNMP, Macchina
     except ImportError:
         return set()
-    ids = set(Macchina.objects.filter(asset__isnull=False).values_list("asset_id", flat=True))
-    ids |= set(DispositivoSNMP.objects.filter(asset__isnull=False).values_list("asset_id", flat=True))
-    return ids
+    macchine = Macchina.objects.filter(asset__isnull=False)
+    dispositivi = DispositivoSNMP.objects.filter(asset__isnull=False)
+    if solo_attivi:
+        macchine, dispositivi = macchine.filter(attiva=True), dispositivi.filter(attivo=True)
+    return set(macchine.values_list("asset_id", flat=True)) | set(dispositivi.values_list("asset_id", flat=True))
+
+
+def _device_asset_ids():
+    return device_asset_ids()
 
 
 def _norm(text):

@@ -389,9 +389,21 @@ def fattura_edit(request, pk=None):
     })
 
 
+def _filtro_fornitori(request):
+    """Codici fornitore validi di ``?fornitore=`` (ripetibile): ``[(codice, etichetta)]``."""
+    from fornitori import collegamenti as forn
+
+    richiesti = request.GET.getlist("fornitore")
+    if not richiesti:
+        return []
+    catalogo = forn.catalogo_codici()
+    return [(c, catalogo[c]) for c in dict.fromkeys(richiesti) if c in catalogo]
+
+
 def fatture_elenco(request):
     """Archivio fatture per trimestre con esito della riconciliazione e trimestri scoperti."""
-    archivio = services.archivio_fatture()
+    filtro_fornitori = _filtro_fornitori(request)
+    archivio = services.archivio_fatture(fornitori=[c for c, _ in filtro_fornitori])
     # Collegamento facoltativo alla scheda del fornitore: senza abbinamento resta il solo codice.
     from fornitori import collegamenti as forn
 
@@ -407,6 +419,7 @@ def fatture_elenco(request):
         "archivio": archivio, "url_excel": _url_excel(request),
         "scoperti": [a for a in archivio if not a["fatture"] and not a["in_corso"]],
         "totale_fatture": sum(len(a["fatture"]) for a in archivio),
+        "filtro_fornitori": filtro_fornitori,
     })
 
 
@@ -776,6 +789,10 @@ def macchine_list(request):
     trimestre = services.trimestre_corrente()
     filtri = {k: request.GET.get(k, "").strip() for k in ("q", "stato", "lettura", "dismesse")}
     qs = Macchina.objects.select_related("asset", "profilo_snmp")
+    # Dalla scheda fornitore: solo le MFC di quel fornitore (codici validi, ripetibile).
+    filtro_fornitori = _filtro_fornitori(request)
+    if filtro_fornitori:
+        qs = qs.filter(fornitore__in=[c for c, _ in filtro_fornitori])
     dismesse_nascoste = 0 if filtri["dismesse"] == "1" else qs.filter(attiva=False).count()
     if filtri["dismesse"] != "1":
         qs = qs.filter(attiva=True)
@@ -806,7 +823,8 @@ def macchine_list(request):
         "url_excel": _url_excel(request),
         "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
         "mese_corrente": timezone.localdate().replace(day=1),
-        "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
+        "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")) or bool(filtro_fornitori),
+        "filtro_fornitori": filtro_fornitori,
         "consumabili": consumabili,
         "ultime": services.ultime_rilevazioni(),
     })

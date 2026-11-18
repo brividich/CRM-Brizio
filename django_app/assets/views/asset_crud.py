@@ -1047,6 +1047,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         reparti_da_collegare = testi_da_collegare()
     if senza_reparto:
         assets = senza_reparto_qs
+    # Dalla scheda dipendente: gli asset assegnati a una persona (id utente), sempre
+    # dentro l'ambito del ruolo già applicato sopra.
+    assegnatario_raw = _clean_string(request.GET.get("assegnatario"))
+    assegnatario = int(assegnatario_raw) if assegnatario_raw.isdigit() and len(assegnatario_raw) < 10 else 0
+    if assegnatario:
+        assets = assets.filter(assigned_legacy_user_id=assegnatario)
 
     production_group = _clean_string(request.GET.get("group")).lower() == "production"
     search_active = bool(_clean_string(request.GET.get("q")))
@@ -1350,6 +1356,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "visible_count": visible_count,
             "senza_reparto_count": senza_reparto_count,
             "senza_reparto": senza_reparto,
+            "assegnatario": assegnatario,
             "reparti_da_collegare": reparti_da_collegare,
             "rows": rows,
             "rows_options": rows_options,

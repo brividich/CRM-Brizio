@@ -58,7 +58,7 @@
     <span class="v {% if da_riconciliare %}health-warning{% endif %}">{{ da_riconciliare|length }}</span>
     <span class="meta">{% if da_riconciliare %}{% for r in da_riconciliare %}{{ r.trimestre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}In ordine{% endif %}</span>
   </a>{% endwith %}
-  <a class="kpi" href="{% url 'assets:software_license_list' %}?status={% if licenze_apparati.scadute %}expired{% else %}expiring{% endif %}">
+  <a class="kpi" href="{% url 'assets:software_license_list' %}?status={% if licenze_apparati.scadute %}expired{% else %}expiring{% endif %}&amp;apparati=1" title="Apri l'elenco filtrato: licenze {% if licenze_apparati.scadute %}scadute{% else %}in scadenza{% endif %} degli asset collegati ad apparati attivi">
     <span class="k">Licenze degli apparati</span>
     <span class="v {% if licenze_apparati.scadute %}health-error{% elif licenze_apparati.in_scadenza %}health-warning{% endif %}">{{ licenze_apparati.scadute }}</span>
     <span class="meta">scadute · {{ licenze_apparati.in_scadenza }} in scadenza{% if integrazione.n_senza_asset %} · {{ integrazione.n_senza_asset }} apparat{{ integrazione.n_senza_asset|pluralize:"o,i" }} senza asset{% endif %}</span>

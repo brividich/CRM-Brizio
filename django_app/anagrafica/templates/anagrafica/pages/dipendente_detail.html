@@ -296,13 +296,13 @@
             <div class="dp-sum-stat-lbl">Documenti</div>
           </div>
         </div>
-        <div class="dp-sum-stat">
+        {% if asset_in_carico_url %}<a class="dp-sum-stat kpi-link" href="{{ asset_in_carico_url }}" title="Apri l'elenco filtrato: asset non dismessi assegnati a questa persona">{% else %}<div class="dp-sum-stat">{% endif %}
           <div class="dp-sum-stat-ic">💻</div>
           <div>
             <div class="dp-sum-stat-val">{{ assets_assegnati|length }}</div>
             <div class="dp-sum-stat-lbl">Asset in carico</div>
           </div>
-        </div>
+        {% if asset_in_carico_url %}</a>{% else %}</div>{% endif %}
         <div class="dp-sum-stat">
           <div class="dp-sum-stat-ic">🗓</div>
           <div>
@@ -2532,7 +2532,7 @@
         <div class="dp-widget-accent" style="background-color:{{ w.color }};"></div>
         <button class="dp-widget-remove" onclick="removeWidget('{{ w.id }}')" title="Nascondi">×</button>
         <div class="dp-widget-icon">{{ w.icon }}</div>
-        <div class="dp-widget-count">{{ w.count }}</div>
+        {% if w.kpi_url %}<a class="dp-widget-count kpi-link" href="{{ w.kpi_url }}" title="Apri l'elenco filtrato: {{ w.title|lower }} di questa persona" style="display:block;">{{ w.count }}</a>{% else %}<div class="dp-widget-count">{{ w.count }}</div>{% endif %}
         <div class="dp-widget-title">{{ w.title }}</div>
         {% if w.link_url %}
           <a class="dp-widget-link" href="{{ w.link_url }}">{{ w.link_label }} &rarr;</a>

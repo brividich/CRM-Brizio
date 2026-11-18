@@ -143,7 +143,7 @@
           <span class="hd-section-badge">anno {{ safety_kpis.year }}</span>
         </div>
         {% comment %}safety_kpis c'e' solo se l'utente vede il modulo incidenti con ambito completo: i link sono sicuri.
-           La lista incidenti non filtra per anno: i link portano agli eventi di quel tipo (fonte del dato).{% endcomment %}
+           Con safety_anno_link (elenco sul registro locale) near miss e incidenti aprono l'elenco dell'anno: stesso numero.{% endcomment %}
         {% url 'rilevazione_incidenti:lista' as inc_lista_url %}
         <div class="hd-safety-grid">
           <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=incidente" title="Fonte del dato: elenco degli incidenti (TRIR = incidenti dell'anno x 200.000 / ore lavorate)">
@@ -154,11 +154,11 @@
             <div class="hd-safety-val">{% if safety_kpis.giorni_senza_infortuni != None %}{{ safety_kpis.giorni_senza_infortuni }}{% else %}-{% endif %}</div>
             <div class="hd-safety-lbl">Giorni senza infortuni</div>
           </a>
-          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=near_miss" title="Apri l'elenco filtrato: near miss (il numero conta solo l'anno {{ safety_kpis.year }})">
+          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=near_miss{% if safety_anno_link %}&amp;anno={{ safety_kpis.year|stringformat:'d' }}#sic-elenco{% endif %}" title="{% if safety_anno_link %}Apri l'elenco filtrato: near miss dell'anno {{ safety_kpis.year|stringformat:'d' }}{% else %}Fonte del dato: elenco dei near miss (il numero conta solo l'anno {{ safety_kpis.year|stringformat:'d' }}){% endif %}">
             <div class="hd-safety-val">{{ safety_kpis.near_miss|default:0 }}</div>
             <div class="hd-safety-lbl">Near miss</div>
           </a>
-          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=incidente" title="Apri l'elenco filtrato: incidenti (il numero conta solo l'anno {{ safety_kpis.year }})">
+          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=incidente{% if safety_anno_link %}&amp;anno={{ safety_kpis.year|stringformat:'d' }}#sic-elenco{% endif %}" title="{% if safety_anno_link %}Apri l'elenco filtrato: incidenti dell'anno {{ safety_kpis.year|stringformat:'d' }}{% else %}Fonte del dato: elenco degli incidenti (il numero conta solo l'anno {{ safety_kpis.year|stringformat:'d' }}){% endif %}">
             <div class="hd-safety-val hd-safety-danger">{{ safety_kpis.incidenti|default:0 }}</div>
             <div class="hd-safety-lbl">Incidenti</div>
           </a>
@@ -246,29 +246,18 @@
       </div>
       {% endif %}
 
-      {# Status strip #}
+      {% comment %}Striscia di stato: valori letti dal sistema (view _hub_status_items), solo per gli amministratori.{% endcomment %}
+      {% if hub_status_items %}
       <div class="hd-status-strip">
-        <div class="hd-status-item">
-          <span class="hd-status-dot"></span>
-          <span class="hd-status-label">Navigation Registry</span>
-          <span class="hd-status-val">Attivo</span>
-        </div>
-        <div class="hd-status-item">
-          <span class="hd-status-dot"></span>
-          <span class="hd-status-label">Fallback legacy</span>
-          <span class="hd-status-val">Disponibile</span>
-        </div>
-        <div class="hd-status-item">
-          <span class="hd-status-dot"></span>
-          <span class="hd-status-label">ACL</span>
-          <span class="hd-status-val">Operativo</span>
-        </div>
-        <div class="hd-status-item">
-          <span class="hd-status-dot"></span>
-          <span class="hd-status-label">Sincronizzazioni</span>
-          <span class="hd-status-val">OK</span>
-        </div>
+        {% for st in hub_status_items %}
+        {% if st.url %}<a class="hd-status-item kpi-link" href="{{ st.url }}" title="Apri l'elenco filtrato: {{ st.label }}">{% else %}<div class="hd-status-item">{% endif %}
+          <span class="hd-status-dot"{% if not st.ok %} style="background:#d97706;"{% endif %}></span>
+          <span class="hd-status-label">{{ st.label }}</span>
+          <span class="hd-status-val">{{ st.value }}</span>
+        {% if st.url %}</a>{% else %}</div>{% endif %}
+        {% endfor %}
       </div>
+      {% endif %}
 
     </div>{# .hd-board-main #}
 
@@ -279,18 +268,18 @@
       {% if richieste_total or richieste_attesa or richieste_approvate %}
       <div class="hd-side-card">
         <div class="hd-side-title">Le mie richieste</div>
-        {% comment %}«Le mie richieste» di assenza: la pagina personale non ha ancora un filtro per stato, i link portano all'elenco completo.{% endcomment %}
+        {% comment %}Stessi numeri e stessi filtri (?stato=) della pagina «Le mie richieste» di assenze.{% endcomment %}
         {% url 'assenze_gestione' as mie_assenze_url %}
         <div class="hd-counter-row">
-          <a class="hd-counter hd-counter-blue kpi-link" href="{{ mie_assenze_url }}" title="Apri l'elenco delle mie richieste di assenza">
+          <a class="hd-counter hd-counter-blue kpi-link" href="{{ mie_assenze_url }}?stato=all#mie-richieste" title="Apri l'elenco delle mie richieste di assenza">
             <div class="hd-counter-val">{{ richieste_total|default:0 }}</div>
             <div class="hd-counter-lbl">Totali</div>
           </a>
-          <a class="hd-counter hd-counter-yellow kpi-link" href="{{ mie_assenze_url }}" title="Apri le mie richieste di assenza (in attesa)">
+          <a class="hd-counter hd-counter-yellow kpi-link" href="{{ mie_assenze_url }}?stato=waiting#mie-richieste" title="Apri l'elenco filtrato: le mie richieste in attesa">
             <div class="hd-counter-val">{{ richieste_attesa|default:0 }}</div>
             <div class="hd-counter-lbl">In attesa</div>
           </a>
-          <a class="hd-counter hd-counter-green kpi-link" href="{{ mie_assenze_url }}" title="Apri le mie richieste di assenza (approvate)">
+          <a class="hd-counter hd-counter-green kpi-link" href="{{ mie_assenze_url }}?stato=approved#mie-richieste" title="Apri l'elenco filtrato: le mie richieste approvate">
             <div class="hd-counter-val">{{ richieste_approvate|default:0 }}</div>
             <div class="hd-counter-lbl">Approvate</div>
           </a>
@@ -302,7 +291,7 @@
       <div class="hd-side-card">
         <div class="hd-side-title">
           Attività recenti
-          <a href="#" class="hd-side-link">Vedi tutte</a>
+          <a href="{% url 'assenze_gestione' %}?stato=all#mie-richieste" class="hd-side-link">Vedi tutte</a>
         </div>
         <div class="hd-activity-list">
           {% for act in activities %}
@@ -334,7 +323,7 @@
         </div>
         <div class="hd-approve-row">
           <div class="hd-approve-label">Richieste assenza in attesa</div>
-          <a href="#" class="hd-approve-link">Vai alla lista →</a>
+          <a href="{{ approvazioni_url }}" class="hd-approve-link">Vai alla lista →</a>
         </div>
       </div>
       {% endif %}

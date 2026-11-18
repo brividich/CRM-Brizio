@@ -64,16 +64,17 @@ def _registro_nc_ofi(params: ReportParams) -> ReportResult:
     n_ritardo = in_ritardo.count()
     n_nc_aperte = aperte.filter(tipo=RegistroOFI.TIPO_NC).count()
     # Il Registro OFI filtra aperte / NC / scadute con le stesse condizioni (q_aperte,
-    # is_scaduto), ma non per norma: con il filtro norma le tessere portano al dettaglio.
+    # is_scaduto) e, con ``norma=``, sulla stessa spunta della voce usata qui sopra.
     from django.urls import reverse
 
-    registro = reverse("registro_ofi:lista") if not norma else ""
+    registro = reverse("registro_ofi:lista")
+    q_norma = f"&norma={norma}" if norma in _NORMA_FIELD else ""
     result.kpis = [
-        Kpi("Aperte", n_aperte, url=f"{registro}?aperte=1" if registro else ""),
+        Kpi("Aperte", n_aperte, url=f"{registro}?aperte=1{q_norma}"),
         Kpi("di cui non conformità", n_nc_aperte, TONE_WARN if n_nc_aperte else "",
-            url=f"{registro}?aperte=1&tipo=NC" if registro else ""),
+            url=f"{registro}?aperte=1&tipo=NC{q_norma}"),
         Kpi("Oltre la data di chiusura", n_ritardo, TONE_DANGER if n_ritardo else TONE_OK,
-            url=f"{registro}?scaduti=1" if registro else ""),
+            url=f"{registro}?scaduti=1{q_norma}"),
         Kpi("Aperte nel periodo", nel_periodo.count()),
         Kpi("Chiuse nel periodo", chiuse_periodo.count()),
         Kpi("Giorni medi di chiusura", media if media is not None else "n/d"),

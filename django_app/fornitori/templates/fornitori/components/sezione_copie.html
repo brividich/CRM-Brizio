@@ -3,10 +3,10 @@
   <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'contatori:riconciliazione' %}">Riconciliazione →</a>
 </div>
 <div class="fr-kpis">
-  <a class="ana-metric kpi-link" href="#fr-copie-macchine" title="Apri l'elenco delle macchine della ditta (attive e non attive, con lo stato)"><div class="ana-metric-val">{{ macchine_attive|default:0 }}</div><div class="ana-metric-label">Macchine attive</div></a>
-  <a class="ana-metric kpi-link" href="#fr-copie-fatture" title="Apri l'elenco: fatture copie della ditta"><div class="ana-metric-val">{{ fatture|length }}</div><div class="ana-metric-label">Fatture copie</div></a>
+  <a class="ana-metric kpi-link" href="{% if apre_macchine and query_fornitore %}{% url 'contatori:macchine' %}?{{ query_fornitore }}{% else %}#fr-copie-macchine{% endif %}" title="{% if apre_macchine and query_fornitore %}Apri l'elenco filtrato: stampanti MFC attive di questa ditta{% else %}Apri l'elenco delle macchine della ditta (attive e non attive, con lo stato){% endif %}"><div class="ana-metric-val">{{ macchine_attive|default:0 }}</div><div class="ana-metric-label">Macchine attive</div></a>
+  <a class="ana-metric kpi-link" href="{% if query_fornitore %}{% url 'contatori:fatture' %}?{{ query_fornitore }}{% else %}#fr-copie-fatture{% endif %}" title="Apri l'archivio fatture filtrato: fatture copie della ditta"><div class="ana-metric-val">{{ fatture|length }}</div><div class="ana-metric-label">Fatture copie</div></a>
   <a class="ana-metric kpi-link" href="#fr-copie-fatture" title="Apri l'elenco delle fatture: quelle da controllare hanno l'esito in rosso"><div class="ana-metric-val">{{ da_controllare|default:0 }}</div><div class="ana-metric-label">Da controllare</div></a>
-  {% if scoperti %}<a class="ana-metric kpi-link" href="#fr-copie-scoperti" title="Apri l'elenco: trimestri con letture e senza fattura di questa ditta"><div class="ana-metric-val">{{ scoperti|length }}</div><div class="ana-metric-label">Trimestri senza fattura</div></a>{% else %}<div class="ana-metric"><div class="ana-metric-val">0</div><div class="ana-metric-label">Trimestri senza fattura</div></div>{% endif %}
+  {% if query_fornitore %}<a class="ana-metric kpi-link" href="{% url 'contatori:fatture' %}?{{ query_fornitore }}" title="Apri l'archivio fatture filtrato: trimestri con letture e senza fattura di questa ditta"><div class="ana-metric-val">{{ scoperti|length }}</div><div class="ana-metric-label">Trimestri senza fattura</div></a>{% else %}<div class="ana-metric"><div class="ana-metric-val">0</div><div class="ana-metric-label">Trimestri senza fattura</div></div>{% endif %}
 </div>
 
 {% if scoperti %}

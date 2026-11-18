@@ -71,11 +71,8 @@ def _apply_family(qs, family_id: int | None, *, asset_prefix: str = ""):
 
 
 def _base_ticket_man_qs():
-    return Ticket.objects.filter(
-        tipo=TipoTicket.MAN,
-        asset__isnull=False,
-        include_in_maintenance_register=True,
-    ).exclude(asset__status=Asset.STATUS_RETIRED)
+    # Una sola definizione: la stessa dell'elenco ticket aperto dalle tessere.
+    return filtra_ticket_man_cruscotto(Ticket.objects.all())
 
 
 def _ticket_closed_statuses() -> tuple[str, str]:
@@ -193,6 +190,26 @@ def _scope_tickets(qs, request):
     return filtra_per_asset(request, qs, MODULO_MANUTENZIONE)
 
 
+def filtra_ticket_man_cruscotto(qs, request=None, family_id=None):
+    """Ticket MAN contati dalle tessere «per famiglia» del cruscotto, su qualsiasi queryset.
+
+    Registro manutenzione, asset collegato non dismesso, ambito del ruolo e (se
+    valida) la famiglia. La usa anche l'elenco «Gestione ticket»
+    (``?registro=asset&famiglia=``): tessera ed elenco contano le stesse righe.
+    """
+    qs = qs.filter(
+        tipo=TipoTicket.MAN,
+        asset__isnull=False,
+        include_in_maintenance_register=True,
+    ).exclude(asset__status=Asset.STATUS_RETIRED)
+    return _apply_family(_scope_tickets(qs, request), _resolve_family_id(family_id), asset_prefix="asset__")
+
+
+def q_segnalazione_urgente() -> Q:
+    """Segnalazione «urgente»: priorità alta/urgente oppure incide sulla sicurezza."""
+    return Q(priorita__in=(PrioritaTicket.URGENTE, PrioritaTicket.ALTA)) | Q(incide_sicurezza=True)
+
+
 def get_family_dashboard_kpis(family_id=None, today: date | None = None, request=None) -> dict:
     """KPI per famiglia del cruscotto. Con ``request`` ogni numero segue l'ambito del
     ruolo, come l'elenco (inventario / OdL) a cui la tessera porta."""
@@ -207,9 +224,7 @@ def get_family_dashboard_kpis(family_id=None, today: date | None = None, request
         resolved_family_id,
         asset_prefix="asset__",
     )
-    tickets_qs = _apply_family(
-        _scope_tickets(_base_ticket_man_qs(), request), resolved_family_id, asset_prefix="asset__"
-    )
+    tickets_qs = filtra_ticket_man_cruscotto(Ticket.objects.all(), request, resolved_family_id)
 
     ticket_closed_month_qs = tickets_qs.filter(
         stato__in=_ticket_closed_statuses(),
@@ -431,7 +446,14 @@ def get_fire_safety_kpis(today: date | None = None, request=None) -> dict:
     assets_qs = _scope_assets(_active_assets_qs().filter(asset_category=category), request)
     # Scadenze amministrative della categoria, da occorrenze e vecchia tabella.
     # Se non ne sono censite, i KPI restano correttamente a 0.
-    dues = feed.administrative_dues(asset_filter={"asset_category": category})
+    # Stesso insieme dello Scadenzario aperto dalle tessere (``category=``): la famiglia
+    # con le sottocategorie, senza escludere gli asset dismessi con scadenze ancora attive.
+    from ..forms_maintenance import category_with_descendants
+
+    dues = feed.administrative_dues(
+        asset_filter={"asset_category_id__in": category_with_descendants(category.id)},
+        exclude_retired=False,
+    )
     if request is not None:
         from ..registro_permessi import MODULO_MANUTENZIONE
         from .visibilita import ids_visibili
@@ -942,10 +964,7 @@ def get_segnalazioni_overview(today: date | None = None, limit: int = 6) -> dict
     in_attesa = _safe_count(base.filter(stato=StatoTicket.IN_ATTESA))
     recenti_7gg = _safe_count(base.filter(created_at__date__gte=week_ago))
     urgenti = _safe_count(
-        open_qs.filter(
-            Q(priorita__in=(PrioritaTicket.URGENTE, PrioritaTicket.ALTA))
-            | Q(incide_sicurezza=True)
-        )
+        open_qs.filter(q_segnalazione_urgente())
     )
 
     prio_labels = dict(PrioritaTicket.choices)

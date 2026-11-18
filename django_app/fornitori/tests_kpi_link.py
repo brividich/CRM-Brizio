@@ -72,3 +72,48 @@ class KpiLinkTests(TestCase):
                 self.assertEqual(r.context[chiave], tutte[chiave])
                 self.assertEqual(tutte[chiave], 1)
         self.assertEqual(self.client.get(f"{url}?stato=boh").context["filtro_stato"], "")
+
+
+class CopieKpiLinkTests(TestCase):
+    """Scheda «Copie MFC»: le tessere aprono gli elenchi di Contatori filtrati sul fornitore."""
+
+    def setUp(self):
+        from datetime import date
+
+        from contatori.models import Fattura, LetturaContatori, Macchina
+
+        self.client.force_login(get_user_model().objects.create_superuser("kpi_copie", "kpic@example.local", "x"))
+        self.base = Fornitore.objects.create(ragione_sociale="BASE SPA")
+        m1 = Macchina.objects.create(reparto="Ufficio A", matricola="SYN-B1", fornitore="BASE", contratto="C-B1")
+        Macchina.objects.create(reparto="Ufficio B", matricola="SYN-B2", fornitore="BASE", attiva=False)
+        altra = Macchina.objects.create(reparto="Ufficio C", matricola="SYN-C1", fornitore="COPYLAB")
+        for numero, trimestre, fornitore in (("FB-1", "2025-Q1", "BASE"), ("FB-2", "2025-Q3", "BASE"),
+                                             ("FC-1", "2025-Q2", "COPYLAB")):
+            anno, q = int(trimestre[:4]), int(trimestre[-1])
+            Fattura.objects.create(numero=numero, data=date(anno, q * 3, 28), trimestre=trimestre,
+                                   periodo_al=date(anno, q * 3, 28), fornitore=fornitore)
+        # 2025-Q2: letture della macchina BASE senza fattura BASE (la fattura è di un altro fornitore).
+        LetturaContatori.objects.create(macchina=m1, trimestre="2025-Q2", data=date(2025, 7, 1))
+        LetturaContatori.objects.create(macchina=altra, trimestre="2025-Q4", data=date(2026, 1, 2))
+
+    def test_tessere_e_elenchi_contatori_contano_uguale(self):
+        r = self.client.get(reverse("fornitori:fornitore_sezione", args=[self.base.pk, "copie"]))
+        self.assertEqual(r.status_code, 200)
+        ctx = r.context
+        self.assertEqual((ctx["macchine_attive"], len(ctx["fatture"]), ctx["scoperti"]), (1, 2, ["2025-Q2"]))
+        self.assertEqual(ctx["query_fornitore"], "fornitore=BASE")
+        macchine = reverse("contatori:macchine") + "?fornitore=BASE"
+        fatture = reverse("contatori:fatture") + "?fornitore=BASE"
+        self.assertContains(r, f'href="{macchine}"')
+        self.assertContains(r, f'href="{fatture}"', count=2)
+        self.assertEqual(len(self.client.get(macchine).context["macchine"]), ctx["macchine_attive"])
+        archivio = self.client.get(fatture)
+        self.assertEqual(archivio.context["totale_fatture"], len(ctx["fatture"]))
+        self.assertEqual([a["trimestre"] for a in archivio.context["scoperti"]], ctx["scoperti"])
+        self.assertContains(archivio, "data-filtro-fornitore")
+
+    def test_codice_sconosciuto_ignorato(self):
+        tutte = self.client.get(reverse("contatori:macchine")).context["macchine"]
+        r = self.client.get(reverse("contatori:macchine") + "?fornitore=NON-ESISTE")
+        self.assertEqual(len(r.context["macchine"]), len(tutte))
+        self.assertEqual(self.client.get(reverse("contatori:fatture") + "?fornitore=NON-ESISTE").context["totale_fatture"], 3)

@@ -343,7 +343,9 @@ body.theme-dark .sic-tipo-early-warning{color:#c4b5fd}
       <option value="APERTO"{% if stato_filter == "APERTO" %} selected{% endif %}>Aperto Preposto</option>
       <option value="APPROVATO"{% if stato_filter == "APPROVATO" %} selected{% endif %}>Approvato RLS</option>
       <option value="CHIUSO"{% if stato_filter == "CHIUSO" %} selected{% endif %}>Chiuso RSPP/ASPP</option>
+      <option value="IN_ANALISI"{% if stato_filter == "IN_ANALISI" %} selected{% endif %}>In analisi (non chiuse)</option>
     </select>
+    {% if anno_filter %}<input type="hidden" name="anno" value="{{ anno_filter }}">{% endif %}
     {% if all_reparti %}
     <select name="reparto" class="sic-filter-select">
       <option value="">Tutti i reparti</option>
@@ -362,8 +364,8 @@ body.theme-dark .sic-tipo-early-warning{color:#c4b5fd}
       <span>
         Rilevazioni
         <span class="sic-count-badge">{{ items|length }}</span>
-        {% if search or tipo_filter or evento_filter or stato_filter or reparto_filter %}
-        <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato</span>
+        {% if search or tipo_filter or evento_filter or stato_filter or reparto_filter or anno_filter %}
+        <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato{% if anno_filter %} · anno {{ anno_filter }}{% endif %}</span>
         {% endif %}
       </span>
     </div>
@@ -435,7 +437,7 @@ body.theme-dark .sic-tipo-early-warning{color:#c4b5fd}
       <div class="sic-empty-icon">&#128737;</div>
       <div style="font-weight:700;color:#475569;">Nessuna rilevazione trovata</div>
       <div style="margin-top:6px;">
-        {% if search or tipo_filter or stato_filter or reparto_filter %}
+        {% if search or tipo_filter or evento_filter or stato_filter or reparto_filter or anno_filter %}
           Prova a modificare i filtri di ricerca.
         {% else %}
           {% if can_create %}<a href="{% url 'rilevazione_incidenti:nuovo' %}" style="color:#065f46;font-weight:700;">Crea la prima rilevazione</a>{% endif %}

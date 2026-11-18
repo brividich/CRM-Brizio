@@ -21,7 +21,10 @@ class KpiLinkTests(TestCase):
         self.client.force_login(u)
         oggi = timezone.localdate()
         for kw in ({"tipo": "NC", "data_richiesta": oggi - timedelta(days=2)}, {"tipo": "OFI"},
-                   {"tipo": "OFI", "fase": "CHIUSO", "data_chiusura": oggi}):
+                   {"tipo": "OFI", "fase": "CHIUSO", "data_chiusura": oggi},
+                   {"tipo": "NC", "norma_en9100": True, "data_richiesta": oggi - timedelta(days=5)},
+                   {"tipo": "OFI", "norma_en9100": True, "norma_iso45001": True},
+                   {"tipo": "OFI", "norma_en9100": True, "fase": "CHIUSO", "data_chiusura": oggi}):
             RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi, **kw)
 
     def _slug_registro(self):
@@ -44,9 +47,24 @@ class KpiLinkTests(TestCase):
         self.assertEqual(kpis["Chiuse nel periodo"].url, "#rc-dettaglio")
         self.assertContains(r, 'id="rc-dettaglio"')
 
-    def test_con_filtro_norma_niente_link_al_registro(self):
-        r = self.client.get(reverse("report_conformita:report", args=[self._slug_registro()]), {"norma": "9100"})
-        self.assertTrue(all(k.url == "#rc-dettaglio" for k in r.context["kpis"]))
+    def test_con_filtro_norma_il_registro_si_apre_sulla_stessa_norma(self):
+        lista = reverse("registro_ofi:lista")
+        for norma, attesi in (("9100", (2, 1, 1)), ("45001", (1, 0, 0)), ("27001", (0, 0, 0))):
+            r = self.client.get(reverse("report_conformita:report", args=[self._slug_registro()]), {"norma": norma})
+            kpis = {k.label: k for k in r.context["kpis"]}
+            etichette = ("Aperte", "di cui non conformità", "Oltre la data di chiusura")
+            self.assertEqual(tuple(kpis[e].value for e in etichette), attesi, norma)
+            self.assertEqual(kpis["Aperte"].url, f"{lista}?aperte=1&norma={norma}")
+            for etichetta in etichette:
+                with self.subTest(norma=norma, kpi=etichetta):
+                    voci = self.client.get(kpis[etichetta].url).context["voci"]
+                    self.assertEqual(len(voci), kpis[etichetta].value)
+        self.assertContains(self.client.get(f"{lista}?aperte=1&norma=9100"), "data-filtro-norma")
+
+    def test_norma_sconosciuta_ignorata_dal_registro(self):
+        lista = reverse("registro_ofi:lista")
+        self.assertEqual(len(self.client.get(f"{lista}?norma=boh").context["voci"]),
+                         len(self.client.get(lista).context["voci"]))
 
     def test_link_non_consentito_ripiega_sul_dettaglio(self):
         with patch("report_conformita.views.allowed_links", return_value=[]):

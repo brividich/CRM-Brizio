@@ -51,3 +51,55 @@ class RiconciliazioneKpiLinkTests(_AuthedClientMixin, TestCase):
         r = self.client.get(self.url, {"vista": "boh"})
         self.assertEqual(r.context["vista"], "")
         self.assertEqual(len(r.context["gruppi"]), 3)
+
+
+class LicenzeApparatiKpiLinkTests(_AuthedClientMixin, TestCase):
+    """«Licenze degli apparati»: la tessera apre l'elenco licenze con ``?apparati=1``,
+    cioè le sole licenze degli asset collegati ad apparati attivi (lo stesso numero)."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+
+        from assets.models import Asset, SoftwareLicense
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.update_or_create(
+            user=get_user_model().objects.get(username="contatori_test_admin"),
+            defaults={"completed": True, "skipped": False, "completed_at": timezone.now()},
+        )
+        oggi = timezone.localdate()
+        attivo = Asset.objects.create(asset_tag="K7-MFC1", name="MFC attiva")
+        spento = Asset.objects.create(asset_tag="K7-MFC2", name="MFC dismessa")
+        altro = Asset.objects.create(asset_tag="K7-PC", name="PC senza apparato")
+        Macchina.objects.create(reparto="Uff L1", matricola="SYN-L1", asset=attivo)
+        Macchina.objects.create(reparto="Uff L2", matricola="SYN-L2", asset=spento, attiva=False)
+        for nome, asset, giorni in (("Scaduta apparato", attivo, -3), ("In scadenza apparato", attivo, 10),
+                                    ("Lontana apparato", attivo, 300), ("Scaduta dismessa", spento, -3),
+                                    ("Scaduta altrove", altro, -3), ("In scadenza altrove", altro, 5)):
+            SoftwareLicense.objects.create(product_name=nome, asset=asset, expiry_date=oggi + timedelta(days=giorni))
+
+    def _licenze(self, query):
+        r = self.client.get(reverse("assets:software_license_list") + query)
+        self.assertEqual(r.status_code, 200)
+        return r
+
+    def test_tessera_e_elenco_licenze_contano_uguale(self):
+        kpi = services.licenze_asset_apparati()
+        self.assertEqual(kpi, {"scadute": 1, "in_scadenza": 1})
+        self.assertEqual(self._licenze("?status=expired&apparati=1").context["license_total"], kpi["scadute"])
+        self.assertEqual(self._licenze("?status=expiring&apparati=1").context["license_total"], kpi["in_scadenza"])
+        # Senza il filtro l'elenco conta anche le licenze degli altri asset: era lo scarto di prima.
+        self.assertEqual(self._licenze("?status=expired").context["license_total"], 3)
+        r = self._licenze("?status=expired&apparati=1")
+        self.assertEqual(r.context["expiring_count"], kpi["in_scadenza"])
+        self.assertIn("apparati=1", r.context["license_kpi_links"]["expiring"])
+        self.assertContains(r, "data-filtro-apparati")
+
+    def test_tessera_del_cruscotto_porta_al_filtro(self):
+        r = self.client.get(reverse("contatori:dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, reverse("assets:software_license_list") + "?status=expired&amp;apparati=1")

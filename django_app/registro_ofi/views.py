@@ -91,8 +91,15 @@ def _voci_filtrate(request):
     if fase_almeno not in RegistroOFI._FASE_RANK:
         fase_almeno = ""
     chiuse_12m = request.GET.get("chiuse_12m") == "1"
+    # Dai Report conformità: voci con la spunta di una norma (codici di ``RegistroOFI.NORME``).
+    norma = (request.GET.get("norma") or "").strip()
+    campo_norma = {codice: campo for campo, codice in RegistroOFI.NORME}.get(norma)
+    if not campo_norma:
+        norma = ""
 
     qs = RegistroOFI.objects.all().select_related("content_type", "responsabile", "processo_sgi")
+    if campo_norma:
+        qs = qs.filter(**{campo_norma: True})
     if solo_mie:
         qs = qs.filter(responsabile=request.user)
     if solo_aperte or in_scadenza or senza_responsabile:
@@ -139,7 +146,7 @@ def _voci_filtrate(request):
                   "origine": origine if origine in _FILTRO_ORIGINE else "", "processo": processo,
                   "processo_obj": processo_obj, "in_scadenza": in_scadenza,
                   "senza_responsabile": senza_responsabile, "fase_almeno": fase_almeno,
-                  "chiuse_12m": chiuse_12m}
+                  "chiuse_12m": chiuse_12m, "norma": norma}
 
 
 # Intestazioni del MOD.174 Rev.0, nell'ordine del modulo (colonna «27001» = fonte del rilievo).
@@ -216,7 +223,7 @@ def lista(request):
         solo_mie=f["solo_mie"], solo_aperte=f["solo_aperte"],
         in_scadenza=f["in_scadenza"], senza_responsabile=f["senza_responsabile"],
         fase_almeno=f["fase_almeno"], fase_almeno_label=dict(RegistroOFI.FASE_CHOICES).get(f["fase_almeno"], ""),
-        chiuse_12m=f["chiuse_12m"],
+        chiuse_12m=f["chiuse_12m"], norma=f["norma"],
         n_mie=_aperte(RegistroOFI.objects.filter(responsabile=request.user)).count(),
         tipo=f["tipo"], q=f["q"], TIPO_CHOICES=RegistroOFI.TIPO_CHOICES,
         filtri_query=request.GET.urlencode(),

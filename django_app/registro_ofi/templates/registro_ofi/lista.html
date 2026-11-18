@@ -98,6 +98,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       {% if senza_responsabile %}<input type="hidden" name="senza_responsabile" value="1">{% endif %}
       {% if fase_almeno %}<input type="hidden" name="fase_almeno" value="{{ fase_almeno }}">{% endif %}
       {% if chiuse_12m %}<input type="hidden" name="chiuse_12m" value="1">{% endif %}
+      {% if norma %}<input type="hidden" name="norma" value="{{ norma }}">{% endif %}
       <select class="fmd-select" name="fase" onchange="this.form.submit()" aria-label="Filtra per fase">
         <option value="">Tutte le fasi</option>
         {% for val, lab in FASE_CHOICES %}<option value="{{ val }}" {% if fase == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
@@ -119,6 +120,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       {% if senza_responsabile %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Senza responsabile ✕</a>{% endif %}
       {% if fase_almeno %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Arrivate almeno a {{ fase_almeno_label }} ✕</a>{% endif %}
       {% if chiuse_12m %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Chiuse negli ultimi 12 mesi ✕</a>{% endif %}
+      {% if norma %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro" data-filtro-norma>Norma {{ norma }} ✕</a>{% endif %}
       <span class="fmd-spacer"></span>
       <a href="{% url 'registro_ofi:home' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Dashboard</a>
       <a href="?{% if filtri_query %}{{ filtri_query }}&amp;{% endif %}export=xlsx" class="fmd-btn fmd-btn-ghost" title="Scarica le voci filtrate nel formato del MOD.174"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta Excel</a>
@@ -206,7 +208,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
     {% else %}
     <div class="fmd-empty">
       <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or solo_mie or solo_aperte or modulo or tipo or q or fase_almeno or chiuse_12m or in_scadenza or senza_responsabile %} con questi filtri{% endif %}</span>
+      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or solo_mie or solo_aperte or modulo or tipo or q or fase_almeno or chiuse_12m or in_scadenza or senza_responsabile or norma %} con questi filtri{% endif %}</span>
       <span class="fmd-em">Le voci nascono dai rilievi degli audit interni e dalle righe MOD.133 con impatto{% if can_add %}, oppure con «Nuovo inserimento»{% endif %}.</span>
     </div>
     {% endif %}

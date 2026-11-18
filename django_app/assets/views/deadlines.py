@@ -1812,6 +1812,8 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
     category_filter = _clean_string(request.GET.get("category")) or "all"
     status_filter = _clean_string(request.GET.get("status")) or "all"
     assignee_filter = _clean_string(request.GET.get("assignee")) or "all"
+    # Dalla tessera «Licenze degli apparati» di Contatori: solo asset collegati ad apparati attivi.
+    apparati_filter = request.GET.get("apparati") == "1"
     q = _clean_string(request.GET.get("q"))
 
     selected_asset = None
@@ -2159,6 +2161,10 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             license_qs = license_qs.filter(assigned_anagrafica_id=selected_anagrafica_id)
     if category_filter != "all":
         license_qs = license_qs.filter(category=category_filter)
+    if apparati_filter:
+        from ..services.software_licenze import device_asset_ids
+
+        license_qs = license_qs.filter(asset_id__in=device_asset_ids(solo_attivi=True))
 
     # Assegnazione e stato: le stesse regole di ``SoftwareLicense.assignment_scope`` e
     # ``_software_license_state_payload`` (prima «Da assegnare» ignorava le licenze
@@ -2207,6 +2213,7 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             "status": status_filter,
             "assignee": assignee_filter,
             "q": q,
+            "apparati": apparati_filter,
         }
         params.update(overrides)
         return _software_licenses_page_url(**params)
@@ -2313,6 +2320,7 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             "category_filter": category_filter,
             "status_filter": status_filter,
             "assignee_filter": assignee_filter,
+            "apparati_filter": apparati_filter,
             "q": q,
             "category_choices": [("all", "Tutte"), *SoftwareLicense.CATEGORY_CHOICES],
             "status_choices": [

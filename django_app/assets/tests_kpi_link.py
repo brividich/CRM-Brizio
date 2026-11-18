@@ -275,3 +275,192 @@ class AltrePagineKpiTests(_AdminClientMixin, TestCase):
         self.assertContains(response, 'class="kpi kpi-link" href="/assets/lista/?status=IN_USE"')
         self.assertEqual(self._asset_count("status=IN_USE"), response.context["assets_by_status"].get("IN_USE", 0))
         self.assertEqual(self._wo_count("view=all"), response.context["total_wo"])
+
+
+class DashboardTicketManKpiTests(_AdminClientMixin, TestCase):
+    """Tessere sui ticket di manutenzione del cruscotto: aprono «Gestione ticket»
+    filtrata sulle stesse righe (registro, famiglia, chiusura, urgenza)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from decimal import Decimal
+
+        from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
+
+        cls.cat = AssetCategory.objects.create(code="kpi7-fam", label="Famiglia KPI7")
+        cls.other = AssetCategory.objects.create(code="kpi7-altra", label="Altra KPI7")
+        a1 = Asset.objects.create(asset_tag="K7-A1", name="A1", asset_category=cls.cat)
+        a2 = Asset.objects.create(asset_tag="K7-A2", name="A2", asset_category=cls.other)
+        old = Asset.objects.create(asset_tag="K7-OLD", name="Old", status=Asset.STATUS_RETIRED, asset_category=cls.cat)
+        now = timezone.now()
+
+        def ticket(titolo, **extra):
+            data = {"tipo": TipoTicket.MAN, "descrizione": "x", "categoria": "ALTRO", "richiedente_nome": "Mario Rossi",
+                    "priorita": PrioritaTicket.MEDIA, "stato": StatoTicket.APERTA}
+            data.update(extra)
+            return Ticket.objects.create(titolo=titolo, **data)
+
+        ticket("aperto famiglia", asset=a1)
+        ticket("in carico famiglia urgente", asset=a1, stato=StatoTicket.IN_CARICO, priorita=PrioritaTicket.ALTA)
+        ticket("aperto altra famiglia", asset=a2)
+        ticket("aperto su dismesso", asset=old)
+        ticket("aperto senza asset, sicurezza", incide_sicurezza=True)
+        ticket("aperto fuori registro", asset=a1, include_in_maintenance_register=False,
+               priorita=PrioritaTicket.URGENTE)
+        ticket("chiuso nel mese", asset=a1, stato=StatoTicket.CHIUSO, closed_at=now, ore_fermo_macchina=Decimal("2.5"))
+        ticket("risolto nel mese altra", asset=a2, stato=StatoTicket.RISOLTO, closed_at=now)
+        ticket("chiuso mesi fa", asset=a1, stato=StatoTicket.CHIUSO, closed_at=now - timedelta(days=70))
+        ticket("annullato nel mese", asset=a1, stato=StatoTicket.ANNULLATO, closed_at=now)
+        ticket("IT urgente", tipo=TipoTicket.IT, priorita=PrioritaTicket.URGENTE)
+
+    def setUp(self):
+        super().setUp()
+        # Il superuser di test non ha il ruolo di gestore ticket: qui interessa il conteggio.
+        patcher = mock.patch("tickets.views._can_manage_tickets", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _ticket_count(self, query: str) -> int:
+        response = self.client.get(f"{reverse('tickets:gestione_list')}?{query}")
+        self.assertEqual(response.status_code, 200)
+        return response.context["tickets_lista"].count()
+
+    def _mese(self) -> str:
+        today = timezone.localdate()
+        first = today.replace(day=1)
+        last = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        return f"chiusi_dal={first.isoformat()}&chiusi_al={last.isoformat()}"
+
+    def test_kpi_per_famiglia_e_elenco_ticket(self):
+        for family, attesi in ((self.cat.id, (2, 1)), (None, (3, 2))):
+            url = reverse("assets:asset_dashboard") + (f"?family={family}" if family else "")
+            response = self.client.get(url)
+            fk = response.context["family_kpis"]
+            fam = f"&famiglia={family}" if family else ""
+            self.assertEqual((fk["ticket_man_aperti_famiglia"], fk["ticket_man_chiusi_mese_famiglia"]), attesi)
+            self.assertEqual(self._ticket_count(f"tipo=MAN&vista=fare&registro=asset{fam}"),
+                             fk["ticket_man_aperti_famiglia"])
+            self.assertEqual(self._ticket_count(f"tipo=MAN&vista=chiusi&registro=asset&{self._mese()}{fam}"),
+                             fk["ticket_man_chiusi_mese_famiglia"])
+            fam_html = fam.replace("&", "&amp;")
+            self.assertContains(response, f"?tipo=MAN&amp;vista=fare&amp;registro=asset{fam_html}\"")
+            self.assertContains(
+                response,
+                f"?tipo=MAN&amp;vista=chiusi&amp;registro=asset&amp;{self._mese().replace('&', '&amp;')}{fam_html}\"",
+            )
+
+    def test_segnalazioni_e_elenco_ticket(self):
+        response = self.client.get(reverse("assets:asset_dashboard"))
+        seg = response.context["segnalazioni"]
+        self.assertEqual((seg["open_total"], seg["urgenti"], seg["nuove"]), (5, 2, 4))
+        self.assertEqual(self._ticket_count("tipo=MAN&vista=fare&registro=1"), seg["open_total"])
+        self.assertEqual(self._ticket_count("tipo=MAN&vista=fare&registro=1&urgenza=1"), seg["urgenti"])
+        self.assertEqual(self._ticket_count("tipo=MAN&stato=APERTA&registro=1"), seg["nuove"])
+        self.assertEqual(self._ticket_count("tipo=MAN&stato=IN_CARICO&registro=1"), seg["in_carico"])
+        self.assertContains(response, "?tipo=MAN&amp;vista=fare&amp;registro=1&amp;urgenza=1")
+        self.assertNotContains(response, "?tipo=MAN&stato=")
+
+    def test_filtri_non_validi_ignorati_e_etichette(self):
+        tutti = self._ticket_count("tipo=MAN&vista=fare")
+        self.assertEqual(self._ticket_count("tipo=MAN&vista=fare&registro=boh&famiglia=abc&chiusi_dal=31-12&urgenza=si"),
+                         tutti)
+        response = self.client.get(f"{reverse('tickets:gestione_list')}?tipo=MAN&registro=asset&famiglia={self.cat.id}")
+        self.assertIn("famiglia Famiglia KPI7", response.context["filtri_cruscotto"])
+        self.assertContains(response, "data-filtri-cruscotto")
+
+
+class DashboardScadenzarioKpiTests(_AdminClientMixin, TestCase):
+    """KPI scadenze del cruscotto = righe dello Scadenzario che aprono (occorrenze,
+    scadenze amministrative, verifiche impianti e piani periodici non convertiti)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from assets.models import (
+            AssetAdministrativeDeadline,
+            MaintenanceInterventionTemplate,
+            MaintenanceOccurrence,
+            PeriodicVerification,
+        )
+
+        today = timezone.localdate()
+        cls.fire = AssetCategory.objects.filter(code="antincendio").first() or AssetCategory.objects.create(
+            code="antincendio", label="Antincendio"
+        )
+        cls.fire_child = AssetCategory.objects.create(code="kpi7-estintori", label="Estintori KPI7", parent=cls.fire)
+        a1 = Asset.objects.create(asset_tag="K7-SC1", name="Pressa", reparto="Officina KPI7")
+        a2 = Asset.objects.create(asset_tag="K7-SC2", name="Estintore", asset_category=cls.fire)
+        a3 = Asset.objects.create(asset_tag="K7-SC3", name="Estintore figlio", asset_category=cls.fire_child)
+        a4 = Asset.objects.create(asset_tag="K7-SC4", name="Estintore dismesso", asset_category=cls.fire,
+                                  status=Asset.STATUS_RETIRED)
+        ordinaria = MaintenanceInterventionTemplate.objects.create(code="k7-ord", label="Ingrassaggio K7")
+        amministrativa = MaintenanceInterventionTemplate.objects.create(
+            code="k7-adm", label="Revisione K7", maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
+        )
+        for giorni in (-10, -2, 5, 20, 60):
+            MaintenanceOccurrence.objects.create(plan=ordinaria, asset=a1, due_date=today + timedelta(days=giorni))
+        MaintenanceOccurrence.objects.create(plan=ordinaria, asset=a1, due_date=today - timedelta(days=4),
+                                             status=MaintenanceOccurrence.STATUS_DONE, completed_on=today)
+        MaintenanceOccurrence.objects.create(plan=amministrativa, asset=a1, due_date=today - timedelta(days=1))
+        MaintenanceOccurrence.objects.create(plan=amministrativa, asset=a1, due_date=today + timedelta(days=80))
+        for asset, giorni in ((a2, -7), (a2, 12), (a3, -3), (a4, -30), (a1, 45)):
+            AssetAdministrativeDeadline.objects.create(
+                asset=asset, title=f"Scadenza {asset.asset_tag} {giorni}", due_date=today + timedelta(days=giorni)
+            )
+        PeriodicVerification.objects.create(name="Piano non convertito scaduto",
+                                            next_verification_date=today - timedelta(days=6))
+        PeriodicVerification.objects.create(name="Piano non convertito vicino",
+                                            next_verification_date=today + timedelta(days=9))
+        PeriodicVerification.objects.create(name="Piano convertito", next_verification_date=today - timedelta(days=6),
+                                            is_legacy=True)
+
+    def _scadenzario(self, query: str) -> int:
+        response = self.client.get(f"{reverse('assets:maintenance_scadenze')}?{query}")
+        self.assertEqual(response.status_code, 200)
+        return response.context["total"]
+
+    def test_kpi_e_scadenzario_contano_uguale(self):
+        response = self.client.get(reverse("assets:asset_dashboard"))
+        kpis, dd = response.context["kpis"], response.context["dash_deadlines"]
+        fire = response.context["fire_safety_kpis"]
+        attesi = {
+            "reparto=&plan_type=ordinary&window=overdue": (dd["maintenance_overdue"], 2),
+            "reparto=&plan_type=ordinary&window=30": (dd["maintenance_due_soon"], 2),
+            "reparto=&plan_type=administrative&window=overdue": (kpis["scadenze_scadute"], 4),
+            "reparto=&plan_type=administrative&window=30": (kpis["scadenze_30gg"], 1),
+            "reparto=&plan_type=administrative&window=90": (kpis["scadenze_90gg"], 3),
+            "reparto=&plan_type=piani&window=overdue": (kpis["verifiche_scadute"], 3),
+            "reparto=&plan_type=piani&window=30": (kpis["verifiche_30gg"], 3),
+            "reparto=&window=overdue": (dd["overdue"], 7),
+            "reparto=&window=30": (dd["due_soon"], 4),
+            f"reparto=&plan_type=administrative&window=overdue&category={self.fire.id}":
+                (fire["antincendio_scadenze_scadute"], 3),
+            f"reparto=&plan_type=administrative&window=30&category={self.fire.id}":
+                (fire["antincendio_scadenze_30gg"], 1),
+        }
+        for query, (kpi, atteso) in attesi.items():
+            with self.subTest(query=query):
+                self.assertEqual(kpi, atteso)
+                self.assertEqual(self._scadenzario(query), kpi)
+        html = response.content.decode()
+        for query in ("reparto=&amp;plan_type=ordinary&amp;window=overdue",
+                      "reparto=&amp;plan_type=administrative&amp;window=overdue",
+                      "reparto=&amp;plan_type=piani&amp;window=30", "reparto=&amp;window=overdue"):
+            self.assertIn("?" + query, html)
+
+    def test_caporeparto_il_link_non_restringe_al_suo_reparto(self):
+        # Senza ``reparto=`` lo Scadenzario si preimposta sui reparti guidati: il KPI no.
+        with mock.patch("assets.views_maintenance.user_reparti", return_value=["Officina KPI7"]):
+            response = self.client.get(reverse("assets:asset_dashboard"))
+            kpi = response.context["kpis"]["scadenze_scadute"]
+            self.assertEqual(self._scadenzario("reparto=&plan_type=administrative&window=overdue"), kpi)
+            self.assertLess(self._scadenzario("plan_type=administrative&window=overdue"), kpi)
+
+    def test_ambito_ristretto_vale_anche_per_scadenze_e_verifiche(self):
+        visibili = set(Asset.objects.filter(asset_tag="K7-SC2").values_list("id", flat=True))
+        with mock.patch("assets.views_maintenance.ids_visibili", return_value=visibili), \
+                mock.patch("assets.views_maintenance.filtra_per_asset",
+                           side_effect=lambda request, qs, modulo=None: qs.filter(asset_id__in=visibili)):
+            self.assertEqual(self._scadenzario("reparto=&plan_type=administrative&window=overdue"), 1)
+            self.assertEqual(self._scadenzario("reparto=&plan_type=piani&window=overdue"), 0)

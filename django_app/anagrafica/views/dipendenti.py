@@ -1423,6 +1423,52 @@ def _can_view_stats(request) -> bool:
     return False
 
 
+def _utente_id_dip(dip: dict) -> int:
+    """Id dell'utente (tabella ``utenti``) del dipendente: è quello scritto su ticket e asset."""
+    try:
+        return int(dip.get("utente_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _link_kpi_scheda(request, dip: dict) -> dict[str, str]:
+    """Link delle tessere «Ticket» e «Asset in carico» della scheda, solo quando l'elenco
+    aperto conta lo stesso numero: chi gestisce entrambi i tipi di ticket, e per gli asset
+    chi apre l'inventario senza ambito ristretto. Negli altri casi nessun link."""
+    from urllib.parse import urlencode
+
+    from django.urls import reverse as _reverse
+
+    utente_id = _utente_id_dip(dip)
+    link: dict[str, str] = {}
+    if not utente_id:
+        return link
+    try:
+        from tickets.models import TipoTicket
+        from tickets.views import _can_manage_tickets
+
+        if _can_manage_tickets(request, TipoTicket.IT) and _can_manage_tickets(request, TipoTicket.MAN):
+            base = _reverse("tickets:gestione_list")
+            link["tickets_aperti"] = base + "?" + urlencode(
+                {"tipo": "TUTTI", "stato": "APERTA", "richiedente": utente_id})
+            link["tickets_totali"] = base + "?" + urlencode(
+                {"tipo": "TUTTI", "vista": "tutti", "richiedente": utente_id})
+    except Exception:
+        logger.exception("Link ticket della scheda dipendente non calcolati")
+    try:
+        from assets.services.visibilita import ambito_ristretto
+        from core.middleware import acl_allows_path
+
+        inventario = _reverse("assets:asset_list")
+        if acl_allows_path(
+            inventario, django_user=request.user, legacy_user=getattr(request, "legacy_user", None), request=request,
+        ) and not ambito_ristretto(request):
+            link["asset"] = inventario + "?" + urlencode({"status": "ATTIVI", "assegnatario": utente_id})
+    except Exception:
+        logger.exception("Link asset della scheda dipendente non calcolato")
+    return link
+
+
 def _compute_widget_counts(dip: dict) -> dict[str, int]:
     """Calcola i contatori per ogni widget statistiche del dipendente."""
     legacy_id = int(dip.get("id") or 0)
@@ -1434,7 +1480,10 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
     # Ticket aperti e totali
     try:
         from tickets.models import StatoTicket, Ticket
-        qs = Ticket.objects.filter(richiedente_legacy_user_id=legacy_id) if legacy_id else Ticket.objects.none()
+        # ``richiedente_legacy_user_id`` è l'id utente, non l'id anagrafica: prima il conteggio
+        # usava l'id anagrafica e poteva contare i ticket di un'altra persona.
+        utente_id = _utente_id_dip(dip)
+        qs = Ticket.objects.filter(richiedente_legacy_user_id=utente_id) if utente_id else Ticket.objects.none()
         counts["tickets_totali"] = qs.count()
         counts["tickets_aperti"] = qs.filter(stato=StatoTicket.APERTA).count()
     except Exception:
@@ -1809,10 +1858,6 @@ def dipendente_detail(request, legacy_id: int):
         return "?" + urlencode(params) if params else ""
 
     try:
-        _ticket_base = _reverse("tickets:gestione_list")
-    except Exception:
-        _ticket_base = "/tickets/gestione/"
-    try:
         _diario_base = _reverse("diario_preposto:lista")
     except Exception:
         _diario_base = "/diario-preposto/"
@@ -1825,9 +1870,11 @@ def dipendente_detail(request, legacy_id: int):
     except Exception:
         _timbri_base = ""
 
+    # Tessere cliccabili solo dove l'elenco conta lo stesso numero e la persona può aprirlo.
+    link_kpi_scheda = _link_kpi_scheda(request, dip)
     _widget_links: dict[str, str] = {
-        "tickets_aperti": _ticket_base + _qs(q=_nome_completo, stato="APERTA"),
-        "tickets_totali": _ticket_base + _qs(q=_nome_completo),
+        "tickets_aperti": link_kpi_scheda.get("tickets_aperti", ""),
+        "tickets_totali": link_kpi_scheda.get("tickets_totali", ""),
         "anomalie": "/gestione-anomalie/",
         "diario_preposto": _diario_base + _qs(q=_nome_completo),
         "rilevazioni": _rilevazioni_base + _qs(q=_nome_completo),
@@ -1845,6 +1892,8 @@ def dipendente_detail(request, legacy_id: int):
         w["count"] = widget_counts.get(wid, 0)
         if wid in _widget_links:
             w["link_url"] = _widget_links[wid]
+        if wid in link_kpi_scheda:
+            w["kpi_url"] = link_kpi_scheda[wid]
         if wid in hidden_ids:
             widgets_hidden.append(w)
         else:
@@ -2475,6 +2524,7 @@ def dipendente_detail(request, legacy_id: int):
 
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
+        "asset_in_carico_url": link_kpi_scheda.get("asset", ""),
         "legacy_id": legacy_id,
         "can_stats": can_stats,
         "is_admin": is_admin,
