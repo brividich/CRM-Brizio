@@ -152,13 +152,29 @@
                   <input type="checkbox" id="ter-{{ a.id }}" {% if a.segnala_terzista %}checked{% endif %} onchange="onTerzistaChange({{ a.id }})">
                   <span>Segnala a terzista?</span>
                 </label>
-                {% if op_car %}
+                {% if car_opzioni %}
                 <label class="toggle-row">
                   <input type="checkbox" id="car-{{ a.id }}" {% if a.segnala_car %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
-                  <span>Segnala al CAR ({{ op_car }})?</span>
+                  <span>Segnala a CAR?</span>
                 </label>
                 {% endif %}
+                <label class="toggle-row">
+                  <input type="checkbox" id="pzp-{{ a.id }}" {% if a.pezzo_recuperato %}checked{% endif %}>
+                  <span>Pezzi precedenti al benestare</span>
+                </label>
               </div>
+
+              {% if car_opzioni %}
+              <div class="car-scelta" id="carbox-{{ a.id }}" hidden>
+                <div class="field-label">A quale CAR?</div>
+                <div class="car-scelta-voci">
+                  {% for nome in car_opzioni %}
+                  <label><input type="checkbox" data-car="{{ nome }}" {% if nome in a.car_segnalati %}checked{% endif %} onchange="onToggleChange({{ a.id }})"> {{ nome }}{% if nome in car_dell_op %} · CAR dell'OP{% endif %}</label>
+                  {% endfor %}
+                </div>
+                <div class="passi-det" id="car-det-{{ a.id }}"></div>
+              </div>
+              {% endif %}
 
               <div class="passi-box" id="passi-{{ a.id }}" data-stato-salvato="{{ a.avanzamento|default:'' }}"
                    data-numero-rdc="{{ a.numero_rdc|default:'' }}" data-chiarimenti="{% if a.chiarimenti_aperti %}1{% endif %}" hidden>
@@ -174,7 +190,7 @@
                     <span class="passi-det">{% if a.segnalato_terzista %}il {{ a.segnalato_terzista.il }}{% if a.segnalato_terzista.da %} da {{ a.segnalato_terzista.da }}{% endif %}{% if a.segnalato_terzista.ruolo == "qualita" %} (qualità){% endif %}{% else %}senza RDC l'anomalia si chiude{% endif %}</span>
                   </li>
                   <li id="passo-car-{{ a.id }}" class="{% if a.segnalato_car %}is-fatto{% endif %}">
-                    <b>Segnalato al CAR</b><span class="passi-det">{% if a.segnalato_car %}il {{ a.segnalato_car.il }} · mail dal portale{% else %}si spunta da solo quando parte la mail al CAR{% endif %}</span>
+                    <b>Segnalato al CAR</b><span class="passi-det">{% if a.segnalato_car %}il {{ a.segnalato_car.il }} · mail dal portale{% else %}si spunta da solo quando parte la mail ai CAR scelti{% endif %}</span>
                   </li>
                 </ol>
               </div>
@@ -377,6 +393,7 @@
   </div>
 </div>
 
+{{ avanzamenti|json_script:"avanzamenti-config" }}
 <script>
   var TOTAL = {{ anomalie|length }};
   var ACTION = "{{ action }}";
@@ -384,7 +401,9 @@
   var aggiornamenti = {};
 
   // ── Regole Power Apps (identiche alla pagina web di gestione) ──
-  var BASE_AVANZAMENTO = ["In attesa", "Accetto lo stato", "Finito trattato"];
+  // «Scelte Avanzamento» di Configurazione, come in Gestione anomalie.
+  var BASE_AVANZAMENTO = JSON.parse(document.getElementById('avanzamenti-config').textContent || '[]');
+  if (!BASE_AVANZAMENTO.length) BASE_AVANZAMENTO = ["Accetto lo stato", "In attesa", "Finito trattato"];
   // «Segnalato al cliente/terzista» porta l'anomalia in attesa della risposta.
   var AVANZAMENTO_RISPOSTA = { cliente: "In attesa risposta cliente", terzista: "In attesa risposta terzista" };
   var AVANZAMENTO_INFO = "In attesa di ulteriori informazioni";
@@ -417,6 +436,11 @@
     return CC_PUO_CHIUDERE && (a === 'accetto lo stato' || a === 'apertura ore/ripi');
   }
   function el(prefix, id) { return document.getElementById(prefix + id); }
+  // «A quale CAR?»: i nomi spuntati nel riquadro della riga.
+  function carScelti(id) {
+    return Array.prototype.slice.call(document.querySelectorAll('#carbox-' + id + ' input[data-car]:checked'))
+      .map(function(i){ return i.dataset.car; });
+  }
   function spunta(prefix, id) { var e = el(prefix, id); return !!(e && e.checked); }
   // Stato effettivo: quello scelto, altrimenti quello già salvato («invariato»).
   function statoEffettivoDi(id) {
@@ -490,6 +514,14 @@
       mostra('passo-segc-', conCli, spunta('segc-', id));
       mostra('passo-segt-', conTer, spunta('segt-', id));
       var liCar = el('passo-car-', id); if (liCar) liCar.hidden = !conCar;
+    var carBox = el('carbox-', id);
+    if (carBox) {
+      carBox.hidden = !conCar;
+      var scelti = carScelti(id), cdetCar = el('car-det-', id);
+      if (cdetCar) cdetCar.textContent = scelti.length
+        ? 'Alla conferma la mail «Segnala a CAR» va solo a: ' + scelti.join(', ') + ' (chi l'ha già ricevuta non la riceve di nuovo).'
+        : 'Scegli almeno un CAR: senza scelta la segnalazione non parte.';
+    }
       var attesa = STATI_RISPOSTA.indexOf(statoEffettivoDi(id).toLowerCase()) >= 0;
       var t = el('passi-t-', id);
       if (t) t.textContent = (auto || manuale) ? '✓ Alla conferma l\'anomalia si chiude'
@@ -647,7 +679,9 @@
       var r = document.getElementById('rdc-' + aid), s = document.getElementById('seg-' + aid);
       if (r) r.checked = !!(rdc && rdc.checked);
       if (s) s.checked = !!(seg && seg.checked);
-      ['ter-', 'car-', 'segc-', 'segt-'].forEach(function(pref){ var x = el(pref, aid); if (x) x.checked = spunta(pref, id); });
+      ['ter-', 'car-', 'segc-', 'segt-', 'pzp-'].forEach(function(pref){ var x = el(pref, aid); if (x) x.checked = spunta(pref, id); });
+      var sceltiCar = carScelti(id);
+      document.querySelectorAll('#carbox-' + aid + ' input[data-car]').forEach(function(i){ i.checked = sceltiCar.indexOf(i.dataset.car) >= 0; });
       var cx = el('chiudi-', aid), c0 = el('chiudi-', id);
       if (cx && c0) cx.dataset.manuale = c0.dataset.manuale || '';
       onToggleChange(aid);
@@ -719,7 +753,9 @@
       aprire_rdc: aprireRdc,
       segnalare: segnalare,
       segnala_terzista: terzista,
-      segnala_car: spunta('car-', id),
+      segnala_car: spunta('car-', id) && carScelti(id).length > 0,
+      car_segnalati: spunta('car-', id) ? carScelti(id) : [],
+      pezzi_prec: spunta('pzp-', id),
       risposta_info: (el('rispinfo-', id) || { value: '' }).value.trim(),
       segnalato_cliente: segnalare && spunta('segc-', id),
       segnalato_terzista: terzista && spunta('segt-', id),

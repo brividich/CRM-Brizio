@@ -443,7 +443,9 @@ SEZIONI: list[dict] = [
                 "qualità.",
                 "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa» (tranne con RDC, cliente o "
                 "terzista da segnalare); scritta la risposta del cliente o del terzista serve lo stato definitivo.",
-                "La pagina del link della mail fa le stesse cose: flag (anche «Segnala al CAR» dell'OP), «Segnalato…», "
+                "La pagina del link della mail fa le stesse cose: stesse scelte di «Nuovo avanzamento» (Configurazione → "
+                "«Scelte Avanzamento»), flag (anche «Segnala a CAR» con «A quale CAR?» e «Pezzi precedenti al "
+                "benestare»), «Segnalato…», "
                 "risposta alle richieste della qualità, note ferme in attesa di risposta, «Chiudi l'anomalia» se "
                 "permesso e allegati della decisione (anche .msg ed .eml); la decisione qualità si vede in sola lettura.",
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
@@ -553,8 +555,10 @@ SEZIONI: list[dict] = [
                 "Espandi un'anomalia per vedere descrizione, foto e allegati. «Espandi tutte» le apre tutte.",
                 "Nella «Decisione su questa anomalia» scegli «Aprire RDC?», «Segnalare a cliente?», il «Nuovo avanzamento» "
                 "e scrivi la risposta. «Segnalare a cliente?» spunta anche «Aprire RDC?» (si può togliere). «Chiudere? "
-                "(automatico)» si calcola da solo. Terzista, CAR, dove sono i pezzi e allegati della decisione si "
-                "indicano in Gestione anomalie.",
+                "(automatico)» si calcola da solo. Le scelte di «Nuovo avanzamento» sono le stesse di Gestione "
+                "anomalie (Configurazione → «Scelte Avanzamento»). Con «Segnala a CAR?» scegli in «A quale CAR?» fra "
+                "il CAR dell'OP e i capi reparto: la mail parte solo ai CAR aggiunti ora. C'è anche «Pezzi precedenti "
+                "al benestare». Dove sono i pezzi si indica in Gestione anomalie.",
                 "Per dare la stessa decisione ad altre anomalie scegli in «Applica la stessa decisione anche a» lo stesso "
                 "blocco, tutte le aperte della pagina o quelle scelte a mano, poi «Salva»: un riepilogo le mostra tutte "
                 "prima di confermare; avanzamento, RDC, cliente e note vengono copiati, come in Gestione anomalie.",

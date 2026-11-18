@@ -77,7 +77,8 @@ GUIDA = {
                       "capocommessa non l'ha fatto, «Chiudi l'anomalia», «Richiedi info aggiuntive»). Senza RDC le "
                       "segnalazioni fatte chiudono l'anomalia; con RDC la chiude il numero RDC. «In carico a me» mostra "
                       "solo gli OP e le anomalie che toccano a te (capocommessa, qualità, CAR segnalato, controllore a "
-                      "cui sono chieste informazioni). Il link della mail fa lo stesso e accetta allegati, anche .msg ed "
+                      "cui sono chieste informazioni). Il link della mail fa lo stesso, con le stesse scelte (avanzamenti di "
+                      "Configurazione, «A quale CAR?», «Pezzi precedenti al benestare») e accetta allegati, anche .msg ed "
                       ".eml; un secondo link permette di rispondere alle richieste della qualità senza accesso."),
                 ("p", "La riga «In carico» del dettaglio dice a chi tocca l'anomalia. Capocommessa e CAR dell'OP, i CAR "
                       "segnalati e gli amministratori possono «Cambia incaricato»: scelgono la persona e l'anomalia "

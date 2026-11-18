@@ -91,6 +91,10 @@ Statistiche, Ricerca dettaglio, tendina degli OP e contatore della home passano 
 
 `send_and_log_email` spedisce dentro il flusso evento `anomalie_mail_<kind>` (`anomalie/mail_flussi.py`, catalogo `ANOMALIE_MAIL_FLUSSI` in `automazioni/event_notifications.py`, tipo non censito → `anomalie_mail_altro`): flusso spento o regole che fermano la mail → nessun invio, riga «Non inviata» in «Mail inviate», ritorno `(True, None)` così chi chiama non ritenta. Gli errori SMTP risalgono come prima; «Reinvia» dal log non passa dal flusso. Le liste `conferma_aggiornamenti`, `rdc_segnalazione`, `escalation_supervisori` sono anche in «Impostazioni del modulo» dei flussi (`automazioni/mail_modulo._lista_anomalie`, salvate con `notifiche.salva_pannello`).
 
+## Link mail del capocommessa allineato al portale (18/11/2026)
+
+La pagina del link mail (`mail_action_form.html`) usa le stesse scelte del dettaglio di Gestione anomalie: «Nuovo avanzamento» dalle «Scelte Avanzamento» di Configurazione (`_avanzamenti_config`, prima lista fissa), «Segnala a CAR?» con «A quale CAR?» fra il CAR dell'OP e i capi reparto (`_car_opzioni`; nomi fuori elenco ignorati, mail solo ai CAR aggiunti ora) e «Pezzi precedenti al benestare» (`pezzo_recuperato`). Nessuna migrazione.
+
 ## Hardening ottobre 2026
 
 - Correzione 10/10: la copia di riepilogo al segnalante non partiva mai (la query cercava `utenti.cognome`, colonna inesistente, e avrebbe usato `utenti.email`, che è il login). Ora l'indirizzo è l'`email_notifica` della scheda anagrafica.
