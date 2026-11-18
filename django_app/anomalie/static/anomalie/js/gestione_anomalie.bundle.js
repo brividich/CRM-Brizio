@@ -27,6 +27,7 @@ const API = window.ANOMALIE_API || {
   allegati_list: "/api/anomalie/allegati",
   allegati_upload: "/api/anomalie/allegati/upload",
   allegati_delete: "/api/anomalie/allegati/delete",
+  allegati_ripristina: "/api/anomalie/allegati/ripristina",
   allegati_file: "/api/anomalie/allegati/file",
   segnalato: "/api/anomalie/segnalato",
   elimina: "/api/anomalie/elimina",
@@ -642,6 +643,7 @@ const STRISCIA_REGISTRO = {
   incaricato: "qa",
   allegato: "info",
   allegato_tolto: "warn",
+  allegato_ripristinato: "info",
   elimina: "warn",
   passo: "acc"
 };
@@ -2009,6 +2011,9 @@ function GestioneAnomalie() {
   const [currentItemId, setCurrentItemId] = useState(null);
   const [currentLocalId, setCurrentLocalId] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  // Allegati tolti: restano nel cestino dell'anomalia e si possono ripristinare.
+  const [removedAttachments, setRemovedAttachments] = useState([]);
+  const [showRemoved, setShowRemoved] = useState(false);
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const fileInputRef = useRef(null);
@@ -2596,6 +2601,8 @@ function GestioneAnomalie() {
   const loadAttachments = async localId => {
     attachmentsFor.current = localId;
     setAttachments([]);
+    setRemovedAttachments([]);
+    setShowRemoved(false);
     if (!localId) return;
     setLoadingAttachments(true);
     try {
@@ -2606,6 +2613,7 @@ function GestioneAnomalie() {
       if (attachmentsFor.current !== localId) return;
       if (!r.ok || !d.success) throw new Error(d.error || "Errore caricamento allegati");
       setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+      setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
     } catch (e) {
       setAttachments([]);
       flash({
@@ -2684,10 +2692,45 @@ function GestioneAnomalie() {
       const d = await readJsonOrThrow(r, "Elimina allegato");
       if (!r.ok || !d.success) throw new Error(d.error || "Eliminazione non riuscita");
       setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+      setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
+      flash({
+        ok: true,
+        text: "Allegato tolto: lo ritrovi in «Allegati tolti» e puoi ripristinarlo"
+      }, 6000);
     } catch (e) {
       flash({
         ok: false,
         text: "Errore eliminazione allegato: " + e.message
+      });
+    }
+  };
+  const handleRestoreAttachment = async fileId => {
+    if (!currentLocalId || !fileId) return;
+    try {
+      const r = await fetch(API.allegati_ripristina, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          local_id: currentLocalId,
+          file_id: fileId
+        }),
+        credentials: "same-origin"
+      });
+      const d = await readJsonOrThrow(r, "Ripristina allegato");
+      if (!r.ok || !d.success) throw new Error(d.error || "Ripristino non riuscito");
+      setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+      setRemovedAttachments(Array.isArray(d.removed) ? d.removed : []);
+      flash({
+        ok: true,
+        text: "Allegato ripristinato"
+      });
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore ripristino allegato: " + e.message
       });
     }
   };
@@ -4638,7 +4681,22 @@ function GestioneAnomalie() {
     className: "ga-hint"
   }, "Caricamento allegati\u2026") : attAnomalia.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, "Nessun allegato.") : renderAttGrid(attAnomalia))), /*#__PURE__*/React.createElement("div", {
+  }, "Nessun allegato.") : renderAttGrid(attAnomalia), removedAttachments.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__tolti"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    "aria-expanded": showRemoved,
+    onClick: () => setShowRemoved(v => !v)
+  }, "Allegati tolti (", removedAttachments.length, ")"), showRemoved && /*#__PURE__*/React.createElement("ul", null, removedAttachments.map(file => /*#__PURE__*/React.createElement("li", {
+    key: file.file_id
+  }, /*#__PURE__*/React.createElement("span", {
+    title: `${file.name} · ${formatBytes(file.size)}`
+  }, file.name), canEditCurrentOp && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => handleRestoreAttachment(file.file_id)
+  }, "Ripristina"))))))), /*#__PURE__*/React.createElement("div", {
     className: `ga-card ga-card--decision${dirty ? " is-dirty" : ""}${sezChiusa("cc") ? " is-chiusa" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-card__head"
