@@ -350,16 +350,40 @@ def link_banco(richiesta) -> str:
     return portal_link(f"{path}#{_chiave_persona(richiesta)}")
 
 
+def _pulsanti_azione(azioni) -> str:
+    """Pulsanti colorati affiancati (etichetta, url, colore) per le decisioni dalla mail."""
+    import html as _html
+
+    celle = "".join(
+        f'<td style="border-radius:10px;background:{colore};">'
+        f'<a href="{_html.escape(str(url), quote=True)}" style="display:inline-block;padding:14px 28px;font-size:15px;'
+        f'font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;background:{colore};'
+        f'mso-padding-alt:14px 28px;">{_html.escape(str(etichetta))}</a></td><td style="width:12px;">&nbsp;</td>'
+        for etichetta, url, colore in azioni
+    )
+    return (
+        '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:0 0 16px;">'
+        f"<tr>{celle}</tr></table>"
+    )
+
+
 def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachments=None,
-          cta: tuple[str, str] | None = None) -> int:
-    """``cta`` = (etichetta, url): pulsante in fondo alla mail e riga col link nel testo semplice."""
+          cta: tuple[str, str] | None = None, azioni=None) -> int:
+    """``cta`` = (etichetta, url): pulsante in fondo alla mail e riga col link nel testo semplice.
+    ``azioni`` = [(etichetta, url, colore)]: pulsanti di decisione sopra il pulsante ``cta``."""
     if not recipients:
         return 0
     from core.email_utils import email_cta, send_hub_mail, text_to_html
 
     fragment = ""
+    if (cta and cta[1]) or azioni:
+        fragment = text_to_html(body)
+        for etichetta, url, _colore in azioni or []:
+            body = f"{body}\n\n{etichetta}: {url}"
+        if azioni:
+            fragment += _pulsanti_azione(azioni)
     if cta and cta[1]:
-        fragment = text_to_html(body) + email_cta(cta[0], cta[1])
+        fragment += email_cta(cta[0], cta[1])
         body = f"{body}\n\n{cta[0]}: {cta[1]}"
     return send_hub_mail(
         subject=subject,
@@ -393,15 +417,21 @@ from automazioni.managed_flows import event_flow
 def notifica_nuova_richiesta(richiesta) -> None:
     """Passo 1 -> 2: avvisa il responsabile/preposto che c'e' una richiesta da approvare."""
     try:
+        from . import approva_mail
+
         destinatari = _destinatari_approvatori(richiesta)
         path = reverse("dpi:gestione_detail", args=[richiesta.pk])
-        _mail(
-            f"[DPI] Richiesta da approvare {richiesta.numero} - {richiesta.richiedente_nome}",
-            _dettaglio_richiesta(richiesta),
-            destinatari,
-            title="Richiesta DPI da approvare",
-            cta=("Approva o rifiuta", portal_link(path)),
-        )
+        # Una mail per destinatario: «Accetta» e «Rifiuta» sono link personali (dpi/approva_mail.py).
+        for email in destinatari:
+            link = approva_mail.link(richiesta, email)
+            _mail(
+                f"[DPI] Richiesta da approvare {richiesta.numero} - {richiesta.richiedente_nome}",
+                _dettaglio_richiesta(richiesta),
+                [email],
+                title="Richiesta DPI da approvare",
+                cta=("Apri nel portale" if link else "Approva o rifiuta", portal_link(path)),
+                azioni=[("Accetta", link[0], "#16a34a"), ("Rifiuta", link[1], "#dc2626")] if link else None,
+            )
         _campanella(destinatari, "dpi_da_approvare",
                     f"{richiesta.richiedente_nome}: {richiesta.numero} ({_riga_dpi(richiesta)}) da approvare", path)
     except Exception:

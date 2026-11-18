@@ -1092,9 +1092,12 @@ def _notifica_richiedente(richiesta: RichiestaDPI, messaggio: str, tipo: str = "
         )
 
 
-def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bool = False) -> None:
+def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bool = False,
+             autore: str = "", utente=None) -> None:
     """Approva: avviso al magazzino e, se in Impostazioni e' scelto l'avviso
-    immediato, la richiesta e' subito «Pronta al ritiro»."""
+    immediato, la richiesta e' subito «Pronta al ritiro».
+
+    ``autore`` (e ``utente``, se ha un account): chi decide dal link nella mail, senza login."""
     richiesta.stato = StatoRichiesta.APPROVATA
     if nota and not automatica:  # l'automatica non copre le note di inserimento
         richiesta.note_gestione = nota
@@ -1102,17 +1105,18 @@ def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bo
     if nota:
         RichiestaDPICommento.objects.create(
             richiesta=richiesta,
-            autore_nome="Portale" if automatica else (request.user.get_full_name() or request.user.username),
+            autore_nome="Portale" if automatica else (autore or request.user.get_full_name() or request.user.username),
             testo=nota,
             is_interno=False,
         )
     if automatica:
         log_action(request, "approva", "dpi", f"Approvata automaticamente la richiesta DPI {richiesta.numero} (CAR/preposto)")
     else:
-        log_action(request, "approva", "dpi", f"Approvata richiesta DPI {richiesta.numero}")
+        log_action(request, "approva", "dpi", f"Approvata richiesta DPI {richiesta.numero}"
+                   + (f" dal link nella mail ({autore})" if autore else ""))
         from .ai_richiesta import registra_esito
 
-        registra_esito(richiesta, "approvare", user=request.user)
+        registra_esito(richiesta, "approvare", user=utente if autore else request.user)
     _notifica_richiedente(richiesta, f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.")
     flusso.notifica_approvata(richiesta)
     if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione and not richiesta.modalita_negozio:
@@ -1161,7 +1165,13 @@ def rifiuta_richiesta(request, pk: int):
     if richiesta.stato not in (StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA):
         messages.error(request, "Stato non valido per il rifiuto.")
         return redirect("dpi:gestione_detail", pk=pk)
-    motivazione = request.POST.get("motivazione", "").strip()
+    _rifiuta(request, richiesta, request.POST.get("motivazione", "").strip())
+    messages.success(request, f"Richiesta {richiesta.numero} rifiutata.")
+    return redirect("dpi:gestione_detail", pk=pk)
+
+
+def _rifiuta(request, richiesta: RichiestaDPI, motivazione: str = "", *, autore: str = "", utente=None) -> None:
+    """Rifiuta e avvisa. ``autore`` (e ``utente``): chi decide dal link nella mail, senza login."""
     era_approvata = richiesta.stato == StatoRichiesta.APPROVATA
     richiesta.stato = StatoRichiesta.RIFIUTATA
     if motivazione:
@@ -1170,14 +1180,15 @@ def rifiuta_richiesta(request, pk: int):
     if motivazione:
         RichiestaDPICommento.objects.create(
             richiesta=richiesta,
-            autore_nome=request.user.get_full_name() or request.user.username,
+            autore_nome=autore or request.user.get_full_name() or request.user.username,
             testo=f"Rifiutata: {motivazione}",
             is_interno=False,
         )
-    log_action(request, "rifiuta", "dpi", f"Rifiutata richiesta DPI {richiesta.numero}")
+    log_action(request, "rifiuta", "dpi", f"Rifiutata richiesta DPI {richiesta.numero}"
+               + (f" dal link nella mail ({autore})" if autore else ""))
     from .ai_richiesta import registra_esito
 
-    registra_esito(richiesta, "rifiutare", user=request.user)
+    registra_esito(richiesta, "rifiutare", user=utente if autore else request.user)
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse
@@ -1191,8 +1202,6 @@ def rifiuta_richiesta(request, pk: int):
     flusso.notifica_esito_richiedente(richiesta, approvata=False, nota=motivazione)
     if era_approvata:
         flusso.notifica_rifiutata_dopo_approvazione(richiesta)
-    messages.success(request, f"Richiesta {richiesta.numero} rifiutata.")
-    return redirect("dpi:gestione_detail", pk=pk)
 
 
 def _sostituisci_consegne_precedenti(request, richiesta: RichiestaDPI, consegna: ConsegnaDPI, data_consegna) -> None:
