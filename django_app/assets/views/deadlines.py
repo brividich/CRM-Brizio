@@ -51,6 +51,7 @@ from ..maintenance import (
 )
 
 from ._helpers import (  # noqa: F401
+    _can_admin_assets,
     AUDIT_OGGETTO_ASSET,
     PERIODIC_EXECUTION_WINDOW_DEFAULT,
     _as_int,
@@ -1298,7 +1299,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
     from anagrafica.models import Fornitore
 
     today = timezone.localdate()
-    can_manage_contracts = _is_assets_admin(request)
+    can_manage_contracts = _can_admin_assets(request)
     can_manage_outlook_calendar = can_manage_contracts
     calendar_user_choices: list[tuple[str, str]] = []
     calendar_user_details: dict[str, dict[str, str]] = {}
@@ -1805,7 +1806,7 @@ def _active_supplier_options() -> list:
 @login_required
 def software_license_list(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
-    can_manage_licenses = _is_assets_admin(request)
+    can_manage_licenses = _can_admin_assets(request)
 
     selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)
     selected_anagrafica_id = _as_int(request.POST.get("anagrafica_id") or request.GET.get("anagrafica"), default=0)

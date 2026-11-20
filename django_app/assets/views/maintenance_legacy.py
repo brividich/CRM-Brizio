@@ -52,6 +52,7 @@ from ..models import (
 )
 
 from ._helpers import (  # noqa: F401
+    _can_admin_assets,
     PERIODIC_EXECUTION_WINDOW_CHOICES,
     _as_int,
     _asset_calendar_default_user_id,
@@ -276,7 +277,7 @@ def _periodic_scope_context(scope: str) -> dict[str, object]:
 def maintenance_template_list(request: HttpRequest) -> HttpResponse:
     """Deprecata: template e regole sono ora un'unica vista in Impostazioni manutenzione.
     Redirige alla tab 'Interventi & Regole' preservando i filtri (categoria/attivo/ricerca)."""
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
     return redirect(_maintenance_settings_page_url(request, tab="catalogo"), permanent=True)
@@ -313,7 +314,7 @@ def _template_next_step_rule_url(template) -> str:
 
 @login_required
 def maintenance_template_create(request: HttpRequest) -> HttpResponse:
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
 
@@ -364,7 +365,7 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
     if id is None:
