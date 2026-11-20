@@ -266,10 +266,13 @@ class ProjectKickoffForm(forms.ModelForm):
                 membri = self.instance.team_members(_name)
                 self.initial[_name] = [u.pk for u in membri]
                 # Chi e' gia' nel team resta selezionabile anche se oggi non ha il ruolo.
-                ids = [u.pk for u in membri]
-                self.fields[_name].queryset = (
-                    self.fields[_name].queryset | User.objects.filter(pk__in=ids)
-                ).distinct()
+                # Unione per id: «qs_distinct | qs» solleva TypeError (unique vs
+                # non-unique) e rendeva la pagina Modifica un 500.
+                ids = {u.pk for u in membri}
+                ids.update(self.fields[_name].queryset.values_list("pk", flat=True))
+                self.fields[_name].queryset = User.objects.filter(pk__in=ids).order_by(
+                    "first_name", "last_name", "username"
+                )
 
     def clean(self):
         cleaned = super().clean()
