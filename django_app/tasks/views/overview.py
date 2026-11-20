@@ -168,7 +168,7 @@ def project_actions(request, project_id: int):
                 project=project,
                 action_count=open_count,
             ),
-            "page_title": f"Registro azioni - {project.name}",
+            "page_title": f"Registro attività - {project.name}",
             "project": project,
             "actions": actions,
             "filters": filters,

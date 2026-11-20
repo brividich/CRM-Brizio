@@ -15,7 +15,6 @@ from ..models import (
     MeetingIssueStatus,
     ProjectTechRef,
     SubTask,
-    Task,
     TaskStatus,
     TechRefStatus,
 )

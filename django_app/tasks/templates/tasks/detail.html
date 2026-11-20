@@ -38,7 +38,7 @@
           <input type="hidden" name="next" value="{{ request.path }}">
           {% if task.status == "TODO" %}<button type="submit" name="action" value="start" class="td-stato-btn">Inizia</button>{% endif %}
           {% if task.status == "TODO" or task.status == "IN_PROGRESS" %}<button type="submit" name="action" value="done" class="td-stato-btn attivo">Fatta</button>
-          {% else %}<button type="submit" name="action" value="reopen" class="td-stato-btn">Riapri</button>{% endif %}
+          {% elif task.status != "CANCELED" or puo_ripristinare %}<button type="submit" name="action" value="reopen" class="td-stato-btn">Riapri</button>{% endif %}
         </form>
       {% else %}
         <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>

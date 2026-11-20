@@ -120,7 +120,11 @@ def task_azione_rapida(request, task_id: int):
             TaskComment.objects.create(task=task, author=request.user, body=f"Attività annullata: {motivo}")
             messaggio = "Attività annullata."
         elif azione == "riapri" and permessi["riapri"]:
+            from ..services.stato import allinea_avanzamento
+
+            vecchio = task.status
             task.status = TaskStatus.TODO
+            allinea_avanzamento(task, vecchio)
             messaggio = "Attività riaperta."
         else:
             return JsonResponse({"ok": False, "reason": "Questa modifica la decide il capocommessa."}, status=403)

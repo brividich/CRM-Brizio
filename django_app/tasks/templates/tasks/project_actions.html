@@ -1,9 +1,9 @@
 {% extends "tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#registro-azioni{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Azioni</span>{% endblock %}
-{% block tasks_shell_title %}Registro azioni{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }} &middot; problemi e azioni degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
+{% block tasks_shell_title %}Registro attività{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }} &middot; attività, sotto-attività e quanto deciso negli incontri (problemi e attività assegnate) in un solo punto operativo.{% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ open_count }} aperte, {{ overdue_count }} scadute</span>
@@ -20,13 +20,13 @@
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
   {% url 'tasks:project_actions' project.id as u_actions %}
-  <a class="ts-kpi blue kpi-link" href="{{ u_actions }}?stato=aperte" title="Apri il registro filtrato: azioni aperte">
+  <a class="ts-kpi blue kpi-link" href="{{ u_actions }}?stato=aperte" title="Apri il registro filtrato: attività aperte">
     <div class="ts-kpi-label">Aperte</div>
     <div class="ts-kpi-value">{{ open_count }}</div>
-    <div class="ts-kpi-note">Problemi, azioni, attività e sotto-attività da chiudere.</div>
+    <div class="ts-kpi-note">Problemi, attività e sotto-attività da chiudere.</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
   </a>
-  <a class="ts-kpi red kpi-link" href="{{ u_actions }}?scadenza=scadute" title="Apri il registro filtrato: azioni scadute e ancora aperte">
+  <a class="ts-kpi red kpi-link" href="{{ u_actions }}?scadenza=scadute" title="Apri il registro filtrato: attività scadute e ancora aperte">
     <div class="ts-kpi-label">Scadute</div>
     <div class="ts-kpi-value">{{ overdue_count }}</div>
     <div class="ts-kpi-note">Con scadenza superata e ancora aperte.</div>
@@ -34,7 +34,7 @@
       <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio overdue_count open_count 100 %}%"></div></div>
     {% endif %}
   </a>
-  <a class="ts-kpi amber kpi-link" href="{{ u_actions }}?stato=aperte&amp;responsabile=nessuno" title="Apri il registro filtrato: azioni aperte senza responsabile">
+  <a class="ts-kpi amber kpi-link" href="{{ u_actions }}?stato=aperte&amp;responsabile=nessuno" title="Apri il registro filtrato: attività aperte senza responsabile">
     <div class="ts-kpi-label">Senza responsabile</div>
     <div class="ts-kpi-value">{{ unassigned_count }}</div>
     <div class="ts-kpi-note">Aperte ma non assegnate a nessuno.</div>
@@ -42,7 +42,7 @@
       <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio unassigned_count open_count 100 %}%"></div></div>
     {% endif %}
   </a>
-  <a class="ts-kpi teal kpi-link" href="{{ u_actions }}?scadenza=senza" title="Apri il registro filtrato: azioni aperte senza scadenza">
+  <a class="ts-kpi teal kpi-link" href="{{ u_actions }}?scadenza=senza" title="Apri il registro filtrato: attività aperte senza scadenza">
     <div class="ts-kpi-label">Senza scadenza</div>
     <div class="ts-kpi-value">{{ no_due_count }}</div>
     <div class="ts-kpi-note">Aperte senza data di chiusura attesa.</div>
@@ -51,7 +51,7 @@
     {% endif %}
   </a>
   {% if include_closed %}
-    <a class="ts-kpi slate kpi-link" href="{{ u_actions }}?closed=1&amp;stato=chiuse" title="Apri il registro filtrato: azioni chiuse">
+    <a class="ts-kpi slate kpi-link" href="{{ u_actions }}?closed=1&amp;stato=chiuse" title="Apri il registro filtrato: attività chiuse">
       <div class="ts-kpi-label">Chiuse</div>
       <div class="ts-kpi-value">{{ closed_count }}</div>
       <div class="ts-kpi-note">Visibili perché il filtro le include.</div>
@@ -99,7 +99,7 @@
         <table class="tl-table" data-fm-hide-search="1">
           <thead>
             <tr>
-              <th style="width:38%">Azione</th>
+              <th style="width:38%">Attività</th>
               <th>Origine</th>
               <th>Responsabile</th>
               <th>Scadenza</th>
@@ -118,7 +118,7 @@
                   {% if action.origin == "issue" %}
                     <span class="ts-chip warn">Problema</span>
                   {% elif action.origin == "action" %}
-                    <span class="ts-chip info">Azione incontro</span>
+                    <span class="ts-chip info">Attività d'incontro</span>
                   {% elif action.origin == "task" %}
                     <span class="ts-chip info">Attività</span>
                   {% else %}
@@ -149,7 +149,7 @@
       </div>
     {% else %}
       <p class="empty" style="text-align:center;padding:28px 12px;">
-        {% if filters_active %}Nessuna voce corrisponde ai filtri.{% else %}Nessuna azione {% if not include_closed %}aperta {% endif %}su questa commessa.{% endif %}
+        {% if filters_active %}Nessuna voce corrisponde ai filtri.{% else %}Nessuna attività {% if not include_closed %}aperta {% endif %}su questa commessa.{% endif %}
       </p>
     {% endif %}
   </div>

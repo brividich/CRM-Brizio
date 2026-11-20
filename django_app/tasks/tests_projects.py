@@ -1006,7 +1006,6 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
 
     def test_copy_without_pn_clears_pn_cell_of_new_module(self):
         from django.core.files.base import ContentFile
-        from types import SimpleNamespace
 
         from . import vrf_catalog
         from .views.projects import _copy_project_vrf_file

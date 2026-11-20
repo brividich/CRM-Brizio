@@ -312,8 +312,10 @@ def task_detail(request, task_id: int):
         notify_user_queryset=_task_notify_users_queryset(task),
     )
     from ..models import ProjectTechRef
+    from ..services.stato import puo_annullare_o_ripristinare
 
     tech_ref = ProjectTechRef.objects.filter(task=task).first()
+    puo_annullare = puo_annullare_o_ripristinare(request, task)
 
     return render(
         request,
@@ -332,7 +334,13 @@ def task_detail(request, task_id: int):
             "can_manage_task": can_manage,
             "can_update_due_date": can_update_due_date,
             "can_comment": has_task_permission(request, "tasks_comment"),
-            "task_status_choices": TaskStatus.choices,
+            # «Annullata» si propone solo a chi può sceglierla (e a chi deve
+            # poter ripristinare un'attività già annullata).
+            "task_status_choices": [
+                (valore, etichetta) for valore, etichetta in TaskStatus.choices
+                if valore != TaskStatus.CANCELED or task.status == TaskStatus.CANCELED or puo_annullare
+            ],
+            "puo_ripristinare": puo_annullare,
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
             "task_timeline_events": _build_task_timeline_events(task),
@@ -1090,13 +1098,14 @@ def change_status(request, task_id: int):
     form = TaskStatusForm(request.POST, instance=task)
     if form.is_valid():
         task = form.save(commit=False)
-        if task.status == TaskStatus.CANCELED and task.project_id and not ha_pieni_poteri(request, task.project):
-            messages.error(request, "Annullare un'attività lo decide il capocommessa.")
+        from ..services.stato import allinea_avanzamento, errore_cambio_stato
+
+        errore = errore_cambio_stato(request, task, old_status, task.status)
+        if errore:
+            messages.error(request, errore)
             return redirect("tasks:detail", task_id=task_id)
-        # Completata = avanzamento al 100%: prima restava fermo all'ultimo valore
-        # e la barra diceva «60%» su un'attivita' chiusa.
-        if task.status == TaskStatus.DONE and (task.progress or 0) < 100:
-            task.progress = 100
+        # Completata = avanzamento al 100%; riaperta non resta al 100%.
+        allinea_avanzamento(task, old_status)
         task.save()
         if old_status != task.status:
             # Registra il cambio e avvisa i coinvolti (stesso giro di tutte le modifiche).

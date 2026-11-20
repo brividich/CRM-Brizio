@@ -157,7 +157,7 @@ class ProjectOverviewTests(TasksBaseTestCase):
         self.client.force_login(self.owner)
         routes = (
             ("tasks:project_overview", "Panoramica"),
-            ("tasks:project_actions", "Azioni (3)"),
+            ("tasks:project_actions", "Attività (3)"),
             ("tasks:project_meetings", "Incontri"),
             ("tasks:project_gantt", "Piano"),
             ("tasks:project_vrf_upload", "VRF"),
@@ -168,7 +168,7 @@ class ProjectOverviewTests(TasksBaseTestCase):
                 response = self.client.get(reverse(active_route, args=[self.project.pk]))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, ">Panoramica</a>")
-                self.assertContains(response, ">Azioni (3)</a>")
+                self.assertContains(response, ">Attività (3)</a>")
                 self.assertContains(response, ">Incontri</a>")
                 self.assertContains(response, ">Piano</a>")
                 self.assertContains(response, ">VRF</a>")

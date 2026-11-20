@@ -175,7 +175,7 @@ SEZIONI: list[dict] = [
         "id": "panoramica",
         "titolo": "Panoramica e semaforo di prontezza",
         "blocchi": [
-            ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, attività aperte, attività a piano, le prossime attività e gli ultimi incontri."),
             ("p", "Con la data di consegna, in testata compare «Consegna gg/mm · tra N gg»; se un'attività aperta finisce dopo la consegna diventa «a rischio» e i «Prossimi passi» lo segnalano. Quando tutte le tappe sono a posto e non ci sono attività aperte, compare «Chiudi il kickoff»: il capocommessa scrive una nota (facoltativa) e la commessa passa a «Completata»; si può riaprire."),
             ("p", "In testa al Percorso: i filtri «Tutte», «Le mie», «In ritardo», «Da assegnare» (solo a video) e «Fissa il piano», che fotografa le date di adesso. Da lì ogni tappa mostra «+N gg sul piano» e il Percorso il ritardo complessivo; lo stesso piano vale nel Gantt (baseline)."),
             ("p", "Nell'anteprima della tappa e nel pannello «⋯», accanto al responsabile si vede quante attività aperte ha già nello stesso periodo: aiuta a non caricare sempre la stessa persona."),
@@ -549,7 +549,7 @@ SEZIONI: list[dict] = [
                 "Il responsabile di un'azione o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie azioni», "
                 "senza passare da chi gestisce la commessa.",
                 "Ogni problema, azione o decisione ricorda il punto dell'ordine del giorno da cui è nato: lo si vede come «punto N» "
-                "nel dettaglio, nell'esito e nel Registro azioni («Incontro 2 · punto 3 «Materiali»»).",
+                "nel dettaglio, nell'esito e nel Registro attività («Incontro 2 · punto 3 «Materiali»»).",
                 "Un problema o un'azione ancora aperti tornano come punto nel prossimo incontro e lì si chiudono in conduzione.",
                 "Se l'attività collegata viene completata, l'azione o il problema si chiudono da soli.",
                 "Il lunedì il promemoria KICK-OFF elenca le azioni e i problemi scaduti e quelli in scadenza nei 7 giorni.",
@@ -582,9 +582,9 @@ SEZIONI: list[dict] = [
     },
     {
         "id": "registro-azioni",
-        "titolo": "Registro azioni della commessa",
+        "titolo": "Registro attività della commessa",
         "blocchi": [
-            ("p", "Dalla scheda di commessa, «Azioni» mostra in un solo elenco problemi, azioni d'incontro, attività e sotto-attività."),
+            ("p", "Dalla scheda di commessa, «Attività» mostra in un solo elenco attività, sotto-attività e quanto deciso negli incontri (problemi e attività d'incontro)."),
             ("ul", [
                 "«Solo aperte» o «Includi chiuse».",
                 "Filtri per tipo, responsabile («Non assegnate» per quelle senza nessuno), scadenza e testo. "
@@ -659,7 +659,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
             ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
-            ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa e non la annulla. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie azioni» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
+            ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa, non la annulla e non riapre un'attività annullata (lo fa il capocommessa); una sua attività completata la riapre con «Riapri». Dal Gantt l'incaricato chiede solo lo spostamento delle date: stato e avanzamento non cambiano da lì. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie azioni» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
             ("p", "Spostamento date: chi lo chiede riceve l'esito in campanella e per mail; se ritira la richiesta, chi doveva decidere lo sa (campanella e mail)."),
             ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie azioni») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
             ("p", "Quando cambiano date, priorità, stato o responsabile di un incarico, ricevono la notifica (e la mail, se il flusso è acceso) l'incaricato e il capocommessa, o chi è scelto in «Poteri e avvisi». Chi perde un incarico riceve «Non sei più responsabile». Chi fa la modifica non viene avvisato."),

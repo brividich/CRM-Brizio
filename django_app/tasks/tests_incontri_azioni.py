@@ -311,7 +311,7 @@ class IncontriAzioniTests(TasksBaseTestCase):
         url = reverse("tasks:project_actions", args=[self.project.id])
         response = self.client.get(url)
         self.assertContains(response, "Azione registro")
-        self.assertContains(response, "Azione incontro")
+        self.assertContains(response, "Attività d'incontro")
         response = self.client.get(url, {"tipo": "action"})
         self.assertContains(response, "Azione registro")
         self.assertNotContains(response, "Attivita registro")
