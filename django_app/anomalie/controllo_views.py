@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -69,7 +68,11 @@ def _get_controllo(request, pk: int, *, lettura: bool = False):
         # non terminati di altri sullo stesso OP: evita controlli doppi.
         from .views import _can_create_anomalie_for_op
 
-        if controllo.terminato_at is None and _can_create_anomalie_for_op(request, controllo.op_id):
+        # Anche quelli terminati con anomalie ancora aperte: si riaprono per aggiungere
+        # i seriali rimasti (turno successivo).
+        if (controllo.terminato_at is None or cs.riapribile(controllo)) and _can_create_anomalie_for_op(
+            request, controllo.op_id
+        ):
             return controllo, None
     chi = controllo.operatore_display or "un altro operatore"
     return None, _err(f"Il controllo è in carico a {chi}: per proseguirlo usa «Prendi in carico».", 403)
@@ -153,22 +156,30 @@ def api_controlli(request):
         return _err("op_id obbligatorio")
     if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
-    recenti = timezone.now() - timedelta(days=7)
+    # Nessun limite di giorni: un controllo a metà si riprende anche settimane dopo.
     propri = list(AnomaliaControllo.objects.filter(
-        op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True, created_at__gte=recenti,
+        op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True,
     ).order_by("-id")[:5])
     # Controlli non terminati di altri su questo OP (chiunque): si propone di
     # prenderli in carico invece di aprirne uno doppio.
     colleghi = list(AnomaliaControllo.objects.filter(
-        op_id__iexact=op_id, terminato_at__isnull=True, created_at__gte=recenti,
+        op_id__iexact=op_id, terminato_at__isnull=True,
     ).exclude(operatore=request.user).order_by("-id")[:5])
+    # Terminati con anomalie ancora aperte (di chiunque, anche propri): si riaprono per
+    # aggiungere i seriali rimasti invece di aprire una segnalazione nuova.
+    terminati = list(AnomaliaControllo.objects.filter(
+        op_id__iexact=op_id, terminato_at__isnull=False,
+    ).order_by("-id")[:30])
+    aperte = cs.anomalie_aperte_per_controllo(terminati)
+    riaprire = [c for c in terminati if aperte.get(c.pk)][:5]
     fasi = list(dict.fromkeys(
         AnomaliaControllo.objects.filter(op_id__iexact=op_id).order_by("-id").values_list("fase", flat=True)[:30]
     ))
     controlli = []
-    for c in propri + colleghi:
+    for c in propri + colleghi + riaprire:
         dati = cs.serializza_controllo(c, con_allegati=False)
         dati["mio"] = c.operatore_id == request.user.pk
+        dati["anomalie_aperte"] = aperte.get(c.pk, 0)
         controlli.append(dati)
     return JsonResponse({"success": True, "controlli": controlli, "fasi": fasi})
 
@@ -186,21 +197,23 @@ def api_controlli_sospesi(request):
 @require_POST
 def api_controllo_prendi(request, pk: int):
     """«Prendi in carico»: il controllo di un collega del gruppo qualità passa a chi lo
-    riprende (bozza compresa). Tracciato nel controllo e nell'audit."""
+    riprende (bozza compresa). «Riapri»: un controllo terminato con anomalie ancora
+    aperte torna in corso (anche per chi lo aveva). Tracciato nel controllo e nell'audit."""
     from .views import _current_user_identity
 
     controllo, error = _get_controllo(request, pk, lettura=True)
     if error:
         return error
-    if controllo.terminato_at:
-        return _err("Il controllo è già terminato", 409)
-    if controllo.operatore_id == request.user.pk:
+    riapre = controllo.terminato_at is not None
+    if riapre and not cs.riapribile(controllo):
+        return _err("Il controllo è terminato e tutte le sue anomalie sono chiuse: apri un controllo nuovo", 409)
+    if controllo.operatore_id == request.user.pk and not riapre:
         return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
     identity = _current_user_identity(request)
     nome = _txt(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
     da = controllo.operatore_display
     passaggio = cs.prendi_in_carico(controllo, request.user, nome)
-    log_action(request, "anomalie_controllo_preso_in_carico", "anomalie", {
+    log_action(request, "anomalie_controllo_riaperto" if riapre else "anomalie_controllo_preso_in_carico", "anomalie", {
         "controllo_id": controllo.pk, "op_id": controllo.op_id, "da": da, "a": nome, "at": passaggio["at"],
     })
     return JsonResponse({

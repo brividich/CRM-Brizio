@@ -117,7 +117,11 @@ SEZIONI: list[dict] = [
                   "cambiano anche durante il controllo, dalla barra in alto, e valgono per le mail successive."),
             ("p", "Se sull'OP c'è già un controllo non terminato (tuo o di un collega), compare l'elenco dei controlli "
                   "aperti con fase, ora e blocchi salvati: con «Riprendi» continui il tuo, con «Prendi in carico» "
-                  "prosegui quello del collega (che riceve un avviso). Per un controllo nuovo scrivi comunque la fase. "
+                  "prosegui quello del collega (che riceve un avviso). Non c'è un limite di giorni. Compaiono anche i "
+                  "controlli già terminati che hanno ancora anomalie aperte: con «Riapri» e poi «Riapri e prosegui» il "
+                  "turno dopo aggiunge i seriali rimasti allo stesso controllo, anche se l'aveva iniziato un collega; i "
+                  "blocchi salvati restano com'erano e a «Termina controllo» la mail riporta solo le anomalie nuove. "
+                  "Quando tutte le anomalie sono chiuse il controllo non si riapre più. Per un controllo nuovo scrivi comunque la fase. "
                   "I controlli rimasti vuoti (nessun blocco salvato e nessuna bozza) si chiudono da soli dopo 24 ore."),
             ("def", [
                 ("Quando parte la mail", "una sola volta, quando premi «Termina controllo»."),
@@ -148,11 +152,11 @@ SEZIONI: list[dict] = [
             ("p", "Controlli del gruppo qualità: chi ha il ruolo «Controllo qualità» o «Qualità» vede, in cima ad "
                   "«Apertura segnalazione», il riquadro «Controlli in sospeso del gruppo qualità»: i controlli aperti "
                   "suoi e dei colleghi del gruppo con anomalie scritte da salvare, blocchi copiati da caricare o "
-                  "anomalie non ancora comunicate (ultimi 14 giorni). Una segnalazione lunga iniziata a fine turno la "
+                  "anomalie non ancora comunicate, senza limite di giorni. Una segnalazione lunga iniziata a fine turno la "
                   "prosegue il collega del turno dopo o del giorno successivo."),
             ("passi", [
                 "Nel riquadro premi «Apri» accanto al controllo del collega (oppure, entrando nell'OP, «Prendi in carico» "
-                "in «Controlli ancora aperti su questo OP»).",
+                "in «Controlli da riprendere su questo OP»).",
                 "Compare «Controllo in carico a …» con fase, blocchi salvati e anomalie da salvare: premi «Prendi in "
                 "carico e prosegui».",
                 "Da qui il controllo è tuo: ritrovi il blocco in scrittura, salvi, ricevi i promemoria e premi «Termina "

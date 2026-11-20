@@ -32,7 +32,8 @@ SEZIONI_CONTROLLORE: list[dict] = [
             ("img", (_IMG + "c2_avvio.jpg", "Fase del controllo e destinatari della mail")),
             ("ul", [
                 "Sull'OP c'è già un controllo non terminato? «Riprendi» continua il tuo, «Prendi in carico» prosegue "
-                "quello di un collega. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.",
+                "quello di un collega, «Riapri» riprende un controllo terminato con anomalie ancora aperte per "
+                "aggiungere i seriali rimasti. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.",
             ]),
         ],
     },

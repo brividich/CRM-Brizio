@@ -162,10 +162,15 @@ GUIDA = {
                     "Il blocco che il controllore sta scrivendo si salva da solo come bozza e torna con «Riprendi» "
                     "(senza gli allegati).",
                     "Gruppo qualità: chi ha il ruolo «Controllo qualità» o «Qualità» vede i controlli in sospeso dei "
-                    "colleghi dello stesso gruppo (riquadro in cima ad «Apertura segnalazione», ultimi 14 giorni) e li "
+                    "colleghi dello stesso gruppo (riquadro in cima ad «Apertura segnalazione», senza limite di giorni) e li "
                     "prosegue con «Prendi in carico»: il controllo, bozza compresa, passa a lui, il collega riceve un "
                     "avviso e il passaggio resta nel controllo e nel log. Il gruppo segue i ruoli assegnati in "
                     "«Ruoli e permessi» (anche da organigramma).",
+                    "Controllo terminato con anomalie ancora aperte: chi può aprire segnalazioni sull'OP lo ritrova in "
+                    "«Controlli da riprendere su questo OP» e con «Riapri» aggiunge i seriali rimasti (es. turno dopo). "
+                    "Il controllo torna in corso e passa a chi lo riapre; chi lo aveva riceve un avviso, la riapertura "
+                    "resta nei passaggi e nel log (anomalie_controllo_riaperto). A «Termina controllo» la mail riporta "
+                    "solo le anomalie nuove. Con tutte le anomalie chiuse non si riapre più.",
                     "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia "
                     "più le persone che l'operatore aggiunge (solo dall'anagrafica, con email di notifica, max 10). "
                     "Tutte le mail del modulo stanno in Configurazione → Notifiche: quando partono, chi le riceve, "
