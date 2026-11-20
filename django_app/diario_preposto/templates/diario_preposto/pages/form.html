@@ -10,6 +10,8 @@
 .dp-breadcrumb a { color:#0f766e; text-decoration:none; font-weight:600; }
 .dp-breadcrumb a:hover { text-decoration:underline; }
 .dp-breadcrumb-sep { color:#cbd5e1; }
+.dp-form-guida a { color:#0f766e; text-decoration:none; font-weight:600; }
+body.theme-dark .dp-form-guida a { color:#2dd4bf; }
 
 .dp-form-card {
   background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
@@ -123,8 +125,9 @@ body.theme-dark .dp-btn-outline:hover{background:var(--surface-alt,#0f1b2d);colo
     <span class="dp-breadcrumb-sep">></span>
     {% endif %}
     <span>{{ title }}</span>
-    <a href="{% url 'diario_preposto:guida' %}" style="margin-left:auto;">? Guida</a>
   </div>
+  {# Il percorso lo mostra la barra in alto del portale; qui resta solo la guida. #}
+  <div class="dp-form-guida" style="display:flex;justify-content:flex-end;font-size:13px;"><a href="{% url 'diario_preposto:guida' %}">? Guida</a></div>
 
   <div class="dp-form-card">
     <div class="dp-form-header">

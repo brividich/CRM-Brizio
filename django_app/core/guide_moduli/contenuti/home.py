@@ -51,6 +51,12 @@ GUIDA = {
                     "solo con l'icona e, se serve, le ultime voci in «Altro».",
                     "La lampadina in alto a destra apre il Suggestion Corner.",
                     "Sotto la barra c'è il menu del modulo in cui ti trovi.",
+                    "Sotto il menu del modulo c'è il percorso (es. «Home › Anagrafica HR › Formazione aziendale › Corsi»): "
+                    "le pagine che hai aperto in questa scheda, nell'ordine. Clic su una tappa per tornarci senza la freccia "
+                    "«Indietro»; tasto destro → «Apri link in un'altra scheda» (o clic con la rotella) per aprirla a parte. "
+                    "Tornando su una tappa, quelle dopo spariscono; la stessa pagina con altri filtri resta una sola tappa. "
+                    "Se arrivi da una mail o da un link, il percorso parte da «Home» e dalla sezione del modulo. "
+                    "Ogni scheda del browser ha il suo percorso; tiene al massimo 8 tappe.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
                     "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP o un FAI scrivendo il nome.",
                 ]),
