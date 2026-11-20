@@ -4,6 +4,21 @@
    e transpilato offline (solo JSX) con tools/build_anomalie_ui.ps1 in
    anomalie/static/anomalie/js/apertura_segnalazione.bundle.js. Modificare QUI, poi ricompilare. */
   const { useState, useEffect, useRef } = React;
+
+  /* Percorso del portale (core/components/percorso.html con variante="testata"): la barra sta
+     nella pagina fuori da React; qui la si sposta dentro la testata e la si rimette a posto
+     quando il componente sparisce. Finché il percorso non c'è resta il link «indietro». */
+  function PercorsoHub() {
+    const ref = useRef(null);
+    useEffect(() => {
+      const nav = document.querySelector("[data-hub-percorso]");
+      const casa = document.querySelector("[data-hub-percorso-casa]");
+      if (!nav || !ref.current) return undefined;
+      ref.current.appendChild(nav);
+      return () => { if (casa) casa.appendChild(nav); };
+    }, []);
+    return <span className="hub-percorso-slot" ref={ref}></span>;
+  }
   // Codice dell'anomalia («AN-00123»), stesso di mail e link (anomalie/codice.py).
   const codiceAnomalia = (id) => { const n = parseInt(String(id || "").split(":").pop(), 10); return n > 0 ? `AN-${String(n).padStart(5, "0")}` : ""; };
   const API = window._AP_API || {
@@ -3155,7 +3170,8 @@
       <div>
         {/* Topbar */}
         <div className="topbar">
-          <a href="/anomalie-menu" className="topbar-back">&#8592; Menu Anomalie</a>
+          <PercorsoHub />
+          <a href="/anomalie-menu" className="topbar-back" data-hub-percorso-indietro="">&#8592; Menu Anomalie</a>
           <div className="topbar-sep"></div>
           <div className="topbar-title">Controllo e segnalazione anomalie</div>
           {window._AP_CAN_MANAGE_CONFIG && (

@@ -9,6 +9,26 @@ const {
   useMemo,
   useRef
 } = React;
+
+/* Percorso del portale (core/components/percorso.html con variante="testata"): la barra sta
+   nella pagina fuori da React; qui la si sposta dentro la testata e la si rimette a posto
+   quando il componente sparisce. Finché il percorso non c'è resta il link «indietro». */
+function PercorsoHub() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const nav = document.querySelector("[data-hub-percorso]");
+    const casa = document.querySelector("[data-hub-percorso-casa]");
+    if (!nav || !ref.current) return undefined;
+    ref.current.appendChild(nav);
+    return () => {
+      if (casa) casa.appendChild(nav);
+    };
+  }, []);
+  return /*#__PURE__*/React.createElement("span", {
+    className: "hub-percorso-slot",
+    ref: ref
+  });
+}
 // Codice dell'anomalia («AN-00123»), stesso di mail e link (anomalie/codice.py).
 const codiceAnomalia = id => {
   const n = parseInt(String(id || "").split(":").pop(), 10);
@@ -4209,11 +4229,12 @@ function GestioneAnomalie() {
     className: "ga-iconbtn",
     title: "Torna a Gestione anomalie",
     onClick: () => setPagina(null)
-  }, Ico.back) : /*#__PURE__*/React.createElement("a", {
+  }, Ico.back) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PercorsoHub, null), /*#__PURE__*/React.createElement("a", {
     href: "/anomalie-menu",
     className: "ga-iconbtn",
-    title: "Torna al menu anomalie"
-  }, Ico.back), /*#__PURE__*/React.createElement("h1", {
+    title: "Torna al menu anomalie",
+    "data-hub-percorso-indietro": ""
+  }, Ico.back)), /*#__PURE__*/React.createElement("h1", {
     className: "ga-top__title"
   }, pagina ? "Registro attività" : isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie"), !isMobile && op.id && !pagina && /*#__PURE__*/React.createElement("span", {
     className: "ga-top__op"
