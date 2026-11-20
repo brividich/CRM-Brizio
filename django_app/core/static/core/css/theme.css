@@ -154,19 +154,7 @@ body.theme-dark .nav-svg-moon,body.theme-dark .nav-theme-dark-label{display:none
 .sub-a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 14px;border-radius:8px;color:var(--text-mid);text-decoration:none;font-size:var(--fs-base);font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
 .sub-a:hover{background:var(--bg);color:var(--text)}.sub-a.active{background:var(--accent-light);color:var(--accent);font-weight:600}
 .sub-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;font-size:var(--fs-sm);line-height:1}.sub-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
-/* Percorso di navigazione (core/js/hub-percorso.js): pagine aperte in questa scheda, ognuna è un link. */
-.hub-percorso{padding:6px var(--content-pad-x) 0;overflow-x:auto;scrollbar-width:none;font-size:var(--fs-sm)}
-.hub-percorso::-webkit-scrollbar{display:none}
-.hub-percorso[hidden]{display:none}
-.hub-percorso-lista{list-style:none;margin:0 auto;padding:0;display:flex;align-items:center;flex-wrap:nowrap;width:min(100%,1680px)}
-.hub-percorso-lista li{display:inline-flex;align-items:center;white-space:nowrap;min-width:0}
-.hub-percorso-lista li+li::before{content:"›";color:var(--text-light);margin:0 6px}
-.hub-percorso-tappa{max-width:260px;overflow:hidden;text-overflow:ellipsis;color:var(--text-mid);text-decoration:none;padding:2px 4px;border-radius:6px}
-a.hub-percorso-tappa:hover{color:var(--accent);background:var(--accent-light);text-decoration:underline}
-.hub-percorso-tappa[aria-current]{color:var(--text);font-weight:600}
-@media print{.hub-percorso{display:none!important}}
-/* I vecchi breadcrumb fissi dei moduli: la barra Percorso ne riusa i link e li sostituisce (stesso elenco in hub-percorso.js). */
-body:has([data-hub-percorso]) :is(.fmd-crumb,.fm-crumb,.as-crumbs,.auto-breadcrumbs,.gm-crumb,.hg-crumb,.sp-crumb,.ana-breadcrumb,.cn-crumb,.sic-breadcrumb,.soc-crumb,.dp-breadcrumb){display:none!important}
+/* Percorso di navigazione: regole in hub-percorso.css (usate anche dalle pagine autonome). */
 
 .page-header{margin-bottom:18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .page-header-main{flex:1;min-width:0}.page-header-actions{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;padding-top:4px}.page-h{font-size:var(--fs-heading);font-weight:800}.page-sub{font-size:var(--fs-md);color:var(--text-mid);margin-top:2px}

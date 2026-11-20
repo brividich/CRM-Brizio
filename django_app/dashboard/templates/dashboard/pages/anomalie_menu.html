@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gestione Anomalie | Portale Applicativo</title>
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/hub-percorso.css' %}?v=20261120b">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -216,9 +217,8 @@
 </head>
 <body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
 
-  <a href="{% url 'dashboard' %}" class="back-link">
-    &#8592; Dashboard
-  </a>
+  {# Il ritorno alla Dashboard lo fa la barra Percorso (Home › …). #}
+  {% include "core/components/percorso.html" with fisso=True nome="Menu Anomalie" %}
 
   <main class="main">
     <div class="logo-wrap">
