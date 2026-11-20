@@ -153,6 +153,32 @@ def q_aperte_non_piu_dovute() -> Q:
     )
 
 
+def prossime_scadenze_per_asset(asset_ids: Iterable[int]) -> dict[int, date]:
+    """Prossima manutenzione aperta di ogni asset, dalle occorrenze (fonte unica).
+
+    Sostituisce ``WorkMachine.next_maintenance_date``, che la chiusura non aggiorna
+    piu': scheda, rapporto, export e mappa mostravano una data ferma. Stesse
+    esclusioni di Da fare (copie amministrative, asset dismessi, piani spenti).
+    """
+    from django.db.models import Min
+
+    from .deadline_feed import exclude_mirror_occurrences
+
+    ids = [int(asset_id) for asset_id in asset_ids if asset_id]
+    if not ids:
+        return {}
+    rows = (
+        exclude_mirror_occurrences(
+            MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN, asset_id__in=ids)
+        )
+        .exclude(q_aperte_non_piu_dovute())
+        .order_by()
+        .values("asset_id")
+        .annotate(prossima=Min("due_date"))
+    )
+    return {row["asset_id"]: row["prossima"] for row in rows}
+
+
 def _assignment_queryset(*, plan_ids: Iterable[int] | None = None):
     queryset = (
         MaintenancePlanAssignment.objects.filter(is_active=True, plan__is_active=True)

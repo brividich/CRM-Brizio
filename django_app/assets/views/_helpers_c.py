@@ -489,10 +489,17 @@ def _plant_layout_machine_queryset():
 
 
 def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
-    machines = _plant_layout_machine_queryset() if machines is None else machines
+    from ..services.maintenance_domain import prossime_scadenze_per_asset
+
+    machines = list(_plant_layout_machine_queryset() if machines is None else machines)
+    # Prossima manutenzione dalle scadenze dei piani (la data sulla macchina non si aggiorna piu').
+    prossime = prossime_scadenze_per_asset(asset.id for asset in machines)
     catalog: list[dict[str, object]] = []
     for asset in machines:
         machine = getattr(asset, "work_machine", None)
+        prossima = prossime.get(asset.id) or (
+            machine.next_maintenance_date if isinstance(machine, WorkMachine) else None
+        )
         catalog.append(
             {
                 "id": asset.id,
@@ -508,11 +515,7 @@ def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
                 "serial_number": _clean_string(asset.serial_number),
                 "category": asset.asset_category.label if asset.asset_category_id else "",
                 "detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
-                "next_maintenance_date": (
-                    machine.next_maintenance_date.strftime("%d-%m-%Y")
-                    if isinstance(machine, WorkMachine) and machine.next_maintenance_date
-                    else ""
-                ),
+                "next_maintenance_date": prossima.strftime("%d-%m-%Y") if prossima else "",
                 "cnc_controlled": bool(getattr(machine, "cnc_controlled", False)),
                 "five_axes": bool(getattr(machine, "five_axes", False)),
             }

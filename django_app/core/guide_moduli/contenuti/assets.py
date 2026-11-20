@@ -871,6 +871,14 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Nella scheda asset non c'è più «Genera rapporto» per una manutenzione periodica",
+            "fare": [
+                "La manutenzione è già nei piani: si registra o si mette in un OdL da «Da fare» o dalla scheda del piano. "
+                "«Prossima manutenzione» della macchina ora viene dalle scadenze dei piani.",
+                "«Ingloba nei piani ordinari» (Verifiche periodiche) porta subito la verifica nei piani con le sue scadenze.",
+            ],
+        },
+        {
             "sintomo": "Registrata una manutenzione, la successiva non compare",
             "fare": [
                 "La successiva nasce solo se il piano vale ancora per quell'asset: piano attivo, asset non dismesso, "
