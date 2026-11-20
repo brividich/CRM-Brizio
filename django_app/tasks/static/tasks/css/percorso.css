@@ -107,27 +107,46 @@
 .kp-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
 .kp-actions .kp-right { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* ── Stepper del ciclo di vita (cross-form: Anagrafica → VRF → Attività) ─ */
+/* ── Stepper del ciclo di vita (cross-form: Anagrafica → VRF → Attività) ─
+   Tre passi collegati da una linea: numero, titolo e una riga che dice cosa
+   si fa. I passi fatti sono link (si torna indietro da qui). */
 .kp-steps {
-  display: flex; align-items: stretch; gap: 6px; margin-bottom: 16px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px;
+  list-style: none; margin: 0 0 16px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
 }
 .kp-step {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
-  color: var(--text-light); text-align: center;
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px;
+  color: var(--text-light);
 }
+.kp-step + .kp-step::before {
+  content: ""; flex: 0 1 56px; min-width: 14px; height: 2px; border-radius: 2px;
+  background: var(--border); margin-right: 4px;
+}
+.kp-step.is-done + .kp-step::before { background: var(--success); }
 .kp-step-badge {
-  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
   background: var(--surface); display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 800; flex-shrink: 0;
+  font-size: 12px; font-weight: 800; flex-shrink: 0;
 }
-.kp-step.is-active { color: var(--accent); background: var(--accent-light); }
-.kp-step.is-active .kp-step-badge { border-color: var(--accent); color: var(--accent); background: var(--surface); }
-.kp-step.is-done { color: var(--success); }
+.kp-step-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.kp-step-txt strong, .kp-step-link { font-size: 13px; font-weight: 700; color: inherit; }
+.kp-step-txt small { font-size: 11.5px; font-weight: 500; color: var(--text-light); }
+.kp-step-link { text-decoration: none; }
+.kp-step-link:hover, .kp-step-link:focus-visible { text-decoration: underline; }
+.kp-step.is-active { color: var(--text); }
+.kp-step.is-active .kp-step-badge {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+  box-shadow: 0 0 0 4px var(--accent-light);
+}
+.kp-step.is-done { color: var(--text-mid); }
 .kp-step.is-done .kp-step-badge { border-color: var(--success); background: var(--success); color: #fff; }
-@media (max-width: 620px) {
-  .kp-steps { flex-direction: column; }
+.kp-step.is-later .kp-step-badge { border-color: var(--warning); color: var(--warning); }
+.kp-step.is-later { color: var(--text-mid); }
+@media (max-width: 760px) {
+  .kp-steps { flex-direction: column; align-items: stretch; gap: 10px; }
+  .kp-step + .kp-step::before { display: none; }
+  .kp-step:not(.is-active) small { display: none; }
 }
 
 /* ── Responsive: rail orizzontale in cima ────────────────────────────── */
@@ -190,3 +209,218 @@
 }
 .kp-multipick.is-collapsed .kp-multipick-list,
 .kp-multipick.is-collapsed .kp-multipick-hint { display: none; }
+
+/* ===========================================================================
+   Nuovo kickoff / Modifica kickoff («kn-»): form a sinistra, riepilogo vivo a
+   destra, barra delle azioni sempre in vista. Additivo: gli altri percorsi
+   (incontro, corso e-learning) non usano queste classi. Solo token del tema.
+   =========================================================================== */
+.kn-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.kn-main { min-width: 0; }
+
+/* Le stazioni di questa pagina ospitano l'elenco a comparsa del team: niente ritaglio. */
+.kn-main .kp-station { overflow: visible; }
+.kn-main .kp-station-head { border-radius: 14px 14px 0 0; padding: 12px 18px; }
+.kn-tag {
+  margin-left: auto; flex-shrink: 0; padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: var(--text-light);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.kn-tag.is-req { color: var(--accent); border-color: var(--accent); }
+
+.kn-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kn-grid .col-2 { grid-column: span 2; }
+.kn-grid .col-4 { grid-column: 1 / -1; }
+.kn-full { grid-column: 1 / -1; }
+/* L'asterisco dell'obbligatorio non deve alzare l'etichetta rispetto alle vicine. */
+.kn-main .kp-field > label { line-height: 16px; }
+.kn-main .kp-req { line-height: 1; }
+.kn-main .kp-field.has-error input { border-color: var(--danger, #e53e3e); }
+.kn-msg { font-size: 12px; margin-top: 5px; color: var(--text-light); }
+.kn-msg[hidden] { display: none; }
+.kn-msg.is-err { color: var(--danger, #e53e3e); font-weight: 600; }
+.kn-msg.is-warn { color: var(--warning); font-weight: 600; }
+
+/* Oggetto: si compone dai campi sopra, perciò sta sotto di loro. */
+.kn-oggetto {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-alt, #f8fafc);
+}
+.kn-oggetto > span {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); white-space: nowrap;
+}
+.kn-oggetto input {
+  flex: 1; min-width: 0; font-weight: 600; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; font-family: inherit;
+}
+.kn-oggetto small { font-size: 11.5px; color: var(--text-light); white-space: nowrap; }
+
+/* Già esistente: stesso P/N, revisione e versione. */
+.kn-doppione {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px;
+  border: 1px solid var(--warning); border-radius: 10px; background: var(--warning-bg, #fffbeb);
+  color: var(--text); font-size: 13px;
+}
+.kn-doppione[hidden] { display: none; }
+.kn-doppione > div { flex: 1; min-width: 200px; }
+
+/* ── Team: un riquadro per ruolo, persone come etichette, elenco a comparsa ── */
+.kn-team { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.kn-role {
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; min-width: 0;
+  background: var(--surface); transition: border-color .15s, box-shadow .15s;
+}
+.kn-role:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.kn-role-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.kn-role-head strong { font-size: 13px; color: var(--text); }
+.kn-role-head .kn-tag { margin-left: 0; }
+.kn-role.is-ok .kn-tag.is-req { color: var(--success); border-color: var(--success); }
+.kn-me {
+  margin-left: auto; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid);
+  border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.kn-me:hover, .kn-me:focus-visible { border-color: var(--accent); color: var(--accent); }
+.kn-me[hidden] { display: none; }
+.kn-pick { position: relative; }
+.kn-pick-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.kn-pick-chips:empty { display: none; }
+.kn-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--accent-light);
+  color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 3px 6px 3px 10px; cursor: pointer;
+}
+.kn-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-chip b { font-weight: 700; color: var(--text-light); font-size: 14px; line-height: 1; }
+.kn-chip:hover b, .kn-chip:focus-visible b { color: var(--danger, #e53e3e); }
+.kn-pick-search {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.kn-pick-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+/* Senza JS l'elenco resta in pagina; con JS (is-js) diventa una tendina a comparsa. */
+.kn-pick-list {
+  max-height: 232px; overflow-y: auto; padding: 4px; margin-top: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.kn-pick.is-js .kn-pick-list {
+  display: none; position: absolute; z-index: 30; left: 0; right: 0; top: 100%;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+}
+.kn-pick.is-js.is-open .kn-pick-list { display: block; }
+.kn-pick-opt {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.kn-pick-opt:hover, .kn-pick-opt.is-cursor { background: var(--accent-light); }
+.kn-pick-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.kn-pick-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-pick-opt.is-hidden { display: none; }
+.kn-pick-empty { margin: 0; padding: 8px; font-size: 12px; color: var(--text-light); }
+.kn-pick-empty[hidden] { display: none; }
+
+/* ── Interruttore (impatto sulla sicurezza) ──────────────────────────── */
+.kn-switch {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.kn-switch input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; }
+.kn-switch small { font-weight: 400; color: var(--text-light); }
+.kn-switch:has(input:checked) { border-color: var(--warning); background: var(--warning-bg, #fffbeb); }
+
+/* ── Cosa serve (facoltativo, chiuso) ────────────────────────────────── */
+.kn-altro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.kn-altro > summary { padding: 13px 18px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text); }
+.kn-altro > summary small { font-weight: 400; color: var(--text-light); margin-left: 6px; }
+.kn-altro-body { padding: 0 18px 16px; }
+
+/* ── Riepilogo a lato ────────────────────────────────────────────────── */
+.kn-aside { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.kn-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .045);
+}
+.kn-card-eyebrow {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-light); margin: 0 0 8px;
+}
+.kn-anteprima-oggetto { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+.kn-anteprima-oggetto.is-empty { color: var(--text-light); font-weight: 500; font-style: italic; }
+.kn-dati { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; }
+.kn-dati dt { color: var(--text-light); }
+.kn-dati dd { margin: 0; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.kn-dati dd.is-empty { color: var(--text-light); font-weight: 400; }
+.kn-check { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.kn-check li { display: flex; align-items: center; gap: 8px; color: var(--text-mid); }
+.kn-check li::before {
+  content: ""; width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; box-sizing: border-box;
+  border: 2px solid var(--border); background: var(--surface);
+  display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #fff;
+}
+.kn-check li.is-ok { color: var(--text); }
+.kn-check li.is-ok::before { content: "✓"; border-color: var(--success); background: var(--success); }
+.kn-check-title { margin: 12px 0 6px; font-size: 12px; font-weight: 700; color: var(--text-mid); }
+.kn-check-title:first-of-type { margin-top: 0; }
+.kn-poi { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-mid); line-height: 1.5; }
+.kn-poi li + li { margin-top: 4px; }
+
+/* ── Barra delle azioni: resta in vista mentre si scorre ─────────────── */
+.kn-bar {
+  position: sticky; bottom: 8px; z-index: 20; margin-top: 16px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, .08);
+}
+.kn-bar-stato { flex: 1; min-width: 180px; font-size: 13px; color: var(--text-mid); }
+.kn-bar-stato strong { color: var(--text); }
+.kn-bar-stato.is-ko { color: var(--warning); font-weight: 600; }
+.kn-bar-azioni { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ── Come procedi: due strade ────────────────────────────────────────── */
+.cp-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cp-scelta {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 14px; align-content: start;
+  padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .045);
+}
+.cp-scelta:hover, .cp-scelta:focus-visible {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); transform: translateY(-1px);
+}
+.cp-icona {
+  grid-row: span 3; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-light); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.cp-icona svg { width: 24px; height: 24px; }
+.cp-scelta strong { font-size: 17px; align-self: center; }
+.cp-scelta p { margin: 0; color: var(--text-mid); font-size: 13.5px; line-height: 1.5; }
+.cp-scelta .cp-va { padding-top: 8px; font-weight: 700; color: var(--accent); }
+.cp-scelta .cp-conta { font-size: 12px; font-weight: 600; color: var(--text-light); }
+.cp-stato { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cp-dopo { font-size: 13px; color: var(--text-light); }
+.cp-avviso {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; font-size: 13px;
+  border: 1px solid var(--warning); border-radius: 10px; background: var(--warning-bg, #fffbeb); color: var(--text);
+}
+.cp-avviso > div { flex: 1; min-width: 200px; }
+
+@media (max-width: 1100px) {
+  /* Senza spazio a lato il riepilogo finirebbe sotto i pulsanti: cosa manca lo dice la barra. */
+  .kn-layout { grid-template-columns: minmax(0, 1fr); }
+  .kn-aside { display: none; }
+}
+@media (max-width: 760px) {
+  .kn-grid { grid-template-columns: minmax(0, 1fr); }
+  .kn-grid .col-2 { grid-column: 1 / -1; }
+  .kn-team { grid-template-columns: minmax(0, 1fr); }
+  .kn-oggetto { flex-wrap: wrap; }
+  .kn-oggetto small { display: none; }
+  .cp-scelte { grid-template-columns: minmax(0, 1fr); }
+  .kn-bar-azioni { width: 100%; }
+  .kn-bar-azioni .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-scelta, .kn-role { transition: none; }
+  .cp-scelta:hover, .cp-scelta:focus-visible { transform: none; }
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 
 from ..access import (
@@ -94,6 +95,39 @@ def identity_suggest(request):
         q = query.casefold()
         unici.sort(key=lambda v: (not v.casefold().startswith(q), v.casefold()))
     return JsonResponse({"values": unici[:20]})
+
+
+def identity_check(request):
+    """Dice se P/N + revisione + versione corrispondono a un kickoff che esiste già.
+
+    Serve al form «Nuovo kickoff»: lo stesso controllo lo fa `ProjectKickoffForm`
+    al salvataggio (e riapre quel kickoff), qui l'utente lo sa mentre scrive.
+    Stesso ambito del form: solo i kickoff visibili a chi chiede.
+    """
+    permission_error = _json_permission_error(request)
+    if permission_error is not None:
+        return permission_error
+
+    part_number = _testo(request.GET.get("part_number"))
+    if not part_number:
+        return JsonResponse({"exists": False})
+    match = (
+        scoped_projects_queryset(request)
+        .filter(
+            part_number__iexact=part_number,
+            revisione__iexact=_testo(request.GET.get("revisione")),
+            versione__iexact=_testo(request.GET.get("versione")),
+        )
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+    if match is None:
+        return JsonResponse({"exists": False})
+    return JsonResponse({
+        "exists": True,
+        "name": match.name,
+        "url": reverse("tasks:project_overview", kwargs={"project_id": match.pk}),
+    })
 
 
 @task_permissions_required("tasks_view")

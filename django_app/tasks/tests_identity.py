@@ -344,6 +344,49 @@ class ProjectIdentitySuggestTests(TasksBaseTestCase):
         self.assertContains(response, reverse("tasks:identity_suggest"))
         self.assertContains(response, "tasks/js/suggerimenti.js")
 
+    def test_project_create_ha_riepilogo_e_controllo_doppione(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("tasks:project_create"))
+
+        self.assertContains(response, reverse("tasks:identity_check"))
+        self.assertContains(response, "tasks/js/kickoff_form.js")
+        self.assertContains(response, 'data-kn-check="project_managers"')
+        self.assertContains(response, "data-kn-doppione")
+
+    def test_identity_check_trova_solo_i_kickoff_visibili(self):
+        self.client.force_login(self.user)
+        url = reverse("tasks:identity_check")
+
+        visibile = self.client.get(url, {"part_number": "pn-vis-01"}, **self._json_headers())
+        nascosto = self.client.get(url, {"part_number": "PN-HIDDEN-01"}, **self._json_headers())
+        altra_revisione = self.client.get(
+            url, {"part_number": "PN-VIS-01", "revisione": "B"}, **self._json_headers()
+        )
+        vuoto = self.client.get(url, {"part_number": ""}, **self._json_headers())
+
+        project = Project.objects.get(part_number="PN-VIS-01")
+        self.assertEqual(visibile.json(), {
+            "exists": True,
+            "name": project.name,
+            "url": reverse("tasks:project_overview", kwargs={"project_id": project.pk}),
+        })
+        self.assertEqual(nascosto.json(), {"exists": False})
+        self.assertEqual(altra_revisione.json(), {"exists": False})
+        self.assertEqual(vuoto.json(), {"exists": False})
+
+    def test_identity_check_json_401_e_403(self):
+        url = reverse("tasks:identity_check")
+
+        anonimo = self.client.get(url, {"part_number": "PN-VIS-01"}, **self._json_headers())
+        self.assertEqual(anonimo.status_code, 401)
+        self.assertEqual(anonimo["Content-Type"], "application/json")
+
+        self.client.force_login(self.blocked)
+        bloccato = self.client.get(url, {"part_number": "PN-VIS-01"}, **self._json_headers())
+        self.assertEqual(bloccato.status_code, 403)
+        self.assertEqual(bloccato["Content-Type"], "application/json")
+
     def test_identity_suggest_campo_vuoto_e_contiene(self):
         Project.objects.create(name="", client_name="Cliente Visibile", descrizione_pezzo="Staffa supporto motore",
                                created_by=self.user)

@@ -263,9 +263,10 @@
       </div>
     </section>
 
-    <div class="vrfc-actions">
-      <a class="btn btn-secondary" href="{% url 'tasks:project_gantt' project.id %}">Annulla</a>
-      <div class="right">
+    <div class="kn-bar">
+      <div class="kn-bar-stato" aria-live="polite">Totale Rischio <strong id="vrfc-bar-tr">{{ totals.tr }}</strong> · <span id="vrfc-bar-mancano"></span></div>
+      <div class="kn-bar-azioni">
+        <a class="btn btn-secondary" href="{% url 'tasks:project_gantt' project.id %}">Annulla</a>
         <button type="submit" class="btn btn-secondary" onclick="document.getElementById('vrfc-action').value='save_draft'">Salva bozza</button>
         <button type="submit" class="btn btn-secondary" style="background:var(--warning-bg); border-color:var(--border); color:var(--warning);" onclick="document.getElementById('vrfc-action').value='skip_with_reminder'">Prosegui e ricordami VRF</button>
         <button type="submit" class="btn" onclick="document.getElementById('vrfc-action').value='confirm'">Conferma e genera xlsx</button>
@@ -320,6 +321,10 @@
     else msg = "Totale Rischio basso.";
     if (missing.length) msg += ` Probabilità da scegliere: ${missing.join(", ")}.`;
     ceo.textContent = msg;
+    document.getElementById("vrfc-bar-tr").textContent = `${tr} (${label})`;
+    document.getElementById("vrfc-bar-mancano").textContent = missing.length
+      ? `${missing.length} probabilità da scegliere`
+      : "tutte le probabilità scelte";
   }
   table.addEventListener("change", recalc);
   recalc();

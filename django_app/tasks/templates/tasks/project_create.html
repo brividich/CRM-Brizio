@@ -4,46 +4,11 @@
 
 {% block tasks_shell_head %}
   {% include "tasks/_percorso_assets.html" %}
-  <style>
-    .kc-mail .kp-station-head { padding: 10px 16px; }
-    .kc-mail .kp-body { padding: 14px 16px; }
-    .kc-oggetto { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-alt, var(--bg)); margin-bottom: 12px; }
-    .kc-oggetto > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); white-space: nowrap; }
-    .kc-oggetto input { flex: 1; min-width: 0; font-weight: 600; }
-    .kc-righe { display: flex; flex-direction: column; gap: 8px; }
-    .kc-riga { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 150px 34px; gap: 8px; align-items: center; }
-    .kc-riga .input { width: 100%; box-sizing: border-box; }
-    .kc-riga input.is-wrong { border-color: var(--danger, #e53e3e); }
-    .kc-x { border: 1px solid var(--border); background: var(--surface); color: var(--text-light); border-radius: 8px; height: 34px; cursor: pointer; font-size: 16px; line-height: 1; }
-    .kc-x:hover { color: var(--danger, #e53e3e); border-color: var(--danger, #e53e3e); }
-    .kc-righe-head { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 150px 34px; gap: 8px; font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .04em; }
-    .kc-add { margin-top: 10px; }
-    .kc-toggle { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); cursor: pointer; }
-    .kc-toggle input { width: 18px; height: 18px; }
-    .kc-incontro[hidden] { display: none; }
-    .kc-incontro { margin-top: 12px; }
-    .kc-team { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .kc-mail .kp-field > label.kc-toggle { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); font-weight: 600; }
-    @media (max-width: 1100px) { .kc-team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 760px) { .kc-team { grid-template-columns: minmax(0, 1fr); } }
-    .kc-altro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
-    .kc-altro > summary { padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text); }
-    .kc-altro > summary small { font-weight: 400; color: var(--text-light); margin-left: 6px; }
-    .kc-altro-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px; }
-    .kc-altro-body h4 { margin: 4px 0 8px; font-size: 13px; color: var(--text-mid); }
-    @media (max-width: 760px) {
-      .kc-righe-head { display: none; }
-      .kc-riga { grid-template-columns: minmax(0, 1fr) 34px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-      .kc-riga > .kc-titolo { grid-column: 1 / 2; }
-      .kc-riga > .kc-x { grid-column: 2; grid-row: 1; }
-      .kc-riga > .kc-resp, .kc-riga > .kc-scad { grid-column: 1 / -1; }
-    }
-  </style>
 {% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if edit_project %}Modifica kickoff{% else %}Nuovo kickoff{% endif %}</span>{% endblock %}
 {% block tasks_shell_title %}{% if edit_project %}Modifica {{ edit_project.name }}{% else %}Nuovo kickoff{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{% if edit_project %}Dati e team della commessa.{% else %}Dati della commessa, preventivo e team. Poi la scheda VRF (o la rimandi) e la pianificazione: attività o incontro.{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if edit_project %}Dati e team della commessa.{% else %}Bastano il cliente e una persona del team: il resto si completa anche dopo. Poi la scheda VRF (o la rimandi) e la pianificazione: attività o incontro.{% endif %}{% endblock %}
 {% block tasks_shell_actions %}
   {% if edit_project %}
     <a class="ts-hero-action" href="{% url 'tasks:project_overview' edit_project.id %}">Panoramica</a>
@@ -53,167 +18,231 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
-<div class="ts-stack kc-mail">
+<div class="ts-stack">
   {% if not edit_project %}{% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}{% endif %}
 
-  <form method="post" id="kc-form" data-suggest-url="{% url 'tasks:identity_suggest' %}" data-avviso-uscita>
+  <form method="post" id="kc-form" novalidate data-avviso-uscita
+        data-suggest-url="{% url 'tasks:identity_suggest' %}"
+        {% if not edit_project %}data-check-url="{% url 'tasks:identity_check' %}"{% endif %}
+        data-etichetta-invio="{% if edit_project %}Salva modifiche{% else %}Crea kickoff e passa alla VRF →{% endif %}">
     {% csrf_token %}
     {% if edit_project %}{% include "tasks/_versione_form.html" with conflitto_cosa="questo kickoff" %}{% endif %}
-    {% if form.non_field_errors %}<div class="kp-err">{{ form.non_field_errors }}</div>{% endif %}
 
-    <div class="kp-stations">
+    <div class="kn-layout">
+      <div class="kn-main">
+        {% if form.non_field_errors %}<div class="kp-err" role="alert" style="font-size:13px;margin:0 0 12px">{{ form.non_field_errors }}</div>{% endif %}
 
-      {# ── Oggetto: il pezzo ──────────────────────────────────────── #}
-      <section class="kp-station" data-title="Commessa">
-        <div class="kp-station-head">
-          <span class="kp-num">1</span>
-          <div class="kp-station-titles">
-            <h3>Di che pezzo si tratta</h3>
-            <p>Ogni campo propone i valori già usati: scrivi o scegli. Stesso P/N, revisione e versione di un kickoff esistente: si riapre quello.</p>
-          </div>
-        </div>
-        <div class="kp-body">
-          <label class="kc-oggetto" for="id_kickoff_name">
-            <span>Oggetto</span>
-            {{ form.name }}
-          </label>
-          {% if form.name.errors %}<div class="kp-err">{{ form.name.errors|join:" " }}</div>{% endif %}
-          <div class="kp-grid">
-            <div class="kp-field">
-              <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
-              {{ form.client_name }}
-              {% if form.client_name.errors %}<div class="kp-err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
-            </div>
-            <div class="kp-field">
-              <label for="{{ form.part_number.id_for_label }}">P/N</label>
-              {{ form.part_number }}
-              {% if form.part_number.errors %}<div class="kp-err">{{ form.part_number.errors|join:" " }}</div>{% endif %}
-            </div>
-            <div class="kp-field">
-              <label for="{{ form.descrizione_pezzo.id_for_label }}">Descrizione pezzo</label>
-              {{ form.descrizione_pezzo }}
-            </div>
-            <div class="kp-field">
-              <label for="{{ form.revisione.id_for_label }}">Revisione</label>
-              {{ form.revisione }}
-              {% if form.revisione.errors %}<div class="kp-err">{{ form.revisione.errors|join:" " }}</div>{% endif %}
-            </div>
-            <div class="kp-field">
-              <label for="{{ form.versione.id_for_label }}">Versione</label>
-              {{ form.versione }}
-              {% if form.versione.errors %}<div class="kp-err">{{ form.versione.errors|join:" " }}</div>{% endif %}
-            </div>
-          </div>
-        </div>
-      </section>
+        <div class="kp-stations">
 
-      {# ── Preventivo e dati di commessa ──────────────────────────── #}
-      <section class="kp-station" id="dati" data-title="Dati commessa">
-        <div class="kp-station-head">
-          <span class="kp-num">2</span>
-          <div class="kp-station-titles">
-            <h3>Preventivo e dati di commessa</h3>
-            <p>Tutti facoltativi: si completano anche dopo.</p>
-          </div>
-        </div>
-        <div class="kp-body">
-          <div class="kp-grid">
-            <div class="kp-field">
-              <label for="{{ form.vrf_quote_number.id_for_label }}">Preventivo n.</label>
-              {{ form.vrf_quote_number }}
+          {# ── 1 · Il pezzo ───────────────────────────────────────────── #}
+          <section class="kp-station" data-title="Commessa">
+            <div class="kp-station-head">
+              <span class="kp-num">1</span>
+              <div class="kp-station-titles">
+                <h3>Di che pezzo si tratta</h3>
+                <p>Ogni campo propone i valori già usati: scrivi o scegli.</p>
+              </div>
             </div>
-            <div class="kp-field">
-              <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
-              {{ form.vrf_esp }}
-            </div>
-            <div class="kp-field">
-              <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
-              {{ form.control_method }}
-            </div>
-            <div class="kp-field col-3">
-              <label for="{{ form.description.id_for_label }}">Note</label>
-              {{ form.description }}
-            </div>
-            <div class="kp-field col-3">
-              <label class="kc-toggle" for="{{ form.safety_impact.id_for_label }}">{{ form.safety_impact }} Impatto sulla sicurezza <span class="kp-help">(evidenzia il kickoff nelle viste operative)</span></label>
-            </div>
-          </div>
-        </div>
-      </section>
+            <div class="kp-body">
+              <div class="kn-grid">
+                <div class="kp-field col-2{% if form.client_name.errors %} has-error{% endif %}" data-kn-campo="cliente">
+                  <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
+                  {{ form.client_name }}
+                  <div class="kn-msg is-err" data-kn-err role="alert"{% if not form.client_name.errors %} hidden{% endif %}>{% if form.client_name.errors %}{{ form.client_name.errors|join:" " }}{% else %}Il campo Cliente è obbligatorio.{% endif %}</div>
+                </div>
+                <div class="kp-field col-2">
+                  <label for="{{ form.descrizione_pezzo.id_for_label }}">Descrizione pezzo</label>
+                  {{ form.descrizione_pezzo }}
+                </div>
+                <div class="kp-field col-2{% if form.part_number.errors %} has-error{% endif %}">
+                  <label for="{{ form.part_number.id_for_label }}">P/N</label>
+                  {{ form.part_number }}
+                  {% if form.part_number.errors %}<div class="kn-msg is-err" role="alert">{{ form.part_number.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="kp-field">
+                  <label for="{{ form.revisione.id_for_label }}">Revisione</label>
+                  {{ form.revisione }}
+                  {% if form.revisione.errors %}<div class="kn-msg is-err" role="alert">{{ form.revisione.errors|join:" " }}</div>{% endif %}
+                </div>
+                <div class="kp-field">
+                  <label for="{{ form.versione.id_for_label }}">Versione</label>
+                  {{ form.versione }}
+                  {% if form.versione.errors %}<div class="kn-msg is-err" role="alert">{{ form.versione.errors|join:" " }}</div>{% endif %}
+                </div>
+              </div>
+              <div class="kn-msg is-warn" data-kn-revpn role="status" hidden>Revisione e versione valgono solo con un P/N: indicalo, oppure svuotale.</div>
 
-      {# ── A chi: il team ─────────────────────────────────────────── #}
-      <section class="kp-station" id="team" data-title="Team">
-        <div class="kp-station-head">
-          <span class="kp-num">3</span>
-          <div class="kp-station-titles">
-            <h3>Team</h3>
-            <p>Basta una persona per creare il kickoff; per risultare pronto all'avvio servono Project manager, Capocommessa e Programmatore.</p>
-          </div>
-        </div>
-        <div class="kp-body">
-          <div class="kp-grid kc-team">
-            {% for team_field in team_fields %}
-            <div class="kp-field">
-              <label>{{ team_field.label }}</label>
-              <div class="kp-multipick" data-kp-multipick>
-                <input type="search" class="kp-multipick-search input" data-kp-ignore placeholder="Cerca {{ team_field.label|lower }}…" aria-label="Cerca {{ team_field.label|lower }}">
-                <div class="kp-multipick-list">
-                  {% for choice in team_field %}
-                    <label class="kp-multipick-opt">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
-                  {% empty %}
-                    <p class="kp-multipick-empty">Nessun utente disponibile per questo ruolo.</p>
+              {% if not edit_project %}
+              <div class="kn-doppione" data-kn-doppione role="status" hidden>
+                <div>Esiste già un kickoff con questo P/N, revisione e versione: <strong data-kn-doppione-nome></strong>. Non ne nasce un secondo: proseguendo si riapre quello.</div>
+                <a class="btn btn-secondary btn-sm" data-kn-doppione-link href="#">Apri il kickoff</a>
+              </div>
+              {% endif %}
+
+              <label class="kn-oggetto" for="id_kickoff_name">
+                <span>Oggetto</span>
+                {{ form.name }}
+                <small>si compone da solo</small>
+              </label>
+              {% if form.name.errors %}<div class="kn-msg is-err" role="alert">{{ form.name.errors|join:" " }}</div>{% endif %}
+            </div>
+          </section>
+
+          {# ── 2 · Il team ────────────────────────────────────────────── #}
+          <section class="kp-station" id="team" data-title="Team" data-kn-campo="team">
+            <div class="kp-station-head">
+              <span class="kp-num">2</span>
+              <div class="kp-station-titles">
+                <h3>Team</h3>
+                <p>Basta una persona per creare il kickoff; per risultare pronto all'avvio servono Project manager, Capocommessa e Programmatore.</p>
+              </div>
+            </div>
+            <div class="kp-body">
+              <div class="kn-team">
+                {% for team_field in team_fields %}
+                <div class="kn-role" data-kn-role="{{ team_field.name }}" data-kn-etichetta="{{ team_field.label }}">
+                  <div class="kn-role-head">
+                    <strong>{{ team_field.label }}</strong>
+                    {% if team_field.name == "caporeparti" %}<span class="kn-tag">facoltativo</span>{% else %}<span class="kn-tag is-req">serve per l'avvio</span>{% endif %}
+                    <button type="button" class="kn-me" data-kn-me="{{ request.user.pk }}" title="Aggiungi me come {{ team_field.label|lower }}" hidden>+ Io</button>
+                  </div>
+                  <div class="kn-pick" data-kn-pick>
+                    <div class="kn-pick-chips" data-kn-chips aria-live="polite"></div>
+                    <input type="search" class="kn-pick-search" data-kp-ignore autocomplete="off"
+                           placeholder="Cerca {{ team_field.label|lower }}…" aria-label="Cerca {{ team_field.label|lower }}">
+                    <div class="kn-pick-list" data-kn-list>
+                      {% for choice in team_field %}
+                        <label class="kn-pick-opt">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                      {% empty %}
+                        <p class="kn-pick-empty">Nessun utente disponibile per questo ruolo.</p>
+                      {% endfor %}
+                      <p class="kn-pick-empty" data-kn-vuoto hidden>Nessuna persona con questo nome.</p>
+                    </div>
+                  </div>
+                  {% if team_field.errors %}<div class="kn-msg is-err" role="alert">{{ team_field.errors|join:" " }}</div>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              <div class="kn-msg is-err" data-kn-err role="alert" hidden>Indica almeno una persona del team: Project manager, Capocommessa, Programmatore o Caporeparto.</div>
+            </div>
+          </section>
+
+          {# ── 3 · Preventivo e dati di commessa ──────────────────────── #}
+          <section class="kp-station" id="dati" data-title="Dati commessa">
+            <div class="kp-station-head">
+              <span class="kp-num">3</span>
+              <div class="kp-station-titles">
+                <h3>Preventivo e dati di commessa</h3>
+                <p>Si completano anche dopo, da «Modifica kickoff».</p>
+              </div>
+              <span class="kn-tag">facoltativo</span>
+            </div>
+            <div class="kp-body">
+              <div class="kp-grid">
+                <div class="kp-field">
+                  <label for="{{ form.vrf_quote_number.id_for_label }}">Preventivo n.</label>
+                  {{ form.vrf_quote_number }}
+                </div>
+                <div class="kp-field">
+                  <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
+                  {{ form.vrf_esp }}
+                </div>
+                <div class="kp-field">
+                  <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
+                  {{ form.control_method }}
+                </div>
+                <div class="kp-field col-3">
+                  <label for="{{ form.description.id_for_label }}">Note</label>
+                  {{ form.description }}
+                </div>
+                <div class="kn-full">
+                  <label class="kn-switch" for="{{ form.safety_impact.id_for_label }}">{{ form.safety_impact }} Impatto sulla sicurezza <small>evidenzia il kickoff nelle viste operative</small></label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {# ── Cosa serve: facoltativo, chiuso ────────────────────────── #}
+          {% if filo_tappe %}
+          <details class="kn-altro" {% if edit_project %}open{% endif %}>
+            <summary>Cosa serve a questa commessa <small>tipo di commessa, consegna, tappe — facoltativo</small></summary>
+            <div class="kn-altro-body">
+              <div id="percorso">
+                <input type="hidden" name="tappe_presenti" value="1">
+                <div class="kp-grid fl-modello">
+                  <div class="kp-field">
+                    <label for="fl-modello">Tipo di commessa</label>
+                    <select class="input" id="fl-modello" name="modello" data-modelli='{{ filo_modelli_json|safe }}'>
+                      <option value="">Nessun modello</option>
+                      {% for m in filo_modelli %}<option value="{{ m.pk }}"{% if filo_modello_id == m.pk|stringformat:"s" %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="kp-field">
+                    <label for="fl-consegna">Consegna al cliente</label>
+                    <input class="input" type="date" id="fl-consegna" name="data_consegna" value="{{ filo_consegna }}">
+                  </div>
+                </div>
+                <p class="kp-hint">Togli la spunta a quello che non serve (per esempio niente terzista): il Percorso del kickoff conterà solo il resto.</p>
+                <div class="fl-tappe">
+                  {% for t in filo_tappe %}
+                  <label class="fl-tappa">
+                    <input type="checkbox" name="tappe_servono" value="{{ t.key }}" {% if t.serve %}checked{% endif %}>
+                    <span><strong>{{ t.label }}</strong><small>{{ t.aiuto }}</small></span>
+                  </label>
                   {% endfor %}
                 </div>
               </div>
-              {% if team_field.errors %}<div class="kp-err">{{ team_field.errors }}</div>{% endif %}
             </div>
-            {% endfor %}
+          </details>
+          {% endif %}
+
+        </div>{# /kp-stations #}
+
+        <div class="kn-bar">
+          <div class="kn-bar-stato" data-kn-stato aria-live="polite">{% if edit_project %}Le modifiche valgono da quando salvi.{% else %}Poi si apre la scheda VRF.{% endif %}</div>
+          <div class="kn-bar-azioni">
+            <a class="btn btn-secondary" href="{% if edit_project %}{% url 'tasks:project_overview' edit_project.id %}{% else %}{% url 'tasks:project_list' %}{% endif %}">Annulla</a>
+            <button type="submit" class="btn" data-kn-invio>{% if edit_project %}Salva modifiche{% else %}Crea kickoff e passa alla VRF &rarr;{% endif %}</button>
           </div>
         </div>
-      </section>
+      </div>{# /kn-main #}
 
-      {# ── Cosa serve: facoltativo, chiuso ────────────────────────── #}
-      {% if filo_tappe %}
-      <details class="kc-altro" {% if edit_project %}open{% endif %}>
-        <summary>Cosa serve a questa commessa <small>tipo di commessa, consegna, tappe — facoltativo</small></summary>
-        <div class="kc-altro-body">
-          <div id="percorso">
-            <input type="hidden" name="tappe_presenti" value="1">
-            <div class="kp-grid fl-modello">
-              <div class="kp-field">
-                <label for="fl-modello">Tipo di commessa</label>
-                <select class="input" id="fl-modello" name="modello" data-modelli='{{ filo_modelli_json|safe }}'>
-                  <option value="">Nessun modello</option>
-                  {% for m in filo_modelli %}<option value="{{ m.pk }}"{% if filo_modello_id == m.pk|stringformat:"s" %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
-                </select>
-              </div>
-              <div class="kp-field">
-                <label for="fl-consegna">Consegna al cliente</label>
-                <input class="input" type="date" id="fl-consegna" name="data_consegna" value="{{ filo_consegna }}">
-              </div>
-            </div>
-            <p class="kp-hint">Togli la spunta a quello che non serve (per esempio niente terzista): il Percorso del kickoff conterà solo il resto.</p>
-            <div class="fl-tappe">
-              {% for t in filo_tappe %}
-              <label class="fl-tappa">
-                <input type="checkbox" name="tappe_servono" value="{{ t.key }}" {% if t.serve %}checked{% endif %}>
-                <span><strong>{{ t.label }}</strong><small>{{ t.aiuto }}</small></span>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
+      {# ── Riepilogo vivo ─────────────────────────────────────────────── #}
+      <aside class="kn-aside" aria-label="Riepilogo del kickoff">
+        <div class="kn-card">
+          <p class="kn-card-eyebrow">Anteprima</p>
+          <p class="kn-anteprima-oggetto is-empty" data-kn-anteprima>Si compone da cliente, P/N e descrizione pezzo</p>
+          <dl class="kn-dati">
+            <dt>Cliente</dt><dd data-kn-dato="cliente" class="is-empty">—</dd>
+            <dt>P/N</dt><dd data-kn-dato="pn" class="is-empty">—</dd>
+            <dt>Team</dt><dd data-kn-dato="team" class="is-empty">nessuno</dd>
+          </dl>
         </div>
-      </details>
-      {% endif %}
-
-    </div>{# /kp-stations #}
-
-    <div class="kp-actions">
-      <a class="btn btn-secondary" href="{% if edit_project %}{% url 'tasks:project_overview' edit_project.id %}{% else %}{% url 'tasks:project_list' %}{% endif %}">Annulla</a>
-      <div class="kp-right">
-        <button type="submit" class="btn">{% if edit_project %}Salva modifiche{% else %}Crea kickoff e passa alla VRF &rarr;{% endif %}</button>
-      </div>
-    </div>
+        <div class="kn-card">
+          <p class="kn-check-title">{% if edit_project %}Per salvare{% else %}Per creare il kickoff{% endif %}</p>
+          <ul class="kn-check">
+            <li data-kn-check="cliente">Cliente</li>
+            <li data-kn-check="team">Almeno una persona del team</li>
+          </ul>
+          <p class="kn-check-title">Per risultare pronto all'avvio</p>
+          <ul class="kn-check">
+            <li data-kn-check="project_managers">Project manager</li>
+            <li data-kn-check="capi_commessa">Capocommessa</li>
+            <li data-kn-check="programmers">Programmatore</li>
+          </ul>
+        </div>
+        {% if not edit_project %}
+        <div class="kn-card">
+          <p class="kn-card-eyebrow">Cosa succede dopo</p>
+          <ol class="kn-poi">
+            <li>Le persone del team ricevono l'avviso.</li>
+            <li>Si apre la scheda VRF: la compili o la rimandi.</li>
+            <li>Scegli come procedere: attività o incontro.</li>
+          </ol>
+        </div>
+        {% endif %}
+      </aside>
+    </div>{# /kn-layout #}
   </form>
 
 </div>
@@ -222,83 +251,5 @@
 {% block tasks_shell_scripts %}
 <script src="{% static 'tasks/js/suggerimenti.js' %}?v=1" defer></script>
 <script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>
-<script>
-  /* Tipo di commessa: spunta le tappe del modello scelto. */
-  (function () {
-    var sel = document.getElementById('fl-modello');
-    if (!sel) { return; }
-    var modelli = {};
-    try { modelli = JSON.parse(sel.dataset.modelli || '{}'); } catch (e) { modelli = {}; }
-    sel.addEventListener('change', function () {
-      var tappe = modelli[sel.value];
-      if (!tappe) { return; }
-      document.querySelectorAll('input[name="tappe_servono"]').forEach(function (c) { c.checked = tappe.indexOf(c.value) !== -1; });
-    });
-  })();
-</script>
-<script>
-(function () {
-  'use strict';
-
-  // Team: le persone scelte restano visibili come etichette; un elenco lungo
-  // resta chiuso finche' non si entra nella casella di ricerca.
-  document.querySelectorAll('[data-kp-multipick]').forEach(function (box) {
-    const search = box.querySelector('.kp-multipick-search');
-    const options = Array.prototype.slice.call(box.querySelectorAll('.kp-multipick-opt'));
-    if (!search || !options.length) return;
-    const chips = document.createElement('div');
-    chips.className = 'kp-multipick-chips';
-    box.insertBefore(chips, search);
-    const lunga = options.length > 6;
-
-    function disegna() {
-      chips.replaceChildren();
-      options.forEach(function (opt) {
-        const input = opt.querySelector('input[type="checkbox"]');
-        if (!input.checked) return;
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'kp-multipick-chip';
-        chip.textContent = opt.textContent.trim() + ' ×';
-        chip.title = 'Togli';
-        chip.addEventListener('click', function () {
-          input.checked = false;
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        chips.appendChild(chip);
-      });
-    }
-    function chiudi(si) { if (lunga) box.classList.toggle('is-collapsed', si); }
-
-    box.addEventListener('change', disegna);
-    box.addEventListener('focusin', function () { chiudi(false); });
-    document.addEventListener('click', function (e) { if (!box.contains(e.target)) chiudi(true); });
-    search.addEventListener('input', function () {
-      const needle = search.value.trim().toLowerCase();
-      options.forEach(function (opt) {
-        const match = !needle || opt.textContent.toLowerCase().indexOf(needle) !== -1;
-        opt.classList.toggle('is-hidden', !match);
-      });
-    });
-    disegna();
-    chiudi(true);
-  });
-
-  /* Oggetto proposto: «Cliente · P/N · Descrizione pezzo», visibile mentre si
-     scrive. Chi lo modifica a mano lo tiene. */
-  (function proponiOggetto() {
-    const nameInput = document.getElementById('id_kickoff_name');
-    const campi = ['{{ form.client_name.id_for_label }}', '{{ form.part_number.id_for_label }}', '{{ form.descrizione_pezzo.id_for_label }}']
-      .map(function (id) { return document.getElementById(id); }).filter(Boolean);
-    if (!nameInput) return;
-    function aggiorna() {
-      const parti = campi.map(function (c) { return c.value.trim(); }).filter(Boolean);
-      nameInput.placeholder = parti.join(' · ') || 'Si compone da cliente, P/N e descrizione pezzo';
-    }
-    campi.forEach(function (c) { c.addEventListener('input', aggiorna); c.addEventListener('change', aggiorna); });
-    aggiorna();
-  })();
-
-})();
-</script>
+<script src="{% static 'tasks/js/kickoff_form.js' %}?v=20261120" defer></script>
 {% endblock %}

@@ -3,16 +3,6 @@
 
 {% block tasks_shell_head %}
   {% include "tasks/_percorso_assets.html" %}
-  <style>
-    .cp-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .cp-scelta { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
-    .cp-scelta:hover, .cp-scelta:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-    .cp-scelta strong { font-size: 17px; }
-    .cp-scelta p { margin: 0; color: var(--text-mid); font-size: 13.5px; line-height: 1.5; }
-    .cp-scelta .cp-va { margin-top: auto; padding-top: 8px; font-weight: 700; color: var(--accent); }
-    .cp-stato { display: flex; flex-wrap: wrap; gap: 8px; }
-    @media (max-width: 760px) { .cp-scelte { grid-template-columns: minmax(0, 1fr); } }
-  </style>
 {% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Come procedi</span>{% endblock %}
@@ -26,23 +16,35 @@
 <div class="ts-stack">
   {% include "tasks/_percorso_lifecycle.html" with current="attivita" %}
 
-  <div class="cp-stato">
-    <span class="ts-hero-pill">VRF: {{ vrf.label }}</span>
-    <span class="ts-hero-pill">{{ attivita_totali }} attività{% if attivita_senza_responsabile %} · {{ attivita_senza_responsabile }} senza responsabile{% endif %}</span>
-    <span class="ts-hero-pill">{{ incontri }} incontr{{ incontri|pluralize:"o,i" }}</span>
+  {% if vrf_da_fare %}
+  <div class="cp-avviso" role="status">
+    <div><strong>Scheda VRF rimandata.</strong> Puoi pianificare lo stesso; il promemoria resta finché non la compili.</div>
+    <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_compile' project.id %}">Compila la VRF</a>
   </div>
+  {% endif %}
 
   <div class="cp-scelte">
     <a class="cp-scelta" href="{% url 'tasks:project_attivita_pianifica' project.id %}">
+      <span class="cp-icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg></span>
       <strong>Pianifica le attività</strong>
       <p>Chi fa cosa, entro quando se si sa. Una riga per attività. Alla fine puoi convocare l'incontro per confermarle.</p>
+      <span class="cp-conta">{{ attivita_totali }} attività{% if attivita_senza_responsabile %} · {{ attivita_senza_responsabile }} senza responsabile{% endif %}</span>
+      <span></span>
       <span class="cp-va">Pianifica attività &rarr;</span>
     </a>
     <a class="cp-scelta" href="{% url 'tasks:project_meeting_create' project.id %}{% if attivita_totali %}?attivita=aperte{% endif %}">
+      <span class="cp-icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
       <strong>Pianifica un incontro</strong>
       <p>Data, sala, partecipanti e ordine del giorno. Dai punti dell'ordine del giorno assegni le attività ai responsabili{% if attivita_totali %}; le attività già pianificate entrano da confermare{% endif %}.</p>
+      <span class="cp-conta">{{ incontri }} incontr{{ incontri|pluralize:"o,i" }}</span>
+      <span></span>
       <span class="cp-va">Pianifica incontro &rarr;</span>
     </a>
+  </div>
+
+  <div class="cp-stato">
+    <span class="ts-hero-pill">VRF: {{ vrf.label }}</span>
+    <span class="cp-dopo">Puoi anche decidere dopo: <a href="{% url 'tasks:project_overview' project.id %}">vai alla panoramica</a>, questa pagina si riapre da «Come procedi?».</span>
   </div>
 </div>
 {% endblock %}
