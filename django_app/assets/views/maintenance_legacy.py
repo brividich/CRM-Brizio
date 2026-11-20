@@ -147,6 +147,27 @@ def _build_execution_workorder(
     return workorder
 
 
+def _porta_regole_nei_piani(rules) -> set[int]:
+    """Converte le regole indicate in applicazioni di piano e genera le scadenze dovute.
+
+    Stessa conversione di ``migrate_maintenance_to_plans`` (idempotente: una regola
+    gia' convertita si salta), limitata a queste regole. Ritorna gli id dei piani.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from ..services import maintenance_domain as domain
+
+    rule_ids = [rule.id for rule in rules if rule is not None]
+    if not rule_ids:
+        return set()
+    call_command("migrate_maintenance_to_plans", rule_ids=rule_ids, stdout=StringIO())
+    plan_ids = {rule.intervention_template_id for rule in rules if rule is not None}
+    domain.generate_occurrences(plan_ids=plan_ids)
+    return plan_ids
+
+
 def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
     return _periodic_verifications_page_url(
         asset_id=_as_int(request.POST.get("filter_asset"), default=0),
@@ -874,6 +895,10 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             if not result.get("ok"):
                 messages.error(request, result.get("message") or "Inglobamento non possibile per questo piano.")
                 return redirect(redirect_url)
+            # La regola da sola finiva nel vecchio motore, che non genera piu' nulla: la
+            # verifica spariva da Scadenzario e promemoria. Si porta subito nei piani
+            # (applicazione + ultima esecuzione) e si generano le scadenze dovute.
+            plan_ids = _porta_regole_nei_piani(result.get("rules") or [result["rule"]])
             log_action(
                 request,
                 "convert_periodic_verification_to_rule",
@@ -885,12 +910,13 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     "created_template": result["created_template"],
                     "created_rule": result["created_rule"],
                     "threshold_days": result["threshold_days"],
+                    "piani": sorted(plan_ids),
                 },
             )
             messages.success(
                 request,
                 f"Piano inglobato in {len(result.get('rules') or [result['rule']])} piano/i ordinari "
-                f"({result['threshold_days']} giorni), con asset e storico preservati.",
+                f"({result['threshold_days']} giorni), con asset e storico preservati: le scadenze sono in «Piani».",
             )
             return redirect(redirect_url)
 

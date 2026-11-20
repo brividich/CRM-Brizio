@@ -150,6 +150,15 @@ def _maintenance_rule_form_state(form: MaintenanceRuleForm, *, is_edit: bool) ->
     }
 
 
+def _prossima_manutenzione(asset: Asset, work_machine=None):
+    """Prossima manutenzione dalle scadenze del motore piani; in mancanza, la data
+    scritta a mano sulla macchina (dato importato, non piu' aggiornato)."""
+    from ..services.maintenance_domain import prossime_scadenze_per_asset
+
+    prossima = prossime_scadenze_per_asset([asset.pk]).get(asset.pk)
+    return prossima or getattr(work_machine, "next_maintenance_date", None)
+
+
 def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
     extra = asset.extra_columns if isinstance(asset.extra_columns, dict) else {}
     it_details = getattr(asset, "it_details", None)
@@ -187,7 +196,9 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
                 ("CNC", _format_asset_detail_value(work_machine.cnc_controlled, AssetDetailField.FORMAT_BOOL)),
                 ("5 assi", _format_asset_detail_value(work_machine.five_axes, AssetDetailField.FORMAT_BOOL)),
                 ("Accuracy from", _coalesce_str(work_machine.accuracy_from, "-")),
-                ("Prossima manutenzione", _format_asset_detail_value(work_machine.next_maintenance_date, AssetDetailField.FORMAT_DATE)),
+                ("Prossima manutenzione", _format_asset_detail_value(
+                    _prossima_manutenzione(asset, work_machine), AssetDetailField.FORMAT_DATE
+                )),
             ]
         )
     elif it_details is not None:

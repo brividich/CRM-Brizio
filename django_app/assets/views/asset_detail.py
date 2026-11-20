@@ -57,7 +57,7 @@ from ..services.dashboard_kpi import (
 )
 from ..services import storico_asset
 from ..services.ciclo_vita_asset import blocchi_eliminazione
-from ..models import AssetFieldHistory
+from ..models import AssetFieldHistory, MaintenancePlanAssignment
 
 from ._helpers import (  # noqa: F401
     ASSET_DOCUMENT_MAX_BYTES,
@@ -98,6 +98,7 @@ from ._helpers_b import (  # noqa: F401
     _ensure_default_asset_detail_section_layouts,
     _format_asset_detail_value,
     _periodic_verifications_page_url,
+    _prossima_manutenzione,
 )
 from ._helpers_c import (  # noqa: F401
     _assets_shell_context,
@@ -234,6 +235,12 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             )
             if schedule_row is None:
                 messages.error(request, "La manutenzione pianificata selezionata non è disponibile per questo asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            if MaintenancePlanAssignment.objects.filter(legacy_rule_id=base_rule_id).exists():
+                messages.error(
+                    request,
+                    "Questa manutenzione è già nei piani: registrala o mettila in un OdL da «Da fare» o dalla scheda del piano.",
+                )
                 return redirect("assets:asset_view", id=asset.id)
 
             workorder = None
@@ -747,7 +754,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ("CNC", _format_asset_detail_value(work_machine.cnc_controlled, AssetDetailField.FORMAT_BOOL)),
             ("5 assi", _format_asset_detail_value(work_machine.five_axes, AssetDetailField.FORMAT_BOOL)),
             ("Accuracy from", _coalesce_str(work_machine.accuracy_from, "N/D")),
-            ("Prossima manutenzione", _format_asset_detail_value(work_machine.next_maintenance_date, AssetDetailField.FORMAT_DATE)),
+            ("Prossima manutenzione", _format_asset_detail_value(
+                _prossima_manutenzione(asset, work_machine), AssetDetailField.FORMAT_DATE
+            )),
             ("Soglia reminder", f"{work_machine.maintenance_reminder_days} gg"),
         ]
         # Solo identità: i campi tecnici (TCR/CNC/5 assi/manutenzione/accuracy)
@@ -1161,6 +1170,15 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
         today=today,
     )
+    # Regole gia' portate nei piani: la scadenza vive nell'occorrenza del motore nuovo
+    # (sezione Piani della scheda). Mostrarle anche qui, con «Genera rapporto», apriva
+    # un OdL vecchio stile accanto alla stessa manutenzione: due lavori per una.
+    _migrate = set(
+        MaintenancePlanAssignment.objects.filter(
+            legacy_rule_id__in=[row["base_rule"].id for row in asset_schedule_rows]
+        ).values_list("legacy_rule_id", flat=True)
+    )
+    asset_schedule_rows = [row for row in asset_schedule_rows if row["base_rule"].id not in _migrate]
     open_workorders_by_rule: dict[int, WorkOrder] = {}
     rule_ids = [row["base_rule"].id for row in asset_schedule_rows]
     for workorder in (

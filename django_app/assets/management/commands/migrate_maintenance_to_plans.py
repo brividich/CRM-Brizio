@@ -68,9 +68,13 @@ class Command(BaseCommand):
         # Accettato per compatibilita' con gli script esistenti: le scadenze
         # amministrative non si migrano piu'.
         parser.add_argument("--skip-deadlines", action="store_true", help=argparse.SUPPRESS)
+        # Solo queste regole (ripetibile): la usa «Ingloba nei piani ordinari» per portare
+        # subito nel motore nuovo la regola appena creata, senza toccare le altre.
+        parser.add_argument("--rule-id", type=int, action="append", dest="rule_ids", default=None)
 
     def handle(self, *args, **options):
         self.dry_run = bool(options.get("dry_run"))
+        self.rule_ids = [int(rid) for rid in (options.get("rule_ids") or [])]
         self.stats = {
             "assignments_created": 0,
             "groups_created": 0,
@@ -102,6 +106,8 @@ class Command(BaseCommand):
             .prefetch_related("assets")
             .order_by("id")
         )
+        if self.rule_ids:
+            rules = rules.filter(id__in=self.rule_ids)
         for rule in rules:
             if rule.threshold_type != MaintenanceRule.THRESHOLD_DAYS:
                 self.stats["skipped_meter_rules"] += 1
@@ -189,6 +195,8 @@ class Command(BaseCommand):
         overrides = MaintenanceRuleAssetOverride.objects.select_related(
             "asset", "base_rule", "base_rule__intervention_template", "override_intervention_template"
         ).order_by("id")
+        if self.rule_ids:
+            overrides = overrides.filter(base_rule_id__in=self.rule_ids)
         for override in overrides:
             rule = override.base_rule
             if rule.threshold_type != MaintenanceRule.THRESHOLD_DAYS:
@@ -255,6 +263,8 @@ class Command(BaseCommand):
             .exclude(last_execution_date=None)
             .order_by("id")
         )
+        if self.rule_ids:
+            states = states.filter(base_rule_id__in=self.rule_ids)
         for state in states:
             plan = state.base_rule.intervention_template
             executed_on = state.last_execution_date
