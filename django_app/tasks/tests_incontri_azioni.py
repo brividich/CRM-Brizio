@@ -8,6 +8,7 @@ conduzione, eliminazione limitata agli incontri mai svolti.
 from __future__ import annotations
 
 from datetime import date, timedelta
+import json
 from unittest.mock import patch
 
 from django.core import mail
@@ -176,6 +177,22 @@ class IncontriAzioniTests(TasksBaseTestCase):
         self.meeting.refresh_from_db()
         self.assertEqual(self.meeting.data, nuova)
         self.assertIsNone(self.meeting.reminder_sent_at)
+
+    def test_modifica_scrive_prima_e_dopo_nel_registro(self):
+        from core.models import AuditLog
+
+        vecchia = self.meeting.data
+        nuova = vecchia + timedelta(days=7)
+        self.client.post(self._url("tasks:project_meeting_edit"), {
+            "titolo": "Avvio", "data": nuova.isoformat(), "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.user.pk], "partecipanti_email_extra": "mario@example.com",
+            "agenda_items_raw": json.dumps([{"titolo": "Disegni"}]),
+        })
+        voce = AuditLog.objects.filter(azione="kickoff_meeting_edit").latest("created_at")
+        modifiche = voce.dettaglio["modifiche"]
+        data = next(v for k, v in modifiche.items() if k.lower() == "data")
+        self.assertEqual(data, {"old": vecchia.strftime("%d/%m/%Y"), "new": nuova.strftime("%d/%m/%Y")})
+        self.assertEqual(modifiche["Ordine del giorno"]["aggiunti"], ["Disegni"])
 
     def test_invio_dal_form_con_la_spunta(self):
         self.client.post(self._url("tasks:project_meeting_edit"), {

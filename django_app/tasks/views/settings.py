@@ -921,6 +921,9 @@ _LOG_ETICHETTE = {
     "kickoff_task_delete": "Attività eliminata",
     "kickoff_riaperto": "Kickoff riaperto",
     "kickoff_reused_on_create": "Kickoff esistente riutilizzato",
+    "kickoff_created": "Kickoff creato",
+    "kickoff_edited": "Kickoff modificato",
+    "kickoff_meeting_minutes": "Esito incontro registrato",
     "kickoff_meeting_create": "Incontro convocato",
     "kickoff_meeting_edit": "Incontro modificato",
     "kickoff_meeting_agenda_item_add": "Punto ODG aggiunto in riunione",
@@ -989,9 +992,15 @@ def etichetta_audit(azione: str) -> str:
 def _dettaglio_righe(dettaglio) -> list[tuple[str, str]]:
     """Il JSON del dettaglio come coppie leggibili; una stringa resta una riga sola."""
     if isinstance(dettaglio, dict):
+        from ..services.modifiche import righe_modifiche
+
         righe = []
         for k, v in dettaglio.items():
             if v in (None, "", [], {}):
+                continue
+            if k == "modifiche" and isinstance(v, dict):
+                # Kickoff e incontri: una riga «campo: prima → dopo» per campo.
+                righe.extend(righe_modifiche(v))
                 continue
             if isinstance(v, (list, tuple)):
                 v = ", ".join(str(x) for x in v[:10]) + (" …" if len(v) > 10 else "")

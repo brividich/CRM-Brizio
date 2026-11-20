@@ -784,6 +784,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if request.method == "POST":
         old_data, old_stato = meeting.data, meeting.stato
+        punti_prima = [str(p.get("titolo") or "") for p in (meeting.agenda_items or []) if isinstance(p, dict)]
         form = KickoffMeetingForm(request.POST, instance=meeting)
         if form.is_valid():
             from ..services.kickoff_avvio import segni_attivita
@@ -811,7 +812,18 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             _attivita_dai_punti(request, meeting, segni)
             if meeting.stato != MeetingStatus.ANNULLATO:
                 _sync_meeting_outlook(request, meeting)
-            log_action(request, "kickoff_meeting_edit", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
+            from ..services.modifiche import differenza_elenco, differenze_form
+
+            modifiche = differenze_form(form, escludi=("agenda_items_raw", "invia_convocazione"))
+            modifiche.update(differenza_elenco(
+                "Ordine del giorno",
+                punti_prima,
+                [str(p.get("titolo") or "") for p in (meeting.agenda_items or []) if isinstance(p, dict)],
+            ))
+            log_action(request, "kickoff_meeting_edit", "tasks", {
+                "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
+                "modifiche": modifiche or "nessun campo cambiato",
+            })
             messages.success(request, "Incontro aggiornato.")
             _send_invite_if_requested(request, form, meeting)
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
@@ -888,9 +900,12 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
                 _sync_meeting_issues_from_post(request, project, meeting)
                 _sync_meeting_actions_from_post(request, project, meeting)
                 _sync_meeting_decisions_from_post(request, project, meeting)
+            from ..services.modifiche import differenze_form
+
             log_action(
                 request, "kickoff_meeting_minutes", "tasks",
-                {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+                {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
+                 "modifiche": differenze_form(form) or "nessun campo cambiato"},
             )
             messages.success(request, f"Esito dell'incontro {meeting.numero} registrato.")
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
