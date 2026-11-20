@@ -879,6 +879,20 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Una categoria non si elimina: «ancora usata da…»",
+            "fare": [
+                "La categoria ha sottocategorie, applicazioni di piani, regole, contratti, budget, codici guasto o report "
+                "pianificati: spostali o toglili, poi riprova. Campi personalizzati e cartelle documenti si eliminano insieme.",
+            ],
+        },
+        {
+            "sintomo": "Applicando un piano: «Il piano è già applicato qui»",
+            "fare": [
+                "Esiste già un'applicazione dello stesso piano su quell'asset, gruppo o categoria (anche disattivata): "
+                "modificala o riattivala dall'elenco «Assegnazioni» del piano.",
+            ],
+        },
+        {
             "sintomo": "Registrata una manutenzione, la successiva non compare",
             "fare": [
                 "La successiva nasce solo se il piano vale ancora per quell'asset: piano attivo, asset non dismesso, "
