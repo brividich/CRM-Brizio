@@ -122,7 +122,7 @@ def collect_occurrence_reminders(*, today, horizon, deadline_days: int, no_throt
         exclude_mirror_occurrences(MaintenanceOccurrence.objects.filter(
             status=MaintenanceOccurrence.STATUS_OPEN,
             due_date__lte=horizon,
-        ))
+        ).exclude(domain.q_aperte_non_piu_dovute()))
         .select_related("asset", "plan", "supplier", "work_order")
         .order_by("due_date")
     )
