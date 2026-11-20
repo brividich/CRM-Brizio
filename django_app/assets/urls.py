@@ -419,12 +419,20 @@ def _modulo_del_percorso(percorso: str) -> str:
     return MODULO_INVENTARIO
 
 
+def _allegati_odl_visibili(request, queryset):
+    """Allegati degli OdL che la persona vede (stessa regola dell'OdL)."""
+    from .models import WorkOrder
+    from .services.visibilita import filtra_odl
+
+    return queryset.filter(work_order__in=filtra_odl(request, WorkOrder.objects.all()).values("pk"))
+
+
 def _protezioni_per_record():
     """kwarg dell'URL -> (modulo, (modello, filtro)) per i record che seguono il loro asset."""
     from functools import partial
 
     from . import models
-    from .registro_permessi import MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE
+    from .registro_permessi import MODULO_INVENTARIO, MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE
     from .services.visibilita import filtra_odl, filtra_per_asset, filtra_piani
 
     return {
@@ -438,7 +446,14 @@ def _protezioni_per_record():
             filtra_per_asset, modulo=MODULO_VERIFICHE, campo="system__asset"))),
         "attachment_id@verifiche": (MODULO_VERIFICHE, (models.PeriodicCheckAttachment, partial(
             filtra_per_asset, modulo=MODULO_VERIFICHE, campo="session__check_type__system__asset"))),
+        "attachment_id@scadenze-manutenzione": (MODULO_MANUTENZIONE, (models.MaintenanceOccurrenceAttachment, partial(
+            filtra_per_asset, modulo=MODULO_MANUTENZIONE, campo="occurrence__asset"))),
+        "attachment_id@workorders": (MODULO_ODL, (models.WorkOrderAttachment, _allegati_odl_visibili)),
+        "document_id": (MODULO_INVENTARIO, (models.AssetDocument, partial(
+            filtra_per_asset, modulo=MODULO_INVENTARIO))),
         "id@workorders": (MODULO_ODL, (models.WorkOrder, filtra_odl)),
+        "id@componenti": (MODULO_INVENTARIO, (models.AssetComponent, partial(
+            filtra_per_asset, modulo=MODULO_INVENTARIO))),
         "id@scadenze": (MODULO_VERIFICHE, (models.AssetAdministrativeDeadline, partial(
             filtra_per_asset, modulo=MODULO_VERIFICHE))),
     }
@@ -465,10 +480,20 @@ def _proteggi_pagine_asset(patterns):
             p.callback = richiede_asset_visibile("id", modulo)(p.callback)
         elif "<int:id>" in percorso and percorso.startswith("assets/workorders/"):
             p.callback = richiede_record_visibile("id", *protezioni["id@workorders"])(p.callback)
+        elif "<int:id>" in percorso and percorso.startswith("assets/componenti/"):
+            p.callback = richiede_record_visibile("id", *protezioni["id@componenti"])(p.callback)
         elif "<int:id>" in percorso and percorso.startswith("assets/scadenze/"):
             p.callback = richiede_record_visibile("id", *protezioni["id@scadenze"])(p.callback)
         if "<int:attachment_id>" in percorso and percorso.startswith("assets/manutenzione/verifiche-impianti/"):
             p.callback = richiede_record_visibile("attachment_id", *protezioni["attachment_id@verifiche"])(p.callback)
+        if "<int:attachment_id>" in percorso and percorso.startswith("assets/manutenzione/scadenze/allegati/"):
+            p.callback = richiede_record_visibile(
+                "attachment_id", *protezioni["attachment_id@scadenze-manutenzione"]
+            )(p.callback)
+        if "<int:attachment_id>" in percorso and percorso.startswith("assets/workorders/allegati/"):
+            p.callback = richiede_record_visibile("attachment_id", *protezioni["attachment_id@workorders"])(p.callback)
+        if "<int:document_id>" in percorso and percorso.startswith("assets/documenti/"):
+            p.callback = richiede_record_visibile("document_id", *protezioni["document_id"])(p.callback)
         for kwarg in ("occurrence_id", "plan_id", "workorder_id", "session_id", "type_id"):
             if f"<int:{kwarg}>" in percorso:
                 p.callback = richiede_record_visibile(kwarg, *protezioni[kwarg])(p.callback)

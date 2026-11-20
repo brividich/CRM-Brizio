@@ -308,6 +308,10 @@ GUIDA = {
                     "interventi solo delle sue macchine), Fornitori e contratti e IT e rete vuoti. Si salva con «Salva matrice».",
                     "Un piano su più reparti (es. tutti i compressori) lo vede chi ha almeno una delle sue macchine, con le sole scadenze sue. "
                     "Gli ordini di lavoro assegnati a una persona li vede sempre, anche fuori ambito.",
+                    "L'ambito vale anche per allegati delle manutenzioni e degli OdL, documenti e componenti degli asset, "
+                    "Storico, Panoramica (tessere, «Prossime scadenze», sintesi per la direzione) e adempimenti in «Da fare»: "
+                    "un link a un record di un asset fuori ambito risponde «accesso negato». «Togli dall'OdL» e "
+                    "«Distribuisci sul giorno» valgono solo per gli asset del proprio perimetro, come «Aggiungi all'OdL».",
                     "Al primo aggiornamento ogni ruolo ha sui tre moduli nuovi le stesse impostazioni che aveva su «Assets e manutenzione»: "
                     "niente cambia finché non modifichi la matrice. Le Impostazioni del modulo restano sulla riga Inventario.",
                     "Il perimetro di un caporeparto viene dal campo «Reparto» degli asset non IT: per questo è obbligatorio. "

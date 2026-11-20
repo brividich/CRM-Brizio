@@ -22,8 +22,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
-from ..registro_permessi import MODULO_VERIFICHE
-from ..services.visibilita import filtra_per_asset
+from ..registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+from ..services.visibilita import filtra_odl, filtra_per_asset
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
@@ -1204,6 +1204,8 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         ).select_related(
             "asset", "executed_by", "assigned_to", "supplier", "maintenance_rule__intervention_template"
         )
+        # Stesso ambito dell'elenco OdL: con «Propri / del team» solo i propri.
+        workorders = filtra_odl(request, workorders)
         if q:
             workorders = workorders.filter(
                 Q(title__icontains=q)
@@ -1245,6 +1247,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         registered = MaintenanceOccurrence.objects.filter(
             status=MaintenanceOccurrence.STATUS_DONE, work_order__isnull=True
         ).select_related("asset", "plan", "completed_by")
+        registered = filtra_per_asset(request, registered, MODULO_MANUTENZIONE)
         if q:
             registered = registered.filter(
                 Q(plan__label__icontains=q)
@@ -1330,6 +1333,8 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             include_in_maintenance_register=True,
             stato__in=[StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO],
         ).select_related("asset")
+        # Ticket su asset: solo quelli degli asset visibili; senza asset restano come prima.
+        tickets = filtra_per_asset(request, tickets, MODULO_MANUTENZIONE, anche=Q(asset__isnull=True))
         if q:
             tickets = tickets.filter(
                 Q(titolo__icontains=q)
