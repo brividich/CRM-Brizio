@@ -382,10 +382,15 @@ class AdminPostazioniTests(TestCase):
         self._salva(self.l_pc.id)
         self.assertTrue(PostazioneCondivisa.objects.filter(account_legacy_user_id=self.l_pc.id).exists())
 
+    def test_inattivita_fino_a_quattro_ore_di_base_due(self):
+        self._salva(self.l_pc.id, minuti=240)
+        self.assertEqual(PostazioneCondivisa.objects.get().minuti_inattivita, 240)
+        self.assertEqual(PostazioneCondivisa._meta.get_field("minuti_inattivita").default, 120)
+
     def test_account_amministratore_minuti_e_ip_non_validi_rifiutati(self):
         self._salva(self.l_admin.id)
         self._salva(self.l_pc.id, minuti=0)
-        self._salva(self.l_pc.id, minuti=61)
+        self._salva(self.l_pc.id, minuti=241)
         self._salva(self.l_pc.id, ip="")
         self._salva(self.l_pc.id, ip="pc-zeiss")
         self.assertFalse(PostazioneCondivisa.objects.exists())

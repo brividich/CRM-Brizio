@@ -563,7 +563,7 @@ class PostazioneCondivisa(models.Model):
     ip_pc = models.CharField(max_length=45, blank=True, default="", db_index=True)
     gruppo = models.ForeignKey("AccessGroup", on_delete=models.PROTECT, related_name="postazioni_condivise")
     minuti_inattivita = models.PositiveSmallIntegerField(
-        default=10,
+        default=120,
         help_text="Dopo questi minuti senza usare il portale si torna alla scelta dell'operatore.",
     )
     attiva = models.BooleanField(default=True)

@@ -962,6 +962,237 @@ const LetturaReport = ({
   }, "I valori restano modificabili nelle righe qui sopra: controllali sul report."))));
 };
 
+/* «Report CMM (PDF)»: pannello laterale con tutte le righe dei report completi caricati.
+   Il PDF si legge sul server dal testo (niente OCR) e non diventa un allegato; ogni riga
+   spuntata diventa un'anomalia sul S/N scritto nel report. */
+const soloCifre = v => String(v || '').replace(/\D/g, '');
+const ReportPdfPannello = ({
+  opId,
+  onInserisci,
+  onChiudi
+}) => {
+  const [report, setReport] = useState([]); // [{id, file, intestazione, righe, pagine, metodo}]
+  const [scelte, setScelte] = useState({}); // "idReport:indice" -> bool
+  const [stato, setStato] = useState('');
+  const [soloFuori, setSoloFuori] = useState(true);
+  const [over, setOver] = useState(false);
+  const fileRef = useRef(null);
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'Escape') onChiudi();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  const leggi = async lista => {
+    const files = Array.from(lista || []).filter(f => /\.pdf$/i.test(f.name || '') || f.type === 'application/pdf');
+    if (!files.length) {
+      setStato('Scegli uno o più report in PDF.');
+      return;
+    }
+    const errori = [];
+    for (const file of files) {
+      setStato(`Lettura di ${file.name}…`);
+      try {
+        const form = new FormData();
+        form.append('op_id', opId || '');
+        form.append('pdf', file, file.name || 'report.pdf');
+        const r = await fetch(API.report_cmm, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCsrf()
+          },
+          body: form,
+          credentials: 'same-origin'
+        });
+        const j = await parseJsonStrict(r, 'Lettura del report');
+        if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
+        if (!(j.righe || []).length) throw new Error('nessuna riga di misura trovata: è il report CMM esportato in PDF?');
+        const id = uid();
+        setReport(prev => [...prev.filter(x => x.file !== (j.file || file.name)), {
+          id,
+          file: j.file || file.name,
+          intestazione: j.intestazione || {},
+          righe: j.righe,
+          pagine: j.pagine,
+          metodo: j.metodo
+        }]);
+        setScelte(prev => ({
+          ...prev,
+          ...Object.fromEntries(j.righe.map(x => [`${id}:${x.indice}`, !!x.fuori]))
+        }));
+      } catch (e) {
+        errori.push(`${file.name}: ${e.message}`);
+      }
+    }
+    setStato(errori.join(' · '));
+  };
+  const scelteRighe = report.flatMap(rep => rep.righe.filter(x => scelte[`${rep.id}:${x.indice}`]).map(x => ({
+    rep,
+    x
+  })));
+  const imposta = (rep, righe, valore) => setScelte(prev => ({
+    ...prev,
+    ...Object.fromEntries(righe.map(x => [`${rep.id}:${x.indice}`, valore]))
+  }));
+  const nFuori = report.reduce((n, rep) => n + rep.righe.filter(x => x.fuori).length, 0);
+  const nTutte = report.reduce((n, rep) => n + rep.righe.length, 0);
+  const opNum = soloCifre(opId);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "cmm-velo",
+    onClick: onChiudi
+  }), /*#__PURE__*/React.createElement("aside", {
+    className: "cmm-side",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "Righe dal report CMM"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__head"
+  }, /*#__PURE__*/React.createElement("strong", null, "\uD83D\uDCC4 Report CMM"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "cmm-side__x",
+    onClick: onChiudi,
+    "aria-label": "Chiudi"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__body"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `cmm-box${over ? ' is-over' : ''}`,
+    onDragOver: e => {
+      e.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: e => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOver(false);
+      leggi(e.dataTransfer.files);
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    accept: "application/pdf,.pdf",
+    multiple: true,
+    hidden: true,
+    onChange: e => {
+      const f = e.target.files;
+      leggi(Array.from(f || []));
+      e.target.value = '';
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-box__hint"
+  }, "Trascina qui i report PDF completi (uno per S/N) oppure ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "link-btn",
+    onClick: () => fileRef.current && fileRef.current.click()
+  }, "scegli i file"), ".", /*#__PURE__*/React.createElement("span", null, "Il PDF non viene allegato: serve solo a leggere le righe.")), stato && /*#__PURE__*/React.createElement("div", {
+    className: stato.startsWith('Lettura') ? 'field-hint' : 'error-msg'
+  }, stato)), nTutte > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__filtro",
+    role: "group",
+    "aria-label": "Righe da mostrare"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: soloFuori ? 'is-on' : '',
+    onClick: () => setSoloFuori(true)
+  }, "Solo fuori tolleranza (", nFuori, ")"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: !soloFuori ? 'is-on' : '',
+    onClick: () => setSoloFuori(false)
+  }, "Tutte le righe (", nTutte, ")")), report.map(rep => {
+    const t = rep.intestazione;
+    const righe = rep.righe.filter(x => !soloFuori || x.fuori || scelte[`${rep.id}:${x.indice}`]);
+    const altroOp = opNum && t.odl && soloCifre(t.odl) !== opNum;
+    let sezione = null;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "cmm-rep",
+      key: rep.id
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "cmm-rep__head"
+    }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "S/N ", t.seriale || '—'), " \xB7 ", [t.programma, t.data, t.ispettore].filter(Boolean).join(' · ') || rep.file), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "link-btn",
+      onClick: () => {
+        setReport(prev => prev.filter(x => x.id !== rep.id));
+      }
+    }, "Togli")), !t.seriale && /*#__PURE__*/React.createElement("div", {
+      className: "sn-warn"
+    }, "\u26A0 S/N non trovato nel report: le anomalie andranno su tutti i seriali del blocco."), altroOp && /*#__PURE__*/React.createElement("div", {
+      className: "sn-warn"
+    }, "\u26A0 Il report \xE8 dell\u2019ordine ", t.odl, ", non di ", opId, ": controlla di aver scelto il file giusto."), rep.metodo === 'ocr' && /*#__PURE__*/React.createElement("div", {
+      className: "sn-warn"
+    }, "\u26A0 PDF scansionato: righe lette dall\u2019immagine, controlla i valori."), !righe.length && /*#__PURE__*/React.createElement("div", {
+      className: "field-hint"
+    }, "Nessuna riga fuori tolleranza su ", rep.righe.length, " lette."), righe.length > 0 && /*#__PURE__*/React.createElement("table", {
+      className: "cmm-tab"
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      "aria-label": "Tutte le righe mostrate",
+      checked: righe.every(x => scelte[`${rep.id}:${x.indice}`]),
+      onChange: e => imposta(rep, righe, e.target.checked)
+    })), /*#__PURE__*/React.createElement("th", null, "Car."), /*#__PURE__*/React.createElement("th", null, "Tipo"), /*#__PURE__*/React.createElement("th", null, "Rilevato"), /*#__PURE__*/React.createElement("th", null, "Nominale"), /*#__PURE__*/React.createElement("th", null, "Toll."), /*#__PURE__*/React.createElement("th", null, "Esito"))), /*#__PURE__*/React.createElement("tbody", null, righe.map(x => {
+      const k = `${rep.id}:${x.indice}`;
+      const testa = x.sezione !== sezione ? (sezione = x.sezione, x.sezione) : null;
+      const inf = x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf;
+      return /*#__PURE__*/React.createElement(React.Fragment, {
+        key: k
+      }, testa && /*#__PURE__*/React.createElement("tr", {
+        className: "cmm-tab__sez"
+      }, /*#__PURE__*/React.createElement("td", {
+        colSpan: 7
+      }, testa)), /*#__PURE__*/React.createElement("tr", {
+        className: `${x.fuori ? 'is-ko' : ''}${scelte[k] ? ' is-sel' : ''}`,
+        onClick: e => {
+          if (e.target.tagName !== 'INPUT') setScelte(prev => ({
+            ...prev,
+            [k]: !prev[k]
+          }));
+        }
+      }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: !!scelte[k],
+        onChange: e => setScelte(prev => ({
+          ...prev,
+          [k]: e.target.checked
+        })),
+        "aria-label": `Riga ${x.caratteristica}`
+      })), /*#__PURE__*/React.createElement("td", null, x.caratteristica || '—'), /*#__PURE__*/React.createElement("td", null, (CARATT_BY[x.car] || {}).nome || x.tipo_zeiss || '—'), /*#__PURE__*/React.createElement("td", {
+        className: "num"
+      }, fmtNum(x.misurato)), /*#__PURE__*/React.createElement("td", {
+        className: "num"
+      }, fmtNum(x.nominale)), /*#__PURE__*/React.createElement("td", {
+        className: "num"
+      }, "+", fmtNum(x.tol_sup), " / ", fmtNum(inf)), /*#__PURE__*/React.createElement("td", null, x.fuori ? /*#__PURE__*/React.createElement("span", {
+        className: "mis-esito is-ko"
+      }, "Fuori ", x.scostamento > 0 ? '+' : '−', fmtNum(Math.abs(x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento))) : /*#__PURE__*/React.createElement("span", {
+        className: "mis-esito is-ok"
+      }, "Dentro"), x.da_verificare && /*#__PURE__*/React.createElement("span", {
+        className: "pill-verifica",
+        title: "I valori letti non tornano fra loro: controllali sul report"
+      }, "da verificare"))));
+    }))));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__foot"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-primary",
+    disabled: !scelteRighe.length,
+    onClick: () => onInserisci(scelteRighe.map(({
+      rep,
+      x
+    }) => ({
+      seriale: rep.intestazione.seriale || '',
+      misura: x
+    })))
+  }, "Inserisci ", scelteRighe.length, " anomali", scelteRighe.length === 1 ? 'a' : 'e'), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "link-btn",
+    onClick: onChiudi
+  }, "Annulla"), /*#__PURE__*/React.createElement("span", {
+    className: "field-hint"
+  }, "Una anomalia per riga spuntata, sul S/N del report. Poi puoi modificarle prima di salvare."))));
+};
+
 /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
 const DettaglioAnomalia = ({
   dett,
@@ -2671,6 +2902,75 @@ const Step2Controllo = ({
       setError(e.message);
     }
   };
+
+  /* Righe spuntate nel pannello del report CMM -> un'anomalia ciascuna, sul S/N del report
+     (aggiunto al blocco se manca). Le anomalie già scritte restano sui seriali di prima. */
+  const [reportPdfAperto, setReportPdfAperto] = useState(false);
+  const inserisciDaReport = scelte => {
+    setEditor(prev => {
+      const tok = tokensOf(prev.voci);
+      const perChiave = new Map(tok.map(t => [t.toLowerCase(), t]));
+      const nuoviSn = [];
+      scelte.forEach(s => {
+        const k = String(s.seriale || '').trim().toLowerCase();
+        if (k && !perChiave.has(k)) {
+          perChiave.set(k, s.seriale.trim());
+          nuoviSn.push(s.seriale.trim());
+        }
+      });
+      const totale = tok.length + nuoviSn.length;
+      const tenute = prev.anomalie.filter(a => a.localId || a.origineId || a.testo.trim() || a.files.length || frasiDett(a.dett).length).map(a => nuoviSn.length && tok.length && a.tutti && !a.gestita ? {
+        ...a,
+        tutti: false,
+        sel: [...tok]
+      } : a);
+      const nuove = scelte.map(({
+        seriale,
+        misura
+      }) => {
+        const sn = perChiave.get(String(seriale || '').trim().toLowerCase());
+        const {
+          car,
+          nome,
+          modo,
+          nom,
+          a,
+          b,
+          ril,
+          dove
+        } = misura;
+        return {
+          ...newAnomalia(),
+          tutti: !sn || totale <= 1,
+          sel: sn && totale > 1 ? [sn] : [],
+          dett: {
+            ...emptyDett(),
+            tipo: 'misura',
+            misure: [{
+              ...emptyMisura(),
+              car,
+              nome,
+              modo,
+              nom,
+              a,
+              b,
+              ril,
+              dove
+            }]
+          }
+        };
+      });
+      return {
+        ...prev,
+        voci: [...prev.voci, ...nuoviSn],
+        anomalie: [...tenute, ...nuove],
+        attiva: -1,
+        confermaScoperti: ''
+      };
+    });
+    setReportPdfAperto(false);
+    setNotice(`Inserite ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} dal report CMM: controllale e salva il blocco.`);
+  };
   const rimuoviAnomalia = i => setEditor(prev => {
     const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
     return {
@@ -3449,7 +3749,7 @@ const Step2Controllo = ({
         className: "anom-card__n"
       }, i + 1), /*#__PURE__*/React.createElement("span", {
         className: "anom-card__txt"
-      }, a.testo.trim() || /*#__PURE__*/React.createElement("em", null, "Anomalia senza descrizione")), !a.tutti && tokens.length > 1 && /*#__PURE__*/React.createElement("span", {
+      }, testoAnomalia(a) || /*#__PURE__*/React.createElement("em", null, "Anomalia senza descrizione")), !a.tutti && tokens.length > 1 && /*#__PURE__*/React.createElement("span", {
         className: "pill pill-parz"
       }, "Su ", tokens.filter(t => a.sel.some(x => x.toLowerCase() === t.toLowerCase())).length, " di ", tokens.length, " S/N"), nAll > 0 && /*#__PURE__*/React.createElement("span", {
         className: "anom-card__att"
@@ -3679,12 +3979,26 @@ const Step2Controllo = ({
     }, /*#__PURE__*/React.createElement("strong", null, "Bozza:"), " ", copilot.sug.bozza_descrizione), copilot.sug.motivazione && /*#__PURE__*/React.createElement("div", {
       className: "copilot-sug__row copilot-sug__why"
     }, /*#__PURE__*/React.createElement("em", null, copilot.sug.motivazione)))));
-  })), /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "anom-add-row"
+  }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "btn-outline anom-add",
     onClick: nuovaAnomalia,
     disabled: saving
-  }, "+ Nuova anomalia su questi seriali"), scopertiEditor.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "+ Nuova anomalia su questi seriali"), campoVisibile('report_zeiss', {
+    fase: controllo ? controllo.fase : '',
+    tipo: 'fuori-tolleranza'
+  }) && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-outline anom-add",
+    onClick: () => setReportPdfAperto(true),
+    disabled: saving
+  }, "\uD83D\uDCC4 Dal report CMM (PDF)")), reportPdfAperto && /*#__PURE__*/React.createElement(ReportPdfPannello, {
+    opId: controllo ? controllo.op_id : '',
+    onInserisci: inserisciDaReport,
+    onChiudi: () => setReportPdfAperto(false)
+  }), scopertiEditor.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "sn-warn",
     role: "status"
   }, "\u26A0 ", scopertiEditor.length, " di ", tokens.length, " S/N senza nessuna anomalia: ", comprimiTokens(scopertiEditor).slice(0, 8).join(', '), comprimiTokens(scopertiEditor).length > 8 ? '…' : '', ".", ' ', "Assegnali a un\u2019anomalia", editor.bloccato ? '' : ' o toglili dal blocco', "."), attachErr && /*#__PURE__*/React.createElement("div", {

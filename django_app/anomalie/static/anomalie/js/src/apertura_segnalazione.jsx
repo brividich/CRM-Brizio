@@ -814,6 +814,137 @@
     );
   };
 
+  /* «Report CMM (PDF)»: pannello laterale con tutte le righe dei report completi caricati.
+     Il PDF si legge sul server dal testo (niente OCR) e non diventa un allegato; ogni riga
+     spuntata diventa un'anomalia sul S/N scritto nel report. */
+  const soloCifre = (v) => String(v || '').replace(/\D/g, '');
+  const ReportPdfPannello = ({ opId, onInserisci, onChiudi }) => {
+    const [report, setReport] = useState([]);  // [{id, file, intestazione, righe, pagine, metodo}]
+    const [scelte, setScelte] = useState({});  // "idReport:indice" -> bool
+    const [stato, setStato] = useState('');
+    const [soloFuori, setSoloFuori] = useState(true);
+    const [over, setOver] = useState(false);
+    const fileRef = useRef(null);
+    useEffect(() => {
+      const onKey = (e) => { if (e.key === 'Escape') onChiudi(); };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }, []);
+    const leggi = async (lista) => {
+      const files = Array.from(lista || []).filter(f => /\.pdf$/i.test(f.name || '') || f.type === 'application/pdf');
+      if (!files.length) { setStato('Scegli uno o più report in PDF.'); return; }
+      const errori = [];
+      for (const file of files) {
+        setStato(`Lettura di ${file.name}…`);
+        try {
+          const form = new FormData();
+          form.append('op_id', opId || '');
+          form.append('pdf', file, file.name || 'report.pdf');
+          const r = await fetch(API.report_cmm, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form, credentials: 'same-origin' });
+          const j = await parseJsonStrict(r, 'Lettura del report');
+          if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
+          if (!(j.righe || []).length) throw new Error('nessuna riga di misura trovata: è il report CMM esportato in PDF?');
+          const id = uid();
+          setReport(prev => [...prev.filter(x => x.file !== (j.file || file.name)), { id, file: j.file || file.name, intestazione: j.intestazione || {}, righe: j.righe, pagine: j.pagine, metodo: j.metodo }]);
+          setScelte(prev => ({ ...prev, ...Object.fromEntries(j.righe.map(x => [`${id}:${x.indice}`, !!x.fuori])) }));
+        } catch (e) { errori.push(`${file.name}: ${e.message}`); }
+      }
+      setStato(errori.join(' · '));
+    };
+    const scelteRighe = report.flatMap(rep => rep.righe.filter(x => scelte[`${rep.id}:${x.indice}`]).map(x => ({ rep, x })));
+    const imposta = (rep, righe, valore) => setScelte(prev => ({ ...prev, ...Object.fromEntries(righe.map(x => [`${rep.id}:${x.indice}`, valore])) }));
+    const nFuori = report.reduce((n, rep) => n + rep.righe.filter(x => x.fuori).length, 0);
+    const nTutte = report.reduce((n, rep) => n + rep.righe.length, 0);
+    const opNum = soloCifre(opId);
+    return (
+      <>
+        <div className="cmm-velo" onClick={onChiudi} />
+        <aside className="cmm-side" role="dialog" aria-modal="true" aria-label="Righe dal report CMM">
+          <div className="cmm-side__head">
+            <strong>📄 Report CMM</strong>
+            <button type="button" className="cmm-side__x" onClick={onChiudi} aria-label="Chiudi">×</button>
+          </div>
+          <div className="cmm-side__body">
+            <div className={`cmm-box${over ? ' is-over' : ''}`}
+              onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); setOver(false); leggi(e.dataTransfer.files); }}>
+              <input ref={fileRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={e => { const f = e.target.files; leggi(Array.from(f || [])); e.target.value = ''; }} />
+              <div className="cmm-box__hint">
+                Trascina qui i report PDF completi (uno per S/N) oppure <button type="button" className="link-btn" onClick={() => fileRef.current && fileRef.current.click()}>scegli i file</button>.
+                <span>Il PDF non viene allegato: serve solo a leggere le righe.</span>
+              </div>
+              {stato && <div className={stato.startsWith('Lettura') ? 'field-hint' : 'error-msg'}>{stato}</div>}
+            </div>
+            {nTutte > 0 && (
+              <div className="cmm-side__filtro" role="group" aria-label="Righe da mostrare">
+                <button type="button" className={soloFuori ? 'is-on' : ''} onClick={() => setSoloFuori(true)}>Solo fuori tolleranza ({nFuori})</button>
+                <button type="button" className={!soloFuori ? 'is-on' : ''} onClick={() => setSoloFuori(false)}>Tutte le righe ({nTutte})</button>
+              </div>
+            )}
+            {report.map(rep => {
+              const t = rep.intestazione;
+              const righe = rep.righe.filter(x => !soloFuori || x.fuori || scelte[`${rep.id}:${x.indice}`]);
+              const altroOp = opNum && t.odl && soloCifre(t.odl) !== opNum;
+              let sezione = null;
+              return (
+                <div className="cmm-rep" key={rep.id}>
+                  <div className="cmm-rep__head">
+                    <span><strong>S/N {t.seriale || '—'}</strong> · {[t.programma, t.data, t.ispettore].filter(Boolean).join(' · ') || rep.file}</span>
+                    <button type="button" className="link-btn" onClick={() => { setReport(prev => prev.filter(x => x.id !== rep.id)); }}>Togli</button>
+                  </div>
+                  {!t.seriale && <div className="sn-warn">⚠ S/N non trovato nel report: le anomalie andranno su tutti i seriali del blocco.</div>}
+                  {altroOp && <div className="sn-warn">⚠ Il report è dell’ordine {t.odl}, non di {opId}: controlla di aver scelto il file giusto.</div>}
+                  {rep.metodo === 'ocr' && <div className="sn-warn">⚠ PDF scansionato: righe lette dall’immagine, controlla i valori.</div>}
+                  {!righe.length && <div className="field-hint">Nessuna riga fuori tolleranza su {rep.righe.length} lette.</div>}
+                  {righe.length > 0 && (
+                    <table className="cmm-tab">
+                      <thead><tr>
+                        <th><input type="checkbox" aria-label="Tutte le righe mostrate"
+                          checked={righe.every(x => scelte[`${rep.id}:${x.indice}`])}
+                          onChange={e => imposta(rep, righe, e.target.checked)} /></th>
+                        <th>Car.</th><th>Tipo</th><th>Rilevato</th><th>Nominale</th><th>Toll.</th><th>Esito</th>
+                      </tr></thead>
+                      <tbody>
+                        {righe.map(x => {
+                          const k = `${rep.id}:${x.indice}`;
+                          const testa = x.sezione !== sezione ? (sezione = x.sezione, x.sezione) : null;
+                          const inf = x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf;
+                          return (
+                            <React.Fragment key={k}>
+                              {testa && <tr className="cmm-tab__sez"><td colSpan={7}>{testa}</td></tr>}
+                              <tr className={`${x.fuori ? 'is-ko' : ''}${scelte[k] ? ' is-sel' : ''}`} onClick={e => { if (e.target.tagName !== 'INPUT') setScelte(prev => ({ ...prev, [k]: !prev[k] })); }}>
+                                <td><input type="checkbox" checked={!!scelte[k]} onChange={e => setScelte(prev => ({ ...prev, [k]: e.target.checked }))} aria-label={`Riga ${x.caratteristica}`} /></td>
+                                <td>{x.caratteristica || '—'}</td>
+                                <td>{(CARATT_BY[x.car] || {}).nome || x.tipo_zeiss || '—'}</td>
+                                <td className="num">{fmtNum(x.misurato)}</td>
+                                <td className="num">{fmtNum(x.nominale)}</td>
+                                <td className="num">+{fmtNum(x.tol_sup)} / {fmtNum(inf)}</td>
+                                <td>{x.fuori ? <span className="mis-esito is-ko">Fuori {x.scostamento > 0 ? '+' : '−'}{fmtNum(Math.abs(x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento))}</span> : <span className="mis-esito is-ok">Dentro</span>}
+                                  {x.da_verificare && <span className="pill-verifica" title="I valori letti non tornano fra loro: controllali sul report">da verificare</span>}</td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="cmm-side__foot">
+            <button type="button" className="btn-primary" disabled={!scelteRighe.length}
+              onClick={() => onInserisci(scelteRighe.map(({ rep, x }) => ({ seriale: rep.intestazione.seriale || '', misura: x })))}>
+              Inserisci {scelteRighe.length} anomali{scelteRighe.length === 1 ? 'a' : 'e'}
+            </button>
+            <button type="button" className="link-btn" onClick={onChiudi}>Annulla</button>
+            <span className="field-hint">Una anomalia per riga spuntata, sul S/N del report. Poi puoi modificarle prima di salvare.</span>
+          </div>
+        </aside>
+      </>
+    );
+  };
+
   /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
   const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto, opId, fase }) => {
     const d = dett || emptyDett();
@@ -1922,6 +2053,38 @@
       } catch (e) { setAzAnom(null); setError(e.message); }
     };
 
+    /* Righe spuntate nel pannello del report CMM -> un'anomalia ciascuna, sul S/N del report
+       (aggiunto al blocco se manca). Le anomalie già scritte restano sui seriali di prima. */
+    const [reportPdfAperto, setReportPdfAperto] = useState(false);
+    const inserisciDaReport = (scelte) => {
+      setEditor(prev => {
+        const tok = tokensOf(prev.voci);
+        const perChiave = new Map(tok.map(t => [t.toLowerCase(), t]));
+        const nuoviSn = [];
+        scelte.forEach(s => {
+          const k = String(s.seriale || '').trim().toLowerCase();
+          if (k && !perChiave.has(k)) { perChiave.set(k, s.seriale.trim()); nuoviSn.push(s.seriale.trim()); }
+        });
+        const totale = tok.length + nuoviSn.length;
+        const tenute = prev.anomalie
+          .filter(a => a.localId || a.origineId || a.testo.trim() || a.files.length || frasiDett(a.dett).length)
+          .map(a => (nuoviSn.length && tok.length && a.tutti && !a.gestita ? { ...a, tutti: false, sel: [...tok] } : a));
+        const nuove = scelte.map(({ seriale, misura }) => {
+          const sn = perChiave.get(String(seriale || '').trim().toLowerCase());
+          const { car, nome, modo, nom, a, b, ril, dove } = misura;
+          return {
+            ...newAnomalia(),
+            tutti: !sn || totale <= 1,
+            sel: sn && totale > 1 ? [sn] : [],
+            dett: { ...emptyDett(), tipo: 'misura', misure: [{ ...emptyMisura(), car, nome, modo, nom, a, b, ril, dove }] },
+          };
+        });
+        return { ...prev, voci: [...prev.voci, ...nuoviSn], anomalie: [...tenute, ...nuove], attiva: -1, confermaScoperti: '' };
+      });
+      setReportPdfAperto(false);
+      setNotice(`Inserite ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} dal report CMM: controllale e salva il blocco.`);
+    };
+
     const rimuoviAnomalia = (i) => setEditor(prev => {
       const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
       return { ...prev, anomalie: anomalie.length ? anomalie : [newAnomalia()], attiva: Math.max(0, Math.min(prev.attiva, anomalie.length - 1)) };
@@ -2390,7 +2553,7 @@
                   <button type="button" key={a.key} className={`anom-card is-collapsed${a.gestita ? ' is-gestita' : ''}`}
                     onClick={() => setEditor(prev => ({ ...prev, attiva: i }))}>
                     <span className="anom-card__n">{i + 1}</span>
-                    <span className="anom-card__txt">{a.testo.trim() || <em>Anomalia senza descrizione</em>}</span>
+                    <span className="anom-card__txt">{testoAnomalia(a) || <em>Anomalia senza descrizione</em>}</span>
                     {!a.tutti && tokens.length > 1 && <span className="pill pill-parz">Su {tokens.filter(t => a.sel.some(x => x.toLowerCase() === t.toLowerCase())).length} di {tokens.length} S/N</span>}
                     {nAll > 0 && <span className="anom-card__att">📎 {nAll}</span>}
                     {a.origineId && <span className="pill pill-info">da #{a.origineId}{a.copiaAllegati && a.allegatiOrigine ? ` · 📎 ${a.allegatiOrigine}` : ''}</span>}
@@ -2532,7 +2695,15 @@
               );
             })}
           </div>
-          <button type="button" className="btn-outline anom-add" onClick={nuovaAnomalia} disabled={saving}>+ Nuova anomalia su questi seriali</button>
+          <div className="anom-add-row">
+            <button type="button" className="btn-outline anom-add" onClick={nuovaAnomalia} disabled={saving}>+ Nuova anomalia su questi seriali</button>
+            {campoVisibile('report_zeiss', { fase: controllo ? controllo.fase : '', tipo: 'fuori-tolleranza' }) && (
+              <button type="button" className="btn-outline anom-add" onClick={() => setReportPdfAperto(true)} disabled={saving}>📄 Dal report CMM (PDF)</button>
+            )}
+          </div>
+          {reportPdfAperto && (
+            <ReportPdfPannello opId={controllo ? controllo.op_id : ''} onInserisci={inserisciDaReport} onChiudi={() => setReportPdfAperto(false)} />
+          )}
           {scopertiEditor.length > 0 && (
             <div className="sn-warn" role="status">
               ⚠ {scopertiEditor.length} di {tokens.length} S/N senza nessuna anomalia: {comprimiTokens(scopertiEditor).slice(0, 8).join(', ')}{comprimiTokens(scopertiEditor).length > 8 ? '…' : ''}.

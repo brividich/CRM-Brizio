@@ -194,6 +194,14 @@ SEZIONI: list[dict] = [
                 "male. «Aggiungi N misure» le mette fra le misure, dove restano modificabili. L'immagine non viene allegata. "
                 "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare. Sotto le proposte, «Testo letto "
                 "dall'immagine» mostra cosa ha letto il portale: se mancano righe, ricattura più grande o a pezzi.",
+                "Dal report CMM completo (PDF): sotto le anomalie del blocco premi «📄 Dal report CMM (PDF)». Nel pannello a "
+                "destra trascina i PDF esportati dalla CMM (uno per S/N, anche più insieme) o «scegli i file». Il portale legge "
+                "tutte le righe di tutte le pagine dal testo del PDF, senza riconoscimento dell'immagine, e le mostra per "
+                "sezione con rilevato, nominale, tolleranza ed esito: le fuori tolleranza sono già spuntate. «Solo fuori "
+                "tolleranza» / «Tutte le righe» cambia la vista; spunta o togli le righe (anche cliccando la riga) e premi "
+                "«Inserisci N anomalie»: ogni riga diventa un'anomalia con la sua misura, sul S/N scritto nel report "
+                "(aggiunto al blocco se manca). Se il report è di un altro ordine compare un avviso. Il PDF non viene allegato. "
+                "Le anomalie inserite restano modificabili fino a «Salva blocco».",
                 "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
                 "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
                 "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "

@@ -311,6 +311,31 @@
     .cmm-prop label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
     .cmm-prop label:hover { background: var(--bg); }
     .cmm-prop input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; accent-color: var(--accent); }
+    .anom-add-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* Pannello laterale «Report CMM»: a destra, a tutta altezza, velo dietro; a tutta larghezza sullo smartphone. */
+    .cmm-velo { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 900; }
+    .cmm-side { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100vw); z-index: 901; display: flex; flex-direction: column; background: var(--surface); color: var(--text); border-left: 1px solid var(--border); box-shadow: -12px 0 32px rgba(15,23,42,.18); }
+    .cmm-side__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: var(--fs-md); }
+    .cmm-side__x { border: none; background: none; color: var(--text-mid); font-size: 24px; line-height: 1; cursor: pointer; min-height: 0; padding: 0 4px; }
+    .cmm-side__body { flex: 1; overflow: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .cmm-side__body > * { flex-shrink: 0; }
+    .cmm-side__foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--bg); }
+    .cmm-side .cmm-box { cursor: default; }
+    .cmm-side__filtro { display: inline-flex; align-self: flex-start; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .cmm-side__filtro button { border: none; background: var(--surface); color: var(--text-mid); padding: 6px 12px; font: inherit; font-size: var(--fs-sm); cursor: pointer; min-height: 0; }
+    .cmm-side__filtro button.is-on { background: var(--accent-light); color: var(--text); font-weight: 700; }
+    .cmm-rep { display: grid; gap: 6px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .cmm-rep__head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: var(--fs-sm); }
+    .cmm-tab { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+    .cmm-tab th { text-align: left; font-size: var(--fs-xs); color: var(--text-mid); font-weight: 700; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+    .cmm-tab td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .cmm-tab td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cmm-tab tbody tr { cursor: pointer; }
+    .cmm-tab tbody tr:hover { background: var(--bg); }
+    .cmm-tab tbody tr.is-sel { background: var(--accent-light); }
+    .cmm-tab tr.cmm-tab__sez td { background: var(--bg); font-weight: 700; font-size: var(--fs-xs); color: var(--text-mid); cursor: default; }
+    .cmm-tab input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; accent-color: var(--accent); }
+    @media (max-width: 640px) { .cmm-tab th:nth-child(5), .cmm-tab td.num:nth-child(5) { display: none; } }
     .pill-verifica { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; border-radius: 999px; padding: 1px 8px; font-size: var(--fs-2xs); font-weight: 700; }
     body.theme-dark .pill-verifica { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
     .dett-tipo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); }

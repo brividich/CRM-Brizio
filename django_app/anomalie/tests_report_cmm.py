@@ -180,3 +180,92 @@ class OcrVeroTests(SimpleTestCase):
         self.assertEqual(len(righe), 1)
         self.assertEqual((righe[0]["ril"], righe[0]["a"], righe[0]["b"]), ("131.3309", "131.361", "131.386"))
         self.assertTrue(righe[0]["fuori"])
+
+
+def _pdf_report_sintetico(seriale="SN00001", odl="OP/2026/0001") -> bytes:
+    """PDF con la disposizione del report CALYPSO «Mod. 009 - CMM» (valori inventati)."""
+    import fitz
+
+    doc = fitz.open()
+    pagina = doc.new_page(width=595, height=842)
+
+    def scrivi(x, y, testo):
+        pagina.insert_text((x, y), testo, fontsize=8)
+
+    scrivi(28, 92, "Part Program Name"); scrivi(482, 92, "Date")
+    scrivi(28, 108, "PRG_PROVA_REV0"); scrivi(482, 108, "01/01/2026")
+    scrivi(28, 126, "Part Number"); scrivi(156, 126, "Working Sheet"); scrivi(269, 126, "Description")
+    scrivi(28, 142, "PN-PROVA"); scrivi(156, 142, odl); scrivi(269, 142, "PEZZO DI PROVA")
+    scrivi(28, 163, "Inspector"); scrivi(156, 163, "Serial Number")
+    scrivi(28, 179, "ROSSI P."); scrivi(156, 179, seriale)
+    for x, t in ((34, "Name"), (215, "ID"), (261, "Actual"), (320, "Nominal"), (377, "Pos"), (396, "Tol"),
+                 (428, "Neg"), (447, "Tol"), (486, "Diff"), (536, "+/-")):
+        scrivi(x, 204, t)
+    scrivi(28, 230, "DIAMETRI ESTERNI")
+
+    def riga(y, nome, tipo, att, nom, pos, neg, diff, ecc=None):
+        scrivi(210, y - 8, tipo)
+        if ecc:
+            scrivi(526, y - 5, ecc)
+        scrivi(51, y, nome)
+        for x, v in ((261, att), (324, nom), (379, pos), (430, neg), (479, diff)):
+            scrivi(x, y, v)
+
+    riga(252, "178,00", "Length", "4,0309", "4,0000", "0,1000", "0,0000", "0,0309")
+    riga(275, "196,00", "Diameter", "131,3364", "131,3610", "0,0250", "0,0000", "-0,0246", ecc="-0,0246")
+    scrivi(28, 300, "FORI LATO PIANO N")
+    riga(322, "163,00 Dia F", "Diameter", "69,0751", "69,0000", "0,0300", "0,0000", "0,0751", ecc="0,0451")
+    riga(345, "160,00", "Length", "59,9721", "60,0000", "0,2500", "-0,2500", "-0,0279")
+    scrivi(28, 832, "Mod. 009 - CMM - Rev. 3"); scrivi(526, 832, "Page 1 of 1")
+    dati = doc.tobytes()
+    doc.close()
+    return dati
+
+
+class LetturaPdfTests(SimpleTestCase):
+    def test_righe_testata_e_fuori_tolleranza(self):
+        esito = rc.leggi_pdf(_pdf_report_sintetico())
+        self.assertEqual(esito["metodo"], "testo")
+        self.assertEqual(esito["intestazione"]["seriale"], "SN00001")
+        self.assertEqual(esito["intestazione"]["odl"], "OP/2026/0001")
+        righe = esito["righe"]
+        self.assertEqual([r["caratteristica"] for r in righe], ["178,00", "196,00", "163,00 Dia F", "160,00"])
+        self.assertEqual([r["fuori"] for r in righe], [False, True, True, False])
+        self.assertEqual(righe[1]["car"], "diametro")         # tipo sulla stessa riga dell'eccedenza
+        self.assertEqual(righe[0]["car"], "lunghezza")
+        self.assertEqual(righe[1]["sezione"], "DIAMETRI ESTERNI")
+        self.assertEqual(righe[2]["sezione"], "FORI LATO PIANO N")
+        self.assertEqual(righe[3]["a"], "59.75")               # toll. negativa con segno
+        self.assertEqual(righe[2]["eccedenza"], 0.0451)
+        self.assertFalse(any(r["da_verificare"] for r in righe))
+
+    def test_file_non_pdf_o_vuoto(self):
+        with self.assertRaises(rc.ErroreReport):
+            rc.leggi_pdf(b"")
+        with self.assertRaises(rc.ErroreReport):
+            rc.leggi_pdf(b"\x89PNG non un pdf")
+        with self.assertRaises(rc.ErroreReport):
+            rc.leggi_pdf(b"%PDF-1.7 rotto")
+
+
+class EndpointPdfTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="cmm-pdf", password="pass12345", email="p@example.local")
+        self.client.force_login(self.user)
+        self.url = reverse("api_anomalie_report_cmm_leggi")
+
+    def test_pdf_completo(self):
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            r = self.client.post(self.url, {"op_id": "OP/2026/0001", "pdf": SimpleUploadedFile(
+                "report.pdf", _pdf_report_sintetico(), "application/pdf")})
+        self.assertEqual(r.status_code, 200, r.content)
+        dati = r.json()
+        self.assertEqual(len(dati["righe"]), 4)
+        self.assertEqual(dati["intestazione"]["seriale"], "SN00001")
+        self.assertEqual(dati["file"], "report.pdf")
+
+    def test_pdf_illeggibile_422(self):
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            r = self.client.post(self.url, {"op_id": "OP/2026/0001", "pdf": SimpleUploadedFile(
+                "report.pdf", b"non un pdf", "application/pdf")})
+        self.assertEqual(r.status_code, 422)
