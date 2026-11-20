@@ -129,7 +129,7 @@ GUIDA = {
                     ("Flussi del Percorso del kickoff", "Automazioni → Eventi applicativi: «KICK-OFF — promemoria prima della scadenza delle tappe» e «KICK-OFF — evento nel calendario Outlook del responsabile». Nascono spenti: si accendono dal designer della regola dopo l'installazione dei flussi (install_managed_flows). Il promemoria usa i giorni di preavviso della scheda Promemoria."),
                     ("Record", "eliminare un kickoff o un'attività: la motivazione è obbligatoria e resta nell'audit."),
                     ("FAI", "scheda «FAI» a sezioni: Scadenze, poi un gruppo di opzioni per sezione (motivi, piani, chiusura, versione, cross-correlation, stati) con il numero di voci; ricerca e «Mostra le disattivate» per gruppo; ogni riga si salva da sola senza ricaricare («Salva» compare solo se la riga è cambiata, «Salvato» in riga)."),
-                    ("Registro modifiche", "chi ha fatto cosa. Tre viste: «Essenziali» (senza la routine), «Critico» (eliminazioni, permessi, forzature), «Tutto»; ricerca nel testo, filtri per azione, utente e date; livello su ogni riga e dettaglio leggibile; 100 voci per pagina."),
+                    ("Registro modifiche", "chi ha fatto cosa. Tre viste: «Essenziali» (senza la routine), «Critico» (eliminazioni, permessi, forzature), «Tutto»; ricerca nel testo, filtri per azione, utente e date; livello su ogni riga e dettaglio leggibile; «Kickoff modificato», «Incontro modificato» ed «Esito incontro registrato» mostrano ogni campo cambiato come «prima → dopo» (team, tappe, consegna, punti dell'ordine del giorno aggiunti e tolti); 100 voci per pagina."),
                 ]),
             ],
         },

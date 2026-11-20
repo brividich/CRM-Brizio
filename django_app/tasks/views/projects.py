@@ -228,6 +228,16 @@ def _salva_tappe(project, post) -> None:
         project.save(update_fields=["tappe_escluse"])
 
 
+# Etichette della pagina Modifica kickoff: i campi del modello non hanno un
+# verbose_name italiano e il registro mostrerebbe «Client name».
+ETICHETTE_KICKOFF = {
+    "client_name": "Cliente", "part_number": "P/N", "descrizione_pezzo": "Descrizione pezzo",
+    "revisione": "Revisione", "versione": "Versione", "description": "Note",
+    "control_method": "Metodo di controllo", "safety_impact": "Impatto sulla sicurezza",
+    "vrf_quote_number": "Preventivo n.", "vrf_esp": "Esp",
+}
+
+
 @task_permissions_required("tasks_view", "tasks_edit")
 def project_edit(request, project_id: int):
     """Modifica anagrafica e team di un kickoff esistente."""
@@ -236,15 +246,35 @@ def project_edit(request, project_id: int):
         return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
 
     if request.method == "POST":
+        from ..services.modifiche import differenza_elenco, differenza_valore, differenze_form
+
+        prima = {
+            "name": project.name,
+            "data_consegna": project.data_consegna,
+            "modello": str(project.modello) if project.modello_id else "",
+            "tappe": list(project.tappe_escluse or []),
+        }
         form = ProjectKickoffForm(request.POST, instance=project)
         if form.is_valid():
             with transaction.atomic():
                 project = form.save()
                 _salva_tappe(project, request.POST)
+            etichette_tappe = dict(TappaKickoff.choices)
+            modifiche = differenze_form(form, escludi=("name",), etichette=ETICHETTE_KICKOFF)
+            modifiche.update(differenza_valore("Oggetto", prima["name"], project.name))
+            modifiche.update(differenza_valore("Consegna", prima["data_consegna"], project.data_consegna))
+            modifiche.update(differenza_valore(
+                "Modello", prima["modello"], str(project.modello) if project.modello_id else "",
+            ))
+            modifiche.update(differenza_elenco(
+                "Tappe che non servono",
+                [str(etichette_tappe.get(k, k)) for k in prima["tappe"]],
+                [str(etichette_tappe.get(k, k)) for k in (project.tappe_escluse or [])],
+            ))
             log_action(request, "kickoff_edited", "tasks", {
                 "project_id": project.id,
-                "fields": form.changed_data,
                 "message": f"Kickoff #{project.id} '{project.name}' modificato",
+                "modifiche": modifiche or "nessun campo cambiato",
             })
             messages.success(request, "Kickoff aggiornato.")
             return redirect("tasks:project_overview", project_id=project.id)

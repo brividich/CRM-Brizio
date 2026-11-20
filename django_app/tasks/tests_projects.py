@@ -1062,6 +1062,29 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
         self.assertEqual(self.project.vrf_description, "Flangia")
         self.assertEqual(self.project.team_members("project_managers"), [self.user])
 
+    def test_edit_page_opens_with_role_mapping(self):
+        # Regressione 20/11/2026: con un ruolo mappato il queryset è distinct() e
+        # «qs | User.objects.filter(...)» sollevava TypeError → 500 sempre.
+        from .models import TaskRoleAssignment, TaskRoleType
+
+        TaskRoleAssignment.objects.create(user=self.collega, role_type=TaskRoleType.PROJECT_MANAGER)
+        self.project.set_team("project_managers", [self.user])
+        response = self.client.get(reverse("tasks:project_edit", args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
+        scelte = set(response.context["form"].fields["project_managers"].queryset.values_list("pk", flat=True))
+        # Il mappato e chi è già nel team, anche senza ruolo.
+        self.assertEqual(scelte, {self.collega.pk, self.user.pk})
+
+    def test_edit_logs_before_and_after(self):
+        from core.models import AuditLog
+
+        self.client.post(reverse("tasks:project_edit", args=[self.project.id]), self._payload())
+        voce = AuditLog.objects.filter(azione="kickoff_edited").latest("created_at")
+        modifiche = voce.dettaglio["modifiche"]
+        self.assertEqual(modifiche["Cliente"], {"old": "Cliente", "new": "Cliente Nuovo"})
+        self.assertEqual(modifiche["Project manager"]["old"], "—")
+        self.assertEqual(modifiche["Note"], {"old": "Vecchia", "new": "Flangia"})
+
     def test_edit_rejects_identity_of_other_kickoff(self):
         make_project(name="Altro", client_name="Cliente", part_number="PN-2", created_by=self.user)
         response = self.client.post(
