@@ -174,6 +174,12 @@ class Asset(models.Model):
 
     class Meta:
         ordering = ["name", "asset_tag", "id"]
+        # Filtri usati ovunque (dismessi esclusi, perimetro per reparto, tipo asset).
+        indexes = [
+            models.Index(fields=["status"], name="idx_asset_status"),
+            models.Index(fields=["reparto"], name="idx_asset_reparto"),
+            models.Index(fields=["asset_type"], name="idx_asset_type"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.asset_tag} - {self.name}"
@@ -943,6 +949,16 @@ class AssetAdministrativeDeadline(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} - {self.asset.asset_tag} ({self.due_date:%d-%m-%Y})"
+
+    def save(self, *args, **kwargs):
+        # Riattivare una scadenza spostata nei piani la riporta nel registro: il
+        # collegamento al piano si toglie (prima avrebbe violato il vincolo).
+        if self.is_active and self.moved_to_plan_id:
+            self.moved_to_plan = None
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and "moved_to_plan" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "moved_to_plan"]
+        super().save(*args, **kwargs)
 
     def clean(self):
         self.title = (self.title or "").strip()
@@ -3149,6 +3165,10 @@ class WorkOrder(models.Model):
 
     class Meta:
         ordering = ["-opened_at", "-id"]
+        indexes = [
+            # Elenchi e KPI: OdL aperti ordinati per anzianita'.
+            models.Index(fields=["status", "opened_at"], name="idx_wo_status_opened"),
+        ]
 
     def __str__(self) -> str:
         return f"WO#{self.id} {self.asset.asset_tag} {self.title}"
