@@ -147,10 +147,6 @@
   });
   bar.appendChild(ol);
   bar.hidden = false;
-  /* Pagine con intestazione fissa propria: spostano l'intestazione sotto la barra (hub-percorso.css). */
-  function altezza() { document.documentElement.style.setProperty("--hub-percorso-h", bar.offsetHeight + "px"); }
-  altezza();
-  window.addEventListener("resize", altezza);
   /* Su schermi stretti la barra scorre: tiene in vista la pagina corrente. */
   bar.scrollLeft = bar.scrollWidth;
 })();

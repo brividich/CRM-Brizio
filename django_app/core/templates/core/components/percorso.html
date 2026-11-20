@@ -1,10 +1,13 @@
 {% load static %}{% comment %}
 Barra Percorso: le pagine aperte in questa scheda, cliccabili (anche «Apri in un'altra scheda»).
 La usa core/base.html; le pagine autonome (senza base.html) la includono in testa al <body> e
-caricano core/css/hub-percorso.css nel <head>. Con fisso=True la barra sta fissa in cima e la pagina
-sposta la sua intestazione fissa di var(--hub-percorso-h).
+caricano core/css/hub-percorso.css nel <head>. Varianti per le pagine con grafica propria:
+- variante="testata": la barra parte nascosta in [data-hub-percorso-casa] e il componente React
+  PercorsoHub la sposta dentro la testata blu (al posto del link «indietro» marcato
+  data-hub-percorso-indietro, che resta se il percorso non c'è);
+- variante="pillola": etichetta discreta fissa in alto a sinistra, per pagine senza testata.
 Con nome="…" la tappa della pagina usa quel nome invece del titolo.
 Le voci di menu servono come partenza quando si arriva da una mail o da un link.
-{% endcomment %}{% if user.is_authenticated %}<nav class="hub-percorso{% if fisso %} hub-percorso--fisso{% endif %}" data-hub-percorso data-home="{% url 'home_portale:index' %}" {% if nome %} data-nome="{{ nome }}"{% endif %} aria-label="Percorso" hidden></nav>
+{% endcomment %}{% if user.is_authenticated %}{% if variante == "testata" %}<div data-hub-percorso-casa hidden>{% endif %}<nav class="hub-percorso{% if variante %} hub-percorso--{{ variante }}{% endif %}" data-hub-percorso data-home="{% url 'home_portale:index' %}" {% if nome %} data-nome="{{ nome }}"{% endif %} aria-label="Percorso" hidden></nav>{% if variante == "testata" %}</div>{% endif %}
 <template data-hub-percorso-voci>{% for it in nav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% for ch in it.children %}<a href="{{ ch.href }}">{{ ch.label }}</a>{% endfor %}{% endfor %}{% for it in subnav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% endfor %}</template>
-<script src="{% static 'core/js/hub-percorso.js' %}?v=20261120b" defer></script>{% endif %}
+<script src="{% static 'core/js/hub-percorso.js' %}?v=20261120c" defer></script>{% endif %}

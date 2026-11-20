@@ -11,11 +11,29 @@
 a.hub-percorso-tappa:hover{color:var(--accent,#e8590c);background:var(--accent-light,#fff1e8);text-decoration:underline}
 .hub-percorso-tappa[aria-current]{color:var(--text,#14213d);font-weight:600}
 
-/* Pagine a schermo intero con intestazione fissa propria (Gestione anomalie, Apertura segnalazione,
-   menu Anomalie): la barra sta fissa in cima e la pagina sposta la sua intestazione di
-   --hub-percorso-h, che hub-percorso.js imposta quando la barra si mostra. */
-.hub-percorso--fisso{position:fixed;top:0;left:0;right:0;z-index:1000;padding:6px 20px;background:var(--surface,#fff);border-bottom:1px solid var(--border,#e2e8f0)}
-.hub-percorso--fisso .hub-percorso-lista{width:100%}
+/* variante="testata": dentro la testata blu delle app di Anomalie (componente React PercorsoHub).
+   La pagina corrente non si ripete (è già il titolo della testata); su telefono resta solo la tappa
+   precedente, come un «indietro» col nome. */
+.hub-percorso-slot{display:flex;align-items:center;min-width:0;flex:0 1 auto}
+.hub-percorso--testata{padding:0;min-width:0;font-size:var(--fs-sm,13px)}
+.hub-percorso--testata .hub-percorso-lista{width:auto;margin:0}
+.hub-percorso--testata li:last-child{display:none}
+.hub-percorso--testata li+li::before{color:rgba(255,255,255,.45)}
+.hub-percorso--testata .hub-percorso-tappa{color:rgba(255,255,255,.78);font-weight:600;max-width:200px}
+.hub-percorso--testata a.hub-percorso-tappa:hover{color:#fff;background:rgba(255,255,255,.12);text-decoration:none}
+.hub-percorso--testata a.hub-percorso-tappa:focus-visible{outline:2px solid rgba(255,255,255,.7);outline-offset:1px}
+:has(> .hub-percorso-slot .hub-percorso:not([hidden])) > [data-hub-percorso-indietro]{display:none!important}
+@media (max-width:640px){
+  .hub-percorso--testata li{display:none}
+  .hub-percorso--testata li:nth-last-child(2){display:inline-flex}
+  .hub-percorso--testata li:nth-last-child(2)::before{content:none}
+  .hub-percorso--testata li:nth-last-child(2) .hub-percorso-tappa::before{content:"‹ "}
+  .hub-percorso--testata .hub-percorso-tappa{max-width:42vw}
+}
+
+/* variante="pillola": pagine senza testata (menu Anomalie), etichetta discreta in alto a sinistra. */
+.hub-percorso--pillola{position:fixed;top:12px;left:16px;z-index:50;max-width:calc(100% - 32px);padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--surface,#fff) 78%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1px solid var(--border,#dfe5ee);box-shadow:0 2px 8px rgba(15,44,92,.08)}
+.hub-percorso--pillola .hub-percorso-lista{width:auto}
 
 @media print{.hub-percorso{display:none!important}}
 
