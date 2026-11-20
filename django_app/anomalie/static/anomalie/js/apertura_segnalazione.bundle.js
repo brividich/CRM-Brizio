@@ -595,13 +595,14 @@ const TIPI_DIFETTO = DETT.tipi_difetto || [];
 // Regole «Visibile se» (Configurazione → «Campi del blocco del controllore»): persone e ruoli
 // li valuta il server; fase del controllo e tipo di difetto dell'anomalia si valutano qui.
 const CAMPI = window._AP_CAMPI || {};
-const campoVisibile = (chiave, ctx = {}) => {
+// ignoraTipi: per i campi usati per compilare la misura stessa (il tipo proposto cambia con le righe aggiunte).
+const campoVisibile = (chiave, ctx = {}, ignoraTipi = false) => {
   const r = CAMPI[chiave];
   if (!r) return true;
   if (!r.visibile) return false;
   const fase = String(ctx.fase || '').toLowerCase();
   if ((r.fasi || []).length && !r.fasi.some(f => fase.includes(String(f).toLowerCase()))) return false;
-  if ((r.tipi || []).length && !r.tipi.includes(ctx.tipo || '')) return false;
+  if (!ignoraTipi && (r.tipi || []).length && !r.tipi.includes(ctx.tipo || '')) return false;
   return true;
 };
 const TUTTI_I_CASI = [['misura', 'Misura fuori tolleranza'], ['difetto', 'Difetto sul pezzo'], ['documenti', 'Marcatura / documenti']];
@@ -1193,6 +1194,210 @@ const ReportPdfPannello = ({
   }, "Una anomalia per riga spuntata, sul S/N del report. Poi puoi modificarle prima di salvare."))));
 };
 
+/* Pannello laterale generico (stesso aspetto di «Report CMM»): Esc o velo chiudono. */
+const PannelloLaterale = ({
+  titolo,
+  onChiudi,
+  piede,
+  children
+}) => {
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'Escape') onChiudi();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "cmm-velo",
+    onClick: onChiudi
+  }), /*#__PURE__*/React.createElement("aside", {
+    className: "cmm-side",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": titolo
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__head"
+  }, /*#__PURE__*/React.createElement("strong", null, titolo), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "cmm-side__x",
+    onClick: onChiudi,
+    "aria-label": "Chiudi"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__body"
+  }, children), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-side__foot"
+  }, piede)));
+};
+
+/* «Da elenco»: un file di testo o righe incollate, una riga = un'anomalia distinta. */
+const righeElenco = testo => String(testo || '').split(/\r?\n/).map(r => r.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim()).filter(Boolean).slice(0, 200);
+const ElencoPannello = ({
+  onInserisci,
+  onChiudi
+}) => {
+  const [testo, setTesto] = useState('');
+  const [tolte, setTolte] = useState({}); // indice -> true se tolta la spunta
+  const [stato, setStato] = useState('');
+  const [over, setOver] = useState(false);
+  const fileRef = useRef(null);
+  const righe = righeElenco(testo);
+  const scelte = righe.filter((_, i) => !tolte[i]);
+  const leggiFile = async file => {
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setStato('Il file è troppo grande: serve un elenco di testo.');
+      return;
+    }
+    try {
+      const t = await file.text();
+      if (/[\u0000-\u0008]/.test(t.slice(0, 2000))) {
+        setStato('Il file non è di testo: salvalo come .txt (una anomalia per riga).');
+        return;
+      }
+      setTesto(prev => [prev.trim(), t.trim()].filter(Boolean).join('\n'));
+      setTolte({});
+      setStato('');
+    } catch (e) {
+      setStato(e.message);
+    }
+  };
+  return /*#__PURE__*/React.createElement(PannelloLaterale, {
+    titolo: "\uD83D\uDCDD Anomalie da elenco",
+    onChiudi: onChiudi,
+    piede: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "btn-primary",
+      disabled: !scelte.length,
+      onClick: () => onInserisci(scelte)
+    }, "Inserisci ", scelte.length, " anomali", scelte.length === 1 ? 'a' : 'e'), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "link-btn",
+      onClick: onChiudi
+    }, "Annulla"), /*#__PURE__*/React.createElement("span", {
+      className: "field-hint"
+    }, "Ogni riga diventa un\u2019anomalia su tutti i seriali del blocco: poi puoi sceglierne i S/N."))
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `cmm-box${over ? ' is-over' : ''}`,
+    onDragOver: e => {
+      e.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: e => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOver(false);
+      leggiFile((e.dataTransfer.files || [])[0]);
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    accept: ".txt,.csv,text/plain",
+    hidden: true,
+    onChange: e => {
+      const f = (e.target.files || [])[0];
+      e.target.value = '';
+      leggiFile(f);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-box__hint"
+  }, "Trascina qui un file di testo (.txt) oppure ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "link-btn",
+    onClick: () => fileRef.current && fileRef.current.click()
+  }, "scegli il file"), ", o scrivi/incolla qui sotto.", /*#__PURE__*/React.createElement("span", null, "Una riga = una anomalia; le righe vuote si saltano.")), stato && /*#__PURE__*/React.createElement("div", {
+    className: "error-msg"
+  }, stato)), /*#__PURE__*/React.createElement("textarea", {
+    className: "textarea-input",
+    rows: 6,
+    value: testo,
+    placeholder: 'Bava sullo spigolo del piano B\nGraffio sul diametro F\n…',
+    onChange: e => {
+      setTesto(e.target.value);
+      setTolte({});
+    }
+  }), righe.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "cmm-prop"
+  }, righe.map((r, i) => /*#__PURE__*/React.createElement("label", {
+    key: i
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !tolte[i],
+    onChange: e => setTolte(prev => ({
+      ...prev,
+      [i]: !e.target.checked
+    }))
+  }), /*#__PURE__*/React.createElement("span", null, r)))));
+};
+
+/* «Copia difetti da un S/N»: le anomalie di un S/N (del blocco in scrittura o di un blocco
+   già salvato del controllo) valgono anche per altri S/N. Nel blocco in scrittura si
+   aggiungono i S/N all'anomalia; da un blocco salvato si creano anomalie nuove uguali. */
+const CopiaDifettiPannello = ({
+  fonti,
+  tokensBlocco,
+  onCopia,
+  onChiudi
+}) => {
+  const [da, setDa] = useState(fonti.length ? fonti[0].sn : '');
+  const fonte = fonti.find(f => f.sn === da) || null;
+  const [tolte, setTolte] = useState({});
+  const [verso, setVerso] = useState(() => tokensBlocco.filter(t => !fonti.length || t.toLowerCase() !== fonti[0].sn.toLowerCase()).join(', '));
+  const destinazioni = tokensOf(splitSerialText(verso)).filter(t => !da || t.toLowerCase() !== da.toLowerCase());
+  const scelte = fonte ? fonte.anomalie.filter((_, i) => !tolte[i]) : [];
+  const cambiaDa = sn => {
+    setDa(sn);
+    setTolte({});
+    setVerso(tokensBlocco.filter(t => t.toLowerCase() !== sn.toLowerCase()).join(', '));
+  };
+  return /*#__PURE__*/React.createElement(PannelloLaterale, {
+    titolo: "\uD83D\uDCCB Copia difetti da un S/N",
+    onChiudi: onChiudi,
+    piede: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "btn-primary",
+      disabled: !scelte.length || !destinazioni.length,
+      onClick: () => onCopia(scelte, destinazioni)
+    }, "Copia ", scelte.length, " anomali", scelte.length === 1 ? 'a' : 'e', " su ", destinazioni.length, " S/N"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "link-btn",
+      onClick: onChiudi
+    }, "Annulla"))
+  }, !fonti.length && /*#__PURE__*/React.createElement("div", {
+    className: "field-hint"
+  }, "Nessun S/N ha ancora anomalie: scrivine almeno una, poi copiala sugli altri S/N."), fonti.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", {
+    className: "dett-f"
+  }, /*#__PURE__*/React.createElement("span", null, "Da quale S/N"), /*#__PURE__*/React.createElement("select", {
+    className: "text-input",
+    value: da,
+    onChange: e => cambiaDa(e.target.value)
+  }, fonti.map(f => /*#__PURE__*/React.createElement("option", {
+    key: f.sn,
+    value: f.sn
+  }, f.sn, " \u2014 ", f.anomalie.length, " anomali", f.anomalie.length === 1 ? 'a' : 'e', f.blocco ? ` (blocco ${f.blocco})` : ' (questo blocco)')))), fonte && /*#__PURE__*/React.createElement("div", {
+    className: "cmm-prop"
+  }, fonte.anomalie.map((a, i) => /*#__PURE__*/React.createElement("label", {
+    key: i
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !tolte[i],
+    onChange: e => setTolte(prev => ({
+      ...prev,
+      [i]: !e.target.checked
+    }))
+  }), /*#__PURE__*/React.createElement("span", null, a.titolo || /*#__PURE__*/React.createElement("em", null, "Anomalia senza descrizione"))))), /*#__PURE__*/React.createElement("label", {
+    className: "dett-f"
+  }, /*#__PURE__*/React.createElement("span", null, "Su quali S/N"), /*#__PURE__*/React.createElement("input", {
+    className: "text-input",
+    value: verso,
+    onChange: e => setVerso(e.target.value),
+    placeholder: "Es. LCN00049, LCN00050-LCN00052"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-hint"
+  }, destinazioni.length ? /*#__PURE__*/React.createElement(React.Fragment, null, "Su ", /*#__PURE__*/React.createElement("strong", null, destinazioni.length), " S/N: ", comprimiTokens(destinazioni).slice(0, 8).join(', '), comprimiTokens(destinazioni).length > 8 ? '…' : '', ". ") : 'Scrivi i S/N di destinazione (anche range). ', "I S/N che non sono nel blocco vengono aggiunti.")));
+};
+
 /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
 const DettaglioAnomalia = ({
   dett,
@@ -1237,7 +1442,10 @@ const DettaglioAnomalia = ({
     fase,
     tipo: codiceTipoAnomalia(d, testo)
   };
-  const DETT_TIPI = casiVisibili(ctx);
+  // Il tipo di difetto delle regole cambia mentre si scrive (è proposto dal testo e dalle misure):
+  // un caso già scelto, con i suoi campi, resta visibile anche se la regola ora lo nasconderebbe.
+  const visibili = casiVisibili(ctx);
+  const DETT_TIPI = d.tipo && !visibili.some(([k]) => k === d.tipo) ? TUTTI_I_CASI.filter(([k]) => k === d.tipo || visibili.some(([v]) => v === k)) : visibili;
   const casoAcceso = tipo => DETT_TIPI.some(([k]) => k === tipo);
   const vede = chiave => campoVisibile(chiave, ctx);
   const suggerito = codiceSuggerito(d, testo);
@@ -1378,7 +1586,7 @@ const DettaglioAnomalia = ({
     onClick: () => upd({
       misure: [...(d.misure || []), emptyMisura()]
     })
-  }, "+ Aggiungi misura")), !disabled && vede('report_zeiss') && /*#__PURE__*/React.createElement(LetturaReport, {
+  }, "+ Aggiungi misura")), !disabled && campoVisibile('report_zeiss', ctx, true) && /*#__PURE__*/React.createElement(LetturaReport, {
     opId: opId,
     disabled: disabled,
     onAggiungi: righe => {
@@ -2971,6 +3179,118 @@ const Step2Controllo = ({
     setReportPdfAperto(false);
     setNotice(`Inserite ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} dal report CMM: controllale e salva il blocco.`);
   };
+
+  // Anomalia con qualcosa dentro (le vuote si sostituiscono con quelle importate o copiate).
+  const anomaliaPiena = a => !!(a.localId || a.origineId || a.testo.trim() || a.files.length || frasiDett(a.dett).length);
+
+  /* «Da elenco»: una riga = un'anomalia su tutti i seriali del blocco. */
+  const [elencoAperto, setElencoAperto] = useState(false);
+  const inserisciElenco = righe => {
+    setEditor(prev => ({
+      ...prev,
+      anomalie: [...prev.anomalie.filter(anomaliaPiena), ...righe.map(testo => ({
+        ...newAnomalia(),
+        testo
+      }))],
+      attiva: -1
+    }));
+    setElencoAperto(false);
+    setNotice(`Inserite ${righe.length} anomali${righe.length === 1 ? 'a' : 'e'} dall’elenco: controllale e salva il blocco.`);
+  };
+
+  /* «Copia difetti da un S/N». Fonti: i S/N con anomalie del blocco in scrittura e dei blocchi salvati. */
+  const [copiaAperta, setCopiaAperta] = useState(false);
+  const fontiCopia = () => {
+    const fonti = new Map();
+    const aggiungi = (sn, blocco, voce) => {
+      const k = `${sn.toLowerCase()}|${blocco || ''}`;
+      if (!fonti.has(k)) fonti.set(k, {
+        sn,
+        blocco,
+        anomalie: []
+      });
+      fonti.get(k).anomalie.push(voce);
+    };
+    const edTok = tokensOf(editor.voci);
+    editor.anomalie.filter(anomaliaPiena).forEach(a => {
+      const sel = new Set(a.sel.map(t => t.toLowerCase()));
+      (a.tutti ? edTok : edTok.filter(t => sel.has(t.toLowerCase()))).forEach(sn => aggiungi(sn, null, {
+        titolo: testoAnomalia(a).split('\n')[0],
+        key: a.key
+      }));
+    });
+    (controllo && controllo.blocchi || []).forEach((b, bi) => {
+      if (b.id === editor.bloccoId) return;
+      const bt = tokensOf(b.seriali);
+      (b.anomalie || []).forEach(a => {
+        const titolo = (a.testo || '').trim().split('\n')[0] || frasiDett(dettDaServer(a.dettaglio, a.tipo_difetto_id))[0] || '';
+        (a.tutti !== false ? bt : tokensOf(a.seriali)).forEach(sn => aggiungi(sn, bi + 1, {
+          titolo,
+          server: a
+        }));
+      });
+    });
+    // Prima i S/N del blocco in scrittura, poi i blocchi salvati in ordine.
+    return [...fonti.values()].sort((x, y) => (x.blocco || 0) - (y.blocco || 0));
+  };
+  const copiaDifetti = (scelte, destinazioni) => {
+    const giaNelBlocco = new Set(tokensOf(editor.voci).map(t => t.toLowerCase()));
+    if (editor.bloccato && !destinazioni.some(t => giaNelBlocco.has(t.toLowerCase()))) {
+      setError('Il blocco ha anomalie già gestite: non si possono aggiungere S/N, copia su S/N già nel blocco.');
+      return;
+    }
+    setEditor(prev => {
+      const tok = tokensOf(prev.voci);
+      const perChiave = new Map(tok.map(t => [t.toLowerCase(), t]));
+      const nuoviSn = [];
+      destinazioni.forEach(t => {
+        const k = t.toLowerCase();
+        if (!perChiave.has(k) && !prev.bloccato) {
+          perChiave.set(k, t);
+          nuoviSn.push(t);
+        }
+      });
+      const dest = destinazioni.map(t => perChiave.get(t.toLowerCase())).filter(Boolean);
+      if (!dest.length) return prev;
+      const totale = tok.length + nuoviSn.length;
+      const chiavi = new Set(scelte.filter(s => s.key).map(s => s.key));
+      const anomalie = prev.anomalie.filter(anomaliaPiena).map(a => {
+        if (a.gestita) return a;
+        if (chiavi.has(a.key)) {
+          if (a.tutti && !nuoviSn.length) return a;
+          const base = a.tutti ? tok : a.sel;
+          const gia = new Set(base.map(x => x.toLowerCase()));
+          return {
+            ...a,
+            tutti: false,
+            sel: [...base, ...dest.filter(x => !gia.has(x.toLowerCase()))]
+          };
+        }
+        // Le altre anomalie «su tutti» non devono estendersi ai S/N appena aggiunti.
+        return nuoviSn.length && tok.length && a.tutti ? {
+          ...a,
+          tutti: false,
+          sel: [...tok]
+        } : a;
+      });
+      const nuove = scelte.filter(s => s.server).map(s => ({
+        ...newAnomalia(),
+        testo: s.server.testo || '',
+        tutti: totale <= 1,
+        sel: totale > 1 ? [...dest] : [],
+        dett: dettDaServer(s.server.dettaglio, s.server.tipo_difetto_id)
+      }));
+      return {
+        ...prev,
+        voci: [...prev.voci, ...nuoviSn],
+        anomalie: [...anomalie, ...nuove],
+        attiva: -1,
+        confermaScoperti: ''
+      };
+    });
+    setCopiaAperta(false);
+    setNotice(`Copiate ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} su ${destinazioni.length} S/N: controlla e salva il blocco.`);
+  };
   const rimuoviAnomalia = i => setEditor(prev => {
     const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
     return {
@@ -3987,14 +4307,31 @@ const Step2Controllo = ({
     onClick: nuovaAnomalia,
     disabled: saving
   }, "+ Nuova anomalia su questi seriali"), campoVisibile('report_zeiss', {
-    fase: controllo ? controllo.fase : '',
-    tipo: 'fuori-tolleranza'
-  }) && /*#__PURE__*/React.createElement("button", {
+    fase: controllo ? controllo.fase : ''
+  }, true) && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "btn-outline anom-add",
     onClick: () => setReportPdfAperto(true),
     disabled: saving
-  }, "\uD83D\uDCC4 Dal report CMM (PDF)")), reportPdfAperto && /*#__PURE__*/React.createElement(ReportPdfPannello, {
+  }, "\uD83D\uDCC4 Dal report CMM (PDF)"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-outline anom-add",
+    onClick: () => setElencoAperto(true),
+    disabled: saving
+  }, "\uD83D\uDCDD Da elenco"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-outline anom-add",
+    onClick: () => setCopiaAperta(true),
+    disabled: saving
+  }, "\uD83D\uDCCB Copia difetti da un S/N")), elencoAperto && /*#__PURE__*/React.createElement(ElencoPannello, {
+    onInserisci: inserisciElenco,
+    onChiudi: () => setElencoAperto(false)
+  }), copiaAperta && /*#__PURE__*/React.createElement(CopiaDifettiPannello, {
+    fonti: fontiCopia(),
+    tokensBlocco: tokens,
+    onCopia: copiaDifetti,
+    onChiudi: () => setCopiaAperta(false)
+  }), reportPdfAperto && /*#__PURE__*/React.createElement(ReportPdfPannello, {
     opId: controllo ? controllo.op_id : '',
     onInserisci: inserisciDaReport,
     onChiudi: () => setReportPdfAperto(false)

@@ -583,13 +583,14 @@
   // Regole «Visibile se» (Configurazione → «Campi del blocco del controllore»): persone e ruoli
   // li valuta il server; fase del controllo e tipo di difetto dell'anomalia si valutano qui.
   const CAMPI = window._AP_CAMPI || {};
-  const campoVisibile = (chiave, ctx = {}) => {
+  // ignoraTipi: per i campi usati per compilare la misura stessa (il tipo proposto cambia con le righe aggiunte).
+  const campoVisibile = (chiave, ctx = {}, ignoraTipi = false) => {
     const r = CAMPI[chiave];
     if (!r) return true;
     if (!r.visibile) return false;
     const fase = String(ctx.fase || '').toLowerCase();
     if ((r.fasi || []).length && !r.fasi.some(f => fase.includes(String(f).toLowerCase()))) return false;
-    if ((r.tipi || []).length && !r.tipi.includes(ctx.tipo || '')) return false;
+    if (!ignoraTipi && (r.tipi || []).length && !r.tipi.includes(ctx.tipo || '')) return false;
     return true;
   };
   const TUTTI_I_CASI = [['misura', 'Misura fuori tolleranza'], ['difetto', 'Difetto sul pezzo'], ['documenti', 'Marcatura / documenti']];
@@ -945,6 +946,138 @@
     );
   };
 
+  /* Pannello laterale generico (stesso aspetto di «Report CMM»): Esc o velo chiudono. */
+  const PannelloLaterale = ({ titolo, onChiudi, piede, children }) => {
+    useEffect(() => {
+      const onKey = (e) => { if (e.key === 'Escape') onChiudi(); };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }, []);
+    return (
+      <>
+        <div className="cmm-velo" onClick={onChiudi} />
+        <aside className="cmm-side" role="dialog" aria-modal="true" aria-label={titolo}>
+          <div className="cmm-side__head">
+            <strong>{titolo}</strong>
+            <button type="button" className="cmm-side__x" onClick={onChiudi} aria-label="Chiudi">×</button>
+          </div>
+          <div className="cmm-side__body">{children}</div>
+          <div className="cmm-side__foot">{piede}</div>
+        </aside>
+      </>
+    );
+  };
+
+  /* «Da elenco»: un file di testo o righe incollate, una riga = un'anomalia distinta. */
+  const righeElenco = (testo) => String(testo || '').split(/\r?\n/)
+    .map(r => r.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
+    .filter(Boolean)
+    .slice(0, 200);
+  const ElencoPannello = ({ onInserisci, onChiudi }) => {
+    const [testo, setTesto] = useState('');
+    const [tolte, setTolte] = useState({});  // indice -> true se tolta la spunta
+    const [stato, setStato] = useState('');
+    const [over, setOver] = useState(false);
+    const fileRef = useRef(null);
+    const righe = righeElenco(testo);
+    const scelte = righe.filter((_, i) => !tolte[i]);
+    const leggiFile = async (file) => {
+      if (!file) return;
+      if (file.size > 1024 * 1024) { setStato('Il file è troppo grande: serve un elenco di testo.'); return; }
+      try {
+        const t = await file.text();
+        if (/[\u0000-\u0008]/.test(t.slice(0, 2000))) { setStato('Il file non è di testo: salvalo come .txt (una anomalia per riga).'); return; }
+        setTesto(prev => [prev.trim(), t.trim()].filter(Boolean).join('\n'));
+        setTolte({}); setStato('');
+      } catch (e) { setStato(e.message); }
+    };
+    return (
+      <PannelloLaterale titolo="📝 Anomalie da elenco" onChiudi={onChiudi} piede={<>
+        <button type="button" className="btn-primary" disabled={!scelte.length} onClick={() => onInserisci(scelte)}>
+          Inserisci {scelte.length} anomali{scelte.length === 1 ? 'a' : 'e'}
+        </button>
+        <button type="button" className="link-btn" onClick={onChiudi}>Annulla</button>
+        <span className="field-hint">Ogni riga diventa un’anomalia su tutti i seriali del blocco: poi puoi sceglierne i S/N.</span>
+      </>}>
+        <div className={`cmm-box${over ? ' is-over' : ''}`}
+          onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); setOver(false); leggiFile((e.dataTransfer.files || [])[0]); }}>
+          <input ref={fileRef} type="file" accept=".txt,.csv,text/plain" hidden onChange={e => { const f = (e.target.files || [])[0]; e.target.value = ''; leggiFile(f); }} />
+          <div className="cmm-box__hint">
+            Trascina qui un file di testo (.txt) oppure <button type="button" className="link-btn" onClick={() => fileRef.current && fileRef.current.click()}>scegli il file</button>, o scrivi/incolla qui sotto.
+            <span>Una riga = una anomalia; le righe vuote si saltano.</span>
+          </div>
+          {stato && <div className="error-msg">{stato}</div>}
+        </div>
+        <textarea className="textarea-input" rows={6} value={testo} placeholder={'Bava sullo spigolo del piano B\nGraffio sul diametro F\n…'}
+          onChange={e => { setTesto(e.target.value); setTolte({}); }} />
+        {righe.length > 0 && (
+          <div className="cmm-prop">
+            {righe.map((r, i) => (
+              <label key={i}>
+                <input type="checkbox" checked={!tolte[i]} onChange={e => setTolte(prev => ({ ...prev, [i]: !e.target.checked }))} />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </PannelloLaterale>
+    );
+  };
+
+  /* «Copia difetti da un S/N»: le anomalie di un S/N (del blocco in scrittura o di un blocco
+     già salvato del controllo) valgono anche per altri S/N. Nel blocco in scrittura si
+     aggiungono i S/N all'anomalia; da un blocco salvato si creano anomalie nuove uguali. */
+  const CopiaDifettiPannello = ({ fonti, tokensBlocco, onCopia, onChiudi }) => {
+    const [da, setDa] = useState(fonti.length ? fonti[0].sn : '');
+    const fonte = fonti.find(f => f.sn === da) || null;
+    const [tolte, setTolte] = useState({});
+    const [verso, setVerso] = useState(() => tokensBlocco.filter(t => !fonti.length || t.toLowerCase() !== fonti[0].sn.toLowerCase()).join(', '));
+    const destinazioni = tokensOf(splitSerialText(verso)).filter(t => !da || t.toLowerCase() !== da.toLowerCase());
+    const scelte = fonte ? fonte.anomalie.filter((_, i) => !tolte[i]) : [];
+    const cambiaDa = (sn) => {
+      setDa(sn); setTolte({});
+      setVerso(tokensBlocco.filter(t => t.toLowerCase() !== sn.toLowerCase()).join(', '));
+    };
+    return (
+      <PannelloLaterale titolo="📋 Copia difetti da un S/N" onChiudi={onChiudi} piede={<>
+        <button type="button" className="btn-primary" disabled={!scelte.length || !destinazioni.length}
+          onClick={() => onCopia(scelte, destinazioni)}>
+          Copia {scelte.length} anomali{scelte.length === 1 ? 'a' : 'e'} su {destinazioni.length} S/N
+        </button>
+        <button type="button" className="link-btn" onClick={onChiudi}>Annulla</button>
+      </>}>
+        {!fonti.length && <div className="field-hint">Nessun S/N ha ancora anomalie: scrivine almeno una, poi copiala sugli altri S/N.</div>}
+        {fonti.length > 0 && (
+          <>
+            <label className="dett-f"><span>Da quale S/N</span>
+              <select className="text-input" value={da} onChange={e => cambiaDa(e.target.value)}>
+                {fonti.map(f => <option key={f.sn} value={f.sn}>{f.sn} — {f.anomalie.length} anomali{f.anomalie.length === 1 ? 'a' : 'e'}{f.blocco ? ` (blocco ${f.blocco})` : ' (questo blocco)'}</option>)}
+              </select>
+            </label>
+            {fonte && (
+              <div className="cmm-prop">
+                {fonte.anomalie.map((a, i) => (
+                  <label key={i}>
+                    <input type="checkbox" checked={!tolte[i]} onChange={e => setTolte(prev => ({ ...prev, [i]: !e.target.checked }))} />
+                    <span>{a.titolo || <em>Anomalia senza descrizione</em>}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <label className="dett-f"><span>Su quali S/N</span>
+              <input className="text-input" value={verso} onChange={e => setVerso(e.target.value)} placeholder="Es. LCN00049, LCN00050-LCN00052" />
+            </label>
+            <div className="field-hint">
+              {destinazioni.length ? <>Su <strong>{destinazioni.length}</strong> S/N: {comprimiTokens(destinazioni).slice(0, 8).join(', ')}{comprimiTokens(destinazioni).length > 8 ? '…' : ''}. </> : 'Scrivi i S/N di destinazione (anche range). '}
+              I S/N che non sono nel blocco vengono aggiunti.
+            </div>
+          </>
+        )}
+      </PannelloLaterale>
+    );
+  };
+
   /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
   const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto, opId, fase }) => {
     const d = dett || emptyDett();
@@ -961,7 +1094,12 @@
     const rif = d.rif || {};
     const frasi = frasiDett(d);
     const ctx = { fase, tipo: codiceTipoAnomalia(d, testo) };
-    const DETT_TIPI = casiVisibili(ctx);
+    // Il tipo di difetto delle regole cambia mentre si scrive (è proposto dal testo e dalle misure):
+    // un caso già scelto, con i suoi campi, resta visibile anche se la regola ora lo nasconderebbe.
+    const visibili = casiVisibili(ctx);
+    const DETT_TIPI = d.tipo && !visibili.some(([k]) => k === d.tipo)
+      ? TUTTI_I_CASI.filter(([k]) => k === d.tipo || visibili.some(([v]) => v === k))
+      : visibili;
     const casoAcceso = (tipo) => DETT_TIPI.some(([k]) => k === tipo);
     const vede = (chiave) => campoVisibile(chiave, ctx);
     const suggerito = codiceSuggerito(d, testo);
@@ -1043,7 +1181,7 @@
             <div className="dett-actions">
               <button type="button" className="link-btn" disabled={disabled} onClick={() => upd({ misure: [...(d.misure || []), emptyMisura()] })}>+ Aggiungi misura</button>
             </div>
-            {!disabled && vede('report_zeiss') && (
+            {!disabled && campoVisibile('report_zeiss', ctx, true) && (
               <LetturaReport opId={opId} disabled={disabled} onAggiungi={righe => {
                 const nuove = righe.map(({ car, nome, modo, nom, a, b, ril, dove }) => ({ ...emptyMisura(), car, nome, modo, nom, a, b, ril, dove }));
                 const tenute = (d.misure || []).filter(misuraUtile);
@@ -2085,6 +2223,89 @@
       setNotice(`Inserite ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} dal report CMM: controllale e salva il blocco.`);
     };
 
+    // Anomalia con qualcosa dentro (le vuote si sostituiscono con quelle importate o copiate).
+    const anomaliaPiena = (a) => !!(a.localId || a.origineId || a.testo.trim() || a.files.length || frasiDett(a.dett).length);
+
+    /* «Da elenco»: una riga = un'anomalia su tutti i seriali del blocco. */
+    const [elencoAperto, setElencoAperto] = useState(false);
+    const inserisciElenco = (righe) => {
+      setEditor(prev => ({
+        ...prev,
+        anomalie: [...prev.anomalie.filter(anomaliaPiena), ...righe.map(testo => ({ ...newAnomalia(), testo }))],
+        attiva: -1,
+      }));
+      setElencoAperto(false);
+      setNotice(`Inserite ${righe.length} anomali${righe.length === 1 ? 'a' : 'e'} dall’elenco: controllale e salva il blocco.`);
+    };
+
+    /* «Copia difetti da un S/N». Fonti: i S/N con anomalie del blocco in scrittura e dei blocchi salvati. */
+    const [copiaAperta, setCopiaAperta] = useState(false);
+    const fontiCopia = () => {
+      const fonti = new Map();
+      const aggiungi = (sn, blocco, voce) => {
+        const k = `${sn.toLowerCase()}|${blocco || ''}`;
+        if (!fonti.has(k)) fonti.set(k, { sn, blocco, anomalie: [] });
+        fonti.get(k).anomalie.push(voce);
+      };
+      const edTok = tokensOf(editor.voci);
+      editor.anomalie.filter(anomaliaPiena).forEach(a => {
+        const sel = new Set(a.sel.map(t => t.toLowerCase()));
+        (a.tutti ? edTok : edTok.filter(t => sel.has(t.toLowerCase())))
+          .forEach(sn => aggiungi(sn, null, { titolo: testoAnomalia(a).split('\n')[0], key: a.key }));
+      });
+      ((controllo && controllo.blocchi) || []).forEach((b, bi) => {
+        if (b.id === editor.bloccoId) return;
+        const bt = tokensOf(b.seriali);
+        (b.anomalie || []).forEach(a => {
+          const titolo = (a.testo || '').trim().split('\n')[0] || frasiDett(dettDaServer(a.dettaglio, a.tipo_difetto_id))[0] || '';
+          (a.tutti !== false ? bt : tokensOf(a.seriali)).forEach(sn => aggiungi(sn, bi + 1, { titolo, server: a }));
+        });
+      });
+      // Prima i S/N del blocco in scrittura, poi i blocchi salvati in ordine.
+      return [...fonti.values()].sort((x, y) => (x.blocco || 0) - (y.blocco || 0));
+    };
+    const copiaDifetti = (scelte, destinazioni) => {
+      const giaNelBlocco = new Set(tokensOf(editor.voci).map(t => t.toLowerCase()));
+      if (editor.bloccato && !destinazioni.some(t => giaNelBlocco.has(t.toLowerCase()))) {
+        setError('Il blocco ha anomalie già gestite: non si possono aggiungere S/N, copia su S/N già nel blocco.');
+        return;
+      }
+      setEditor(prev => {
+        const tok = tokensOf(prev.voci);
+        const perChiave = new Map(tok.map(t => [t.toLowerCase(), t]));
+        const nuoviSn = [];
+        destinazioni.forEach(t => {
+          const k = t.toLowerCase();
+          if (!perChiave.has(k) && !prev.bloccato) { perChiave.set(k, t); nuoviSn.push(t); }
+        });
+        const dest = destinazioni.map(t => perChiave.get(t.toLowerCase())).filter(Boolean);
+        if (!dest.length) return prev;
+        const totale = tok.length + nuoviSn.length;
+        const chiavi = new Set(scelte.filter(s => s.key).map(s => s.key));
+        const anomalie = prev.anomalie.filter(anomaliaPiena).map(a => {
+          if (a.gestita) return a;
+          if (chiavi.has(a.key)) {
+            if (a.tutti && !nuoviSn.length) return a;
+            const base = a.tutti ? tok : a.sel;
+            const gia = new Set(base.map(x => x.toLowerCase()));
+            return { ...a, tutti: false, sel: [...base, ...dest.filter(x => !gia.has(x.toLowerCase()))] };
+          }
+          // Le altre anomalie «su tutti» non devono estendersi ai S/N appena aggiunti.
+          return nuoviSn.length && tok.length && a.tutti ? { ...a, tutti: false, sel: [...tok] } : a;
+        });
+        const nuove = scelte.filter(s => s.server).map(s => ({
+          ...newAnomalia(),
+          testo: s.server.testo || '',
+          tutti: totale <= 1,
+          sel: totale > 1 ? [...dest] : [],
+          dett: dettDaServer(s.server.dettaglio, s.server.tipo_difetto_id),
+        }));
+        return { ...prev, voci: [...prev.voci, ...nuoviSn], anomalie: [...anomalie, ...nuove], attiva: -1, confermaScoperti: '' };
+      });
+      setCopiaAperta(false);
+      setNotice(`Copiate ${scelte.length} anomali${scelte.length === 1 ? 'a' : 'e'} su ${destinazioni.length} S/N: controlla e salva il blocco.`);
+    };
+
     const rimuoviAnomalia = (i) => setEditor(prev => {
       const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
       return { ...prev, anomalie: anomalie.length ? anomalie : [newAnomalia()], attiva: Math.max(0, Math.min(prev.attiva, anomalie.length - 1)) };
@@ -2697,10 +2918,16 @@
           </div>
           <div className="anom-add-row">
             <button type="button" className="btn-outline anom-add" onClick={nuovaAnomalia} disabled={saving}>+ Nuova anomalia su questi seriali</button>
-            {campoVisibile('report_zeiss', { fase: controllo ? controllo.fase : '', tipo: 'fuori-tolleranza' }) && (
+            {campoVisibile('report_zeiss', { fase: controllo ? controllo.fase : '' }, true) && (
               <button type="button" className="btn-outline anom-add" onClick={() => setReportPdfAperto(true)} disabled={saving}>📄 Dal report CMM (PDF)</button>
             )}
+            <button type="button" className="btn-outline anom-add" onClick={() => setElencoAperto(true)} disabled={saving}>📝 Da elenco</button>
+            <button type="button" className="btn-outline anom-add" onClick={() => setCopiaAperta(true)} disabled={saving}>📋 Copia difetti da un S/N</button>
           </div>
+          {elencoAperto && <ElencoPannello onInserisci={inserisciElenco} onChiudi={() => setElencoAperto(false)} />}
+          {copiaAperta && (
+            <CopiaDifettiPannello fonti={fontiCopia()} tokensBlocco={tokens} onCopia={copiaDifetti} onChiudi={() => setCopiaAperta(false)} />
+          )}
           {reportPdfAperto && (
             <ReportPdfPannello opId={controllo ? controllo.op_id : ''} onInserisci={inserisciDaReport} onChiudi={() => setReportPdfAperto(false)} />
           )}
