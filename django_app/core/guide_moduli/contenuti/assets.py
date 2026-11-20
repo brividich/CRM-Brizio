@@ -862,6 +862,23 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Registrata una manutenzione, la successiva non compare",
+            "fare": [
+                "La successiva nasce solo se il piano vale ancora per quell'asset: piano attivo, asset non dismesso, "
+                "asset ancora nel gruppo o nella categoria dell'applicazione, nessuna esclusione e nessun conflitto "
+                "fra applicazioni dello stesso livello (per i piani a contatore conta anche contatore e intervallo).",
+                "Se l'asset ha una periodicità personalizzata, la successiva segue quella.",
+                "Se la data calcolata è già occupata da una scadenza annullata o eseguita, la successiva slitta di un periodo.",
+            ],
+        },
+        {
+            "sintomo": "Chiuso un OdL, le manutenzioni non registrate sono sparite dall'intervento",
+            "fare": [
+                "È voluto: chiudendo o annullando l'OdL le manutenzioni non registrate si sganciano, restano aperte "
+                "e tornano «da pianificare» in Da fare, pronte per un altro OdL. La nota dell'intervento le conta.",
+            ],
+        },
+        {
             "sintomo": "Una macchina ha manutenzioni che non le spettano",
             "fare": [
                 "Il piano è applicato a tutta la categoria: in «Piani» applicalo ai singoli asset, oppure escludi l'asset.",

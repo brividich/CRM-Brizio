@@ -370,20 +370,23 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
     # aperte la scadenza resta scaduta, e va detto subito.
     warnings: list[str] = []
     if workorder.status in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
-        aperte = MaintenanceOccurrence.objects.filter(
+        # Le manutenzioni non registrate si sganciano dall'intervento chiuso: restando
+        # agganciate non si potevano piu' mettere in un altro OdL ne' comparivano fra
+        # le «da pianificare». La nota dell'intervento le ha gia' contate.
+        aperte_qs = MaintenanceOccurrence.objects.filter(
             work_order=workorder, status=MaintenanceOccurrence.STATUS_OPEN
-        ).count()
+        )
+        aperte = aperte_qs.update(work_order=None, execution_day=None)
         if aperte == 1:
             warnings.append(
                 "Una manutenzione raccolta in questo intervento non risulta "
-                "registrata: la sua scadenza resta aperta. Registrala dal "
-                "pannello «Manutenzioni raccolte»."
+                "registrata: la sua scadenza resta aperta e torna da pianificare in «Da fare»."
             )
         elif aperte:
             warnings.append(
                 f"{aperte} manutenzioni raccolte in questo intervento non "
-                "risultano registrate: le loro scadenze restano aperte. "
-                "Registrale dal pannello «Manutenzioni raccolte»."
+                "risultano registrate: le loro scadenze restano aperte e tornano "
+                "da pianificare in «Da fare»."
             )
 
     return CloseResult(

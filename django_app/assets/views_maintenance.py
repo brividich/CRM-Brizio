@@ -135,6 +135,8 @@ def _base_occurrence_queryset():
         MaintenanceOccurrence.objects.select_related(*_OCCURRENCE_SELECT)
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        # Asset dismesso o piano spento: la scadenza aperta non e' piu' lavoro da fare.
+        .exclude(domain.q_aperte_non_piu_dovute())
     )
 
 

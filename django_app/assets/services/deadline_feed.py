@@ -215,6 +215,7 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
         )
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        .exclude(domain.q_aperte_non_piu_dovute())
         .annotate(n_rinvii=_postponement_count())
     )
     if not filters.include_done:

@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Any, Iterable
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from ..models import (
@@ -132,6 +133,23 @@ def _recurrence_signature(assignment: MaintenancePlanAssignment) -> tuple:
         spec["month_of_year"],
         int(assignment.warning_days or 0),
         assignment.effective_schedule_anchor,
+        # A contatore il traguardo e' un valore: due gruppi con 500 e 1000 ore dicono
+        # cose diverse anche se i campi del calendario coincidono.
+        assignment.trigger_type,
+        assignment.meter_type or "",
+        assignment.meter_interval,
+    )
+
+
+def q_aperte_non_piu_dovute() -> Q:
+    """Occorrenze aperte che non vanno piu' mostrate come lavoro da fare.
+
+    Asset dismesso o piano spento: la scadenza resta a DB (lo storico non si tocca)
+    ma non deve finire in Da fare, Scadenzario, Panoramica, calendario o promemoria.
+    Da usare con ``.exclude(...)``.
+    """
+    return Q(status=MaintenanceOccurrence.STATUS_OPEN) & (
+        Q(asset__status=Asset.STATUS_RETIRED) | Q(plan__is_active=False)
     )
 
 
@@ -512,24 +530,22 @@ def generate_occurrences(
             created += 1
             continue
 
-        try:
-            with transaction.atomic():
-                MaintenanceOccurrence.objects.create(
-                    plan=resolution.plan,
-                    assignment=assignment,
-                    asset=resolution.asset,
-                    due_date=due_date,
-                    warning_days=warning_days,
-                    schedule_anchor=assignment.effective_schedule_anchor,
-                    previous_due_date=last_completed.due_date if last_completed else None,
-                    supplier=assignment.effective_supplier,
-                    source=MaintenanceOccurrence.SOURCE_SCHEDULER,
-                )
-        except IntegrityError:
-            # Il vincolo unico ha fatto il suo mestiere: un'altra esecuzione
-            # concorrente ha gia' creato questa occorrenza.
+        occurrence, was_created = _create_on_free_date(
+            assignment,
+            due_date,
+            plan=resolution.plan,
+            asset=resolution.asset,
+            warning_days=warning_days,
+            schedule_anchor=assignment.effective_schedule_anchor,
+            previous_due_date=last_completed.due_date if last_completed else None,
+            supplier=assignment.effective_supplier,
+            source=MaintenanceOccurrence.SOURCE_SCHEDULER,
+        )
+        if not was_created:
+            # Un'altra esecuzione concorrente ha gia' creato l'occorrenza aperta.
             skipped_open += 1
             continue
+        rows[-1]["due_date"] = occurrence.due_date
         created += 1
 
     return {
@@ -567,7 +583,15 @@ def complete_occurrence(
     Ogni asset avanza per conto suo: chiudere DM01 non chiude DM02, anche quando
     stanno nello stesso OdL.
     """
-    if occurrence.status == MaintenanceOccurrence.STATUS_DONE:
+    # Doppio tocco su «Fatta oggi» o due persone insieme: si rilegge lo stato con la
+    # riga bloccata, cosi' la seconda richiesta trova DONE e non sovrascrive la prima.
+    current_status = (
+        MaintenanceOccurrence.objects.select_for_update()
+        .filter(pk=occurrence.pk)
+        .values_list("status", flat=True)
+        .first()
+    )
+    if MaintenanceOccurrence.STATUS_DONE in (occurrence.status, current_status):
         raise OccurrenceCompletionError("La manutenzione risulta gia' eseguita.")
     if occurrence.attachment_required and not occurrence.attachments.exists():
         raise OccurrenceCompletionError(
@@ -597,8 +621,8 @@ def complete_occurrence(
 
     if not create_next:
         return None
-    assignment = occurrence.assignment
-    if assignment is None or not assignment.is_active or assignment.is_excluded or not assignment.auto_generate:
+    assignment = _assignment_for_next(occurrence)
+    if assignment is None:
         return None
     if occurrence.is_meter_based or assignment.is_meter_based:
         # A contatore la prossima nasce dal valore letto all'esecuzione, quando il
@@ -624,22 +648,73 @@ def complete_occurrence(
             next_due = add_recurrence(assignment, next_due)
             guard += 1
 
-    try:
-        return MaintenanceOccurrence.objects.create(
-            plan=occurrence.plan,
-            assignment=assignment,
-            asset=occurrence.asset,
-            due_date=next_due,
-            warning_days=occurrence.warning_days,
-            schedule_anchor=occurrence.schedule_anchor,
-            previous_due_date=occurrence.due_date,
-            supplier=assignment.effective_supplier,
-            source=MaintenanceOccurrence.SOURCE_SCHEDULER,
-        )
-    except IntegrityError:
-        return MaintenanceOccurrence.objects.filter(
-            plan=occurrence.plan, asset=occurrence.asset, due_date=next_due
-        ).first()
+    same_assignment = assignment.pk == occurrence.assignment_id
+    next_occurrence, _created = _create_on_free_date(
+        assignment,
+        next_due,
+        plan=occurrence.plan,
+        asset=occurrence.asset,
+        warning_days=occurrence.warning_days if same_assignment else int(assignment.warning_days or 0),
+        schedule_anchor=occurrence.schedule_anchor if same_assignment else assignment.effective_schedule_anchor,
+        previous_due_date=occurrence.due_date,
+        supplier=assignment.effective_supplier,
+        source=MaintenanceOccurrence.SOURCE_SCHEDULER,
+    )
+    return next_occurrence
+
+
+def _assignment_for_next(occurrence: MaintenanceOccurrence) -> MaintenancePlanAssignment | None:
+    """Applicazione che vale OGGI per la coppia (piano, asset), o None se la serie si ferma.
+
+    Non basta l'applicazione salvata sull'occorrenza: nel frattempo l'asset puo'
+    essere uscito dal gruppo, escluso, personalizzato o dismesso, oppure il piano
+    spento. Stessa risoluzione della generazione (ASSET > GRUPPO > CATEGORIA); un
+    conflitto non si risolve d'ufficio.
+    """
+    plan = occurrence.plan
+    asset = occurrence.asset
+    if not plan.is_active or asset.status == Asset.STATUS_RETIRED:
+        return None
+    resolution = resolve_plan_for_asset(plan_id=plan.pk, asset=asset)
+    if resolution is None or not resolution.is_applied or resolution.assignment is None:
+        return None
+    if not resolution.assignment.auto_generate:
+        return None
+    return resolution.assignment
+
+
+def _create_on_free_date(
+    assignment: MaintenancePlanAssignment, due_date: date, **fields
+) -> tuple[MaintenanceOccurrence | None, bool]:
+    """Crea l'occorrenza alla prima data libera da ``due_date`` in avanti.
+
+    Il vincolo unico (piano, asset, scadenza) vale anche per le occorrenze annullate
+    o gia' eseguite: se la data calcolata e' occupata da una di queste, la serie
+    avanza di un periodo invece di fermarsi in silenzio. Se e' occupata da
+    un'occorrenza APERTA (generazione concorrente) si ritorna quella, senza crearne.
+    Ritorna ``(occorrenza, creata)``; ``(None, False)`` se non c'e' una data libera:
+    mai un'occorrenza gia' chiusa spacciata per la prossima.
+    """
+    plan = fields["plan"]
+    asset = fields["asset"]
+    for _attempt in range(50):
+        try:
+            with transaction.atomic():
+                return (
+                    MaintenanceOccurrence.objects.create(assignment=assignment, due_date=due_date, **fields),
+                    True,
+                )
+        except IntegrityError:
+            existing = MaintenanceOccurrence.objects.filter(plan=plan, asset=asset, due_date=due_date).first()
+            if existing is None:
+                raise
+            if existing.status == MaintenanceOccurrence.STATUS_OPEN:
+                return existing, False
+            following = add_recurrence(assignment, due_date)
+            if following is None or following <= due_date:
+                return None, False
+            due_date = following
+    return None, False
 
 
 def _record_completion_meter(occurrence: MaintenanceOccurrence, meter_value, *, user) -> None:
@@ -1133,6 +1208,16 @@ def close_workorder_if_complete(work_order: WorkOrder | None, *, user=None) -> b
     """
     if work_order is None or work_order.status != WorkOrder.STATUS_OPEN:
         return False
+    with transaction.atomic():
+        # Due persone che registrano insieme le ultime due manutenzioni: con l'OdL
+        # bloccato la seconda vede la prima gia' eseguita e chiude l'intervento.
+        locked = WorkOrder.objects.select_for_update().filter(pk=work_order.pk).first()
+        if locked is None or locked.status != WorkOrder.STATUS_OPEN:
+            return False
+        return _close_workorder_if_complete_locked(work_order, user=user)
+
+
+def _close_workorder_if_complete_locked(work_order: WorkOrder, *, user=None) -> bool:
     occurrences = list(work_order.occurrences.all())
     if not occurrences or any(occ.status == MaintenanceOccurrence.STATUS_OPEN for occ in occurrences):
         return False
