@@ -568,8 +568,9 @@ def api_controllo_bozza(request, pk: int):
 @login_required
 @require_POST
 def api_report_cmm_leggi(request):
-    """Screenshot di righe di un protocollo ZEISS -> misure proposte (l'immagine non si salva)."""
-    from .report_cmm import ErroreReport, leggi_screenshot
+    """Screenshot di righe di un protocollo ZEISS, o il report completo in PDF (campo ``pdf``),
+    -> misure proposte. Né l'immagine né il PDF si salvano."""
+    from .report_cmm import MAX_PDF_BYTES, ErroreReport, leggi_pdf, leggi_screenshot
     from .views import _can_create_anomalie_for_op
 
     op_id = _txt(request.POST.get("op_id"), 100)
@@ -577,6 +578,19 @@ def api_report_cmm_leggi(request):
         return _err("op_id obbligatorio")
     if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
+    pdf = request.FILES.get("pdf")
+    if pdf is not None:
+        if (pdf.size or 0) > MAX_PDF_BYTES:
+            return _err("Il PDF è troppo grande (massimo 25 MB).", 413)
+        try:
+            esito = leggi_pdf(pdf.read())
+        except ErroreReport as exc:
+            return _err(str(exc), 422)
+        log_action(request, "anomalie_report_cmm_pdf_letto", "anomalie", {
+            "op_id": op_id, "file": (pdf.name or "")[:120], "pagine": esito["pagine"], "metodo": esito["metodo"],
+            "righe": len(esito["righe"]), "fuori": sum(1 for r in esito["righe"] if r["fuori"]),
+        })
+        return JsonResponse({"success": True, "file": (pdf.name or "")[:120], **esito})
     immagine = request.FILES.get("immagine")
     if immagine is None:
         return _err("Nessuna immagine ricevuta")

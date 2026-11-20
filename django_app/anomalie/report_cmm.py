@@ -376,3 +376,239 @@ def unisci_letture(*letture: list[dict]) -> list[dict]:
                     riga = {**riga, "sezione": scelte[chiave].get("sezione", "")}
                 scelte[chiave] = riga
     return [scelte[k] for k in ordine] + anonime
+
+
+# ── Report completo in PDF (CALYPSO «Mod. 009 - CMM») ─────────────────────────────────
+#
+# Il PDF esportato da CALYPSO e' testuale: le parole si leggono con la loro posizione
+# esatta (PyMuPDF), senza OCR. Le colonne si ricavano dalla riga d'intestazione della
+# tabella («Name  ID  Actual  Nominal  Pos Tol  Neg Tol  Diff  +/-»); ogni parola va
+# nella colonna piu' vicina. Il tipo («Length», «Position»…) sta in colonna ID poco
+# sopra la riga dei valori e l'eccedenza («+/-») poco sopra a destra: due righe a se',
+# che valgono per la riga di misura successiva. Un PDF scansionato (senza testo) passa
+# dall'OCR pagina per pagina.
+
+MAX_PDF_BYTES = 25 * 1024 * 1024
+MAX_PAGINE = 80
+MAX_RIGHE_PDF = 800
+MAX_PAGINE_OCR = 10
+
+_NUMERO = re.compile(r"^[-−–]?\d+(?:[.,]\d+)?$")
+_COLONNE_VALORI = ("actual", "nominal", "pos", "neg", "diff", "ecc")
+# Etichette dell'intestazione del report -> chiave restituita al browser.
+_ETICHETTE_TESTATA = (
+    ("Part Program Name", "programma"), ("Part Number", "part_number"), ("Working Sheet", "odl"),
+    ("Serial Number", "seriale"), ("Description", "descrizione"), ("Inspector", "ispettore"),
+    ("CMM Model", "cmm"), ("CMM S/N", "cmm_sn"), ("Criticality", "criticita"), ("Date", "data"),
+)
+
+
+def _righe_pdf(parole: list[tuple]) -> list[list[tuple]]:
+    """Parole ``(x0, y0, x1, y1, testo)`` -> righe (stesso centro verticale entro 3 pt), da sinistra."""
+    ordinate = sorted(parole, key=lambda w: ((w[1] + w[3]) / 2, w[0]))
+    righe: list[list[tuple]] = []
+    for w in ordinate:
+        centro = (w[1] + w[3]) / 2
+        if righe:
+            ultima = righe[-1]
+            c = sum((q[1] + q[3]) / 2 for q in ultima) / len(ultima)
+            if abs(centro - c) <= 3.0:
+                ultima.append(w)
+                continue
+        righe.append([w])
+    return [sorted(r, key=lambda w: w[0]) for r in righe]
+
+
+def _colonne_da_intestazione(riga: list[tuple]) -> dict | None:
+    """Riga «Name ID Actual Nominal Pos Tol Neg Tol Diff +/-» -> centro x di ogni colonna."""
+    testi = [w[4].lower() for w in riga]
+    if not {"actual", "nominal", "diff"} <= set(testi):
+        return None
+
+    def centro(*ws):
+        return (min(w[0] for w in ws) + max(w[2] for w in ws)) / 2
+
+    col: dict[str, float] = {}
+    for i, t in enumerate(testi):
+        w = riga[i]
+        chiave = {"name": "name", "id": "id", "actual": "actual", "nominal": "nominal", "diff": "diff",
+                  "+/-": "ecc", "±": "ecc", "pos": "pos", "neg": "neg"}.get(t)
+        if not chiave or chiave in col:
+            continue  # pagina con intestazione doppia: parole ripetute
+        if chiave == "name":
+            col["name"] = w[0]
+        elif chiave in ("pos", "neg"):
+            succ = riga[i + 1] if i + 1 < len(riga) and testi[i + 1] == "tol" else w
+            col[chiave] = centro(w, succ)
+        else:
+            col[chiave] = centro(w)
+    if not {"actual", "nominal", "pos", "neg", "diff"} <= set(col):
+        return None
+    col.setdefault("name", 30.0)
+    col.setdefault("id", col["actual"] - 55)
+    col.setdefault("ecc", col["diff"] + 50)
+    return col
+
+
+def _colonna(w: tuple, col: dict) -> str:
+    """Colonna di una parola: nome a sinistra, tipo in colonna ID, valori per vicinanza."""
+    cx = (w[0] + w[2]) / 2
+    if w[2] < col["id"] - 18:
+        return "name"
+    if cx < (col["id"] + col["actual"]) / 2:
+        return "id"
+    return min(_COLONNE_VALORI, key=lambda k: abs(col[k] - cx))
+
+
+def _testata_pdf(righe: list[list[tuple]]) -> dict:
+    """Coppie etichetta/valore sopra la tabella (il valore sta sotto l'etichetta, stessa x)."""
+    out: dict[str, str] = {}
+    for i, riga in enumerate(righe[:-1]):
+        testo = [w[4] for w in riga]
+        inizi: list[tuple[float, str]] = []
+        j = 0
+        while j < len(testo):
+            for etichetta, chiave in _ETICHETTE_TESTATA:
+                parti = etichetta.split()
+                if testo[j:j + len(parti)] == parti:
+                    inizi.append((riga[j][0], chiave))
+                    j += len(parti)
+                    break
+            else:
+                j += 1
+        if not inizi:
+            continue
+        valori = righe[i + 1]
+        for k, (x0, chiave) in enumerate(inizi):
+            fine = inizi[k + 1][0] - 4 if k + 1 < len(inizi) else 10_000
+            parole = [w[4] for w in valori if x0 - 4 <= w[0] < fine]
+            if parole and chiave not in out:
+                out[chiave] = " ".join(parole)[:120]
+    return out
+
+
+def righe_da_pagina_pdf(parole: list[tuple], pagina: int = 1, sezione: str = "") -> tuple[list[dict], str, dict]:
+    """Parole di una pagina -> (righe di misura, ultima sezione, testata). La sezione prosegue fra le pagine."""
+    righe = _righe_pdf([(w[0], w[1], w[2], w[3], str(w[4])) for w in parole if str(w[4]).strip()])
+    idx = next((i for i, r in enumerate(righe) if _colonne_da_intestazione(r)), None)
+    if idx is None:
+        return [], sezione, {}
+    col = _colonne_da_intestazione(righe[idx])
+    testata = _testata_pdf(righe[:idx])
+    out: list[dict] = []
+    tipo_sospeso = ""
+    nome_sospeso = ""
+    ecc_sospesa = None
+    for riga in righe[idx + 1:]:
+        if _colonne_da_intestazione(riga):
+            continue  # intestazione ripetuta
+        unito = " ".join(w[4] for w in riga)
+        if re.match(r"^Mod\.\s", unito) or re.search(r"\bPage \d+ of \d+\b", unito):
+            continue
+        celle: dict[str, list[str]] = {}
+        for w in riga:
+            celle.setdefault(_colonna(w, col), []).append(w[4])
+        valori = {k: " ".join(v) for k, v in celle.items() if k in _COLONNE_VALORI}
+        nome = " ".join(celle.get("name", []))
+        # Titolo di sezione: solo testo, parte piu' a sinistra dei nomi delle caratteristiche.
+        if not valori and "id" not in celle and riga[0][0] < col["name"] - 2:
+            sezione = unito[:120]
+            tipo_sospeso = nome_sospeso = ""
+            ecc_sospesa = None
+            continue
+        if not valori:
+            if "id" in celle and not nome:
+                tipo_sospeso = _tipo(" ".join(celle["id"])) or _tipo("".join(celle["id"]))
+            elif nome:
+                nome_sospeso = nome  # nome della caratteristica andato a capo sopra i valori
+            continue
+        if set(valori) == {"ecc"}:
+            # Eccedenza sopra la riga (a volte alla stessa altezza del tipo): vale per la riga dopo.
+            if "id" in celle:
+                tipo_sospeso = _tipo(" ".join(celle["id"])) or tipo_sospeso
+            ecc_sospesa = _num(valori["ecc"]) if _NUMERO.match(valori["ecc"]) else None
+            continue
+        numeri = {k: _num(v) for k, v in valori.items() if _NUMERO.match(v)}
+        if not {"actual", "nominal", "pos", "neg"} <= set(numeri):
+            continue
+        a, n, p, m = numeri["actual"], numeri["nominal"], numeri["pos"], numeri["neg"]
+        d = numeri.get("diff")
+        coerente = d is not None and abs((a - n) - d) <= max(0.0011, abs(d) * 0.002)
+        tipo = (_tipo(" ".join(celle["id"])) if "id" in celle else "") or tipo_sospeso
+        nome = (nome or nome_sospeso).strip(" -")
+        out.append({
+            "nome": nome[:80], "tipo": _tipo_da_nome(nome) or tipo, "misurato": a, "nominale": n,
+            "tol_sup": p, "tol_inf": m, "scostamento": d if coerente else round(a - n, 4),
+            "da_verificare": not coerente, "sezione": sezione, "pagina": pagina,
+            "eccedenza": numeri.get("ecc", ecc_sospesa),
+        })
+        tipo_sospeso = nome_sospeso = ""
+        ecc_sospesa = None
+    return out, sezione, testata
+
+
+def _pdf_ocr(doc) -> list[dict]:
+    """PDF scansionato: ogni pagina diventa un'immagine e passa dal lettore degli screenshot."""
+    righe: list[dict] = []
+    for i, pagina in enumerate(doc):
+        if i >= MAX_PAGINE_OCR:
+            break
+        png = pagina.get_pixmap(dpi=220).tobytes("png")
+        linee = _ocr_linee(png)
+        for r in unisci_letture(righe_da_testo(linee), righe_da_testo(_ocr_linee(png, netto=True))):
+            righe.append({**r, "pagina": i + 1, "da_verificare": True})
+    return righe
+
+
+def leggi_pdf(contenuto: bytes) -> dict:
+    """PDF del report CMM -> ``{"intestazione", "righe": [misure proposte], "pagine", "metodo"}``."""
+    if not contenuto:
+        raise ErroreReport("Nessun file ricevuto.")
+    if len(contenuto) > MAX_PDF_BYTES:
+        raise ErroreReport("Il PDF è troppo grande (massimo 25 MB).")
+    if not contenuto.lstrip()[:5].startswith(b"%PDF"):
+        raise ErroreReport("Il file non è un PDF.")
+    import fitz
+
+    try:
+        doc = fitz.open(stream=contenuto, filetype="pdf")
+    except Exception as exc:
+        raise ErroreReport("Il PDF non si riesce ad aprire.") from exc
+    try:
+        if doc.needs_pass:
+            raise ErroreReport("Il PDF è protetto da password.")
+        if doc.page_count > MAX_PAGINE:
+            raise ErroreReport(f"Il PDF ha {doc.page_count} pagine: il massimo è {MAX_PAGINE}.")
+        intestazione: dict[str, str] = {}
+        righe: list[dict] = []
+        sezione = ""
+        con_testo = 0
+        for i, pagina in enumerate(doc):
+            parole = pagina.get_text("words")
+            if parole:
+                con_testo += 1
+            trovate, sezione, testata = righe_da_pagina_pdf(parole, i + 1, sezione)
+            for k, v in testata.items():
+                intestazione.setdefault(k, v)
+            righe.extend(trovate)
+            if len(righe) >= MAX_RIGHE_PDF:
+                righe = righe[:MAX_RIGHE_PDF]
+                break
+        metodo = "testo"
+        if not righe and not con_testo:
+            righe = _pdf_ocr(doc)
+            metodo = "ocr"
+        pagine = doc.page_count
+    finally:
+        doc.close()
+    proposte = []
+    for n, r in enumerate(righe):
+        p = proposta_misura(r)
+        p.update({"pagina": r.get("pagina"), "sezione": r.get("sezione") or "", "indice": n,
+                  "misurato": r["misurato"], "nominale": r["nominale"], "tol_sup": r["tol_sup"], "tol_inf": r["tol_inf"],
+                  "eccedenza": r.get("eccedenza")})
+        # Il report segna l'eccedenza («+/-») solo fuori tolleranza: se non torna col calcolo, da controllare.
+        if p["eccedenza"] and not p["fuori"]:
+            p["da_verificare"] = True
+        proposte.append(p)
+    return {"intestazione": intestazione, "righe": proposte, "pagine": pagine, "metodo": metodo}
