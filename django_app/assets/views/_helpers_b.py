@@ -1299,7 +1299,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
                 # si chiudeva proprio mentre ci si stava lavorando dentro.
                 "maintenance_da_fare", "maintenance_scadenze", "maintenance_responsabile",
                 "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
-                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_plan_edit", "maintenance_plan_delete", "maintenance_assignment_create", "maintenance_assignment_edit",
                 "maintenance_coverage", "maintenance_history_import",
                 "asset_group_list", "asset_group_create", "asset_group_edit",
                 "occurrence_complete", "occurrence_followup_create",
@@ -1339,7 +1339,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "is_subitem": True,
             "active": current_route in {
                 "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
-                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_plan_edit", "maintenance_plan_delete", "maintenance_assignment_create", "maintenance_assignment_edit",
                 "maintenance_coverage", "maintenance_history_import",
                 "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
                 "maintenance_coverage_matrix",

@@ -145,7 +145,7 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 "maintenance_plan_list",
                 sidebar_code="maintenance_piani",
                 routes=frozenset({
-                    "maintenance_plan_detail", "maintenance_plan_create", "maintenance_plan_edit",
+                    "maintenance_plan_detail", "maintenance_plan_create", "maintenance_plan_edit", "maintenance_plan_delete",
                     "maintenance_assignment_create", "maintenance_assignment_edit",
                     "asset_maintenance_plans", "asset_plan_customize", "maintenance_history_import",
                     "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
