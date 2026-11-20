@@ -2136,12 +2136,8 @@ def maintenance_plan_delete(request: HttpRequest, plan_id: int) -> HttpResponse:
     )
 
 
-def _parse_iso_date(raw) -> date | None:
-    """Data ISO dai parametri di query (l'anteprima e' un GET, non un form)."""
-    try:
-        return date.fromisoformat(str(raw or "").strip())
-    except ValueError:
-        return None
+# Data ISO dai parametri di query: una sola funzione per tutto il modulo.
+from .views._helpers_c import _parse_iso_date  # noqa: E402
 
 
 _MESI = (
