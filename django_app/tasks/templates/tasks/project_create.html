@@ -56,8 +56,9 @@
 <div class="ts-stack kc-mail">
   {% if not edit_project %}{% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}{% endif %}
 
-  <form method="post" id="kc-form" data-suggest-url="{% url 'tasks:identity_suggest' %}">
+  <form method="post" id="kc-form" data-suggest-url="{% url 'tasks:identity_suggest' %}" data-avviso-uscita>
     {% csrf_token %}
+    {% if edit_project %}{% include "tasks/_versione_form.html" with conflitto_cosa="questo kickoff" %}{% endif %}
     {% if form.non_field_errors %}<div class="kp-err">{{ form.non_field_errors }}</div>{% endif %}
 
     <div class="kp-stations">
@@ -220,6 +221,7 @@
 
 {% block tasks_shell_scripts %}
 <script src="{% static 'tasks/js/suggerimenti.js' %}?v=1" defer></script>
+<script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>
 <script>
   /* Tipo di commessa: spunta le tappe del modello scelto. */
   (function () {

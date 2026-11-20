@@ -250,12 +250,24 @@ def _tasks_shell_context(
         "tasks_shell_can_create": has_task_permission(request, "tasks_create"),
         "tasks_shell_can_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
         "tasks_shell_is_scope_admin": has_task_permission(request, "tasks_admin"),
+        # Stessa condizione della vista project_edit: prima il pulsante seguiva
+        # regole diverse in Panoramica, Gantt e VRF e portava ad «Accesso negato».
+        "tasks_shell_can_edit_project": _puo_modificare_kickoff(request, current_project),
         # Nel pannello laterale (hub-bulk-pannello) la pagina arriva senza
         # cornice: solo titolo, azioni e contenuto, pronta per innerHTML.
         "shell_base": (
             "tasks/base_shell_pannello.html" if _vuole_pannello(request) else "tasks/base_shell.html"
         ),
     }
+
+
+def _puo_modificare_kickoff(request, project) -> bool:
+    """Chi apre «Modifica kickoff»: permesso «tasks_edit» e gestione della commessa."""
+    if project is None or not has_task_permission(request, "tasks_edit"):
+        return False
+    from ..access import can_manage_project
+
+    return can_manage_project(request, project)
 
 
 def _vuole_pannello(request) -> bool:

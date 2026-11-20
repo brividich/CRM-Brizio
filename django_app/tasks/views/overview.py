@@ -16,6 +16,7 @@ from ..action_register import ACTION_ORIGIN_CHOICES, build_project_actions, filt
 from ..identity import normalize_client_name, normalize_part_number
 from ..models import MeetingStatus, TaskStatus
 from ..readiness import annotate_readiness_qs, compute_project_readiness
+from ..services.modifiche import storico_pagina
 from ._shared import _tasks_shell_context, percentuale_avanzamento
 from .tappe import tappe_context
 
@@ -182,6 +183,16 @@ def project_overview(request, project_id: int):
     )
     readiness = compute_project_readiness(project)
     can_manage = can_manage_project(request, project)
+    from ._shared import _puo_modificare_kickoff
+
+    if not _puo_modificare_kickoff(request, project):
+        # «Correggi» del team porta a Modifica kickoff: chi non può aprirla
+        # finiva su «Accesso negato».
+        from dataclasses import replace
+
+        readiness = replace(readiness, criteria=[
+            replace(c, action_url=None) if c.key == "team" else c for c in readiness.criteria
+        ])
     from ..services.filo import prossimi_passi
 
     _filo = tappe_context(request, project)
@@ -230,6 +241,7 @@ def project_overview(request, project_id: int):
             "active_task_count": task_counts["attive"],
             "progress_pct": percentuale_avanzamento(task_counts["done"], task_counts["attive"]),
             "recent_meetings": recent_meetings,
+            "storico_modifiche": storico_pagina(project),
             "can_manage": can_manage,
             "hide_readiness_actions": not can_manage,
         },
