@@ -630,6 +630,10 @@ def _da_fare_adempimenti(request: HttpRequest, form: OccurrenceFilterForm, *, to
         rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier} {r.target_label}".lower()]
     if scoped_reparti and not data.get("reparto"):
         rows = [r for r in rows if r.reparto in scoped_reparti]
+    # Ambito «Propri / del team»: stessa regola di _renewal_rows e delle occorrenze.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        rows = [r for r in rows if r.asset_id in visibili]
     for row in rows:
         row.days = row.days_until(today)
         row.days_late = -row.days if row.days < 0 else 0
@@ -918,8 +922,8 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
 
-def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
-                       report_missing: int, resolutions: dict) -> dict[str, Any]:
+def _sintesi_direzione(request: HttpRequest, *, today: date, open_rows: list[dict[str, Any]],
+                       done_rows: list[dict[str, Any]], report_missing: int, resolutions: dict) -> dict[str, Any]:
     """Indicatori di andamento per la direzione, costruiti SOLO su campi che
     risultano compilati.
 
@@ -936,8 +940,11 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     # dallo storico) la scadenza e' stata dedotta dalla data di esecuzione: sono
     # puntuali per costruzione, e in sviluppo bastavano a produrre un "100% nei
     # tempi" su 164 righe che non misurava nulla. Restano contate, ma a parte.
-    concluse_qs = MaintenanceOccurrence.objects.filter(
-        status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
+    # Stesso ambito del resto della pagina: con «Propri / del team» solo i propri asset.
+    concluse_qs = filtra_per_asset(
+        request,
+        MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa),
+        MODULO_MANUTENZIONE,
     )
     misurabili_qs = concluse_qs.filter(
         source__in=[MaintenanceOccurrence.SOURCE_SCHEDULER, MaintenanceOccurrence.SOURCE_MANUAL]
@@ -998,10 +1005,14 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     asset_con_piano = {
         asset_id for (_plan_id, asset_id), resolution in resolutions.items() if resolution.is_applied
     }
-    asset_in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+    asset_in_uso = filtra_visibili(
+        request, Asset.objects.filter(status=Asset.STATUS_IN_USE), MODULO_MANUTENZIONE
+    ).count()
 
     # Copertura dei campi facoltativi sugli interventi chiusi nell'anno.
-    chiusi = WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa).aggregate(
+    chiusi = filtra_odl(
+        request, WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa)
+    ).aggregate(
         totale=Count("id"),
         con_durata=Count("id", filter=Q(intervention_duration_minutes__gt=0)),
         con_fermo=Count("id", filter=Q(downtime_minutes__gt=0)),
@@ -1018,6 +1029,9 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     from .services import deadline_feed as feed
 
     amministrative = feed.administrative_dues()
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        amministrative = [due for due in amministrative if due.asset.id in visibili]
     prossime_amministrative = [due for due in amministrative if due.due_date >= today][:5]
     # Un adempimento gia' scaduto non e' una "prossima scadenza" e non va mescolato
     # alle altre, ma nemmeno taciuto: se ce ne sono, la sezione lo dichiara in una
@@ -1107,6 +1121,10 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
         ),
         today=today,
     )
+    # Ambito «Propri / del team»: come _conformita e il calendario, solo gli asset visibili.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        rows = [row for row in rows if row.asset_id in visibili]
     open_rows = [row for row in rows if row.state != feed.STATE_DONE]
 
     shared = {key: value for key, value in (("category", category_id or ""), ("reparto", reparto)) if value}
@@ -1412,6 +1430,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
 
     # Una pagina sola: le liste dicono cosa fare, la sintesi come sta andando.
     sintesi = _sintesi_direzione(
+        request,
         today=today,
         open_rows=open_rows,
         done_rows=done_rows,
@@ -2661,6 +2680,7 @@ def workorder_occurrence_remove(request: HttpRequest, workorder_id: int, occurre
         pk=occurrence_id,
         work_order_id=workorder_id,
     )
+    _nega_fuori_reparto(request, [occurrence])
     domain.remove_occurrence_from_workorder(
         occurrence, user=request.user, reason=_clean_string(request.POST.get("reason"))
     )
@@ -2682,6 +2702,7 @@ def workorder_distribute_day(request: HttpRequest, workorder_id: int) -> HttpRes
     if not form.is_valid() or not occurrences:
         messages.error(request, "Indica la giornata e almeno un asset da spostare.")
         return redirect("assets:wo_view", id=workorder_id)
+    _nega_fuori_reparto(request, occurrences)
 
     day = domain.assign_occurrences_to_day(
         work_order,

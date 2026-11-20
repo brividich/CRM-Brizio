@@ -563,7 +563,6 @@ def _deadline_category_choices() -> list[tuple[str, str]]:
     return category_filter_choices()
 
 
-@login_required
 def _da_spostare_nei_piani(request: HttpRequest) -> int:
     """Quante scadenze attive si possono spostare nei piani (per l'avviso; solo a chi configura i piani)."""
     from ..models import PeriodicCheckType
@@ -577,6 +576,7 @@ def _da_spostare_nei_piani(request: HttpRequest) -> int:
     return AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(pk__in=collegate).count()
 
 
+@login_required
 def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     can_manage_outlook_calendar = _is_assets_admin(request)
     calendar_user_choices: list[tuple[str, str]] = []

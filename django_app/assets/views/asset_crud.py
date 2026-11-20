@@ -1691,6 +1691,11 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
         .prefetch_related("administrative_deadlines")
         .order_by("-is_active", "asset__name", "name", "code", "id")
     )
+    # Stesso ambito dell'elenco asset: con «Propri / del team» solo i componenti dei propri asset.
+    from ..registro_permessi import MODULO_INVENTARIO
+    from ..services.visibilita import filtra_per_asset
+
+    component_qs = filtra_per_asset(request, component_qs, MODULO_INVENTARIO)
     if selected_asset is not None:
         component_qs = component_qs.filter(asset_id=selected_asset.id)
     if q:
