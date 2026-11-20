@@ -144,7 +144,10 @@
     var nascosto = document.querySelector(input.getAttribute("data-valore"));
     if (!fonte || !nascosto) return;
     var elenco = JSON.parse(fonte.textContent || "[]");
-    var pulisci = function () { if (nascosto.value && input.value !== input.getAttribute("data-scelto")) nascosto.value = ""; };
+    var pulisci = function () {
+      input.setCustomValidity("");
+      if (nascosto.value && input.value !== input.getAttribute("data-scelto")) nascosto.value = "";
+    };
     input.addEventListener("input", pulisci);
     attiva(input, function (q, fatto) {
       var parole = norm(q).split(/\s+/).filter(Boolean);
@@ -155,13 +158,22 @@
     }, function (r) {
       nascosto.value = r.id;
       input.value = r.nome;
+      input.setCustomValidity("");
+      input.classList.remove("rc-errore");
       input.setAttribute("data-scelto", r.nome);
       var focus = document.querySelector(input.getAttribute("data-poi") || "#_nessuno");
       if (focus) focus.focus();
     });
     var form = input.form;
     if (form) form.addEventListener("submit", function (ev) {
-      if (!nascosto.value) { ev.preventDefault(); input.focus(); input.classList.add("rc-errore"); input.setAttribute("placeholder", "Scegli il referente dall'elenco"); }
+      // Un campo in una sezione nascosta (es. «Nuovo invito» quando si collega a un invito esistente) non conta.
+      if (nascosto.value || input.disabled || input.closest("[hidden]")) return;
+      ev.preventDefault();
+      input.classList.add("rc-errore");
+      input.setAttribute("placeholder", "Scegli il referente dall'elenco");
+      input.setCustomValidity("Scegli il referente dall'elenco dei suggerimenti.");
+      input.reportValidity();
+      input.focus();
     });
   });
 })();
