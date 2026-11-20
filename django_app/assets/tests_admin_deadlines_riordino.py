@@ -48,8 +48,9 @@ class RegistraScadenzaTests(TestCase):
         self.assertEqual(response.status_code, 302)
         d.refresh_from_db()
         self.assertTrue(d.is_active)
-        self.assertEqual(d.due_date, date(2027, 4, 28))
-        self.assertEqual(d.completions.get().next_due_date, date(2027, 4, 28))
+        # Dalla scadenza teorica (30/04), non dalla data di esecuzione.
+        self.assertEqual(d.due_date, date(2027, 4, 30))
+        self.assertEqual(d.completions.get().next_due_date, date(2027, 4, 30))
 
     def test_data_indicata_vince_sulla_periodicita(self):
         d = AD.objects.create(asset=self.asset, title="Verifica periodica", due_date=date(2026, 4, 30), recurrence_months=12)

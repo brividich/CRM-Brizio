@@ -414,7 +414,9 @@ GUIDA = {
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
-                    "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
+                    "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola, "
+                    "dalla scadenza teorica (una scadenza al 31/12 resta al 31/12 anche se registrata prima o dopo; "
+                    "con molto ritardo salta alla prima data non ancora passata), come i piani amministrativi. "
                     "Se la stessa scadenza (stesso titolo e tipo) è aperta su altri asset, la finestra "
                     "«Registra» li propone (filtro «scadute o entro», da 7 giorni a un anno, di partenza 30): spuntati, si registrano insieme con la stessa data, note, prossima scadenza "
                     "e allegati (costo e durata solo sulla voce aperta). "

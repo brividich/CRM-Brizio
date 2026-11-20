@@ -976,10 +976,23 @@ class AssetAdministrativeDeadline(models.Model):
         return (self.due_date - current_day).days
 
     def next_due_after(self, completed_on):
-        """Prossima scadenza dalla periodicita' (dalla data di esecuzione); None se non e' periodica."""
+        """Prossima scadenza dalla periodicita', calcolata dalla scadenza TEORICA; None se non e' periodica.
+
+        Come i piani amministrativi («Dalla scadenza teorica»): una polizza al 31/12
+        resta al 31/12 anche se rinnovata il 15/12 o il 10/01. Se l'esecuzione e'
+        arrivata con molto ritardo si avanza fino alla prima scadenza non ancora
+        superata, senza inventare scadenze intermedie. Prima si contava dalla data di
+        esecuzione e la stessa scadenza cambiava data dopo «Sposta nei piani».
+        """
         if not self.recurrence_months or not completed_on:
             return None
-        return _add_months(completed_on, self.recurrence_months)
+        base = self.due_date or completed_on
+        next_due = _add_months(base, self.recurrence_months)
+        guard = 0
+        while next_due < completed_on and guard < 500:
+            next_due = _add_months(next_due, self.recurrence_months)
+            guard += 1
+        return next_due
 
     def series_siblings(self):
         """Altre righe attive della stessa serie (stesso asset, componente e titolo).

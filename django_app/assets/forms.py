@@ -992,7 +992,7 @@ class AssetAdministrativeDeadlineForm(forms.ModelForm):
         self.fields["warning_days"].help_text = "Numero di giorni usato per evidenziare le scadenze imminenti."
         self.fields["recurrence_months"].help_text = (
             "Es. 12 = annuale, 24 = biennale. Vuoto = scadenza unica. Con la periodicita' basta una sola voce: "
-            "«Registra» la rinnova da sola."
+            "«Registra» la rinnova da sola, dalla scadenza teorica (31/12 resta 31/12 anche se fatta prima o dopo)."
         )
 
         selected_asset_id = None
