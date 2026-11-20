@@ -158,6 +158,8 @@
     {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
     {% if can_manage or can_edit_after_end %}{% if meeting.is_svolto %}
       {% if meeting.minuta_chiusa %}{% if can_edit_after_end %}
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}"
+           title="Corregge l'esito senza riaprire la minuta: resta approvata, il motivo va a registro">Correggi minuta</a>
         <form method="post" action="{% url 'tasks:project_meeting_minute_reopen' project.id meeting.id %}" id="minute-reopen-form">
           {% csrf_token %}
           <button type="button" class="md-btn white" id="minute-reopen-open">Riapri minuta</button>

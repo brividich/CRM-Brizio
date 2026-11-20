@@ -80,7 +80,7 @@ GUIDA = {
                     "Dopo la riunione registra l'esito: presenti, note per ogni punto, problemi trovati, decisioni e azioni (chi fa cosa entro quando), ognuno con il suo punto.",
                     "La barra delle fasi (Convocazione, Conduzione, Esito, Minuta) in testa alle pagine dell'incontro dice cosa è fatto e porta alla fase successiva.",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",
-                    "Quando è tutto giusto: «Approva e chiudi minuta». Riaprirla richiede un motivo.",
+                    "Quando è tutto giusto: «Approva e chiudi minuta». Dopo, il capocommessa può «Correggi minuta» (resta approvata) o «Riapri minuta»: entrambe chiedono un motivo, che resta nelle Modifiche dell'incontro.",
                     "«Pianifica prossimo incontro» crea il successivo con gli stessi convocati, persone in copia, luogo e ora.",
                 ]),
                 ("nota", "Un incontro che non si tiene si annulla con «Annulla incontro»: serve il motivo, l'evento Outlook viene tolto e i convocati avvisati. "
