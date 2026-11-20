@@ -108,7 +108,10 @@ GUIDA = {
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
                       "simboli e il riferimento a disegno, sezione e fase. Le misure si possono anche "
                       "proporre da uno screenshot delle righe del protocollo ZEISS incollato con Ctrl+V nel riquadro "
-                      "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Il capocommessa li vede nella mail e nel "
+                      "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Con «📄 Dal report CMM (PDF)» "
+                      "si caricano invece i report completi in PDF (uno per S/N): un pannello laterale mostra tutte le righe lette "
+                      "dal testo del PDF, con le fuori tolleranza già spuntate, e «Inserisci N anomalie» crea un'anomalia per riga sul "
+                      "S/N del report. Il capocommessa li vede nella mail e nel "
                       "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "
                       "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
                 ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "

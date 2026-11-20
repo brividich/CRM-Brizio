@@ -120,7 +120,7 @@ GUIDA = {
                     "Scegli il ruolo del portale degli operatori (es. «Controllo qualità»): in «Operatori del PC» compaiono sia chi lo ha "
                     "a mano (in «Accessi») sia chi lo riceve dall'organigramma, come nella «Matrice dei ruoli».",
                     "admin-portale → «Postazioni condivise» (barra in alto, gruppo Accessi) → «Nuova postazione», una per PC: "
-                    "«PC del registro asset» (PC e portatili non dismessi), account, gruppo, minuti di inattività (1–60), «Attiva». "
+                    "«PC del registro asset» (PC e portatili non dismessi), account, gruppo, minuti di inattività (1–240, di base 120 = 2 ore), «Attiva». "
                     "Nome vuoto = nome dell'asset. Lo stesso account può servire più PC.",
                     "Dall'asset arrivano dati della macchina, MAC e IP: quelli dei punti rete dell'asset e quelli che il DHCP dà ai suoi MAC "
                     "(un PC con IP dinamico resta riconosciuto). Un IP dei punti rete che il DHCP ora dà a un altro PC compare barrato e non vale. "

@@ -19,7 +19,7 @@ from core.models import AccessGroup, OperatorePostazione, PinPostazione, Postazi
 
 from .decorators import legacy_admin_required
 
-MINUTI_MIN, MINUTI_MAX = 1, 60
+MINUTI_MIN, MINUTI_MAX = 1, 240
 
 
 def _account_ammessi():
