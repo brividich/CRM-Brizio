@@ -862,6 +862,15 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Da fare, Panoramica o Storico dicono «numeri parziali» o «le più recenti su N»",
+            "fare": [
+                "Le pagine caricano al massimo 1000 manutenzioni (Da fare), 3000 aperte e 1000 eseguite negli ultimi "
+                "120 giorni (Panoramica), 500 righe nell'elenco dello Storico: oltre, lo dichiarano. Restringi con i filtri.",
+                "Un preavviso di 0 giorni vale 0: la scadenza diventa «in scadenza» solo il giorno stesso.",
+                "Le scadenze di un asset dismesso non compaiono più in Scadenzario, Panoramica e cruscotti.",
+            ],
+        },
+        {
             "sintomo": "Registrata una manutenzione, la successiva non compare",
             "fare": [
                 "La successiva nasce solo se il piano vale ancora per quell'asset: piano attivo, asset non dismesso, "

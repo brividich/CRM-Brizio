@@ -455,7 +455,13 @@ def administrative_deadlines_qs():
 def _legacy_deadlines(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
     if KIND_ADMINISTRATIVE not in filters.kinds or filters.execution_mode:
         return []
-    qs = administrative_deadlines_qs().select_related("asset", "asset__asset_category")
+    # Come ``administrative_dues`` e le occorrenze: un asset dismesso non ha piu'
+    # adempimenti da fare (prima qui si contavano, nei cruscotti no).
+    qs = (
+        administrative_deadlines_qs()
+        .exclude(asset__status=Asset.STATUS_RETIRED)
+        .select_related("asset", "asset__asset_category")
+    )
     if start:
         qs = qs.filter(due_date__gte=start)
     if end:
@@ -493,7 +499,7 @@ def _legacy_deadlines(start: date | None, end: date | None, filters: FeedFilters
             kind=KIND_ADMINISTRATIVE,
             title=deadline.title,
             due_date=deadline.due_date,
-            state=_simple_state(deadline.due_date, today, int(deadline.warning_days or DEFAULT_WARNING_DAYS)),
+            state=_simple_state(deadline.due_date, today, int(deadline.warning_days)),
             supplier=deadline.issuer or (check_type.performer_label if check_type is not None else ""),
             detail_url=edit_url,
             actions=actions,
@@ -571,7 +577,7 @@ def _checks(start: date | None, end: date | None, filters: FeedFilters, today: d
             kind=KIND_CHECK,
             title=check_type.name,
             due_date=check_type.next_due_date,
-            state=_simple_state(check_type.next_due_date, today, int(check_type.warning_days or DEFAULT_WARNING_DAYS)),
+            state=_simple_state(check_type.next_due_date, today, int(check_type.warning_days)),
             target_label="" if asset is not None else check_type.system.name,
             is_external=bool(check_type.supplier_id),
             supplier=check_type.performer_label or "",

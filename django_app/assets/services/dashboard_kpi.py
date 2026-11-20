@@ -447,12 +447,11 @@ def get_fire_safety_kpis(today: date | None = None, request=None) -> dict:
     # Scadenze amministrative della categoria, da occorrenze e vecchia tabella.
     # Se non ne sono censite, i KPI restano correttamente a 0.
     # Stesso insieme dello Scadenzario aperto dalle tessere (``category=``): la famiglia
-    # con le sottocategorie, senza escludere gli asset dismessi con scadenze ancora attive.
+    # con le sottocategorie; gli asset dismessi restano fuori, come nello Scadenzario.
     from ..forms_maintenance import category_with_descendants
 
     dues = feed.administrative_dues(
         asset_filter={"asset_category_id__in": category_with_descendants(category.id)},
-        exclude_retired=False,
     )
     if request is not None:
         from ..registro_permessi import MODULO_MANUTENZIONE

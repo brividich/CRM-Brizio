@@ -60,6 +60,9 @@ body.theme-dark .mhs-empty{color:var(--text-light)}
     <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}" aria-label="Al giorno">
     <button class="btn btn-primary" type="submit">Filtra</button>
   </form>
+  {% if history_list_truncated %}
+    <p class="mhs-card" role="status" style="margin:0">Elenco: le {{ history_rows|length }} attività più recenti su {{ history_total }}. Restringi con date, origine o ricerca per vedere le altre.</p>
+  {% endif %}
   <article class="mhs-card mhs-table-wrap">
     <table class="mhs-table">
       <thead><tr><th>Data</th><th>Origine</th><th>Attivita e asset</th><th>Tipo / esito</th><th>Tecnico</th><th>Tempo / costo</th></tr></thead>
