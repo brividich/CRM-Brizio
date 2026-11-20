@@ -111,3 +111,38 @@ def righe_modifiche(modifiche) -> list[tuple[str, str]]:
         else:
             righe.append((str(campo), _breve(diff)))
     return righe
+
+
+def storico_pagina(oggetto, limit: int = 10) -> list:
+    """Le ultime modifiche di un kickoff o di un incontro, per la scheda.
+
+    Solo le azioni delle persone (le righe automatiche dei segnali restano nel
+    registro di Impostazioni): chi, quando, cosa e «prima → dopo».
+    """
+    from types import SimpleNamespace
+
+    from core.audit import storico_oggetto
+
+    from ..views.settings import etichetta_audit
+
+    voci = []
+    for voce in storico_oggetto(oggetto, limit=limit * 3):
+        if (voce.azione or "").startswith("auto_"):
+            continue
+        dettaglio = voce.dettaglio if isinstance(voce.dettaglio, dict) else {}
+        righe = righe_modifiche(dettaglio.get("modifiche"))
+        for chiave in ("motivo", "forzato"):
+            if dettaglio.get(chiave):
+                righe.append((chiave.capitalize(), _breve(dettaglio[chiave])))
+        if not righe and "modifiche" in dettaglio:
+            # «Salva» senza cambiare niente: resta nel registro, non in scheda.
+            continue
+        voci.append(SimpleNamespace(
+            quando=voce.created_at,
+            chi=voce.utente_display or "—",
+            azione=etichetta_audit(voce.azione),
+            righe=righe,
+        ))
+        if len(voci) >= limit:
+            break
+    return voci

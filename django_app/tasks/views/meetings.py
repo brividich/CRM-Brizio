@@ -73,6 +73,7 @@ from ..services.agenda import (
     _set_meeting_agenda_issue_done,
 )
 from ..services import filo_incontro
+from ..services.modifiche import storico_pagina
 from ..services.meeting_tasks import (
     KickoffBloccatoVRF,
     crea_attivita_da_incontro,
@@ -747,6 +748,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "project": project,
             "meeting": meeting,
             "note_generali": note_generali(meeting),
+            "storico_modifiche": storico_pagina(meeting),
             "can_manage": can_manage,
             "can_delete": can_manage and meeting_is_deletable(meeting),
             "meeting_issues": meeting_issues,
@@ -782,11 +784,18 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
     if meeting.minuta_chiusa and not can_edit_after_end(request, project):
         messages.warning(request, "La minuta è approvata: ordine del giorno e convocazione li corregge solo il capocommessa.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    from ..services import versione as versione_svc
+
+    def _impronta_convocazione(m) -> str:
+        return versione_svc.impronta(KickoffMeetingForm(instance=m), escludi=("invia_convocazione",))
+
+    conflitto = False
     if request.method == "POST":
+        conflitto = versione_svc.in_conflitto(request, _impronta_convocazione(meeting))
         old_data, old_stato = meeting.data, meeting.stato
         punti_prima = [str(p.get("titolo") or "") for p in (meeting.agenda_items or []) if isinstance(p, dict)]
         form = KickoffMeetingForm(request.POST, instance=meeting)
-        if form.is_valid():
+        if not conflitto and form.is_valid():
             from ..services.kickoff_avvio import segni_attivita
 
             segni = segni_attivita(form.cleaned_data.get("agenda_items_raw"))
@@ -823,7 +832,8 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             log_action(request, "kickoff_meeting_edit", "tasks", {
                 "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
                 "modifiche": modifiche or "nessun campo cambiato",
-            })
+                **({"forzato": "salvato sopra le modifiche di un altro utente"} if versione_svc.forzato(request) else {}),
+            }, oggetto=meeting)
             messages.success(request, "Incontro aggiornato.")
             _send_invite_if_requested(request, form, meeting)
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
@@ -858,8 +868,24 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "previous_agenda_json": previous_agenda,
             "has_previous_agenda": bool(previous_agenda),
             "agenda_suggestions_json": _agenda_title_suggestions(),
+            "impronta": request.POST.get("impronta", "") if conflitto else _impronta_convocazione(meeting),
+            "conflitto_versione": conflitto,
         },
     )
+
+
+def _impronta_esito(meeting) -> str:
+    """Esito: solo i campi che il form riscrive (verbale, presenti, …).
+
+    Note e spunte dei punti si salvano da sole riga per riga (anche da questa
+    pagina) e problemi/azioni/decisioni non vengono riscritti dal form: metterli
+    nell'impronta farebbe scattare l'avviso per le proprie stesse modifiche.
+    Il verbale si confronta sul valore salvato, non su quello ripulito per la
+    pagina (``note_generali`` dipende anche dalle note dei punti).
+    """
+    from ..services import versione as versione_svc
+
+    return versione_svc.impronta(KickoffMeetingMinuteForm(instance=meeting))
 
 
 @task_permissions_required("tasks_create")
@@ -883,9 +909,13 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
         )
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
+    from ..services import versione as versione_svc
+
+    conflitto = False
     if request.method == "POST":
+        conflitto = versione_svc.in_conflitto(request, _impronta_esito(meeting))
         form = KickoffMeetingMinuteForm(request.POST, instance=meeting)
-        if form.is_valid():
+        if not conflitto and form.is_valid():
             with transaction.atomic():
                 meeting = form.save(commit=False)
                 already_svolto = meeting.stato == MeetingStatus.SVOLTO
@@ -905,7 +935,9 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             log_action(
                 request, "kickoff_meeting_minutes", "tasks",
                 {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
-                 "modifiche": differenze_form(form) or "nessun campo cambiato"},
+                 "modifiche": differenze_form(form) or "nessun campo cambiato",
+                 **({"forzato": "salvato sopra le modifiche di un altro utente"} if versione_svc.forzato(request) else {})},
+                oggetto=meeting,
             )
             messages.success(request, f"Esito dell'incontro {meeting.numero} registrato.")
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
@@ -944,6 +976,8 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
             **tech_refs_context(request, project, meeting),
+            "impronta": request.POST.get("impronta", "") if conflitto else _impronta_esito(meeting),
+            "conflitto_versione": conflitto,
         },
     )
 
@@ -1093,6 +1127,7 @@ def project_meeting_minute_close(request, project_id: int, meeting_id: int):
     log_action(
         request, "kickoff_meeting_minute_close", "tasks",
         {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+        oggetto=meeting,
     )
     messages.success(request, "Minuta approvata: l'esito è ora in sola lettura.")
     return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
@@ -1131,6 +1166,7 @@ def project_meeting_minute_reopen(request, project_id: int, meeting_id: int):
             "motivo": motivo[:500],
             "riaperture": meeting.minuta_riaperture,
         },
+        oggetto=meeting,
     )
     messages.success(request, "Minuta riaperta: l'esito è di nuovo modificabile.")
     return redirect("tasks:project_meeting_minutes", project_id=project_id, meeting_id=meeting_id)
@@ -1215,7 +1251,7 @@ def project_meeting_cancel(request, project_id: int, meeting_id: int):
     log_action(request, "kickoff_meeting_cancel", "tasks", {
         "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
         "motivo": motivo[:500], "avvisati": sent,
-    })
+    }, oggetto=meeting)
     messages.success(request, f"Incontro {meeting.numero} annullato.")
     return detail
 

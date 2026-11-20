@@ -1,0 +1,13 @@
+{# Controllo «modificato da altri» (tasks/services/versione.py): va dentro il <form>. #}
+<input type="hidden" name="impronta" value="{{ impronta }}">
+{% if conflitto_versione %}
+<div class="kv-conflitto" role="alert" style="border:1px solid var(--warning);background:var(--warning-bg);border-radius:8px;padding:12px 14px;margin:0 0 14px;">
+  <strong>Mentre compilavi, qualcun altro ha modificato {{ conflitto_cosa|default:"questa pagina" }}.</strong>
+  Non è stato salvato niente: quello che hai scritto è ancora qui sotto.
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <a class="btn btn-secondary btn-sm" href="{{ request.path }}">Ricarica la versione attuale</a>
+    <button type="submit" class="btn btn-sm" name="forza" value="1">Salva comunque le mie modifiche</button>
+  </div>
+  <div style="margin-top:6px;font-size:.85em;color:var(--text-mid);">«Ricarica» perde quello che hai scritto; «Salva comunque» sovrascrive le modifiche dell'altro e resta nel registro.</div>
+</div>
+{% endif %}
