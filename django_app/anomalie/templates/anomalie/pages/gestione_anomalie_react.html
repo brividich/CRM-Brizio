@@ -6,14 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gestione anomalie | NOVICROM HUB</title>
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
-  <link rel="stylesheet" href="{% static 'core/css/hub-percorso.css' %}?v=20261120b">
+  <link rel="stylesheet" href="{% static 'core/css/hub-percorso.css' %}?v=20261120c">
   <script src="{% static 'anomalie/js/react.production.min.js' %}"></script>
   <script src="{% static 'anomalie/js/react-dom.production.min.js' %}"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
-    /* Barra Percorso fissa in cima (core/components/percorso.html): l'app parte sotto di lei. */
-    body { padding-top: var(--hub-percorso-h, 0px); }
+    /* Percorso del portale dentro la testata (variante "testata"): separatore prima del titolo. */
+    .ga-top__left .hub-percorso-slot:has(.hub-percorso:not([hidden])) { padding-right: 12px; margin-right: 2px; border-right: 1px solid rgba(255,255,255,.25); }
+    /* Su telefono la testata è piena: resta la sola freccia «indietro». */
+    @media (max-width: 640px) { .ga-top__left .hub-percorso-slot { display: none; } .ga .ga-top .ga-top__left > a.ga-iconbtn[data-hub-percorso-indietro] { display: inline-flex !important; } }
     body {
       font-family: "Outfit", sans-serif;
       font-size: var(--fs-base);
@@ -32,7 +34,7 @@
     input::placeholder, textarea::placeholder { color: #94a3b8; }
     /* ── Gestione anomalie (prefisso ga-) ── */
     .ga { min-height: calc(100 * var(--vh, 1vh)); display: flex; flex-direction: column; color: var(--text); }
-    .ga-top { position: sticky; top: var(--hub-percorso-h, 0px); z-index: 100; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; background: var(--primary); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+    .ga-top { position: sticky; top: 0; z-index: 100; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; background: var(--primary); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
     .ga-top__left, .ga-top__right { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .ga-top__title { margin: 0; color: #fff; font-size: var(--fs-lg); font-weight: 800; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ga-top__op { color: rgba(255,255,255,.75); background: rgba(255,255,255,.1); border-radius: 999px; padding: 3px 12px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
@@ -531,7 +533,7 @@
   </style>
 </head>
 <body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
-  {% include "core/components/percorso.html" with fisso=True %}
+  {% include "core/components/percorso.html" with variante="testata" %}
   <div id="root"></div>
 
   <script>
