@@ -255,6 +255,11 @@ urlpatterns = [
     path("assets/manutenzione/piani/<int:plan_id>/", views_maintenance.maintenance_plan_detail, name="maintenance_plan_detail"),
     path("assets/manutenzione/piani/<int:plan_id>/edit/", views_maintenance.maintenance_plan_form, name="maintenance_plan_edit"),
     path(
+        "assets/manutenzione/piani/<int:plan_id>/elimina/",
+        views_maintenance.maintenance_plan_delete,
+        name="maintenance_plan_delete",
+    ),
+    path(
         "assets/manutenzione/piani/<int:plan_id>/applicazioni/new/",
         views_maintenance.maintenance_assignment_form,
         name="maintenance_assignment_create",

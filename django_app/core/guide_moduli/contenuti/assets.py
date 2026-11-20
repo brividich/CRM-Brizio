@@ -423,6 +423,13 @@ GUIDA = {
                     "Un piano va applicato ai singoli asset che lo fanno davvero, non a un'intera categoria. Per allineare "
                     "i piani allo scadenziario X-MINE c'è il comando riallinea_manutenzioni_xmine (prima in prova, "
                     "poi con --applica).",
+                    "Piani → apri il piano → «Elimina piano»: la pagina elenca tutto ciò che è collegato (applicazioni, "
+                    "scadenze aperte, manutenzioni eseguite, documenti, rinvii, OdL, visite ditta, regole del vecchio motore, "
+                    "personalizzazioni, requisiti MPQ, checklist) e cosa succede a ognuno. «Sposta tutto su un altro piano» "
+                    "passa applicazioni, scadenze e storico al piano scelto (se c'è già la stessa applicazione o la stessa "
+                    "scadenza aperta usa quella; si ferma se una manutenzione eseguita o annullata ha stesso asset e data di "
+                    "una del piano scelto). «Cancella tutto» toglie piano e storico; gli OdL restano. Per confermare si "
+                    "scrive il nome del piano.",
                 ]),
                 ("p", "Tutti i dettagli sono nella guida completa (collegamento in cima)."),
             ],
@@ -841,6 +848,14 @@ GUIDA = {
         {
             "sintomo": "Una categoria nuova non compare nel menu a sinistra",
             "fare": ["Lancia sync_sidebar_categories dal terminale del Setup Wizard.", "Ricarica la pagina."],
+        },
+        {
+            "sintomo": "«Elimina piano» non elimina: «manutenzioni in conflitto» o «ancora usato da»",
+            "fare": [
+                "Conflitto: alcune manutenzioni già eseguite o annullate hanno stesso asset e data di una scadenza del "
+                "piano scelto. Annulla o sistema quella del piano scelto, oppure scegli un altro piano o «Cancella tutto».",
+                "«Ancora usato da»: un altro modulo usa il piano in un modo che la pagina non sa spostare; chiedi all'IT.",
+            ],
         },
         {
             "sintomo": "Una macchina ha manutenzioni che non le spettano",
