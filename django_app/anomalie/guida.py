@@ -202,6 +202,14 @@ SEZIONI: list[dict] = [
                 "«Inserisci N anomalie»: ogni riga diventa un'anomalia con la sua misura, sul S/N scritto nel report "
                 "(aggiunto al blocco se manca). Se il report è di un altro ordine compare un avviso. Il PDF non viene allegato. "
                 "Le anomalie inserite restano modificabili fino a «Salva blocco».",
+                "«📝 Da elenco» (sotto le anomalie del blocco): trascina un file di testo (.txt), sceglilo o incolla le righe; "
+                "ogni riga diventa un'anomalia (le righe vuote si saltano, trattini e numeri d'elenco in testa si tolgono). "
+                "Togli la spunta alle righe da non inserire e premi «Inserisci N anomalie»: vanno su tutti i seriali del blocco, "
+                "poi puoi sceglierne i S/N.",
+                "«📋 Copia difetti da un S/N»: scegli il S/N da cui copiare (del blocco che stai scrivendo o di un blocco già "
+                "salvato del controllo), lascia spuntate le sue anomalie da copiare e scrivi su quali S/N (anche range). Nel blocco "
+                "che stai scrivendo i S/N si aggiungono alle stesse anomalie; da un blocco salvato si creano anomalie uguali. I S/N "
+                "che non sono nel blocco vengono aggiunti (non se il blocco ha già anomalie gestite).",
                 "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
                 "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
                 "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "
