@@ -63,6 +63,46 @@ class MinutaDopoFineTests(TasksBaseTestCase):
         self.assertContains(pagina, "Riapri minuta")
         self.assertContains(pagina, "Correggi ordine del giorno")
 
+    def test_correggi_minuta_solo_capocommessa_e_resta_approvata(self):
+        from core.models import AuditLog
+
+        url = reverse("tasks:project_meeting_minutes", args=[self.project.pk, self.meeting.pk])
+        detail = reverse("tasks:project_meeting_detail", args=[self.project.pk, self.meeting.pk])
+        dati = {"note": "Verbale corretto", "problemi_aperti": "", "next_steps": ""}
+        # Il PM non capocommessa non entra nemmeno in correzione.
+        self.client.force_login(self.pm)
+        self.assertNotContains(self.client.get(detail), "Correggi minuta")
+        self.assertRedirects(self.client.get(url), detail, fetch_redirect_response=False)
+        self.client.post(url, {**dati, "motivo_correzione": "refuso"})
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.note, "Verbale")
+
+        self.client.force_login(self.cc)
+        self.assertContains(self.client.get(detail), "Correggi minuta")
+        pagina = self.client.get(url)
+        self.assertContains(pagina, "Stai correggendo una minuta approvata")
+        self.assertContains(pagina, "Salva correzione")
+        # Senza motivo non salva.
+        risposta = self.client.post(url, dati)
+        self.assertEqual(risposta.status_code, 200)
+        self.assertContains(risposta, "Scrivi il motivo")
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.note, "Verbale")
+        # Con motivo salva, la minuta resta approvata e il registro ha motivo e prima → dopo.
+        self.assertRedirects(self.client.post(url, {**dati, "motivo_correzione": "refuso nel verbale"}),
+                             detail, fetch_redirect_response=False)
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.note, "Verbale corretto")
+        self.assertTrue(self.meeting.minuta_chiusa)
+        self.assertEqual(self.meeting.minuta_chiusa_da, self.pm)
+        self.assertEqual(self.meeting.minuta_riaperture, 0)
+        voce = AuditLog.objects.filter(azione="kickoff_meeting_minute_correct").latest("id")
+        self.assertEqual(voce.dettaglio["motivo"], "refuso nel verbale")
+        self.assertIsInstance(voce.dettaglio["modifiche"], dict)
+        storico = self.client.get(detail)
+        self.assertContains(storico, "Minuta approvata corretta")
+        self.assertContains(storico, "refuso nel verbale")
+
     def test_minuta_da_reinviare_dopo_modifica(self):
         from .minute_email import send_meeting_minute
 

@@ -926,6 +926,7 @@ _LOG_ETICHETTE = {
     "kickoff_meeting_minutes": "Esito incontro registrato",
     "kickoff_meeting_minute_close": "Minuta approvata",
     "kickoff_meeting_minute_reopen": "Minuta riaperta",
+    "kickoff_meeting_minute_correct": "Minuta approvata corretta",
     "kickoff_meeting_cancel": "Incontro annullato",
     "kickoff_meeting_create": "Incontro convocato",
     "kickoff_meeting_edit": "Incontro modificato",
