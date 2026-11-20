@@ -1394,6 +1394,8 @@ const bozzaDa = ed => ({
   daClona: !!ed.daClona
 });
 const bozzaPiena = bz => !!bz && ((bz.voci || []).length > 0 || (bz.stati || []).length > 0 || (bz.anomalie || []).length > 0 || !!bz.bloccoId);
+// Anomalie del controllo non ancora chiuse: un controllo terminato si riapre solo se ce n'è almeno una.
+const anomalieAperte = c => (c.blocchi || []).reduce((n, b) => n + (b.anomalie || []).filter(a => !a.chiusa).length, 0);
 const editorDaBozza = (bz, blocchi) => {
   const blocco = bz.bloccoId ? (blocchi || []).find(b => b.id === bz.bloccoId) : null;
   if (bz.bloccoId && !blocco) return newEditor();
@@ -2468,8 +2470,17 @@ const Step2Controllo = ({
     setError('');
     try {
       const j = await getJson(urlFor(API.controllo_dettaglio, c.id), 'Ripresa controllo');
-      if (j.mio === false) {
-        setDaPrendere(j.controllo);
+      // Di un collega, o terminato con anomalie aperte (si riapre): prima la conferma nel riquadro.
+      const daRiaprire = j.controllo.terminato && anomalieAperte(j.controllo) > 0;
+      if (j.controllo.terminato && !daRiaprire && j.mio === false) {
+        setError('Il controllo è terminato e tutte le sue anomalie sono chiuse: apri un controllo nuovo.');
+        return;
+      }
+      if (j.mio === false || daRiaprire) {
+        setDaPrendere({
+          ...j.controllo,
+          mio: j.mio !== false
+        });
         return;
       }
       applicaRipresa(j);
@@ -2487,7 +2498,8 @@ const Step2Controllo = ({
       const j = await postJson(urlFor(API.controllo_prendi, daPrendere.id), {}, 'Presa in carico');
       setDaPrendere(null);
       applicaRipresa(j);
-      setNotice(prev => `Hai preso in carico il controllo di ${daPrendere.operatore}: da qui in avanti è tuo. ${prev || ''}`.trim());
+      const msg = daPrendere.terminato ? 'Controllo riaperto: aggiungi i seriali rimasti con un blocco nuovo, poi «Termina controllo».' : `Hai preso in carico il controllo di ${daPrendere.operatore}: da qui in avanti è tuo.`;
+      setNotice(prev => `${msg} ${prev || ''}`.trim());
     } catch (e) {
       setError(e.message);
     } finally {
@@ -3215,9 +3227,9 @@ const Step2Controllo = ({
       role: "alert"
     }, /*#__PURE__*/React.createElement("div", {
       className: "field-label"
-    }, "Controllo in carico a ", daPrendere.operatore), /*#__PURE__*/React.createElement("div", null, "Fase ", daPrendere.fase, " \xB7 ", daPrendere.blocchi.length, " blocch", daPrendere.blocchi.length === 1 ? 'o' : 'i', " salvat", daPrendere.blocchi.length === 1 ? 'o' : 'i', bozzaPiena(daPrendere.bozza) ? ` · ${(daPrendere.bozza.anomalie || []).length} anomalie scritte da salvare` : '', daPrendere.da_notificare ? ` · ${daPrendere.da_notificare} non ancora comunicate` : ''), /*#__PURE__*/React.createElement("div", {
+    }, daPrendere.terminato ? `Controllo terminato${daPrendere.mio ? '' : ` di ${daPrendere.operatore}`}` : `Controllo in carico a ${daPrendere.operatore}`), /*#__PURE__*/React.createElement("div", null, "Fase ", daPrendere.fase, " \xB7 ", daPrendere.blocchi.length, " blocch", daPrendere.blocchi.length === 1 ? 'o' : 'i', " salvat", daPrendere.blocchi.length === 1 ? 'o' : 'i', daPrendere.terminato ? ` · ${anomalieAperte(daPrendere)} anomalie ancora aperte` : '', bozzaPiena(daPrendere.bozza) ? ` · ${(daPrendere.bozza.anomalie || []).length} anomalie scritte da salvare` : '', daPrendere.da_notificare ? ` · ${daPrendere.da_notificare} non ancora comunicate` : ''), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, "Prendendolo in carico prosegui tu da dove \xE8 rimasto: blocco in scrittura, salvataggi, mail e \xABTermina controllo\xBB diventano tuoi. ", daPrendere.operatore, " riceve un avviso nel portale e il passaggio resta registrato."), /*#__PURE__*/React.createElement("div", {
+    }, daPrendere.terminato ? /*#__PURE__*/React.createElement(React.Fragment, null, "Riaprendolo aggiungi i seriali rimasti allo stesso controllo: i blocchi gi\xE0 salvati restano com\u2019erano e a \xABTermina controllo\xBB la mail riporta solo le anomalie nuove.", daPrendere.mio ? '' : ` Il controllo passa a te; ${daPrendere.operatore} riceve un avviso nel portale.`, " La riapertura resta registrata.") : /*#__PURE__*/React.createElement(React.Fragment, null, "Prendendolo in carico prosegui tu da dove \xE8 rimasto: blocco in scrittura, salvataggi, mail e \xABTermina controllo\xBB diventano tuoi. ", daPrendere.operatore, " riceve un avviso nel portale e il passaggio resta registrato.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         gap: 8,
@@ -3227,7 +3239,7 @@ const Step2Controllo = ({
       className: "btn-primary",
       onClick: prendiInCarico,
       disabled: saving
-    }, saving ? 'Presa in carico…' : 'Prendi in carico e prosegui'), /*#__PURE__*/React.createElement("button", {
+    }, saving ? daPrendere.terminato ? 'Riapertura…' : 'Presa in carico…' : daPrendere.terminato ? 'Riapri e prosegui' : 'Prendi in carico e prosegui'), /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary",
       onClick: () => setDaPrendere(null),
       disabled: saving
@@ -3235,7 +3247,7 @@ const Step2Controllo = ({
       className: "resume-box"
     }, /*#__PURE__*/React.createElement("div", {
       className: "field-label"
-    }, riprendibili.some(c => c.mio === false) ? 'Controlli ancora aperti su questo OP' : 'Hai un controllo ancora aperto su questo OP'), riprendibili.map(c => /*#__PURE__*/React.createElement("div", {
+    }, riprendibili.some(c => c.mio === false || c.terminato) ? 'Controlli da riprendere su questo OP' : 'Hai un controllo ancora aperto su questo OP'), riprendibili.map(c => /*#__PURE__*/React.createElement("div", {
       key: c.id,
       className: "resume-row"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Fase ", c.fase), c.mio === false ? ` · di ${c.operatore}` : '', " \xB7 ", new Date(c.created_at).toLocaleString('it-IT', {
@@ -3245,13 +3257,13 @@ const Step2Controllo = ({
       minute: '2-digit'
     }), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, c.blocchi.length, " blocch", c.blocchi.length === 1 ? 'o' : 'i', " salvat", c.blocchi.length === 1 ? 'o' : 'i', c.da_notificare ? ` · ${c.da_notificare} anomalie non ancora comunicate` : '')), /*#__PURE__*/React.createElement("button", {
+    }, c.terminato ? 'Terminato · ' : '', c.blocchi.length, " blocch", c.blocchi.length === 1 ? 'o' : 'i', " salvat", c.blocchi.length === 1 ? 'o' : 'i', c.terminato ? ` · ${c.anomalie_aperte} anomalie ancora aperte` : '', c.da_notificare ? ` · ${c.da_notificare} anomalie non ancora comunicate` : '')), /*#__PURE__*/React.createElement("button", {
       className: "btn-outline",
       onClick: () => riprendi(c),
       disabled: saving
-    }, c.mio === false ? 'Prendi in carico' : 'Riprendi'))), /*#__PURE__*/React.createElement("div", {
+    }, c.terminato ? 'Riapri' : c.mio === false ? 'Prendi in carico' : 'Riprendi'))), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, "Riprendi quello aperto invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.")), /*#__PURE__*/React.createElement("div", {
+    }, "Riprendi quello aperto (o riapri quello terminato per aggiungere i seriali rimasti) invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.")), /*#__PURE__*/React.createElement("div", {
       className: "field-group"
     }, /*#__PURE__*/React.createElement("label", {
       className: "field-label",

@@ -19,7 +19,7 @@ BOZZA = {"voci": ["LCN00054"], "anomalie": [{"testo": "Dentatura OT"}, {"testo":
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
-class ControlliGruppoQualitaTests(TestCase):
+class _GruppoBase(TestCase):
     def setUp(self):
         # Accesso alla pagina concesso (lo decide l'ACL, qui non in esame); l'organigramma non aggiunge ruoli.
         for p in (patch("core.permessi.organigramma.profili_da_organigramma", return_value=[]),
@@ -48,6 +48,9 @@ class ControlliGruppoQualitaTests(TestCase):
     def _post(self, url, body=None):
         return self.client.post(url, data=json.dumps(body or {}), content_type="application/json")
 
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
+class ControlliGruppoQualitaTests(_GruppoBase):
     def test_appartenenza_al_gruppo(self):
         self.assertTrue(cs.nel_gruppo_qualita(self.anna))
         self.assertFalse(cs.nel_gruppo_qualita(self.esterno))
@@ -116,3 +119,85 @@ class ControlliGruppoQualitaTests(TestCase):
         self.client.force_login(self.luca)
         r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
         self.assertEqual(r.status_code, 409)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
+class RiapriControlloTests(_GruppoBase):
+    """Il turno dopo aggiunge i seriali rimasti: niente limite di giorni e un controllo
+    terminato con anomalie ancora aperte si riapre (20/11/2026)."""
+
+    def _metti_anomalia(self, controllo, anomalia_id):
+        from anomalie.quality_models import AnomaliaBlocco, AnomaliaSegnalazioneMeta
+
+        blocco = AnomaliaBlocco.objects.create(controllo=controllo, ordine=1, fase=controllo.fase,
+                                               seriali=["LCN00001"], seriale_label="LCN00001")
+        AnomaliaSegnalazioneMeta.objects.create(anomalia_id=anomalia_id, fase=controllo.fase,
+                                                controllo=controllo, blocco=blocco)
+
+    def _termina(self, aperte: bool):
+        AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(terminato_at=timezone.now(), bozza={})
+        self.controllo.refresh_from_db()
+        self._metti_anomalia(self.controllo, 501)
+        righe = {501: {"id": 501, "chiudere": not aperte}}
+        p = patch("anomalie.controllo_service.carica_righe", side_effect=lambda ids: {i: righe[i] for i in ids if i in righe})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_conta_le_anomalie_aperte(self):
+        self._termina(aperte=True)
+        self.assertEqual(cs.anomalie_aperte_per_controllo([self.controllo]), {self.controllo.pk: 1})
+        self.assertTrue(cs.riapribile(self.controllo))
+
+    def test_controllo_vecchio_resta_in_sospeso(self):
+        AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(created_at=timezone.now() - timedelta(days=60))
+        self.client.force_login(self.luca)
+        j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
+        self.assertEqual([r["id"] for r in j["controlli"]], [self.controllo.pk])
+
+    def test_il_collega_riapre_un_terminato_con_anomalie_aperte(self):
+        self._termina(aperte=True)
+        self.client.force_login(self.luca)
+        with patch("anomalie.views._current_user_identity", return_value={"name": "Luca Verdi"}):
+            r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertFalse(r.json()["controllo"]["terminato"])
+        self.controllo.refresh_from_db()
+        self.assertIsNone(self.controllo.terminato_at)
+        self.assertEqual(self.controllo.operatore_id, self.luca.pk)
+        self.assertTrue(self.controllo.passaggi[-1]["riaperto"])
+        self.assertIn("Luca Verdi ha riaperto il tuo controllo", Notifica.objects.get(legacy_user_id=9101).messaggio)
+
+    def test_chi_lo_aveva_lo_riapre_senza_avvisi(self):
+        self._termina(aperte=True)
+        self.client.force_login(self.anna)
+        with patch("anomalie.views._current_user_identity", return_value={"name": "Anna Bianchi"}):
+            r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
+        self.assertEqual(r.status_code, 200, r.content)
+        self.controllo.refresh_from_db()
+        self.assertIsNone(self.controllo.terminato_at)
+        self.assertFalse(Notifica.objects.filter(legacy_user_id=9101).exists())
+
+    def test_terminato_con_tutto_chiuso_non_si_riapre(self):
+        self._termina(aperte=False)
+        self.client.force_login(self.luca)
+        r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
+        self.assertEqual(r.status_code, 409)
+        self.controllo.refresh_from_db()
+        self.assertIsNotNone(self.controllo.terminato_at)
+
+    def test_chi_apre_segnalazioni_sull_op_vede_e_riapre_anche_fuori_dal_gruppo(self):
+        self._termina(aperte=True)
+        self.client.force_login(self.esterno)
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            j = self.client.get(reverse("api_anomalie_controlli"), {"op_id": "OP/2026/4545"}).json()
+            self.assertEqual([(c["id"], c["terminato"], c["anomalie_aperte"]) for c in j["controlli"]],
+                             [(self.controllo.pk, True, 1)])
+            r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
+        self.assertEqual(r.status_code, 200, r.content)
+
+    def test_elenco_dell_op_non_propone_terminati_tutti_chiusi(self):
+        self._termina(aperte=False)
+        self.client.force_login(self.esterno)
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            j = self.client.get(reverse("api_anomalie_controlli"), {"op_id": "OP/2026/4545"}).json()
+        self.assertEqual(j["controlli"], [])
