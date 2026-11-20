@@ -1,0 +1,23 @@
+/* Percorso di navigazione (core/js/hub-percorso.js, componente core/components/percorso.html):
+   pagine aperte in questa scheda, ognuna è un link. I valori di ripiego servono alle pagine
+   che non caricano theme.css (es. la guida di Gestione specifiche). */
+.hub-percorso{padding:6px var(--content-pad-x,24px) 0;overflow-x:auto;scrollbar-width:none;font-size:var(--fs-sm,13px);font-family:inherit}
+.hub-percorso::-webkit-scrollbar{display:none}
+.hub-percorso[hidden]{display:none}
+.hub-percorso-lista{list-style:none;margin:0 auto;padding:0;display:flex;align-items:center;flex-wrap:nowrap;width:min(100%,1680px)}
+.hub-percorso-lista li{display:inline-flex;align-items:center;white-space:nowrap;min-width:0}
+.hub-percorso-lista li+li::before{content:"›";color:var(--text-light,#94a3b8);margin:0 6px}
+.hub-percorso-tappa{max-width:260px;overflow:hidden;text-overflow:ellipsis;color:var(--text-mid,#55607a);text-decoration:none;padding:2px 4px;border-radius:6px}
+a.hub-percorso-tappa:hover{color:var(--accent,#e8590c);background:var(--accent-light,#fff1e8);text-decoration:underline}
+.hub-percorso-tappa[aria-current]{color:var(--text,#14213d);font-weight:600}
+
+/* Pagine a schermo intero con intestazione fissa propria (Gestione anomalie, Apertura segnalazione,
+   menu Anomalie): la barra sta fissa in cima e la pagina sposta la sua intestazione di
+   --hub-percorso-h, che hub-percorso.js imposta quando la barra si mostra. */
+.hub-percorso--fisso{position:fixed;top:0;left:0;right:0;z-index:1000;padding:6px 20px;background:var(--surface,#fff);border-bottom:1px solid var(--border,#e2e8f0)}
+.hub-percorso--fisso .hub-percorso-lista{width:100%}
+
+@media print{.hub-percorso{display:none!important}}
+
+/* I vecchi breadcrumb fissi dei moduli: la barra ne riusa i link e li sostituisce (stesso elenco in hub-percorso.js). */
+body:has([data-hub-percorso]) :is(.fmd-crumb,.fm-crumb,.as-crumbs,.auto-breadcrumbs,.gm-crumb,.hg-crumb,.sp-crumb,.ana-breadcrumb,.cn-crumb,.sic-breadcrumb,.soc-crumb,.dp-breadcrumb){display:none!important}
