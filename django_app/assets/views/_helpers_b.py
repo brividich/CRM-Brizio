@@ -1206,6 +1206,12 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
     current_report_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "reports" else ""
     current_periodic_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "periodic_verifications" else ""
+    # Le voci della Manutenzione si accendono dalla stessa definizione della barra di
+    # sezione (``maintenance_nav``): prima qui c'erano elenchi di rotte scritti a mano
+    # che non coincidevano (es. «Registra» accendeva Scadenze qui e Da fare là).
+    from ..maintenance_nav import sidebar_code_routes
+
+    nav = sidebar_code_routes()
     return [
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -1299,69 +1305,45 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "label": "Manutenzione",
             "url": maintenance_hub,
             "is_subitem": False,
-            "active": current_route in {
-                "maintenance_hub",
-                "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
-                "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
-                "maintenance_schedule", "maintenance_todo", "maintenance_history",
-                "wo_list", "wo_view", "wo_create", "wo_close",
-                "assistance_contract_list",
-                # Superfici del nuovo dominio: senza queste il ramo "Manutenzione"
-                # si chiudeva proprio mentre ci si stava lavorando dentro.
-                "maintenance_da_fare", "maintenance_scadenze", "maintenance_responsabile",
-                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
-                "maintenance_plan_edit", "maintenance_plan_delete", "maintenance_assignment_create", "maintenance_assignment_edit",
-                "maintenance_coverage", "maintenance_history_import",
-                "asset_group_list", "asset_group_create", "asset_group_edit",
-                "occurrence_complete", "occurrence_followup_create",
-            },
+            # Tutto il ramo operativo e quello di configurazione.
+            "active": current_route in (nav["maintenance_hub"] | nav["maintenance_configurazione"]),
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Da fare",
             "url": maintenance_da_fare,
             "is_subitem": True,
-            # Le rotte ritirate rimandano qui: la voce resta accesa anche per chi
-            # arriva da un vecchio segnalibro, altrimenti atterrerebbe su una pagina
-            # senza nessuna voce di menu evidenziata.
-            "active": current_route in {"maintenance_da_fare", "maintenance_todo"},
+            # Comprende le rotte ritirate che rimandano qui (vecchi segnalibri).
+            "active": current_route in nav["maintenance_da_fare"],
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Scadenze",
             "url": maintenance_scadenze,
             "is_subitem": True,
-            "active": current_route in {
-                "maintenance_scadenze", "maintenance_schedule", "maintenance_scadenzario",
-                "occurrence_complete", "occurrence_followup_create",
-            },
+            "active": current_route in nav["maintenance_scadenzario"],
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Cruscotto",
+            "label": "Panoramica",
             "url": maintenance_quadro,
             "is_subitem": True,
-            "active": current_route == "maintenance_responsabile",
+            "active": current_route in nav["maintenance_quadro"],
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Piani",
             "url": maintenance_plans,
             "is_subitem": True,
-            "active": current_route in {
-                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
-                "maintenance_plan_edit", "maintenance_plan_delete", "maintenance_assignment_create", "maintenance_assignment_edit",
-                "maintenance_coverage", "maintenance_history_import",
-                "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
-                "maintenance_coverage_matrix",
-            },
+            # Qui non c'e' una voce «Copertura»: la sua pagina accende Piani.
+            "active": current_route in (nav["maintenance_piani"] | nav["maintenance_copertura"]),
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Gruppi asset",
             "url": asset_groups,
             "is_subitem": True,
-            "active": current_route in {"asset_group_list", "asset_group_create", "asset_group_edit"},
+            "active": current_route in nav["maintenance_asset_groups"],
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -1425,7 +1407,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "label": "Interventi",
             "url": wo_list,
             "is_subitem": True,
-            "active": current_route in {"wo_list", "wo_view", "wo_create", "wo_close"},
+            "active": current_route in nav["maintenance_interventi"],
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
