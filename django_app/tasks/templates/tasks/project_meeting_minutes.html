@@ -6,7 +6,7 @@
 {% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  {{ project.name }} · Compila dopo l'incontro: salvando, l'incontro passa in stato «Svolto».
+  {{ project.name }} · {% if correzione %}Correzione della minuta approvata: resta approvata, il motivo va a registro.{% elif meeting.is_svolto %}Esito già registrato: salvando lo aggiorni.{% else %}Compila dopo l'incontro: salvando, l'incontro passa in stato «Svolto».{% endif %}
 {% endblock %}
 
 {% block tasks_shell_meta %}
