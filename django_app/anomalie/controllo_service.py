@@ -264,7 +264,6 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
 # aperti dei colleghi dello stesso gruppo e può prenderli in carico: una
 # segnalazione corposa iniziata a fine turno la finisce il collega dopo.
 PRESET_GRUPPO_QUALITA = frozenset({"controllo-qualita", "qualita"})
-GIORNI_CONTROLLI_SOSPESI = 14
 
 
 def _legacy_id_utente(user) -> int | None:
@@ -336,10 +335,9 @@ def controlli_sospesi(user, *, op_id: str = "", limite: int = 30) -> list:
     nel gruppo qualità, quelli dei colleghi del gruppo. Dal più recente."""
     from .quality_models import AnomaliaControllo
 
-    qs = AnomaliaControllo.objects.filter(
-        terminato_at__isnull=True,
-        created_at__gte=timezone.now() - timedelta(days=GIORNI_CONTROLLI_SOSPESI),
-    ).select_related("operatore")
+    # Nessun limite di giorni: un controllo lasciato a metà resta da finire finché
+    # qualcuno non lo termina.
+    qs = AnomaliaControllo.objects.filter(terminato_at__isnull=True).select_related("operatore")
     if op_id:
         qs = qs.filter(op_id__iexact=op_id)
     memo: dict = {}
@@ -352,26 +350,59 @@ def controlli_sospesi(user, *, op_id: str = "", limite: int = 30) -> list:
     return out[:limite]
 
 
+def anomalie_aperte_per_controllo(controlli) -> dict[int, int]:
+    """Per ogni controllo, quante delle sue anomalie sono ancora aperte (non chiuse)."""
+    from .quality_models import AnomaliaSegnalazioneMeta
+
+    pks = [c.pk for c in controlli]
+    if not pks:
+        return {}
+    coppie = list(AnomaliaSegnalazioneMeta.objects.filter(controllo_id__in=pks).values_list("controllo_id", "anomalia_id"))
+    righe = carica_righe([a for _c, a in coppie])
+    out: dict[int, int] = {}
+    for controllo_id, anomalia_id in coppie:
+        row = righe.get(int(anomalia_id))
+        if row is not None and not row.get("chiudere"):
+            out[controllo_id] = out.get(controllo_id, 0) + 1
+    return out
+
+
+def riapribile(controllo) -> bool:
+    """Un controllo terminato si riapre finché ha almeno un'anomalia aperta: il turno
+    dopo aggiunge i seriali rimasti senza aprire una segnalazione nuova."""
+    return controllo.terminato_at is not None and bool(anomalie_aperte_per_controllo([controllo]).get(controllo.pk))
+
+
 def prendi_in_carico(controllo, user, nome: str) -> dict:
     """Passa il controllo al collega: da qui in avanti bozza, blocchi, promemoria e
-    «Termina» sono suoi. Il passaggio resta in ``passaggi``; chi lo aveva viene avvisato."""
+    «Termina» sono suoi. Il passaggio resta in ``passaggi``; chi lo aveva viene avvisato.
+
+    Un controllo già terminato (con anomalie ancora aperte) viene riaperto: anche da
+    chi lo aveva, che così aggiunge i seriali rimasti. Il passaggio lo segna «riaperto»."""
     da_nome = controllo.operatore_display or ""
     da_user = controllo.operatore
+    riapre = controllo.terminato_at is not None
     passaggio = {"da": da_nome, "a": nome, "at": timezone.now().isoformat()}
+    if riapre:
+        passaggio["riaperto"] = True
     controllo.passaggi = [*(controllo.passaggi if isinstance(controllo.passaggi, list) else []), passaggio]
     controllo.operatore = user
     controllo.operatore_display = nome[:200]
     # Il promemoria della bozza riparte per il nuovo titolare.
     controllo.promemoria_bozza_at = None
-    controllo.save(update_fields=["passaggi", "operatore", "operatore_display", "promemoria_bozza_at", "updated_at"])
-    legacy_da = _legacy_id_utente(da_user) if da_user is not None else None
+    campi = ["passaggi", "operatore", "operatore_display", "promemoria_bozza_at", "updated_at"]
+    if riapre:
+        controllo.terminato_at = None
+        campi.append("terminato_at")
+    controllo.save(update_fields=campi)
+    legacy_da = _legacy_id_utente(da_user) if da_user is not None and da_user.pk != user.pk else None
     if legacy_da:
         try:
-
+            azione = "riaperto il tuo controllo terminato" if riapre else "preso in carico il tuo controllo"
             _invia_notifica(
                 legacy_user_id=legacy_da,
                 tipo=TIPO_NOTIFICA_PROMEMORIA,
-                messaggio=(f"{nome} ha preso in carico il tuo controllo su OP {controllo.op_id} "
+                messaggio=(f"{nome} ha {azione} su OP {controllo.op_id} "
                            f"(fase {controllo.fase}) e lo prosegue.")[:500],
                 url_azione=url_controllo(controllo),
             )
