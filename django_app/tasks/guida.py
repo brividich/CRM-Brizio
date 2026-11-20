@@ -529,7 +529,7 @@ SEZIONI: list[dict] = [
                 "Le decisioni non si riscrivono: se una è sbagliata, se ne registra una nuova che la supera.",
                 "I vecchi campi di testo libero (ordine del giorno testuale, problemi aperti, next steps) restano consultabili "
                 "negli incontri storici ma non si compilano più.",
-                "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura. Dopo l'approvazione solo il capocommessa della commessa (o l'amministratore del modulo) vede «Riapri minuta», che chiede un motivo a registro, e «Correggi ordine del giorno».",
+                "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura. Dopo l'approvazione solo il capocommessa della commessa (o l'amministratore del modulo) vede «Correggi minuta», «Riapri minuta» e «Correggi ordine del giorno». «Correggi minuta» apre l'esito con il campo «Motivo della correzione» (obbligatorio): «Salva correzione» lascia la minuta approvata e mette motivo e campi cambiati nelle Modifiche dell'incontro; se la minuta era già stata inviata, rimandala con «Invia aggiornamento minuta». «Riapri minuta» (anche lei con motivo) la torna a bozza, da riapprovare.",
                 "Dopo «Invia minuta» il dettaglio dice quando è partita. Se poi cambiano verbale, ordine del giorno, decisioni o azioni compare «La minuta è cambiata dopo l'invio» e il pulsante diventa «Invia aggiornamento minuta»: la mail esce con oggetto «Aggiornamento minuta».",
                 "Salvare l'esito due volte non raddoppia le azioni: un'azione aperta con lo stesso titolo e lo stesso responsabile nello stesso incontro non viene ricreata.",
                 "«Invia minuta» la manda ai presenti, con gli assenti in copia e il PDF allegato.",
@@ -700,7 +700,7 @@ SEZIONI: list[dict] = [
                 ("Ho salvato l'incontro ma nessuno ha ricevuto niente", "salvare non invia email: premi «Invia convocazione» nel dettaglio."),
                 ("Compare «La data fine non può precedere la data inizio»", "correggi anche l'Inizio: quello proposto è il giorno dopo l'ultima fine in piano."),
                 ("«Elimina» non c'è su un incontro", "un incontro svolto o con decisioni non si elimina. Se non si terrà, usa «Annulla incontro»."),
-                ("Non posso più modificare l'esito", "la minuta è approvata: la riapre il capocommessa con «Riapri minuta» e il motivo."),
+                ("Non posso più modificare l'esito", "la minuta è approvata: la corregge il capocommessa con «Correggi minuta» (resta approvata) o la riapre con «Riapri minuta», sempre con un motivo."),
             ]),
         ],
     },

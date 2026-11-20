@@ -41,6 +41,12 @@
   <form method="post" novalidate id="minutes-form" data-avviso-uscita>
     {% csrf_token %}
     {% include "tasks/_versione_form.html" with conflitto_cosa="l'esito di questo incontro" %}
+    {% if correzione %}
+    <div class="mf-correzione" role="note" style="border:1px solid var(--warning);background:var(--warning-bg);border-radius:8px;padding:12px 14px;margin:0 0 14px;">
+      <strong>Stai correggendo una minuta approvata.</strong>
+      Resta approvata: il motivo e ogni campo cambiato («prima → dopo») restano nelle Modifiche dell'incontro.
+    </div>
+    {% endif %}
 
     {# Presenze: chi era davvero all'incontro, non chi era stato convocato. #}
     <div class="mf-section" id="sec-presenze">
@@ -294,13 +300,22 @@
     schermo e il pulsante restava fuori vista per tutta la compilazione.
     {% endcomment %}
     <div class="mf-actions mf-actions--sticky">
+      {% if correzione %}
+      <label class="mf-correzione-motivo" style="flex:1 1 280px;display:flex;flex-direction:column;gap:2px;">
+        <input type="text" class="input" name="motivo_correzione" maxlength="500" required
+               value="{{ motivo_correzione }}" placeholder="Motivo della correzione (obbligatorio)"
+               aria-label="Motivo della correzione"{% if errore_motivo %} aria-invalid="true" autofocus{% endif %}>
+        {% if errore_motivo %}<span style="color:var(--danger);font-size:.85em;">Scrivi il motivo: senza, la correzione non si salva.</span>{% endif %}
+      </label>
+      {% else %}
       <span class="mf-actions-note">
         {% if meeting.is_svolto %}L'incontro e' gia' registrato come svolto: il salvataggio aggiorna l'esito.{% else %}Salvando, l'incontro passa in stato «Svolto».{% endif %}
       </span>
+      {% endif %}
       <a class="mf-btn ghost" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Annulla</a>
       <button type="submit" class="mf-btn primary">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-        {% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}
+        {% if correzione %}Salva correzione{% elif meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}
       </button>
     </div>
   </form>

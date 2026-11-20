@@ -897,25 +897,32 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
     """
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
-    if not can_manage_project(request, project):
+    # Minuta approvata = documento chiuso. Il capocommessa la corregge senza
+    # riaprirla («Correggi minuta»): resta approvata, il motivo e il «prima →
+    # dopo» finiscono a registro. Gli altri devono chiedergli di riaprirla.
+    correzione = meeting.minuta_chiusa
+    if correzione:
+        if not can_edit_after_end(request, project):
+            messages.warning(
+                request,
+                "La minuta è approvata: la corregge o la riapre solo il capocommessa della commessa.",
+            )
+            return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    elif not can_manage_project(request, project):
         messages.error(request, "Non hai i permessi per registrare l'esito di questo incontro.")
-        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
-    # Minuta approvata = documento chiuso: si modifica solo dopo una riapertura
-    # esplicita, che resta a registro.
-    if meeting.minuta_chiusa:
-        messages.warning(
-            request,
-            "La minuta è approvata e non è modificabile. Riaprila dal dettaglio incontro per correggerla.",
-        )
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
     from ..services import versione as versione_svc
 
     conflitto = False
+    motivo_correzione = ""
+    errore_motivo = False
     if request.method == "POST":
         conflitto = versione_svc.in_conflitto(request, _impronta_esito(meeting))
         form = KickoffMeetingMinuteForm(request.POST, instance=meeting)
-        if not conflitto and form.is_valid():
+        motivo_correzione = (request.POST.get("motivo_correzione") or "").strip()[:500]
+        errore_motivo = correzione and not motivo_correzione
+        if not conflitto and not errore_motivo and form.is_valid():
             with transaction.atomic():
                 meeting = form.save(commit=False)
                 already_svolto = meeting.stato == MeetingStatus.SVOLTO
@@ -933,13 +940,21 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             from ..services.modifiche import differenze_form
 
             log_action(
-                request, "kickoff_meeting_minutes", "tasks",
+                request, "kickoff_meeting_minute_correct" if correzione else "kickoff_meeting_minutes", "tasks",
                 {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
                  "modifiche": differenze_form(form) or "nessun campo cambiato",
+                 **({"motivo": motivo_correzione} if correzione else {}),
                  **({"forzato": "salvato sopra le modifiche di un altro utente"} if versione_svc.forzato(request) else {})},
                 oggetto=meeting,
             )
-            messages.success(request, f"Esito dell'incontro {meeting.numero} registrato.")
+            if correzione:
+                messages.success(
+                    request,
+                    "Minuta corretta: resta approvata."
+                    + (" Rimandala ai partecipanti con «Invia aggiornamento minuta»." if meeting.minuta_inviata else ""),
+                )
+            else:
+                messages.success(request, f"Esito dell'incontro {meeting.numero} registrato.")
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     else:
         form = KickoffMeetingMinuteForm(instance=meeting)
@@ -978,6 +993,9 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             **tech_refs_context(request, project, meeting),
             "impronta": request.POST.get("impronta", "") if conflitto else _impronta_esito(meeting),
             "conflitto_versione": conflitto,
+            "correzione": correzione,
+            "motivo_correzione": motivo_correzione,
+            "errore_motivo": errore_motivo,
         },
     )
 
