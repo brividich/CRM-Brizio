@@ -9,7 +9,8 @@
   <link rel="icon" href="{{ portal_branding.brand_favicon }}">
   {% endif %}
   <link rel="stylesheet" href="{% static 'core/vendor/outfit/outfit.css' %}">
-  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}?v=20261120">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}?v=20261120b">
+  <link rel="stylesheet" href="{% static 'core/css/hub-percorso.css' %}?v=20261120b">
   <link rel="stylesheet" href="{% static 'core/css/dark-safety.css' %}">
   <style>
     :root {
@@ -67,10 +68,7 @@
   {% block subnav %}{% include "core/components/subnav.html" %}{% endblock %}
   {% block notify_banner %}{% include "core/components/notifications_banner.html" %}{% endblock %}
   {# Percorso: le pagine aperte in questa scheda, cliccabili (anche «Apri in nuova scheda»). #}
-  {% block percorso %}{% if user.is_authenticated %}<nav class="hub-percorso" data-hub-percorso data-home="{% url 'home_portale:index' %}" aria-label="Percorso" hidden></nav>
-  {# Voci di menu visibili all'utente: se si arriva da una mail o da un link, il percorso parte da «Home › Modulo». #}
-  <template data-hub-percorso-voci>{% for it in nav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% for ch in it.children %}<a href="{{ ch.href }}">{{ ch.label }}</a>{% endfor %}{% endfor %}{% for it in subnav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% endfor %}</template>
-  <script src="{% static 'core/js/hub-percorso.js' %}?v=20261120" defer></script>{% endif %}{% endblock %}
+  {% block percorso %}{% include "core/components/percorso.html" %}{% endblock %}
 
   <div class="content">
     {% block cnsgi_etichette %}{% load cnsgi %}{% cnsgi_etichette %}{% endblock %}

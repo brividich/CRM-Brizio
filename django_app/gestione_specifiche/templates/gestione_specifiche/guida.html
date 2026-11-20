@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
@@ -19,10 +19,11 @@
          padding:5px 12px;border-radius:20px;font-size:12.5px}
   .accent{color:var(--orange)}
   main{max-width:920px;margin:0 auto;padding:28px 22px 60px}
-  nav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:26px}
-  nav b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
-  nav a{display:inline-block;margin:3px 14px 3px 0;color:var(--cyan);text-decoration:none;font-size:13.5px}
-  nav a:hover{text-decoration:underline}
+  .hub-percorso{padding-bottom:6px}
+  main > nav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:26px}
+  main > nav b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+  main > nav a{display:inline-block;margin:3px 14px 3px 0;color:var(--cyan);text-decoration:none;font-size:13.5px}
+  main > nav a:hover{text-decoration:underline}
   section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin-bottom:20px}
   h2{color:var(--navy);font-size:19px;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
   h3{color:var(--navy2);font-size:15.5px;margin:18px 0 6px}
@@ -45,8 +46,10 @@
     code{overflow-wrap:anywhere}
   }
 </style>
+<link rel="stylesheet" href="{% static 'core/css/hub-percorso.css' %}?v=20261120b">
 </head>
 <body>
+{% include "core/components/percorso.html" with nome="Guida" %}
 <header>
   <h1>Gestione Specifiche &amp; MOD.133 <span class="accent">— Guida operativa</span></h1>
   <p>Ciclo di vita delle specifiche tecniche/comunicazioni, flow-down requisiti (MOD.133), distribuzione controllata e documenti sulla share. Modulo <code>gestione_specifiche</code> di NOVICROM HUB.</p>

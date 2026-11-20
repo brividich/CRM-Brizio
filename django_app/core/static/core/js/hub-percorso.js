@@ -40,7 +40,10 @@
 
   /* Nome della tappa: titolo visibile della pagina, altrimenti la prima parte del <title>. */
   function nomePagina() {
-    var parti = pulisci(document.title).split(" | ");
+    var fisso = bar.getAttribute("data-nome");
+    if (fisso) return { t: pulisci(fisso), m: "" };
+    /* «Pagina | Modulo», «Pagina — Dettaglio · NOVICROM HUB»: il nome è la prima parte. */
+    var parti = pulisci(document.title).split(/\s+[|·—–]\s+/);
     var titolo = parti[0] || "";
     var modulo = parti.length > 1 ? parti[parti.length - 1] : "";
     var h = document.querySelector(".content .page-h, .content h1");
@@ -144,6 +147,10 @@
   });
   bar.appendChild(ol);
   bar.hidden = false;
+  /* Pagine con intestazione fissa propria: spostano l'intestazione sotto la barra (hub-percorso.css). */
+  function altezza() { document.documentElement.style.setProperty("--hub-percorso-h", bar.offsetHeight + "px"); }
+  altezza();
+  window.addEventListener("resize", altezza);
   /* Su schermi stretti la barra scorre: tiene in vista la pagina corrente. */
   bar.scrollLeft = bar.scrollWidth;
 })();
