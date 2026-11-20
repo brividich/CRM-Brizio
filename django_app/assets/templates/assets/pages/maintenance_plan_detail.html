@@ -19,6 +19,7 @@
     <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_edit' plan.pk %}">Modifica piano</a>
     <a class="btn btn-secondary" href="{% url 'assets:maintenance_template_edit' plan.pk %}">Checklist e istruzioni</a>
     <a class="btn btn-primary" href="{% url 'assets:maintenance_assignment_create' plan.pk %}">+ Applica a...</a>
+    <a class="btn btn-danger" href="{% url 'assets:maintenance_plan_delete' plan.pk %}">Elimina piano</a>
   {% endif %}
 {% endblock %}
 

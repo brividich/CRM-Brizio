@@ -1,0 +1,107 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Elimina {{ plan.label }} — Piano di manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
+<style>
+  .pd-modes { display:grid; gap:10px; padding:12px 16px; }
+  .pd-mode { display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid var(--border, #dbe1ea); border-radius:10px; cursor:pointer; }
+  .pd-mode input[type=radio] { margin-top:3px; }
+  .pd-mode strong { display:block; }
+  .pd-mode select { margin-top:8px; max-width:420px; width:100%; }
+  .pd-confirm { padding:12px 16px; display:grid; gap:8px; max-width:520px; }
+  .pd-confirm input[type=text] { width:100%; }
+  .pd-actions { padding:0 16px 16px; display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Elimina «{{ plan.label }}»{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  {% if impact.unknown_blockers %}
+    <div class="md-conflict">
+      <h3>Non si puo' eliminare</h3>
+      <p style="margin:0">Il piano e' ancora usato da: {{ impact.unknown_blockers|join:", " }}. Togli prima questi collegamenti.</p>
+    </div>
+  {% endif %}
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Cosa e' collegato al piano</h2><span class="md-badge badge-muted">{{ impact.total }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>Collegamento</th><th class="md-right">Quanti</th><th>Se sposti su un altro piano</th><th>Se cancelli tutto</th></tr></thead>
+        <tbody>
+          {% for row in impact.visible_rows %}
+            <tr>
+              <td><strong>{{ row.label }}</strong></td>
+              <td class="md-right">{{ row.count }}</td>
+              <td>{{ row.on_move }}</td>
+              <td>{% if row.key == "occ_done" or row.key == "attachments" %}<span class="md-badge badge-danger">{{ row.on_delete }}</span>{% else %}{{ row.on_delete }}{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="md-empty">Niente: il piano non e' collegato a nulla e si puo' cancellare senza perdere dati.</td></tr>
+          {% endfor %}
+          {% for other in impact.unknown_other %}
+            <tr><td><strong>{{ other }}</strong></td><td></td><td colspan="2">perdono il riferimento al piano</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if not impact.unknown_blockers %}
+  <form method="post" class="md-section">
+    {% csrf_token %}
+    <div class="md-section-head"><h2>Come vuoi eliminarlo</h2></div>
+    <div class="pd-modes">
+      {% if impact.total %}
+        <label class="pd-mode">
+          <input type="radio" name="mode" value="{{ MODE_MOVE }}" {% if selected_mode == MODE_MOVE %}checked{% endif %}>
+          <span>
+            <strong>Sposta tutto su un altro piano, poi elimina</strong>
+            Applicazioni, scadenze e storico passano al piano scelto. Se il piano scelto ha gia' la stessa applicazione o la stessa scadenza aperta, si usa quella.
+            <select name="target" aria-label="Piano di destinazione">
+              <option value="">— scegli il piano —</option>
+              {% for candidate in targets %}
+                <option value="{{ candidate.pk }}" {% if selected_target and selected_target.pk == candidate.pk %}selected{% endif %}>{{ candidate.label }}</option>
+              {% endfor %}
+            </select>
+          </span>
+        </label>
+      {% endif %}
+      <label class="pd-mode">
+        <input type="radio" name="mode" value="{{ MODE_DELETE }}" {% if selected_mode == MODE_DELETE or not impact.total %}checked{% endif %}>
+        <span>
+          <strong>Cancella tutto</strong>
+          {% if impact.total %}Il piano e tutto cio' che e' elencato sopra spariscono, senza possibilita' di recupero. Gli OdL restano.{% else %}Il piano viene cancellato.{% endif %}
+        </span>
+      </label>
+    </div>
+
+    {% if move_conflicts %}
+      <div class="md-conflict" style="margin:0 16px 12px">
+        <h3>{{ move_conflicts|length }} manutenzioni in conflitto con «{{ selected_target.label }}»</h3>
+        <p style="margin:0 0 6px">Sono gia' eseguite o annullate e il piano scelto ha una scadenza con lo stesso asset e la stessa data: non si possono unire.</p>
+        <ul>{% for occ in move_conflicts|slice:":20" %}<li>{{ occ.asset.asset_tag|default:occ.asset.name }} — {{ occ.due_date|date:"d/m/Y" }} ({{ occ.get_status_display }})</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+
+    <div class="pd-confirm">
+      <label for="pd-confirm-input">Per confermare scrivi il nome del piano: <strong>{{ plan.label }}</strong></label>
+      <input type="text" id="pd-confirm-input" name="confirm" autocomplete="off" required>
+    </div>
+    <div class="pd-actions">
+      <button type="submit" class="btn btn-danger">Elimina definitivamente</button>
+      <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+    </div>
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}

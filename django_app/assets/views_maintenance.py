@@ -2027,6 +2027,78 @@ def maintenance_assignment_delete(request: HttpRequest, plan_id: int, assignment
     return redirect("assets:maintenance_plan_detail", plan_id=plan_id)
 
 
+@login_required
+def maintenance_plan_delete(request: HttpRequest, plan_id: int) -> HttpResponse:
+    """Eliminazione definitiva: verifica di tutto cio' che e' collegato, poi sposta o cancella."""
+    from .services import plan_delete
+
+    if not can_manage_maintenance_plans(request):
+        return _deny(request, "Non hai i permessi per eliminare i piani di manutenzione.")
+    plan = get_object_or_404(MaintenanceInterventionTemplate, pk=plan_id)
+    targets = list(
+        MaintenanceInterventionTemplate.objects.filter(is_active=True).exclude(pk=plan.pk).order_by("label")
+    )
+    mode = request.POST.get("mode", "") if request.method == "POST" else ""
+    target = None
+    target_id = _as_int(request.POST.get("target") if request.method == "POST" else request.GET.get("target"))
+    if target_id:
+        target = next((candidate for candidate in targets if candidate.pk == target_id), None)
+
+    if request.method == "POST":
+        confirm = _clean_string(request.POST.get("confirm"))
+        if confirm.casefold() != plan.label.strip().casefold():
+            messages.error(request, "Per confermare scrivi il nome del piano esattamente come appare.")
+        else:
+            label, code = plan.label, plan.code
+            try:
+                stats = plan_delete.delete_plan(plan, mode=mode, target=target)
+            except plan_delete.PlanDeleteError as exc:
+                messages.error(request, str(exc))
+            else:
+                from core.audit import log_action
+
+                log_action(
+                    request,
+                    "ASSET_PIANO_ELIMINATO",
+                    "assets",
+                    {
+                        "piano": label,
+                        "codice": code,
+                        "id": plan_id,
+                        "modo": mode,
+                        "spostato_su": getattr(target, "label", ""),
+                        "spostato_su_id": getattr(target, "pk", None),
+                        **stats,
+                    },
+                    oggetto_tipo="MaintenanceInterventionTemplate",
+                    oggetto_id=str(plan_id),
+                )
+                if mode == plan_delete.MODE_MOVE:
+                    messages.success(request, f"Piano «{label}» eliminato: tutto e' passato a «{target.label}».")
+                    return redirect("assets:maintenance_plan_detail", plan_id=target.pk)
+                messages.success(request, f"Piano «{label}» eliminato definitivamente con tutto lo storico.")
+                return redirect("assets:maintenance_plan_list")
+
+    impact = plan_delete.plan_delete_impact(plan)
+    conflicts = plan_delete.move_conflicts(plan, target) if target else []
+    return render(
+        request,
+        "assets/pages/maintenance_plan_delete.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": f"Elimina piano — {plan.label}",
+            "plan": plan,
+            "impact": impact,
+            "targets": targets,
+            "selected_target": target,
+            "selected_mode": mode or (plan_delete.MODE_MOVE if impact.total else plan_delete.MODE_DELETE),
+            "move_conflicts": conflicts,
+            "MODE_MOVE": plan_delete.MODE_MOVE,
+            "MODE_DELETE": plan_delete.MODE_DELETE,
+        },
+    )
+
+
 def _parse_iso_date(raw) -> date | None:
     """Data ISO dai parametri di query (l'anteprima e' un GET, non un form)."""
     try:
