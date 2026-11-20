@@ -2107,6 +2107,8 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 }
 .md-reopen-box { display: inline-flex; align-items: center; gap: 6px; }
 .md-reopen-box .input { min-width: 260px; }
+/* display:inline-flex scavalcava [hidden]: la casella del motivo si vedeva prima del clic su «Riapri minuta». */
+#minute-reopen-form [hidden] { display: none; }
 
 /* Presenze effettive nella card partecipanti */
 .md-presenze {
