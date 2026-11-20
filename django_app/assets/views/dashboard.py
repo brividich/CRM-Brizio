@@ -293,7 +293,7 @@ def _compute_dashboard_kpis(request: HttpRequest, today: date) -> dict:
     # migrate (``deadline_feed``).
     from ..services import deadline_feed as feed
 
-    admin_dues = feed.administrative_dues(due_to=in_90, exclude_retired=False)
+    admin_dues = feed.administrative_dues(due_to=in_90)
     visibili_man = ids_visibili(request, MODULO_MANUTENZIONE)
     if visibili_man is not None:
         admin_dues = [due for due in admin_dues if due.asset.id in visibili_man]

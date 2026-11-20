@@ -447,7 +447,9 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             | Q(work_order__assigned_to__isnull=True)
             | Q(work_order__assigned_to=request.user)
         )
-    rows = _decorate(list(queryset[:1000]), today=today)
+    rows = _decorate(list(queryset[:DA_FARE_MAX_RIGHE]), today=today)
+    # Oltre il limite la pagina lo dice, invece di mostrare numeri contati su una lista tagliata.
+    rows_total = queryset.count() if len(rows) >= DA_FARE_MAX_RIGHE else len(rows)
 
     week_end = today + timedelta(days=7)
     blocks = [
@@ -587,6 +589,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "summary": summary,
             "kpi_url": kpi_url,
             "total": len(rows),
+            "rows_total": rows_total,
+            "rows_truncated": rows_total > len(rows),
             "can_plan": can_plan,
             "can_execute": can_execute,
             "only_mine": only_mine,
@@ -598,6 +602,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
 
 
 DA_FARE_ADEMPIMENTI_GIORNI = 30
+# Righe massime caricate in «Da fare»: oltre, la pagina mostra l'avviso con il totale.
+DA_FARE_MAX_RIGHE = 1000
 
 
 def _da_fare_adempimenti(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti) -> list:
@@ -1284,6 +1290,10 @@ def maintenance_kpi(request: HttpRequest) -> HttpResponse:
     return redirect(_panoramica_dettaglio_url(request.GET.copy()))
 
 
+PANORAMICA_MAX_APERTE = 3000
+PANORAMICA_MAX_ESEGUITE = 1000
+
+
 def _responsabile_response(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
 
@@ -1300,14 +1310,14 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
 
     asset_visibili = filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
     open_rows = _decorate(
-        list(occorrenze().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
+        list(occorrenze().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:PANORAMICA_MAX_APERTE]),
         today=today,
     )
     done_rows = _decorate(
         list(
             occorrenze()
             .filter(status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=today - timedelta(days=120))
-            .order_by("-completed_on")[:1000]
+            .order_by("-completed_on")[:PANORAMICA_MAX_ESEGUITE]
         ),
         today=today,
     )
@@ -1337,8 +1347,11 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         .distinct()
         .count()
     )
+    follow_ups_qs = odl().filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
+    # Il numero si conta sul queryset intero: prima si contava la lista tagliata a 50.
+    follow_ups_count = follow_ups_qs.count()
     follow_ups = (
-        odl().filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
+        follow_ups_qs
         .select_related("asset", "follow_up_occurrence", "follow_up_occurrence__plan")
         .order_by("-opened_at")[:50]
     )
@@ -1425,9 +1438,12 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "waiting": sum(1 for wo in open_workorders if wo.is_waiting),
         "workorders_overdue": n_overdue_workorders,
         "report_missing": len(report_missing),
-        "follow_ups": follow_ups.count(),
+        "follow_ups": follow_ups_count,
         "conflicts": len(conflicts),
         "spare_below_min": _spare_below_min_count(),
+        # Liste caricate al massimo per 3000 aperte / 1000 eseguite: oltre, i numeri
+        # contati sulle righe sono parziali e la pagina lo dice.
+        "truncated": len(open_rows) >= PANORAMICA_MAX_APERTE or len(done_rows) >= PANORAMICA_MAX_ESEGUITE,
     }
 
     # Una pagina sola: le liste dicono cosa fare, la sintesi come sta andando.

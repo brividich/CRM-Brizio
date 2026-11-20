@@ -427,15 +427,16 @@ class DashboardScadenzarioKpiTests(_AdminClientMixin, TestCase):
         attesi = {
             "reparto=&plan_type=ordinary&window=overdue": (dd["maintenance_overdue"], 2),
             "reparto=&plan_type=ordinary&window=30": (dd["maintenance_due_soon"], 2),
-            "reparto=&plan_type=administrative&window=overdue": (kpis["scadenze_scadute"], 4),
+            # L'estintore dismesso (a4, -30) non conta: ne' nel KPI ne' nello Scadenzario.
+            "reparto=&plan_type=administrative&window=overdue": (kpis["scadenze_scadute"], 3),
             "reparto=&plan_type=administrative&window=30": (kpis["scadenze_30gg"], 1),
             "reparto=&plan_type=administrative&window=90": (kpis["scadenze_90gg"], 3),
             "reparto=&plan_type=piani&window=overdue": (kpis["verifiche_scadute"], 3),
             "reparto=&plan_type=piani&window=30": (kpis["verifiche_30gg"], 3),
-            "reparto=&window=overdue": (dd["overdue"], 7),
+            "reparto=&window=overdue": (dd["overdue"], 6),
             "reparto=&window=30": (dd["due_soon"], 4),
             f"reparto=&plan_type=administrative&window=overdue&category={self.fire.id}":
-                (fire["antincendio_scadenze_scadute"], 3),
+                (fire["antincendio_scadenze_scadute"], 2),
             f"reparto=&plan_type=administrative&window=30&category={self.fire.id}":
                 (fire["antincendio_scadenze_30gg"], 1),
         }

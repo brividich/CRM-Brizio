@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from anomalie.guida import con_guida
 import json
@@ -1567,7 +1567,6 @@ def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
                 deadline_feed.administrative_dues(
                     asset_filter={"assigned_legacy_user_id": legacy_user_id},
                     due_to=today + timedelta(days=30),
-                    exclude_retired=False,
                 )
             ),
         }
@@ -2177,7 +2176,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
 
             horizon = timezone.localdate() + datetime.timedelta(days=30)
             # Scadenze amministrative (registro separato dai piani), senza doppioni.
-            scad_amm = len(deadline_feed.administrative_dues(due_to=horizon, exclude_retired=False))
+            scad_amm = len(deadline_feed.administrative_dues(due_to=horizon))
             scad_man = PeriodicVerification.objects.filter(
                 is_active=True, next_verification_date__lte=horizon
             ).count()

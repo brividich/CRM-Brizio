@@ -379,15 +379,22 @@ def _manutenzioni(user) -> list[dict]:
     mie = (Q(assignment__assigned_to=user)
            | Q(assignment__assigned_to__isnull=True, plan__default_assignee=user)
            | Q(assignment__isnull=True, plan__default_assignee=user))
+    from assets.services.deadline_feed import exclude_mirror_occurrences
+    from assets.services.maintenance_domain import q_aperte_non_piu_dovute
+
+    # Stesse esclusioni di Da fare: niente copie delle scadenze amministrative (arrivano
+    # dalla loro fonte), niente asset dismessi o piani spenti.
     qs = (
-        MaintenanceOccurrence.objects
-        .filter(mie, status=MaintenanceOccurrence.STATUS_OPEN, work_order__isnull=True,
-                due_date__lte=timezone.localdate() + timedelta(days=GIORNI_MANUTENZIONI))
+        exclude_mirror_occurrences(MaintenanceOccurrence.objects.filter(
+            mie, status=MaintenanceOccurrence.STATUS_OPEN, work_order__isnull=True,
+            due_date__lte=timezone.localdate() + timedelta(days=GIORNI_MANUTENZIONI),
+        ))
+        .exclude(q_aperte_non_piu_dovute())
         .select_related("plan", "asset").order_by("due_date", "id")[:MAX_PER_FONTE]
     )
     return [{
         "code": str(getattr(o.asset, "asset_tag", "") or "Manutenzione"),
-        "title": str(getattr(o.plan, "name", "") or o.plan),
+        "title": str(getattr(o.plan, "label", "") or o.plan),
         "meta": _meta("manutenzione programmata", getattr(o.asset, "name", ""), _entro(o.due_date)),
         "status": "Da eseguire",
         "due": o.due_date,

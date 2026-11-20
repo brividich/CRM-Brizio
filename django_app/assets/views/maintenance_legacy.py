@@ -1397,6 +1397,9 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             # origine): con piu' righe la pagina lo dichiara.
             "history_loaded_total": totale_righe,
             "history_truncated": totale_righe < sum(source_counts.values()),
+            # L'elenco mostra 500 righe su quelle caricate (fino a 500 per origine):
+            # prima l'avviso confrontava solo le caricate e poteva mancare.
+            "history_list_truncated": min(len(rows), 500) < sum(source_counts.values()),
             "history_kpi_links": {
                 key: _history_url(request, source=key)
                 for key in ("all", "workorders", "maintenance", "deadlines", "tickets")
