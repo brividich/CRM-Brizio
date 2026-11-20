@@ -238,6 +238,10 @@ ETICHETTE_KICKOFF = {
 }
 
 
+def _etichette_ruoli(form) -> dict[str, str]:
+    return {nome: str(form.fields[nome].label) for nome in ProjectKickoffForm.TEAM_FIELDS}
+
+
 @task_permissions_required("tasks_view", "tasks_edit")
 def project_edit(request, project_id: int):
     """Modifica anagrafica e team di un kickoff esistente."""
@@ -245,20 +249,33 @@ def project_edit(request, project_id: int):
     if not can_manage_project(request, project):
         return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
 
+    from ..services import versione as versione_svc
+    from ..services.team_avvisi import avvisa_nuovi_membri, team_attuale
+
+    def _impronta_attuale(proj) -> str:
+        return versione_svc.impronta(ProjectKickoffForm(instance=proj), extra={
+            "data_consegna": proj.data_consegna, "modello": proj.modello_id,
+            "tappe": list(proj.tappe_escluse or []),
+        })
+
+    conflitto = False
     if request.method == "POST":
         from ..services.modifiche import differenza_elenco, differenza_valore, differenze_form
 
+        conflitto = versione_svc.in_conflitto(request, _impronta_attuale(project))
         prima = {
             "name": project.name,
             "data_consegna": project.data_consegna,
             "modello": str(project.modello) if project.modello_id else "",
             "tappe": list(project.tappe_escluse or []),
         }
+        team_prima = team_attuale(project, ProjectKickoffForm.TEAM_FIELDS)
         form = ProjectKickoffForm(request.POST, instance=project)
-        if form.is_valid():
+        if not conflitto and form.is_valid():
             with transaction.atomic():
                 project = form.save()
                 _salva_tappe(project, request.POST)
+            avvisa_nuovi_membri(project, team_prima, etichette=_etichette_ruoli(form), actor=request.user)
             etichette_tappe = dict(TappaKickoff.choices)
             modifiche = differenze_form(form, escludi=("name",), etichette=ETICHETTE_KICKOFF)
             modifiche.update(differenza_valore("Oggetto", prima["name"], project.name))
@@ -275,7 +292,8 @@ def project_edit(request, project_id: int):
                 "project_id": project.id,
                 "message": f"Kickoff #{project.id} '{project.name}' modificato",
                 "modifiche": modifiche or "nessun campo cambiato",
-            })
+                **({"forzato": "salvato sopra le modifiche di un altro utente"} if versione_svc.forzato(request) else {}),
+            }, oggetto=project)
             messages.success(request, "Kickoff aggiornato.")
             return redirect("tasks:project_overview", project_id=project.id)
     else:
@@ -291,6 +309,10 @@ def project_edit(request, project_id: int):
             "edit_project": project,
             "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
             **_contesto_filo(project, request.POST if request.method == "POST" else None),
+            # Con un conflitto la pagina conserva quello che l'utente ha scritto e
+            # l'impronta vecchia: «Salva comunque» la invia con forza=1.
+            "impronta": request.POST.get("impronta", "") if conflitto else _impronta_attuale(project),
+            "conflitto_versione": conflitto,
         },
     )
 
@@ -330,6 +352,12 @@ def project_create(request):
                 project.save()
                 form.save_team(project)
                 _salva_tappe(project, request.POST)
+            from ..services.team_avvisi import avvisa_nuovi_membri
+
+            avvisa_nuovi_membri(
+                project, {r: set() for r in ProjectKickoffForm.TEAM_FIELDS},
+                etichette=_etichette_ruoli(form), actor=request.user,
+            )
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
                 "part_number": project.part_number,

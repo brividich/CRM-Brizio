@@ -24,7 +24,12 @@ GUIDA = {
                     "Aggiungi preventivo e dati di commessa (facoltativi) e il team: basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore.",
                     "«Crea kickoff e passa alla VRF»: compili la scheda VRF o la rimandi, come prima.",
                     "«Come procedi?»: «Pianifica le attività» (una riga per attività: cosa, chi, entro quando se si sa; poi puoi convocare l'incontro per confermarle) o «Pianifica un incontro» (dai punti dell'ordine del giorno assegni le attività con «Diventa un'attività del responsabile»).",
-                    "Dati e team si correggono poi da «Modifica kickoff» nella Panoramica.",
+                    "Dati e team si correggono poi da «Modifica kickoff» nella Panoramica. Chi entra nel team riceve la campanella.",
+                ]),
+                ("ul", [
+                    "Se mentre compili kickoff, convocazione o esito qualcun altro salva la stessa scheda (anche una nota in «Conduci incontro»), il portale non salva: «Ricarica la versione attuale» o «Salva comunque le mie modifiche» (resta nel registro).",
+                    "Uscendo da quei form, o dalla VRF online, con modifiche non salvate il browser chiede conferma.",
+                    "In fondo a Panoramica e dettaglio incontro, «Modifiche» mostra le ultime correzioni con «prima → dopo».",
                 ]),
             ],
         },

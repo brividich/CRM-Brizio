@@ -28,8 +28,9 @@
     </div>
   </div>
 
-  <form method="post" novalidate id="meeting-form" data-suggest-url="{% url 'tasks:identity_suggest' %}">
+  <form method="post" novalidate id="meeting-form" data-suggest-url="{% url 'tasks:identity_suggest' %}" data-avviso-uscita>
     {% csrf_token %}
+    {% if is_edit %}{% include "tasks/_versione_form.html" with conflitto_cosa="questo incontro" %}{% endif %}
     {{ form.agenda_items_raw }}
 
     <div class="kp-layout" data-kp-root>
@@ -213,10 +214,10 @@
           {% endif %}
 
           {# Lista attuale #}
-          <div class="agenda-list" id="agenda-list"></div>
+          <div class="agenda-list" id="agenda-list" data-avviso-conta></div>
 
           {# Form aggiunta inline #}
-          <div class="agenda-add-form" id="agenda-add-form">
+          <div class="agenda-add-form" id="agenda-add-form" data-avviso-conta>
             <div class="agenda-add-title">
               <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
               Nuovo punto all'ordine del giorno
@@ -295,10 +296,10 @@
                     <option value="{{ forloop.counter0 }}">{{ template.nome }}{% if template.descrizione %} — {{ template.descrizione }}{% endif %}</option>
                   {% endfor %}
                 </select>
-                <button type="button" class="mf-btn-sm ghost" id="agenda-template-apply">Aggiungi punti del modello</button>
+                <button type="button" class="mf-btn-sm ghost" id="agenda-template-apply" data-avviso-conta>Aggiungi punti del modello</button>
               {% endif %}
               {% if has_previous_agenda %}
-                <button type="button" class="mf-btn-sm ghost" id="agenda-duplicate-prev">Duplica ODG dell'incontro precedente</button>
+                <button type="button" class="mf-btn-sm ghost" id="agenda-duplicate-prev" data-avviso-conta>Duplica ODG dell'incontro precedente</button>
               {% endif %}
             </div>
           {% endif %}
@@ -383,5 +384,6 @@
 
 <script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>
 <script src="{% static 'tasks/js/suggerimenti.js' %}?v=1" defer></script>
+<script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>
 <script src="{% static 'tasks/js/meeting_form.js' %}?v=20261116" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
 {% endblock %}

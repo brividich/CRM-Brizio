@@ -1,0 +1,18 @@
+{# Ultime modifiche di kickoff o incontro (tasks/services/modifiche.py storico_pagina). #}
+{% if storico_modifiche %}
+<details class="ko-storico" style="margin-top:16px;border:1px solid var(--border, #e2e8f0);border-radius:10px;padding:10px 14px;background:var(--surface, transparent);">
+  <summary style="cursor:pointer;font-weight:600;">Modifiche ({{ storico_modifiche|length }})</summary>
+  <ul style="list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px;">
+    {% for voce in storico_modifiche %}
+    <li>
+      <div style="font-size:.9em;"><strong>{{ voce.azione }}</strong> · {{ voce.chi }} · {{ voce.quando|date:"d/m/Y H:i" }}</div>
+      {% if voce.righe %}
+      <ul style="margin:4px 0 0 0;padding-left:18px;font-size:.85em;color:var(--text-mid);">
+        {% for campo, testo in voce.righe %}<li>{% if campo %}{{ campo }}: {% endif %}{{ testo }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}

@@ -19,7 +19,7 @@
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
   {% if can_manage %}
-    <a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>
+    {% if tasks_shell_can_edit_project %}<a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>{% endif %}
     <a class="ts-hero-action" href="{% url 'tasks:project_vrf_compile' project.id %}">Gestisci VRF</a>
     {% if tasks_shell_can_create %}
       <a class="ts-hero-action" href="{% url 'tasks:project_meeting_create' project.id %}">Nuovo incontro</a>
@@ -196,4 +196,5 @@
       {% endif %}
     </div>
   </section>
+  {% include "tasks/_storico_modifiche.html" %}
 {% endblock %}
