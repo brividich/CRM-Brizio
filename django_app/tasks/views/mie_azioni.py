@@ -93,6 +93,46 @@ def _task_row(task, today) -> dict:
     }
 
 
+def _riga_elenco(request, row: dict, today) -> dict:
+    """Voce personale -> riga dell'elenco unico (services/elenco.py)."""
+    from django.urls import reverse
+
+    from ..services import elenco
+
+    obj = row["obj"]
+    if row["kind"] == KIND_TASK:
+        return elenco.riga_da_task(obj, request=request, today=today)
+    kind = row["kind"]
+    if row["is_open"]:
+        verbo, etichetta = "done", ("Risolto" if kind == KIND_ISSUE else "Fatta")
+    else:
+        verbo, etichetta = "reopen", "Riapri"
+    azione_stato = {"url": reverse("tasks:mia_voce_stato", args=[kind, obj.pk]), "verbo": verbo, "etichetta": etichetta}
+    if kind == KIND_TECH:
+        dati = elenco.riga(
+            origine="programma", etichetta_origine=obj.kind, titolo=row["title"],
+            url=reverse("tasks:project_tech_refs", args=[obj.project_id]),
+            responsabile=elenco._nome(request.user), scadenza=row["due_date"], aperta=row["is_open"],
+            in_ritardo=row["is_overdue"], progetto=row["project"], azione_stato=azione_stato,
+        )
+        # Il percorso del programma si apre dalla riga (Esplora risorse o link web).
+        dati["tech_ref"] = obj if obj.path else None
+        return dati
+    meeting = row["meeting"]
+    sotto = f"Dall'incontro {meeting.numero} del {meeting.data:%d-%m-%Y}" if meeting and meeting.data else ""
+    if row["linked_task"]:
+        sotto = (sotto + " · " if sotto else "") + f"attività collegata «{row['linked_task'].title}»"
+    url = (
+        reverse("tasks:project_meeting_detail", args=[obj.project_id, meeting.pk]) if meeting
+        else reverse("tasks:project_actions", args=[obj.project_id])
+    )
+    return elenco.riga(
+        origine=kind, titolo=row["title"], url=url, responsabile=elenco._nome(request.user),
+        scadenza=row["due_date"], aperta=row["is_open"], in_ritardo=row["is_overdue"], sotto=sotto,
+        progetto=row["project"], azione_stato=azione_stato,
+    )
+
+
 def mie_voci_aperte_count(request) -> int:
     """Quante azioni e problemi aperti l'utente ha in carico (per i richiami)."""
     user = request.user
@@ -176,8 +216,10 @@ def mie_azioni(request):
 
     related = ("project", "source_meeting", "linked_task")
     rows: list[dict] = []
+    # Le attività del piano usano poi le stesse righe del registro della commessa.
+    task_objs = {t.pk: t for t in my_tasks.select_related("project", "assigned_to")} if tipo in ("", KIND_TASK) else {}
     if tipo in ("", KIND_TASK):
-        rows += [_task_row(t, today) for t in my_tasks.select_related("project")]
+        rows += [_task_row(t, today) for t in task_objs.values()]
     if tipo in ("", KIND_ACTION):
         rows += [_row(a, KIND_ACTION, today) for a in actions.select_related(*related)]
     if tipo in ("", KIND_ISSUE):
@@ -187,6 +229,10 @@ def mie_azioni(request):
     # Aperte prima, poi per scadenza (le senza data in fondo).
     rows.sort(key=lambda r: (not r["is_open"], r["due_date"] is None, r["due_date"] or today, r["title"].casefold()))
 
+    from ..services import elenco
+
+    pagina, querystring = elenco.impagina(request, rows)
+    righe = [_riga_elenco(request, r, today) for r in pagina.object_list]
     my_projects = projects.filter(
         Q(meeting_actions__assigned_to=request.user)
         | Q(meeting_issues__assigned_to=request.user)
@@ -200,6 +246,10 @@ def mie_azioni(request):
             **_tasks_shell_context(request, active="mie_azioni"),
             "page_title": "Le mie attività KICK-OFF",
             "rows": rows,
+            **elenco.contesto_elenco(
+                request, righe, per=(request.GET.get("raggruppa") or "").strip(),
+                elenco_pagina=pagina, elenco_qs=querystring, puo_collegare=False,
+            ),
             "open_count": sum(1 for r in rows if r["is_open"]),
             "overdue_count": sum(1 for r in rows if r["is_overdue"]),
             "filters": {"stato": stato, "tipo": tipo, "scadenza": scadenza, "progetto": progetto or "", "q": q_text},

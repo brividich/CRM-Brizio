@@ -8,7 +8,8 @@
   'use strict';
 
   var pannello = document.querySelector('[data-ka-pannello]');
-  if (!pannello) return;
+  if (!pannello || window.__kaPannello) return;
+  window.__kaPannello = true;
   var esito = document.querySelector('[data-ka-esito]');
   var timer = null;
 
@@ -34,7 +35,7 @@
       body: corpo.toString()
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        return { ok: r.ok && j.ok !== false, messaggio: j.message || j.messaggio || j.reason || '' };
+        return { ok: r.ok && j.ok !== false, messaggio: j.message || j.messaggio || j.reason || j.error || '' };
       });
     });
   }
@@ -106,10 +107,103 @@
     motivo.focus();
   }
 
+  /* Nota dalla riga: si apre un riquadro sotto il titolo, «Salva la nota» la manda a task_nota. */
+  document.addEventListener('click', function (e) {
+    var apri = e.target.closest && e.target.closest('[data-ka-nota-apri]');
+    if (!apri) return;
+    e.preventDefault();
+    var cella = apri.closest('td');
+    var aperta = cella.querySelector('.ka-nota-riga');
+    if (aperta) { aperta.remove(); return; }
+    var box = document.createElement('div');
+    box.className = 'ka-nota-riga';
+    var testo = document.createElement('textarea');
+    testo.className = 'input'; testo.rows = 3; testo.maxLength = 4000;
+    testo.value = apri.getAttribute('data-nota') || '';
+    testo.placeholder = "Cosa deve sapere chi fa l'attività";
+    testo.setAttribute('aria-label', "Nota dell'attività");
+    var salvaBtn = document.createElement('button');
+    salvaBtn.type = 'button'; salvaBtn.className = 'btn btn-sm'; salvaBtn.textContent = 'Salva la nota';
+    var annulla = document.createElement('button');
+    annulla.type = 'button'; annulla.className = 'btn btn-secondary btn-sm'; annulla.textContent = 'Annulla';
+    annulla.addEventListener('click', function () { box.remove(); });
+    salvaBtn.addEventListener('click', function () {
+      salva(salvaBtn, apri.getAttribute('data-url'), { nota: testo.value }, 'Nota salvata.');
+    });
+    box.appendChild(testo); box.appendChild(salvaBtn); box.appendChild(annulla);
+    apri.closest('.ka-riga-extra').after(box);
+    testo.focus();
+  });
+
+  /* Collegamento dalla riga: «Collega» sulla riga che viene dopo, poi clic (o trascinamento)
+     sulla riga che viene prima. Stessa interazione del passo «Attività e incontro». */
+  var aiuto = document.querySelector('[data-ka-colleg-aiuto]');
+  var origine = null;
+  function fineScelta() {
+    if (origine) origine.classList.remove('is-origine');
+    origine = null;
+    document.documentElement.classList.remove('ka-sceglie');
+    if (aiuto) aiuto.hidden = true;
+    document.querySelectorAll('[data-ka-riga].is-bersaglio').forEach(function (r) { r.classList.remove('is-bersaglio'); });
+  }
+  function iniziaScelta(riga) {
+    if (origine === riga) { fineScelta(); return; }
+    fineScelta();
+    origine = riga;
+    riga.classList.add('is-origine');
+    document.documentElement.classList.add('ka-sceglie');
+    if (aiuto) aiuto.hidden = false;
+  }
+  function collegaA(bersaglio) {
+    if (!origine || bersaglio === origine) return;
+    var btn = origine.querySelector('[data-ka-colleg-riga]');
+    if (bersaglio.getAttribute('data-progetto') !== origine.getAttribute('data-progetto')) {
+      dici('Si collegano solo attività della stessa commessa.', true);
+      return;
+    }
+    var dati = { predecessor_id: bersaglio.getAttribute('data-ka-riga'), successor_id: origine.getAttribute('data-ka-riga') };
+    fineScelta();
+    salva(btn, btn.getAttribute('data-url'), dati, 'Attività collegate.');
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-ka-colleg-riga]');
+    if (btn) { e.preventDefault(); e.stopPropagation(); iniziaScelta(btn.closest('[data-ka-riga]')); return; }
+    if (e.target.closest && e.target.closest('[data-ka-colleg-annulla]')) { fineScelta(); return; }
+    var scollega = e.target.closest && e.target.closest('[data-ka-scollega-riga]');
+    if (scollega) { e.preventDefault(); e.stopPropagation(); salva(scollega, scollega.getAttribute('data-url'), {}, 'Collegamento tolto.'); return; }
+    if (!origine) return;
+    var riga = e.target.closest && e.target.closest('[data-ka-riga]');
+    if (riga) { e.preventDefault(); e.stopPropagation(); collegaA(riga); }
+  }, true);
+  document.addEventListener('dragstart', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-ka-colleg-riga]');
+    if (!btn) return;
+    iniziaScelta(btn.closest('[data-ka-riga]'));
+    e.dataTransfer.effectAllowed = 'link';
+    try { e.dataTransfer.setData('text/plain', 'collega'); } catch (err) { /* vecchi browser */ }
+  });
+  document.addEventListener('dragover', function (e) {
+    var riga = origine && e.target.closest && e.target.closest('[data-ka-riga]');
+    if (!riga || riga === origine) return;
+    e.preventDefault();
+    riga.classList.add('is-bersaglio');
+  });
+  document.addEventListener('dragleave', function (e) {
+    var riga = e.target.closest && e.target.closest('[data-ka-riga]');
+    if (riga) riga.classList.remove('is-bersaglio');
+  });
+  document.addEventListener('drop', function (e) {
+    var riga = origine && e.target.closest && e.target.closest('[data-ka-riga]');
+    if (!riga) return;
+    e.preventDefault();
+    collegaA(riga);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && origine) fineScelta(); });
+
   // Riga cliccabile, tranne sui controlli.
   document.addEventListener('click', function (e) {
     var riga = e.target.closest && e.target.closest('.tl-row-clickable');
-    if (!riga || e.target.closest('a, input, select, button, label')) return;
+    if (!riga || origine || e.target.closest('a, input, select, button, label, textarea, form')) return;
     var href = riga.getAttribute('data-href');
     if (href) window.location.href = href;
   });

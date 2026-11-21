@@ -752,3 +752,57 @@
 }
 .ka-motivo { display: flex; gap: 6px; margin-top: 6px; }
 .ka-motivo .input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--accent); border-radius: 8px; font: inherit; font-size: 12.5px; background: var(--surface); color: var(--text); }
+
+/* ===========================================================================
+   Elenco unico delle attività (_elenco_attivita.html): scheda «Attività»,
+   «Le mie attività KICK-OFF», dashboard.
+   =========================================================================== */
+.ka-viste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.ka-vista {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  color: var(--text-mid); font-size: 12.5px; font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+.ka-vista:hover { border-color: var(--accent); color: var(--accent); }
+.ka-vista.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ka-viste-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+.ka-elenco-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+.ka-elenco-barra .ka-seg { margin-left: 0; }
+.ka-seg-voce { padding: 5px 11px; border-radius: 7px; font-weight: 700; font-size: 12.5px; color: var(--text-mid); text-decoration: none; }
+.ka-seg-voce.is-on { background: var(--accent); color: #fff; }
+.ka-elenco-conta { margin-left: auto; font-size: 12.5px; color: var(--text-light); }
+.ka-elenco .ka-col-titolo { width: 44%; }
+.ka-elenco .ka-col-menu { width: 36px; text-align: right; }
+.ka-elenco .ka-origine { margin-right: 4px; }
+.ka-gruppo th {
+  text-align: left; padding: 12px 10px 6px; font-size: 11.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text); background: var(--surface-alt, #f8fafc); border-bottom: 1px solid var(--border);
+}
+.ka-gruppo th span { margin-left: 6px; color: var(--text-light); font-weight: 700; }
+.ka-riga-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+.ka-riga-extra .ka-dopo { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; font-size: 12px; }
+.ka-riga-extra .ka-dopo a { color: inherit; }
+.ka-riga-nota { font-size: 12.5px; color: var(--text-mid); font-style: italic; overflow-wrap: anywhere; }
+.ka-riga-btn {
+  border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 1px 8px; font: inherit;
+  font-size: 11.5px; font-weight: 700; color: var(--text-light); cursor: pointer;
+}
+.ka-riga-btn:hover, .ka-riga-btn:focus-visible { border-color: var(--accent); color: var(--accent); }
+.ka-riga-btn[data-ka-colleg-riga] { cursor: grab; }
+.ka-nota-riga { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ka-nota-riga textarea {
+  flex: 1 1 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 8px;
+  font: inherit; font-size: 12.5px; background: var(--surface); color: var(--text); resize: vertical;
+}
+.ka-stato-form { margin: 0; }
+html.ka-sceglie [data-ka-riga] { cursor: pointer; }
+html.ka-sceglie [data-ka-riga]:hover, [data-ka-riga].is-bersaglio { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+[data-ka-riga].is-origine { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-light); }
+.ka-pagine { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px 0 4px; font-size: 13px; color: var(--text-mid); }
+.ka-pagine a { font-weight: 700; color: var(--accent); text-decoration: none; }
+.ka-pagine a:hover { text-decoration: underline; }
+.ka-elenco-vuoto { text-align: center; padding: 28px 12px; color: var(--text-mid); }
+@media (max-width: 760px) {
+  .ka-viste-sep { display: none; }
+  .ka-elenco-conta { margin-left: 0; }
+}
+.ka-prontezza { margin-top: 4px; }
