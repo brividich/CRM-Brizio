@@ -2107,6 +2107,8 @@ function GestioneAnomalie() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDesc, setEditDesc] = useState(false);
   const [lightbox, setLightbox] = useState(null); // file_id immagine ingrandita
+  const [fotoAttesa, setFotoAttesa] = useState(null); // { dir, localId, idx, origine }: lightbox in viaggio verso un'altra anomalia
+  const [allegatiDi, setAllegatiDi] = useState(null); // local_id degli allegati caricati
   const [dropOver, setDropOver] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -2620,6 +2622,7 @@ function GestioneAnomalie() {
   const attachmentsFor = useRef(null);
   const loadAttachments = async localId => {
     attachmentsFor.current = localId;
+    setAllegatiDi(null);
     setAttachments([]);
     setRemovedAttachments([]);
     setShowRemoved(false);
@@ -2641,6 +2644,7 @@ function GestioneAnomalie() {
         text: "Errore allegati: " + e.message
       });
     }
+    if (attachmentsFor.current === localId) setAllegatiDi(localId);
     setLoadingAttachments(false);
   };
   useEffect(() => {
@@ -2795,6 +2799,55 @@ function GestioneAnomalie() {
     onClick: () => setConfirmDelete(file.file_id)
   }, "Elimina"))))));
   const lightboxIdx = immagini.findIndex(f => f.file_id === lightbox);
+  // Foto in sequenza: oltre l'ultima foto la lightbox passa all'anomalia
+  // successiva dell'elenco a video (saltando quelle senza foto), oltre la
+  // prima alla precedente. A fine elenco torna all'anomalia di partenza.
+  const chiudiFoto = () => {
+    setLightbox(null);
+    setFotoAttesa(null);
+  };
+  const fotoAnomalia = (dir, da, origine) => {
+    const target = ordineVisibile[da + dir];
+    if (!target) {
+      setFotoAttesa(null);
+      setLightbox(null);
+      if (origine && origine !== selectedSnId) setSelectedSnId(origine);
+      flash({
+        ok: true,
+        text: dir > 0 ? "Nessun'altra anomalia con foto dopo questa." : "Nessun'altra anomalia con foto prima di questa."
+      });
+      return;
+    }
+    // Modifiche non salvate: si chiude la lightbox e decide il solito avviso.
+    if (dirty) {
+      chiudiFoto();
+      selectSn(target);
+      return;
+    }
+    if (!target.local_id) {
+      fotoAnomalia(dir, da + dir, origine);
+      return;
+    }
+    setFotoAttesa({
+      dir,
+      localId: target.local_id,
+      idx: da + dir,
+      origine
+    });
+    setSelectedSnId(target.item_id);
+  };
+  const fotoSpostata = dir => {
+    const foto = immagini[lightboxIdx + dir];
+    if (foto) setLightbox(foto.file_id);else if (posizione >= 0) fotoAnomalia(dir, posizione, sn.item_id);
+  };
+  useEffect(() => {
+    if (!fotoAttesa || allegatiDi !== fotoAttesa.localId) return;
+    const foto = attachments.filter(f => f.is_image);
+    if (foto.length) {
+      setLightbox((fotoAttesa.dir > 0 ? foto[0] : foto[foto.length - 1]).file_id);
+      setFotoAttesa(null);
+    } else fotoAnomalia(fotoAttesa.dir, fotoAttesa.idx, fotoAttesa.origine);
+  }, [allegatiDi, fotoAttesa]);
 
   // ── Salvataggio ──
   const handleSave = async (confermato = false, prossima = false) => {
@@ -3689,8 +3742,11 @@ function GestioneAnomalie() {
         e.preventDefault();
         vaiA(e.key === "ArrowDown" ? 1 : -1);
       } else if (e.key === "Escape") {
-        setLightbox(null);
+        chiudiFoto();
         setMenuOpen(false);
+      } else if (lightbox && !fotoAttesa && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        fotoSpostata(e.key === "ArrowRight" ? 1 : -1);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -5669,29 +5725,35 @@ function GestioneAnomalie() {
       setPendingNav(null);
       if (await handleSave()) nav();
     }
-  }, "Salva e continua")))), lightbox && lightboxIdx >= 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Salva e continua")))), lightbox && (lightboxIdx >= 0 || fotoAttesa) && /*#__PURE__*/React.createElement("div", {
     className: "ga-lightbox",
-    onClick: () => setLightbox(null)
-  }, /*#__PURE__*/React.createElement("img", {
+    onClick: chiudiFoto
+  }, lightboxIdx >= 0 ? /*#__PURE__*/React.createElement("img", {
     src: getAttachmentUrl(lightbox),
     alt: immagini[lightboxIdx].name,
     onClick: e => e.stopPropagation()
-  }), /*#__PURE__*/React.createElement("div", {
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "ga-lightbox__wait"
+  }, "Cerco le foto dell'anomalia ", fotoAttesa.dir > 0 ? "successiva" : "precedente", "\u2026"), /*#__PURE__*/React.createElement("div", {
     className: "ga-lightbox__bar",
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    disabled: lightboxIdx <= 0,
-    onClick: () => setLightbox(immagini[lightboxIdx - 1].file_id)
-  }, Ico.prev), /*#__PURE__*/React.createElement("span", null, immagini[lightboxIdx].name, " \xB7 ", lightboxIdx + 1, "/", immagini.length), /*#__PURE__*/React.createElement("button", {
+    disabled: !!fotoAttesa || lightboxIdx <= 0 && posizione <= 0,
+    onClick: () => fotoSpostata(-1),
+    title: lightboxIdx > 0 ? "Foto precedente (←)" : "Ultima foto dell'anomalia precedente (←)"
+  }, Ico.prev), lightboxIdx >= 0 && /*#__PURE__*/React.createElement("span", {
+    title: immagini[lightboxIdx].name
+  }, sn.local_id ? `${codiceAnomalia(sn.local_id)} · ` : "", "foto ", lightboxIdx + 1, "/", immagini.length, posizione >= 0 && ordineVisibile.length > 1 ? ` · anomalia ${posizione + 1} di ${ordineVisibile.length}` : ""), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    disabled: lightboxIdx >= immagini.length - 1,
-    onClick: () => setLightbox(immagini[lightboxIdx + 1].file_id)
-  }, Ico.next), /*#__PURE__*/React.createElement("a", {
+    disabled: !!fotoAttesa || lightboxIdx >= immagini.length - 1 && (posizione < 0 || posizione >= ordineVisibile.length - 1),
+    onClick: () => fotoSpostata(1),
+    title: lightboxIdx < immagini.length - 1 ? "Foto successiva (→)" : "Prima foto dell'anomalia successiva (→)"
+  }, Ico.next), lightboxIdx >= 0 && /*#__PURE__*/React.createElement("a", {
     href: getAttachmentUrl(lightbox, true)
   }, "Scarica"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: () => setLightbox(null)
+    onClick: chiudiFoto
   }, "Chiudi"))), saveMsg && /*#__PURE__*/React.createElement("div", {
     className: `ga-toast${saveMsg.ok ? "" : " is-err"}`
   }, saveMsg.text), isMobile && /*#__PURE__*/React.createElement("nav", {
