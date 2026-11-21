@@ -21,7 +21,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
 
-from .catena import GENITORI_AMMESSI, split_rif_op
+from .catena import GENITORI_AMMESSI, numero_condivisibile, split_rif_op
 
 __all__ = [
     "CER_RE",
@@ -229,11 +229,16 @@ def _errori_numero(registro, vecchio: str | None) -> list[str]:
         return [f"Il numero deve avere l'anno della data ({registro.data.year}/…)."]
     if registro.rentri_si_no:
         return ["Registrazione già trasmessa a RENTRI: il numero non si cambia."]
-    altro = RegistroRifiuti.objects.filter(id_registrazione=nuovo).exclude(pk=registro.pk).first()
-    if altro is not None:
+    altri = list(RegistroRifiuti.objects.filter(id_registrazione=nuovo).exclude(pk=registro.pk))
+    if altri and not numero_condivisibile(registro, altri):
+        altro = altri[0]
         stato = " (annullata)" if altro.annullato else ""
         quando = f" del {altro.data:%d/%m/%Y}" if altro.data else ""
-        return [f"Il numero {nuovo} è già usato da un altro movimento ({altro.tipo}{quando}{stato})."]
+        return [
+            f"Il numero {nuovo} è già usato da un altro movimento ({altro.tipo}{quando}{stato}). "
+            "Lo stesso numero è ammesso solo fra lo scarico effettivo (M) e il suo scarico originale (O) "
+            "o la sua rettifica (R), con lo stesso codice CER."
+        ]
     if vecchio:
         from .servizi import figli_del_numero
 
@@ -268,7 +273,9 @@ def _errori_rif_op(registro) -> list[str]:
         per_id.setdefault(g.id_registrazione, []).append(g)
 
     for rid in refs:
-        if rid == registro.id_registrazione and registro.id_registrazione:
+        # Con il numero condiviso la M cita la sua O con il proprio numero: è sé
+        # stessa solo se nessun altro movimento porta quel numero.
+        if rid == registro.id_registrazione and registro.id_registrazione and not per_id.get(rid):
             errori.append(f"{rid}: un movimento non può collegarsi a sé stesso.")
             continue
         validi = [g for g in per_id.get(rid, []) if g.tipo in ammessi]

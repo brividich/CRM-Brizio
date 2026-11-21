@@ -51,7 +51,7 @@ class Command(BaseCommand):
             f"{len(gruppi)} numeri duplicati — {len(anomalie)} anomalie, {coppie} coppie R+M dello stesso giorno"
         ))
         for gruppo in gruppi:
-            etichetta = "coppia R+M" if gruppo["coppia_rm"] else "ANOMALIA"
+            etichetta = "numero condiviso (O/M/R)" if gruppo["coppia_rm"] else "ANOMALIA"
             stile = self.style.SUCCESS if gruppo["coppia_rm"] else self.style.ERROR
             cer = " / ".join(gruppo["codici"]) or "—"
             self.stdout.write("")

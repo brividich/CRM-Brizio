@@ -76,6 +76,14 @@ Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Naz
 - **Numero di registrazione correggibile** sulle bozze (campo «Numero di registrazione» solo in modifica): `validazione._errori_numero` (forma `AAAA/N`, anno della data, non usato da altri movimenti anche annullati, non trasmessa, nessun figlio consolidato che citi il vecchio numero). Se il vecchio numero era solo di quel movimento, `servizi._rinumera_figli` aggiorna il Rif. Op dei movimenti che lo citavano (audit `rif_op_aggiornati`); con un numero storico doppio i riferimenti non si toccano. `id_registrazione` entra in `CAMPI_DATI` (storico modifiche).
 - **Trasmetti filo**: GET/POST `rentri/<pk>/trasmetti-filo/` (`rentri_trasmetti_filo`, `servizi.anteprima_trasmissione_filo` / `trasmetti_filo`): segna `rentri_si_no` su tutte le righe consolidate del filo, bozze escluse, audit `rentri_movimento_trasmesso` con `filo: true`, invio SharePoint per riga. Pulsante «Trasmetti filo · n/m» sull'intestazione del filo e «Trasmetti filo…» nella scheda.
 
+## Numero condiviso M/O, FIR su una riga (21/11/2026)
+
+Dai log di utilizzo del 11-20/11 (audit `rentri_movimento_*`).
+
+- **M e O con lo stesso numero** anche correggendolo dopo: `catena.numero_condivisibile` ammette lo stesso `id_registrazione` fra movimenti di tipo diverso che formano O+M, M+R o O+M+R, con lo stesso CER (sei cifre); mai un C, mai due dello stesso tipo. Lo usano `validazione._errori_numero` (prima rifiutava qualsiasi numero già usato) e `numerazione.id_duplicati` (queste coppie non sono più «anomalie» in Verifica e in `rentri_id_duplicati`; la chiave resta `coppia_rm`).
+- La M che cita la sua O con lo stesso numero non è più «collegata a sé stessa» (`validazione._errori_rif_op`); `catena.risali_a_carichi` risale dal movimento più a monte (`ORDINE_CATENA`); nella scheda la M non compare fra i propri genitori.
+- **FIR su una riga**: lo storico ha `arrivo_fir` su due righe («…JY\nSCARICO VERIFICATO»); il campo di testo del modulo toglieva l'a capo e salvando le parole si incollavano («JYSCARICO»). Il modulo lo mostra con uno spazio e il server salva il FIR su una riga; nelle note «\r\n» diventa «\n» (prima ogni salvataggio risultava una modifica delle note).
+
 ## KPI cliccabili (18/11/2026)
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
