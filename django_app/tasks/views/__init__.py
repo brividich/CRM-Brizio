@@ -242,6 +242,7 @@ from .task import (  # noqa: F401
     task_detail,
     task_edit,
     task_list,
+    task_nota,
     update_due_date,
     update_start_date,
 )

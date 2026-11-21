@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v26"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v27"
 
 MODULE = "tasks"
 
@@ -132,6 +132,7 @@ _ROUTE_BINDINGS = {
     # Modifica attività e Gantt
     "tasks:edit": "tasks.kickoff.edit",
     "tasks:change_status": "tasks.kickoff.edit",
+    "tasks:task_nota": "tasks.kickoff.edit",
     "tasks:project_set_phase": "tasks.kickoff.edit",
     "tasks:project_edit": "tasks.kickoff.edit",
     "tasks:project_quick_task": "tasks.kickoff.create",

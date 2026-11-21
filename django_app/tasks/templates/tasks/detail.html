@@ -1,5 +1,7 @@
 {% extends shell_base|default:"tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#scheda-attivita{% endblock %}
+{% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
 
@@ -14,32 +16,46 @@
     <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>
   {% endif %}
   {% if can_edit %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica</a>
+    {# Il form completo (anche la data di inizio) si apre nel pannello laterale; chiuso, la scheda si rilegge. #}
+    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}" data-preview="{% url 'tasks:edit' task.id %}">Modifica</a>
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_content %}
+<div class="ka-esito" data-ka-esito role="status" aria-live="polite" hidden></div>
+<div class="ka-scheda" data-ka-scheda data-csrf="{{ csrf_token }}">
+
+{% if task.project %}{% include "tasks/_striscia.html" with project=task.project %}{% endif %}
+
 <section class="td-layout">
   <div class="td-colonna">
 
-    <div class="td-stato">
-      {% if can_edit %}
-        <form method="post" action="{% url 'tasks:change_status' task.id %}" class="td-stati" aria-label="Stato dell'attività">
-          {% csrf_token %}
-          {% for valore, etichetta in task_status_choices %}
-            <button type="submit" name="status" value="{{ valore }}" class="td-stato-btn{% if task.status == valore %} attivo{% endif %}"{% if task.status == valore %} aria-pressed="true"{% endif %}>{{ etichetta }}</button>
-          {% endfor %}
-        </form>
-      {% elif is_assignee %}
-        {# Il responsabile senza permesso di modifica: stessi passi di «Le mie attività KICK-OFF». #}
-        <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-        <form method="post" action="{% url 'tasks:mia_voce_stato' 'attivita' task.id %}" class="td-stati" aria-label="Stato dell'attività">
+    <div class="td-stato ka-scheda-stato">
+      {% if puo_stato %}
+        {# Un controllo solo: chi gestisce passa da change_status, l'incaricato da mia_voce_stato (stesse regole, services/stato.py). #}
+        <form method="post" action="{% if can_edit %}{% url 'tasks:change_status' task.id %}{% else %}{% url 'tasks:mia_voce_stato' 'attivita' task.id %}{% endif %}">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.path }}">
-          {% if task.status == "TODO" %}<button type="submit" name="action" value="start" class="td-stato-btn">Inizia</button>{% endif %}
-          {% if task.status == "TODO" or task.status == "IN_PROGRESS" %}<button type="submit" name="action" value="done" class="td-stato-btn attivo">Fatta</button>
-          {% elif task.status != "CANCELED" or puo_ripristinare %}<button type="submit" name="action" value="reopen" class="td-stato-btn">Riapri</button>{% endif %}
+          <label class="ka-scheda-etichetta" for="ka-stato-attivita">Stato</label>
+          <select id="ka-stato-attivita" class="ka-stato is-{{ task.status|lower }}" name="{% if can_edit %}status{% else %}action{% endif %}" data-invia-al-cambio data-no-search>
+            {% if can_edit %}
+              {% for valore, etichetta in task_status_choices %}<option value="{{ valore }}"{% if task.status == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+            {% else %}
+              {% if task.status == "CANCELED" %}<option value="" selected disabled>Annullata</option>{% endif %}
+              {% for verbo, etichetta, valore in stati_incaricato %}
+                {% if task.status != "CANCELED" or puo_ripristinare %}<option value="{{ verbo }}"{% if task.status == valore %} selected{% endif %}>{{ etichetta }}</option>{% endif %}
+              {% endfor %}
+            {% endif %}
+          </select>
         </form>
+        {% if task.status == "TODO" or task.status == "IN_PROGRESS" %}
+          <form method="post" action="{% if can_edit %}{% url 'tasks:change_status' task.id %}{% else %}{% url 'tasks:mia_voce_stato' 'attivita' task.id %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            {% if can_edit %}<input type="hidden" name="status" value="DONE">{% else %}<input type="hidden" name="action" value="done">{% endif %}
+            <button type="submit" class="btn btn-sm ka-segna-fatta">&#10003; Segna completata</button>
+          </form>
+        {% endif %}
       {% else %}
         <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
       {% endif %}
@@ -52,17 +68,67 @@
 
     {% include "tasks/_task_programma.html" %}
 
-    {% if task.description or task.next_step_text %}
-      <article class="td-card">
-        {% if task.description %}
-          <h2 class="td-titolo">Descrizione</h2>
-          <div class="td-testo">{{ task.description }}</div>
-        {% endif %}
-        {% if task.next_step_text %}
-          <h2 class="td-titolo">Prossimo passo</h2>
-          <div class="td-testo">{{ task.next_step_text }}</div>
-        {% endif %}
-      </article>
+    <article class="td-card" id="nota">
+      <div class="td-testa">
+        <h2 class="td-titolo">Nota</h2>
+        {% if firma_incontro %}<span class="td-conta">{{ firma_incontro }}</span>{% endif %}
+      </div>
+      {% if puo_nota %}
+        <form method="post" action="{% url 'tasks:task_nota' task.id %}" class="ka-scheda-nota">
+          {% csrf_token %}
+          <textarea class="input ka-nota" name="nota" rows="3" maxlength="4000" placeholder="Cosa deve sapere chi fa l'attività" aria-label="Nota dell'attività" data-mostra-salva>{{ nota }}</textarea>
+          <button type="submit" class="btn btn-sm" hidden>Salva la nota</button>
+        </form>
+      {% elif nota %}
+        <div class="td-testo">{{ nota }}</div>
+      {% else %}
+        <p class="td-vuoto">Nessuna nota.</p>
+      {% endif %}
+      {% if task.next_step_text %}
+        <h3 class="td-sottotitolo">Prossimo passo</h3>
+        <div class="td-testo">{{ task.next_step_text }}</div>
+      {% endif %}
+    </article>
+
+    {% if task.project %}
+    <article class="td-card" id="collegamenti">
+      <h2 class="td-titolo">Collegamenti</h2>
+      <div class="ka-colleg">
+        <div class="ka-colleg-gruppo">
+          <span class="ka-etichetta">Viene dopo</span>
+          <div class="ka-chips">
+            {% for d in collegamenti_prima %}
+              <span class="ka-chip"><a href="{% url 'tasks:detail' d.predecessor_id %}">{{ d.predecessor.title }}</a>{% if puo_collegare %}<button type="button" data-ka-scollega-dep data-url="{% url 'tasks:project_gantt_remove_dependency' task.project.id d.pk %}" aria-label="Togli il collegamento con {{ d.predecessor.title }}">&times;</button>{% endif %}</span>
+            {% empty %}<span class="ka-colleg-vuoto">nessuna attività</span>{% endfor %}
+          </div>
+        </div>
+        <div class="ka-colleg-gruppo">
+          <span class="ka-etichetta">Prima di</span>
+          <div class="ka-chips">
+            {% for d in collegamenti_dopo %}
+              <span class="ka-chip"><a href="{% url 'tasks:detail' d.successor_id %}">{{ d.successor.title }}</a>{% if puo_collegare %}<button type="button" data-ka-scollega-dep data-url="{% url 'tasks:project_gantt_remove_dependency' task.project.id d.pk %}" aria-label="Togli il collegamento con {{ d.successor.title }}">&times;</button>{% endif %}</span>
+            {% empty %}<span class="ka-colleg-vuoto">nessuna attività</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      {% if puo_collegare and altre_attivita %}
+        <div class="ka-colleg-nuovo" data-ka-colleg data-url="{% url 'tasks:project_gantt_add_dependency' task.project.id %}" data-task="{{ task.pk }}">
+          <div class="ka-colleg-anelli">
+            <button type="button" class="ka-colleg-anello" draggable="true" data-ka-verso="dopo" aria-pressed="false">&#8627; Viene dopo&hellip;</button>
+            <button type="button" class="ka-colleg-anello" draggable="true" data-ka-verso="prima" aria-pressed="false">&#8625; Viene prima di&hellip;</button>
+          </div>
+          <p class="ka-scegli" data-ka-colleg-aiuto hidden><span>Clicca l'attività qui sotto, o trascinaci sopra il pulsante.</span><button type="button" class="btn btn-secondary btn-sm" data-ka-colleg-annulla>Annulla</button></p>
+          <ul class="ka-colleg-lista" data-ka-colleg-lista>
+            {% for t in altre_attivita %}
+              <li data-ka-bersaglio="{{ t.pk }}" tabindex="0">
+                <strong>{{ t.title }}</strong>
+                <small>{% if t.assigned_to %}{{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% else %}Da assegnare{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m" }}{% endif %}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </article>
     {% endif %}
 
     <article class="td-card" id="subtask-panel">
@@ -81,7 +147,7 @@
                       <button type="button"
                               class="st-toggle{% if subtask.status == 'DONE' %} done{% endif %}"
                               id="st-toggle-{{ subtask.id }}"
-                              onclick="toggleSubtask({{ subtask.id }})"
+                              data-st-toggle="{{ subtask.id }}"
                               title="{% if subtask.status == 'DONE' %}Segna come Da fare{% else %}Segna come Fatto{% endif %}"
                               data-toggle-url="{% url 'tasks:subtask_toggle' task.id subtask.id %}">
                         <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5">
@@ -140,10 +206,10 @@
       </details>
     {% endif %}
 
-    <article class="td-card">
+    <article class="td-card" id="cronologia">
       <div class="td-testa">
-        <h2 class="td-titolo">Commenti</h2>
-        <span class="td-conta">{{ task.comments.all|length }}</span>
+        <h2 class="td-titolo">Cronologia</h2>
+        <span class="td-conta">{{ cronologia|length }}</span>
       </div>
       {% if can_comment %}
         <form method="post" action="{% url 'tasks:add_comment' task.id %}" class="td-commento">
@@ -155,103 +221,44 @@
           </div>
         </form>
       {% endif %}
-      {% if task.comments.all %}
-        <ul class="td-commenti">
-          {% for comment in task.comments.all %}
-            <li>
-              <div class="td-commento-testa">
-                <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
-                <span>{{ comment.created_at|date:"d/m/Y H:i" }}</span>
-              </div>
-              <div class="td-testo">{{ comment.body }}</div>
-              {% if comment.target_user %}<div class="td-commento-nota">Avvisato: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>{% endif %}
-            </li>
+      {% if cronologia %}
+        <ol class="ka-crono">
+          {% for v in cronologia %}
+            {% if v.tipo == "commento" %}
+              <li class="ka-crono-voce is-commento">
+                <div class="ka-crono-testa"><strong>{{ v.chi }}</strong><span>ha commentato</span><time datetime="{{ v.quando|date:'c' }}">{{ v.quando|date:"d/m/Y H:i" }}</time></div>
+                <div class="td-testo">{{ v.voce.body }}</div>
+                {% if v.voce.target_user %}<div class="ka-crono-nota">Avvisato: {{ v.voce.target_user.get_full_name|default:v.voce.target_user.username }}</div>{% endif %}
+              </li>
+            {% else %}
+              <li class="ka-crono-voce tone-{{ v.voce.tone }}">
+                <div class="ka-crono-testa"><strong>{{ v.chi }}</strong><span>{{ v.titolo }}</span><time datetime="{{ v.quando|date:'c' }}">{{ v.quando|date:"d/m/Y H:i" }}</time></div>
+                {% if v.voce.details %}
+                  <ul class="ka-crono-dettagli">
+                    {% for d in v.voce.details %}
+                      <li><span>{{ d.label }}</span> {% if d.note %}{{ d.note }}{% else %}{{ d.before }} &rarr; <strong>{{ d.after }}</strong>{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <div class="ka-crono-nota">{{ v.voce.description }}</div>
+                {% endif %}
+              </li>
+            {% endif %}
           {% endfor %}
-        </ul>
-      {% elif not can_comment %}
-        <p class="td-vuoto">Nessun commento.</p>
+        </ol>
+      {% else %}
+        <p class="td-vuoto">Ancora niente: commenti, cambi di stato e spostamenti di data compariranno qui.</p>
       {% endif %}
     </article>
-
-    <details class="td-card td-piega">
-      <summary>
-        <span class="td-titolo">Storico</span>
-        <span class="td-conta">{{ task_timeline_events|length }} eventi</span>
-      </summary>
-      {% if task_timeline_events %}
-        <ul class="task-list-clean">
-          {% for item in task_timeline_events %}
-            <li class="task-list-card task-event-card tone-{{ item.tone }}">
-              <div class="task-event-head">
-                <span class="task-event-time">{{ item.event.created_at|date:"d/m/Y H:i" }}</span>
-                <span class="task-event-actor">{{ item.actor_name }}</span>
-              </div>
-              <h3 class="task-event-title">{{ item.title }}</h3>
-              <p class="task-event-description">{{ item.description }}</p>
-              {% if item.details %}
-                <div class="task-event-details">
-                  {% for detail in item.details %}
-                    <div class="task-event-detail">
-                      <span class="task-event-detail-label">{{ detail.label }}</span>
-                      <span class="task-event-change">
-                        {% if detail.note %}
-                          <span class="task-event-value">{{ detail.note }}</span>
-                        {% else %}
-                          <span class="task-event-value">{{ detail.before }}</span>
-                          <span class="task-event-arrow">&rarr;</span>
-                          <span class="task-event-value">{{ detail.after }}</span>
-                        {% endif %}
-                      </span>
-                    </div>
-                  {% endfor %}
-                </div>
-              {% endif %}
-              {% if item.technical_payload %}
-                <details class="task-event-technical">
-                  <summary>Dati tecnici</summary>
-                  <pre>{{ item.technical_payload }}</pre>
-                </details>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="td-vuoto">Nessun evento.</p>
-      {% endif %}
-    </details>
   </div>
 
   <aside class="td-colonna">
-    <article class="td-card">
+    <article class="td-card" id="dettagli">
       <h2 class="td-titolo">Dettagli</h2>
       <dl class="td-dati">
         <div><dt>Responsabile</dt><dd>{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}Da assegnare{% endif %}</dd></div>
-        <div>
-          <dt>Inizio</dt>
-          <dd>
-            {% if can_update_due_date %}
-              <form method="post" action="{% url 'tasks:update_start_date' task.id %}" class="td-data">
-                {% csrf_token %}
-                <input class="input" type="date" name="next_step_due" value="{{ task.next_step_due|date:'Y-m-d' }}" aria-label="Data di inizio" data-mostra-salva>
-                {% if not sposta_subito %}<input class="input" type="text" name="motivo" maxlength="500" placeholder="Motivo dello spostamento" aria-label="Motivo dello spostamento">{% endif %}
-                <button type="submit" class="btn btn-sm" hidden>{% if sposta_subito %}Salva{% else %}Chiedi{% endif %}</button>
-              </form>
-            {% else %}{{ task.next_step_due|date:"d/m/Y"|default:"-" }}{% endif %}
-          </dd>
-        </div>
-        <div>
-          <dt>Fine richiesta</dt>
-          <dd>
-            {% if can_update_due_date %}
-              <form method="post" action="{% url 'tasks:update_due_date' task.id %}" class="td-data">
-                {% csrf_token %}
-                <input class="input" type="date" name="due_date" value="{{ task.due_date|date:'Y-m-d' }}" aria-label="Data di fine richiesta" data-mostra-salva>
-                {% if not sposta_subito %}<input class="input" type="text" name="motivo" maxlength="500" placeholder="Motivo dello spostamento" aria-label="Motivo dello spostamento">{% endif %}
-                <button type="submit" class="btn btn-sm" hidden>{% if sposta_subito %}Salva{% else %}Chiedi{% endif %}</button>
-              </form>
-            {% else %}{{ task.due_date|date:"d/m/Y"|default:"-" }}{% endif %}
-          </dd>
-        </div>
+        <div><dt>Inizio</dt><dd>{{ task.next_step_due|date:"d/m/Y"|default:"-" }}</dd></div>
+        <div><dt>Scadenza</dt><dd{% if task.is_overdue %} class="ka-scheda-ritardo"{% endif %}>{{ task.due_date|date:"d/m/Y"|default:"-" }}</dd></div>
         {% if task.category %}<div><dt>Tipo</dt><dd>{{ task.category.name }}</dd></div>{% endif %}
         {% for row in task_extra_rows %}
           <div><dt>{{ row.label }}</dt><dd>{% if row.href %}<a href="{{ row.href }}">{{ row.value }}</a>{% else %}{{ row.value }}{% endif %}</dd></div>
@@ -262,39 +269,46 @@
         {% endif %}{% endwith %}
         {% if task.tags %}<div><dt>Tag</dt><dd>{{ task.tags }}</dd></div>{% endif %}
       </dl>
-    </article>
 
-    {% if spostamento_aperto or can_update_due_date and not sposta_subito %}
-    <article class="td-card td-spostamento" id="spostamenti">
-      <h2 class="td-titolo">Spostamento di date</h2>
       {% if spostamento_aperto %}{% with sp=spostamento_aperto %}
-        <p class="td-sp-testo"><strong>{{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }}</strong> chiede:
-          {{ sp.inizio_prima|date:"d/m/Y"|default:"—" }} – {{ sp.fine_prima|date:"d/m/Y"|default:"—" }}
-          → <strong>{{ sp.inizio_nuovo|date:"d/m/Y"|default:"—" }} – {{ sp.fine_nuovo|date:"d/m/Y"|default:"—" }}</strong></p>
-        {% if sp.motivo %}<p class="td-sp-motivo">«{{ sp.motivo }}»</p>{% endif %}
-        <p class="td-sp-quando">Inviata il {{ sp.created_at|date:"d/m/Y H:i" }}</p>
-        {% if puo_decidere_spostamenti %}
-          <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="td-sp-form">
-            {% csrf_token %}
-            <div class="td-sp-date">
-              <label>Inizio<input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}"></label>
-              <label>Fine<input class="input" type="date" name="fine" value="{{ sp.fine_nuovo|date:'Y-m-d' }}"></label>
-            </div>
-            <input class="input" type="text" name="nota" maxlength="500" placeholder="Nota per chi ha chiesto (facoltativa)" aria-label="Nota">
-            <div class="td-sp-azioni">
-              <button type="submit" name="decisione" value="approva" class="btn btn-sm">Approva</button>
-              <button type="submit" name="decisione" value="rifiuta" class="btn btn-secondary btn-sm">Rifiuta</button>
-            </div>
+        <div class="td-spostamento" id="spostamenti">
+          <h3 class="td-sottotitolo">Richiesta di spostamento</h3>
+          <p class="td-sp-testo"><strong>{{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }}</strong> chiede:
+            {{ sp.inizio_prima|date:"d/m/Y"|default:"—" }} – {{ sp.fine_prima|date:"d/m/Y"|default:"—" }}
+            → <strong>{{ sp.inizio_nuovo|date:"d/m/Y"|default:"—" }} – {{ sp.fine_nuovo|date:"d/m/Y"|default:"—" }}</strong></p>
+          {% if sp.motivo %}<p class="td-sp-motivo">«{{ sp.motivo }}»</p>{% endif %}
+          <p class="td-sp-quando">Inviata il {{ sp.created_at|date:"d/m/Y H:i" }}</p>
+          {% if puo_decidere_spostamenti %}
+            <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="td-sp-form">
+              {% csrf_token %}
+              <div class="td-sp-date">
+                <label>Inizio<input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}"></label>
+                <label>Fine<input class="input" type="date" name="fine" value="{{ sp.fine_nuovo|date:'Y-m-d' }}"></label>
+              </div>
+              <input class="input" type="text" name="nota" maxlength="500" placeholder="Nota per chi ha chiesto (facoltativa)" aria-label="Nota">
+              <div class="td-sp-azioni">
+                <button type="submit" name="decisione" value="approva" class="btn btn-sm">Approva</button>
+                <button type="submit" name="decisione" value="rifiuta" class="btn btn-secondary btn-sm">Rifiuta</button>
+              </div>
+            </form>
+          {% elif sp.richiesto_da_id == request.user.pk %}
+            <form method="post" action="{% url 'tasks:spostamento_annulla' sp.id %}">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">Ritira la richiesta</button></form>
+          {% else %}<p class="td-sp-quando">In attesa del capocommessa.</p>{% endif %}
+        </div>
+      {% endwith %}{% endif %}
+
+      {% if puo_spostare_scadenza %}
+        <details class="ka-sposta"{% if task.is_overdue and not spostamento_aperto %} open{% endif %}>
+          <summary>Sposta la scadenza</summary>
+          <form data-ka-sposta data-url="{% url 'tasks:task_azione_rapida' task.id %}" data-inizio="{{ task.next_step_due|date:'Y-m-d' }}">
+            <label class="fai-campo"><span>Nuova scadenza</span><input class="input" type="date" name="fine" value="{{ task.due_date|date:'Y-m-d' }}" required></label>
+            <label class="fai-campo"><span>Motivo{% if not motivo_obbligatorio %} (facoltativo){% endif %}</span><input class="input" type="text" name="motivo" maxlength="500"{% if motivo_obbligatorio %} required{% endif %} placeholder="Perché serve più tempo"></label>
+            <button type="submit" class="btn btn-sm">{% if motivo_obbligatorio %}Chiedi al capocommessa{% else %}Sposta{% endif %}</button>
+            {% if motivo_obbligatorio %}<p class="td-sp-quando">Decide il capocommessa: la data cambia quando approva.</p>{% endif %}
           </form>
-        {% elif sp.richiesto_da_id == request.user.pk %}
-          <form method="post" action="{% url 'tasks:spostamento_annulla' sp.id %}">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">Ritira la richiesta</button></form>
-        {% else %}<p class="td-sp-quando">In attesa del capocommessa.</p>{% endif %}
-      {% endwith %}{% else %}
-        <p class="td-sp-quando">Per spostare le date cambia «Inizio» o «Fine richiesta» qui sopra e scrivi il motivo: decide il capocommessa e le date cambiano quando approva.</p>
+        </details>
       {% endif %}
     </article>
-    {% endif %}
-
 
     {% if task.project %}
       <article class="td-card">
@@ -350,67 +364,9 @@
     </article>
   </aside>
 </section>
+</div>
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script>
-(function () {
-  'use strict';
-
-  document.querySelectorAll('[data-mostra-salva]').forEach(function (campo) {
-    var salva = campo.form.querySelector('button[type="submit"]');
-    var iniziale = campo.value;
-    campo.addEventListener('input', function () { salva.hidden = campo.value === iniziale; });
-  });
-  document.querySelectorAll('[data-invia-al-cambio]').forEach(function (campo) {
-    campo.addEventListener('change', function () { campo.form.requestSubmit(); });
-  });
-
-  function getCsrf() {
-    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-  }
-
-  function updateSubtaskCounter() {
-    const label = document.getElementById('subtask-progress-label');
-    if (!label) return;
-    const rows  = document.querySelectorAll('#subtask-table tbody .st-row');
-    const done  = document.querySelectorAll('#subtask-table tbody .st-row.done-row');
-    if (rows.length === 0) return;
-    label.textContent = `${done.length} di ${rows.length} completate`;
-  }
-
-  window.toggleSubtask = function (subtaskId) {
-    const btn = document.getElementById('st-toggle-' + subtaskId);
-    const row = document.getElementById('st-row-' + subtaskId);
-    if (!btn || !row) return;
-
-    const url = btn.dataset.toggleUrl;
-    btn.disabled = true;
-
-    fetch(url, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (!data.ok) { btn.disabled = false; return; }
-
-      const isDone = data.status === 'DONE';
-      row.dataset.status = data.status;
-      row.classList.toggle('done-row', isDone);
-      btn.classList.toggle('done', isDone);
-      btn.title = isDone ? 'Segna come Da fare' : 'Segna come Fatto';
-
-      const sel = row.querySelector('select[name="status"]');
-      if (sel) sel.value = data.status;
-
-      updateSubtaskCounter();
-      btn.disabled = false;
-    })
-    .catch(() => { btn.disabled = false; });
-  };
-
-  updateSubtaskCounter();
-})();
-</script>
+<script src="{% static 'tasks/js/attivita_scheda.js' %}?v=20261121a" defer></script>
 {% endblock %}

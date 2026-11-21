@@ -323,11 +323,9 @@ class TaskAuditTrailTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
 
         self.assertContains(response, "Scheda attivita modificata")
-        self.assertContains(response, "Campi aggiornati: data inizio, data fine.")
         self.assertContains(response, "Data inizio")
         self.assertContains(response, "10-03-2026")
         self.assertContains(response, "12-03-2026")
-        self.assertContains(response, "Dati tecnici")
         self.assertNotContains(response, "{&#x27;changes&#x27;:")
 
 
