@@ -26,6 +26,9 @@ from ..services.spostamenti import SpostamentoNonValido, intercetta
 from ._shared import _log_task_update_events, _task_snapshot, _utenti_riga_rapida
 
 
+MOTIVO_OBBLIGATORIO = "Scrivi il motivo dello spostamento: lo legge il capocommessa che decide."
+
+
 def _data(valore):
     testo = (valore or "").strip()
     return date.fromisoformat(testo) if testo else None
@@ -92,6 +95,10 @@ def task_azione_rapida(request, task_id: int):
             task.due_date = _data(request.POST.get("fine"))
             if task.next_step_due and task.due_date and task.due_date < task.next_step_due:
                 return JsonResponse({"ok": False, "reason": "La fine non può venire prima dell'inizio."}, status=400)
+            date_cambiate = (before["next_step_due"], before["due_date"]) != (task.next_step_due, task.due_date)
+            # Chi non sposta subito chiede al capocommessa: il motivo serve a chi decide.
+            if date_cambiate and not permessi["date_subito"] and not (request.POST.get("motivo") or "").strip():
+                return JsonResponse({"ok": False, "reason": MOTIVO_OBBLIGATORIO, "serve_motivo": True}, status=400)
             richiesta = intercetta(request, task, before, motivo=request.POST.get("motivo", ""))
             if richiesta is not None:
                 messaggio = "Richiesta di spostamento inviata al capocommessa."

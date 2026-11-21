@@ -72,10 +72,39 @@
     if (el.matches && el.matches('[data-ka-stato]')) {
       salva(el, el.getAttribute('data-url'), { action: el.value }, 'Stato aggiornato.');
     } else if (el.matches && el.matches('[data-ka-fine]')) {
-      if (el.value === el.getAttribute('data-prima')) return;
+      if (el.value === el.getAttribute('data-prima')) { chiudiMotivo(el); return; }
+      if (el.hasAttribute('data-motivo')) { chiediMotivo(el); return; }
       salva(el, el.getAttribute('data-url'), { azione: 'date', inizio: el.getAttribute('data-inizio') || '', fine: el.value }, 'Scadenza aggiornata.');
     }
   });
+
+  /* Chi non sposta subito chiede al capocommessa: sotto la data compare il motivo. */
+  function chiudiMotivo(el) {
+    var box = el.parentNode.querySelector('.ka-motivo');
+    if (box) box.remove();
+  }
+  function chiediMotivo(el) {
+    if (el.parentNode.querySelector('.ka-motivo')) { el.parentNode.querySelector('.ka-motivo input').focus(); return; }
+    var box = document.createElement('div');
+    box.className = 'ka-motivo';
+    var motivo = document.createElement('input');
+    motivo.className = 'input'; motivo.type = 'text'; motivo.maxLength = 500;
+    motivo.placeholder = 'Motivo per il capocommessa'; motivo.setAttribute('aria-label', 'Motivo dello spostamento');
+    var chiedi = document.createElement('button');
+    chiedi.type = 'button'; chiedi.className = 'btn btn-sm'; chiedi.textContent = 'Chiedi';
+    var invio = function () {
+      if (!motivo.value.trim()) { motivo.focus(); dici('Scrivi il motivo dello spostamento: lo legge il capocommessa che decide.', true); return; }
+      chiedi.disabled = true;
+      salva(el, el.getAttribute('data-url'), {
+        azione: 'date', inizio: el.getAttribute('data-inizio') || '', fine: el.value, motivo: motivo.value
+      }, 'Richiesta inviata al capocommessa.');
+    };
+    chiedi.addEventListener('click', invio);
+    motivo.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); invio(); } });
+    box.appendChild(motivo); box.appendChild(chiedi);
+    el.parentNode.appendChild(box);
+    motivo.focus();
+  }
 
   // Riga cliccabile, tranne sui controlli.
   document.addEventListener('click', function (e) {

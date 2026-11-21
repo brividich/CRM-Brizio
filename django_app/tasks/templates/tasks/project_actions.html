@@ -150,7 +150,7 @@
                     {# Scadenza sul posto: chi non può spostarla subito manda la richiesta al capocommessa. #}
                     <input class="input ka-fine{% if action.is_overdue %} is-ritardo{% endif %}" type="date" value="{{ task.due_date|date:'Y-m-d' }}"
                            data-ka-fine data-url="{% url 'tasks:task_azione_rapida' task.pk %}" data-inizio="{{ task.next_step_due|date:'Y-m-d' }}"
-                           data-prima="{{ task.due_date|date:'Y-m-d' }}" aria-label="Scadenza di {{ action.title }}">
+                           data-prima="{{ task.due_date|date:'Y-m-d' }}"{% if not sposta_subito %} data-motivo{% endif %} aria-label="Scadenza di {{ action.title }}">
                   {% elif action.due_date %}
                     <span class="tl-date{% if action.is_overdue %} overdue{% endif %}">{{ action.due_date|date:"d-m-Y" }}</span>
                   {% else %}
@@ -185,5 +185,5 @@
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script src="{% static 'tasks/js/pannello_attivita.js' %}?v=20261121b" defer></script>
+<script src="{% static 'tasks/js/pannello_attivita.js' %}?v=20261121c" defer></script>
 {% endblock %}

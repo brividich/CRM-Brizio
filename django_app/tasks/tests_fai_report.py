@@ -133,7 +133,7 @@ class SchedeTest(FaiBase):
         pagina = self.client.get(reverse("tasks:detail", args=[task.pk]))
         self.assertContains(pagina, 'value="IN_PROGRESS"')
         self.assertContains(pagina, "Sotto-attività")
-        self.assertContains(pagina, "Storico")
+        self.assertContains(pagina, "Cronologia")
         self.assertNotContains(pagina, "Overdue")
         self.assertNotContains(pagina, "Subscribers")
         risposta = self.client.post(reverse("tasks:change_status", args=[task.pk]), {"status": "IN_PROGRESS"})

@@ -1854,8 +1854,8 @@ class TaskStartDateUpdateTests(TasksBaseTestCase):
     def test_la_pagina_attivita_mostra_il_campo_precompilato(self):
         response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
         self.assertEqual(response.status_code, 200)
-        # Senza `format` ISO il browser mostrerebbe il campo vuoto.
-        self.assertContains(response, 'value="2026-09-15"')
+        # L'inizio si legge nei Dettagli; la scadenza si sposta da «Sposta la scadenza».
+        self.assertContains(response, "15/09/2026")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

@@ -114,6 +114,7 @@ urlpatterns = [
     path("tasks/<int:task_id>/update-due-date/", views.update_due_date, name="update_due_date"),
     path("tasks/<int:task_id>/update-start-date/", views.update_start_date, name="update_start_date"),
     path("tasks/<int:task_id>/change-status/", views.change_status, name="change_status"),
+    path("tasks/<int:task_id>/nota/", views.task_nota, name="task_nota"),
     path("tasks/<int:task_id>/comments/add/", views.add_comment, name="add_comment"),
     path("tasks/<int:task_id>/subtasks/add/", views.add_subtask, name="add_subtask"),
     path("tasks/<int:task_id>/attachments/add/", views.add_attachment, name="add_attachment"),

@@ -71,6 +71,7 @@ TASK_FIELD_LABELS = {
     "due_date": "Data fine",
     "next_step_text": "Prossima azione",
     "next_step_due": "Data inizio",
+    "description": "Nota",
     "tags": "Tag",
     "project_id": "Kickoff",
 }
@@ -446,7 +447,9 @@ def _build_task_timeline_events(task: Task) -> list[dict]:
             azione = payload.get("azione")
             if azione == "richiesta":
                 description = "Richiesto lo spostamento delle date al capocommessa."
-                details.append(_timeline_detail("Nuove date", note=f"{payload.get('inizio') or '—'} → {payload.get('fine') or '—'}"))
+                inizio = _display_event_value("next_step_due", payload.get("inizio"), users_by_id=users_by_id, projects_by_id=projects_by_id)
+                fine = _display_event_value("due_date", payload.get("fine"), users_by_id=users_by_id, projects_by_id=projects_by_id)
+                details.append(_timeline_detail("Nuove date", note=f"{inizio} → {fine}"))
                 if payload.get("motivo"):
                     details.append(_timeline_detail("Motivo", note=payload.get("motivo")))
             else:
