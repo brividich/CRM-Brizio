@@ -491,6 +491,11 @@ SEZIONI: list[dict] = [
                 "Quelle in «Azione di recupero» senza azione effettuata ricevono la decisione ma restano aperte.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
+                "Un clic su una foto la ingrandisce; le frecce (anche ← e → da tastiera) scorrono le foto e, dopo l'ultima, "
+                "passano alla prima foto dell'anomalia successiva dell'elenco a video (prima della prima, all'ultima foto "
+                "della precedente), saltando quelle senza foto. Il dettaglio dietro segue l'anomalia che stai guardando: "
+                "chiusa la foto con «Chiudi» o Esc, decidi lì. Se hai modifiche non salvate, la foto si chiude e la pagina "
+                "chiede prima se salvare.",
                 "«Elimina» e poi «Conferma» sotto un allegato lo toglie senza cancellarlo: resta in «Allegati tolti», "
                 "sotto la griglia, e «Ripristina» lo rimette. Caricare un file nuovo non sostituisce quelli già presenti.",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",

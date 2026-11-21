@@ -103,6 +103,9 @@ GUIDA = {
                 ("p", "Un allegato tolto con «Elimina» non viene cancellato: resta in «Allegati tolti», sotto gli "
                       "allegati della segnalazione, e chi può toglierlo lo rimette con «Ripristina». Gli allegati "
                       "tolti non compaiono in mail, report e copie."),
+                ("p", "Le foto ingrandite in Gestione anomalie si scorrono in sequenza su tutto l'elenco a video: "
+                      "dopo l'ultima foto di un'anomalia si passa alla prima della successiva (anche con ← e →), "
+                      "le anomalie senza foto si saltano e il dettaglio segue l'anomalia mostrata."),
                 ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
                       "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
