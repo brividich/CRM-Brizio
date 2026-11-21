@@ -41,7 +41,7 @@
             {% else %}
               <span class="md-op-title">{{ occ.plan.label }}</span>
             {% endif %}
-            <span class="md-op-when {% if row.state == 'overdue' %}is-late{% elif row.days_until_due == 0 %}is-today{% endif %}">
+            <span class="md-op-when {% if row.overdue or row.state == 'overdue' %}is-late{% elif row.days_until_due == 0 %}is-today{% endif %}">
               {% if row.days_late %}Scaduta da {{ row.days_late }} giorn{{ row.days_late|pluralize:"o,i" }}
               {% elif row.days_until_due == 0 %}Scade oggi
               {% elif row.days_until_due %}Fra {{ row.days_until_due }} giorn{{ row.days_until_due|pluralize:"o,i" }}
@@ -124,7 +124,7 @@
             </td>
           {% endif %}
           <td>
-            <span class="md-due {% if row.state == 'overdue' %}is-late{% endif %}">{{ occ.due_date|date:"d/m/Y" }}</span>
+            <span class="md-due {% if row.overdue or row.state == 'overdue' %}is-late{% endif %}">{{ occ.due_date|date:"d/m/Y" }}</span>
             {% if occ.is_meter_based %}<span class="md-sub md-meter-due" style="display:block">a {{ occ.due_meter_value|floatformat:"-2" }} {{ row.meter.unit_label|default:row.meter.get_meter_type_display|default:"" }}{% if row.meter %} (ora {{ row.meter.current_value|floatformat:"-2" }}, {{ row.meter.freshness_label }}){% endif %}{% if not occ.meter_due_estimated %} · data stimata non disponibile{% endif %}</span>{% endif %}
             {% if row.days_until_due != None %}
               <span class="md-sub">
