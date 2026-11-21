@@ -156,3 +156,13 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - Ipotesi preliminare per la Fase 2 (da validare): distinguere **livello valutato** (atto umano, via SF) da
   **stato di validità** (calcolato: requisito formale scaduto, mancato esercizio) per conciliare REQ-11/12 con il
   ricalcolo automatico del 28/10.
+
+## Punto di ripresa (21/11/2026, sessione interrotta per limite di utilizzo)
+
+- Prototipo sul guscio reale: fatto e committato (39 controlli ok). NON ancora pubblicato come pagina privata.
+- DA FARE prima di pubblicare: le 4 catture in `prototipo/src/oggi/` mostrano ancora l etichetta di sviluppo `.devgit`
+  (ramo git, in basso a destra). Rifarle: copia `C:/Dev/.pn-testdb/mailreg_pulito.sqlite3` in `django_app/db.sqlite3`,
+  `migrate --settings=config.settings.dev` (DJANGO_DEBUG=1 LEGACY_AUTH_ENABLED=0), seed sintetico, runserver 127.0.0.1:8047 --noreload,
+  cattura nascondendo `.devgit`, poi `build/prepara_guscio.py`, `build/costruisci_prototipo.py`, `build/verifica_prototipo.py`;
+  fermare il server e cancellare il db. Gli script di seed e cattura erano nello scratchpad della sessione (da riscrivere).
+- Poi: pubblicare `prototipo/pubblicazione/prototipo-competenze-hub.html` (approvato: privato), attendere il riscontro, Fase 4 (PDF).
