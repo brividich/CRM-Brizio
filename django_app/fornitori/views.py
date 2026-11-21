@@ -1013,7 +1013,6 @@ def presenze_scollega(request, link_id):
 @require_POST
 def presenze_imposta_ditta(request, tipo, pk):
     """Imposta sul ticket/OdL senza ditta quella di un ingresso già collegato."""
-    from .models import IngressoIntervento as _Link
 
     iv = _intervento_o_404(tipo, pk)
     if iv.tipo not in ing.TIPI or not _puo_presenze(request, iv, modifica=True):

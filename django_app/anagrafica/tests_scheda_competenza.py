@@ -7,7 +7,6 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
-from django.utils import timezone
 
 from core.legacy_models import AnagraficaDipendente
 

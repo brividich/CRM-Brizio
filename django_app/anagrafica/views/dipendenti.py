@@ -32,7 +32,7 @@ from django.contrib.auth.decorators import login_required
 from core import naming
 from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 from core.legacy_anagrafica import (
-    count_anagrafica_statuses,
+    count_anagrafica_statuses,  # noqa: F401 - i test lo sostituiscono con patch su questo modulo
     ensure_anagrafica_schema,
     fetch_anagrafica_rows,
     generate_username,

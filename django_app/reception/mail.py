@@ -139,7 +139,6 @@ def invia_conferma_richiesta(richiesta, link: str) -> None:
 
 def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -> None:
     """Richiesta confermata: mail al referente riconosciuto, notifica nell'HUB a chi gestisce la reception."""
-    from core.email_utils import send_hub_mail
     from core.notifiche import invia_notifica
     from fornitori.tasks import _destinatari
 

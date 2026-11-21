@@ -20,7 +20,7 @@ from .models_mpq import (
     TechnicalPlanRevisione,
     UtensileCritico,
 )
-from .services import mpq_utensili
+from .services import mpq_utensili as servizio_utensili
 from .views_mpq import _check_manage, _check_mpq_permission, _mpq_denied, _mpq_log
 from .views_mpq_qualifiche import _form_page
 
@@ -87,7 +87,7 @@ def mpq_tp_nuovo(request, processo_id: int):
         tp = form.save(commit=False)
         tp.processo = proc
         tp.save()
-        mpq_utensili.nuova_revisione(tp, modifiche="Prima emissione")
+        servizio_utensili.nuova_revisione(tp, modifiche="Prima emissione")
         _mpq_log(request, processo=proc, evento="Technical Plan creato", dettaglio=str(tp))
         messages.success(request, "Technical Plan creato: aggiungi i passi e registra l'approvazione.")
         return redirect("anagrafica:mpq_tp", tp_id=tp.id)
@@ -174,7 +174,7 @@ def mpq_tp_approva(request, rev_id: int):
         data = date.fromisoformat(request.POST.get("data") or "")
     except ValueError:
         data = timezone.localdate()
-    mpq_utensili.approva(rev, approvato_da=chi[:150], data=data, documento=request.FILES.get("documento"))
+    servizio_utensili.approva(rev, approvato_da=chi[:150], data=data, documento=request.FILES.get("documento"))
     _mpq_log(request, processo=rev.plan.processo, evento="Technical Plan approvato",
              dettaglio=f"{rev.plan} rev. {rev.numero} da {chi}")
     messages.success(request, f"Revisione {rev.numero} approvata: è quella valida in produzione.")
@@ -195,7 +195,7 @@ def mpq_tp_revisione(request, tp_id: int):
     if not modifiche:
         messages.error(request, "Scrivi cosa cambia nella nuova revisione.")
         return redirect("anagrafica:mpq_tp", tp_id=tp.id)
-    rev = mpq_utensili.nuova_revisione(tp, modifiche=modifiche)
+    rev = servizio_utensili.nuova_revisione(tp, modifiche=modifiche)
     _mpq_log(request, processo=tp.processo, evento="Technical Plan: nuova revisione", dettaglio=f"{tp} rev. {rev.numero}")
     messages.success(request, f"Revisione {rev.numero} creata: correggi i passi e registra l'approvazione.")
     return redirect(reverse("anagrafica:mpq_tp", args=[tp.id]) + f"?rev={rev.numero}")
@@ -233,14 +233,14 @@ def mpq_registro(request, reg_id: int):
         if not can:
             return _mpq_denied(request)
         if request.POST.get("azione") == "chiudi":
-            mpq_utensili.chiudi(reg)
+            servizio_utensili.chiudi(reg)
             _mpq_log(request, processo=reg.passo.revisione.plan.processo, evento="MOD.176 chiuso",
                      dettaglio=reg.identificativo)
             messages.success(request, "Registro chiuso: consegnalo a IN1 per l'archivio del P/N.")
             return redirect("anagrafica:mpq_registro", reg_id=reg.id)
         if form.is_valid():
             try:
-                esito = mpq_utensili.registra_riga(reg, **form.cleaned_data)
+                esito = servizio_utensili.registra_riga(reg, **form.cleaned_data)
             except ValueError as exc:
                 messages.error(request, str(exc))
             else:

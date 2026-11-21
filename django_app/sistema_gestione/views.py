@@ -23,7 +23,7 @@ from .catalogo_27002 import TEMI
 from .evidenze import evidenze_per
 from .exports import kpi_revisione, soa_pdf, soa_xlsx
 from .forms import CopiaFirmataForm, SoaVoceForm, ThreatIntelligenceForm
-from .models import Audit, Certificazione, SoaRevisione, SoaVoce, ThreatIntelligence
+from .models import Certificazione, SoaRevisione, SoaVoce, ThreatIntelligence
 from .services import panoramica
 from .services import soa as soa_service
 
