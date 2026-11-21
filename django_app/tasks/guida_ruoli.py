@@ -113,7 +113,7 @@ SEZIONI_TEAM: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Menu KICK-OFF › «Dashboard».",
-                "«Le mie azioni»: azioni e problemi a tuo nome, scaduti in testa.",
+                "«Le mie attività KICK-OFF»: azioni e problemi a tuo nome, scaduti in testa.",
                 "«Le tue attività»: le attività assegnate a te.",
                 "«Prossimi incontri»: dove sei atteso.",
             ]),
@@ -138,11 +138,11 @@ SEZIONI_TEAM: list[dict] = [
         "titolo": "Chiudere un'azione o un problema",
         "blocchi": [
             ("passi", [
-                "Apri «Le mie azioni» dalla dashboard.",
+                "Apri «Le mie attività KICK-OFF» dalla dashboard.",
                 "Premi «Fatta» sull'azione, «Risolto» sul problema.",
                 "Sbagliato? Filtra su «Chiuse» e premi «Riapri».",
             ]),
-            ("img", (_IMG + "mie_azioni.jpg", "Le mie azioni")),
+            ("img", (_IMG + "mie_azioni.jpg", "Le mie attività KICK-OFF")),
         ],
     },
     {
@@ -150,7 +150,7 @@ SEZIONI_TEAM: list[dict] = [
         "titolo": "Programmi CAM, CMM e FAI assegnati a te",
         "blocchi": [
             ("passi", [
-                "Apri «Le mie azioni»: la voce ha l'etichetta CAM, CMM o FAI.",
+                "Apri «Le mie attività KICK-OFF»: la voce ha l'etichetta CAM, CMM o FAI.",
                 "Cliccala per aprire «Programmi e FAI» della commessa.",
                 "Con «Modifica» scrivi il codice e il percorso di rete, poi premi Invio.",
                 "Premi «Fatto» quando hai finito.",
@@ -166,7 +166,7 @@ SEZIONI_TEAM: list[dict] = [
                 "Ti arriva la mail di convocazione con l'invito da aggiungere al calendario.",
                 "Il giorno lavorativo prima ti arriva il promemoria.",
                 "Vuoi discutere qualcosa? Nel dettaglio dell'incontro proponi un punto: chi gestisce la commessa lo accetta o lo rifiuta.",
-                "Dopo la riunione ricevi la minuta: le azioni a tuo nome compaiono in «Le mie azioni».",
+                "Dopo la riunione ricevi la minuta: le azioni a tuo nome compaiono in «Le mie attività KICK-OFF».",
             ]),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro")),
         ],

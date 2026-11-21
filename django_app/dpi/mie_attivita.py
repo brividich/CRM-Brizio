@@ -18,7 +18,7 @@ import logging
 from django.urls import reverse
 
 from . import flusso, negozio
-from .models import ModalitaNegozio, RichiestaDPI, StatoRichiesta
+from .models import RichiestaDPI, StatoRichiesta
 
 logger = logging.getLogger(__name__)
 

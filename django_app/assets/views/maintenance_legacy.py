@@ -1472,7 +1472,6 @@ def _maintenance_supplier_rows() -> list[dict[str, object]]:
 
     from anagrafica.models import Fornitore
 
-    from ..models import AssistanceContract
 
     def _counts(qs) -> dict[int, int]:
         # .order_by() azzera l'ordering di default del modello: senza, su SQL Server

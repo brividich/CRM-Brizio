@@ -21,7 +21,6 @@ from .models import (
     RILIEVO_ISMS_NC,
     Audit,
     AuditIsmsControllo,
-    AuditIsmsRequisito,
     ControlloIso27002,
     SoaRevisione,
 )

@@ -207,12 +207,17 @@ def _mail_assegnazione(task: Task, *, actor=None) -> None:
         righe.append(("Entro il", f"{task.due_date:%d/%m/%Y}"))
     if chi:
         righe.append(("Assegnata da", chi))
+    from .kickoff_avvio import nota_attivita
+
+    nota = nota_attivita(task)
+    if nota:
+        righe.append(("Note", nota[:1500]))
     testo = "\n".join(f"{k}: {v}" for k, v in righe)
     if url:
-        testo += f"\n\nLa trovi in «Le mie azioni»: {url}"
+        testo += f"\n\nLa trovi in «Le mie attività KICK-OFF»: {url}"
     html = email_facts_table(righe)
     if url:
-        html += '<div style="height:18px"></div>' + email_cta("Apri «Le mie azioni»", url, "Da lì la segni come fatta.")
+        html += '<div style="height:18px"></div>' + email_cta("Apri «Le mie attività KICK-OFF»", url, "Da lì la segni come fatta.")
     try:
         send_hub_mail(
             f"Nuova attività per te: {task.title}"[:180],

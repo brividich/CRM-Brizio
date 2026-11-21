@@ -138,7 +138,7 @@ def _richieste_visita(request) -> list[dict]:
 
 def _spostamenti(request) -> list[dict]:
     """KICK-OFF: richieste di spostamento date da decidere, dove l'utente ha pieni poteri
-    (stesso elenco di «Le mie azioni»)."""
+    (stesso elenco di «Le mie attività KICK-OFF»)."""
     from tasks.access import scoped_projects_queryset
     from tasks.services.spostamenti import richieste_da_decidere
 

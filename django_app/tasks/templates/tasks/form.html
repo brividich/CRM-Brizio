@@ -138,7 +138,7 @@
         </section>
 
         <section class="tf2-card tf2-save">
-          <p class="tf2-note">{% if mode == "edit" %}Se cambi il responsabile, il nuovo riceve notifica e mail.{% else %}Il responsabile riceve notifica e mail, e la trova in «Le mie azioni».{% endif %}</p>
+          <p class="tf2-note">{% if mode == "edit" %}Se cambi il responsabile, il nuovo riceve notifica e mail.{% else %}Il responsabile riceve notifica e mail, e la trova in «Le mie attività KICK-OFF».{% endif %}</p>
           <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attività{% endif %}</button>
           {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
         </section>

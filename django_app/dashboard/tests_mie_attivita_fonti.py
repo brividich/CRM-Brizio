@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from tasks.models import Project, SubTask, Task, TaskStatus
+from tasks.models import SubTask, Task, TaskStatus
 from tasks.tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions, make_project
 
 

@@ -1,15 +1,33 @@
 {# Stepper del ciclo di vita KICK-OFF. Param: current = anagrafica | vrf | attivita #}
-<div class="kp-steps" role="list" aria-label="Percorso kickoff">
-  <div class="kp-step {% if current == 'anagrafica' %}is-active{% else %}is-done{% endif %}" role="listitem">
+{# Con un kickoff già nato (`project` nel contesto) i passi fatti sono link: si torna indietro senza cercare la pagina. #}
+<ol class="kp-steps" aria-label="Percorso kickoff">
+  <li class="kp-step {% if current == 'anagrafica' %}is-active{% else %}is-done{% endif %}"{% if current == 'anagrafica' %} aria-current="step"{% endif %}>
     <span class="kp-step-badge">{% if current == 'anagrafica' %}1{% else %}&#10003;{% endif %}</span>
-    Dati commessa e team
-  </div>
-  <div class="kp-step {% if current == 'vrf' %}is-active{% elif current == 'attivita' and not vrf_da_fare %}is-done{% endif %}" role="listitem">
+    <span class="kp-step-txt">
+      {% if current != 'anagrafica' and project and tasks_shell_can_edit_project %}
+        <a class="kp-step-link" href="{% url 'tasks:project_edit' project.id %}" title="Modifica dati e team del kickoff">Dati commessa e team</a>
+      {% else %}
+        <strong>Dati commessa e team</strong>
+      {% endif %}
+      <small>Pezzo, cliente e persone</small>
+    </span>
+  </li>
+  <li class="kp-step {% if current == 'vrf' %}is-active{% elif current == 'attivita' and not vrf_da_fare %}is-done{% elif current == 'attivita' %}is-later{% endif %}"{% if current == 'vrf' %} aria-current="step"{% endif %}>
     <span class="kp-step-badge">{% if current == 'attivita' and not vrf_da_fare %}&#10003;{% else %}2{% endif %}</span>
-    Scheda VRF{% if current == 'attivita' and vrf_da_fare %} (rimandata){% endif %}
-  </div>
-  <div class="kp-step {% if current == 'attivita' %}is-active{% endif %}" role="listitem">
+    <span class="kp-step-txt">
+      {% if current == 'attivita' and project %}
+        <a class="kp-step-link" href="{% url 'tasks:project_vrf_compile' project.id %}" title="Apri la scheda VRF">Scheda VRF{% if vrf_da_fare %} (rimandata){% endif %}</a>
+      {% else %}
+        <strong>Scheda VRF</strong>
+      {% endif %}
+      <small>{% if current == 'attivita' and vrf_da_fare %}Da compilare: resta il promemoria{% else %}Valutazione rischi, o la rimandi{% endif %}</small>
+    </span>
+  </li>
+  <li class="kp-step {% if current == 'attivita' %}is-active{% endif %}"{% if current == 'attivita' %} aria-current="step"{% endif %}>
     <span class="kp-step-badge">3</span>
-    Attività o incontro
-  </div>
-</div>
+    <span class="kp-step-txt">
+      <strong>Attività e incontro</strong>
+      <small>Chi fa cosa, entro quando</small>
+    </span>
+  </li>
+</ol>

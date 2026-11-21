@@ -1065,7 +1065,7 @@ def notifiche_impostazioni(request):
 
 
 def _accessi_recenti(request) -> list:
-    from core.dispositivi import COOKIE, _impronta, _token_dal_cookie
+    from core.dispositivi import _impronta, _token_dal_cookie
     from core.models import DispositivoAccesso
 
     token = _token_dal_cookie(request)

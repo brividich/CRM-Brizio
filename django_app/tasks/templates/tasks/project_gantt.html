@@ -411,7 +411,7 @@ body.tk-wide .content sta in tasks.css.
                 {% if row.dopo %}<p class="quick-edit-note">Parte dopo {{ row.dopo|join:", " }}: non puoi anticiparla oltre quel vincolo. Se cambi le date, chi dipende da lei si sposta in avanti da solo.</p>{% endif %}
               </form>
             {% elif row.permessi.solo_stato %}
-              {# Il responsabile senza permesso di modifica: stessi passi di «Le mie azioni». #}
+              {# Il responsabile senza permesso di modifica: stessi passi di «Le mie attività KICK-OFF». #}
               <form class="quick-edit-item" data-task-id="{{ row.task.id }}" method="post"
                     action="{% url 'tasks:mia_voce_stato' 'attivita' row.task.id %}">
                 {% csrf_token %}

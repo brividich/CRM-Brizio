@@ -26,7 +26,6 @@ from .models import (
     SgiModifica,
     SgiModificaStato as S,
     SgiPassaggio,
-    SgiTestoEstratto,
     SourceType,
 )
 from .test_libreria import _doc

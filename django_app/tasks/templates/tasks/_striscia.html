@@ -1,0 +1,40 @@
+{# Linea del tempo compatta della commessa (services/striscia.py). Param: striscia, project. #}
+<section class="ka-striscia{% if not striscia %} is-vuota{% endif %}" data-ka-live="striscia" aria-label="Linea del tempo delle attività">
+  {% if striscia %}
+  <div class="ka-striscia-testa">
+    <h2>Linea del tempo</h2>
+    <span class="ka-striscia-leg"><i></i>Da fare</span>
+    <span class="ka-striscia-leg"><i class="is-corso"></i>In corso</span>
+    <span class="ka-striscia-leg"><i class="is-fatta"></i>Completata</span>
+    <span class="ka-striscia-leg"><i class="is-ritardo"></i>In ritardo</span>
+    <span class="ka-striscia-leg"><i class="is-incontro"></i>Incontro</span>
+    <a class="ka-striscia-piano" href="{% url 'tasks:project_gantt' project.id %}">Apri il Piano &rarr;</a>
+  </div>
+  <div class="ka-striscia-scorri">
+    <div class="ka-striscia-corpo">
+      <div class="ka-striscia-settimane" aria-hidden="true">
+        {% for s in striscia.settimane %}<span style="left:{{ s.sinistra|stringformat:'.2f' }}%">{{ s.etichetta|date:"j M" }}</span>{% endfor %}
+      </div>
+      <div class="ka-striscia-righe">
+        {% for r in striscia.righe %}
+        <div class="ka-striscia-riga{% if r.evidenziata %} is-evidenziata{% endif %}">
+          <a class="ka-striscia-nome" href="{% url 'tasks:detail' r.task.pk %}" title="{{ r.task.title }}">{{ r.task.title }}</a>
+          <div class="ka-striscia-pista">
+            <a class="ka-striscia-barra {{ r.classe }}" href="{% url 'tasks:detail' r.task.pk %}"
+               style="left:{{ r.sinistra|stringformat:'.2f' }}%;width:{{ r.larghezza|stringformat:'.2f' }}%"
+               title="{{ r.task.title }}{% if r.task.assigned_to %} · {{ r.task.assigned_to.get_full_name|default:r.task.assigned_to.username }}{% endif %}{% if r.task.due_date %} · entro {{ r.task.due_date|date:'d/m/Y' }}{% endif %}"
+               aria-label="Apri {{ r.task.title }}"></a>
+          </div>
+        </div>
+        {% endfor %}
+        <div class="ka-striscia-segni" aria-hidden="true">
+          {% for s in striscia.settimane %}<span class="ka-striscia-tacca" style="left:{{ s.sinistra|stringformat:'.2f' }}%"></span>{% endfor %}
+          <span class="ka-striscia-oggi" style="left:{{ striscia.oggi|stringformat:'.2f' }}%"></span>
+          {% for i in striscia.incontri %}<span class="ka-striscia-incontro" style="left:{{ i.sinistra|stringformat:'.2f' }}%" title="Incontro {{ i.meeting.numero }} · {{ i.meeting.data|date:'d/m/Y' }}"></span>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% if striscia.nascoste %}<p class="ka-striscia-nota">Altre {{ striscia.nascoste }} attività nel Piano.</p>{% endif %}
+  {% endif %}
+</section>

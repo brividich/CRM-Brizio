@@ -31,14 +31,14 @@
           {% endfor %}
         </form>
       {% elif is_assignee %}
-        {# Il responsabile senza permesso di modifica: stessi passi di «Le mie azioni». #}
+        {# Il responsabile senza permesso di modifica: stessi passi di «Le mie attività KICK-OFF». #}
         <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
         <form method="post" action="{% url 'tasks:mia_voce_stato' 'attivita' task.id %}" class="td-stati" aria-label="Stato dell'attività">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.path }}">
           {% if task.status == "TODO" %}<button type="submit" name="action" value="start" class="td-stato-btn">Inizia</button>{% endif %}
           {% if task.status == "TODO" or task.status == "IN_PROGRESS" %}<button type="submit" name="action" value="done" class="td-stato-btn attivo">Fatta</button>
-          {% else %}<button type="submit" name="action" value="reopen" class="td-stato-btn">Riapri</button>{% endif %}
+          {% elif task.status != "CANCELED" or puo_ripristinare %}<button type="submit" name="action" value="reopen" class="td-stato-btn">Riapri</button>{% endif %}
         </form>
       {% else %}
         <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>

@@ -122,6 +122,7 @@ _ROUTE_BINDINGS = {
     "tasks:category_fields_json": "tasks.kickoff.view",
     "tasks:asset_availability_json": "tasks.kickoff.view",
     "tasks:identity_suggest": "tasks.kickoff.view",
+    "tasks:identity_check": "tasks.kickoff.view",
     "tasks:project_vrf_download": "tasks.kickoff.view",
     # Creazione
     "tasks:create": "tasks.kickoff.create",
