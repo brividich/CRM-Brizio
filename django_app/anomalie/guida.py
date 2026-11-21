@@ -200,7 +200,7 @@ SEZIONI: list[dict] = [
                 "sezione con rilevato, nominale, tolleranza ed esito: le fuori tolleranza sono già spuntate. «Solo fuori "
                 "tolleranza» / «Tutte le righe» cambia la vista; spunta o togli le righe (anche cliccando la riga) e premi "
                 "«Inserisci N anomalie»: ogni riga diventa un'anomalia con la sua misura, sul S/N scritto nel report "
-                "(aggiunto al blocco se manca). Se il report è di un altro ordine compare un avviso. Il PDF non viene allegato. "
+                "(aggiunto al blocco se manca). Se il report è di un altro ordine o di un altro P/N compare un avviso. Il PDF non viene allegato. "
                 "Le anomalie inserite restano modificabili fino a «Salva blocco».",
                 "«📝 Da elenco» (sotto le anomalie del blocco): trascina un file di testo (.txt), sceglilo o incolla le righe; "
                 "ogni riga diventa un'anomalia (le righe vuote si saltano, trattini e numeri d'elenco in testa si tolgono). "

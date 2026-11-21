@@ -111,7 +111,7 @@ GUIDA = {
                       "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Con «📄 Dal report CMM (PDF)» "
                       "si caricano invece i report completi in PDF (uno per S/N): un pannello laterale mostra tutte le righe lette "
                       "dal testo del PDF, con le fuori tolleranza già spuntate, e «Inserisci N anomalie» crea un'anomalia per riga sul "
-                      "S/N del report. «📝 Da elenco» trasforma ogni riga di un file di testo (o incollata) in un'anomalia; "
+                      "S/N del report; se il report è di un altro OP o di un altro P/N compare un avviso. «📝 Da elenco» trasforma ogni riga di un file di testo (o incollata) in un'anomalia; "
                       "«📋 Copia difetti da un S/N» porta le anomalie di un S/N, anche di un blocco già salvato, su altri S/N. "
                       "Un caso già scelto in «Che cosa hai trovato?» non sparisce più mentre si scrive. Il capocommessa li vede nella mail e nel "
                       "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "

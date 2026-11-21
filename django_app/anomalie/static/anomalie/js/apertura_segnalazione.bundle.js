@@ -987,8 +987,11 @@ const LetturaReport = ({
    Il PDF si legge sul server dal testo (niente OCR) e non diventa un allegato; ogni riga
    spuntata diventa un'anomalia sul S/N scritto nel report. */
 const soloCifre = v => String(v || '').replace(/\D/g, '');
+// P/N confrontati senza spazi, trattini e maiuscole: «ec6510d503 043» = «EC6510D503-043».
+const soloCodice = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const ReportPdfPannello = ({
   opId,
+  opPn,
   onInserisci,
   onChiudi
 }) => {
@@ -1059,6 +1062,7 @@ const ReportPdfPannello = ({
   const nFuori = report.reduce((n, rep) => n + rep.righe.filter(x => x.fuori).length, 0);
   const nTutte = report.reduce((n, rep) => n + rep.righe.length, 0);
   const opNum = soloCifre(opId);
+  const pnOp = soloCodice(opPn);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "cmm-velo",
     onClick: onChiudi
@@ -1124,6 +1128,7 @@ const ReportPdfPannello = ({
     const t = rep.intestazione;
     const righe = rep.righe.filter(x => !soloFuori || x.fuori || scelte[`${rep.id}:${x.indice}`]);
     const altroOp = opNum && t.odl && soloCifre(t.odl) !== opNum;
+    const altroPn = pnOp && t.part_number && soloCodice(t.part_number) !== pnOp;
     let sezione = null;
     return /*#__PURE__*/React.createElement("div", {
       className: "cmm-rep",
@@ -1140,7 +1145,9 @@ const ReportPdfPannello = ({
       className: "sn-warn"
     }, "\u26A0 S/N non trovato nel report: le anomalie andranno su tutti i seriali del blocco."), altroOp && /*#__PURE__*/React.createElement("div", {
       className: "sn-warn"
-    }, "\u26A0 Il report \xE8 dell\u2019ordine ", t.odl, ", non di ", opId, ": controlla di aver scelto il file giusto."), rep.metodo === 'ocr' && /*#__PURE__*/React.createElement("div", {
+    }, "\u26A0 Il report \xE8 dell\u2019ordine ", t.odl, ", non di ", opId, ": controlla di aver scelto il file giusto."), altroPn && /*#__PURE__*/React.createElement("div", {
+      className: "sn-warn"
+    }, "\u26A0 Il report \xE8 del P/N ", t.part_number, ", non di ", opPn, ": controlla di aver scelto il file giusto."), rep.metodo === 'ocr' && /*#__PURE__*/React.createElement("div", {
       className: "sn-warn"
     }, "\u26A0 PDF scansionato: righe lette dall\u2019immagine, controlla i valori."), !righe.length && /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
@@ -4353,6 +4360,7 @@ const Step2Controllo = ({
     onChiudi: () => setCopiaAperta(false)
   }), reportPdfAperto && /*#__PURE__*/React.createElement(ReportPdfPannello, {
     opId: controllo ? controllo.op_id : '',
+    opPn: op && op.pn !== '—' ? op.pn : '',
     onInserisci: inserisciDaReport,
     onChiudi: () => setReportPdfAperto(false)
   }), scopertiEditor.length > 0 && /*#__PURE__*/React.createElement("div", {
