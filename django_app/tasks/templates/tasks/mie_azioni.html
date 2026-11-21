@@ -3,6 +3,7 @@
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie attività KICK-OFF</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#mie-azioni{% endblock %}
+{% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 {% block tasks_shell_title %}Le mie attività KICK-OFF{% endblock %}
 {% block tasks_shell_subtitle %}Tutto quello che è assegnato a te, su tutte le commesse: attività del piano, azioni e problemi degli incontri, programmi e FAI. Lo chiudi da qui.{% endblock %}
 
@@ -42,7 +43,7 @@
   </div>
 </section>
 {% endif %}
-<section class="ts-panel">
+<section class="ts-panel" data-ka-pannello data-csrf="{{ csrf_token }}">
   <div class="ts-panel-body">
     <form method="get" class="ml-filters">
       <div class="ml-scope">
@@ -51,11 +52,12 @@
         <a class="ml-scope-btn{% if filters.stato == 'tutte' %} active{% endif %}" href="?stato=tutte">Tutte</a>
       </div>
       <input type="hidden" name="stato" value="{{ filters.stato }}">
+      {% if elenco_raggruppa %}<input type="hidden" name="raggruppa" value="{{ elenco_raggruppa }}">{% endif %}
       <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, codice, commessa…">
       <select class="input" name="tipo" aria-label="Tipo">
         <option value="">Tutte le voci</option>
         <option value="attivita"{% if filters.tipo == "attivita" %} selected{% endif %}>Solo attività del piano</option>
-        <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo azioni</option>
+        <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo attività d'incontro</option>
         <option value="problema"{% if filters.tipo == "problema" %} selected{% endif %}>Solo problemi</option>
         <option value="programma"{% if filters.tipo == "programma" %} selected{% endif %}>Solo programmi e FAI</option>
       </select>
@@ -74,76 +76,7 @@
       <button type="submit" class="md-btn">Filtra</button>
     </form>
 
-    {% if rows %}
-      <div class="tl-table-wrap">
-        <table class="tl-table" data-fm-hide-search="1">
-          <thead>
-            <tr>
-              <th style="width:36%">Voce</th>
-              <th>Commessa</th>
-              <th>Scadenza</th>
-              <th>Stato</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in rows %}
-              <tr class="{% if row.is_overdue %}status-overdue{% elif not row.is_open %}status-done{% endif %}">
-                <td>
-                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% elif row.kind == 'attivita' %}ok{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% elif row.kind == "programma" %}{{ row.obj.kind }}{% elif row.kind == "attivita" %}Attività{% else %}Azione{% endif %}</span>
-                  {% if row.kind == "attivita" %}
-                    <a class="tl-task-link" href="{% url 'tasks:detail' row.obj.id %}">{{ row.title }}</a>
-                    <div class="tl-task-desc">{% if row.start_date %}Dal {{ row.start_date|date:"d-m-Y" }} · {% endif %}{{ row.obj.get_status_display }}{% if row.obj.progress %} · {{ row.obj.progress }}%{% endif %}{% if row.project %} · <a href="{% url 'tasks:project_gantt' row.project.id %}">Gantt</a>{% endif %}</div>
-                  {% elif row.kind == "programma" %}
-                    <a class="tl-task-link" href="{% url 'tasks:project_tech_refs' row.project.id %}">{{ row.title }}</a>
-                    {% if row.obj.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=row.obj %}</div>{% endif %}
-                  {% elif row.meeting %}
-                    <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' row.project.id row.meeting.id %}">{{ row.title }}</a>
-                    <div class="tl-task-desc">Dall'incontro {{ row.meeting.numero }} del {{ row.meeting.data|date:"d-m-Y" }}</div>
-                  {% else %}
-                    <span class="tl-task-link">{{ row.title }}</span>
-                  {% endif %}
-                  {% if row.linked_task %}<div class="tl-task-desc">Attività collegata: <a href="{% url 'tasks:detail' row.linked_task.id %}">{{ row.linked_task.title }}</a></div>{% endif %}
-                </td>
-                <td>{% if row.project %}<a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a>{% else %}&mdash;{% endif %}</td>
-                <td>
-                  {% if row.due_date %}<span class="tl-date{% if row.is_overdue %} overdue{% endif %}">{{ row.due_date|date:"d-m-Y" }}</span>{% else %}<span class="tl-date">&mdash;</span>{% endif %}
-                </td>
-                <td>
-                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.kind == "attivita" and row.obj.status == "IN_PROGRESS" %}<span class="ts-chip info">In corso</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
-                </td>
-                <td>
-                  <div class="ma-actions" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
-                    {% if row.kind == "attivita" %}{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=row.obj.id %}{% endif %}
-                    {% if row.kind == "attivita" and row.obj.status == "TODO" %}
-                    <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <input type="hidden" name="action" value="start">
-                      <button type="submit" class="md-btn">Inizia</button>
-                    </form>
-                    {% endif %}
-                    <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      {% if row.is_open %}
-                        <input type="hidden" name="action" value="done">
-                        <button type="submit" class="md-btn">{% if row.kind == "problema" %}Risolto{% else %}Fatta{% endif %}</button>
-                      {% else %}
-                        <input type="hidden" name="action" value="reopen">
-                        <button type="submit" class="md-btn">Riapri</button>
-                      {% endif %}
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna voce corrisponde ai filtri.</p>
-    {% endif %}
+    {% include "tasks/_elenco_attivita.html" with mostra_commessa=True vuoto="Nessuna voce corrisponde ai filtri." %}
   </div>
 </section>
 <script src="{% static 'tasks/js/tech_refs.js' %}?v=20261111" defer></script>

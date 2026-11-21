@@ -82,13 +82,19 @@
   </form>
   {% endif %}
   <div class="ts-panel-body">
+    <nav class="ka-viste" aria-label="Quali attività mostrare">
+      {% for codice, etichetta in viste %}
+        <a class="ka-vista{% if vista == codice %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}{% if codice or include_closed %}?{% endif %}{% if codice %}vista={{ codice }}{% endif %}{% if codice and include_closed %}&amp;{% endif %}{% if include_closed %}closed=1{% endif %}"{% if vista == codice %} aria-current="page"{% endif %}>{{ etichetta }}</a>
+      {% endfor %}
+      <span class="ka-viste-sep" aria-hidden="true"></span>
+      <a class="ka-vista{% if not include_closed %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}{% if vista %}?vista={{ vista }}{% endif %}">Solo aperte</a>
+      <a class="ka-vista{% if include_closed %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1{% if vista %}&amp;vista={{ vista }}{% endif %}">Anche chiuse</a>
+    </nav>
     <form method="get" class="ml-filters">
-      <div class="ml-scope">
-        <a class="ml-scope-btn{% if not include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Solo aperte</a>
-        <a class="ml-scope-btn{% if include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
-      </div>
       {% if include_closed %}<input type="hidden" name="closed" value="1">{% endif %}
+      {% if vista %}<input type="hidden" name="vista" value="{{ vista }}">{% endif %}
       {% if filters.stato %}<input type="hidden" name="stato" value="{{ filters.stato }}">{% endif %}
+      {% if elenco_raggruppa %}<input type="hidden" name="raggruppa" value="{{ elenco_raggruppa }}">{% endif %}
       <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca nel titolo o nell'origine…">
       <select class="input" name="tipo" aria-label="Tipo">
         <option value="">Tutti i tipi</option>
@@ -98,14 +104,12 @@
       </select>
       <select class="input" name="responsabile" aria-label="Responsabile">
         <option value="">Tutti i responsabili</option>
-        <option value="nessuno"{% if filters.responsabile == "nessuno" %} selected{% endif %}>Non assegnate</option>
         {% for owner_id, owner_label in owners %}
           <option value="{{ owner_id }}"{% if filters.responsabile == owner_id|stringformat:"s" %} selected{% endif %}>{{ owner_label }}</option>
         {% endfor %}
       </select>
       <select class="input" name="scadenza" aria-label="Scadenza">
         <option value="">Qualsiasi scadenza</option>
-        <option value="scadute"{% if filters.scadenza == "scadute" %} selected{% endif %}>Scadute</option>
         <option value="settimana"{% if filters.scadenza == "settimana" %} selected{% endif %}>In scadenza entro 7 giorni</option>
         <option value="senza"{% if filters.scadenza == "senza" %} selected{% endif %}>Senza scadenza</option>
       </select>
@@ -113,77 +117,10 @@
       {% if filters_active %}<a class="md-btn" href="{% url 'tasks:project_actions' project.id %}{% if include_closed %}?closed=1{% endif %}">Azzera</a>{% endif %}
     </form>
 
-    {% if actions %}
-      <div class="tl-table-wrap">
-        <table class="tl-table" data-fm-hide-search="1">
-          <thead>
-            <tr>
-              <th style="width:38%">Attività</th>
-              <th>Origine</th>
-              <th>Responsabile</th>
-              <th>Scadenza</th>
-              <th>Stato</th>
-            </tr>
-          </thead>
-          <tbody data-ka-live="righe">
-            {% for riga in righe %}{% with action=riga.voce task=riga.task %}
-              <tr class="tl-row-clickable{% if action.is_overdue %} status-overdue{% elif not action.is_open %} status-done{% endif %}" data-href="{{ action.url }}">
-                <td>
-                  <a class="tl-task-link" href="{{ action.url }}">{{ action.title }}</a>
-                  {# Per le attività la provenienza coincide con la chip Origine: non la ripetiamo. #}
-                  {% if action.origin != "task" %}<div class="tl-task-desc">{{ action.source_label }}</div>{% endif %}
-                </td>
-                <td>
-                  {% if action.origin == "issue" %}
-                    <span class="ts-chip warn">Problema</span>
-                  {% elif action.origin == "action" %}
-                    <span class="ts-chip info">Attività d'incontro</span>
-                  {% elif action.origin == "task" %}
-                    <span class="ts-chip info">Attività</span>
-                  {% else %}
-                    <span class="ts-chip soft">Sotto-attività</span>
-                  {% endif %}
-                </td>
-                <td>{% if action.owner_label %}{{ action.owner_label }}{% else %}<span class="tl-ko-link">Non assegnata</span>{% endif %}</td>
-                <td>
-                  {% if riga.puo %}
-                    {# Scadenza sul posto: chi non può spostarla subito manda la richiesta al capocommessa. #}
-                    <input class="input ka-fine{% if action.is_overdue %} is-ritardo{% endif %}" type="date" value="{{ task.due_date|date:'Y-m-d' }}"
-                           data-ka-fine data-url="{% url 'tasks:task_azione_rapida' task.pk %}" data-inizio="{{ task.next_step_due|date:'Y-m-d' }}"
-                           data-prima="{{ task.due_date|date:'Y-m-d' }}"{% if not sposta_subito %} data-motivo{% endif %} aria-label="Scadenza di {{ action.title }}">
-                  {% elif action.due_date %}
-                    <span class="tl-date{% if action.is_overdue %} overdue{% endif %}">{{ action.due_date|date:"d-m-Y" }}</span>
-                  {% else %}
-                    <span class="tl-date">&mdash;</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if riga.puo %}
-                    <select class="ka-stato is-{{ task.status|lower }}" data-ka-stato data-url="{% url 'tasks:mia_voce_stato' 'attivita' task.pk %}" data-prima="{{ task.status }}" data-no-search aria-label="Stato di {{ action.title }}">
-                      {% for valore, etichetta, verbo in stati_attivita %}<option value="{{ verbo }}" data-stato="{{ valore }}"{% if task.status == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
-                    </select>
-                  {% elif action.is_overdue %}
-                    <span class="ts-chip danger">Scaduta</span>
-                  {% elif action.is_open %}
-                    <span class="ts-chip ok">Aperta</span>
-                  {% else %}
-                    <span class="ts-chip soft">Chiusa</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endwith %}{% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="empty" style="text-align:center;padding:28px 12px;">
-        {% if filters_active %}Nessuna voce corrisponde ai filtri.{% else %}Nessuna attività {% if not include_closed %}aperta {% endif %}su questa commessa.{% endif %}
-      </p>
-    {% endif %}
+    {% if filters_active %}{% firstof "Nessuna voce corrisponde ai filtri." as vuoto %}{% else %}{% firstof "Nessuna attività su questa commessa." as vuoto %}{% endif %}
+    {% include "tasks/_elenco_attivita.html" with mostra_commessa=False vuoto=vuoto %}
   </div>
 </section>
 {% endblock %}
 
-{% block tasks_shell_scripts %}
-<script src="{% static 'tasks/js/pannello_attivita.js' %}?v=20261121d" defer></script>
-{% endblock %}
+
