@@ -1142,7 +1142,8 @@ class MeetingActionAndDecisionTests(TasksBaseTestCase):
             project=self.project, meeting=self.meeting, testo="Si procede con A",
         )
         sections = dict(_minute_sections(self.meeting))
-        self.assertIn("Ordinare il materiale", sections["Azioni"])
+        self.assertIn("Ordinare il materiale", sections["Attività"])
+        self.assertNotIn("Azioni", sections)
         self.assertIn("Si procede con A", sections["Decisioni"])
 
     def test_registro_decisioni_di_commessa(self):

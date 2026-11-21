@@ -33,7 +33,7 @@ def prossimi_passi(project, *, tappe: dict | None = None, can_manage: bool = Tru
         if m.stato == MeetingStatus.PIANIFICATO:
             if m.data < oggi:
                 passi.append(_passo(
-                    f"Registra l'esito dell'{nome}", f"Era previsto il {m.data:%d/%m}: verbale, decisioni, azioni.",
+                    f"Registra l'esito dell'{nome}", f"Era previsto il {m.data:%d/%m}: verbale, decisioni, attività.",
                     reverse("tasks:project_meeting_minutes", args=[pid, m.pk]), "Registra esito", "danger",
                 ))
             elif m.data == oggi:
@@ -54,7 +54,7 @@ def prossimi_passi(project, *, tappe: dict | None = None, can_manage: bool = Tru
         elif m.stato == MeetingStatus.SVOLTO:
             if not m.minuta_chiusa:
                 passi.append(_passo(
-                    f"Approva la minuta dell'{nome}", "Controlla verbale e azioni, poi approvala e inviala.",
+                    f"Approva la minuta dell'{nome}", "Controlla verbale e attività, poi approvala e inviala.",
                     dettaglio_url, "Apri", "info",
                 ))
             elif m.minuta_da_reinviare:

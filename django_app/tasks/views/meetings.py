@@ -1887,7 +1887,7 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
             assigned_to=owner, due_date=due_date, punto=punto,
             created_by=request.user if request.user.is_authenticated else None,
         )
-        label = "Azione"
+        label = "Attività d'incontro"
     elif kind == "issue":
         record = MeetingIssue.objects.create(
             project=project, source_meeting=meeting, title=titolo[:220],

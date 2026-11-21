@@ -1276,7 +1276,7 @@ class KickoffMeetingForm(forms.ModelForm):
             "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. link Teams o sede del cliente"}),
             "sala": forms.Select(attrs={"class": "input"}),
             "durata_minuti": forms.Select(attrs={"class": "input"}, choices=[
-                ("", "Dall'ordine del giorno"), (30, "30 minuti"), (45, "45 minuti"), (60, "1 ora"), (90, "1 ora e mezza"),
+                ("", "Predefinita (1 ora)"), (30, "30 minuti"), (45, "45 minuti"), (60, "1 ora"), (90, "1 ora e mezza"),
                 (120, "2 ore"), (150, "2 ore e mezza"), (180, "3 ore"), (240, "4 ore"), (300, "5 ore"), (480, "Giornata (8 ore)"),
             ]),
             "partecipanti_utenti": forms.CheckboxSelectMultiple(),

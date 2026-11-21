@@ -157,7 +157,7 @@ def _sec_meeting_items(request, scope):
         filters["assigned_to"] = request.user
     rows = []
     for model, status, kind in (
-        (MeetingActionItem, MeetingActionStatus.OPEN, "Azione"),
+        (MeetingActionItem, MeetingActionStatus.OPEN, "Attività d'incontro"),
         (MeetingIssue, MeetingIssueStatus.OPEN, "Problema"),
     ):
         for item in model.objects.filter(status=status, **filters).select_related("project", "assigned_to"):
@@ -176,11 +176,11 @@ def _sec_meeting_items(request, scope):
     rows.sort(key=lambda pair: pair[0])
     return {
         "key": "meeting_items",
-        "label": "Azioni e problemi assegnati a me" if scope == "mine" else "Azioni e problemi aperti",
+        "label": "Attività d'incontro e problemi assegnati a me" if scope == "mine" else "Attività d'incontro e problemi aperti",
         "tone": "warning", "icon": "✅",
         "items": [row for _due, row in rows[:_TOP]],
         "all_url": _url("tasks:mie_azioni") if scope == "mine" else None,
-        "empty": "Nessuna azione o problema aperto.",
+        "empty": "Nessuna attività d'incontro o problema aperto.",
     }
 
 

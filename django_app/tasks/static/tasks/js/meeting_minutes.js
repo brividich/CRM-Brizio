@@ -127,7 +127,7 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
     row.className = 'mf-new-issue-row';
     row.innerHTML = `
       <div>
-        <input class="input" type="text" name="new_action_title" maxlength="220" list="cat-azione" placeholder="Azione decisa" style="width:100%;box-sizing:border-box">
+        <input class="input" type="text" name="new_action_title" maxlength="220" list="cat-azione" placeholder="Attività decisa" style="width:100%;box-sizing:border-box">
         <textarea class="input" name="new_action_description" rows="2" placeholder="Dettaglio / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
         ${puntoSelectHtml('new_action_punto')}
       </div>
@@ -136,7 +136,7 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
         <select class="input" name="new_action_task" style="width:100%;box-sizing:border-box;margin-top:6px">${taskOptionsHtml()}</select>
       </div>
       <input class="input" type="date" name="new_action_due_date" title="Scadenza">
-      <button type="button" class="mf-new-issue-remove" title="Rimuovi azione">
+      <button type="button" class="mf-new-issue-remove" title="Rimuovi attività">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
       </button>
     `;

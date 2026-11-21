@@ -31,13 +31,13 @@ SEZIONI: list[dict] = [
                 ("Scheda VRF", "il modulo MOD.073 «Scheda valutazione rischi e fornitura»: 9 rischi con probabilità, gravità e Totale Rischio."),
                 ("Attività", "lavoro pianificato con data inizio, data fine, responsabile e avanzamento. Compare sul Gantt."),
                 ("Incontro", "riunione di commessa: convocazione, conduzione, esito e minuta."),
-                ("Azione", "impegno deciso in un incontro: chi fa cosa entro quando."),
+                ("Attività d'incontro", "impegno deciso in un incontro: chi fa cosa entro quando."),
                 ("Problema", "criticità emersa in un incontro, seguita finché non è risolta."),
                 ("Decisione", "scelta presa in un incontro, conservata nel registro decisioni della commessa."),
             ]),
             ("p", "In alto, le voci del modulo: «Dashboard» (il tuo quadro), «Da gestire» (cosa richiede intervento), "
                   "«Kickoff» (l'elenco delle commesse), «Calendario» (gli incontri) e, per chi le gestisce, «Impostazioni». "
-                  "Dentro una commessa le schede sono «Panoramica», «Azioni», «Incontri», «Piano» e «VRF»."),
+                  "Dentro una commessa le schede sono «Panoramica», «Attività», «Incontri», «Piano» e «VRF»."),
             ("nota", "Non vedi un pulsante descritto qui? Dipende dai permessi: vedi «Chi può fare cosa»."),
         ],
     },
@@ -53,7 +53,7 @@ SEZIONI: list[dict] = [
                 "Scrivi il piano nella scheda «Piano», con la riga rapida sopra il Gantt.",
                 "Il giorno dell'incontro usa «Conduci incontro»; alla fine registra l'esito, invia la minuta e approvala.",
                 "Quando il semaforo di prontezza è verde («Pronto»), porta la commessa «In esecuzione».",
-                "Durante il lavoro aggiorna le attività e tieni i successivi incontri: problemi e azioni aperti tornano da soli nell'ordine del giorno.",
+                "Durante il lavoro aggiorna le attività e tieni i successivi incontri: problemi e attività d'incontro aperti tornano da soli nell'ordine del giorno.",
                 "A lavoro finito porta la commessa in «Completata».",
             ]),
         ],
@@ -67,7 +67,7 @@ SEZIONI: list[dict] = [
                 "I riquadri in alto contano le attività nel tuo perimetro: In scope, In corso, Da fare, Overdue (scadute e ancora aperte), Completate, Annullate.",
                 "«Prossimi incontri»: data, commessa e quanto manca.",
                 "«Incontri da gestire»: esito mai registrato per un incontro passato, minuta da approvare, problemi rimasti aperti, con il pulsante per farlo subito.",
-                "«Le mie attività KICK-OFF»: le azioni e i problemi a tuo nome, scaduti in testa.",
+                "«Le mie attività KICK-OFF»: le attività d'incontro e i problemi a tuo nome, scaduti in testa.",
                 "«Alert operativi»: attività non assegnate, senza data fine, in scadenza a 7 giorni, ferme da oltre 7 giorni; quante commesse sono Pronte, Quasi pronte, Non pronte.",
                 "«Le tue attività»: l'elenco, con «Le mie» o «Tutte» e i filtri «In corso» e «Scadute». Le righe sono le stesse del registro della commessa (stato e scadenza sul posto, nota, «↳ dopo …», menu «⋯»), con la colonna «Commessa», «Raggruppa» per stato o responsabile e le pagine da 40.",
             ]),
@@ -134,7 +134,7 @@ SEZIONI: list[dict] = [
                 "«All'ODG»: acceso, l'attività entra nell'ordine del giorno dell'incontro, da confermare in riunione; spento, resta una semplice attività.",
                 "«Incontro»: «Con incontro» o «Senza incontro». Con l'incontro scegli data (obbligatoria), ora, durata, sala e partecipanti: il team è già dentro e chi riceve un'attività viene convocato da solo.",
                 "«Ordine del giorno»: contiene le attività «All'ODG» e le tappe del Percorso già impostate (assegnate, in corso o in ritardo). Le tappe ancora da assegnare sono facoltative: «+ Tappe del Percorso» le aggiunge. Aggiungi altri punti con «Aggiungi punto» o «Carica un modello…», ordinali trascinandoli o con le frecce, toglili con ×.",
-                "«Continua: come avvisare»: scegli «Invia subito le attività» (notifica e mail a ogni responsabile, con le note) oppure «Aspetta la minuta dell'incontro» (nessun avviso adesso: le attività partono con la minuta, nella sezione «Attività assegnate»). «Chi riceve cosa» mostra, persona per persona, cosa arriva adesso e cosa dopo l'incontro.",
+                "«Continua: come avvisare»: scegli «Invia subito le attività» (notifica e mail a ogni responsabile, con le note) oppure «Aspetta la minuta dell'incontro» (nessun avviso adesso: le attività partono con la minuta, nella sezione «Attività»). «Chi riceve cosa» mostra, persona per persona, cosa arriva adesso e cosa dopo l'incontro.",
                 "«Invia ora la convocazione ai partecipanti» manda subito la convocazione con data, sala e ordine del giorno; senza la spunta la invii dal dettaglio dell'incontro.",
                 "«Conferma»: nascono le attività e, se previsto, l'incontro. Con l'incontro si apre il suo dettaglio, altrimenti la Panoramica.",
             ]),
@@ -268,8 +268,8 @@ SEZIONI: list[dict] = [
                 "Una sola barra sopra il Gantt: «Finestra» cambia il periodo mostrato, «Zoom» la larghezza dei giorni.",
                 "Sotto il nome di ogni attività: responsabile («da assegnare» in rosso se manca), date, giorni di assenza del responsabile nel periodo e, con la baseline, lo scostamento della data fine.",
                 "Riga «Incontri» sotto i giorni: un cerchio viola per ogni incontro della commessa (pieno se pianificato, vuoto se svolto) e una linea tratteggiata che attraversa il piano; cliccando si apre l'incontro. Gli incontri annullati non compaiono.",
-                "Azioni, problemi, programmi CAM/CMM e FAI aperti collegati a un'attività ancora aperta compaiono come etichetta sotto il nome di quell'attività (rossa se scaduta).",
-                "Quelli non collegati, o collegati a un'attività già chiusa, stanno in fondo in «Scadenze da incontri, programmi e FAI», una riga ciascuno con un rombo sulla data: azzurro per le azioni, arancio per i problemi, verde per programmi e FAI, rosso se scaduti. Il pulsante «N scadenze … ↓» nella barra porta lì.",
+                "Attività d'incontro, problemi, programmi CAM/CMM e FAI aperti collegati a un'attività ancora aperta compaiono come etichetta sotto il nome di quell'attività (rossa se scaduta).",
+                "Quelli non collegati, o collegati a un'attività già chiusa, stanno in fondo in «Scadenze da incontri, programmi e FAI», una riga ciascuno con un rombo sulla data: azzurro per le attività d'incontro, arancio per i problemi, verde per programmi e FAI, rosso se scaduti. Il pulsante «N scadenze … ↓» nella barra porta lì.",
                 "Il periodo mostrato si allarga da solo per comprendere incontri e scadenze.",
             ]),
             ("def", [
@@ -300,12 +300,12 @@ SEZIONI: list[dict] = [
                 "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale e una mail "
                 "(all'indirizzo di notifica dell'anagrafica) con il collegamento a «Le mie attività KICK-OFF». "
                 "Chi si assegna un'attività da solo non viene avvisato.",
-                "Il responsabile gestisce le sue attività da «Le mie attività KICK-OFF»: «Inizia» la porta In corso, «Fatta» la chiude, «Riapri» la riporta Da fare.",
+                "Il responsabile gestisce le sue attività da «Le mie attività KICK-OFF»: dalla tendina dello stato la porta «In corso», la chiude con «Completata» o la riporta «Da fare».",
                 "Ogni lunedì la mail «Scadenze KICK-OFF» elenca anche le attività scadute e quelle che scadono nei 7 giorni.",
                 "Se la persona ha altri impegni nello stesso periodo, il form completo lo segnala e «Se l'operatore ha altri impegni nello stesso periodo» decide cosa fare della priorità.",
                 "Portando un'attività a «Completata» l'avanzamento passa al 100%.",
-                "Un'attività completata chiude da sola le azioni e i problemi d'incontro collegati a lei; "
-                "un'azione o un problema collegati a un'attività già completata nascono chiusi.",
+                "Un'attività completata chiude da sola le attività d'incontro e i problemi d'incontro collegati a lei; "
+                "un'attività d'incontro o un problema collegati a un'attività già completata nascono chiusi.",
                 "Su una commessa bloccata per VRF mancante non si creano attività, nemmeno dalle scorciatoie degli incontri.",
             ]),
         ],
@@ -321,7 +321,7 @@ SEZIONI: list[dict] = [
                 "Scegli il responsabile, «Inizio» (già su oggi) ed «Entro il» dal calendario, poi «Salva» o Invio. «Entro il» non può venire prima dell'inizio.",
                 "Mentre compili, sotto la riga compare subito se il responsabile è assente nel periodo e, per la macchina, quanti abilitati sono disponibili e quali manutenzioni o impegni ha.",
             ]),
-            ("p", "Ogni tappa assegnata è un'attività normale: chi la riceve ha la notifica e la mail, la trova in «Le mie attività KICK-OFF» e nel Gantt e la porta avanti con «Inizia» e «Fatta». Se la assegni dentro un incontro compare anche tra le «Attività di questo incontro». Programma CAM, Programma CMM e FAI creano anche la loro riga in «Codici, cartelle e schede FAI», dove si scrivono codice e percorso."),
+            ("p", "Ogni tappa assegnata è un'attività normale: chi la riceve ha la notifica e la mail, la trova in «Le mie attività KICK-OFF» e nel Gantt e la porta avanti dalla tendina dello stato («In corso», «Completata»). Se la assegni dentro un incontro compare anche tra le «Attività di questo incontro». Programma CAM, Programma CMM e FAI creano anche la loro riga in «Codici, cartelle e schede FAI», dove si scrivono codice e percorso."),
             ("p", "Per la Macchina il riquadro controlla il periodo dall'inizio alla scadenza dell'attività (senza scadenza, due settimane): quanti abilitati operativi ha la macchina nella skill matrix e quanti sono disponibili, chi è assente (solo il periodo, mai il motivo; i nomi li vede solo chi può leggere la skill matrix), e gli impegni dell'asset: ordini di lavoro aperti, verifiche periodiche, ticket, altre attività sulla stessa macchina, carichi macchina."),
             ("def", [
                 ("Da assegnare", "nessuna attività per la tappa."),
@@ -426,10 +426,10 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Scheda «Incontri» della commessa, «+ Nuovo incontro», oppure la pagina «Attività e incontro» alla creazione del kickoff o «Salva e pianifica l'incontro» dopo le attività.",
-                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; su «Dall'ordine del giorno» vale la somma dei punti, un'ora se non ce ne sono.",
+                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; con «Predefinita (1 ora)» vale un'ora. I punti dell'ordine del giorno non hanno tempi.",
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta: chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo.",
-                "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente». Per assegnare un'attività da un punto scegli il «Responsabile» (fra i convocati), spunta «Diventa un'attività del responsabile» e, se la sai, la data «Entro il»: al salvataggio nasce l'attività, il punto resta collegato e il responsabile riceve l'avviso.",
+                "Ordine del giorno: aggiungi i punti (senza tempi), con l'attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente». Per assegnare un'attività da un punto scegli il «Responsabile» (fra i convocati), spunta «Diventa un'attività del responsabile» e, se la sai, la data «Entro il»: al salvataggio nasce l'attività, il punto resta collegato e il responsabile riceve l'avviso.",
                 "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio i partecipanti ricevono la riunione Outlook da accettare, con l'ordine del giorno, e la sala la richiesta di prenotazione. È questa la convocazione: niente file .ics da aprire.",
                 "Salva. Ogni modifica salvata dopo (data, ora, durata, sala, convocati, ordine del giorno) arriva ai partecipanti come aggiornamento dell'invito; se non cambia niente per loro, non parte nulla.",
             ]),
@@ -437,8 +437,8 @@ SEZIONI: list[dict] = [
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
-                "Mentre scrivi un punto, un'azione, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé nota e durata predefinite.",
-                "Se arrivi dalle attività pianificate, l'ordine del giorno parte con quelle attività da confermare e i loro responsabili fra i convocati. Poi i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
+                "Mentre scrivi un punto, un'attività d'incontro, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé la nota predefinita.",
+                "Se arrivi dalle attività pianificate, l'ordine del giorno parte con quelle attività da confermare e i loro responsabili fra i convocati. Poi i problemi e le attività d'incontro ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
                 "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione» del dettaglio, "
@@ -448,8 +448,7 @@ SEZIONI: list[dict] = [
                 "«Invia aggiornamento convocazione» e la mail esce come «Aggiornamento convocazione». Sotto l'avviso "
                 "c'è l'elenco di cosa è cambiato (per esempio «Data: 12-11-2026 → 14-11-2026», «Convocati aggiunti: …», "
                 "«Punti dell'ordine del giorno tolti: …»); per le convocazioni inviate prima del 02/11/2026 l'avviso resta generico.",
-                "Durata dell'evento (Outlook e invito .ics): la somma delle durate dei punti all'ordine del giorno; "
-                "se nessun punto ha una durata, un'ora.",
+                "Durata dell'evento (Outlook e invito .ics): la «Durata» scelta; con «Predefinita (1 ora)», un'ora.",
                 "Se l'incontro viene spostato a un'altra data, il promemoria del giorno prima riparte sulla data nuova.",
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
                 "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
@@ -473,8 +472,8 @@ SEZIONI: list[dict] = [
                 ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
                 ("Documenti", "«Invia convocazione», «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta»."),
                 ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
-                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'azione c'è il loro stato; sotto ogni punto, i problemi, le azioni e le decisioni nati lì."),
-                ("Problemi trovati, Decisioni, Azioni", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata."),
+                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'attività d'incontro c'è il loro stato; sotto ogni punto, i problemi, le attività d'incontro e le decisioni nati lì."),
+                ("Problemi trovati, Decisioni, Attività d'incontro", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata."),
                 ("Modifiche", "in fondo, riquadro chiuso: convocazione ed esito modificati, minuta approvata o riaperta, annullamento, con chi, quando, «prima → dopo» e il motivo."),
                 ("Due persone sullo stesso incontro", "se mentre modifichi la convocazione o l'esito qualcun altro salva (anche una nota in «Conduci incontro»), il salvataggio si ferma e chiede se ricaricare o salvare comunque: le note prese in riunione non si perdono più."),
             ]),
@@ -503,21 +502,20 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Presenti: apri «Presenti 0 su N» e spunta chi c'è. Il dato si salva subito e vale anche per l'esito e la minuta.",
                 "Su ogni punto scrivi la nota: si salva da sola. Il punto su cui scrivi o clicchi diventa il punto in discussione (bordo azzurro).",
-                "Un punto «Problema aperto: …» o «Azione aperta: …» riporta una voce di un incontro precedente: sotto il titolo vedi responsabile, scadenza e stato, e la chiudi subito con «Risolto» o «Fatta». Il punto risulta trattato da solo; «Riapri» lo rimette com'era.",
+                "Un punto «Problema aperto: …» o «Attività aperta: …» riporta una voce di un incontro precedente: sotto il titolo vedi responsabile, scadenza e stato, e la chiudi subito con «Risolto» o «Fatta». Il punto risulta trattato da solo; «Riapri» lo rimette com'era.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
                 "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
-                "«Tempo effettivo» va da solo: il cronometro del punto parte alla prima modifica (nota, attività collegata, nuova attività), si mette in pausa quando inizi un altro punto e si ferma con «Segna trattato». Il badge ⏱ accanto mostra il tempo; un clic lo mette in pausa o lo riprende. Se scrivi i minuti a mano, vale il tuo numero.",
-                "Quello che emerge mentre si parla va nel «Registro dell'incontro», a destra (sugli schermi stretti sopra i punti): scegli Problema, Azione, Decisione o Attività, controlla il punto (è quello in discussione, oppure «Nessun punto in particolare»), scrivi e premi Invio.",
-                "Più rapido dal punto: «+ Problema», «+ Azione», «+ Decisione» in fondo alla scheda del punto preparano il registro per quel punto.",
-                "Ogni voce registrata compare sotto il suo punto e nel registro, divisa in «Problemi trovati», «Azioni», «Decisioni» e «Attività create»; problemi e azioni si chiudono da lì con «Risolto» o «Fatta».",
+                "Quello che emerge mentre si parla va nel «Registro dell'incontro», a destra (sugli schermi stretti sopra i punti): scegli Problema, Attività d'incontro, Decisione o Attività del piano, controlla il punto (è quello in discussione, oppure «Nessun punto in particolare»), scrivi e premi Invio.",
+                "Più rapido dal punto: «+ Problema», «+ Attività d'incontro», «+ Decisione» in fondo alla scheda del punto preparano il registro per quel punto.",
+                "Ogni voce registrata compare sotto il suo punto e nel registro, divisa in «Problemi trovati», «Attività d'incontro», «Decisioni» e «Attività del piano create»; problemi e attività d'incontro si chiudono da lì con «Risolto» o «Fatta».",
                 "A fine riunione premi «Termina e registra l'esito».",
             ]),
             ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e il registro dell'incontro")),
             ("ul", [
                 "Ogni modifica si salva da sola e solo sul punto toccato.",
-                "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte, tempi e minuta.",
-                "Il responsabile di un'attività, di un'azione o di un problema registrati riceve subito una notifica.",
-                "Le attività entrano nel Piano; azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.",
+                "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte e minuta.",
+                "Il responsabile di un'attività, di un'attività d'incontro o di un problema registrati riceve subito una notifica.",
+                "Le attività entrano nel Piano; attività d'incontro e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.",
             ]),
         ],
     },
@@ -531,40 +529,40 @@ SEZIONI: list[dict] = [
                 "Ordine del giorno e verbale: spunta i punti trattati e scrivi cosa è emerso. Spunte e note si salvano subito.",
                 "Problemi trovati: spunta «risolto» su quelli chiusi e aggiungi i nuovi con «Aggiungi problema». Quelli registrati in conduzione sono già qui.",
                 "Decisioni: «Aggiungi decisione», con motivazione, chi ha deciso e impatto.",
-                "Azioni: spunta quelle completate e aggiungi le nuove con «Aggiungi azione»: chi fa cosa entro quando.",
-                "Problemi, decisioni e azioni nuovi hanno il menu del punto («Nessun punto in particolare» o «Punto N. …»): così compaiono sotto quel punto nel dettaglio e nella minuta.",
+                "Attività: spunta quelle completate e aggiungi le nuove con «Aggiungi attività»: chi fa cosa entro quando.",
+                "Problemi, decisioni e attività nuovi hanno il menu del punto («Nessun punto in particolare» o «Punto N. …»): così compaiono sotto quel punto nel dettaglio e nella minuta.",
                 "Premi «Registra esito» in fondo: l'incontro passa a «Svolto».",
                 "Nel dettaglio premi «Invia minuta», controlla e poi «Approva e chiudi minuta».",
             ]),
             ("img", (_IMG + "esito.jpg", "La pagina esito")),
             ("ul", [
                 "«Attività di questo incontro» c'è anche qui: Invio salva l'attività e non registra l'esito.",
-                "Problemi e azioni hanno responsabile e scadenza; finché restano aperti tornano nell'ordine del giorno degli incontri successivi.",
+                "Problemi e attività d'incontro hanno responsabile e scadenza; finché restano aperti tornano nell'ordine del giorno degli incontri successivi.",
                 "«Note generali» è solo per ciò che non riguarda un punto in particolare.",
                 "Le decisioni non si riscrivono: se una è sbagliata, se ne registra una nuova che la supera.",
                 "I vecchi campi di testo libero (ordine del giorno testuale, problemi aperti, next steps) restano consultabili "
                 "negli incontri storici ma non si compilano più.",
                 "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura. Dopo l'approvazione solo il capocommessa della commessa (o l'amministratore del modulo) vede «Correggi minuta», «Riapri minuta» e «Correggi ordine del giorno». «Correggi minuta» apre l'esito con il campo «Motivo della correzione» (obbligatorio): «Salva correzione» lascia la minuta approvata e mette motivo e campi cambiati nelle Modifiche dell'incontro; se la minuta era già stata inviata, rimandala con «Invia aggiornamento minuta». «Riapri minuta» (anche lei con motivo) la torna a bozza, da riapprovare.",
-                "Dopo «Invia minuta» il dettaglio dice quando è partita. Se poi cambiano verbale, ordine del giorno, decisioni o azioni compare «La minuta è cambiata dopo l'invio» e il pulsante diventa «Invia aggiornamento minuta»: la mail esce con oggetto «Aggiornamento minuta».",
-                "Salvare l'esito due volte non raddoppia le azioni: un'azione aperta con lo stesso titolo e lo stesso responsabile nello stesso incontro non viene ricreata.",
+                "Dopo «Invia minuta» il dettaglio dice quando è partita. Se poi cambiano verbale, ordine del giorno, decisioni o attività compare «La minuta è cambiata dopo l'invio» e il pulsante diventa «Invia aggiornamento minuta»: la mail esce con oggetto «Aggiornamento minuta».",
+                "Salvare l'esito due volte non raddoppia le attività d'incontro: un'attività d'incontro aperta con lo stesso titolo e lo stesso responsabile nello stesso incontro non viene ricreata.",
                 "«Invia minuta» la manda ai presenti, con gli assenti in copia e il PDF allegato.",
             ]),
-            ("img", (_IMG + "incontro_svolto.jpg", "Un incontro svolto: minuta, problemi, decisioni e azioni")),
+            ("img", (_IMG + "incontro_svolto.jpg", "Un incontro svolto: minuta, problemi, decisioni e attività")),
         ],
     },
     {
         "id": "azioni-problemi",
-        "titolo": "Azioni, problemi e attività: come si legano",
+        "titolo": "Attività d'incontro, problemi e attività del piano: come si legano",
         "blocchi": [
-            ("p", "Un'azione o un problema restano voci dell'incontro; quando servono date e pianificazione vi si collega un'attività."),
+            ("p", "Un'attività d'incontro o un problema restano voci dell'incontro; quando servono date e pianificazione vi si collega un'attività."),
             ("ul", [
-                "Il responsabile di un'azione o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie attività KICK-OFF», "
+                "Il responsabile di un'attività d'incontro o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie attività KICK-OFF», "
                 "senza passare da chi gestisce la commessa.",
-                "Ogni problema, azione o decisione ricorda il punto dell'ordine del giorno da cui è nato: lo si vede come «punto N» "
+                "Ogni problema, attività d'incontro o decisione ricorda il punto dell'ordine del giorno da cui è nato: lo si vede come «punto N» "
                 "nel dettaglio, nell'esito e nel Registro attività («Incontro 2 · punto 3 «Materiali»»).",
-                "Un problema o un'azione ancora aperti tornano come punto nel prossimo incontro e lì si chiudono in conduzione.",
-                "Se l'attività collegata viene completata, l'azione o il problema si chiudono da soli.",
-                "Il lunedì il promemoria KICK-OFF elenca le azioni e i problemi scaduti e quelli in scadenza nei 7 giorni.",
+                "Un problema o un'attività d'incontro ancora aperti tornano come punto nel prossimo incontro e lì si chiudono in conduzione.",
+                "Se l'attività collegata viene completata, l'attività d'incontro o il problema si chiudono da soli.",
+                "Il lunedì il promemoria KICK-OFF elenca le attività d'incontro e i problemi scaduti e quelli in scadenza nei 7 giorni.",
             ]),
         ],
     },
@@ -581,12 +579,12 @@ SEZIONI: list[dict] = [
         "titolo": "Le mie attività KICK-OFF",
         "blocchi": [
             ("p", "La pagina «Le mie attività KICK-OFF» raccoglie tutto quello di cui sei responsabile, su tutte le commesse che puoi vedere: "
-                  "attività del piano, azioni e problemi degli incontri, programmi e FAI. È il punto dove chi riceve un'attività la gestisce; "
+                  "attività del piano, attività e problemi degli incontri, programmi e FAI. È il punto dove chi riceve un'attività la gestisce; "
                   "ci porta il pulsante della mail di assegnazione. Nella dashboard la colonna «Le mie attività KICK-OFF» mostra le prime, scadute in testa."),
             ("ul", [
-                "Filtri: Aperte, Chiuse, Tutte; tipo (attività del piano, azioni, problemi, programmi e FAI); scadenza (Scadute, In scadenza entro 7 giorni, Senza scadenza); "
+                "Filtri: Aperte, Chiuse, Tutte; tipo (attività del piano, attività d'incontro, problemi, programmi e FAI); scadenza (Scadute, In scadenza entro 7 giorni, Senza scadenza); "
                 "commessa; ricerca nel testo.",
-                "Le righe sono le stesse del registro della commessa, con la colonna «Commessa»: per le attività lo stato si cambia dalla tendina («Da fare», «In corso», «Completata») e la scadenza dalla data; chi deve chiedere lo spostamento vede sotto la data il motivo (facoltativo) e «Chiedi». Il titolo apre la scheda, «⋯» il menu delle azioni rapide.",
+                "Le righe sono le stesse del registro della commessa, con la colonna «Commessa»: per le attività lo stato si cambia dalla tendina («Da fare», «In corso», «Completata») e la scadenza dalla data; chi deve chiedere lo spostamento vede sotto la data il motivo (facoltativo) e «Chiedi». Il titolo apre la scheda, «⋯» il menu delle attività d'incontro rapide.",
                 "«Fatta» o «Risolto» chiudono le attività d'incontro e i problemi, «Riapri» li riporta aperti.",
                 "«Raggruppa»: Nessuno, Stato, Responsabile. Più di 40 voci: «Successive» e «Precedenti» in fondo.",
             ]),
@@ -608,7 +606,7 @@ SEZIONI: list[dict] = [
                 "«Raggruppa»: Nessuno, Stato (In ritardo, In corso, Da fare…) o Responsabile. Più di 40 voci: «Successive» e «Precedenti» in fondo.",
                 "Nota e collegamento dalla riga, per chi gestisce la commessa: «✎ Aggiungi nota» o «✎ Nota» apre il riquadro con «Salva la nota»; «↳ Collega» e poi un clic sulla riga che viene prima (o trascinandolo sopra) crea «↳ dopo …»; la × lo toglie. Si collegano solo attività della stessa commessa.",
             ]),
-            ("img", (_IMG + "registro_azioni.jpg", "Il registro azioni di una commessa")),
+            ("img", (_IMG + "registro_azioni.jpg", "Il registro attività di una commessa")),
         ],
     },
     {
@@ -638,7 +636,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "«Da gestire» riunisce quello che richiede un intervento. In alto scegli «Portfolio» (tutte le commesse) o «Le mie». Ogni riga porta dove si risolve."),
             ("def", [
-                ("Azioni e problemi aperti", "quelli assegnati a te."),
+                ("Attività d'incontro e problemi aperti", "quelli assegnati a te."),
                 ("VRF da compilare", "commesse con il VRF non ancora a posto."),
                 ("Commesse non pronte", "commesse con il semaforo di prontezza incompleto."),
                 ("Attività critiche", "scadute, non assegnate, senza data o ferme."),
@@ -665,7 +663,7 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "I convocati ricevono il promemoria dell'incontro il giorno lavorativo precedente: il venerdì per un incontro del lunedì, "
                 "prima di un festivo per il giorno dopo.",
-                "Il lunedì arriva il riepilogo di azioni e problemi scaduti e in scadenza nella settimana.",
+                "Il lunedì arriva il riepilogo di attività d'incontro e problemi scaduti e in scadenza nella settimana.",
                 "Più avvisi per la stessa persona nello stesso giorno arrivano in una sola email.",
             ]),
             ("nota", "Le notifiche nel portale rispettano le preferenze dell'utente e l'interruttore generale delle notifiche."),
@@ -679,12 +677,12 @@ SEZIONI: list[dict] = [
             ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
             ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa, non la annulla e non riapre un'attività annullata (lo fa il capocommessa); una sua attività completata la riapre con «Riapri». Dal Gantt l'incaricato chiede solo lo spostamento delle date: stato e avanzamento non cambiano da lì. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie attività KICK-OFF» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
             ("p", "Spostamento date: chi lo chiede riceve l'esito in campanella e per mail; se ritira la richiesta, chi doveva decidere lo sa (campanella e mail)."),
-            ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie attività KICK-OFF») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
+            ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie attività KICK-OFF») apre il pannello laterale delle modifiche rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
             ("p", "Quando cambiano date, priorità, stato o responsabile di un incarico, ricevono la notifica (e la mail, se il flusso è acceso) l'incaricato e il capocommessa, o chi è scelto in «Poteri e avvisi». Chi perde un incarico riceve «Non sei più responsabile». Chi fa la modifica non viene avvisato."),
             ("def", [
                 ("Chi gestisce la commessa", "chi l'ha creata, chi ha i permessi di amministrazione del modulo e i ruoli con «Modifica tutto»: modifica dati e team, VRF, incontri, minute e piano."),
                 ("Chi ha un'attività", "con «Modifica solo i task assegnati» aggiorna le proprie attività e vede il resto."),
-                ("Il responsabile di un'azione o di un problema", "li chiude da sé, anche senza gestire la commessa."),
+                ("Il responsabile di un'attività d'incontro o di un problema", "li chiude da sé, anche senza gestire la commessa."),
                 ("Un convocato", "vede l'incontro e può proporre un punto all'ordine del giorno."),
             ]),
             ("nota", "Se ti manca un pulsante che ti serve, chiedilo a chi gestisce il modulo: lo trova in Impostazioni › Accessi."),
@@ -701,7 +699,7 @@ SEZIONI: list[dict] = [
                 ("Accessi", "per ogni ruolo e per la singola persona: Vede tutto, Modifica solo i task assegnati, Modifica tutto."),
                 ("Promemoria", "i promemoria programmati delle attività: si eliminano, si rimandano o si inviano subito."),
                 ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato e «Richiede»: il programma CAM, il programma CMM o il FAI che l'attività deve produrre."),
-                ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga; per la durata scrivi «Titolo | 15»."),
+                ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga."),
                 ("FAI", "motivi per cui serve il FAI e tipo proposto, tipi di piano, stati e mesi delle scadenze. Una voce già usata non si elimina: si disattiva."),
                 ("Record", "ricerca ed eliminazione di kickoff e attività: serve una motivazione e non si torna indietro."),
                 ("Log attivita", "il registro delle operazioni del modulo."),

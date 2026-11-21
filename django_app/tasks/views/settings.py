@@ -1707,7 +1707,12 @@ def _catalogo_context(request) -> dict:
         voci = voci.filter(attiva=True)
     return {
         "catalogo_tipo": tipo,
-        "catalogo_tipi": [(c, label, CatalogoVoce.objects.filter(tipo=c, attiva=True).count()) for c, label in CatalogoTipo.choices],
+        # Nel modulo si dice «attività», mai «azioni»: l'etichetta del modello resta (niente migrazione).
+        "catalogo_tipi": [
+            (c, {"AZIONE": "Attività d'incontro", "ATTIVITA": "Attività del piano"}.get(c, label),
+             CatalogoVoce.objects.filter(tipo=c, attiva=True).count())
+            for c, label in CatalogoTipo.choices
+        ],
         "catalogo_voci": list(voci.order_by("-usi", "testo")[:300]),
         "catalogo_q": q,
         "catalogo_nascoste": request.GET.get("nascoste") == "1",

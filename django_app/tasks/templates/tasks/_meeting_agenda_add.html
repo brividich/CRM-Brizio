@@ -17,8 +17,6 @@ Contesto richiesto: project, meeting, active_users.
       <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
     {% endfor %}
   </select>
-  <input class="input" type="number" id="agenda-live-durata" min="1" max="480" step="5"
-         placeholder="min" aria-label="Durata in minuti">
   <button type="button" class="mf-btn-sm primary" id="agenda-live-btn">Aggiungi punto</button>
   <span class="agenda-live-msg" id="agenda-live-msg" role="status"></span>
 </div>

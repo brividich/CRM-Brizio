@@ -256,7 +256,7 @@ class DurataTests(SaleBase):
         form = KickoffMeetingForm(data={"data": "2026-12-01", "ora": "10:00", "durata_minuti": "90", "stato": "PIANIFICATO"})
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["durata_minuti"], 90)
-        self.assertContains(self.client.get(reverse("tasks:project_meeting_create", args=[self.project.pk])), "Dall&#x27;ordine del giorno")
+        self.assertContains(self.client.get(reverse("tasks:project_meeting_create", args=[self.project.pk])), "Predefinita (1 ora)")
 
 
 class InvitoOutlookTests(SaleBase):

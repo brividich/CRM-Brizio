@@ -300,7 +300,7 @@ def mia_voce_stato(request, kind: str, pk: int):
             messages.error(request, "Azione non valida.")
             return back
         item.save(update_fields=["status", "done_by", "done_at", "updated_at"])
-        etichetta = "Azione segnata come fatta." if verb == "done" else "Azione riaperta."
+        etichetta = "Attività d'incontro segnata come fatta." if verb == "done" else "Attività d'incontro riaperta."
     else:
         if verb == "done":
             # Chiuso fuori da un incontro: nessun incontro di risoluzione.

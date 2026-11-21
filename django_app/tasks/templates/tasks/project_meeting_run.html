@@ -19,12 +19,9 @@
   {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}
   <form id="run-csrf" style="display:none">{% csrf_token %}</form>
 
-  {# Barra tempi: resta in vista mentre si scorre. #}
+  {# Avanzamento: resta in vista mentre si scorre. Niente minuti: l'ordine del giorno non ha tempi. #}
   <div class="run-timebar">
-    <div class="run-time-item"><span>Pianificato</span><strong>{{ planned_minutes }} min</strong></div>
-    <div class="run-time-item"><span>Trascorso</span><strong id="run-elapsed">0 min</strong></div>
     <div class="run-time-item"><span>Punti trattati</span><strong id="run-done-count">{{ done_count }}</strong> <span>/ {{ agenda_items|length }}</span></div>
-    <div class="run-time-warn" id="run-overrun" hidden>Fuori tempo rispetto al pianificato</div>
   </div>
   {% if appello %}
     <details class="run-appello-box"{% if not meeting.presenze_registrate %} open{% endif %}>
@@ -50,7 +47,6 @@
             <span class="run-item-num">{{ forloop.counter }}</span>
             <h3 class="run-item-title">{{ item.titolo }}</h3>
             {% if item.responsabile_label %}<span class="mf-issue-chip">{{ item.responsabile_label }}</span>{% endif %}
-            {% if item.durata_minuti %}<span class="mf-issue-chip">{{ item.durata_minuti }} min previsti</span>{% endif %}
             <span class="run-item-state" data-role="state">{% if item.done %}Trattato{% else %}Da trattare{% endif %}</span>
             {% if item.source|slice:':6' == 'tappa:' and not item.task_id %}
               {# Tappa ancora da assegnare che in questa riunione non si discute: si toglie dall'ODG. #}
@@ -107,16 +103,10 @@
             <button type="button" class="mf-btn-sm primary" data-role="toggle-done">
               {% if item.done %}Segna da trattare{% else %}Segna trattato{% endif %}
             </button>
-            <label class="tpl-inline">
-              Tempo
-              <input class="input" type="number" min="1" max="480" style="width:72px"
-                     data-role="tempo" value="{{ item.tempo_effettivo_minuti|default_if_none:'' }}">
-              min
-            </label>
             <span class="run-item-saved" data-role="saved" hidden>salvato</span>
             <span class="run-item-add" aria-label="Registra da questo punto">
               <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
-              <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+              <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Attività d'incontro</button>
               <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
             </span>
           </div>
@@ -159,7 +149,7 @@
   <template id="run-item-add-template">
     <span class="run-item-add" aria-label="Registra da questo punto">
       <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
-      <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+      <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Attività d'incontro</button>
       <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
     </span>
   </template>
@@ -190,9 +180,9 @@
         <div class="run-capture-form" id="run-capture">
           <div class="run-kind" role="radiogroup" aria-label="Cosa registri">
             <label><input type="radio" name="capture-kind" value="issue" checked><span>Problema</span></label>
-            <label><input type="radio" name="capture-kind" value="action"><span>Azione</span></label>
+            <label><input type="radio" name="capture-kind" value="action"><span>Attività d'incontro</span></label>
             <label><input type="radio" name="capture-kind" value="decision"><span>Decisione</span></label>
-            <label><input type="radio" name="capture-kind" value="task"><span>Attività</span></label>
+            <label><input type="radio" name="capture-kind" value="task"><span>Attività del piano</span></label>
           </div>
           <select class="input" id="capture-punto" aria-label="Punto dell'ordine del giorno">
             <option value="">Nessun punto in particolare</option>
@@ -220,7 +210,7 @@
           <ul class="mvoci" id="reg-issue">{% for voce in emersi.issues %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group">
-          <h3>Azioni <b id="reg-count-action">{{ emersi.actions|length }}</b></h3>
+          <h3>Attività d'incontro <b id="reg-count-action">{{ emersi.actions|length }}</b></h3>
           <ul class="mvoci" id="reg-action">{% for voce in emersi.actions %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group">
@@ -228,10 +218,10 @@
           <ul class="mvoci" id="reg-decision">{% for voce in emersi.decisions %}{% include "tasks/_meeting_voce.html" with mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group" id="reg-task-group" hidden>
-          <h3>Attività create <b id="reg-count-task">0</b></h3>
+          <h3>Attività del piano create <b id="reg-count-task">0</b></h3>
           <ul class="mvoci" id="reg-task"></ul>
         </div>
-        <p class="mf-hint run-reg-foot">Problemi e azioni aperti tornano da soli nel prossimo incontro; le decisioni vanno nel registro di commessa; tutto finisce nella minuta.</p>
+        <p class="mf-hint run-reg-foot">Problemi e attività d'incontro aperti tornano da soli nel prossimo incontro; le decisioni vanno nel registro di commessa; tutto finisce nella minuta.</p>
       </div>
     </section>
   </aside>
