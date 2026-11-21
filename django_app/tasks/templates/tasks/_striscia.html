@@ -1,5 +1,5 @@
 {# Linea del tempo compatta della commessa (services/striscia.py). Param: striscia, project. #}
-<section class="ka-striscia" data-ka-live="striscia" aria-label="Linea del tempo delle attività">
+<section class="ka-striscia{% if not striscia %} is-vuota{% endif %}" data-ka-live="striscia" aria-label="Linea del tempo delle attività">
   {% if striscia %}
   <div class="ka-striscia-testa">
     <h2>Linea del tempo</h2>

@@ -47,7 +47,9 @@
         var nuovo = new DOMParser().parseFromString(html, 'text/html');
         document.querySelectorAll('[data-ka-live]').forEach(function (zona) {
           var fresca = nuovo.querySelector('[data-ka-live="' + zona.getAttribute('data-ka-live') + '"]');
-          if (fresca) zona.innerHTML = fresca.innerHTML;
+          if (!fresca) return;
+          zona.innerHTML = fresca.innerHTML;
+          zona.className = fresca.className; // es. la striscia che compare con la prima data
         });
       })
       .catch(function () { window.location.reload(); });

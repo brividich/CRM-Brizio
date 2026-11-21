@@ -92,7 +92,9 @@ class PannelloAttivitaTests(TasksBaseTestCase):
         Task.objects.filter(project=self.project).update(due_date=None, next_step_due=None)
         self.assertIsNone(striscia_commessa(self.project, self.oggi))
         self.client.force_login(self.pm)
-        self.assertNotContains(self.client.get(self.url), "Linea del tempo")
+        pagina = self.client.get(self.url)
+        self.assertContains(pagina, "ka-striscia is-vuota")
+        self.assertNotContains(pagina, "ka-striscia-riga")
 
     def test_le_attivita_annullate_non_hanno_controlli(self):
         self.mia.status = TaskStatus.CANCELED
