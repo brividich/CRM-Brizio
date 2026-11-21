@@ -3,7 +3,7 @@
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">Modelli ordine del giorno</h2>
-      <p class="ts-panel-subtitle">{{ agenda_templates|length }} modelli, {{ modelli_attivi }} attivi. Si caricano nella convocazione di un incontro. Un punto per riga; per la durata stimata scrivi <code>Titolo | 15</code>.</p>
+      <p class="ts-panel-subtitle">{{ agenda_templates|length }} modelli, {{ modelli_attivi }} attivi. Si caricano nella convocazione di un incontro. Un punto per riga.</p>
     </div>
     <div class="ts-panel-actions">
       <button type="button" class="md-btn" data-modelli-nuovo aria-expanded="false" aria-controls="tpl-nuovo">+ Nuovo modello</button>
@@ -28,7 +28,7 @@
       <div class="tpl-punti">
         <div>
           <label class="mf-label" for="tpl-items">Punti</label>
-          <textarea class="input" id="tpl-items" name="items_text" rows="6" data-tpl-punti placeholder="Stato avanzamento | 15&#10;Criticità aperte | 20&#10;Prossimi passi"></textarea>
+          <textarea class="input" id="tpl-items" name="items_text" rows="6" data-tpl-punti placeholder="Stato avanzamento&#10;Criticità aperte&#10;Prossimi passi"></textarea>
         </div>
         <div class="tpl-anteprima" aria-live="polite">
           <span class="tpl-anteprima-tit">Anteprima <strong data-tpl-conteggio>0 punti</strong></span>
@@ -54,7 +54,6 @@
               <span class="tpl-summary-nome">{{ template.nome }}</span>
               {% if template.descrizione %}<span class="tpl-summary-desc">{{ template.descrizione }}</span>{% endif %}
               <span class="tpl-chip">{{ template.n_punti }} punt{{ template.n_punti|pluralize:"o,i" }}</span>
-              {% if template.minuti %}<span class="tpl-chip">{{ template.minuti }} min</span>{% endif %}
               {% if not template.is_active %}<span class="tpl-chip tpl-chip--spento">Spento</span>{% endif %}
               <span class="tpl-summary-testo" hidden>{% for i in template.items %}{{ i.titolo }} {% endfor %}</span>
             </summary>

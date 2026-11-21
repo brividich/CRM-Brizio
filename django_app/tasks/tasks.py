@@ -253,10 +253,11 @@ def run_meetings_digest(**kwargs) -> dict:
                 f"scadenza {a.due_date:%d/%m/%Y})"
                 for a in data["actions"]
             ]
-            parts.append("Azioni scadute a te assegnate:\n" + "\n".join(rows))
+            parts.append("Attività d'incontro scadute a te assegnate:\n" + "\n".join(rows))
         if data["upcoming"]:
+            voce_incontro = "Attività d'incontro"
             rows = [
-                f"- {'Problema' if isinstance(i, MeetingIssue) else 'Azione'}: {i.title} "
+                f"- {'Problema' if isinstance(i, MeetingIssue) else voce_incontro}: {i.title} "
                 f"(KICK-OFF {getattr(i.project, 'name', '') or ''}, entro il {i.due_date:%d/%m/%Y})"
                 for i in data["upcoming"]
             ]

@@ -157,9 +157,7 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
       const creaBadge = (item.crea_attivita && !item.task_id)
         ? `<span class="agenda-task-badge">Diventa attività${item.scadenza ? ' · entro ' + esc(item.scadenza.split('-').reverse().join('/')) : ''}</span>`
         : '';
-      const durataBadge = item.durata_minuti
-        ? `<span class="agenda-task-badge">${esc(String(item.durata_minuti))} min</span>`
-        : '';
+      const durataBadge = '';  /* l'ordine del giorno non ha minuti per punto */
       const nota = item.nota
         ? `<div class="agenda-nota">${esc(item.nota)}</div>`
         : '';
@@ -254,7 +252,7 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
       task_label: taskLabel,
       responsabile_id: respId ? parseInt(respId) : null,
       responsabile_label: respLabel,
-      durata_minuti: (durata && durata > 0) ? durata : null,
+      durata_minuti: null,
       custom_fields: collectCustomFields(),
       done: false,
       crea_attivita: !taskId && !!document.getElementById('new-agenda-crea')?.checked,
@@ -301,7 +299,6 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
          due formulazioni simili senza aprire gli incontri passati. */
       const bits = [];
       if (s.usi > 1) bits.push('usato ' + s.usi + ' volte');
-      if (s.durata_minuti) bits.push(s.durata_minuti + ' min');
       if (bits.length) opt.label = bits.join(' · ');
       dl.appendChild(opt);
     });
@@ -319,7 +316,6 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
       const notaEl = document.getElementById('new-agenda-nota');
       const durataEl = document.getElementById('new-agenda-durata');
       if (notaEl && !notaEl.value.trim() && match.nota) notaEl.value = match.nota;
-      if (durataEl && !durataEl.value.trim() && match.durata_minuti) durataEl.value = match.durata_minuti;
     });
   })();
 
@@ -362,7 +358,7 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
         task_label: '',
         responsabile_id: null,
         responsabile_label: '',
-        durata_minuti: raw.durata_minuti || null,
+        durata_minuti: null,
         custom_fields: [],
         done: false,
       });

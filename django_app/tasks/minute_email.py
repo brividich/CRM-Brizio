@@ -180,8 +180,12 @@ def _issues_text(meeting) -> str:
     return "\n".join(lines)
 
 
-def _actions_text(meeting) -> str:
-    """Azioni decise o chiuse in questo incontro, con responsabile e scadenza."""
+def _actions_text(meeting, *, escludi_attivita: set[int] | None = None) -> str:
+    """Attività decise nell'esito dell'incontro (MeetingActionItem), con responsabile e scadenza.
+
+    ``escludi_attivita``: id delle attività del piano già elencate; una voce d'esito
+    collegata a una di queste non si ripete.
+    """
     from tasks.models import MeetingActionItem
 
     qs = (
@@ -189,6 +193,8 @@ def _actions_text(meeting) -> str:
         .select_related("assigned_to")
         .order_by("status", "due_date", "id")
     )
+    if escludi_attivita:
+        qs = qs.exclude(linked_task_id__in=escludi_attivita)
     lines: list[str] = []
     for action in qs:
         parts = [action.get_status_display()]
@@ -202,12 +208,12 @@ def _actions_text(meeting) -> str:
     return "\n".join(lines)
 
 
-def _attivita_text(meeting) -> str:
+def _attivita_text(meeting, tasks=None) -> str:
     """Attività del kickoff legate a questo incontro: chi, entro quando, note."""
     from tasks.services.kickoff_avvio import attivita_dell_incontro, nota_attivita
 
     lines: list[str] = []
-    for task in attivita_dell_incontro(meeting):
+    for task in (attivita_dell_incontro(meeting) if tasks is None else tasks):
         parts = [task.get_status_display()]
         if task.assigned_to_id:
             parts.append(task.assigned_to.get_full_name() or task.assigned_to.username)
@@ -220,6 +226,22 @@ def _attivita_text(meeting) -> str:
         if nota:
             lines.extend(f"    {riga}" for riga in nota.splitlines() if riga.strip())
     return "\n".join(lines)
+
+
+def _attivita_sezione(meeting) -> str:
+    """Una sola sezione «Attività»: quelle del piano legate all'incontro e quelle decise nell'esito.
+
+    Prima la minuta aveva «Azioni» e «Attività assegnate»: la stessa cosa detta in due
+    posti, e una voce d'esito collegata a un'attività compariva due volte.
+    """
+    from tasks.services.kickoff_avvio import attivita_dell_incontro
+
+    tasks = list(attivita_dell_incontro(meeting))
+    righe = [
+        _attivita_text(meeting, tasks),
+        _actions_text(meeting, escludi_attivita={t.pk for t in tasks}),
+    ]
+    return "\n".join(r for r in righe if r)
 
 
 def _decisions_text(meeting) -> str:
@@ -314,8 +336,7 @@ def _minute_sections(meeting) -> list[tuple[str, str]]:
         *_agenda_verbale_sections(meeting),
         ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
-        ("Azioni", _actions_text(meeting) or meeting.next_steps),
-        ("Attività assegnate", _attivita_text(meeting)),
+        ("Attività", _attivita_sezione(meeting) or meeting.next_steps),
     ]
 
 
@@ -338,12 +359,17 @@ def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, st
     facts = _facts(meeting)
     sections = _minute_sections(meeting)
 
-    html_parts = [email_facts_table(facts)]
+    from tasks.minute_html import corpo_minuta
+
+    # HTML a sezioni (testata, presenze, punti, decisioni, problemi, attività); il testo resta per i client senza HTML.
+    html_parts = [corpo_minuta(
+        meeting, note_generali=note_generali(meeting),
+        testo_storico=[("Ordine del giorno", meeting.ordine_del_giorno), ("Verbale / Note", meeting.note)],
+    )]
     text_parts = [f"{k}: {v}" for k, v in facts]
-    sec_html, sec_text = _sections_html_text(meeting, sections)
-    html_parts += sec_html
+    _sec_html, sec_text = _sections_html_text(meeting, sections)
     text_parts += sec_text
-    html_parts.append(_cta(meeting, "Apri incontro sul portale"))
+    html_parts.append('<div style="height:22px"></div>' + _cta(meeting, "Apri incontro sul portale"))
 
     return subject, "\n".join(text_parts), "".join(html_parts)
 

@@ -116,10 +116,10 @@ def _collect_meeting_actions(project, *, include_closed: bool) -> list[ActionRow
     for action in queryset:
         is_open = action.status == MeetingActionStatus.OPEN
         if action.source_meeting is None:
-            source_label = "Azione senza incontro"
+            source_label = "Attività senza incontro"
             url = reverse("tasks:project_meetings", args=[project.pk])
         else:
-            source_label = _con_punto(f"Azione dell'incontro {action.source_meeting.numero}", punti, action.source_meeting_id, action.punto)
+            source_label = _con_punto(f"Attività dell'incontro {action.source_meeting.numero}", punti, action.source_meeting_id, action.punto)
             url = reverse("tasks:project_meeting_detail", args=[project.pk, action.source_meeting_id])
         rows.append(
             ActionRow(
@@ -233,7 +233,7 @@ def build_project_actions(project, *, include_closed: bool = False) -> list[Acti
 
 
 ACTION_ORIGIN_CHOICES = (
-    ("action", "Azione d'incontro"),
+    ("action", "Attività d'incontro"),
     ("issue", "Problema"),
     ("task", "Attività"),
     ("subtask", "Sotto-attività"),

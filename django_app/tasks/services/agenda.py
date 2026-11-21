@@ -104,7 +104,7 @@ def _meeting_action_agenda_item(action) -> dict:
         custom_fields.append({"label": "Origine", "value": f"Incontro {action.source_meeting.numero}"})
     return {
         "id": f"action-{action.pk}",
-        "titolo": f"Azione aperta: {action.title}",
+        "titolo": f"Attività aperta: {action.title}",
         "nota": action.description,
         "task_id": action.linked_task_id,
         "task_label": action.linked_task.title if action.linked_task_id else "",

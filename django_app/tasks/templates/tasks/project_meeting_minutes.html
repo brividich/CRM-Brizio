@@ -28,14 +28,14 @@
 
   {% comment %}
   Indice delle sezioni: il modulo esito e' lungo (presenze, agenda, verbale,
-  problemi, decisioni, azioni) e senza rimandi si compilava a scorrimento cieco.
+  problemi, decisioni, attività) e senza rimandi si compilava a scorrimento cieco.
   {% endcomment %}
   <nav class="mf-jump" aria-label="Sezioni dell'esito">
     <a href="#sec-presenze">Presenze</a>
     <a href="#sec-agenda">Ordine del giorno e verbale</a>
     <a href="#sec-problemi">Problemi trovati{% if meeting_issues %} <b>{{ meeting_issues|length }}</b>{% endif %}</a>
     <a href="#sec-decisioni">Decisioni{% if meeting_decisions %} <b>{{ meeting_decisions|length }}</b>{% endif %}</a>
-    <a href="#sec-azioni">Azioni{% if meeting_actions %} <b>{{ meeting_actions|length }}</b>{% endif %}</a>
+    <a href="#sec-azioni">Attività{% if meeting_actions %} <b>{{ meeting_actions|length }}</b>{% endif %}</a>
   </nav>
 
   <form method="post" novalidate id="minutes-form" data-avviso-uscita>
@@ -98,7 +98,6 @@
                 <div class="agenda-title">
                   {{ item.titolo }}
                   {% if item.responsabile_label %}<span class="agenda-task-badge">{{ item.responsabile_label }}</span>{% endif %}
-                  {% if item.durata_minuti %}<span class="agenda-task-badge">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
                 {% if item.collegata %}<ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>{% endif %}
                 <textarea class="input agenda-nota-input" rows="2" maxlength="1000"
@@ -229,17 +228,17 @@
       </div>
     </div>
 
-    {# Azioni: chi fa cosa entro quando, con carry-forward come i problemi. #}
+    {# Attività: chi fa cosa entro quando, con carry-forward come i problemi. #}
     <div class="mf-section" id="sec-azioni">
       <div class="mf-section-head">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-        <span>Azioni</span>
+        <span>Attività</span>
       </div>
       <div class="mf-section-body">
         {% if meeting_actions %}
           <div class="mf-field">
-            <label class="mf-label">Azioni in carico</label>
-            <p class="mf-hint" style="margin-bottom:10px">Spunta le azioni completate. Quelle che restano aperte tornano automaticamente all'ordine del giorno del prossimo incontro.</p>
+            <label class="mf-label">Attività in carico</label>
+            <p class="mf-hint" style="margin-bottom:10px">Spunta le attività completate. Quelle che restano aperte tornano automaticamente all'ordine del giorno del prossimo incontro.</p>
             <div class="mf-issues-list">
               {% for action in meeting_actions %}
                 <div class="mf-issue-card{% if action.is_done %} resolved{% endif %}" data-issue-card>
@@ -266,11 +265,11 @@
         {% endif %}
 
         <div class="mf-field">
-          <label class="mf-label">Nuove azioni decise in questo incontro</label>
+          <label class="mf-label">Nuove attività decise in questo incontro</label>
           <div class="mf-new-issues" id="new-actions-list"></div>
           <button type="button" class="agenda-btn-add" id="add-action-btn" style="margin-top:10px">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-            Aggiungi azione
+            Aggiungi attività
           </button>
           <p class="mf-hint">Chi fa cosa entro quando: responsabile e scadenza restano tracciati fino alla chiusura.</p>
         </div>
@@ -287,7 +286,7 @@
           <div class="mf-collapsible-body" id="steps-note">
             <div style="margin-top:10px">
               <p style="margin:0;padding:10px 12px;border:1px solid var(--border, #d7dde6);border-radius:8px;background:var(--surface-alt, #f8fafc);color:var(--text, inherit)">{{ meeting.next_steps|linebreaksbr }}</p>
-              <p class="mf-hint">Testo libero degli incontri precedenti alle azioni strutturate: resta consultabile ma non si modifica più. Le azioni nuove si aggiungono sopra.</p>
+              <p class="mf-hint">Testo libero degli incontri precedenti alle attività strutturate: resta consultabile ma non si modifica più. Le attività nuove si aggiungono sopra.</p>
             </div>
           </div>
         </div>
@@ -349,12 +348,6 @@
         who.className = 'agenda-task-badge';
         who.textContent = item.responsabile_label;
         title.appendChild(who);
-      }
-      if (item.durata_minuti) {
-        var mins = document.createElement('span');
-        mins.className = 'agenda-task-badge';
-        mins.textContent = item.durata_minuti + ' min';
-        title.appendChild(mins);
       }
       body.appendChild(title);
       var nota = document.createElement('textarea');

@@ -243,7 +243,7 @@ def notify_meeting_item_assignment(item, *, actor=None) -> None:
         return
     from ..minute_email import meeting_url
 
-    tipo = "del problema" if isinstance(item, MeetingIssue) else "dell'azione"
+    tipo = "del problema" if isinstance(item, MeetingIssue) else "dell'attività d'incontro"
     scadenza = f", entro il {item.due_date:%d/%m/%Y}" if item.due_date else ""
     meeting = getattr(item, "source_meeting", None)
     try:
