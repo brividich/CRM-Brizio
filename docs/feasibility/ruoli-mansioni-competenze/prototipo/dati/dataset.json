@@ -1,0 +1,3391 @@
+{
+ "oggi": "2027-03-15",
+ "parametri": {
+  "soglia_operativa": "U",
+  "conferma_periodica_mesi": 6,
+  "finestra_esercizio_mesi": 12,
+  "preavviso_esercizio_mesi": 9,
+  "grazia_requisito_giorni": 30,
+  "preavvisi_scadenza_giorni": [
+   30,
+   60,
+   90
+  ],
+  "transitorio_revisione_giorni": 90,
+  "durata_massima_avviata_mesi": 6,
+  "soglia_potenziale_parziale": 0.66,
+  "regola_livello_mansione": "MIN_BLOCCANTI"
+ },
+ "reparti": {
+  "CN5": "Fresatura 5 assi",
+  "TOR": "Tornitura",
+  "CMM": "Collaudo",
+  "TRT": "Trattamenti e controlli",
+  "MAN": "Manutenzione"
+ },
+ "capi": {
+  "CN5": "P03",
+  "TOR": "P11",
+  "CMM": "P17",
+  "TRT": "P21",
+  "MAN": "P26"
+ },
+ "competenze": [
+  {
+   "id": "C01",
+   "nome": "Lettura del disegno tecnico",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C02",
+   "nome": "Set-up macchina 5 assi",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C03",
+   "nome": "Programmazione a bordo macchina",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C04",
+   "nome": "Controllo dimensionale in macchina",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C05",
+   "nome": "Gestione utensili e presetting",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C06",
+   "nome": "Prevenzione FOD e pulizia tecnica",
+   "requisito": {
+    "tipo": "corso",
+    "nome": "CRS-006 Prevenzione FOD",
+    "validita_mesi": 24
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C07",
+   "nome": "Fresatura ad alta velocità",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C08",
+   "nome": "Set-up tornio CNC",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C09",
+   "nome": "Programmazione ISO tornio",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C10",
+   "nome": "Lavorazione multitasking",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C11",
+   "nome": "Programmazione e uso CMM",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C12",
+   "nome": "Interpretazione tolleranze geometriche",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C13",
+   "nome": "Compilazione rapporti di collaudo",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C14",
+   "nome": "Controllo pezzi di classe 1",
+   "requisito": null,
+   "esercizio_critico": true
+  },
+  {
+   "id": "C15",
+   "nome": "Abilitazione collaudo cliente",
+   "requisito": {
+    "tipo": "qualifica",
+    "nome": "Delega collaudo cliente",
+    "validita_mesi": 12
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C16",
+   "nome": "Uso strumenti di misura da banco",
+   "requisito": {
+    "tipo": "corso",
+    "nome": "CRS-027 Metrologia di reparto",
+    "validita_mesi": 0
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C17",
+   "nome": "Conduzione linea di passivazione",
+   "requisito": null,
+   "esercizio_critico": true
+  },
+  {
+   "id": "C18",
+   "nome": "Gestione sostanze chimiche",
+   "requisito": {
+    "tipo": "corso",
+    "nome": "CRS-018 Rischio chimico",
+    "validita_mesi": 60
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C19",
+   "nome": "Registrazione parametri di processo",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C20",
+   "nome": "Liquidi penetranti livello 2",
+   "requisito": {
+    "tipo": "qualifica",
+    "nome": "PT livello 2 EN 4179",
+    "validita_mesi": 60
+   },
+   "esercizio_critico": true
+  },
+  {
+   "id": "C21",
+   "nome": "Valutazione delle indicazioni",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C22",
+   "nome": "Diagnosi guasti meccanici",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C23",
+   "nome": "Manutenzione preventiva programmata",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C24",
+   "nome": "Lavori su impianti elettrici",
+   "requisito": {
+    "tipo": "corso",
+    "nome": "CRS-024 PES/PAV",
+    "validita_mesi": 60
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C25",
+   "nome": "Conduzione carrello elevatore",
+   "requisito": {
+    "tipo": "qualifica",
+    "nome": "Patentino carrello",
+    "validita_mesi": 60
+   },
+   "esercizio_critico": false
+  },
+  {
+   "id": "C26",
+   "nome": "Sbavatura e finitura manuale",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C27",
+   "nome": "Marcatura laser",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C28",
+   "nome": "Imballaggio e protezione pezzi",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C29",
+   "nome": "Conduzione del reparto",
+   "requisito": null,
+   "esercizio_critico": false
+  },
+  {
+   "id": "C30",
+   "nome": "Affiancamento e formazione dei colleghi",
+   "requisito": null,
+   "esercizio_critico": false
+  }
+ ],
+ "mansioni": [
+  {
+   "id": "M01",
+   "nome": "DM3 – Fresatura 5 assi",
+   "reparto": "CN5",
+   "tipo": "macchina",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C02",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C04",
+     "minimo": "U",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C05",
+     "minimo": "L",
+     "criticita": "U"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M02",
+   "nome": "DM6 – Fresatura 5 assi grande formato",
+   "reparto": "CN5",
+   "tipo": "macchina",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C02",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C03",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C04",
+     "minimo": "U",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C05",
+     "minimo": "L",
+     "criticita": "U"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M03",
+   "nome": "MK1 – Fresatura ad alta velocità",
+   "reparto": "CN5",
+   "tipo": "macchina",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C07",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C04",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M04",
+   "nome": "TN2 – Tornitura CNC",
+   "reparto": "TOR",
+   "tipo": "macchina",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C08",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C09",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C05",
+     "minimo": "L",
+     "criticita": "U"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M05",
+   "nome": "TN5 – Tornio multitasking",
+   "reparto": "TOR",
+   "tipo": "macchina",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C08",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C10",
+     "minimo": "U",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M06",
+   "nome": "CMM1 – Collaudo a coordinate",
+   "reparto": "CMM",
+   "tipo": "macchina",
+   "mansione_rischio": "Addetto collaudo",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C11",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C12",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C13",
+     "minimo": "L",
+     "criticita": "I"
+    }
+   ]
+  },
+  {
+   "id": "M07",
+   "nome": "Controllo pezzi di classe 1",
+   "reparto": "CMM",
+   "tipo": "processo",
+   "mansione_rischio": "Addetto collaudo",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C11",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C14",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C15",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M08",
+   "nome": "Collaudo da banco",
+   "reparto": "CMM",
+   "tipo": "processo",
+   "mansione_rischio": "Addetto collaudo",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C01",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C16",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C13",
+     "minimo": "L",
+     "criticita": "U"
+    }
+   ]
+  },
+  {
+   "id": "M09",
+   "nome": "Passivazione",
+   "reparto": "TRT",
+   "tipo": "processo",
+   "mansione_rischio": "Addetto trattamenti",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C17",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C18",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C19",
+     "minimo": "L",
+     "criticita": "I"
+    }
+   ]
+  },
+  {
+   "id": "M10",
+   "nome": "Controllo con liquidi penetranti",
+   "reparto": "TRT",
+   "tipo": "processo",
+   "mansione_rischio": "Addetto trattamenti",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C20",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C21",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C19",
+     "minimo": "L",
+     "criticita": "I"
+    }
+   ]
+  },
+  {
+   "id": "M11",
+   "nome": "Manutenzione meccanica",
+   "reparto": "MAN",
+   "tipo": "processo",
+   "mansione_rischio": "Manutentore",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C22",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C23",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C24",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M12",
+   "nome": "Sbavatura e finitura",
+   "reparto": "CN5",
+   "tipo": "processo",
+   "mansione_rischio": "Operatore macchine utensili",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C26",
+     "minimo": "U",
+     "criticita": "B"
+    },
+    {
+     "competenza": "C01",
+     "minimo": "L",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M13",
+   "nome": "Marcatura e imballaggio",
+   "reparto": "TRT",
+   "tipo": "processo",
+   "mansione_rischio": "Addetto trattamenti",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C27",
+     "minimo": "U",
+     "criticita": "I"
+    },
+    {
+     "competenza": "C28",
+     "minimo": "L",
+     "criticita": "U"
+    },
+    {
+     "competenza": "C06",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  },
+  {
+   "id": "M14",
+   "nome": "Movimentazione con carrello",
+   "reparto": "MAN",
+   "tipo": "processo",
+   "mansione_rischio": "Carrellista",
+   "versione": 1,
+   "requisiti": [
+    {
+     "competenza": "C25",
+     "minimo": "U",
+     "criticita": "B"
+    }
+   ]
+  }
+ ],
+ "persone": [
+  {
+   "id": "P01",
+   "nome": "Marco",
+   "cognome": "Rinaldi",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M01",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P02",
+   "nome": "Giulia",
+   "cognome": "Ferrante",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2027-01-11",
+   "mansioni": [
+    {
+     "mansione": "M01",
+     "stato": "AVVIATA",
+     "dal": "2027-01-11",
+     "ram": "RAM-2027-0001"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0002",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "L",
+     "valutato_il": "2027-03-09",
+     "valutato_da": "P03",
+     "modalita": "A",
+     "sf": "SF-2027-0019",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "I",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0002",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "I",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0002",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P03",
+     "modalita": "C",
+     "sf": "SF-2027-0011",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P03",
+   "nome": "Aldo",
+   "cognome": "Bianchetti",
+   "reparto": "CN5",
+   "ruolo": "Caporeparto",
+   "assunto_il": "2009-03-14",
+   "mansioni": [
+    {
+     "mansione": "M02",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M01",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C03": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-08-20",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C29": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C30": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P04",
+   "nome": "Sara",
+   "cognome": "Colombini",
+   "reparto": "CMM",
+   "ruolo": "Collaudatore",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M06",
+     "stato": "EFFETTIVA",
+     "dal": "2023-11-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M07",
+     "stato": "EFFETTIVA",
+     "dal": "2025-03-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C11": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C12": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C14": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2027-01-20"
+    },
+    "C15": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P05",
+   "nome": "Piero",
+   "cognome": "Lombardini",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2021-03-14",
+   "mansioni": [
+    {
+     "mansione": "M02",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C03": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-01-29",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": [
+    {
+     "competenza": "C06",
+     "motivo": "Corso FOD prenotato per il 02/04/2027",
+     "approvata_da": "RDD",
+     "dal": "2027-03-05",
+     "fino_al": "2027-04-04"
+    }
+   ]
+  },
+  {
+   "id": "P06",
+   "nome": "Elena",
+   "cognome": "Marchesin",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M02",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M03",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C03": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "O",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-03-03",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C07": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P07",
+   "nome": "Davide",
+   "cognome": "Fontanari",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2023-03-15",
+   "mansioni": [
+    {
+     "mansione": "M03",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M12",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C07": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C26": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P08",
+   "nome": "Luca",
+   "cognome": "Bertolazzi",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M01",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0030"
+    },
+    {
+     "mansione": "M12",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0006"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "I",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P03",
+     "modalita": "A",
+     "sf": "SF-2027-0002",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "I",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P03",
+     "modalita": "A",
+     "sf": "SF-2027-0021",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "C",
+     "sf": "SF-2027-0009",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "L",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P03",
+     "modalita": "C",
+     "sf": "SF-2027-0018",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "I",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "C",
+     "sf": "SF-2027-0043",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C26": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "C",
+     "sf": "SF-2027-0056",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P09",
+   "nome": "Chiara",
+   "cognome": "Montanaro",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M01",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M03",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M12",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "L",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "O",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-06-08",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C07": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C26": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P10",
+   "nome": "Stefano",
+   "cognome": "Guidotti",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2021-03-14",
+   "mansioni": [
+    {
+     "mansione": "M01",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M02",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M03",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C03": {
+     "livello": "U",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C07": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P11",
+   "nome": "Paolo",
+   "cognome": "Vercellin",
+   "reparto": "TOR",
+   "ruolo": "Caporeparto",
+   "assunto_il": "2009-03-14",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "O",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C29": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C30": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P12",
+   "nome": "Anna",
+   "cognome": "Castellani",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2023-03-15",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P13",
+   "nome": "Roberto",
+   "cognome": "Zanardelli",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "O",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P14",
+   "nome": "Matteo",
+   "cognome": "Silvestrin",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2023-03-15",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P15",
+   "nome": "Federica",
+   "cognome": "Pagnotta",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2021-03-14",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "L",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P16",
+   "nome": "Giorgio",
+   "cognome": "Tessarolo",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2018-03-14",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P17",
+   "nome": "Laura",
+   "cognome": "Benedettin",
+   "reparto": "CMM",
+   "ruolo": "Caporeparto",
+   "assunto_il": "2009-03-14",
+   "mansioni": [
+    {
+     "mansione": "M06",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M07",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M08",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C11": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C12": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C14": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2027-02-28"
+    },
+    "C15": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C16": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C29": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C30": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P18",
+   "nome": "Simone",
+   "cognome": "Gavazzeni",
+   "reparto": "CMM",
+   "ruolo": "Collaudatore",
+   "assunto_il": "2021-03-14",
+   "mansioni": [
+    {
+     "mansione": "M06",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M08",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C11": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C12": {
+     "livello": "L",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C16": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P19",
+   "nome": "Irene",
+   "cognome": "Caprioli",
+   "reparto": "CMM",
+   "ruolo": "Collaudatore",
+   "assunto_il": "2023-03-15",
+   "mansioni": [
+    {
+     "mansione": "M06",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M07",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M08",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "O",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C11": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C12": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C14": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2026-09-13"
+    },
+    "C15": {
+     "livello": "O",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C16": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P20",
+   "nome": "Tommaso",
+   "cognome": "Ruggerini",
+   "reparto": "CMM",
+   "ruolo": "Collaudatore",
+   "assunto_il": "2007-03-14",
+   "mansioni": [
+    {
+     "mansione": "M06",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M07",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M08",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C11": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C12": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C14": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2026-05-15"
+    },
+    "C15": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C16": {
+     "livello": "O",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P17",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P21",
+   "nome": "Nicola",
+   "cognome": "Salvaterra",
+   "reparto": "TRT",
+   "ruolo": "Caporeparto",
+   "assunto_il": "2009-03-14",
+   "mansioni": [
+    {
+     "mansione": "M09",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M10",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M13",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C17": {
+     "livello": "O",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2026-05-15"
+    },
+    "C18": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-01-29",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C19": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C20": {
+     "livello": "O",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-01-29",
+     "requisito_presente": true,
+     "ultimo_esercizio": "2027-02-13"
+    },
+    "C21": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C27": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C28": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C29": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C30": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P22",
+   "nome": "Silvia",
+   "cognome": "Morandini",
+   "reparto": "TRT",
+   "ruolo": "Operatore trattamenti",
+   "assunto_il": "2007-03-14",
+   "mansioni": [
+    {
+     "mansione": "M09",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C17": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2026-12-14"
+    },
+    "C18": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-03-03",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C19": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P23",
+   "nome": "Andrea",
+   "cognome": "Pellizzon",
+   "reparto": "TRT",
+   "ruolo": "Operatore trattamenti",
+   "assunto_il": "2018-03-14",
+   "mansioni": [
+    {
+     "mansione": "M10",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M13",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C20": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": "2027-01-13"
+    },
+    "C21": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C19": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C27": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C28": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P24",
+   "nome": "Marta",
+   "cognome": "Giacomelli",
+   "reparto": "TRT",
+   "ruolo": "Operatore trattamenti",
+   "assunto_il": "2018-03-14",
+   "mansioni": [
+    {
+     "mansione": "M10",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C20": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-04-04",
+     "requisito_presente": true,
+     "ultimo_esercizio": "2026-05-15"
+    },
+    "C21": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C19": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P21",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P25",
+   "nome": "Enrico",
+   "cognome": "Baldassari",
+   "reparto": "TRT",
+   "ruolo": "Operatore trattamenti",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M09",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0004"
+    },
+    {
+     "mansione": "M10",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0019"
+    },
+    {
+     "mansione": "M13",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0037"
+    }
+   ],
+   "livelli": {
+    "C17": {
+     "livello": "L",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "A",
+     "sf": "SF-2027-0050",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2026-12-14"
+    },
+    "C18": {
+     "livello": "I",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0034",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C19": {
+     "livello": "I",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0004",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C20": {
+     "livello": "I",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0017",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": "2026-09-13"
+    },
+    "C21": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0018",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C27": {
+     "livello": "I",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P21",
+     "modalita": "A",
+     "sf": "SF-2027-0008",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C28": {
+     "livello": "I",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0006",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "I",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P21",
+     "modalita": "C",
+     "sf": "SF-2027-0060",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P26",
+   "nome": "Fabio",
+   "cognome": "Cortinovis",
+   "reparto": "MAN",
+   "ruolo": "Caporeparto",
+   "assunto_il": "2009-03-14",
+   "mansioni": [
+    {
+     "mansione": "M11",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M14",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C22": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C23": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C24": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-10-01",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C25": {
+     "livello": "O",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2027-05-09",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C29": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C30": {
+     "livello": "O",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "RDD",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P27",
+   "nome": "Claudio",
+   "cognome": "Spinazzola",
+   "reparto": "MAN",
+   "ruolo": "Manutentore",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M11",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0011"
+    },
+    {
+     "mansione": "M14",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0029"
+    }
+   ],
+   "livelli": {
+    "C22": {
+     "livello": "I",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P26",
+     "modalita": "A",
+     "sf": "SF-2027-0024",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C23": {
+     "livello": "I",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P26",
+     "modalita": "C",
+     "sf": "SF-2027-0058",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C24": {
+     "livello": "I",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P26",
+     "modalita": "C",
+     "sf": "SF-2027-0054",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C25": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P26",
+     "modalita": "A",
+     "sf": "SF-2027-0021",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P28",
+   "nome": "Valentina",
+   "cognome": "Orsenigo",
+   "reparto": "MAN",
+   "ruolo": "Manutentore",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M11",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C22": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C23": {
+     "livello": "U",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C24": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P29",
+   "nome": "Giovanni",
+   "cognome": "Trevisanato",
+   "reparto": "MAN",
+   "ruolo": "Manutentore",
+   "assunto_il": "2007-03-14",
+   "mansioni": [
+    {
+     "mansione": "M11",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M14",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C22": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C23": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C24": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C25": {
+     "livello": "U",
+     "valutato_il": "2027-02-13",
+     "valutato_da": "P26",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P30",
+   "nome": "Alessia",
+   "cognome": "Brambillasca",
+   "reparto": "CN5",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M02",
+     "stato": "EFFETTIVA",
+     "dal": "2024-09-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M03",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M12",
+     "stato": "EFFETTIVA",
+     "dal": "2026-07-14",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C02": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C03": {
+     "livello": "U",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C04": {
+     "livello": "O",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "L",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2029-02-12",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C07": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C26": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P03",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P31",
+   "nome": "Riccardo",
+   "cognome": "Fumagallini",
+   "reparto": "TOR",
+   "ruolo": "Operatore macchina utensile",
+   "assunto_il": "2013-03-14",
+   "mansioni": [
+    {
+     "mansione": "M04",
+     "stato": "EFFETTIVA",
+     "dal": "2026-01-13",
+     "ram": "impianto"
+    },
+    {
+     "mansione": "M05",
+     "stato": "EFFETTIVA",
+     "dal": "2022-03-15",
+     "ram": "impianto"
+    }
+   ],
+   "livelli": {
+    "C01": {
+     "livello": "U",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C08": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C09": {
+     "livello": "U",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C05": {
+     "livello": "U",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C06": {
+     "livello": "U",
+     "valutato_il": "2026-11-13",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C10": {
+     "livello": "U",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P11",
+     "modalita": "P",
+     "sf": "SF-2027-0001",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  },
+  {
+   "id": "P32",
+   "nome": "Monica",
+   "cognome": "Scarpellin",
+   "reparto": "CMM",
+   "ruolo": "Collaudatore",
+   "assunto_il": "2026-03-15",
+   "mansioni": [
+    {
+     "mansione": "M07",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0031"
+    },
+    {
+     "mansione": "M08",
+     "stato": "AVVIATA",
+     "dal": "2027-01-13",
+     "ram": "RAM-2027-0022"
+    }
+   ],
+   "livelli": {
+    "C11": {
+     "livello": "L",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "A",
+     "sf": "SF-2027-0035",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C14": {
+     "livello": "L",
+     "valutato_il": "2026-10-14",
+     "valutato_da": "P17",
+     "modalita": "C",
+     "sf": "SF-2027-0040",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": "2027-02-13"
+    },
+    "C15": {
+     "livello": "I",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P17",
+     "modalita": "A",
+     "sf": "SF-2027-0025",
+     "requisito_scadenza": "2028-04-18",
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C01": {
+     "livello": "I",
+     "valutato_il": "2027-01-13",
+     "valutato_da": "P17",
+     "modalita": "A",
+     "sf": "SF-2027-0016",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    },
+    "C16": {
+     "livello": "L",
+     "valutato_il": "2026-12-14",
+     "valutato_da": "P17",
+     "modalita": "C",
+     "sf": "SF-2027-0013",
+     "requisito_scadenza": null,
+     "requisito_presente": true,
+     "ultimo_esercizio": null
+    },
+    "C13": {
+     "livello": "I",
+     "valutato_il": "2026-08-14",
+     "valutato_da": "P17",
+     "modalita": "A",
+     "sf": "SF-2027-0049",
+     "requisito_scadenza": null,
+     "requisito_presente": false,
+     "ultimo_esercizio": null
+    }
+   },
+   "deroghe": []
+  }
+ ]
+}

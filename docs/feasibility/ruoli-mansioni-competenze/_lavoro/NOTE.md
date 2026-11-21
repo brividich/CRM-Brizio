@@ -78,8 +78,22 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - [x] Studio del modulo Formazione → `01_asis.md` §11 (ciclo, uso reale, giudizio); domande Q15-Q17; risposte T1-T9 in §9.2.
       Dati chiave: 774 corsi di cui 595 a edizione unica, 0 verifiche, 0 efficacia, 0 approvazioni MOD.040, 0 qualifiche.
       Aggancio per la SF: `views/formazione.py:3265` (`_post_completamento`), schema corso → qualifica (`models_formazione.py:318`).
-- [ ] **GATE 1 riaperto**: attendo conferma (e le risposte Q1-Q17 della Qualità, se disponibili) prima della Fase 2
-- [ ] Fase 2 `02_tobe_flusso_algoritmo.md` (solo dopo conferma)
+- [x] **GATE 1 superato** (21/11/2026). Risposte aggiuntive del proprietario:
+      - corsi storici: si traccerà una linea, ma sarebbe utile **pescare dal vecchio catalogo**; dubbio da risolvere con
+        la Qualità e **da riportare nel PDF finale**;
+      - competenza nuova: **creata sul momento** dal form del corso, se necessaria;
+      - Fase 2: **procedere con ipotesi dichiarate**, mostrando anche le altre soluzioni;
+      - questionario breve per la Qualità: fatto → `Domande_per_la_Qualita.md` (18 domande, con «nostra ipotesi»).
+      Le ipotesi del questionario sono quelle da usare nel TO-BE.
+- [x] Fase 2 scritta: `02_tobe_flusso_algoritmo.md`. Dataset finto e motore di riferimento in `build/motore_rif.py`
+      (genera `prototipo/dati/dataset.json` e `build/risultati.json`; data di riferimento 15/03/2027).
+      Numeri chiave: 32 persone, 14 mansioni, 30 competenze, 65 assegnazioni = 30 conformi + 11 con riserva +
+      10 sotto supervisione + 14 non conformi (9 persone); 44 gap; scadenze 5 scadute / 1 / 1 / 1; potenziali 1 + 21.
+      Modello raccomandato: D ibrido (livello = atto umano via SF; validità calcolata con grazia 30 gg, esercizio 9/12 mesi,
+      conferma 6 mesi). Livello sulla mansione = minimo delle bloccanti (la media D16 penalizza chi è in regola:
+      `services/mansionario_competenze.py:113-120`, `:242`). Assegnazione: avviata → effettiva.
+      Persone tipo: P01 Marco Rinaldi, P02 Giulia Ferrante, P03 Aldo Bianchetti, P04 Sara Colombini, P05 Piero Lombardini.
+- [ ] **FERMO AL GATE 2**: attendo conferma prima della Fase 3 (prototipo: template reali + dati finti, stesso dataset)
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
