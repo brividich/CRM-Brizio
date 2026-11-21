@@ -131,7 +131,7 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - [x] Vincolo del proprietario (21/11): **«senza toccare nessun file, solo prototipi»**.
 - [x] Richiesta: restyling dell'INTERA Anagrafica nel prototipo. Scelte: menu intero + 5 modelli di pagina; pilastri per
       percorso della persona; due varianti di aspetto a confronto. Fatto (`03_ux.md` §10): sei pilastri = sei domande
-      (Persone · Struttura · Competenze · Formazione · Sicurezza · Da fare), 41 voci navigabili (16 costruite, le altre
+      (Persone · Struttura · Competenze · Formazione · Sicurezza · Da fare), 42 voci navigabili (16 costruite, le altre
       con la scheda «dove va»), modelli: ingresso di sezione, elenco, scheda, pratica a passi, matrice; nuove pagine
       `#persone`, `#elenco-dipendenti`, `#corso`, `#da-fare`, `#v-<voce>`; matrice con vista per competenza/per mansione;
       interruttore Stile attuale / Stile rinfrescato (classe `px-fresco`). 51 controlli ok, 26 PNG.
