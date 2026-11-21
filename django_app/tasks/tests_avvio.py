@@ -97,7 +97,7 @@ class AttivitaEIncontroTests(TasksBaseTestCase):
         cam = self.project.tasks.get(title="Programma CAM")
         self.assertEqual(cam.extra_data[AVVISO_CON_MINUTA], meeting.pk)
 
-        attivita = dict(_minute_sections(meeting))["Attività assegnate"]
+        attivita = dict(_minute_sections(meeting))["Attività"]
         self.assertIn("Programma CAM", attivita)
         self.assertIn("Partire dal lato A.", attivita)
         # Anche l'attività fuori dall'ordine del giorno aspetta questa minuta: ci finisce.

@@ -57,7 +57,7 @@ def voce_action(action: MeetingActionItem, punti: dict, project_id: int, meeting
     punto = punti.get(action.punto or "")
     return {
         "kind": "action",
-        "label": "Azione",
+        "label": "Attività d'incontro",
         "id": action.pk,
         "titolo": action.title,
         "chiusa": action.is_done,

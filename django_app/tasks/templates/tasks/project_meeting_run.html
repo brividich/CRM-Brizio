@@ -116,7 +116,7 @@
             <span class="run-item-saved" data-role="saved" hidden>salvato</span>
             <span class="run-item-add" aria-label="Registra da questo punto">
               <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
-              <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+              <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Attività d'incontro</button>
               <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
             </span>
           </div>
@@ -159,7 +159,7 @@
   <template id="run-item-add-template">
     <span class="run-item-add" aria-label="Registra da questo punto">
       <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
-      <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+      <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Attività d'incontro</button>
       <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
     </span>
   </template>
@@ -190,9 +190,9 @@
         <div class="run-capture-form" id="run-capture">
           <div class="run-kind" role="radiogroup" aria-label="Cosa registri">
             <label><input type="radio" name="capture-kind" value="issue" checked><span>Problema</span></label>
-            <label><input type="radio" name="capture-kind" value="action"><span>Azione</span></label>
+            <label><input type="radio" name="capture-kind" value="action"><span>Attività d'incontro</span></label>
             <label><input type="radio" name="capture-kind" value="decision"><span>Decisione</span></label>
-            <label><input type="radio" name="capture-kind" value="task"><span>Attività</span></label>
+            <label><input type="radio" name="capture-kind" value="task"><span>Attività del piano</span></label>
           </div>
           <select class="input" id="capture-punto" aria-label="Punto dell'ordine del giorno">
             <option value="">Nessun punto in particolare</option>
@@ -220,7 +220,7 @@
           <ul class="mvoci" id="reg-issue">{% for voce in emersi.issues %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group">
-          <h3>Azioni <b id="reg-count-action">{{ emersi.actions|length }}</b></h3>
+          <h3>Attività d'incontro <b id="reg-count-action">{{ emersi.actions|length }}</b></h3>
           <ul class="mvoci" id="reg-action">{% for voce in emersi.actions %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group">
@@ -228,10 +228,10 @@
           <ul class="mvoci" id="reg-decision">{% for voce in emersi.decisions %}{% include "tasks/_meeting_voce.html" with mostra_punto=True %}{% endfor %}</ul>
         </div>
         <div class="run-reg-group" id="reg-task-group" hidden>
-          <h3>Attività create <b id="reg-count-task">0</b></h3>
+          <h3>Attività del piano create <b id="reg-count-task">0</b></h3>
           <ul class="mvoci" id="reg-task"></ul>
         </div>
-        <p class="mf-hint run-reg-foot">Problemi e azioni aperti tornano da soli nel prossimo incontro; le decisioni vanno nel registro di commessa; tutto finisce nella minuta.</p>
+        <p class="mf-hint run-reg-foot">Problemi e attività d'incontro aperti tornano da soli nel prossimo incontro; le decisioni vanno nel registro di commessa; tutto finisce nella minuta.</p>
       </div>
     </section>
   </aside>

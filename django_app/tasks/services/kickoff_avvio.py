@@ -160,7 +160,7 @@ def attivita_dell_incontro(meeting) -> list[Task]:
 def avvisa_con_la_minuta(meeting, *, actor=None) -> int:
     """La minuta è partita: chi aspettava l'avviso riceve la notifica nel portale.
 
-    Niente seconda mail: le attività stanno già nella minuta («Attività assegnate»).
+    Niente seconda mail: le attività stanno già nella minuta (sezione «Attività»).
     """
     from django.urls import reverse
 

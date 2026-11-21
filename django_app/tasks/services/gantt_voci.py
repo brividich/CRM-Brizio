@@ -78,7 +78,7 @@ def gantt_voci(project, tasks) -> dict:
             reverse("tasks:project_meeting_detail", args=[project.id, a.source_meeting_id])
             if a.source_meeting_id else reverse("tasks:project_actions", args=[project.id])
         )
-        aggiungi(tipo="Azione", chiave="azione", titolo=a.title, scadenza=a.due_date,
+        aggiungi(tipo="Attività d'incontro", chiave="azione", titolo=a.title, scadenza=a.due_date,
                  chi=_nome(a.assigned_to), url=url, task_id=a.linked_task_id)
 
     for i in MeetingIssue.objects.filter(project=project, status=MeetingIssueStatus.OPEN).select_related(

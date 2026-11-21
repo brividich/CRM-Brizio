@@ -64,7 +64,7 @@ def voci_kickoff(request) -> dict:
         url = reverse("tasks:detail", args=[st.task_id])
         voci.append(_voce("Sotto-attività", f"{st.title} · {st.task.title}", st.task.project, st.due_date, url, oggi))
     for a in MeetingActionItem.objects.filter(status=MeetingActionStatus.OPEN, **comuni).select_related("project"):
-        voci.append(_voce("Azione", a.title, a.project, a.due_date, reverse("tasks:mie_azioni"), oggi, done=("azione", a.pk)))
+        voci.append(_voce("Attività d'incontro", a.title, a.project, a.due_date, reverse("tasks:mie_azioni"), oggi, done=("azione", a.pk)))
     for i in MeetingIssue.objects.filter(status=MeetingIssueStatus.OPEN, **comuni).select_related("project"):
         voci.append(_voce("Problema", i.title, i.project, i.due_date, reverse("tasks:mie_azioni"), oggi, done=("problema", i.pk)))
     for r in senza_attivita_aperta(ProjectTechRef.objects.filter(status=TechRefStatus.OPEN, **comuni)).select_related("project"):

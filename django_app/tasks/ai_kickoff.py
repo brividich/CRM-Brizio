@@ -154,7 +154,7 @@ def contesto(project, meeting, simili: list[dict]) -> str:
         problemi = "; ".join(f"{p['titolo']} ({'risolto' if p['risolto'] else 'aperto'})" for p in caso["problemi"]) or "nessuno"
         righe.append(f"- {caso['nome']} ({', '.join(caso['motivi']) or 'descrizione simile'}): problemi emersi: {problemi}"
                      + (f"; decisioni: {'; '.join(caso['decisioni'])}" if caso["decisioni"] else "")
-                     + (f"; azioni rimaste aperte: {'; '.join(caso['azioni_aperte'])}" if caso["azioni_aperte"] else "")
+                     + (f"; attività d'incontro rimaste aperte: {'; '.join(caso['azioni_aperte'])}" if caso["azioni_aperte"] else "")
                      + (f"; attività slittate: {'; '.join(caso['slittamenti'])}" if caso["slittamenti"] else "")
                      + (f"; rischi VRF alti: {'; '.join(caso['rischi'])}" if caso["rischi"] else ""))
     ricorrenti = punti_ricorrenti(simili)

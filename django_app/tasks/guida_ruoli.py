@@ -72,7 +72,7 @@ SEZIONI_GESTIONE: list[dict] = [
                 "Dettaglio incontro › «Conduci incontro».",
                 "Spunta i presenti.",
                 "Su ogni punto scrivi la nota e premi «Segna trattato».",
-                "Quello che emerge va in «Cattura rapida»: scegli Attività, Azione, Decisione o Problema, scrivi, Invio.",
+                "Quello che emerge va in «Cattura rapida»: scegli Attività del piano, Attività d'incontro, Decisione o Problema, scrivi, Invio.",
                 "Alla fine «Termina incontro e registra l'esito».",
             ]),
             ("img", (_IMG + "conduci.jpg", "Conduci incontro")),
@@ -83,7 +83,7 @@ SEZIONI_GESTIONE: list[dict] = [
         "titolo": "Chiudere l'incontro",
         "blocchi": [
             ("passi", [
-                "Nella pagina esito controlla presenze, problemi, decisioni e azioni.",
+                "Nella pagina esito controlla presenze, problemi, decisioni e attività.",
                 "Premi «Registra esito».",
                 "Nel dettaglio premi «Invia minuta».",
                 "Quando è tutto giusto, «Approva e chiudi minuta».",
@@ -113,7 +113,7 @@ SEZIONI_TEAM: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Menu KICK-OFF › «Dashboard».",
-                "«Le mie attività KICK-OFF»: azioni e problemi a tuo nome, scaduti in testa.",
+                "«Le mie attività KICK-OFF»: attività d'incontro e problemi a tuo nome, scaduti in testa.",
                 "«Le tue attività»: le attività assegnate a te.",
                 "«Prossimi incontri»: dove sei atteso.",
             ]),
@@ -135,11 +135,11 @@ SEZIONI_TEAM: list[dict] = [
     },
     {
         "id": "t-azioni",
-        "titolo": "Chiudere un'azione o un problema",
+        "titolo": "Chiudere un'attività d'incontro o un problema",
         "blocchi": [
             ("passi", [
                 "Apri «Le mie attività KICK-OFF» dalla dashboard.",
-                "Premi «Fatta» sull'azione, «Risolto» sul problema.",
+                "Premi «Fatta» sull'attività d'incontro, «Risolto» sul problema.",
                 "Sbagliato? Filtra su «Chiuse» e premi «Riapri».",
             ]),
             ("img", (_IMG + "mie_azioni.jpg", "Le mie attività KICK-OFF")),
@@ -166,7 +166,7 @@ SEZIONI_TEAM: list[dict] = [
                 "Ti arriva la mail di convocazione con l'invito da aggiungere al calendario.",
                 "Il giorno lavorativo prima ti arriva il promemoria.",
                 "Vuoi discutere qualcosa? Nel dettaglio dell'incontro proponi un punto: chi gestisce la commessa lo accetta o lo rifiuta.",
-                "Dopo la riunione ricevi la minuta: le azioni a tuo nome compaiono in «Le mie attività KICK-OFF».",
+                "Dopo la riunione ricevi la minuta: le attività d'incontro a tuo nome compaiono in «Le mie attività KICK-OFF».",
             ]),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro")),
         ],
@@ -184,7 +184,7 @@ GUIDE_RUOLI: dict[str, dict] = {
     "team": {
         "etichetta": "Guida rapida · Chi partecipa",
         "titolo": "KICK-OFF · Chi partecipa",
-        "sottotitolo": "Guida rapida per chi ha attività, azioni e incontri",
+        "sottotitolo": "Guida rapida per chi ha attività, attività d'incontro e incontri",
         "file": "Guida_KickOff_Team.pdf",
         "sezioni": SEZIONI_TEAM,
     },

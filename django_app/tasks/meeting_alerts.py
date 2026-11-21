@@ -192,7 +192,7 @@ def _mie_voci(user, projects, today) -> list[dict]:
     project_ids = projects.values("id")
     rows = []
     for model, status, kind in (
-        (MeetingActionItem, MeetingActionStatus.OPEN, "Azione"),
+        (MeetingActionItem, MeetingActionStatus.OPEN, "Attività d'incontro"),
         (MeetingIssue, MeetingIssueStatus.OPEN, "Problema"),
     ):
         for item in model.objects.filter(assigned_to=user, status=status, project_id__in=project_ids).select_related(

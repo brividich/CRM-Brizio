@@ -178,7 +178,7 @@
       {% endif %}
     {% endif %}{% endif %}
     {% if meeting.minuta_da_reinviare %}
-      <p class="md-docbar-hint md-docbar-hint--warn">La minuta è cambiata dopo l'invio del {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}: verbale, ordine del giorno, decisioni o azioni. Premi «Invia aggiornamento minuta».</p>
+      <p class="md-docbar-hint md-docbar-hint--warn">La minuta è cambiata dopo l'invio del {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}: verbale, ordine del giorno, decisioni o attività. Premi «Invia aggiornamento minuta».</p>
     {% elif meeting.minuta_inviata %}
       <p class="md-docbar-hint">Minuta inviata il {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}.</p>
     {% endif %}
@@ -421,7 +421,7 @@
           <button type="button" class="mf-btn-sm primary" style="margin-left:auto;" id="kai-btn" data-url="{% url 'tasks:project_meeting_ai_punti' project.id meeting.id %}" data-add-url="{% url 'tasks:project_meeting_agenda_item_add' project.id meeting.id %}">Prepara con l'AI</button>
         </div>
         <div class="md-card-body">
-          <div id="kai-out"><p class="kai-riga">Cerca le commesse con lo stesso cliente, lo stesso P/N o simili: problemi emersi, attività slittate, rischi VRF alti, azioni rimaste aperte. L'AI propone i punti da portare all'incontro; li aggiungi tu.</p></div>
+          <div id="kai-out"><p class="kai-riga">Cerca le commesse con lo stesso cliente, lo stesso P/N o simili: problemi emersi, attività slittate, rischi VRF alti, attività d'incontro rimaste aperte. L'AI propone i punti da portare all'incontro; li aggiungi tu.</p></div>
         </div>
       </div>
     {% endif %}
@@ -492,12 +492,12 @@
       </div>
     {% endif %}
 
-    {# Azioni strutturate: chi fa cosa entro quando. #}
+    {# Attività decise nell'esito: chi fa cosa entro quando. #}
     {% if meeting_actions %}
       <div class="md-card full">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-          <span>Azioni</span>
+          <span>Attività d'incontro</span>
         </div>
         <div class="md-card-body">
           {% for action in meeting_actions %}

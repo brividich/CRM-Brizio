@@ -22,7 +22,7 @@
         {% if c.problemi %}<div class="kai-riga">Problemi: {% for x in c.problemi %}{{ x.titolo }} <em>({% if x.risolto %}risolto{% else %}aperto{% endif %})</em>{% if not forloop.last %}; {% endif %}{% endfor %}</div>{% endif %}
         {% if c.slittamenti %}<div class="kai-riga">Attività slittate: {{ c.slittamenti|join:"; " }}</div>{% endif %}
         {% if c.rischi %}<div class="kai-riga">Rischi VRF alti: {{ c.rischi|join:"; " }}</div>{% endif %}
-        {% if c.azioni_aperte %}<div class="kai-riga">Azioni rimaste aperte: {{ c.azioni_aperte|join:"; " }}</div>{% endif %}
+        {% if c.azioni_aperte %}<div class="kai-riga">Attività d'incontro rimaste aperte: {{ c.azioni_aperte|join:"; " }}</div>{% endif %}
         {% if c.decisioni %}<div class="kai-riga">Decisioni: {{ c.decisioni|join:"; " }}</div>{% endif %}
       </div>
     {% empty %}
