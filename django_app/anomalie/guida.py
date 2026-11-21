@@ -100,7 +100,9 @@ SEZIONI: list[dict] = [
                 "«Continua». L'OP si crea solo quando salvi il primo blocco di anomalie (in alto c'è «Nuovo · si crea "
                 "al primo salvataggio»); quello che scrivi prima si salva comunque in bozza. Se l'OP esiste già la "
                 "pagina lo dice: sceglilo dall'elenco.",
-                "Scrivi la «Fase del controllo», per esempio accettazione materiale, lavorazione o collaudo finale. "
+                "Scegli la «Fase del controllo» fra quelle proposte: prima quelle già usate sull'OP, poi l'elenco di "
+                "Configurazione e le più usate; scrivendo l'elenco si filtra. Puoi anche scriverne una nuova; se è uguale a "
+                "una proposta a parte maiuscole e spazi, si salva con la grafia proposta. "
                 "Vale per tutti i blocchi e si può cambiare durante il controllo con «Cambia».",
                 "Sotto «Mail al capocommessa: una sola, a fine controllo» vedi a chi andrà la mail: «A» il capocommessa "
                 "(il CAR per i collaudi di benestare), «In copia» l'altro.",

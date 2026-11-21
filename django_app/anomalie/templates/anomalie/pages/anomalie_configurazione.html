@@ -499,6 +499,11 @@
         <small>Usate nei checkbox della segnalazione anomalia.</small>
         <textarea id="stati_superficie" class="input" spellcheck="false"></textarea>
       </div>
+      <div class="field">
+        <label for="fasi_controllo">Fasi del controllo proposte</label>
+        <small>Una per riga. Il controllore le vede in «Fase del controllo» insieme a quelle già usate sull'OP e alle più usate; può sempre scriverne una nuova.</small>
+        <textarea id="fasi_controllo" class="input" spellcheck="false"></textarea>
+      </div>
       <div class="field" style="grid-column:1/-1;">
         <label for="avanzamenti">Scelte Avanzamento</label>
         <small>Usate nel menu a tendina AVANZAMENTO nella gestione anomalie.</small>
@@ -1256,7 +1261,7 @@
     });
   })();
 </script>
-<script src="{% static 'anomalie/js/pagine/anomalie_configurazione.js' %}?v=20261112"></script>
+<script src="{% static 'anomalie/js/pagine/anomalie_configurazione.js' %}?v=20261121"></script>
 <script src="{% static 'anomalie/js/pagine/anomalie_configurazione-2.js' %}?v=20261112"></script>
 <script src="{% static 'anomalie/js/pagine/anomalie_configurazione-3.js' %}?v=20261112"></script>
 {% endblock %}

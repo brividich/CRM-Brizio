@@ -83,6 +83,7 @@ ANOMALIE_LIST_KEYS = (
     "azioni_effettuate",
     "referenti_rdc",
     "avanzamenti_qualita",
+    "fasi_controllo",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -114,6 +115,10 @@ ANOMALIE_LIST_DEFAULTS = {
     # «Avanzamento qualità» della decisione qualità (il vuoto = nessuno stato c'è
     # sempre); «In attesa chiarimenti» lo usa «Richiedi info aggiuntive».
     "avanzamenti_qualita": ["In attesa", "In attesa chiarimenti"],
+    # Fasi proposte al controllore in «Fase del controllo» (si può sempre scrivere
+    # a mano): insieme alle fasi già usate sull'OP e alle più usate in generale.
+    "fasi_controllo": ["Accettazione materiale", "Controllo intermedio", "Controllo in partenza",
+                       "Collaudo pre-trattamento", "Collaudo finale", "Visivo finale"],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti", "azioni_effettuate",
                                              "avanzamenti_qualita"})

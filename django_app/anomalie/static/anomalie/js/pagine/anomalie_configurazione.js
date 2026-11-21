@@ -19,6 +19,7 @@
     azioni_effettuate: ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
     referenti_rdc: [],
     avanzamenti_qualita: ["In attesa", "In attesa chiarimenti"],
+    fasi_controllo: ["Accettazione materiale", "Controllo intermedio", "Controllo in partenza", "Collaudo pre-trattamento", "Collaudo finale", "Visivo finale"],
     attachments_dir: "media\\anomalie_allegati",
   };
 
@@ -30,6 +31,7 @@
     "autorizzati_modifica",
     "referenti_rdc",
     "avanzamenti_qualita",
+    "fasi_controllo",
   ];
   const ccChiudeEl = document.getElementById("cc_puo_chiudere");
   const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));

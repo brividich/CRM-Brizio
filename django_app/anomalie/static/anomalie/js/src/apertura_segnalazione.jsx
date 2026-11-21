@@ -1979,7 +1979,7 @@
         setDestinatari({ to: benestare ? op.car : op.capo, cc: benestare ? op.capo : op.car });
         let vivo = true;
         getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso')
-          .then(j => vivo && setRiprendibili(j.controlli || []))
+          .then(j => { if (vivo) { setRiprendibili(j.controlli || []); setFasiNote(j.fasi || []); } })
           .catch(() => {})
           .finally(() => vivo && setLoading(false));
         return () => { vivo = false; };
@@ -2054,6 +2054,12 @@
       return () => document.removeEventListener('paste', onPaste);
     }, [controllo]);
 
+    // Fase scritta a mano uguale a una proposta (maiuscole/spazi a parte): si salva con la grafia proposta.
+    const faseNormale = (t) => {
+      const v = String(t || '').trim().replace(/\s+/g, ' ');
+      const k = v.toLowerCase();
+      return fasiNote.find(f => String(f).trim().replace(/\s+/g, ' ').toLowerCase() === k) || v;
+    };
     const apriControllo = async () => {
       if (!fase.trim()) { setError('Indica la fase del controllo.'); return; }
       setError(''); setSaving(true);
@@ -2061,8 +2067,8 @@
         // OP da creare: il controllo nasce subito (bozza e promemoria funzionano), l'OP
         // vero lo crea il server al primo «Salva blocco».
         const j = await postJson(API.controllo_apri, opRef.current.daCreare
-          ? { op_id: op.id, op_nuovo: opRef.current.daCreare, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }
-          : { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
+          ? { op_id: op.id, op_nuovo: opRef.current.daCreare, fase: faseNormale(fase), mail_mode: 'fine', destinatari_extra: extraAvvio }
+          : { op_id: op.id, op_item_id: op.item_id, fase: faseNormale(fase), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
         setControllo(j.controllo);
         setEditor(editorDopo(coda));
         if (coda.length) setNotice(`Caricato il primo dei ${coda.length} blocchi copiati: controlla S/N e testi, poi «Salva blocco».`);
@@ -2699,7 +2705,7 @@
                 value={fase} onChange={e => setFase(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') apriControllo(); }} />
               <datalist id="fasi-op">{fasiNote.map(f => <option key={f} value={f} />)}</datalist>
-              <div className="field-hint">Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.</div>
+              <div className="field-hint">Scegli fra le fasi proposte (scrivendo si filtrano) o scrivine una nuova. Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.</div>
             </div>
             <div className="field-group">
               <span className="field-label">Mail al capocommessa: una sola, a fine controllo</span>
@@ -3009,9 +3015,9 @@
             {editingFase ? (
               <span className="ctl-head__edit">
                 <input className="text-input" type="text" list="fasi-op" maxLength={100} value={fase} autoFocus
-                  onChange={e => setFase(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') salvaImpostazioni({ fase: fase.trim() }); }} />
+                  onChange={e => setFase(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') salvaImpostazioni({ fase: faseNormale(fase) }); }} />
                 <datalist id="fasi-op">{fasiNote.map(f => <option key={f} value={f} />)}</datalist>
-                <button className="btn-primary btn-sm" onClick={() => salvaImpostazioni({ fase: fase.trim() })} disabled={!fase.trim()}>OK</button>
+                <button className="btn-primary btn-sm" onClick={() => salvaImpostazioni({ fase: faseNormale(fase) })} disabled={!fase.trim()}>OK</button>
                 <button className="btn-secondary btn-sm" onClick={() => { setFase(controllo.fase); setEditingFase(false); }}>Annulla</button>
               </span>
             ) : (

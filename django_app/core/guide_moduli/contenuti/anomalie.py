@@ -143,6 +143,9 @@ GUIDA = {
                     "persone, ruoli operativi, parole della fase "
                     "(es. CMM) e tipo di difetto dell'anomalia; l'«Anteprima dal vivo» mostra la scheda come la vedrebbe un "
                     "controllore scelto in «Vedi come»; vale subito, senza rilasci.",
+                    "«Fasi del controllo proposte» (Configurazione, una per riga): il controllore le vede in «Fase del "
+                    "controllo» insieme a quelle già usate sull'OP e alle più usate negli ultimi controlli; può sempre "
+                    "scriverne una nuova.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati). "
