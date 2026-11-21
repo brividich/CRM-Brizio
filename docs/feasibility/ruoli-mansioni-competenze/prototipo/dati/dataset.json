@@ -640,7 +640,7 @@
    "cognome": "Rinaldi",
    "reparto": "CN5",
    "ruolo": "Operatore macchina utensile",
-   "assunto_il": "2026-03-15",
+   "assunto_il": "2019-09-02",
    "mansioni": [
     {
      "mansione": "M01",
@@ -778,7 +778,7 @@
    "cognome": "Bianchetti",
    "reparto": "CN5",
    "ruolo": "Caporeparto",
-   "assunto_il": "2009-03-14",
+   "assunto_il": "2009-03-16",
    "mansioni": [
     {
      "mansione": "M02",
@@ -883,7 +883,7 @@
    "cognome": "Colombini",
    "reparto": "CMM",
    "ruolo": "Collaudatore",
-   "assunto_il": "2026-03-15",
+   "assunto_il": "2018-05-07",
    "mansioni": [
     {
      "mansione": "M06",
@@ -968,7 +968,7 @@
    "cognome": "Lombardini",
    "reparto": "CN5",
    "ruolo": "Operatore macchina utensile",
-   "assunto_il": "2021-03-14",
+   "assunto_il": "2021-10-04",
    "mansioni": [
     {
      "mansione": "M02",

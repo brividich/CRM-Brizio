@@ -99,7 +99,14 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Numeri in modalità SEGNALAZIONE: 30 conformi / 13 con riserva / 10 sotto supervisione / 12 non conformi (8 persone),
       gap 42, 2 assegnazioni con segnalazione grave. In BLOCCO: 30 / 11 / 10 / 14 (9 persone), gap 44.
       Il prototipo deve avere l'interruttore Segnalazione/Blocco.
-- [ ] Fase 3: `03_ux.md` + `prototipo/prototipo_rmc.html` + `prototipo/png/` → GATE 3
+- [x] Fase 3 fatta: `03_ux.md`, `prototipo/prototipo_rmc.html` (332 KB, file unico, CSS reali dell'HUB incorporati da
+      `build/costruisci_prototipo.py`; logica in `prototipo/src/app.js`, stili aggiunti in `prototipo/src/app.css`),
+      12 PNG in `prototipo/png/`. Verifica: `build/verifica_prototipo.py` (Playwright del venv del checkout condiviso):
+      25 controlli ok, 0 errori di console, 0 richieste di rete, 360 px ok. Rotte: cruscotto-qualita, matrice,
+      dipendente-<cognome>, editor-mansione, simulatore, coda-car, pianificatore, vista-dipendente.
+      Nota tecnica: in questa shell gli heredoc bash con apostrofi falliscono → scrivere gli script con lo strumento Write.
+- [ ] **FERMO AL GATE 3**: attendo riscontro sul prototipo prima dei PDF (Fase 4). Nei PDF riportare anche il dubbio
+      «linea di demarcazione + ripescaggio dal vecchio catalogo corsi» e le due varianti segnalazione/blocco.
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 

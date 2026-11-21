@@ -1,0 +1,101 @@
+/* Stili del solo prototipo (prefisso px-). Tutto il resto viene dai CSS reali dell'HUB, incorporati dallo
+   script build/costruisci_prototipo.py. Font di sistema: nessuna richiesta di rete. */
+body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+.px-tour { background:#fff7ed; border-bottom:1px solid #fed7aa; padding:8px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:13px; color:#7c2d12; }
+.px-tour b { color:#9a3412; }
+.px-tour-txt { flex:1 1 260px; min-width:0; }
+.px-tour-nav { display:flex; gap:6px; align-items:center; }
+.px-btn { min-height:36px; padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; color:#0c2545; font:inherit; font-weight:600; cursor:pointer; }
+.px-btn:hover { background:#f1f5f9; }
+.px-btn[aria-pressed="true"] { background:#0c2545; color:#fff; border-color:#0c2545; }
+.px-btn:focus-visible, .px-cell:focus-visible, .px-link:focus-visible, .fmd-btn:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline:3px solid #ff8a1f; outline-offset:2px; }
+.px-seg { display:inline-flex; border:1px solid #cbd5e1; border-radius:9px; overflow:hidden; background:#fff; }
+.px-seg .px-btn { border:0; border-radius:0; }
+.px-seg .px-btn + .px-btn { border-left:1px solid #cbd5e1; }
+.px-barra { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 14px; }
+.px-barra label { font-size:12.5px; color:#475569; display:flex; flex-direction:column; gap:3px; }
+.px-barra select, .px-barra input[type=search] { min-height:36px; padding:5px 9px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; font:inherit; color:#0f172a; min-width:150px; }
+.px-nota { font-size:12.5px; color:#475569; margin:6px 0 0; }
+.px-oggi { border-left:4px solid #94a3b8; background:#f8fafc; padding:9px 12px; border-radius:0 8px 8px 0; margin:0 0 14px; font-size:13px; color:#334155; }
+.px-prop { border-left:4px solid #1f87cd; background:#eff6ff; padding:9px 12px; border-radius:0 8px 8px 0; margin:0 0 14px; font-size:13px; color:#0c2545; }
+
+/* Livelli: lettera sempre visibile, il colore è un rinforzo */
+.px-lv { display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:26px; padding:0 6px; border-radius:6px; font-weight:700; font-size:13px; border:1px solid transparent; line-height:1; }
+.px-lv-I { background:#fee2e2; color:#7f1d1d; border-color:#fca5a5; }
+.px-lv-L { background:#fef3c7; color:#78350f; border-color:#fcd34d; }
+.px-lv-U { background:#dcfce7; color:#14532d; border-color:#86efac; }
+.px-lv-O { background:#dbeafe; color:#1e3a8a; border-color:#93c5fd; }
+.px-lv-0 { background:#f1f5f9; color:#475569; border-color:#cbd5e1; font-weight:500; }
+.px-cell { display:inline-flex; align-items:center; gap:3px; border:0; background:none; padding:2px; cursor:pointer; border-radius:6px; min-height:32px; font:inherit; }
+.px-cell:hover { background:#e2e8f0; }
+.px-mk { font-size:11px; font-weight:700; }
+.px-mk-gap { color:#b91c1c; }
+.px-mk-ris { color:#b45309; }
+.px-mk-sosp { color:#7f1d1d; }
+.px-mtx { border-collapse:separate; border-spacing:0; font-size:12.5px; }
+.px-mtx th, .px-mtx td { border-bottom:1px solid #e2e8f0; padding:5px 6px; text-align:center; white-space:nowrap; background:#fff; }
+.px-mtx thead th { position:sticky; top:0; background:#f8fafc; font-weight:600; color:#334155; vertical-align:bottom; }
+.px-mtx th.px-col { max-width:118px; white-space:normal; font-size:11.5px; line-height:1.25; }
+.px-mtx th:first-child, .px-mtx td:first-child { position:sticky; left:0; text-align:left; z-index:1; min-width:170px; border-right:1px solid #e2e8f0; }
+.px-mtx thead th:first-child { z-index:2; }
+.px-scroll { overflow:auto; max-width:100%; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+.px-min { display:block; font-size:10.5px; color:#64748b; font-weight:500; margin-top:2px; }
+
+/* Stati di conformità: testo + icona, non solo colore */
+.px-st { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid transparent; white-space:nowrap; }
+.px-st::before { content:""; font-weight:800; }
+.px-st-CONFORME { background:#dcfce7; color:#14532d; border-color:#86efac; } .px-st-CONFORME::before { content:"✓"; }
+.px-st-CON_RISERVA { background:#fef9c3; color:#713f12; border-color:#fde047; } .px-st-CON_RISERVA::before { content:"◐"; }
+.px-st-SOTTO_SUPERVISIONE { background:#ffedd5; color:#7c2d12; border-color:#fdba74; } .px-st-SOTTO_SUPERVISIONE::before { content:"◑"; }
+.px-st-NON_CONFORME { background:#fee2e2; color:#7f1d1d; border-color:#fca5a5; } .px-st-NON_CONFORME::before { content:"✕"; }
+.px-val { font-size:12px; font-weight:600; }
+.px-val-VALIDA { color:#166534; } .px-val-DA_CONFERMARE, .px-val-IN_DEROGA { color:#92400e; } .px-val-SOSPESA { color:#991b1b; } .px-val-ASSENTE { color:#64748b; }
+
+/* Pannello «Perché?» */
+.px-perche { position:fixed; top:0; right:0; bottom:0; width:min(420px, 100%); background:#fff; box-shadow:-12px 0 32px rgba(12,37,69,.18); z-index:300; padding:18px; overflow:auto; transform:translateX(105%); transition:transform .18s ease; }
+.px-perche.px-on { transform:none; }
+.px-perche h2 { font-size:17px; margin:0 0 4px; color:#0c2545; }
+.px-perche h3 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin:16px 0 6px; }
+.px-catena { list-style:none; margin:0; padding:0; }
+.px-catena li { position:relative; padding:8px 10px 8px 26px; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:6px; font-size:13px; background:#f8fafc; }
+.px-catena li::before { content:"→"; position:absolute; left:8px; top:8px; color:#1f87cd; font-weight:700; }
+.px-velo { position:fixed; inset:0; background:rgba(12,37,69,.28); z-index:290; display:none; }
+.px-velo.px-on { display:block; }
+.px-msg { margin:0 0 12px; padding:9px 12px; border-radius:9px; background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; font-size:13px; }
+.px-msg:empty { display:none; }
+.px-griglia { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:12px; }
+.px-due { display:grid; grid-template-columns:minmax(0, 1.4fr) minmax(0, 1fr); gap:14px; align-items:start; }
+.px-card { border:1px solid #e2e8f0; border-radius:16px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(12,37,69,.05); }
+.px-card h3 { margin:0 0 6px; font-size:15px; color:#0c2545; }
+.px-fatti { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:12.5px; }
+.px-fatto { padding:3px 8px; border-radius:7px; background:#f1f5f9; color:#334155; }
+.px-fatto.si { background:#dcfce7; color:#14532d; } .px-fatto.no { background:#f1f5f9; color:#64748b; text-decoration:line-through; }
+.px-link { color:#1f5c91; font-weight:600; text-decoration:none; background:none; border:0; padding:0; cursor:pointer; font:inherit; }
+.px-link:hover { text-decoration:underline; }
+.px-big { font-size:30px; font-weight:800; color:#0c2545; line-height:1; }
+.px-diff { font-size:13px; padding:7px 10px; border-radius:9px; background:#fff7ed; border:1px solid #fed7aa; margin-bottom:6px; }
+.px-fonte { font-size:11.5px; color:#64748b; }
+.px-mobile { max-width:440px; margin:0 auto; }
+.px-mobile .px-card { margin-bottom:12px; }
+.px-mobile .px-azione { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:48px; padding:10px 12px; border-radius:12px; border:1px solid #e2e8f0; margin-top:8px; font-size:14px; background:#f8fafc; }
+.px-proto-tag { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; background:#ff8a1f; color:#fff; padding:2px 7px; border-radius:6px; }
+.fmd-table td, .fmd-table th { vertical-align:middle; }
+@media (max-width: 860px) {
+  .px-due { grid-template-columns:minmax(0, 1fr); }
+  .px-btn { min-height:44px; }
+  .px-barra select, .px-barra input[type=search] { min-height:44px; min-width:0; width:100%; }
+  .px-barra label { flex:1 1 140px; }
+  .px-cell { min-height:44px; min-width:44px; justify-content:center; }
+}
+
+.px-due > *, .px-griglia > * { min-width:0; }
+.fmd-tablewrap { overflow-x:auto; max-width:100%; }
+.fmd-panel { min-width:0; max-width:100%; }
+.fmd-table select, .px-barra select { max-width:100%; }
+@media (max-width: 860px) {
+  .px-griglia { grid-template-columns:minmax(0, 1fr); }
+  .fmd-table select { min-height:44px; }
+  .px-tour { padding:8px 10px; }
+}
+
+.fmd-mtr-val span { font:inherit; color:inherit; }
