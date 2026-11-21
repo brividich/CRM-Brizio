@@ -73,7 +73,7 @@
     </a>
     <a class="ko-metric ko-metric--actions" href="{% url 'tasks:project_actions' project.id %}">
       <span class="ko-metric-value">{{ action_open_count }}</span>
-      <span class="ko-metric-label">Azioni aperte</span>
+      <span class="ko-metric-label">Attività aperte</span>
     </a>
     <a class="ko-metric ko-metric--plan" href="{% url 'tasks:project_gantt' project.id %}">
       <span class="ko-metric-value">{{ progress_pct }}%</span>
@@ -120,7 +120,7 @@
     <section class="ko-panel">
       <div class="ko-panel-head">
         <div>
-          <h2>Prossime azioni</h2>
+          <h2>Prossime attività</h2>
           <p>Le prime cinque per urgenza e scadenza.</p>
         </div>
         <a class="ko-panel-link" href="{% url 'tasks:project_actions' project.id %}">Registro completo</a>
@@ -142,7 +142,7 @@
             {% endfor %}
           </ul>
         {% else %}
-          <p class="ko-empty">Nessuna azione aperta su questa commessa.</p>
+          <p class="ko-empty">Nessuna attività aperta su questa commessa.</p>
         {% endif %}
       </div>
     </section>

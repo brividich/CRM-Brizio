@@ -1,4 +1,4 @@
-"""«Le mie azioni»: azioni e problemi d'incontro assegnati all'utente, e la guida."""
+"""«Le mie attività KICK-OFF»: azioni e problemi d'incontro assegnati all'utente, e la guida."""
 from __future__ import annotations
 
 import logging
@@ -198,7 +198,7 @@ def mie_azioni(request):
         "tasks/mie_azioni.html",
         {
             **_tasks_shell_context(request, active="mie_azioni"),
-            "page_title": "Le mie azioni",
+            "page_title": "Le mie attività KICK-OFF",
             "rows": rows,
             "open_count": sum(1 for r in rows if r["is_open"]),
             "overdue_count": sum(1 for r in rows if r["is_overdue"]),
@@ -283,20 +283,24 @@ def _mia_attivita_stato(request, pk: int, back):
     anche senza il permesso di modificare le attivita' altrui.
     """
     task = get_object_or_404(scoped_tasks_queryset(request).select_related("project"), pk=pk)
-    if not (task.assigned_to_id == request.user.pk or can_manage_task(request, task)):
-        messages.error(request, "Puoi aggiornare solo le attività di cui sei responsabile.")
-        return back
+    from ..services.stato import allinea_avanzamento, errore_cambio_stato
+
     verb = (request.POST.get("action") or "").strip()
     nuovo = {"start": TaskStatus.IN_PROGRESS, "done": TaskStatus.DONE, "reopen": TaskStatus.TODO}.get(verb)
     if nuovo is None:
         messages.error(request, "Azione non valida.")
         return back
     vecchio = task.status
+    errore = errore_cambio_stato(request, task, vecchio, nuovo)
+    if errore is None and not (task.assigned_to_id == request.user.pk or can_manage_task(request, task)):
+        errore = "Puoi aggiornare solo le attività di cui sei responsabile."
+    if errore:
+        if "application/json" in request.headers.get("Accept", ""):
+            return JsonResponse({"ok": False, "reason": errore}, status=403)
+        messages.error(request, errore)
+        return back
     task.status = nuovo
-    if nuovo == TaskStatus.DONE:
-        task.progress = 100
-    elif nuovo == TaskStatus.TODO and (task.progress or 0) >= 100:
-        task.progress = 0
+    allinea_avanzamento(task, vecchio)
     task.save()
     if vecchio != nuovo:
         _log_event(task, request.user, TaskEventType.STATUS_CHANGE, {"from": vecchio, "to": nuovo})

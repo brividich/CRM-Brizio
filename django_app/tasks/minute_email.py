@@ -202,6 +202,26 @@ def _actions_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _attivita_text(meeting) -> str:
+    """Attività del kickoff legate a questo incontro: chi, entro quando, note."""
+    from tasks.services.kickoff_avvio import attivita_dell_incontro, nota_attivita
+
+    lines: list[str] = []
+    for task in attivita_dell_incontro(meeting):
+        parts = [task.get_status_display()]
+        if task.assigned_to_id:
+            parts.append(task.assigned_to.get_full_name() or task.assigned_to.username)
+        else:
+            parts.append("responsabile da decidere")
+        if task.due_date:
+            parts.append(f"entro {_fmt(task.due_date, '%d/%m/%Y')}")
+        lines.append(f"- {task.title} ({', '.join(parts)})")
+        nota = nota_attivita(task)
+        if nota:
+            lines.extend(f"    {riga}" for riga in nota.splitlines() if riga.strip())
+    return "\n".join(lines)
+
+
 def _decisions_text(meeting) -> str:
     """Decisioni registrate in questo incontro."""
     lines: list[str] = []
@@ -295,6 +315,7 @@ def _minute_sections(meeting) -> list[tuple[str, str]]:
         ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
         ("Azioni", _actions_text(meeting) or meeting.next_steps),
+        ("Attività assegnate", _attivita_text(meeting)),
     ]
 
 
@@ -693,6 +714,15 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
         KickoffMeeting.objects.filter(pk=meeting.pk).update(
             minuta_inviata_at=meeting.minuta_inviata_at, minuta_firma=meeting.minuta_firma,
         )
+        # Chi aspettava la minuta per sapere delle sue attività riceve ora la notifica.
+        try:
+            from tasks.services.kickoff_avvio import avvisa_con_la_minuta
+
+            avvisa_con_la_minuta(meeting, actor=sent_by)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("Avviso attività con la minuta fallito (meeting=%s)", meeting.pk)
     return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 
 

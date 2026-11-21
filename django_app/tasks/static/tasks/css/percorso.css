@@ -107,27 +107,46 @@
 .kp-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
 .kp-actions .kp-right { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* ── Stepper del ciclo di vita (cross-form: Anagrafica → VRF → Attività) ─ */
+/* ── Stepper del ciclo di vita (cross-form: Anagrafica → VRF → Attività) ─
+   Tre passi collegati da una linea: numero, titolo e una riga che dice cosa
+   si fa. I passi fatti sono link (si torna indietro da qui). */
 .kp-steps {
-  display: flex; align-items: stretch; gap: 6px; margin-bottom: 16px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px;
+  list-style: none; margin: 0 0 16px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
 }
 .kp-step {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
-  color: var(--text-light); text-align: center;
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px;
+  color: var(--text-light);
 }
+.kp-step + .kp-step::before {
+  content: ""; flex: 0 1 56px; min-width: 14px; height: 2px; border-radius: 2px;
+  background: var(--border); margin-right: 4px;
+}
+.kp-step.is-done + .kp-step::before { background: var(--success); }
 .kp-step-badge {
-  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
   background: var(--surface); display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 800; flex-shrink: 0;
+  font-size: 12px; font-weight: 800; flex-shrink: 0;
 }
-.kp-step.is-active { color: var(--accent); background: var(--accent-light); }
-.kp-step.is-active .kp-step-badge { border-color: var(--accent); color: var(--accent); background: var(--surface); }
-.kp-step.is-done { color: var(--success); }
+.kp-step-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.kp-step-txt strong, .kp-step-link { font-size: 13px; font-weight: 700; color: inherit; }
+.kp-step-txt small { font-size: 11.5px; font-weight: 500; color: var(--text-light); }
+.kp-step-link { text-decoration: none; }
+.kp-step-link:hover, .kp-step-link:focus-visible { text-decoration: underline; }
+.kp-step.is-active { color: var(--text); }
+.kp-step.is-active .kp-step-badge {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+  box-shadow: 0 0 0 4px var(--accent-light);
+}
+.kp-step.is-done { color: var(--text-mid); }
 .kp-step.is-done .kp-step-badge { border-color: var(--success); background: var(--success); color: #fff; }
-@media (max-width: 620px) {
-  .kp-steps { flex-direction: column; }
+.kp-step.is-later .kp-step-badge { border-color: var(--warning); color: var(--warning); }
+.kp-step.is-later { color: var(--text-mid); }
+@media (max-width: 760px) {
+  .kp-steps { flex-direction: column; align-items: stretch; gap: 10px; }
+  .kp-step + .kp-step::before { display: none; }
+  .kp-step:not(.is-active) small { display: none; }
 }
 
 /* ── Responsive: rail orizzontale in cima ────────────────────────────── */
@@ -190,3 +209,468 @@
 }
 .kp-multipick.is-collapsed .kp-multipick-list,
 .kp-multipick.is-collapsed .kp-multipick-hint { display: none; }
+
+/* ===========================================================================
+   Nuovo kickoff / Modifica kickoff («kn-»): form a sinistra, riepilogo vivo a
+   destra, barra delle azioni sempre in vista. Additivo: gli altri percorsi
+   (incontro, corso e-learning) non usano queste classi. Solo token del tema.
+   =========================================================================== */
+.kn-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.kn-main { min-width: 0; }
+
+/* Le stazioni di questa pagina ospitano l'elenco a comparsa del team: niente ritaglio. */
+.kn-main .kp-station { overflow: visible; }
+.kn-main .kp-station-head { border-radius: 14px 14px 0 0; padding: 12px 18px; }
+.kn-tag {
+  margin-left: auto; flex-shrink: 0; padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: var(--text-light);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.kn-tag.is-req { color: var(--accent); border-color: var(--accent); }
+
+.kn-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kn-grid .col-2 { grid-column: span 2; }
+.kn-grid .col-4 { grid-column: 1 / -1; }
+.kn-full { grid-column: 1 / -1; }
+/* L'asterisco dell'obbligatorio non deve alzare l'etichetta rispetto alle vicine. */
+.kn-main .kp-field > label { line-height: 16px; }
+.kn-main .kp-req { line-height: 1; }
+.kn-main .kp-field.has-error input { border-color: var(--danger, #e53e3e); }
+.kn-msg { font-size: 12px; margin-top: 5px; color: var(--text-light); }
+.kn-msg[hidden] { display: none; }
+.kn-msg.is-err { color: var(--danger, #e53e3e); font-weight: 600; }
+.kn-msg.is-warn { color: var(--warning); font-weight: 600; }
+
+/* Oggetto: si compone dai campi sopra, perciò sta sotto di loro. */
+.kn-oggetto {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-alt, #f8fafc);
+}
+.kn-oggetto > span {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); white-space: nowrap;
+}
+.kn-oggetto input {
+  flex: 1; min-width: 0; font-weight: 600; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; font-family: inherit;
+}
+.kn-oggetto small { font-size: 11.5px; color: var(--text-light); white-space: nowrap; }
+
+/* Già esistente: stesso P/N, revisione e versione. */
+.kn-doppione {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px;
+  border: 1px solid var(--warning); border-radius: 10px; background: var(--warning-bg, #fffbeb);
+  color: var(--text); font-size: 13px;
+}
+.kn-doppione[hidden] { display: none; }
+.kn-doppione > div { flex: 1; min-width: 200px; }
+
+/* ── Team: un riquadro per ruolo, persone come etichette, elenco a comparsa ── */
+.kn-team { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.kn-role {
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; min-width: 0;
+  background: var(--surface); transition: border-color .15s, box-shadow .15s;
+}
+.kn-role:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.kn-role-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.kn-role-head strong { font-size: 13px; color: var(--text); }
+.kn-role-head .kn-tag { margin-left: 0; }
+.kn-role.is-ok .kn-tag.is-req { color: var(--success); border-color: var(--success); }
+.kn-me {
+  margin-left: auto; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid);
+  border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.kn-me:hover, .kn-me:focus-visible { border-color: var(--accent); color: var(--accent); }
+.kn-me[hidden] { display: none; }
+.kn-pick { position: relative; }
+.kn-pick-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.kn-pick-chips:empty { display: none; }
+.kn-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--accent-light);
+  color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 3px 6px 3px 10px; cursor: pointer;
+}
+.kn-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-chip b { font-weight: 700; color: var(--text-light); font-size: 14px; line-height: 1; }
+.kn-chip:hover b, .kn-chip:focus-visible b { color: var(--danger, #e53e3e); }
+.kn-pick-search {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.kn-pick-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+/* Senza JS l'elenco resta in pagina; con JS (is-js) diventa una tendina a comparsa. */
+.kn-pick-list {
+  max-height: 232px; overflow-y: auto; padding: 4px; margin-top: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.kn-pick.is-js .kn-pick-list {
+  display: none; position: absolute; z-index: 30; left: 0; right: 0; top: 100%;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+}
+.kn-pick.is-js.is-open .kn-pick-list { display: block; }
+.kn-pick-opt {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.kn-pick-opt:hover, .kn-pick-opt.is-cursor { background: var(--accent-light); }
+.kn-pick-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.kn-pick-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-pick-opt.is-hidden { display: none; }
+.kn-pick-empty { margin: 0; padding: 8px; font-size: 12px; color: var(--text-light); }
+.kn-pick-empty[hidden] { display: none; }
+
+/* ── Interruttore (impatto sulla sicurezza) ──────────────────────────── */
+.kn-switch {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.kn-switch input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; }
+.kn-switch small { font-weight: 400; color: var(--text-light); }
+.kn-switch:has(input:checked) { border-color: var(--warning); background: var(--warning-bg, #fffbeb); }
+
+/* ── Cosa serve (facoltativo, chiuso) ────────────────────────────────── */
+.kn-altro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.kn-altro > summary { padding: 13px 18px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text); }
+.kn-altro > summary small { font-weight: 400; color: var(--text-light); margin-left: 6px; }
+.kn-altro-body { padding: 0 18px 16px; }
+
+/* ── Riepilogo a lato ────────────────────────────────────────────────── */
+.kn-aside { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.kn-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .045);
+}
+.kn-card-eyebrow {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-light); margin: 0 0 8px;
+}
+.kn-anteprima-oggetto { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+.kn-anteprima-oggetto.is-empty { color: var(--text-light); font-weight: 500; font-style: italic; }
+.kn-dati { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; }
+.kn-dati dt { color: var(--text-light); }
+.kn-dati dd { margin: 0; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.kn-dati dd.is-empty { color: var(--text-light); font-weight: 400; }
+.kn-check { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.kn-check li { display: flex; align-items: center; gap: 8px; color: var(--text-mid); }
+.kn-check li::before {
+  content: ""; width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; box-sizing: border-box;
+  border: 2px solid var(--border); background: var(--surface);
+  display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #fff;
+}
+.kn-check li.is-ok { color: var(--text); }
+.kn-check li.is-ok::before { content: "✓"; border-color: var(--success); background: var(--success); }
+.kn-check-title { margin: 12px 0 6px; font-size: 12px; font-weight: 700; color: var(--text-mid); }
+.kn-check-title:first-of-type { margin-top: 0; }
+.kn-poi { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-mid); line-height: 1.5; }
+.kn-poi li + li { margin-top: 4px; }
+
+/* ── Barra delle azioni: resta in vista mentre si scorre ─────────────── */
+.kn-bar {
+  position: sticky; bottom: 8px; z-index: 20; margin-top: 16px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, .08);
+}
+.kn-bar-stato { flex: 1; min-width: 180px; font-size: 13px; color: var(--text-mid); }
+.kn-bar-stato strong { color: var(--text); }
+.kn-bar-stato.is-ko { color: var(--warning); font-weight: 600; }
+.kn-bar-azioni { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ── Come procedi: due strade ────────────────────────────────────────── */
+.cp-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cp-scelta {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 14px; align-content: start;
+  padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .045);
+}
+.cp-scelta:hover, .cp-scelta:focus-visible {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); transform: translateY(-1px);
+}
+.cp-icona {
+  grid-row: span 3; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-light); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.cp-icona svg { width: 24px; height: 24px; }
+.cp-scelta strong { font-size: 17px; align-self: center; }
+.cp-scelta p { margin: 0; color: var(--text-mid); font-size: 13.5px; line-height: 1.5; }
+.cp-scelta .cp-va { padding-top: 8px; font-weight: 700; color: var(--accent); }
+.cp-scelta .cp-conta { font-size: 12px; font-weight: 600; color: var(--text-light); }
+.cp-stato { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cp-dopo { font-size: 13px; color: var(--text-light); }
+.cp-avviso {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; font-size: 13px;
+  border: 1px solid var(--warning); border-radius: 10px; background: var(--warning-bg, #fffbeb); color: var(--text);
+}
+.cp-avviso > div { flex: 1; min-width: 200px; }
+
+@media (max-width: 1100px) {
+  /* Senza spazio a lato il riepilogo finirebbe sotto i pulsanti: cosa manca lo dice la barra. */
+  .kn-layout { grid-template-columns: minmax(0, 1fr); }
+  .kn-aside { display: none; }
+}
+@media (max-width: 760px) {
+  .kn-grid { grid-template-columns: minmax(0, 1fr); }
+  .kn-grid .col-2 { grid-column: 1 / -1; }
+  .kn-team { grid-template-columns: minmax(0, 1fr); }
+  .kn-oggetto { flex-wrap: wrap; }
+  .kn-oggetto small { display: none; }
+  .cp-scelte { grid-template-columns: minmax(0, 1fr); }
+  .kn-bar-azioni { width: 100%; }
+  .kn-bar-azioni .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-scelta, .kn-role { transition: none; }
+  .cp-scelta:hover, .cp-scelta:focus-visible { transform: none; }
+}
+
+/* ===========================================================================
+   Attività e incontro («ka-»): il terzo passo del kickoff in una pagina.
+   Righe attività con nota e collegamento, incontro, ordine del giorno, scelta
+   di quando avvisare. Riusa stazioni, riepilogo e barra («kp-», «kn-»).
+   =========================================================================== */
+.ka-head, .ka-row {
+  display: grid; gap: 8px; align-items: center;
+  grid-template-columns: 32px minmax(0, 2.2fr) minmax(0, 1.3fr) 140px 96px 32px 32px;
+}
+.ka-head {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); margin-bottom: 6px;
+}
+.ka-rows { display: flex; flex-direction: column; gap: 8px; }
+.ka-row { border-radius: 10px; transition: background .15s, box-shadow .15s; }
+.ka-row .input {
+  width: 100%; box-sizing: border-box; min-width: 0; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-row .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.ka-link, .ka-icona {
+  width: 32px; height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-light); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; padding: 0;
+}
+.ka-link svg, .ka-icona svg { width: 16px; height: 16px; }
+.ka-link { cursor: grab; }
+.ka-link:active { cursor: grabbing; }
+.ka-link:hover, .ka-icona:hover, .ka-link:focus-visible, .ka-icona:focus-visible { color: var(--accent); border-color: var(--accent); }
+.ka-icona.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+.ka-x:hover, .ka-x:focus-visible { color: var(--danger, #e53e3e); border-color: var(--danger, #e53e3e); }
+.ka-odg-btn {
+  height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-light); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.ka-odg-btn[aria-pressed="true"] { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.ka-odg-btn[aria-pressed="true"]::before { content: "✓ "; }
+.ka-odg-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ka-sotto { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; }
+.ka-sotto:not(:has(> :not([hidden]))) { display: none; }
+.ka-nota { resize: vertical; min-height: 54px; height: 54px; }
+.ka-nota[hidden] { display: none; }
+.ka-dopo {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 3px 6px 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: var(--accent-light); border: 1px solid var(--border); color: var(--text);
+}
+.ka-dopo[hidden] { display: none; }
+.ka-dopo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ka-dopo button { border: 0; background: none; color: var(--text-light); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.ka-dopo button:hover { color: var(--danger, #e53e3e); }
+/* Collegamento: la riga che si trascina e quella su cui si può lasciare. */
+.ka-row.is-trascinata { opacity: .55; }
+.ka-rows.is-scelta .ka-row:not(.is-origine) { cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.ka-rows.is-scelta .ka-row:not(.is-origine):hover, .ka-row.is-bersaglio { background: var(--accent-light); box-shadow: 0 0 0 2px var(--accent); }
+.ka-row.is-origine { box-shadow: 0 0 0 2px var(--accent); }
+.ka-piede { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.ka-piede .kp-help { margin: 0; font-size: 12px; }
+.ka-scegli {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 8px 12px; font-size: 13px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-light); color: var(--text);
+}
+.ka-scegli[hidden] { display: none; }
+.ka-scegli span { flex: 1; min-width: 180px; }
+.ka-gia { margin-top: 14px; font-size: 13px; color: var(--text-mid); }
+.ka-gia summary { cursor: pointer; font-weight: 700; color: var(--text); }
+.ka-gia ul { margin: 8px 0 0; padding-left: 18px; }
+.ka-gia li { margin: 2px 0; }
+
+.ka-seg { margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: 10px; padding: 3px; background: var(--surface); flex-shrink: 0; }
+.ka-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; font: inherit; font-weight: 700; font-size: 12.5px; color: var(--text-mid); cursor: pointer; }
+.ka-seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.ka-part { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.ka-etichetta { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); }
+.ka-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ka-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; border-radius: 999px;
+  background: var(--accent-light); border: 1px solid var(--border); font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.ka-chip small { font-weight: 500; color: var(--text-light); font-size: 11px; }
+.ka-chip button { border: 0; background: none; color: var(--text-light); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.ka-chip button:hover { color: var(--danger, #e53e3e); }
+.ka-chip.is-auto { background: var(--surface-alt, #f1f5f9); }
+.ka-part-add, .ka-modello {
+  width: auto; max-width: 280px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-tappe { margin-left: auto; flex-shrink: 0; }
+.ka-tappe[hidden] { display: none; }
+.ka-tappe:not([hidden]) + .ka-modello { margin-left: 0; }
+.ka-modello { margin-left: auto; }
+.ka-modello[hidden] { display: none; }
+.ka-vuoto {
+  margin: 0; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 10px;
+  background: var(--surface-alt, #f8fafc); color: var(--text-mid); font-size: 13px;
+}
+
+.ka-odg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ka-odg li {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: grab;
+}
+.ka-odg li.is-vuoto { display: block; border-style: dashed; color: var(--text-mid); font-size: 13px; cursor: default; }
+.ka-odg li.is-trascinata { opacity: .5; }
+.ka-odg li.is-bersaglio { box-shadow: 0 -3px 0 var(--accent); }
+.ka-odg-n {
+  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; background: var(--surface-alt, #f1f5f9); color: var(--text-mid); border: 1px solid var(--border);
+}
+.ka-odg-t { min-width: 0; }
+.ka-odg-t strong { font-size: 13.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.ka-odg-t div { font-size: 12px; color: var(--text-light); margin-top: 1px; }
+.ka-badge { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--accent-light); color: var(--accent); margin-right: 6px; }
+.ka-odg-mv { display: flex; gap: 4px; }
+.ka-odg-mv .ka-icona { width: 30px; height: 30px; }
+.ka-odg-mv .ka-icona:disabled { opacity: .35; cursor: default; }
+.ka-odg-add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.ka-odg-add .input {
+  flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+
+.ka-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ka-scelta {
+  position: relative; display: block; padding: 18px; border: 2px solid var(--border); border-radius: 14px;
+  background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s;
+}
+.ka-scelta input { position: absolute; opacity: 0; pointer-events: none; }
+.ka-scelta:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.ka-scelta:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ka-scelta:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.ka-scelta .cp-icona { margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); }
+.ka-scelta strong { display: block; font-size: 16px; color: var(--text); }
+.ka-scelta p { margin: 4px 0 0; color: var(--text-mid); font-size: 13px; line-height: 1.5; }
+.ka-punto { position: absolute; top: 16px; right: 16px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); box-sizing: border-box; }
+.ka-scelta:has(input:checked) .ka-punto { border: 6px solid var(--accent); }
+.ka-conv { margin-top: 14px; }
+.ka-conv[hidden] { display: none; }
+.ka-tabella { overflow-x: auto; }
+.ka-tabella table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; }
+.ka-tabella th {
+  text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.ka-tabella td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+.ka-tabella td.is-niente { color: var(--text-light); }
+.ka-errori ul { margin: 6px 0 0; padding-left: 18px; }
+.ka-riepilogo dd { text-align: right; }
+.ka-riepilogo dd.is-warn { color: var(--warning); }
+.ka-persone { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.ka-persone li { display: flex; justify-content: space-between; gap: 10px; color: var(--text); }
+.ka-persone span { color: var(--text-light); white-space: nowrap; }
+.ka-persone .is-vuoto { color: var(--text-light); }
+[data-ka-fase][hidden] { display: none; }
+.kn-bar [hidden] { display: none; }
+/* Le tendine lunghe diventano ricercabili (Tom Select): il bordo lo porta il suo controllo, non l'involucro. */
+.ka-row .ts-wrapper.input, .ts-wrapper.ka-part-add, .ts-wrapper.ka-modello { padding: 0; border: 0; background: none; }
+.ts-wrapper.ka-part-add { width: 280px; max-width: 100%; }
+
+@media (max-width: 760px) {
+  .ka-head { display: none; }
+  .ka-row { grid-template-columns: 32px minmax(0, 1fr) 32px 32px; padding-bottom: 10px; border-bottom: 1px solid var(--border); border-radius: 0; }
+  .ka-row > .ka-titolo { grid-column: 2; }
+  .ka-row > .ka-resp, .ka-row > .ka-scad, .ka-row > .ka-odg-btn { grid-column: 1 / -1; }
+  .ka-row > [data-ka-nota-btn] { grid-column: 3; grid-row: 1; }
+  .ka-row > .ka-x { grid-column: 4; grid-row: 1; }
+  .ka-sotto { grid-column: 1 / -1; }
+  .ka-seg { margin-left: 0; }
+  .ka-scelte { grid-template-columns: minmax(0, 1fr); }
+  .ka-odg li { grid-template-columns: 26px minmax(0, 1fr); }
+  .ka-odg-mv { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { .ka-row, .ka-scelta { transition: none; } }
+
+/* ===========================================================================
+   Pannello attività della commessa: striscia del tempo, aggiunta rapida,
+   stato e scadenza modificabili sul posto.
+   =========================================================================== */
+.ka-striscia { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.ka-striscia:empty { display: none; }
+.ka-striscia-testa { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.ka-striscia-testa h2 { margin: 0 6px 0 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.ka-striscia-leg { font-size: 12px; color: var(--text-mid); display: inline-flex; align-items: center; gap: 5px; }
+.ka-striscia-leg i { width: 12px; height: 8px; border-radius: 4px; background: var(--text-light); display: inline-block; }
+.ka-striscia-leg i.is-corso, .ka-striscia-barra.is-corso { background: var(--accent); }
+.ka-striscia-leg i.is-fatta, .ka-striscia-barra.is-fatta { background: var(--success); }
+.ka-striscia-leg i.is-ritardo, .ka-striscia-barra.is-ritardo { background: var(--danger, #e53e3e); }
+.ka-striscia-leg i.is-incontro { width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: var(--text); }
+.ka-striscia-piano { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
+.ka-striscia-piano:hover { text-decoration: underline; }
+.ka-striscia-scorri { overflow-x: auto; }
+.ka-striscia-corpo { min-width: 620px; --ka-nome: 170px; }
+.ka-striscia-settimane { position: relative; height: 18px; margin-left: var(--ka-nome); border-bottom: 1px solid var(--border); }
+.ka-striscia-settimane span {
+  position: absolute; top: 0; padding-left: 4px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-light); white-space: nowrap;
+}
+.ka-striscia-righe { position: relative; }
+.ka-striscia-tacca { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.ka-striscia-riga { display: grid; grid-template-columns: var(--ka-nome) minmax(0, 1fr); align-items: center; height: 26px; border-bottom: 1px dashed var(--border); position: relative; }
+.ka-striscia-riga:last-of-type { border-bottom: 0; }
+.ka-striscia-riga.is-evidenziata { background: var(--accent-light); }
+.ka-striscia-nome { font-size: 12.5px; color: var(--text-mid); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.ka-striscia-nome:hover { color: var(--accent); }
+.ka-striscia-pista { position: relative; height: 100%; }
+.ka-striscia-barra { position: absolute; top: 6px; height: 14px; border-radius: 7px; background: var(--text-light); min-width: 8px; }
+.ka-striscia-barra:hover, .ka-striscia-barra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ka-striscia-segni { position: absolute; top: 0; bottom: 0; left: var(--ka-nome); right: 0; pointer-events: none; }
+.ka-striscia-oggi { position: absolute; top: -4px; bottom: 0; width: 2px; background: var(--accent); }
+.ka-striscia-oggi::after {
+  content: "oggi"; position: absolute; top: -14px; left: -13px; padding: 0 2px; font-size: 10.5px; font-weight: 800;
+  color: var(--accent); background: var(--surface);
+}
+.ka-striscia-incontro { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--text); opacity: .55; pointer-events: auto; }
+.ka-striscia-incontro::before { content: ""; position: absolute; top: -5px; left: -6px; width: 9px; height: 9px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+.ka-striscia-nota { margin: 8px 0 0; font-size: 12px; color: var(--text-light); }
+
+.ka-rapida {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 160px auto; gap: 8px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface-alt, #f8fafc); border-radius: 14px 14px 0 0;
+}
+.ka-rapida .input {
+  width: 100%; box-sizing: border-box; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-rapida .ts-wrapper.input { padding: 0; border: 0; background: none; }
+.ka-fine {
+  width: 150px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px;
+  font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-fine.is-ritardo { border-color: var(--danger, #e53e3e); color: var(--danger, #e53e3e); font-weight: 700; }
+.ka-stato {
+  appearance: none; -webkit-appearance: none; min-width: 124px; padding: 5px 12px; border-radius: 999px; text-align: center;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-mid);
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.ka-stato.is-in_progress { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+.ka-stato.is-done { color: var(--success); border-color: var(--success); background: var(--success-bg, #ecfdf5); }
+.ka-fine:disabled, .ka-stato:disabled { opacity: .6; cursor: progress; }
+.ka-esito {
+  position: sticky; top: 8px; z-index: 25; margin-bottom: 12px; padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--success); background: var(--success-bg, #ecfdf5); color: var(--text);
+}
+.ka-esito.is-ko { border-color: var(--danger, #e53e3e); background: var(--danger-bg, #fef2f2); }
+.ka-esito[hidden] { display: none; }
+@media (max-width: 760px) {
+  .ka-rapida { grid-template-columns: minmax(0, 1fr); }
+  .ka-striscia-corpo { --ka-nome: 120px; }
+}

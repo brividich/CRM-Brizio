@@ -91,6 +91,11 @@ def project_quick_task(request, project_id: int):
         return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
 
     destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + "#riga-rapida"
+    # Dal pannello attività si torna al pannello (solo indirizzi interni del modulo).
+    ritorno = request.POST.get("next") or ""
+    if not (ritorno.startswith("/tasks/") and "//" not in ritorno):
+        ritorno = ""
+    destinazione = ritorno or destinazione
 
     def _data(nome):
         try:
@@ -127,7 +132,7 @@ def project_quick_task(request, project_id: int):
     })
     messages.success(request, f"Attività «{task.title}» aggiunta al piano.")
     # Il piano si scrive a raffica: il responsabile resta quello appena usato.
-    if assegnatario is not None:
+    if assegnatario is not None and not ritorno:
         destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + f"?resp={assegnatario.pk}#riga-rapida"
     return redirect(destinazione)
 
@@ -498,7 +503,21 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
     if form.is_valid():
         task = form.save(commit=False)
         from ..services.spostamenti import intercetta
+        from ..services.stato import allinea_avanzamento, errore_cambio_stato
 
+        if not can_manage_task(request, task):
+            # L'incaricato dal Gantt chiede solo uno spostamento di date: stato,
+            # avanzamento e priorità non passano da qui (per lo stato ha
+            # «Inizia / Fatta / Riapri»).
+            originale = Task.objects.only("status", "progress", "priority").get(pk=task.pk)
+            task.status, task.progress, task.priority = originale.status, originale.progress, originale.priority
+        else:
+            errore = errore_cambio_stato(request, task, before["status"], task.status)
+            if errore:
+                messages.error(request, errore)
+                task.status = before["status"]
+            else:
+                allinea_avanzamento(task, before["status"])
         if intercetta(request, task, before) is not None:
             messages.info(request, f"Spostamento di «{task.title}» inviato al capocommessa: le date cambiano quando lo approva.")
         task.save()

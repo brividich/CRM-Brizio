@@ -72,9 +72,10 @@
       {% endif %}
     </div>
 
-    <div class="kp-actions">
-      <a class="btn btn-secondary" href="{% url 'tasks:project_overview' project.id %}">Annulla</a>
-      <div class="kp-right">
+    <div class="kn-bar">
+      <div class="kn-bar-stato">Responsabile e scadenza sono facoltativi: si completano anche dopo.</div>
+      <div class="kn-bar-azioni">
+        <a class="btn btn-secondary" href="{% url 'tasks:project_pianifica' project.id %}">Annulla</a>
         <button type="submit" class="btn btn-secondary" name="poi" value="fine">Salva</button>
         <button type="submit" class="btn" name="poi" value="incontro">Salva e pianifica l'incontro &rarr;</button>
       </div>

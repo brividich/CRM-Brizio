@@ -67,7 +67,7 @@ SEZIONI: list[dict] = [
                 "I riquadri in alto contano le attività nel tuo perimetro: In scope, In corso, Da fare, Overdue (scadute e ancora aperte), Completate, Annullate.",
                 "«Prossimi incontri»: data, commessa e quanto manca.",
                 "«Incontri da gestire»: esito mai registrato per un incontro passato, minuta da approvare, problemi rimasti aperti, con il pulsante per farlo subito.",
-                "«Le mie azioni»: le azioni e i problemi a tuo nome, scaduti in testa.",
+                "«Le mie attività KICK-OFF»: le azioni e i problemi a tuo nome, scaduti in testa.",
                 "«Alert operativi»: attività non assegnate, senza data fine, in scadenza a 7 giorni, ferme da oltre 7 giorni; quante commesse sono Pronte, Quasi pronte, Non pronte.",
                 "«Le tue attività»: l'elenco, con «Le mie» o «Tutto lo scope» e i filtri «In corso» e «Overdue».",
             ]),
@@ -101,35 +101,49 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Il KICK-OFF è il catalogo delle nuove commesse e prende il posto della mail che si mandava al team "
                   "prima o dopo l'incontro. Il filo: dati della commessa → scheda VRF (compilata o rimandata) → "
-                  "pianificazione delle attività o dell'incontro."),
+                  "attività e incontro."),
             ("passi", [
                 "Premi «+ Nuovo kickoff».",
                 "«Di che pezzo si tratta»: «Cliente» è l'unico campo obbligatorio. Aggiungi P/N, «Descrizione pezzo» (il nome del pezzo), revisione e versione. Ogni campo propone i valori già usati negli altri kickoff: scrivi qualche lettera o clicca nel campo e scegli.",
-                "«Oggetto»: si compone da solo come «Cliente · P/N rev. X · Descrizione pezzo» (non c'è più il numero «KICK-OFF n»). Scrivilo solo se quella formula non basta.",
+                "«Oggetto» (sotto i campi del pezzo): si compone da solo come «Cliente · P/N rev. X · Descrizione pezzo» (non c'è più il numero «KICK-OFF n»). Scrivilo solo se quella formula non basta.",
+                "«Team»: un riquadro per ruolo. Clicca in «Cerca…», scrivi qualche lettera e scegli (frecce e Invio, o un clic); la persona diventa un'etichetta e × la toglie. «+ Io» aggiunge te. Ogni ruolo può avere più persone.",
                 "«Preventivo e dati di commessa»: preventivo, Esp, metodo di controllo, note (finiscono anche nella scheda VRF), impatto sulla sicurezza. Tutti facoltativi.",
-                "«Team»: cerca la persona nel riquadro di ogni ruolo e spuntala; × la toglie. Ogni ruolo può avere più persone.",
                 "«Cosa serve a questa commessa» (chiuso, facoltativo): tipo di commessa, consegna al cliente e tappe che servono.",
-                "Premi «Crea kickoff e passa alla VRF»: si apre la scheda VRF. La compili («Conferma e genera xlsx») o la rimandi («Prosegui e ricordami VRF»).",
-                "Si apre «Come procedi?»: scegli «Pianifica le attività» o «Pianifica un incontro».",
+                "A destra il riepilogo segue quello che scrivi: «Anteprima» dell'oggetto, «Per creare il kickoff» (Cliente, Almeno una persona del team) e «Per risultare pronto all'avvio» (Project manager, Capocommessa, Programmatore). La barra in fondo, sempre in vista, dice cosa manca.",
+                "Premi «Crea kickoff e passa alla VRF»: si apre la scheda VRF. La compili («Conferma e genera xlsx») o la rimandi («Prosegui e ricordami VRF»); anche qui i pulsanti restano in vista con il Totale Rischio.",
+                "Si apre «Attività e incontro»: attività, incontro e ordine del giorno in una pagina, poi la scelta di quando avvisare.",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
             ("ul", [
                 "Basta un referente del team per creare la commessa; per risultare pronta all'avvio servono Project manager, Capocommessa e Programmatore.",
                 "Revisione e versione valgono solo con un P/N.",
             ]),
-            ("nota", "Se P/N, revisione e versione corrispondono a un kickoff che esiste già, non ne nasce uno doppio: il portale apre quello esistente e lo dice con un messaggio."),
+            ("nota", "Se P/N, revisione e versione corrispondono a un kickoff che esiste già, non ne nasce uno doppio: il portale lo dice mentre scrivi (riquadro giallo con «Apri il kickoff»; il pulsante diventa «Riapri il kickoff esistente») e, proseguendo, apre quello esistente."),
+            ("p", "In alto i tre passi del percorso (Dati commessa e team → Scheda VRF → Attività o incontro): quelli già fatti sono link per tornare indietro."),
         ],
     },
     {
         "id": "come-procedi",
-        "titolo": "Come procedi: attività o incontro",
+        "titolo": "Attività e incontro",
         "blocchi": [
-            ("p", "Dopo la VRF il portale chiede come procedere. Non sempre un nuovo P/N ha bisogno di un incontro; le attività invece sì."),
-            ("def", [
-                ("Pianifica le attività", "chi fa cosa, entro quando se si sa. Alla fine puoi convocare l'incontro per confermarle."),
-                ("Pianifica un incontro", "la convocazione: dai punti dell'ordine del giorno assegni le attività ai responsabili. Se ci sono già attività pianificate, entrano nell'ordine del giorno da confermare."),
+            ("p", "Dopo la VRF si apre «Attività e incontro»: una pagina sola per scrivere chi fa cosa, convocare l'incontro e comporre l'ordine del giorno. Niente viene salvato o inviato prima di «Conferma»."),
+            ("passi", [
+                "«Attività»: una riga per attività, con «Responsabile» ed «Entro il» facoltativi. Invio sul titolo aggiunge una riga; «+ Altra attività» fa lo stesso.",
+                "Nota: il pulsante con il fumetto apre la nota della riga. Chi riceve l'attività la legge nella mail di assegnazione e nella minuta.",
+                "Collegare due attività: trascina l'anello dell'attività che viene dopo sopra quella che viene prima. In alternativa clicca l'anello e poi la riga che viene prima (Esc annulla). Sotto la riga compare «dopo …»; la × toglie il collegamento. È lo stesso legame del Piano.",
+                "«All'ODG»: acceso, l'attività entra nell'ordine del giorno dell'incontro, da confermare in riunione; spento, resta una semplice attività.",
+                "«Incontro»: «Con incontro» o «Senza incontro». Con l'incontro scegli data (obbligatoria), ora, durata, sala e partecipanti: il team è già dentro e chi riceve un'attività viene convocato da solo.",
+                "«Ordine del giorno»: contiene le attività «All'ODG» e le tappe del Percorso già impostate (assegnate, in corso o in ritardo). Le tappe ancora da assegnare sono facoltative: «+ Tappe del Percorso» le aggiunge. Aggiungi altri punti con «Aggiungi punto» o «Carica un modello…», ordinali trascinandoli o con le frecce, toglili con ×.",
+                "«Continua: come avvisare»: scegli «Invia subito le attività» (notifica e mail a ogni responsabile, con le note) oppure «Aspetta la minuta dell'incontro» (nessun avviso adesso: le attività partono con la minuta, nella sezione «Attività assegnate»). «Chi riceve cosa» mostra, persona per persona, cosa arriva adesso e cosa dopo l'incontro.",
+                "«Invia ora la convocazione ai partecipanti» manda subito la convocazione con data, sala e ordine del giorno; senza la spunta la invii dal dettaglio dell'incontro.",
+                "«Conferma»: nascono le attività e, se previsto, l'incontro. Con l'incontro si apre il suo dettaglio, altrimenti la Panoramica.",
             ]),
-            ("p", "La stessa pagina si riapre da «Come procedi?» (indirizzo /tasks/projects/<id>/come-procedi/); dalla panoramica ci sono anche «+ Pianifica attività» e «Nuovo incontro»."),
+            ("ul", [
+                "«Aspetta la minuta» è disponibile solo con un incontro.",
+                "Un'attività senza responsabile non avvisa nessuno: si assegna in riunione o dalla scheda.",
+                "Persone in copia, partecipanti esterni e invito Outlook si completano da «Modifica incontro».",
+                "«Decido dopo» porta alla Panoramica senza salvare; la pagina si riapre all'indirizzo /tasks/projects/<id>/come-procedi/. Per aggiungere attività a un kickoff già avviato c'è anche «+ Pianifica attività» nella Panoramica.",
+            ]),
         ],
     },
     {
@@ -172,7 +186,7 @@ SEZIONI: list[dict] = [
         "id": "panoramica",
         "titolo": "Panoramica e semaforo di prontezza",
         "blocchi": [
-            ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, attività aperte, attività a piano, le prossime attività e gli ultimi incontri."),
             ("p", "Con la data di consegna, in testata compare «Consegna gg/mm · tra N gg»; se un'attività aperta finisce dopo la consegna diventa «a rischio» e i «Prossimi passi» lo segnalano. Quando tutte le tappe sono a posto e non ci sono attività aperte, compare «Chiudi il kickoff»: il capocommessa scrive una nota (facoltativa) e la commessa passa a «Completata»; si può riaprire."),
             ("p", "In testa al Percorso: i filtri «Tutte», «Le mie», «In ritardo», «Da assegnare» (solo a video) e «Fissa il piano», che fotografa le date di adesso. Da lì ogni tappa mostra «+N gg sul piano» e il Percorso il ritardo complessivo; lo stesso piano vale nel Gantt (baseline)."),
             ("p", "Nell'anteprima della tappa e nel pannello «⋯», accanto al responsabile si vede quante attività aperte ha già nello stesso periodo: aiuta a non caricare sempre la stessa persona."),
@@ -284,9 +298,9 @@ SEZIONI: list[dict] = [
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "
                 "La data fine non può precedere la data inizio.",
                 "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale e una mail "
-                "(all'indirizzo di notifica dell'anagrafica) con il collegamento a «Le mie azioni». "
+                "(all'indirizzo di notifica dell'anagrafica) con il collegamento a «Le mie attività KICK-OFF». "
                 "Chi si assegna un'attività da solo non viene avvisato.",
-                "Il responsabile gestisce le sue attività da «Le mie azioni»: «Inizia» la porta In corso, «Fatta» la chiude, «Riapri» la riporta Da fare.",
+                "Il responsabile gestisce le sue attività da «Le mie attività KICK-OFF»: «Inizia» la porta In corso, «Fatta» la chiude, «Riapri» la riporta Da fare.",
                 "Ogni lunedì la mail «Scadenze KICK-OFF» elenca anche le attività scadute e quelle che scadono nei 7 giorni.",
                 "Se la persona ha altri impegni nello stesso periodo, il form completo lo segnala e «Se l'operatore ha altri impegni nello stesso periodo» decide cosa fare della priorità.",
                 "Portando un'attività a «Completata» l'avanzamento passa al 100%.",
@@ -307,7 +321,7 @@ SEZIONI: list[dict] = [
                 "Scegli il responsabile, «Inizio» (già su oggi) ed «Entro il» dal calendario, poi «Salva» o Invio. «Entro il» non può venire prima dell'inizio.",
                 "Mentre compili, sotto la riga compare subito se il responsabile è assente nel periodo e, per la macchina, quanti abilitati sono disponibili e quali manutenzioni o impegni ha.",
             ]),
-            ("p", "Ogni tappa assegnata è un'attività normale: chi la riceve ha la notifica e la mail, la trova in «Le mie azioni» e nel Gantt e la porta avanti con «Inizia» e «Fatta». Se la assegni dentro un incontro compare anche tra le «Attività di questo incontro». Programma CAM, Programma CMM e FAI creano anche la loro riga in «Codici, cartelle e schede FAI», dove si scrivono codice e percorso."),
+            ("p", "Ogni tappa assegnata è un'attività normale: chi la riceve ha la notifica e la mail, la trova in «Le mie attività KICK-OFF» e nel Gantt e la porta avanti con «Inizia» e «Fatta». Se la assegni dentro un incontro compare anche tra le «Attività di questo incontro». Programma CAM, Programma CMM e FAI creano anche la loro riga in «Codici, cartelle e schede FAI», dove si scrivono codice e percorso."),
             ("p", "Per la Macchina il riquadro controlla il periodo dall'inizio alla scadenza dell'attività (senza scadenza, due settimane): quanti abilitati operativi ha la macchina nella skill matrix e quanti sono disponibili, chi è assente (solo il periodo, mai il motivo; i nomi li vede solo chi può leggere la skill matrix), e gli impegni dell'asset: ordini di lavoro aperti, verifiche periodiche, ticket, altre attività sulla stessa macchina, carichi macchina."),
             ("def", [
                 ("Da assegnare", "nessuna attività per la tappa."),
@@ -330,7 +344,7 @@ SEZIONI: list[dict] = [
             ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
             ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
-                  "Vale anche al contrario: una riga di «Programmi e FAI» con un responsabile, aggiunta dalla commessa o dentro l'incontro, crea da sola l'attività del tipo che la richiede (per esempio «Programmazione CAM»), con lo stesso responsabile e la stessa data. Chi la riceve ha la notifica e la mail, la trova in «Le mie azioni», nel Gantt e tra le «Attività di questo incontro»; la porta avanti con «Inizia» e «Fatta» dalla scheda dell'attività, dove scrive anche codice e cartella. Una riga senza responsabile resta una semplice riga finché non la assegni. "
+                  "Vale anche al contrario: una riga di «Programmi e FAI» con un responsabile, aggiunta dalla commessa o dentro l'incontro, crea da sola l'attività del tipo che la richiede (per esempio «Programmazione CAM»), con lo stesso responsabile e la stessa data. Chi la riceve ha la notifica e la mail, la trova in «Le mie attività KICK-OFF», nel Gantt e tra le «Attività di questo incontro»; la porta avanti con «Inizia» e «Fatta» dalla scheda dell'attività, dove scrive anche codice e cartella. Una riga senza responsabile resta una semplice riga finché non la assegni. "
                   "Se l'attività si chiude senza programma, si può chiudere, ma la riga resta «Da inserire» nelle attività del responsabile. Se il programma viene cancellato, torna «Da inserire». Eliminare il tipo o togliere «Richiede» stacca le righe: quelle vuote spariscono, i programmi già inseriti e le righe assegnate in riunione restano. Una scheda FAI chiesta da un'attività ha lo stesso responsabile dell'attività. La voce di menu «Programmi» mostra tutti i programmi CAM e CMM, con filtri, ricerca ed esportazione CSV."),
             ("passi", [
                 "Scegli il tipo: «Programma CAM», «Programma CMM» o «FAI».",
@@ -341,7 +355,7 @@ SEZIONI: list[dict] = [
             ("img", (_IMG + "programmi_fai.jpg", "La scheda Programmi e FAI con la riga di inserimento")),
             ("ul", [
                 "Basta uno tra codice, percorso e responsabile: in riunione puoi assegnare «Programma CAM» a una persona, e il codice lo scrive poi lei con «Modifica».",
-                "Il responsabile riceve la notifica e trova la voce in «Le mie azioni» e in «Le mie attività» del portale. Con «Fatto» la chiude.",
+                "Il responsabile riceve la notifica e trova la voce in «Le mie attività KICK-OFF» e in «Le mie attività» del portale. Con «Fatto» la chiude.",
                 "Le lettere di unità come Y:\\ non si accettano, perché cambiano da PC a PC: serve il percorso di rete.",
                 "Cliccando un percorso di rete il portale lo copia. I browser non aprono direttamente le cartelle da una pagina web: premi Win+E, poi Ctrl+L, Ctrl+V e Invio.",
                 "«Modifica» è per chi gestisce la commessa e per il responsabile della riga; «Elimina» solo per chi gestisce la commessa. Il responsabile non può passare la riga a un altro.",
@@ -410,7 +424,7 @@ SEZIONI: list[dict] = [
         "titolo": "Pianificare e convocare un incontro",
         "blocchi": [
             ("passi", [
-                "Scheda «Incontri» della commessa, «+ Nuovo incontro», oppure «Pianifica un incontro» in «Come procedi?» o «Salva e pianifica l'incontro» dopo le attività.",
+                "Scheda «Incontri» della commessa, «+ Nuovo incontro», oppure la pagina «Attività e incontro» alla creazione del kickoff o «Salva e pianifica l'incontro» dopo le attività.",
                 "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; su «Dall'ordine del giorno» vale la somma dei punti, un'ora se non ce ne sono.",
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta: chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo.",
@@ -543,10 +557,10 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Un'azione o un problema restano voci dell'incontro; quando servono date e pianificazione vi si collega un'attività."),
             ("ul", [
-                "Il responsabile di un'azione o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie azioni», "
+                "Il responsabile di un'azione o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie attività KICK-OFF», "
                 "senza passare da chi gestisce la commessa.",
                 "Ogni problema, azione o decisione ricorda il punto dell'ordine del giorno da cui è nato: lo si vede come «punto N» "
-                "nel dettaglio, nell'esito e nel Registro azioni («Incontro 2 · punto 3 «Materiali»»).",
+                "nel dettaglio, nell'esito e nel Registro attività («Incontro 2 · punto 3 «Materiali»»).",
                 "Un problema o un'azione ancora aperti tornano come punto nel prossimo incontro e lì si chiudono in conduzione.",
                 "Se l'attività collegata viene completata, l'azione o il problema si chiudono da soli.",
                 "Il lunedì il promemoria KICK-OFF elenca le azioni e i problemi scaduti e quelli in scadenza nei 7 giorni.",
@@ -563,26 +577,30 @@ SEZIONI: list[dict] = [
     },
     {
         "id": "mie-azioni",
-        "titolo": "Le mie azioni",
+        "titolo": "Le mie attività KICK-OFF",
         "blocchi": [
-            ("p", "La pagina «Le mie azioni» raccoglie tutto quello di cui sei responsabile, su tutte le commesse che puoi vedere: "
+            ("p", "La pagina «Le mie attività KICK-OFF» raccoglie tutto quello di cui sei responsabile, su tutte le commesse che puoi vedere: "
                   "attività del piano, azioni e problemi degli incontri, programmi e FAI. È il punto dove chi riceve un'attività la gestisce; "
-                  "ci porta il pulsante della mail di assegnazione. Nella dashboard la colonna «Le mie azioni» mostra le prime, scadute in testa."),
+                  "ci porta il pulsante della mail di assegnazione. Nella dashboard la colonna «Le mie attività KICK-OFF» mostra le prime, scadute in testa."),
             ("ul", [
                 "Filtri: Aperte, Chiuse, Tutte; tipo (attività del piano, azioni, problemi, programmi e FAI); scadenza (Scadute, In scadenza entro 7 giorni, Senza scadenza); "
                 "commessa; ricerca nel testo.",
                 "Per le attività: «Inizia» la porta In corso, «Fatta» la chiude con avanzamento al 100%, «Riapri» la riporta Da fare. Il titolo apre la scheda, «Gantt» il piano della commessa.",
                 "«Fatta» o «Risolto» chiudono le azioni e i problemi, «Riapri» li riporta aperti.",
             ]),
-            ("img", (_IMG + "mie_azioni.jpg", "Le mie azioni")),
+            ("img", (_IMG + "mie_azioni.jpg", "Le mie attività KICK-OFF")),
         ],
     },
     {
         "id": "registro-azioni",
-        "titolo": "Registro azioni della commessa",
+        "titolo": "Registro attività della commessa",
         "blocchi": [
-            ("p", "Dalla scheda di commessa, «Azioni» mostra in un solo elenco problemi, azioni d'incontro, attività e sotto-attività."),
+            ("p", "Dalla scheda di commessa, «Attività» mostra in un solo elenco attività, sotto-attività e quanto deciso negli incontri (problemi e attività d'incontro)."),
             ("ul", [
+                "«Linea del tempo»: una barra per attività con data, «oggi» e gli incontri; la barra apre l'attività, «Apri il Piano» porta al Piano completo.",
+                "Prima riga, «Aggiungi un'attività e premi Invio»: titolo, responsabile e scadenza facoltativi, «Aggiungi».",
+                "Stato e scadenza di un'attività si cambiano dalla riga: «Da fare», «In corso», «Completata» e la data in «Scadenza». Li vede chi gestisce la commessa e l'incaricato sulle sue attività. Numeri, linea del tempo ed elenco si aggiornano subito.",
+                "Se gli spostamenti di data richiedono l'approvazione, la nuova scadenza dell'incaricato diventa una richiesta al capocommessa e il messaggio lo dice.",
                 "«Solo aperte» o «Includi chiuse».",
                 "Filtri per tipo, responsabile («Non assegnate» per quelle senza nessuno), scadenza e testo. "
                 "I riquadri in alto contano sempre tutto il registro, la tabella mostra il filtrato.",
@@ -656,9 +674,9 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
             ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
-            ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa e non la annulla. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie azioni» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
+            ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa, non la annulla e non riapre un'attività annullata (lo fa il capocommessa); una sua attività completata la riapre con «Riapri». Dal Gantt l'incaricato chiede solo lo spostamento delle date: stato e avanzamento non cambiano da lì. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie attività KICK-OFF» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
             ("p", "Spostamento date: chi lo chiede riceve l'esito in campanella e per mail; se ritira la richiesta, chi doveva decidere lo sa (campanella e mail)."),
-            ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie azioni») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
+            ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie attività KICK-OFF») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
             ("p", "Quando cambiano date, priorità, stato o responsabile di un incarico, ricevono la notifica (e la mail, se il flusso è acceso) l'incaricato e il capocommessa, o chi è scelto in «Poteri e avvisi». Chi perde un incarico riceve «Non sei più responsabile». Chi fa la modifica non viene avvisato."),
             ("def", [
                 ("Chi gestisce la commessa", "chi l'ha creata, chi ha i permessi di amministrazione del modulo e i ruoli con «Modifica tutto»: modifica dati e team, VRF, incontri, minute e piano."),

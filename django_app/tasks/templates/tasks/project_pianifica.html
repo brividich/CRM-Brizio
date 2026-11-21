@@ -1,23 +1,14 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#come-procedi{% endblock %}
 
 {% block tasks_shell_head %}
   {% include "tasks/_percorso_assets.html" %}
-  <style>
-    .cp-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .cp-scelta { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
-    .cp-scelta:hover, .cp-scelta:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-    .cp-scelta strong { font-size: 17px; }
-    .cp-scelta p { margin: 0; color: var(--text-mid); font-size: 13.5px; line-height: 1.5; }
-    .cp-scelta .cp-va { margin-top: auto; padding-top: 8px; font-weight: 700; color: var(--accent); }
-    .cp-stato { display: flex; flex-wrap: wrap; gap: 8px; }
-    @media (max-width: 760px) { .cp-scelte { grid-template-columns: minmax(0, 1fr); } }
-  </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Come procedi</span>{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività e incontro</span>{% endblock %}
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}Pianifica prima le attività o prima l'incontro: dall'uno passi all'altro.{% endblock %}
+{% block tasks_shell_subtitle %}Scrivi chi fa cosa, convoca l'incontro e componi l'ordine del giorno in una sola pagina. Alla fine decidi quando avvisare le persone.{% endblock %}
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
 {% endblock %}
@@ -26,23 +17,272 @@
 <div class="ts-stack">
   {% include "tasks/_percorso_lifecycle.html" with current="attivita" %}
 
-  <div class="cp-stato">
-    <span class="ts-hero-pill">VRF: {{ vrf.label }}</span>
-    <span class="ts-hero-pill">{{ attivita_totali }} attività{% if attivita_senza_responsabile %} · {{ attivita_senza_responsabile }} senza responsabile{% endif %}</span>
-    <span class="ts-hero-pill">{{ incontri }} incontr{{ incontri|pluralize:"o,i" }}</span>
+  {% if ka_errori %}
+  <div class="cp-avviso ka-errori" role="alert">
+    <div><strong>Non ho salvato niente.</strong>
+      <ul>{% for e in ka_errori %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
   </div>
+  {% endif %}
 
-  <div class="cp-scelte">
-    <a class="cp-scelta" href="{% url 'tasks:project_attivita_pianifica' project.id %}">
-      <strong>Pianifica le attività</strong>
-      <p>Chi fa cosa, entro quando se si sa. Una riga per attività. Alla fine puoi convocare l'incontro per confermarle.</p>
-      <span class="cp-va">Pianifica attività &rarr;</span>
-    </a>
-    <a class="cp-scelta" href="{% url 'tasks:project_meeting_create' project.id %}{% if attivita_totali %}?attivita=aperte{% endif %}">
-      <strong>Pianifica un incontro</strong>
-      <p>Data, sala, partecipanti e ordine del giorno. Dai punti dell'ordine del giorno assegni le attività ai responsabili{% if attivita_totali %}; le attività già pianificate entrano da confermare{% endif %}.</p>
-      <span class="cp-va">Pianifica incontro &rarr;</span>
-    </a>
+  {% if vrf_da_fare %}
+  <div class="cp-avviso" role="status">
+    <div><strong>Scheda VRF rimandata.</strong> Puoi pianificare lo stesso; il promemoria resta finché non la compili.</div>
+    <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_compile' project.id %}">Compila la VRF</a>
   </div>
+  {% endif %}
+
+  <form method="post" id="ka-form" novalidate data-avviso-uscita>
+    {% csrf_token %}
+    <input type="hidden" name="incontro" value="{% if ka_con_incontro %}1{% else %}0{% endif %}" data-ka-incontro>
+    <input type="hidden" name="odg_ordine" value="" data-ka-ordine>
+
+    <div class="kn-layout">
+      <div class="kn-main">
+
+        {# ── Primo tempo: attività, incontro, ordine del giorno ─────────── #}
+        <div class="kp-stations" data-ka-fase="compila">
+
+          <section class="kp-station" data-title="Attività">
+            <div class="kp-station-head">
+              <span class="kp-num">A</span>
+              <div class="kp-station-titles">
+                <h3>Attività</h3>
+                <p>Cosa, chi, entro quando. Responsabile e data si possono lasciare vuoti. Invio sul titolo aggiunge una riga.</p>
+              </div>
+            </div>
+            <div class="kp-body">
+              <div class="ka-head" aria-hidden="true"><span></span><span>Attività</span><span>Responsabile</span><span>Entro il</span><span>In riunione</span><span></span><span></span></div>
+              <div class="ka-rows" data-ka-rows data-avviso-conta>
+                {% for r in ka_righe %}
+                <div class="ka-row" data-ka-row data-chiave="{{ r.chiave }}">
+                  <input type="hidden" name="att_chiave" value="{{ r.chiave }}">
+                  <input type="hidden" name="att_odg" value="{% if r.odg %}1{% else %}0{% endif %}">
+                  <input type="hidden" name="att_dopo" value="{{ r.dopo }}">
+                  <button type="button" class="ka-link" data-ka-link draggable="true" title="Collega: trascina su un'altra attività (o clicca e poi scegli quella che viene prima)" aria-label="Collega a un'altra attività">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                  </button>
+                  <input class="input ka-titolo" type="text" name="att_titolo" maxlength="200" value="{{ r.titolo }}" placeholder="Cosa va fatto" aria-label="Attività">
+                  <select class="input ka-resp" name="att_resp" aria-label="Responsabile">
+                    <option value="">Da decidere</option>
+                    <optgroup label="Team della commessa">{% for p in ka_persone %}{% if p.team %}<option value="{{ p.id }}"{% if r.resp == p.id|stringformat:"s" %} selected{% endif %}>{{ p.nome }}</option>{% endif %}{% endfor %}</optgroup>
+                    <optgroup label="Altri">{% for p in ka_persone %}{% if not p.team %}<option value="{{ p.id }}"{% if r.resp == p.id|stringformat:"s" %} selected{% endif %}>{{ p.nome }}</option>{% endif %}{% endfor %}</optgroup>
+                  </select>
+                  <input class="input ka-scad" type="date" name="att_scadenza" value="{{ r.scadenza }}" aria-label="Entro il (facoltativo)">
+                  <button type="button" class="ka-odg-btn" data-ka-odg aria-pressed="{% if r.odg %}true{% else %}false{% endif %}" title="Porta questa attività nell'ordine del giorno, da confermare in riunione">All'ODG</button>
+                  <button type="button" class="ka-icona{% if r.nota %} is-on{% endif %}" data-ka-nota-btn title="Nota per chi riceve l'attività: finisce anche nella mail" aria-label="Nota" aria-expanded="{% if r.nota %}true{% else %}false{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>
+                  </button>
+                  <button type="button" class="ka-icona ka-x" data-ka-x title="Togli la riga" aria-label="Togli la riga">×</button>
+                  <div class="ka-sotto">
+                    <span class="ka-dopo" data-ka-dopo hidden><span data-ka-dopo-testo></span><button type="button" data-ka-scollega title="Togli il collegamento" aria-label="Togli il collegamento">×</button></span>
+                    <textarea class="input ka-nota" name="att_note" rows="2" maxlength="2000" placeholder="Nota per chi riceve l'attività (finisce anche nella mail)" aria-label="Nota"{% if not r.nota %} hidden{% endif %}>{{ r.nota }}</textarea>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {# Riga vuota da cui nascono le nuove: dentro <template> la tendina non viene inizializzata due volte. #}
+              <template data-ka-riga-modello>
+                <div class="ka-row" data-ka-row data-chiave="">
+                  <input type="hidden" name="att_chiave" value="">
+                  <input type="hidden" name="att_odg" value="1">
+                  <input type="hidden" name="att_dopo" value="">
+                  <button type="button" class="ka-link" data-ka-link draggable="true" title="Collega: trascina su un'altra attività (o clicca e poi scegli quella che viene prima)" aria-label="Collega a un'altra attività">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                  </button>
+                  <input class="input ka-titolo" type="text" name="att_titolo" maxlength="200" value="" placeholder="Cosa va fatto" aria-label="Attività">
+                  <select class="input ka-resp" name="att_resp" aria-label="Responsabile">
+                    <option value="">Da decidere</option>
+                    <optgroup label="Team della commessa">{% for p in ka_persone %}{% if p.team %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endif %}{% endfor %}</optgroup>
+                    <optgroup label="Altri">{% for p in ka_persone %}{% if not p.team %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endif %}{% endfor %}</optgroup>
+                  </select>
+                  <input class="input ka-scad" type="date" name="att_scadenza" value="" aria-label="Entro il (facoltativo)">
+                  <button type="button" class="ka-odg-btn" data-ka-odg aria-pressed="true" title="Porta questa attività nell'ordine del giorno, da confermare in riunione">All'ODG</button>
+                  <button type="button" class="ka-icona" data-ka-nota-btn title="Nota per chi riceve l'attività: finisce anche nella mail" aria-label="Nota" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>
+                  </button>
+                  <button type="button" class="ka-icona ka-x" data-ka-x title="Togli la riga" aria-label="Togli la riga">×</button>
+                  <div class="ka-sotto">
+                    <span class="ka-dopo" data-ka-dopo hidden><span data-ka-dopo-testo></span><button type="button" data-ka-scollega title="Togli il collegamento" aria-label="Togli il collegamento">×</button></span>
+                    <textarea class="input ka-nota" name="att_note" rows="2" maxlength="2000" placeholder="Nota per chi riceve l'attività (finisce anche nella mail)" aria-label="Nota" hidden></textarea>
+                  </div>
+                </div>
+              </template>
+              <div class="ka-piede">
+                <button type="button" class="btn btn-secondary btn-sm" data-ka-add>+ Altra attività</button>
+                <span class="kp-help">Per collegare due attività trascina <strong>l'anello</strong> di quella che viene dopo sopra quella che viene prima.</span>
+              </div>
+              <div class="ka-scegli" data-ka-scegli role="status" hidden>
+                <span>Scegli l'attività che viene <strong>prima</strong>: clicca la sua riga.</span>
+                <button type="button" class="btn btn-secondary btn-sm" data-ka-scegli-annulla>Annulla</button>
+              </div>
+
+              {% if ka_esistenti %}
+              <details class="ka-gia">
+                <summary>Già pianificate in questo kickoff ({{ ka_esistenti|length }})</summary>
+                <ul>
+                  {% for t in ka_esistenti %}
+                    <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
+                  {% endfor %}
+                </ul>
+              </details>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="kp-station" data-title="Incontro">
+            <div class="kp-station-head">
+              <span class="kp-num">B</span>
+              <div class="kp-station-titles">
+                <h3>Incontro</h3>
+                <p>Non ogni kickoff ne ha bisogno: le attività sì.</p>
+              </div>
+              <div class="ka-seg" role="group" aria-label="Incontro">
+                <button type="button" data-ka-seg="1" aria-pressed="{% if ka_con_incontro %}true{% else %}false{% endif %}">Con incontro</button>
+                <button type="button" data-ka-seg="0" aria-pressed="{% if ka_con_incontro %}false{% else %}true{% endif %}">Senza incontro</button>
+              </div>
+            </div>
+            <div class="kp-body" data-ka-incontro-si{% if not ka_con_incontro %} hidden{% endif %}>
+              <div class="kn-grid">
+                <div class="kp-field">
+                  <label for="ka-data">Data <span class="kp-req">*</span></label>
+                  <input class="input" type="date" id="ka-data" name="inc_data" value="{{ ka_incontro.data }}">
+                </div>
+                <div class="kp-field">
+                  <label for="ka-ora">Ora</label>
+                  <input class="input" type="time" id="ka-ora" name="inc_ora" value="{{ ka_incontro.ora }}">
+                </div>
+                <div class="kp-field">
+                  <label for="ka-durata">Durata</label>
+                  <select class="input" id="ka-durata" name="inc_durata">
+                    <option value="">Non indicata</option>
+                    {% for minuti, etichetta in ka_durate %}<option value="{{ minuti }}"{% if ka_incontro.durata == minuti|stringformat:"s" %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="kp-field">
+                  <label for="ka-sala">Sala</label>
+                  <select class="input" id="ka-sala" name="inc_sala">
+                    <option value="">Nessuna sala (online o altrove)</option>
+                    {% for sala in ka_sale %}<option value="{{ sala.pk }}"{% if ka_incontro.sala == sala.pk|stringformat:"s" %} selected{% endif %}>{{ sala.nome }}</option>{% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="ka-part">
+                <span class="ka-etichetta">Partecipanti</span>
+                <div class="ka-chips" data-ka-part>
+                  {% for p in ka_partecipanti %}
+                  <span class="ka-chip" data-ka-chip="{{ p.id }}"><input type="hidden" name="inc_part" value="{{ p.id }}">{{ p.nome }}{% if p.team %} <small>team</small>{% endif %}<button type="button" data-ka-chip-x title="Togli" aria-label="Togli {{ p.nome }}">×</button></span>
+                  {% endfor %}
+                </div>
+                <select class="input ka-part-add" data-ka-part-add aria-label="Aggiungi un partecipante">
+                  <option value="">+ Aggiungi una persona</option>
+                  {% for p in ka_persone %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                </select>
+              </div>
+              <p class="kp-help">Chi riceve un'attività viene convocato da solo. Persone in copia, esterni e invito Outlook si completano dopo, da «Modifica incontro».</p>
+            </div>
+            <div class="kp-body" data-ka-incontro-no{% if ka_con_incontro %} hidden{% endif %}>
+              <p class="ka-vuoto">Nessun incontro: le attività partono con l'avviso ai responsabili. Un incontro si può convocare anche più avanti, dalla commessa.</p>
+            </div>
+          </section>
+
+          <section class="kp-station" data-title="Ordine del giorno" data-ka-odg-card{% if not ka_con_incontro %} hidden{% endif %}>
+            <div class="kp-station-head">
+              <span class="kp-num">C</span>
+              <div class="kp-station-titles">
+                <h3>Ordine del giorno</h3>
+                <p>Entrano da sole le attività segnate «All'ODG» e le tappe del Percorso già impostate. Aggiungi gli altri punti e mettili in ordine: trascinali o usa le frecce.</p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm ka-tappe" data-ka-tappe hidden></button>
+              <select class="input ka-modello" data-ka-modello aria-label="Carica un modello di ordine del giorno" hidden>
+                <option value="">Carica un modello…</option>
+              </select>
+            </div>
+            <div class="kp-body" data-avviso-conta>
+              <ol class="ka-odg" data-ka-odg-lista></ol>
+              <div class="ka-odg-add">
+                <input class="input" type="text" data-ka-odg-nuovo data-kp-ignore maxlength="200" placeholder="Nuovo punto, es. Verifica disponibilità materiale" aria-label="Nuovo punto all'ordine del giorno">
+                <button type="button" class="btn btn-secondary" data-ka-odg-add>Aggiungi punto</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {# ── Secondo tempo: quando avvisare ──────────────────────────────── #}
+        <div class="kp-stations" data-ka-fase="invio">
+          <section class="kp-station">
+            <div class="kp-station-head">
+              <span class="kp-num">✉</span>
+              <div class="kp-station-titles">
+                <h3>Quando avvisi le persone?</h3>
+                <p>Le attività vengono salvate in ogni caso. Cambia solo il momento in cui i responsabili ricevono l'avviso.</p>
+              </div>
+            </div>
+            <div class="kp-body">
+              <div class="ka-scelte">
+                <label class="ka-scelta">
+                  <input type="radio" name="invio" value="subito"{% if ka_invio != "minuta" %} checked{% endif %}>
+                  <span class="ka-punto" aria-hidden="true"></span>
+                  <span class="cp-icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></span>
+                  <strong>Invia subito le attività</strong>
+                  <p>Ogni responsabile riceve ora la notifica e la mail con le sue attività e le note, e può cominciare.</p>
+                </label>
+                <label class="ka-scelta" data-ka-scelta-minuta>
+                  <input type="radio" name="invio" value="minuta"{% if ka_invio == "minuta" %} checked{% endif %}>
+                  <span class="ka-punto" aria-hidden="true"></span>
+                  <span class="cp-icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
+                  <strong>Aspetta la minuta dell'incontro</strong>
+                  <p>Nessun avviso adesso. Dopo l'incontro la minuta riporta le attività assegnate, con responsabile, scadenza e note. <span data-ka-minuta-nota></span></p>
+                </label>
+              </div>
+              <label class="kn-switch ka-conv" data-ka-conv><input type="checkbox" name="invia_convocazione"{% if ka_convocazione %} checked{% endif %}> Invia ora la convocazione ai partecipanti <small>con data, sala e ordine del giorno</small></label>
+            </div>
+          </section>
+
+          <section class="kp-station" data-ka-chi-card>
+            <div class="kp-station-head">
+              <div class="kp-station-titles">
+                <h3>Chi riceve cosa</h3>
+                <p>Si aggiorna con la tua scelta.</p>
+              </div>
+            </div>
+            <div class="kp-body ka-tabella">
+              <table data-fm-table-skip="1" data-table-enhanced="0">
+                <thead><tr><th>Persona</th><th>Adesso</th><th>Dopo l'incontro</th></tr></thead>
+                <tbody data-ka-chi></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="kn-bar">
+          <div class="kn-bar-stato" data-ka-stato aria-live="polite">Niente viene inviato prima della conferma.</div>
+          <div class="kn-bar-azioni">
+            <a class="btn btn-secondary" href="{% url 'tasks:project_overview' project.id %}" data-ka-annulla>Decido dopo</a>
+            <button type="button" class="btn btn-secondary" data-ka-torna hidden>&larr; Torna a modificare</button>
+            <button type="button" class="btn" data-ka-avanti hidden>Continua: come avvisare &rarr;</button>
+            <button type="submit" class="btn" data-ka-conferma>Conferma</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="kn-aside" aria-label="Riepilogo">
+        <div class="kn-card">
+          <p class="kn-card-eyebrow">Riepilogo</p>
+          <dl class="kn-dati ka-riepilogo" data-ka-riepilogo></dl>
+        </div>
+        <div class="kn-card">
+          <p class="kn-card-eyebrow">Persone coinvolte</p>
+          <ul class="ka-persone" data-ka-persone></ul>
+        </div>
+      </aside>
+    </div>
+  </form>
 </div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script id="ka-dati" type="application/json">{{ ka_dati_json|safe }}</script>
+<script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>
+<script src="{% static 'tasks/js/kickoff_avvio.js' %}?v=20261121b" defer></script>
 {% endblock %}

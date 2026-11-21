@@ -30,6 +30,7 @@ urlpatterns = [
         views.identity_suggest,
         name="identity_suggest",
     ),
+    path("tasks/projects/identity-check/", views.identity_check, name="identity_check"),
     path(
         "tasks/projects/<int:project_id>/azioni/",
         views.project_actions,

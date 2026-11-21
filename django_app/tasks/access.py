@@ -294,7 +294,7 @@ def _project_scope_filter_q(request) -> Q:
         | Q(meetings__partecipanti_utenti=user)
         | Q(meetings__created_by=user)
         # Chi riceve una voce da fare deve poter aprire la commessa: senza queste
-        # righe la voce assegnata non compariva né in «Le mie azioni» né altrove.
+        # righe la voce assegnata non compariva né in «Le mie attività KICK-OFF» né altrove.
         | Q(meeting_actions__assigned_to=user)
         | Q(meeting_issues__assigned_to=user)
         | Q(tech_refs__assigned_to=user)
@@ -543,7 +543,7 @@ def permessi_riga_gantt(request, task: Task, *, gestisce_progetto: bool) -> dict
         "date": gestisce,
         "stato": gestisce,
         "priorita": gestisce and can_set_task_priority(request, task, gestisce_progetto=gestisce_progetto),
-        # Senza permesso di modifica il responsabile cambia solo lo stato, come in «Le mie azioni».
+        # Senza permesso di modifica il responsabile cambia solo lo stato, come in «Le mie attività KICK-OFF».
         "solo_stato": (not gestisce) and task.assigned_to_id == uid and uid is not None,
     }
 

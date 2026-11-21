@@ -210,7 +210,7 @@ def _mie_voci(user, projects, today) -> list[dict]:
                 "scaduta": bool(item.due_date and item.due_date < today),
                 "url": url,
             })
-    # Stesse voci della pagina «Le mie azioni»: prima il riquadro contava solo
+    # Stesse voci della pagina «Le mie attività KICK-OFF»: prima il riquadro contava solo
     # azioni e problemi e «Tutte (N)» non tornava con la pagina.
     from .models import ProjectTechRef, Task, TaskStatus, TechRefStatus
     from .services.programmi import senza_attivita_aperta

@@ -2,7 +2,7 @@
 
 Arrivo materiali, programma CAM, programma CMM, macchina, terzista, processi
 speciali e FAI. Ogni tappa è un tipo attività (``TaskCategory.tappa``): assegnarla
-crea un'attività normale (Gantt, «Le mie azioni», mail), quindi non c'è un secondo
+crea un'attività normale (Gantt, «Le mie attività KICK-OFF», mail), quindi non c'è un secondo
 registro da tenere allineato. Una tappa che non serve si segna in
 ``Project.tappe_escluse``.
 

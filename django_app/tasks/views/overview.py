@@ -4,6 +4,7 @@ from __future__ import annotations
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 
 from ..access import (
@@ -96,6 +97,39 @@ def identity_suggest(request):
     return JsonResponse({"values": unici[:20]})
 
 
+def identity_check(request):
+    """Dice se P/N + revisione + versione corrispondono a un kickoff che esiste già.
+
+    Serve al form «Nuovo kickoff»: lo stesso controllo lo fa `ProjectKickoffForm`
+    al salvataggio (e riapre quel kickoff), qui l'utente lo sa mentre scrive.
+    Stesso ambito del form: solo i kickoff visibili a chi chiede.
+    """
+    permission_error = _json_permission_error(request)
+    if permission_error is not None:
+        return permission_error
+
+    part_number = _testo(request.GET.get("part_number"))
+    if not part_number:
+        return JsonResponse({"exists": False})
+    match = (
+        scoped_projects_queryset(request)
+        .filter(
+            part_number__iexact=part_number,
+            revisione__iexact=_testo(request.GET.get("revisione")),
+            versione__iexact=_testo(request.GET.get("versione")),
+        )
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+    if match is None:
+        return JsonResponse({"exists": False})
+    return JsonResponse({
+        "exists": True,
+        "name": match.name,
+        "url": reverse("tasks:project_overview", kwargs={"project_id": match.pk}),
+    })
+
+
 @task_permissions_required("tasks_view")
 def project_actions(request, project_id: int):
     """Mostra in un unico registro issue, attivita' e sotto-attivita'."""
@@ -124,6 +158,23 @@ def project_actions(request, project_id: int):
         {(row.owner_id, row.owner_label) for row in all_actions if row.owner_id},
         key=lambda pair: pair[1].casefold(),
     )
+    # Le attività si aggiornano sul posto (stato e scadenza): chi può lo decide
+    # il server, qui la pagina mostra i controlli solo a chi li può usare.
+    from django.utils import timezone
+
+    from ..access import can_manage_task
+    from ..forms import task_active_users_queryset
+    from ..services.striscia import striscia_commessa
+
+    gestisce = can_manage_project(request, project)
+    attivita = {t.pk: t for t in project.tasks.select_related("assigned_to", "project")}
+    righe = []
+    for row in actions:
+        task = attivita.get(row.obj_id) if row.origin == "task" else None
+        puo = bool(task) and task.status != TaskStatus.CANCELED and (
+            gestisce or task.assigned_to_id == request.user.id or can_manage_task(request, task)
+        )
+        righe.append({"voce": row, "task": task, "puo": puo})
     return render(
         request,
         "tasks/project_actions.html",
@@ -134,9 +185,20 @@ def project_actions(request, project_id: int):
                 project=project,
                 action_count=open_count,
             ),
-            "page_title": f"Registro azioni - {project.name}",
+            "page_title": f"Registro attività - {project.name}",
             "project": project,
             "actions": actions,
+            "righe": righe,
+            "striscia": striscia_commessa(project, timezone.localdate()),
+            "puo_aggiungere": gestisce and has_task_permission(request, "tasks_create"),
+            "persone": [
+                {"id": u.pk, "nome": (u.get_full_name() or u.get_username()).strip()}
+                for u in task_active_users_queryset()
+            ] if gestisce else [],
+            "stati_attivita": [
+                (TaskStatus.TODO, "Da fare", "reopen"), (TaskStatus.IN_PROGRESS, "In corso", "start"),
+                (TaskStatus.DONE, "Completata", "done"),
+            ],
             "filters": filters,
             "filters_active": any(filters.values()),
             "owners": owners,
