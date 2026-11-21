@@ -71,7 +71,9 @@ class PresaInCaricoTests(TasksBaseTestCase):
         pagina = self.client.get(reverse("tasks:mie_azioni"))
         self.assertContains(pagina, "Attività mia")
         self.assertNotContains(pagina, "Attività di altri")
-        self.assertContains(pagina, ">Inizia<")
+        # Stato dallo stesso controllo del registro della commessa («In corso» = prendi in carico).
+        self.assertContains(pagina, "data-ka-stato")
+        self.assertContains(pagina, 'value="start" data-stato="IN_PROGRESS"')
 
     def test_il_responsabile_la_prende_in_carico_e_la_chiude(self):
         task = self._task()

@@ -1,0 +1,108 @@
+{% load static %}
+{% comment %}
+Elenco unico delle attività (services/elenco.py): scheda «Attività» della commessa,
+«Le mie attività KICK-OFF» e dashboard. Parametri: elenco_gruppi, elenco_raggruppa,
+elenco_pagina, elenco_qs, elenco_qs_base, stati_attivita, puo_collegare,
+mostra_commessa, vuoto (testo quando non c'è niente).
+Le modifiche sul posto le gestisce static/tasks/js/pannello_attivita.js: il contenitore
+della pagina porta data-ka-pannello e data-csrf.
+{% endcomment %}
+<div class="ka-elenco-barra">
+  <span class="ka-etichetta">Raggruppa</span>
+  <div class="ka-seg" role="group" aria-label="Raggruppa l'elenco">
+    <a class="ka-seg-voce{% if not elenco_raggruppa %} is-on{% endif %}" href="?{{ elenco_qs_base }}">Nessuno</a>
+    <a class="ka-seg-voce{% if elenco_raggruppa == 'stato' %} is-on{% endif %}" href="?{{ elenco_qs_base }}{% if elenco_qs_base %}&amp;{% endif %}raggruppa=stato">Stato</a>
+    <a class="ka-seg-voce{% if elenco_raggruppa == 'responsabile' %} is-on{% endif %}" href="?{{ elenco_qs_base }}{% if elenco_qs_base %}&amp;{% endif %}raggruppa=responsabile">Responsabile</a>
+  </div>
+  <span class="ka-elenco-conta">{{ elenco_pagina.paginator.count }} vo{{ elenco_pagina.paginator.count|pluralize:"ce,ci" }}</span>
+</div>
+<div class="ka-scegli" data-ka-colleg-aiuto hidden><span>Clicca l'attività che viene prima (della stessa commessa).</span><button type="button" class="btn btn-secondary btn-sm" data-ka-colleg-annulla>Annulla</button></div>
+
+<div data-ka-live="righe">
+{% if elenco_pagina.paginator.count %}
+  <div class="tl-table-wrap">
+    <table class="tl-table ka-elenco" data-fm-table-skip="1">
+      <thead>
+        <tr>
+          <th class="ka-col-titolo">Attività</th>
+          {% if mostra_commessa %}<th>Commessa</th>{% endif %}
+          <th>Responsabile</th>
+          <th>Scadenza</th>
+          <th>Stato</th>
+          <th class="ka-col-menu" aria-label="Azioni"></th>
+        </tr>
+      </thead>
+      {% for gruppo in elenco_gruppi %}
+      <tbody>
+        {% if gruppo.etichetta %}<tr class="ka-gruppo"><th colspan="{% if mostra_commessa %}6{% else %}5{% endif %}">{{ gruppo.etichetta }} <span>{{ gruppo.righe|length }}</span></th></tr>{% endif %}
+        {% for r in gruppo.righe %}{% with task=r.task %}
+        <tr class="tl-row-clickable{% if r.in_ritardo %} status-overdue{% elif not r.aperta %} status-done{% endif %}" data-href="{{ r.url }}"{% if task %} data-ka-riga="{{ task.pk }}" data-progetto="{{ task.project_id|default:'' }}"{% endif %}>
+          <td>
+            <span class="ts-chip {{ r.chip }} ka-origine">{% if r.origine == "action" or r.origine == "azione" %}Attività d'incontro{% else %}{{ r.etichetta_origine }}{% endif %}</span>
+            <a class="tl-task-link" href="{{ r.url }}">{{ r.titolo }}</a>
+            {% if r.tech_ref %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=r.tech_ref %}</div>
+            {% elif r.sotto %}<div class="tl-task-desc">{{ r.sotto }}</div>{% endif %}
+            {% if task %}
+              <div class="ka-riga-extra">
+                {% for d in r.dopo %}
+                  <span class="ka-dopo">&#8627; dopo «<a href="{% url 'tasks:detail' d.task_id %}">{{ d.titolo }}</a>»{% if puo_collegare %}<button type="button" data-ka-scollega-riga data-url="{% url 'tasks:project_gantt_remove_dependency' task.project_id d.id %}" aria-label="Togli il collegamento con {{ d.titolo }}">&times;</button>{% endif %}</span>
+                {% endfor %}
+                {% if r.nota %}<span class="ka-riga-nota" title="{{ r.nota }}">{{ r.nota|truncatechars:110 }}</span>{% endif %}
+                {% if r.puo_nota %}<button type="button" class="ka-riga-btn" data-ka-nota-apri data-url="{% url 'tasks:task_nota' task.pk %}" data-nota="{{ r.nota }}">&#9998; {% if r.nota %}Nota{% else %}Aggiungi nota{% endif %}</button>{% endif %}
+                {% if puo_collegare and task.project_id and task.status != "CANCELED" %}<button type="button" class="ka-riga-btn" draggable="true" data-ka-colleg-riga data-url="{% url 'tasks:project_gantt_add_dependency' task.project_id %}" title="Clicca, poi scegli l'attività che viene prima (o trascina sopra di lei)">&#8627; Collega</button>{% endif %}
+              </div>
+            {% endif %}
+          </td>
+          {% if mostra_commessa %}<td>{% if r.progetto %}<a class="tl-ko-link" href="{% url 'tasks:project_actions' r.progetto.id %}">{{ r.progetto.name }}</a>{% if r.prontezza %}<div class="ka-prontezza">{% include "tasks/_readiness_badge.html" with readiness=r.prontezza %}</div>{% endif %}{% else %}&mdash;{% endif %}</td>{% endif %}
+          <td>{% if r.responsabile %}{{ r.responsabile }}{% else %}<span class="tl-ko-link">Non assegnata</span>{% endif %}</td>
+          <td>
+            {% if task and r.puo %}
+              <input class="input ka-fine{% if r.in_ritardo %} is-ritardo{% endif %}" type="date" value="{{ task.due_date|date:'Y-m-d' }}"
+                     data-ka-fine data-url="{% url 'tasks:task_azione_rapida' task.pk %}" data-inizio="{{ task.next_step_due|date:'Y-m-d' }}"
+                     data-prima="{{ task.due_date|date:'Y-m-d' }}"{% if r.chiede %} data-motivo{% endif %} aria-label="Scadenza di {{ r.titolo }}">
+            {% elif r.scadenza %}
+              <span class="tl-date{% if r.in_ritardo %} overdue{% endif %}">{{ r.scadenza|date:"d-m-Y" }}</span>
+            {% else %}
+              <span class="tl-date">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if task and r.puo %}
+              <select class="ka-stato is-{{ task.status|lower }}" data-ka-stato data-url="{% url 'tasks:mia_voce_stato' 'attivita' task.pk %}" data-prima="{{ task.status }}" data-no-search aria-label="Stato di {{ r.titolo }}">
+                {% for valore, etichetta, verbo in stati_attivita %}<option value="{{ verbo }}" data-stato="{{ valore }}"{% if task.status == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+              </select>
+            {% elif r.azione_stato %}
+              <form method="post" action="{{ r.azione_stato.url }}" class="ka-stato-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="{{ r.azione_stato.verbo }}">
+                <button type="submit" class="md-btn">{{ r.azione_stato.etichetta }}</button>
+              </form>
+            {% elif r.in_ritardo %}
+              <span class="ts-chip danger">In ritardo</span>
+            {% elif r.aperta %}
+              <span class="ts-chip ok">{{ r.stato }}</span>
+            {% else %}
+              <span class="ts-chip soft">{{ r.stato }}</span>
+            {% endif %}
+          </td>
+          <td class="ka-col-menu">{% if task and r.puo %}<button type="button" class="ar-btn" data-ar-task="{{ task.pk }}" aria-haspopup="dialog" aria-expanded="false" title="Sposta, cambia responsabile o priorità, annulla">&#8943;</button>{% endif %}</td>
+        </tr>
+        {% endwith %}{% endfor %}
+      </tbody>
+      {% endfor %}
+    </table>
+  </div>
+  {% if elenco_pagina.has_other_pages %}
+    <nav class="ka-pagine" aria-label="Pagine dell'elenco">
+      {% if elenco_pagina.has_previous %}<a href="?{{ elenco_qs }}{% if elenco_qs %}&amp;{% endif %}pagina={{ elenco_pagina.previous_page_number }}">&larr; Precedenti</a>{% endif %}
+      <span>Pagina {{ elenco_pagina.number }} di {{ elenco_pagina.paginator.num_pages }}</span>
+      {% if elenco_pagina.has_next %}<a href="?{{ elenco_qs }}{% if elenco_qs %}&amp;{% endif %}pagina={{ elenco_pagina.next_page_number }}">Successive &rarr;</a>{% endif %}
+    </nav>
+  {% endif %}
+{% else %}
+  <p class="ka-elenco-vuoto">{{ vuoto|default:"Nessuna attività." }}</p>
+{% endif %}
+</div>
+<script src="{% static 'tasks/js/azioni_rapide.js' %}?v=20261111" defer></script>
+<script src="{% static 'tasks/js/pannello_attivita.js' %}?v=20261121e" defer></script>

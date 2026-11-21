@@ -1,5 +1,6 @@
 {% extends "tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#dashboard{% endblock %}
+{% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 
 {% block tasks_shell_eyebrow %}
   {% if active_project %}
@@ -419,13 +420,13 @@
   </section>
   {% endif %}
 
-  <section class="ts-panel">
+  <section class="ts-panel" data-ka-pannello data-csrf="{{ csrf_token }}">
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">
           {% if showing_mine_default %}Le tue attivita{% else %}Tutte le attivita{% if is_scope_admin %} &middot; scope amministrativo{% endif %}{% endif %}
         </h2>
-        <p class="ts-panel-subtitle">{{ tasks|length }} risultati &mdash; ordine per scadenza e ultimo aggiornamento.</p>
+        <p class="ts-panel-subtitle">Ordine per scadenza e ultimo aggiornamento.</p>
       </div>
       <div class="ts-panel-meta">
         {% if is_scope_admin %}
@@ -495,80 +496,7 @@
         </form>
       </div>
 
-      {% if tasks %}
-        <div class="tl-table-wrap">
-          <table class="tl-table">
-            <thead>
-              <tr>
-                <th style="width:38%">Titolo</th>
-                <th>Stato</th>
-                <th>Priorita</th>
-                <th>Kickoff</th>
-                <th>Assegnato a</th>
-                <th>Scadenza</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for task in tasks %}
-                <tr class="status-{{ task.status|lower }}{% if task.is_overdue %} status-overdue{% endif %} tl-row-clickable" data-href="{% url 'tasks:detail' task.id %}">
-                  <td>
-                    <a class="tl-task-link" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
-                    {% if task.description %}<div class="tl-task-desc">{{ task.description|truncatechars:90 }}</div>{% endif %}
-                    {% if task.tags %}<div class="tl-tag" title="{{ task.tags }}">{{ task.tags }}</div>{% endif %}
-                  </td>
-                  <td>
-                    {% if task.is_overdue %}
-                      <span class="ts-badge danger">Scaduta</span>
-                    {% else %}
-                      <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-                    {% endif %}
-                  </td>
-                  <td><span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span></td>
-                  <td>
-                    {% if task.project %}
-                      <a class="tl-ko-link" href="{% url 'tasks:list' %}?project={{ task.project.id }}">{{ task.project.name }}</a>
-                      {% if task.project_readiness %}<div style="margin-top:4px;">{% include "tasks/_readiness_badge.html" with readiness=task.project_readiness %}</div>{% endif %}
-                    {% else %}
-                      <span style="color:var(--text-light);font-size:12px;">&mdash;</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if task.assigned_to %}
-                      <div class="tl-assignee">
-                        <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
-                        <span class="tl-assignee-name">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
-                      </div>
-                    {% else %}
-                      <span style="color:var(--text-light);font-size:12px;">&mdash;</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if task.due_date %}
-                      <span class="tl-date {% if task.is_overdue %}overdue{% endif %}">{{ task.due_date|date:"d-m-Y" }}</span>
-                    {% else %}
-                      <span style="color:var(--text-light);font-size:12px;">&mdash;</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="ts-empty">
-          <strong>Nessuna attivita per i filtri selezionati.</strong>
-          <div>Prova a ripulire i filtri o cambia scorciatoia di navigazione.</div>
-          <div class="ts-actions">
-            <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}">Reset filtri</a>
-            {% if is_scope_admin %}
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le attività</a>
-            {% endif %}
-            {% if can_create %}
-              <a class="btn btn-sm" href="{% url 'tasks:project_list' %}">Vai ai kickoff</a>
-            {% endif %}
-          </div>
-        </div>
-      {% endif %}
+      {% include "tasks/_elenco_attivita.html" with mostra_commessa=True vuoto="Nessuna attività per i filtri selezionati: prova a ripulire i filtri." %}
     </div>
   </section>
 

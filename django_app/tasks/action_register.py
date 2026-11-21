@@ -25,6 +25,8 @@ class ActionRow:
     source_label: str
     url: str
     owner_id: int | None = None
+    # Attività che aspettano la minuta per avvisare il responsabile (passo «Attività e incontro»).
+    da_confermare: bool = False
 
 
 def _owner_label(user) -> str:
@@ -154,6 +156,7 @@ def _collect_tasks(project, *, include_closed: bool) -> list[ActionRow]:
             is_overdue=task.is_overdue,
             source_label="Attivita",
             url=reverse("tasks:detail", args=[task.pk]),
+            da_confermare=bool((task.extra_data or {}).get("avviso_con_minuta")),
         )
         for task in queryset
     ]
@@ -239,14 +242,26 @@ ACTION_ORIGIN_CHOICES = (
 
 def filter_action_rows(
     rows: list[ActionRow], *, tipo: str = "", responsabile: str = "", scadenza: str = "", q: str = "",
-    stato: str = "",
+    stato: str = "", vista: str = "", utente_id: int | None = None,
 ) -> list[ActionRow]:
     """Filtri del registro: stato (aperte/chiuse), tipo, responsabile («nessuno» = non
-    assegnate), scadenza, testo. Le tessere KPI del registro contano con questa stessa funzione."""
+    assegnate), scadenza, testo. Le tessere KPI del registro contano con questa stessa funzione.
+
+    ``vista`` = pulsanti sopra l'elenco: «mie» (assegnate a ``utente_id``), «ritardo»,
+    «da_confermare» (aspettano la minuta per avvisare), «senza_responsabile».
+    """
     from datetime import timedelta
 
     today = timezone.localdate()
     out = rows
+    if vista == "mie":
+        out = [row for row in out if utente_id and row.owner_id == utente_id]
+    elif vista == "ritardo":
+        out = [row for row in out if row.is_overdue]
+    elif vista == "da_confermare":
+        out = [row for row in out if row.da_confermare]
+    elif vista == "senza_responsabile":
+        out = [row for row in out if row.is_open and not row.owner_id]
     if stato == "aperte":
         out = [row for row in out if row.is_open]
     elif stato == "chiuse":

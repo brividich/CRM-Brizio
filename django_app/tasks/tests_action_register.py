@@ -321,8 +321,8 @@ class ProjectActionsViewTests(TasksBaseTestCase):
             # Pannello attività: attività con incaricato (1, riusate dalla
             # striscia), incontri della striscia (1), persone per l'aggiunta
             # rapida (1), controlli di gestione e permesso (2), impostazioni
-            # degli spostamenti per il motivo obbligatorio (1).
-            with self.assertNumQueries(11):
+            # degli spostamenti per il motivo (1), collegamenti delle righe (1).
+            with self.assertNumQueries(12):
                 response = project_actions(request, project_id=self.project.pk)
 
         self.assertEqual(response.status_code, 200)

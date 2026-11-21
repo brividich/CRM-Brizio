@@ -222,16 +222,29 @@ def task_list(request):
         )
 
     tasks = list(tasks)
+    contesto_elenco = {}
     if not active_project:
-        proj_ids = {t.project_id for t in tasks if getattr(t, "project_id", None)}
+        # Stesso elenco del registro della commessa, a pagine: la prontezza
+        # si calcola solo per le commesse della pagina mostrata.
+        from ..services import elenco
+
+        pagina, querystring = elenco.impagina(request, tasks)
+        proj_ids = {t.project_id for t in pagina.object_list if getattr(t, "project_id", None)}
         rmap = {}
         if proj_ids:
             rmap = {
                 p.id: compute_project_readiness(p)
                 for p in annotate_readiness_qs(Project.objects.filter(id__in=proj_ids))
             }
-        for t in tasks:
-            t.project_readiness = rmap.get(getattr(t, "project_id", None))
+        righe = []
+        for t in pagina.object_list:
+            r = elenco.riga_da_task(t, request=request)
+            r["prontezza"] = rmap.get(getattr(t, "project_id", None))
+            righe.append(r)
+        contesto_elenco = elenco.contesto_elenco(
+            request, righe, per=(request.GET.get("raggruppa") or "").strip(),
+            elenco_pagina=pagina, elenco_qs=querystring, puo_collegare=False,
+        )
 
     # Segnalazioni incontri (prossimi / da gestire): personali per default,
     # allargate a tutto lo scope per chi amministra il modulo.
@@ -267,6 +280,7 @@ def task_list(request):
             "active_project_readiness": active_project_readiness,
             "readiness_summary": readiness_summary_ctx,
             "done_pct": done_pct,
+            **contesto_elenco,
         },
     )
 
@@ -446,6 +460,8 @@ def task_nota(request, task_id: int):
     """Nota dell'attività (Task.description): la firma «Dall'incontro #n» resta in testa."""
     task = get_object_or_404(scoped_tasks_queryset(request), pk=task_id)
     if not can_manage_task(request, task):
+        if "application/json" in request.headers.get("Accept", ""):
+            return JsonResponse({"ok": False, "reason": "La nota la cambia chi gestisce l'attività."}, status=403)
         return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
     firma = _firma_incontro(task)
     nota = (request.POST.get("nota") or "").strip()
@@ -458,7 +474,10 @@ def task_nota(request, task_id: int):
             "changes": {"description": {"from": prima, "to": nuova}},
         })
         log_action(request, "kickoff_nota_attivita", "tasks", {"task_id": task.pk})
-        messages.success(request, "Nota salvata.")
+        if "application/json" not in request.headers.get("Accept", ""):
+            messages.success(request, "Nota salvata.")
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({"ok": True, "messaggio": "Nota salvata."})
     return redirect(reverse("tasks:detail", kwargs={"task_id": task.pk}) + "#nota")
 
 

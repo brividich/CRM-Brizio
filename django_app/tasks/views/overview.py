@@ -146,6 +146,7 @@ def project_actions(request, project_id: int):
 
     # Filtri: i KPI restano sull'intero registro, la tabella mostra il filtrato.
     stato = (request.GET.get("stato") or "").strip()
+    vista = (request.GET.get("vista") or "").strip()
     filters = {
         "stato": stato if stato in {"aperte", "chiuse"} else "",
         "tipo": (request.GET.get("tipo") or "").strip(),
@@ -153,29 +154,39 @@ def project_actions(request, project_id: int):
         "scadenza": (request.GET.get("scadenza") or "").strip(),
         "q": (request.GET.get("q") or "").strip(),
     }
-    actions = filter_action_rows(all_actions, **filters)
+    vista = vista if vista in {"mie", "ritardo", "da_confermare", "senza_responsabile"} else ""
+    actions = filter_action_rows(all_actions, **filters, vista=vista, utente_id=request.user.id)
     owners = sorted(
         {(row.owner_id, row.owner_label) for row in all_actions if row.owner_id},
         key=lambda pair: pair[1].casefold(),
     )
-    # Le attività si aggiornano sul posto (stato e scadenza): chi può lo decide
-    # il server, qui la pagina mostra i controlli solo a chi li può usare.
-    from ..access import can_manage_task, puo_spostare_subito
+    # Le attività si aggiornano sul posto (stato, scadenza, nota, collegamenti):
+    # chi può lo decide il server, qui la pagina mostra i controlli solo a chi li può usare.
+    from ..access import can_manage_task
     from ..forms import task_active_users_queryset
+    from ..services import elenco
     from ..services.striscia import striscia_commessa
 
     gestisce = can_manage_project(request, project)
     elenco_attivita = list(project.tasks.select_related("assigned_to", "project"))
     attivita = {t.pk: t for t in elenco_attivita}
-    # Dipende solo dalla commessa: chi non sposta subito chiede, con il motivo.
-    sposta_subito = puo_spostare_subito(request, elenco_attivita[0]) if elenco_attivita else True
+    pagina, querystring = elenco.impagina(request, actions)
     righe = []
-    for row in actions:
+    for row in pagina.object_list:
         task = attivita.get(row.obj_id) if row.origin == "task" else None
-        puo = bool(task) and task.status != TaskStatus.CANCELED and (
-            gestisce or task.assigned_to_id == request.user.id or can_manage_task(request, task)
-        )
-        righe.append({"voce": row, "task": task, "puo": puo})
+        if task is not None:
+            r = elenco.riga_da_task(
+                task, request=request, progetto=False,
+                puo_gestire=gestisce or can_manage_task(request, task),
+            )
+        else:
+            r = elenco.riga(
+                origine=row.origin, titolo=row.title, url=row.url, responsabile=row.owner_label,
+                responsabile_id=row.owner_id, scadenza=row.due_date, aperta=row.is_open,
+                in_ritardo=row.is_overdue, sotto=row.source_label,
+            )
+        righe.append(r)
+    raggruppa = (request.GET.get("raggruppa") or "").strip()
     return render(
         request,
         "tasks/project_actions.html",
@@ -189,20 +200,23 @@ def project_actions(request, project_id: int):
             "page_title": f"Registro attività - {project.name}",
             "project": project,
             "actions": actions,
-            "righe": righe,
-            "sposta_subito": sposta_subito,
+            **elenco.contesto_elenco(
+                request, righe, per=raggruppa,
+                elenco_pagina=pagina, elenco_qs=querystring, puo_collegare=gestisce,
+            ),
             "striscia": striscia_commessa(project, timezone.localdate(), tasks=elenco_attivita),
             "puo_aggiungere": gestisce and has_task_permission(request, "tasks_create"),
             "persone": [
                 {"id": u.pk, "nome": (u.get_full_name() or u.get_username()).strip()}
                 for u in task_active_users_queryset()
             ] if gestisce else [],
-            "stati_attivita": [
-                (TaskStatus.TODO, "Da fare", "reopen"), (TaskStatus.IN_PROGRESS, "In corso", "start"),
-                (TaskStatus.DONE, "Completata", "done"),
-            ],
             "filters": filters,
-            "filters_active": any(filters.values()),
+            "vista": vista,
+            "viste": [
+                ("", "Tutte"), ("mie", "Le mie"), ("ritardo", "In ritardo"),
+                ("da_confermare", "Da confermare"), ("senza_responsabile", "Senza responsabile"),
+            ],
+            "filters_active": any(filters.values()) or bool(vista),
             "owners": owners,
             "tipo_choices": ACTION_ORIGIN_CHOICES,
             "include_closed": include_closed,
