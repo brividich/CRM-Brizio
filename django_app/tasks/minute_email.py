@@ -359,12 +359,17 @@ def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, st
     facts = _facts(meeting)
     sections = _minute_sections(meeting)
 
-    html_parts = [email_facts_table(facts)]
+    from tasks.minute_html import corpo_minuta
+
+    # HTML a sezioni (testata, presenze, punti, decisioni, problemi, attività); il testo resta per i client senza HTML.
+    html_parts = [corpo_minuta(
+        meeting, note_generali=note_generali(meeting),
+        testo_storico=[("Ordine del giorno", meeting.ordine_del_giorno), ("Verbale / Note", meeting.note)],
+    )]
     text_parts = [f"{k}: {v}" for k, v in facts]
-    sec_html, sec_text = _sections_html_text(meeting, sections)
-    html_parts += sec_html
+    _sec_html, sec_text = _sections_html_text(meeting, sections)
     text_parts += sec_text
-    html_parts.append(_cta(meeting, "Apri incontro sul portale"))
+    html_parts.append('<div style="height:22px"></div>' + _cta(meeting, "Apri incontro sul portale"))
 
     return subject, "\n".join(text_parts), "".join(html_parts)
 

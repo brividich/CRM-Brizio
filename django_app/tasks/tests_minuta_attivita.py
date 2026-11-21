@@ -90,3 +90,33 @@ class OrdineDelGiornoSenzaTempiTests(TasksBaseTestCase):
         pagina = self.client.get(reverse("tasks:project_meeting_edit", args=[self.project.pk, self.meeting.pk]))
         self.assertNotContains(pagina, "new-agenda-durata")
         self.assertNotContains(pagina, "Durata stimata")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MinutaHtmlTests(TasksBaseTestCase):
+    """La mail della minuta è a sezioni: punti con stato, attività con responsabile, testi escapati."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        self.pm = _create_user_with_legacy(username="mh-pm", legacy_user_id=601, role_id=2, role_name="tasks")
+        self.project = make_project(name="Commessa html", created_by=self.pm, project_manager=self.pm)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data=date(2026, 11, 21), titolo="Avanzamento",
+            agenda_items=[
+                {"id": "p1", "titolo": "Stato <CAM>", "done": True, "nota": "Prove giovedì"},
+                {"id": "p2", "titolo": "Controllo", "done": False},
+            ],
+        )
+        MeetingActionItem.objects.create(project=self.project, source_meeting=self.meeting, title="Chiedere la tolleranza")
+
+    def test_sezioni_e_stati(self):
+        _oggetto, _testo, html = build_minute_email(self.meeting)
+        self.assertIn("Sabato 21/11/2026", html)
+        self.assertIn("1 su 2 trattati", html)
+        self.assertIn("Trattato", html)
+        self.assertIn("Non trattato", html)
+        self.assertIn("Responsabile da decidere", html)
+        self.assertIn("Stato &lt;CAM&gt;", html)
+        self.assertNotIn("Stato <CAM>", html)
+        self.assertNotIn("- Chiedere la tolleranza", html)
