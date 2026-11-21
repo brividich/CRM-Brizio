@@ -129,7 +129,9 @@ def _contesto_avvio(request, project, *, post=None, errori=None) -> dict:
         partecipanti = {int(v) for v in post.getlist("inc_part") if v.isdigit()}
         invio, convocazione = post.get("invio") or "subito", bool(post.get("invia_convocazione"))
     else:
-        ordine = [{"pre": i} for i in range(len(proposti))]
+        # Entrano da sole solo le tappe già impostate (con un'attività: assegnate, in
+        # corso, in ritardo). Quelle ancora da assegnare si aggiungono con un clic.
+        ordine = [{"pre": i} for i, p in enumerate(proposti) if p.get("task_id")]
         con_incontro = True
         incontro = {"data": timezone.localdate().isoformat(), "ora": "", "durata": "", "sala": ""}
         partecipanti = set(team)

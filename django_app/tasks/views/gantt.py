@@ -91,6 +91,11 @@ def project_quick_task(request, project_id: int):
         return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
 
     destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + "#riga-rapida"
+    # Dal pannello attività si torna al pannello (solo indirizzi interni del modulo).
+    ritorno = request.POST.get("next") or ""
+    if not (ritorno.startswith("/tasks/") and "//" not in ritorno):
+        ritorno = ""
+    destinazione = ritorno or destinazione
 
     def _data(nome):
         try:
@@ -127,7 +132,7 @@ def project_quick_task(request, project_id: int):
     })
     messages.success(request, f"Attività «{task.title}» aggiunta al piano.")
     # Il piano si scrive a raffica: il responsabile resta quello appena usato.
-    if assegnatario is not None:
+    if assegnatario is not None and not ritorno:
         destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + f"?resp={assegnatario.pk}#riga-rapida"
     return redirect(destinazione)
 

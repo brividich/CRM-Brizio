@@ -300,7 +300,7 @@
           (a.resp && persone[a.resp] ? persone[a.resp].nome : 'Responsabile da decidere') + (a.scadenza ? ' · entro ' + dataIt(a.scadenza) : '') + ' · da confermare'];
       } else if ('pre' in v) {
         titolo = proposti[v.pre];
-        sotto = ['Proposto dal Percorso della commessa'];
+        sotto = ['Tappa del Percorso della commessa'];
       } else {
         titolo = v.punto;
         sotto = ['Punto di discussione'];
@@ -364,6 +364,24 @@
   }
   q('[data-ka-odg-add]').addEventListener('click', daCampoNuovo);
   nuovoPunto.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); daCampoNuovo(); } });
+  /* Tappe del Percorso ancora da assegnare: facoltative, si aggiungono con un clic. */
+  var tappe = q('[data-ka-tappe]');
+  function tappeMancanti() {
+    var presenti = {};
+    ordine.forEach(function (v) { if ('pre' in v) presenti[v.pre] = true; });
+    return proposti.map(function (_t, i) { return i; }).filter(function (i) { return !presenti[i]; });
+  }
+  function disegnaTappe() {
+    var n = tappeMancanti().length;
+    tappe.hidden = n === 0;
+    tappe.textContent = '+ Tappe del Percorso (' + n + ')';
+    tappe.title = 'Aggiungi all\'ordine del giorno le tappe del Percorso non ancora presenti';
+  }
+  tappe.addEventListener('click', function () {
+    tappeMancanti().forEach(function (i) { ordine.push({ pre: i }); });
+    segnaModifica();
+    aggiorna();
+  });
   var modello = q('[data-ka-modello]');
   (dati.modelli || []).forEach(function (m, i) {
     if (m.punti && m.punti.length) modello.appendChild(el('option', { value: i, text: m.nome + ' (' + m.punti.length + ' punti)' }));
@@ -484,6 +502,7 @@
     q('[data-ka-odg-card]').hidden = !si;
     disegnaPartecipanti();
     disegnaOdg();
+    disegnaTappe();
     disegnaChi();
     return disegnaRiepilogo();
   }

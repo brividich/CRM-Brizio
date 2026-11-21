@@ -1,5 +1,7 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#registro-azioni{% endblock %}
+{% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
 {% block tasks_shell_title %}Registro attività{% endblock %}
@@ -18,7 +20,7 @@
 {% endblock %}
 
 {% block tasks_shell_kpis %}
-<section class="ts-kpis">
+<section class="ts-kpis" data-ka-live="kpi">
   {% url 'tasks:project_actions' project.id as u_actions %}
   <a class="ts-kpi blue kpi-link" href="{{ u_actions }}?stato=aperte" title="Apri il registro filtrato: attività aperte">
     <div class="ts-kpi-label">Aperte</div>
@@ -61,7 +63,24 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
-<section class="ts-panel">
+<div class="ka-esito" data-ka-esito role="status" aria-live="polite" hidden></div>
+
+{% include "tasks/_striscia.html" %}
+
+<section class="ts-panel" data-ka-pannello data-csrf="{{ csrf_token }}">
+  {% if puo_aggiungere %}
+  <form method="post" action="{% url 'tasks:project_quick_task' project.id %}" class="ka-rapida">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <input class="input" type="text" name="title" maxlength="200" required placeholder="Aggiungi un'attività e premi Invio" aria-label="Nuova attività">
+    <select class="input" name="assigned_to" aria-label="Responsabile">
+      <option value="">Da decidere</option>
+      {% for p in persone %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+    </select>
+    <input class="input" type="date" name="due_date" aria-label="Entro il">
+    <button type="submit" class="btn">Aggiungi</button>
+  </form>
+  {% endif %}
   <div class="ts-panel-body">
     <form method="get" class="ml-filters">
       <div class="ml-scope">
@@ -106,8 +125,8 @@
               <th>Stato</th>
             </tr>
           </thead>
-          <tbody>
-            {% for action in actions %}
+          <tbody data-ka-live="righe">
+            {% for riga in righe %}{% with action=riga.voce task=riga.task %}
               <tr class="tl-row-clickable{% if action.is_overdue %} status-overdue{% elif not action.is_open %} status-done{% endif %}" data-href="{{ action.url }}">
                 <td>
                   <a class="tl-task-link" href="{{ action.url }}">{{ action.title }}</a>
@@ -127,14 +146,23 @@
                 </td>
                 <td>{% if action.owner_label %}{{ action.owner_label }}{% else %}<span class="tl-ko-link">Non assegnata</span>{% endif %}</td>
                 <td>
-                  {% if action.due_date %}
+                  {% if riga.puo %}
+                    {# Scadenza sul posto: chi non può spostarla subito manda la richiesta al capocommessa. #}
+                    <input class="input ka-fine{% if action.is_overdue %} is-ritardo{% endif %}" type="date" value="{{ task.due_date|date:'Y-m-d' }}"
+                           data-ka-fine data-url="{% url 'tasks:task_azione_rapida' task.pk %}" data-inizio="{{ task.next_step_due|date:'Y-m-d' }}"
+                           data-prima="{{ task.due_date|date:'Y-m-d' }}" aria-label="Scadenza di {{ action.title }}">
+                  {% elif action.due_date %}
                     <span class="tl-date{% if action.is_overdue %} overdue{% endif %}">{{ action.due_date|date:"d-m-Y" }}</span>
                   {% else %}
                     <span class="tl-date">&mdash;</span>
                   {% endif %}
                 </td>
                 <td>
-                  {% if action.is_overdue %}
+                  {% if riga.puo %}
+                    <select class="ka-stato is-{{ task.status|lower }}" data-ka-stato data-url="{% url 'tasks:mia_voce_stato' 'attivita' task.pk %}" data-prima="{{ task.status }}" data-no-search aria-label="Stato di {{ action.title }}">
+                      {% for valore, etichetta, verbo in stati_attivita %}<option value="{{ verbo }}" data-stato="{{ valore }}"{% if task.status == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+                    </select>
+                  {% elif action.is_overdue %}
                     <span class="ts-chip danger">Scaduta</span>
                   {% elif action.is_open %}
                     <span class="ts-chip ok">Aperta</span>
@@ -143,7 +171,7 @@
                   {% endif %}
                 </td>
               </tr>
-            {% endfor %}
+            {% endwith %}{% endfor %}
           </tbody>
         </table>
       </div>
@@ -157,16 +185,5 @@
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script>
-(function () {
-  'use strict';
-  document.querySelectorAll('.tl-row-clickable').forEach(function (row) {
-    row.addEventListener('click', function (ev) {
-      if (ev.target.closest('a')) return;
-      const href = row.getAttribute('data-href');
-      if (href) window.location.href = href;
-    });
-  });
-})();
-</script>
+<script src="{% static 'tasks/js/pannello_attivita.js' %}?v=20261121" defer></script>
 {% endblock %}

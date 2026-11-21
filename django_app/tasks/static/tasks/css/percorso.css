@@ -512,6 +512,9 @@
   width: auto; max-width: 280px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
   font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
 }
+.ka-tappe { margin-left: auto; flex-shrink: 0; }
+.ka-tappe[hidden] { display: none; }
+.ka-tappe:not([hidden]) + .ka-modello { margin-left: 0; }
 .ka-modello { margin-left: auto; }
 .ka-modello[hidden] { display: none; }
 .ka-vuoto {
@@ -595,3 +598,79 @@
   .ka-odg-mv { grid-column: 2; }
 }
 @media (prefers-reduced-motion: reduce) { .ka-row, .ka-scelta { transition: none; } }
+
+/* ===========================================================================
+   Pannello attività della commessa: striscia del tempo, aggiunta rapida,
+   stato e scadenza modificabili sul posto.
+   =========================================================================== */
+.ka-striscia { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.ka-striscia:empty { display: none; }
+.ka-striscia-testa { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.ka-striscia-testa h2 { margin: 0 6px 0 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.ka-striscia-leg { font-size: 12px; color: var(--text-mid); display: inline-flex; align-items: center; gap: 5px; }
+.ka-striscia-leg i { width: 12px; height: 8px; border-radius: 4px; background: var(--text-light); display: inline-block; }
+.ka-striscia-leg i.is-corso, .ka-striscia-barra.is-corso { background: var(--accent); }
+.ka-striscia-leg i.is-fatta, .ka-striscia-barra.is-fatta { background: var(--success); }
+.ka-striscia-leg i.is-ritardo, .ka-striscia-barra.is-ritardo { background: var(--danger, #e53e3e); }
+.ka-striscia-leg i.is-incontro { width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: var(--text); }
+.ka-striscia-piano { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; }
+.ka-striscia-piano:hover { text-decoration: underline; }
+.ka-striscia-scorri { overflow-x: auto; }
+.ka-striscia-corpo { min-width: 620px; --ka-nome: 170px; }
+.ka-striscia-settimane { position: relative; height: 18px; margin-left: var(--ka-nome); border-bottom: 1px solid var(--border); }
+.ka-striscia-settimane span {
+  position: absolute; top: 0; padding-left: 4px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-light); white-space: nowrap;
+}
+.ka-striscia-righe { position: relative; }
+.ka-striscia-tacca { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.ka-striscia-riga { display: grid; grid-template-columns: var(--ka-nome) minmax(0, 1fr); align-items: center; height: 26px; border-bottom: 1px dashed var(--border); position: relative; }
+.ka-striscia-riga:last-of-type { border-bottom: 0; }
+.ka-striscia-riga.is-evidenziata { background: var(--accent-light); }
+.ka-striscia-nome { font-size: 12.5px; color: var(--text-mid); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.ka-striscia-nome:hover { color: var(--accent); }
+.ka-striscia-pista { position: relative; height: 100%; }
+.ka-striscia-barra { position: absolute; top: 6px; height: 14px; border-radius: 7px; background: var(--text-light); min-width: 8px; }
+.ka-striscia-barra:hover, .ka-striscia-barra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ka-striscia-segni { position: absolute; top: 0; bottom: 0; left: var(--ka-nome); right: 0; pointer-events: none; }
+.ka-striscia-oggi { position: absolute; top: -4px; bottom: 0; width: 2px; background: var(--accent); }
+.ka-striscia-oggi::after {
+  content: "oggi"; position: absolute; top: -14px; left: -13px; padding: 0 2px; font-size: 10.5px; font-weight: 800;
+  color: var(--accent); background: var(--surface);
+}
+.ka-striscia-incontro { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--text); opacity: .55; pointer-events: auto; }
+.ka-striscia-incontro::before { content: ""; position: absolute; top: -5px; left: -6px; width: 9px; height: 9px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+.ka-striscia-nota { margin: 8px 0 0; font-size: 12px; color: var(--text-light); }
+
+.ka-rapida {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 160px auto; gap: 8px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface-alt, #f8fafc); border-radius: 14px 14px 0 0;
+}
+.ka-rapida .input {
+  width: 100%; box-sizing: border-box; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-rapida .ts-wrapper.input { padding: 0; border: 0; background: none; }
+.ka-fine {
+  width: 150px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px;
+  font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-fine.is-ritardo { border-color: var(--danger, #e53e3e); color: var(--danger, #e53e3e); font-weight: 700; }
+.ka-stato {
+  appearance: none; -webkit-appearance: none; min-width: 124px; padding: 5px 12px; border-radius: 999px; text-align: center;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-mid);
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.ka-stato.is-in_progress { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+.ka-stato.is-done { color: var(--success); border-color: var(--success); background: var(--success-bg, #ecfdf5); }
+.ka-fine:disabled, .ka-stato:disabled { opacity: .6; cursor: progress; }
+.ka-esito {
+  position: sticky; top: 8px; z-index: 25; margin-bottom: 12px; padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--success); background: var(--success-bg, #ecfdf5); color: var(--text);
+}
+.ka-esito.is-ko { border-color: var(--danger, #e53e3e); background: var(--danger-bg, #fef2f2); }
+.ka-esito[hidden] { display: none; }
+@media (max-width: 760px) {
+  .ka-rapida { grid-template-columns: minmax(0, 1fr); }
+  .ka-striscia-corpo { --ka-nome: 120px; }
+}

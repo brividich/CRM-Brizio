@@ -133,7 +133,7 @@ SEZIONI: list[dict] = [
                 "Collegare due attività: trascina l'anello dell'attività che viene dopo sopra quella che viene prima. In alternativa clicca l'anello e poi la riga che viene prima (Esc annulla). Sotto la riga compare «dopo …»; la × toglie il collegamento. È lo stesso legame del Piano.",
                 "«All'ODG»: acceso, l'attività entra nell'ordine del giorno dell'incontro, da confermare in riunione; spento, resta una semplice attività.",
                 "«Incontro»: «Con incontro» o «Senza incontro». Con l'incontro scegli data (obbligatoria), ora, durata, sala e partecipanti: il team è già dentro e chi riceve un'attività viene convocato da solo.",
-                "«Ordine del giorno»: contiene i punti proposti dal Percorso della commessa e le attività «All'ODG». Aggiungi altri punti con «Aggiungi punto» o «Carica un modello…», ordinali trascinandoli o con le frecce, toglili con ×.",
+                "«Ordine del giorno»: contiene le attività «All'ODG» e le tappe del Percorso già impostate (assegnate, in corso o in ritardo). Le tappe ancora da assegnare sono facoltative: «+ Tappe del Percorso» le aggiunge. Aggiungi altri punti con «Aggiungi punto» o «Carica un modello…», ordinali trascinandoli o con le frecce, toglili con ×.",
                 "«Continua: come avvisare»: scegli «Invia subito le attività» (notifica e mail a ogni responsabile, con le note) oppure «Aspetta la minuta dell'incontro» (nessun avviso adesso: le attività partono con la minuta, nella sezione «Attività assegnate»). «Chi riceve cosa» mostra, persona per persona, cosa arriva adesso e cosa dopo l'incontro.",
                 "«Invia ora la convocazione ai partecipanti» manda subito la convocazione con data, sala e ordine del giorno; senza la spunta la invii dal dettaglio dell'incontro.",
                 "«Conferma»: nascono le attività e, se previsto, l'incontro. Con l'incontro si apre il suo dettaglio, altrimenti la Panoramica.",
@@ -597,6 +597,10 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Dalla scheda di commessa, «Attività» mostra in un solo elenco attività, sotto-attività e quanto deciso negli incontri (problemi e attività d'incontro)."),
             ("ul", [
+                "«Linea del tempo»: una barra per attività con data, «oggi» e gli incontri; la barra apre l'attività, «Apri il Piano» porta al Piano completo.",
+                "Prima riga, «Aggiungi un'attività e premi Invio»: titolo, responsabile e scadenza facoltativi, «Aggiungi».",
+                "Stato e scadenza di un'attività si cambiano dalla riga: «Da fare», «In corso», «Completata» e la data in «Scadenza». Li vede chi gestisce la commessa e l'incaricato sulle sue attività. Numeri, linea del tempo ed elenco si aggiornano subito.",
+                "Se gli spostamenti di data richiedono l'approvazione, la nuova scadenza dell'incaricato diventa una richiesta al capocommessa e il messaggio lo dice.",
                 "«Solo aperte» o «Includi chiuse».",
                 "Filtri per tipo, responsabile («Non assegnate» per quelle senza nessuno), scadenza e testo. "
                 "I riquadri in alto contano sempre tutto il registro, la tabella mostra il filtrato.",

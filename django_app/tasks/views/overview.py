@@ -158,6 +158,23 @@ def project_actions(request, project_id: int):
         {(row.owner_id, row.owner_label) for row in all_actions if row.owner_id},
         key=lambda pair: pair[1].casefold(),
     )
+    # Le attività si aggiornano sul posto (stato e scadenza): chi può lo decide
+    # il server, qui la pagina mostra i controlli solo a chi li può usare.
+    from django.utils import timezone
+
+    from ..access import can_manage_task
+    from ..forms import task_active_users_queryset
+    from ..services.striscia import striscia_commessa
+
+    gestisce = can_manage_project(request, project)
+    attivita = {t.pk: t for t in project.tasks.select_related("assigned_to", "project")}
+    righe = []
+    for row in actions:
+        task = attivita.get(row.obj_id) if row.origin == "task" else None
+        puo = bool(task) and task.status != TaskStatus.CANCELED and (
+            gestisce or task.assigned_to_id == request.user.id or can_manage_task(request, task)
+        )
+        righe.append({"voce": row, "task": task, "puo": puo})
     return render(
         request,
         "tasks/project_actions.html",
@@ -171,6 +188,17 @@ def project_actions(request, project_id: int):
             "page_title": f"Registro attività - {project.name}",
             "project": project,
             "actions": actions,
+            "righe": righe,
+            "striscia": striscia_commessa(project, timezone.localdate()),
+            "puo_aggiungere": gestisce and has_task_permission(request, "tasks_create"),
+            "persone": [
+                {"id": u.pk, "nome": (u.get_full_name() or u.get_username()).strip()}
+                for u in task_active_users_queryset()
+            ] if gestisce else [],
+            "stati_attivita": [
+                (TaskStatus.TODO, "Da fare", "reopen"), (TaskStatus.IN_PROGRESS, "In corso", "start"),
+                (TaskStatus.DONE, "Completata", "done"),
+            ],
             "filters": filters,
             "filters_active": any(filters.values()),
             "owners": owners,

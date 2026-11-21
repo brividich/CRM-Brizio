@@ -191,8 +191,9 @@
               <span class="kp-num">C</span>
               <div class="kp-station-titles">
                 <h3>Ordine del giorno</h3>
-                <p>Le attività segnate «All'ODG» entrano da sole. Aggiungi gli altri punti e mettili in ordine: trascinali o usa le frecce.</p>
+                <p>Entrano da sole le attività segnate «All'ODG» e le tappe del Percorso già impostate. Aggiungi gli altri punti e mettili in ordine: trascinali o usa le frecce.</p>
               </div>
+              <button type="button" class="btn btn-secondary btn-sm ka-tappe" data-ka-tappe hidden></button>
               <select class="input ka-modello" data-ka-modello aria-label="Carica un modello di ordine del giorno" hidden>
                 <option value="">Carica un modello…</option>
               </select>
@@ -283,5 +284,5 @@
 {% block tasks_shell_scripts %}
 <script id="ka-dati" type="application/json">{{ ka_dati_json|safe }}</script>
 <script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>
-<script src="{% static 'tasks/js/kickoff_avvio.js' %}?v=20261121" defer></script>
+<script src="{% static 'tasks/js/kickoff_avvio.js' %}?v=20261121b" defer></script>
 {% endblock %}
