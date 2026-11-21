@@ -258,6 +258,9 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
     restano solo i numeri del lavoro (pianificazione, OdL, documenti). Ogni
     riquadro porta alla sezione che lo spiega.
   {% endcomment %}
+  {% if kpi.truncated %}
+    <div class="md-conflict" role="status"><p style="margin:0">Troppe manutenzioni da contare qui (oltre 3000 aperte o 1000 eseguite negli ultimi 120 giorni): questi numeri sono parziali. Per i totali usa Scadenze e Storico con i filtri.</p></div>
+  {% endif %}
   <div class="md-kpis md-kpis--lead" data-tour-step="4" data-tour-title="Il lavoro da organizzare" data-tour-text="Manutenzioni senza ordine di lavoro, OdL aperti, rapporti mancanti: ogni numero porta alla sua lista qui sotto.">
     <a class="md-kpi is-warn" href="#non-pianificate">
       <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>

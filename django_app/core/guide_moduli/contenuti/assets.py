@@ -308,6 +308,10 @@ GUIDA = {
                     "interventi solo delle sue macchine), Fornitori e contratti e IT e rete vuoti. Si salva con «Salva matrice».",
                     "Un piano su più reparti (es. tutti i compressori) lo vede chi ha almeno una delle sue macchine, con le sole scadenze sue. "
                     "Gli ordini di lavoro assegnati a una persona li vede sempre, anche fuori ambito.",
+                    "L'ambito vale anche per allegati delle manutenzioni e degli OdL, documenti e componenti degli asset, "
+                    "Storico, Panoramica (tessere, «Prossime scadenze», sintesi per la direzione) e adempimenti in «Da fare»: "
+                    "un link a un record di un asset fuori ambito risponde «accesso negato». «Togli dall'OdL» e "
+                    "«Distribuisci sul giorno» valgono solo per gli asset del proprio perimetro, come «Aggiungi all'OdL».",
                     "Al primo aggiornamento ogni ruolo ha sui tre moduli nuovi le stesse impostazioni che aveva su «Assets e manutenzione»: "
                     "niente cambia finché non modifichi la matrice. Le Impostazioni del modulo restano sulla riga Inventario.",
                     "Il perimetro di un caporeparto viene dal campo «Reparto» degli asset non IT: per questo è obbligatorio. "
@@ -410,7 +414,9 @@ GUIDA = {
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
-                    "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
+                    "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola, "
+                    "dalla scadenza teorica (una scadenza al 31/12 resta al 31/12 anche se registrata prima o dopo; "
+                    "con molto ritardo salta alla prima data non ancora passata), come i piani amministrativi. "
                     "Se la stessa scadenza (stesso titolo e tipo) è aperta su altri asset, la finestra "
                     "«Registra» li propone (filtro «scadute o entro», da 7 giorni a un anno, di partenza 30): spuntati, si registrano insieme con la stessa data, note, prossima scadenza "
                     "e allegati (costo e durata solo sulla voce aperta). "
@@ -855,6 +861,57 @@ GUIDA = {
                 "Conflitto: alcune manutenzioni già eseguite o annullate hanno stesso asset e data di una scadenza del "
                 "piano scelto. Annulla o sistema quella del piano scelto, oppure scegli un altro piano o «Cancella tutto».",
                 "«Ancora usato da»: un altro modulo usa il piano in un modo che la pagina non sa spostare; chiedi all'IT.",
+            ],
+        },
+        {
+            "sintomo": "Da fare, Panoramica o Storico dicono «numeri parziali» o «le più recenti su N»",
+            "fare": [
+                "Le pagine caricano al massimo 1000 manutenzioni (Da fare), 3000 aperte e 1000 eseguite negli ultimi "
+                "120 giorni (Panoramica), 500 righe nell'elenco dello Storico: oltre, lo dichiarano. Restringi con i filtri.",
+                "Un preavviso di 0 giorni vale 0: la scadenza diventa «in scadenza» solo il giorno stesso.",
+                "Le scadenze di un asset dismesso non compaiono più in Scadenzario, Panoramica e cruscotti.",
+                "«Scadute» conta tutte le manutenzioni con la data passata, anche quelle già in un OdL aperto: "
+                "in Da fare stanno nel blocco «Scadute» (non in «Programmate») con il riferimento «OdL n.». "
+                "Stesso numero dello Scadenzario; «Non pianificate» conta solo quelle senza OdL.",
+            ],
+        },
+        {
+            "sintomo": "Nella scheda asset non c'è più «Genera rapporto» per una manutenzione periodica",
+            "fare": [
+                "La manutenzione è già nei piani: si registra o si mette in un OdL da «Da fare» o dalla scheda del piano. "
+                "«Prossima manutenzione» della macchina ora viene dalle scadenze dei piani.",
+                "«Ingloba nei piani ordinari» (Verifiche periodiche) porta subito la verifica nei piani con le sue scadenze.",
+            ],
+        },
+        {
+            "sintomo": "Una categoria non si elimina: «ancora usata da…»",
+            "fare": [
+                "La categoria ha sottocategorie, applicazioni di piani, regole, contratti, budget, codici guasto o report "
+                "pianificati: spostali o toglili, poi riprova. Campi personalizzati e cartelle documenti si eliminano insieme.",
+            ],
+        },
+        {
+            "sintomo": "Applicando un piano: «Il piano è già applicato qui»",
+            "fare": [
+                "Esiste già un'applicazione dello stesso piano su quell'asset, gruppo o categoria (anche disattivata): "
+                "modificala o riattivala dall'elenco «Assegnazioni» del piano.",
+            ],
+        },
+        {
+            "sintomo": "Registrata una manutenzione, la successiva non compare",
+            "fare": [
+                "La successiva nasce solo se il piano vale ancora per quell'asset: piano attivo, asset non dismesso, "
+                "asset ancora nel gruppo o nella categoria dell'applicazione, nessuna esclusione e nessun conflitto "
+                "fra applicazioni dello stesso livello (per i piani a contatore conta anche contatore e intervallo).",
+                "Se l'asset ha una periodicità personalizzata, la successiva segue quella.",
+                "Se la data calcolata è già occupata da una scadenza annullata o eseguita, la successiva slitta di un periodo.",
+            ],
+        },
+        {
+            "sintomo": "Chiuso un OdL, le manutenzioni non registrate sono sparite dall'intervento",
+            "fare": [
+                "È voluto: chiudendo o annullando l'OdL le manutenzioni non registrate si sganciano, restano aperte "
+                "e tornano «da pianificare» in Da fare, pronte per un altro OdL. La nota dell'intervento le conta.",
             ],
         },
         {

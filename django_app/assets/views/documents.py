@@ -28,6 +28,7 @@ from ..models import (
 )
 
 from ._helpers import (  # noqa: F401
+    _can_admin_assets,
     _can_download_asset_document,
     _can_view_workorder,
     _clean_string,
@@ -256,7 +257,7 @@ def admin_deadline_attachment_download(request, attachment_id: int):
         AssetAdministrativeDeadlineCompletionAttachment.objects.select_related("completion__deadline__asset"),
         pk=attachment_id,
     )
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         log_action(
             request,
             "download_admin_deadline_attachment",

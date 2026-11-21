@@ -22,8 +22,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
-from ..registro_permessi import MODULO_VERIFICHE
-from ..services.visibilita import filtra_per_asset
+from ..registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+from ..services.visibilita import filtra_odl, filtra_per_asset
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
@@ -52,6 +52,7 @@ from ..models import (
 )
 
 from ._helpers import (  # noqa: F401
+    _can_admin_assets,
     PERIODIC_EXECUTION_WINDOW_CHOICES,
     _as_int,
     _asset_calendar_default_user_id,
@@ -145,6 +146,27 @@ def _build_execution_workorder(
     workorder.full_clean()
     workorder.save()
     return workorder
+
+
+def _porta_regole_nei_piani(rules) -> set[int]:
+    """Converte le regole indicate in applicazioni di piano e genera le scadenze dovute.
+
+    Stessa conversione di ``migrate_maintenance_to_plans`` (idempotente: una regola
+    gia' convertita si salta), limitata a queste regole. Ritorna gli id dei piani.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from ..services import maintenance_domain as domain
+
+    rule_ids = [rule.id for rule in rules if rule is not None]
+    if not rule_ids:
+        return set()
+    call_command("migrate_maintenance_to_plans", rule_ids=rule_ids, stdout=StringIO())
+    plan_ids = {rule.intervention_template_id for rule in rules if rule is not None}
+    domain.generate_occurrences(plan_ids=plan_ids)
+    return plan_ids
 
 
 def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
@@ -255,7 +277,7 @@ def _periodic_scope_context(scope: str) -> dict[str, object]:
 def maintenance_template_list(request: HttpRequest) -> HttpResponse:
     """Deprecata: template e regole sono ora un'unica vista in Impostazioni manutenzione.
     Redirige alla tab 'Interventi & Regole' preservando i filtri (categoria/attivo/ricerca)."""
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
     return redirect(_maintenance_settings_page_url(request, tab="catalogo"), permanent=True)
@@ -292,7 +314,7 @@ def _template_next_step_rule_url(template) -> str:
 
 @login_required
 def maintenance_template_create(request: HttpRequest) -> HttpResponse:
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
 
@@ -343,7 +365,7 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
     if id is None:
@@ -874,6 +896,10 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             if not result.get("ok"):
                 messages.error(request, result.get("message") or "Inglobamento non possibile per questo piano.")
                 return redirect(redirect_url)
+            # La regola da sola finiva nel vecchio motore, che non genera piu' nulla: la
+            # verifica spariva da Scadenzario e promemoria. Si porta subito nei piani
+            # (applicazione + ultima esecuzione) e si generano le scadenze dovute.
+            plan_ids = _porta_regole_nei_piani(result.get("rules") or [result["rule"]])
             log_action(
                 request,
                 "convert_periodic_verification_to_rule",
@@ -885,12 +911,13 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     "created_template": result["created_template"],
                     "created_rule": result["created_rule"],
                     "threshold_days": result["threshold_days"],
+                    "piani": sorted(plan_ids),
                 },
             )
             messages.success(
                 request,
                 f"Piano inglobato in {len(result.get('rules') or [result['rule']])} piano/i ordinari "
-                f"({result['threshold_days']} giorni), con asset e storico preservati.",
+                f"({result['threshold_days']} giorni), con asset e storico preservati: le scadenze sono in «Piani».",
             )
             return redirect(redirect_url)
 
@@ -1204,6 +1231,8 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         ).select_related(
             "asset", "executed_by", "assigned_to", "supplier", "maintenance_rule__intervention_template"
         )
+        # Stesso ambito dell'elenco OdL: con «Propri / del team» solo i propri.
+        workorders = filtra_odl(request, workorders)
         if q:
             workorders = workorders.filter(
                 Q(title__icontains=q)
@@ -1245,6 +1274,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         registered = MaintenanceOccurrence.objects.filter(
             status=MaintenanceOccurrence.STATUS_DONE, work_order__isnull=True
         ).select_related("asset", "plan", "completed_by")
+        registered = filtra_per_asset(request, registered, MODULO_MANUTENZIONE)
         if q:
             registered = registered.filter(
                 Q(plan__label__icontains=q)
@@ -1330,6 +1360,8 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             include_in_maintenance_register=True,
             stato__in=[StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO],
         ).select_related("asset")
+        # Ticket su asset: solo quelli degli asset visibili; senza asset restano come prima.
+        tickets = filtra_per_asset(request, tickets, MODULO_MANUTENZIONE, anche=Q(asset__isnull=True))
         if q:
             tickets = tickets.filter(
                 Q(titolo__icontains=q)
@@ -1392,6 +1424,9 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             # origine): con piu' righe la pagina lo dichiara.
             "history_loaded_total": totale_righe,
             "history_truncated": totale_righe < sum(source_counts.values()),
+            # L'elenco mostra 500 righe su quelle caricate (fino a 500 per origine):
+            # prima l'avviso confrontava solo le caricate e poteva mancare.
+            "history_list_truncated": min(len(rows), 500) < sum(source_counts.values()),
             "history_kpi_links": {
                 key: _history_url(request, source=key)
                 for key in ("all", "workorders", "maintenance", "deadlines", "tickets")

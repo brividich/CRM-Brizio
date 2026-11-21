@@ -174,6 +174,12 @@ class Asset(models.Model):
 
     class Meta:
         ordering = ["name", "asset_tag", "id"]
+        # Filtri usati ovunque (dismessi esclusi, perimetro per reparto, tipo asset).
+        indexes = [
+            models.Index(fields=["status"], name="idx_asset_status"),
+            models.Index(fields=["reparto"], name="idx_asset_reparto"),
+            models.Index(fields=["asset_type"], name="idx_asset_type"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.asset_tag} - {self.name}"
@@ -944,6 +950,16 @@ class AssetAdministrativeDeadline(models.Model):
     def __str__(self) -> str:
         return f"{self.title} - {self.asset.asset_tag} ({self.due_date:%d-%m-%Y})"
 
+    def save(self, *args, **kwargs):
+        # Riattivare una scadenza spostata nei piani la riporta nel registro: il
+        # collegamento al piano si toglie (prima avrebbe violato il vincolo).
+        if self.is_active and self.moved_to_plan_id:
+            self.moved_to_plan = None
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and "moved_to_plan" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "moved_to_plan"]
+        super().save(*args, **kwargs)
+
     def clean(self):
         self.title = (self.title or "").strip()
         self.reference_code = (self.reference_code or "").strip()
@@ -960,10 +976,23 @@ class AssetAdministrativeDeadline(models.Model):
         return (self.due_date - current_day).days
 
     def next_due_after(self, completed_on):
-        """Prossima scadenza dalla periodicita' (dalla data di esecuzione); None se non e' periodica."""
+        """Prossima scadenza dalla periodicita', calcolata dalla scadenza TEORICA; None se non e' periodica.
+
+        Come i piani amministrativi («Dalla scadenza teorica»): una polizza al 31/12
+        resta al 31/12 anche se rinnovata il 15/12 o il 10/01. Se l'esecuzione e'
+        arrivata con molto ritardo si avanza fino alla prima scadenza non ancora
+        superata, senza inventare scadenze intermedie. Prima si contava dalla data di
+        esecuzione e la stessa scadenza cambiava data dopo «Sposta nei piani».
+        """
         if not self.recurrence_months or not completed_on:
             return None
-        return _add_months(completed_on, self.recurrence_months)
+        base = self.due_date or completed_on
+        next_due = _add_months(base, self.recurrence_months)
+        guard = 0
+        while next_due < completed_on and guard < 500:
+            next_due = _add_months(next_due, self.recurrence_months)
+            guard += 1
+        return next_due
 
     def series_siblings(self):
         """Altre righe attive della stessa serie (stesso asset, componente e titolo).
@@ -3149,6 +3178,10 @@ class WorkOrder(models.Model):
 
     class Meta:
         ordering = ["-opened_at", "-id"]
+        indexes = [
+            # Elenchi e KPI: OdL aperti ordinati per anzianita'.
+            models.Index(fields=["status", "opened_at"], name="idx_wo_status_opened"),
+        ]
 
     def __str__(self) -> str:
         return f"WO#{self.id} {self.asset.asset_tag} {self.title}"

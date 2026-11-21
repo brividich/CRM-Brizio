@@ -58,6 +58,7 @@ from ..maintenance import (
 from ..notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
 
 from ._helpers import (  # noqa: F401
+    _can_admin_assets,
     ASSET_DOCUMENT_MAX_BYTES,
     _as_int,
     _asset_maintenance_rule_list_page_url,
@@ -629,7 +630,7 @@ def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
     stessa data. `reference_batch` raggruppa il lotto (stesso campo già usato da
     `generate_workorders_for_rule`); `origin` resta `ORIGIN_MANUAL` — una campagna è una
     creazione manuale multipla, non un nuovo tipo di origine da tracciare a parte."""
-    if not _is_assets_admin(request):
+    if not _can_admin_assets(request):
         messages.error(request, "Solo admin può creare campagne di manutenzione.")
         return redirect("assets:wo_list")
 

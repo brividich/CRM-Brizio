@@ -135,6 +135,8 @@ def _base_occurrence_queryset():
         MaintenanceOccurrence.objects.select_related(*_OCCURRENCE_SELECT)
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        # Asset dismesso o piano spento: la scadenza aperta non e' piu' lavoro da fare.
+        .exclude(domain.q_aperte_non_piu_dovute())
     )
 
 
@@ -325,6 +327,13 @@ def _decorate(occurrences: list[MaintenanceOccurrence], *, today: date) -> list[
         payload["days_late"] = -days if days is not None and days < 0 else 0
         if occurrence.is_meter_based and occurrence.assignment_id:
             payload["meter"] = meters.get((occurrence.asset_id, getattr(occurrence.assignment, "meter_type", "")))
+        # «Scaduta» = data passata, anche se l'occorrenza e' gia' in un OdL aperto:
+        # stessa regola dello Scadenzario (window=overdue) e del carico manutentori.
+        # Lo stato visuale resta «Pianificata/In corso»: il ritardo e' un'informazione
+        # in piu', non sostituisce chi ci sta lavorando.
+        payload["overdue"] = (
+            occurrence.status == MaintenanceOccurrence.STATUS_OPEN and occurrence.due_date < today
+        )
         rows.append({"occurrence": occurrence, **payload})
     rows.sort(key=lambda row: (row["order"], row["occurrence"].due_date, row["occurrence"].id))
     return rows
@@ -379,7 +388,7 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
             sub = occurrence.plan.get_maintenance_type_display()
         bucket = buckets.setdefault(key, {"label": label, "sub": sub, "rows": [], "overdue": 0})
         bucket["rows"].append(row)
-        if row["state"] == MaintenanceOccurrence.VIEW_OVERDUE:
+        if row["overdue"]:
             bucket["overdue"] += 1
     groups = list(buckets.values())
     if mode == "day":
@@ -445,7 +454,9 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             | Q(work_order__assigned_to__isnull=True)
             | Q(work_order__assigned_to=request.user)
         )
-    rows = _decorate(list(queryset[:1000]), today=today)
+    rows = _decorate(list(queryset[:DA_FARE_MAX_RIGHE]), today=today)
+    # Oltre il limite la pagina lo dice, invece di mostrare numeri contati su una lista tagliata.
+    rows_total = queryset.count() if len(rows) >= DA_FARE_MAX_RIGHE else len(rows)
 
     week_end = today + timedelta(days=7)
     blocks = [
@@ -454,7 +465,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "title": "Scadute",
             "tone": "urgent",
             "quiet": "Nessuna manutenzione scaduta",
-            "rows": [r for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE],
+            "rows": [r for r in rows if r["overdue"]],
         },
         {
             "key": "week",
@@ -477,6 +488,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
                 r
                 for r in rows
                 if r["state"] in (MaintenanceOccurrence.VIEW_PLANNED, MaintenanceOccurrence.VIEW_IN_PROGRESS)
+                and not r["overdue"]
             ],
         },
         {
@@ -507,7 +519,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
     # Contati sulle righe gia' in memoria: nessuna query in piu'.
     user_id = getattr(request.user, "id", None)
     summary = {
-        "overdue": sum(1 for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "overdue": sum(1 for r in rows if r["overdue"]),
         "today": sum(1 for r in rows if r["occurrence"].due_date == today),
         "week": sum(
             1 for r in rows
@@ -585,6 +597,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "summary": summary,
             "kpi_url": kpi_url,
             "total": len(rows),
+            "rows_total": rows_total,
+            "rows_truncated": rows_total > len(rows),
             "can_plan": can_plan,
             "can_execute": can_execute,
             "only_mine": only_mine,
@@ -596,6 +610,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
 
 
 DA_FARE_ADEMPIMENTI_GIORNI = 30
+# Righe massime caricate in «Da fare»: oltre, la pagina mostra l'avviso con il totale.
+DA_FARE_MAX_RIGHE = 1000
 
 
 def _da_fare_adempimenti(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti) -> list:
@@ -630,6 +646,10 @@ def _da_fare_adempimenti(request: HttpRequest, form: OccurrenceFilterForm, *, to
         rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier} {r.target_label}".lower()]
     if scoped_reparti and not data.get("reparto"):
         rows = [r for r in rows if r.reparto in scoped_reparti]
+    # Ambito «Propri / del team»: stessa regola di _renewal_rows e delle occorrenze.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        rows = [r for r in rows if r.asset_id in visibili]
     for row in rows:
         row.days = row.days_until(today)
         row.days_late = -row.days if row.days < 0 else 0
@@ -918,8 +938,8 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
 
-def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
-                       report_missing: int, resolutions: dict) -> dict[str, Any]:
+def _sintesi_direzione(request: HttpRequest, *, today: date, open_rows: list[dict[str, Any]],
+                       done_rows: list[dict[str, Any]], report_missing: int, resolutions: dict) -> dict[str, Any]:
     """Indicatori di andamento per la direzione, costruiti SOLO su campi che
     risultano compilati.
 
@@ -936,8 +956,11 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     # dallo storico) la scadenza e' stata dedotta dalla data di esecuzione: sono
     # puntuali per costruzione, e in sviluppo bastavano a produrre un "100% nei
     # tempi" su 164 righe che non misurava nulla. Restano contate, ma a parte.
-    concluse_qs = MaintenanceOccurrence.objects.filter(
-        status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
+    # Stesso ambito del resto della pagina: con «Propri / del team» solo i propri asset.
+    concluse_qs = filtra_per_asset(
+        request,
+        MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa),
+        MODULO_MANUTENZIONE,
     )
     misurabili_qs = concluse_qs.filter(
         source__in=[MaintenanceOccurrence.SOURCE_SCHEDULER, MaintenanceOccurrence.SOURCE_MANUAL]
@@ -991,17 +1014,21 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
 
     # Arretrato: non "quante" scadute, ma "da quanto". Una scaduta di ieri e una di
     # due anni fa non sono lo stesso problema.
-    scadute = [r for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE]
+    scadute = [r for r in open_rows if r["overdue"]]
     piu_vecchia = min((r["occurrence"].due_date for r in scadute), default=None)
 
     # Copertura della pianificazione: asset in uso che hanno almeno un piano applicato.
     asset_con_piano = {
         asset_id for (_plan_id, asset_id), resolution in resolutions.items() if resolution.is_applied
     }
-    asset_in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+    asset_in_uso = filtra_visibili(
+        request, Asset.objects.filter(status=Asset.STATUS_IN_USE), MODULO_MANUTENZIONE
+    ).count()
 
     # Copertura dei campi facoltativi sugli interventi chiusi nell'anno.
-    chiusi = WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa).aggregate(
+    chiusi = filtra_odl(
+        request, WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa)
+    ).aggregate(
         totale=Count("id"),
         con_durata=Count("id", filter=Q(intervention_duration_minutes__gt=0)),
         con_fermo=Count("id", filter=Q(downtime_minutes__gt=0)),
@@ -1018,6 +1045,9 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     from .services import deadline_feed as feed
 
     amministrative = feed.administrative_dues()
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        amministrative = [due for due in amministrative if due.asset.id in visibili]
     prossime_amministrative = [due for due in amministrative if due.due_date >= today][:5]
     # Un adempimento gia' scaduto non e' una "prossima scadenza" e non va mescolato
     # alle altre, ma nemmeno taciuto: se ce ne sono, la sezione lo dichiara in una
@@ -1107,6 +1137,10 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
         ),
         today=today,
     )
+    # Ambito «Propri / del team»: come _conformita e il calendario, solo gli asset visibili.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        rows = [row for row in rows if row.asset_id in visibili]
     open_rows = [row for row in rows if row.state != feed.STATE_DONE]
 
     shared = {key: value for key, value in (("category", category_id or ""), ("reparto", reparto)) if value}
@@ -1130,7 +1164,7 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
                 feed.KIND_LICENSE: "Licenze software",
                 feed.KIND_CONTRACT: "Contratti di assistenza",
             }[kind],
-            "overdue": sum(1 for row in of_kind if row.state == feed.STATE_OVERDUE),
+            "overdue": sum(1 for row in of_kind if row.due_date < today),
             "due_30": sum(1 for row in upcoming if row.due_date <= horizon),
             "next": upcoming[0] if upcoming else None,
             "url": f"{scadenzario_url}?{urlencode({**shared, 'window': '', 'plan_type': plan_type_for[kind]})}",
@@ -1167,7 +1201,8 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
             "calendar_url": f"{calendario_url}?{urlencode({**shared, 'data': day.isoformat(), 'vista': 'dayGridWeek'})}",
         })
 
-    overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
+    # Scaduta = data passata, anche se gia' in un OdL (stessa regola dello Scadenzario).
+    overdue = [row for row in open_rows if row.due_date < today]
     upcoming = [row for row in open_rows if today <= row.due_date <= horizon]
     # Tutte le scadute e tutte quelle dei prossimi 30 giorni (l'elenco scorre): con
     # dieci righe fisse le manutenzioni selezionabili per l'OdL erano due o tre.
@@ -1264,6 +1299,10 @@ def maintenance_kpi(request: HttpRequest) -> HttpResponse:
     return redirect(_panoramica_dettaglio_url(request.GET.copy()))
 
 
+PANORAMICA_MAX_APERTE = 3000
+PANORAMICA_MAX_ESEGUITE = 1000
+
+
 def _responsabile_response(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
 
@@ -1280,14 +1319,14 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
 
     asset_visibili = filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
     open_rows = _decorate(
-        list(occorrenze().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
+        list(occorrenze().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:PANORAMICA_MAX_APERTE]),
         today=today,
     )
     done_rows = _decorate(
         list(
             occorrenze()
             .filter(status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=today - timedelta(days=120))
-            .order_by("-completed_on")[:1000]
+            .order_by("-completed_on")[:PANORAMICA_MAX_ESEGUITE]
         ),
         today=today,
     )
@@ -1317,8 +1356,11 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         .distinct()
         .count()
     )
+    follow_ups_qs = odl().filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
+    # Il numero si conta sul queryset intero: prima si contava la lista tagliata a 50.
+    follow_ups_count = follow_ups_qs.count()
     follow_ups = (
-        odl().filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
+        follow_ups_qs
         .select_related("asset", "follow_up_occurrence", "follow_up_occurrence__plan")
         .order_by("-opened_at")[:50]
     )
@@ -1397,7 +1439,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     conflicts = [resolution for resolution in resolutions.values() if resolution.is_conflict]
 
     kpi = {
-        "overdue": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "overdue": sum(1 for r in open_rows if r["overdue"]),
         "due_soon": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_DUE_SOON),
         "unplanned": len(unplanned),
         "workorders_open": open_workorders.count(),
@@ -1405,13 +1447,17 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "waiting": sum(1 for wo in open_workorders if wo.is_waiting),
         "workorders_overdue": n_overdue_workorders,
         "report_missing": len(report_missing),
-        "follow_ups": follow_ups.count(),
+        "follow_ups": follow_ups_count,
         "conflicts": len(conflicts),
         "spare_below_min": _spare_below_min_count(),
+        # Liste caricate al massimo per 3000 aperte / 1000 eseguite: oltre, i numeri
+        # contati sulle righe sono parziali e la pagina lo dice.
+        "truncated": len(open_rows) >= PANORAMICA_MAX_APERTE or len(done_rows) >= PANORAMICA_MAX_ESEGUITE,
     }
 
     # Una pagina sola: le liste dicono cosa fare, la sintesi come sta andando.
     sintesi = _sintesi_direzione(
+        request,
         today=today,
         open_rows=open_rows,
         done_rows=done_rows,
@@ -1426,7 +1472,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "scadute": sintesi["scadute"],
         "in_scadenza_7": sum(
             1 for r in open_rows
-            if r["state"] != MaintenanceOccurrence.VIEW_OVERDUE and today <= r["occurrence"].due_date <= week_end
+            if not r["overdue"] and today <= r["occurrence"].due_date <= week_end
         ),
         "non_pianificate": kpi["unplanned"],
         "interventi_aperti": kpi["workorders_open"],
@@ -2099,12 +2145,8 @@ def maintenance_plan_delete(request: HttpRequest, plan_id: int) -> HttpResponse:
     )
 
 
-def _parse_iso_date(raw) -> date | None:
-    """Data ISO dai parametri di query (l'anteprima e' un GET, non un form)."""
-    try:
-        return date.fromisoformat(str(raw or "").strip())
-    except ValueError:
-        return None
+# Data ISO dai parametri di query: una sola funzione per tutto il modulo.
+from .views._helpers_c import _parse_iso_date  # noqa: E402
 
 
 _MESI = (
@@ -2661,6 +2703,7 @@ def workorder_occurrence_remove(request: HttpRequest, workorder_id: int, occurre
         pk=occurrence_id,
         work_order_id=workorder_id,
     )
+    _nega_fuori_reparto(request, [occurrence])
     domain.remove_occurrence_from_workorder(
         occurrence, user=request.user, reason=_clean_string(request.POST.get("reason"))
     )
@@ -2682,6 +2725,7 @@ def workorder_distribute_day(request: HttpRequest, workorder_id: int) -> HttpRes
     if not form.is_valid() or not occurrences:
         messages.error(request, "Indica la giornata e almeno un asset da spostare.")
         return redirect("assets:wo_view", id=workorder_id)
+    _nega_fuori_reparto(request, occurrences)
 
     day = domain.assign_occurrences_to_day(
         work_order,

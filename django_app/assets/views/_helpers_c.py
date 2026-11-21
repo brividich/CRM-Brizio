@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-from django.db import DatabaseError
+from django.db import DatabaseError, models
 from django.db.models import Max, Q
 from django.http import HttpRequest
 from django.urls import reverse
@@ -488,11 +488,46 @@ def _plant_layout_machine_queryset():
     )
 
 
+# Relazioni che si possono cancellare insieme alla categoria: sono sua configurazione
+# (campi personalizzati, cartelle documenti) o un collegamento molti-a-molti che sparisce.
+_CATEGORY_DELETE_CASCADE_OK = {"category_fields", "document_folders"}
+
+
+def _category_delete_blockers(category: AssetCategory) -> list[str]:
+    """Cosa sparirebbe o si romperebbe cancellando la categoria (vuoto = si puo').
+
+    Prima si controllavano solo gli asset: in cascata se ne andavano sottocategorie,
+    applicazioni dei piani, regole, contratti e budget, e un report pianificato
+    (PROTECT) faceva un errore 500. Si guarda ogni relazione verso la categoria,
+    anche quelle aggiunte in futuro.
+    """
+    blockers: list[str] = []
+    for rel in category._meta.related_objects:
+        if rel.related_model is Asset or rel.many_to_many:
+            continue
+        accessor = rel.get_accessor_name()
+        if accessor in _CATEGORY_DELETE_CASCADE_OK or rel.related_name in _CATEGORY_DELETE_CASCADE_OK:
+            continue
+        if rel.on_delete is models.SET_NULL:
+            continue
+        count = rel.related_model._default_manager.filter(**{rel.field.name: category}).count()
+        if count:
+            blockers.append(f"{rel.related_model._meta.verbose_name_plural} ({count})")
+    return blockers
+
+
 def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
-    machines = _plant_layout_machine_queryset() if machines is None else machines
+    from ..services.maintenance_domain import prossime_scadenze_per_asset
+
+    machines = list(_plant_layout_machine_queryset() if machines is None else machines)
+    # Prossima manutenzione dalle scadenze dei piani (la data sulla macchina non si aggiorna piu').
+    prossime = prossime_scadenze_per_asset(asset.id for asset in machines)
     catalog: list[dict[str, object]] = []
     for asset in machines:
         machine = getattr(asset, "work_machine", None)
+        prossima = prossime.get(asset.id) or (
+            machine.next_maintenance_date if isinstance(machine, WorkMachine) else None
+        )
         catalog.append(
             {
                 "id": asset.id,
@@ -508,11 +543,7 @@ def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
                 "serial_number": _clean_string(asset.serial_number),
                 "category": asset.asset_category.label if asset.asset_category_id else "",
                 "detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
-                "next_maintenance_date": (
-                    machine.next_maintenance_date.strftime("%d-%m-%Y")
-                    if isinstance(machine, WorkMachine) and machine.next_maintenance_date
-                    else ""
-                ),
+                "next_maintenance_date": prossima.strftime("%d-%m-%Y") if prossima else "",
                 "cnc_controlled": bool(getattr(machine, "cnc_controlled", False)),
                 "five_axes": bool(getattr(machine, "five_axes", False)),
             }
@@ -1296,6 +1327,12 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         linked_assets = category.assets.count()
         if linked_assets:
             return False, f"La categoria \"{category.label}\" e assegnata a {linked_assets} asset: rimuovila prima dagli asset collegati."
+        ancora_usata = _category_delete_blockers(category)
+        if ancora_usata:
+            return False, (
+                f"La categoria \"{category.label}\" e ancora usata da: {', '.join(ancora_usata)}. "
+                "Spostali o toglili prima di eliminarla."
+            )
         label = category.label
         category.delete()
         return True, f"Categoria asset \"{label}\" eliminata."

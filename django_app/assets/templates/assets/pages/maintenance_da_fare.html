@@ -140,6 +140,12 @@
     </details>
   {% endif %}
 
+  {% if rows_truncated %}
+    <div class="md-conflict" role="status">
+      <p style="margin:0">Mostrate le prime {{ total }} manutenzioni su {{ rows_total }}, dalla scadenza più vecchia: numeri e blocchi contano solo queste. Restringi con i filtri per vedere le altre.</p>
+    </div>
+  {% endif %}
+
   {% for block in blocks %}
     {% comment %}
       Blocchi apribili e richiudibili: cinque tabelle sempre aperte sono un muro,

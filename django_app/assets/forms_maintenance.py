@@ -312,6 +312,23 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
                 cleaned[name] = None
         if keep and not cleaned.get(keep):
             self.add_error(keep, "Seleziona su cosa si applica il piano.")
+        elif keep and self.plan is not None:
+            # Il vincolo unico (piano + bersaglio) vale anche per le applicazioni
+            # disattivate: senza questo controllo il salvataggio finiva in errore 500.
+            doppione = (
+                MaintenancePlanAssignment.objects.filter(
+                    plan=self.plan, target_type=target_type, **{keep: cleaned.get(keep)}
+                )
+                .exclude(pk=self.instance.pk)
+                .first()
+            )
+            if doppione is not None:
+                stato = "attiva" if doppione.is_active else "disattivata"
+                self.add_error(
+                    keep,
+                    f"Il piano è già applicato qui (applicazione {stato}): modificala o riattivala "
+                    "dall'elenco «Assegnazioni» del piano invece di crearne un'altra.",
+                )
 
         if not cleaned.get("trigger_type"):
             cleaned["trigger_type"] = MaintenancePlanAssignment.TRIGGER_CALENDAR

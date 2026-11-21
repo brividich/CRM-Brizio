@@ -77,6 +77,7 @@ class Command(BaseCommand):
             f"Create={result['created']} "
             f"GiaAperte={result['skipped_open']} "
             f"NonInPreavviso={result['skipped_not_due']} "
+            f"SenzaContatore={result.get('skipped_no_meter', 0)} "
             f"Conflitti={result['conflicts']} "
             f"Escluse={result['excluded']}"
         )

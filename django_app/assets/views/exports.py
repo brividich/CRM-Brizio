@@ -513,8 +513,13 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
 
     ws.row_dimensions[1].height = 20
 
+    from ..services.maintenance_domain import prossime_scadenze_per_asset
+
+    # Prossima manutenzione dalle scadenze dei piani (la data sulla macchina non si aggiorna piu').
+    prossime = prossime_scadenze_per_asset(asset.id for asset in machines)
     for row_idx, asset in enumerate(machines, 2):
         wm = getattr(asset, "work_machine", None)
+        prossima = prossime.get(asset.id) or (wm.next_maintenance_date if wm else None)
         values = [
             asset.asset_tag,
             asset.name,
@@ -525,7 +530,7 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
             asset.serial_number or "",
             wm.year if wm and wm.year else "",
             wm.tmc if wm and wm.tmc else "",
-            wm.next_maintenance_date.strftime("%d-%m-%Y") if wm and wm.next_maintenance_date else "",
+            prossima.strftime("%d-%m-%Y") if prossima else "",
             "Sì" if wm and wm.cnc_controlled else "No",
             "Sì" if wm and wm.five_axes else "No",
             "Sì" if wm and wm.tcr_enabled else "No",

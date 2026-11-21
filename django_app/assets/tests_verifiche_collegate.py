@@ -313,6 +313,7 @@ class RegistraChiudeScadenzeTests(Base):
         self.assertContains(response, f'value="{self.sat.pk}" selected')
 
     def test_chiude_e_rinnova_le_scadenze_scelte(self):
+        atteso_altra = AssetAdministrativeDeadline.objects.get(pk=self.altra.pk).next_due_after(self.oggi)
         self._registra(deadlines=[self.sat.pk, self.altra.pk, self.senza_periodo.pk])
         session = PeriodicCheckSession.objects.get(check_type=self.check_type)
         self.check_type.refresh_from_db()
@@ -320,7 +321,7 @@ class RegistraChiudeScadenzeTests(Base):
             dl.refresh_from_db()
             self.assertEqual(dl.completions.get().periodic_check_session, session)
         self.assertEqual(self.sat.due_date, self.check_type.next_due_date)
-        self.assertEqual(self.altra.due_date, self.altra.next_due_after(self.oggi))
+        self.assertEqual(self.altra.due_date, atteso_altra)
         # Senza periodicità propria prende quella della verifica.
         self.assertEqual(self.senza_periodo.due_date, self.check_type.next_due_date)
         self.assertTrue(self.senza_periodo.is_active)

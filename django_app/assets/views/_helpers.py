@@ -1573,6 +1573,17 @@ def _is_assets_admin(request: HttpRequest) -> bool:
     return False
 
 
+def _can_admin_assets(request: HttpRequest) -> bool:
+    """Amministra asset e manutenzione: admin del modulo oppure chi ha «admin_assets»
+    concesso in Accessi. Stessa regola di chi configura i piani
+    (``can_manage_maintenance_plans``): prima template, contratti, licenze e
+    campagne guardavano solo ``_is_assets_admin`` e il permesso di Accessi non bastava.
+    """
+    if _is_assets_admin(request):
+        return True
+    return bool(user_can_modulo_action(request, "assets", "admin_assets"))
+
+
 def _can_asset_lifecycle_action(request: HttpRequest, *, azione_ruoli: str, azione_acl: str) -> bool:
     """Dismetti/elimina dalla scheda: admin del modulo, oppure chi ha il permesso dedicato.
 
