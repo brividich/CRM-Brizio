@@ -8,7 +8,7 @@ lo storico può ancora contenere, più gli adempimenti con un termine:
 - catene con CER diversi e movimenti datati prima del movimento a cui si collegano;
 - scarichi oltre il carico collegato o senza un carico disponibile (conto del
   filo conduttore, :mod:`rentri.fili`);
-- numeri di registrazione doppi (escluse le coppie R+M dello stesso giorno);
+- numeri di registrazione doppi (esclusi i numeri condivisi ammessi: M con la sua O o la sua R);
 - scarichi originali senza scarico effettivo dopo 90 giorni (quarta copia del FIR);
 - annotazioni scritte oltre 10 giorni lavorativi dal movimento (solo quelle del portale);
 - giacenze oltre soglia, codici con unità di misura miste, copie SharePoint non allineate.
@@ -194,7 +194,7 @@ def verifica_registro() -> list[dict]:
         {"key": "date", "label": "Date incoerenti", "tone": "warning",
          "desc": "Il movimento è datato prima del movimento a cui si collega.", "righe": date_errate},
         {"key": "duplicati", "label": "Numeri di registrazione doppi", "tone": "warning",
-         "desc": "Lo stesso numero su più movimenti (escluse le coppie R+M dello stesso giorno).", "righe": _duplicati()},
+         "desc": "Lo stesso numero su più movimenti (esclusi i numeri condivisi ammessi: M con la sua O o la sua R).", "righe": _duplicati()},
         {"key": "quarta_copia", "label": f"Quarta copia FIR oltre {GIORNI_QUARTA_COPIA} giorni", "tone": "warning",
          "desc": "Scarichi originali senza scarico effettivo: la quarta copia del formulario non risulta rientrata.",
          "righe": _quarte_copie(records, oggi, analisi)},

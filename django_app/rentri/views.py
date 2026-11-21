@@ -241,9 +241,12 @@ def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list
         registro.unita = str(data.get("unita") or "").strip()[:3]
     registro.carico_scarico = tipo
     registro.rentri_si_no = _as_bool_field(data.get("rentri_si_no"))
-    registro.note_rentri = str(data.get("note_rentri") or "").strip()
+    # A capo uniformi: il browser rimanda «\r\n», lo storico ha «\n» e senza questo
+    # ogni salvataggio risultava una modifica delle note.
+    registro.note_rentri = str(data.get("note_rentri") or "").replace("\r\n", "\n").strip()
     registro.pericolosita = str(data.get("pericolosita") or "").strip()[:100]
-    registro.arrivo_fir = str(data.get("arrivo_fir") or "").strip()[:200]
+    # Il FIR è una riga sola (campo di testo): spazi e a capo diventano uno spazio.
+    registro.arrivo_fir = " ".join(str(data.get("arrivo_fir") or "").split())[:200]
     return errors
 
 
@@ -508,7 +511,9 @@ def _valori_iniziali(request, tipo: str, registro=None) -> tuple[dict, str]:
             "data": registro.data.isoformat() if registro.data else "",
             "codice": registro.codice, "quantita": _num(registro.quantita), "unita": registro.unita,
             "rettifica": _num(registro.rettifica_scarico), "pericolosita": registro.pericolosita,
-            "arrivo_fir": registro.arrivo_fir, "note_rentri": registro.note_rentri,
+            # Lo storico ha il FIR su due righe («…JY\nSCARICO VERIFICATO»): il campo di
+            # testo del modulo toglie l'a capo e le parole si incollavano («JYSCARICO»).
+            "arrivo_fir": " ".join(registro.arrivo_fir.split()), "note_rentri": registro.note_rentri,
             "rentri_si_no": registro.rentri_si_no, "rif_op": split_rif_op(registro.rif_op),
             "allegato": bool(registro.allegato),
         }, ""
@@ -1296,7 +1301,9 @@ def dettaglio(request, pk: int):
 
     registro = get_object_or_404(RegistroRifiuti, pk=pk)
     genitori = list(
-        RegistroRifiuti.objects.filter(id_registrazione__in=split_rif_op(registro.rif_op)).order_by("data", "id")
+        RegistroRifiuti.objects.filter(id_registrazione__in=split_rif_op(registro.rif_op))
+        .exclude(pk=registro.pk)  # numero condiviso: la M che cita la sua O non è genitore di sé
+        .order_by("data", "id")
     )
     voci = storico_oggetto(registro)
     figli = figli_attivi(registro)

@@ -135,6 +135,7 @@ def id_duplicati() -> list[dict]:
     """
     from collections import defaultdict
 
+    from .catena import numero_condivisibile
     from .models import RegistroRifiuti
 
     per_id: dict[str, list] = defaultdict(list)
@@ -150,7 +151,11 @@ def id_duplicati() -> list[dict]:
         gruppi.append({
             "id_registrazione": id_reg,
             "righe": righe,
-            "coppia_rm": len(righe) == 2 and tipi == ["M", "R"] and date_uguali,
+            # Numero condiviso ammesso: R+M dello stesso giorno (storico) o O+M, M+R,
+            # O+M+R dello stesso CER (catena.numero_condivisibile). La chiave resta
+            # «coppia_rm» per compatibilità con comando e verifica.
+            "coppia_rm": (len(righe) == 2 and tipi == ["M", "R"] and date_uguali)
+            or numero_condivisibile(righe[0], righe[1:]),
             "codici": sorted({(r.codice or "").strip() for r in righe}),
         })
     gruppi.sort(key=lambda g: (g["coppia_rm"], g["id_registrazione"]))

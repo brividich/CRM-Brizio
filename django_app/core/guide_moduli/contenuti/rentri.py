@@ -334,7 +334,10 @@ GUIDA = {
                 "Lancia rentri_id_duplicati --solo-anomalie dal terminale del Setup Wizard, oppure apri «Verifica».",
                 "I numeri non si riciclano: un movimento annullato tiene il suo numero, ed è corretto così.",
                 "Su una bozza scritta male il numero si corregge nel modulo («Numero di registrazione», solo in modifica): "
-                "anno/progressivo con l'anno della data, non già usato da un altro movimento (annullati compresi). I "
+                "anno/progressivo con l'anno della data, non già usato da un altro movimento (annullati compresi). "
+                "Fa eccezione lo scarico effettivo (M): può portare lo stesso numero del suo scarico originale (O) o "
+                "della sua rettifica (R), con lo stesso codice CER, come sul registro di carta; la M collegata alla O "
+                "con lo stesso numero si salva senza errori. I "
                 "movimenti che citavano il vecchio numero passano al nuovo; non si cambia se è già trasmessa a RENTRI o se "
                 "il vecchio numero è citato da registrazioni consolidate.",
             ],
