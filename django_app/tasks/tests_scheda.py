@@ -116,14 +116,14 @@ class SchedaAttivitaTests(TasksBaseTestCase):
         self.task.refresh_from_db()
         self.assertIn("Usare il grezzo nuovo.", self.task.description)
 
-    def test_sposta_scadenza_incaricato_motivo_obbligatorio_poi_richiesta(self):
+    def test_sposta_scadenza_incaricato_diventa_richiesta_col_motivo(self):
         self.client.force_login(self.resp)
+        pagina = self.client.get(self.url)
+        # Nella scheda il motivo è richiesto all'incaricato (campo obbligatorio del form).
+        self.assertTrue(pagina.context["motivo_obbligatorio"])
+        self.assertContains(pagina, 'name="motivo" maxlength="500" required')
         url = reverse("tasks:task_azione_rapida", args=[self.task.pk])
         dati = {"azione": "date", "inizio": "2026-11-20", "fine": "2026-12-10"}
-        senza = self.client.post(url, dati)
-        self.assertEqual(senza.status_code, 400)
-        self.assertTrue(senza.json().get("serve_motivo"))
-        self.assertFalse(TaskSpostamento.objects.filter(task=self.task).exists())
         con = self.client.post(url, {**dati, "motivo": "Macchina in manutenzione"})
         self.assertEqual(con.status_code, 200)
         sp = TaskSpostamento.objects.get(task=self.task)
@@ -163,3 +163,24 @@ class SchedaAttivitaTests(TasksBaseTestCase):
         self.assertContains(pagina, "Ordine materiale")
         self.assertNotContains(pagina, "data-ka-scollega-dep")
         self.assertNotContains(pagina, "data-ka-colleg ")
+
+    def test_dal_registro_la_richiesta_parte_anche_senza_motivo(self):
+        """Nel registro attività il motivo è facoltativo: non blocca la richiesta."""
+        self.client.force_login(self.resp)
+        risposta = self.client.post(
+            reverse("tasks:task_azione_rapida", args=[self.task.pk]),
+            {"azione": "date", "inizio": "2026-11-20", "fine": "2026-12-10"},
+        )
+        self.assertEqual(risposta.status_code, 200)
+        sp = TaskSpostamento.objects.get(task=self.task)
+        self.assertEqual((sp.stato, sp.motivo), (SpostamentoStato.IN_ATTESA, ""))
+
+    def test_modifica_si_apre_nel_pannello_laterale(self):
+        self.client.force_login(self.pm)
+        pagina = self.client.get(self.url)
+        edit = reverse("tasks:edit", args=[self.task.pk])
+        self.assertContains(pagina, f'data-preview="{edit}"')
+        frammento = self.client.get(edit, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(frammento.status_code, 200)
+        self.assertContains(frammento, "data-drawer-form")
+        self.assertContains(frammento, 'name="next_step_due"')

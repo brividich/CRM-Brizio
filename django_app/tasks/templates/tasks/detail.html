@@ -16,7 +16,8 @@
     <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>
   {% endif %}
   {% if can_edit %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica</a>
+    {# Il form completo (anche la data di inizio) si apre nel pannello laterale; chiuso, la scheda si rilegge. #}
+    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}" data-preview="{% url 'tasks:edit' task.id %}">Modifica</a>
   {% endif %}
 {% endblock %}
 

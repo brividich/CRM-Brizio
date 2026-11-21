@@ -78,7 +78,8 @@
     }
   });
 
-  /* Chi non sposta subito chiede al capocommessa: sotto la data compare il motivo. */
+  /* Chi non sposta subito chiede al capocommessa: sotto la data compare il motivo
+     (facoltativo: aiuta chi decide, ma la richiesta parte anche senza). */
   function chiudiMotivo(el) {
     var box = el.parentNode.querySelector('.ka-motivo');
     if (box) box.remove();
@@ -89,11 +90,10 @@
     box.className = 'ka-motivo';
     var motivo = document.createElement('input');
     motivo.className = 'input'; motivo.type = 'text'; motivo.maxLength = 500;
-    motivo.placeholder = 'Motivo per il capocommessa'; motivo.setAttribute('aria-label', 'Motivo dello spostamento');
+    motivo.placeholder = 'Motivo per il capocommessa (facoltativo)'; motivo.setAttribute('aria-label', 'Motivo dello spostamento');
     var chiedi = document.createElement('button');
     chiedi.type = 'button'; chiedi.className = 'btn btn-sm'; chiedi.textContent = 'Chiedi';
     var invio = function () {
-      if (!motivo.value.trim()) { motivo.focus(); dici('Scrivi il motivo dello spostamento: lo legge il capocommessa che decide.', true); return; }
       chiedi.disabled = true;
       salva(el, el.getAttribute('data-url'), {
         azione: 'date', inizio: el.getAttribute('data-inizio') || '', fine: el.value, motivo: motivo.value

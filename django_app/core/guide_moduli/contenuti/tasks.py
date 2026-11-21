@@ -114,7 +114,7 @@ GUIDA = {
             "id": 'avvisi-spostamenti',
             "titolo": 'Spostamento date: chi viene avvisato',
             "blocchi": [
-                ('ul', ["Chi non ha pieni poteri deve scrivere il motivo, sia dalla scheda («Sposta la scadenza») sia dalla scadenza sul posto nel registro attività: senza motivo la richiesta non parte.", "Chi chiede lo spostamento riceve l'esito anche per mail, oltre che in campanella.", 'Se ritira la richiesta, chi doveva decidere riceve campanella e mail: non serve più decidere.']),
+                ('ul', ["Chi non ha pieni poteri scrive il motivo: nella scheda («Sposta la scadenza») è obbligatorio, dalla scadenza sul posto nel registro attività è facoltativo.", "Chi chiede lo spostamento riceve l'esito anche per mail, oltre che in campanella.", 'Se ritira la richiesta, chi doveva decidere riceve campanella e mail: non serve più decidere.']),
             ],
         },
     ],
