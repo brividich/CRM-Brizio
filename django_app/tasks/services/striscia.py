@@ -13,16 +13,21 @@ from ..models import MeetingStatus, TaskStatus
 MAX_RIGHE = 40
 
 
-def striscia_commessa(project, oggi: date, *, evidenzia: int | None = None) -> dict | None:
+def striscia_commessa(
+    project, oggi: date, *, evidenzia: int | None = None, tasks=None,
+) -> dict | None:
     """Dati della striscia, o None se nessuna attività ha una data.
 
     ``evidenzia`` = id dell'attività da mettere in risalto (scheda attività).
+    ``tasks`` = attività della commessa già lette dalla vista (risparmia una query).
     """
-    tasks = [
-        t for t in project.tasks.exclude(status=TaskStatus.CANCELED)
-        .select_related("assigned_to").order_by("next_step_due", "due_date", "id")
-        if t.due_date or t.next_step_due
-    ]
+    if tasks is None:
+        tasks = project.tasks.select_related("assigned_to")
+    # Stesso ordine di prima (date vuote in testa, come nel database).
+    tasks = sorted(
+        (t for t in tasks if t.status != TaskStatus.CANCELED and (t.due_date or t.next_step_due)),
+        key=lambda t: (t.next_step_due or date.min, t.due_date or date.min, t.pk),
+    )
     if not tasks:
         return None
     inizi = [t.next_step_due or t.due_date for t in tasks]
