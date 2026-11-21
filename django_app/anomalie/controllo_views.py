@@ -145,6 +145,42 @@ def crea_op_del_controllo(request, controllo) -> tuple[dict | None, str]:
     return op, ""
 
 
+def _chiave_fase(testo) -> str:
+    return " ".join(str(testo or "").split()).casefold()
+
+
+def fasi_suggerite(op_id: str) -> list[str]:
+    """Fasi proposte in «Fase del controllo»: prima quelle già usate sull'OP, poi
+    l'elenco di Configurazione («Fasi del controllo»), poi le più usate negli ultimi
+    controlli. Doppioni tolti senza badare a maiuscole e spazi (vince la grafia più recente)."""
+    from collections import Counter
+
+    from .views import _load_anomalie_lists
+
+    sull_op = list(AnomaliaControllo.objects.filter(op_id__iexact=op_id)
+                   .order_by("-id").values_list("fase", flat=True)[:30])
+    try:
+        configurate = list(_load_anomalie_lists().get("fasi_controllo") or [])
+    except Exception:
+        logger.exception("[anomalie] fasi_controllo non leggibili")
+        configurate = []
+    recenti = AnomaliaControllo.objects.order_by("-id").values_list("fase", flat=True)[:300]
+    conta, grafia = Counter(), {}
+    for f in recenti:
+        k = _chiave_fase(f)
+        if k:
+            conta[k] += 1
+            grafia.setdefault(k, " ".join(str(f).split()))
+    piu_usate = [grafia[k] for k, n in conta.most_common(15) if n >= 2]
+    fasi, viste = [], set()
+    for f in [*sull_op, *configurate, *piu_usate]:
+        k = _chiave_fase(f)
+        if k and k not in viste:
+            viste.add(k)
+            fasi.append(" ".join(str(f).split()))
+    return fasi[:40]
+
+
 @login_required
 @require_GET
 def api_controlli(request):
@@ -172,9 +208,7 @@ def api_controlli(request):
     ).order_by("-id")[:30])
     aperte = cs.anomalie_aperte_per_controllo(terminati)
     riaprire = [c for c in terminati if aperte.get(c.pk)][:5]
-    fasi = list(dict.fromkeys(
-        AnomaliaControllo.objects.filter(op_id__iexact=op_id).order_by("-id").values_list("fase", flat=True)[:30]
-    ))
+    fasi = fasi_suggerite(op_id)
     controlli = []
     for c in propri + colleghi + riaprire:
         dati = cs.serializza_controllo(c, con_allegati=False)

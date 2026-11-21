@@ -2813,7 +2813,12 @@ const Step2Controllo = ({
         cc: benestare ? op.capo : op.car
       });
       let vivo = true;
-      getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso').then(j => vivo && setRiprendibili(j.controlli || [])).catch(() => {}).finally(() => vivo && setLoading(false));
+      getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso').then(j => {
+        if (vivo) {
+          setRiprendibili(j.controlli || []);
+          setFasiNote(j.fasi || []);
+        }
+      }).catch(() => {}).finally(() => vivo && setLoading(false));
       return () => {
         vivo = false;
       };
@@ -2898,6 +2903,13 @@ const Step2Controllo = ({
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
   }, [controllo]);
+
+  // Fase scritta a mano uguale a una proposta (maiuscole/spazi a parte): si salva con la grafia proposta.
+  const faseNormale = t => {
+    const v = String(t || '').trim().replace(/\s+/g, ' ');
+    const k = v.toLowerCase();
+    return fasiNote.find(f => String(f).trim().replace(/\s+/g, ' ').toLowerCase() === k) || v;
+  };
   const apriControllo = async () => {
     if (!fase.trim()) {
       setError('Indica la fase del controllo.');
@@ -2911,13 +2923,13 @@ const Step2Controllo = ({
       const j = await postJson(API.controllo_apri, opRef.current.daCreare ? {
         op_id: op.id,
         op_nuovo: opRef.current.daCreare,
-        fase: fase.trim(),
+        fase: faseNormale(fase),
         mail_mode: 'fine',
         destinatari_extra: extraAvvio
       } : {
         op_id: op.id,
         op_item_id: op.item_id,
-        fase: fase.trim(),
+        fase: faseNormale(fase),
         mail_mode: 'fine',
         destinatari_extra: extraAvvio
       }, 'Avvio controllo');
@@ -3937,7 +3949,7 @@ const Step2Controllo = ({
       value: f
     }))), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, "Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.")), /*#__PURE__*/React.createElement("div", {
+    }, "Scegli fra le fasi proposte (scrivendo si filtrano) o scrivine una nuova. Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.")), /*#__PURE__*/React.createElement("div", {
       className: "field-group"
     }, /*#__PURE__*/React.createElement("span", {
       className: "field-label"
@@ -4456,7 +4468,7 @@ const Step2Controllo = ({
     onChange: e => setFase(e.target.value),
     onKeyDown: e => {
       if (e.key === 'Enter') salvaImpostazioni({
-        fase: fase.trim()
+        fase: faseNormale(fase)
       });
     }
   }), /*#__PURE__*/React.createElement("datalist", {
@@ -4467,7 +4479,7 @@ const Step2Controllo = ({
   }))), /*#__PURE__*/React.createElement("button", {
     className: "btn-primary btn-sm",
     onClick: () => salvaImpostazioni({
-      fase: fase.trim()
+      fase: faseNormale(fase)
     }),
     disabled: !fase.trim()
   }, "OK"), /*#__PURE__*/React.createElement("button", {
