@@ -52,7 +52,7 @@ body.theme-dark .tim-guide-nota{ background:rgba(251,146,60,.12); border-color:r
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">{{ module_branding_display_label }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'timbri:index' %}">{{ module_branding_display_label }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-award"/></svg>Guida · {{ doc_titolo }}</h1>
         <p class="fmd-ph-sub"><span class="tim-guide-doc">{{ doc_codice }}</span> Come si consulta e si tiene aggiornato il registro di timbri, firme e sigle del personale.</p>
       </div>

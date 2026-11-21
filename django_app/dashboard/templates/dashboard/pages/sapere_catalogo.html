@@ -10,7 +10,7 @@
 
 {% block content %}
 <div class="hp-wrap">
-  <nav class="sp-crumb" aria-label="Percorso"><a href="{% url 'sapere_cataloghi' %}">Cataloghi</a> › {{ catalogo.titolo }}</nav>
+  <template data-hub-percorso-gerarchia><a href="{% url 'sapere_cataloghi' %}">Cataloghi</a> › {{ catalogo.titolo }}</template>
 
   <header class="sp-hero{% if catalogo.copertina %} has-img{% endif %}" style="--cover:{{ catalogo.colore }}{% if catalogo.copertina %};--cover-img:url('{{ catalogo.copertina }}'){% endif %}">
     <div class="sp-hero-bd">

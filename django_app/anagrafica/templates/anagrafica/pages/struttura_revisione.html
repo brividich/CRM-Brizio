@@ -21,7 +21,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:struttura_revisioni' %}">Revisioni</a><span class="fmd-sep"> / </span><span class="fmd-cur">Rev. {{ r.numero }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:struttura_revisioni' %}">Revisioni</a><span class="fmd-sep"> / </span><span class="fmd-cur">Rev. {{ r.numero }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>Struttura Rev. {{ r.numero }}</h1>
         <p class="fmd-ph-sub">Emessa il {{ r.emessa_il|date:"d/m/Y H:i" }} da {{ r.emessa_da_nome|default:"—" }}. Motivo: {{ r.motivo }}</p>
       </div>

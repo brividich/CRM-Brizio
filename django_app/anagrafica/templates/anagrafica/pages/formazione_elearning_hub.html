@@ -20,7 +20,7 @@
     {# ── Page header ────────────────────────────────────────────────────── #}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Gestione e-learning</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Gestione e-learning</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Gestione e-learning <span class="fmd-count">{{ tot.corsi }}</span></h1>
         <p class="fmd-ph-sub">Micro-corsi interni: slide + quiz finale. Crea, controlla lo stato di salute e monitora iscritti e completamenti.</p>
       </div>

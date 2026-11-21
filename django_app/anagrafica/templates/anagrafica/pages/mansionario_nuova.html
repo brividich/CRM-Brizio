@@ -22,7 +22,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_struttura' %}">Struttura</a><span class="fmd-sep"> / </span><span class="fmd-cur">Nuova mansione</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_struttura' %}">Struttura</a><span class="fmd-sep"> / </span><span class="fmd-cur">Nuova mansione</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-plus"/></svg>Nuova mansione</h1>
         <p class="fmd-ph-sub">Cinque passi: il nome, dove sta, i rischi, le competenze richieste e il riepilogo. Si crea solo alla fine; tutto resta modificabile dopo.</p>
       </div>

@@ -30,7 +30,7 @@ body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
   <div class="fmd-wrap" style="max-width:1100px;">
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Integrità dati</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Integrità dati</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Integrità dati</h1>
         <p class="fmd-ph-sub">Controlli di coerenza su edizioni, giornate, presenze e completamenti, con il riferimento SGI (MT CN 06, MT CN 08, MOD.040). La pagina legge soltanto: le correzioni automatiche partono solo dal pulsante.</p>
       </div>

@@ -176,11 +176,11 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
 {% block content %}
 <div class="ana-page">
 
-  <div class="ana-breadcrumb">
+  <template data-hub-percorso-gerarchia>
     <a href="{% url 'fornitori:index' %}">Fornitori</a> /
     <a href="{% url 'fornitori:fornitori_list' %}">Elenco</a> /
     {{ fornitore.ragione_sociale }}
-  </div>
+  </template>
 
 
   <!-- Hero -->

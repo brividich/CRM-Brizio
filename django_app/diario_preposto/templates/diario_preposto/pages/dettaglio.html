@@ -9,11 +9,11 @@
 {% block content %}
 <div id="dp-det-root">
 
-  <div class="dp-breadcrumb">
+  <template data-hub-percorso-gerarchia>
     <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
     <span class="dp-breadcrumb-sep">></span>
     <span>{{ segnalazione.titolo|truncatechars:60 }}</span>
-  </div>
+  </template>
 
   {% include "diario_preposto/partials/_infografica.html" %}
 

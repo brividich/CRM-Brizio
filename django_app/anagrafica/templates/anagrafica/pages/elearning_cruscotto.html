@@ -30,7 +30,7 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
   <div class="fmd-wrap">
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Cruscotto</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Cruscotto</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Cruscotto e-learning</h1>
         <p class="fmd-ph-sub">Copertura degli obblighi sui corsi online (stessi numeri dello scadenzario), andamento dei completamenti e qualità dei contenuti. Estratto il {% now "d/m/Y H:i" %}.</p>
       </div>

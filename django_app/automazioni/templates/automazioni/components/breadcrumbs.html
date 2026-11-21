@@ -12,7 +12,7 @@ Schema atteso (lista di dict):
   ]
 {% endcomment %}
 {% if items %}
-<nav class="auto-breadcrumbs" aria-label="Percorso pagina">
+<template data-hub-percorso-gerarchia>
   <ol>
     {% for item in items %}
       <li>
@@ -24,7 +24,7 @@ Schema atteso (lista di dict):
       </li>
     {% endfor %}
   </ol>
-</nav>
+</template>
 <style>
   .auto-breadcrumbs { margin:8px 0 16px; }
   .auto-breadcrumbs ol { list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:4px 0; align-items:center; font-size:13px; color:#64748b; }

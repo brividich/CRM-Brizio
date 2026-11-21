@@ -29,7 +29,7 @@
     {% include "anagrafica/components/flash_messages.html" %}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Capo di ogni persona</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Capo di ogni persona</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Capo di ogni persona</h1>
         <p class="fmd-ph-sub">Per ogni persona il capo che approva assenze e DPI e da dove viene: eccezione sulla persona, mansione del responsabile d'area, mansione del capo del reparto o organigramma dei ruoli.</p>
       </div>

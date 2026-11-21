@@ -20,12 +20,12 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}">{{ corso.titolo }}</a><span class="fmd-sep"> / </span>
           <span class="fmd-cur">E-learning</span>
-        </div>
+        </template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Contenuti e-learning</h1>
         <p class="fmd-ph-sub">Slide e quiz del micro-corso. Le slide sono dati: ordinale con il campo «ordine».</p>
       </div>

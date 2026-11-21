@@ -21,7 +21,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_posizioni' %}">Posizioni aperte</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ posizione.titolo }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:recruiting_posizioni' %}">Posizioni aperte</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ posizione.titolo }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>{{ posizione.titolo }}</h1>
         <p class="fmd-ph-sub">{{ posizione.get_motivo_display }}{% if posizione.reparto %} · {{ posizione.reparto }}{% endif %}{% if posizione.richiesta_da %} · richiesta da {{ posizione.richiesta_da }}{% endif %} · il {{ posizione.data_richiesta|date:"d/m/Y" }}</p>
       </div>

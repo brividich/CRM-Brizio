@@ -17,7 +17,7 @@
   <div class="fmd-wrap">
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">{{ mansione.nome }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Valutazione</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">{{ mansione.nome }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Valutazione</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ nome }}</h1>
         <p class="fmd-ph-sub">Livello attuale sulla mansione: <strong>{{ abilitazione.livello }}</strong> · esito <strong>{{ valutazione.esito_label|lower }}</strong>. Il livello sulla mansione si ricalcola dalle competenze al salvataggio.</p>
       </div>

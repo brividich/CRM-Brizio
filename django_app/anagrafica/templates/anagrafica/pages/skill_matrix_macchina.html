@@ -84,10 +84,10 @@ body.theme-dark .sm-empty{color:var(--text-mid)}
 
   <div class="hr-pagehead">
     <div>
-      <div class="hr-pagehead-eyebrow">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
         <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
-      </div>
+      </template>
       <h2 class="hr-pagehead-title">🛠️ Skill Matrix — Abilitazioni macchina</h2>
       <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O {% info_hint "livelli_ilou" %}. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
     </div>

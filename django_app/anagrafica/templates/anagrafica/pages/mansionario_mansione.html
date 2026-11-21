@@ -24,7 +24,7 @@
     {# ── Testata: chi è la mansione ─────────────────────────────────────── #}
     <div class="fmd-pagehead mns-head">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mansione.get_tipo_display }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mansione.get_tipo_display }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>{{ mansione.nome }}{% if not mansione.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
         <div class="mns-facts">
           <div class="mns-fact"><span class="mns-fact-l">Tipo</span><span class="mns-fact-v">{{ mansione.get_tipo_display }}{% if mansione.asset %} · <span class="fmd-muted">asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}</span>{% endif %}</span></div>

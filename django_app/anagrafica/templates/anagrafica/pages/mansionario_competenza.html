@@ -20,7 +20,7 @@
     {# ── Testata ───────────────────────────────────────────────────────── #}
     <div class="fmd-pagehead mns-head">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_catalogo' %}">Catalogo competenze</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ cat.nome }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_catalogo' %}">Catalogo competenze</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ cat.nome }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ cat.nome }}{% if not cat.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
         {% if cat.descrizione %}<p class="fmd-ph-sub">{{ cat.descrizione }}</p>{% endif %}
       </div>

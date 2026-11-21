@@ -30,7 +30,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Guida e-learning</h1>
         <p class="fmd-ph-sub">Come si seguono i corsi online{% if parte_hr %} e come HR e RSPP li preparano, li assegnano e ne controllano l'esito{% endif %}.</p>
       </div>

@@ -22,11 +22,11 @@
     {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="criteri" %}
 
     <div class="fmd-pagehead">
-      <div class="fmd-crumb">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
         <span>/</span>
         <span>Criteri di valutazione</span>
-      </div>
+      </template>
     </div>
 
     {# Punti che il modulo NON decide al posto di HR #}

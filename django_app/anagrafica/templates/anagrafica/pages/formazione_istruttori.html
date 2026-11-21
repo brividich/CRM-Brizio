@@ -20,7 +20,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Docenti</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Docenti</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-mic"/></svg>Docenti / Formatori <span class="fmd-count">{{ istruttori|length }}</span></h1>
         <p class="fmd-ph-sub">Catalogo docenti interni ed esterni e aziende formative di provenienza.</p>
       </div>

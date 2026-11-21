@@ -19,7 +19,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.titolo }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.titolo }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-award"/></svg>Com'è andato il corso?</h1>
         <p class="fmd-ph-sub">Bastano pochi secondi. HR vede le medie per corso e i commenti senza il tuo nome: servono a migliorare i contenuti.</p>
       </div>

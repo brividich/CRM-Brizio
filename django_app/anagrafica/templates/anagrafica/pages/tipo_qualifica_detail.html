@@ -19,7 +19,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">Qualifiche</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ tipo.nome|truncatechars:40 }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">Qualifiche</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ tipo.nome|truncatechars:40 }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ tipo.nome }}</h1>
         <p class="fmd-ph-sub">{{ tipo.get_categoria_display }}{% if tipo.durata_mesi %} · validità {{ tipo.durata_mesi }} mesi{% else %} · senza scadenza{% endif %}{% if not tipo.is_active %} · <span class="fmd-badge fmd-b-red">disattiva</span>{% endif %}</p>
       </div>

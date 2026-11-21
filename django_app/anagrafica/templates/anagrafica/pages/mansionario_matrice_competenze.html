@@ -22,7 +22,7 @@
   <div class="fmd-wrap">
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_catalogo' %}">Catalogo competenze</a><span class="fmd-sep"> / </span><span class="fmd-cur">Matrice</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_catalogo' %}">Catalogo competenze</a><span class="fmd-sep"> / </span><span class="fmd-cur">Matrice</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Matrice delle competenze</h1>
         <p class="fmd-ph-sub">Chi sa fare cosa: per ogni persona in lista il livello più alto su ogni competenza, su qualsiasi mansione. Le colonne vuote sono competenze richieste che nessuno ha ancora valutato.</p>
       </div>

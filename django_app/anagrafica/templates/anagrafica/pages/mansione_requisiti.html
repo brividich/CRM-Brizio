@@ -21,7 +21,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansioni_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">Requisiti</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansioni_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">Requisiti</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>{{ mansione.nome }}</h1>
         <p class="fmd-ph-sub">Mansione di rischio: DPI, visite mediche e formazione necessari per l'idoneità (D.Lgs. 81/08).{% if mansione.dvr_revisione or mansione.dvr_data %} DVR{% if mansione.dvr_revisione %} {{ mansione.dvr_revisione }}{% endif %}{% if mansione.dvr_data %} del {{ mansione.dvr_data|date:"d/m/Y" }}{% endif %}.{% endif %} Da qui parte il controllo di conformità e idoneità di chi la ricopre.</p>
       </div>

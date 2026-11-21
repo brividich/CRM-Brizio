@@ -20,10 +20,10 @@
   {# ── Page header ─────────────────────────────────────────────────────────── #}
   <div class="fmd-pagehead">
     <div>
-      <div class="fmd-crumb">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:formazione_piani_list' %}">Piani</a><span class="fmd-sep"> / </span>
         <a href="{% url 'anagrafica:formazione_piano_detail' corso.piano.pk %}">{{ corso.piano.codice }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.codice }}</span>
-      </div>
+      </template>
       <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>{{ corso.titolo }}</h1>
       <p class="fmd-ph-sub">
         Piano: <strong>{{ corso.piano.nome }}</strong> · Versione {{ corso.versione }}
