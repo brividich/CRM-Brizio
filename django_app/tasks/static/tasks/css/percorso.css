@@ -465,7 +465,7 @@
 .ka-odg-btn:disabled { opacity: .45; cursor: not-allowed; }
 .ka-sotto { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; }
 .ka-sotto:not(:has(> :not([hidden]))) { display: none; }
-.ka-nota { resize: vertical; min-height: 54px; }
+.ka-nota { resize: vertical; min-height: 54px; height: 54px; }
 .ka-nota[hidden] { display: none; }
 .ka-dopo {
   align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
