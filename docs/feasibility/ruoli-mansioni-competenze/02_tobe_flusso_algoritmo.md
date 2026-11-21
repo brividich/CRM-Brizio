@@ -947,7 +947,7 @@ S fino a 3 giorni · M 1-2 settimane · L 3-4 settimane. Stime di sviluppo, senz
 | B10 | Estrazione del completamento in un servizio; collegamento edizione → SF | M | B2 |
 | B11 | Cambio mansione e inserimento agganciati alla RAM | M | B4 |
 | B12 | Rinomina dei modelli (facoltativo) **[deciso T6: da valutare]** | M | Tutto il resto fermo |
-| B13 | Riordino dell'interfaccia a filo conduttore: menu in cinque sezioni, striscia «sei qui», «prossimo passo», testata unica, una sola matrice (`03_ux.md` §9) | S per menu e striscia, M per il resto | Menu e striscia: nessuna dipendenza, si possono fare per primi |
+| B13 | Riordino dell'interfaccia a filo conduttore sull'intera Anagrafica: menu in sei pilastri, striscia «sei qui», «prossimo passo», cinque modelli di pagina, una sola matrice, uno scadenzario, stile rinfrescato facoltativo (`03_ux.md` §9-10) | S per menu e striscia, M per il resto | Menu e striscia: nessuna dipendenza, si possono fare per primi |
 
 Percorso minimo per dare valore: **B0 → B1 → B2 → B3** (livelli con evidenza e validità calcolata), poi **B4** (RAM).
 Complessivamente tre blocchi L sul percorso critico più il lavoro di contenuto, che è il vero vincolo di calendario.

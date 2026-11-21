@@ -82,6 +82,34 @@ select:disabled, input:disabled { background:#f1f5f9; color:#475569; }
 .topnav a, .hrnav a { cursor:pointer; }
 .topnav .nav-dropdown-menu, .hrnav .hrnav-dd-menu { display:none !important; }
 
+.px-modello { display:inline-block; margin-left:8px; padding:1px 7px; border-radius:6px; border:1px dashed #94a3b8; color:#475569; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; font-weight:700; }
+.fmd-hero h1 { display:flex; align-items:center; gap:10px; }
+.hrnav-tabs span.hrnav-tab { cursor:default; opacity:.75; }
+
+/* ── Variante «stile rinfrescato»: stesso portale, più aria e meno bordi ───── */
+body.px-fresco { background:#f6f8fb; }
+.px-fresco .fmd-wrap { max-width:1320px; margin-inline:auto; }
+.px-fresco .fmd-panel, .px-fresco .px-card, .px-fresco .fmd-cc { box-shadow:none; border:1px solid #e3e8ef; border-radius:14px; background:#fff; }
+.px-fresco .fmd-block { padding:22px 26px; margin-bottom:20px; }
+.px-fresco .fmd-mtr { box-shadow:none; border:1px solid #e3e8ef; border-radius:14px; padding-top:14px; padding-bottom:14px; }
+.px-fresco .fmd-mtr .fmd-ribbon { width:3px; opacity:.9; }
+.px-fresco .fmd-mtr-val { font-weight:600; }
+.px-fresco .fmd-mtr-lbl { letter-spacing:.02em; text-transform:none; font-family:inherit; font-size:13px; font-weight:600; color:#0c2545; }
+.px-fresco .fmd-kpi { gap:16px; }
+.px-fresco .fmd-pagehead { margin-bottom:22px; }
+.px-fresco .fmd-pagehead h1 { font-weight:600; letter-spacing:-.01em; }
+.px-fresco .fmd-table thead th { background:transparent; border-bottom:2px solid #e3e8ef; }
+.px-fresco .fmd-table td { padding-top:13px; padding-bottom:13px; }
+.px-fresco .fmd-hero { padding:22px 28px 20px; border-radius:16px; clip-path:none; background:linear-gradient(120deg,#0c2545 0%,#16406f 100%); }
+.px-fresco .fmd-hero-bg { opacity:.25; }
+.px-fresco .fmd-hero-tile { border-radius:12px; }
+.px-fresco .px-filo .mns-filo-step { background:transparent; border:0; border-bottom:2px solid #dbe2ea; border-radius:0; box-shadow:none; padding:6px 4px 8px; }
+.px-fresco .px-filo .mns-filo-step.mns-filo-qui { border-bottom-color:#1f87cd; background:transparent; }
+.px-fresco .px-filo .mns-filo-arr { color:#b6c2d0; }
+.px-fresco .px-prossimo { border-style:solid; border-color:#e3e8ef; background:#fff; }
+.px-fresco .fmd-badge, .px-fresco .px-st { font-weight:600; }
+.px-fresco .px-scroll { border-color:#e3e8ef; border-radius:14px; }
+
 /* Pannello «Perché?» */
 .px-perche { position:fixed; top:0; right:0; bottom:0; width:min(420px, 100%); background:#fff; box-shadow:-12px 0 32px rgba(12,37,69,.18); z-index:300; padding:18px; overflow:auto; transform:translateX(105%); transition:transform .18s ease; }
 .px-perche.px-on { transform:none; }

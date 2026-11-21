@@ -124,7 +124,18 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Proposta (`03_ux.md` §9): filo conduttore a 5 domande = 5 sezioni del menu (Requisiti · Mansioni · Competenze ·
       Quadro · Decisioni), striscia «sei qui» (riusa `mns-filo`), «Prossimo passo», testata unica, una sola matrice;
       blocco B13 in `02_tobe` §7.6. Prototipo: 12 schermate, 39 controlli ok, ~1,1 MB.
-- [ ] Pubblicare il prototipo come pagina privata, poi attendere il riscontro del proprietario.
+- [x] Prototipo pubblicato come pagina privata: https://claude.ai/artifact/HkCWgMqL5SCKZA2MAqrnkZ
+      (ripubblicare lo stesso file `prototipo/pubblicazione/prototipo-competenze-hub.html` per aggiornarlo).
+      Catture «oggi» rifatte senza l'etichetta `.devgit`: DB di prova nello scratchpad con settings `pn_proto`
+      (`from config.settings.dev import *` + `DATABASES["default"]["NAME"]` nello scratchpad, PYTHONPATH), nessun file del progetto toccato.
+- [x] Vincolo del proprietario (21/11): **«senza toccare nessun file, solo prototipi»**.
+- [x] Richiesta: restyling dell'INTERA Anagrafica nel prototipo. Scelte: menu intero + 5 modelli di pagina; pilastri per
+      percorso della persona; due varianti di aspetto a confronto. Fatto (`03_ux.md` §10): sei pilastri = sei domande
+      (Persone · Struttura · Competenze · Formazione · Sicurezza · Da fare), 41 voci navigabili (16 costruite, le altre
+      con la scheda «dove va»), modelli: ingresso di sezione, elenco, scheda, pratica a passi, matrice; nuove pagine
+      `#persone`, `#elenco-dipendenti`, `#corso`, `#da-fare`, `#v-<voce>`; matrice con vista per competenza/per mansione;
+      interruttore Stile attuale / Stile rinfrescato (classe `px-fresco`). 51 controlli ok, 26 PNG.
+- [ ] Attendere il riscontro del proprietario sul prototipo (ha detto: «poi dopo provo il prototipo»).
 - [ ] Fase 4: PDF tecnico e PDF Direzione. Nei PDF riportare anche il dubbio
       «linea di demarcazione + ripescaggio dal vecchio catalogo corsi» e le due varianti segnalazione/blocco.
 
