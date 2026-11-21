@@ -64,10 +64,10 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           {% if is_safety_view %}<a href="{% url 'anagrafica:sicurezza_hub' %}">Salute e Sicurezza</a>{% else %}<a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a>{% endif %}
           <span class="fmd-sep"> / </span><span class="fmd-cur">Qualifiche{% if active_categoria %} · {{ active_categoria_label }}{% endif %}</span>
-        </div>
+        </template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Qualifiche / Abilitazioni</h1>
         <p class="fmd-ph-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze.</p>
       </div>

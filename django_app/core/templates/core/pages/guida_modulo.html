@@ -8,7 +8,7 @@
 <div class="gm">
   <div class="gm-head">
     <div>
-      <div class="gm-crumb"><a href="{% url 'guide_indice' %}">Centro guide</a> / {{ guida.area }}</div>
+      <template data-hub-percorso-gerarchia><a href="{% url 'guide_indice' %}">Centro guide</a> / {{ guida.area }}</template>
       <h1>Guida · {{ guida.titolo }}</h1>
       <p>{{ guida.sintesi }}</p>
     </div>

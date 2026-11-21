@@ -21,11 +21,11 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_sessioni_list' %}">Sessioni</a><span class="fmd-sep"> / </span>
           <span class="fmd-cur">{% if modo == "crea" %}Nuova{% else %}Modifica{% endif %}</span>
-        </div>
+        </template>
         <h1>
           <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cal-clock"/></svg>
           {% if modo == "crea" %}Nuova sessione formativa{% else %}Modifica sessione{% endif %}

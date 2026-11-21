@@ -33,10 +33,10 @@ class ConfigNavTests(TestCase):
             self.assertIn(titolo, page)
         self.assertIn("Nessun canale di notifica attivo", page)  # «Da sistemare»
         interna = self.client.get(reverse("security:admin_config_notifications")).content.decode()
-        self.assertIn('class="soc-crumb"', interna)
+        self.assertIn("data-hub-percorso-gerarchia", interna)
         self.assertIn("<strong>Canali di notifica</strong>", interna)
         self.assertIn('aria-current="page">Panoramica</a>', interna)
-        self.assertNotIn('class="soc-crumb"', self.client.get(reverse("security:alerts_list")).content.decode())
+        self.assertNotIn("data-hub-percorso-gerarchia", self.client.get(reverse("security:alerts_list")).content.decode())
 
     def test_every_tab_route_exists(self):
         for route, _label, names, _admin in nav.CONFIG_TABS:

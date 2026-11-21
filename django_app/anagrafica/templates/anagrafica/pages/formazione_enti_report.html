@@ -19,11 +19,11 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_istruttori_list' %}">Docenti</a><span class="fmd-sep"> / </span>
           <span class="fmd-cur">Chi ci ha formato</span>
-        </div>
+        </template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>Chi ci ha formato</h1>
         <p class="fmd-ph-sub">Formazione erogata da ciascun ente{% if periodo_attivo %} nel periodo selezionato{% endif %}. Le ore sono attribuite per giornata, al docente che l'ha tenuta.</p>
       </div>

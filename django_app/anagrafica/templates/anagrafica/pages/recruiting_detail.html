@@ -21,11 +21,11 @@
     {% include "anagrafica/components/flash_messages.html" %}
 
     <div class="fmd-pagehead">
-      <div class="fmd-crumb">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
         <span>/</span>
         <span>{{ candidato.etichetta }}</span>
-      </div>
+      </template>
       <div class="fmd-pagehead-actions">
         {% if can_manage and not sola_lettura %}
         <a href="{% url 'anagrafica:recruiting_edit' candidato.id %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica scheda</a>

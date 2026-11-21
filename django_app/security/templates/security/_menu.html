@@ -18,5 +18,5 @@
 </nav>
 {% endif %}
 {% if briciola %}
-<nav class="soc-crumb" aria-label="Percorso"><a href="{{ briciola.url }}">&#8592; Configurazione</a><span aria-hidden="true">›</span><strong>{{ briciola.nome }}</strong></nav>
+<template data-hub-percorso-gerarchia><a href="{{ briciola.url }}">&#8592; Configurazione</a><span aria-hidden="true">›</span><strong>{{ briciola.nome }}</strong></template>
 {% endif %}

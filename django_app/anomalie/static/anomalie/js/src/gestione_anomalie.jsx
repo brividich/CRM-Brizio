@@ -2547,7 +2547,7 @@
                 {Ico.plus}{!isMobile && <span>Nuova segnalazione</span>}
               </a>
               {!isMobile && API.nc_lista && <a className="ga-btn ga-btn--ghost" href={API.nc_lista}>Non conformità</a>}
-              {CAN_REGISTRO && !pagina && <button type="button" className="ga-btn ga-btn--ghost" onClick={() => setPagina({ filtro: {} })}>Registro attività</button>}
+              {CAN_REGISTRO && !pagina && !isMobile && <button type="button" className="ga-btn ga-btn--ghost" onClick={() => setPagina({ filtro: {} })}>Registro attività</button>}
               <div className="ga-menu">
                 <button type="button" className="ga-iconbtn" title="Altre azioni" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>{Ico.more}</button>
                 {menuOpen && (
@@ -2558,6 +2558,7 @@
                       <button type="button" role="menuitem" disabled={!op.id} onClick={() => handleOpenReport("pdf")}>Report OP in PDF</button>
                       <button type="button" role="menuitem" disabled={!canEditSelected} onClick={duplica}>Duplica anomalia come nuovo record</button>
                       {isMobile && API.nc_lista && <a role="menuitem" href={API.nc_lista}>Non conformità</a>}
+                      {isMobile && CAN_REGISTRO && !pagina && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setPagina({ filtro: {} }); }}>Registro attività</button>}
                       {IS_ADMIN && ADMIN_URL && <a role="menuitem" href={ADMIN_URL}>Configurazione modulo</a>}
                     </div>
                   </>

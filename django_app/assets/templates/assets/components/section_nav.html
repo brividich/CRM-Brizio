@@ -1,7 +1,7 @@
 {# Barra di sezione Manutenzione (breadcrumb, voci, aiuto): la include base_shell, sopra o sotto la testata della pagina. #}
     {% if assets_section_nav %}
       <nav class="as-section-nav" aria-label="{{ assets_section_nav.label }}">
-        <div class="as-crumbs">
+        <template data-hub-percorso-gerarchia>
           {% for crumb in assets_section_nav.breadcrumbs %}
             {% if not forloop.first %}<span class="as-crumb-sep" aria-hidden="true">/</span>{% endif %}
             {% if crumb.url %}
@@ -10,7 +10,7 @@
               <span class="as-crumb-current" aria-current="page">{{ crumb.label }}</span>
             {% endif %}
           {% endfor %}
-        </div>
+        </template>
         <div class="as-section-main">
           <div class="as-section-tabs">
             {% for item in assets_section_nav.items %}

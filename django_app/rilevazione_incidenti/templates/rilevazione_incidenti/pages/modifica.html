@@ -88,9 +88,9 @@ body.theme-dark .sic-form-actions{border-color:var(--border)}
 <div id="sic-root">
 
   <div class="sic-hero">
-    <div class="sic-breadcrumb">
+    <template data-hub-percorso-gerarchia>
       <a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=sp_id %}">&#8592; Torna al dettaglio</a>
-    </div>
+    </template>
     <div class="sic-hero-title">Modifica Rilevazione</div>
     <div class="sic-hero-sub">{{ f.Nominativo|default:"" }} &mdash; {{ f.Reparto|default:"" }}</div>
   </div>

@@ -25,11 +25,11 @@ body.theme-dark .dps-ev-chiusura .dps-dot { background:#0fa596; border-color:#0f
 {% block content %}
 <div id="dp-det-root">
 
-  <div class="dp-breadcrumb">
+  <template data-hub-percorso-gerarchia>
     <a href="{% url 'rilevazione_incidenti:lista' %}">Rilevazione incidenti</a>
     <span class="dp-breadcrumb-sep">></span>
     <span>{% if f %}n. {{ sp_id }} · {{ f.Tipo_evento_label|default:"-" }}{% else %}Rilevazione{% endif %}</span>
-  </div>
+  </template>
 
   {% if error %}
   <div class="dp-eliminata"><div><strong>Rilevazione non disponibile</strong>{{ error }}</div></div>

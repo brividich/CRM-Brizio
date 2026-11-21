@@ -21,11 +21,11 @@
     {% include "anagrafica/components/flash_messages.html" %}
 
     <div class="fmd-pagehead">
-      <div class="fmd-crumb">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
         <span>/</span>
         <span>{% if candidato %}{{ candidato.nominativo|upper }}{% else %}Nuovo candidato{% endif %}</span>
-      </div>
+      </template>
     </div>
 
     <form method="post" action="" novalidate>

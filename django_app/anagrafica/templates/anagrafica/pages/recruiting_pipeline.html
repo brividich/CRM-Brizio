@@ -21,7 +21,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a><span class="fmd-sep"> / </span><span class="fmd-cur">Pipeline</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a><span class="fmd-sep"> / </span><span class="fmd-cur">Pipeline</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Pipeline di selezione <span class="fmd-count">{{ totale }}</span></h1>
         <p class="fmd-ph-sub">Una colonna per fase.{% if can_manage %} Trascina una scheda per spostarla, oppure usa il menu sulla scheda.{% endif %} L'offerta è facoltativa; l'assunzione si fa dalla scheda candidato. Gli assunti restano qui 30 giorni.</p>
       </div>

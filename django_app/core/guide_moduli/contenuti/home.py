@@ -57,6 +57,10 @@ GUIDA = {
                     "Tornando su una tappa, quelle dopo spariscono; la stessa pagina con altri filtri resta una sola tappa. "
                     "Se arrivi da una mail o da un link, il percorso parte da «Home» e dalla sezione del modulo. "
                     "Ogni scheda del browser ha il suo percorso; tiene al massimo 8 tappe.",
+                    "La casetta all'inizio del percorso è la Home. Con più di 5 tappe si vedono la Home, i «…» e le ultime 3: "
+                    "clic sui «…» per vedere tutto il percorso in una finestra. Le pagine con un nome generico "
+                    "(«Guida», «Impostazioni»…) mostrano accanto il modulo, es. «Guida · Gestione Specifiche». "
+                    "Sullo smartphone si vede solo la pagina precedente («‹ Corsi») e i «…» per le altre.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
                     "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP o un FAI scrivendo il nome.",
                 ]),

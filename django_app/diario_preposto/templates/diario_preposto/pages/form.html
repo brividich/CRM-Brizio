@@ -117,7 +117,7 @@ body.theme-dark .dp-btn-outline:hover{background:var(--surface-alt,#0f1b2d);colo
 {% block content %}
 <div id="dp-form-root">
 
-  <div class="dp-breadcrumb">
+  <template data-hub-percorso-gerarchia>
     <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
     <span class="dp-breadcrumb-sep">></span>
     {% if action == "modifica" and segnalazione %}
@@ -125,7 +125,7 @@ body.theme-dark .dp-btn-outline:hover{background:var(--surface-alt,#0f1b2d);colo
     <span class="dp-breadcrumb-sep">></span>
     {% endif %}
     <span>{{ title }}</span>
-  </div>
+  </template>
   {# Il percorso lo mostra la barra in alto del portale; qui resta solo la guida. #}
   <div class="dp-form-guida" style="display:flex;justify-content:flex-end;font-size:13px;"><a href="{% url 'diario_preposto:guida' %}">? Guida</a></div>
 
