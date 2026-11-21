@@ -21,7 +21,7 @@
   function comp(id) { return D.competenze.filter(function (c) { return c.id === id; })[0]; }
   function mans(id) { return D.mansioni.filter(function (m) { return m.id === id; })[0]; }
   function pers(id) { return D.persone.filter(function (p) { return p.id === id; })[0]; }
-  function nome(p) { return p.cognome.toUpperCase() + " " + p.nome; }
+  function nome(p) { return (p.cognome + " " + p.nome).toUpperCase(); }
   function slug(p) { return "dipendente-" + p.cognome.toLowerCase(); }
   function blocco() { return D.parametri.modalita_validita === "BLOCCO"; }
 
@@ -211,19 +211,61 @@
   /* ── VISTE ───────────────────────────────────────────────────────────── */
   var TOUR = [
     ["cruscotto-qualita", "Cruscotto Qualità", "La Qualità vede in dieci secondi quante persone sono in regola, dove sono i problemi e che cosa scade."],
-    ["matrice", "Matrice competenze", "Persone e competenze in una sola tabella: la lettera è il livello, il segno accanto dice se manca o va confermato. Un clic spiega il perché."],
-    ["dipendente-rinaldi", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
     ["editor-mansione", "Profilo della mansione", "La Qualità cambia un requisito e vede subito quante persone cambierebbero stato, prima di pubblicare."],
-    ["simulatore", "Simulatore cambio mansione", "Prima di chiedere una nuova mansione si vede che cosa è già coperto e che cosa resta da fare."],
     ["inserimento", "Inserimento", "Un nuovo assunto: la pratica di inserimento che il portale ha già diventa anche la scheda MOD.053. La persona entra in skill matrix a livello I e arriva all'esito finale con matricola e timbro."],
+    ["simulatore", "Simulatore cambio mansione", "Prima di chiedere una nuova mansione si vede che cosa è già coperto e che cosa resta da fare."],
     ["ram", "Richiesta di mansione", "Il modulo cartaceo diventa una pagina: il portale compila da solo ruolo, reparto, competenze richieste ed evidenze già presenti; le persone mettono giudizio e firme."],
     ["sessione-formativa", "Sessione formativa", "L'unico atto che cambia un livello: persone, competenze, come è stata acquisita la competenza e il livello raggiunto. Prima di chiudere si vede che cosa cambia."],
-    ["coda-car", "Coda del responsabile", "Il responsabile trova in un elenco le valutazioni da fare, le richieste e le segnalazioni da prendere in carico."],
-    ["cruscotto-rdd", "Cruscotto RDD", "Chi approva vede in una pagina le richieste, le deroghe, i profili da pubblicare e le segnalazioni rimaste senza risposta."],
     ["pianificatore", "Pianificatore della formazione", "Le mancanze diventano un piano: per ogni competenza chi va formato e con quale corso o tutor."],
-    ["vista-dipendente", "La mia scheda", "Ogni persona vede le proprie mansioni, che cosa le manca e le prossime scadenze, anche da una postazione condivisa."]
+    ["matrice", "Matrice competenze", "Persone e competenze in una sola tabella: la lettera è il livello, il segno accanto dice se manca o va confermato. Un clic spiega il perché."],
+    ["dipendente-rinaldi", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
+    ["vista-dipendente", "La mia scheda", "Ogni persona vede le proprie mansioni, che cosa le manca e le prossime scadenze, anche da una postazione condivisa."],
+    ["coda-car", "Coda del responsabile", "Il responsabile trova in un elenco le valutazioni da fare, le richieste e le segnalazioni da prendere in carico."],
+    ["cruscotto-rdd", "Cruscotto RDD", "Chi approva vede in una pagina le richieste, le deroghe, i profili da pubblicare e le segnalazioni rimaste senza risposta."]
   ];
+
   var VISTE = {};
+  /* Il filo conduttore: le sezioni del menu sono cinque domande, sempre nello stesso ordine. */
+  var GRUPPI = [
+    ["quadro", "Quadro", "È in regola?", [["cruscotto-qualita", "Cruscotto Qualità"], ["matrice", "Matrice competenze"], ["dipendente-rinaldi", "Scheda persona"], ["vista-dipendente", "La mia scheda"]]],
+    ["requisiti", "Requisiti", "Che cosa serve?", [["editor-mansione", "Profilo della mansione"]]],
+    ["mansioni", "Mansioni", "Chi lo fa?", [["inserimento", "Inserimento"], ["simulatore", "Simulatore"], ["ram", "Richiesta di mansione"]]],
+    ["competenze", "Competenze", "Che cosa sa fare?", [["sessione-formativa", "Sessione formativa"], ["pianificatore", "Pianificatore"]]],
+    ["decisioni", "Decisioni", "Chi decide?", [["coda-car", "Coda del responsabile"], ["cruscotto-rdd", "Cruscotto RDD"]]]
+  ];
+  var ORDINE_FILO = ["requisiti", "mansioni", "competenze", "quadro", "decisioni"];
+  var PROSSIMO = {
+    "cruscotto-qualita": ["Parti dalle mancanze: pianifica la formazione", "pianificatore"],
+    "matrice": ["Apri la scheda di una persona", "dipendente-rinaldi"],
+    "dipendente": ["Simula una nuova mansione per questa persona", "simulatore"],
+    "editor-mansione": ["Assegna la mansione: prova con il simulatore", "simulatore"],
+    "inserimento": ["Registra le competenze con una sessione formativa", "sessione-formativa"],
+    "simulatore": ["Apri la richiesta di mansione", "ram"],
+    "ram": ["Colma le mancanze con una sessione formativa", "sessione-formativa"],
+    "sessione-formativa": ["Controlla chi è in regola", "matrice"],
+    "pianificatore": ["Apri una sessione formativa", "sessione-formativa"],
+    "coda-car": ["Vedi che cosa aspetta l'approvazione", "cruscotto-rdd"],
+    "cruscotto-rdd": ["Torna al quadro generale", "cruscotto-qualita"]
+  };
+  function chiaveRotta(r) { return r.indexOf("dipendente-") === 0 ? "dipendente-rinaldi" : r; }
+  function gruppoDi(r) { var k = chiaveRotta(r), g = GRUPPI.filter(function (x) { return x[3].some(function (v) { return v[0] === k; }); })[0]; return g || GRUPPI[0]; }
+  function filo(r) {
+    var qui = gruppoDi(r)[0], h = '<nav class="mns-filo px-filo" aria-label="Il filo: dal requisito alla decisione">';
+    ORDINE_FILO.forEach(function (id, i) {
+      var G = GRUPPI.filter(function (x) { return x[0] === id; })[0];
+      h += (i ? '<span class="mns-filo-arr" aria-hidden="true">→</span>' : "") + '<a class="mns-filo-step' + (qui === id ? " mns-filo-qui" : "") + '" href="#' + G[3][0][0] + '"' + (qui === id ? ' aria-current="step"' : "") + '><span class="mns-filo-l">' + G[2] + '</span><span class="mns-filo-v"><b>' + G[1] + "</b></span></a>";
+    });
+    return h + "</nav>";
+  }
+  function prossimo(r) {
+    var p = PROSSIMO[r.indexOf("dipendente-") === 0 ? "dipendente" : r];
+    return p ? '<div class="px-prossimo"><span>Prossimo passo</span><a class="fmd-btn fmd-btn-primary" href="#' + p[1] + '">' + p[0] + " →</a></div>" : "";
+  }
+  var CATTURE = JSON.parse(document.getElementById("px-oggi").textContent || "{}");
+  function oggiReale(chiave, testo) {
+    if (!CATTURE[chiave]) return "";
+    return '<p class="px-oggi">' + testo + ' <span class="fmd-muted">Cattura della pagina attuale del portale, su dati di prova.</span></p><img class="px-cattura" alt="Pagina attuale del portale" src="' + CATTURE[chiave] + '">';
+  }
 
   VISTE["cruscotto-qualita"] = function () {
     var q = quadro(), h = messaggio();
@@ -260,6 +302,8 @@
     var mansioni = D.mansioni.filter(function (m) { return !f.reparto || m.reparto === f.reparto; });
     h += '<div class="px-barra">' + selReparto() + '<label>Mansione<select data-filtro="mansione"><option value="">Tutte</option>' + mansioni.map(function (m) { return '<option value="' + m.id + '"' + (f.mansione === m.id ? " selected" : "") + ">" + esc(m.nome) + "</option>"; }).join("") + '</select></label><label>Persona<input type="search" data-filtro="testo" value="' + esc(f.testo) + '" placeholder="Cerca per nome"></label>' + (stato.vista === "PROPOSTA" ? '<label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-filtro="soloGap"' + (f.soloGap ? " checked" : "") + "> Solo chi ha mancanze</label>" : "") + "</div>";
     if (stato.vista === "OGGI") {
+      var cm = oggiReale("matrice", "Oggi la «Matrice competenze» esiste ma è vuota finché le competenze non sono definite e valutate; la skill matrix accanto ha una lettera per mansione.");
+      if (cm) return h + cm;
       h += '<p class="px-oggi">Oggi la skill matrix ha <b>una lettera per mansione</b>, scritta a mano dal responsabile. Non dice quali competenze mancano né se un requisito è scaduto.</p>';
       var cols = f.mansione ? mansioni.filter(function (m) { return m.id === f.mansione; }) : mansioni;
       h += '<div class="px-scroll"><table class="px-mtx"><thead><tr><th>Persona</th>' + cols.map(function (m) { return '<th class="px-col">' + esc(m.nome) + "</th>"; }).join("") + "</tr></thead><tbody>";
@@ -296,6 +340,8 @@
     var h = messaggio() + testata("Scheda persona", ico("i-users") + esc(nome(p)), esc(p.ruolo) + " · " + esc(D.reparti[p.reparto]) + " · in azienda dal " + dataIt(p.assunto_il), '<a class="fmd-btn fmd-btn-ghost" href="#simulatore" data-sim="' + p.id + '">Simula una nuova mansione</a>');
     h += '<div class="px-barra"><label>Persona<select data-vai-persona>' + D.persone.map(function (x) { return '<option value="' + slug(x) + '"' + (x.id === p.id ? " selected" : "") + ">" + esc(nome(x)) + "</option>"; }).join("") + "</select></label></div>" + interruttore();
     if (stato.vista === "OGGI") {
+      var cp = oggiReale("persona", "Oggi la scheda mette in cima l'assegnazione diretta di una mansione, con il livello scelto a mano; «Cosa manca» è un testo. Lo storico mostra un livello abbassato in automatico.");
+      if (cp) return h + cp;
       h += '<p class="px-oggi">Oggi la scheda mostra le mansioni con un livello e un esito. «Cosa manca» riporta solo il livello sotto la soglia: le competenze non sono definite.</p>';
       h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-grid") + 'Mansioni <span class="fmd-count">' + p.mansioni.length + '</span></div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Mansione</th><th>Reparto</th><th>Livello</th><th>Esito</th><th>Cosa manca</th></tr></thead><tbody>';
       p.mansioni.forEach(function (a) {
@@ -335,6 +381,8 @@
     var h = messaggio() + testata("Profilo della mansione", ico("i-edit") + esc(m.nome), esc(D.reparti[m.reparto]) + " · mansione di rischio: " + esc(m.mansione_rischio) + " · " + tit + " titolari · profilo versione " + m.versione);
     h += '<div class="px-barra"><label>Mansione<select data-filtro="mansioneEditor">' + D.mansioni.map(function (x) { return '<option value="' + x.id + '"' + (x.id === mid ? " selected" : "") + ">" + esc(x.nome) + "</option>"; }).join("") + "</select></label></div>" + interruttore();
     if (stato.vista === "OGGI") {
+      var ce = oggiReale("mansione", "Oggi la scheda della mansione mostra persone e competenze; la modifica di un requisito vale subito, senza versioni né anteprima. In produzione nessuna delle 242 mansioni ha competenze definite.");
+      if (ce) return h + ce;
       h += '<p class="px-oggi">Oggi in produzione nessuna delle 242 mansioni ha competenze definite: la scheda mostra ruolo, reparto e persone in lista. La modifica vale subito, senza versioni né anteprima.</p>';
       h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clipboard") + 'Competenze <span class="fmd-count">0</span></div></div><div class="fmd-muted">Nessuna competenza definita: il livello sulla mansione è quello assegnato a mano.</div></section>';
       return h;
@@ -374,7 +422,7 @@
 
   function codaIniziale() {
     return [
-      { id: "SF-2027-0063", tipo: "SF", titolo: "Affiancamento 40 h — Programmazione a bordo macchina", persona: "P01", competenza: "C03", proposto: "L", modalita: "A", nota: "Tutor: Aldo Bianchetti. Chiude il gap della richiesta per DM6." },
+      { id: "SF-2027-0063", tipo: "SF", titolo: "Affiancamento 40 h — Programmazione a bordo macchina", persona: "P01", competenza: "C03", proposto: "L", modalita: "A", nota: "Tutor: BIANCHETTI ALDO. Chiude il gap della richiesta per DM6." },
       { id: "SF-2027-0071", tipo: "SF", titolo: "Prova pratica — Lettura del disegno tecnico", persona: "P02", competenza: "C01", proposto: "U", modalita: "A", nota: "Prova superata il 12/03/2027." },
       { id: "SF-2027-0072", tipo: "SF", titolo: "Prova pratica — Set-up macchina 5 assi", persona: "P02", competenza: "C02", proposto: "U", modalita: "A", nota: "80 ore di affiancamento registrate." },
       { id: "RAM-2027-0042", tipo: "RAM", titolo: "Nuova mansione: DM3 – Fresatura 5 assi", persona: "P05", mansione: "M01", nota: "Requisiti già soddisfatti: nessuna sessione formativa necessaria." }
@@ -383,7 +431,7 @@
   VISTE["coda-car"] = function () {
     if (!stato.coda) stato.coda = codaIniziale();
     var q = quadro(), segn = q.righeNC.filter(function (x) { return x.v.segnalazioni; });
-    var h = messaggio() + testata("Coda del responsabile", ico("i-clipboard") + "Da fare", "Reparto Fresatura 5 assi · responsabile: BIANCHETTI Aldo");
+    var h = messaggio() + testata("Coda del responsabile", ico("i-clipboard") + "Da fare", "Reparto Fresatura 5 assi · responsabile: BIANCHETTI ALDO");
     h += '<section class="fmd fmd-kpi fmd-kpi-auto" style="margin-bottom:16px">' + kpi('<span id="px-coda-n">' + stato.coda.length + "</span>", "Da valutare o approvare", "sessioni e richieste", "cyan", "i-clipboard", "#coda-car") + kpi(segn.length, "Segnalazioni gravi", "da prendere in carico", "amber", "i-alert-cir", "#coda-car") + kpi(q.daConf, "Competenze da confermare", "conferma periodica o grazia", "yellow", "i-clock", "#coda-car") + "</section>";
     h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-check") + 'Valutazioni e richieste <span class="fmd-count">' + stato.coda.length + "</span></div></div>";
     if (!stato.coda.length) h += '<div class="fmd-muted">Niente in coda.</div>';
@@ -451,7 +499,9 @@
     var pesano = 0; if (avviato) p.mansioni.forEach(function (a) { pesano += gapChePesano(p, mans(a.mansione)).length; });
     var fase = n.esito ? 4 : avviato ? (Object.keys(p.livelli).some(function (c) { return p.livelli[c].modalita !== "I"; }) ? 3 : 1) : 0;
     var FASI = ["Prima dell'ingresso", "Primo giorno", "Prima settimana", "Primi 60 giorni", "Fine periodo di prova"];
-    var h = messaggio() + testata("Inserimento", ico("i-users") + "Inserimento · FERRARESE Nadia", "Dalla selezione (MOD.05-01) · ingresso 01/04/2027 · fine del periodo di prova 30/06/2027 · responsabile: " + esc(nome(capo)));
+    var h = messaggio() + testata("Inserimento", ico("i-users") + "Inserimento · FERRARESE NADIA", "Dalla selezione (MOD.05-01) · ingresso 01/04/2027 · fine del periodo di prova 30/06/2027 · responsabile: " + esc(nome(capo)));
+    h += interruttore();
+    if (stato.vista === "OGGI") { var ci = oggiReale("inserimento", "Oggi la pratica di inserimento ha già le cinque fasi e il riquadro «Posizione nella struttura» con «Assegna (I)»: manca il legame con competenze, giudizio ed esito."); if (ci) return h + ci; }
     h += '<ol class="px-passi" aria-label="Fasi dell\'inserimento">' + FASI.map(function (x, i) { return '<li class="' + (i < fase ? "px-fatto-p" : i === fase ? "px-qui" : "") + '"><span>' + (i + 1) + "</span>" + x + "</li>"; }).join("") + "</ol>";
     var gia = '<span class="fmd-badge fmd-b-grey">già nel portale</span>', nuovo = '<span class="fmd-badge fmd-b-orange">nuovo</span>', camb = '<span class="fmd-badge fmd-b-cyan">collegato</span>';
     var ok = '<span class="fmd-badge fmd-b-green">fatto</span>', no = '<span class="fmd-pill fmd-pill-grey">da fare</span>';
@@ -579,7 +629,7 @@
   VISTE["sessione-formativa"] = function () {
     var s = sfCorrente(), aperta = s.passo === "APERTA", ro = aperta ? "" : " disabled";
     var h = messaggio() + testata("Sessione formativa", ico("i-cap") + s.id + " · Sessione formativa", "Più persone e più competenze in un solo atto. È l'unico modo per cambiare un livello.");
-    h += '<div class="px-barra"><label>Causale<select data-sfc="causale"' + ro + ">" + ["Mancanze di una richiesta di mansione", "Esperienza da formalizzare", "Corso formativo", "Affiancamento", "Conferma periodica", "Revisione del livello"].map(function (x) { return "<option" + (x === s.causale ? " selected" : "") + ">" + x + "</option>"; }).join("") + '</select></label><span class="px-fatto">Responsabile: BIANCHETTI Aldo</span><span class="px-fatto">Stato: <b>' + (aperta ? "aperta" : "chiusa") + "</b></span>" + (s.ram ? '<span class="px-fatto">Collegata a ' + esc(s.ram) + "</span>" : "") + "</div>";
+    h += '<div class="px-barra"><label>Causale<select data-sfc="causale"' + ro + ">" + ["Mancanze di una richiesta di mansione", "Esperienza da formalizzare", "Corso formativo", "Affiancamento", "Conferma periodica", "Revisione del livello"].map(function (x) { return "<option" + (x === s.causale ? " selected" : "") + ">" + x + "</option>"; }).join("") + '</select></label><span class="px-fatto">Responsabile: BIANCHETTI ALDO</span><span class="px-fatto">Stato: <b>' + (aperta ? "aperta" : "chiusa") + "</b></span>" + (s.ram ? '<span class="px-fatto">Collegata a ' + esc(s.ram) + "</span>" : "") + "</div>";
     h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clipboard") + 'Evidenze e valutazione <span class="fmd-count">' + s.righe.length + '</span></div><div class="fmd-block-aside">P esperienza · A affiancamento · C corso</div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Persona</th><th>Competenza</th><th>Modalità</th><th>Evidenza</th><th>Prima</th><th>Livello raggiunto</th><th></th></tr></thead><tbody>';
     s.righe.forEach(function (x, i) {
       var p = pers(x.persona), prima = (p.livelli[x.competenza] || {}).livello || "";
@@ -629,14 +679,16 @@
       var p = D.persone.filter(function (x) { return slug(x) === r; })[0] || pers("P01");
       html = vistaPersona(p);
     } else html = (VISTE[r] || VISTE["cruscotto-qualita"])();
-    el.innerHTML = html;
+    el.innerHTML = (r === "vista-dipendente" ? "" : filo(r)) + html + prossimo(r);
+    var G = gruppoDi(r), k = chiaveRotta(r);
+    document.getElementById("px-sez").innerHTML = GRUPPI.map(function (x) { return '<a href="#' + x[3][0][0] + '" class="' + (x === G ? "active" : "") + '"' + (x === G ? ' aria-current="true"' : "") + ' title="' + x[2] + '">' + x[1] + "</a>"; }).join("");
+    document.getElementById("px-voci").innerHTML = G[3].map(function (v) { return '<a href="#' + v[0] + '" class="' + (v[0] === k ? "active" : "") + '"' + (v[0] === k ? ' aria-current="page"' : "") + ">" + v[1] + "</a>"; }).join("");
     var i = -1; TOUR.forEach(function (t, k) { if (t[0] === r || (r.indexOf("dipendente-") === 0 && t[0].indexOf("dipendente-") === 0)) i = k; });
     if (i < 0) i = 0;
     document.getElementById("px-tour-n").textContent = (i + 1) + " di " + TOUR.length;
     document.getElementById("px-tour-t").innerHTML = "<b>" + esc(TOUR[i][1]) + ".</b> " + esc(TOUR[i][2]);
     document.getElementById("px-tour-prec").dataset.vai = TOUR[(i + TOUR.length - 1) % TOUR.length][0];
     document.getElementById("px-tour-succ").dataset.vai = TOUR[(i + 1) % TOUR.length][0];
-    document.querySelectorAll("[data-nav]").forEach(function (a) { var on = a.dataset.nav === TOUR[i][0]; a.classList.toggle("active", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     document.getElementById("px-percorso-qui").textContent = TOUR[i][1];
     document.querySelectorAll("[data-modalita]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.modalita === D.parametri.modalita_validita)); });
     document.title = TOUR[i][1] + " | Prototipo NOVICROM HUB";
@@ -660,7 +712,7 @@
     if (az === "ins-avvia") {
       var I = insCorrente(), np = JSON.parse(JSON.stringify(NUOVA));
       I.mansioni.forEach(function (id) { np.mansioni.push({ mansione: id, stato: "AVVIATA", dal: "2027-04-01", ram: "RAM-2027-0045" }); mans(id).requisiti.forEach(function (r) { if (!np.livelli[r.competenza]) np.livelli[r.competenza] = { livello: "I", valutato_il: D.oggi, valutato_da: D.capi[np.reparto], modalita: "I", sf: "RAM-2027-0045", requisito_scadenza: comp(r.competenza).requisito && comp(r.competenza).requisito.validita_mesi ? "2029-04-01" : null, requisito_presente: !!comp(r.competenza).requisito, ultimo_esercizio: null }; }); });
-      D.persone.push(np); stato.msg = "Inserimento avviato (RAM-2027-0045): FERRARESE Nadia è in skill matrix su " + I.mansioni.length + " mansioni, in formazione, a livello I."; return disegna();
+      D.persone.push(np); stato.msg = "Inserimento avviato (RAM-2027-0045): FERRARESE NADIA è in skill matrix su " + I.mansioni.length + " mansioni, in formazione, a livello I."; return disegna();
     }
     if (az === "ins-sf") { var ip = nuovaPersona(), cand = ["C01", "C05", "C04"].filter(function (c) { return ip.livelli[c]; }); stato.sf = { id: "SF-2027-0081", causale: "Esperienza da formalizzare", passo: "APERTA", ram: "RAM-2027-0045", righe: cand.map(function (c) { return { persona: "P33", competenza: c, modalita: "P", evidenza: "3 anni come fresatrice in altra azienda; prova pratica del responsabile", dopo: c === "C04" ? "L" : "U" }; }) }; return vai("sessione-formativa"); }
     if (az === "ins-pos" || az === "ins-neg") { var J = insCorrente(), jp = nuovaPersona(); J.esito = az === "ins-pos" ? "POS" : "NEG"; if (J.esito === "POS") jp.mansioni.forEach(function (a) { a.stato = "EFFETTIVA"; }); stato.msg = J.esito === "POS" ? "Esito POS: mansioni effettive, timbro consegnato." : "Esito NEG: l'inserimento si chiude senza assegnare le mansioni."; return disegna(); }

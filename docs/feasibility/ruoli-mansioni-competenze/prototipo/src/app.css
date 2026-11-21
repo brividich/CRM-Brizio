@@ -1,6 +1,6 @@
 /* Stili del solo prototipo (prefisso px-). Tutto il resto viene dai CSS reali dell'HUB, incorporati dallo
    script build/costruisci_prototipo.py. Font di sistema: nessuna richiesta di rete. */
-body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+/* Il carattere è quello del portale (Outfit, incorporato): nessuna sostituzione. */
 .px-tour { background:#fff7ed; border-bottom:1px solid #fed7aa; padding:8px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:13px; color:#7c2d12; }
 .px-tour b { color:#9a3412; }
 .px-tour-txt { flex:1 1 260px; min-width:0; }
@@ -72,6 +72,16 @@ select:disabled, input:disabled { background:#f1f5f9; color:#475569; }
 
 .fmd-pill, .fmd-badge { white-space:nowrap; }
 
+/* Il filo conduttore: cinque domande, sempre nello stesso ordine, con «sei qui» */
+.px-filo { margin:0 0 14px; }
+.px-filo a.mns-filo-step { text-decoration:none; color:inherit; }
+.px-filo a.mns-filo-step:hover { border-color:#1f87cd; }
+.px-prossimo { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:18px 0 0; padding:12px 16px; border:1px dashed #94a3b8; border-radius:14px; background:#fff; }
+.px-prossimo span { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#475569; font-weight:700; }
+.px-cattura { display:block; max-width:100%; height:auto; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 2px 10px rgba(12,37,69,.08); }
+.topnav a, .hrnav a { cursor:pointer; }
+.topnav .nav-dropdown-menu, .hrnav .hrnav-dd-menu { display:none !important; }
+
 /* Pannello «Perché?» */
 .px-perche { position:fixed; top:0; right:0; bottom:0; width:min(420px, 100%); background:#fff; box-shadow:-12px 0 32px rgba(12,37,69,.18); z-index:300; padding:18px; overflow:auto; transform:translateX(105%); transition:transform .18s ease; }
 .px-perche.px-on { transform:none; }
@@ -120,3 +130,5 @@ select:disabled, input:disabled { background:#f1f5f9; color:#475569; }
 }
 
 .fmd-mtr-val span { font:inherit; color:inherit; }
+
+@media (max-width: 860px) { #vista { overflow-x:clip; } .px-passi li { max-width:100%; } .px-filo { overflow-x:auto; } }

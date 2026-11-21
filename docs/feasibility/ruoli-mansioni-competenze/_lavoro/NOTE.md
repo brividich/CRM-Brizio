@@ -112,6 +112,19 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Poi richiesta in corsa: **inserimento di un nuovo dipendente** riusando l'esistente → analisi in `01_asis.md` §12
       (pratica di onboarding a 5 fasi, `services/onboarding.py`), proposta in `02_tobe` §6.6, pagina `#inserimento`.
       Prototipo ora: 12 schermate, 19 PNG, 37 controlli ok.
+- [x] Riscontro del proprietario (21/11): «a un primo sguardo mi sembra diverso da come è in realtà» + «proponi un bel
+      refactoring della UX e UI se lo ritieni necessario, creando un bel filo logico conduttore».
+      Fatto: catturate 9 pagine REALI da un server di prova locale (SQLite usa-e-getta copiato da
+      `C:/Dev/.pn-testdb/mailreg_pulito.sqlite3`, migrato, 6 persone inventate; DB cancellato, server fermato).
+      Differenze trovate e corrette: carattere Outfit (incorporato), barra e menu reali (`prototipo/src/guscio/`),
+      nomi in maiuscolo, viste «Oggi» = catture reali (`prototipo/src/oggi/`). Script: `build/prepara_guscio.py`.
+      Menu reale del modulo: Dashboard · Scadenzario · Persone · Organizzazione · Competenze · Salute e sicurezza ·
+      Amministrazione · Report · Impostazioni. Oggi il dominio è sparso: Persone › Ingressi › Onboarding;
+      Organizzazione › Struttura › Mansionario; Competenze › Formazione/Qualifiche/Abilitazioni; Salute e sicurezza › cambi mansione.
+      Proposta (`03_ux.md` §9): filo conduttore a 5 domande = 5 sezioni del menu (Requisiti · Mansioni · Competenze ·
+      Quadro · Decisioni), striscia «sei qui» (riusa `mns-filo`), «Prossimo passo», testata unica, una sola matrice;
+      blocco B13 in `02_tobe` §7.6. Prototipo: 12 schermate, 39 controlli ok, ~1,1 MB.
+- [ ] Pubblicare il prototipo come pagina privata, poi attendere il riscontro del proprietario.
 - [ ] Fase 4: PDF tecnico e PDF Direzione. Nei PDF riportare anche il dubbio
       «linea di demarcazione + ripescaggio dal vecchio catalogo corsi» e le due varianti segnalazione/blocco.
 
