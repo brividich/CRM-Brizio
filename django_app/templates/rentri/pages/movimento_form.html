@@ -65,7 +65,7 @@
             <label for="f-numero">Numero di registrazione</label>
             <input type="text" id="f-numero" value="{{ registro.id_registrazione }}" pattern="\d{4}/\d{1,6}"
               {% if numero_bloccato %}readonly title="{{ numero_bloccato }}"{% endif %} autocomplete="off">
-            <div class="hub-help">{% if numero_bloccato %}{{ numero_bloccato }}{% else %}Correggilo solo se è stato scritto male: anno/progressivo, non già usato da un altro movimento.{% endif %}</div>
+            <div class="hub-help">{% if numero_bloccato %}{{ numero_bloccato }}{% else %}Correggilo solo se è stato scritto male: anno/progressivo, non già usato da un altro movimento{% if registro.tipo == "M" %} (può essere quello del suo scarico originale O o della sua rettifica R){% elif registro.tipo == "O" or registro.tipo == "R" %} (può essere quello del suo scarico effettivo M){% endif %}.{% endif %}</div>
           </div>
           {% endif %}
           <div class="hub-field" id="fld-codice">
