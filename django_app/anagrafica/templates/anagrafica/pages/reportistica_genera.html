@@ -22,10 +22,10 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:reportistica_index' %}">Reportistica</a>
           <span class="fmd-sep"> / </span><span class="fmd-cur">{{ modello.nome }}</span>
-        </div>
+        </template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>{{ modello.nome }}</h1>
         <p class="fmd-ph-sub">Controlla l'anteprima, ritocca periodo, persone e testi, poi scarica: la copia consegnata resta in archivio.</p>
       </div>

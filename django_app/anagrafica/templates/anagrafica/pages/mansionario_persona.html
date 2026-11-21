@@ -20,7 +20,7 @@
     {% include "anagrafica/components/flash_messages.html" %}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">Persona</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">Persona</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>{{ nome }}</h1>
         <p class="fmd-ph-sub">Reparto principale: <strong>{{ scheda.reparto_principale|default:"—" }}</strong> (mansione con il livello più alto, poi la più vecchia).</p>
       </div>

@@ -4247,7 +4247,7 @@ function GestioneAnomalie() {
   }, Ico.plus, !isMobile && /*#__PURE__*/React.createElement("span", null, "Nuova segnalazione")), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
     className: "ga-btn ga-btn--ghost",
     href: API.nc_lista
-  }, "Non conformit\xE0"), CAN_REGISTRO && !pagina && /*#__PURE__*/React.createElement("button", {
+  }, "Non conformit\xE0"), CAN_REGISTRO && !pagina && !isMobile && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ga-btn ga-btn--ghost",
     onClick: () => setPagina({
@@ -4285,7 +4285,16 @@ function GestioneAnomalie() {
   }, "Duplica anomalia come nuovo record"), isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
     role: "menuitem",
     href: API.nc_lista
-  }, "Non conformit\xE0"), IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
+  }, "Non conformit\xE0"), isMobile && CAN_REGISTRO && !pagina && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    onClick: () => {
+      setMenuOpen(false);
+      setPagina({
+        filtro: {}
+      });
+    }
+  }, "Registro attivit\xE0"), IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
     role: "menuitem",
     href: ADMIN_URL
   }, "Configurazione modulo")))))), pagina ? /*#__PURE__*/React.createElement(RegistroAttivita, {

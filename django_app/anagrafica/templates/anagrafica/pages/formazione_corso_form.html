@@ -21,11 +21,11 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span>
           {% if form.instance.pk %}<a href="{% url 'anagrafica:formazione_corso_detail' form.instance.pk %}">{{ form.instance.codice }}</a><span class="fmd-sep"> / </span>{% endif %}<span class="fmd-cur">{% if modo == "crea" %}Nuovo{% else %}Modifica{% endif %}</span>
-        </div>
+        </template>
         <h1>
           <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>
           {% if modo == "crea" %}Nuovo corso formativo{% else %}Modifica corso{% endif %}

@@ -44,7 +44,7 @@
     {# Testata: chi è il processo #}
     <div class="fmd-pagehead mns-head">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ processo.get_categoria_display }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ processo.get_categoria_display }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>{{ processo.codice }} · {{ processo.nome }}{% if not processo.attivo %} <span class="fmd-badge fmd-b-grey">archiviato</span>{% endif %}</h1>
         <div class="mns-facts">
           <div class="mns-fact"><span class="mns-fact-l">Revisione</span><span class="mns-fact-v"><span class="fmd-badge fmd-b-cyan">Rev. {{ processo.revisione }}</span></span></div>

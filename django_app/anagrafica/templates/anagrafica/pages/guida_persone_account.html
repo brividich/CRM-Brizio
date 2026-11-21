@@ -32,7 +32,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Guida: persone e account</h1>
         <p class="fmd-ph-sub">Come si usa l'elenco dipendenti{% if parte_admin %}, come si inserisce un nuovo dipendente con il suo account portale e come si configurano viste, import e avviso IT{% endif %}.</p>
       </div>

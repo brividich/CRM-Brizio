@@ -20,7 +20,7 @@
     {# ── Page header ────────────────────────────────────────────────────── #}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Corsi</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Corsi</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Corsi <span class="fmd-count">{{ page_obj.paginator.count }}</span></h1>
         <p class="fmd-ph-sub">Catalogo corsi · versioni · prerequisiti · modalità di erogazione e validità.</p>
       </div>

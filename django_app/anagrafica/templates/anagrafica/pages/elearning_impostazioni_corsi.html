@@ -18,7 +18,7 @@
     {% include "anagrafica/components/flash_messages.html" %}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Impostazioni corsi</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Impostazioni corsi</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>Quali corsi si fanno online</h1>
         <p class="fmd-ph-sub">Scegli i corsi erogabili online e se sono solo per chi li ha assegnati o aperti a tutti (self-service). Un corso è online solo quando è pubblicato e le sue regole sono confermate. Le regole di fruizione di ogni corso le conferma l'RSPP prima della pubblicazione.</p>
       </div>

@@ -33,11 +33,11 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
     {# ── Page header ────────────────────────────────────────────────────── #}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb">
+        <template data-hub-percorso-gerarchia>
           <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
           <a href="{% url 'anagrafica:formazione_elearning_hub' %}">Gestione e-learning</a><span class="fmd-sep"> / </span>
           <span class="fmd-cur">{{ corso.titolo }}</span>
-        </div>
+        </template>
         <h1>
           <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ corso.titolo }}
           <span class="fmd-code" style="margin-left:6px;">{{ corso.codice }}</span>

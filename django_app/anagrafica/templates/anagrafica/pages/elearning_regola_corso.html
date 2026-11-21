@@ -23,7 +23,7 @@
     {% include "anagrafica/components/flash_messages.html" %}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:elearning_impostazioni_corsi' %}">Impostazioni e-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.codice }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:elearning_impostazioni_corsi' %}">Impostazioni e-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.codice }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Regole di fruizione: {{ corso.titolo }}</h1>
         <p class="fmd-ph-sub">Tempo minimo, slide, quiz e tentativi. Il portale le verifica lato server per ogni completamento. Nessuna regola di legge è precompilata: i valori li decide l'azienda e li conferma l'RSPP.</p>
       </div>

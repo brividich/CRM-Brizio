@@ -18,7 +18,7 @@
   <div class="fmd-wrap">
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_persona' legacy_id %}">{{ nome }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coefficienti</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_persona' legacy_id %}">{{ nome }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coefficienti</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>{{ nome }}</h1>
         <p class="fmd-ph-sub">Per ogni mansione: come la svolge (Diretto o Indiretto, su 1 turno o su 2 turni) e quanto pesa sul suo tempo. I coefficienti delle mansioni attive devono sommare <strong>1</strong>.</p>
       </div>

@@ -18,10 +18,10 @@
   <div class="fmd-wrap" style="max-width:1120px;">
 
     <div class="fmd-pagehead">
-      <div class="fmd-crumb">
+      <template data-hub-percorso-gerarchia>
         <a href="{% url 'anagrafica:mpq_cruscotto' %}">Processi qualificati</a>
         <span class="fmd-sep"> / </span><span class="fmd-cur">{{ titolo }}</span>
-      </div>
+      </template>
       <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ titolo }}</h1>
     </div>
 

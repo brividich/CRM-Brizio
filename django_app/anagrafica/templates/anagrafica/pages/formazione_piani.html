@@ -20,7 +20,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Piani</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Piani</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>Piani formativi <span class="fmd-count">{{ piani|length }}</span></h1>
         <p class="fmd-ph-sub">Catalogo piani di formazione · regole di obbligatorietà.</p>
       </div>

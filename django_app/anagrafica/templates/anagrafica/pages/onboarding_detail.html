@@ -21,7 +21,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:onboarding_list' %}">Onboarding</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ pratica.dipendente_nome|upper|default:pratica.legacy_anagrafica_id }}</span></div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:onboarding_list' %}">Onboarding</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ pratica.dipendente_nome|upper|default:pratica.legacy_anagrafica_id }}</span></template>
         <h1>
           {{ pratica.dipendente_nome|upper|default:pratica.legacy_anagrafica_id }}
           {% if pratica.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-cyan">In corso</span>
