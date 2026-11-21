@@ -55,9 +55,15 @@ GUIDA = {
                     "Per un codice pericoloso (con l'asterisco *) nel carico va indicata la «Pericolosità» (HP).",
                     "Negli scarichi O e M la prima sezione è «Formulario (FIR)»: scegli il PDF o la foto e clicca "
                     "«Leggi i dati dal FIR» per farti proporre i dati (vedi sotto).",
-                    "Clicca «Salva registrazione» nel riquadro «Riepilogo». Il numero di registrazione (anno/progressivo) "
-                    "lo assegna il portale e non cambia più. Se non hai spuntato «Scheda da inviare al RENTRI», il portale "
-                    "chiede se segnarla da inviare.",
+                    "«Numero di registrazione»: lasciato vuoto lo assegna il portale al salvataggio. Aprendo lo scarico "
+                    "effettivo da una O (o la rettifica da una M) il campo propone lo stesso numero, «Stesso numero di …, "
+                    "come sul registro di carta»: svuotalo per averne uno nuovo. Scrivilo a mano solo per riportare una "
+                    "registrazione storica (anno della data, non già usato).",
+                    "Per riportare una registrazione che sul registro di carta è già annullata spunta «Registrazione già "
+                    "annullata sul registro (storico)» e scrivi il «Motivo dell'annullamento»: si salva già barrata, con il "
+                    "suo numero, non conta nelle giacenze e non passa dal controllo del deposito; si apre la sua scheda.",
+                    "Clicca «Salva registrazione» nel riquadro «Riepilogo». Se non hai spuntato «Scheda da inviare al "
+                    "RENTRI», il portale chiede se segnarla da inviare.",
                 ]),
                 ("p", "Il «Riepilogo» a lato mostra i dati inseriti e spunta i campi obbligatori man mano che li compili. "
                       "Se ne manca uno, il salvataggio si ferma e il campo è evidenziato in rosso. «Svuota» ripulisce il modulo."),
@@ -189,6 +195,14 @@ GUIDA = {
                     "scritto con testi diversi. Spunta, correggi se serve il testo proposto e clicca «Uniforma i codici "
                     "spuntati»: cambia solo il modo di scriverlo, le sei cifre restano; gli annullati non si toccano e ogni "
                     "registrazione cambiata lo riporta nel suo storico.",
+                    "«Registrazioni senza unità di misura» (nella Verifica, solo per chi gestisce il registro): per ogni "
+                    "codice l'unità proposta è quella già scelta sulle altre registrazioni dello stesso codice, altrimenti "
+                    "quella in fondo alla descrizione («… Kg», «… Lt»); se la descrizione dice altro compare «la descrizione "
+                    "dice …». Spunta, cambia se serve e clicca «Scrivi l'unità sui codici spuntati»: vale anche per le "
+                    "consolidate, ogni registrazione lo riporta nel suo storico.",
+                    "«Numero FIR sulla rettifica invece che sullo scarico effettivo» (nella Verifica): coppie R+M con lo "
+                    "stesso numero dove il FIR è sulla R e la M ne è senza. «Sposta il FIR sulle coppie spuntate» lo porta "
+                    "sulla M e lo toglie dalla R; solo bozze.",
                     "«Registro cronologico» (dal Riepilogo annuale): il PDF dell'anno con tutte le registrazioni in ordine di "
                     "data, le annullate in grigio con il motivo, l'intestazione con ragione sociale e codice di iscrizione "
                     "RENTRI (dalle Impostazioni) e «Pagina N di M».",
