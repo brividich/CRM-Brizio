@@ -834,7 +834,9 @@
      Il PDF si legge sul server dal testo (niente OCR) e non diventa un allegato; ogni riga
      spuntata diventa un'anomalia sul S/N scritto nel report. */
   const soloCifre = (v) => String(v || '').replace(/\D/g, '');
-  const ReportPdfPannello = ({ opId, onInserisci, onChiudi }) => {
+  // P/N confrontati senza spazi, trattini e maiuscole: «ec6510d503 043» = «EC6510D503-043».
+  const soloCodice = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const ReportPdfPannello = ({ opId, opPn, onInserisci, onChiudi }) => {
     const [report, setReport] = useState([]);  // [{id, file, intestazione, righe, pagine, metodo}]
     const [scelte, setScelte] = useState({});  // "idReport:indice" -> bool
     const [stato, setStato] = useState('');
@@ -872,6 +874,7 @@
     const nFuori = report.reduce((n, rep) => n + rep.righe.filter(x => x.fuori).length, 0);
     const nTutte = report.reduce((n, rep) => n + rep.righe.length, 0);
     const opNum = soloCifre(opId);
+    const pnOp = soloCodice(opPn);
     return (
       <>
         <div className="cmm-velo" onClick={onChiudi} />
@@ -901,6 +904,7 @@
               const t = rep.intestazione;
               const righe = rep.righe.filter(x => !soloFuori || x.fuori || scelte[`${rep.id}:${x.indice}`]);
               const altroOp = opNum && t.odl && soloCifre(t.odl) !== opNum;
+              const altroPn = pnOp && t.part_number && soloCodice(t.part_number) !== pnOp;
               let sezione = null;
               return (
                 <div className="cmm-rep" key={rep.id}>
@@ -910,6 +914,7 @@
                   </div>
                   {!t.seriale && <div className="sn-warn">⚠ S/N non trovato nel report: le anomalie andranno su tutti i seriali del blocco.</div>}
                   {altroOp && <div className="sn-warn">⚠ Il report è dell’ordine {t.odl}, non di {opId}: controlla di aver scelto il file giusto.</div>}
+                  {altroPn && <div className="sn-warn">⚠ Il report è del P/N {t.part_number}, non di {opPn}: controlla di aver scelto il file giusto.</div>}
                   {rep.metodo === 'ocr' && <div className="sn-warn">⚠ PDF scansionato: righe lette dall’immagine, controlla i valori.</div>}
                   {!righe.length && <div className="field-hint">Nessuna riga fuori tolleranza su {rep.righe.length} lette.</div>}
                   {righe.length > 0 && (
@@ -2944,7 +2949,7 @@
             <CopiaDifettiPannello fonti={fontiCopia()} tokensBlocco={tokens} onCopia={copiaDifetti} onChiudi={() => setCopiaAperta(false)} />
           )}
           {reportPdfAperto && (
-            <ReportPdfPannello opId={controllo ? controllo.op_id : ''} onInserisci={inserisciDaReport} onChiudi={() => setReportPdfAperto(false)} />
+            <ReportPdfPannello opId={controllo ? controllo.op_id : ''} opPn={op && op.pn !== '—' ? op.pn : ''} onInserisci={inserisciDaReport} onChiudi={() => setReportPdfAperto(false)} />
           )}
           {scopertiEditor.length > 0 && (
             <div className="sn-warn" role="status">
