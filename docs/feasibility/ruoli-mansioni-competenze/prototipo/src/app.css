@@ -51,6 +51,27 @@ body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Aria
 .px-val { font-size:12px; font-weight:600; }
 .px-val-VALIDA { color:#166534; } .px-val-DA_CONFERMARE, .px-val-IN_DEROGA { color:#92400e; } .px-val-SOSPESA { color:#991b1b; } .px-val-ASSENTE { color:#64748b; }
 
+/* Flussi: avanzamento della richiesta, firme, campi compilati dal portale */
+.px-passi { list-style:none; display:flex; gap:6px; flex-wrap:wrap; padding:0; margin:0 0 14px; }
+.px-passi li { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 6px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; font-size:12.5px; color:#475569; font-weight:600; }
+.px-passi li span { width:22px; height:22px; border-radius:50%; background:#e2e8f0; color:#334155; display:inline-flex; align-items:center; justify-content:center; font-size:11.5px; }
+.px-passi li.px-fatto-p { border-color:#86efac; background:#f0fdf4; color:#14532d; } .px-passi li.px-fatto-p span { background:#16a34a; color:#fff; }
+.px-passi li.px-qui { border-color:#0c2545; background:#0c2545; color:#fff; } .px-passi li.px-qui span { background:#ff8a1f; color:#fff; }
+.px-auto { background:#f1f5f9; color:#334155; }
+td.px-auto { font-size:12.5px; }
+.px-firma { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #e2e8f0; font-size:13px; }
+.px-firma .px-auto { padding:4px 8px; border-radius:6px; }
+.fmd-table input[type=search], .px-barra input[type=search] { min-height:36px; padding:5px 9px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; font:inherit; color:#0f172a; }
+.fmd-table select { min-height:36px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; font:inherit; color:#0f172a; }
+select:disabled, input:disabled { background:#f1f5f9; color:#475569; }
+.fmd-btn[disabled] { opacity:.5; cursor:not-allowed; }
+
+.px-scelta { display:flex; align-items:center; gap:8px; min-height:36px; padding:4px 8px; border:1px solid #e2e8f0; border-radius:9px; margin-bottom:5px; font-size:13.5px; background:#fff; }
+.px-scelta input { width:18px; height:18px; }
+@media (max-width: 860px) { .px-scelta { min-height:44px; } .px-firma { grid-template-columns:minmax(0, 1fr); gap:3px; } }
+
+.fmd-pill, .fmd-badge { white-space:nowrap; }
+
 /* Pannello «Perché?» */
 .px-perche { position:fixed; top:0; right:0; bottom:0; width:min(420px, 100%); background:#fff; box-shadow:-12px 0 32px rgba(12,37,69,.18); z-index:300; padding:18px; overflow:auto; transform:translateX(105%); transition:transform .18s ease; }
 .px-perche.px-on { transform:none; }

@@ -105,7 +105,14 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       25 controlli ok, 0 errori di console, 0 richieste di rete, 360 px ok. Rotte: cruscotto-qualita, matrice,
       dipendente-<cognome>, editor-mansione, simulatore, coda-car, pianificatore, vista-dipendente.
       Nota tecnica: in questa shell gli heredoc bash con apostrofi falliscono → scrivere gli script con lo strumento Write.
-- [ ] **FERMO AL GATE 3**: attendo riscontro sul prototipo prima dei PDF (Fase 4). Nei PDF riportare anche il dubbio
+- [x] GATE 3 (21/11/2026), risposte: (1) **aggiungere le pagine mancanti** → fatte: `#ram` (MOD.053 a video, passi,
+      firme, esito POS bloccato), `#sessione-formativa` (multi-persona, P/A/C, effetti in anteprima), `#cruscotto-rdd`;
+      (2) **pubblicare il prototipo come pagina privata** (variante in `prototipo/pubblicazione/prototipo-competenze-hub.html`);
+      (3) nel PDF Direzione la proposta principale è **solo segnalazione**, il blocco in una riga.
+      Poi richiesta in corsa: **inserimento di un nuovo dipendente** riusando l'esistente → analisi in `01_asis.md` §12
+      (pratica di onboarding a 5 fasi, `services/onboarding.py`), proposta in `02_tobe` §6.6, pagina `#inserimento`.
+      Prototipo ora: 12 schermate, 19 PNG, 37 controlli ok.
+- [ ] Fase 4: PDF tecnico e PDF Direzione. Nei PDF riportare anche il dubbio
       «linea di demarcazione + ripescaggio dal vecchio catalogo corsi» e le due varianti segnalazione/blocco.
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche

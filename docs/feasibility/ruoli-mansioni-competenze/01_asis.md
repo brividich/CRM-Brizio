@@ -676,3 +676,50 @@ aperta ai soli amministratori. Non c'è un ruolo «responsabile» che vede solo 
 | 21 | **Corso che alimenta competenze** | Corso → qualifica (uno a uno) | Corso → competenze (a molti), scelta alla creazione, distinzione formativo / non formativo | **Estendere** il corso e il punto unico dopo il completamento | Basso | S-M |
 | 22 | **Catalogo corsi riutilizzabile** | 774 corsi, 595 a edizione unica | Accorpamento in modelli, regola per i corsi storici | **Contenuto** + strumento di unione dei corsi | Medio (organizzativo) | M |
 | 23 | **Regole del completamento in un servizio** | Logica dentro le viste | Servizio di dominio riusabile da SF, import, e-learning | **Rifattorizzare** senza cambiare il comportamento | Medio (tocca il cuore dell'aula) | M |
+
+---
+
+## 12. L'inserimento di un nuovo dipendente oggi
+
+Aggiunto il 21/11/2026 su richiesta del proprietario. Il portale ha già un percorso completo di ingresso; qui che cosa
+fa e dove si aggancia la scheda MOD.053 «Formazione assunzione».
+
+### 12.1 Che cosa c'è
+
+| Passo | Che cosa fa oggi | Dove |
+| --- | --- | --- |
+| Selezione | Scheda candidato MOD.05-01 fino all'offerta; «Assumi» crea il dipendente | `models_recruiting.py`, `urls.py:557` |
+| Pratica prima dell'ingresso | La pratica può nascere **prima** che il dipendente esista (offerta accettata) e si collega all'assunzione | `services/onboarding.py:20-25`, `:598-622` |
+| Piano a cinque fasi | Prima dell'ingresso · primo giorno · prima settimana · primi 60 giorni · fine del periodo di prova, con scadenze calcolate dalla data di ingresso | `services/onboarding.py:1-18`, `:44-60` |
+| Voci standard | Documenti, comunicazione di assunzione, account, badge, accoglienza e tutor, informativa, colloquio a 30 giorni, valutazione ed esito della prova | `services/onboarding.py:63-98` |
+| Voci dalla mansione | Visite della mansione di rischio, DPI, corsi obbligatori, schede di sicurezza: generate dal motore dei requisiti | `services/onboarding.py:228-286` |
+| **Ruolo, area e mansioni** | Voce del primo giorno: «le mansioni previste dal ruolo, una per una (all'ingresso di norma **livello I, in formazione**)» | `services/onboarding.py:81-85` |
+| Chiusura automatica | Visite, corsi, DPI, schede di sicurezza e account si chiudono da soli quando il portale registra il fatto | `services/onboarding.py:15-18`, `:681` |
+| Formazione pregressa | In preinserimento si dichiarano i corsi di sicurezza già fatti: diventano completamenti | `services/onboarding.py:496-553` |
+| Avvisi | A magazzino e responsabile per i DPI; all'IT per l'account | `services/onboarding.py:427`, `services/avviso_it_ingresso.py`, `services/dpi_ingresso.py` |
+| Corsi online | Assegnati in automatico all'avvio | `services/onboarding.py:625` |
+| Matricola | Il cambio è tracciato nello storico | `models.py:2088` |
+| Esito | La pratica si chiude; con voci aperte «chiusa con eccezioni» | `services/onboarding.py:646`, `models.py:1603-1611` |
+
+In produzione al 21/11/2026 c'è **1 pratica** di inserimento: la funzione è pronta ma appena avviata.
+
+### 12.2 Confronto con il MOD.053 «Formazione assunzione»
+
+| Voce del MOD.053 | Oggi | Che cosa manca |
+| --- | --- | --- |
+| Nome, dati anagrafici | Scheda del dipendente | Niente: non si ricompilano |
+| Inquadramento (operaio, impiegato tecnico, amministrativo) → matricola e timbro | Livello di inquadramento e matricola sulla scheda | Il legame inquadramento → matricola → timbro non è una regola del portale |
+| Ruolo, reparto (automatici), mansione da catalogo | Voce «Ruolo, area e mansioni» con proposte dal ruolo | È un'assegnazione diretta, non una richiesta approvata |
+| Ingresso in skill matrix a livello I, senza firma | Indicazione testuale nella voce | Non è una regola: il livello lo sceglie chi assegna |
+| Competenze richieste (automatiche) | Dalla mansione | Il catalogo delle competenze è vuoto |
+| Formazione P / A / C | Corsi di sicurezza pregressi; tutor come voce | Esperienza e affiancamento non producono evidenze sulle competenze |
+| Livello raggiunto, responsabile del giudizio | «Valutazione di fine periodo di prova» (voce a spunta) | La valutazione non è per competenza |
+| Richiesta di formazione aggiuntiva | — | Assente |
+| Consegna del timbro | Modulo Timbri separato | Nessun legame con l'esito |
+| Esito finale POS/NEG, matricola, firma RDD | «Esito del periodo di prova» (HR) | Non c'è la firma RDD né il blocco se il minimo non è raggiunto |
+
+### 12.3 Lettura
+
+La pratica di inserimento **è già il contenitore giusto**: ha le fasi, le scadenze, i responsabili e la chiusura
+automatica. Tre sue voci coincidono con tre passaggi del MOD.053 e basta collegarle; ne serve una nuova per le
+evidenze sulle competenze. Non serve un secondo percorso.

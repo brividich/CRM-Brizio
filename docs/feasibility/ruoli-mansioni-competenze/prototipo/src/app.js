@@ -215,7 +215,11 @@
     ["dipendente-rinaldi", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
     ["editor-mansione", "Profilo della mansione", "La Qualità cambia un requisito e vede subito quante persone cambierebbero stato, prima di pubblicare."],
     ["simulatore", "Simulatore cambio mansione", "Prima di chiedere una nuova mansione si vede che cosa è già coperto e che cosa resta da fare."],
+    ["inserimento", "Inserimento", "Un nuovo assunto: la pratica di inserimento che il portale ha già diventa anche la scheda MOD.053. La persona entra in skill matrix a livello I e arriva all'esito finale con matricola e timbro."],
+    ["ram", "Richiesta di mansione", "Il modulo cartaceo diventa una pagina: il portale compila da solo ruolo, reparto, competenze richieste ed evidenze già presenti; le persone mettono giudizio e firme."],
+    ["sessione-formativa", "Sessione formativa", "L'unico atto che cambia un livello: persone, competenze, come è stata acquisita la competenza e il livello raggiunto. Prima di chiudere si vede che cosa cambia."],
     ["coda-car", "Coda del responsabile", "Il responsabile trova in un elenco le valutazioni da fare, le richieste e le segnalazioni da prendere in carico."],
+    ["cruscotto-rdd", "Cruscotto RDD", "Chi approva vede in una pagina le richieste, le deroghe, i profili da pubblicare e le segnalazioni rimaste senza risposta."],
     ["pianificatore", "Pianificatore della formazione", "Le mancanze diventano un piano: per ogni competenza chi va formato e con quale corso o tutor."],
     ["vista-dipendente", "La mia scheda", "Ogni persona vede le proprie mansioni, che cosa le manca e le prossime scadenze, anche da una postazione condivisa."]
   ];
@@ -436,6 +440,187 @@
     return h + '</div><p class="px-nota" style="text-align:center">Vista pensata per il telefono e per le postazioni condivise: nessun dato di altre persone.</p></div>';
   };
 
+  /* ── Inserimento di un nuovo dipendente: la pratica di onboarding esistente + la richiesta di inserimento ── */
+  var NUOVA = { id: "P33", nome: "Nadia", cognome: "Ferrarese", reparto: "CN5", ruolo: "Operatore macchina utensile", assunto_il: "2027-04-01", mansioni: [], livelli: {}, deroghe: [] };
+  function insCorrente() { if (!stato.ins) stato.ins = { passo: "PRE", mansioni: ["M01"], inquadramento: "Operaio", esito: "" }; return stato.ins; }
+  function nuovaPersona() { return pers("P33"); }
+  VISTE["inserimento"] = function () {
+    var n = insCorrente(), p = nuovaPersona(), avviato = !!p, capo = pers(D.capi[NUOVA.reparto]);
+    var proposte = D.mansioni.filter(function (m) { return m.reparto === NUOVA.reparto; });
+    var richieste = {}; n.mansioni.forEach(function (id) { mans(id).requisiti.forEach(function (r) { richieste[r.competenza] = Math.max(richieste[r.competenza] || 0, ORD[r.minimo]); }); });
+    var pesano = 0; if (avviato) p.mansioni.forEach(function (a) { pesano += gapChePesano(p, mans(a.mansione)).length; });
+    var fase = n.esito ? 4 : avviato ? (Object.keys(p.livelli).some(function (c) { return p.livelli[c].modalita !== "I"; }) ? 3 : 1) : 0;
+    var FASI = ["Prima dell'ingresso", "Primo giorno", "Prima settimana", "Primi 60 giorni", "Fine periodo di prova"];
+    var h = messaggio() + testata("Inserimento", ico("i-users") + "Inserimento · FERRARESE Nadia", "Dalla selezione (MOD.05-01) · ingresso 01/04/2027 · fine del periodo di prova 30/06/2027 · responsabile: " + esc(nome(capo)));
+    h += '<ol class="px-passi" aria-label="Fasi dell\'inserimento">' + FASI.map(function (x, i) { return '<li class="' + (i < fase ? "px-fatto-p" : i === fase ? "px-qui" : "") + '"><span>' + (i + 1) + "</span>" + x + "</li>"; }).join("") + "</ol>";
+    var gia = '<span class="fmd-badge fmd-b-grey">già nel portale</span>', nuovo = '<span class="fmd-badge fmd-b-orange">nuovo</span>', camb = '<span class="fmd-badge fmd-b-cyan">collegato</span>';
+    var ok = '<span class="fmd-badge fmd-b-green">fatto</span>', no = '<span class="fmd-pill fmd-pill-grey">da fare</span>';
+    var voci = [
+      ["Prima dell'ingresso", "Documenti, comunicazione di assunzione, account", "HR · IT", ok, gia],
+      ["Prima dell'ingresso", "Visita preventiva della mansione di rischio", "HR", ok, gia],
+      ["Prima dell'ingresso", "Esperienza dichiarata dal candidato", "HR", ok, gia],
+      ["Primo giorno", "Badge, DPI della mansione, informativa", "HR · magazzino", avviato ? ok : no, gia],
+      ["Primo giorno", "Accoglienza, postazione e tutor", "Responsabile", avviato ? ok : no, gia],
+      ["Primo giorno", "Ruolo, area e mansioni → <b>richiesta di inserimento</b>: la persona entra in skill matrix a livello I", "Responsabile · RDD", avviato ? ok : no, camb],
+      ["Prima settimana", "Presa visione delle schede di sicurezza", "Persona", no, gia],
+      ["Primi 60 giorni", "Corsi obbligatori di sicurezza", "HR", no, gia],
+      ["Primi 60 giorni", "Esperienza riconosciuta, affiancamento e corsi → <b>sessioni formative</b> con il livello raggiunto", "Responsabile", fase >= 3 ? ok : no, nuovo],
+      ["Primi 60 giorni", "Colloquio di inserimento a 30 giorni", "Responsabile", no, gia],
+      ["Fine periodo di prova", "Valutazione del responsabile → <b>giudizio sulle competenze</b>", "Responsabile", avviato && !pesano ? ok : no, camb],
+      ["Fine periodo di prova", "Esito della prova → <b>esito finale POS/NEG</b>, matricola e consegna del timbro", "RDD · HR", n.esito ? ok : no, camb]
+    ];
+    h += '<div class="px-due"><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clipboard") + 'Piano di inserimento <span class="fmd-count">' + voci.length + '</span></div><div class="fmd-block-aside">la pratica che il portale ha già, con tre voci collegate e una nuova</div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Fase</th><th>Che cosa</th><th>Chi</th><th>Stato</th><th></th></tr></thead><tbody>';
+    voci.forEach(function (v) { h += '<tr><td class="fmd-muted fmd-nowrap">' + v[0] + "</td><td>" + v[1] + '</td><td class="fmd-muted">' + v[2] + "</td><td>" + v[3] + "</td><td>" + v[4] + "</td></tr>"; });
+    h += "</tbody></table></div></section><div>";
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-doc") + "Scheda di inserimento (MOD.053)</div></div>";
+    h += '<div class="px-barra"><label>Inquadramento<select data-ins="inquadramento"' + (avviato ? " disabled" : "") + ">" + ["Operaio", "Impiegato tecnico", "Impiegato amministrativo"].map(function (x) { return "<option" + (x === n.inquadramento ? " selected" : "") + ">" + x + "</option>"; }).join("") + '</select></label><span class="px-fatto">Ruolo: ' + esc(NUOVA.ruolo) + '</span><span class="px-fatto">Reparto: ' + esc(D.reparti[NUOVA.reparto]) + "</span></div>";
+    h += '<p style="font-size:13px;font-weight:700;margin:4px 0 6px;color:#0c2545">Mansioni dal catalogo <span class="fmd-muted" style="font-weight:500">(proposte dal ruolo nel reparto)</span></p>';
+    proposte.forEach(function (m) { h += '<label class="px-scelta"><input type="checkbox" data-ins-mansione="' + m.id + '"' + (n.mansioni.indexOf(m.id) >= 0 ? " checked" : "") + (avviato ? " disabled" : "") + "> " + esc(m.nome) + ' <span class="fmd-muted">· ' + m.requisiti.length + " competenze</span></label>"; });
+    h += '<p class="px-nota"><b id="px-ins-comp">' + Object.keys(richieste).length + "</b> competenze richieste in tutto. All'avvio partono da «I – in formazione», senza firma.</p>";
+    if (!avviato) h += '<div class="px-barra"><button type="button" class="fmd-btn fmd-btn-primary" data-azione="ins-avvia"' + (n.mansioni.length ? "" : " disabled") + ">Avvia l'inserimento</button></div>";
+    else {
+      h += '<div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Competenza richiesta</th><th>Formazione</th><th>Richiesto</th><th>Raggiunto</th></tr></thead><tbody>';
+      Object.keys(richieste).sort().forEach(function (c) { var l = p.livelli[c], min = ["", "I", "L", "U", "O"][richieste[c]]; h += "<tr><td><b>" + esc(comp(c).nome) + '</b></td><td class="px-auto">' + (l.modalita === "I" ? "da fare" : esc(l.modalita + " · " + l.sf)) + "</td><td>" + lv(min) + "</td><td>" + lv(l.livello) + (ORD[l.livello] < richieste[c] ? ' <span class="px-mk px-mk-gap">▼</span>' : "") + "</td></tr>"; });
+      h += '</tbody></table></div><div class="px-barra" style="margin-top:12px"><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ins-sf">Riconosci l\'esperienza dichiarata (sessione P)</button><a class="fmd-btn fmd-btn-ghost" href="#dipendente-ferrarese">Apri la scheda</a></div>';
+    }
+    h += "</section>";
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-check") + "Esito finale</div></div>";
+    h += '<div class="px-firma"><b>Responsabile del giudizio</b><span class="px-auto">' + esc(nome(capo)) + "</span><span>" + (!avviato ? "in attesa" : pesano ? "da valutare: " + pesano : "✓ livelli raggiunti") + "</span></div>";
+    h += '<div class="px-firma"><b>Matricola</b><span class="px-auto">' + (avviato ? "0417 (" + esc(n.inquadramento) + ")" : "all'avvio") + "</span><span>" + (avviato ? "✓ assegnata" : "") + "</span></div>";
+    h += '<div class="px-firma"><b>Timbro</b><span class="px-auto">' + (n.esito === "POS" ? "consegnato" : "con l'esito POS") + "</span><span>" + (n.esito === "POS" ? "✓" : "") + "</span></div>";
+    h += '<div class="px-firma"><b>Esito finale (RDD)</b><span class="px-auto">Responsabile della Direzione</span><span>' + (n.esito ? (n.esito === "POS" ? "✓ POS" : "✕ NEG") : "in attesa") + "</span></div>";
+    if (avviato && !n.esito) h += '<div class="px-barra" style="margin-top:12px"><button type="button" class="fmd-btn fmd-btn-primary" data-azione="ins-pos"' + (pesano ? " disabled" : "") + '>Esito POS</button><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ins-neg">Esito NEG</button></div>' + (pesano ? '<p class="px-nota"><b>Esito POS non disponibile:</b> livello minimo non raggiunto (competenze: ' + pesano + ").</p>" : "");
+    if (n.esito === "POS") h += '<p class="px-prop">Inserimento concluso: le mansioni sono <b>effettive</b>, la persona firma, il timbro è consegnato.</p>';
+    return h + "</section></div></div>";
+  };
+
+  /* ── FLUSSI: richiesta di mansione (modulo a video), sessione formativa, cruscotto RDD ── */
+  var PASSI_RAM = ["BOZZA", "IN_APPROVAZIONE", "AVVIATA", "IN_VALUTAZIONE", "APPROVATA"];
+  var NOME_PASSO = { BOZZA: "Bozza", IN_APPROVAZIONE: "In approvazione", AVVIATA: "Mansione avviata", IN_VALUTAZIONE: "Esito finale", APPROVATA: "Approvata", NEGATA: "Negata", RESPINTA: "Respinta" };
+  var NOME_MOD = { P: "P · esperienza verificata", A: "A · affiancamento", C: "C · corso" };
+  function ramCorrente() {
+    if (!stato.ram) stato.ram = { id: "RAM-2027-0041", persona: "P01", mansione: "M02", motivo: "Copertura del secondo turno su DM6", passo: "BOZZA" };
+    return stato.ram;
+  }
+  function sfCorrente() {
+    if (!stato.sf) stato.sf = { id: "SF-2027-0073", causale: "Mancanze di una richiesta di mansione", passo: "APERTA", ram: "RAM-2027-0041", righe: [
+      { persona: "P01", competenza: "C03", modalita: "A", evidenza: "Affiancamento 40 h, tutor Aldo Bianchetti (registro allegato)", dopo: "L" },
+      { persona: "P02", competenza: "C01", modalita: "P", evidenza: "Prova pratica del 12/03/2027", dopo: "U" },
+      { persona: "P02", competenza: "C02", modalita: "A", evidenza: "Affiancamento 80 h (registro allegato)", dopo: "U" }] };
+    return stato.sf;
+  }
+  function gapChePesano(p, m) { return valutaMansione(p, m, "AVVIATA").righe.filter(function (r) { return r.gap && r.criticita !== "U"; }); }
+  function passi(attuale) {
+    var fuori = PASSI_RAM.indexOf(attuale) < 0, h = '<ol class="px-passi" aria-label="Avanzamento della richiesta">';
+    PASSI_RAM.forEach(function (x, i) { var k = PASSI_RAM.indexOf(attuale); h += '<li class="' + (!fuori && i < k ? "px-fatto-p" : !fuori && i === k ? "px-qui" : "") + '"' + (!fuori && i === k ? ' aria-current="step"' : "") + "><span>" + (i + 1) + "</span>" + NOME_PASSO[x] + "</li>"; });
+    return h + "</ol>" + (fuori ? '<p class="px-oggi">Richiesta chiusa: <b>' + NOME_PASSO[attuale] + "</b>.</p>" : "");
+  }
+
+  VISTE["ram"] = function () {
+    var r = ramCorrente(), p = pers(r.persona), m = mans(r.mansione), capo = pers(D.capi[m.reparto]), bozza = r.passo === "BOZZA";
+    var v = valutaMansione(p, m, "AVVIATA"), pesano = gapChePesano(p, m), finale = PASSI_RAM.indexOf(r.passo) < 0 || r.passo === "APPROVATA";
+    var libere = D.mansioni.filter(function (x) { return x.id === r.mansione || !p.mansioni.some(function (a) { return a.mansione === x.id; }); });
+    var h = messaggio() + testata("Richiesta di mansione", ico("i-doc") + r.id + " · Richiesta di aggiornamento mansione", "Il MOD.053, sezione «Aggiornamento mansione», compilato a video: i campi in grigio li scrive il portale.");
+    h += passi(r.passo);
+    h += '<div class="px-due"><div><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-users") + "Chi e che cosa</div></div>";
+    h += '<div class="px-barra"><label>Persona<select data-ram="persona"' + (bozza ? "" : " disabled") + ">" + D.persone.map(function (x) { return '<option value="' + x.id + '"' + (x.id === p.id ? " selected" : "") + ">" + esc(nome(x)) + "</option>"; }).join("") + '</select></label><label>Mansione richiesta (dal catalogo)<select data-ram="mansione"' + (bozza ? "" : " disabled") + ">" + libere.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.id ? " selected" : "") + ">" + esc(x.nome) + "</option>"; }).join("") + '</select></label><label style="flex:1 1 220px">Motivo<input type="search" data-ram="motivo" value="' + esc(r.motivo) + '"' + (bozza ? "" : " disabled") + ' placeholder="Perché serve"></label></div>';
+    h += '<div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Ruolo</th><th>Reparto</th><th>Mansione</th><th>Mansione di rischio</th></tr></thead><tbody><tr><td class="px-auto">' + esc(p.ruolo) + '</td><td class="px-auto">' + esc(D.reparti[m.reparto]) + "</td><td><b>" + esc(m.nome) + '</b></td><td class="px-auto">' + esc(m.mansione_rischio) + "</td></tr></tbody></table></div>";
+    h += '<p class="px-nota">All\'avvio la persona entra in skill matrix su questa mansione <b>in formazione</b>: le competenze mancanti partono da «I», senza firma.</p></section>';
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clipboard") + 'Competenze richieste <span class="fmd-count">' + v.righe.length + '</span></div><div class="fmd-block-aside">confronto automatico</div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Competenza richiesta</th><th>Formazione</th><th>Livello richiesto</th><th>Livello raggiunto</th><th>Responsabile del giudizio</th></tr></thead><tbody>';
+    v.righe.forEach(function (x) {
+      var l = p.livelli[x.competenza];
+      h += "<tr><td><b>" + esc(comp(x.competenza).nome) + '</b> <span class="fmd-muted">' + NOME_CRIT[x.criticita] + '</span></td><td class="px-auto">' + (l ? esc(l.modalita + " · " + l.sf) + (x.gap ? "" : ' <span class="fmd-badge fmd-b-green">evidenza riusata</span>') : '<span class="fmd-pill fmd-pill-orange">da fare</span>') + "</td><td>" + lv(x.minimo) + "</td><td>" + lv(x.valutato) + (x.gap ? ' <span class="px-mk px-mk-gap">▼</span>' : "") + '</td><td class="px-auto">' + esc(nome(capo)) + "</td></tr>";
+    });
+    h += "</tbody></table></div>";
+    var usate = {}; v.righe.forEach(function (x) { var l = p.livelli[x.competenza]; if (l && !x.gap) usate[l.sf] = 1; });
+    h += '<p class="px-nota"><b>Sessioni formative usate come evidenza:</b> ' + (Object.keys(usate).length ? Object.keys(usate).map(esc).join(", ") : "nessuna") + ". " + (pesano.length ? "<b>Da colmare:</b> " + pesano.map(function (x) { return esc(comp(x.competenza).nome); }).join(", ") + "." : "Nessuna nuova sessione necessaria.") + "</p>";
+    if (pesano.length && (r.passo === "AVVIATA" || bozza)) h += '<div class="px-barra"><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ram-apri-sf">Apri la sessione formativa sulle mancanze</button></div>';
+    h += "</section></div>";
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-check") + "Firme ed esito</div></div>";
+    var k = PASSI_RAM.indexOf(r.passo), fatto = function (n) { return r.passo === "APPROVATA" || r.passo === "NEGATA" || (k >= 0 && k >= n); };
+    h += '<div class="px-firma"><b>Richiedente</b><span class="px-auto">' + esc(nome(capo)) + '</span><span>' + (fatto(1) ? "✓ inviata il " + dataIt(D.oggi) : "da inviare") + "</span></div>";
+    h += '<div class="px-firma"><b>Approvatore (RDD)</b><span class="px-auto">Responsabile della Direzione</span><span>' + (r.passo === "RESPINTA" ? "✕ respinta" : fatto(2) ? "✓ approvata" : "in attesa") + "</span></div>";
+    h += '<div class="px-firma"><b>Responsabile del giudizio</b><span class="px-auto">' + esc(nome(capo)) + "</span><span>" + (pesano.length ? "competenze da valutare: " + pesano.length : "✓ livelli raggiunti") + "</span></div>";
+    h += '<div class="px-firma"><b>Esito finale (MSO)</b><span class="px-auto">Responsabile Operativo</span><span>' + (r.passo === "APPROVATA" ? "✓ POS" : r.passo === "NEGATA" ? "✕ NEG" : "in attesa") + "</span></div>";
+    h += '<div class="px-barra" style="margin-top:14px">';
+    if (bozza) h += '<button type="button" class="fmd-btn fmd-btn-primary" data-azione="ram-invia">' + (pesano.length ? "Invia a RDD" : "Invia: va subito all'esito finale") + "</button>";
+    if (r.passo === "IN_APPROVAZIONE") h += '<button type="button" class="fmd-btn fmd-btn-primary" data-azione="ram-avvia">RDD approva l\'avvio</button><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ram-respingi">RDD respinge</button>';
+    if (r.passo === "AVVIATA") h += '<button type="button" class="fmd-btn fmd-btn-primary" data-azione="ram-valuta"' + (pesano.length ? " disabled" : "") + ">Manda all'esito finale</button>";
+    if (r.passo === "IN_VALUTAZIONE") h += '<button type="button" class="fmd-btn fmd-btn-primary" data-azione="ram-pos"' + (pesano.length ? " disabled" : "") + '>Esito POS</button><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ram-neg">Esito NEG</button>';
+    if (finale) h += '<button type="button" class="fmd-btn fmd-btn-ghost" data-azione="ram-nuova">Nuova richiesta</button>';
+    h += "</div>";
+    if (pesano.length && (r.passo === "AVVIATA" || r.passo === "IN_VALUTAZIONE")) h += '<p class="px-nota"><b>Esito POS non disponibile:</b> livello minimo non raggiunto (competenze: ' + pesano.length + "), regola del MOD.053.</p>";
+    if (r.passo === "APPROVATA") h += '<p class="px-prop">Mansione <b>effettiva</b>: skill matrix e scheda della persona sono aggiornate. Le evidenze usate restano collegate alla richiesta.</p>';
+    h += '<p class="px-nota">Chi chiede può giudicare, non approvare. Gli amministratori possono ancora assegnare direttamente, con motivo: il portale registra comunque una richiesta chiusa.</p></section></div>';
+    return h;
+  };
+
+  function effettoSF(sf) {
+    var coinvolti = {}; sf.righe.forEach(function (x) { coinvolti[x.persona] = 1; });
+    var prima = {}, potPrima = {};
+    Object.keys(coinvolti).forEach(function (id) { var p = pers(id); prima[id] = p.mansioni.map(function (a) { return valutaMansione(p, mans(a.mansione), a.stato).stato; }); potPrima[id] = potenziali(p).filter(function (x) { return x.esito === "SODDISFATTA"; }).map(function (x) { return x.mansione; }); });
+    var salvati = sf.righe.map(function (x) { return { p: x.persona, c: x.competenza, l: pers(x.persona).livelli[x.competenza] }; });
+    applicaSF(sf);
+    var out = [];
+    Object.keys(coinvolti).forEach(function (id) {
+      var p = pers(id);
+      p.mansioni.forEach(function (a, i) { var s2 = valutaMansione(p, mans(a.mansione), a.stato).stato; if (s2 !== prima[id][i]) out.push(esc(nome(p)) + " · " + esc(mans(a.mansione).nome) + ": " + st(prima[id][i]) + " → " + st(s2)); });
+      potenziali(p).forEach(function (x) { if (x.esito === "SODDISFATTA" && potPrima[id].indexOf(x.mansione) < 0) out.push(esc(nome(p)) + ": <b>" + esc(x.nome) + "</b> diventa mansione potenziale con requisiti soddisfatti"); });
+    });
+    salvati.forEach(function (x) { if (x.l) pers(x.p).livelli[x.c] = x.l; else delete pers(x.p).livelli[x.c]; });
+    return out;
+  }
+  function applicaSF(sf) {
+    sf.righe.forEach(function (x) {
+      var p = pers(x.persona), prec = p.livelli[x.competenza] || { requisito_scadenza: null, requisito_presente: false, ultimo_esercizio: null };
+      p.livelli[x.competenza] = { livello: x.dopo, valutato_il: D.oggi, valutato_da: D.capi[p.reparto], modalita: x.modalita, sf: sf.id, requisito_scadenza: prec.requisito_scadenza, requisito_presente: prec.requisito_presente, ultimo_esercizio: prec.ultimo_esercizio };
+    });
+  }
+  VISTE["sessione-formativa"] = function () {
+    var s = sfCorrente(), aperta = s.passo === "APERTA", ro = aperta ? "" : " disabled";
+    var h = messaggio() + testata("Sessione formativa", ico("i-cap") + s.id + " · Sessione formativa", "Più persone e più competenze in un solo atto. È l'unico modo per cambiare un livello.");
+    h += '<div class="px-barra"><label>Causale<select data-sfc="causale"' + ro + ">" + ["Mancanze di una richiesta di mansione", "Esperienza da formalizzare", "Corso formativo", "Affiancamento", "Conferma periodica", "Revisione del livello"].map(function (x) { return "<option" + (x === s.causale ? " selected" : "") + ">" + x + "</option>"; }).join("") + '</select></label><span class="px-fatto">Responsabile: BIANCHETTI Aldo</span><span class="px-fatto">Stato: <b>' + (aperta ? "aperta" : "chiusa") + "</b></span>" + (s.ram ? '<span class="px-fatto">Collegata a ' + esc(s.ram) + "</span>" : "") + "</div>";
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clipboard") + 'Evidenze e valutazione <span class="fmd-count">' + s.righe.length + '</span></div><div class="fmd-block-aside">P esperienza · A affiancamento · C corso</div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Persona</th><th>Competenza</th><th>Modalità</th><th>Evidenza</th><th>Prima</th><th>Livello raggiunto</th><th></th></tr></thead><tbody>';
+    s.righe.forEach(function (x, i) {
+      var p = pers(x.persona), prima = (p.livelli[x.competenza] || {}).livello || "";
+      h += '<tr><td><select data-sf="' + i + '|persona" aria-label="Persona"' + ro + ">" + D.persone.map(function (y) { return '<option value="' + y.id + '"' + (y.id === x.persona ? " selected" : "") + ">" + esc(nome(y)) + "</option>"; }).join("") + '</select></td><td><select data-sf="' + i + '|competenza" aria-label="Competenza"' + ro + ">" + D.competenze.map(function (y) { return '<option value="' + y.id + '"' + (y.id === x.competenza ? " selected" : "") + ">" + esc(y.nome) + "</option>"; }).join("") + '</select></td><td><select data-sf="' + i + '|modalita" aria-label="Modalità"' + ro + ">" + ["P", "A", "C"].map(function (y) { return '<option value="' + y + '"' + (y === x.modalita ? " selected" : "") + ">" + NOME_MOD[y] + "</option>"; }).join("") + '</select></td><td><input type="search" data-sf="' + i + '|evidenza" aria-label="Evidenza" value="' + esc(x.evidenza) + '"' + ro + ' style="min-width:220px;width:100%"></td><td>' + (aperta ? lv(prima) : "") + '</td><td><select data-sf="' + i + '|dopo" aria-label="Livello raggiunto"' + ro + ">" + ["I", "L", "U", "O"].map(function (y) { return '<option value="' + y + '"' + (y === x.dopo ? " selected" : "") + ">" + y + " · " + NOME_LV[y] + "</option>"; }).join("") + '</select></td><td class="fmd-r">' + (aperta ? '<button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-azione="sf-togli" data-arg="' + i + '">Togli</button>' : "✓") + "</td></tr>";
+    });
+    h += "</tbody></table></div>";
+    if (aperta) h += '<div class="px-barra" style="margin-top:12px"><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="sf-aggiungi">Aggiungi una riga</button></div>';
+    h += '<p class="px-nota">Per la modalità A il registro di affiancamento (tutor, periodo, ore, attività) si allega alla sessione, come il MOD.040 per i corsi.</p></section>';
+    h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-arrow-right") + (aperta ? "Che cosa cambia alla chiusura" : "Sessione chiusa") + "</div></div>";
+    if (aperta) {
+      var eff = s.righe.length ? effettoSF(s) : [];
+      h += '<p style="margin:0 0 8px"><span class="px-big" id="px-sf-effetti">' + eff.length + '</span> <span class="fmd-muted">effetti su mansioni e mansioni potenziali</span></p>';
+      eff.forEach(function (x) { h += '<div class="px-diff">' + x + "</div>"; });
+      h += '<p class="px-nota">Nessuna mansione viene assegnata: una mansione potenziale resta una proposta.</p><div class="px-barra"><button type="button" class="fmd-btn fmd-btn-primary" data-azione="sf-chiudi"' + (s.righe.length ? "" : " disabled") + ">Chiudi la sessione e registra i livelli</button></div>";
+    } else h += '<p class="px-prop">I livelli sono registrati e lo storico conserva modalità ed evidenza. La sessione non si modifica più: una correzione è una nuova sessione.</p><div class="px-barra"><a class="fmd-btn fmd-btn-ghost" href="' + (s.ram === "RAM-2027-0045" ? "#inserimento" : "#ram") + '">Torna alla richiesta</a><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="sf-nuova">Nuova sessione</button></div>';
+    return h + "</section>";
+  };
+
+  VISTE["cruscotto-rdd"] = function () {
+    if (!stato.coda) stato.coda = codaIniziale();
+    if (!stato.sollecitate) stato.sollecitate = {};
+    var q = quadro(), r = ramCorrente(), segn = q.righeNC.filter(function (x) { return x.v.segnalazioni; });
+    var richieste = stato.coda.filter(function (x) { return x.tipo === "RAM"; }), daApprovare = richieste.length + (r.passo === "IN_APPROVAZIONE" ? 1 : 0);
+    var deroghe = []; D.persone.forEach(function (p) { (p.deroghe || []).forEach(function (d, i) { deroghe.push({ p: p, d: d, i: i, g: giorniFra(d.fino_al, D.oggi) }); }); });
+    var profilo = stato.bozza && stato.bozza.inviata ? stato.bozza : null;
+    var h = messaggio() + testata("Cruscotto RDD", ico("i-shield") + "Da approvare", "Richieste di mansione, deroghe, profili e segnalazioni che aspettano una decisione.");
+    h += '<section class="fmd fmd-kpi fmd-kpi-auto" style="margin-bottom:16px">' + kpi('<span id="px-rdd-ram">' + daApprovare + "</span>", "Richieste da approvare", "avvio di una mansione", "cyan", "i-doc", "#cruscotto-rdd") + kpi(r.passo === "IN_VALUTAZIONE" ? 1 : 0, "Esiti finali", "POS o NEG", "navy", "i-check", "#ram") + kpi(deroghe.length, "Deroghe in corso", "a termine", "yellow", "i-clock", "#cruscotto-rdd") + kpi(segn.length, "Segnalazioni gravi", "senza presa in carico", "amber", "i-alert-cir", "#cruscotto-rdd") + kpi(profilo ? 1 : 0, "Profili da approvare", "revisione dei requisiti", "violet", "i-edit", "#editor-mansione") + "</section>";
+    h += '<div class="px-due"><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-doc") + 'Richieste di mansione <span class="fmd-count">' + daApprovare + "</span></div></div>";
+    if (!daApprovare) h += '<div class="fmd-muted">Nessuna richiesta in attesa.</div>';
+    if (r.passo === "IN_APPROVAZIONE") { var gp = gapChePesano(pers(r.persona), mans(r.mansione)); h += '<div class="px-card" style="margin-bottom:10px"><h3><span class="fmd-badge fmd-b-violet">' + r.id + "</span> " + esc(mans(r.mansione).nome) + '</h3><p style="margin:4px 0;font-size:13.5px">' + esc(nome(pers(r.persona))) + " · " + (gp.length ? gp.length + " competenze da colmare" : "requisiti già soddisfatti") + '</p><div class="px-barra" style="margin:8px 0 0"><a class="fmd-btn fmd-btn-primary" href="#ram">Apri la richiesta</a></div></div>'; }
+    richieste.forEach(function (x) { h += '<div class="px-card" style="margin-bottom:10px"><h3><span class="fmd-badge fmd-b-violet">' + x.id + "</span> " + esc(x.titolo) + '</h3><p style="margin:4px 0;font-size:13.5px">' + esc(nome(pers(x.persona))) + '</p><p class="px-nota">' + esc(x.nota) + '</p><div class="px-barra" style="margin:8px 0 0"><button type="button" class="fmd-btn fmd-btn-primary" data-azione="coda-ok" data-arg="' + x.id + '">Approva</button><button type="button" class="fmd-btn fmd-btn-ghost" data-azione="coda-no" data-arg="' + x.id + '">Respingi</button></div></div>'; });
+    if (profilo) { var imp = impattoRevisione(profilo.id, profilo.requisiti); h += '<div class="px-card"><h3><span class="fmd-badge fmd-b-orange">Profilo</span> ' + esc(mans(profilo.id).nome) + '</h3><p style="margin:4px 0;font-size:13.5px">Nuova versione dei requisiti: ' + imp.cambi.length + " titolari su " + imp.titolari + ' cambiano stato.</p><div class="px-barra" style="margin:8px 0 0"><button type="button" class="fmd-btn fmd-btn-primary" data-azione="rdd-pubblica">Approva e pubblica</button><a class="fmd-btn fmd-btn-ghost" href="#editor-mansione">Vedi la bozza</a></div></div>'; }
+    h += '</section><div><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-clock") + 'Deroghe in corso <span class="fmd-count">' + deroghe.length + "</span></div></div>";
+    if (!deroghe.length) h += '<div class="fmd-muted">Nessuna deroga in corso.</div>';
+    deroghe.forEach(function (x) { h += '<div class="px-diff"><a class="fmd-data-link" href="#' + slug(x.p) + '">' + esc(nome(x.p)) + "</a> · <b>" + esc(comp(x.d.competenza).nome) + "</b><br>" + esc(x.d.motivo) + '<br><span class="fmd-muted">fino al ' + dataIt(x.d.fino_al) + " (" + x.g + ' giorni)</span> <button type="button" class="px-link" data-azione="rdd-revoca" data-arg="' + x.p.id + "|" + x.i + '">Revoca</button></div>'; });
+    h += '</section><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-alert-cir") + 'Segnalazioni gravi <span class="fmd-count">' + segn.length + '</span></div><div class="fmd-block-aside">modalità: ' + (blocco() ? "blocco" : "segnalazione") + "</div></div>";
+    if (!segn.length) h += '<div class="fmd-muted">Nessuna.</div>';
+    segn.forEach(function (x) { var rr = x.v.righe.filter(function (y) { return y.validita === "SOSPESA"; })[0], key = x.p.id + x.m.id; h += '<div class="px-diff"><a class="fmd-data-link" href="#' + slug(x.p) + '">' + esc(nome(x.p)) + "</a> · " + esc(x.m.nome) + "<br><b>" + esc(comp(rr.competenza).nome) + "</b>: " + esc(rr.motivo) + '<br><span class="fmd-muted">' + (stato.sollecitate[key] ? "Sollecito inviato al responsabile." : "Nessuna presa in carico dal responsabile.") + "</span> " + (stato.sollecitate[key] ? "" : '<button type="button" class="px-link" data-azione="rdd-sollecita" data-arg="' + key + '">Sollecita</button>') + "</div>"; });
+    return h + "</section></div></div>";
+  };
+
   /* ── Navigazione, eventi, avvio ──────────────────────────────────────── */
   function rotta() { var r = location.hash.replace(/^#/, ""); return r || "cruscotto-qualita"; }
   function disegna() {
@@ -471,10 +656,36 @@
     if (t.dataset.sim) { var s = t.dataset.sim.split("|"); stato.filtri.simPersona = s[0]; if (s[1]) stato.filtri.simMansione = s[1]; else delete stato.filtri.simMansione; return; }
     if (t.hasAttribute("data-req-togli")) { stato.bozza.requisiti.splice(+t.dataset.reqTogli, 1); return disegna(); }
     var az = t.dataset.azione, arg = t.dataset.arg || "";
-    if (az === "ripristina") { D = JSON.parse(JSON.stringify(ORIGINALE)); stato.coda = null; stato.bozza = null; stato.msg = "Dati riportati allo stato iniziale."; return disegna(); }
+    if (az === "ripristina") { D = JSON.parse(JSON.stringify(ORIGINALE)); stato.coda = null; stato.bozza = null; stato.ram = null; stato.sf = null; stato.sollecitate = null; stato.ins = null; stato.msg = "Dati riportati allo stato iniziale."; return disegna(); }
+    if (az === "ins-avvia") {
+      var I = insCorrente(), np = JSON.parse(JSON.stringify(NUOVA));
+      I.mansioni.forEach(function (id) { np.mansioni.push({ mansione: id, stato: "AVVIATA", dal: "2027-04-01", ram: "RAM-2027-0045" }); mans(id).requisiti.forEach(function (r) { if (!np.livelli[r.competenza]) np.livelli[r.competenza] = { livello: "I", valutato_il: D.oggi, valutato_da: D.capi[np.reparto], modalita: "I", sf: "RAM-2027-0045", requisito_scadenza: comp(r.competenza).requisito && comp(r.competenza).requisito.validita_mesi ? "2029-04-01" : null, requisito_presente: !!comp(r.competenza).requisito, ultimo_esercizio: null }; }); });
+      D.persone.push(np); stato.msg = "Inserimento avviato (RAM-2027-0045): FERRARESE Nadia è in skill matrix su " + I.mansioni.length + " mansioni, in formazione, a livello I."; return disegna();
+    }
+    if (az === "ins-sf") { var ip = nuovaPersona(), cand = ["C01", "C05", "C04"].filter(function (c) { return ip.livelli[c]; }); stato.sf = { id: "SF-2027-0081", causale: "Esperienza da formalizzare", passo: "APERTA", ram: "RAM-2027-0045", righe: cand.map(function (c) { return { persona: "P33", competenza: c, modalita: "P", evidenza: "3 anni come fresatrice in altra azienda; prova pratica del responsabile", dopo: c === "C04" ? "L" : "U" }; }) }; return vai("sessione-formativa"); }
+    if (az === "ins-pos" || az === "ins-neg") { var J = insCorrente(), jp = nuovaPersona(); J.esito = az === "ins-pos" ? "POS" : "NEG"; if (J.esito === "POS") jp.mansioni.forEach(function (a) { a.stato = "EFFETTIVA"; }); stato.msg = J.esito === "POS" ? "Esito POS: mansioni effettive, timbro consegnato." : "Esito NEG: l'inserimento si chiude senza assegnare le mansioni."; return disegna(); }
+    if (az && az.indexOf("ram-") === 0) {
+      var R = ramCorrente(), rp = pers(R.persona), rm = mans(R.mansione), gp = gapChePesano(rp, rm), ass = rp.mansioni.filter(function (a) { return a.mansione === R.mansione; })[0];
+      if (az === "ram-invia") { R.passo = gp.length ? "IN_APPROVAZIONE" : "IN_VALUTAZIONE"; stato.msg = gp.length ? R.id + " inviata a RDD: " + gp.length + " competenze da colmare." : R.id + ": requisiti già soddisfatti, nessuna sessione formativa. Va all'esito finale."; }
+      if (az === "ram-avvia") { R.passo = "AVVIATA"; if (!ass) rp.mansioni.push({ mansione: R.mansione, stato: "AVVIATA", dal: D.oggi, ram: R.id }); stato.msg = "Avvio approvato: " + rm.nome + " è avviata per " + nome(rp) + " (in formazione, senza firma)."; }
+      if (az === "ram-respingi") { R.passo = "RESPINTA"; stato.msg = R.id + " respinta da RDD: nessun dato modificato."; }
+      if (az === "ram-valuta") { R.passo = "IN_VALUTAZIONE"; stato.msg = "Livelli raggiunti: la richiesta passa all'esito finale."; }
+      if (az === "ram-pos") { R.passo = "APPROVATA"; if (ass) ass.stato = "EFFETTIVA"; else rp.mansioni.push({ mansione: R.mansione, stato: "EFFETTIVA", dal: D.oggi, ram: R.id }); stato.msg = "Esito POS: " + rm.nome + " è effettiva per " + nome(rp) + "."; }
+      if (az === "ram-neg") { R.passo = "NEGATA"; rp.mansioni = rp.mansioni.filter(function (a) { return !(a.mansione === R.mansione && a.ram === R.id); }); stato.msg = "Esito NEG: la mansione non viene assegnata; le competenze acquisite restano."; }
+      if (az === "ram-nuova") { stato.ram = { id: "RAM-2027-0043", persona: "P05", mansione: "M01", motivo: "", passo: "BOZZA" }; }
+      if (az === "ram-apri-sf") { stato.sf = { id: "SF-2027-0074", causale: "Mancanze di una richiesta di mansione", passo: "APERTA", ram: R.id, righe: gp.map(function (x) { return { persona: R.persona, competenza: x.competenza, modalita: "A", evidenza: "", dopo: x.minimo }; }) }; return vai("sessione-formativa"); }
+      return disegna();
+    }
+    if (az === "sf-aggiungi") { sfCorrente().righe.push({ persona: "P01", competenza: "C01", modalita: "A", evidenza: "", dopo: "L" }); return disegna(); }
+    if (az === "sf-togli") { sfCorrente().righe.splice(+arg, 1); return disegna(); }
+    if (az === "sf-nuova") { stato.sf = { id: "SF-2027-0075", causale: "Esperienza da formalizzare", passo: "APERTA", ram: "", righe: [] }; return disegna(); }
+    if (az === "sf-chiudi") { var S = sfCorrente(); applicaSF(S); S.passo = "CHIUSA"; stato.msg = S.id + " chiusa: " + S.righe.length + " livelli registrati. Mansioni e mansioni potenziali ricalcolate."; return disegna(); }
+    if (az === "rdd-revoca") { var rv = arg.split("|"); pers(rv[0]).deroghe.splice(+rv[1], 1); stato.msg = "Deroga revocata: torna la situazione senza deroga."; return disegna(); }
+    if (az === "rdd-sollecita") { stato.sollecitate[arg] = true; stato.msg = "Sollecito inviato al responsabile del reparto."; return disegna(); }
+    if (az === "rdd-pubblica") { var pm = mans(stato.bozza.id); pm.requisiti = JSON.parse(JSON.stringify(stato.bozza.requisiti)); pm.versione += 1; stato.msg = "Profilo di «" + pm.nome + "» pubblicato in versione " + pm.versione + ". Parte il transitorio di " + D.parametri.transitorio_revisione_giorni + " giorni."; stato.bozza = null; return disegna(); }
     if (az === "invia-profilo") { stato.bozza.inviata = true; stato.msg = "Bozza inviata a RDD per l'approvazione. Nel prototipo il profilo in vigore non cambia."; return disegna(); }
     if (az === "annulla-profilo") { stato.bozza = null; return disegna(); }
-    if (az === "apri-ram") { var x = arg.split("|"), n = "RAM-2027-" + String(43 + (stato.coda ? stato.coda.length : 4)).padStart(4, "0"); if (!stato.coda) stato.coda = codaIniziale(); stato.coda.push({ id: n, tipo: "RAM", titolo: "Nuova mansione: " + mans(x[1]).nome, persona: x[0], mansione: x[1], nota: "Aperta dal simulatore." }); stato.msg = "Richiesta " + n + " aperta: è nella coda del responsabile."; return vai("coda-car"); }
+    if (az === "apri-ram") { var x = arg.split("|"); stato.ram = { id: "RAM-2027-0044", persona: x[0], mansione: x[1], motivo: "", passo: "BOZZA" }; stato.msg = "Richiesta aperta dal simulatore: i dati sono già compilati."; return vai("ram"); }
     if (az === "proponi-sf") { stato.msg = "Sessione formativa proposta per «" + comp(arg).nome + "»: i candidati vengono dal motore, non da un secondo elenco."; return disegna(); }
     if (az === "coda-ok" || az === "coda-no") {
       var v = stato.coda.filter(function (y) { return y.id === arg; })[0]; if (!v) return;
@@ -497,6 +708,11 @@
     var t = e.target;
     if (t.dataset.filtro) { stato.filtri[t.dataset.filtro] = t.type === "checkbox" ? t.checked : t.value; if (t.dataset.filtro === "reparto") stato.filtri.mansione = ""; if (t.dataset.filtro === "simPersona") delete stato.filtri.simMansione; if (t.dataset.filtro === "mansioneEditor") stato.bozza = null; if (t.type !== "search") disegna(); return; }
     if (t.hasAttribute("data-vai-persona")) return vai(t.value);
+    if (t.dataset.ram) { var rr = ramCorrente(); rr[t.dataset.ram] = t.value; if (t.dataset.ram === "persona") { var lib = D.mansioni.filter(function (m) { return !pers(t.value).mansioni.some(function (a) { return a.mansione === m.id; }); }); if (!lib.some(function (m) { return m.id === rr.mansione; })) rr.mansione = lib[0].id; } if (t.dataset.ram !== "motivo") disegna(); return; }
+    if (t.dataset.ins) { insCorrente()[t.dataset.ins] = t.value; return; }
+    if (t.dataset.insMansione) { var im = insCorrente().mansioni, ix = im.indexOf(t.dataset.insMansione); if (t.checked && ix < 0) im.push(t.dataset.insMansione); if (!t.checked && ix >= 0) im.splice(ix, 1); return disegna(); }
+    if (t.dataset.sfc) { sfCorrente()[t.dataset.sfc] = t.value; return; }
+    if (t.dataset.sf) { var sx = t.dataset.sf.split("|"); sfCorrente().righe[+sx[0]][sx[1]] = t.value; return disegna(); }
     if (t.dataset.req) { var a = t.dataset.req.split("|"); stato.bozza.requisiti[+a[0]][a[1]] = t.value; stato.bozza.inviata = false; return disegna(); }
     if (t.hasAttribute("data-req-aggiungi") && t.value) { stato.bozza.requisiti.push({ competenza: t.value, minimo: "L", criticita: "I" }); stato.bozza.inviata = false; return disegna(); }
   });

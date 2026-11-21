@@ -792,7 +792,48 @@ flowchart LR
 
 I candidati vengono dal motore, non da una seconda espansione delle regole: è la correzione delle divergenze D1-D6.
 
-### 6.6 Permessi: chi può fare che cosa
+### 6.6 Inserimento di un nuovo dipendente
+
+Proposta: **non un flusso nuovo**. L'inserimento resta la pratica a cinque fasi che il portale ha già
+(`01_asis.md` §12); la scheda MOD.053 «Formazione assunzione» diventa una **richiesta di mansione di tipo
+inserimento** agganciata a tre voci esistenti **[ipotesi D13]**.
+
+```mermaid
+flowchart LR
+    S[Selezione<br/>MOD.05-01] --> P0[Prima dell'ingresso<br/>documenti, visita, account,<br/>esperienza dichiarata]
+    P0 --> G1[Primo giorno<br/>badge, DPI, tutor]
+    G1 --> RI[Richiesta di inserimento<br/>RDD approva l'avvio]
+    RI --> SK[In skill matrix<br/>mansioni avviate, livello I,<br/>nessuna firma]
+    SK --> SF[Primi 60 giorni<br/>sessioni formative P, A, C<br/>+ corsi di sicurezza]
+    SF --> GV[Fine prova<br/>giudizio sulle competenze]
+    GV --> EF{Esito finale<br/>RDD}
+    EF -- POS --> OK[Mansioni effettive<br/>matricola, timbro, firma]
+    EF -- NEG --> KO[Chiusura<br/>le evidenze restano]
+```
+
+| Voce della pratica (oggi) | Diventa | Si chiude |
+| --- | --- | --- |
+| «Assegnare ruolo, area e mansioni» (primo giorno) | Apertura della **richiesta di inserimento**: mansioni scelte fra quelle proposte dal ruolo nel reparto | Da sola, quando RDD approva l'avvio |
+| — (nuova, primi 60 giorni) | **Sessioni formative** sulle competenze: esperienza riconosciuta (P), affiancamento con il tutor (A), corsi (C) | Da sola, quando non restano mancanze bloccanti o importanti |
+| «Valutazione di fine periodo di prova» | **Giudizio sulle competenze**: livelli raggiunti nelle sessioni | Da sola, con i livelli minimi raggiunti |
+| «Registrare l'esito del periodo di prova» | **Esito finale POS/NEG** di RDD, con matricola e consegna del timbro | Alla firma |
+| Formazione pregressa dichiarata in preinserimento | Resta per i corsi di sicurezza; per le competenze diventa una **proposta di sessione P**, che il responsabile verifica con una prova | — |
+| Visite, DPI, corsi obbligatori, schede di sicurezza, account | Invariate | Invariate |
+
+Regole:
+- All'avvio le competenze richieste nascono a livello **I**; le mansioni sono **avviate**; la persona non firma.
+- **Esito POS bloccato** finché un requisito bloccante o importante è sotto il minimo (MOD.053).
+- L'esito NEG chiude l'inserimento senza assegnare le mansioni; le competenze acquisite restano nello storico.
+- La matricola nasce all'avvio; il timbro si consegna con l'esito POS.
+
+Da decidere con la Qualità e con HR:
+- l'esito finale del MOD.053 **coincide** con l'esito del periodo di prova, o sono due atti con date diverse?
+- l'inquadramento determina davvero matricola e timbro (domanda 18 del questionario)?
+- chi firma l'esito finale all'assunzione: sempre RDD?
+
+Stima: è il blocco **B11** del §7.6, senza lavoro aggiuntivo oltre a quello già previsto.
+
+### 6.7 Permessi: chi può fare che cosa
 
 | Azione | Persona | Responsabile di reparto | Qualità | RDD | MSO | HR | Amministratore |
 | --- | --- | --- | --- | --- | --- | --- | --- |
