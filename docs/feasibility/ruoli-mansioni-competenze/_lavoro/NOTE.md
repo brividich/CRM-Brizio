@@ -1,0 +1,86 @@
+# Diario di lavoro — fattibilità Ruoli → Mansioni → Competenze → Formazione
+
+## Impostazione (21/11/2026)
+
+- Worktree dedicato: `C:\Dev\pn-fattibilita-rmc`, ramo `feature/anagrafica-fattibilita-rmc`, base `origin/main` = `784cbf3ae` (21/11/2026).
+  Tutte le citazioni `file:riga` si riferiscono a questo commit.
+- Il prompt di missione è `PROMPT_fattibilita_ruoli_mansioni_competenze.md` (nel checkout condiviso, non tracciato).
+- Input Qualità: nel checkout condiviso erano in `docs/feasibility/ruoli-mansioni-competenze/` (già convertiti in `.md`
+  dai `.docx` il 21/11/2026; i `.docx` originali non sono nella cartella). Copiati in `input/`.
+  - `input/MOD.053 BOZZA.md` — bozza della scheda formazione personale (assunzione, aggiornamento mansione, riepilogo).
+  - `input/Specifica_Funzionale_Piattaforma_Formazione_Skill_Matrix_v2.md` — SF / RAM / SKM / MOD.053 dinamico.
+- Vincoli: sola analisi, scrivo solo in questa cartella, nessuna scrittura su DB, subagenti solo sequenziali,
+  GATE 1 dopo `01_asis.md`.
+
+## Requisiti chiave letti negli input (prima lettura)
+
+- Principio: competenza = ciò che la persona sa fare; mansione = ciò che è formalmente autorizzata a fare.
+- SF (Sessione Formativa, `SF-AAAA-NNNN`) = unico evento che modifica le competenze; RAM (Richiesta Aggiornamento
+  Mansione, `RAM-AAAA-NNNN`) = unico evento che aggiunge una mansione.
+- P/A/C = modalità (Pregressa/esperienza, Affiancamento, Corso), non livelli; eventi multipli storicizzati.
+- Livello corrente = ultima valutazione valida.
+- Mansioni potenziali segnalate, mai assegnate in automatico.
+- MOD.053 = report dinamico; SKM = fotografia corrente; MOD.040 = registro affiancamento allegato alla SF.
+- MOD.053: all'assegnazione la mansione entra in SKM a livello I-Principiante (no firma OP); esito POS impossibile
+  se il livello minimo non è raggiunto; firma RDD (assunzione) / MSO (aggiornamento mansione); verifica efficacia =
+  conferma periodica SKM tracciata.
+- Nota: l'esempio del MOD.053 usa livelli numerici (1, 2) mentre il testo parla di «I-Principiante» → da chiarire.
+
+## Scoperte della ricognizione (21/11/2026) — percorsi relativi a `django_app/anagrafica/`
+
+Vocabolario del codice (attenzione, i nomi ingannano):
+- `CompetenzaSkm` (`models_skillmatrix.py:142`) = **mansione lavorativa** (colonna della skill matrix: macchina o processo).
+- `VoceMacchinaCatalogo` (`:491`) = **competenza** di una mansione (livello minimo, bloccante, requisiti formali corso/qualifica/MOD.128).
+- `CompetenzaCatalogo` (`:464`) = catalogo unico competenze (stessa competenza su più mansioni).
+- `AbilitazioneMacchina` (`:324`) = persona × mansione lavorativa, livello I/L/U/O, `in_lista`.
+- `AbilitazioneMacchinaVoce` (`:546`) = livello persona × competenza. Storici: `ValutazioneCompetenzaStorico` (`:568`), `AbilitazioneMacchinaStorico` (`:594`).
+- `Mansione` (`models.py:637`) = **mansione di rischio** (DVR). La persona vi è legata per NOME (testo legacy `mansione`).
+- `RuoloOperativo` (`models.py:396`) = catalogo unico ruoli (ha assorbito `RuoloAziendale`, `:1149`, 1 riga residua in prod).
+- Etichette livelli a codice: I «In formazione», L «Intermedio», U «Autonomo», O «Formatore/Esperto» (`models_skillmatrix.py:33-37`).
+
+Fatti del prompt risultati SUPERATI:
+- `TrainingDeadline` non è più «non schedulata»: la ricostruisce `services/scadenze.py:49` dal motore unico
+  `services/requisiti.py`, ogni notte (`automazioni/schedules.py:603-608`, cron 00:20; in prod lo schedule c'è, come flusso gestito)
+  e a ogni salvataggio (`segnali_scadenze.py`, `scadenze.py:217`).
+- `views.py` non è più monolitico: pacchetto `views/` (formazione.py 5.877 righe, dipendenti.py 6.395).
+- Divergenza residua: `services/training_eligibility.py:88` (selezione candidati) ha una sua espansione delle regole
+  (non filtra ruoli conclusi `:117`, né finestra di validità regola `:101`, legge lo stato dalla cache `:232`).
+- Non esiste un FK `timbro` in `models_mpq.py`; esiste `MODALITA_ORGANIZZATIVO` (`:159`) e `services/mpq_timbri.py`.
+
+Mancanze rispetto alla richiesta Qualità: nessuna SF con numerazione SF-AAAA-NNNN, nessuna RAM, nessuna modalità P/A/C
+sulle valutazioni, nessun MOD.053 dinamico, nessuna «mansione potenziale», assegnazione mansione diretta senza approvazione
+(`views_mansionario.py:566`, `services/mansionario_struttura.py:128`), valutazione legata al permesso
+`anagrafica.skillmatrix.manage` senza vincolo di reparto (`views/qualifiche.py:1740-1769`).
+
+Qualità dati PRODUZIONE (sola lettura, profilo `prod_readonly`, solo conteggi, 21/11/2026):
+- 135 in forza; 3 senza mansione; 3 senza area; 0 senza ruolo; 40 con più ruoli; **56 senza alcuna mansione lavorativa in lista**.
+- 242 mansioni lavorative attive (44 macchina, 198 processo); **0 competenze definite**, 0 `CompetenzaCatalogo`;
+  182 mansioni senza persone; 20 senza mansione di rischio; 3 senza ruolo; 14 senza area.
+- 443 abilitazioni in lista: I 46, L 84, U 110, **O 203**; tutte «a mano» (765 scatti import, 32 manuali);
+  `prossima_revisione` vuota su 443; `data_assegnazione` vuota su 420; 1 campagna refresh aperta; 0 soglie copertura;
+  continuità operativa 0 righe; 17 mansioni con un solo U/O.
+- Formazione: **0 regole di obbligo**, 0 fattori di rischio/esposizioni, 774 corsi (763 una tantum, 0 con fonte obbligo),
+  4.071 scadenze tutte non obbligatorie (31 scadute), 995 sessioni, 0 approvate MOD.040, 0 verifiche efficacia.
+- MOD.128: 14 processi, 7 abilitazioni, 3 ruoli di processo (0 collegati a una mansione), 0 requisiti persona.
+- Cambio mansione: 165 assegnazioni organizzative, 0 adempimenti, 0 override.
+- `TrainingDeadline.ricalcolato_il` max 07/10/2026: il `bulk_update` non aggiorna `auto_now` → non è un indicatore di freschezza.
+Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committati.
+
+## Avanzamento
+
+- [x] Lettura input
+- [x] Inventario studi precedenti (`_lavoro/fonti.md`) — l'«analisi di miglioramento Formazione» è solo e-learning
+      (rimossa il 07/10, `93340a676`); la «versione unificata» non esiste
+- [x] Modello dati AS-IS
+- [x] Motori di calcolo e divergenze (M1-M16, D1-D15)
+- [x] Qualità dati (produzione, sola lettura)
+- [x] `01_asis.md` scritto → **FERMO AL GATE 1** (21/11/2026): attendo le risposte alle domande Q1-Q14 e T1-T9
+- [ ] Fase 2 `02_tobe_flusso_algoritmo.md` (solo dopo conferma)
+
+## Decisioni di lavoro
+
+- Niente modalità piano formale: la Fase 1 richiede di scrivere `01_asis.md`, incompatibile con il blocco delle scritture.
+- `CHANGELOG.md` non toccato: il prompt vieta scritture fuori da questa cartella (solo documentazione).
+- Ipotesi preliminare per la Fase 2 (da validare): distinguere **livello valutato** (atto umano, via SF) da
+  **stato di validità** (calcolato: requisito formale scaduto, mancato esercizio) per conciliare REQ-11/12 con il
+  ricalcolo automatico del 28/10.
