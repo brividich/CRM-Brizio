@@ -75,7 +75,32 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - [x] Motori di calcolo e divergenze (M1-M16, D1-D15)
 - [x] Qualità dati (produzione, sola lettura)
 - [x] `01_asis.md` scritto → **FERMO AL GATE 1** (21/11/2026): attendo le risposte alle domande Q1-Q14 e T1-T9
+- [x] Studio del modulo Formazione → `01_asis.md` §11 (ciclo, uso reale, giudizio); domande Q15-Q17; risposte T1-T9 in §9.2.
+      Dati chiave: 774 corsi di cui 595 a edizione unica, 0 verifiche, 0 efficacia, 0 approvazioni MOD.040, 0 qualifiche.
+      Aggancio per la SF: `views/formazione.py:3265` (`_post_completamento`), schema corso → qualifica (`models_formazione.py:318`).
+- [ ] **GATE 1 riaperto**: attendo conferma (e le risposte Q1-Q17 della Qualità, se disponibili) prima della Fase 2
 - [ ] Fase 2 `02_tobe_flusso_algoritmo.md` (solo dopo conferma)
+
+## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
+
+- **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la
+  Qualità, **alla creazione del corso**, a decidere se agganciarlo a una competenza esistente o a una nuova (creata
+  sul momento — risposta troncata, da confermare).
+- **Rilievo**: la Fase 1 non ha studiato il **modulo Formazione attuale** → richiesto **studio completo del modulo**
+  (ciclo corso → edizione → iscrizione → presenze → completamento → attestato → efficacia, e-learning, MOD.040, pagine,
+  stati, chi fa cosa, dati reali, punti deboli), da aggiungere a `01_asis.md`; poi si riapre il GATE 1.
+- **T2 assegnazione diretta**: resta **solo agli amministratori**; per gli altri la **RAM compilata a video**
+  (il MOD.053 sezione aggiornamento mansione diventa un modulo del portale, precompilato e firmato a schermo).
+- **T3 livelli attuali (443)**: orientamento = **SF di impianto** con modalità «pregresso» e una **linea di
+  demarcazione** tipo «da gennaio 2027, con l'introduzione dell'HUB». Ancora allo studio lato loro.
+- **T4 ricalcolo automatico**: **validità distinta dal livello** (il livello valutato lo cambia solo una SF; il
+  calcolo automatico produce uno stato di validità separato).
+- **T5 MOD.128**: non assegna più, **propone una RAM** precompilata.
+- **T6 rinomina modelli**: da **valutare nel TO-BE** come blocco facoltativo.
+- **T7 chi valuta**: si appoggia alla **«Responsabilità del reparto/area»** (organigramma), non a permessi a mano.
+- **T8 prototipo**: **template reali + dati finti**, nessun DB e nessun server.
+- **T9 documenti Qualità**: **restano** nel repository.
+- Le domande Q1-Q14 per la Qualità restano aperte.
 
 ## Decisioni di lavoro
 

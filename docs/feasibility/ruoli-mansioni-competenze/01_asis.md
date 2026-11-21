@@ -1,7 +1,8 @@
 # 01 — AS-IS e tracciabilità dei requisiti
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.1 · 21/11/2026 · Fase 1 (ricognizione). Stato: in attesa di GATE 1.
+Versione 0.2 · 21/11/2026 · Fase 1 (ricognizione), con lo studio del modulo Formazione (§11) e le risposte tecniche del
+proprietario (§9.2). Stato: GATE 1 riaperto, in attesa di conferma.
 
 > **Natura del documento.** Sola analisi: nessun codice, modello, migrazione o dato è stato modificato.
 > Tutte le proposte che toccano contenuti, relazioni o sotto-domini HR sono **proposte**: la decisione finale è
@@ -46,7 +47,10 @@ Versione 0.1 · 21/11/2026 · Fase 1 (ricognizione). Stato: in attesa di GATE 1.
     esistente, non di riscrivere.
 14. La fattibilità organizzativa dipende dal **popolamento del catalogo** (competenze per mansione, livelli minimi,
     criticità) da parte della Qualità e dei responsabili.
-15. Le domande aperte sono 14 per la Qualità e 9 tecniche (§8).
+15. Le domande aperte sono 17 per la Qualità (§9.1); le 9 tecniche hanno avuto risposta (§9.2).
+16. Il **modulo Formazione** è completo come funzioni ma in produzione è soprattutto un **archivio storico importato**:
+    595 corsi su 774 hanno una sola edizione, nessuna verifica di apprendimento registrata, nessuna valutazione di
+    efficacia, nessuna approvazione MOD.040 (§11).
 
 ---
 
@@ -520,25 +524,28 @@ Metodo: script di sola lettura eseguiti con il profilo `prod_readonly`; contano 
 - **Q14.** I campi con «(?)» del MOD.053 (indirizzo, titolo di studio, precedente occupazione, inquadramento,
   richiesta di formazione aggiuntiva) restano? L'inquadramento determina davvero matricola e timbro?
 
-### 9.2 Tecniche, per il proprietario del progetto
+- **Q15.** Che cos'è un «corso di catalogo»? Oggi 595 corsi su 774 hanno una sola edizione: il «corso» è stato usato
+  come singolo evento. Il catalogo va **ripulito e accorpato** in modelli riutilizzabili (CRS-…), e da chi?
+- **Q16.** Quali corsi sono «formativi», cioè alimentano una competenza? La decisione si prende alla creazione del
+  corso (risposta del proprietario): vale anche per i 774 corsi esistenti, o solo per i nuovi?
+- **Q17.** La verifica di apprendimento e la valutazione di efficacia, oggi previste dal portale ma mai compilate,
+  restano due atti distinti dalla valutazione del livello nella SF, o confluiscono in essa?
 
-- **T1.** Le SF sono un oggetto **nuovo** accanto alle edizioni dei corsi, oppure l'edizione di un corso diventa
-  essa stessa una SF di modalità C? (Raccomandazione preliminare: nuovo oggetto, con l'edizione collegata.)
-- **T2.** Dopo l'introduzione della RAM, l'assegnazione diretta dal Mansionario viene **tolta** o resta per gli
-  amministratori come correzione tracciata?
-- **T3.** I 443 livelli oggi in produzione come si trattano: SF «di impianto» con modalità P e data dell'import,
-  oppure restano come stato iniziale senza evidenza?
-- **T4.** Il ricalcolo automatico del livello (28/10/2026) resta, diventando «stato di validità» distinto dal
-  livello valutato, o si spegne?
-- **T5.** Il collegamento MOD.128 → mansione (M7) può diventare una proposta di RAM?
-- **T6.** Si investe nella rinomina dei modelli (`CompetenzaSkm` → mansione) o si lascia il debito di nomenclatura?
-- **T7.** Ambito del vincolo «valuta solo il proprio reparto»: si appoggia agli ambiti di ACL v2 o alla regola
-  capo/team esistente?
-- **T8.** Il prototipo della Fase 3 può usare le catture delle pagine attuali da un ambiente di sviluppo (mai dalla
-  produzione)? È disponibile una copia anonimizzata?
-- **T9.** La cartella è committata sul ramo `feature/anagrafica-fattibilita-rmc` (non unito a `main`), compresi i due
-  documenti della Qualità in `input/`, che non contengono dati personali. Se non devono stare nel repository vanno
-  tolti prima dell'unione.
+### 9.2 Tecniche — risposte del proprietario del progetto (21/11/2026)
+
+| # | Domanda | Risposta |
+| --- | --- | --- |
+| T1 | La SF è un oggetto nuovo o coincide con l'edizione di un corso? | **Oggetto nuovo.** I corsi si dividono in «formativi» (alimentano competenze) e non: lo decide la Qualità alla creazione del corso, agganciandolo a una competenza esistente o creandone una nuova |
+| T2 | Che fine fa l'assegnazione diretta della mansione? | Resta **solo agli amministratori**. Per tutti gli altri la **RAM compilata a video**: la sezione «aggiornamento mansione» del MOD.053 diventa un modulo del portale, precompilato e firmato a schermo |
+| T3 | Come entrano i 443 livelli attuali? | Orientamento: **SF di impianto** con modalità «pregresso» e una **linea di demarcazione** (ipotesi: gennaio 2027, con l'introduzione dell'HUB). Ancora allo studio |
+| T4 | Il ricalcolo automatico del livello resta? | Sì, ma come **stato di validità distinto dal livello**: il livello valutato lo cambia solo una SF |
+| T5 | Il ponte MOD.128 → mansione? | Non assegna più: **propone una RAM** precompilata |
+| T6 | Si rinominano i modelli? | Da **valutare nel TO-BE** come blocco facoltativo |
+| T7 | Su che cosa si appoggia «valuta solo il proprio reparto»? | Sulla **«Responsabilità del reparto/area»** dell'organigramma |
+| T8 | Da dove vengono le pagine attuali per il prototipo? | **Template reali con dati finti**: nessun database, nessun server |
+| T9 | I documenti della Qualità restano nel repository? | **Sì** |
+
+Rilievo del proprietario: la prima stesura non studiava il modulo Formazione attuale. Lo studio è al §11.
 
 ---
 
@@ -549,3 +556,123 @@ Metodo: script di sola lettura eseguiti con il profilo `prod_readonly`; contano 
   nel repository**. Le definizioni dei livelli sono quindi ricavate dalle etichette a codice, non dalla procedura.
 - L'esito dell'ultima esecuzione del ricalcolo notturno in produzione.
 - La divergenza fra motori sui dati reali: non misurabile finché non esistono regole di obbligo.
+
+---
+
+## 11. Studio del modulo Formazione attuale
+
+Aggiunto il 21/11/2026 su richiesta del proprietario. Rotte sotto `/anagrafica/formazione/` (`urls.py:563-768`),
+viste in `views/formazione.py` (5.877 righe), `views_elearning.py`, `views_formazione_integrita.py`.
+
+### 11.1 Che cosa fa oggi: il ciclo
+
+```mermaid
+flowchart LR
+    P[Piano] --> C[Corso a catalogo<br/>codice AANNN]
+    C --> E[Edizione<br/>codice corso-AAEn]
+    E --> G[Giornate]
+    E --> I[Iscritti]
+    G --> PR[Presenze<br/>foglio firme, QR, scansione]
+    I --> V[Verifica di apprendimento<br/>facoltativa]
+    PR --> K{Regola di<br/>superamento}
+    V --> K
+    K --> R[Completamento<br/>con fotografia dei dati]
+    R --> A[Attestato<br/>protocollo e codice di verifica]
+    R --> S[Scadenza]
+    R --> Q[Qualifica<br/>se il corso la rilascia]
+    R --> EF[Efficacia attesa<br/>se il corso la prevede]
+    E --> M[Approvazione MOD.040<br/>MSM / MSO]
+```
+
+| Passo | Che cosa c'è | Dove |
+| --- | --- | --- |
+| Piano | Macro-contenitore di corsi | `models_formazione.py:246` |
+| Corso | Catalogo con codice automatico `AANNN`, validità in mesi, origine dell'obbligo (legge, accordo, cliente, norma, interno), qualifica rilasciata, programma, versioni, materiale, prerequisiti | `models_formazione.py:292-395`, `:217`, `:534`, `:584` |
+| Regola di superamento | Per corso: presenza minima, esame finale, validazione HR, mesi per l'efficacia, regole dell'e-learning | `models_formazione.py:455-520` |
+| Edizione | Date, sede, modalità, docente o ente, gruppi logistici, programma effettivo | `models_formazione.py:962-1045`, `services/formazione_pianificazione.py:59-407` |
+| Giornate e presenze | Lezioni, presenze per lezione, turni, foglio firme con QR, lettura della scansione, raccolta da cartella di rete | `models_formazione.py:1131`, `:1340`, `:1559`, `:1612`, `services/foglio_firme.py`, `services/intake_scansioni.py` |
+| Iscrizione | Sei stati; verifica con modalità (test, orale, pratica, osservazione), punteggio e soglia | `models_formazione.py:1209-1259` |
+| Blocco del completamento | Verifica non superata o frequenza sotto soglia impediscono un completamento conforme | `views/formazione.py:3176-3195` |
+| Completamento | Record storico con la fotografia di corso, piano, versione, regola, edizione, docente | `views/formazione.py:3198-3262`, `models_formazione.py:1422-1496` |
+| **Punto unico dopo il completamento** | Tutte le strade (aula, e-learning, registrazione diretta) passano da una sola funzione: ricalcolo scadenze, efficacia attesa, qualifica, attestato | `views/formazione.py:3265-3300` |
+| Attestato | Generato dal record, con protocollo annuale e codice di verifica pubblica | `models_formazione.py:196`, `:1466-1473`, `services/attestato_pdf.py` |
+| Efficacia | Valutazione «attesa» alla data, compilata dal preposto, ripetibile | `models_formazione.py:1809-1846`, `services/formazione_efficacia.py:56-88` |
+| Approvazione MOD.040 | Controlli di completezza, approvazione MSM/MSO, edizione chiusa, riapertura motivata, verifica «assenza NC a 6 mesi», PDF del modulo | `services/formazione_integrita.py:93-194`, `services/mod040_pdf.py` |
+| Annullamento | Un completamento si annulla con motivo, non si cancella | `services/formazione_integrita.py:194`, `models_formazione.py:1476-1482` |
+| Fabbisogni | Scadenzario, copertura dei corsi obbligatori, piano per persona, candidati al rinnovo | `urls.py:743-754`, `services/training_eligibility.py` |
+| E-learning | Micro-corsi a slide con quiz, tempo misurato sul server, tentativi, gradimento, promemoria | `views_elearning.py`, `services/elearning_fruizione.py`, `models_formazione.py:2164-2378` |
+| Monte ore CCNL | 24 ore ogni 3 anni di formazione facoltativa | `services/formazione_ccnl.py` |
+| Docenti ed enti | Cataloghi con documenti e accreditamenti | `models_formazione.py:721-821` |
+| Libretto formativo | Curriculum dei corsi della persona, anche in PDF | `services/attestato_pdf.py:346`, `views/dipendenti.py:2688` |
+
+**Chi fa cosa.** Vedere e modificare la sezione dipendono da due permessi generali (`views/_helpers.py:367`,
+`:1005`); l'approvazione del MOD.040 ha un permesso suo (`acl_bootstrap.py:312`). In produzione la sezione è
+aperta ai soli amministratori. Non c'è un ruolo «responsabile» che vede solo le proprie persone.
+
+### 11.2 Come è usato davvero (produzione, 21/11/2026)
+
+| Misura | Valore | Lettura |
+| --- | --- | --- |
+| Corsi | 774 attivi, 23 piani; **634 nel piano generico «NOVICROM»** | Il piano non classifica |
+| Edizioni per corso | 69 corsi senza edizioni · **595 con una sola** · 110 con più di una | Il «corso» è stato usato come **singolo evento**, non come modello riutilizzabile |
+| Edizioni | 995, dal 1995; 125 nel 2025, 109 nel 2026 | Archivio storico importato dal gestionale, più l'attività corrente |
+| Modalità | 737 in sede · 241 esterne · 17 a distanza | — |
+| Iscrizioni | 5.078: 4.953 completate, 82 assenti, 21 non idonee, 22 aperte | — |
+| Completamenti | 4.932, **nessuno «non idoneo»**, nessuno annullato; 375 con scadenza | L'esito non discrimina |
+| Verifiche di apprendimento registrate | **0** | Funzione mai usata |
+| Regole di superamento | 2 corsi su 774; nessuna con esame, nessuna con efficacia | Il blocco del completamento non lavora |
+| Valutazioni di efficacia | **0** | Funzione mai usata |
+| Approvazioni MOD.040 / verifiche NC | **0 / 0** | Funzione mai usata |
+| Programma didattico | 0 corsi, 0 edizioni | Funzione mai usata |
+| Corsi che rilasciano una qualifica | 11; qualifiche registrate **0** | Il legame corso → qualifica non ha ancora prodotto nulla |
+| Origine dell'obbligo | 0 corsi; 7 col vecchio segno «obbligatorio» | Non interrogabile in audit |
+| Regole di obbligo / assegnazioni HR / prerequisiti | 0 / 0 / 0 | Nessun fabbisogno calcolato |
+| Presenze | 5.834 righe; 6 fogli con QR, 5 scansioni | Presenze importate; QR appena avviato |
+| Attestati con protocollo | 58 | Uso recente |
+| Validazioni HR | 340 | — |
+| E-learning | 3 corsi, 5 slide, 2 iscrizioni, 0 tentativi | In prova |
+| Docenti / enti | 114 / 96; 256 corsi con ente | Dato ricco |
+
+### 11.3 Giudizio
+
+**Solido (da riusare così com'è).**
+- La **catena dell'evidenza** dell'aula: presenze, completamento con fotografia dei dati, attestato verificabile,
+  annullamento motivato, edizione chiusa dopo l'approvazione.
+- Il **punto unico dopo il completamento** (`views/formazione.py:3265`): è l'aggancio naturale per far sì che un corso
+  «formativo» proponga la valutazione delle competenze in una SF.
+- Il modello **corso → qualifica rilasciata** (`models_formazione.py:318`): è già lo schema «un corso alimenta
+  qualcosa della persona». Per le competenze serve lo stesso schema, a molti.
+- La **numerazione automatica** annuale e il **MOD.040** generato dal portale.
+
+**Debole (da correggere nel TO-BE).**
+- **Il catalogo non è un catalogo.** Con 595 corsi a edizione unica, «CRS-014 riutilizzabile da molte sessioni»
+  (REQ-02) oggi non descrive i dati. Serve un lavoro di accorpamento, oppure la regola vale solo da una data in poi.
+- **Nessun legame corso → competenze.** Un corso non dichiara che cosa alimenta: è il punto che il proprietario
+  chiede di decidere alla creazione del corso.
+- **L'esito non misura niente**: nessuna verifica, nessun «non idoneo», nessuna efficacia. La Qualità chiede che il
+  livello lo attribuisca il responsabile nella SF: oggi non esiste un momento in cui qualcuno giudica.
+- **Tre strumenti che si sovrappongono** alla futura SF: verifica di apprendimento sull'iscrizione, valutazione di
+  efficacia a distanza, «verifica assenza NC a 6 mesi» del MOD.040. Vanno ricondotti a un disegno solo (Q17).
+- **Chiusura dell'aula e MOD.040 non praticate**: lo strumento c'è, il processo no.
+- **Accesso solo amministrativo**: i responsabili non entrano nella formazione delle proprie persone.
+- **Codice concentrato**: `views/formazione.py` ha 5.877 righe e contiene regole di dominio (la creazione del
+  completamento e i suoi effetti sono in una vista, `:3198-3300`, non in un servizio). Va spostato prima di
+  appoggiarci la SF.
+- **Piani e classificazione poveri**: un piano generico con l'82% dei corsi, 4 corsi con categoria.
+
+### 11.4 Che cosa cambia per l'analisi
+
+1. La SF **non sostituisce** l'edizione di un corso: la affianca. Un'edizione chiusa di un corso «formativo» apre
+   (o alimenta) una SF con modalità C per gli iscritti idonei; il livello resta da valutare.
+2. Il corso guadagna l'elenco delle **competenze che può alimentare**, scelto alla creazione.
+3. Il MOD.040 resta il registro dell'edizione; per l'affiancamento (modalità A) serve un registro analogo legato
+   alla SF (REQ-23).
+4. Prima di tutto va deciso il destino dei **774 corsi storici** (Q15, Q16): la proposta preliminare è la stessa
+   linea di demarcazione scelta per i livelli (T3).
+5. Alla matrice del §6 si aggiungono tre righe:
+
+| # | Capacità | C'è oggi | Manca | Come introdurlo | Rischio | Stima |
+| --- | --- | --- | --- | --- | --- | --- |
+| 21 | **Corso che alimenta competenze** | Corso → qualifica (uno a uno) | Corso → competenze (a molti), scelta alla creazione, distinzione formativo / non formativo | **Estendere** il corso e il punto unico dopo il completamento | Basso | S-M |
+| 22 | **Catalogo corsi riutilizzabile** | 774 corsi, 595 a edizione unica | Accorpamento in modelli, regola per i corsi storici | **Contenuto** + strumento di unione dei corsi | Medio (organizzativo) | M |
+| 23 | **Regole del completamento in un servizio** | Logica dentro le viste | Servizio di dominio riusabile da SF, import, e-learning | **Rifattorizzare** senza cambiare il comportamento | Medio (tocca il cuore dell'aula) | M |
