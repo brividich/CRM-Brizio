@@ -12,7 +12,10 @@ from __future__ import annotations
 
 __all__ = [
     "GENITORI_AMMESSI",
+    "ORDINE_CATENA",
     "RIF_OP_MAX_DEPTH",
+    "TIPI_NUMERO_CONDIVISO",
+    "numero_condivisibile",
     "split_rif_op",
     "indice_per_id",
     "risali_a_carichi",
@@ -31,6 +34,31 @@ GENITORI_AMMESSI = {
     "M": frozenset({"O", "C"}),
     "R": frozenset({"M", "O", "C"}),
 }
+
+
+ORDINE_CATENA = {"C": 0, "O": 1, "M": 2, "R": 3}
+
+# Sul registro lo scarico effettivo M può portare lo stesso numero del suo
+# scarico originale O (registro di produzione, 11/2026) o della sua rettifica R
+# (le coppie R+M dello storico). Mai due movimenti dello stesso tipo, mai un C.
+TIPI_NUMERO_CONDIVISO = frozenset({"O", "M", "R"})
+
+
+def numero_condivisibile(registro, altri) -> bool:
+    """`registro` può portare lo stesso numero dei movimenti `altri`?
+
+    Sì solo se insieme formano O+M, M+R oppure O+M+R dello stesso codice CER.
+    """
+    from .validazione import normalizza_cer
+
+    tutti = [registro, *altri]
+    tipi = [r.tipo for r in tutti]
+    return (
+        "M" in tipi
+        and len(tipi) == len(set(tipi))
+        and set(tipi) <= TIPI_NUMERO_CONDIVISO
+        and len({normalizza_cer(r.codice) for r in tutti}) == 1
+    )
 
 
 def split_rif_op(raw: str) -> list[str]:
@@ -63,7 +91,10 @@ def risali_a_carichi(rif: str, by_id: dict, depth: int = 0, visti: set | None = 
         if any(r.tipo == "C" for r in candidati):
             carichi.append(rid)
             continue
-        padre = next((r for r in candidati if str(r.rif_op or "").strip()), None)
+        # Numero condiviso (O e M, M e R): si risale dal movimento più a monte,
+        # perché la M che cita la sua O con lo stesso numero citerebbe sé stessa.
+        ordinati = sorted(candidati, key=lambda r: ORDINE_CATENA.get(r.tipo, 9))
+        padre = next((r for r in ordinati if str(r.rif_op or "").strip()), None)
         if padre is None:
             continue
         carichi.extend(risali_a_carichi(padre.rif_op, by_id, depth + 1, visti))
