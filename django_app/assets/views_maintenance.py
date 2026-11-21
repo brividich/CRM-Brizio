@@ -327,6 +327,13 @@ def _decorate(occurrences: list[MaintenanceOccurrence], *, today: date) -> list[
         payload["days_late"] = -days if days is not None and days < 0 else 0
         if occurrence.is_meter_based and occurrence.assignment_id:
             payload["meter"] = meters.get((occurrence.asset_id, getattr(occurrence.assignment, "meter_type", "")))
+        # «Scaduta» = data passata, anche se l'occorrenza e' gia' in un OdL aperto:
+        # stessa regola dello Scadenzario (window=overdue) e del carico manutentori.
+        # Lo stato visuale resta «Pianificata/In corso»: il ritardo e' un'informazione
+        # in piu', non sostituisce chi ci sta lavorando.
+        payload["overdue"] = (
+            occurrence.status == MaintenanceOccurrence.STATUS_OPEN and occurrence.due_date < today
+        )
         rows.append({"occurrence": occurrence, **payload})
     rows.sort(key=lambda row: (row["order"], row["occurrence"].due_date, row["occurrence"].id))
     return rows
@@ -381,7 +388,7 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
             sub = occurrence.plan.get_maintenance_type_display()
         bucket = buckets.setdefault(key, {"label": label, "sub": sub, "rows": [], "overdue": 0})
         bucket["rows"].append(row)
-        if row["state"] == MaintenanceOccurrence.VIEW_OVERDUE:
+        if row["overdue"]:
             bucket["overdue"] += 1
     groups = list(buckets.values())
     if mode == "day":
@@ -458,7 +465,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "title": "Scadute",
             "tone": "urgent",
             "quiet": "Nessuna manutenzione scaduta",
-            "rows": [r for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE],
+            "rows": [r for r in rows if r["overdue"]],
         },
         {
             "key": "week",
@@ -481,6 +488,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
                 r
                 for r in rows
                 if r["state"] in (MaintenanceOccurrence.VIEW_PLANNED, MaintenanceOccurrence.VIEW_IN_PROGRESS)
+                and not r["overdue"]
             ],
         },
         {
@@ -511,7 +519,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
     # Contati sulle righe gia' in memoria: nessuna query in piu'.
     user_id = getattr(request.user, "id", None)
     summary = {
-        "overdue": sum(1 for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "overdue": sum(1 for r in rows if r["overdue"]),
         "today": sum(1 for r in rows if r["occurrence"].due_date == today),
         "week": sum(
             1 for r in rows
@@ -1006,7 +1014,7 @@ def _sintesi_direzione(request: HttpRequest, *, today: date, open_rows: list[dic
 
     # Arretrato: non "quante" scadute, ma "da quanto". Una scaduta di ieri e una di
     # due anni fa non sono lo stesso problema.
-    scadute = [r for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE]
+    scadute = [r for r in open_rows if r["overdue"]]
     piu_vecchia = min((r["occurrence"].due_date for r in scadute), default=None)
 
     # Copertura della pianificazione: asset in uso che hanno almeno un piano applicato.
@@ -1156,7 +1164,7 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
                 feed.KIND_LICENSE: "Licenze software",
                 feed.KIND_CONTRACT: "Contratti di assistenza",
             }[kind],
-            "overdue": sum(1 for row in of_kind if row.state == feed.STATE_OVERDUE),
+            "overdue": sum(1 for row in of_kind if row.due_date < today),
             "due_30": sum(1 for row in upcoming if row.due_date <= horizon),
             "next": upcoming[0] if upcoming else None,
             "url": f"{scadenzario_url}?{urlencode({**shared, 'window': '', 'plan_type': plan_type_for[kind]})}",
@@ -1193,7 +1201,8 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
             "calendar_url": f"{calendario_url}?{urlencode({**shared, 'data': day.isoformat(), 'vista': 'dayGridWeek'})}",
         })
 
-    overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
+    # Scaduta = data passata, anche se gia' in un OdL (stessa regola dello Scadenzario).
+    overdue = [row for row in open_rows if row.due_date < today]
     upcoming = [row for row in open_rows if today <= row.due_date <= horizon]
     # Tutte le scadute e tutte quelle dei prossimi 30 giorni (l'elenco scorre): con
     # dieci righe fisse le manutenzioni selezionabili per l'OdL erano due o tre.
@@ -1430,7 +1439,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     conflicts = [resolution for resolution in resolutions.values() if resolution.is_conflict]
 
     kpi = {
-        "overdue": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "overdue": sum(1 for r in open_rows if r["overdue"]),
         "due_soon": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_DUE_SOON),
         "unplanned": len(unplanned),
         "workorders_open": open_workorders.count(),
@@ -1463,7 +1472,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "scadute": sintesi["scadute"],
         "in_scadenza_7": sum(
             1 for r in open_rows
-            if r["state"] != MaintenanceOccurrence.VIEW_OVERDUE and today <= r["occurrence"].due_date <= week_end
+            if not r["overdue"] and today <= r["occurrence"].due_date <= week_end
         ),
         "non_pianificate": kpi["unplanned"],
         "interventi_aperti": kpi["workorders_open"],

@@ -870,6 +870,9 @@ GUIDA = {
                 "120 giorni (Panoramica), 500 righe nell'elenco dello Storico: oltre, lo dichiarano. Restringi con i filtri.",
                 "Un preavviso di 0 giorni vale 0: la scadenza diventa «in scadenza» solo il giorno stesso.",
                 "Le scadenze di un asset dismesso non compaiono più in Scadenzario, Panoramica e cruscotti.",
+                "«Scadute» conta tutte le manutenzioni con la data passata, anche quelle già in un OdL aperto: "
+                "in Da fare stanno nel blocco «Scadute» (non in «Programmate») con il riferimento «OdL n.». "
+                "Stesso numero dello Scadenzario; «Non pianificate» conta solo quelle senza OdL.",
             ],
         },
         {
