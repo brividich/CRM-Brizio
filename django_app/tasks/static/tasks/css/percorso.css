@@ -675,3 +675,80 @@
   .ka-rapida { grid-template-columns: minmax(0, 1fr); }
   .ka-striscia-corpo { --ka-nome: 120px; }
 }
+
+/* ===========================================================================
+   Scheda dell'attività: stato in un controllo, nota, collegamenti,
+   cronologia unica, «Sposta la scadenza».
+   =========================================================================== */
+.ka-scheda { min-width: 0; max-width: 100%; }
+.ka-scheda .ka-striscia { margin-bottom: 12px; }
+.ka-scheda-stato form { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.ka-scheda-etichetta { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); }
+.ka-scheda-stato .ka-stato { font-size: 13px; padding: 6px 14px; }
+.ka-segna-fatta { white-space: nowrap; }
+.ka-scheda-ritardo { color: var(--danger, #e53e3e); font-weight: 700; }
+.ka-scheda-nota .btn[hidden] { display: none; }
+.ka-scheda-stato { justify-content: flex-start; flex-wrap: wrap; }
+.ka-scheda-stato .td-stato-info { margin-left: auto; }
+.ka-scheda-nota { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ka-scheda-nota .ka-nota {
+  width: 100%; box-sizing: border-box; min-height: 72px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font: inherit; font-size: 13px; background: var(--surface); color: var(--text);
+}
+
+.ka-colleg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ka-colleg-gruppo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ka-colleg-gruppo .ka-chip a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.ka-colleg-gruppo .ka-chip a:hover { color: var(--accent); }
+.ka-colleg-vuoto { font-size: 12.5px; color: var(--text-light); }
+.ka-colleg-nuovo { border-top: 1px dashed var(--border); padding-top: 10px; }
+.ka-colleg-anelli { display: flex; gap: 8px; flex-wrap: wrap; }
+.ka-colleg-anello {
+  padding: 6px 12px; border: 1px dashed var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent);
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: grab;
+}
+.ka-colleg-anello:active { cursor: grabbing; }
+.ka-colleg-anello[aria-pressed="true"] { background: var(--accent); color: #fff; border-style: solid; }
+.ka-colleg-lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.ka-colleg-lista li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); background: var(--surface);
+}
+.ka-colleg-lista li strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ka-colleg-lista li small { color: var(--text-light); white-space: nowrap; font-size: 11.5px; }
+.ka-colleg-lista:not(.is-scelta) li { opacity: .75; }
+.ka-colleg-lista.is-scelta li { cursor: pointer; }
+.ka-colleg-lista.is-scelta li:hover, .ka-colleg-lista li:focus-visible, .ka-colleg-lista li.is-bersaglio {
+  background: var(--accent-light); border-color: var(--accent); outline: none; opacity: 1;
+}
+.ka-colleg-lista li.is-attesa { opacity: .5; cursor: progress; }
+
+.ka-crono { list-style: none; margin: 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--border); }
+.ka-crono-voce { position: relative; display: grid; gap: 4px; font-size: 13px; color: var(--text); }
+.ka-crono-voce::before {
+  content: ""; position: absolute; left: -20px; top: 4px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--text-light);
+}
+.ka-crono-voce.is-commento::before { border-color: var(--accent); background: var(--accent-light); }
+.ka-crono-voce.tone-green::before { border-color: var(--success); }
+.ka-crono-voce.tone-amber::before { border-color: var(--warning); }
+.ka-crono-voce.tone-blue::before, .ka-crono-voce.tone-teal::before { border-color: var(--accent); }
+.ka-crono-testa { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.ka-crono-testa span { color: var(--text-mid); }
+.ka-crono-testa time { margin-left: auto; font-size: 11.5px; color: var(--text-light); white-space: nowrap; }
+.ka-crono-voce.is-commento .td-testo { padding: 8px 10px; border-radius: 8px; background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); }
+.ka-crono-dettagli { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12.5px; color: var(--text-mid); }
+.ka-crono-dettagli span { font-weight: 700; color: var(--text-light); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+.ka-crono-nota { font-size: 12.5px; color: var(--text-mid); }
+
+.ka-sposta { border-top: 1px solid var(--border); padding-top: 10px; }
+.ka-sposta summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--accent); }
+.ka-sposta form { display: grid; gap: 8px; margin-top: 8px; }
+.ka-sposta form .btn { justify-self: start; }
+@media (max-width: 760px) {
+  .ka-colleg { grid-template-columns: minmax(0, 1fr); }
+  .ka-scheda-stato { flex-wrap: wrap; }
+  .ka-crono-testa time { margin-left: 0; }
+}
+.ka-motivo { display: flex; gap: 6px; margin-top: 6px; }
+.ka-motivo .input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--accent); border-radius: 8px; font: inherit; font-size: 12.5px; background: var(--surface); color: var(--text); }

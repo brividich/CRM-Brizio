@@ -160,13 +160,15 @@ def project_actions(request, project_id: int):
     )
     # Le attività si aggiornano sul posto (stato e scadenza): chi può lo decide
     # il server, qui la pagina mostra i controlli solo a chi li può usare.
-    from ..access import can_manage_task
+    from ..access import can_manage_task, puo_spostare_subito
     from ..forms import task_active_users_queryset
     from ..services.striscia import striscia_commessa
 
     gestisce = can_manage_project(request, project)
     elenco_attivita = list(project.tasks.select_related("assigned_to", "project"))
     attivita = {t.pk: t for t in elenco_attivita}
+    # Dipende solo dalla commessa: chi non sposta subito chiede, con il motivo.
+    sposta_subito = puo_spostare_subito(request, elenco_attivita[0]) if elenco_attivita else True
     righe = []
     for row in actions:
         task = attivita.get(row.obj_id) if row.origin == "task" else None
@@ -188,6 +190,7 @@ def project_actions(request, project_id: int):
             "project": project,
             "actions": actions,
             "righe": righe,
+            "sposta_subito": sposta_subito,
             "striscia": striscia_commessa(project, timezone.localdate(), tasks=elenco_attivita),
             "puo_aggiungere": gestisce and has_task_permission(request, "tasks_create"),
             "persone": [

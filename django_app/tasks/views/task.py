@@ -316,6 +316,7 @@ def task_detail(request, task_id: int):
 
     tech_ref = ProjectTechRef.objects.filter(task=task).first()
     puo_annullare = puo_annullare_o_ripristinare(request, task)
+    is_assignee = bool(task.assigned_to_id) and task.assigned_to_id == request.user.pk
 
     return render(
         request,
@@ -343,7 +344,6 @@ def task_detail(request, task_id: int):
             "puo_ripristinare": puo_annullare,
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
-            "task_timeline_events": _build_task_timeline_events(task),
             # Chi deve scrivere un programma vede il programma, non la gestione attrezzatura.
             "attrezzatura_embedded_context": None if tech_ref else _build_task_attrezzatura_context(task),
             "task_tech_ref": tech_ref,
@@ -351,11 +351,115 @@ def task_detail(request, task_id: int):
             "task_fai_causale": _causale_fai(tech_ref),
             "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
             # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
-            "is_assignee": task.assigned_to_id == request.user.pk,
+            "is_assignee": is_assignee,
+            # Lo stato si cambia da un controllo solo: chi gestisce e l'incaricato
+            # (le regole sono in services/stato.py, decide change_status).
+            "puo_stato": can_manage or is_assignee,
+            # L'incaricato senza permesso di modifica passa da mia_voce_stato (stesse regole).
+            "stati_incaricato": [
+                ("reopen", "Da fare", TaskStatus.TODO),
+                ("start", "In corso", TaskStatus.IN_PROGRESS),
+                ("done", "Completata", TaskStatus.DONE),
+            ],
             **_contesto_programma(tech_ref),
             **_contesto_spostamenti(request, task),
+            **_contesto_scheda(request, task, can_manage),
         },
     )
+
+
+def _firma_incontro(task) -> str:
+    """La prima riga «Dall'incontro #n (data)» scritta quando l'attività nasce da un incontro."""
+    testo = (task.description or "").strip()
+    return testo.partition("\n")[0] if testo.startswith("Dall'incontro #") else ""
+
+
+def _cronologia(task) -> list[dict]:
+    """Commenti, cambi di stato e spostamenti di data in un solo elenco, dal più recente.
+
+    Gli eventi «commento aggiunto» non si ripetono: al loro posto c'è il commento col testo.
+    """
+    voci = [
+        {
+            "tipo": "evento", "quando": item["event"].created_at, "chi": item["actor_name"], "voce": item,
+            # Per gli spostamenti il titolo dice com'è andata (richiesto, approvato, rifiutato).
+            "titolo": item["description"].rstrip(".") if item["event"].type == TaskEventType.DATE_REQUEST else item["title"],
+        }
+        for item in _build_task_timeline_events(task)
+        if item["event"].type != TaskEventType.COMMENT_ADDED
+    ]
+    for comment in task.comments.all():
+        voci.append({
+            "tipo": "commento",
+            "quando": comment.created_at,
+            "chi": comment.author.get_full_name() or comment.author.get_username() if comment.author else "Sistema",
+            "voce": comment,
+        })
+    voci.sort(key=lambda v: v["quando"], reverse=True)
+    return voci
+
+
+def _contesto_scheda(request, task, can_manage: bool) -> dict:
+    """Striscia del tempo, nota, collegamenti, cronologia e «Sposta la scadenza»."""
+    from ..models import TaskDependency
+    from ..services.kickoff_avvio import nota_attivita
+    from ..services.striscia import striscia_commessa
+    from .azioni_rapide import _permessi
+
+    permessi = _permessi(request, task)
+    contesto = {
+        "striscia": None,
+        "nota": nota_attivita(task),
+        "firma_incontro": _firma_incontro(task),
+        "puo_nota": can_manage,
+        "cronologia": _cronologia(task),
+        "puo_spostare_scadenza": permessi["date"] and task.status != TaskStatus.CANCELED,
+        "motivo_obbligatorio": not permessi["date_subito"],
+        "collegamenti_prima": [],
+        "collegamenti_dopo": [],
+        "puo_collegare": False,
+        "altre_attivita": [],
+    }
+    if not task.project_id:
+        return contesto
+    contesto["striscia"] = striscia_commessa(task.project, timezone.localdate(), evidenzia=task.pk)
+    contesto["collegamenti_prima"] = list(
+        TaskDependency.objects.filter(successor=task).select_related("predecessor").order_by("predecessor__title")
+    )
+    contesto["collegamenti_dopo"] = list(
+        TaskDependency.objects.filter(predecessor=task).select_related("successor").order_by("successor__title")
+    )
+    contesto["puo_collegare"] = can_manage_project(request, task.project)
+    if contesto["puo_collegare"]:
+        gia = {d.predecessor_id for d in contesto["collegamenti_prima"]} | {d.successor_id for d in contesto["collegamenti_dopo"]}
+        contesto["altre_attivita"] = [
+            t for t in task.project.tasks.exclude(pk=task.pk).exclude(status=TaskStatus.CANCELED)
+            .select_related("assigned_to").order_by("gantt_order", "next_step_due", "id")
+            if t.pk not in gia
+        ]
+    return contesto
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def task_nota(request, task_id: int):
+    """Nota dell'attività (Task.description): la firma «Dall'incontro #n» resta in testa."""
+    task = get_object_or_404(scoped_tasks_queryset(request), pk=task_id)
+    if not can_manage_task(request, task):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+    firma = _firma_incontro(task)
+    nota = (request.POST.get("nota") or "").strip()
+    nuova = f"{firma}\n{nota}".strip() if firma else nota
+    prima = task.description or ""
+    if nuova != prima.strip():
+        task.description = nuova
+        task.save(update_fields=["description", "updated_at"])
+        _log_event(task, request.user, TaskEventType.EDIT, {
+            "changes": {"description": {"from": prima, "to": nuova}},
+        })
+        log_action(request, "kickoff_nota_attivita", "tasks", {"task_id": task.pk})
+        messages.success(request, "Nota salvata.")
+    return redirect(reverse("tasks:detail", kwargs={"task_id": task.pk}) + "#nota")
 
 
 @require_POST
