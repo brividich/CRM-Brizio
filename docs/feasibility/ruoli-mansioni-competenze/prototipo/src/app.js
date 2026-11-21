@@ -217,7 +217,7 @@
     ["editor-mansione", "Profilo della mansione", "La Qualità cambia un requisito e vede subito quante persone cambierebbero stato, prima di pubblicare."],
     ["cruscotto-qualita", "Cruscotto Qualità", "La Qualità vede in dieci secondi quante persone sono in regola, dove sono i problemi e che cosa scade."],
     ["matrice", "Matrice competenze", "Persone e competenze in una sola tabella: la lettera è il livello, il segno accanto dice se manca o va confermato. Un clic spiega il perché."],
-    ["dipendente-rinaldi", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
+    ["dipendente-rivalta", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
     ["simulatore", "Simulatore cambio mansione", "Prima di chiedere una nuova mansione si vede che cosa è già coperto e che cosa resta da fare."],
     ["ram", "Richiesta di mansione", "Il modulo cartaceo diventa una pagina: il portale compila da solo ruolo, reparto, competenze richieste ed evidenze già presenti; le persone mettono giudizio e firme."],
     ["sessione-formativa", "Sessione formativa", "L'unico atto che cambia un livello: persone, competenze, come è stata acquisita la competenza e il livello raggiunto. Prima di chiudere si vede che cosa cambia."],
@@ -244,7 +244,7 @@
       { nome: "Organizzazione", voci: [V("v-struttura", "Struttura organizzativa", "ingresso", "Organizzazione › Struttura"), V("v-organigramma", "Organigramma", "scheda", "Organizzazione › Struttura", "«Esplora la struttura» e «Organigramma» diventano due viste della stessa pagina."), V("v-reparti", "Reparti e centri di costo", "elenco", "Organizzazione › Reparti e costi"), V("v-prospetto", "Cambiamenti programmati", "elenco", "Organizzazione › Struttura › Prospetto dei cambiamenti")] },
       { nome: "Mansioni e requisiti", voci: [V("editor-mansione", "Profilo della mansione", "scheda", "Organizzazione › Struttura › Mansionario"), V("v-catalogo", "Catalogo competenze", "elenco", "Mansionario › Catalogo competenze"), V("v-rischio", "Mansioni di rischio", "elenco", "Salute e sicurezza › Rischi e mansioni"), V("v-processi", "Processi qualificati", "elenco", "Competenze › Qualifiche › Processi qualificati")] }] },
     { id: "competenze", nome: "Competenze", ico: "i-award", domanda: "Chi lo fa, e lo sa fare?", sezioni: [
-      { nome: "Quadro", voci: [V("cruscotto-qualita", "Cruscotto Qualità", "ingresso", "Mansionario, Lacune, Copertura abilitazioni"), V("matrice", "Matrice", "matrice", "Matrice competenze, Abilitazioni macchina, Matrice processi qualificati", "Tre matrici diventano una, con due viste."), V("dipendente-rinaldi", "Scheda persona", "scheda", "Mansionario › Mansioni di una persona"), V("vista-dipendente", "La mia scheda", "scheda", "La mia scheda")] },
+      { nome: "Quadro", voci: [V("cruscotto-qualita", "Cruscotto Qualità", "ingresso", "Mansionario, Lacune, Copertura abilitazioni"), V("matrice", "Matrice", "matrice", "Matrice competenze, Abilitazioni macchina, Matrice processi qualificati", "Tre matrici diventano una, con due viste."), V("dipendente-rivalta", "Scheda persona", "scheda", "Mansionario › Mansioni di una persona"), V("vista-dipendente", "La mia scheda", "scheda", "La mia scheda")] },
       { nome: "Mansioni", voci: [V("simulatore", "Simulatore", "pratica", "—"), V("ram", "Richiesta di mansione", "pratica", "«Aggiungi mansioni» nella scheda persona"), V("v-cambi", "Cambi di mansione", "elenco", "Salute e sicurezza › Conformità › Cambi mansione", "Il piano di adeguamento per la sicurezza resta, e si apre dalla richiesta di mansione.")] },
       { nome: "Sessioni", voci: [V("sessione-formativa", "Sessione formativa", "pratica", "Valutazione per competenza"), V("pianificatore", "Pianificatore", "elenco", "Formazione › Copertura / gap"), V("v-conferma", "Conferma periodica", "pratica", "Abilitazioni › Refresh semestrale e Scadenzario abilitazioni", "La conferma del responsabile diventa una sessione formativa di conferma.")] }] },
     { id: "formazione", nome: "Formazione", ico: "i-cap", domanda: "Come si impara?", sezioni: [
@@ -263,7 +263,7 @@
     "inserimento": ["Registra le competenze con una sessione formativa", "sessione-formativa"],
     "editor-mansione": ["Assegna la mansione: prova con il simulatore", "simulatore"],
     "cruscotto-qualita": ["Parti dalle mancanze: pianifica la formazione", "pianificatore"],
-    "matrice": ["Apri la scheda di una persona", "dipendente-rinaldi"],
+    "matrice": ["Apri la scheda di una persona", "dipendente-rivalta"],
     "dipendente": ["Simula una nuova mansione per questa persona", "simulatore"],
     "simulatore": ["Apri la richiesta di mansione", "ram"],
     "ram": ["Colma le mancanze con una sessione formativa", "sessione-formativa"],
@@ -274,7 +274,7 @@
     "coda-car": ["Vedi che cosa aspetta l'approvazione", "cruscotto-rdd"],
     "cruscotto-rdd": ["Torna al quadro delle persone", "persone"]
   };
-  function chiaveRotta(r) { return r.indexOf("dipendente-") === 0 ? "dipendente-rinaldi" : r; }
+  function chiaveRotta(r) { return r.indexOf("dipendente-") === 0 ? "dipendente-rivalta" : r; }
   function doveSta(r) {
     var k = chiaveRotta(r), out = null;
     PILASTRI.forEach(function (p) { p.sezioni.forEach(function (s) { s.voci.forEach(function (v) { if (v.id === k) out = { p: p, s: s, v: v }; }); }); });

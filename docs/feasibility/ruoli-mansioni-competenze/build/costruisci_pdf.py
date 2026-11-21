@@ -44,7 +44,7 @@ VERSIONE = "1.0"
 DATA = "21/11/2026"
 TITOLO = "Ruoli, mansioni e competenze"
 
-DOC = {"01": "01_asis.md", "02": "02_tobe_flusso_algoritmo.md", "03": "03_ux.md"}
+DOC = {"01": "01_asis.md", "02": "02_tobe_flusso_algoritmo.md", "03": "03_ux.md", "04": "04_gap_sgi.md"}
 
 # Termini che il PDF per la Direzione non deve contenere: i sei indicati dalla missione più altri termini informatici.
 VIETATI_MISSIONE = ["FSM", "motore", "cache", "ACL", "HTMX", "DB"]
@@ -127,6 +127,8 @@ PIANO = [
     ("2c", "Matrice «C'è / Manca / Come introdurlo»", [F("01", "6")]),
     ("3", "AS-IS: modello dati, motori, divergenze, qualità dei dati", [
         S("01", "2"), S("01", "3"), S("01", "8"), S("01", "11"), S("01", "12")]),
+    ("3b", "Confronto con il Sistema di Gestione Integrato in vigore", [
+        S("04", "0"), S("04", "1"), S("04", "2"), S("04", "3"), S("04", "4"), S("04", "5"), S("04", "6"), S("04", "7")]),
     ("4", "TO-BE: livelli, algoritmo, flussi, permessi", [
         S("02", "0"), S("02", "1"), S("02", "2"), S("02", "3"), S("02", "4"), S("02", "5"), S("02", "6")]),
     ("5", "UX: persone, architettura dell'informazione, prototipo", [
@@ -154,7 +156,7 @@ GALLERIA = [
      "La stessa pagina con una lettera per mansione: è la vista che sostituisce le matrici di oggi."),
     ("04_matrice_oggi.png", "Matrice, vista «Oggi»", "#matrice",
      "Cattura della pagina reale del portale, presa da un server di prova con persone inventate, a confronto con la proposta."),
-    ("05_scheda_persona.png", "Scheda della persona", "#dipendente-rinaldi",
+    ("05_scheda_persona.png", "Scheda della persona", "#dipendente-rivalta",
      "Le mansioni con lo stato e ciò che la persona può fare; i requisiti con la loro origine; le mansioni potenziali."),
     ("07_editor_mansione.png", "Profilo della mansione", "#editor-mansione",
      "Livello atteso e criticità di ogni competenza; l'anteprima d'impatto si ricalcola a ogni modifica."),
@@ -242,9 +244,9 @@ def md(testo: str) -> str:
 # Rimandi fra sezioni
 # --------------------------------------------------------------------------------------------------------------------
 
-_ESTERNI = re.compile(r"SPEC|MT CN|EN 9100|M053|ISO 9001|Debole su")
+_ESTERNI = re.compile(r"SPEC|MT CN|EN 9100|M053|ISO 9001|Debole su|IDOR|MO-ID|MOD\.\d")
 _RIF = re.compile(
-    r"(?:`(01_asis\.md|02_tobe[\w.]*|03_ux\.md)`\s+|(Fase 2)\s+)?§(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?")
+    r"(?:`(01_asis\.md|02_tobe[\w.]*|03_ux\.md|04_gap_sgi\.md)`\s+|(Fase 2)\s+)?§(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?")
 
 
 def traduci_rimandi(testo: str, doc: str, mappa: dict) -> str:
@@ -801,13 +803,13 @@ def coerenza() -> list[str]:
         f'{s["CONFORME"]} conformi · {s["CON_RISERVA"]} con riserva · {s["SOTTO_SUPERVISIONE"]} sotto supervisione · {s["NON_CONFORME"]} non conformi',
         f'{sb["CONFORME"]} · {sb["CON_RISERVA"]} · {sb["SOTTO_SUPERVISIONE"]} · {sb["NON_CONFORME"]}',
         f'{q["persone"]} persone', f'{q["mansioni"]} mansioni', f'{q["competenze"]} competenze',
-        "242 mansioni lavorative", "443", "203", "56 persone su 135", "774 corsi", "595", "51 controlli", "da 18 a 31",
-        "da 7 a 11", "Marco Rinaldi", "Giulia Ferrante", "Aldo Bianchetti", "Sara Colombini", "Piero Lombardini",
+        "242 mansioni lavorative", "443", "203", "56 persone su 135", "MT CN 06 Rev.21", "circa 690", "774 corsi", "595", "51 controlli", "da 18 a 31",
+        "da 7 a 11", "Marco Rivalta", "Giulia Ferrante", "Aldo Bianchetti", "Sara Colombari", "Piero Lombardini",
     ]
-    attesi_direzione = ["242", "443", "203", "56 su 135", "5 ingredienti su 6", "Marco Rinaldi", "18 domande",
+    attesi_direzione = ["242", "443", "203", "56 su 135", "5 ingredienti su 6", "Marco Rivalta", "18 domande",
                         "7-11 settimane", "4-7 mesi", "0 su 242", "0 su 443", "gennaio 2027", "sedici pagine"]
     marco = ris["casi"]["P01"]["potenziali"][0]
-    esiti = [f'Coerenza: motore di riferimento, Marco Rinaldi su «{marco["nome"]}»: {marco["ok"]} requisiti su {marco["tot"]}'
+    esiti = [f'Coerenza: motore di riferimento, Marco Rivalta su «{marco["nome"]}»: {marco["ok"]} requisiti su {marco["tot"]}'
              + (" (OK)" if (marco["ok"], marco["tot"]) == (5, 6) else " (DIVERSO dal testo: 5 su 6)")]
     for nome, testo, attesi in (("Tecnico", tecnico, attesi_tecnico), ("Direzione", direzione, attesi_direzione)):
         mancanti = [a for a in attesi if a.lower() not in testo]

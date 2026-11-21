@@ -12,10 +12,16 @@ dati. Dei 34 requisiti ricavati dai due documenti, oggi 2 sono coperti, 21 lo so
 spiegabile e ricalcolato ogni notte ({§01:3}). Manca il flusso: mansione e livello oggi si scrivono direttamente,
 senza richiesta, senza evidenza e senza firma.
 
-**Il vero ostacolo sono i contenuti, non il codice.** In produzione, al 21/11/2026 ({§01:8}):
+**Il vero ostacolo sono i contenuti, non il codice.** Nel portale, al 21/11/2026 ({§01:8}):
 
 | 242 mansioni lavorative | 0 competenze definite | 0 regole di obbligo formativo | 443 livelli, tutti scritti a mano (203 al livello «O») | 56 persone su 135 senza mansione in lista |
 | --- | --- | --- | --- | --- |
+
+Il sistema di gestione in vigore ha però già ciò che al portale manca ({§04:0}): la tabella delle competenze per ruolo
+e mansione (MOD.053 Rev.4), la definizione dei livelli e le regole di approvazione (MT CN 06 Rev.21). Il confronto
+ha corretto quattro punti della proposta: a livello L si firma; ogni emissione della skill matrix è approvata da
+RDD; per i controlli non distruttivi la sospensione è obbligatoria; la skill matrix ufficiale (circa 690 livelli)
+non coincide con quella del portale (443).
 
 **Che cosa si propone** ({§02:1}).
 
@@ -35,12 +41,12 @@ pilastri, 51 controlli automatici superati ({§03:4}, {§03:10}).
 15; tutto tranne la rinomina facoltativa: da 18 a 31 settimane ({§02:7.6}). Il calendario reale dipende dal
 popolamento del catalogo delle competenze.
 
-**Rischi principali** ({§02:8}). Il catalogo non viene popolato; troppa burocrazia per i responsabili; in modalità
+**Rischi principali** ({§02:8}). Il catalogo non viene completato; troppa burocrazia per i responsabili; in modalità
 segnalazione, una segnalazione ignorata lascia operare chi non ha il requisito, perciò ogni segnalazione ha una presa
 in carico con termine.
 
 **Decisioni richieste** ({§T:decisioni}). Le 18 risposte della Qualità; la data di demarcazione e il destino dello
-storico; il reparto pilota; chi firma e chi sostituisce.
+storico; il reparto pilota; chi firma e chi sostituisce; la revisione di MT CN 06 se la nuova richiesta viene adottata.
 
 **Giudizio.** Fattibilità tecnica **alta**. Fattibilità organizzativa **condizionata** al lavoro di contenuto della
 Qualità e dei responsabili.
@@ -74,17 +80,19 @@ l'analisi ha proceduto: se la risposta è diversa, cambia ciò che è scritto ne
 
 | # | Decisione | Chi decide | Ipotesi o decisione attuale | Se la risposta è diversa |
 | --- | --- | --- | --- | --- |
-| 1 | Significato operativo dei livelli I/L/U/O (domanda 1) | Qualità | I lavora solo affiancata; L sotto supervisione; U autonoma e firma; O forma i colleghi | Cambiano «lavora da sola», «firma», «forma» in tutto il calcolo ({§02:3.1}) |
+| 1 | Vocabolario dei livelli e soglia di firma (domanda 1) | Qualità | Valgono le definizioni di MT CN 06: a L si firma. Nel portale la soglia è U | Va allineata la procedura o il portale ({§04:3}) |
 | 2 | Il livello può scendere, e con quale atto (domanda 5) | Qualità | Non scende da solo: scende la validità; il livello cambia solo con una SF di revisione | Con la discesa automatica si passa al modello C ({§02:4}) |
 | 3 | Segnalare o bloccare | Proprietario, sentita la Direzione | **Deciso: segnalazione.** Il blocco resta attivabile, anche per le sole competenze dei processi qualificati | Nessuna modifica ai dati: è un parametro ({§02:3.3}) |
 | 4 | **Data di demarcazione e storico** | Qualità e proprietario | I 443 livelli attuali entrano con una SF di impianto in modalità «pregresso» (ipotesi: gennaio 2027) | Vedi sotto: è il dubbio aperto |
 | 5 | Chi è in formazione compare in skill matrix (domanda 12) | Qualità | Sì, come mansione «avviata», distinta da «effettiva» | Basta un filtro: il modello non cambia |
-| 6 | Chi firma e chi sostituisce RDD e MSO (domanda 14) | Qualità e Direzione | RDD approva; MSO firma l'esito dell'aggiornamento mansione; sostituti e deleghe a termine | Cambia il blocco B7; va chiuso prima di attivare la RAM |
+| 6 | Chi firma e chi sostituisce RDD e MSO (domanda 14) | Qualità e Direzione | RDD approva, e firma ogni emissione della skill matrix; MSO firma l'esito dell'aggiornamento mansione, ruolo nuovo rispetto a MT CN 06; sostituti e deleghe a termine | Cambia il blocco B7; va chiuso prima di attivare la RAM |
 | 7 | Regola del livello sulla mansione (domanda 4) | Qualità | **Deciso dal proprietario:** il più basso fra le competenze bloccanti | Con la media attuale chi è in regola può risultare «in addestramento» ({§02:3.4}) |
 | 8 | Reparto pilota per la tappa 0 | Direzione e Qualità | Da scegliere; criterio proposto: mansioni con più persone e processi qualificati | Senza pilota il catalogo non parte |
 | 9 | Gli 11 parametri del calcolo | Qualità | Valori proposti in {§02:4.5} | Sono configurazione |
 | 10 | Rinomina dei modelli nel codice (B12) | Proprietario | Non ora | Nessun effetto per gli utenti |
-| 11 | Riordino del menu e stile | Proprietario | Prototipo approvato il 21/11/2026; raccomandato lo stile rinfrescato, da provare sulle pagine dense e sul tema scuro | {§03:10} |
+| 11 | Revisione di MT CN 06 e dei moduli MOD.053, MOD.040, MOD.187 | Qualità e Direzione | Necessaria se la nuova richiesta viene adottata | {§04:4} |
+| 12 | Segnalare o bloccare sui controlli non distruttivi | Qualità | Blocco: lo impone MT CN 65 | {§04:5} |
+| 13 | Riordino del menu e stile | Proprietario | Prototipo approvato il 21/11/2026; raccomandato lo stile rinfrescato, da provare sulle pagine dense e sul tema scuro | {§03:10} |
 
 **Il dubbio aperto: linea di demarcazione e «ripescaggio» dal vecchio catalogo.** L'orientamento del proprietario è
 tracciare una linea alla data di introduzione (ipotesi: gennaio 2027): da lì in avanti le competenze cambiano solo
@@ -134,7 +142,7 @@ questionario riportato in appendice ({§T:questionario}). Le sigle Q1-Q17 sono q
 | **MOD.040** | Registro dell'affiancamento, allegato alla SF |
 | **MOD.187 (SKM)** | La skill matrix: nella proposta è la fotografia corrente dei livelli |
 | **MOD.128** | Mansionario dei processi qualificati |
-| **RDD, MSO, CAR** | Sigle aziendali dei documenti della Qualità, non sciolte nelle fonti. Nel documento: RDD approva e firma; MSO firma l'esito dell'aggiornamento mansione; CAR è il responsabile di reparto che giudica il merito |
+| **RDD, MSM, MSO, MSA, CAR** | Responsabile della Direzione; Management System Manager, Officer e Assistant (la funzione Qualità); Capo Area o Capo Reparto. Definizioni di MT CN 06 Rev.21 |
 | **Motore** | La parte del portale che calcola requisiti, mancanze e stati a partire dai dati |
 | **Proiezione** | Tabella calcolata dal motore e riscritta a ogni ricalcolo, usata dalle pagine di elenco (per esempio `TrainingDeadline`) |
 
@@ -142,9 +150,9 @@ I nomi usati nel codice non coincidono con quelli della Qualità: la tabella di 
 
 <!-- blocco: en9100 -->
 
-Sintesi **non testuale** dei punti della norma, per collegarli alla proposta. Il testo della EN 9100 e le procedure
-interne (MT CN 06, MT CN 08, MT CN 65) non sono nel repository: i riferimenti vanno verificati dalla Qualità
-sull'edizione in vigore.
+Sintesi **non testuale** dei punti della norma, per collegarli alla proposta. È stata verificata sul testo presente
+nella cartella del sistema di gestione, che è la bozza prEN 9100:2016: la Qualità può confermarla sull'edizione in
+vigore. MT CN 06 Rev.21 riprende gli otto contenuti del punto 7.3 uno per uno.
 
 | Punto | Che cosa chiede, in sintesi | Come risponde la proposta | Dove |
 | --- | --- | --- | --- |

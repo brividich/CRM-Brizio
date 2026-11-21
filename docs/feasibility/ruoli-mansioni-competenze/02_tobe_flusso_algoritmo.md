@@ -1,11 +1,15 @@
 # 02 — TO-BE: flusso e algoritmo
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.2 · 21/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; recepite le decisioni del proprietario
+Versione 0.3 · 21/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; recepite le decisioni del proprietario
 (§0).
 
 > **Tutto ciò che segue è una proposta.** Le decisioni su contenuti, relazioni e regole HR spettano al proprietario
 > del progetto e alla Qualità.
+>
+> **Correzioni dopo il confronto con il sistema di gestione in vigore** (`04_gap_sgi.md` §5): definizione dei
+> livelli e soglia di firma, emissione approvata della skill matrix, blocco per i controlli non distruttivi,
+> catalogo da caricare e non da scrivere.
 >
 > **Ipotesi dichiarate.** Le 18 domande per la Qualità (`Domande_per_la_Qualita.md`) non hanno ancora risposta. Il
 > progetto adotta per ciascuna l'ipotesi indicata nel questionario e la marca con **[ipotesi Dn]**; dove la risposta
@@ -134,15 +138,17 @@ diventano «effettive, da impianto». Nessun dato viene cancellato.
 
 ### 3.1 Che cosa significa un livello
 
-MT CN 06 §8.3 non è nel repository: le definizioni che seguono sono una **proposta da validare** **[ipotesi D1]**,
-costruita sulle etichette oggi a sistema e sulle note del MOD.053 («I: no firma OP»).
+Le definizioni sono quelle di MT CN 06 Rev.21 §8.3, la procedura in vigore. La prima stesura ipotizzava che a
+livello L non si firmasse: la procedura dice il contrario, e la tabella è stata corretta. Nei moduli MOD.187 e
+MOD.053 la legenda è diversa («principiante», «insegna / programma a bordo macchina»): quale vocabolario valga
+resta la domanda 1 del questionario.
 
 | Livello | Nome | Che cosa sa fare | Lavora da sola | Firma / timbra | Forma altri |
 | --- | --- | --- | --- | --- | --- |
-| I | In formazione | Conosce l'attività, la esegue solo affiancata | No | No | No |
-| L | Intermedio | La esegue sotto supervisione, chiede aiuto sui casi non standard | Solo con un supervisore presente | No | No |
-| U | Autonomo | La esegue da sola e ne risponde | Sì | Sì | No |
-| O | Esperto / formatore | Come U, gestisce i casi anomali e affianca i colleghi | Sì | Sì | Sì |
+| I | In formazione | Esegue l'attività solo in affiancamento o sotto tutoraggio | No | No | No |
+| L | Intermedio | La esegue in autonomia sulle operazioni note; su quelle nuove o complesse la segue il capo reparto | Sì, sulle operazioni note | Sì: la firma resta all'operatore | No |
+| U | Autonomo | La esegue in autonomia, nel rispetto delle istruzioni | Sì | Sì | No |
+| O | Formatore / esperto | Forma altri operatori e sostiene la standardizzazione | Sì | Sì | Sì |
 
 Cella vuota = competenza mai valutata. Non è un livello.
 
@@ -166,6 +172,9 @@ requisito formale. Alternativa scartata: livello per coppia competenza × mansio
   *suggerire* («ha completato corso e 80 ore di affiancamento: valutare il passaggio a L») ma non scrive.
 - **Chi giudica** è chi ha la «Responsabilità del reparto» della mansione **[deciso T7]**. Il merito resta suo, come
   oggi (D18); RDD e MSO autorizzano, non rivalutano.
+- **Emissione approvata.** MT CN 06 §8.5 chiede che ogni emissione della skill matrix sia approvata e firmata da
+  Direzione/RDD. Proposta: a ogni verifica semestrale RDD firma la fotografia della matrice; fra un'emissione e
+  l'altra valgono le SF chiuse e le RAM approvate. Da confermare con la Qualità.
 - **Tracciabilità**: la SF e le sue righe non si modificano dopo la chiusura; una correzione è una nuova SF che
   richiama la precedente.
 
@@ -218,6 +227,10 @@ stateDiagram-v2
 | Contro | Una segnalazione ignorata lascia operare chi non ha il requisito: va presidiata (cruscotto RDD, sollecito, riepilogo periodico) | Un dato sbagliato o un rinnovo registrato in ritardo ferma una persona |
 | Difendibilità in audit | Buona **se** ogni segnalazione ha una presa in carico tracciata | Forte |
 
+**Eccezione scritta: i controlli non distruttivi.** MT CN 65 impone la sospensione dell'approvazione a visita visiva
+scaduta, dopo 12 mesi consecutivi senza operare e a verifica annuale scaduta. Per le competenze regolate da quella
+procedura la modalità è quindi **blocco**, qualunque sia la scelta generale.
+
 È lo stesso schema già in uso per la visita del cambio mansione, dove un parametro sceglie fra «solo avviso»,
 «deroga ammessa» e «blocco» (`services/stato_operativo.py:8-13`): la modalità si può cambiare in seguito senza toccare
 i dati. Per rendere difendibile la segnalazione si propone la **presa in carico**: il responsabile, entro un termine,
@@ -246,8 +259,8 @@ Stato della persona rispetto a una mansione:
 
 | Stato | Regola | Opera da sola | Firma | Forma |
 | --- | --- | --- | --- | --- |
-| **Conforme** | Tutti i requisiti raggiunti e validi | Sì | Sì, se livello sulla mansione ≥ U | Sì, se livello O |
-| **Conforme con riserva** | Manca solo qualcosa di «utile», oppure c'è una competenza da confermare, in deroga o — in modalità segnalazione — sospesa | Sì | Sì, se ≥ U | No |
+| **Conforme** | Tutti i requisiti raggiunti e validi | Sì | Sì, se livello sulla mansione ≥ L | Sì, se livello O |
+| **Conforme con riserva** | Manca solo qualcosa di «utile», oppure c'è una competenza da confermare, in deroga o — in modalità segnalazione — sospesa | Sì | Sì, se ≥ L | No |
 | **Sotto supervisione** | Manca un requisito «importante», oppure un «bloccante» mentre la mansione è ancora *avviata* | No | No | No |
 | **Non conforme** | Manca un bloccante su una mansione *effettiva*; in modalità blocco, anche una competenza bloccante sospesa | No | No | No |
 
@@ -297,7 +310,7 @@ Esempio calcolato sui dati di riferimento:
 
 | Revisione | Titolari | Chi cambia stato |
 | --- | --- | --- |
-| DM3: si **aggiunge** «Programmazione a bordo macchina», livello L, importante | 6 | 2: Marco Rinaldi (conforme → sotto supervisione), Stefano Guidotti (conforme → conforme con riserva) |
+| DM3: si **aggiunge** «Programmazione a bordo macchina», livello L, importante | 6 | 2: Marco Rivalta (conforme → sotto supervisione), Stefano Guidotti (conforme → conforme con riserva) |
 | DM6: «Programmazione a bordo macchina» da L a U, resta importante | 5 | 1: Piero Lombardini (conforme con riserva → sotto supervisione) |
 | DM6: la stessa competenza da L a U **e** bloccante | 5 | 1: Piero Lombardini (conforme con riserva → non conforme) |
 | CMM1: «Compilazione rapporti di collaudo» da L a U | 5 | 0 |
@@ -347,7 +360,7 @@ lo stato non cambia.
 | M13 | Conferma periodica dovuta, il responsabile è in ritardo | U | 95 → O | **U → L** | U **da confermare**, conforme con riserva, sollecito |
 | M14 | Conferma eseguita (SF di conferma) | U | 97 → O | L → U con nuova SF | U consolidato |
 
-**Marco Rinaldi** — effettivo su DM3; gli serve DM6; competenza mancante: «Programmazione a bordo macchina» (atteso L).
+**Marco Rivalta** — effettivo su DM3; gli serve DM6; competenza mancante: «Programmazione a bordo macchina» (atteso L).
 
 | Mese | Evento | A | B | C | D |
 | --- | --- | --- | --- | --- | --- |
@@ -366,7 +379,7 @@ bloccante) scade il 20/08/2027 (M8).
 | M9 | Fine della grazia | O, opera e forma | 75 → O | U → **L** | O **sospesa**: DM6 e DM3 non conformi, non firma; avviso a RDD. **Segn.:** conforme con riserva, opera e firma, non forma; segnalazione grave e presa in carico |
 | M10 | Corso rifatto | O | 95 → O | L: serve una **SF per risalire a O** | O valida, **rientro automatico**; nessuna SF |
 
-**Sara Colombini** — «Controllo pezzi di classe 1» (U, esercizio critico); ultima esecuzione a M1, assenza lunga da M2
+**Sara Colombari** — «Controllo pezzi di classe 1» (U, esercizio critico); ultima esecuzione a M1, assenza lunga da M2
 a M15, rientro a M16.
 
 | Mese | Evento | A | B | C | D |
@@ -411,7 +424,7 @@ saranno un paio d'anni di evidenze.
 
 | Parametro | Valore proposto | Dove nasce |
 | --- | --- | --- |
-| Soglia operativa (livello minimo per lavorare da soli e firmare) | U | Già a sistema |
+| Soglia di firma (livello minimo per firmare) | L, come da MT CN 06 §8.3; nel portale oggi è U | Da allineare |
 | Periodicità della conferma della skill matrix | 6 mesi | Già a sistema |
 | Finestra di esercizio per le competenze a esercizio critico | 12 mesi, preavviso a 9 | Già a sistema per i processi critici |
 | Quali competenze sono «a esercizio critico» | Processi qualificati e competenze bloccanti scelte | Da decidere |
@@ -590,7 +603,7 @@ Dati di riferimento al 15/03/2027: 32 persone, 14 mansioni, 30 competenze, **65 
 | Requisiti formali scaduti · entro 30 · 60 · 90 giorni | 5 · 1 · 1 · 1 |
 | Mansioni potenziali soddisfatte / parziali | 1 / 21 |
 
-**Caso 1 — Cambio mansione.** Marco Rinaldi, effettivo su «DM3 – Fresatura 5 assi» (conforme, livello U), viene
+**Caso 1 — Cambio mansione.** Marco Rivalta, effettivo su «DM3 – Fresatura 5 assi» (conforme, livello U), viene
 proposto per «DM6 – Fresatura 5 assi grande formato».
 - Requisiti di DM6: 6. **Già coperti: 5** (lettura del disegno, set-up 5 assi, controllo dimensionale, gestione
   utensili, prevenzione FOD), tutti dalle evidenze di DM3.
@@ -626,7 +639,7 @@ famiglia di macchine, profilo simile.
 - Esito: non è una mansione potenziale (1 su 6); una RAM è possibile ma apre cinque gap. Il simulatore lo mostra
   prima di chiedere.
 
-**Caso 6 — Mansione di rischio.** Sara Colombini (collaudo) chiede «Collaudo da banco». Coperti 2 requisiti su 3;
+**Caso 6 — Mansione di rischio.** Sara Colombari (collaudo) chiede «Collaudo da banco». Coperti 2 requisiti su 3;
 manca «Uso strumenti di misura da banco» (bloccante, con requisito formale: corso «CRS-027 Metrologia di reparto»).
 La mansione di rischio è la stessa («Addetto collaudo»): **nessuna** visita o DPI in più. Se chiedesse
 «Movimentazione con carrello» cambierebbe mansione di rischio («Carrellista»): il piano di adeguamento esistente
@@ -920,7 +933,7 @@ cache; la proiezione serve alle pagine di elenco, non alla velocità del calcolo
 
 | Tappa | Contenuto | Come si torna indietro |
 | --- | --- | --- |
-| 0 | Catalogo delle competenze popolato (Excel) su un reparto pilota | Nessun effetto sul resto |
+| 0 | Catalogo delle competenze caricato dalla tabella dei MOD.053 e MOD.039, completato con livello atteso e criticità su un reparto pilota; skill matrix riallineata al MOD.187 in vigore | Nessun effetto sul resto |
 | 1 | Nuovi modelli, vuoti; motore in **sola lettura** accanto a quello attuale; pagina di confronto | Si spegne la pagina |
 | 2 | SF attiva sul reparto pilota; i livelli si scrivono ancora anche col vecchio gesto | Si torna al vecchio gesto |
 | 3 | SF di impianto alla data di demarcazione; validità calcolata; il ricalcolo automatico smette di scrivere livelli | Interruttore di configurazione |
@@ -974,7 +987,7 @@ dopo B11, in un momento senza rami paralleli.
 
 | Rischio | Probabilità | Impatto | Mitigazione |
 | --- | --- | --- | --- |
-| Il catalogo delle competenze non viene popolato | Alta | Alto | Reparto pilota; Excel; priorità alle mansioni con più persone e ai processi qualificati |
+| Il catalogo delle competenze non viene completato | Media | Alto | La base esiste nei MOD.053 e MOD.039: si carica e si completa con livello atteso e criticità; reparto pilota; priorità alle mansioni con più persone e ai processi qualificati |
 | Troppa burocrazia per i responsabili | Media | Alto | SF multi-persona e multi-competenza; conferma periodica in un gesto; nessuna SF per i rinnovi di requisiti formali |
 | Le risposte della Qualità smentiscono un'ipotesi | Media | Medio | Ipotesi isolate e marcate; le alternative non cambiano il modello dati |
 | I livelli «O» attuali non sono affidabili | Alta | Medio | SF di impianto come linea di demarcazione; revisione alla prima conferma |
@@ -993,3 +1006,5 @@ dopo B11, in un momento senza rami paralleli.
    dubbio aperto con la Qualità, da riportare nei documenti finali.
 3. La regola del **livello sulla mansione**: confermare il passaggio da «media con tetto» a «minimo delle bloccanti».
 4. Il **reparto pilota** per la tappa 0.
+5. La **revisione di MT CN 06** e dei moduli collegati, se la nuova richiesta viene adottata (`04_gap_sgi.md` §4).
+6. La **soglia di firma**: L come da procedura, oppure U come oggi nel portale.

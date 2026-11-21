@@ -74,7 +74,7 @@ GUSCIO = """<!doctype html>
     #v-<voce>            Voci del menu non costruite: mostrano dove va la pagina e quale modello prende
     #cruscotto-qualita   Cruscotto Qualità: copertura per reparto, casi da sistemare, scadenze
     #matrice             Matrice persone × competenze (interruttore Oggi / Proposta, filtri, «Perché?»)
-    #dipendente-rinaldi  Scheda persona (anche #dipendente-<cognome>): requisiti, posseduto, mancanze, potenziali
+    #dipendente-rivalta  Scheda persona (anche #dipendente-<cognome>): requisiti, posseduto, mancanze, potenziali
     #editor-mansione     Profilo della mansione con anteprima d'impatto
     #simulatore          Simulatore del cambio mansione
     #inserimento         Inserimento di un nuovo dipendente: la pratica esistente più la scheda MOD.053
@@ -160,7 +160,7 @@ def costruisci() -> Path:
     hrnav = (QUI / "prototipo/src/guscio/hrnav.html").read_text(encoding="utf-8")
     _voci_non_usate = "\n        ".join(voce(r, e) for r, e in [
         ("cruscotto-qualita", "Cruscotto Qualità"), ("matrice", "Matrice competenze"),
-        ("dipendente-rinaldi", "Scheda persona"), ("editor-mansione", "Profilo mansione"),
+        ("dipendente-rivalta", "Scheda persona"), ("editor-mansione", "Profilo mansione"),
         ("simulatore", "Simulatore"), ("inserimento", "Inserimento"), ("ram", "Richiesta di mansione"),
         ("sessione-formativa", "Sessione formativa"), ("coda-car", "Coda del responsabile"),
         ("cruscotto-rdd", "Cruscotto RDD"),

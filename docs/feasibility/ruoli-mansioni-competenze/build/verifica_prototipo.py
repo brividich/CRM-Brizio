@@ -107,8 +107,8 @@ def main() -> int:
         pg.click('[data-vista="PROPOSTA"]')
 
         # 3. Scheda persona
-        apri("dipendente-rinaldi")
-        controlla("RINALDI MARCO" in pg.inner_text("#vista"), "scheda di Marco Rinaldi")
+        apri("dipendente-rivalta")
+        controlla("RIVALTA MARCO" in pg.inner_text("#vista"), "scheda di Marco Rivalta")
         controlla(pg.locator(".px-filo .mns-filo-qui").inner_text().endswith("Competenze"), "il filo conduttore segna «sei qui» sul pilastro Competenze")
         controlla(pg.locator("#px-sez a.active").inner_text() == "Quadro" and pg.locator("#px-voci a.active").inner_text() == "Scheda persona", "il menu a sezioni segue la pagina")
         controlla(pg.locator("text=DM6 – Fresatura 5 assi grande formato").count() >= 1, "DM6 compare fra le mansioni potenziali")
@@ -162,7 +162,7 @@ def main() -> int:
         controlla(not pg.locator('[data-azione="ram-pos"]').is_disabled(), "chiusa la sessione, l'esito POS diventa disponibile")
         pg.click('[data-azione="ram-pos"]')
         eff = pg.evaluate("() => PX.pers('P01').mansioni.filter(a => a.mansione === 'M02')[0].stato")
-        controlla(eff == "EFFETTIVA", "esito POS: DM6 è effettiva per Marco Rinaldi")
+        controlla(eff == "EFFETTIVA", "esito POS: DM6 è effettiva per Marco Rivalta")
         foto("15_richiesta_approvata")
         pg.click('[data-azione="ripristina"]')
         # sessione formativa di esempio: più persone, più competenze, effetti in anteprima
@@ -208,7 +208,7 @@ def main() -> int:
         pt.screenshot(path=str(PNG / "12_vista_dipendente_telefono.png"), full_page=True)
         stretto = br.new_context(viewport={"width": 360, "height": 740})
         ps = stretto.new_page()
-        for rotta in ("persone", "elenco-dipendenti", "corso", "da-fare", "v-scadenzario", "cruscotto-qualita", "matrice", "dipendente-rinaldi", "editor-mansione", "simulatore", "inserimento", "ram", "sessione-formativa", "coda-car", "cruscotto-rdd", "pianificatore", "vista-dipendente"):
+        for rotta in ("persone", "elenco-dipendenti", "corso", "da-fare", "v-scadenzario", "cruscotto-qualita", "matrice", "dipendente-rivalta", "editor-mansione", "simulatore", "inserimento", "ram", "sessione-formativa", "coda-car", "cruscotto-rdd", "pianificatore", "vista-dipendente"):
             ps.goto(FILE + "#" + rotta)
             ps.wait_for_selector("#vista > *", state="attached")
             largo = ps.evaluate("() => document.documentElement.scrollWidth")

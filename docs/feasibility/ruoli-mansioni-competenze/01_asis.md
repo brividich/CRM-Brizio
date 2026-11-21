@@ -1,9 +1,12 @@
 # 01 — AS-IS e tracciabilità dei requisiti
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.2 · 21/11/2026 · Fase 1 (ricognizione), con lo studio del modulo Formazione (§11) e le risposte tecniche del
+Versione 0.3 · 21/11/2026 · Fase 1 (ricognizione), con lo studio del modulo Formazione (§11) e le risposte tecniche del
 proprietario (§9.2). Stato: GATE 1 riaperto, in attesa di conferma.
 
+> **Aggiornamento.** Le procedure del sistema di gestione, qui indicate come non disponibili, sono state poi lette
+> dalla cartella di rete: il confronto è in `04_gap_sgi.md` e corregge i punti 6 e 7 della sintesi e il §10.
+>
 > **Natura del documento.** Sola analisi: nessun codice, modello, migrazione o dato è stato modificato.
 > Tutte le proposte che toccano contenuti, relazioni o sotto-domini HR sono **proposte**: la decisione finale è
 > del proprietario del progetto.
@@ -488,7 +491,8 @@ Metodo: script di sola lettura eseguiti con il profilo `prod_readonly`; contano 
 
 ### 8.5 Lettura
 
-- **Il catalogo delle competenze non esiste ancora.** Il modello è pronto, i contenuti no: è il prerequisito di
+- **Il catalogo delle competenze non esiste ancora nel portale.** Sulla carta esiste: è la tabella dei MOD.053 e
+  MOD.039 (`04_gap_sgi.md` §2). Il modello è pronto, i contenuti non sono stati caricati: è il prerequisito di
   tutto il TO-BE e non è lavoro informatico.
 - **Il motore dei requisiti gira a vuoto**: senza regole né fattori di rischio non produce obblighi formativi.
   Per questo la divergenza fra i motori oggi **non è misurabile sui dati** (nessun corso ha «tenuti»): è stata
@@ -563,8 +567,8 @@ Rilievo del proprietario: la prima stesura non studiava il modulo Formazione att
 ## 10. Cosa non è stato possibile verificare
 
 - I documenti originali `.docx` della Qualità: nella cartella c'erano solo le conversioni in `.md` (21/11/2026).
-- Le procedure MT CN 06 (§8.3, §9), MT CN 08, MT CN 65 e il MOD.187 originale: citati dal codice ma **non presenti
-  nel repository**. Le definizioni dei livelli sono quindi ricavate dalle etichette a codice, non dalla procedura.
+- Le procedure MT CN 06, MT CN 08, MT CN 65 e il MOD.187 non sono nel repository: **lette in seguito dalla cartella
+  di rete del sistema di gestione**, con le correzioni riportate in `04_gap_sgi.md`.
 - L'esito dell'ultima esecuzione del ricalcolo notturno in produzione.
 - La divergenza fra motori sui dati reali: non misurabile finché non esistono regole di obbligo.
 

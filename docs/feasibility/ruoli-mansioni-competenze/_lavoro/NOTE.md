@@ -92,7 +92,7 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Modello raccomandato: D ibrido (livello = atto umano via SF; validità calcolata con grazia 30 gg, esercizio 9/12 mesi,
       conferma 6 mesi). Livello sulla mansione = minimo delle bloccanti (la media D16 penalizza chi è in regola:
       `services/mansionario_competenze.py:113-120`, `:242`). Assegnazione: avviata → effettiva.
-      Persone tipo: P01 Marco Rinaldi, P02 Giulia Ferrante, P03 Aldo Bianchetti, P04 Sara Colombini, P05 Piero Lombardini.
+      Persone tipo: P01 Marco Rivalta, P02 Giulia Ferrante, P03 Aldo Bianchetti, P04 Sara Colombari, P05 Piero Lombardini.
 - [x] **GATE 2 superato** (21/11/2026). Decisioni: (1) ibrido **non bloccante, solo segnalazione**; la variante bloccante
       resta alternativa documentata → parametro `modalita_validita` SEGNALAZIONE|BLOCCO in `build/motore_rif.py`;
       (2) livello mansione = minimo delle bloccanti; (3) avviata → effettiva; (4) **avanti fino alla fine, un passo alla volta**.
@@ -136,7 +136,7 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       `#persone`, `#elenco-dipendenti`, `#corso`, `#da-fare`, `#v-<voce>`; matrice con vista per competenza/per mansione;
       interruttore Stile attuale / Stile rinfrescato (classe `px-fresco`). 51 controlli ok, 26 PNG.
 - [x] Riscontro del proprietario sul prototipo (21/11): **«ok mi piace, procedi con gli step successivi»** → GATE 3 superato.
-- [x] **Fase 4 fatta** (21/11/2026): `Fattibilita_RMC_Tecnico.pdf` (86 pagine: copertina + 85) e
+- [x] **Fase 4 fatta** (21/11/2026): `Fattibilita_RMC_Tecnico.pdf` (86 pagine alla prima emissione, 93 con il capitolo 3b) e
       `Fattibilita_RMC_Direzione.pdf` (10 pagine: copertina + 9). Script: `build/costruisci_pdf.py`
       (markdown-it-py → HTML con `build/stampa.css` → Playwright `page.pdf()` → unione e segnalibri con PyMuPDF).
       Testi propri del PDF tecnico in `build/pdf_tecnico_testi.md` (sommario, decisioni, glossario, EN 9100);
@@ -150,6 +150,23 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       in `02_tobe`; diagramma ER diviso in due in `01_asis.md`; cattura `03_matrice_perche.png` rifatta a pannello fermo.
 - [x] Scoperta: la regola `build/` del `.gitignore` del repository escludeva l'intera cartella `build/` dell'analisi:
       gli script non erano mai entrati in git. Ora sono tracciati (aggiunti con `git add -f`): le modifiche ai file già tracciati si vedono normalmente, i file NUOVI in `build/` vanno aggiunti con `git add -f`.
+- [x] Rilievo del proprietario (21/11): «pensavo includessi anche analisi e gap con i documenti presenti su
+      `\\novisrv\sistema gestione integrato`». Giusto: le procedure erano state cercate solo nel repository.
+      Fatto → `04_gap_sgi.md` (capitolo 3b del PDF tecnico). Letti in sola lettura dalla cartella di rete (272 file):
+      MT CN 06 Rev.21, MOD.187, MOD.053 Rev.4, MOD.039, MOD.040, MOD.128, MOD.188, Manuale e allegati, MT CN 65 e altri,
+      prEN 9100. Nessun documento copiato nel repository, nessun nominativo riportato; le copie di lavoro nello
+      scratchpad sono state cancellate.
+      Esiti principali: (1) MT CN 06 §8.3 definisce i livelli: **a L si firma** → soglia di firma portata a L in
+      `02_tobe` e in `build/motore_rif.py` (i conteggi di conformità non cambiano: 30/13/10/12); nel portale è U;
+      (2) §8.5: ogni emissione della skill matrix è approvata da Direzione/RDD → aggiunta l'«emissione approvata»;
+      (3) MT CN 65: sospensione obbligatoria per i controlli non distruttivi → lì vale il blocco;
+      (4) il MOD.053 Rev.4 contiene già la tabella ruolo → mansione → competenze: la tappa 0 è un caricamento;
+      (5) MOD.187 del 30/04/2026: circa 690 livelli, circa 100 persone, 79 mansioni, contro 443/82/60 del portale;
+      (6) sigle: RDD Responsabile della Direzione, MSM/MSO/MSA funzione Qualità, CAR Capo Area o Reparto;
+      (7) 9 domande su 18 del questionario trovano risposta, almeno in parte: questionario aggiornato.
+- [x] Due cognomi inventati del prototipo coincidevano con cognomi reali della skill matrix: sostituiti ovunque
+      (Marco Rivalta, Sara Colombari); nessun altro cognome del dataset compare nei documenti letti. Prototipo
+      ripubblicato sulla stessa pagina privata.
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 

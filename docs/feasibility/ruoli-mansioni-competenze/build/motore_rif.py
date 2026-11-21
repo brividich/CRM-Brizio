@@ -21,7 +21,7 @@ DA_ORD = {v: k for k, v in ORD.items()}
 
 # ── Parametri del modello (quelli che deve fissare la Qualità) ────────────────
 PARAMETRI = {
-    "soglia_operativa": "U",
+    "soglia_operativa": "L",  # MT CN 06 Rev.21 §8.3: a livello L la firma resta in capo all'operatore
     "conferma_periodica_mesi": 6,
     "finestra_esercizio_mesi": 12,
     "preavviso_esercizio_mesi": 9,
@@ -108,8 +108,8 @@ MANSIONI = [
 ]
 
 NOMI = [
-    ("Marco", "Rinaldi", "CN5"), ("Giulia", "Ferrante", "CN5"), ("Aldo", "Bianchetti", "CN5"),
-    ("Sara", "Colombini", "CMM"), ("Piero", "Lombardini", "CN5"), ("Elena", "Marchesin", "CN5"),
+    ("Marco", "Rivalta", "CN5"), ("Giulia", "Ferrante", "CN5"), ("Aldo", "Bianchetti", "CN5"),
+    ("Sara", "Colombari", "CMM"), ("Piero", "Lombardini", "CN5"), ("Elena", "Marchesin", "CN5"),
     ("Davide", "Fontanari", "CN5"), ("Luca", "Bertolazzi", "CN5"), ("Chiara", "Montanaro", "CN5"),
     ("Stefano", "Guidotti", "CN5"), ("Paolo", "Vercellin", "TOR"), ("Anna", "Castellani", "TOR"),
     ("Roberto", "Zanardelli", "TOR"), ("Matteo", "Silvestrin", "TOR"), ("Federica", "Pagnotta", "TOR"),
@@ -198,7 +198,7 @@ def costruisci() -> dict:
                 "requisito_scadenza": scad, "requisito_presente": presente, "ultimo_esercizio": esercizio}
 
     # ── Quattro persone tipo, fissate a mano (casi d'esempio del documento) ──
-    # P01 Marco Rinaldi: effettivo su DM3; ha maturato parte delle competenze di DM6.
+    # P01 Marco Rivalta: effettivo su DM3; ha maturato parte delle competenze di DM6.
     p["P01"].update(assunto_il="2019-09-02", mansioni=[{"mansione": "M01", "stato": "EFFETTIVA", "dal": mesi_fa(30), "ram": "impianto"}],
                     livelli={"C01": lv("U"), "C02": lv("U"), "C04": lv("U"), "C05": lv("L"),
                              "C06": lv("U", scad=fra_giorni(400), presente=True)})
@@ -215,7 +215,7 @@ def costruisci() -> dict:
                              "C04": lv("O", da="RDD"), "C05": lv("U", da="RDD"),
                              "C06": lv("O", da="RDD", scad="2027-08-20", presente=True),
                              "C29": lv("O", da="RDD"), "C30": lv("O", da="RDD")})
-    # P04 Sara Colombini: classe 1, ultima esecuzione a gennaio 2027.
+    # P04 Sara Colombari: classe 1, ultima esecuzione a gennaio 2027.
     p["P04"].update(assunto_il="2018-05-07", mansioni=[{"mansione": "M06", "stato": "EFFETTIVA", "dal": mesi_fa(40), "ram": "impianto"},
                               {"mansione": "M07", "stato": "EFFETTIVA", "dal": mesi_fa(24), "ram": "impianto"}],
                     livelli={"C01": lv("U", da="P17"), "C11": lv("U", da="P17"), "C12": lv("U", da="P17"),

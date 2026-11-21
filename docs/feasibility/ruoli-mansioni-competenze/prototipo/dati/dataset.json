@@ -1,7 +1,7 @@
 {
  "oggi": "2027-03-15",
  "parametri": {
-  "soglia_operativa": "U",
+  "soglia_operativa": "L",
   "conferma_periodica_mesi": 6,
   "finestra_esercizio_mesi": 12,
   "preavviso_esercizio_mesi": 9,
@@ -637,7 +637,7 @@
   {
    "id": "P01",
    "nome": "Marco",
-   "cognome": "Rinaldi",
+   "cognome": "Rivalta",
    "reparto": "CN5",
    "ruolo": "Operatore macchina utensile",
    "assunto_il": "2019-09-02",
@@ -880,7 +880,7 @@
   {
    "id": "P04",
    "nome": "Sara",
-   "cognome": "Colombini",
+   "cognome": "Colombari",
    "reparto": "CMM",
    "ruolo": "Collaudatore",
    "assunto_il": "2018-05-07",

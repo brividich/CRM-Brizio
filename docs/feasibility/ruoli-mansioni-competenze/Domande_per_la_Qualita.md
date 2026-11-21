@@ -24,8 +24,11 @@ fare la persona a ogni livello.
 | U | | | | |
 | O | | | | |
 
-Nostra ipotesi: I = in formazione, lavora solo affiancata, non firma. L = lavora sotto supervisione, non firma.
-U = autonoma, firma. O = autonoma, firma e forma gli altri.
+Dai documenti in vigore: MT CN 06 §8.3 definisce già i quattro livelli, e a L la firma resta all'operatore. Il MOD.187 e
+il MOD.053 usano però «principiante» e «insegna / programma BM». Ci serve sapere quale vocabolario vale.
+
+Nostra ipotesi: vale MT CN 06 §8.3. I = solo in affiancamento, non firma. L = autonoma sulle operazioni note, firma.
+U = autonoma, firma. O = firma e forma gli altri.
 
 **2. Perché quasi metà dei livelli registrati è «O»?**
 Perché: nel portale ci sono 443 livelli presi dalla skill matrix cartacea; 203 sono al livello più alto. Se «O» è
@@ -33,6 +36,9 @@ Perché: nel portale ci sono 443 livelli presi dalla skill matrix cartacea; 203 
 - [ ] È corretto: sono davvero tutti esperti/formatori
 - [ ] «O» è stato usato come «operativo»: vanno rivisti
 - [ ] Altro: …
+
+Dai documenti in vigore: nella legenda del MOD.187 «O» vale «insegna / programma BM». Anche nella skill matrix
+firmata il 30/04/2026 quasi metà dei livelli è «O».
 
 Nostra ipotesi: vanno rivisti dai responsabili alla prima conferma.
 
@@ -83,6 +89,8 @@ Nostra ipotesi: solo processi critici e competenze bloccanti, 12 mesi, con avvis
 Perché: il MOD.053 dice che la verifica di efficacia è l'aggiornamento periodico della skill matrix, tracciato.
 - Ogni … mesi (oggi il portale è impostato su 6)
 - Se la conferma manca: [ ] solo sollecito [ ] i livelli diventano «da confermare» [ ] le persone non risultano operative
+
+Dai documenti in vigore: MT CN 06 §8.4 prescrive la verifica semestrale. Resta da dire che cosa succede se manca.
 
 Nostra ipotesi: 6 mesi; alla scadenza i livelli diventano «da confermare» e parte il sollecito, senza blocco.
 
@@ -161,6 +169,10 @@ Nostra ipotesi: stessa richiesta, con una sezione in più.
 
 Chi chiede può anche giudicare? [ ] sì [ ] no
 
+Dai documenti in vigore: MT CN 06 dà a Direzione/RDD l'approvazione della skill matrix e della scheda personale, e
+a MSM, o a MSO come delegato, l'approvazione solo formale del MOD.040. La bozza del MOD.053 assegna a MSO l'esito
+dell'aggiornamento mansione: è un ruolo nuovo, da confermare.
+
 Nostra ipotesi: chiede e giudica il responsabile del reparto della mansione; approva RDD; esito finale RDD
 all'assunzione e MSO all'aggiornamento; chi chiede può giudicare, non approvare.
 
@@ -181,6 +193,9 @@ può confrontare niente: è il lavoro più importante, ed è vostro e dei respon
 - Chi lo compila: …
 - Da quali reparti o mansioni si parte: …
 - Entro quando la prima parte: …
+
+Dai documenti in vigore: il MOD.053 Rev.4 e il MOD.039 Rev.2 contengono già la tabella ruolo, mansione, competenze.
+Si può caricare quella e aggiungere livello atteso e criticità.
 
 Nostra ipotesi: si parte dalle mansioni con più persone e dai processi qualificati, con un file Excel che il
 portale sa già importare.
