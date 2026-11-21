@@ -87,10 +87,16 @@ class ValidazioneInserimentoTests(_Base):
                 self.assertIn(atteso, r.json()["error"])
         self.assertEqual(RegistroRifiuti.objects.count(), 0)
 
-    def test_id_registrazione_dal_modulo_ignorato(self):
+    def test_id_registrazione_dal_modulo_validato(self):
+        # Dal 21/11 il numero si può scegliere alla creazione (storico, M con la sua O),
+        # ma passa dalle stesse regole della correzione: anno della data, non già usato.
         r = self._carico(id_registrazione="2020/999")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("anno della data", r.json()["error"])
+        self.assertEqual(RegistroRifiuti.objects.count(), 0)
+        r = self._carico(id_registrazione="")
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertNotEqual(RegistroRifiuti.objects.get().id_registrazione, "2020/999")
+        self.assertTrue(RegistroRifiuti.objects.get().id_registrazione)
 
     def test_scarico_rif_op_verificato(self):
         c = _mov("C", self.ieri - timedelta(days=5), quantita=10)

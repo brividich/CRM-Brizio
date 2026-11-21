@@ -80,11 +80,13 @@ def _fmt(q: Decimal) -> str:
     return f"{q:.3f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
-def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
+def valida_movimento(registro, *, prima: dict | None = None, annullata: bool = False) -> list[str]:
     """Errori di un movimento in salvataggio (lista vuota = valido).
 
     `prima` è la fotografia dei campi prima della modifica (``None`` per un
-    movimento nuovo): decide quali regole di campo applicare.
+    movimento nuovo): decide quali regole di campo applicare. `annullata`: nuovo
+    movimento registrato già annullato (storico), senza i controlli di
+    collegamento e deposito: non entra nei conti.
     """
     from .models import RegistroRifiuti
 
@@ -99,6 +101,8 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
 
     if not nuovo and cambiato("id_registrazione"):
         errori.extend(_errori_numero(registro, prima.get("id_registrazione")))
+    elif nuovo and (registro.id_registrazione or "").strip():
+        errori.extend(_errori_numero(registro, None, nuovo=True))
 
     if registro.data and cambiato("data") and registro.data > oggi:
         errori.append("La data non può essere nel futuro.")
@@ -133,7 +137,7 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     if tipo == "C" and cambiato("codice") and cer_pericoloso(codice) and not (registro.pericolosita or "").strip():
         errori.append("Il codice CER è pericoloso (*): indica le caratteristiche di pericolo (HP).")
 
-    if tipo in GENITORI_AMMESSI and cambiato("rif_op"):
+    if tipo in GENITORI_AMMESSI and cambiato("rif_op") and not annullata:
         errori.extend(_errori_rif_op(registro))
 
     # Deposito: uno scarico non porta fuori più di quanto resta (conto del filo,
@@ -142,7 +146,7 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     # M dopo una O è il peso verificato a destino: può superare la stima e non si
     # controlla; senza O nel filo conta come uscita.
     if (
-        tipo in ("O", "M") and valore and codice and not errori
+        tipo in ("O", "M") and valore and codice and not errori and not annullata
         and (cambiato("quantita") or cambiato("rettifica_scarico") or cambiato("codice") or cambiato("rif_op"))
     ):
         errori.extend(_errori_deposito(registro, abs(valore)))
@@ -213,7 +217,7 @@ def _errori_deposito(registro, uscita: Decimal) -> list[str]:
 _NUMERO_RE = re.compile(r"^(\d{4})/(\d{1,6})$")
 
 
-def _errori_numero(registro, vecchio: str | None) -> list[str]:
+def _errori_numero(registro, vecchio: str | None, *, nuovo: bool = False) -> list[str]:
     """Numero corretto a mano su una bozza (errore di battitura dello storico).
 
     Forma ``AAAA/NNNN`` con l'anno della data, e non già usato da un altro
@@ -227,7 +231,7 @@ def _errori_numero(registro, vecchio: str | None) -> list[str]:
         return ["Numero di registrazione non valido: scrivilo come anno/progressivo (per esempio 2025/1874)."]
     if registro.data and int(m.group(1)) != registro.data.year:
         return [f"Il numero deve avere l'anno della data ({registro.data.year}/…)."]
-    if registro.rentri_si_no:
+    if registro.rentri_si_no and not nuovo:
         return ["Registrazione già trasmessa a RENTRI: il numero non si cambia."]
     altri = list(RegistroRifiuti.objects.filter(id_registrazione=nuovo).exclude(pk=registro.pk))
     if altri and not numero_condivisibile(registro, altri):

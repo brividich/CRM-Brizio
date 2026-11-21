@@ -29,7 +29,7 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 from core.upload_mime import validate_filename, validate_extension_and_mime, UploadMimeValidationError
 
 from .acl_bootstrap import PERM_RENTRI_MANAGE
-from .catena import GENITORI_AMMESSI, indice_per_id, risali_a_carichi, split_rif_op
+from .catena import GENITORI_AMMESSI, indice_per_id, numero_condivisibile, risali_a_carichi, split_rif_op
 from .importazione import (  # noqa: F401 - _parse_csv_rows resta importabile da qui
     ImportAnnullato,
     _parse_csv_rows,
@@ -426,9 +426,17 @@ def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima:
         ))
     data = _parse_json_body(request)
     errors = _populate_registro(registro, data, tipo)
+    numero = str(data.get("id_registrazione") or "").strip()[:50]
     if prima is not None and "id_registrazione" in data:
         # Correzione del numero su una bozza (le regole in validazione._errori_numero).
-        registro.id_registrazione = str(data.get("id_registrazione") or "").strip()[:50]
+        registro.id_registrazione = numero
+    elif prima is None and numero:
+        # Nuovo con il numero scelto: quello della O/M da cui nasce o uno storico.
+        registro.id_registrazione = numero
+    annullata = None
+    if prima is None and _as_bool_field(data.get("annullata")):
+        # Registrazione già annullata sul registro di carta: si salva barrata.
+        annullata = str(data.get("motivo_annullamento") or "").strip()
 
     # Allegato: scheda del carico o formulario (FIR) degli scarichi.
     allegato = request.FILES.get("allegato") if tipo in ("C", "O", "M") else None
@@ -444,7 +452,7 @@ def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima:
         registro.allegato = allegato
 
     try:
-        salva_movimento(request, registro, prima=prima)
+        salva_movimento(request, registro, prima=prima, annullata=annullata)
     except ErroreRegistro as exc:
         return _risposta_errore(exc)
     except Exception:  # noqa: BLE001 - il dettaglio va solo nel log
@@ -458,6 +466,8 @@ def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima:
         "ok": True,
         "id": registro.pk,
         "id_registrazione": registro.id_registrazione,
+        "annullata": registro.annullato,
+        "url_scheda": reverse("rentri_dettaglio", args=[registro.pk]),
         "avviso_sync": registro.sync_errore or "",
     })
 
@@ -518,7 +528,8 @@ def _valori_iniziali(request, tipo: str, registro=None) -> tuple[dict, str]:
             "allegato": bool(registro.allegato),
         }, ""
     v = {"data": oggi, "codice": "", "quantita": "", "unita": "", "rettifica": "", "pericolosita": "",
-         "arrivo_fir": "", "note_rentri": "", "rentri_si_no": False, "rif_op": [], "allegato": False}
+         "arrivo_fir": "", "note_rentri": "", "rentri_si_no": False, "rif_op": [], "allegato": False,
+         "numero": "", "numero_da": ""}
     origine = ""
     attivi = RegistroRifiuti.objects.attivi()
     da, dup = request.GET.get("da", ""), request.GET.get("duplica", "")
@@ -529,6 +540,11 @@ def _valori_iniziali(request, tipo: str, registro=None) -> tuple[dict, str]:
             if tipo in ("O", "M") and g.quantita is not None:
                 v["quantita"] = _num(g.quantita)
             origine = f"Compilato da {g.get_tipo_display()} {g.id_registrazione}: controlla quantità e data."
+            # Come sul registro di carta: la M prende il numero della sua O, la R
+            # quello della sua M (proposto, si può svuotare).
+            stessi = list(RegistroRifiuti.objects.filter(id_registrazione=g.id_registrazione))
+            if g.id_registrazione and numero_condivisibile(RegistroRifiuti(tipo=tipo, codice=g.codice), stessi):
+                v.update(numero=g.id_registrazione, numero_da=f"{g.tipo} {g.id_registrazione}")
     elif dup.isdigit():
         g = attivi.filter(pk=int(dup), tipo=tipo).first()
         if g is not None:
@@ -1548,6 +1564,7 @@ def verifica(request):
     if request.GET.get("export") == "csv":
         return verifica_csv(sezioni)
     can_manage = _can_manage_rentri(request)
+    from .completa import coppie_fir, proposte_unita
     from .uniforma import proposte
 
     return render(request, "rentri/pages/verifica.html", {
@@ -1556,7 +1573,50 @@ def verifica(request):
         "today": timezone.localdate(),
         "can_manage": can_manage,
         "uniforma": proposte() if can_manage else [],
+        "unita_mancanti": proposte_unita() if can_manage else [],
+        "unita_choices": RegistroRifiuti.UNITA_CHOICES,
+        "fir_su_r": coppie_fir() if can_manage else [],
     })
+
+
+@login_required
+@require_POST
+def completa_unita(request):
+    """Unità di misura in blocco sulle righe storiche che non la hanno (dalla Verifica)."""
+    from .completa import applica_unita
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    scelte = {
+        k: request.POST.get(f"unita_{k}", "")
+        for k in request.POST.getlist("codice")
+        if re.fullmatch(r"\d{6}", k or "")
+    }
+    if not scelte:
+        messages.warning(request, "Spunta almeno un codice.")
+        return redirect(reverse("rentri_verifica") + "#unita-mancanti")
+    esito = applica_unita(request, scelte, _get_username(request))
+    messages.success(request, f"Unità scritta su {esito['righe']} registrazioni (storico nella scheda di ognuna).")
+    return redirect(reverse("rentri_verifica") + "#unita-mancanti")
+
+
+@login_required
+@require_POST
+def sposta_fir(request):
+    """Sposta il numero FIR dalla rettifica R allo scarico effettivo M delle coppie spuntate."""
+    from .completa import applica_fir
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    numeri = [n for n in request.POST.getlist("numero") if re.fullmatch(r"\d{4}/\d{1,6}", n or "")]
+    if not numeri:
+        messages.warning(request, "Spunta almeno una coppia.")
+        return redirect(reverse("rentri_verifica") + "#fir-r")
+    esito = applica_fir(request, numeri, _get_username(request))
+    messages.success(request, f"FIR spostato sullo scarico effettivo in {esito['coppie']} coppie R+M.")
+    return redirect(reverse("rentri_verifica") + "#fir-r")
 
 
 @login_required

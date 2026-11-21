@@ -71,6 +71,77 @@ body.theme-dark .un-n, body.theme-dark .un-cat { color:var(--text-mid); }
   </section>
   {% endif %}
 
+  {% if can_manage and unita_mancanti %}
+  <section class="sc-section" id="unita-mancanti">
+    <div class="sc-sec-head">
+      <span class="sc-dot sc-dot-warning"></span>
+      <div>
+        <div class="sc-sec-label">Registrazioni senza unità di misura</div>
+        <div class="sc-sec-desc">Lo storico importato non ha l'unità. Per ogni codice è proposta quella già scelta sulle altre registrazioni dello stesso codice, altrimenti quella scritta in fondo alla descrizione («… Kg», «… Lt»). Spunta, cambia se serve e clicca «Scrivi l'unità»: vale anche per le consolidate, gli annullati non si toccano; ogni registrazione lo riporta nel suo storico.</div>
+      </div>
+      <span class="sc-count sc-count-warning">{{ unita_mancanti|length }}</span>
+    </div>
+    <form method="post" action="{% url 'rentri_completa_unita' %}">
+      {% csrf_token %}
+      <table class="sc-table" data-fm-table-skip="1">
+        <thead><tr><th style="width:34px;"></th><th>Codice</th><th>Unità</th><th style="text-align:right;">Righe</th></tr></thead>
+        <tbody>
+          {% for u in unita_mancanti %}
+          <tr>
+            <td><input type="checkbox" name="codice" value="{{ u.chiave }}"{% if u.unita %} checked{% endif %} aria-label="Unità per {{ u.chiave }}"></td>
+            <td>{{ u.testo }}</td>
+            <td>
+              <select name="unita_{{ u.chiave }}" aria-label="Unità per {{ u.chiave }}">
+                <option value=""{% if not u.unita %} selected{% endif %}>—</option>
+                {% for val, lab in unita_choices %}<option value="{{ val }}"{% if val == u.unita %} selected{% endif %}>{{ lab }}</option>{% endfor %}
+              </select>
+              <div class="un-cat">{{ u.fonte }}{% if u.dal_testo and u.dal_testo != u.unita %} · la descrizione dice «{{ u.dal_testo_label }}»{% endif %}</div>
+            </td>
+            <td style="text-align:right;white-space:nowrap;">{{ u.righe }}{% if u.consolidate %}<div class="un-cat">{{ u.consolidate }} consolidat{{ u.consolidate|pluralize:"a,e" }}</div>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="un-azioni">
+        <button type="submit" class="sc-btn sc-btn-primary">Scrivi l'unità sui codici spuntati</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if can_manage and fir_su_r %}
+  <section class="sc-section" id="fir-r">
+    <div class="sc-sec-head">
+      <span class="sc-dot sc-dot-warning"></span>
+      <div>
+        <div class="sc-sec-label">Numero FIR sulla rettifica invece che sullo scarico effettivo</div>
+        <div class="sc-sec-desc">Coppie R+M con lo stesso numero dove l'import ha messo il FIR sulla rettifica (R) e lo scarico effettivo (M) ne è senza. «Sposta il FIR» lo porta sulla M e lo toglie dalla R. Solo bozze; ogni registrazione lo riporta nel suo storico.</div>
+      </div>
+      <span class="sc-count sc-count-warning">{{ fir_su_r|length }}</span>
+    </div>
+    <form method="post" action="{% url 'rentri_sposta_fir' %}">
+      {% csrf_token %}
+      <table class="sc-table" data-fm-table-skip="1">
+        <thead><tr><th style="width:34px;"></th><th>Numero</th><th>Data</th><th>Codice</th><th>FIR</th></tr></thead>
+        <tbody>
+          {% for c in fir_su_r %}
+          <tr>
+            <td><input type="checkbox" name="numero" value="{{ c.numero }}" checked aria-label="Sposta il FIR di {{ c.numero }}"></td>
+            <td class="sc-id"><a href="{% url 'rentri_dettaglio' c.m.pk %}">{{ c.numero }}</a></td>
+            <td>{{ c.m.data|date:"d/m/Y" }}</td>
+            <td>{{ c.m.codice }}</td>
+            <td>{{ c.fir }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="un-azioni">
+        <button type="submit" class="sc-btn sc-btn-primary">Sposta il FIR sulle coppie spuntate</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
   {% for s in sezioni %}
   <section class="sc-section" id="{{ s.key }}">
     <div class="sc-sec-head">
