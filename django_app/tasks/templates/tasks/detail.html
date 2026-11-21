@@ -31,7 +31,7 @@
           {% endfor %}
         </form>
       {% elif is_assignee %}
-        {# Il responsabile senza permesso di modifica: stessi passi di «Le mie azioni». #}
+        {# Il responsabile senza permesso di modifica: stessi passi di «Le mie attività KICK-OFF». #}
         <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
         <form method="post" action="{% url 'tasks:mia_voce_stato' 'attivita' task.id %}" class="td-stati" aria-label="Stato dell'attività">
           {% csrf_token %}

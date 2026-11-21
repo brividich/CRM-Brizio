@@ -424,3 +424,174 @@
   .cp-scelta, .kn-role { transition: none; }
   .cp-scelta:hover, .cp-scelta:focus-visible { transform: none; }
 }
+
+/* ===========================================================================
+   Attività e incontro («ka-»): il terzo passo del kickoff in una pagina.
+   Righe attività con nota e collegamento, incontro, ordine del giorno, scelta
+   di quando avvisare. Riusa stazioni, riepilogo e barra («kp-», «kn-»).
+   =========================================================================== */
+.ka-head, .ka-row {
+  display: grid; gap: 8px; align-items: center;
+  grid-template-columns: 32px minmax(0, 2.2fr) minmax(0, 1.3fr) 140px 96px 32px 32px;
+}
+.ka-head {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); margin-bottom: 6px;
+}
+.ka-rows { display: flex; flex-direction: column; gap: 8px; }
+.ka-row { border-radius: 10px; transition: background .15s, box-shadow .15s; }
+.ka-row .input {
+  width: 100%; box-sizing: border-box; min-width: 0; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-row .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.ka-link, .ka-icona {
+  width: 32px; height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-light); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; padding: 0;
+}
+.ka-link svg, .ka-icona svg { width: 16px; height: 16px; }
+.ka-link { cursor: grab; }
+.ka-link:active { cursor: grabbing; }
+.ka-link:hover, .ka-icona:hover, .ka-link:focus-visible, .ka-icona:focus-visible { color: var(--accent); border-color: var(--accent); }
+.ka-icona.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+.ka-x:hover, .ka-x:focus-visible { color: var(--danger, #e53e3e); border-color: var(--danger, #e53e3e); }
+.ka-odg-btn {
+  height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-light); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.ka-odg-btn[aria-pressed="true"] { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.ka-odg-btn[aria-pressed="true"]::before { content: "✓ "; }
+.ka-odg-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ka-sotto { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; }
+.ka-sotto:not(:has(> :not([hidden]))) { display: none; }
+.ka-nota { resize: vertical; min-height: 54px; }
+.ka-nota[hidden] { display: none; }
+.ka-dopo {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 3px 6px 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: var(--accent-light); border: 1px solid var(--border); color: var(--text);
+}
+.ka-dopo[hidden] { display: none; }
+.ka-dopo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ka-dopo button { border: 0; background: none; color: var(--text-light); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.ka-dopo button:hover { color: var(--danger, #e53e3e); }
+/* Collegamento: la riga che si trascina e quella su cui si può lasciare. */
+.ka-row.is-trascinata { opacity: .55; }
+.ka-rows.is-scelta .ka-row:not(.is-origine) { cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.ka-rows.is-scelta .ka-row:not(.is-origine):hover, .ka-row.is-bersaglio { background: var(--accent-light); box-shadow: 0 0 0 2px var(--accent); }
+.ka-row.is-origine { box-shadow: 0 0 0 2px var(--accent); }
+.ka-piede { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.ka-piede .kp-help { margin: 0; font-size: 12px; }
+.ka-scegli {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 8px 12px; font-size: 13px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-light); color: var(--text);
+}
+.ka-scegli[hidden] { display: none; }
+.ka-scegli span { flex: 1; min-width: 180px; }
+.ka-gia { margin-top: 14px; font-size: 13px; color: var(--text-mid); }
+.ka-gia summary { cursor: pointer; font-weight: 700; color: var(--text); }
+.ka-gia ul { margin: 8px 0 0; padding-left: 18px; }
+.ka-gia li { margin: 2px 0; }
+
+.ka-seg { margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: 10px; padding: 3px; background: var(--surface); flex-shrink: 0; }
+.ka-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; font: inherit; font-weight: 700; font-size: 12.5px; color: var(--text-mid); cursor: pointer; }
+.ka-seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.ka-part { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.ka-etichetta { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); }
+.ka-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ka-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; border-radius: 999px;
+  background: var(--accent-light); border: 1px solid var(--border); font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.ka-chip small { font-weight: 500; color: var(--text-light); font-size: 11px; }
+.ka-chip button { border: 0; background: none; color: var(--text-light); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.ka-chip button:hover { color: var(--danger, #e53e3e); }
+.ka-chip.is-auto { background: var(--surface-alt, #f1f5f9); }
+.ka-part-add, .ka-modello {
+  width: auto; max-width: 280px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ka-modello { margin-left: auto; }
+.ka-modello[hidden] { display: none; }
+.ka-vuoto {
+  margin: 0; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 10px;
+  background: var(--surface-alt, #f8fafc); color: var(--text-mid); font-size: 13px;
+}
+
+.ka-odg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ka-odg li {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: grab;
+}
+.ka-odg li.is-vuoto { display: block; border-style: dashed; color: var(--text-mid); font-size: 13px; cursor: default; }
+.ka-odg li.is-trascinata { opacity: .5; }
+.ka-odg li.is-bersaglio { box-shadow: 0 -3px 0 var(--accent); }
+.ka-odg-n {
+  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; background: var(--surface-alt, #f1f5f9); color: var(--text-mid); border: 1px solid var(--border);
+}
+.ka-odg-t { min-width: 0; }
+.ka-odg-t strong { font-size: 13.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.ka-odg-t div { font-size: 12px; color: var(--text-light); margin-top: 1px; }
+.ka-badge { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--accent-light); color: var(--accent); margin-right: 6px; }
+.ka-odg-mv { display: flex; gap: 4px; }
+.ka-odg-mv .ka-icona { width: 30px; height: 30px; }
+.ka-odg-mv .ka-icona:disabled { opacity: .35; cursor: default; }
+.ka-odg-add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.ka-odg-add .input {
+  flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+
+.ka-scelte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ka-scelta {
+  position: relative; display: block; padding: 18px; border: 2px solid var(--border); border-radius: 14px;
+  background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s;
+}
+.ka-scelta input { position: absolute; opacity: 0; pointer-events: none; }
+.ka-scelta:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.ka-scelta:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ka-scelta:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.ka-scelta .cp-icona { margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); }
+.ka-scelta strong { display: block; font-size: 16px; color: var(--text); }
+.ka-scelta p { margin: 4px 0 0; color: var(--text-mid); font-size: 13px; line-height: 1.5; }
+.ka-punto { position: absolute; top: 16px; right: 16px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); box-sizing: border-box; }
+.ka-scelta:has(input:checked) .ka-punto { border: 6px solid var(--accent); }
+.ka-conv { margin-top: 14px; }
+.ka-conv[hidden] { display: none; }
+.ka-tabella { overflow-x: auto; }
+.ka-tabella table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; }
+.ka-tabella th {
+  text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.ka-tabella td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+.ka-tabella td.is-niente { color: var(--text-light); }
+.ka-errori ul { margin: 6px 0 0; padding-left: 18px; }
+.ka-riepilogo dd { text-align: right; }
+.ka-riepilogo dd.is-warn { color: var(--warning); }
+.ka-persone { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.ka-persone li { display: flex; justify-content: space-between; gap: 10px; color: var(--text); }
+.ka-persone span { color: var(--text-light); white-space: nowrap; }
+.ka-persone .is-vuoto { color: var(--text-light); }
+[data-ka-fase][hidden] { display: none; }
+.kn-bar [hidden] { display: none; }
+/* Le tendine lunghe diventano ricercabili (Tom Select): il bordo lo porta il suo controllo, non l'involucro. */
+.ka-row .ts-wrapper.input, .ts-wrapper.ka-part-add, .ts-wrapper.ka-modello { padding: 0; border: 0; background: none; }
+.ts-wrapper.ka-part-add { width: 280px; max-width: 100%; }
+
+@media (max-width: 760px) {
+  .ka-head { display: none; }
+  .ka-row { grid-template-columns: 32px minmax(0, 1fr) 32px 32px; padding-bottom: 10px; border-bottom: 1px solid var(--border); border-radius: 0; }
+  .ka-row > .ka-titolo { grid-column: 2; }
+  .ka-row > .ka-resp, .ka-row > .ka-scad, .ka-row > .ka-odg-btn { grid-column: 1 / -1; }
+  .ka-row > [data-ka-nota-btn] { grid-column: 3; grid-row: 1; }
+  .ka-row > .ka-x { grid-column: 4; grid-row: 1; }
+  .ka-sotto { grid-column: 1 / -1; }
+  .ka-seg { margin-left: 0; }
+  .ka-scelte { grid-template-columns: minmax(0, 1fr); }
+  .ka-odg li { grid-template-columns: 26px minmax(0, 1fr); }
+  .ka-odg-mv { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { .ka-row, .ka-scelta { transition: none; } }

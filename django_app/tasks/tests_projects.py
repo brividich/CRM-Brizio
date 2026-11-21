@@ -681,8 +681,11 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         project = make_project(client_name="Cliente Scelta", created_by=self.user, project_manager=self.user)
         self.client.force_login(self.user)
         page = self.client.get(reverse("tasks:project_pianifica", args=[project.id]))
-        self.assertContains(page, reverse("tasks:project_attivita_pianifica", args=[project.id]))
-        self.assertContains(page, reverse("tasks:project_meeting_create", args=[project.id]))
+        # Una pagina sola: righe attività, incontro, ordine del giorno, scelta dell'invio.
+        self.assertContains(page, 'name="att_titolo"')
+        self.assertContains(page, 'name="inc_data"')
+        self.assertContains(page, 'name="invio"')
+        self.assertContains(page, "tasks/js/kickoff_avvio.js")
 
     def test_project_safety_impact_defaults_false(self):
         project = make_project(name="Kickoff safety default", created_by=self.user)

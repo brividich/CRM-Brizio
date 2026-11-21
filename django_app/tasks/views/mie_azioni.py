@@ -1,4 +1,4 @@
-"""«Le mie azioni»: azioni e problemi d'incontro assegnati all'utente, e la guida."""
+"""«Le mie attività KICK-OFF»: azioni e problemi d'incontro assegnati all'utente, e la guida."""
 from __future__ import annotations
 
 import logging
@@ -198,7 +198,7 @@ def mie_azioni(request):
         "tasks/mie_azioni.html",
         {
             **_tasks_shell_context(request, active="mie_azioni"),
-            "page_title": "Le mie azioni",
+            "page_title": "Le mie attività KICK-OFF",
             "rows": rows,
             "open_count": sum(1 for r in rows if r["is_open"]),
             "overdue_count": sum(1 for r in rows if r["is_overdue"]),

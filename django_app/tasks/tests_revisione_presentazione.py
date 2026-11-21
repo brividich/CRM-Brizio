@@ -3,7 +3,7 @@
 Copre: date del form di modifica (prima vuote e cancellate al salvataggio),
 scadenza delle card del portfolio senza le attivita' chiuse, percentuale di
 avanzamento unica, pulsanti del responsabile nella scheda, notifica di
-completamento a chi ha assegnato, riquadro «Le mie azioni» coerente con la
+completamento a chi ha assegnato, riquadro «Le mie attività KICK-OFF» coerente con la
 pagina, voce di menu.
 """
 from __future__ import annotations

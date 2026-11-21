@@ -1,7 +1,7 @@
 """Incontri e azioni KICK-OFF: convocazione tracciata, annullamento, azioni a chi le fa.
 
 Copre la revisione del 14/10/2026: servizio unico «attivita' da incontro»,
-legame attivita' -> azioni/problemi, «Le mie azioni», registro azioni con le
+legame attivita' -> azioni/problemi, «Le mie attività KICK-OFF», registro azioni con le
 azioni d'incontro, promemoria nel giorno lavorativo precedente, appello in
 conduzione, eliminazione limitata agli incontri mai svolti.
 """

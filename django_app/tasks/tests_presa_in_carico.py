@@ -1,7 +1,7 @@
-"""Chi riceve un'attivita': mail, «Le mie azioni», chiusura dal responsabile, sollecito del lunedi'.
+"""Chi riceve un'attivita': mail, «Le mie attività KICK-OFF», chiusura dal responsabile, sollecito del lunedi'.
 
 Revisione dell'08/11/2026: prima l'assegnazione arrivava solo come notifica
-nel portale, «Le mie azioni» non mostrava le attivita' del piano e il digest
+nel portale, «Le mie attività KICK-OFF» non mostrava le attivita' del piano e il digest
 del lunedi' ignorava le attivita' scadute.
 """
 from __future__ import annotations
