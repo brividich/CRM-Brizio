@@ -426,10 +426,10 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Scheda «Incontri» della commessa, «+ Nuovo incontro», oppure la pagina «Attività e incontro» alla creazione del kickoff o «Salva e pianifica l'incontro» dopo le attività.",
-                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; su «Dall'ordine del giorno» vale la somma dei punti, un'ora se non ce ne sono.",
+                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; con «Predefinita (1 ora)» vale un'ora. I punti dell'ordine del giorno non hanno tempi.",
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta: chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo.",
-                "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente». Per assegnare un'attività da un punto scegli il «Responsabile» (fra i convocati), spunta «Diventa un'attività del responsabile» e, se la sai, la data «Entro il»: al salvataggio nasce l'attività, il punto resta collegato e il responsabile riceve l'avviso.",
+                "Ordine del giorno: aggiungi i punti (senza tempi), con l'attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente». Per assegnare un'attività da un punto scegli il «Responsabile» (fra i convocati), spunta «Diventa un'attività del responsabile» e, se la sai, la data «Entro il»: al salvataggio nasce l'attività, il punto resta collegato e il responsabile riceve l'avviso.",
                 "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio i partecipanti ricevono la riunione Outlook da accettare, con l'ordine del giorno, e la sala la richiesta di prenotazione. È questa la convocazione: niente file .ics da aprire.",
                 "Salva. Ogni modifica salvata dopo (data, ora, durata, sala, convocati, ordine del giorno) arriva ai partecipanti come aggiornamento dell'invito; se non cambia niente per loro, non parte nulla.",
             ]),
@@ -437,7 +437,7 @@ SEZIONI: list[dict] = [
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
-                "Mentre scrivi un punto, un'attività d'incontro, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé nota e durata predefinite.",
+                "Mentre scrivi un punto, un'attività d'incontro, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé la nota predefinita.",
                 "Se arrivi dalle attività pianificate, l'ordine del giorno parte con quelle attività da confermare e i loro responsabili fra i convocati. Poi i problemi e le attività d'incontro ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
@@ -448,8 +448,7 @@ SEZIONI: list[dict] = [
                 "«Invia aggiornamento convocazione» e la mail esce come «Aggiornamento convocazione». Sotto l'avviso "
                 "c'è l'elenco di cosa è cambiato (per esempio «Data: 12-11-2026 → 14-11-2026», «Convocati aggiunti: …», "
                 "«Punti dell'ordine del giorno tolti: …»); per le convocazioni inviate prima del 02/11/2026 l'avviso resta generico.",
-                "Durata dell'evento (Outlook e invito .ics): la somma delle durate dei punti all'ordine del giorno; "
-                "se nessun punto ha una durata, un'ora.",
+                "Durata dell'evento (Outlook e invito .ics): la «Durata» scelta; con «Predefinita (1 ora)», un'ora.",
                 "Se l'incontro viene spostato a un'altra data, il promemoria del giorno prima riparte sulla data nuova.",
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
                 "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
@@ -506,7 +505,6 @@ SEZIONI: list[dict] = [
                 "Un punto «Problema aperto: …» o «Attività aperta: …» riporta una voce di un incontro precedente: sotto il titolo vedi responsabile, scadenza e stato, e la chiudi subito con «Risolto» o «Fatta». Il punto risulta trattato da solo; «Riapri» lo rimette com'era.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
                 "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
-                "«Tempo effettivo» va da solo: il cronometro del punto parte alla prima modifica (nota, attività collegata, nuova attività), si mette in pausa quando inizi un altro punto e si ferma con «Segna trattato». Il badge ⏱ accanto mostra il tempo; un clic lo mette in pausa o lo riprende. Se scrivi i minuti a mano, vale il tuo numero.",
                 "Quello che emerge mentre si parla va nel «Registro dell'incontro», a destra (sugli schermi stretti sopra i punti): scegli Problema, Attività d'incontro, Decisione o Attività del piano, controlla il punto (è quello in discussione, oppure «Nessun punto in particolare»), scrivi e premi Invio.",
                 "Più rapido dal punto: «+ Problema», «+ Attività d'incontro», «+ Decisione» in fondo alla scheda del punto preparano il registro per quel punto.",
                 "Ogni voce registrata compare sotto il suo punto e nel registro, divisa in «Problemi trovati», «Attività d'incontro», «Decisioni» e «Attività del piano create»; problemi e attività d'incontro si chiudono da lì con «Risolto» o «Fatta».",
@@ -515,7 +513,7 @@ SEZIONI: list[dict] = [
             ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e il registro dell'incontro")),
             ("ul", [
                 "Ogni modifica si salva da sola e solo sul punto toccato.",
-                "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte, tempi e minuta.",
+                "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte e minuta.",
                 "Il responsabile di un'attività, di un'attività d'incontro o di un problema registrati riceve subito una notifica.",
                 "Le attività entrano nel Piano; attività d'incontro e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.",
             ]),
@@ -701,7 +699,7 @@ SEZIONI: list[dict] = [
                 ("Accessi", "per ogni ruolo e per la singola persona: Vede tutto, Modifica solo i task assegnati, Modifica tutto."),
                 ("Promemoria", "i promemoria programmati delle attività: si eliminano, si rimandano o si inviano subito."),
                 ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato e «Richiede»: il programma CAM, il programma CMM o il FAI che l'attività deve produrre."),
-                ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga; per la durata scrivi «Titolo | 15»."),
+                ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga."),
                 ("FAI", "motivi per cui serve il FAI e tipo proposto, tipi di piano, stati e mesi delle scadenze. Una voce già usata non si elimina: si disattiva."),
                 ("Record", "ricerca ed eliminazione di kickoff e attività: serve una motivazione e non si torna indietro."),
                 ("Log attivita", "il registro delle operazioni del modulo."),

@@ -27,7 +27,6 @@
           <input class="input" name="testo" value="{{ v.testo }}" maxlength="220" aria-label="Testo">
           {% if catalogo_tipo == "ODG" %}
           <input class="input" name="nota" value="{{ v.nota }}" maxlength="500" placeholder="Nota predefinita" aria-label="Nota predefinita">
-          <input class="input" type="number" name="durata" value="{{ v.durata_minuti|default:'' }}" min="1" max="480" placeholder="min" aria-label="Durata in minuti">
           {% endif %}
           <span class="ct-usi" title="Volte in cui è stata usata">{{ v.usi }}×</span>
           <button type="submit" class="btn btn-secondary btn-sm">Salva</button>

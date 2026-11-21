@@ -54,3 +54,39 @@ class MinutaAttivitaTests(TasksBaseTestCase):
         self.assertIn("Attività", testo)
         self.assertNotIn("Azioni", testo)
         self.assertNotIn("Azioni", html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class OrdineDelGiornoSenzaTempiTests(TasksBaseTestCase):
+    """Decisione del committente: nessun minuto per punto nell'ordine del giorno."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self.pm = _create_user_with_legacy(username="og-pm", legacy_user_id=591, role_id=2, role_name="tasks")
+        self.pm.is_superuser = True
+        self.pm.save(update_fields=["is_superuser"])
+        self.project = make_project(name="Commessa odg", created_by=self.pm, project_manager=self.pm)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data=date.today(), titolo="Avanzamento",
+            agenda_items=[{"id": "p1", "titolo": "Stato CAM", "durata_minuti": 15}],
+        )
+
+    def test_conduzione_esito_e_dettaglio_senza_minuti(self):
+        from django.urls import reverse
+
+        self.client.force_login(self.pm)
+        for nome in ("project_meeting_run", "project_meeting_minutes", "project_meeting_detail"):
+            pagina = self.client.get(reverse(f"tasks:{nome}", args=[self.project.pk, self.meeting.pk]))
+            self.assertEqual(pagina.status_code, 200, nome)
+            for testo in ("15 min", "min previsti", "run-elapsed", "Fuori tempo", "Trascorso", 'data-role="tempo"'):
+                self.assertNotContains(pagina, testo, msg_prefix=nome)
+
+    def test_convocazione_senza_durata_del_punto(self):
+        from django.urls import reverse
+
+        self.client.force_login(self.pm)
+        pagina = self.client.get(reverse("tasks:project_meeting_edit", args=[self.project.pk, self.meeting.pk]))
+        self.assertNotContains(pagina, "new-agenda-durata")
+        self.assertNotContains(pagina, "Durata stimata")

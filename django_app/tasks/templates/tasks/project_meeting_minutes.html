@@ -98,7 +98,6 @@
                 <div class="agenda-title">
                   {{ item.titolo }}
                   {% if item.responsabile_label %}<span class="agenda-task-badge">{{ item.responsabile_label }}</span>{% endif %}
-                  {% if item.durata_minuti %}<span class="agenda-task-badge">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
                 {% if item.collegata %}<ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>{% endif %}
                 <textarea class="input agenda-nota-input" rows="2" maxlength="1000"
@@ -349,12 +348,6 @@
         who.className = 'agenda-task-badge';
         who.textContent = item.responsabile_label;
         title.appendChild(who);
-      }
-      if (item.durata_minuti) {
-        var mins = document.createElement('span');
-        mins.className = 'agenda-task-badge';
-        mins.textContent = item.durata_minuti + ' min';
-        title.appendChild(mins);
       }
       body.appendChild(title);
       var nota = document.createElement('textarea');

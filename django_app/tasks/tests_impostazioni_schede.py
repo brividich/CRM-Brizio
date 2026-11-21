@@ -66,7 +66,8 @@ class ImpostazioniSchedeTests(ProgrammiBase):
         m = MeetingAgendaTemplate.objects.create(nome="Settimanale", items=[{"titolo": "Stato", "nota": "", "durata_minuti": 15}])
         pagina = self.client.get(self.url + "?tab=modelli")
         self.assertContains(pagina, "1 punto")
-        self.assertContains(pagina, "15 min")
+        # Niente minuti per punto: la scheda del modello non li mostra.
+        self.assertNotContains(pagina, "15 min")
         self.assertContains(pagina, 'data-tpl-anteprima')
 
         self.client.post(self.url, {"tab": "modelli", "tpl_action": "template_duplicate", "template_id": m.pk})

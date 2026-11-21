@@ -75,7 +75,7 @@ GUIDA = {
                     "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
                     "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
                     "Chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo. "
-                    "L'evento in calendario dura quanto la somma dei punti all'ordine del giorno (un'ora se nessun punto ha una durata).",
+                    "L'evento in calendario dura quanto la «Durata» scelta (un'ora con «Predefinita»). I punti dell'ordine del giorno non hanno tempi.",
                     "Durante la riunione puoi usare «Conduci incontro»: presenti, un punto alla volta con il tempo e le note. Nel «Registro dell'incontro» "
                     "scrivi problemi trovati, attività d'incontro, decisioni e attività legati al punto in discussione (o con «+ Problema», «+ Attività d'incontro», «+ Decisione» sul punto); "
                     "problemi e attività d'incontro riportati dagli incontri prima si chiudono lì con «Risolto» o «Fatta».",
@@ -126,10 +126,10 @@ GUIDA = {
                 ("p", "KICK-OFF → «Impostazioni», con le schede:"),
                 ("def", [
                     ("Configurazione", "giorni di avviso e di blocco del VRF (predefiniti 7 e 30), sale riunioni."),
-                    ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti. Ogni modello è una scheda chiusa (nome, descrizione, numero di punti e minuti, «Spento»); aperta, mostra il form con l'anteprima dei punti mentre si scrive; «Salva» compare solo se qualcosa è cambiato e salva senza ricaricare; «Duplica» crea una copia spenta; ricerca e «Mostra anche gli spenti» in alto."),
+                    ("Modelli", "modelli di ordine del giorno: un punto per riga. Ogni modello è una scheda chiusa (nome, descrizione, numero di punti, «Spento»); aperta, mostra il form con l'anteprima dei punti mentre si scrive; «Salva» compare solo se qualcosa è cambiato e salva senza ricaricare; «Duplica» crea una copia spenta; ricerca e «Mostra anche gli spenti» in alto."),
                     ("Ruoli operativi e Accessi", "chi vede tutto, chi modifica solo le proprie attività, chi modifica tutto."),
                     ("Promemoria", "i promemoria automatici."),
-                    ("Catalogo", "scheda «Catalogo»: le voci ricorrenti (punti ODG, attività d'incontro, attività del piano, problemi) raccolte da sole da quello che si scrive, con quante volte sono state usate. Si rinominano (rinominare in una voce già esistente le unisce), si uniscono i doppioni, si nascondono quelle da non suggerire; per i punti ODG anche nota e durata predefinite."),
+                    ("Catalogo", "scheda «Catalogo»: le voci ricorrenti (punti ODG, attività d'incontro, attività del piano, problemi) raccolte da sole da quello che si scrive, con quante volte sono state usate. Si rinominano (rinominare in una voce già esistente le unisce), si uniscono i doppioni, si nascondono quelle da non suggerire; per i punti ODG anche la nota predefinita."),
                     ("Poteri e avvisi", "Configurazione → «Poteri e avvisi»: ruoli del team con pieni poteri (di base capocommessa e PM), altre persone con pieni poteri, spostamenti di date con approvazione (decide il primo capocommessa che risponde), chi riceve gli avvisi sui cambiamenti (di base incaricato e capocommessa). La mail degli avvisi è il flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni."),
                     ("Menu delle impostazioni", "a sinistra, per argomento: Commesse (Generale, Modelli di commessa, Sale riunioni), Incontri (Modelli ordine del giorno, Catalogo voci), Persone e permessi (Poteri e avvisi, Ruoli operativi, Accessi), Attività (Tipi, Promemoria, FAI), Controllo (Riepilogo, Eliminazioni, Registro modifiche)."),
                     ("Modelli di commessa", "un modello per tipo di lavoro: tappe che servono e giorni prima della consegna per ciascuna. Nel nuovo kickoff il modello spunta le tappe e, con la consegna, propone le scadenze. Accanto a ogni tappa c'è la media reale delle commesse fatte con quel modello; «Usa i valori reali» la copia nei giorni."),

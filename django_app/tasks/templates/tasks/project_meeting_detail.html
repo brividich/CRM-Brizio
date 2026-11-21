@@ -288,7 +288,6 @@
                   {{ item.titolo }}
                   {% if item.task_label %}<span class="md-agenda-task">{{ item.task_label }}</span>{% endif %}
                   {% if item.responsabile_label %}<span class="md-agenda-task">{{ item.responsabile_label }}</span>{% endif %}
-                  {% if item.durata_minuti %}<span class="md-agenda-task">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
                 {% if item.collegata %}
                   <ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>
