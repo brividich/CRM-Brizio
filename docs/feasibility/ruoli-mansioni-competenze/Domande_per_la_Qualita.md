@@ -66,8 +66,9 @@ persona non fa quel lavoro da due anni, che cosa succede?
 - [ ] Il livello scende da solo
 - [ ] Il portale propone l'abbassamento, decide il responsabile con una Sessione Formativa
 
-Nostra ipotesi: la prima. Il livello è quello dell'ultima valutazione; accanto c'è uno stato «valido / sospeso»
-calcolato dal portale. Chi è sospeso non risulta operativo.
+Nostra ipotesi: la prima. Il livello è quello dell'ultima valutazione; accanto c'è uno stato «valido / non più valido»
+calcolato dal portale, che **segnala** al responsabile e non ferma la persona. In alternativa il portale può
+**bloccare** (chi non è più valido non risulta operativo): ditecelo se la preferite, anche solo per alcuni processi.
 
 **6. Dopo quanto tempo senza fare un lavoro la competenza va riconfermata?**
 Perché: oggi la regola esiste solo per i processi critici (12 mesi).

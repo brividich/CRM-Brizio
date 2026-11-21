@@ -1,7 +1,8 @@
 # 02 — TO-BE: flusso e algoritmo
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.1 · 21/11/2026 · Fase 2 (progettazione). Stato: in attesa di GATE 2.
+Versione 0.2 · 21/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; recepite le decisioni del proprietario
+(§0).
 
 > **Tutto ciò che segue è una proposta.** Le decisioni su contenuti, relazioni e regole HR spettano al proprietario
 > del progetto e alla Qualità.
@@ -17,6 +18,20 @@ Versione 0.1 · 21/11/2026 · Fase 2 (progettazione). Stato: in attesa di GATE 2
 
 ---
 
+## 0. Decisioni del proprietario al GATE 2 (21/11/2026)
+
+| Tema | Decisione |
+| --- | --- |
+| Modello dei livelli | **Ibrido, non bloccante: solo segnalazione.** Il portale calcola la validità e la segnala; non toglie da solo l'operatività. La variante **bloccante** resta documentata come alternativa (§3.3, §4) e selezionabile con un parametro |
+| Livello sulla mansione | **Il più basso fra le competenze bloccanti** |
+| Assegnazione della mansione | **Due passaggi**: avviata, poi effettiva |
+| Prosecuzione | Avanti fino alla fine, un passo alla volta |
+
+Nel testo **[deciso G2]** indica questi punti. I numeri degli esempi sono calcolati nella modalità decisa
+(«segnalazione»); dove serve è riportato anche il valore della variante bloccante.
+
+---
+
 ## 1. L'idea in breve
 
 1. **Due atti, due effetti.** La Sessione Formativa (SF) cambia ciò che la persona *sa fare*; la Richiesta di
@@ -24,7 +39,8 @@ Versione 0.1 · 21/11/2026 · Fase 2 (progettazione). Stato: in attesa di GATE 2
    **[deciso T1, T2]**.
 2. **Il livello è un giudizio, la validità è un calcolo.** Il livello lo dà una persona, in una SF, e non cambia mai da
    solo. Accanto, il portale calcola ogni giorno se quel livello è ancora *valido* (patentino scaduto, lavoro non
-   eseguito da troppo tempo, conferma periodica mancata) **[deciso T4]**.
+   eseguito da troppo tempo, conferma periodica mancata) **[deciso T4]**. Quando non lo è **lo segnala**, senza
+   togliere da solo l'operatività **[deciso G2]**.
 3. **Un solo motore.** Per ogni persona risponde a quattro domande: che cosa le è richiesto e perché, che cosa
    possiede, che cosa manca, che cosa potrebbe fare in più.
 4. **Niente di automatico sulle autorizzazioni.** Il motore segnala e propone; assegnare, togliere e approvare restano
@@ -161,7 +177,7 @@ Distinguiamo tre cose che oggi nel codice sono mescolate:
 | --- | --- | --- |
 | **Livello valutato** | Una persona, in una SF | Solo con una SF (anche in discesa: SF «di revisione») |
 | **Stato di validità** | Il motore | Ogni giorno e a ogni evento |
-| **Livello efficace** | Derivato | È il livello valutato se la competenza è valida; vale «I» se è sospesa |
+| **Livello efficace** | Derivato | Modalità *segnalazione* (decisa): coincide sempre con il livello valutato. Modalità *blocco* (alternativa): vale «I» se la competenza è sospesa |
 
 Stati di validità di una competenza posseduta:
 
@@ -188,6 +204,26 @@ stateDiagram-v2
 
 **[ipotesi D5, D6, D7]** — sono le risposte proposte alle domande 5, 6 e 7 del questionario.
 
+**Che cosa comporta «sospesa»: le due modalità.** Il calcolo degli stati è identico; cambia l'effetto.
+
+| | Segnalazione **[deciso G2]** | Blocco (alternativa) |
+| --- | --- | --- |
+| Competenza sospesa | Resta al suo livello, marcata «non valida» | Vale «I» |
+| Mansione che la richiede come bloccante | **Conforme con riserva**, con segnalazione grave | **Non conforme** |
+| La persona opera e firma | Sì: decide il responsabile, che riceve l'avviso | No, finché non rimedia o non c'è una deroga |
+| Può fare da tutor | No | No |
+| Chi viene avvisato | Persona, responsabile, RDD | Gli stessi |
+| Deroga | Serve a *giustificare* la segnalazione | Serve a *sbloccare* |
+| Pro | Nessun fermo di produzione per un automatismo; il portale non decide al posto delle persone | Nessuna persona non qualificata risulta operativa |
+| Contro | Una segnalazione ignorata lascia operare chi non ha il requisito: va presidiata (cruscotto RDD, sollecito, riepilogo periodico) | Un dato sbagliato o un rinnovo registrato in ritardo ferma una persona |
+| Difendibilità in audit | Buona **se** ogni segnalazione ha una presa in carico tracciata | Forte |
+
+È lo stesso schema già in uso per la visita del cambio mansione, dove un parametro sceglie fra «solo avviso»,
+«deroga ammessa» e «blocco» (`services/stato_operativo.py:8-13`): la modalità si può cambiare in seguito senza toccare
+i dati. Per rendere difendibile la segnalazione si propone la **presa in carico**: il responsabile, entro un termine,
+indica che cosa fa (iscrizione, SF di conferma, deroga, mansione sospesa); senza presa in carico la segnalazione sale
+a RDD.
+
 **Consolidamento.** Un livello è *consolidato* quando è valido e confermato almeno una volta dopo la prima
 attribuzione; prima è *da consolidare*. È un'etichetta informativa (compare nel MOD.053 e nella matrice), utile
 soprattutto per U e O: «U da consolidare» = autonomo da meno di un ciclo di conferma.
@@ -211,17 +247,16 @@ Stato della persona rispetto a una mansione:
 | Stato | Regola | Opera da sola | Firma | Forma |
 | --- | --- | --- | --- | --- |
 | **Conforme** | Tutti i requisiti raggiunti e validi | Sì | Sì, se livello sulla mansione ≥ U | Sì, se livello O |
-| **Conforme con riserva** | Manca solo qualcosa di «utile», oppure c'è una competenza da confermare o in deroga | Sì | Sì, se ≥ U | No |
+| **Conforme con riserva** | Manca solo qualcosa di «utile», oppure c'è una competenza da confermare, in deroga o — in modalità segnalazione — sospesa | Sì | Sì, se ≥ U | No |
 | **Sotto supervisione** | Manca un requisito «importante», oppure un «bloccante» mentre la mansione è ancora *avviata* | No | No | No |
-| **Non conforme** | Una competenza bloccante è sospesa, oppure manca un bloccante su una mansione *effettiva* | No | No | No |
+| **Non conforme** | Manca un bloccante su una mansione *effettiva*; in modalità blocco, anche una competenza bloccante sospesa | No | No | No |
 
-**Livello sulla mansione («livello M» del MOD.053).** Proposta: il **più basso fra le competenze bloccanti**
-**[ipotesi D4, modificata]**. La regola attuale (media con tetto, D16) ha un difetto emerso costruendo il motore di
+**Livello sulla mansione («livello M» del MOD.053).** Il **più basso fra le competenze bloccanti** **[deciso G2]**. La regola attuale (media con tetto, D16) ha un difetto emerso costruendo il motore di
 riferimento: chi raggiunge *tutti* i minimi, ma ha una competenza «utile» con minimo L, ottiene una media che arrotonda
 a L e risulta «in addestramento» pur essendo in regola (`services/mansionario_competenze.py:113-120`, `:242`). La
 regola sulle bloccanti esiste già a sistema come opzione (`models_skillmatrix.py:62`, `REGOLA_BLOCCANTI`).
 
-**Stato dell'assegnazione** — è la proposta per conciliare i due documenti della Qualità **[ipotesi D12]**:
+**Stato dell'assegnazione** — due passaggi, per conciliare i due documenti della Qualità **[deciso G2]**:
 
 ```mermaid
 stateDiagram-v2
@@ -244,7 +279,7 @@ filtrare: il modello non cambia.
 | Evento | Effetto sulla persona | Notifiche | Altri effetti |
 | --- | --- | --- | --- |
 | Livello sale (SF chiusa) | Ricalcolo delle sue mansioni; può sbloccare «effettiva» e mansioni potenziali | Persona, responsabile | Si chiudono i fabbisogni formativi collegati; se arriva a O entra fra i tutor possibili |
-| Competenza sospesa | Mansioni che la richiedono come bloccante → non conformi | Persona, responsabile, RDD se bloccante | Esce dal gruppo degli operativi e dai tutor; nasce il fabbisogno (iscrizione proposta) |
+| Competenza sospesa | Segnalazione grave sulle mansioni che la richiedono; conforme con riserva (in modalità blocco: non conforme) | Persona, responsabile, RDD se bloccante | Esce dai tutor; nasce il fabbisogno (iscrizione proposta) e la richiesta di presa in carico |
 | Competenza torna valida | Ricalcolo; rientro automatico | Persona, responsabile | Si chiude il fabbisogno |
 | Mansione diventa non conforme | Non opera da sola su quella mansione | Responsabile, RDD | Avviso «uomo solo» se la mansione resta con meno di 2 persone operative |
 | Timbro / firma | Segue «può firmare» | — | Proposta: il portale **segnala** l'incoerenza con il timbro assegnato; sospendere il timbro resta un atto umano, come oggi per il MOD.128 |
@@ -284,9 +319,15 @@ solo 10 punti sotto la soglia (isteresi).
 **Modello C — Stati con decadimento del livello.** Come A per salire; ma è il **livello stesso** a scendere da solo:
 un gradino se scade il requisito formale, se manca l'esercizio per 12 mesi o se salta la conferma periodica.
 
-**Modello D — Ibrido (raccomandato).** Livello come in A (solo atti umani); validità calcolata come descritto al §3.3
-(decadimento della *validità*, non del livello, con grazia e stato intermedio); il punteggio di B resta, al più, un
-**indicatore di prontezza** non vincolante che suggerisce al responsabile quando valutare.
+**Modello D — Ibrido.** Livello come in A (solo atti umani); validità calcolata come descritto al §3.3 (decadimento
+della *validità*, non del livello, con grazia e stato intermedio); il punteggio di B resta, al più, un **indicatore di
+prontezza** non vincolante. Ha due varianti:
+- **D-segnalazione [deciso G2]**: la competenza non più valida viene segnalata; l'operatività resta una decisione del
+  responsabile.
+- **D-blocco (alternativa)**: la competenza sospesa toglie da sola l'operatività.
+
+Nelle tabelle la colonna D riporta la variante bloccante, che è il caso più severo; dove la variante decisa si comporta
+diversamente è indicato con «segn.:».
 
 ### 4.2 Simulazione su quattro persone, gennaio 2027 – giugno 2028
 
@@ -322,7 +363,7 @@ bloccante) scade il 20/08/2027 (M8).
 | --- | --- | --- | --- | --- | --- |
 | M6 | Mancano 60 giorni | O (avviso in scadenzario) | 95 → O | O | O · avviso e iscrizione proposta |
 | M8 | Corso scaduto | **O, opera e forma** | 75 → O (i punti del corso non bastano a scendere) | **O → U** | O **da confermare** (grazia 30 gg): opera con riserva, **non forma** |
-| M9 | Fine della grazia | O, opera e forma | 75 → O | U → **L** | O **sospesa**: DM6 e DM3 non conformi, non firma; avviso a RDD |
+| M9 | Fine della grazia | O, opera e forma | 75 → O | U → **L** | O **sospesa**: DM6 e DM3 non conformi, non firma; avviso a RDD. **Segn.:** conforme con riserva, opera e firma, non forma; segnalazione grave e presa in carico |
 | M10 | Corso rifatto | O | 95 → O | L: serve una **SF per risalire a O** | O valida, **rientro automatico**; nessuna SF |
 
 **Sara Colombini** — «Controllo pezzi di classe 1» (U, esercizio critico); ultima esecuzione a M1, assenza lunga da M2
@@ -332,7 +373,7 @@ a M15, rientro a M16.
 | --- | --- | --- | --- | --- | --- |
 | M8 | 7 mesi senza esercizio | U | **49 → L** | U | U valida |
 | M10 | 9 mesi | U | 43 → L | U | U **da confermare** (preavviso) |
-| M13 | 12 mesi | **U, formalmente operativa** | 34 → L | **U → L** | U **sospesa**: mansione non conforme |
+| M13 | 12 mesi | **U, formalmente operativa** | 34 → L | **U → L** | U **sospesa**: mansione non conforme. **Segn.:** conforme con riserva, segnalazione grave (la persona è assente) |
 | M16 | Rientro | U | 30 → L | L | U sospesa; SF di conferma pianificata |
 | M17 | Affiancamento 16 h + prova pratica superata | U | 57 → **L** (non basta) | L → U con SF | SF di conferma: U **valida** |
 | M18 | Lavoro ordinario | U | 59 → L | U | U |
@@ -342,21 +383,25 @@ a M15, rientro a M16.
 | Criterio | A Soglie discrete | B Punteggio | C Decadimento del livello | D Ibrido |
 | --- | --- | --- | --- | --- |
 | Chi decide il livello | Sempre una persona | Una formula | Una persona per salire, il calendario per scendere | Sempre una persona |
-| Persona non qualificata che risulta operativa | **Sì** (Aldo M8-M10, Sara M13-M16) | Sì (Aldo) | No | **No** |
+| Persona non qualificata che risulta operativa | **Sì**, senza traccia (Aldo M8-M10, Sara M13-M16) | Sì (Aldo) | No | Blocco: **no**. Segnalazione: sì, ma **segnalata e presa in carico** |
 | Livelli scritti senza un atto umano | No | Sì, sempre | Sì, in discesa | **No** |
 | Coerenza con «la competenza cambia solo con una SF» | Piena | Nessuna | Parziale | **Piena** |
 | Effetto altalena | Assente | Presente (Giulia diventa O a M8) | Presente (Giulia scende per un ritardo del responsabile) | Assente: grazia e stato intermedio |
 | Lavoro per il responsabile | Basso | Basso, ma deve fidarsi della formula | Alto: ogni discesa va risalita con una SF | Medio: SF solo dove serve un giudizio |
 | Lavoro per la Qualità | Basso | Alto: tarare punti e soglie | Medio | Medio: fissare 9 parametri |
 | Adatto a 135 persone | Sì | No: troppa taratura per pochi dati | Sì | Sì |
-| Difendibilità in audit EN 9100 | Debole su §7.2 (competenza «mantenuta»?) | Debole: «chi ha deciso?» | Debole: livelli abbassati da nessuno | **Forte**: ogni livello ha un firmatario, ogni blocco ha un motivo |
+| Difendibilità in audit EN 9100 | Debole su §7.2 (competenza «mantenuta»?) | Debole: «chi ha deciso?» | Debole: livelli abbassati da nessuno | Blocco: **forte**. Segnalazione: **buona**, se le prese in carico sono tracciate |
 | Complessità di realizzazione | Bassa | Alta | Media | Media |
 
 ### 4.4 Raccomandazione
 
-**Modello D.** È l'unico che soddisfa insieme le due esigenze emerse: nessuna persona non qualificata risulta
-operativa (sicurezza del processo) e nessun livello cambia senza un atto umano (richiesta della Qualità e decisione
-T4). Costa poco più di A e riusa due meccanismi già scritti: il ricalcolo dei livelli (`services/competenze_ricalcolo.py`)
+**Modello D, variante segnalazione [deciso G2].** Nessun livello cambia senza un atto umano (richiesta della Qualità,
+decisione T4) e nessun automatismo ferma una persona. Rispetto ad A aggiunge ciò che ad A manca: il portale *sa* chi
+non ha più il requisito e lo porta davanti a chi deve decidere.
+
+La variante **blocco** resta l'alternativa per chi volesse la garanzia più forte («nessuna persona non qualificata
+risulta operativa»): si attiva con un parametro, anche solo per le competenze di un processo qualificato. Passare da
+una variante all'altra non richiede migrazioni. Costa poco più di A e riusa due meccanismi già scritti: il ricalcolo dei livelli (`services/competenze_ricalcolo.py`)
 diventa il calcolo della validità, la continuità operativa (`services/skillmatrix_continuita.py`) si generalizza.
 
 Il punteggio (B) **non** entra nel progetto iniziale: potrà essere aggiunto come indicatore di prontezza quando ci
@@ -371,6 +416,8 @@ saranno un paio d'anni di evidenze.
 | Finestra di esercizio per le competenze a esercizio critico | 12 mesi, preavviso a 9 | Già a sistema per i processi critici |
 | Quali competenze sono «a esercizio critico» | Processi qualificati e competenze bloccanti scelte | Da decidere |
 | Periodo di grazia dopo la scadenza di un requisito formale | 30 giorni | Nuovo |
+| Modalità della validità | Segnalazione **[deciso G2]**; blocco come alternativa, anche per singole competenze | Nuovo |
+| Termine per la presa in carico di una segnalazione | 10 giorni lavorativi, poi sale a RDD | Nuovo |
 | Preavvisi di scadenza | 90, 60, 30 giorni | Già a sistema |
 | Transitorio dopo la revisione di un profilo | 90 giorni | Nuovo |
 | Durata massima di una mansione «avviata» prima dell'avviso | 6 mesi | Nuovo |
@@ -482,14 +529,16 @@ funzione RISOLVI(persona, data):
     per ogni competenza C richiesta o posseduta:
         P = stato_corrente(persona, C)                           # livello valutato, ultima evidenza
         V = VALIDITÀ(persona, C, P, data)
-        efficace = P.livello se V in {valida, da confermare, in deroga}
-                   "I"       se V = sospesa
-                   vuoto     se mai valutata
+        efficace = vuoto     se mai valutata
+                   "I"       se V = sospesa e MODALITÀ = blocco
+                   P.livello negli altri casi          # in modalità segnalazione la sospesa resta al suo livello
 
     # 3. Conformità per mansione (ognuna sul proprio profilo)
     per ogni assegnazione A:
-        gap_B, gap_I, gap_U, sospese_B, riserve = conta(profilo(A), efficace, validità)
-        se sospese_B > 0 oppure (gap_B > 0 e A è effettiva):  stato = NON CONFORME
+        gap_B, gap_I, gap_U, riserve, segnalazioni = conta(profilo(A), efficace, validità)
+        # modalità segnalazione: una competenza sospesa conta come riserva e genera una segnalazione grave;
+        # modalità blocco: vale «I», quindi apre un gap
+        se gap_B > 0 e A è effettiva:                          stato = NON CONFORME
         altrimenti se gap_B > 0 oppure gap_I > 0:              stato = SOTTO SUPERVISIONE
         altrimenti se gap_U > 0 oppure riserve > 0:            stato = CONFORME CON RISERVA
         altrimenti:                                            stato = CONFORME
@@ -532,10 +581,11 @@ Dati di riferimento al 15/03/2027: 32 persone, 14 mansioni, 30 competenze, **65 
 | Quadro generale | Valore |
 | --- | --- |
 | Assegnazioni conformi | 30 |
-| Conformi con riserva | 11 |
+| Conformi con riserva | 13 *(variante blocco: 11)* |
 | Sotto supervisione | 10 |
-| Non conformi | 14 (su 9 persone) |
-| Gap aperti | 44 |
+| Non conformi | 12, su 8 persone *(variante blocco: 14, su 9 persone)* |
+| Gap aperti | 42 *(variante blocco: 44)* |
+| Assegnazioni con una segnalazione grave | 2 |
 | Competenze sospese / da confermare | 2 / 15 |
 | Requisiti formali scaduti · entro 30 · 60 · 90 giorni | 5 · 1 · 1 · 1 |
 | Mansioni potenziali soddisfatte / parziali | 1 / 21 |
@@ -556,9 +606,12 @@ con **due fonti** (DM3 e DM6).
 
 **Caso 3 — Deroga.** Piero Lombardini, effettivo su DM6: il corso «CRS-006 Prevenzione FOD» è scaduto da 45 giorni,
 oltre la grazia. RDD ha approvato una deroga di 30 giorni perché il corso è prenotato per il 02/04/2027.
-- Senza deroga: competenza **sospesa** → DM6 **non conforme**.
-- Con la deroga: competenza **in deroga** → DM6 **conforme con riserva**; opera e firma, non può fare da tutor.
-- Al 04/04/2027 la deroga scade: se il corso non è stato fatto, la mansione torna non conforme da sola.
+- Senza deroga, modalità **segnalazione**: competenza sospesa → DM6 **conforme con riserva** con segnalazione grave;
+  opera e firma, il responsabile deve prenderla in carico.
+- Senza deroga, modalità **blocco**: DM6 **non conforme**, livello sulla mansione I, non opera e non firma.
+- Con la deroga, in entrambe le modalità: competenza **in deroga** → DM6 **conforme con riserva**; opera e firma, non
+  può fare da tutor. In modalità segnalazione la deroga vale come presa in carico.
+- Al 04/04/2027 la deroga scade: se il corso non è stato fatto, torna la situazione «senza deroga».
 
 **Caso 4 — Revisione di un corso.** «CRS-006 Prevenzione FOD» passa alla revisione B.
 - Revisione **ordinaria**: gli attestati restano validi fino alla loro scadenza naturale; nessun effetto oggi.

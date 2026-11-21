@@ -93,7 +93,13 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       conferma 6 mesi). Livello sulla mansione = minimo delle bloccanti (la media D16 penalizza chi è in regola:
       `services/mansionario_competenze.py:113-120`, `:242`). Assegnazione: avviata → effettiva.
       Persone tipo: P01 Marco Rinaldi, P02 Giulia Ferrante, P03 Aldo Bianchetti, P04 Sara Colombini, P05 Piero Lombardini.
-- [ ] **FERMO AL GATE 2**: attendo conferma prima della Fase 3 (prototipo: template reali + dati finti, stesso dataset)
+- [x] **GATE 2 superato** (21/11/2026). Decisioni: (1) ibrido **non bloccante, solo segnalazione**; la variante bloccante
+      resta alternativa documentata → parametro `modalita_validita` SEGNALAZIONE|BLOCCO in `build/motore_rif.py`;
+      (2) livello mansione = minimo delle bloccanti; (3) avviata → effettiva; (4) **avanti fino alla fine, un passo alla volta**.
+      Numeri in modalità SEGNALAZIONE: 30 conformi / 13 con riserva / 10 sotto supervisione / 12 non conformi (8 persone),
+      gap 42, 2 assegnazioni con segnalazione grave. In BLOCCO: 30 / 11 / 10 / 14 (9 persone), gap 44.
+      Il prototipo deve avere l'interruttore Segnalazione/Blocco.
+- [ ] Fase 3: `03_ux.md` + `prototipo/prototipo_rmc.html` + `prototipo/png/` → GATE 3
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 

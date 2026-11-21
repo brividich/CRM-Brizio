@@ -14,7 +14,8 @@
   "transitorio_revisione_giorni": 90,
   "durata_massima_avviata_mesi": 6,
   "soglia_potenziale_parziale": 0.66,
-  "regola_livello_mansione": "MIN_BLOCCANTI"
+  "regola_livello_mansione": "MIN_BLOCCANTI",
+  "modalita_validita": "SEGNALAZIONE"
  },
  "reparti": {
   "CN5": "Fresatura 5 assi",
