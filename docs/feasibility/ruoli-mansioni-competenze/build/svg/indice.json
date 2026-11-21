@@ -1,0 +1,114 @@
+{
+ "d01.svg": {
+  "impronta": "f8ed0491ea6927ce",
+  "modo": "ruotato",
+  "scala": 0.5,
+  "variante": 0,
+  "larghezza": 1684
+ },
+ "d02.svg": {
+  "impronta": "0a4a4bd38cfa1d79",
+  "modo": "testo",
+  "scala": 0.62,
+  "variante": 0,
+  "larghezza": 1092
+ },
+ "d03.svg": {
+  "impronta": "f266f69e95f70a7e",
+  "modo": "testo",
+  "scala": 0.7,
+  "variante": 1,
+  "larghezza": 744
+ },
+ "d04.svg": {
+  "impronta": "946b5bc2e3fc7c92",
+  "modo": "testo",
+  "scala": 0.95,
+  "variante": 1,
+  "larghezza": 582
+ },
+ "d05.svg": {
+  "impronta": "ceda5a73f02f612d",
+  "modo": "ruotato",
+  "scala": 0.51,
+  "variante": 1,
+  "larghezza": 1655
+ },
+ "d06.svg": {
+  "impronta": "6491afa273fc2a5a",
+  "modo": "testo",
+  "scala": 0.71,
+  "variante": 0,
+  "larghezza": 955
+ },
+ "d07.svg": {
+  "impronta": "a7adb4adbdfba6b3",
+  "modo": "testo",
+  "scala": 1.0,
+  "variante": 0,
+  "larghezza": 617
+ },
+ "d08.svg": {
+  "impronta": "56cd646a8abd3663",
+  "modo": "testo",
+  "scala": 0.88,
+  "variante": 0,
+  "larghezza": 361
+ },
+ "d09.svg": {
+  "impronta": "77638e8ded0abb9e",
+  "modo": "pagina",
+  "scala": 0.5,
+  "variante": 0,
+  "larghezza": 738
+ },
+ "d10.svg": {
+  "impronta": "51e08ab3be54fcf1",
+  "modo": "testo",
+  "scala": 0.97,
+  "variante": 0,
+  "larghezza": 573
+ },
+ "d11.svg": {
+  "impronta": "d97fcbda0652a87d",
+  "modo": "testo",
+  "scala": 1.0,
+  "variante": 0,
+  "larghezza": 390
+ },
+ "d12.svg": {
+  "impronta": "bd00b799bad2a2e8",
+  "modo": "testo",
+  "scala": 0.72,
+  "variante": 0,
+  "larghezza": 658
+ },
+ "d13.svg": {
+  "impronta": "fb8b0fd09ed15b62",
+  "modo": "testo",
+  "scala": 0.82,
+  "variante": 1,
+  "larghezza": 360
+ },
+ "d14.svg": {
+  "impronta": "cbf51817af63fc4d",
+  "modo": "pagina",
+  "scala": 0.62,
+  "variante": 1,
+  "larghezza": 360
+ },
+ "d15.svg": {
+  "impronta": "90a626ff969f2622",
+  "modo": "ruotato",
+  "scala": 0.6,
+  "variante": 0,
+  "larghezza": 1415
+ },
+ "d16.svg": {
+  "impronta": "0aec62a8121cb9f4",
+  "modo": "testo",
+  "scala": 1.0,
+  "variante": 1,
+  "larghezza": 216
+ }
+}

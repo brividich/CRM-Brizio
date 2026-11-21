@@ -304,7 +304,7 @@ Esempio calcolato sui dati di riferimento:
 
 ---
 
-## 4. Tre modelli a confronto
+## 4. Quattro modelli a confronto
 
 ### 4.1 I modelli
 
@@ -388,7 +388,7 @@ a M15, rientro a M16.
 | Coerenza con «la competenza cambia solo con una SF» | Piena | Nessuna | Parziale | **Piena** |
 | Effetto altalena | Assente | Presente (Giulia diventa O a M8) | Presente (Giulia scende per un ritardo del responsabile) | Assente: grazia e stato intermedio |
 | Lavoro per il responsabile | Basso | Basso, ma deve fidarsi della formula | Alto: ogni discesa va risalita con una SF | Medio: SF solo dove serve un giudizio |
-| Lavoro per la Qualità | Basso | Alto: tarare punti e soglie | Medio | Medio: fissare 9 parametri |
+| Lavoro per la Qualità | Basso | Alto: tarare punti e soglie | Medio | Medio: fissare 11 parametri (§4.5) |
 | Adatto a 135 persone | Sì | No: troppa taratura per pochi dati | Sì | Sì |
 | Difendibilità in audit EN 9100 | Debole su §7.2 (competenza «mantenuta»?) | Debole: «chi ha deciso?» | Debole: livelli abbassati da nessuno | Blocco: **forte**. Segnalazione: **buona**, se le prese in carico sono tracciate |
 | Complessità di realizzazione | Bassa | Alta | Media | Media |
@@ -952,6 +952,17 @@ S fino a 3 giorni · M 1-2 settimane · L 3-4 settimane. Stime di sviluppo, senz
 Percorso minimo per dare valore: **B0 → B1 → B2 → B3** (livelli con evidenza e validità calcolata), poi **B4** (RAM).
 Complessivamente tre blocchi L sul percorso critico più il lavoro di contenuto, che è il vero vincolo di calendario.
 
+**Somma delle stime** (sviluppo di una persona, in sequenza; S contato fino a 3 giorni):
+
+| Perimetro | Blocchi | Settimane di sviluppo |
+| --- | --- | --- |
+| Percorso minimo | B0, B1, B2, B3 | da 7 a 11 |
+| Percorso minimo più la RAM | B0-B4 | da 10 a 15 |
+| Tutti i blocchi tranne la rinomina | B0-B11, B13 | da 18 a 31, cioè circa 4-7 mesi |
+
+È un ordine di grandezza: non comprende il lavoro di contenuto della Qualità, i collaudi con i reparti e le attese
+fra una tappa e l'altra.
+
 **Sulla rinomina (B12).** Pro: il codice dice «mansione» dove oggi dice «competenza», e sparisce l'equivoco che ha
 rallentato ogni analisi. Contro: tocca 73 file e tutti i rami paralleli aperti; nessun beneficio per gli utenti.
 Proposta: **non ora**. I nuovi oggetti nascono con nomi corretti nel nuovo pacchetto; i vecchi si rinominano, se mai,
@@ -970,6 +981,7 @@ dopo B11, in un momento senza rami paralleli.
 | Semafori più rossi alla partenza | Alta | Basso | Comunicazione: è lo stato reale; transitorio |
 | Fonte dell'«ultimo esercizio» non disponibile | Media | Medio | Si parte con la registrazione manuale nella SF di conferma; il collegamento alla produzione è un blocco successivo |
 | Firme: chi sostituisce RDD e MSO | Media | Medio | Sostituti e deleghe a termine (B7) prima di attivare la RAM |
+| In modalità segnalazione, una segnalazione ignorata lascia operare chi non ha il requisito | Media | Alto | Presa in carico con termine, poi salita a RDD; cruscotto RDD e riepilogo periodico; blocco attivabile per le competenze dei processi qualificati (§3.3) |
 
 ---
 

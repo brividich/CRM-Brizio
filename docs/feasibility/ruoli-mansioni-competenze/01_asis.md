@@ -98,7 +98,7 @@ Fonti: `input/Specifica_Funzionale_Piattaforma_Formazione_Skill_Matrix_v2.md` (n
 
 Punti che M053 lascia aperti con «(?)»: indirizzo, titolo di studio, precedente occupazione, inquadramento/livello
 all'assunzione, richiesta di formazione aggiuntiva, forma del tracciamento («es. report??»). Sono riportati fra le
-domande per la Qualità (§8).
+domande per la Qualità (§9.1).
 
 ---
 
@@ -132,6 +132,11 @@ colloquio con la Qualità rischia l'equivoco.
 
 ### 2.2 Diagramma entità-relazioni (AS-IS)
 
+Il modello è diviso in due diagrammi per leggibilità: le entità `DIPENDENTE`, `CompetenzaSkm`, `Mansione`,
+`RuoloOperativo`, `AreaAziendale` e `VoceMacchinaCatalogo` compaiono in entrambi e fanno da cerniera.
+
+**Persone, ruoli, mansioni e competenze** (19 relazioni)
+
 ```mermaid
 erDiagram
     DIPENDENTE ||--o{ DipendenteRuoloOperativo : "ricopre"
@@ -144,9 +149,6 @@ erDiagram
     CompetenzaSkm }o--o{ Mansione : "mansioni di rischio (M2M)"
     CompetenzaSkm ||--o{ VoceMacchinaCatalogo : "competenze"
     CompetenzaCatalogo ||--o{ VoceMacchinaCatalogo : "stessa competenza"
-    VoceMacchinaCatalogo }o--|| TrainingCourse : "corso richiesto (0..1)"
-    VoceMacchinaCatalogo }o--|| TipoQualifica : "qualifica richiesta (0..1)"
-    VoceMacchinaCatalogo }o--|| ProcessoQualificato : "MOD.128 richiesto (0..1)"
     DIPENDENTE ||--o{ AbilitazioneMacchina : "in lista su"
     CompetenzaSkm ||--o{ AbilitazioneMacchina : ""
     AbilitazioneMacchina ||--o{ AbilitazioneMacchinaVoce : "livello per competenza"
@@ -154,6 +156,17 @@ erDiagram
     AbilitazioneMacchina ||--o{ AbilitazioneMacchinaStorico : "scatti"
     DIPENDENTE ||--o{ ValutazioneCompetenzaStorico : "valutazioni"
     DIPENDENTE }o--|| Mansione : "mansione (per NOME)"
+    DIPENDENTE ||--o{ DipendenteAssegnazione : "spostamenti"
+    DipendenteAssegnazione ||--o{ AdempimentoCambioMansione : "piano di adeguamento"
+```
+
+**Formazione, qualifiche e processi qualificati** (18 relazioni)
+
+```mermaid
+erDiagram
+    VoceMacchinaCatalogo }o--|| TrainingCourse : "corso richiesto (0..1)"
+    VoceMacchinaCatalogo }o--|| TipoQualifica : "qualifica richiesta (0..1)"
+    VoceMacchinaCatalogo }o--|| ProcessoQualificato : "MOD.128 richiesto (0..1)"
     Mansione ||--o{ TrainingRequirementRule : "obbligo"
     AreaAziendale ||--o{ TrainingRequirementRule : "obbligo"
     RuoloOperativo ||--o{ TrainingRequirementRule : "obbligo"
@@ -169,8 +182,6 @@ erDiagram
     ProcessoQualificato ||--o{ AbilitazioneProcesso : "abilitati"
     ProcessoQualificato ||--o{ RuoloProcesso : "ruoli sul processo"
     RuoloProcesso }o--|| CompetenzaSkm : "mansione collegata (0..1)"
-    DIPENDENTE ||--o{ DipendenteAssegnazione : "spostamenti"
-    DipendenteAssegnazione ||--o{ AdempimentoCambioMansione : "piano di adeguamento"
 ```
 
 `DIPENDENTE` non è una tabella Django: è la riga della tabella legacy `anagrafica_dipendenti`, a cui tutti i

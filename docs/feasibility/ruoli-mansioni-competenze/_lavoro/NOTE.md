@@ -135,9 +135,23 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       con la scheda «dove va»), modelli: ingresso di sezione, elenco, scheda, pratica a passi, matrice; nuove pagine
       `#persone`, `#elenco-dipendenti`, `#corso`, `#da-fare`, `#v-<voce>`; matrice con vista per competenza/per mansione;
       interruttore Stile attuale / Stile rinfrescato (classe `px-fresco`). 51 controlli ok, 26 PNG.
-- [ ] Attendere il riscontro del proprietario sul prototipo (ha detto: «poi dopo provo il prototipo»).
-- [ ] Fase 4: PDF tecnico e PDF Direzione. Nei PDF riportare anche il dubbio
-      «linea di demarcazione + ripescaggio dal vecchio catalogo corsi» e le due varianti segnalazione/blocco.
+- [x] Riscontro del proprietario sul prototipo (21/11): **«ok mi piace, procedi con gli step successivi»** → GATE 3 superato.
+- [x] **Fase 4 fatta** (21/11/2026): `Fattibilita_RMC_Tecnico.pdf` (86 pagine: copertina + 85) e
+      `Fattibilita_RMC_Direzione.pdf` (10 pagine: copertina + 9). Script: `build/costruisci_pdf.py`
+      (markdown-it-py → HTML con `build/stampa.css` → Playwright `page.pdf()` → unione e segnalibri con PyMuPDF).
+      Testi propri del PDF tecnico in `build/pdf_tecnico_testi.md` (sommario, decisioni, glossario, EN 9100);
+      corpo della sintesi in `build/pdf_direzione.html`. I rimandi «§» dei markdown vengono rinumerati sul PDF.
+      16 diagrammi Mermaid in `build/svg/` (mermaid-cli installato nello scratchpad, Chromium di Playwright; senza
+      mermaid-cli lo script riusa gli SVG se il sorgente non è cambiato). Esiti in `build/controlli_pdf.txt`.
+      Controlli: ogni pagina rasterizzata e guardata; 0 elementi fuori dall'area di stampa; nessuna pagina vuota;
+      termini vietati nel PDF Direzione: nessuno; numeri chiave presenti e uguali (19 su 19 e 13 su 13).
+      Allineamenti fatti ai markdown per coerenza: 51 controlli e 16 schermate in `03_ux.md`; «Quattro modelli a
+      confronto», 11 parametri, somma delle stime (7-11 / 10-15 / 18-31 settimane) e rischio «segnalazione ignorata»
+      in `02_tobe`; diagramma ER diviso in due in `01_asis.md`; cattura `03_matrice_perche.png` rifatta a pannello fermo.
+- [x] Scoperta: la regola `build/` del `.gitignore` del repository escludeva l'intera cartella `build/` dell'analisi:
+      gli script non erano mai entrati in git. Ora sono tracciati (aggiunti con `git add -f`): le modifiche ai file già tracciati si vedono normalmente, i file NUOVI in `build/` vanno aggiunti con `git add -f`.
+- [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
+      la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
