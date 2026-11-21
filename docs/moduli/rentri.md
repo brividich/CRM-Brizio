@@ -84,6 +84,13 @@ Dai log di utilizzo del 11-20/11 (audit `rentri_movimento_*`).
 - La M che cita la sua O con lo stesso numero non è più «collegata a sé stessa» (`validazione._errori_rif_op`); `catena.risali_a_carichi` risale dal movimento più a monte (`ORDINE_CATENA`); nella scheda la M non compare fra i propri genitori.
 - **FIR su una riga**: lo storico ha `arrivo_fir` su due righe («…JY\nSCARICO VERIFICATO»); il campo di testo del modulo toglieva l'a capo e salvando le parole si incollavano («JYSCARICO»). Il modulo lo mostra con uno spazio e il server salva il FIR su una riga; nelle note «\r\n» diventa «\n» (prima ogni salvataggio risultava una modifica delle note).
 
+## Completamenti dai log, numero alla creazione, registrazione già annullata (21/11/2026)
+
+- **Unità in blocco** (Verifica, sezione «Registrazioni senza unità di misura», POST `rentri/verifica/completa-unita/` `rentri_completa_unita`, solo gestori): `completa.proposte_unita` propone per codice CER l'unità già scelta sulle altre righe dello stesso codice, altrimenti quella in fondo alla descrizione (`unita_da_testo`: «… Kg», «… Lt», «lampadineKg»); `applica_unita` scrive solo sulle righe valide senza unità, consolidate comprese, audit `rentri_unita_completata` per riga + `rentri_unita_completate`. In produzione (21/11): 271 righe su 19 codici; per l'acqua emulsionata («… Lt») vince kg, scelto a mano.
+- **FIR da R a M** (Verifica, sezione «Numero FIR sulla rettifica…», POST `rentri/verifica/sposta-fir/` `rentri_sposta_fir`): `completa.coppie_fir` = coppie R+M con lo stesso numero, FIR sulla R, M senza, entrambe bozze; `applica_fir` porta il FIR sulla M (su una riga) e lo toglie dalla R, audit `rentri_fir_spostato`. In produzione: 5 coppie.
+- **Numero alla creazione**: il modulo nuovo ha il campo «Numero di registrazione» (vuoto = lo assegna il portale). Con `?da=` da una O (per la M) o da una M (per la R) propone lo stesso numero se `numero_condivisibile`. Il server lo valida con `_errori_numero(..., nuovo=True)` (forma, anno della data, non già usato salvo coppie ammesse).
+- **Registrazione già annullata** (solo nuovi): spunta «Registrazione già annullata sul registro (storico)» + motivo (≥ 5 caratteri) → `salva_movimento(..., annullata=motivo)` la salva già barrata (`annullato_il/da`, `motivo_annullamento`), senza controlli di collegamento e deposito (`valida_movimento(annullata=True)`); audit `rentri_movimento_creato` con `gia_annullata`; il modulo apre la scheda. Per riportare gli storni del registro di carta (caso 2025/1852 del 20/11).
+
 ## KPI cliccabili (18/11/2026)
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.

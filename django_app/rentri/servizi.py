@@ -111,8 +111,14 @@ def annota_collegamenti_tolti(registro: RegistroRifiuti, prima: dict | None, ute
     return tolti
 
 
-def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -> RegistroRifiuti:
+def salva_movimento(
+    request, registro: RegistroRifiuti, *, prima: dict | None, annullata: str | None = None,
+) -> RegistroRifiuti:
     """Valida e salva un movimento nuovo (``prima=None``) o modificato.
+
+    `annullata` (solo per i nuovi) è il motivo di una registrazione già annullata
+    sul registro di carta: si salva barrata, con il suo numero, senza i controlli
+    di deposito e collegamento (non conta nei conti del filo).
 
     Solleva :class:`ErroreRegistro` se il movimento non è valido o è bloccato.
     L'invio a SharePoint avviene dopo il salvataggio e non lo annulla mai.
@@ -120,6 +126,16 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
     from .sharepoint import sincronizza
 
     nuovo = prima is None
+    if annullata is not None:
+        if not nuovo:
+            raise ErroreRegistro("Una registrazione esistente si annulla dalla scheda, con «Annulla».")
+        if len(annullata) < 5:
+            raise ErroreRegistro("Scrivi il motivo dell'annullamento (almeno 5 caratteri).")
+        utente_ann = (registro.inserito_da or getattr(getattr(request, "user", None), "username", "") or "")[:200]
+        registro.annullato = True
+        registro.annullato_il = timezone.now()
+        registro.annullato_da = utente_ann
+        registro.motivo_annullamento = annullata
     if not nuovo and registro.bloccato:
         raise ErroreRegistro(
             "Registrazione consolidata o annullata: non si modifica. "
@@ -131,7 +147,7 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
 
     with transaction.atomic():
         _blocca_contesto(registro)
-        errori = valida_movimento(registro, prima=prima)
+        errori = valida_movimento(registro, prima=prima, annullata=annullata is not None)
         if errori:
             raise ErroreRegistro(errori)
         utente = getattr(getattr(request, "user", None), "username", "") or ""
@@ -153,6 +169,7 @@ def salva_movimento(request, registro: RegistroRifiuti, *, prima: dict | None) -
                 "codice": registro.codice,
                 **({"modifiche": modifiche} if modifiche else {}),
                 **({"rif_op_aggiornati": rinumerati} if rinumerati else {}),
+                **({"gia_annullata": annullata} if annullata is not None else {}),
             },
             oggetto=registro,
         )

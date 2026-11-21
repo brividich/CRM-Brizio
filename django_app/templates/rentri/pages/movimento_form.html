@@ -67,6 +67,13 @@
               {% if numero_bloccato %}readonly title="{{ numero_bloccato }}"{% endif %} autocomplete="off">
             <div class="hub-help">{% if numero_bloccato %}{{ numero_bloccato }}{% else %}Correggilo solo se è stato scritto male: anno/progressivo, non già usato da un altro movimento{% if registro.tipo == "M" %} (può essere quello del suo scarico originale O o della sua rettifica R){% elif registro.tipo == "O" or registro.tipo == "R" %} (può essere quello del suo scarico effettivo M){% endif %}.{% endif %}</div>
           </div>
+          {% else %}
+          <div class="hub-field" id="fld-numero">
+            <label for="f-numero">Numero di registrazione</label>
+            <input type="text" id="f-numero" value="{{ v.numero }}" pattern="\d{4}/\d{1,6}"
+              placeholder="lo assegna il portale" autocomplete="off">
+            <div class="hub-help">{% if v.numero_da %}Stesso numero di {{ v.numero_da }}, come sul registro di carta. Svuotalo per averne uno nuovo.{% else %}Vuoto: lo assegna il portale al salvataggio. Scrivilo solo per riportare una registrazione storica.{% endif %}</div>
+          </div>
           {% endif %}
           <div class="hub-field" id="fld-codice">
             <label for="f-codice">Codice CER<i class="hub-req">*</i></label>
@@ -184,6 +191,21 @@
               Scheda da inviare al RENTRI
             </label>
           </div>
+          {% if not edit_mode %}
+          <div class="hub-col-full">
+            <label class="hub-check rnf-check">
+              <input type="checkbox" id="f-annullata">
+              Registrazione già annullata sul registro (storico)
+            </label>
+            <div id="fld-annullata" hidden>{# hidden su un contenitore semplice: .hub-field ha un display proprio #}
+              <div class="hub-field">
+                <label for="f-motivo-annullamento">Motivo dell'annullamento<i class="hub-req">*</i></label>
+                <textarea id="f-motivo-annullamento" placeholder="Per esempio: annullata dalla registrazione 2025/1863, quantità errata"></textarea>
+                <div class="hub-help">Si salva già barrata, con il suo numero: resta a registro ma non conta nelle giacenze, quindi non passa dal controllo del deposito né dei collegamenti.</div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
         </div>
       </section>
 
@@ -844,6 +866,10 @@
     if ($('f-numero') && !$('f-numero').readOnly) fd.append('id_registrazione', val('f-numero'));
     fd.append('rentri_si_no', $('f-rentri-si-no').checked ? 'true' : 'false');
     fd.append('note_rentri', val('f-note-rentri'));
+    if (!isEdit && $('f-annullata') && $('f-annullata').checked) {
+      fd.append('annullata', 'true');
+      fd.append('motivo_annullamento', val('f-motivo-annullamento'));
+    }
     var file = $('f-allegato') && $('f-allegato').files[0];
     if (file && !overrides) fd.append('allegato', file);
     if (overrides) Object.keys(overrides).forEach(function (k) { fd.set(k, overrides[k]); });
@@ -864,9 +890,13 @@
       .then(function (res) {
         btnSave.disabled = false;
         if (!res.ok) { showAlert(res.error || 'Salvataggio non riuscito.', true); return; }
+        // Già annullata: barrata e bloccata, niente richiesta di invio. Si apre la scheda.
+        if (res.annullata && res.url_scheda) { window.location.href = res.url_scheda; return; }
         savedPk = res.id;
         savedId = res.id_registrazione || savedId;
         isEdit = true;
+        // «Sì, da inviare» rimanda il modulo: con il numero vuoto risulterebbe una correzione.
+        if ($('f-numero')) $('f-numero').value = savedId;
         if (res.avviso_sync) showAlert('Registrazione salvata. ' + res.avviso_sync, false);
         if ($('f-rentri-si-no').checked) { window.location.href = URL_ELENCO; return; }
         $('rnf-modal-id').textContent = savedId;
@@ -910,6 +940,13 @@
       form.querySelectorAll('.hub-field-err').forEach(function (el) { el.classList.remove('hub-field-err'); });
       alertEl.hidden = true;
       refresh();
+    });
+  }
+
+  if ($('f-annullata')) {
+    $('f-annullata').addEventListener('change', function () {
+      $('fld-annullata').hidden = !this.checked;
+      if (this.checked) $('f-motivo-annullamento').focus();
     });
   }
 
