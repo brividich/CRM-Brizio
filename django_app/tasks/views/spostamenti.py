@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.redirects import safe_next
 
 from ..access import scoped_tasks_queryset, task_permissions_required
 from ..models import SpostamentoStato, TaskSpostamento
@@ -32,10 +33,10 @@ def spostamento_decidi(request, sp_id: int):
         svc.decidi(request, sp, approva=approva, nota=request.POST.get("nota", ""), inizio=inizio, fine=fine)
     except ValueError as exc:
         messages.error(request, str(exc) or "Data non valida.")
-        return redirect(request.POST.get("next") or f"/tasks/{sp.task_id}/")
+        return redirect(safe_next(request, request.POST.get("next"), f"/tasks/{sp.task_id}/"))
     log_action(request, "kickoff_spostamento_decidi", "tasks", {"id": sp.pk, "task_id": sp.task_id, "approva": approva})
     messages.success(request, "Spostamento approvato: date aggiornate e coinvolti avvisati." if approva else "Spostamento rifiutato: il richiedente è avvisato.")
-    return redirect(request.POST.get("next") or f"/tasks/{sp.task_id}/")
+    return redirect(safe_next(request, request.POST.get("next"), f"/tasks/{sp.task_id}/"))
 
 
 @require_POST

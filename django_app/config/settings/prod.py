@@ -77,6 +77,11 @@ if not LEGACY_AUTH_ENABLED and not env_bool("ACL_DISABLE_ACKNOWLEDGED", False):
         "In produzione serve anche ACL_DISABLE_ACKNOWLEDGED=1 nel file .env per confermarlo."
     )
 
+# In produzione una pagina senza legame canonico pagina-permesso viene negata, non decisa
+# dal vecchio sistema a pulsanti. In base.py il default resta False (sviluppo, UAT): qui
+# serve ACL_STRICT_CANONICAL=0 esplicito nel .env per spegnerlo (audit S7).
+ACL_STRICT_CANONICAL = env_bool("ACL_STRICT_CANONICAL", True)
+
 DATABASES = {"default": build_database_from_env("sqlserver")}
 DATABASES = aggiungi_db_registro_log(DATABASES)  # noqa: F405 - da base
 

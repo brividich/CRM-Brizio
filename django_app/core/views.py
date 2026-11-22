@@ -16,6 +16,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core import naming
+from core.redirects import safe_next
 from core.audit import log_action
 from core.context_processors import (
     _UI_PREFS_DEFAULTS,
@@ -1098,7 +1099,7 @@ def stop_impersonation(request):
         django_user=getattr(request, "impersonated_user", None) or getattr(request, "user", None),
         legacy_user=getattr(request, "impersonated_legacy_user", None) or getattr(request, "legacy_user", None),
     )
-    next_url = (request.POST.get("next") or "").strip() or "dashboard_home"
+    next_url = safe_next(request, request.POST.get("next"), "dashboard_home")
     if is_impersonation_stop_path(next_url):
         next_url = "dashboard_home"
 

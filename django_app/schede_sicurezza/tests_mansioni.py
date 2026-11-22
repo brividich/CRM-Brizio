@@ -171,12 +171,30 @@ class SdsPerMansioneWorkflowTest(TestCase):
             [("Diluente verniciatura", "ok"), ("Sgrassante senza SDS", "bad")],
         )
 
-    def test_conferma_tutte_registra_presa_visione_e_riapre_cruscotto(self):
+    def test_conferma_tutte_get_non_registra_e_porta_al_cruscotto(self):
+        # Audit S6: l'anteprima dei link di un client di posta fa una GET.
         self.anagrafica.mansione = self.nuova.nome
         self.anagrafica.save(update_fields=["mansione"])
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+
+        self.assertRedirects(
+            response, reverse("schede_sicurezza:sds_da_leggere") + "#ss-da-leggere", fetch_redirect_response=False,
+        )
+        self.assertFalse(PresaVisioneScheda.objects.filter(operatore=self.user).exists())
+        pagina = self.client.get(reverse("schede_sicurezza:sds_da_leggere"))
+        self.assertContains(pagina, reverse("schede_sicurezza:sds_conferma_tutte"))
+        self.assertContains(pagina, f'name="scheda" value="{self.scheda_nuova.pk}"')
+
+    def test_conferma_tutte_post_registra_presa_visione_e_riapre_cruscotto(self):
+        self.anagrafica.mansione = self.nuova.nome
+        self.anagrafica.save(update_fields=["mansione"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("schede_sicurezza:sds_conferma_tutte"), {"scheda": [self.scheda_nuova.pk]},
+        )
 
         self.assertRedirects(response, reverse("schede_sicurezza:sds_da_leggere"))
         self.assertTrue(
@@ -184,12 +202,22 @@ class SdsPerMansioneWorkflowTest(TestCase):
         )
         self.assertEqual(profilo_sds_utente(self.user).da_leggere, [])
 
+    def test_conferma_tutte_post_conferma_solo_le_schede_mostrate(self):
+        self.anagrafica.mansione = self.nuova.nome
+        self.anagrafica.save(update_fields=["mansione"])
+        self.client.force_login(self.user)
+
+        self.client.post(reverse("schede_sicurezza:sds_conferma_tutte"), {})
+
+        self.assertFalse(PresaVisioneScheda.objects.filter(operatore=self.user).exists())
+
     def test_conferma_tutte_e_idempotente_se_gia_confermate(self):
         self.client.force_login(self.user)
-        self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+        dati = {"scheda": [self.scheda_nuova.pk, self.scheda_vecchia.pk]}
+        self.client.post(reverse("schede_sicurezza:sds_conferma_tutte"), dati)
         prima = PresaVisioneScheda.objects.count()
 
-        response = self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+        response = self.client.post(reverse("schede_sicurezza:sds_conferma_tutte"), dati)
 
         self.assertRedirects(response, reverse("schede_sicurezza:sds_da_leggere"))
         self.assertEqual(PresaVisioneScheda.objects.count(), prima)

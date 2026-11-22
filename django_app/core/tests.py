@@ -1266,6 +1266,16 @@ class ImpersonationFlowTests(TestCase):
         self.assertEqual(stop_log.legacy_user_id, self.admin_legacy.id)
         self.assertEqual(stop_log.dettaglio["target_legacy_user_id"], self.target_legacy.id)
 
+    def test_stop_impersonation_ignora_next_esterno(self):
+        # Audit S2: il ritorno dopo la fine dell'impersonazione resta sul portale.
+        self.client.force_login(self.admin_user)
+        self.client.post(
+            reverse("admin_portale:utente_impersonate", args=[self.target_legacy.id]), {"next": reverse("profilo")},
+        )
+        r = self.client.post(reverse("stop_impersonation"), {"next": "https://evil.example/login"})
+        self.assertEqual(r.status_code, 302)
+        self.assertNotIn("evil.example", r["Location"])
+
     def test_impersonation_mail_follows_admin_switch(self):
         from django.core import mail
 

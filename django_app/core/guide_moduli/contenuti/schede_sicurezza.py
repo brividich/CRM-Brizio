@@ -17,6 +17,9 @@ GUIDA = {
                     "Leggi la scheda, poi clicca «Confermo di aver letto la scheda».",
                     "Ripeti per le altre. Quelle già confermate sono in «SDS correnti gia' confermate».",
                 ]),
+                ("p", "Se le hai già lette tutte, sotto l'elenco c'è «Confermo di aver letto tutte le N schede»: registra in un clic "
+                      "la presa visione delle schede mostrate. Il link «ho letto tutte» della mail porta a questa pagina e non registra "
+                      "nulla da solo: serve sempre il clic sul pulsante."),
                 ("p", "Le schede da leggere dipendono dalle tue mansioni di rischio: quella scritta in Anagrafica più quelle "
                       "delle mansioni che svolgi (Mansionario). Se cambi mansione o esce una nuova versione, ti arriva una notifica."),
             ],

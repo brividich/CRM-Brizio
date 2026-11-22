@@ -24,6 +24,8 @@ Ogni ondata è rilasciabile da sola. Per ciascuna: test solo delle app toccate c
 
 ### Ondata 1 — Sicurezza rapida · `feature/sicurezza-rimedi-audit` · nessuna migrazione
 
+**Stato 22/11: fatta** (S2-S7). Censimento S4: nessun segnaposto con HTML generato dal portale, `SEGNAPOSTO_HTML_AMMESSI` vuoto. Trovato e corretto anche il corpo libero dei modelli di approvazione (`approval_email_templates.py`), che aveva lo stesso difetto.
+
 | Voce | Intervento | File | Test |
 |---|---|---|---|
 | S2 [11] | `next` passato da `safe_next` / `url_has_allowed_host_and_scheme`, ripiego sulla pagina dell'attività | `tasks/views/spostamenti.py:35,38`; `core/views.py:1101-1116` | redirect esterno → pagina interna |

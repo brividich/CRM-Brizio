@@ -121,6 +121,18 @@ class RichiestaSpostamentoTests(SpostamentiBase):
         self.task.refresh_from_db()
         self.assertEqual(self.task.due_date, date(2026, 12, 5))
 
+    def test_next_esterno_ignorato(self):
+        # Audit S2: dopo la decisione non si finisce su un sito esterno.
+        self.client.force_login(self.inc)
+        self.client.post(reverse("tasks:update_due_date", args=[self.task.pk]), {"due_date": "2026-12-12"})
+        sp = TaskSpostamento.objects.get()
+        self.client.force_login(self.cc)
+        r = self.client.post(
+            reverse("tasks:spostamento_decidi", args=[sp.pk]), {"decisione": "rifiuta", "next": "https://evil.example/x"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r["Location"], f"/tasks/{self.task.pk}/")
+
     def test_incaricato_non_puo_decidere(self):
         self.client.force_login(self.inc)
         self.client.post(reverse("tasks:update_due_date", args=[self.task.pk]), {"due_date": "2026-12-12"})

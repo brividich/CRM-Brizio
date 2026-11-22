@@ -681,22 +681,27 @@ def sds_da_leggere(request):
 
 @login_required
 def sds_conferma_tutte(request):
-    """Conferma in un click tutte le SDS dovute dalla mansione corrente (link da email).
+    """Conferma di tutte le SDS dovute dalla mansione corrente (link «ho letto tutte» della mail).
 
-    Ricalcola sempre le SDS dovute dal profilo live dell'utente loggato (mai da un
-    token con dati potenzialmente stantii): l'azione resta scoperta a sole le
-    proprie schede, poi riporta comunque sul cruscotto, come richiesto per il link
-    "ho letto tutte" nella mail di cambio mansione.
+    La GET non registra nulla: porta al cruscotto, dove l'elenco delle schede ha il
+    pulsante «Confermo di aver letto». Cosi' l'anteprima automatica dei link di un
+    client di posta non puo' registrare una presa visione (audit S6).
+    La POST conferma solo le schede mostrate in pagina (``scheda`` ripetuto) che sono
+    ancora dovute dal profilo live dell'utente loggato: mai da dati stantii.
     """
     if not _can_view(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dashboard:dashboard")
+    if request.method != "POST":
+        return redirect(f"{reverse('schede_sicurezza:sds_da_leggere')}#ss-da-leggere")
+    mostrate = {int(v) for v in request.POST.getlist("scheda") if str(v).isdigit()}
     profilo = profilo_sds_utente(request.user)
-    da_confermare = profilo.da_leggere
+    da_confermare = [s for s in profilo.da_leggere if s.pk in mostrate]
     for scheda in da_confermare:
         PresaVisioneScheda.objects.get_or_create(scheda=scheda, operatore=request.user)
     if da_confermare:
         n = len(da_confermare)
+        log_action(request, "sds_conferma_tutte", "schede_sicurezza", {"schede": [s.pk for s in da_confermare]})
         messages.success(
             request,
             f"Presa visione registrata per {n} {'scheda' if n == 1 else 'schede'} di sicurezza.",
