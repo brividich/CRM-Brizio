@@ -171,7 +171,7 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Proposti sette strumenti; accettati i primi tre («ok»), fatti:
       - `Fattibilita_RMC_Decisioni.pdf`: foglio delle decisioni, una pagina, con caselle e firme
         (`build/pdf_decisioni.html`, generato da `build/costruisci_pdf.py`);
-      - `Fattibilita_RMC_Presentazione.pptx`: 12 diapositive con note per chi presenta
+      - `Fattibilita_RMC_Presentazione.pptx`: 12 diapositive con note per chi presenta (poi ridotte a 7)
         (`build/costruisci_presentazione.js`, pptxgenjs; servono NODE_PATH e PPTX_SKILL; controllata esportandola
         con PowerPoint). File locale: non pubblicata su servizi esterni perché contiene conteggi reali;
       - `Catalogo_pilota_CN5G.xlsx`: 11 competenze e 10 macchine del reparto CN5G trascritte dal MOD.053 Rev.4, con le
@@ -180,6 +180,16 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       Non fatti, rimandati a dopo l'incontro: questionario ridotto compilabile, schema di revisione di MT CN 06,
       ritocchi al prototipo (macchine e competenze vere, emissione firmata, blocco sui liquidi penetranti).
       Scelte prese senza risposta esplicita: formato PowerPoint, reparto pilota CN5G.
+- [x] Riscontro del proprietario (22/11): **«molto complessa; inoltre quello che oggi è presente sul portale sono solo
+      test, non va preso di riferimento»**. Fatto:
+      - presentazione rifatta in **7 diapositive** (erano 12), una idea ciascuna, senza tabelle di confronto;
+      - i conteggi del portale (242 mansioni, 443 livelli, 56 persone su 135, «0 su…») tolti da sintesi per la Direzione,
+        foglio delle decisioni e presentazione; al loro posto la skill matrix firmata (79 mansioni, circa 690 livelli,
+        circa 100 persone); lo script dei PDF ora segnala se quei numeri ricompaiono nella sintesi;
+      - `01_asis.md`, `02_tobe`, `04_gap_sgi.md` e sommario del PDF tecnico: nota che i dati del portale per skill matrix
+        e mansionario sono **caricamenti di prova**; all'avvio si carica la skill matrix firmata, non si parte da quelli.
+      Mia interpretazione, da confermare: «test» riguarda skill matrix, mansionario e abilitazioni; l'archivio dei corsi
+      (774 corsi dal 1995) l'ho lasciato com'è. Il §8 di `01_asis.md` resta come fotografia dell'ambiente, con la nota.
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 

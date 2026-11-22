@@ -1,7 +1,7 @@
 # 02 — TO-BE: flusso e algoritmo
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.3 · 21/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; recepite le decisioni del proprietario
+Versione 0.4 · 22/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; recepite le decisioni del proprietario
 (§0).
 
 > **Tutto ciò che segue è una proposta.** Le decisioni su contenuti, relazioni e regole HR spettano al proprietario
@@ -10,6 +10,10 @@ Versione 0.3 · 21/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; re
 > **Correzioni dopo il confronto con il sistema di gestione in vigore** (`04_gap_sgi.md` §5): definizione dei
 > livelli e soglia di firma, emissione approvata della skill matrix, blocco per i controlli non distruttivi,
 > catalogo da caricare e non da scrivere.
+>
+> **Punto di partenza dei dati.** I livelli e le mansioni oggi nel portale sono caricamenti di prova: dove il testo
+> parla dei «livelli attuali» da portare nel nuovo modello, si intende la **skill matrix firmata in vigore**
+> (MOD.187), non il contenuto del portale.
 >
 > **Ipotesi dichiarate.** Le 18 domande per la Qualità (`Domande_per_la_Qualita.md`) non hanno ancora risposta. Il
 > progetto adotta per ciascuna l'ipotesi indicata nel questionario e la marca con **[ipotesi Dn]**; dove la risposta
@@ -933,7 +937,7 @@ cache; la proiezione serve alle pagine di elenco, non alla velocità del calcolo
 
 | Tappa | Contenuto | Come si torna indietro |
 | --- | --- | --- |
-| 0 | Catalogo delle competenze caricato dalla tabella dei MOD.053 e MOD.039, completato con livello atteso e criticità su un reparto pilota; skill matrix riallineata al MOD.187 in vigore | Nessun effetto sul resto |
+| 0 | Catalogo delle competenze caricato dalla tabella dei MOD.053 e MOD.039, completato con livello atteso e criticità su un reparto pilota; skill matrix caricata dal MOD.187 in vigore | Nessun effetto sul resto |
 | 1 | Nuovi modelli, vuoti; motore in **sola lettura** accanto a quello attuale; pagina di confronto | Si spegne la pagina |
 | 2 | SF attiva sul reparto pilota; i livelli si scrivono ancora anche col vecchio gesto | Si torna al vecchio gesto |
 | 3 | SF di impianto alla data di demarcazione; validità calcolata; il ricalcolo automatico smette di scrivere livelli | Interruttore di configurazione |

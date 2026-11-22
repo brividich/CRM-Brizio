@@ -1,4 +1,4 @@
-Tecnico: 93 pagine, 8.3 MB; pagine vuote: nessuna
+Tecnico: 92 pagine, 8.3 MB; pagine vuote: nessuna
 Tecnico: caratteri incorporati: , Consolas, Consolas-Bold, SegoeUI, SegoeUI-Bold, SegoeUI-Semibold, SegoeUISymbol
 Tecnico: elementi che sbordano dall'area di stampa: 0
 Tecnico: diagrammi Mermaid convertiti in SVG: 16; schermate: 21
@@ -10,5 +10,5 @@ Direzione: termini vietati dalla missione (FSM, motore, cache, ACL, HTMX, DB): N
 Direzione: altri termini informatici (database, algoritmo, algoritmi, Django, template, migrazione, migrazioni, backend, frontend, server, query, script, software, API, SQL, JSON, CSS, HTML, workflow, repository, deploy, bug, codice, sistema informativo, lorem): NESSUNO
 Decisioni: 1 pagina/e (OK: una); elementi che sbordano: 0; termini vietati: NESSUNO
 Coerenza: motore di riferimento, Marco Rivalta su «DM6 – Fresatura 5 assi grande formato»: 5 requisiti su 6 (OK)
-Coerenza: Tecnico, 21 valori su 21 presenti
-Coerenza: Direzione, 13 valori su 13 presenti
+Coerenza: Tecnico, 20 valori su 20 presenti
+Coerenza: Direzione, 9 valori su 9 presenti

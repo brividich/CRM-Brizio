@@ -762,8 +762,8 @@ def fai_direzione(browser, raster: Path | None) -> list[str]:
         "Sintesi per la Direzione", "Le persone giuste sul lavoro giusto, con le prove in mano",
         "Ruoli, mansioni e competenze nel portale: che cosa proponiamo, che cosa serve, che cosa chiediamo di decidere.",
         "Direzione",
-        "È una proposta: nulla è stato cambiato nel portale. I numeri sul presente sono conteggi letti dal portale il "
-        "21 novembre 2026; gli esempi usano nomi e dati inventati."), "", "Fattibilità RMC · sintesi per la Direzione"),
+        "È una proposta: nulla è stato cambiato nel portale. I numeri sul presente vengono dalla skill matrix in vigore; "
+        "gli esempi usano nomi e dati inventati."), "", "Fattibilità RMC · sintesi per la Direzione"),
         encoding="utf-8")
     uscita = RADICE / "Fattibilita_RMC_Direzione.pdf"
     with tempfile.TemporaryDirectory() as tmp:
@@ -823,11 +823,15 @@ def coerenza() -> list[str]:
         f'{s["CONFORME"]} conformi · {s["CON_RISERVA"]} con riserva · {s["SOTTO_SUPERVISIONE"]} sotto supervisione · {s["NON_CONFORME"]} non conformi',
         f'{sb["CONFORME"]} · {sb["CON_RISERVA"]} · {sb["SOTTO_SUPERVISIONE"]} · {sb["NON_CONFORME"]}',
         f'{q["persone"]} persone', f'{q["mansioni"]} mansioni', f'{q["competenze"]} competenze',
-        "242 mansioni lavorative", "443", "203", "56 persone su 135", "MT CN 06 Rev.21", "circa 690", "774 corsi", "595", "51 controlli", "da 18 a 31",
+        "443", "203", "MT CN 06 Rev.21", "circa 690", "caricamenti di prova", "774 corsi", "595", "51 controlli", "da 18 a 31",
         "da 7 a 11", "Marco Rivalta", "Giulia Ferrante", "Aldo Bianchetti", "Sara Colombari", "Piero Lombardini",
     ]
-    attesi_direzione = ["242", "443", "203", "56 su 135", "5 ingredienti su 6", "Marco Rivalta", "18 domande",
-                        "7-11 settimane", "4-7 mesi", "0 su 242", "0 su 443", "gennaio 2027", "sedici pagine"]
+    attesi_direzione = ["circa 690", "circa 100", "5 ingredienti su 6", "Marco Rivalta", "18 domande",
+                        "7-11 settimane", "4-7 mesi", "gennaio 2027", "sedici pagine"]
+    # i dati oggi nel portale sono caricamenti di prova: nella sintesi non devono comparire
+    for vietato in ("242", "443", "su 135"):
+        if vietato in direzione:
+            attesi_direzione.append(f"ASSENZA di «{vietato}» (dato di prova del portale)")
     marco = ris["casi"]["P01"]["potenziali"][0]
     esiti = [f'Coerenza: motore di riferimento, Marco Rivalta su «{marco["nome"]}»: {marco["ok"]} requisiti su {marco["tot"]}'
              + (" (OK)" if (marco["ok"], marco["tot"]) == (5, 6) else " (DIVERSO dal testo: 5 su 6)")]

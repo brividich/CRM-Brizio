@@ -1,7 +1,7 @@
 # 04 — Confronto con il Sistema di Gestione Integrato in vigore
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 1.0 · 21/11/2026 · aggiunta dopo la Fase 4, su richiesta del proprietario.
+Versione 1.1 · 22/11/2026 · aggiunta dopo la Fase 4, su richiesta del proprietario.
 
 > **Che cosa confronta.** I documenti in vigore del Sistema di Gestione Integrato, letti in sola lettura dalla cartella
 > di rete `\\novisrv\sistema gestione integrato` (272 file, esclusa la cartella «SUPERATO»), con tre cose: ciò che il
@@ -30,8 +30,8 @@ Versione 1.0 · 21/11/2026 · aggiunta dopo la Fase 4, su richiesta del propriet
 5. **Per i controlli non distruttivi la sospensione è obbligatoria**, non una segnalazione: MT CN 65 la impone a visita
    visiva scaduta, dopo 12 mesi senza operare e a verifica annuale scaduta. La scelta «solo segnalazione» resta valida
    in generale, ma su queste competenze il blocco è un requisito scritto.
-6. **La skill matrix ufficiale e il portale non coincidono**: il MOD.187 del 30/04/2026 conta circa 690 livelli per
-   circa 100 persone su 79 mansioni; il portale 443 livelli per 82 persone su 60 mansioni.
+6. **Il riferimento per i dati è la skill matrix firmata**: il MOD.187 del 30/04/2026 conta circa 690 livelli per
+   circa 100 persone su 79 mansioni. Ciò che oggi è nel portale è un caricamento di prova e non va considerato.
 7. **Il livello «O» è spiegato dalla legenda**: nel MOD.187 e nel MOD.053 vale «insegna / programma a bordo macchina»,
    non solo «formatore». Anche nella skill matrix ufficiale è il 46% dei livelli.
 8. Nove delle 18 domande del questionario trovano risposta, in tutto o in parte, nei documenti in vigore.
@@ -93,12 +93,15 @@ La procedura cita il **MOD.192 HRO, lista di controllo di ingresso e uscita**, c
 
 ## 3. Scostamenti fra la procedura e il portale di oggi
 
+Il confronto riguarda **le funzioni** del portale. I dati che oggi contiene per questa parte sono caricamenti di
+prova (indicazione del proprietario): le righe che citano numeri descrivono quell'ambiente, non l'azienda.
+
 | # | La procedura chiede | Il portale oggi | Scostamento |
 | --- | --- | --- | --- |
 | G1 | A livello L si lavora in autonomia sulle operazioni note e si firma (S1) | Soglia operativa fissata a U (`models_skillmatrix.py:73`); sotto la soglia l'esito è «in addestramento» | **Il portale è più severo della procedura.** Una delle due va allineata |
 | G2 | Skill matrix approvata e firmata da Direzione/RDD a ogni emissione (S8) | Nessun atto di approvazione dell'emissione; il ruolo che avvia la tornata è «solo innesco, non approvatore» (`models_skillmatrix.py:755`) | **Manca.** È la condizione che rende valida la matrice |
-| G3 | Skill matrix ufficiale: circa 690 livelli, circa 100 persone, 79 mansioni (30/04/2026) | 443 livelli in lista, 82 persone, 60 mansioni con persone; 242 mansioni attive in tutto | **I dati non coincidono.** Il portale non è la copia della matrice in vigore |
-| G4 | Tabella ruoli, mansioni e competenze nei MOD.053 e MOD.039 (S20) | Nessuna competenza definita, catalogo unico vuoto | **Il contenuto c'è, non è stato caricato** |
+| G3 | Skill matrix ufficiale: circa 690 livelli, circa 100 persone, 79 mansioni (30/04/2026) | 443 livelli in lista, 82 persone, 60 mansioni con persone; 242 mansioni attive in tutto | **Il portale contiene caricamenti di prova**: non va confrontato né allineato. All'avvio si carica la matrice in vigore |
+| G4 | Tabella ruoli, mansioni e competenze nei MOD.053 e MOD.039 (S20) | Nessuna competenza definita, catalogo unico vuoto | **Il contenuto c'è sulla carta**; nel portale va caricato all'avvio |
 | G5 | Verifica semestrale (S7) | Periodicità di 6 mesi a sistema; una sola campagna aperta, nessuna data di prossima revisione valorizzata | Previsto ma non in uso |
 | G6 | Ridondanza: due persone a livello U per fase (S6) | La copertura è calcolata; nessuna soglia configurata; 17 mansioni con una sola persona a U o O | Previsto ma non configurato |
 | G7 | Firma con timbro valido **e** autorizzazione vigente (S9) | Esiste la gestione dei timbri (`services/mpq_timbri.py`); non risulta una condizione che leghi la firma alla skill matrix | Da verificare nel dettaglio |
@@ -141,7 +144,7 @@ Richieste, cruscotti, validità calcolata.
 | K2 | RDD autorizza solo alcuni passaggi di livello | Direzione/RDD approva ogni emissione della skill matrix (S8) | **Aggiunta l'emissione approvata**: a ogni verifica semestrale RDD firma la fotografia della matrice; fra un'emissione e l'altra valgono gli atti singoli. Da confermare con la Qualità |
 | K3 | Segnalazione ovunque, blocco come alternativa | Sospensione obbligatoria per i controlli non distruttivi (S17) | **Il blocco è la regola per le competenze regolate da MT CN 65**; per il resto vale la segnalazione decisa dal proprietario |
 | K4 | Il catalogo delle competenze va scritto da zero | La tabella esiste nei MOD.053 e MOD.039 (S20) | **La tappa 0 diventa un caricamento**: si importa la tabella e la Qualità aggiunge livello atteso e criticità |
-| K5 | I 443 livelli del portale entrano con la sessione di impianto | La skill matrix in vigore ne conta circa 690 (G3) | **Prima dell'impianto il portale va riallineato al MOD.187 in vigore** |
+| K5 | I livelli oggi nel portale entrano con la sessione di impianto | Il portale contiene dati di prova; la skill matrix in vigore conta circa 690 livelli (G3) | **I dati del portale sono di prova: all'avvio si carica la skill matrix firmata in vigore**, non si parte da quelli |
 | K6 | Le sigle RDD, MSO, CAR non sono sciolte nelle fonti | RDD Responsabile della Direzione, MSO Management System Officer, CAR Capo Area o Capo Reparto, MSM Management System Manager, MSA Management System Assistant | Glossario corretto |
 | K7 | Riferimenti EN 9100 in sintesi, da verificare | Il testo dei punti 7.1.2, 7.2, 7.3 è nella cartella; MT CN 06 §8.7 ne riprende gli otto contenuti di consapevolezza | Appendice verificata sul testo |
 | K8 | Conferma periodica a 6 mesi, come proposta | Verifica semestrale prescritta (S7) | Confermata: non è un'ipotesi, è la procedura |

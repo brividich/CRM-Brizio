@@ -12,16 +12,13 @@ dati. Dei 34 requisiti ricavati dai due documenti, oggi 2 sono coperti, 21 lo so
 spiegabile e ricalcolato ogni notte ({§01:3}). Manca il flusso: mansione e livello oggi si scrivono direttamente,
 senza richiesta, senza evidenza e senza firma.
 
-**Il vero ostacolo sono i contenuti, non il codice.** Nel portale, al 21/11/2026 ({§01:8}):
-
-| 242 mansioni lavorative | 0 competenze definite | 0 regole di obbligo formativo | 443 livelli, tutti scritti a mano (203 al livello «O») | 56 persone su 135 senza mansione in lista |
-| --- | --- | --- | --- | --- |
-
-Il sistema di gestione in vigore ha però già ciò che al portale manca ({§04:0}): la tabella delle competenze per ruolo
-e mansione (MOD.053 Rev.4), la definizione dei livelli e le regole di approvazione (MT CN 06 Rev.21). Il confronto
-ha corretto quattro punti della proposta: a livello L si firma; ogni emissione della skill matrix è approvata da
-RDD; per i controlli non distruttivi la sospensione è obbligatoria; la skill matrix ufficiale (circa 690 livelli)
-non coincide con quella del portale (443).
+**Il riferimento è il sistema di gestione, non i dati del portale.** Ciò che oggi è caricato nel portale per skill
+matrix e mansionario è un insieme di caricamenti di prova: i conteggi del capitolo 3 descrivono quell'ambiente e non
+vanno usati come punto di partenza ({§01:8}). Il sistema di gestione in vigore ha invece ciò che serve ({§04:0}): la
+skill matrix firmata (circa 690 livelli, circa 100 persone, 79 mansioni), la tabella delle competenze per ruolo e
+mansione (MOD.053 Rev.4), la definizione dei livelli e le regole di approvazione (MT CN 06 Rev.21). Il confronto ha
+corretto tre punti della proposta: a livello L si firma; ogni emissione della skill matrix è approvata da RDD; per i
+controlli non distruttivi la sospensione è obbligatoria.
 
 **Che cosa si propone** ({§02:1}).
 
@@ -83,7 +80,7 @@ l'analisi ha proceduto: se la risposta è diversa, cambia ciò che è scritto ne
 | 1 | Vocabolario dei livelli e soglia di firma (domanda 1) | Qualità | Valgono le definizioni di MT CN 06: a L si firma. Nel portale la soglia è U | Va allineata la procedura o il portale ({§04:3}) |
 | 2 | Il livello può scendere, e con quale atto (domanda 5) | Qualità | Non scende da solo: scende la validità; il livello cambia solo con una SF di revisione | Con la discesa automatica si passa al modello C ({§02:4}) |
 | 3 | Segnalare o bloccare | Proprietario, sentita la Direzione | **Deciso: segnalazione.** Il blocco resta attivabile, anche per le sole competenze dei processi qualificati | Nessuna modifica ai dati: è un parametro ({§02:3.3}) |
-| 4 | **Data di demarcazione e storico** | Qualità e proprietario | I 443 livelli attuali entrano con una SF di impianto in modalità «pregresso» (ipotesi: gennaio 2027) | Vedi sotto: è il dubbio aperto |
+| 4 | **Data di demarcazione e storico** | Qualità e proprietario | I livelli della skill matrix firmata entrano con una SF di impianto in modalità «pregresso» (ipotesi: gennaio 2027); i dati oggi nel portale sono di prova e non si usano | Vedi sotto: è il dubbio aperto |
 | 5 | Chi è in formazione compare in skill matrix (domanda 12) | Qualità | Sì, come mansione «avviata», distinta da «effettiva» | Basta un filtro: il modello non cambia |
 | 6 | Chi firma e chi sostituisce RDD e MSO (domanda 14) | Qualità e Direzione | RDD approva, e firma ogni emissione della skill matrix; MSO firma l'esito dell'aggiornamento mansione, ruolo nuovo rispetto a MT CN 06; sostituti e deleghe a termine | Cambia il blocco B7; va chiuso prima di attivare la RAM |
 | 7 | Regola del livello sulla mansione (domanda 4) | Qualità | **Deciso dal proprietario:** il più basso fra le competenze bloccanti | Con la media attuale chi è in regola può risultare «in addestramento» ({§02:3.4}) |

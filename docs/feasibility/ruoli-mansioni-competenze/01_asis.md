@@ -1,9 +1,14 @@
 # 01 — AS-IS e tracciabilità dei requisiti
 
 **Analisi di fattibilità: Ruoli → Mansioni → Competenze → Formazione (NOVICROM HUB, app `anagrafica`)**
-Versione 0.3 · 21/11/2026 · Fase 1 (ricognizione), con lo studio del modulo Formazione (§11) e le risposte tecniche del
+Versione 0.4 · 22/11/2026 · Fase 1 (ricognizione), con lo studio del modulo Formazione (§11) e le risposte tecniche del
 proprietario (§9.2). Stato: GATE 1 riaperto, in attesa di conferma.
 
+> **I dati del portale non sono un riferimento** (indicazione del proprietario, 22/11/2026). Ciò che oggi è caricato
+> nel portale per skill matrix, mansionario e abilitazioni è un insieme di **caricamenti di prova**. I conteggi
+> riportati in questo documento descrivono quell'ambiente, non l'azienda: non vanno usati come punto di partenza né
+> come misura del problema. Il riferimento è il sistema di gestione in vigore (`04_gap_sgi.md`).
+>
 > **Aggiornamento.** Le procedure del sistema di gestione, qui indicate come non disponibili, sono state poi lette
 > dalla cartella di rete: il confronto è in `04_gap_sgi.md` e corregge i punti 6 e 7 della sintesi e il §10.
 >
