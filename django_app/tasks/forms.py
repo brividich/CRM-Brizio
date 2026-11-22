@@ -540,7 +540,7 @@ class TaskForm(forms.ModelForm):
             "subscribers",
         ]
         widgets = {
-            "title": forms.TextInput(attrs={"class": "input", "maxlength": 200}),
+            "title": forms.TextInput(attrs={"class": "input", "maxlength": 200, "list": "cat-attivita", "autocomplete": "off"}),
             "description": forms.Textarea(attrs={"class": "input", "rows": 4}),
             "tags": forms.TextInput(attrs={"class": "input", "maxlength": 250, "placeholder": "es. produzione, urgente"}),
             "status": forms.Select(attrs={"class": "input"}),

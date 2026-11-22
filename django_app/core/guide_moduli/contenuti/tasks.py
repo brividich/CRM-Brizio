@@ -63,7 +63,7 @@ GUIDA = {
                     ("Dettaglio ed esito dell'incontro", "«Attività di questo incontro»: scrivi il titolo e premi Invio; la pagina non si ricarica."),
                     ("Conduci incontro", "«Registro dell'incontro», a destra, con tipo Attività (con un punto scelto senza attività, il punto la prende); o «+ Nuova attività» sul punto. Le attività entrano nel Piano, attività d'incontro e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
                 ]),
-                ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo, priorità e attrezzatura."),
+                ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo e priorità. L'attrezzatura si gestisce dalla tappa «Attrezzatura» del Percorso o dal form completo («+ Attività», «Altre opzioni»)."),
             ],
         },
         {

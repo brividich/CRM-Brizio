@@ -99,3 +99,5 @@ La colonna «Oggetto della mail» (12/11/2026) legge `automazioni.schedules.DIGE
 ## Avvisi a chi chiede e a chi gestisce (18/11/2026)
 
 - `automazioni/campanella.py`: chi riceve la mail di un'azione «Invia mail» o la richiesta «Chiedi approvazione» trova anche la notifica in campanella. Di default per le sorgenti `tickets` e `assenze` (che non la creavano); per le altre `"campanella": true` nella config dell'azione, `false` la spegne. Solo destinatari `to`; niente in anteprima; doppione (stessa persona, stesso link, stesso modulo entro 3 minuti) scartato.
+
+**Mail HTML e segnaposto (audit S4, 22/11/2026):** nel `body_html_template` di «Invia mail» e nel corpo libero dei modelli di approvazione i valori dei segnaposto passano da `escape` (`render_template_string(..., html=True)`); oggetto, testo semplice e Teams restano invariati. Fanno eccezione solo le chiavi in `automazioni.services.SEGNAPOSTO_HTML_AMMESSI` (vuoto: da riempire solo con valori HTML generati dal codice).

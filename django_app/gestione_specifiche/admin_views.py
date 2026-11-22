@@ -6,13 +6,18 @@ i rispettivi interventi non le riempiono.
 """
 from __future__ import annotations
 
+from functools import wraps
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import constants as C
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
 from .models import (
@@ -40,7 +45,28 @@ def utente_puo_admin(request) -> bool:
         return False
 
 
-@login_required
+def admin_specifiche_required(view):
+    """Login + permesso ``PERM_ADMIN`` controllato nella vista.
+
+    Non basta il controllo generale per rotta: se il legame pagina-permesso manca o
+    viene tolto dalla matrice, la pagina non deve restare aperta (audit S5).
+    """
+    @login_required
+    @wraps(view)
+    def _wrapped(request, *args, **kwargs):
+        if not utente_puo_admin(request):
+            raise PermissionDenied("Serve il permesso di amministrazione di Gestione specifiche.")
+        return view(request, *args, **kwargs)
+
+    return _wrapped
+
+
+_TIMBRO_ESTENSIONI = {".pdf", ".png", ".jpg", ".jpeg"}
+_TIMBRO_MIME = {"application/pdf", "image/png", "image/jpeg"}
+_TIMBRO_MAX_BYTES = 10 * 1024 * 1024
+
+
+@admin_specifiche_required
 def admin_home(request):
     """Landing della sezione Amministrazione: card per ogni area gestibile."""
     cfg = AutoApprovazioneConfig.get_config()
@@ -56,7 +82,7 @@ def admin_home(request):
     })
 
 
-@login_required
+@admin_specifiche_required
 def admin_notifiche(request):
     """#5 — Config notifiche/assegnazione: reparto IN1 + nomi aggiuntivi + email on/off."""
     from django.contrib.auth import get_user_model
@@ -78,7 +104,7 @@ def admin_notifiche(request):
                   {"cfg": cfg, "utenti": utenti, "selezionati": selezionati})
 
 
-@login_required
+@admin_specifiche_required
 def admin_log(request):
     """Log/Audit del modulo: cronologia EventoSpecifica (sola lettura), con filtri."""
     from django.core.paginator import Paginator
@@ -100,7 +126,7 @@ def admin_log(request):
     })
 
 
-@login_required
+@admin_specifiche_required
 def admin_specifiche(request):
     """Elenco potente di TUTTE le specifiche (ogni stato): ricerca/filtro + riassegna incaricato."""
     from django.core.paginator import Paginator
@@ -119,7 +145,7 @@ def admin_specifiche(request):
     })
 
 
-@login_required
+@admin_specifiche_required
 @require_POST
 def admin_specifica_riassegna(request, pk: int):
     """Riassegna l'incaricato di una specifica ("" = gruppo IN1)."""
@@ -131,7 +157,7 @@ def admin_specifica_riassegna(request, pk: int):
     return redirect("gestione_specifiche:admin_specifiche")
 
 
-@login_required
+@admin_specifiche_required
 def admin_timbri(request):
     """#2 — Timbri «RICEVUTO» per capocommessa: elenco + caricamento (file SENZA data)."""
     from django.contrib.auth import get_user_model
@@ -141,6 +167,14 @@ def admin_timbri(request):
         if not codice or "file" not in request.FILES:
             messages.error(request, "Codice e file del timbro sono obbligatori.")
         else:
+            try:
+                validate_extension_and_mime(
+                    request.FILES["file"], allowed_extensions=_TIMBRO_ESTENSIONI, allowed_mimes=_TIMBRO_MIME,
+                    max_bytes=_TIMBRO_MAX_BYTES, label="File del timbro", allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                messages.error(request, str(exc))
+                return redirect("gestione_specifiche:admin_timbri")
             uid = (request.POST.get("utente") or "").strip()
             tipo = (request.POST.get("tipo") or "").strip()
             valid_tipi = {c[0] for c in TimbroCapocommessa.TIPO_CHOICES}
@@ -164,7 +198,7 @@ def admin_timbri(request):
     })
 
 
-@login_required
+@admin_specifiche_required
 @require_POST
 def admin_timbro_delete(request, pk: int):
     """Elimina un timbro (file compreso)."""
@@ -179,7 +213,7 @@ def admin_timbro_delete(request, pk: int):
     return redirect("gestione_specifiche:admin_timbri")
 
 
-@login_required
+@admin_specifiche_required
 def admin_cartelle(request):
     """Gestione mappatura Cliente → cartella share: lista + aggiungi (POST)."""
     if request.method == "POST":
@@ -199,7 +233,7 @@ def admin_cartelle(request):
     })
 
 
-@login_required
+@admin_specifiche_required
 @require_POST
 def admin_cartella_edit(request, pk: int):
     """Modifica cartella / attiva-disattiva una mappatura."""
@@ -213,7 +247,7 @@ def admin_cartella_edit(request, pk: int):
     return redirect("gestione_specifiche:admin_cartelle")
 
 
-@login_required
+@admin_specifiche_required
 @require_POST
 def admin_cartella_delete(request, pk: int):
     """Elimina una mappatura cliente→cartella."""
@@ -224,7 +258,7 @@ def admin_cartella_delete(request, pk: int):
     return redirect("gestione_specifiche:admin_cartelle")
 
 
-@login_required
+@admin_specifiche_required
 def admin_auto_approva(request):
     """#3 — Config auto-approvazione MOD.133: attiva + approvatore MSO."""
     from django.contrib.auth import get_user_model
@@ -251,7 +285,7 @@ def admin_auto_approva(request):
                   {"cfg": cfg, "utenti": utenti, "auto_recenti": auto_recenti})
 
 
-@login_required
+@admin_specifiche_required
 def admin_sincronizzazione(request):
     """Sincronizzazione del catalogo con la cartella della share: interruttore, stato, «Sincronizza ora»."""
     from core.audit import log_action

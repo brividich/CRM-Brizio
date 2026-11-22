@@ -50,11 +50,11 @@ DEMO_PAYLOAD: dict[str, Any] = {
 
 # ── Helpers interni ───────────────────────────────────────────────────────────
 
-def _render(template_str: str | None, context: dict[str, Any]) -> str:
+def _render(template_str: str | None, context: dict[str, Any], *, html: bool = False) -> str:
     """Rendering semplice {placeholder} — riusa la stessa logica di services.render_template_string."""
     # Import locale per evitare dipendenza circolare (services importa già questo modulo)
     from .services import render_template_string
-    return render_template_string(template_str, context)
+    return render_template_string(template_str, context, html=html)
 
 
 def _parse_facts_lines(facts_lines: str, context: dict[str, Any]) -> list[dict[str, str]]:
@@ -245,7 +245,8 @@ def render_approval_email(
 
     if template.body_template:
         # Corpo libero: l'admin ha scritto HTML custom
-        inner_html = _render(template.body_template, ctx)
+        # I valori dei segnaposto sono neutralizzati: l'HTML e' solo quello del modello (audit S4).
+        inner_html = _render(template.body_template, ctx, html=True)
     else:
         parts_html: list[str] = []
         parts_text: list[str] = []

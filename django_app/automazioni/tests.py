@@ -3375,6 +3375,21 @@ class AutomationServiceHelperTests(TestCase):
         self.assertEqual(render_template_string("Richiesta {missing}", {"id": 5}), "Richiesta {missing}")
         self.assertEqual(render_template_string(None, {"id": 5}), "")
 
+    def test_render_template_string_html_neutralizza_i_valori(self):
+        # Audit S4: un testo libero con HTML arriva come testo nel corpo HTML della mail.
+        payload = {"note": '<a href="https://evil.example">Clicca</a>', "id": 7}
+        reso = render_template_string("<p>#{id}: {note}</p>", payload, html=True)
+        self.assertEqual(reso, "<p>#7: &lt;a href=&quot;https://evil.example&quot;&gt;Clicca&lt;/a&gt;</p>")
+        # Testo semplice e oggetto restano invariati.
+        self.assertEqual(render_template_string("{note}", payload), payload["note"])
+
+    def test_render_template_string_html_rispetta_i_segnaposto_ammessi(self):
+        from automazioni import services as svc
+
+        with patch.object(svc, "SEGNAPOSTO_HTML_AMMESSI", frozenset({"tabella_html"})):
+            reso = render_template_string("{tabella_html}{x}", {"tabella_html": "<table></table>", "x": "<b>"}, html=True)
+        self.assertEqual(reso, "<table></table>&lt;b&gt;")
+
     @patch("automazioni.services._fetch_assenza_runtime_details", return_value={})
     @patch("automazioni.services._resolve_caporeparto_email_from_local_id", return_value="capo@example.com")
     def test_enrich_payload_for_source_assenze_resolves_capo_email_from_local_caporeparto_id(

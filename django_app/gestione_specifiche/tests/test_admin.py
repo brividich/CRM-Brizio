@@ -1,4 +1,5 @@
 """#6 — Sezione Amministrazione: home + CRUD mappatura cliente→cartella + link condizionato."""
+import base64
 import os
 import shutil
 import tempfile
@@ -18,6 +19,11 @@ from gestione_specifiche.models import (
 from gestione_specifiche.notifiche_gs import notifica_nuova_specifica
 
 User = get_user_model()
+
+# PNG reale 1x1: il timbro passa dal validatore centrale, che legge il tipo vero del file.
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
 
 
 class AdminSectionTest(TestCase):
@@ -60,6 +66,32 @@ class AdminSectionTest(TestCase):
         r = self.client.post(reverse("gestione_specifiche:admin_cartella_delete", args=[m.pk]))
         self.assertEqual(r.status_code, 302)
         self.assertFalse(ClienteCartellaShare.objects.filter(pk=m.pk).exists())
+
+    def test_viste_admin_negate_senza_permesso_anche_senza_legame(self):
+        # Audit S5: il permesso e' controllato nella vista, non solo dal legame pagina-permesso.
+        from unittest.mock import patch
+
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.create(user=self.mso, completed=True)
+        self.client.force_login(self.mso)
+        with patch("core.middleware.ACLMiddleware.__call__", lambda mw, request: mw.get_response(request)):
+            for nome in ("admin_home", "admin_cartelle", "admin_timbri", "admin_sincronizzazione", "admin_log"):
+                r = self.client.get(reverse(f"gestione_specifiche:{nome}"))
+                self.assertEqual(r.status_code, 403, nome)
+
+    def test_sincronizzazione_ha_legame_canonico(self):
+        from gestione_specifiche.acl_bootstrap import _ROUTE_BINDINGS, PERM_ADMIN
+
+        self.assertEqual(_ROUTE_BINDINGS.get("gestione_specifiche:admin_sincronizzazione"), PERM_ADMIN)
+
+    def test_timbro_file_non_valido_rifiutato(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        falso = SimpleUploadedFile("timbro.png", b"MZ\x90\x00 eseguibile travestito", content_type="image/png")
+        r = self.client.post(reverse("gestione_specifiche:admin_timbri"), {"codice": "CNOT1", "file": falso})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(TimbroCapocommessa.objects.filter(codice="CNOT1").exists())
 
     def test_link_admin_nel_cruscotto(self):
         r = self.client.get(reverse("gestione_specifiche:lista"))
@@ -223,7 +255,7 @@ class AdminSectionTest(TestCase):
             r = self.client.get(reverse("gestione_specifiche:admin_timbri"))
             self.assertEqual(r.status_code, 200)
             self.assertContains(r, "Timbri capocommessa")
-            f = SimpleUploadedFile("timbro.png", b"\x89PNG-fake-bytes", content_type="image/png")
+            f = SimpleUploadedFile("timbro.png", _PNG_1X1, content_type="image/png")
             r = self.client.post(reverse("gestione_specifiche:admin_timbri"),
                                  {"codice": "CNOT102", "nome": "Cap. 1", "utente": str(self.mso.pk), "file": f})
             self.assertEqual(r.status_code, 302)
@@ -250,7 +282,7 @@ class AdminSectionTest(TestCase):
         self.addCleanup(shutil.rmtree, media, ignore_errors=True)
         with override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
                                GESTIONE_SPECIFICHE_PRIVATE_ROOT=media):
-            f = SimpleUploadedFile("t.png", b"\x89PNG-fake", content_type="image/png")
+            f = SimpleUploadedFile("t.png", _PNG_1X1, content_type="image/png")
             # Il timbro appartiene a chi compila (qui l'utente loggato: MOD.133 senza compilatore).
             self.client.post(reverse("gestione_specifiche:admin_timbri"),
                              {"codice": "CNOT1", "tipo": "ricevuto", "utente": str(self.su.pk), "file": f})

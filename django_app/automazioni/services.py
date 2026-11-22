@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
+from html import escape as html_escape
 import json
 import logging
 import re
@@ -1582,7 +1583,19 @@ def _humanize_iso_datetime(value: str) -> str:
     return parsed.strftime("%d/%m/%Y %H:%M")
 
 
-def render_template_string(template_str: str | None, context: Any) -> str:
+# Segnaposto il cui valore e' HTML costruito dal portale (non testo scritto da un utente):
+# nel corpo HTML delle mail restano HTML. Tutti gli altri valori vengono neutralizzati.
+# Aggiungere qui una chiave solo se il valore e' generato dal codice, mai da un campo libero.
+SEGNAPOSTO_HTML_AMMESSI: frozenset[str] = frozenset()
+
+
+def render_template_string(template_str: str | None, context: Any, *, html: bool = False) -> str:
+    """Sostituisce i segnaposto ``{chiave}`` con i valori del payload.
+
+    Con ``html=True`` (corpo HTML delle mail) ogni valore viene neutralizzato con
+    ``escape`` tranne quelli in ``SEGNAPOSTO_HTML_AMMESSI``: un testo libero che
+    contiene HTML arriva come testo e non puo' alterare la mail (audit S4).
+    """
     if template_str is None:
         return ""
 
@@ -1598,7 +1611,9 @@ def render_template_string(template_str: str | None, context: Any) -> str:
         # Auto-format dei datetime ISO grezzi (es. "2026-06-12T06:00:00") in
         # formato leggibile; le date pure e le altre stringhe restano invariate.
         if _ISO_DATETIME_PATTERN.match(text):
-            return _humanize_iso_datetime(text)
+            text = _humanize_iso_datetime(text)
+        if html and key not in SEGNAPOSTO_HTML_AMMESSI:
+            return html_escape(text)
         return text
 
     return _PLACEHOLDER_PATTERN.sub(_replace, template)
@@ -4542,7 +4557,7 @@ def _execute_action(
             from_email = _validate_sender_email(config.get("from_email"), payload_context)
             subject = render_template_string(config.get("subject_template"), payload_context).strip()
             body_text = render_template_string(config.get("body_text_template"), payload_context)
-            body_html = render_template_string(config.get("body_html_template"), payload_context)
+            body_html = render_template_string(config.get("body_html_template"), payload_context, html=True)
             fail_silently = bool(config.get("fail_silently"))
 
             # Wrappa nel layout grafico standard.
