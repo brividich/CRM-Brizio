@@ -257,6 +257,17 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       **Da fare solo dopo l'approvazione:** allineare il prototipo (PILASTRI in `prototipo/src/app.js`, controlli in
       `build/verifica_prototipo.py`, schermate del PDF tecnico) e, se confermato, togliere i tre pesi da `02_tobe`.
 
+- [x] Riscontro (22/11): «pensavo con delle immagini» + «c'è anche il subnav, fai un'analisi seria» → `06_menu_anagrafica.md`
+      **v2.0**, rifatto sul portale vero avviato in locale (SQLite usa e getta nel worktree, utente amministratore, 57 pagine
+      visitate; server fermato e `django_app/db.sqlite3` cancellato). Trovato: 5 strati, menu a 3 livelli (pilastro › sezione ›
+      voce), 14 stati della barra, 25 voci a tre clic, due menu diversi per Sicurezza (elenco nel codice
+      `anagrafica_extras.py:585` contro menu configurato letto dal telefono), 22 nomi su 50 diversi dal percorso. Proposta: 2
+      livelli, 6 pilastri, 34 voci, 8 stati. Immagini in `menu/` (12 PNG: oggi reale + bozzetti sulla pagina vera).
+      **DA FINIRE (sessione interrotta per limite d'uso):** `RMC_Menu_foglio.pdf` e `RMC_Menu_studio.pdf` sono ancora la
+      versione 1.0 senza immagini. Rifare `build/light_menu.html` con le immagini (4 pagine), in `fai_light` sostituire
+      `src="menu/` con `src="../menu/` per lo studio, rigenerare, controllare a vista. Script di cattura nello scratchpad della
+      sessione (`menu_crawl.py`, `menu_shots.py`, `menu_proposta.py`, `menu_componi.py`): da riscrivere se servono altre immagini.
+
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
 - **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la
