@@ -230,3 +230,87 @@ def _oggi():
     from django.utils import timezone
 
     return timezone.localdate()
+
+
+def _aperti_precedenti(meeting: KickoffMeeting):
+    """Problemi e attività d'incontro ancora aperti della commessa, non nati in questo incontro.
+
+    Conta l'incontro d'origine, non il numero: un incontro pianificato per primo può
+    tenersi dopo un altro, e quello che lì è rimasto aperto va comunque riportato.
+    """
+    from .agenda import _open_meeting_actions_for_project, _open_meeting_issues_for_project
+
+    def precedente(obj) -> bool:
+        return obj.source_meeting_id != meeting.pk
+
+    project = meeting.project
+    issues = [i for i in _open_meeting_issues_for_project(project) if precedente(i)]
+    actions = [a for a in _open_meeting_actions_for_project(project) if precedente(a)]
+    return issues, actions
+
+
+def _ids_in_odg(items, chiave: str) -> set[int]:
+    out: set[int] = set()
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            valore = int(item.get(chiave) or 0)
+        except (TypeError, ValueError):
+            valore = 0
+        if valore:
+            out.add(valore)
+    return out
+
+
+def dagli_incontri_precedenti(meeting: KickoffMeeting, items=None) -> list[dict]:
+    """Quello che è rimasto aperto dagli incontri precedenti, da portare all'ordine del giorno.
+
+    Ogni voce dice se è già un punto di questo incontro (`in_odg`): la scheda mostra
+    solo quelle che mancano, così «Aggiungi all'ordine del giorno» non crea doppioni.
+    """
+    items = meeting.agenda_items if items is None else items
+    issues, actions = _aperti_precedenti(meeting)
+    issue_ids = _ids_in_odg(items, "issue_id")
+    action_ids = _ids_in_odg(items, "action_id")
+    voci = [
+        {
+            "tipo": "issue", "label": "Problema", "id": i.pk, "titolo": i.title,
+            "chi": _nome(i.assigned_to), "scadenza": i.due_date, "scaduta": False,
+            "origine": i.source_meeting.numero if i.source_meeting_id else None,
+            "in_odg": i.pk in issue_ids,
+        }
+        for i in issues
+    ]
+    voci += [
+        {
+            "tipo": "action", "label": "Attività d'incontro", "id": a.pk, "titolo": a.title,
+            "chi": _nome(a.assigned_to), "scadenza": a.due_date, "scaduta": a.is_overdue,
+            "origine": a.source_meeting.numero if a.source_meeting_id else None,
+            "in_odg": a.pk in action_ids,
+        }
+        for a in actions
+    ]
+    return voci
+
+
+def punto_da_precedente(meeting: KickoffMeeting, tipo: str, voce_id: int) -> tuple[dict | None, bool]:
+    """Il punto da aggiungere per una voce aperta degli incontri precedenti.
+
+    Ritorna (punto, gia_presente); (None, False) se la voce non è fra quelle riportabili.
+    """
+    from .agenda import _meeting_action_agenda_item, _meeting_issue_agenda_item
+
+    issues, actions = _aperti_precedenti(meeting)
+    items = meeting.agenda_items
+    if tipo == "issue":
+        obj = next((i for i in issues if i.pk == voce_id), None)
+        if obj is None:
+            return None, False
+        return _meeting_issue_agenda_item(obj), obj.pk in _ids_in_odg(items, "issue_id")
+    if tipo == "action":
+        obj = next((a for a in actions if a.pk == voce_id), None)
+        if obj is None:
+            return None, False
+        return _meeting_action_agenda_item(obj), obj.pk in _ids_in_odg(items, "action_id")
+    return None, False

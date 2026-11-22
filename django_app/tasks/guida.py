@@ -453,18 +453,18 @@ SEZIONI: list[dict] = [
                 "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio i partecipanti ricevono la riunione Outlook da accettare, con l'ordine del giorno, e la sala la richiesta di prenotazione. È questa la convocazione: niente file .ics da aprire.",
                 "Salva. Ogni modifica salvata dopo (data, ora, durata, sala, convocati, ordine del giorno) arriva ai partecipanti come aggiornamento dell'invito; se non cambia niente per loro, non parte nulla.",
             ]),
-            ("p", "Nel dettaglio: «Invia invito Outlook» manda l'invito se non era partito al salvataggio, «Reinvia invito Outlook» lo rimanda a tutti. «Mail con l'ordine del giorno» è una mail del portale in più, senza file .ics. Senza Outlook configurato resta «Invia convocazione per mail», con il file .ics allegato per il calendario."),
-            ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
+            ("p", "Nel dettaglio, riquadro «Convocazione»: «Invia invito Outlook» manda l'invito se non era partito al salvataggio, «Reinvia invito Outlook» lo rimanda a tutti. «Mail con l'ordine del giorno» è una mail del portale in più, senza file .ics. Senza Outlook configurato resta «Invia convocazione per mail», con il file .ics allegato per il calendario."),
+            ("p", "Nel riquadro «Convocazione» del dettaglio, accanto alla sala, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
                 "Mentre scrivi un punto, un'attività d'incontro, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé la nota predefinita.",
                 "Se arrivi dalle attività pianificate, l'ordine del giorno parte con quelle attività da confermare e i loro responsabili fra i convocati. Poi i problemi e le attività d'incontro ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
-                "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione» del dettaglio, "
+                "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione per mail» (o «Invia invito Outlook») nel riquadro «Convocazione» del dettaglio, "
                 "oppure spuntando «Invia la convocazione ai partecipanti dopo il salvataggio» in fondo al form.",
-                "Il dettaglio dice se la convocazione è stata inviata e quando. Se dopo l'invio cambiano data, ora, luogo, "
-                "convocati o ordine del giorno compare «Convocazione da reinviare»; il pulsante diventa "
+                "Il riquadro «Convocazione» dice se è stata inviata e quando («Convocazione non ancora inviata», «Convocazione inviata per mail il …», «Invito Outlook inviato il …»). Se dopo l'invio cambiano data, ora, luogo, "
+                "convocati o ordine del giorno, anche modificando i punti dal dettaglio, compare subito «Convocazione da reinviare»; il pulsante diventa "
                 "«Invia aggiornamento convocazione» e la mail esce come «Aggiornamento convocazione». Sotto l'avviso "
                 "c'è l'elenco di cosa è cambiato (per esempio «Data: 12-11-2026 → 14-11-2026», «Convocati aggiunti: …», "
                 "«Punti dell'ordine del giorno tolti: …»); per le convocazioni inviate prima del 02/11/2026 l'avviso resta generico.",
@@ -473,8 +473,9 @@ SEZIONI: list[dict] = [
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
                 "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
                 "altrimenti chi ha creato l'incontro); quello di annullamento elenca anche i convocati, così il calendario toglie l'evento.",
-                "Ogni convocato può proporre un punto dal dettaglio di un incontro non ancora svolto: Project manager e capocommessa ricevono la notifica e lo accettano o lo rifiutano.",
-                "«Prepara con l'AI», in «Dalle commesse simili», cerca le commesse dello stesso cliente o P/N e propone punti da aggiungere: li scegli tu.",
+                "Ogni convocato può proporre un punto dal dettaglio di un incontro non ancora svolto («Proponi un punto all'ordine del giorno», «Proponi»): Project manager e capocommessa ricevono la notifica e lo accettano o lo rifiutano dalla lista dell'ordine del giorno, con «Accetta» e «Rifiuta».",
+                "Per cambiare solo l'ordine del giorno di un incontro pianificato non serve riaprire la convocazione: si fa dal dettaglio, vedi «Il dettaglio dell'incontro». «Modifica data, sala, convocati», nel riquadro «Convocazione», riapre questa pagina.",
+                "«Prepara con l'AI», in «Dalle commesse simili», cerca le commesse dello stesso cliente o P/N e propone punti da aggiungere: li scegli tu con «Aggiungi all'ordine del giorno» e compaiono subito nella lista.",
             ]),
         ],
     },
@@ -483,7 +484,7 @@ SEZIONI: list[dict] = [
         "titolo": "Il dettaglio dell'incontro",
         "blocchi": [
             ("p", "È la pagina di riferimento di un incontro: da qui parte tutto il resto."),
-            ("p", "L'incontro è una cosa sola che cambia stato. In testa a tutte le sue pagine ci sono la testata della commessa, la barra delle tre fasi e la stessa intestazione (numero, titolo, data, sala, stato)."),
+            ("p", "L'incontro è una cosa sola che cambia stato. In testa a tutte le sue pagine ci sono la testata della commessa, la barra delle tre fasi e la stessa intestazione (numero, titolo, data, sala, stato). Nel dettaglio di un incontro pianificato data e sala stanno nel riquadro «Convocazione», non nell'intestazione."),
             ("def", [
                 ("Prima", "ordine del giorno, convocati e convocazione. Sotto dice «Convocazione da inviare» o «Convocazione inviata»."),
                 ("Durante", "la conduzione: un punto alla volta e il registro dell'incontro. Il giorno dell'incontro dice «Oggi»."),
@@ -491,14 +492,19 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "La spunta verde dice che la fase è fatta; un clic porta alla fase. Il pulsante arancione della testata fa il passo successivo."),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
+            ("p", "Prima dell'incontro (stato «Pianificato») il dettaglio è la fase «Prima», su due colonne (una sola su telefono): a sinistra l'ordine del giorno, a destra «Convocazione» e «Dagli incontri precedenti»."),
             ("def", [
-                ("Nell'intestazione", "«Modifica incontro» (data, ora, sala, partecipanti, ordine del giorno), «Annulla incontro», «Elimina»; a incontro svolto «Aggiorna esito» e «Pianifica prossimo incontro»."),
+                ("Ordine del giorno (fase «Prima»)", "chi gestisce la commessa lo cambia sul posto, senza ricaricare la pagina: scrivi in «Nuovo punto» e premi Invio o «+ Punto»; le frecce «Sposta su» e «Sposta giù» cambiano l'ordine; «Togli» chiede conferma e toglie il punto. Un punto su cui in conduzione sono già nati problemi, attività d'incontro o decisioni non ha «Togli». I punti non hanno tempi. Tutti gli altri vedono la lista in sola lettura."),
+                ("Proposte nella lista", "le proposte dei convocati stanno sotto i punti, con chi le ha fatte: «Accetta» la fa diventare un punto (con «Proposto da»), «Rifiuta» la lascia in elenco come «Rifiutata»; la «Nota (facoltativa)» resta accanto all'esito. Chi è convocato ma non gestisce trova lì «Proponi un punto all'ordine del giorno»."),
+                ("Convocazione (fase «Prima»)", "«Quando», «Sala» con lo stato della prenotazione, «Convocati» e lo stato dell'invio, con i pulsanti «Invia invito Outlook» / «Reinvia invito Outlook», «Invia convocazione per mail» / «Invia aggiornamento convocazione» / «Mail con l'ordine del giorno». Dopo una modifica all'ordine del giorno di una convocazione già inviata compare subito «Convocazione da reinviare» con l'elenco di cosa è cambiato. «Modifica data, sala, convocati» apre la pagina di convocazione. Sotto, i partecipanti."),
+                ("Dagli incontri precedenti", "i problemi ancora aperti e le attività d'incontro ancora aperte della commessa nati in altri incontri, con l'incontro d'origine, il responsabile e la scadenza. «Aggiungi all'ordine del giorno» crea il punto con un clic («Problema aperto: …», «Attività aperta: …») e la voce esce dal riquadro: niente doppioni. Se togli il punto, la voce torna qui. Dal punto il problema o l'attività si chiudono con «Risolto» o «Fatta». Il riquadro non compare se non c'è niente da portare."),
+                ("Nell'intestazione", "prima dell'incontro «Annulla incontro» ed «Elimina»; a incontro svolto «Aggiorna esito», «Pianifica prossimo incontro» e «Modifica incontro» (o «Correggi ordine del giorno» a minuta approvata)."),
                 ("Percorso, attività e programmi della commessa", "riquadro chiuso: si apre con un clic e contiene il Percorso del kickoff, «Attività di questo incontro» e «Codici, cartelle e schede FAI»."),
                 ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
-                ("Convocazione / Minuta", "prima dell'incontro la riga «Convocazione» con l'invito Outlook e la mail con l'ordine del giorno; a incontro svolto la riga «Minuta» con «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta». Il comando che è già nel pulsante arancione non si ripete."),
-                ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
-                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'attività d'incontro c'è il loro stato; sotto ogni punto, i problemi, le attività d'incontro e le decisioni nati lì."),
-                ("Problemi trovati, Decisioni, Attività d'incontro", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata."),
+                ("Minuta", "a incontro svolto la riga «Minuta» con «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta». Il comando che è già nel pulsante arancione non si ripete."),
+                ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti. Prima dell'incontro stanno nel riquadro «Convocazione»."),
+                ("Ordine del giorno e verbale", "a incontro svolto: i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'attività d'incontro c'è il loro stato; sotto ogni punto, i problemi, le attività d'incontro e le decisioni nati lì."),
+                ("Problemi trovati, Decisioni, Attività d'incontro", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata. Prima dell'incontro qui c'è solo quello che è nato in questo incontro: il resto è nei punti o in «Dagli incontri precedenti»."),
                 ("Modifiche", "in fondo, riquadro chiuso: convocazione ed esito modificati, minuta approvata o riaperta, annullamento, con chi, quando, «prima → dopo» e il motivo."),
                 ("Due persone sullo stesso incontro", "se mentre modifichi la convocazione o l'esito qualcun altro salva (anche una nota in «Conduci incontro»), il salvataggio si ferma e chiede se ricaricare o salvare comunque: le note prese in riunione non si perdono più."),
             ]),

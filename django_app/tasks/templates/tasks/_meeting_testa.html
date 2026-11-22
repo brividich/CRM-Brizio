@@ -1,11 +1,13 @@
 {% comment %}
 Intestazione dell'incontro (numero, titolo, quando, dove, stato): la stessa su scheda,
 convocazione, conduzione ed esito. Va dentro un <div class="md-hero">.
+Con `testa_senza_quando` (scheda, fase «Prima») quando e dove non si ripetono: stanno nel riquadro «Convocazione».
 {% endcomment %}
 <div class="md-hero-num">{{ meeting.numero }}</div>
 <div class="md-hero-body">
   <h2>{% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}</h2>
   <div class="md-meta">
+    {% if not testa_senza_quando %}
     <span class="md-meta-item">
       <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
       {{ meeting.data|date:"d-m-Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}
@@ -22,6 +24,7 @@ convocazione, conduzione ed esito. Va dentro un <div class="md-hero">.
         <span class="ts-chip {{ sala_stato.1 }}" data-sala-chip>{{ sala_stato.0 }}</span>
         {% if can_manage and meeting.outlook_event_id %}<button type="button" class="md-link-btn" data-sala-verifica>Verifica</button>{% endif %}
       </span>
+    {% endif %}
     {% endif %}
     <span class="md-meta-item">
       <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>

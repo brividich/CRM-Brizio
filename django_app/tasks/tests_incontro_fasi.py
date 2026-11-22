@@ -111,7 +111,10 @@ class IncontroTreFasiTests(FiloBase):
     # ── la scheda: prima solo la convocazione, dopo solo la minuta ────────────
     def test_scheda_prima_dell_incontro(self):
         scheda = self.pagina("tasks:project_meeting_detail")
-        self.assertContains(scheda, '<span class="md-docbar-label">Convocazione</span>', html=True)
+        # La convocazione è un riquadro della fase «Prima», non più una riga di pulsanti.
+        self.assertContains(scheda, 'id="prima-convocazione"')
+        self.assertContains(scheda, "Invia convocazione per mail")
+        self.assertNotContains(scheda, "md-docbar")
         for assente in ("Scarica minuta PDF", "Invia minuta", ">Conduci incontro<", ">Registra esito<", "Tutti gli incontri"):
             self.assertNotContains(scheda, assente)
 

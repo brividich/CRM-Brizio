@@ -102,7 +102,12 @@ var KO_MEETING_DETAIL_CFG = (document.currentScript && document.currentScript.da
       add.disabled = true;
       fetch(kaiBtn.dataset.addUrl, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: body, credentials: 'same-origin' })
         .then(r => r.json())
-        .then(data => { add.textContent = data.ok ? 'Aggiunto: lo vedi ricaricando la pagina' : 'Non aggiunto'; if (!data.ok) add.disabled = false; })
+        .then(data => {
+          add.textContent = data.ok ? 'Aggiunto' : 'Non aggiunto';
+          if (!data.ok) { add.disabled = false; return; }
+          /* Prima dell'incontro la lista dei punti si rilegge da sola (meeting_prima.js). */
+          document.dispatchEvent(new CustomEvent('ko:odg-cambiato'));
+        })
         .catch(() => { add.textContent = 'Non aggiunto'; add.disabled = false; });
     });
   }

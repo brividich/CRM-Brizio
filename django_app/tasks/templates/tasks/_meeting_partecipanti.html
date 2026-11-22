@@ -1,0 +1,67 @@
+{% comment %}
+Convocati di un incontro: utenti del portale, email aggiuntive, note, evento Outlook e,
+dopo l'appello, presenti e assenti. Contesto: meeting, portal_users.
+{% endcomment %}
+{# Presenze effettive: presenti solo dopo che l'appello e' stato fatto. #}
+{% if meeting.presenze_registrate %}
+  <div class="md-presenze">
+    <span class="md-presenze-count">{{ meeting.presenti_count }} presenti su {{ meeting.convocati_count }} convocati</span>
+    {% if meeting.assenti_utenti or meeting.assenti_email %}
+      <span class="md-presenze-absent">
+        Assenti:
+        {% for u in meeting.assenti_utenti %}{{ u.get_full_name|default:u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        {% if meeting.assenti_utenti and meeting.assenti_email %}, {% endif %}
+        {% for e in meeting.assenti_email %}{{ e|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </span>
+    {% endif %}
+  </div>
+{% endif %}
+{% if portal_users %}
+  <div style="margin-bottom:10px;">
+    <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Utenti portale</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      {% for u in portal_users %}
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface-alt, #f8fafc);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:var(--primary-mid);">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+          {{ u.get_full_name|default:u.username }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+{% if meeting.partecipanti_email_extra %}
+  <div style="margin-bottom:10px;">
+    <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Email aggiuntive</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      {% for line in meeting.partecipanti_email_extra.splitlines %}
+        {% if line %}
+          <span style="display:inline-flex;align-items:center;gap:5px;background:var(--success-bg);border:1px solid var(--success-bg);border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:var(--success);">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+            {{ line|lower }}
+          </span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+{% if meeting.partecipanti_testo %}
+  <div>
+    <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Note partecipanti</div>
+    <p style="margin:0;white-space:pre-wrap;font-size:.875rem;color:var(--text-mid);">{{ meeting.partecipanti_testo }}</p>
+  </div>
+{% endif %}
+{% if meeting.outlook_event_id %}
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--primary-mid)"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+      <span style="font-size:.8125rem;color:var(--text-light);">Evento Outlook sincronizzato</span>
+      {% if meeting.outlook_event_web_link %}
+        <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener"
+           style="font-size:.8125rem;color:var(--primary-mid);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+          Apri in Outlook
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
