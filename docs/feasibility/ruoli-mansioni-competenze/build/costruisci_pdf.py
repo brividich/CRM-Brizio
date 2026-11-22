@@ -244,7 +244,7 @@ def md(testo: str) -> str:
 # Rimandi fra sezioni
 # --------------------------------------------------------------------------------------------------------------------
 
-_ESTERNI = re.compile(r"SPEC|MT CN|EN 9100|M053|ISO 9001|Debole su|IDOR|MO-ID|MOD\.\d")
+_ESTERNI = re.compile(r"SPEC|MT CN|EN 9100|M053|ISO 9001|Debole su|IDOR|MO-ID|MOD\.\d|PdQ|DMFGSDP")
 _RIF = re.compile(
     r"(?:`(01_asis\.md|02_tobe[\w.]*|03_ux\.md|04_gap_sgi\.md)`\s+|(Fase 2)\s+)?§(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?")
 
@@ -799,6 +799,8 @@ def fai_light(browser, raster: Path | None) -> list[str]:
          '<main class="dir">' + re.sub(r"<!--.*?-->", "", leggi("build/light_direzione.html"), flags=re.S) + "</main>", True),
         ("RMC_Qualita_scheda.pdf", "Scheda per la Qualità", 2,
          '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_qualita.md"), flags=re.S)) + "</main>", False),
+        ("RMC_Approfondimenti.pdf", "Approfondimenti", None,
+         '<main class="doc light">' + md(traduci_rimandi(leggi("05_approfondimenti.md"), "05", {})) + "</main>", False),
         ("RMC_IT_scheda.pdf", "Scheda tecnica", 4,
          '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_it.md"), flags=re.S)) + "</main>", False),
     ]
@@ -811,7 +813,7 @@ def fai_light(browser, raster: Path | None) -> list[str]:
         n = doc.page_count
         testo = "\n".join(pg.get_text() for pg in doc)
         doc.close()
-        riga = f"{nome}: {n} pagine " + (f"(OK: {attese})" if n == attese else f"(ATTENZIONE: attese {attese})")
+        riga = f"{nome}: {n} pagine" + ("" if attese is None else f" (OK: {attese})" if n == attese else f" (ATTENZIONE: attese {attese})")
         riga += f"; elementi che sbordano: {len(sbordi(browser, sorgente))}"
         if per_direzione:
             trovati = [t for t in VIETATI_MISSIONE + VIETATI_ALTRI

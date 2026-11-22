@@ -2,16 +2,18 @@
 
 # Ruoli, mansioni e competenze: scheda tecnica
 
-## La proposta in cinque punti
+## La proposta in sei punti
 
 1. **Due atti, due effetti.** La Sessione Formativa (SF) cambia ciò che la persona sa fare; la Richiesta di
    Aggiornamento Mansione (RAM) ciò che è autorizzata a fare. Nessun'altra via scrive livelli o mansioni.
 2. **Il livello è un giudizio, la validità è un calcolo.** Il livello lo dà il capo reparto in una SF e non cambia da
    solo. Il portale calcola ogni giorno se è ancora valido e lo segnala; blocca solo sui controlli non distruttivi.
-3. **Un solo motore** dice, per ogni persona, che cosa è richiesto e perché, che cosa possiede, che cosa manca, che
+3. **Livelli solo dove servono.** Competenze generiche a «sì o no», livelli sulle specifiche: il carico di
+   valutazione resta quello di oggi invece di moltiplicarsi per 2,6.
+4. **Un solo motore** dice, per ogni persona, che cosa è richiesto e perché, che cosa possiede, che cosa manca, che
    cosa potrebbe fare in più.
-4. **Assegnazione in due passaggi**: avviata (in formazione, non firma), poi effettiva.
-5. **Emissione firmata**: ogni sei mesi RDD firma la fotografia della skill matrix, come chiede MT CN 06.
+5. **Assegnazione in due passaggi**: avviata (in formazione, non firma), poi effettiva.
+6. **Emissione firmata**: ogni sei mesi RDD firma la fotografia della skill matrix, come chiede MT CN 06.
 
 ## Che cosa si riusa
 
@@ -22,6 +24,8 @@
 | Ricalcolo automatico del livello (`services/competenze_ricalcolo.py`) | Diventa calcolo della validità: non scrive più livelli |
 | Pratica di inserimento, cambio mansione | Si agganciano alla RAM |
 | Edizioni dei corsi, MOD.040 | L'edizione di un corso «formativo» prepara una SF |
+| Registro timbri (`timbri/models.py:84`) | «Può firmare» = timbro attivo e mansione effettiva da livello L |
+| Conferma del capo reparto (`services/skillmatrix_refresh.py`) | Dichiara anche il mancato esercizio |
 
 **Dati.** Ciò che oggi è nel portale per skill matrix e mansionario è un caricamento di prova: all'avvio si caricano
 la skill matrix firmata (MOD.187) e la tabella delle competenze (MOD.053 Rev.4).
@@ -70,13 +74,16 @@ test: l'implementazione deve dare gli stessi risultati sugli stessi dati.
 | Troppa burocrazia per i capi reparto | Una SF vale per più persone e più competenze; i rinnovi non richiedono una SF |
 | Una segnalazione ignorata | Presa in carico con termine, poi sale a RDD; blocco dove la procedura lo impone |
 | Le risposte della Qualità cambiano un'ipotesi | Ipotesi isolate: le alternative non cambiano il modello dati |
-| Manca la fonte dell'«ultimo esercizio» | Si parte con la registrazione manuale nella SF di conferma |
+| Chi non svolge più una mansione | Lo dichiara il capo reparto nella conferma semestrale: il portale non è collegato all'ERP |
 
 **Aperto.** Le nove domande alla Qualità; la revisione di MT CN 06 e dei moduli MOD.053, MOD.040, MOD.187; la soglia
 di firma, che la procedura fissa a L e il portale oggi a U; se RDD firma nel portale o su carta.
 
 **Non verificato.** Il MOD.130 (registro timbri) è un'immagine; il MOD.192 non è nella cartella del sistema di
 gestione; il legame fra timbro e skill matrix nel portale non è stato controllato nel dettaglio.
+
+**Approfondimenti** (`05_approfondimenti.md`): firma e timbri, personale non operativo, requisiti dei clienti,
+carico di valutazione, copertura per turno, non conformità, indicatori.
 
 **Dove sta il dettaglio.** `Fattibilita_RMC_Tecnico.pdf` (92 pagine) e i documenti `01`-`04` nella stessa cartella;
 prototipo in `prototipo/prototipo_rmc.html`.

@@ -47,5 +47,14 @@ Per ciascuna trovate la nostra ipotesi: è quella che useremo finché non ci dit
 **Due conferme.** I moduli scrivono «principiante» e «insegna / programma BM», la procedura «in formazione» e
 «formatore/esperto»: quale vocabolario vale? E confermate che dal livello L si firma, come dice MT CN 06 §8.3?
 
-**Per partire** ci serve il catalogo di un reparto: il file `Catalogo_pilota_CN5G.xlsx` contiene già le 11 competenze e
-le 10 macchine del MOD.053. Restano da indicare livello richiesto e peso di ciascuna.
+**Tre cose emerse leggendo i documenti.**
+
+- Skill matrix e MOD.053 non usano gli stessi nomi: su 79 colonne, 49 coincidono, 29 hanno nome o livello diverso
+  (i controlli di qualità sono colonne in una, attività di un'unica mansione nell'altro), 1 manca nel MOD.053 e 4
+  mancano nella skill matrix.
+- Il MOD.128 elenca quattro persone qualificate per la verifica di pulizia; la skill matrix, sulla stessa colonna,
+  una sola persona autonoma.
+- Due mansioni hanno una sola persona autonoma, nove un solo formatore: la procedura ne chiede almeno due.
+
+**Per partire** il file `Catalogo_competenze_completo.xlsx` contiene tutti i ruoli del MOD.053 e l'incrocio con la
+skill matrix. Restano da indicare livello richiesto e peso; vi si aggiungono le mansioni che state ancora scrivendo.

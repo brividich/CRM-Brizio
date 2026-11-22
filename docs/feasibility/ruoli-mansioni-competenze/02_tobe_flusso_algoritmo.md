@@ -15,6 +15,10 @@ Versione 0.4 · 22/11/2026 · Fase 2 (progettazione). Stato: GATE 2 superato; re
 > parla dei «livelli attuali» da portare nel nuovo modello, si intende la **skill matrix firmata in vigore**
 > (MOD.187), non il contenuto del portale.
 >
+> **Approfondimenti successivi** (`05_approfondimenti.md`): firma e timbri, mancato esercizio dichiarato dal capo
+> reparto, personale non operativo, requisiti dei clienti, carico di valutazione, turni, non conformità, indicatori.
+> Dove differiscono da questo documento, valgono gli approfondimenti.
+>
 > **Ipotesi dichiarate.** Le 18 domande per la Qualità (`Domande_per_la_Qualita.md`) non hanno ancora risposta. Il
 > progetto adotta per ciascuna l'ipotesi indicata nel questionario e la marca con **[ipotesi Dn]**; dove la risposta
 > cambierebbe il disegno, l'alternativa è descritta. Le risposte tecniche del proprietario (`01_asis.md` §9.2) sono
@@ -996,7 +1000,7 @@ dopo B11, in un momento senza rami paralleli.
 | Le risposte della Qualità smentiscono un'ipotesi | Media | Medio | Ipotesi isolate e marcate; le alternative non cambiano il modello dati |
 | I livelli «O» attuali non sono affidabili | Alta | Medio | SF di impianto come linea di demarcazione; revisione alla prima conferma |
 | Semafori più rossi alla partenza | Alta | Basso | Comunicazione: è lo stato reale; transitorio |
-| Fonte dell'«ultimo esercizio» non disponibile | Media | Medio | Si parte con la registrazione manuale nella SF di conferma; il collegamento alla produzione è un blocco successivo |
+| Fonte dell'«ultimo esercizio» | — | — | Chiuso: lo dichiara il capo reparto nella conferma semestrale; il portale non è collegato all'ERP (`05_approfondimenti.md` §2) |
 | Firme: chi sostituisce RDD e MSO | Media | Medio | Sostituti e deleghe a termine (B7) prima di attivare la RAM |
 | In modalità segnalazione, una segnalazione ignorata lascia operare chi non ha il requisito | Media | Alto | Presa in carico con termine, poi salita a RDD; cruscotto RDD e riepilogo periodico; blocco attivabile per le competenze dei processi qualificati (§3.3) |
 

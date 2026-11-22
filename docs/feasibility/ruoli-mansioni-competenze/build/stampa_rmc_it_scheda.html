@@ -487,12 +487,14 @@ figcaption b { color: var(--navy); font-weight: 600; }
 </style></head>
 <body class="">
 <main class="doc light"><h1>Ruoli, mansioni e competenze: scheda tecnica</h1>
-<h2>La proposta in cinque punti</h2>
+<h2>La proposta in sei punti</h2>
 <ol>
 <li><strong>Due atti, due effetti.</strong> La Sessione Formativa (SF) cambia ciò che la persona sa fare; la Richiesta di
 Aggiornamento Mansione (RAM) ciò che è autorizzata a fare. Nessun'altra via scrive livelli o mansioni.</li>
 <li><strong>Il livello è un giudizio, la validità è un calcolo.</strong> Il livello lo dà il capo reparto in una SF e non cambia da
 solo. Il portale calcola ogni giorno se è ancora valido e lo segnala; blocca solo sui controlli non distruttivi.</li>
+<li><strong>Livelli solo dove servono.</strong> Competenze generiche a «sì o no», livelli sulle specifiche: il carico di
+valutazione resta quello di oggi invece di moltiplicarsi per 2,6.</li>
 <li><strong>Un solo motore</strong> dice, per ogni persona, che cosa è richiesto e perché, che cosa possiede, che cosa manca, che
 cosa potrebbe fare in più.</li>
 <li><strong>Assegnazione in due passaggi</strong>: avviata (in formazione, non firma), poi effettiva.</li>
@@ -526,6 +528,14 @@ cosa potrebbe fare in più.</li>
 <tr>
 <td>Edizioni dei corsi, MOD.040</td>
 <td>L'edizione di un corso «formativo» prepara una SF</td>
+</tr>
+<tr>
+<td>Registro timbri (<code>timbri/<wbr>models.<wbr>py:<wbr>84</code>)</td>
+<td>«Può firmare» = timbro attivo e mansione effettiva da livello L</td>
+</tr>
+<tr>
+<td>Conferma del capo reparto (<code>services/<wbr>skillmatrix_<wbr>refresh.<wbr>py</code>)</td>
+<td>Dichiara anche il mancato esercizio</td>
 </tr>
 </tbody>
 </table>
@@ -677,8 +687,8 @@ test: l'implementazione deve dare gli stessi risultati sugli stessi dati.</p>
 <td>Ipotesi isolate: le alternative non cambiano il modello dati</td>
 </tr>
 <tr>
-<td>Manca la fonte dell'«ultimo esercizio»</td>
-<td>Si parte con la registrazione manuale nella SF di conferma</td>
+<td>Chi non svolge più una mansione</td>
+<td>Lo dichiara il capo reparto nella conferma semestrale: il portale non è collegato all'ERP</td>
 </tr>
 </tbody>
 </table>
@@ -686,6 +696,8 @@ test: l'implementazione deve dare gli stessi risultati sugli stessi dati.</p>
 di firma, che la procedura fissa a L e il portale oggi a U; se RDD firma nel portale o su carta.</p>
 <p><strong>Non verificato.</strong> Il MOD.130 (registro timbri) è un'immagine; il MOD.192 non è nella cartella del sistema di
 gestione; il legame fra timbro e skill matrix nel portale non è stato controllato nel dettaglio.</p>
+<p><strong>Approfondimenti</strong> (<code>05_<wbr>approfondimenti.<wbr>md</code>): firma e timbri, personale non operativo, requisiti dei clienti,
+carico di valutazione, copertura per turno, non conformità, indicatori.</p>
 <p><strong>Dove sta il dettaglio.</strong> <code>Fattibilita_<wbr>RMC_<wbr>Tecnico.<wbr>pdf</code> (92 pagine) e i documenti <code>01</code>-<code>04</code> nella stessa cartella;
 prototipo in <code>prototipo/<wbr>prototipo_<wbr>rmc.<wbr>html</code>.</p>
 </main>

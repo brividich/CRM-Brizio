@@ -1,0 +1,1686 @@
+{
+ "fonte": "MOD.187 Rev.0, emissione del 30/04/2026: soli conteggi, nessun nominativo",
+ "persone": 100,
+ "livelli": {
+  "O": 301,
+  "U": 172,
+  "L": 114,
+  "I": 75
+ },
+ "persone_per_turno": {
+  "N": 37,
+  "T1": 30,
+  "T2": 33
+ },
+ "mansioni": [
+  {
+   "mansione": "DM3 - DMC 85 Monoblock",
+   "I": 1,
+   "L": 1,
+   "U": 6,
+   "O": 6,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 6,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "DM6 - DMC 125U Duoblock",
+   "I": 2,
+   "L": 3,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 2,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 3,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "DM7 - DMC 160U Duoblock",
+   "I": 1,
+   "L": 0,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 2,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "DM10 - DMC 85 Duoblock",
+   "I": 2,
+   "L": 2,
+   "U": 7,
+   "O": 5,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 6,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "DM11 - DMC 85 Monoblock",
+   "I": 2,
+   "L": 1,
+   "U": 6,
+   "O": 6,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 5,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "DM12 - DMC 160U Duoblock",
+   "I": 2,
+   "L": 0,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 2,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "DM13 - DMC 75 Monoblock",
+   "I": 3,
+   "L": 3,
+   "U": 7,
+   "O": 5,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 6,
+    "T2": 8
+   }
+  },
+  {
+   "mansione": "DM14 - DMC 65 FD Monoblock",
+   "I": 2,
+   "L": 2,
+   "U": 7,
+   "O": 5,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 5,
+    "T2": 7
+   }
+  },
+  {
+   "mansione": "AGV1 - SIP 8000",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 3,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 3,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "AGV2 - SIP 4000",
+   "I": 0,
+   "L": 1,
+   "U": 0,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "AGV3 - SIP 640",
+   "I": 1,
+   "L": 1,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "MK1 - MIKRON HSM 600U",
+   "I": 1,
+   "L": 9,
+   "U": 3,
+   "O": 10,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 6
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 11,
+    "T2": 10
+   }
+  },
+  {
+   "mansione": "MK2 - MIKRON UCP 800",
+   "I": 1,
+   "L": 7,
+   "U": 2,
+   "O": 10,
+   "autonomi": {
+    "N": 2,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 9,
+    "T2": 9
+   }
+  },
+  {
+   "mansione": "MK3 - MIKRON HPM 1000U",
+   "I": 1,
+   "L": 3,
+   "U": 6,
+   "O": 7,
+   "autonomi": {
+    "N": 2,
+    "T1": 6,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 8,
+    "T2": 7
+   }
+  },
+  {
+   "mansione": "HH - HERMLE C1200U",
+   "I": 2,
+   "L": 5,
+   "U": 2,
+   "O": 4,
+   "autonomi": {
+    "N": 2,
+    "T1": 2,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 5,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "Fresatrice generica",
+   "I": 0,
+   "L": 1,
+   "U": 4,
+   "O": 6,
+   "autonomi": {
+    "N": 5,
+    "T1": 3,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 4,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Trapano a colonna generico",
+   "I": 0,
+   "L": 1,
+   "U": 6,
+   "O": 5,
+   "autonomi": {
+    "N": 5,
+    "T1": 3,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 4,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Lappatrice generica",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 2,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Lapidello generico",
+   "I": 1,
+   "L": 1,
+   "U": 0,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 3,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Rettifica generica",
+   "I": 0,
+   "L": 0,
+   "U": 0,
+   "O": 2,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "ELT1 - Agie Charmille CUT 30",
+   "I": 2,
+   "L": 0,
+   "U": 0,
+   "O": 2,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 2,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "MZ2 - MAZAK H800",
+   "I": 2,
+   "L": 2,
+   "U": 3,
+   "O": 6,
+   "autonomi": {
+    "N": 1,
+    "T1": 6,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 7,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "MZ3 - MAZAK H630N",
+   "I": 1,
+   "L": 6,
+   "U": 5,
+   "O": 5,
+   "autonomi": {
+    "N": 0,
+    "T1": 5,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 7,
+    "T2": 8
+   }
+  },
+  {
+   "mansione": "MZ5 - MAZAK FH6800",
+   "I": 2,
+   "L": 1,
+   "U": 2,
+   "O": 5,
+   "autonomi": {
+    "N": 0,
+    "T1": 4,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 5,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "MZ6 - MAZAK FH8800",
+   "I": 1,
+   "L": 3,
+   "U": 2,
+   "O": 3,
+   "autonomi": {
+    "N": 0,
+    "T1": 3,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 4,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "D1 - DIXI DHP 80",
+   "I": 3,
+   "L": 1,
+   "U": 0,
+   "O": 2,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 2,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "CNV - CNS CNC KMV16",
+   "I": 2,
+   "L": 2,
+   "U": 3,
+   "O": 2,
+   "autonomi": {
+    "N": 1,
+    "T1": 3,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 4,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Affilatura",
+   "I": 1,
+   "L": 0,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 2,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Zoller",
+   "I": 0,
+   "L": 1,
+   "U": 0,
+   "O": 3,
+   "autonomi": {
+    "N": 0,
+    "T1": 2,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 2,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Presetting",
+   "I": 2,
+   "L": 2,
+   "U": 1,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 4,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "DM1 - DMG CTX Gamma 2000 TC",
+   "I": 1,
+   "L": 3,
+   "U": 2,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 2,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "DM5 - DMG CTXbeta1250CT",
+   "I": 1,
+   "L": 0,
+   "U": 3,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 2,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "DM9 - DMG CTX beta 2000CT",
+   "I": 1,
+   "L": 1,
+   "U": 0,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "DM15 - DMG CTX beta 2000CT",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Aggiustaggio generico",
+   "I": 2,
+   "L": 2,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 3,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 4,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "Ritocchi Galvanici",
+   "I": 0,
+   "L": 0,
+   "U": 0,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Montaggio per aeronautica",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 2,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Montaggio per automotive",
+   "I": 2,
+   "L": 1,
+   "U": 1,
+   "O": 6,
+   "autonomi": {
+    "N": 1,
+    "T1": 3,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 3,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "Montaggio per accoppiamento termico",
+   "I": 0,
+   "L": 1,
+   "U": 0,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Marcatura",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 4,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Mascheratura",
+   "I": 2,
+   "L": 1,
+   "U": 2,
+   "O": 1,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Prova pressione",
+   "I": 2,
+   "L": 1,
+   "U": 1,
+   "O": 3,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Lavaggio condotti",
+   "I": 1,
+   "L": 1,
+   "U": 1,
+   "O": 3,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 2,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Sala taglio",
+   "I": 1,
+   "L": 1,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Verniciatura",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Lavaggio",
+   "I": 2,
+   "L": 3,
+   "U": 5,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 3,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 4,
+    "T1": 4,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Tornio tradizionale generico",
+   "I": 0,
+   "L": 2,
+   "U": 0,
+   "O": 6,
+   "autonomi": {
+    "N": 4,
+    "T1": 0,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "DM2 - ECOTURN 650",
+   "I": 0,
+   "L": 4,
+   "U": 0,
+   "O": 7,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 4
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "DM4 - DMG Gamma 3000 CTX",
+   "I": 1,
+   "L": 2,
+   "U": 0,
+   "O": 7,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 4
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "DM8 - ECOTURN 650",
+   "I": 0,
+   "L": 4,
+   "U": 0,
+   "O": 7,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 4
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 6
+   }
+  },
+  {
+   "mansione": "CNT1 - CNS VT-36BLMC-2000",
+   "I": 2,
+   "L": 0,
+   "U": 4,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 2,
+    "T2": 5
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "HY1 - Hyundai L600 MA",
+   "I": 0,
+   "L": 3,
+   "U": 1,
+   "O": 4,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 2,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "HI - HITACHI NR 1742",
+   "I": 2,
+   "L": 1,
+   "U": 1,
+   "O": 5,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 2,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "35S - AKEBONO ANCL 35 XL",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 3,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "TNZ - Omba - MN8",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 1,
+    "T1": 1,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "STZ - Stozzatrice",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 2,
+    "T1": 0,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 0,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Controllo configurazione finale",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 2,
+    "T1": 0,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 0,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Programmazione Offline",
+   "I": 0,
+   "L": 0,
+   "U": 0,
+   "O": 4,
+   "autonomi": {
+    "N": 3,
+    "T1": 0,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 0,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "ZEISS - PRISMO USS2",
+   "I": 0,
+   "L": 1,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 5,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "ZEISS - PRISMO NAVIGATOR",
+   "I": 1,
+   "L": 3,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 5,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "ZEISS - PRISMO 10HTG VAST",
+   "I": 1,
+   "L": 3,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 5,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "ZEISS - CONTURA G2",
+   "I": 1,
+   "L": 3,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 5,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "ZEISS - DURAMAX Matr. 140642",
+   "I": 1,
+   "L": 1,
+   "U": 4,
+   "O": 5,
+   "autonomi": {
+    "N": 7,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "ZEISS - DURAMAX - Matr. 14301",
+   "I": 1,
+   "L": 1,
+   "U": 4,
+   "O": 5,
+   "autonomi": {
+    "N": 7,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 1,
+    "T2": 2
+   }
+  },
+  {
+   "mansione": "Controlli di banco",
+   "I": 2,
+   "L": 0,
+   "U": 5,
+   "O": 8,
+   "autonomi": {
+    "N": 8,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 2,
+    "T2": 5
+   }
+  },
+  {
+   "mansione": "Controllo visivo",
+   "I": 1,
+   "L": 0,
+   "U": 5,
+   "O": 8,
+   "autonomi": {
+    "N": 8,
+    "T1": 2,
+    "T2": 3
+   },
+   "assegnati": {
+    "N": 8,
+    "T1": 2,
+    "T2": 4
+   }
+  },
+  {
+   "mansione": "Controllo montaggi",
+   "I": 1,
+   "L": 1,
+   "U": 2,
+   "O": 5,
+   "autonomi": {
+    "N": 4,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Cleanliness Check",
+   "I": 1,
+   "L": 2,
+   "U": 0,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 0,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 1,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Liquidi penetranti",
+   "I": 0,
+   "L": 0,
+   "U": 0,
+   "O": 3,
+   "autonomi": {
+    "N": 3,
+    "T1": 0,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 3,
+    "T1": 0,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Taratura strumenti",
+   "I": 0,
+   "L": 2,
+   "U": 3,
+   "O": 2,
+   "autonomi": {
+    "N": 4,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 6,
+    "T1": 1,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Controllo durezza",
+   "I": 2,
+   "L": 0,
+   "U": 4,
+   "O": 3,
+   "autonomi": {
+    "N": 4,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Controllo conducibilità",
+   "I": 2,
+   "L": 0,
+   "U": 4,
+   "O": 3,
+   "autonomi": {
+    "N": 4,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Controllo marcatura",
+   "I": 1,
+   "L": 0,
+   "U": 3,
+   "O": 6,
+   "autonomi": {
+    "N": 5,
+    "T1": 2,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 2,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Gestione documenti ingresso e uscita",
+   "I": 1,
+   "L": 1,
+   "U": 3,
+   "O": 4,
+   "autonomi": {
+    "N": 4,
+    "T1": 1,
+    "T2": 2
+   },
+   "assegnati": {
+    "N": 5,
+    "T1": 1,
+    "T2": 3
+   }
+  },
+  {
+   "mansione": "Magazzino 02",
+   "I": 0,
+   "L": 0,
+   "U": 2,
+   "O": 0,
+   "autonomi": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 0,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Trasporti",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 2,
+   "autonomi": {
+    "N": 1,
+    "T1": 1,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 1,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Pulizie",
+   "I": 0,
+   "L": 1,
+   "U": 1,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 0,
+    "T2": 1
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 0,
+    "T2": 1
+   }
+  },
+  {
+   "mansione": "Imballaggio",
+   "I": 0,
+   "L": 0,
+   "U": 1,
+   "O": 2,
+   "autonomi": {
+    "N": 2,
+    "T1": 1,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 1,
+    "T2": 0
+   }
+  },
+  {
+   "mansione": "Manutenzione",
+   "I": 1,
+   "L": 0,
+   "U": 0,
+   "O": 1,
+   "autonomi": {
+    "N": 1,
+    "T1": 0,
+    "T2": 0
+   },
+   "assegnati": {
+    "N": 2,
+    "T1": 0,
+    "T2": 0
+   }
+  }
+ ],
+ "totali_in_testa": {
+  "I": [
+   1,
+   2,
+   1,
+   2,
+   2,
+   2,
+   3,
+   2,
+   0,
+   0,
+   1,
+   1,
+   1,
+   1,
+   2,
+   0,
+   0,
+   0,
+   1,
+   0,
+   2,
+   2,
+   1,
+   2,
+   1,
+   3,
+   2,
+   1,
+   0,
+   2,
+   1,
+   1,
+   1,
+   0,
+   2,
+   0,
+   0,
+   2,
+   0,
+   0,
+   2,
+   2,
+   1,
+   1,
+   0,
+   2,
+   0,
+   0,
+   1,
+   0,
+   2,
+   0,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   1,
+   1,
+   1,
+   1,
+   1,
+   2,
+   1,
+   1,
+   1,
+   0,
+   0,
+   2,
+   2,
+   1,
+   1,
+   0,
+   0,
+   0,
+   0,
+   1
+  ],
+  "L": [
+   1,
+   3,
+   0,
+   2,
+   1,
+   0,
+   3,
+   2,
+   1,
+   1,
+   1,
+   9,
+   7,
+   3,
+   5,
+   1,
+   1,
+   0,
+   1,
+   0,
+   0,
+   2,
+   6,
+   1,
+   3,
+   1,
+   2,
+   0,
+   2,
+   3,
+   3,
+   0,
+   1,
+   1,
+   3,
+   0,
+   0,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   2,
+   0,
+   3,
+   2,
+   4,
+   2,
+   4,
+   0,
+   3,
+   1,
+   1,
+   0,
+   0,
+   0,
+   0,
+   1,
+   3,
+   3,
+   3,
+   1,
+   1,
+   0,
+   0,
+   1,
+   2,
+   0,
+   2,
+   0,
+   0,
+   0,
+   1,
+   0,
+   1,
+   1,
+   0,
+   0
+  ],
+  "U": [
+   6,
+   3,
+   3,
+   7,
+   6,
+   3,
+   7,
+   7,
+   1,
+   0,
+   1,
+   3,
+   2,
+   6,
+   2,
+   5,
+   7,
+   1,
+   0,
+   0,
+   0,
+   3,
+   5,
+   2,
+   2,
+   0,
+   3,
+   1,
+   0,
+   1,
+   2,
+   3,
+   0,
+   1,
+   3,
+   0,
+   1,
+   1,
+   0,
+   1,
+   2,
+   1,
+   1,
+   1,
+   1,
+   5,
+   0,
+   0,
+   0,
+   0,
+   5,
+   2,
+   1,
+   1,
+   1,
+   1,
+   1,
+   0,
+   3,
+   3,
+   3,
+   3,
+   4,
+   4,
+   5,
+   5,
+   2,
+   0,
+   0,
+   3,
+   4,
+   4,
+   3,
+   3,
+   2,
+   1,
+   1,
+   2,
+   0
+  ],
+  "O": [
+   6,
+   4,
+   4,
+   5,
+   6,
+   4,
+   5,
+   5,
+   4,
+   3,
+   1,
+   11,
+   11,
+   8,
+   5,
+   7,
+   6,
+   2,
+   3,
+   2,
+   2,
+   7,
+   6,
+   6,
+   4,
+   3,
+   3,
+   1,
+   3,
+   3,
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   2,
+   6,
+   4,
+   4,
+   1,
+   4,
+   3,
+   1,
+   2,
+   2,
+   6,
+   8,
+   8,
+   8,
+   4,
+   4,
+   5,
+   3,
+   1,
+   1,
+   1,
+   4,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5,
+   8,
+   8,
+   5,
+   1,
+   3,
+   2,
+   3,
+   3,
+   6,
+   4,
+   0,
+   3,
+   2,
+   2,
+   1
+  ]
+ }
+}

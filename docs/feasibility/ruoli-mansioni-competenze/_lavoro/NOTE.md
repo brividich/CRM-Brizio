@@ -200,6 +200,21 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       - `RMC_IT_scheda.pdf`, 4 pagine: proposta, schema, tappe e stime, rischi e punti aperti.
       La presentazione chiude con le stesse tre scelte. I PDF lunghi (tecnico 92 pagine, sintesi 10) restano come
       archivio; l'ultima pagina della sintesi lunga riporta ora le tre scelte di fondo.
+- [x] Indicazioni del proprietario su dieci punti (22/11) → `05_approfondimenti.md` (`RMC_Approfondimenti.pdf`):
+      (1) registro timbri letto: è un'app; il portale ha già `timbri.RegistroTimbro` con sospensione legata al MOD.128;
+      **il portale non è collegato all'ERP**, quindi non può impedire una firma: «può firmare» = timbro attivo + mansione
+      effettiva ≥ L, con segnalazione; (2) **mancato esercizio = refresh del caporeparto**, nessun dato di produzione;
+      (3) **anche i non operativi**: stesso catalogo, requisiti sì/no, nomina da organigramma; (4) letti i piani di
+      qualità dei clienti e il Part 145: tutti rimandano a MT CN 06, con scadenze proprie (12 mesi, 2, 3, 5 anni);
+      (5) carico di valutazione: ×2,6 con un livello per competenza; raccomandato «generiche sì/no + livelli sulle
+      specifiche» a regime e «dettaglio solo per I e L» all'avvio; (7) copertura per turno, con il turno in anagrafica
+      HR; (8) dato reale: 79 mansioni, 0 scoperte, **2 con una sola persona autonoma**, 9 con un solo formatore;
+      (9) non conformità: non automatico né nominativo (just culture, MT CN 21): si collega la mansione, decide il CAR;
+      (10) `Catalogo_competenze_completo.xlsx`: 733 righe da MOD.053, incrocio con le 79 colonne della skill matrix
+      (49 uguali, 29 con nome o livello diverso, 1 + 4 mancanti); **in attesa del file della Qualità con le altre
+      competenze-mansioni**; (11) nove indicatori per il riesame, tre con valore di partenza.
+      Dati senza nominativi salvati in `build/catalogo_mod053.json` e `build/skm_aggregati.json`; copie dei documenti
+      cancellate dallo scratchpad. I manuali Part 145 del cliente letti solo nelle parti sui subfornitori.
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 
