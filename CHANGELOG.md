@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit dell'intero portale e PDF degli algoritmi (solo documentazione)
+
+- Rapporto di audit modulo per modulo su sicurezza e flusso/algoritmo, con gravità, prova e stato di verifica di ogni voce; elenco numerato di 58 proposte di miglioramento da cui scegliere; catalogo di 46 algoritmi interni. Nessuna modifica al codice applicativo.
+- Due PDF-presentazione degli algoritmi, una versione semplice per la Direzione e una tecnica, rigenerabili con `python tools/gen_algoritmi_pdf.py` (`--verifica` controlla che file e funzioni citate esistano ancora).
+- File: `docs/audit/AUDIT_PORTALE_2026-11-22.md`, `docs/audit/PROPOSTE_MIGLIORAMENTO_2026-11-22.md`, `docs/audit/ALGORITMI_PORTALE_2026-11-22.md`, `docs/audit/Algoritmi_NOVICROM_HUB_Direzione.pdf`, `docs/audit/Algoritmi_NOVICROM_HUB_Tecnico.pdf`, `tools/gen_algoritmi_pdf.py`, `tools/algoritmi_dati.py`, `CHANGELOG.md`.
+
 ### KICK-OFF: testata unica di commessa e quattro sezioni (riordino UI, blocco 1)
 
 - Dentro una commessa la testata è la stessa su tutte le pagine: nome, cliente, P/N, fase, consegna, **una** azione primaria che segue lo stato («Conduci incontro n. …» il giorno dell'incontro, «Compila la VRF» se manca, altrimenti il prossimo incontro o «Nuovo incontro»), «+ Attività» unico che apre il form nel pannello laterale e il menu «Altro» (nuovo incontro, pianifica più attività, modifica, copie, calendario, tutti i kickoff).
