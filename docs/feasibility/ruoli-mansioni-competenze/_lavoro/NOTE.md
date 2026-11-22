@@ -167,6 +167,19 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - [x] Due cognomi inventati del prototipo coincidevano con cognomi reali della skill matrix: sostituiti ovunque
       (Marco Rivalta, Sara Colombari); nessun altro cognome del dataset compare nei documenti letti. Prototipo
       ripubblicato sulla stessa pagina privata.
+- [x] Richiesta (22/11): «cos'altro mostreresti a Qualità e Direzione, qualcosa di più schematico, o una presentazione?».
+      Proposti sette strumenti; accettati i primi tre («ok»), fatti:
+      - `Fattibilita_RMC_Decisioni.pdf`: foglio delle decisioni, una pagina, con caselle e firme
+        (`build/pdf_decisioni.html`, generato da `build/costruisci_pdf.py`);
+      - `Fattibilita_RMC_Presentazione.pptx`: 12 diapositive con note per chi presenta
+        (`build/costruisci_presentazione.js`, pptxgenjs; servono NODE_PATH e PPTX_SKILL; controllata esportandola
+        con PowerPoint). File locale: non pubblicata su servizi esterni perché contiene conteggi reali;
+      - `Catalogo_pilota_CN5G.xlsx`: 11 competenze e 10 macchine del reparto CN5G trascritte dal MOD.053 Rev.4, con le
+        colonne da compilare (livello richiesto, criticità, requisito formale) e 81 abbinamenti macchina-competenza
+        precompilati (`build/costruisci_catalogo.py`; formule verificate aprendo il file con Excel).
+      Non fatti, rimandati a dopo l'incontro: questionario ridotto compilabile, schema di revisione di MT CN 06,
+      ritocchi al prototipo (macchine e competenze vere, emissione firmata, blocco sui liquidi penetranti).
+      Scelte prese senza risposta esplicita: formato PowerPoint, reparto pilota CN5G.
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 

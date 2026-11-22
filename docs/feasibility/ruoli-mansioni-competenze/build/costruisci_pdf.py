@@ -790,6 +790,26 @@ def fai_direzione(browser, raster: Path | None) -> list[str]:
     return esiti
 
 
+def fai_decisioni(browser, raster: Path | None) -> list[str]:
+    """Foglio delle decisioni: una sola pagina, senza copertina."""
+    corpo = re.sub(r"<!--.*?-->", "", leggi("build/pdf_decisioni.html"), flags=re.S)
+    sorgente = QUI / "stampa_decisioni.html"
+    sorgente.write_text(pagina(f'<main class="dir">{corpo}</main>', "", "Fattibilità RMC · foglio delle decisioni"), encoding="utf-8")
+    uscita = RADICE / "Fattibilita_RMC_Decisioni.pdf"
+    stampa(browser, sorgente, uscita, "Foglio delle decisioni")
+    doc = fitz.open(uscita)
+    n = doc.page_count
+    testo = "\n".join(p.get_text() for p in doc)
+    doc.close()
+    trovati = [t for t in VIETATI_MISSIONE + VIETATI_ALTRI
+               if re.search(r"(?<![\wÀ-ÿ])" + re.escape(t) + r"(?![\wÀ-ÿ])", testo, flags=0 if t.isupper() else re.I)]
+    fuori = sbordi(browser, sorgente)
+    if raster:
+        rasterizza(uscita, raster, "decisioni")
+    return [f"Decisioni: {n} pagina/e " + ("(OK: una)" if n == 1 else "(ATTENZIONE: deve essere una)")
+            + f"; elementi che sbordano: {len(fuori)}; termini vietati: {', '.join(trovati) if trovati else 'NESSUNO'}"]
+
+
 def coerenza() -> list[str]:
     """Numeri chiave: devono comparire uguali nei markdown, nei risultati del motore di riferimento e nei PDF."""
     ris = json.loads((QUI / "risultati.json").read_text(encoding="utf-8"))
@@ -831,6 +851,7 @@ def main() -> None:
             esiti += fai_tecnico(browser, chromium, arg.raster)
         if arg.solo != "tecnico":
             esiti += fai_direzione(browser, arg.raster)
+            esiti += fai_decisioni(browser, arg.raster)
         browser.close()
     if not arg.solo:
         esiti += coerenza()

@@ -451,6 +451,23 @@ figcaption b { color: var(--navy); font-weight: 600; }
 .decisione b { display: block; font-size: 13pt; color: var(--navy); line-height: 1.25; margin-bottom: .8mm; }
 .decisione span { font-size: 10.8pt; color: var(--mid); line-height: 1.36; display: block; }
 
+/* ---------- Foglio delle decisioni (una pagina) ---------- */
+
+.dir .foglio { height: 252mm; display: flex; flex-direction: column; }
+.dir .foglio h1 { font-size: 21pt; margin: 2mm 0 2.5mm; }
+.dir .foglio .attacco { font-size: 11.4pt; margin: 0 0 4mm; }
+.dec { display: grid; grid-template-columns: 11mm 1fr; gap: 2mm; padding: 3.2mm 0; border-top: .25mm solid var(--line); }
+.dec .n { font-size: 24pt; font-weight: 700; color: var(--acc); line-height: 1; }
+.dec .d > b { display: block; font-size: 12pt; color: var(--navy); margin-bottom: 1.6mm; line-height: 1.25; }
+.dec .op { display: grid; grid-template-columns: 6.5mm 1fr; align-items: start; font-size: 9.8pt; line-height: 1.36; margin-bottom: 1.5mm; color: var(--ink); }
+.dec .q { display: inline-block; width: 4mm; height: 4mm; border: .35mm solid var(--navy); border-radius: .5mm; margin-top: .5mm; vertical-align: -0.8mm; }
+.dec .riga { display: inline-block; width: 78mm; border-bottom: .25mm solid var(--soft); height: 3.6mm; }
+.dec .riga.corta { width: 38mm; }
+.firme { margin-top: auto; display: grid; grid-template-columns: 30mm 1fr 1fr 1fr; gap: 6mm; padding-top: 3mm; }
+.firme > div { border-bottom: .3mm solid var(--navy); height: 15mm; }
+.firme span { font-size: 8.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+.dir .foglio .nota { margin: 3mm 0 0; }
+
 </style></head>
 <body class="">
 <main class="dir">
