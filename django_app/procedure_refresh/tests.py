@@ -1417,6 +1417,29 @@ class AssignmentLifecycleTests(TestCase):
             ).exists()
         )
 
+    def test_pre_scadenza_recuperata_dopo_un_fermo(self):
+        # Audit R2: il controllo non e' girato a 7 giorni; a 6 il promemoria parte comunque,
+        # e a 1 giorno parte solo quello della soglia piu' stretta.
+        from procedure_refresh.tasks import run_assignment_lifecycle
+
+        self._enable_reminders()
+        a6 = self._assignment(timezone.localdate() + timedelta(days=6))
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: "rossi@test.local"},
+        ):
+            res = run_assignment_lifecycle()
+            self.assertEqual(res["pre_sent"], 1)
+            self.assertIn("entro 7 giorni", mail.outbox[0].subject)
+            self.assertTrue(a6.events.filter(meta_json__contains='"kind": "pre7"').exists())
+
+            a6.due_date = timezone.localdate() + timedelta(days=1)
+            a6.save(update_fields=["due_date"])
+            res = run_assignment_lifecycle()
+            self.assertEqual(res["pre_sent"], 1)
+            self.assertIn("entro 2 giorni", mail.outbox[-1].subject)
+            self.assertEqual(run_assignment_lifecycle()["pre_sent"], 0)
+
     def test_post_scadenza_rispetta_cadenza(self):
         from procedure_refresh.tasks import run_assignment_lifecycle
 

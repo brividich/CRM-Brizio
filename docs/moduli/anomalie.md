@@ -126,3 +126,5 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) i
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Statistiche: tessere che filtrano la pagina (`recuperato`, `stato_anomalie`).
+
+**Riepilogo decisioni, un invio solo (audit A1-A3, 22/11/2026):** `flush_pending_update_notifications` prende in carico ogni `AnomaliaPendingNotification` sotto `select_for_update` (`_prendi_in_carico`: copia e svuota `updates_snapshot`, `notified=True`) e invia fuori dalla transazione; con errore SMTP le decisioni tornano in coda davanti a quelle arrivate nel frattempo (`_rimetti_in_coda`, dead-letter oltre `MAX_FLUSH_ATTEMPTS` con le decisioni conservate). `register_pending_update` aggiorna la riga sotto blocco. Effetti: «Invia ora» e il controllo automatico non mandano due volte lo stesso riepilogo, le decisioni inviate non tornano nel riepilogo dopo, una decisione salvata durante l'invio parte al giro successivo.

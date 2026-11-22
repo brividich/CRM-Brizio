@@ -228,14 +228,23 @@ def run_assignment_lifecycle(**kwargs) -> dict:
         email_map = _notification_email_map(user_ids) if user_ids else {}
         legacy_map = _legacy_id_map(user_ids) if user_ids else {}
 
-        for soglia in cfg["pre_giorni"]:
-            per_user: dict[int, list] = {}
-            for a in pre_pool:
-                if (a.due_date - today).days == soglia and not _has_reminder_event(a, f"pre{soglia}"):
-                    per_user.setdefault(a.user_id, []).append(a)
+        # Ogni assegnazione ricade nella soglia piu' stretta che ha gia' raggiunto (es. 6 giorni -> 7,
+        # 1 giorno -> 2): se il controllo non e' girato proprio quel giorno il promemoria parte al
+        # giro dopo invece di andare perso (audit R2). Una sola mail per soglia, mai due insieme.
+        soglie = sorted({int(g) for g in cfg["pre_giorni"] if int(g) >= 0})
+        per_soglia: dict[int, dict[int, list]] = {}
+        for a in pre_pool:
+            giorni = (a.due_date - today).days
+            soglia = next((g for g in soglie if giorni <= g), None)
+            if soglia is None or _has_reminder_event(a, f"pre{soglia}"):
+                continue
+            per_soglia.setdefault(soglia, {}).setdefault(a.user_id, []).append(a)
+
+        for soglia in sorted(per_soglia, reverse=True):
+            per_user = per_soglia[soglia]
             for uid, items in per_user.items():
                 user = items[0].user
-                subject = f"Presa visione: {len(items)} documenti in scadenza tra {soglia} giorni"
+                subject = f"Presa visione: {len(items)} documenti in scadenza entro {soglia} giorni"
                 sent = _send_reminder_mail(
                     user, email_map.get(uid, ""), items,
                     subject=subject,
@@ -243,7 +252,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                 )
                 invia_notifica(
                     legacy_map.get(uid), "presa_visione",
-                    f"{len(items)} documenti in presa visione scadono tra {soglia} giorni.",
+                    f"{len(items)} documenti in presa visione scadono entro {soglia} giorni.",
                     url_azione="/procedure-refresh/letture/",
                 )
                 for a in items:

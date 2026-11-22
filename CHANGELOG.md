@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 2: invii ripetuti o persi
+
+- **Anomalie, riepilogo delle decisioni (A1-A3):** l'invio prende in carico la coda sotto blocco e la svuota; «Invia ora» e il controllo automatico non mandano più due volte lo stesso riepilogo, le decisioni già inviate non tornano nel riepilogo successivo e una decisione salvata durante l'invio parte al giro dopo. Con errore SMTP le decisioni tornano in coda; i tentativi si azzerano dopo un invio riuscito. File: `anomalie/mail_action_service.py`, test `anomalie/tests_invia_ora.py`.
+- **Report pianificati (R1):** la prossima data si sposta in avanti, sotto blocco, prima dell'invio: un errore non fa più ritentare il report ogni ora e due processi non lo spediscono due volte. File: `core/report_centro/pianificazione.py`, test `core/tests_report_centro.py`.
+- **Procedure, promemoria di presa visione (R2):** non più «solo nel giorno esatto»: se il controllo salta il giorno della soglia (7 o 2 giorni) il promemoria parte il giorno dopo, una sola volta per soglia; oggetto «in scadenza entro N giorni». File: `procedure_refresh/tasks.py`, test `procedure_refresh/tests.py`.
+- Guide: Centro guide Procedure; `docs/moduli/anomalie.md`, `core.md`, `procedure_refresh.md`; stato in `docs/audit/PIANO_RIMEDIO_2026-11-22.md`. Nessuna migrazione.
+
 ### Audit 22/11, ondata 1: sicurezza rapida
 
 - **Reindirizzamenti (S2):** dopo la decisione su uno spostamento di date (KICK-OFF) e alla fine di un'impersonazione il parametro `next` passa da `core.redirects.safe_next`: un indirizzo esterno riporta alla pagina interna. File: `tasks/views/spostamenti.py`, `core/views.py`.
