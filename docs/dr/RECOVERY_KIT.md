@@ -55,7 +55,7 @@ La passphrase la conoscono Brizio e la Direzione, e non sta mai nello stesso pos
 
 - a ogni modifica del `.env` (nuova password, nuovo host DB, nuova chiave Graph…);
 - dopo una rotazione di `DOCUMENT_ENCRYPTION_KEY` (`rotate_document_encryption_key`);
-- dopo il rinnovo del certificato HTTPS;
+- dopo il rinnovo del certificato HTTPS: lo fa da solo Setup Wizard → Gestisci server → «🔒 Rinnova certificato HTTPS», che aggiorna IIS e crea e verifica il nuovo kit;
 - in ogni caso quando la pagina «Backup e ripristino» mostra «Da rigenerare».
 
 Dopo l'esportazione:
