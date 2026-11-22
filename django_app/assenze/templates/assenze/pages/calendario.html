@@ -943,7 +943,7 @@
         });
         const data = await resp.json();
         if (!resp.ok || !data.ok) throw new Error(data.error || "Salvataggio non riuscito.");
-        modalMessageEl.textContent = "Richiesta aggiornata.";
+        modalMessageEl.textContent = data.warning ? "Richiesta aggiornata. " + data.warning : "Richiesta aggiornata.";
         calendar.refetchEvents();
       }
 

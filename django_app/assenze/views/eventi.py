@@ -25,6 +25,8 @@ from . import _helpers  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+RIAPPROVAZIONE_MSG = "Hai cambiato giorni o ore di una tua richiesta approvata: torna in approvazione."
+
 
 _COLOR_CACHE_KEY_GLOBAL = "assenze:colors:global:v1"
 _COLOR_CACHE_KEY_USER_PREFIX = "assenze:colors:user:v1:"
@@ -667,6 +669,18 @@ def api_evento_update(request, item_id: int | None = None):
         return _helpers._json_error(
             "La richiesta era già approvata: scrivi il motivo della modifica.", status=400,
         )
+    # Chi gestisce le assenze non si auto-approva: se cambia giorni o ore di una
+    # propria richiesta già approvata, la richiesta torna in approvazione.
+    torna_in_attesa = bool(
+        era_approvata
+        and _helpers._e_mia_richiesta(request, current)
+        and calcoli_hr.differenze(current, {"data_inizio": dt_start, "data_fine": dt_end})
+    )
+    if torna_in_attesa:
+        updates["consenso"] = "In attesa"
+        updates["moderation_status"] = _helpers._CONSENSO_TO_MOD["In attesa"]
+        updates.update(_helpers._approval_timestamp_update("In attesa", current))
+        modifiche = calcoli_hr.differenze(current, updates)
 
     ok = _helpers._update_assenza(target_id, updates)
     if not ok:
@@ -681,7 +695,8 @@ def api_evento_update(request, item_id: int | None = None):
             dopo=updates,
             motivo=motivo,
         )
-        _helpers._notify_assenza_modificata(request, current, modifiche, motivo=motivo)
+        motivo_mail = f"{motivo} — {RIAPPROVAZIONE_MSG}" if torna_in_attesa else motivo
+        _helpers._notify_assenza_modificata(request, current, modifiche, motivo=motivo_mail)
         if nuovo_stato in ("Approvato", "Rifiutato"):
             _helpers._notify_esito_dipendente(request, {**current, **updates}, nuovo_stato, motivo)
 
@@ -691,7 +706,8 @@ def api_evento_update(request, item_id: int | None = None):
         "ok": True,
         "item_id": target_id,
         "sync": sync_result,
-        "warning": " ".join(x for x in [auto_fine_msg, warn_msg] if x),
+        "warning": " ".join(x for x in [auto_fine_msg, warn_msg, RIAPPROVAZIONE_MSG if torna_in_attesa else ""] if x),
+        "torna_in_attesa": torna_in_attesa,
     })
 
 
