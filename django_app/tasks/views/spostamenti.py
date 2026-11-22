@@ -12,6 +12,7 @@ from core.audit import log_action
 from ..access import scoped_tasks_queryset, task_permissions_required
 from ..models import SpostamentoStato, TaskSpostamento
 from ..services import spostamenti as svc
+from ..services.gantt_piano import testo_spostate
 
 
 def _data(valore):
@@ -29,12 +30,15 @@ def spostamento_decidi(request, sp_id: int):
     try:
         inizio = _data(request.POST.get("inizio")) if request.POST.get("inizio") else None
         fine = _data(request.POST.get("fine")) if request.POST.get("fine") else None
-        svc.decidi(request, sp, approva=approva, nota=request.POST.get("nota", ""), inizio=inizio, fine=fine)
+        deciso = svc.decidi(request, sp, approva=approva, nota=request.POST.get("nota", ""), inizio=inizio, fine=fine)
     except ValueError as exc:
         messages.error(request, str(exc) or "Data non valida.")
         return redirect(request.POST.get("next") or f"/tasks/{sp.task_id}/")
     log_action(request, "kickoff_spostamento_decidi", "tasks", {"id": sp.pk, "task_id": sp.task_id, "approva": approva})
     messages.success(request, "Spostamento approvato: date aggiornate e coinvolti avvisati." if approva else "Spostamento rifiutato: il richiedente è avvisato.")
+    spostate = getattr(deciso, "spostate_a_cascata", None)
+    if spostate:
+        messages.info(request, testo_spostate(spostate))
     return redirect(request.POST.get("next") or f"/tasks/{sp.task_id}/")
 
 
