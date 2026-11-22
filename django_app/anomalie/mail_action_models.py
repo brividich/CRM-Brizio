@@ -1,6 +1,7 @@
 """Modello per token monouso di azione anomalie via mail."""
 from __future__ import annotations
 
+import hashlib
 import secrets
 
 from django.conf import settings
@@ -9,7 +10,13 @@ from django.utils import timezone
 
 
 def _default_token() -> str:
+    """Solo per la migrazione 0006, che lo referenzia: i token nuovi nascono in ``save``."""
     return secrets.token_urlsafe(32)
+
+
+def hash_token(raw_token: str) -> str:
+    """Impronta SHA-256 del segreto del link: è l'unica cosa che resta nel database."""
+    return hashlib.sha256(str(raw_token or "").encode("utf-8")).hexdigest()
 
 
 class AnomaliaMailActionToken(models.Model):
@@ -18,8 +25,12 @@ class AnomaliaMailActionToken(models.Model):
     Il flusso:
     1. Il sistema crea un token per un utente destinatario + lista anomalie + azione.
     2. L'email include il link /gestione-anomalie/mail-action/<token>/.
-    3. Il click apre la pagina portale (richiede login); il token viene validato e
-       marcato used_at alla conferma.
+    3. Il click apre la pagina del portale senza login: il segreto del link è
+       l'autorizzazione; il token viene validato e marcato used_at alla conferma.
+
+    Nel database resta solo l'impronta del segreto (``token_hash``): il segreto in
+    chiaro esiste nell'URL della mail e, in memoria, su ``.token`` dell'istanza
+    appena creata o caricata da una vista con il segreto dell'URL.
     """
 
     class Action(models.TextChoices):
@@ -30,12 +41,7 @@ class AnomaliaMailActionToken(models.Model):
         CHIUDI = "chiudi", "Chiudi"
         VISUALIZZA = "visualizza", "Visualizza (sola lettura)"
 
-    token = models.CharField(
-        max_length=64,
-        unique=True,
-        db_index=True,
-        default=_default_token,
-    )
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
     # Destinatario: utente Django quando disponibile, oppure dati legacy
     recipient_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -92,7 +98,55 @@ class AnomaliaMailActionToken(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"AnomaliaMailActionToken<{self.action}:{self.op_id}:{self.token[:8]}…>"
+        return f"AnomaliaMailActionToken<{self.action}:{self.op_id}:{self.rif}…>"
+
+    @property
+    def token(self) -> str:
+        """Segreto in chiaro, disponibile solo in memoria (vuoto se l'istanza viene dal database)."""
+        return getattr(self, "_raw_token", "")
+
+    @token.setter
+    def token(self, raw_token: str) -> None:
+        self._raw_token = str(raw_token or "")
+        self.token_hash = hash_token(self._raw_token)
+
+    @property
+    def rif(self) -> str:
+        """Riferimento non segreto per log e audit: inizio dell'impronta."""
+        return str(self.token_hash or "")[:8]
+
+    @classmethod
+    def per_segreto(cls, raw_token: str):
+        """Token del link, con il segreto in memoria per costruire gli URL; None se non esiste."""
+        raw = str(raw_token or "").strip()
+        if not raw:
+            return None
+        obj = cls.objects.filter(token_hash=hash_token(raw)).first()
+        if obj is not None:
+            obj._raw_token = raw
+        return obj
+
+    def save(self, *args, **kwargs):
+        if not self.token_hash:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def revoca_superati(self) -> int:
+        """Revoca i link non usati che questo sostituisce: stessa persona, stesso OP, stessa azione.
+
+        La pagina mostra sempre tutte le anomalie aperte dell'OP, quindi il link nuovo
+        copre quello vecchio. Senza OP o senza indirizzo non si revoca niente.
+        """
+        email = str(self.recipient_email or "").strip()
+        if not self.pk or not self.op_id or not email:
+            return 0
+        return (
+            type(self).objects
+            .filter(op_id=self.op_id, action=self.action, recipient_email__iexact=email,
+                    is_used=False, is_revoked=False)
+            .exclude(pk=self.pk)
+            .update(is_revoked=True)
+        )
 
     def is_valid(self) -> bool:
         """True se il token è ancora utilizzabile."""

@@ -703,8 +703,8 @@ class AutomationActionForm(forms.ModelForm):
         ],
     )
     anomalie_mail_expires_hours = forms.IntegerField(
-        required=False, label="Scadenza link (ore)", initial=48,
-        widget=forms.NumberInput(attrs={"min": 1}),
+        required=False, label="Scadenza link (ore, minimo 168 = una settimana)", initial=168,
+        widget=forms.NumberInput(attrs={"min": 168}),
     )
     anomalie_mail_source_automation = forms.CharField(required=False, label="Label audit (source_automation)")
 
@@ -724,8 +724,8 @@ class AutomationActionForm(forms.ModelForm):
         ],
     )
     anomalie_op_expires_hours = forms.IntegerField(
-        required=False, label="Scadenza link (ore)", initial=48,
-        widget=forms.NumberInput(attrs={"min": 1}),
+        required=False, label="Scadenza link (ore, minimo 168 = una settimana)", initial=168,
+        widget=forms.NumberInput(attrs={"min": 168}),
     )
     anomalie_op_source_automation = forms.CharField(required=False, label="Label audit (source_automation)")
 
@@ -1151,11 +1151,11 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("anomalie_mail_to", config.get("to", ""))
             self.initial.setdefault("anomalie_mail_recipient_display", config.get("recipient_display", ""))
             self.initial.setdefault("anomalie_mail_action", config.get("action", "prendi_in_carico"))
-            self.initial.setdefault("anomalie_mail_expires_hours", config.get("expires_hours", 48))
+            self.initial.setdefault("anomalie_mail_expires_hours", max(168, int(config.get("expires_hours") or 0)))
             self.initial.setdefault("anomalie_mail_source_automation", config.get("source_automation", ""))
             self.initial.setdefault("anomalie_op_benestare_field", config.get("benestare_field", ""))
             self.initial.setdefault("anomalie_op_action", config.get("action", "prendi_in_carico"))
-            self.initial.setdefault("anomalie_op_expires_hours", config.get("expires_hours", 48))
+            self.initial.setdefault("anomalie_op_expires_hours", max(168, int(config.get("expires_hours") or 0)))
             self.initial.setdefault("anomalie_op_source_automation", config.get("source_automation", ""))
             self.initial.setdefault("teams_webhook_url", config.get("webhook_url", ""))
             self.initial.setdefault("teams_title_template", config.get("title_template", ""))
@@ -1475,7 +1475,7 @@ class AutomationActionForm(forms.ModelForm):
                 "to": to_val,
                 "recipient_display": str(cleaned_data.get("anomalie_mail_recipient_display") or "").strip(),
                 "action": str(cleaned_data.get("anomalie_mail_action") or "prendi_in_carico").strip(),
-                "expires_hours": int(cleaned_data.get("anomalie_mail_expires_hours") or 48),
+                "expires_hours": int(cleaned_data.get("anomalie_mail_expires_hours") or 168),
                 "source_automation": str(cleaned_data.get("anomalie_mail_source_automation") or "").strip(),
             }
 
@@ -1483,7 +1483,7 @@ class AutomationActionForm(forms.ModelForm):
             config_json = {
                 "benestare_field": str(cleaned_data.get("anomalie_op_benestare_field") or "").strip(),
                 "action": str(cleaned_data.get("anomalie_op_action") or "prendi_in_carico").strip(),
-                "expires_hours": int(cleaned_data.get("anomalie_op_expires_hours") or 48),
+                "expires_hours": int(cleaned_data.get("anomalie_op_expires_hours") or 168),
                 "source_automation": str(cleaned_data.get("anomalie_op_source_automation") or "").strip(),
             }
 

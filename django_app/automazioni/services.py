@@ -5243,7 +5243,7 @@ def _execute_action(
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
         if action.action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION:
-            from anomalie.mail_action_service import send_anomalie_action_email
+            from anomalie.mail_action_service import DURATA_LINK_ORE, send_anomalie_action_email
 
             to_raw = str(_render_action_value(config.get("to"), payload_context) or "").strip()
             if not to_raw:
@@ -5263,7 +5263,7 @@ def _execute_action(
             op_nominativo = op_id
 
             mail_action = str(_render_action_value(config.get("action"), payload_context) or "visualizza").strip()
-            expires_hours = max(1, int(config.get("expires_hours") or 48))
+            expires_hours = max(DURATA_LINK_ORE, int(config.get("expires_hours") or 0))
             source_automation_label = str(config.get("source_automation") or "").strip()
 
             legacy_user_id_raw = payload_context.get("created_by")
@@ -5285,7 +5285,7 @@ def _execute_action(
 
             result_message = (
                 f"Mail-action anomalie inviata a {recipient_email} "
-                f"(token={str(token_obj.token)[:8]}…, op={op_id}, action={mail_action})."
+                f"(token={token_obj.rif}…, op={op_id}, action={mail_action})."
             )
             action_log = _create_action_log(
                 run_log=run_log,
@@ -5296,7 +5296,7 @@ def _execute_action(
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
         if action.action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION_BY_OP:
-            from anomalie.mail_action_service import send_anomalie_action_email
+            from anomalie.mail_action_service import DURATA_LINK_ORE, send_anomalie_action_email
 
             pk_field = str((source_definition or {}).get("pk_field") or "id")
             anomalia_id = payload_context.get(pk_field)
@@ -5335,7 +5335,7 @@ def _execute_action(
                 raise ValueError("send_anomalie_mail_action_by_op: nessun destinatario principale risolto.")
 
             mail_action = str(_render_action_value(config.get("action"), payload_context) or "prendi_in_carico").strip()
-            expires_hours = max(1, int(config.get("expires_hours") or 48))
+            expires_hours = max(DURATA_LINK_ORE, int(config.get("expires_hours") or 0))
             source_automation_label = str(config.get("source_automation") or "").strip()
             op_id = str(payload_context.get("ex_op_nominativo") or "").strip()
 
@@ -5390,7 +5390,7 @@ def _execute_action(
             result_message = (
                 f"Mail-action OP inviata a {primary['email']} ({role_label}), "
                 f"cc={cc_label}, op={op_id}, action={mail_action}, "
-                f"token={str(token_obj.token)[:8]}…"
+                f"token={token_obj.rif}…"
             )
             action_log = _create_action_log(
                 run_log=run_log,

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 
+from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -42,18 +43,11 @@ _ACTION_TO_AVANZAMENTO = {
 @require_http_methods(["GET", "POST"])
 def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     """Pagina portale raggiunta dal link email con token anomalie. Nessun login richiesto."""
-    from .mail_action_models import AnomaliaActionLog, AnomaliaMailActionToken
+    from .mail_action_models import AnomaliaActionLog
 
-    try:
-        token_obj = AnomaliaMailActionToken.objects.get(token=token)
-    except AnomaliaMailActionToken.DoesNotExist:
-        return _render_error(request, "Token non valido o inesistente.", "invalid")
-
-    if token_obj.is_revoked:
-        return _render_error(request, "Questo link è stato revocato.", "revoked")
-
-    if timezone.now() > token_obj.expires_at:
-        return _render_error(request, "Questo link è scaduto.", "expired")
+    token_obj, errore = _token_o_errore(request, token)
+    if errore is not None:
+        return errore
 
     action = token_obj.action
     op_id = token_obj.op_id
@@ -241,7 +235,7 @@ def _release_token(token_obj) -> None:
     from .mail_action_models import AnomaliaMailActionToken
 
     AnomaliaMailActionToken.objects.filter(pk=token_obj.pk).update(is_used=False, used_at=None)
-    logger.warning("mail_action: applicazione fallita, token %s… rilasciato", str(token_obj.token)[:8])
+    logger.warning("mail_action: applicazione fallita, token %s… rilasciato", token_obj.rif)
 
 
 def _segna_decise_e_azioni(anomalie_live) -> None:
@@ -440,7 +434,7 @@ def _salva_allegati_mail(request, token_obj, anomalia_id: int) -> None:
             )
         log_action(request, azione="anomalia_allegato_upload_mail", modulo="anomalie", dettaglio={
             "local_id": anomalia_id, "op_id": token_obj.op_id, "files": nomi, "errori": errori,
-            "token": token_obj.token[:8], "recipient": token_obj.recipient_display,
+            "token": token_obj.rif, "recipient": token_obj.recipient_display,
         })
     except Exception:
         logger.warning("mail_action: allegati non salvati id=%s", anomalia_id, exc_info=True)
@@ -641,7 +635,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             "anomalie_ids": token_obj.anomalie_ids,
             "note": note,
             "results": results,
-            "token": token_obj.token[:8],
+            "token": token_obj.rif,
             "recipient": token_obj.recipient_display,
         },
     )
@@ -706,12 +700,11 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
 @require_http_methods(["GET"])
 def mail_action_done_view(request: HttpRequest, token: str) -> HttpResponse:
     """Pagina di conferma dopo azione completata. Nessun login richiesto."""
-    from .mail_action_models import AnomaliaActionLog, AnomaliaMailActionToken
+    from .mail_action_models import AnomaliaActionLog
 
-    try:
-        token_obj = AnomaliaMailActionToken.objects.get(token=token)
-    except AnomaliaMailActionToken.DoesNotExist:
-        return _render_error(request, "Token non trovato.", "invalid")
+    token_obj, errore = _token_o_errore(request, token)
+    if errore is not None:
+        return errore
 
     logs = list(
         AnomaliaActionLog.objects.filter(token=token_obj).order_by("created_at")[:20]
@@ -744,11 +737,10 @@ def mail_action_allegato_view(request: HttpRequest, token: str) -> HttpResponse:
 
     from core.download_security import harden_file_response
 
-    from .mail_action_models import AnomaliaMailActionToken
     from .views import _anomaly_local_row, _attachment_display_name, _resolve_anomalia_attachment_path
 
-    token_obj = AnomaliaMailActionToken.objects.filter(token=token).first()
-    if token_obj is None or token_obj.is_revoked or timezone.now() > token_obj.expires_at:
+    token_obj, errore = _token_o_errore(request, token)
+    if errore is not None:
         raise Http404("Link non valido o scaduto.")
 
     local_id_raw = str(request.GET.get("local_id") or "").strip()
@@ -773,7 +765,7 @@ def mail_action_allegato_view(request: HttpRequest, token: str) -> HttpResponse:
                 "op_id": token_obj.op_id,
                 "file_id": file_id,
                 "file_name": display_name,
-                "token": str(token_obj.token)[:8],
+                "token": token_obj.rif,
                 "recipient": token_obj.recipient_display,
             },
         )
@@ -808,12 +800,62 @@ def _token_shows_anomalia(token_obj, local_id: int, row: dict | None) -> bool:
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
+# Link sbagliati dallo stesso indirizzo: oltre il limite la pagina non cerca più.
+# Si contano solo i link inesistenti, quindi chi usa i link veri non lo incontra mai.
+LIMITE_LINK_ERRATI, FINESTRA_LINK_ERRATI = 20, 600
+_IP_NON_DISTINGUIBILI = {"", "127.0.0.1", "::1"}
+
+
+def _chiave_link_errati(request: HttpRequest) -> str | None:
+    """Chiave di cache per IP; None se l'IP non distingue i client (loopback, assente)."""
+    ip = str(_get_ip(request) or "").strip()
+    return None if ip in _IP_NON_DISTINGUIBILI else f"anomalie:mail_action:link_errati:{ip}"
+
+
+def _token_o_errore(request: HttpRequest, token: str):
+    """(token, None) se il link è utilizzabile, altrimenti (None, pagina d'errore).
+
+    Stesso controllo per pagina, riepilogo e allegati: link esistente, non revocato,
+    non scaduto. Il token torna con il segreto in memoria, per costruire gli URL.
+    """
+    from .mail_action_models import AnomaliaMailActionToken
+
+    chiave = _chiave_link_errati(request)
+    if chiave and int(cache.get(chiave) or 0) >= LIMITE_LINK_ERRATI:
+        return None, _render_error(request, "Troppi link non validi da questa postazione: riprova fra qualche minuto.", "too_many")
+    token_obj = AnomaliaMailActionToken.per_segreto(token)
+    if token_obj is None:
+        if chiave:
+            cache.add(chiave, 0, timeout=FINESTRA_LINK_ERRATI)
+            try:
+                cache.incr(chiave)
+            except ValueError:
+                cache.set(chiave, 1, timeout=FINESTRA_LINK_ERRATI)
+        return None, _render_error(request, "Link non valido o inesistente.", "invalid")
+    if token_obj.is_revoked:
+        return None, _render_error(
+            request,
+            "Questo link non è più valido: è stato sostituito da una mail più recente oppure revocato. "
+            "Usa il link dell'ultima mail ricevuta per questo OP.",
+            "revoked",
+        )
+    if timezone.now() > token_obj.expires_at:
+        return None, _render_error(request, "Questo link è scaduto.", "expired")
+    return token_obj, None
+
+
 def _render_error(request: HttpRequest, messaggio: str, codice: str) -> HttpResponse:
+    if codice == "too_many":
+        status = 429
+    elif codice in ("invalid", "wrong_user", "forbidden", "already_used"):
+        status = 400
+    else:
+        status = 410
     return render(
         request,
         "anomalie/pages/mail_action_error.html",
         {"messaggio": messaggio, "codice": codice},
-        status=400 if codice in ("invalid", "wrong_user", "forbidden", "already_used") else 410,
+        status=status,
     )
 
 

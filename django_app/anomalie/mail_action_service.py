@@ -12,7 +12,6 @@ Uso:
         op_nominativo="Lavorazione flangia",
         anomalie_rows=[{"id": 1, "descrizione": "...", ...}, ...],
         action="visualizza",
-        expires_hours=48,
         source_automation="anomalia_segnalata",
     )
     # token è l'istanza AnomaliaMailActionToken creata e inviata
@@ -37,6 +36,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .codice import codice_anomalia  # noqa: E402
+
+# Durata minima del link delle mail: una settimana. Un flusso può allungarla, non accorciarla.
+DURATA_LINK_ORE = 24 * 7
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +358,7 @@ def send_anomalie_action_email(
     op_nominativo: str,
     anomalie_rows: list[dict],
     action: str,
-    expires_hours: int = 48,
+    expires_hours: int = DURATA_LINK_ORE,
     source_automation: str = "",
     created_by=None,
     site_url: str | None = None,
@@ -369,6 +371,7 @@ def send_anomalie_action_email(
     """
     from .mail_action_models import AnomaliaMailActionToken
 
+    expires_hours = max(int(expires_hours or 0), DURATA_LINK_ORE)
     expires_at = timezone.now() + timedelta(hours=expires_hours)
 
     token_obj = AnomaliaMailActionToken.objects.create(
@@ -416,9 +419,15 @@ def send_anomalie_action_email(
         },
         created_by=created_by,
     )
+    # A mail partita, il link nuovo sostituisce quelli non usati della stessa persona
+    # sullo stesso OP: se l'invio fallisce il link precedente resta buono.
+    try:
+        token_obj.revoca_superati()
+    except Exception:
+        logger.warning("mail_action: revoca dei link superati fallita op=%s", op_id, exc_info=True)
     logger.info(
         "anomalie mail_action email inviata token=%s op=%s action=%s a=%s",
-        token_obj.token[:8],
+        token_obj.rif,
         op_id,
         action,
         recipient_email,
