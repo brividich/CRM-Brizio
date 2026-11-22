@@ -99,19 +99,12 @@
 </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Compila VRF</span>{% endblock %}
-{% block tasks_shell_title %}Compila VRF online - {{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}Scheda MOD.073 «Valutazione rischi e fornitura»: scegli la Probabilità di ogni rischio, il portale calcola R = P × D e il Totale Rischio. L'xlsx si genera alla conferma.{% endblock %}
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">Kickoff: {{ project.name }}</span>
-  {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
-  {% if project.part_number %}<span class="ts-hero-pill">P/N: {{ project.part_number }}{% if project.revisione %} Rev.{{ project.revisione }}{% endif %}{% if project.versione %} v{{ project.versione }}{% endif %}</span>{% endif %}
-{% endblock %}
 {% block tasks_shell_guide_anchor %}#vrf{% endblock %}
-{% block tasks_shell_actions %}
-  {% if tasks_shell_can_edit_project %}<a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>{% endif %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica file esistente</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Gantt kickoff</a>
+
+{% block tasks_shell_pagebar %}
+<div class="tk-pagebar">
+  <a class="btn btn-secondary btn-sm tk-pagebar-fine" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica file esistente</a>
+</div>
 {% endblock %}
 
 {% block tasks_shell_content %}

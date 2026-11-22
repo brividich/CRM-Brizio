@@ -1,9 +1,27 @@
-{% load static %}
+{% comment %}
+Sezioni di commessa: quattro tab (Panoramica, Piano, Incontri, Documenti) e, sotto,
+le viste della sezione aperta. Param: project, active (chiave pagina), sezione.
+{% endcomment %}
 <nav class="tk-tabs" aria-label="Sezioni commessa">
-  <a class="tk-tab{% if active == 'overview' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
-  <a class="tk-tab{% if active == 'actions' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Attività{% if tasks_shell_open_action_count %} ({{ tasks_shell_open_action_count }}){% endif %}</a>
-  <a class="tk-tab{% if active == 'meetings' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
-  <a class="tk-tab{% if active == 'gantt' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_gantt' project.id %}">Piano</a>
-  <a class="tk-tab{% if active == 'vrf' %} tk-tab--active{% endif %}" href="{% if project.vrf_status == 'PENDING' %}{% url 'tasks:project_vrf_compile' project.id %}{% else %}{% url 'tasks:project_vrf_upload' project.id %}{% endif %}">VRF</a>
-  <a class="tk-tab{% if active == 'tech_refs' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_tech_refs' project.id %}">Programmi e FAI</a>
+  <a class="tk-tab{% if sezione == 'panoramica' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
+  <a class="tk-tab{% if sezione == 'piano' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Piano{% if tasks_shell_open_action_count %} ({{ tasks_shell_open_action_count }}){% endif %}</a>
+  <a class="tk-tab{% if sezione == 'incontri' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+  <a class="tk-tab{% if sezione == 'documenti' %} tk-tab--active{% endif %}" href="{% if project.vrf_status == 'PENDING' %}{% url 'tasks:project_vrf_compile' project.id %}{% else %}{% url 'tasks:project_vrf_upload' project.id %}{% endif %}">Documenti</a>
 </nav>
+{% if sezione == 'piano' %}
+<nav class="tk-viste" aria-label="Viste del piano">
+  <a class="tk-vista{% if active == 'actions' %} is-active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Elenco</a>
+  <a class="tk-vista{% if active == 'gantt' %} is-active{% endif %}" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+  <a class="tk-vista{% if active == 'board' %} is-active{% endif %}" href="{% url 'tasks:list' %}?project={{ project.id }}">Board</a>
+</nav>
+{% elif sezione == 'incontri' %}
+<nav class="tk-viste" aria-label="Viste degli incontri">
+  <a class="tk-vista{% if active == 'meetings' %} is-active{% endif %}" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+  <a class="tk-vista{% if active == 'decisions' %} is-active{% endif %}" href="{% url 'tasks:project_decisions' project.id %}">Decisioni</a>
+</nav>
+{% elif sezione == 'documenti' %}
+<nav class="tk-viste" aria-label="Documenti della commessa">
+  <a class="tk-vista{% if active == 'vrf' %} is-active{% endif %}" href="{% if project.vrf_status == 'PENDING' %}{% url 'tasks:project_vrf_compile' project.id %}{% else %}{% url 'tasks:project_vrf_upload' project.id %}{% endif %}">VRF</a>
+  <a class="tk-vista{% if active == 'tech_refs' %} is-active{% endif %}" href="{% url 'tasks:project_tech_refs' project.id %}">Programmi e FAI</a>
+</nav>
+{% endif %}

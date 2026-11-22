@@ -5,20 +5,6 @@
 {% include "tasks/_percorso_assets.html" %}
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Documento VRF</span>{% endblock %}
-{% block tasks_shell_title %}Documento VRF — {{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}Carica il documento MOD.073 VRF compilato durante il kickoff. I dati identificativi vengono estratti automaticamente e aggiornano l'anagrafica del kickoff.{% endblock %}
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">Kickoff: {{ project.name }}</span>
-  {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
-  {% if project.part_number %}
-    <span class="ts-hero-pill">P/N: {{ project.part_number }}{% if project.revisione %} Rev.{{ project.revisione }}{% endif %}{% if project.versione %} v{{ project.versione }}{% endif %}</span>
-  {% endif %}
-{% endblock %}
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Gantt kickoff</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
-{% endblock %}
 
 {% block tasks_shell_content %}
 <div class="ts-stack">

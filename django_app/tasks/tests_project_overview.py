@@ -153,31 +153,47 @@ class ProjectOverviewTests(TasksBaseTestCase):
 
         self.assertEqual(action_count, 3)
 
-    def test_all_five_tabs_render_with_the_correct_active_item(self):
+    def test_le_quattro_sezioni_con_la_tab_giusta_accesa(self):
+        """Quattro tab di commessa; ogni pagina accende la sua sezione e la sua vista."""
         self.client.force_login(self.owner)
+        pk = self.project.pk
+        piano = reverse("tasks:project_actions", args=[pk])
+        documenti = reverse("tasks:project_vrf_upload", args=[pk])
+        # pagina, url della tab accesa, etichetta della tab, vista accesa (o "")
         routes = (
-            ("tasks:project_overview", "Panoramica"),
-            ("tasks:project_actions", "Attività (3)"),
-            ("tasks:project_meetings", "Incontri"),
-            ("tasks:project_gantt", "Piano"),
-            ("tasks:project_vrf_upload", "VRF"),
+            ("tasks:project_overview", reverse("tasks:project_overview", args=[pk]), "Panoramica", ""),
+            ("tasks:project_actions", piano, "Piano (3)", "Elenco"),
+            ("tasks:project_gantt", piano, "Piano (3)", "Gantt"),
+            ("tasks:project_meetings", reverse("tasks:project_meetings", args=[pk]), "Incontri", "Incontri"),
+            ("tasks:project_decisions", reverse("tasks:project_meetings", args=[pk]), "Incontri", "Decisioni"),
+            ("tasks:project_vrf_upload", documenti, "Documenti", "VRF"),
+            ("tasks:project_tech_refs", documenti, "Documenti", "Programmi e FAI"),
         )
 
-        for active_route, active_label in routes:
-            with self.subTest(active_route=active_route):
-                response = self.client.get(reverse(active_route, args=[self.project.pk]))
+        for route, tab_url, tab_label, vista in routes:
+            with self.subTest(route=route):
+                response = self.client.get(reverse(route, args=[pk]))
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, ">Panoramica</a>")
-                self.assertContains(response, ">Attività (3)</a>")
-                self.assertContains(response, ">Incontri</a>")
-                self.assertContains(response, ">Piano</a>")
-                self.assertContains(response, ">VRF</a>")
-                active_url = reverse(active_route, args=[self.project.pk])
+                for etichetta in (">Panoramica</a>", ">Piano (3)</a>", ">Incontri</a>", ">Documenti</a>"):
+                    self.assertContains(response, etichetta)
                 self.assertContains(
                     response,
-                    f'<a class="tk-tab tk-tab--active" href="{active_url}">{active_label}</a>',
+                    f'<a class="tk-tab tk-tab--active" href="{tab_url}">{tab_label}</a>',
                     html=True,
                 )
+                self.assertEqual(response.content.decode().count("tk-tab--active"), 1)
+                if vista:
+                    self.assertContains(response, f'class="tk-vista is-active" href="{reverse(route, args=[pk])}">{vista}</a>')
+                # Testata unica: il nome della commessa è il titolo, ovunque.
+                self.assertContains(response, f"<h1>{self.project.name}</h1>", html=True)
+
+    def test_board_della_commessa_sta_nel_piano(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("tasks:list"), {"project": self.project.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="tk-vista is-active"')
+        self.assertContains(response, ">Board</a>")
+        self.assertContains(response, f"<h1>{self.project.name}</h1>", html=True)
 
     def test_read_only_user_does_not_see_modification_calls_to_action(self):
         Project.objects.filter(pk=self.project.pk).update(vrf_status=VRFDocStatus.PENDING)
@@ -187,9 +203,10 @@ class ProjectOverviewTests(TasksBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["can_manage"])
-        self.assertNotContains(response, "Gestisci VRF")
+        self.assertNotContains(response, "Compila la VRF")
         self.assertNotContains(response, "Nuovo incontro")
-        self.assertNotContains(response, "+ Nuova attività")
+        self.assertNotContains(response, "+ Attività")
+        self.assertNotContains(response, "Copia senza P/N")
         self.assertNotContains(response, ">Sistema</a>")
 
     def test_manager_sees_modification_calls_to_action(self):
@@ -198,9 +215,31 @@ class ProjectOverviewTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
 
         self.assertTrue(response.context["can_manage"])
-        self.assertContains(response, "Gestisci VRF")
+        # Una sola azione primaria, «+ Attività» unico, il resto in «Altro».
+        self.assertEqual(response.content.decode().count("ts-hero-action primary"), 1)
         self.assertContains(response, "Nuovo incontro")
-        self.assertContains(response, "+ Pianifica attività")
+        self.assertContains(response, "+ Attività")
+        self.assertContains(response, "Copia senza P/N")
+
+    def test_azione_primaria_segue_lo_stato(self):
+        """VRF da compilare → «Compila la VRF»; incontro di oggi → «Conduci incontro»."""
+        from django.utils import timezone
+
+        from .models import KickoffMeeting
+
+        self.client.force_login(self.owner)
+        url = reverse("tasks:project_overview", args=[self.project.pk])
+        Project.objects.filter(pk=self.project.pk).update(vrf_status=VRFDocStatus.PENDING)
+        self.assertContains(self.client.get(url), "Compila la VRF")
+
+        KickoffMeeting.objects.filter(project=self.project).delete()
+        incontro = KickoffMeeting.objects.create(
+            project=self.project, numero=90, data=timezone.localdate(), created_by=self.owner
+        )
+        risposta = self.client.get(url)
+        self.assertContains(risposta, "Conduci incontro n. 90")
+        self.assertContains(risposta, reverse("tasks:project_meeting_run", args=[self.project.pk, incontro.pk]))
+        self.assertNotContains(risposta, "Compila la VRF")
 
     def test_portfolio_name_opens_overview_while_gantt_button_stays_on_plan(self):
         self.client.force_login(self.owner)

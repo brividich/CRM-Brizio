@@ -291,7 +291,8 @@ class ProjectActionsViewTests(TasksBaseTestCase):
         )
 
         self.assertEqual(open_response.status_code, 200)
-        self.assertContains(open_response, "1 aperte, 0 scadute")
+        self.assertEqual(open_response.context["open_count"], 1)
+        self.assertEqual(open_response.context["overdue_count"], 0)
         self.assertContains(open_response, "Azione aperta")
         self.assertNotContains(open_response, "Azione chiusa")
         self.assertContains(closed_response, "Azione chiusa")
@@ -322,7 +323,8 @@ class ProjectActionsViewTests(TasksBaseTestCase):
             # striscia), incontri della striscia (1), persone per l'aggiunta
             # rapida (1), controlli di gestione e permesso (2), impostazioni
             # degli spostamenti per il motivo (1), collegamenti delle righe (1).
-            with self.assertNumQueries(12):
+            # Testata unica di commessa: prossimo incontro pianificato (1).
+            with self.assertNumQueries(13):
                 response = project_actions(request, project_id=self.project.pk)
 
         self.assertEqual(response.status_code, 200)

@@ -152,7 +152,7 @@ def _contesto_avvio(request, project, *, post=None, errori=None) -> dict:
         "io": request.user.pk,
     }
     return {
-        **_tasks_shell_context(request, active="overview", project=project),
+        **_tasks_shell_context(request, active="overview", project=project, testata=False),
         "page_title": f"Attività e incontro - {project.name}",
         "project": project,
         **_stato(project),
@@ -354,7 +354,7 @@ def project_attivita_pianifica(request, project_id: int):
         request,
         "tasks/project_attivita_pianifica.html",
         {
-            **_tasks_shell_context(request, active="overview", project=project),
+            **_tasks_shell_context(request, active="overview", project=project, testata=False),
             "page_title": f"Pianifica attività - {project.name}",
             "project": project,
             "att_utenti": utenti,

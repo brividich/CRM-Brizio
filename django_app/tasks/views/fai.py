@@ -421,7 +421,7 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
         "valore_invio_cq": form["invio_cq"].value() or "",
         "fai_storico": bool(record and record.chiave_import),
         "dati_originali": _dati_originali(record) if record else [],
-        **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project),
+        **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project, testata=False),
         "page_title": "Scheda FAI",
         "form": form,
         "record": record,
