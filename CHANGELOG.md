@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11: piano di rimedio
+
+- Nuovo `docs/audit/PIANO_RIMEDIO_2026-11-22.md`: sette ondate (sicurezza rapida, invii ripetuti, sicurezza sul lavoro, SOC, calendario unico da Assenze, robustezza, verifica delle piste) con le decisioni prese su eliminazione segnalazioni, TRIR, gravità SOC, presa visione SDS, festivi e termine RENTRI, mail automazioni. Solo documentazione. Rilevato in più: `core/calendario_it.py` non conta San Francesco (4 ottobre, festa dal 2026).
+
 ### KICK-OFF: meno spazio fra testata e contenuto nelle pagine di commessa
 
 - Sotto le tab, le viste della sezione (Elenco/Gantt/Board, Incontri/Decisioni, VRF/Programmi e FAI) e le pillole di pagina stanno su **una riga sola**; tolti i margini doppi fra tab, viste e contenuto.
