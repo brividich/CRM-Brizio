@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Setup Wizard: «Rinnova certificato HTTPS» in Gestisci server (IIS + Recovery Kit)
+
+- Nuovo pulsante **«🔒 Rinnova certificato HTTPS»** nei controlli del sito (solo con il wizard avviato come Administrator). Il popup mostra i binding https del sito con impronta e giorni alla scadenza; dopo aver scelto il `.pfx` e la password, «Controlla» verifica chiave privata, scadenza, catena e che il certificato copra **tutti** i nomi dei binding (wildcard di un livello): se ne manca uno non si può applicare.
+- «Rinnova» importa il certificato in `LocalMachine\My` (esportabile), lo collega a tutti i binding https del sito e ricontrolla l'impronta su ognuno; se un binding non riesce rimette il certificato precedente. Il sito resta acceso e il vecchio certificato resta nello store.
+- Poi crea un nuovo Recovery Kit (`<ambiente>-AAAAMMGG-HHMM.hubkit` nella cartella scelta) con `hub_recovery_kit export --pfx-thumbprint` e lo verifica subito con `verify`; la passphrase passa su stdin, la password del `.pfx` in una variabile d'ambiente, mai sulla riga di comando. Il riquadro «Recovery Kit» di Backup e ripristino torna allineato.
+- Il riepilogo finale elenca cosa resta a mano: copia del kit su Vaultwarden e C2, busta se la passphrase è nuova, rimozione del vecchio certificato, upload su Entra Application Proxy (non automatizzato, per scelta).
+- File: `deployment/setup_wizard.py` (`_CERT_RENEW_PS`, `_cert_*`, `ServerDashboard._open_cert_renew`/`_run_cert_renew`), test `django_app/core/test_wizard_rinnovo_certificato.py`, `docs/moduli/setup_wizard.md`, `docs/dr/RECOVERY_KIT.md`. Va rigenerato `SetupWizard.exe`.
+
 ### Audit 22/11: piano di rimedio
 
 - Nuovo `docs/audit/PIANO_RIMEDIO_2026-11-22.md`: sette ondate (sicurezza rapida, invii ripetuti, sicurezza sul lavoro, SOC, calendario unico da Assenze, robustezza, verifica delle piste) con le decisioni prese su eliminazione segnalazioni, TRIR, gravità SOC, presa visione SDS, festivi e termine RENTRI, mail automazioni. Solo documentazione. Rilevato in più: `core/calendario_it.py` non conta San Francesco (4 ottobre, festa dal 2026).
