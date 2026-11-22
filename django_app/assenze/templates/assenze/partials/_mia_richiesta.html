@@ -1,0 +1,50 @@
+{% with stato_l=r.stato|lower %}
+<article class="mr-item t-{{ r.tipo_key }}" data-id="{{ r.id }}" data-mesi="{{ r.mesi_attr }}">
+  <div class="mr-tile" aria-hidden="true"><span>{{ r.tile_mese }}</span><b>{{ r.tile_giorno }}</b></div>
+  <div class="mr-main">
+    <div class="mr-l1">
+      <span class="mr-tipo">{{ r.tipo }}</span>
+      <b class="mr-per">{{ r.periodo_label }}</b>
+      {% if r.durata_label %}<span class="mr-dur">{{ r.durata_label }}</span>{% endif %}
+      <span class="mr-status mr-status-{{ r.gruppo }}">{{ r.stato }}</span>
+    </div>
+    <div class="mr-l2">
+      {% if r.motivazione %}<span>{{ r.motivazione }}</span>{% endif %}
+      {% if r.note_gestione %}<span class="mr-pill mr-pill-no">{{ r.note_gestione }}</span>{% endif %}
+      {% if r.certificato_medico %}<span class="mr-pill mr-pill-cert">Certificato arrivato</span>{% endif %}
+      {% if r.attesa_label %}<span class="mr-muted">in attesa {{ r.attesa_label }}</span>{% endif %}
+      <span class="mr-muted">#{{ r.id }}{% if r.creata_label %} &middot; inserita il {{ r.creata_label }}{% endif %}</span>
+    </div>
+  </div>
+  <div class="abs-actions mr-actions">
+    {% if r.gestita_sp %}
+      <span class="abs-chip soft" title="Nata su SharePoint: si modifica o elimina dall'app SharePoint">Gestita su SharePoint</span>
+    {% else %}
+      {% if 'attesa' in stato_l %}
+        <button type="button" class="btn btn-sm btn-modifica"
+          data-id="{{ r.id }}"
+          data-tipo="{{ r.tipo_raw }}"
+          data-inizio-iso="{{ r.inizio_iso }}"
+          data-fine-iso="{{ r.fine_iso }}"
+          data-motivazione="{{ r.motivazione }}"
+          data-certificato-medico="{{ r.certificato_medico }}"
+          data-stato="{{ r.stato }}"
+          data-attesa="{{ r.attesa_label }}"
+          title="Modifica questa richiesta">Modifica</button>
+        {% if r.sollecito_visibile %}
+          <button type="button" class="btn btn-secondary btn-sm btn-sollecita" data-id="{{ r.id }}"
+            {% if r.sollecito_prossimo %}disabled title="Capo già sollecitato il {{ r.sollecito_ultimo }}. Puoi sollecitare di nuovo dal {{ r.sollecito_prossimo }}."{% else %}title="Manda al capo una mail per ricordargli di decidere"{% endif %}
+          >{% if r.sollecito_prossimo %}Sollecitata{% else %}Sollecita{% endif %}</button>
+        {% endif %}
+      {% elif 'approv' in stato_l and r.tipo_raw == 'Malattia' and not r.certificato_medico %}
+        <button type="button" class="btn btn-secondary btn-sm btn-cert-arrivato" data-id="{{ r.id }}"
+          title="Segna che il certificato medico è arrivato">Certificato arrivato</button>
+      {% endif %}
+      <button type="button" class="btn btn-secondary btn-sm btn-elimina mr-del"
+        data-id="{{ r.id }}"
+        data-delete-url="{% url 'assenze_api_evento_delete' r.id %}"
+        title="Elimina questa richiesta">Elimina</button>
+    {% endif %}
+  </div>
+</article>
+{% endwith %}

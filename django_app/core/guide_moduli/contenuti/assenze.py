@@ -77,8 +77,16 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Clicca «Le mie richieste».",
-                    "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
-                    "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
+                    "Le richieste sono divise in blocchi: «In attesa», «In programma» (approvate e non ancora finite), "
+                    "«Passate» e «Rifiutate». Ogni blocco si apre e si chiude dalla sua intestazione, che mostra quante "
+                    "richieste contiene; la pagina ricorda come li hai lasciati.",
+                    "In alto «Anno …» mostra i dodici mesi con i tuoi periodi di assenza (tratteggiati quelli in attesa): "
+                    "clicca un mese per vedere solo le richieste di quel mese, «Tutto l'anno» per tornare all'elenco intero. "
+                    "«Cerca tipo, motivazione o note» filtra tutti i blocchi insieme.",
+                    "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina». "
+                    "Nella finestra «Modifica richiesta» scegli il tipo, cambi «Inizio» e «Fine» (sotto compare subito la durata: "
+                    "ore se è nello stesso giorno, giorni di calendario altrimenti) e la «Motivazione»; «Certificato arrivato» "
+                    "compare solo per la malattia. Poi «Salva modifiche».",
                     "Se il capo non decide, con «Sollecita» gli rimandi la richiesta da approvare: la mail non dice che l'hai chiesto tu. Dopo l'invio "
                     "il pulsante diventa «Sollecitata» e resta fermo per i giorni di «Ripeti il sollecito ogni» (predefinito 2): "
                     "conta anche il promemoria automatico del mattino.",
@@ -106,7 +114,7 @@ GUIDA = {
                 ("p", "Il dipendente riceve subito l'esito, anche per mail. Se decidi dal portale, il link «Approva/Rifiuta» "
                       "della mail di approvazione si chiude: chi lo apre dopo legge «Questa richiesta è già stata gestita». "
                       "Le richieste già decise restano in «Le mie richieste» → "
-                      "«Richieste dei miei dipendenti», nel blocco «Già decise»."),
+                      "«Reparto: da decidere», nel blocco «Già decise»."),
                 ("p", "Con il sistema «Ruoli e permessi» acceso nessuno approva o rifiuta una propria richiesta, nemmeno "
                       "in blocco o modificando l'evento: compare «Non puoi approvare o rifiutare una tua richiesta» e "
                       "decide un altro responsabile."),
