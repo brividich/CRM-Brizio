@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><title>Fattibilità RMC · foglio delle decisioni</title>
+<html lang="it"><head><meta charset="utf-8"><title>Fattibilità RMC · Scheda tecnica</title>
 <style>
 /* latin-ext */
 @font-face {
@@ -468,66 +468,225 @@ figcaption b { color: var(--navy); font-weight: 600; }
 .firme span { font-size: 8.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
 .dir .foglio .nota { margin: 3mm 0 0; }
 
+/* ---------- Versioni «light»: foglio per la Direzione, schede per Qualità e IT ---------- */
+
+.dir .foglio { break-after: page; }
+.dir .foglio:last-child { break-after: auto; }
+.dir .foglio .ricetta { margin-bottom: 4mm; }
+.dir .foglio .scheda .nome { font-size: 12pt; min-height: 0; margin-bottom: 2mm; }
+.dir .foglio .ingr { min-height: 8.6mm; font-size: 10.4pt; }
+.dir .foglio .esito { font-size: 12pt; padding: 4mm 5mm; margin-bottom: 5mm; }
+.dir .foglio .tre > div { font-size: 10.4pt; }
+.doc.light { font-size: 10.6pt; }
+.doc.light h1 { font-size: 19pt; color: var(--navy); margin: 0 0 3mm; line-height: 1.15; font-weight: 700; }
+.doc.light h2 { font-size: 13.4pt; margin: 5mm 0 2mm; }
+.doc.light table { font-size: 9pt; }
+.doc.light th, .doc.light td { padding: 1.5mm 1.8mm; }
+.doc.light li { margin-bottom: 1.4mm; }
+
 </style></head>
 <body class="">
-<main class="dir">
-<section class="foglio">
-  <div class="occhiello">Foglio delle decisioni</div>
-  <h1>Ruoli, mansioni e competenze: che cosa decidiamo oggi</h1>
-  <p class="attacco">Cinque decisioni. Per ognuna: la proposta, l'alternativa, una casella da segnare. La proposta è indicata con ★.</p>
-
-  <div class="dec">
-    <div class="n">1</div>
-    <div class="d">
-      <b>Quando una competenza non è più valida, il portale segnala o blocca?</b>
-      <div class="op"><span class="q"></span><span>★ <b>Segnala.</b> Avvisa la persona e il capo reparto, che decide entro dieci giorni lavorativi. Sui liquidi penetranti blocca, come impone già la procedura.</span></div>
-      <div class="op"><span class="q"></span><span><b>Blocca</b> anche sulle altre lavorazioni critiche. Quali: <i class="riga"></i></span></div>
-    </div>
-  </div>
-
-  <div class="dec">
-    <div class="n">2</div>
-    <div class="d">
-      <b>Da quale reparto si parte?</b>
-      <div class="op"><span class="q"></span><span>★ <b>Fresatura a 5 assi grande formato (CN5G).</b> Dieci macchine, undici competenze già scritte nella scheda personale: restano da indicare livello richiesto e peso.</span></div>
-      <div class="op"><span class="q"></span><span><b>Un altro reparto:</b> <i class="riga"></i></span></div>
-    </div>
-  </div>
-
-  <div class="dec">
-    <div class="n">3</div>
-    <div class="d">
-      <b>Da quando, e che cosa facciamo dello storico?</b>
-      <div class="op"><span class="q"></span><span>★ <b>Da gennaio 2027.</b> I livelli della skill matrix firmata entrano come «pregresso». Dei vecchi corsi si recupera la parte scelta dalla Qualità.</span></div>
-      <div class="op"><span class="q"></span><span><b>Altra data</b> <i class="riga corta"></i> &nbsp; <span class="q"></span> nessun recupero dei vecchi corsi</span></div>
-    </div>
-  </div>
-
-  <div class="dec">
-    <div class="n">4</div>
-    <div class="d">
-      <b>Chi firma, e a quale livello si firma?</b>
-      <div class="op"><span class="q"></span><span>★ <b>Come la procedura Risorse Umane:</b> RDD approva le richieste e firma la skill matrix ogni sei mesi; si firma dal livello L. Sostituto di RDD: <i class="riga corta"></i></span></div>
-      <div class="op"><span class="q"></span><span><b>Si firma solo dal livello U:</b> in questo caso va cambiata la procedura.</span></div>
-    </div>
-  </div>
-
-  <div class="dec">
-    <div class="n">5</div>
-    <div class="d">
-      <b>Autorizziamo la prima tappa?</b>
-      <div class="op"><span class="q"></span><span>★ <b>Sì.</b> Da 7 a 11 settimane di sviluppo interno, senza nuove licenze, sul solo reparto pilota. La Qualità completa le ricette e aggiorna la procedura Risorse Umane.</span></div>
-      <div class="op"><span class="q"></span><span><b>Non ora.</b> Che cosa serve prima: <i class="riga"></i></span></div>
-    </div>
-  </div>
-
-  <div class="firme">
-    <div><span>Data</span></div>
-    <div><span>Direzione</span></div>
-    <div><span>RDD</span></div>
-    <div><span>Qualità</span></div>
-  </div>
-  <p class="nota">Dopo la riunione: la Qualità riceve il questionario (9 domande aperte, 9 da confermare) e il catalogo del reparto pilota da completare.</p>
-</section>
+<main class="doc light"><h1>Ruoli, mansioni e competenze: scheda tecnica</h1>
+<h2>La proposta in cinque punti</h2>
+<ol>
+<li><strong>Due atti, due effetti.</strong> La Sessione Formativa (SF) cambia ciò che la persona sa fare; la Richiesta di
+Aggiornamento Mansione (RAM) ciò che è autorizzata a fare. Nessun'altra via scrive livelli o mansioni.</li>
+<li><strong>Il livello è un giudizio, la validità è un calcolo.</strong> Il livello lo dà il capo reparto in una SF e non cambia da
+solo. Il portale calcola ogni giorno se è ancora valido e lo segnala; blocca solo sui controlli non distruttivi.</li>
+<li><strong>Un solo motore</strong> dice, per ogni persona, che cosa è richiesto e perché, che cosa possiede, che cosa manca, che
+cosa potrebbe fare in più.</li>
+<li><strong>Assegnazione in due passaggi</strong>: avviata (in formazione, non firma), poi effettiva.</li>
+<li><strong>Emissione firmata</strong>: ogni sei mesi RDD firma la fotografia della skill matrix, come chiede MT CN 06.</li>
+</ol>
+<h2>Che cosa si riusa</h2>
+<table>
+<thead>
+<tr>
+<th>Esiste già</th>
+<th>Diventa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Catalogo mansioni, livelli I/L/U/O, storici</td>
+<td>Restano; il livello passa dalla mansione alla competenza</td>
+</tr>
+<tr>
+<td>Motore unico dei requisiti di sicurezza (<code>services/<wbr>requisiti.<wbr>py</code>)</td>
+<td>Resta; si affianca il motore delle competenze</td>
+</tr>
+<tr>
+<td>Ricalcolo automatico del livello (<code>services/<wbr>competenze_<wbr>ricalcolo.<wbr>py</code>)</td>
+<td>Diventa calcolo della validità: non scrive più livelli</td>
+</tr>
+<tr>
+<td>Pratica di inserimento, cambio mansione</td>
+<td>Si agganciano alla RAM</td>
+</tr>
+<tr>
+<td>Edizioni dei corsi, MOD.040</td>
+<td>L'edizione di un corso «formativo» prepara una SF</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dati.</strong> Ciò che oggi è nel portale per skill matrix e mansionario è un caricamento di prova: all'avvio si caricano
+la skill matrix firmata (MOD.187) e la tabella delle competenze (MOD.053 Rev.4).</p>
+<h2>Lo schema</h2>
+<figure class="diagramma"><img src="svg/d04.svg" alt="La catena dal ruolo alla competenza" style="width:330px"></figure>
+<p><strong>Validità di una competenza.</strong> Valida → da confermare (requisito scaduto da meno di 30 giorni, 9 mesi senza
+esercizio, conferma semestrale mancata) → sospesa. Il rientro è automatico quando il requisito torna valido.</p>
+<h2 class="np">Tappe e stime</h2>
+<p>S fino a 3 giorni · M 1-2 settimane · L 3-4 settimane. Sviluppo di una persona, senza il lavoro di contenuto.</p>
+<table>
+<thead>
+<tr>
+<th>Blocco</th>
+<th>Contenuto</th>
+<th>Stima</th>
+<th>Dipende da</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="nw">B0</td>
+<td>Catalogo: codice stabile, criticità, requisito formale, corso → competenze</td>
+<td class="nw">M</td>
+<td class="nw">—</td>
+</tr>
+<tr>
+<td class="nw">B1</td>
+<td>Motore competenze: validità, conformità, potenziali</td>
+<td class="nw">L</td>
+<td class="nw">B0</td>
+</tr>
+<tr>
+<td class="nw">B2</td>
+<td>Sessione Formativa: modello, flusso, pagine</td>
+<td class="nw">L</td>
+<td class="nw">B0</td>
+</tr>
+<tr>
+<td class="nw">B3</td>
+<td>SF di impianto e caricamento dei livelli</td>
+<td class="nw">S</td>
+<td class="nw">B2</td>
+</tr>
+<tr>
+<td class="nw">B4</td>
+<td>RAM: modello, flusso, firme, modulo a video</td>
+<td class="nw">L</td>
+<td>B1, B2</td>
+</tr>
+<tr>
+<td class="nw">B5</td>
+<td>Profilo versionato con anteprima d'impatto</td>
+<td class="nw">M</td>
+<td class="nw">B1</td>
+</tr>
+<tr>
+<td class="nw">B6</td>
+<td>Selezione candidati e semaforo sul motore unico</td>
+<td class="nw">M</td>
+<td class="nw">B1</td>
+</tr>
+<tr>
+<td class="nw">B7</td>
+<td>Permessi per reparto, sostituti e deleghe</td>
+<td class="nw">M</td>
+<td class="nw">—</td>
+</tr>
+<tr>
+<td class="nw">B8</td>
+<td>MOD.053 generato e stampa</td>
+<td class="nw">M</td>
+<td>B2, B4</td>
+</tr>
+<tr>
+<td class="nw">B9</td>
+<td>Cruscotti e vista personale</td>
+<td class="nw">M</td>
+<td>B1, B2, B4</td>
+</tr>
+<tr>
+<td class="nw">B10</td>
+<td>Collegamento edizione → SF</td>
+<td class="nw">M</td>
+<td class="nw">B2</td>
+</tr>
+<tr>
+<td class="nw">B11</td>
+<td>Inserimento e cambio mansione agganciati alla RAM</td>
+<td class="nw">M</td>
+<td class="nw">B4</td>
+</tr>
+<tr>
+<td class="nw">B13</td>
+<td>Riordino del menu a filo conduttore</td>
+<td>S + M</td>
+<td class="nw">—</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Perimetro</th>
+<th>Settimane</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Percorso minimo: B0, B1, B2, B3</td>
+<td>da 7 a 11</td>
+</tr>
+<tr>
+<td>Più la RAM: B0-B4</td>
+<td>da 10 a 15</td>
+</tr>
+<tr>
+<td class="nw">Tutto</td>
+<td>da 18 a 31, cioè 4-7 mesi</td>
+</tr>
+</tbody>
+</table>
+<p>Ogni tappa ha un interruttore per tornare indietro. Il motore di riferimento <code>build/<wbr>motore_<wbr>rif.<wbr>py</code> fa da oracolo per i
+test: l'implementazione deve dare gli stessi risultati sugli stessi dati.</p>
+<h2 class="np">Rischi e punti aperti</h2>
+<table>
+<thead>
+<tr>
+<th>Rischio</th>
+<th>Come si gestisce</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Il catalogo non viene completato</td>
+<td>La base è nel MOD.053: si carica e si completa per un reparto alla volta</td>
+</tr>
+<tr>
+<td>Troppa burocrazia per i capi reparto</td>
+<td>Una SF vale per più persone e più competenze; i rinnovi non richiedono una SF</td>
+</tr>
+<tr>
+<td>Una segnalazione ignorata</td>
+<td>Presa in carico con termine, poi sale a RDD; blocco dove la procedura lo impone</td>
+</tr>
+<tr>
+<td>Le risposte della Qualità cambiano un'ipotesi</td>
+<td>Ipotesi isolate: le alternative non cambiano il modello dati</td>
+</tr>
+<tr>
+<td>Manca la fonte dell'«ultimo esercizio»</td>
+<td>Si parte con la registrazione manuale nella SF di conferma</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Aperto.</strong> Le nove domande alla Qualità; la revisione di MT CN 06 e dei moduli MOD.053, MOD.040, MOD.187; la soglia
+di firma, che la procedura fissa a L e il portale oggi a U; se RDD firma nel portale o su carta.</p>
+<p><strong>Non verificato.</strong> Il MOD.130 (registro timbri) è un'immagine; il MOD.192 non è nella cartella del sistema di
+gestione; il legame fra timbro e skill matrix nel portale non è stato controllato nel dettaglio.</p>
+<p><strong>Dove sta il dettaglio.</strong> <code>Fattibilita_<wbr>RMC_<wbr>Tecnico.<wbr>pdf</code> (92 pagine) e i documenti <code>01</code>-<code>04</code> nella stessa cartella;
+prototipo in <code>prototipo/<wbr>prototipo_<wbr>rmc.<wbr>html</code>.</p>
 </main>
 </body></html>

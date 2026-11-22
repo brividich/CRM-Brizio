@@ -196,21 +196,20 @@ pres.addSection({ title: "La proposta" });
   testo(s, "Prototipo con dati inventati", x, 6.2, w, 0.35, { fontSize: 13, color: C.accent3 });
 }
 
-// ====================================================================== 7. Decisioni
+// ====================================================================== 7. Le scelte
 {
-  const s = diapositiva("CHIUSURA", "La proposta", "Che cosa decidiamo oggi",
-    "Sono le decisioni del foglio che si compila e si firma a fine riunione. La prima tappa: da 7 a 11 settimane di sviluppo interno, senza nuove licenze, su un solo reparto. Subito dopo la Qualità riceve il questionario e il catalogo del reparto pilota da completare.");
+  const s = diapositiva("CHIUSURA", "La proposta", "Tre scelte di fondo",
+    "Sono le tre scelte del foglio per la Direzione. Proposta: sì alla prima, sì alla seconda, segnalare alla terza, con il blocco solo dove la procedura lo impone già. Tutto il resto, dal reparto di partenza alle date, lo definiscono la Qualità e il responsabile del progetto.");
   const dec = [
-    "Segnalare o bloccare, quando una competenza non è più valida",
-    "Il reparto da cui partire",
-    "La data di partenza",
-    "Chi firma, e da quale livello",
-    "Il via alla prima tappa",
+    ["Il portale diventa il registro ufficiale?", "Skill matrix e scheda personale nel portale, firmate lì da RDD."],
+    ["Adottiamo il nuovo modello della Qualità?", "Competenze valutate una per una; mansioni assegnate con una richiesta approvata."],
+    ["Se una competenza non è più valida: segnalare o fermare?", "Proposta: segnalare. Fermare solo dove la procedura lo impone già."],
   ];
-  dec.forEach((t, i) => {
-    const y = 1.95 + i * 0.95;
-    bollo(s, M, y, 0.7, i + 1, C.accent1, 24);
-    testo(s, t, M + 1.0, y, W - 2 * M - 1.0, 0.7, { fontSize: 24, bold: true, color: C.background1, valign: "middle" });
+  dec.forEach(([t, d], i) => {
+    const y = 2.0 + i * 1.45;
+    bollo(s, M, y, 0.85, i + 1, C.accent1, 28);
+    testo(s, t, M + 1.2, y - 0.05, W - 2 * M - 1.2, 0.5, { fontSize: 25, bold: true, color: C.background1 });
+    testo(s, d, M + 1.2, y + 0.5, W - 2 * M - 1.2, 0.5, { fontSize: 17, color: C.accent6 });
   });
 }
 

@@ -190,6 +190,16 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
         e mansionario sono **caricamenti di prova**; all'avvio si carica la skill matrix firmata, non si parte da quelli.
       Mia interpretazione, da confermare: «test» riguarda skill matrix, mansionario e abilitazioni; l'archivio dei corsi
       (774 corsi dal 1995) l'ho lasciato com'è. Il §8 di `01_asis.md` resta come fotografia dell'ambiente, con la nota.
+- [x] Riscontro (22/11): «molto complessa» valeva anche per **sintesi e PDF**; chieste soluzioni «light». Poi: le decisioni
+      proposte (reparto pilota, data, via alla prima tappa) sono **«futili»** → alla Direzione solo le **scelte di fondo**.
+      Fatto (`build/light_*.{html,md}`, generati da `build/costruisci_pdf.py`):
+      - `RMC_Direzione_foglio.pdf`, 2 pagine fronte e retro: l'idea in una figura; tre scelte di fondo con caselle e firme
+        (il portale come registro ufficiale; adottare il nuovo modello della Qualità e revisionare MT CN 06; segnalare
+        o fermare). Sostituisce nella distribuzione la sintesi di 10 pagine e il foglio delle decisioni (eliminato);
+      - `RMC_Qualita_scheda.pdf`, 2 pagine: che cosa dice già la procedura, che cosa cambierebbe, 9 domande aperte;
+      - `RMC_IT_scheda.pdf`, 4 pagine: proposta, schema, tappe e stime, rischi e punti aperti.
+      La presentazione chiude con le stesse tre scelte. I PDF lunghi (tecnico 92 pagine, sintesi 10) restano come
+      archivio; l'ultima pagina della sintesi lunga riporta ora le tre scelte di fondo.
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 

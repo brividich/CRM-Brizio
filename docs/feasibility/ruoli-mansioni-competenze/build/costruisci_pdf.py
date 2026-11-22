@@ -40,8 +40,8 @@ RADICE = QUI.parent
 REPO = RADICE.parents[2]
 SVG = QUI / "svg"
 
-VERSIONE = "1.0"
-DATA = "21/11/2026"
+VERSIONE = "1.1"
+DATA = "22/11/2026"
 TITOLO = "Ruoli, mansioni e competenze"
 
 DOC = {"01": "01_asis.md", "02": "02_tobe_flusso_algoritmo.md", "03": "03_ux.md", "04": "04_gap_sgi.md"}
@@ -790,24 +790,39 @@ def fai_direzione(browser, raster: Path | None) -> list[str]:
     return esiti
 
 
-def fai_decisioni(browser, raster: Path | None) -> list[str]:
-    """Foglio delle decisioni: una sola pagina, senza copertina."""
-    corpo = re.sub(r"<!--.*?-->", "", leggi("build/pdf_decisioni.html"), flags=re.S)
-    sorgente = QUI / "stampa_decisioni.html"
-    sorgente.write_text(pagina(f'<main class="dir">{corpo}</main>', "", "Fattibilità RMC · foglio delle decisioni"), encoding="utf-8")
-    uscita = RADICE / "Fattibilita_RMC_Decisioni.pdf"
-    stampa(browser, sorgente, uscita, "Foglio delle decisioni")
-    doc = fitz.open(uscita)
-    n = doc.page_count
-    testo = "\n".join(p.get_text() for p in doc)
-    doc.close()
-    trovati = [t for t in VIETATI_MISSIONE + VIETATI_ALTRI
-               if re.search(r"(?<![\wÀ-ÿ])" + re.escape(t) + r"(?![\wÀ-ÿ])", testo, flags=0 if t.isupper() else re.I)]
-    fuori = sbordi(browser, sorgente)
-    if raster:
-        rasterizza(uscita, raster, "decisioni")
-    return [f"Decisioni: {n} pagina/e " + ("(OK: una)" if n == 1 else "(ATTENZIONE: deve essere una)")
-            + f"; elementi che sbordano: {len(fuori)}; termini vietati: {', '.join(trovati) if trovati else 'NESSUNO'}"]
+def fai_light(browser, raster: Path | None) -> list[str]:
+    """Versioni brevi da distribuire: un foglio fronte e retro per la Direzione, due pagine per la Qualità, quattro per
+    l'IT. I documenti lunghi restano come riferimento."""
+    esiti = []
+    lavori = [
+        ("RMC_Direzione_foglio.pdf", "Foglio per la Direzione", 2,
+         '<main class="dir">' + re.sub(r"<!--.*?-->", "", leggi("build/light_direzione.html"), flags=re.S) + "</main>", True),
+        ("RMC_Qualita_scheda.pdf", "Scheda per la Qualità", 2,
+         '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_qualita.md"), flags=re.S)) + "</main>", False),
+        ("RMC_IT_scheda.pdf", "Scheda tecnica", 4,
+         '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_it.md"), flags=re.S)) + "</main>", False),
+    ]
+    for nome, titolo, attese, corpo, per_direzione in lavori:
+        sorgente = QUI / ("stampa_" + nome[:-4].lower() + ".html")
+        sorgente.write_text(pagina(corpo, "", "Fattibilità RMC · " + titolo), encoding="utf-8")
+        uscita = RADICE / nome
+        stampa(browser, sorgente, uscita, titolo)
+        doc = fitz.open(uscita)
+        n = doc.page_count
+        testo = "\n".join(pg.get_text() for pg in doc)
+        doc.close()
+        riga = f"{nome}: {n} pagine " + (f"(OK: {attese})" if n == attese else f"(ATTENZIONE: attese {attese})")
+        riga += f"; elementi che sbordano: {len(sbordi(browser, sorgente))}"
+        if per_direzione:
+            trovati = [t for t in VIETATI_MISSIONE + VIETATI_ALTRI
+                       if re.search(r"(?<![\wÀ-ÿ])" + re.escape(t) + r"(?![\wÀ-ÿ])", testo, flags=0 if t.isupper() else re.I)]
+            riga += f"; termini vietati: {', '.join(trovati) if trovati else 'NESSUNO'}"
+            prova = [v for v in ("242", "443", "su 135") if v in testo]
+            riga += f"; dati di prova del portale: {', '.join(prova) if prova else 'NESSUNO'}"
+        esiti.append(riga)
+        if raster:
+            rasterizza(uscita, raster, nome[:-4].lower())
+    return esiti
 
 
 def coerenza() -> list[str]:
@@ -826,8 +841,8 @@ def coerenza() -> list[str]:
         "443", "203", "MT CN 06 Rev.21", "circa 690", "caricamenti di prova", "774 corsi", "595", "51 controlli", "da 18 a 31",
         "da 7 a 11", "Marco Rivalta", "Giulia Ferrante", "Aldo Bianchetti", "Sara Colombari", "Piero Lombardini",
     ]
-    attesi_direzione = ["circa 690", "circa 100", "5 ingredienti su 6", "Marco Rivalta", "18 domande",
-                        "7-11 settimane", "4-7 mesi", "gennaio 2027", "sedici pagine"]
+    attesi_direzione = ["circa 690", "circa 100", "5 ingredienti su 6", "Marco Rivalta", "Tre scelte di fondo",
+                        "7-11 settimane", "4-7 mesi", "sedici pagine"]
     # i dati oggi nel portale sono caricamenti di prova: nella sintesi non devono comparire
     for vietato in ("242", "443", "su 135"):
         if vietato in direzione:
@@ -855,7 +870,7 @@ def main() -> None:
             esiti += fai_tecnico(browser, chromium, arg.raster)
         if arg.solo != "tecnico":
             esiti += fai_direzione(browser, arg.raster)
-            esiti += fai_decisioni(browser, arg.raster)
+            esiti += fai_light(browser, arg.raster)
         browser.close()
     if not arg.solo:
         esiti += coerenza()

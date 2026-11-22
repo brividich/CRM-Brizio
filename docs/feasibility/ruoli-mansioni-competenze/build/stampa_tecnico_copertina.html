@@ -468,6 +468,22 @@ figcaption b { color: var(--navy); font-weight: 600; }
 .firme span { font-size: 8.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
 .dir .foglio .nota { margin: 3mm 0 0; }
 
+/* ---------- Versioni «light»: foglio per la Direzione, schede per Qualità e IT ---------- */
+
+.dir .foglio { break-after: page; }
+.dir .foglio:last-child { break-after: auto; }
+.dir .foglio .ricetta { margin-bottom: 4mm; }
+.dir .foglio .scheda .nome { font-size: 12pt; min-height: 0; margin-bottom: 2mm; }
+.dir .foglio .ingr { min-height: 8.6mm; font-size: 10.4pt; }
+.dir .foglio .esito { font-size: 12pt; padding: 4mm 5mm; margin-bottom: 5mm; }
+.dir .foglio .tre > div { font-size: 10.4pt; }
+.doc.light { font-size: 10.6pt; }
+.doc.light h1 { font-size: 19pt; color: var(--navy); margin: 0 0 3mm; line-height: 1.15; font-weight: 700; }
+.doc.light h2 { font-size: 13.4pt; margin: 5mm 0 2mm; }
+.doc.light table { font-size: 9pt; }
+.doc.light th, .doc.light td { padding: 1.5mm 1.8mm; }
+.doc.light li { margin-bottom: 1.4mm; }
+
 </style></head>
 <body class="">
 <div class="copertina">
@@ -478,7 +494,7 @@ figcaption b { color: var(--navy); font-weight: 600; }
   <div class="cop-riga"></div>
   <div class="cop-piede">
     <div><b>Destinatari</b>IT e Qualità</div>
-    <div><b>Versione</b>1.0 · 21/11/2026</div>
+    <div><b>Versione</b>1.1 · 22/11/2026</div>
     <div><b>Stato</b>Analisi di fattibilità: proposta, in attesa delle decisioni</div>
   </div>
   <div class="cop-nota">Sola analisi: nessun codice, dato o impostazione del portale è stato modificato. Le proposte restano proposte: decidono il proprietario del progetto e la Qualità. Esempi e schermate usano dati inventati; i dati reali compaiono solo come conteggi.</div>
