@@ -43,29 +43,6 @@ Contesto: quick_users, quick_start, quick_bloccato, meeting_tasks, task_from_ste
           <option value="HIGH">Alta</option>
         </select>
       </label>
-      <label class="qt-campo">Attrezzatura
-        <select class="input" data-qt="tooling">
-          <option value="none" selected>Nessuna azione attrezzatura</option>
-          <option value="link_existing">Collega attrezzatura esistente</option>
-          <option value="request_new">Richiedi nuovo attrezzo per P/N</option>
-          <option value="verification_required">Richiedi verifica disponibilità</option>
-        </select>
-      </label>
-      <label class="qt-campo" data-qt-show="link_existing" hidden>Attrezzatura esistente
-        <select class="input" data-qt="tool-existing">
-          <option value="">— seleziona —</option>
-          {% for a in attrezzature %}<option value="{{ a.id }}">{{ a.codice|default:a.id }}{% if a.part_number %} · P/N {{ a.part_number }}{% endif %}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="qt-campo" data-qt-show="request_new verification_required" hidden>P/N attrezzatura
-        <input class="input" type="text" data-qt="tool-pn" maxlength="120" placeholder="{% if project.part_number %}Default: {{ project.part_number }}{% else %}P/N attrezzatura{% endif %}">
-      </label>
-      <label class="qt-campo" data-qt-show="request_new" hidden>Codice attrezzo
-        <input class="input" type="text" data-qt="tool-code" maxlength="80" placeholder="Se noto">
-      </label>
-      <label class="qt-campo qt-largo" data-qt-show="request_new verification_required" hidden>Nota attrezzatura
-        <input class="input" type="text" data-qt="tool-note" placeholder="Contesto della richiesta">
-      </label>
     </div>
     <p class="qt-err" data-qt="err" role="alert" hidden></p>
   {% endif %}

@@ -314,7 +314,11 @@ class IncontriAzioniTests(TasksBaseTestCase):
         self.assertContains(response, "Attività d'incontro")
         response = self.client.get(url, {"tipo": "action"})
         self.assertContains(response, "Azione registro")
-        self.assertNotContains(response, "Attivita registro")
+        # Nelle righe, non fra i suggerimenti del campo «Aggiungi un'attività» (datalist).
+        import re as _re
+
+        righe = _re.sub(r"<datalist.*?</datalist>", "", response.content.decode(), flags=_re.S)
+        self.assertNotIn("Attivita registro", righe)
 
     def test_elenco_incontri_mie_comprende_le_copie(self):
         altro = make_project(name="Altra", created_by=self.other)
