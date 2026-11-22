@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: Panoramica con un solo «Cosa manca» (riordino UI, blocco 2)
+
+- La Panoramica aveva quattro blocchi che dicevano «cosa fare» (Prossimi passi, Percorso, Prontezza all'avvio, Prossime attività): ora c'è **«Cosa manca»**, un solo elenco ordinato per urgenza con il pulsante che porta dove si risolve e il conto «N a posto su M». Raccoglie incontri, tappe del Percorso (oltre tre da assegnare: una riga sola), VRF, team, piano senza date, attività in ritardo e consegna a rischio.
+- Disposizione: a sinistra «Cosa manca» e la linea del tempo, a destra avanzamento, team e incontri. Il Percorso resta come strumento, chiuso finché non serve («Assegna» lo apre); dopo ogni modifica al Percorso «Cosa manca» e la linea del tempo si aggiornano senza ricaricare.
+- Tolti dalla Panoramica i riquadri «Data di inizio», «Prossimo incontro» e «Attività aperte» (sono in Incontri e nel numero della tab Piano) e il semaforo di prontezza; resta l'avanzamento, con la stessa percentuale di portfolio e Gantt.
+- Etichetta «Attivita» → «Attività» nelle righe del registro.
+- File: `tasks/services/cosa_manca.py` (nuovo), `tasks/templates/tasks/_cosa_manca.html` (nuovo), `tasks/static/tasks/js/panoramica.js` (nuovo), `tasks/templates/tasks/project_overview.html`, `tasks/views/overview.py`, `tasks/action_register.py`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, test `tasks/tests_cosa_manca.py` (nuovo), `tasks/tests_{project_overview,filo,action_register}.py`.
+- Nessuna migrazione; serve `collectstatic` (`tasks.css?v=20261122c`, `panoramica.js`).
+
 ### Audit dell'intero portale e PDF degli algoritmi (solo documentazione)
 
 - Rapporto di audit modulo per modulo su sicurezza e flusso/algoritmo, con gravità, prova e stato di verifica di ogni voce; elenco numerato di 58 proposte di miglioramento da cui scegliere; catalogo di 46 algoritmi interni. Nessuna modifica al codice applicativo.

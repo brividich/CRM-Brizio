@@ -144,7 +144,10 @@ class ProjectOverviewTests(TasksBaseTestCase):
         self.assertEqual(response.context["active_task_count"], 2)
         self.assertContains(response, f'{response.context["done_task_count"]}/2 attività completate')
         self.assertContains(response, f'{response.context["progress_pct"]}%')
-        self.assertContains(response, "Pronto 4/4")
+        # I quattro criteri di prontezza sono a posto: stanno fra le voci a posto di «Cosa manca».
+        a_posto = response.context["cosa_manca"]["a_posto"]
+        for criterio in response.context["readiness"].criteria:
+            self.assertIn(criterio.label, a_posto)
 
     def test_tab_action_counter_uses_one_count_query_per_source(self):
         # problemi, azioni d'incontro, attivita', sotto-attivita'

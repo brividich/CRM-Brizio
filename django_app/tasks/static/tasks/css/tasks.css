@@ -991,6 +991,38 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .ko-panel-link:hover { background: var(--hub-color-surface); }
 .ko-panel-body { padding: var(--hub-space-4); }
 .ko-panel-body--flush { padding: 0; }
+/* Panoramica: colonna principale («Cosa manca», linea del tempo) e colonna di contesto (team, incontri). */
+.ko-grid--main { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
+.ko-col { display: grid; gap: var(--hub-space-4); align-content: start; min-width: 0; }
+.ko-col > .ko-team, .ko-col > .ka-striscia { margin-bottom: 0; }
+.ko-percorso { margin-bottom: var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); }
+.ko-percorso > summary { padding: var(--hub-space-3) var(--hub-space-4); cursor: pointer; font-size: var(--hub-font-lg); font-weight: 600; color: var(--hub-color-text); }
+.ko-percorso > summary small { margin-left: var(--hub-space-2); font-size: var(--hub-font-xs); font-weight: 600; color: var(--hub-color-text-muted); }
+.ko-percorso[open] > summary { border-bottom: 1px solid var(--hub-color-border); }
+.ko-percorso > .tp-block { margin: 0; border: 0; box-shadow: none; }
+.ko-percorso .tp-head > strong { display: none; } /* il titolo è già nel summary */
+/* «Cosa manca» (services/cosa_manca.py). */
+.cm-panel .ko-panel-head { justify-content: flex-start; flex-wrap: wrap; }
+.cm-panel .ko-panel-head h2 { margin-right: auto; }
+.cm-conta { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; white-space: nowrap; }
+.cm-barra { flex: 0 1 140px; height: 6px; border-radius: 999px; background: var(--hub-color-border); overflow: hidden; }
+.cm-barra i { display: block; height: 100%; background: var(--success); }
+.cm-righe { margin: 0; padding: 0; list-style: none; }
+.cm-riga { display: flex; align-items: center; gap: var(--hub-space-3); padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); }
+.cm-riga:last-child { border-bottom: 0; }
+.cm-punto { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--hub-color-border); }
+.cm-riga--danger .cm-punto { background: var(--danger); }
+.cm-riga--warn .cm-punto { background: var(--warning); }
+.cm-riga--info .cm-punto { background: var(--primary-mid); }
+.cm-riga--ok .cm-punto { background: var(--success); }
+.cm-testo { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.cm-testo strong { color: var(--hub-color-text); font-size: var(--hub-font-base); font-weight: 600; }
+.cm-testo small { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
+.cm-riga .btn { flex: none; }
+.cm-aposto { border-top: 1px solid var(--hub-color-border); padding: var(--hub-space-2) var(--hub-space-4); }
+.cm-aposto > summary { cursor: pointer; color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); font-weight: 600; }
+.cm-aposto ul { margin: var(--hub-space-2) 0; padding-left: var(--hub-space-5); color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
+@media (max-width: 900px) { .ko-grid--main { grid-template-columns: 1fr; } }
 .ko-action-list, .ko-meeting-list { margin: 0; padding: 0; list-style: none; }
 .ko-action-item { display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3); padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); }
 .ko-action-item:last-child { border-bottom: 0; }

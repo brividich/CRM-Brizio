@@ -152,5 +152,5 @@ class ProssimiPassiTests(FiloBase):
 
     def test_panoramica_mostra_i_passi(self):
         pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
-        self.assertContains(pagina, "Prossimi passi")
+        self.assertContains(pagina, "Cosa manca")
         self.assertContains(pagina, 'id="percorso"')

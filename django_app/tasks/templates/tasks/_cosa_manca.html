@@ -1,0 +1,34 @@
+{% comment %}
+«Cosa manca»: un solo elenco di quello che resta da fare sulla commessa
+(services/cosa_manca.py). Zona viva: si rilegge quando cambia il Percorso.
+{% endcomment %}
+<section class="ko-panel cm-panel" id="cosa-manca" data-ka-live="cosa-manca" aria-label="Cosa manca">
+  <div class="ko-panel-head">
+    <h2>Cosa manca</h2>
+    {% if cosa_manca.totale %}
+    <span class="cm-conta">{{ cosa_manca.a_posto|length }} a posto su {{ cosa_manca.totale }}</span>
+    <span class="cm-barra" aria-hidden="true"><i style="width:{{ cosa_manca.percento }}%"></i></span>
+    {% endif %}
+  </div>
+  <ul class="cm-righe">
+    {% for r in cosa_manca.righe %}
+    <li class="cm-riga cm-riga--{{ r.tono }}">
+      <span class="cm-punto" aria-hidden="true"></span>
+      <span class="cm-testo"><strong>{{ r.titolo }}</strong>{% if r.dettaglio %}<small>{{ r.dettaglio }}</small>{% endif %}</span>
+      {% if r.url %}<a class="btn btn-sm{% if not forloop.first %} btn-secondary{% endif %}" href="{{ r.url }}"{% if r.pannello %} data-preview="{{ r.url }}"{% endif %}>{{ r.azione }}</a>{% endif %}
+    </li>
+    {% empty %}
+    <li class="cm-riga cm-riga--ok">
+      <span class="cm-punto" aria-hidden="true"></span>
+      <span class="cm-testo"><strong>{% if cosa_manca.chiuso %}Kickoff chiuso{% else %}Tutto a posto{% endif %}</strong>{% if not cosa_manca.chiuso %}<small>Non manca niente: il kickoff si può chiudere.</small>{% endif %}</span>
+      {% if not cosa_manca.chiuso and puo_chiudere %}<a class="btn btn-sm" href="#chiusura">Chiudi il kickoff</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if cosa_manca.a_posto %}
+  <details class="cm-aposto">
+    <summary>{{ cosa_manca.a_posto|length }} voc{{ cosa_manca.a_posto|length|pluralize:"e,i" }} a posto</summary>
+    <ul>{% for v in cosa_manca.a_posto %}<li>{{ v }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+</section>

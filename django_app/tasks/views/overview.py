@@ -275,6 +275,15 @@ def project_overview(request, project_id: int):
 
     _filo = tappe_context(request, project)
     _filo["prossimi_passi"] = prossimi_passi(project, tappe=_filo["tappe"], can_manage=can_manage)
+    # «Cosa manca»: passi, tappe, prontezza e attività in ritardo in un solo elenco.
+    from ..services.cosa_manca import cosa_manca
+    from ..services.striscia import striscia_commessa
+
+    _filo["cosa_manca"] = cosa_manca(
+        project, tappe=_filo["tappe"], readiness=readiness, azioni=actions,
+        can_manage=can_manage, puo_assegnare=_filo["tappe_puo_assegnare"],
+    )
+    _filo["striscia"] = striscia_commessa(project, today)
     from ..access import ha_pieni_poteri
     from ..services.filo import stato_consegna
 
