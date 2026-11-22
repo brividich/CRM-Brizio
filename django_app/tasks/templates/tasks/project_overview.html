@@ -1,61 +1,61 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#panoramica{% endblock %}
+{% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 
 {% block tasks_shell_content %}
-  <section class="ko-team" aria-label="Team commessa">
-    {% for block in project.team_blocks %}
-    <div class="ko-team-item">
-      <span class="ko-team-role">{{ block.label }}</span>
-      <span class="ko-team-name">{{ block.display|default:"Non assegnato" }}</span>
+  <div class="ko-grid ko-grid--main">
+    <div class="ko-col">
+      {% include "tasks/_cosa_manca.html" %}
+      {% include "tasks/_striscia.html" %}
     </div>
-    {% endfor %}
-  </section>
+    <div class="ko-col">
+      <a class="ko-metric ko-metric--plan" href="{% url 'tasks:project_gantt' project.id %}">
+        <span class="ko-metric-value">{{ progress_pct }}%</span>
+        <span class="ko-metric-label">Avanzamento · {{ done_task_count }}/{{ active_task_count }} attività completate{% if unplanned_task_count %} · {{ unplanned_task_count }} senza data fine{% endif %}</span>
+        <span class="ko-metric-bar"><i style="width:{{ progress_pct }}%"></i></span>
+      </a>
+      <section class="ko-team" aria-label="Team commessa">
+        {% for block in project.team_blocks %}
+        <div class="ko-team-item">
+          <span class="ko-team-role">{{ block.label }}</span>
+          <span class="ko-team-name">{{ block.display|default:"Non assegnato" }}</span>
+        </div>
+        {% endfor %}
+      </section>
 
-  {% if prossimi_passi %}
-  <section class="fl-passi" aria-label="Prossimi passi">
-    <strong class="fl-passi-titolo">Prossimi passi</strong>
-    {% for p in prossimi_passi %}
-    <a class="fl-passo fl-passo--{{ p.tono }}" href="{{ p.url }}">
-      <span class="fl-passo-testo"><strong>{{ p.titolo }}</strong><small>{{ p.dettaglio }}</small></span>
-      <span class="fl-passo-azione">{{ p.azione }} &rarr;</span>
-    </a>
-    {% endfor %}
-  </section>
-  {% endif %}
+      <section class="ko-panel ko-panel--meetings">
+        <div class="ko-panel-head">
+          <h2>Incontri</h2>
+          <a class="ko-panel-link" href="{% url 'tasks:project_meetings' project.id %}">Tutti</a>
+        </div>
+        <div class="ko-panel-body ko-panel-body--flush">
+          {% if recent_meetings %}
+            <ul class="ko-meeting-list">
+              {% for meeting in recent_meetings %}
+                <li>
+                  <a href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">
+                    <span class="ko-meeting-title">Incontro {{ meeting.numero }}{% if meeting.titolo %} · {{ meeting.titolo }}{% endif %}</span>
+                    <span class="ko-meeting-date">{{ meeting.data|date:"d/m/Y" }}{% if meeting.ora %} · {{ meeting.ora|time:"H:i" }}{% endif %}</span>
+                    {% if next_meeting and meeting.id == next_meeting.id and next_meeting_sala.0 %}<span class="ts-chip {{ next_meeting_sala.1 }}">{{ next_meeting_sala.0 }}</span>{% endif %}
+                    <span class="ko-meeting-status ko-meeting-status--{{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="ko-empty">Nessun incontro registrato.</p>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
 
-  <section class="ko-metrics" aria-label="Metriche commessa">
-    {# Data di inizio = primo incontro non annullato: e' il fatto che «apre» il kickoff. #}
-    <a class="ko-metric ko-metric--start" href="{% url 'tasks:project_meetings' project.id %}">
-      {% if first_meeting_date %}
-        <span class="ko-metric-value ko-metric-value--date">{{ first_meeting_date|date:"d/m/Y" }}</span>
-        <span class="ko-metric-label">Data di inizio · primo incontro</span>
-      {% else %}
-        <span class="ko-metric-value ko-metric-value--empty">—</span>
-        <span class="ko-metric-label">Inizio da pianificare</span>
-      {% endif %}
-    </a>
-    <a class="ko-metric ko-metric--meeting" href="{% url 'tasks:project_meetings' project.id %}">
-      {% if next_meeting %}
-        <span class="ko-metric-value ko-metric-value--date">{{ next_meeting.data|date:"d/m/Y" }}</span>
-        <span class="ko-metric-label">Prossimo incontro · n. {{ next_meeting.numero }}{% if next_meeting.ora %} · {{ next_meeting.ora|time:"H:i" }}{% endif %}{% if next_meeting.sala %} · {{ next_meeting.sala.nome }}{% endif %}</span>
-        {% if next_meeting_sala.0 %}<span class="ts-chip {{ next_meeting_sala.1 }}">{{ next_meeting_sala.0 }}</span>{% endif %}
-      {% else %}
-        <span class="ko-metric-value ko-metric-value--empty">—</span>
-        <span class="ko-metric-label">Nessun incontro pianificato</span>
-      {% endif %}
-    </a>
-    <a class="ko-metric ko-metric--actions" href="{% url 'tasks:project_actions' project.id %}">
-      <span class="ko-metric-value">{{ action_open_count }}</span>
-      <span class="ko-metric-label">Attività aperte</span>
-    </a>
-    <a class="ko-metric ko-metric--plan" href="{% url 'tasks:project_gantt' project.id %}">
-      <span class="ko-metric-value">{{ progress_pct }}%</span>
-      <span class="ko-metric-label">Avanzamento · {{ done_task_count }}/{{ active_task_count }} attività completate{% if unplanned_task_count %} · {{ unplanned_task_count }} senza data fine{% endif %}</span>
-      <span class="ko-metric-bar"><i style="width:{{ progress_pct }}%"></i></span>
-    </a>
-  </section>
-
-  {% include "tasks/_tappe.html" %}
+  {# Il Percorso è lo strumento per assegnare le tappe: «Cosa manca» dice quali, qui si lavorano. #}
+  <details class="ko-percorso" data-ko-percorso{% if request.GET.percorso %} open{% endif %}>
+    <summary>Percorso del kickoff</summary>
+    {% include "tasks/_tappe.html" %}
+  </details>
 
   {% if project.chiuso_il %}
   <section class="fl-chiuso" id="chiusura">
@@ -74,52 +74,6 @@
     </form>
   </section>
   {% endif %}
-
-
-  <div class="ko-grid">
-    <section class="ko-panel">
-      <div class="ko-panel-head">
-        <div>
-          <h2>Prontezza all'avvio</h2>
-          <p>{{ readiness.label }} · {{ readiness.met }} criteri su {{ readiness.total }}</p>
-        </div>
-        {% include "tasks/_readiness_badge.html" with readiness=readiness %}
-      </div>
-      <div class="ko-panel-body">
-        {% include "tasks/_readiness_checklist.html" with readiness=readiness hide_actions=hide_readiness_actions %}
-      </div>
-    </section>
-
-    <section class="ko-panel">
-      <div class="ko-panel-head">
-        <div>
-          <h2>Prossime attività</h2>
-          <p>Le prime cinque per urgenza e scadenza.</p>
-        </div>
-        <a class="ko-panel-link" href="{% url 'tasks:project_actions' project.id %}">Registro completo</a>
-      </div>
-      <div class="ko-panel-body ko-panel-body--flush">
-        {% if top_actions %}
-          <ul class="ko-action-list">
-            {% for action in top_actions %}
-              <li class="ko-action-item{% if action.is_overdue %} ko-action-item--danger{% endif %}">
-                <div class="ko-action-main">
-                  <a href="{{ action.url }}">{{ action.title }}</a>
-                  <span>{{ action.source_label }}</span>
-                </div>
-                <div class="ko-action-meta">
-                  {% if action.due_date %}{{ action.due_date|date:"d/m/Y" }}{% else %}Senza scadenza{% endif %}
-                  {% if action.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% endif %}
-                </div>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="ko-empty">Nessuna attività aperta su questa commessa.</p>
-        {% endif %}
-      </div>
-    </section>
-  </div>
 
   {% if documenti_sgi %}
   <section class="ko-panel" aria-label="Requisiti e procedure CN-SGI">
@@ -143,31 +97,9 @@
   </section>
   {% endif %}
 
-  <section class="ko-panel ko-panel--meetings">
-    <div class="ko-panel-head">
-      <div>
-        <h2>Ultimi incontri</h2>
-        <p>Le tre registrazioni più recenti della commessa.</p>
-      </div>
-      <a class="ko-panel-link" href="{% url 'tasks:project_meetings' project.id %}">Tutti gli incontri</a>
-    </div>
-    <div class="ko-panel-body ko-panel-body--flush">
-      {% if recent_meetings %}
-        <ul class="ko-meeting-list">
-          {% for meeting in recent_meetings %}
-            <li>
-              <a href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">
-                <span class="ko-meeting-title">Incontro {{ meeting.numero }}{% if meeting.titolo %} · {{ meeting.titolo }}{% endif %}</span>
-                <span class="ko-meeting-date">{{ meeting.data|date:"d/m/Y" }}</span>
-                <span class="ko-meeting-status ko-meeting-status--{{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
-              </a>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="ko-empty">Nessun incontro registrato.</p>
-      {% endif %}
-    </div>
-  </section>
   {% include "tasks/_storico_modifiche.html" %}
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script src="{% static 'tasks/js/panoramica.js' %}?v=20261122" defer></script>
 {% endblock %}

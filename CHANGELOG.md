@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: Panoramica con un solo «Cosa manca» (riordino UI, blocco 2)
+
+- La Panoramica aveva quattro blocchi che dicevano «cosa fare» (Prossimi passi, Percorso, Prontezza all'avvio, Prossime attività): ora c'è **«Cosa manca»**, un solo elenco ordinato per urgenza con il pulsante che porta dove si risolve e il conto «N a posto su M». Raccoglie incontri, tappe del Percorso (oltre tre da assegnare: una riga sola), VRF, team, piano senza date, attività in ritardo e consegna a rischio.
+- Disposizione: a sinistra «Cosa manca» e la linea del tempo, a destra avanzamento, team e incontri. Il Percorso resta come strumento, chiuso finché non serve («Assegna» lo apre); dopo ogni modifica al Percorso «Cosa manca» e la linea del tempo si aggiornano senza ricaricare.
+- Tolti dalla Panoramica i riquadri «Data di inizio», «Prossimo incontro» e «Attività aperte» (sono in Incontri e nel numero della tab Piano) e il semaforo di prontezza; resta l'avanzamento, con la stessa percentuale di portfolio e Gantt.
+- Etichetta «Attivita» → «Attività» nelle righe del registro.
+- File: `tasks/services/cosa_manca.py` (nuovo), `tasks/templates/tasks/_cosa_manca.html` (nuovo), `tasks/static/tasks/js/panoramica.js` (nuovo), `tasks/templates/tasks/project_overview.html`, `tasks/views/overview.py`, `tasks/action_register.py`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, test `tasks/tests_cosa_manca.py` (nuovo), `tasks/tests_{project_overview,filo,action_register}.py`.
+- Nessuna migrazione; serve `collectstatic` (`tasks.css?v=20261122c`, `panoramica.js`).
+
 ### KICK-OFF: testata unica di commessa e quattro sezioni (riordino UI, blocco 1)
 
 - Dentro una commessa la testata è la stessa su tutte le pagine: nome, cliente, P/N, fase, consegna, **una** azione primaria che segue lo stato («Conduci incontro n. …» il giorno dell'incontro, «Compila la VRF» se manca, altrimenti il prossimo incontro o «Nuovo incontro»), «+ Attività» unico che apre il form nel pannello laterale e il menu «Altro» (nuovo incontro, pianifica più attività, modifica, copie, calendario, tutti i kickoff).

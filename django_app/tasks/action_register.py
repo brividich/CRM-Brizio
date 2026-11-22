@@ -154,7 +154,7 @@ def _collect_tasks(project, *, include_closed: bool) -> list[ActionRow]:
             due_date=task.due_date,
             is_open=task.status not in closed_statuses,
             is_overdue=task.is_overdue,
-            source_label="Attivita",
+            source_label="Attività",
             url=reverse("tasks:detail", args=[task.pk]),
             da_confermare=bool((task.extra_data or {}).get("avviso_con_minuta")),
         )
