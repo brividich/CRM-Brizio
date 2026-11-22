@@ -1,0 +1,35 @@
+{% comment %}
+Corpo di un punto dell'ordine del giorno nella scheda: titolo, voce collegata, nota, quello
+che è emerso lì. Contesto: item (da services/filo_incontro.punti_con_filo). Nella fase «Prima»
+(`odg_modificabile`) il problema o l'attività riportati si chiudono dal punto stesso.
+{% endcomment %}
+<div class="md-agenda-title">
+  {{ item.titolo }}
+  {% if item.task_label %}<span class="md-agenda-task">{{ item.task_label }}</span>{% endif %}
+  {% if item.responsabile_label %}<span class="md-agenda-task">{{ item.responsabile_label }}</span>{% endif %}
+</div>
+{% if item.collegata %}
+  <ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False interattiva=odg_modificabile %}</ul>
+{% endif %}
+{% if item.nota %}<div class="md-agenda-nota">{{ item.nota }}</div>{% endif %}
+{% if item.emersi %}
+  <ul class="mvoci md-agenda-emersi">{% for voce in item.emersi %}{% include "tasks/_meeting_voce.html" with mostra_punto=False %}{% endfor %}</ul>
+{% endif %}
+{% if item.custom_fields and not item.collegata %}
+  <dl class="md-agenda-extra-fields">
+    {% for field in item.custom_fields %}
+      {% if field.label and field.value %}
+        <div class="md-agenda-extra-field">
+          <dt>{{ field.label }}</dt>
+          <dd>{{ field.value }}</dd>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </dl>
+{% endif %}
+{% if item.done %}
+  <div class="md-agenda-done-badge">
+    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+    Trattato
+  </div>
+{% endif %}
