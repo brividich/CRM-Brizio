@@ -2,28 +2,10 @@
 {% load static %}
 {% block tasks_shell_guide_anchor %}#esito{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Esito incontro</span>{% endblock %}
-{% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
-
-{% block tasks_shell_subtitle %}
-  {{ project.name }} · {% if correzione %}Correzione della minuta approvata: resta approvata, il motivo va a registro.{% elif meeting.is_svolto %}Esito già registrato: salvando lo aggiorni.{% else %}Compila dopo l'incontro: salvando, l'incontro passa in stato «Svolto».{% endif %}
-{% endblock %}
-
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ meeting.data|date:"d/m/Y" }}{% if meeting.ora %} · {{ meeting.ora|time:"H:i" }}{% endif %}</span>
-  {% if meeting.luogo %}<span class="ts-hero-pill">{{ meeting.luogo }}</span>{% endif %}
-  <span class="ts-hero-pill">{{ meeting.partecipanti_utenti.count }} convocati</span>
-  <span class="ts-hero-pill">{{ meeting.get_stato_display }}</span>
-{% endblock %}
-
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Scheda incontro</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
-{% endblock %}
-
 {% block tasks_shell_content %}
 {% load catalogo %}{% catalogo_datalist "AZIONE" %}{% catalogo_datalist "PROBLEMA" %}
 {% include "tasks/_meeting_fasi.html" %}
+<div class="md-hero">{% include "tasks/_meeting_testa.html" %}</div>
 <div class="mf-wrap">
 
   {% comment %}

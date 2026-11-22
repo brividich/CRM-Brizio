@@ -236,6 +236,8 @@ def _tasks_shell_context(
     project: Project | None = None,
     action_count: int | None = None,
     testata: bool | None = None,
+    incontro=None,
+    pagina: str = "",
 ) -> dict:
     """Contesto della cornice KICK-OFF.
 
@@ -260,7 +262,12 @@ def _tasks_shell_context(
     return {
         "tasks_shell_active": active,
         "tasks_shell_sezione": sezione,
-        "tasks_shell_testata": testata_commessa(request, current_project, puo_creare=puo_creare) if usa_testata else None,
+        # Dentro un incontro le viste «Incontri / Decisioni» non servono: la tab riporta all'elenco.
+        "tasks_shell_dentro_incontro": incontro is not None or pagina == "nuovo",
+        "tasks_shell_testata": (
+            testata_commessa(request, current_project, puo_creare=puo_creare, incontro=incontro, pagina=pagina)
+            if usa_testata else None
+        ),
         "tasks_shell_task": task,
         "tasks_shell_project": current_project,
         "tasks_shell_open_action_count": action_count or 0,

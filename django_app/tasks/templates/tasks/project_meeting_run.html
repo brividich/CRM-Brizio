@@ -1,19 +1,13 @@
 {% extends "tasks/base_shell.html" %}
 {% load static %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Conduzione</span>{% endblock %}
-{% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }}{% endblock %}
 
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Scheda incontro</a>
-  <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Termina e registra l'esito</a>
-{% endblock %}
 {% block tasks_shell_guide_anchor %}#conduzione{% endblock %}
 
 {% block tasks_shell_content %}
 {% load catalogo %}{% catalogo_datalist "ATTIVITA" %}{% catalogo_datalist "AZIONE" %}{% catalogo_datalist "PROBLEMA" %}
 {% include "tasks/_meeting_fasi.html" %}
+<div class="md-hero">{% include "tasks/_meeting_testa.html" %}</div>
 <div class="run-wrap">
 
   {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}

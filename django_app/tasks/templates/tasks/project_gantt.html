@@ -83,8 +83,8 @@ body.tk-wide .content sta in tasks.css.
 
 {% block tasks_shell_pagebar %}
 <div class="tk-pagebar">
-  {% if project.vrf_quote_number %}<span class="ts-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
-  <span class="ts-chip{% if can_edit_schedule %} success{% endif %}">{% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}</span>
+  {% if project.vrf_quote_number %}<span class="ts-chip info">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
+  <span class="ts-chip {% if can_edit_schedule %}ok{% else %}info{% endif %}">{% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}</span>
 </div>
 {% endblock %}
 

@@ -175,40 +175,49 @@ def punti_con_filo(meeting: KickoffMeeting, items, *, emersi_data: dict | None =
 
 
 FASI = (
-    ("convocazione", "Convocazione"),
-    ("conduzione", "Conduzione"),
-    ("esito", "Esito"),
-    ("minuta", "Minuta"),
+    ("prima", "Prima"),
+    ("durante", "Durante"),
+    ("dopo", "Dopo"),
 )
+# Le pagine chiamavano le fasi con i nomi di prima (quattro): restano validi.
+_FASE_DI = {"convocazione": "prima", "conduzione": "durante", "esito": "dopo", "minuta": "dopo"}
 
 
 def fasi_incontro(meeting: KickoffMeeting, *, attiva: str, can_manage: bool) -> list[dict]:
-    """Le quattro fasi di un incontro con stato e collegamento: la barra in testa alle pagine."""
+    """Le tre fasi di un incontro (prima, durante, dopo) con stato e collegamento.
+
+    È la barra in testa a scheda, convocazione, conduzione ed esito: l'incontro è
+    una cosa sola che cambia stato, le pagine sono i suoi tre momenti.
+    """
     pid, mid = meeting.project_id, meeting.pk
+    attiva = _FASE_DI.get(attiva, attiva)
     svolto = meeting.stato == MeetingStatus.SVOLTO
     annullato = meeting.stato == MeetingStatus.ANNULLATO
     convocato = bool(meeting.convocazione_inviata or meeting.outlook_event_id)
     chiusa = bool(meeting.minuta_chiusa)
+    scheda = reverse("tasks:project_meeting_detail", args=[pid, mid])
+    if svolto:
+        nota_dopo = ("Minuta inviata" if meeting.minuta_inviata else "Minuta approvata") if chiusa else "Minuta da approvare"
+        url_dopo = scheda
+    else:
+        nota_dopo = "Esito e minuta"
+        url_dopo = reverse("tasks:project_meeting_minutes", args=[pid, mid]) if can_manage else None
     fasi = {
-        "convocazione": {
+        "prima": {
             "fatta": convocato or svolto,
-            "nota": "Inviata" if convocato else ("—" if svolto else "Da inviare"),
-            "url": reverse("tasks:project_meeting_detail", args=[pid, mid]),
+            "nota": "Convocazione inviata" if convocato else ("Ordine del giorno" if svolto else "Convocazione da inviare"),
+            # A incontro svolto la scheda è il «dopo»: il «prima» resta come traccia.
+            "url": None if svolto else scheda,
         },
-        "conduzione": {
+        "durante": {
             "fatta": svolto,
-            "nota": "Svolta" if svolto else ("Oggi" if meeting.data and meeting.data == _oggi() else "In riunione"),
-            "url": reverse("tasks:project_meeting_run", args=[pid, mid]) if can_manage and not svolto and not annullato else None,
+            "nota": "Svolto" if svolto else ("Oggi" if meeting.data and meeting.data == _oggi() else "Conduzione"),
+            "url": reverse("tasks:project_meeting_run", args=[pid, mid]) if can_manage and not svolto else None,
         },
-        "esito": {
-            "fatta": svolto,
-            "nota": "Registrato" if svolto else "Dopo l'incontro",
-            "url": reverse("tasks:project_meeting_minutes", args=[pid, mid]) if can_manage and not chiusa and not annullato else None,
-        },
-        "minuta": {
+        "dopo": {
             "fatta": chiusa and meeting.minuta_inviata,
-            "nota": ("Inviata" if meeting.minuta_inviata else "Approvata") if chiusa else ("Da approvare" if svolto else "—"),
-            "url": reverse("tasks:project_meeting_detail", args=[pid, mid]) + "#documenti",
+            "nota": nota_dopo,
+            "url": url_dopo,
         },
     }
     return [
