@@ -27,6 +27,29 @@ class StatoTicketNonValido(ValueError):
     """Stato richiesto non presente fra ``StatoTicket``."""
 
 
+def e_chi_ha_aperto(ticket: Ticket, *, user_id=None, legacy_id=None, email: str = "") -> bool:
+    """La persona e' chi ha aperto il ticket (richiedente o compilatore «per conto di»)?
+
+    Stessi identificativi stabili di ``views._is_richiedente``: mai il solo nome.
+    """
+    if user_id and user_id in (ticket.richiedente_user_id, ticket.aperto_da_user_id):
+        return True
+    if legacy_id and ticket.richiedente_legacy_user_id == legacy_id:
+        return True
+    return bool(email and (ticket.richiedente_email or "").strip().lower() == email.strip().lower())
+
+
+def stato_di_chiusura(ticket: Ticket, *, user_id=None, legacy_id=None, email: str = "") -> str:
+    """Chiudere vale «Chiuso» solo per chi ha aperto il ticket.
+
+    Chiunque altro (tecnico, gestore, OdL) lo porta «Risolto»: la chiusura la
+    conferma chi l'ha aperto con «Confermo» (o lo riapre).
+    """
+    if e_chi_ha_aperto(ticket, user_id=user_id, legacy_id=legacy_id, email=email):
+        return StatoTicket.CHIUSO
+    return StatoTicket.RISOLTO
+
+
 def _parse_data_prevista(value) -> date | None:
     if value is None or value == "":
         return None

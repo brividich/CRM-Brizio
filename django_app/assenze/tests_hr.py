@@ -358,6 +358,30 @@ class ModificaApprovataTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(AssenzaModifica.objects.filter(assenza_id=42).exists())
 
+    def test_approvata_altrui_resta_approvata(self):
+        resp, upd = self._post(motivo_modifica="Prolungate su richiesta")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["torna_in_attesa"])
+        self.assertEqual(upd.call_args[0][1]["consenso"], "Approvato")
+
+    def test_propria_approvata_cambio_date_torna_in_attesa(self):
+        with patch("assenze.views._helpers._e_mia_richiesta", return_value=True):
+            resp, upd = self._post(motivo_modifica="Cambio programma")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["torna_in_attesa"])
+        self.assertIn("torna in approvazione", resp.json()["warning"])
+        salvato = upd.call_args[0][1]
+        self.assertEqual((salvato["consenso"], salvato["moderation_status"]), ("In attesa", 2))
+        campi = {m["campo"] for m in AssenzaModifica.objects.get(assenza_id=42).modifiche}
+        self.assertIn("Stato", campi)
+
+    def test_propria_approvata_solo_note_resta_approvata(self):
+        with patch("assenze.views._helpers._e_mia_richiesta", return_value=True):
+            resp, upd = self._post(fine="2026-06-09T23:59", motivazione="nota", motivo_modifica="Nota")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["torna_in_attesa"])
+        self.assertEqual(upd.call_args[0][1]["consenso"], "Approvato")
+
 
 class SollecitaRichiestaTests(TestCase):
     """Pulsante «Sollecita» di «Le mie richieste»."""

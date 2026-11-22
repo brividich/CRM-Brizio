@@ -58,8 +58,13 @@ def chiudi_con_intervento(
     materiali=None,
     rapportino: str = "",
     nota: str = "",
+    stato_finale: str = StatoTicket.RISOLTO,
 ) -> TicketIntervento:
-    """Registra l'intervento concluso e chiude il ticket, tutto o niente."""
+    """Registra l'intervento concluso e chiude il ticket, tutto o niente.
+
+    ``stato_finale``: «Risolto» (lo conferma chi l'ha aperto) salvo che a chiudere
+    sia chi l'ha aperto (``stato.stato_di_chiusura``).
+    """
     with transaction.atomic():
         intervento = TicketIntervento.objects.create(
             ticket=ticket,
@@ -111,5 +116,5 @@ def chiudi_con_intervento(
             testo=f"Intervento eseguito: {lavoro}",
             is_interno=False,
         )
-        cambia_stato_ticket(ticket, StatoTicket.CHIUSO, utente_nome=nome, utente_email=email, nota=nota)
+        cambia_stato_ticket(ticket, stato_finale, utente_nome=nome, utente_email=email, nota=nota)
     return intervento

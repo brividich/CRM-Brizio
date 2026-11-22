@@ -135,7 +135,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     </div>
     {% if form.resolvable_ticket %}
       <div class="md-field">
-        <span class="helptext">{% if form.altri_odl_aperti %}La segnalazione {{ form.resolvable_ticket.numero_ticket }} resta aperta: c'è un altro intervento aperto.{% else %}Con esito «Risolto» si chiude anche la segnalazione {{ form.resolvable_ticket.numero_ticket }}. Con «Risolto temporaneamente» o «Non risolto» resta com'è.{% endif %}</span>
+        <span class="helptext">{% if form.altri_odl_aperti %}La segnalazione {{ form.resolvable_ticket.numero_ticket }} resta aperta: c'è un altro intervento aperto.{% else %}Con esito «Risolto» si chiude anche la segnalazione {{ form.resolvable_ticket.numero_ticket }}: passa a «Risolto» e la chiusura la conferma chi l'ha aperta. Con «Risolto temporaneamente» o «Non risolto» resta com'è.{% endif %}</span>
       </div>
     {% endif %}
   </fieldset>

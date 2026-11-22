@@ -294,21 +294,29 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
             and not altri_aperti
         ):
             from tickets.models import StatoTicket
-            from tickets.services.stato import cambia_stato_ticket
+            from tickets.services.stato import cambia_stato_ticket, stato_di_chiusura
 
             nome = identity.name or _user_label(author)
             ticket.closed_at = max(data.closed_at or timezone.now(), ticket.created_at)
             ticket.risolto_da_nome = ticket.risolto_da_nome or nome
             ticket.save(update_fields=["closed_at", "risolto_da_nome", "updated_at"])
+            # Chiude davvero solo chi ha aperto la segnalazione; per gli altri resta
+            # «Risolto» finche' chi l'ha aperta non conferma.
+            stato_finale = stato_di_chiusura(
+                ticket, user_id=getattr(author, "pk", None), email=identity.email,
+            )
             cambia_stato_ticket(
                 ticket,
-                StatoTicket.CHIUSO,
+                stato_finale,
                 utente_nome=nome,
                 utente_email=identity.email,
-                nota=f"Chiuso con la chiusura dell'intervento #{workorder.display_number}.",
+                nota=f"Risolto con la chiusura dell'intervento #{workorder.display_number}.",
             )
             ticket_resolved = True
-            ticket_note = f"Segnalazione {ticket.numero_ticket} chiusa."
+            if stato_finale == StatoTicket.CHIUSO:
+                ticket_note = f"Segnalazione {ticket.numero_ticket} chiusa."
+            else:
+                ticket_note = f"Segnalazione {ticket.numero_ticket} risolta: la chiude chi l'ha aperta confermando."
         elif workorder.status != WorkOrder.STATUS_CANCELED:
             motivo = "; c'e' un altro intervento aperto" if altri_aperti else ""
             ticket_note = f"Segnalazione {ticket.numero_ticket} invariata ({ticket.get_stato_display()}){motivo}."
