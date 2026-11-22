@@ -9,6 +9,21 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: incontro, fase «Prima» con l'ordine del giorno modificabile sul posto
+
+- La scheda di un incontro **pianificato** è su due colonne (una su telefono): a sinistra l'**ordine del giorno**, a destra **«Convocazione»** (quando, sala con il suo stato, convocati, stato dell'invio, pulsanti di invio, «Modifica data, sala, convocati», partecipanti) e **«Dagli incontri precedenti»**. Data e sala non si ripetono nell'intestazione; la riga «Convocazione» e il pulsante «Modifica incontro» non ci sono più in questa fase.
+- Chi gestisce la commessa cambia l'ordine del giorno **senza lasciare né ricaricare la pagina**: «+ Punto» (Invio aggiunge), «Sposta su», «Sposta giù», «Togli» (con conferma; non su un punto dove sono già nati problemi, attività d'incontro o decisioni). Le proposte dei convocati si accettano o si rifiutano dalla stessa lista. Nessun tempo per punto.
+- Se la convocazione era già partita, dopo ogni modifica il riquadro mostra subito **«Convocazione da reinviare»** con l'elenco di cosa è cambiato.
+- **«Dagli incontri precedenti»**: problemi e attività d'incontro ancora aperti della commessa nati in altri incontri, con «Aggiungi all'ordine del giorno» (un clic, senza doppioni: la voce riportata esce dal riquadro e torna se si toglie il punto). Dal punto si chiudono con «Risolto» / «Fatta». Prima dell'incontro i riquadri in basso «Problemi trovati» e «Attività d'incontro» mostrano solo quello che è nato in questo incontro.
+- «Aggiungi all'ordine del giorno» del copilota («Dalle commesse simili») fa comparire il punto subito, senza ricaricare.
+- URL nuovi (POST, JSON 401/403, ACL `tasks.kickoff.comment`): `tasks/projects/<p>/incontri/<m>/agenda-item/sposta/` e `…/agenda-item/riporta/`. La scheda accetta `?riquadro=prima` (solo i riquadri). `agenda-item/elimina/` accetta `fase=prima`, `agenda-item/new/` accetta `source=scheda`, `proposte/<id>/decidi/` risponde JSON alle richieste AJAX. Nessuna migrazione.
+- Non fatto: il passaggio fra le fasi senza cambiare indirizzo (`?fase=durante|dopo` sulla scheda). Conduzione ed esito restano alle loro pagine.
+- File: `tasks/views/meetings.py`, `tasks/views/__init__.py`, `tasks/urls.py`, `tasks/acl_bootstrap.py`, `tasks/services/filo_incontro.py`, `tasks/templates/tasks/project_meeting_detail.html`, `_meeting_prima.html` (nuovo), `_meeting_partecipanti.html` (nuovo), `_meeting_punto_corpo.html` (nuovo), `_meeting_testa.html`, `tasks/static/tasks/js/meeting_prima.js` (nuovo), `meeting_detail.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, test `tasks/tests_incontro_prima.py` (nuovo), `tasks/tests_incontro_fasi.py`.
+
+### Audit 22/11: piano di rimedio
+
+- Nuovo `docs/audit/PIANO_RIMEDIO_2026-11-22.md`: sette ondate (sicurezza rapida, invii ripetuti, sicurezza sul lavoro, SOC, calendario unico da Assenze, robustezza, verifica delle piste) con le decisioni prese su eliminazione segnalazioni, TRIR, gravità SOC, presa visione SDS, festivi e termine RENTRI, mail automazioni. Solo documentazione. Rilevato in più: `core/calendario_it.py` non conta San Francesco (4 ottobre, festa dal 2026).
+
 ### KICK-OFF: meno spazio fra testata e contenuto nelle pagine di commessa
 
 - Sotto le tab, le viste della sezione (Elenco/Gantt/Board, Incontri/Decisioni, VRF/Programmi e FAI) e le pillole di pagina stanno su **una riga sola**; tolti i margini doppi fra tab, viste e contenuto.

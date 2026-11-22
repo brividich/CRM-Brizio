@@ -72,8 +72,12 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "«+ Nuovo incontro»: data, ora, sala, partecipanti e ordine del giorno. L'ordine del giorno si precompila con i problemi aperti.",
-                    "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
-                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
+                    "Prima dell'incontro il dettaglio ha l'ordine del giorno a sinistra e, a destra, «Convocazione» e «Dagli incontri precedenti». "
+                    "L'ordine del giorno si cambia lì, senza ricaricare: «+ Punto» (o Invio), «Sposta su», «Sposta giù», «Togli»; le proposte dei convocati si decidono dalla stessa lista con «Accetta» e «Rifiuta». "
+                    "«Aggiungi all'ordine del giorno», in «Dagli incontri precedenti», porta fra i punti un problema o un'attività d'incontro rimasti aperti, una volta sola. "
+                    "«Modifica data, sala, convocati» apre la pagina di convocazione.",
+                    "Nel riquadro «Convocazione» clicca «Invia convocazione per mail» o «Invia invito Outlook» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
+                    "Il riquadro dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare subito «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
                     "Chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo. "
                     "L'evento in calendario dura quanto la «Durata» scelta (un'ora con «Predefinita»). I punti dell'ordine del giorno non hanno tempi.",
                     "Durante la riunione premi «Inizia l'incontro» (fase «Durante»): presenti, un punto alla volta con le note. Nel «Registro dell'incontro» "

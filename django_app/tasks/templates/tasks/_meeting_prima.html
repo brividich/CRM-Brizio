@@ -1,0 +1,201 @@
+{% comment %}
+Fase «Prima» dell'incontro (scheda, incontro pianificato): a sinistra l'ordine del giorno,
+a destra la convocazione e quello che è rimasto aperto dagli incontri precedenti.
+
+Chi gestisce cambia l'ordine del giorno sul posto (static/tasks/js/meeting_prima.js): dopo ogni
+modifica lo script rilegge questa stessa pagina con `?riquadro=prima` e sostituisce il contenuto
+di #prima-odg, #prima-invio e #prima-precedenti. Il resto (quando, dove, convocati) non cambia da qui.
+
+Contesto: views.meetings._prima_context.
+{% endcomment %}
+<div class="mprima" id="mprima"
+     data-frammento-url="{% url 'tasks:project_meeting_detail' project.id meeting.id %}?riquadro=prima"
+     data-add-url="{% url 'tasks:project_meeting_agenda_item_add' project.id meeting.id %}"
+     data-move-url="{% url 'tasks:project_meeting_agenda_item_move' project.id meeting.id %}"
+     data-del-url="{% url 'tasks:project_meeting_agenda_item_delete' project.id meeting.id %}"
+     data-carry-url="{% url 'tasks:project_meeting_agenda_item_carry' project.id meeting.id %}">
+  {% csrf_token %}
+  <div class="mprima-col" id="prima-odg">
+    <section class="md-card" id="agenda-card">
+      <div class="md-card-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+        <span>Ordine del giorno</span>
+        <span class="mprima-conta">{{ punti|length }} punt{{ punti|length|pluralize:"o,i" }}</span>
+      </div>
+      <div class="md-card-body">
+        {% if punti %}
+          <ol class="mprima-punti">
+            {% for item in punti %}
+              <li class="md-agenda-item mprima-punto{% if item.done %} done-item{% endif %}" id="agenda-item-{{ item.id }}" data-item-id="{{ item.id }}" data-titolo="{{ item.titolo }}">
+                <div class="md-agenda-num">{{ forloop.counter }}</div>
+                <div class="md-agenda-body">
+                  {% include "tasks/_meeting_punto_corpo.html" %}
+                </div>
+                {% if odg_modificabile %}
+                  <div class="mprima-azioni">
+                    <button type="button" class="mprima-btn icona" data-odg-sposta="su" title="Sposta su" aria-label="Sposta su: {{ item.titolo }}"{% if forloop.first %} disabled{% endif %}>&uarr;</button>
+                    <button type="button" class="mprima-btn icona" data-odg-sposta="giu" title="Sposta giù" aria-label="Sposta giù: {{ item.titolo }}"{% if forloop.last %} disabled{% endif %}>&darr;</button>
+                    {% if not item.emersi %}<button type="button" class="mprima-btn" data-odg-togli aria-label="Togli: {{ item.titolo }}">Togli</button>{% endif %}
+                  </div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ol>
+        {% elif meeting.ordine_del_giorno %}
+          <p>{{ meeting.ordine_del_giorno }}</p>
+        {% else %}
+          <p class="empty">Nessun punto.</p>
+        {% endif %}
+
+        {# Proposte dei convocati: chi gestisce le accetta o le rifiuta dalla stessa lista. Quelle accettate sono già punti. #}
+        {% for proposal in meeting_proposals %}{% if proposal.stato != "ACCEPTED" %}
+          <div class="mprima-proposta{% if not proposal.is_pending %} is-decisa{% endif %}" data-proposta="{{ proposal.id }}">
+            <span class="mvoce-tipo">Proposta</span>
+            <div class="mprima-proposta-testo">
+              <strong>{{ proposal.titolo }}</strong>
+              <small>
+                {% if proposal.proposed_by %}{{ proposal.proposed_by.get_full_name|default:proposal.proposed_by.username }} &middot; {% endif %}{{ proposal.get_stato_display }}{% if proposal.nota_decisione %} &middot; {{ proposal.nota_decisione }}{% endif %}
+              </small>
+              {% if proposal.nota %}<small>{{ proposal.nota }}</small>{% endif %}
+            </div>
+            {% if odg_modificabile and proposal.is_pending %}
+              <div class="mprima-azioni" data-url="{% url 'tasks:project_meeting_proposal_decide' project.id meeting.id proposal.id %}">
+                <input type="text" class="input" maxlength="255" placeholder="Nota (facoltativa)" aria-label="Nota sulla proposta: {{ proposal.titolo }}" data-proposta-nota>
+                <button type="button" class="mprima-btn pri" data-proposta-decidi="accept">Accetta</button>
+                <button type="button" class="mprima-btn" data-proposta-decidi="reject">Rifiuta</button>
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}{% endfor %}
+
+        {% if odg_modificabile %}
+          <div class="mprima-nuovo">
+            <input type="text" class="input" id="prima-nuovo-titolo" maxlength="200" placeholder="Nuovo punto" aria-label="Titolo del nuovo punto" autocomplete="off">
+            <button type="button" class="mprima-btn pri" id="prima-nuovo-btn">+ Punto</button>
+            <span class="mprima-msg" id="prima-msg" role="status"></span>
+          </div>
+        {% elif is_convocato %}
+          <form method="post" action="{% url 'tasks:project_meeting_proposal_create' project.id meeting.id %}" class="md-proposal-new">
+            {% csrf_token %}
+            <input type="text" class="input" name="titolo" maxlength="200" placeholder="Proponi un punto all'ordine del giorno" required>
+            <input type="text" class="input" name="nota" placeholder="Nota (facoltativa)">
+            <button type="submit" class="mf-btn-sm primary">Proponi</button>
+          </form>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="mprima-col">
+    <section class="md-card" id="prima-convocazione">
+      <div class="md-card-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+        <span>Convocazione</span>
+      </div>
+      <div class="md-card-body">
+        <dl class="mprima-dati">
+          <div>
+            <dt>Quando</dt>
+            <dd>{{ meeting.data|date:"l d-m-Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}</dd>
+          </div>
+          {% if meeting.luogo or meeting.sala %}
+          <div>
+            <dt>Sala</dt>
+            <dd>
+              {{ meeting.luogo|default:meeting.sala }}
+              {% if sala_stato and meeting.sala and meeting.sala.email %}
+                <span data-sala-stato data-url="{% url 'tasks:sala_verifica' project.id meeting.id %}">
+                  <span class="ts-chip {{ sala_stato.1 }}" data-sala-chip>{{ sala_stato.0 }}</span>
+                  {% if can_manage and meeting.outlook_event_id %}<button type="button" class="md-link-btn" data-sala-verifica>Verifica</button>{% endif %}
+                </span>
+              {% endif %}
+            </dd>
+          </div>
+          {% endif %}
+          <div>
+            <dt>Convocati</dt>
+            <dd>{{ meeting.convocati_count }}</dd>
+          </div>
+        </dl>
+
+        <div class="mprima-invio" id="prima-invio">
+          {% if meeting.convocazione_da_reinviare %}
+            <div class="md-convocazione-note warn">
+              {% with modifiche=meeting.modifiche_convocazione %}
+              {% if modifiche %}
+                <strong>Convocazione da reinviare:</strong> dall'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }} è cambiato:
+                <ul class="md-convocazione-modifiche">
+                  {% for riga in modifiche %}<li>{{ riga }}</li>{% endfor %}
+                </ul>
+              {% else %}
+                <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+              {% endif %}
+              {% endwith %}
+            </div>
+          {% elif meeting.outlook_event_id %}
+            <p class="mprima-stato-invio is-ok">Invito Outlook inviato{% if meeting.convocazione_inviata_at %} il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}{% endif %}</p>
+          {% elif meeting.convocazione_inviata %}
+            <p class="mprima-stato-invio is-ok">Convocazione inviata per mail il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}</p>
+          {% else %}
+            <p class="mprima-stato-invio">Convocazione non ancora inviata</p>
+          {% endif %}
+          {% if can_manage %}
+            <div class="mprima-invio-azioni">
+              {% if outlook_pronto %}
+              <form method="post" action="{% url 'tasks:project_meeting_send_outlook' project.id meeting.id %}"
+                    data-hub-confirm="{% if meeting.outlook_event_id %}Rimandare l'invito Outlook a tutti i partecipanti?{% else %}Mandare l'invito Outlook ai partecipanti e prenotare la sala?{% endif %}">
+                {% csrf_token %}
+                <button type="submit" class="mprima-btn{% if not meeting.outlook_event_id or meeting.convocazione_da_reinviare %} pri{% endif %}">{% if meeting.outlook_event_id %}Reinvia invito Outlook{% else %}Invia invito Outlook{% endif %}</button>
+              </form>
+              {% endif %}
+              <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
+                    data-hub-confirm="Inviare per mail l'ordine del giorno a tutti i partecipanti?">
+                {% csrf_token %}
+                <button type="submit" class="mprima-btn{% if not outlook_pronto %}{% if not meeting.convocazione_inviata or meeting.convocazione_da_reinviare %} pri{% endif %}{% endif %}">{% if meeting.outlook_event_id %}Mail con l'ordine del giorno{% elif meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione per mail{% endif %}</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if can_manage %}
+          <a class="mprima-modifica" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Modifica data, sala, convocati</a>
+        {% endif %}
+
+        <div class="mprima-partecipanti">
+          {% include "tasks/_meeting_partecipanti.html" with portal_users=meeting.partecipanti_utenti.all %}
+        </div>
+      </div>
+    </section>
+
+    <div id="prima-precedenti">
+      {% if precedenti_da_portare %}
+        <section class="md-card">
+          <div class="md-card-head">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <span>Dagli incontri precedenti</span>
+          </div>
+          <div class="md-card-body">
+            <ul class="mprima-prec">
+              {% for voce in precedenti_da_portare %}
+                <li class="mvoce mvoce--{{ voce.tipo }}">
+                  <span class="mvoce-tipo">{{ voce.label }}</span>
+                  <span class="mvoce-main">
+                    <span class="mvoce-titolo">{{ voce.titolo }}</span>
+                    <span class="mvoce-meta">
+                      {% if voce.origine %}<span>incontro {{ voce.origine }}</span>{% endif %}
+                      {% if voce.chi %}<span>{{ voce.chi }}</span>{% endif %}
+                      {% if voce.scadenza %}<span{% if voce.scaduta %} class="is-late"{% endif %}>entro {{ voce.scadenza|date:"d/m" }}</span>{% endif %}
+                    </span>
+                  </span>
+                  {% if odg_modificabile %}
+                    <button type="button" class="mprima-btn" data-odg-riporta data-tipo="{{ voce.tipo }}" data-id="{{ voce.id }}">Aggiungi all'ordine del giorno</button>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </section>
+      {% endif %}
+    </div>
+  </div>
+</div>

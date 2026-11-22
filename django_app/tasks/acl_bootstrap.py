@@ -162,6 +162,9 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_proposal_decide": "tasks.kickoff.comment",
     "tasks:project_meeting_agenda_toggle": "tasks.kickoff.comment",
     "tasks:project_meeting_agenda_item_update": "tasks.kickoff.comment",
+    # Ordine del giorno dalla scheda (fase «Prima»): riordino e riporto dagli incontri precedenti.
+    "tasks:project_meeting_agenda_item_move": "tasks.kickoff.comment",
+    "tasks:project_meeting_agenda_item_carry": "tasks.kickoff.comment",
     "tasks:project_meeting_quick_capture": "tasks.kickoff.comment",
     "tasks:project_meeting_attendance": "tasks.kickoff.comment",
     # Gestione amministrativa
