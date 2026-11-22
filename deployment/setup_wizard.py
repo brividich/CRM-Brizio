@@ -616,6 +616,127 @@ def _ps_escape(value: str) -> str:
     return str(value).replace('`', '``').replace('"', '`"').replace('$', '`$')
 
 
+# ── Rinnovo certificato HTTPS (Gestisci server) ──────────────
+# Lo script gira con -File da un file temporaneo; la password del .pfx passa solo
+# nella variabile d'ambiente HUB_PFX_PW, mai sulla riga di comando.
+_CERT_RENEW_PS = r'''
+param([string]$Mode, [string]$Site, [string]$PfxPath = "")
+$ErrorActionPreference = "Stop"
+function Out-Json($o) { Write-Output ("@@CERT_JSON@@" + ($o | ConvertTo-Json -Depth 6 -Compress)) }
+function Cert-Info($c) {
+    if (-not $c) { return $null }
+    [ordered]@{
+        thumbprint = $c.Thumbprint; subject = $c.Subject; issuer = $c.Issuer
+        not_after = $c.NotAfter.ToString("dd/MM/yyyy")
+        days = [int][math]::Floor(($c.NotAfter - (Get-Date)).TotalDays)
+        dns = @($c.DnsNameList | ForEach-Object { $_.Unicode }); has_key = [bool]$c.HasPrivateKey
+    }
+}
+function Get-HttpsBindings {
+    @(Get-WebBinding -Name $Site -Protocol https | ForEach-Object {
+        $parts = $_.bindingInformation.Split(":")
+        $hash = $_.certificateHash
+        $store = if ($_.certificateStoreName) { $_.certificateStoreName } else { "My" }
+        $cert = if ($hash) { Get-Item "Cert:\LocalMachine\$store\$hash" -ErrorAction SilentlyContinue } else { $null }
+        [ordered]@{ info = $_.bindingInformation; host = $parts[2]; port = $parts[1]; thumbprint = "$hash"; cert = (Cert-Info $cert) }
+    })
+}
+try {
+    Import-Module WebAdministration
+    if (-not (Get-Website -Name $Site)) { throw "Sito IIS '$Site' non trovato." }
+    if ($Mode -eq "inspect") {
+        Out-Json @{ bindings = @(Get-HttpsBindings) }
+    } elseif ($Mode -eq "check") {
+        # EphemeralKeySet: la chiave resta in memoria, niente file nel profilo utente
+        try { $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($PfxPath, $env:HUB_PFX_PW, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet) }
+        catch [System.Management.Automation.RuntimeException] { if ("$_" -match "EphemeralKeySet") { $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($PfxPath, $env:HUB_PFX_PW) } else { throw } }
+        $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+        $chainOk = $chain.Build($c)
+        $problems = @($chain.ChainStatus | ForEach-Object { $_.StatusInformation.Trim() } | Where-Object { $_ })
+        Out-Json @{ cert = (Cert-Info $c); chain_ok = [bool]$chainOk; chain_problems = $problems; bindings = @(Get-HttpsBindings) }
+    } elseif ($Mode -eq "apply") {
+        $sec = ConvertTo-SecureString -String $env:HUB_PFX_PW -AsPlainText -Force
+        $imported = Import-PfxCertificate -FilePath $PfxPath -CertStoreLocation Cert:\LocalMachine\My -Password $sec -Exportable
+        $cert = @($imported) | Where-Object { $_.HasPrivateKey } | Select-Object -First 1
+        if (-not $cert) { throw "Il .pfx non contiene la chiave privata." }
+        $before = @(Get-HttpsBindings)
+        $errors = @()
+        foreach ($b in @(Get-WebBinding -Name $Site -Protocol https)) {
+            $old = "$($b.certificateHash)"
+            if ($old -eq $cert.Thumbprint) { continue }
+            try {
+                if ($old) { $b.RemoveSslCertificate() }
+                $b.AddSslCertificate($cert.Thumbprint, "My")
+            } catch {
+                $errors += "$($b.bindingInformation): $($_.Exception.Message)"
+                if ($old) { try { $b.AddSslCertificate($old, "My") } catch { $errors += "ripristino del vecchio certificato non riuscito su $($b.bindingInformation)" } }
+            }
+        }
+        Out-Json @{ thumbprint = $cert.Thumbprint; before = $before; after = @(Get-HttpsBindings); errors = $errors }
+    } else {
+        throw "Modo sconosciuto: $Mode"
+    }
+} catch {
+    Out-Json @{ error = $_.Exception.Message }
+    exit 1
+}
+'''
+
+
+def _parse_cert_json(stdout: str):
+    """Ultima riga con il marcatore @@CERT_JSON@@ → dict (None se assente o illeggibile)."""
+    marker = "@@CERT_JSON@@"
+    for line in reversed((stdout or "").splitlines()):
+        line = line.strip()
+        if line.startswith(marker):
+            try:
+                return json.loads(line[len(marker):])
+            except ValueError:
+                return None
+    return None
+
+
+def _cert_name_covered(host: str, dns_names) -> bool:
+    """True se il nome host è coperto da uno dei nomi del certificato (wildcard di un solo livello)."""
+    host = (host or "").strip().lower().rstrip(".")
+    if not host:
+        return True
+    for raw in dns_names or []:
+        name = (raw or "").strip().lower().rstrip(".")
+        if not name:
+            continue
+        if name == host:
+            return True
+        if name.startswith("*.") and "." in host and host.split(".", 1)[1] == name[2:]:
+            return True
+    return False
+
+
+def _cert_uncovered_hosts(hosts, dns_names) -> list:
+    """Nomi dei binding https che il certificato NON copre (vuoti esclusi), senza doppioni."""
+    out = []
+    for h in hosts or []:
+        h = (h or "").strip()
+        if h and h not in out and not _cert_name_covered(h, dns_names):
+            out.append(h)
+    return out
+
+
+def _kit_passphrase_problem(first: str, second: str) -> str:
+    """Stesse regole di recovery_kit.check_passphrase: almeno 5 parole e 20 caratteri."""
+    if first != second:
+        return "Le due passphrase non coincidono."
+    words = [w for w in re.split(r"[\s\-_.]+", first or "") if w]
+    if len(words) < 5 or len(first) < 20:
+        return "Passphrase troppo debole: servono almeno 5 parole e 20 caratteri."
+    return ""
+
+
+def _cert_kit_filename(env: str, when) -> str:
+    """Nome del nuovo Recovery Kit: <ambiente>-AAAAMMGG-HHMM.hubkit (i kit non si sovrascrivono)."""
+    return f"{(env or 'prod').lower()}-{when:%Y%m%d-%H%M}.hubkit"
+
+
 def _sql_bracket_escape(name: str) -> str:
     """Escapa un nome SQL Server per la notazione bracket: ] → ]]."""
     return name.replace("]", "]]")
@@ -7808,11 +7929,13 @@ class ServerDashboard:
         self._btn_recycle = SecondaryButton(btn_row, "♻  Ricicla Pool", lambda: self._iis_action("recycle"))
         self._btn_browser = SecondaryButton(btn_row, "🌐  Apri browser", self._open_browser)
         self._btn_reset_password = SecondaryButton(btn_row, "🔑  Reset password live", self._open_live_password_reset)
+        self._btn_cert = SecondaryButton(btn_row, "🔒  Rinnova certificato HTTPS", self._open_cert_renew)
         for b in (self._btn_start, self._btn_stop, self._btn_restart,
-                  self._btn_recycle, self._btn_browser, self._btn_reset_password):
+                  self._btn_recycle, self._btn_browser, self._btn_reset_password, self._btn_cert):
             b.pack(side="left", padx=(0, 8))
         if not self._admin_mode:
             self._btn_reset_password.set_enabled(False)
+            self._btn_cert.set_enabled(False)
 
         admin_note = (
             "Reset password live disponibile: aggiorna subito un account locale sull'ambiente attivo."
@@ -10191,6 +10314,323 @@ try {{
             self.root.after(500, self._refresh)
 
         self._cnc_powershell(ps, _done, timeout=30)
+
+    # ── Rinnovo certificato HTTPS: IIS + Recovery Kit ────────────
+    def _cert_ps(self, mode, site, pfx_path="", pfx_password=""):
+        """Esegue _CERT_RENEW_PS nel modo richiesto → (ok, dict). La password passa per variabile d'ambiente."""
+        import tempfile
+        fd, script = tempfile.mkstemp(suffix=".ps1", prefix="hub-cert-")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8-sig") as fh:
+                fh.write(_CERT_RENEW_PS)
+            env_vars = {**os.environ, "HUB_PFX_PW": pfx_password or ""}
+            proc = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                 "-File", script, "-Mode", mode, "-Site", site, "-PfxPath", pfx_path or ""],
+                capture_output=True, text=True, encoding="oem" if os.name == "nt" else None,
+                errors="replace", env=env_vars, timeout=120,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception as exc:
+            return False, {"error": str(exc)}
+        finally:
+            try:
+                os.remove(script)
+            except OSError:
+                pass
+        data = _parse_cert_json(proc.stdout)
+        if data is None:
+            return False, {"error": (proc.stderr or proc.stdout or "Nessuna risposta da PowerShell.").strip()[:400]}
+        return proc.returncode == 0 and not data.get("error"), data
+
+    def _cert_manage(self, env, args, stdin_text, timeout=180):
+        """manage.py dell'ambiente con la passphrase su stdin → (returncode, testo)."""
+        env_root = Path(self.BASE_DIR) / env
+        django_app = env_root / "current" / "django_app"
+        venv_py = env_root / "venv" / "Scripts" / "python.exe"
+        if not (django_app / "manage.py").exists():
+            return 1, "Release corrente non trovata: manca current\\django_app."
+        if not venv_py.exists():
+            return 1, "Virtualenv dell'ambiente non trovato."
+        settings = _django_settings(env)
+        env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings, "PYTHONPATH": str(django_app),
+                    "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1"}
+        try:
+            proc = subprocess.run(
+                [str(venv_py), "manage.py", *args], cwd=str(django_app), env=env_vars,
+                input=stdin_text, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception as exc:
+            return 1, str(exc)
+        return proc.returncode, "\n".join(x for x in ((proc.stdout or "").strip(), (proc.stderr or "").strip()) if x)
+
+    def _cert_log(self, text, tag=None):
+        self.root.after(0, lambda: self._append_terminal(text.rstrip("\n") + "\n", tag))
+
+    def _open_cert_renew(self):
+        if not self._admin_mode:
+            messagebox.showwarning("Privilegi richiesti",
+                                   "Il rinnovo del certificato richiede Setup Wizard avviato come Administrator.")
+            return
+        env = self._selected_env.get()
+        site = f"PortaleNovicrom-{env.upper()}"
+        dlg = tk.Toplevel(self.root)
+        dlg.title(f"Rinnova certificato HTTPS - {env.upper()}")
+        dlg.configure(bg="white")
+        dlg.resizable(False, False)
+        dlg.transient(self.root)
+        dlg.grab_set()
+        W, H = 680, 620
+        sw, sh = dlg.winfo_screenwidth(), dlg.winfo_screenheight()
+        dlg.geometry(f"{W}x{H}+{(sw-W)//2}+{max(0, (sh-H)//2)}")
+
+        body = frame(dlg, bg="white")
+        body.pack(fill="both", expand=True, padx=20, pady=14)
+
+        def _title(text):
+            tk.Label(body, text=text, font=(SF, 10, "bold"), fg=GRAY700, bg="white").pack(anchor="w", pady=(10, 4))
+
+        def _entry(parent, var, show=""):
+            e = tk.Entry(parent, textvariable=var, show=show, font=FMO, relief="flat", bg=GRAY50, fg=GRAY800,
+                         highlightthickness=1, highlightbackground=GRAY200, highlightcolor=BRAND)
+            return e
+
+        # 1. binding attuali
+        _title(f"1. Binding HTTPS attuali del sito {site}")
+        cur = tk.Text(body, height=5, font=FMO, bg=GRAY50, fg=GRAY700, relief="flat", wrap="none",
+                      highlightthickness=1, highlightbackground=GRAY200)
+        cur.pack(fill="x")
+
+        def _show_current(lines):
+            cur.configure(state="normal"); cur.delete("1.0", "end")
+            cur.insert("end", "\n".join(lines)); cur.configure(state="disabled")
+
+        _show_current(["Lettura in corso..."])
+
+        # 2. nuovo certificato
+        _title("2. Nuovo certificato (.pfx con chiave privata e catena)")
+        pfx_var, pw_var = tk.StringVar(), tk.StringVar()
+        row = frame(body, bg="white"); row.pack(fill="x")
+        _entry(row, pfx_var).pack(side="left", fill="x", expand=True, ipady=6, ipadx=6)
+        SecondaryButton(row, "  Sfoglia  ", lambda: pfx_var.set(
+            filedialog.askopenfilename(parent=dlg, filetypes=[("Certificato PFX", "*.pfx *.p12"), ("Tutti", "*.*")])
+            or pfx_var.get())).pack(side="left", padx=(8, 0))
+        row2 = frame(body, bg="white"); row2.pack(fill="x", pady=(6, 0))
+        tk.Label(row2, text="Password del .pfx", font=FSM, fg=GRAY600, bg="white", width=18, anchor="w").pack(side="left")
+        _entry(row2, pw_var, show="•").pack(side="left", fill="x", expand=True, ipady=5, ipadx=6)
+        check_btn = SecondaryButton(row2, "  Controlla  ", lambda: _check())
+        check_btn.pack(side="left", padx=(8, 0))
+        check_var = tk.StringVar(value="")
+        check_lbl = tk.Label(body, textvariable=check_var, font=FSM, fg=GRAY500, bg="white",
+                             wraplength=630, justify="left")
+        check_lbl.pack(anchor="w", pady=(6, 0))
+
+        # 3. recovery kit
+        _title("3. Recovery Kit (contiene .env e certificato HTTPS)")
+        kit_on = tk.BooleanVar(value=True)
+        tk.Checkbutton(body, text="Crea un nuovo Recovery Kit con il nuovo certificato e verificalo",
+                       variable=kit_on, font=FSM, fg=GRAY700, bg="white", activebackground="white",
+                       selectcolor="white").pack(anchor="w")
+        dir_var, kp1, kp2 = tk.StringVar(), tk.StringVar(), tk.StringVar()
+        row3 = frame(body, bg="white"); row3.pack(fill="x", pady=(4, 0))
+        tk.Label(row3, text="Cartella (share segreti)", font=FSM, fg=GRAY600, bg="white", width=18, anchor="w").pack(side="left")
+        _entry(row3, dir_var).pack(side="left", fill="x", expand=True, ipady=5, ipadx=6)
+        SecondaryButton(row3, "  Sfoglia  ", lambda: dir_var.set(
+            filedialog.askdirectory(parent=dlg) or dir_var.get())).pack(side="left", padx=(8, 0))
+        for label, var in (("Passphrase", kp1), ("Ripeti passphrase", kp2)):
+            r = frame(body, bg="white"); r.pack(fill="x", pady=(6, 0))
+            tk.Label(r, text=label, font=FSM, fg=GRAY600, bg="white", width=18, anchor="w").pack(side="left")
+            _entry(r, var, show="•").pack(side="left", fill="x", expand=True, ipady=5, ipadx=6)
+        tk.Label(body, text="Almeno 5 parole e 20 caratteri. Se è nuova, va riscritta nella busta in Direzione.",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w", pady=(2, 0))
+
+        status_var = tk.StringVar(value="")
+        tk.Label(body, textvariable=status_var, font=FSM, fg=GRAY600, bg="white",
+                 wraplength=630, justify="left").pack(anchor="w", pady=(10, 0))
+        actions = frame(body, bg="white"); actions.pack(fill="x", side="bottom", pady=(10, 0))
+        go_btn = PrimaryButton(actions, "Rinnova", lambda: _go())
+        go_btn.pack(side="right")
+        cancel_btn = SecondaryButton(actions, "Chiudi", dlg.destroy)
+        cancel_btn.pack(side="right", padx=(0, 8))
+        go_btn.set_state(False)
+
+        state = {"checked": None, "busy": False}
+
+        def _alive():
+            try:
+                return bool(dlg.winfo_exists())
+            except tk.TclError:
+                return False
+
+        def _ui(fn):
+            self.root.after(0, lambda: fn() if _alive() else None)
+
+        def _binding_lines(bindings):
+            lines = []
+            for b in bindings or []:
+                c = b.get("cert") or {}
+                name = b.get("host") or "(nessun nome)"
+                if c:
+                    lines.append(f"{name}:{b.get('port')}  {c.get('thumbprint', '')[:12]}…  scade {c.get('not_after')} "
+                                 f"({c.get('days')} gg)  {c.get('subject', '')}")
+                else:
+                    lines.append(f"{name}:{b.get('port')}  nessun certificato associato")
+            return lines or ["Nessun binding https sul sito."]
+
+        def _load_current():
+            ok, data = self._cert_ps("inspect", site)
+            _ui(lambda: _show_current(_binding_lines(data.get("bindings")) if ok else [f"Errore: {data.get('error')}"]))
+
+        threading.Thread(target=_load_current, daemon=True).start()
+
+        def _set_busy(busy):
+            state["busy"] = busy
+            check_btn.set_enabled(not busy)
+            cancel_btn.set_enabled(not busy)
+            go_btn.set_state(not busy and state["checked"] is not None)
+
+        def _check():
+            pfx, pw = pfx_var.get().strip(), pw_var.get()
+            state["checked"] = None
+            go_btn.set_state(False)
+            if not pfx or not Path(pfx).is_file():
+                check_var.set("Scegli il file .pfx."); check_lbl.configure(fg=RED); return
+            check_var.set("Controllo in corso..."); check_lbl.configure(fg=GRAY500)
+            _set_busy(True)
+
+            def _run():
+                ok, data = self._cert_ps("check", site, pfx, pw)
+
+                def _done():
+                    _set_busy(False)
+                    if not ok:
+                        check_var.set(f"Certificato non leggibile: {data.get('error')}"); check_lbl.configure(fg=RED); return
+                    c = data.get("cert") or {}
+                    hosts = [b.get("host") for b in data.get("bindings") or []]
+                    missing = _cert_uncovered_hosts(hosts, c.get("dns"))
+                    blocks = []
+                    if not c.get("has_key"):
+                        blocks.append("manca la chiave privata")
+                    if (c.get("days") or 0) <= 0:
+                        blocks.append("è già scaduto")
+                    if missing:
+                        blocks.append("non copre: " + ", ".join(missing))
+                    if not hosts:
+                        blocks.append("il sito non ha binding https")
+                    lines = [f"{c.get('subject')} · rilasciato da {c.get('issuer')}",
+                             f"Scade il {c.get('not_after')} ({c.get('days')} giorni) · nomi: {', '.join(c.get('dns') or [])}"]
+                    if not data.get("chain_ok"):
+                        lines.append("Attenzione: catena non verificata su questo server ("
+                                     + "; ".join(data.get("chain_problems") or ["motivo sconosciuto"]) + ").")
+                    if blocks:
+                        lines.append("Non si può applicare: " + "; ".join(blocks) + ".")
+                        check_lbl.configure(fg=RED)
+                    else:
+                        lines.append(f"Va bene per tutti i binding: {', '.join(h for h in hosts if h) or site}.")
+                        check_lbl.configure(fg=YELLOW_TX if not data.get("chain_ok") else GREEN)
+                        state["checked"] = {"pfx": pfx, "pw": pw, "chain_ok": bool(data.get("chain_ok")),
+                                            "thumbprint": c.get("thumbprint")}
+                        go_btn.set_state(True)
+                    check_var.set("\n".join(lines))
+
+                _ui(_done)
+
+            threading.Thread(target=_run, daemon=True).start()
+
+        def _go():
+            chk = state["checked"]
+            if not chk or chk["pfx"] != pfx_var.get().strip() or chk["pw"] != pw_var.get():
+                state["checked"] = None; go_btn.set_state(False)
+                status_var.set("File o password cambiati: premi di nuovo «Controlla»."); return
+            make_kit = kit_on.get()
+            kit_dir = dir_var.get().strip()
+            passphrase = kp1.get()
+            if make_kit:
+                if not kit_dir or not Path(kit_dir).is_dir():
+                    status_var.set("Scegli una cartella esistente per il Recovery Kit."); return
+                problem = _kit_passphrase_problem(kp1.get(), kp2.get())
+                if problem:
+                    status_var.set(problem); return
+            elif not messagebox.askyesno("Recovery Kit", "Senza un nuovo Recovery Kit, un ripristino del server "
+                                         "reimporterebbe il certificato vecchio. Continuare lo stesso?", parent=dlg):
+                return
+            if not chk["chain_ok"] and not messagebox.askyesno(
+                    "Catena non verificata", "La catena del certificato non risulta valida su questo server. "
+                    "I browser potrebbero rifiutarlo. Applicare lo stesso?", parent=dlg):
+                return
+            if not messagebox.askyesno("Conferma", f"Applicare il nuovo certificato a tutti i binding HTTPS di {site}?\n"
+                                       "Il sito resta acceso; il vecchio certificato rimane nello store.", parent=dlg):
+                return
+            status_var.set("Rinnovo in corso: segui il terminale del dashboard...")
+            _set_busy(True); go_btn.set_state(False)
+            threading.Thread(target=self._run_cert_renew,
+                             args=(env, site, chk["pfx"], chk["pw"], make_kit, kit_dir, passphrase,
+                                   status_var, _set_busy, _ui, _show_current, _binding_lines),
+                             daemon=True).start()
+
+    def _run_cert_renew(self, env, site, pfx, pw, make_kit, kit_dir, passphrase,
+                        status_var, set_busy, ui, show_current, binding_lines):
+        log = self._cert_log
+        log(f"\n=== Rinnovo certificato HTTPS · {site} · {datetime.now():%d/%m/%Y %H:%M} ===", "meta")
+        ok, data = self._cert_ps("apply", site, pfx, pw)
+        if not ok:
+            log(f"IIS: errore - {data.get('error')}", "error")
+            ui(lambda: (set_busy(False), status_var.set(f"IIS non aggiornato: {data.get('error')}")))
+            return
+        new_tp = data.get("thumbprint") or ""
+        after = data.get("after") or []
+        wrong = [b.get("meta") for b in after if (b.get("thumbprint") or "").upper() != new_tp.upper()]
+        old = sorted({(b.get("thumbprint") or "") for b in data.get("before") or []} - {new_tp, ""})
+        for line in binding_lines(after):
+            log(f"IIS: {line}")
+        for err in data.get("errors") or []:
+            log(f"IIS: {err}", "error")
+        ui(lambda: show_current(binding_lines(after)))
+        if wrong or data.get("errors"):
+            msg = "Alcuni binding non hanno il nuovo certificato: " + ", ".join(wrong or ["vedi terminale"])
+            log(msg, "error")
+            ui(lambda: (set_busy(False), status_var.set(msg + ". Recovery Kit non creato.")))
+            return
+        log(f"IIS: tutti i binding usano {new_tp}.", "ok")
+
+        kit_path = ""
+        if make_kit:
+            kit_path = str(Path(kit_dir) / _cert_kit_filename(env, datetime.now()))
+            log(f"Recovery Kit: esportazione in {kit_path}...")
+            rc, out = self._cert_manage(env, ["hub_recovery_kit", "export", "--out", kit_path,
+                                              "--pfx-thumbprint", new_tp, "--env", env, "--passphrase-stdin"],
+                                        passphrase + "\n")
+            log(out or "(nessun output)", None if rc == 0 else "error")
+            if rc == 0:
+                rc, out = self._cert_manage(env, ["hub_recovery_kit", "verify", kit_path, "--passphrase-stdin"],
+                                            passphrase + "\n")
+                log(out or "(nessun output)", None if rc == 0 else "error")
+            if rc != 0:
+                msg = ("Certificato applicato a IIS, ma il Recovery Kit non è stato creato o verificato: "
+                       "vedi terminale e rifallo da qui (il certificato resta quello nuovo).")
+                ui(lambda: (set_busy(False), status_var.set(msg)))
+                return
+            log("Recovery Kit: creato e verificato.", "ok")
+
+        todo = []
+        if kit_path:
+            todo += [f"Copia {Path(kit_path).name} su Vaultwarden (voce «NOVICROM HUB – Recovery Kit») e su C2.",
+                     "Se la passphrase è nuova, aggiorna la busta in Direzione con la data del kit."]
+        if old:
+            todo.append("Il vecchio certificato è ancora nello store (" + ", ".join(t[:12] + "…" for t in old)
+                        + "): rimuovilo quando il nuovo è confermato.")
+        todo.append("Microsoft Entra Application Proxy (dominio personalizzato): carica lì il nuovo .pfx a mano.")
+        summary = (f"Nuovo certificato {new_tp} su tutti i binding di {site}."
+                   + (f"\nRecovery Kit: {kit_path}" if kit_path else "\nRecovery Kit NON aggiornato.")
+                   + "\n\nDa fare a mano:\n- " + "\n- ".join(todo))
+        log(summary, "ok")
+
+        def _end():
+            set_busy(False)
+            status_var.set("Fatto.")
+            messagebox.showinfo("Certificato rinnovato", summary)
+        ui(_end)
 
     def _open_live_password_reset(self):
         if not self._admin_mode:

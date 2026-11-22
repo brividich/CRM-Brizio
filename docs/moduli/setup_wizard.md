@@ -40,4 +40,6 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 
 ## Ripristina da backup (ottobre 2026)
 
+**Rinnovo del certificato HTTPS** (Gestisci server → «🔒 Rinnova certificato HTTPS», solo da Administrator): mostra i binding https del sito scelto con scadenza; «Controlla» verifica il `.pfx` (chiave privata, scadenza, catena, copertura di tutti i nomi dei binding); «Rinnova» importa in `LocalMachine\My`, collega il certificato a tutti i binding e ricontrolla, poi crea e verifica un nuovo Recovery Kit nella cartella scelta (`hub_recovery_kit export`/`verify`, passphrase su stdin). Entra Application Proxy resta manuale.
+
 Dal launcher «♻ Ripristina da backup» (o `SetupWizard.exe --mode restore`): quattro pagine — backup e piano (anteprima dai manifest), segreti e macchina (Recovery Kit, nomi, identità, SQL, simulazione), esecuzione (log e barra per fase di `restore-host.ps1`, ripresa dopo un errore), completato (RTO, azioni manuali, report). Tutta l'esecuzione sta in `deployment/scripts/restore-host.ps1`; i segreti passano su stdin. Runbook: `deployment/RUNBOOK_RIPRISTINO.pdf` (sorgente `docs/dr/RUNBOOK_RIPRISTINO.md`).
