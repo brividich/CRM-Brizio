@@ -76,11 +76,11 @@ GUIDA = {
                     "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
                     "Chi è in copia riceve anche l'invito Outlook, come partecipante facoltativo. "
                     "L'evento in calendario dura quanto la «Durata» scelta (un'ora con «Predefinita»). I punti dell'ordine del giorno non hanno tempi.",
-                    "Durante la riunione puoi usare «Conduci incontro»: presenti, un punto alla volta con il tempo e le note. Nel «Registro dell'incontro» "
+                    "Durante la riunione premi «Inizia l'incontro» (fase «Durante»): presenti, un punto alla volta con le note. Nel «Registro dell'incontro» "
                     "scrivi problemi trovati, attività d'incontro, decisioni e attività legati al punto in discussione (o con «+ Problema», «+ Attività d'incontro», «+ Decisione» sul punto); "
                     "problemi e attività d'incontro riportati dagli incontri prima si chiudono lì con «Risolto» o «Fatta».",
                     "Dopo la riunione registra l'esito: presenti, note per ogni punto, problemi trovati, decisioni e attività (chi fa cosa entro quando), ognuno con il suo punto.",
-                    "La barra delle fasi (Convocazione, Conduzione, Esito, Minuta) in testa alle pagine dell'incontro dice cosa è fatto e porta alla fase successiva.",
+                    "La barra delle tre fasi (Prima, Durante, Dopo) in testa alle pagine dell'incontro dice cosa è fatto e porta alla fase; il pulsante arancione della testata fa il passo successivo («Inizia l'incontro», «Termina l'incontro», «Approva la minuta», «Invia la minuta», «Pianifica il prossimo incontro»).",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",
                     "Quando è tutto giusto: «Approva e chiudi minuta». Dopo, il capocommessa può «Correggi minuta» (resta approvata) o «Riapri minuta»: entrambe chiedono un motivo, che resta nelle Modifiche dell'incontro.",
                     "«Pianifica prossimo incontro» crea il successivo con gli stessi convocati, persone in copia, luogo e ora.",

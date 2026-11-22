@@ -6,6 +6,9 @@
 /* ── Token layer ── */
 .ts-shell {
   display: grid;
+  /* Una colonna che non si allarga col contenuto: senza, un figlio largo (tabella,
+     riga di pulsanti) allargava tutta la pagina e su telefono si scorreva di lato. */
+  grid-template-columns: minmax(0, 1fr);
   /* Le righe sono auto: senza align-content:start il grid distribuisce l'altezza
      residua della pagina fra hero, tab di commessa e pannelli — la striscia delle
      tab si gonfiava fino a ~140px sulle pagine con poco contenuto. */
@@ -891,6 +894,14 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .tk-pagebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hub-space-2); margin: 0 0 var(--hub-space-4); }
 .tk-pagebar-fine { margin-left: auto; }
 /* Menu «Altro» della testata di commessa: <details>, nessun JS. */
+/* Intestazione dell'incontro su telefono: va a capo e stringe i margini. */
+@media (max-width: 640px) {
+  .md-hero { flex-wrap: wrap; padding: 16px; gap: 12px; margin-bottom: 14px; }
+  .md-hero-body { flex: 1 1 180px; min-width: 0; }
+  .md-hero h2 { overflow-wrap: anywhere; }
+}
+.tk-primaria-form { margin: 0; display: inline-flex; }
+.tk-primaria-form button { cursor: pointer; font: inherit; }
 .tk-altro { position: relative; }
 .tk-altro > summary { list-style: none; cursor: pointer; user-select: none; }
 .tk-altro > summary::-webkit-details-marker { display: none; }
@@ -3692,6 +3703,10 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
   /* Allineata alle altre pagine di commessa: a 1040px la colonna restava molto
      piu' stretta della striscia delle tab e sembrava fuori asse. */
   max-width: 1240px;
+  /* Con i margini automatici la griglia la stringeva sul contenuto: su telefono
+     diventava più larga dello schermo. Larghezza piena, poi il tetto a 1240. */
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 0 4px 32px;
 }
@@ -5123,4 +5138,12 @@ form.is-modificata .tpl-summary-nome::after { content: " •"; color: var(--warn
   .log-riga { grid-template-columns: 1fr 1fr; }
   .log-testa { display: none; }
   .log-dettaglio { grid-column: 1 / -1; }
+}
+
+/* Telefono: le tre fasi dell'incontro restano su una riga; la nota si legge solo sulla fase aperta.
+   In fondo al file perché deve vincere sulle regole base della barra. */
+@media (max-width: 640px) {
+  .mfasi { flex-wrap: nowrap; }
+  .mfasi-step { flex: 1 1 0; min-width: 0; padding: 8px 10px; gap: 6px; }
+  .mfasi-step:not(.is-active) small { display: none; }
 }

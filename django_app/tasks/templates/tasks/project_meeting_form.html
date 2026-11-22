@@ -11,22 +11,12 @@
 {% include "tasks/_meeting_fasi.html" %}
 <div class="mf-wrap">
 
-  {# ── Header ───────────────────────────────────────────────────────── #}
-  <div class="mf-header">
-    <div class="mf-header-icon">
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="2">
-        {% if is_edit %}
-          <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/>
-        {% else %}
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-        {% endif %}
-      </svg>
-    </div>
-    <div>
-      <h2>{% if is_edit %}Convocazione incontro #{{ meeting.numero }}{% else %}Nuovo incontro di avanzamento{% endif %}</h2>
-      <p>{{ project.name }}{% if project.part_number %} · P/N {{ project.part_number }}{% endif %} · Verbale e problemi si registrano dopo l'incontro</p>
-    </div>
-  </div>
+  {# Stessa intestazione delle altre fasi; per un incontro nuovo basta il titolo. #}
+  {% if is_edit %}
+  <div class="md-hero">{% include "tasks/_meeting_testa.html" %}</div>
+  {% else %}
+  <div class="mf-header"><div><h2>Nuovo incontro</h2></div></div>
+  {% endif %}
 
   <form method="post" novalidate id="meeting-form" data-suggest-url="{% url 'tasks:identity_suggest' %}" data-avviso-uscita>
     {% csrf_token %}

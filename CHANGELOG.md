@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: l'incontro come una pagina sola in tre fasi (riordino UI, blocco 3)
+
+- Scheda, convocazione, conduzione ed esito hanno ora lo stesso telaio: testata di commessa, barra a **tre fasi** (Prima · Durante · Dopo, erano quattro) e la stessa intestazione dell'incontro (numero, titolo, data, sala, stato). Titoli e pulsanti diversi da pagina a pagina sono stati tolti.
+- Il pulsante arancione della testata segue la fase: «Inizia l'incontro» (o «Registra l'esito» se la data è passata), «Termina l'incontro», «Approva la minuta», «Invia la minuta», «Pianifica il prossimo incontro». L'esito e l'incontro nuovo, che hanno già il loro «Salva», non ne hanno un secondo.
+- Scheda dell'incontro: prima dell'incontro la riga dei documenti mostra solo la **Convocazione**, dopo solo la **Minuta**; tolti «Conduci incontro» e «Registra esito» (sono nelle fasi e nel pulsante), il rimando «Tutti gli incontri | Gantt» e il comando che è già nel pulsante arancione.
+- Telefono: le pagine di commessa non scorrono più di lato (la cornice si allargava col contenuto; il contenitore dei form si stringeva sul contenuto), l'intestazione dell'incontro va a capo e le tre fasi restano su una riga.
+- Guida: tolto il riferimento al «tempo pianificato» nella conduzione (l'ordine del giorno non ha tempi).
+- File: `tasks/services/filo_incontro.py` (`FASI`, `fasi_incontro`), `tasks/services/testata.py` (`_primaria_incontro`), `tasks/views/_shared.py`, `tasks/views/meetings.py`, `tasks/templates/tasks/_meeting_testa.html` (nuovo), `_meeting_fasi.html`, `_project_tabs.html`, `base_shell.html`, `project_meeting_{detail,form,run,minutes}.html`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, test `tasks/tests_incontro_fasi.py` (nuovo).
+- Nessuna migrazione; serve `collectstatic` (`tasks.css?v=20261122f`).
+
 ### KICK-OFF: Panoramica con un solo «Cosa manca» (riordino UI, blocco 2)
 
 - La Panoramica aveva quattro blocchi che dicevano «cosa fare» (Prossimi passi, Percorso, Prontezza all'avvio, Prossime attività): ora c'è **«Cosa manca»**, un solo elenco ordinato per urgenza con il pulsante che porta dove si risolve e il conto «N a posto su M». Raccoglie incontri, tappe del Percorso (oltre tre da assegnare: una riga sola), VRF, team, piano senza date, attività in ritardo e consegna a rischio.

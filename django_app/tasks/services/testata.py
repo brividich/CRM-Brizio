@@ -35,17 +35,53 @@ def _vrf_url(project) -> str:
     return reverse(nome, args=[project.pk])
 
 
-def testata_commessa(request, project, *, puo_creare: bool) -> dict:
-    """Dati della testata: consegna, azione primaria, permessi dei comandi."""
+def _primaria_incontro(project, incontro, pagina: str, *, gestisce: bool, puo_creare: bool, oggi) -> dict | None:
+    """Dentro un incontro il pulsante segue la fase: inizia, termina, approva, invia, pianifica il prossimo."""
+    if not gestisce or incontro.stato == MeetingStatus.ANNULLATO:
+        return None
+    ids = [project.pk, incontro.pk]
+    esito = reverse("tasks:project_meeting_minutes", args=ids)
+    if pagina == "conduzione":
+        return {"label": "Termina l'incontro", "url": esito}
+    if incontro.stato == MeetingStatus.PIANIFICATO:
+        if incontro.data and incontro.data < oggi:
+            return {"label": "Registra l'esito", "url": esito}
+        return {"label": "Inizia l'incontro", "url": reverse("tasks:project_meeting_run", args=ids)}
+    if not incontro.minuta_chiusa:
+        return {
+            "label": "Approva la minuta", "url": reverse("tasks:project_meeting_minute_close", args=ids), "post": True,
+            "conferma": "Approvare e chiudere la minuta? L'esito non sarà più modificabile senza riaprirla.",
+        }
+    if not incontro.minuta_inviata:
+        return {
+            "label": "Invia la minuta", "url": reverse("tasks:project_meeting_send_minute", args=ids), "post": True,
+            "conferma": "Inviare la minuta dell'incontro a tutti i partecipanti?",
+        }
+    if puo_creare and not project.chiuso_il:
+        return {
+            "label": "Pianifica il prossimo incontro",
+            "url": reverse("tasks:project_meeting_create", args=[project.pk]) + f"?da={incontro.pk}",
+        }
+    return None
+
+
+def testata_commessa(request, project, *, puo_creare: bool, incontro=None, pagina: str = "") -> dict:
+    """Dati della testata: consegna, azione primaria, permessi dei comandi.
+
+    ``incontro`` e ``pagina`` (``convocazione``, ``conduzione``, ``esito``, ``nuovo``):
+    dentro un incontro l'azione primaria è quella della sua fase; nelle pagine che
+    hanno già il loro «Salva» (esito, incontro nuovo) non ce n'è una seconda.
+    """
     from ..access import can_manage_project
     from .filo import stato_consegna
 
     gestisce = can_manage_project(request, project)
     chiuso = bool(project.chiuso_il)
     oggi = timezone.localdate()
-    incontro = None
-    if not chiuso:
-        incontro = (
+    dentro_incontro = incontro is not None or pagina in ("esito", "nuovo")
+    prossimo = None
+    if not chiuso and not dentro_incontro:
+        prossimo = (
             project.meetings.filter(stato=MeetingStatus.PIANIFICATO, data__gte=oggi)
             .order_by("data", "ora", "numero", "id")
             .first()
@@ -55,19 +91,23 @@ def testata_commessa(request, project, *, puo_creare: bool) -> dict:
     nuovo_incontro_url = (
         reverse("tasks:project_meeting_create", args=[project.pk]) if gestisce and puo_creare and not chiuso else ""
     )
-    if chiuso:
+    if pagina in ("esito", "nuovo"):
         pass
-    elif incontro is not None and incontro.data == oggi and gestisce:
+    elif incontro is not None:
+        primaria = _primaria_incontro(project, incontro, pagina, gestisce=gestisce, puo_creare=puo_creare, oggi=oggi)
+    elif chiuso:
+        pass
+    elif prossimo is not None and prossimo.data == oggi and gestisce:
         primaria = {
-            "label": f"Conduci incontro n. {incontro.numero}",
-            "url": reverse("tasks:project_meeting_run", args=[project.pk, incontro.pk]),
+            "label": f"Conduci incontro n. {prossimo.numero}",
+            "url": reverse("tasks:project_meeting_run", args=[project.pk, prossimo.pk]),
         }
     elif gestisce and project.vrf_status == VRFDocStatus.PENDING:
         primaria = {"label": "Compila la VRF", "url": _vrf_url(project)}
-    elif incontro is not None:
+    elif prossimo is not None:
         primaria = {
-            "label": f"Incontro n. {incontro.numero} del {incontro.data:%d/%m}",
-            "url": reverse("tasks:project_meeting_detail", args=[project.pk, incontro.pk]),
+            "label": f"Incontro n. {prossimo.numero} del {prossimo.data:%d/%m}",
+            "url": reverse("tasks:project_meeting_detail", args=[project.pk, prossimo.pk]),
         }
     elif nuovo_incontro_url:
         primaria = {"label": "Nuovo incontro", "url": nuovo_incontro_url}

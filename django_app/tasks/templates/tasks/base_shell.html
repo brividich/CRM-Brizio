@@ -4,7 +4,7 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261122c">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261122f">
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
@@ -42,7 +42,9 @@
     </div>
     <div class="ts-hero-right">
       {% if t %}
-        {% if t.primaria %}<a class="ts-hero-action primary" href="{{ t.primaria.url }}">{{ t.primaria.label }}</a>{% endif %}
+        {% if t.primaria.post %}
+          <form method="post" action="{{ t.primaria.url }}" class="tk-primaria-form" data-hub-confirm="{{ t.primaria.conferma }}">{% csrf_token %}<button type="submit" class="ts-hero-action primary">{{ t.primaria.label }}</button></form>
+        {% elif t.primaria %}<a class="ts-hero-action primary" href="{{ t.primaria.url }}">{{ t.primaria.label }}</a>{% endif %}
         {% if t.nuova_attivita_url %}<a class="ts-hero-action" href="{{ t.nuova_attivita_url }}" data-preview="{{ t.nuova_attivita_url }}">+ Attività</a>{% endif %}
         <details class="tk-altro">
           <summary class="ts-hero-action">Altro</summary>
