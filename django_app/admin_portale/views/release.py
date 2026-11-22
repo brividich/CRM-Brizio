@@ -250,6 +250,32 @@ def _release_process_restart_payload(environment: str, site_name: str, pool_name
     }
 
 
+
+def _cartelle_pacchetti() -> tuple[Path, Path]:
+    """Le sole cartelle da cui la pagina Crea release elenca e scarica i pacchetti."""
+    return Path("C:/PortaleNovicrom/shared/packages"), Path(settings.BASE_DIR).parent / "releases"
+
+
+def _pacchetto_ammesso(grezzo: str) -> Path | None:
+    """Zip ``portale-novicrom-*`` che sta direttamente in una cartella dei pacchetti.
+
+    Il percorso arriva dalla query string: senza questo controllo si poteva scaricare
+    qualunque zip con quel nome da qualunque cartella o share raggiungibile (audit S3).
+    """
+    try:
+        f = Path(grezzo).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not f.is_file() or f.suffix.lower() != ".zip" or not f.name.startswith("portale-novicrom-"):
+        return None
+    for cartella in _cartelle_pacchetti():
+        try:
+            if f.parent == cartella.resolve():
+                return f
+        except OSError:
+            continue
+    return None
+
 def _release_start_iis_restart_task(environment: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
     task_path = _RELEASE_IIS_TASK_FOLDER + "\\"
     task_name = _release_iis_restart_task_short_name(environment)
@@ -286,8 +312,7 @@ def crea_release(request):
     package_timeout_minutes = package_timeout_seconds // 60
 
     # Directory pacchetti: shared/packages se esiste, altrimenti releases/ nella repo
-    shared_packages = Path("C:/PortaleNovicrom/shared/packages")
-    releases_dir = repo_root / "releases"
+    shared_packages, releases_dir = _cartelle_pacchetti()
 
     def _list_packages():
         pkgs = []
@@ -362,9 +387,8 @@ def download_release_package(request):
     pkg_path = request.GET.get("path", "").strip()
     if not pkg_path:
         raise Http404
-    f = Path(pkg_path)
-    # Sicurezza: accetta solo zip con il prefisso atteso
-    if not f.exists() or not f.suffix == ".zip" or not f.name.startswith("portale-novicrom-"):
+    f = _pacchetto_ammesso(pkg_path)
+    if f is None:
         raise Http404
     return FileResponse(open(f, "rb"), as_attachment=True, filename=f.name)
 

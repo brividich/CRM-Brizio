@@ -19,6 +19,9 @@ a.ss-mie-kpi { display:block; text-decoration:none; }
 .ss-mie-meta { color:#64748b; font-size:12px; margin:5px 0 12px; }
 .ss-mie-btn { display:inline-flex; padding:8px 12px; border-radius:9px; background:#1d4ed8; color:#fff; text-decoration:none; font-size:12px; font-weight:800; }
 .ss-mie-empty { padding:24px; text-align:center; color:#64748b; }
+.ss-mie-conferma { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid #e2e8f0; font-size:13px; color:#334155; }
+.ss-mie-conferma button { border:0; cursor:pointer; font-size:13px; padding:9px 14px; }
+body.theme-dark .ss-mie-conferma { border-color:var(--border); color:var(--text); }
 body.theme-dark .ss-mie-hero,body.theme-dark .ss-mie-section { background:var(--surface); border-color:var(--border); }
 body.theme-dark .ss-mie-title,body.theme-dark .ss-mie-card h3 { color:var(--text); }
 body.theme-dark .ss-mie-card { border-color:var(--border); }
@@ -57,6 +60,12 @@ body.theme-dark .ss-mie-empty{color:var(--text-light)}
           </article>
         {% endfor %}
       </div>
+      <form method="post" action="{% url 'schede_sicurezza:sds_conferma_tutte' %}" class="ss-mie-conferma">
+        {% csrf_token %}
+        {% for scheda in da_leggere %}<input type="hidden" name="scheda" value="{{ scheda.pk }}">{% endfor %}
+        <span>Hai letto tutte le schede elencate?</span>
+        <button type="submit" class="ss-mie-btn">Confermo di aver letto {% if da_leggere|length == 1 %}la scheda{% else %}tutte le {{ da_leggere|length }} schede{% endif %}</button>
+      </form>
     {% elif profilo.collegato and profilo.mansione_id %}
       <div class="ss-mie-empty">Hai preso visione di tutte le SDS correnti assegnate alla tua mansione.</div>
     {% elif profilo.collegato %}

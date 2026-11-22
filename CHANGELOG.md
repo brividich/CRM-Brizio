@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 1: sicurezza rapida
+
+- **Reindirizzamenti (S2):** dopo la decisione su uno spostamento di date (KICK-OFF) e alla fine di un'impersonazione il parametro `next` passa da `core.redirects.safe_next`: un indirizzo esterno riporta alla pagina interna. File: `tasks/views/spostamenti.py`, `core/views.py`.
+- **Download pacchetti di release (S3):** si scaricano solo zip `portale-novicrom-*` che stanno direttamente in `C:\PortaleNovicrom\shared\packages` o in `releases/` (`_pacchetto_ammesso`, percorso risolto). File: `admin_portale/views/release.py`, test `admin_portale/tests_release_download.py`.
+- **Mail delle automazioni (S4):** nel corpo HTML di «Invia mail» e nel corpo libero dei modelli di approvazione i valori dei segnaposto sono neutralizzati (`render_template_string(..., html=True)`); eccezioni solo in `SEGNAPOSTO_HTML_AMMESSI` (oggi vuoto: nessun segnaposto HTML generato dal portale trovato nel censimento). File: `automazioni/services.py`, `automazioni/approval_email_templates.py`.
+- **Amministrazione Gestione specifiche (S5):** permesso controllato in ogni vista (`admin_specifiche_required`, 403), legame canonico per «Sincronizzazione» (bootstrap v20), file del timbro validato da `core/upload_mime` (PDF/PNG/JPEG, 10 MB). File: `gestione_specifiche/admin_views.py`, `acl_bootstrap.py`.
+- **Schede di sicurezza, «ho letto tutte» (S6):** il link della mail non registra più la presa visione: porta a «Le mie SDS», dove il pulsante «Confermo di aver letto tutte le N schede» (POST) registra solo le schede mostrate e ancora dovute, con traccia nel registro azioni. File: `schede_sicurezza/views.py`, `pages/sds_da_leggere.html`.
+- **Permessi in produzione (S7):** in `config/settings/prod.py` `ACL_STRICT_CANONICAL` è attivo se il `.env` non dice altro; per spegnerlo serve `ACL_STRICT_CANONICAL=0` esplicito.
+- Guide: Centro guide Schede di sicurezza e Automazioni; `docs/moduli/schede_sicurezza.md`, `automazioni.md`, `gestione_specifiche.md`; stato in `docs/audit/PIANO_RIMEDIO_2026-11-22.md`. Nessuna migrazione.
+
 ### KICK-OFF: incontro, fase «Prima» con l'ordine del giorno modificabile sul posto
 
 - La scheda di un incontro **pianificato** è su due colonne (una su telefono): a sinistra l'**ordine del giorno**, a destra **«Convocazione»** (quando, sala con il suo stato, convocati, stato dell'invio, pulsanti di invio, «Modifica data, sala, convocati», partecipanti) e **«Dagli incontri precedenti»**. Data e sala non si ripetono nell'intestazione; la riga «Convocazione» e il pulsante «Modifica incontro» non ci sono più in questa fase.

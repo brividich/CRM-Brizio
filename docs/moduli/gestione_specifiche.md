@@ -45,3 +45,5 @@ Area **Operations** · URL `/gestione-specifiche/` · codice [`django_app/gestio
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Filtri `verifica`, `ofi=aperti`.
+
+**Amministrazione, controllo nella vista (audit S5, 22/11/2026):** ogni vista di `admin_views.py` usa `admin_specifiche_required` (login + `utente_puo_admin`, 403 altrimenti), quindi resta chiusa anche se il legame pagina-permesso manca; `admin_sincronizzazione` ha ora il legame canonico (`acl_bootstrap` v20). Il file del timbro passa da `core/upload_mime.validate_extension_and_mime` (PDF, PNG, JPEG, max 10 MB, tipo reale del file).
