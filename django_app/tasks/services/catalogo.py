@@ -50,8 +50,36 @@ def registra_uso(tipo: str, testo: str, *, nota: str = "", durata=None) -> None:
         logger.exception("Catalogo: uso non registrato (%s)", tipo)
 
 
+# Attività del piano e attività d'incontro sono la stessa cosa per chi scrive:
+# quello che è stato proposto in un posto deve tornare come suggerimento nell'altro.
+_TIPI_ATTIVITA = (CatalogoTipo.ATTIVITA, CatalogoTipo.AZIONE)
+
+
 def suggerimenti(tipo: str, limite: int = 200) -> list[CatalogoVoce]:
-    return list(CatalogoVoce.objects.filter(tipo=tipo, attiva=True).order_by("-usi", "testo")[:limite])
+    """Voci da proporre in un campo di testo, le più usate per prime.
+
+    Per le attività l'elenco è uno solo: voci del piano, voci d'incontro e nomi dei
+    tipi di attività (Programmazione CAM, Scelta macchina...), senza doppioni.
+    """
+    if tipo not in _TIPI_ATTIVITA:
+        return list(CatalogoVoce.objects.filter(tipo=tipo, attiva=True).order_by("-usi", "testo")[:limite])
+    viste: dict[str, CatalogoVoce] = {}
+    for voce in CatalogoVoce.objects.filter(tipo__in=_TIPI_ATTIVITA, attiva=True).order_by("-usi", "testo"):
+        gia = viste.get(voce.chiave)
+        if gia is None:
+            viste[voce.chiave] = voce
+        else:
+            gia.usi += voce.usi  # stessa voce nei due elenchi: conta una volta, con gli usi sommati
+    try:
+        from ..models import TaskCategory
+
+        for nome in TaskCategory.objects.filter(is_active=True).values_list("name", flat=True):
+            k = chiave(nome)
+            if k and k not in viste:
+                viste[k] = CatalogoVoce(tipo=CatalogoTipo.ATTIVITA, testo=nome, chiave=k, usi=0)
+    except Exception:
+        logger.exception("Catalogo: tipi di attività non letti")
+    return sorted(viste.values(), key=lambda v: (-v.usi, v.testo.casefold()))[:limite]
 
 
 def unisci(sorgente: CatalogoVoce, destinazione: CatalogoVoce) -> None:

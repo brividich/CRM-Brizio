@@ -99,3 +99,42 @@ class CosaMancaTests(FiloBase):
         # Il Percorso resta, come strumento chiuso finché non serve.
         self.assertContains(pagina, "data-ko-percorso")
         self.assertContains(pagina, 'id="percorso"')
+
+
+class SuggerimentiAttivitaTests(FiloBase):
+    """Il campo «cosa va fatto» propone le attività già usate, ovunque siano nate."""
+
+    def test_un_elenco_solo_per_piano_incontro_e_tipi(self):
+        from .models import CatalogoTipo, CatalogoVoce, TaskCategory
+        from .services.catalogo import chiave, suggerimenti
+
+        CatalogoVoce.objects.create(tipo=CatalogoTipo.AZIONE, testo="Sollecitare il fornitore", chiave=chiave("Sollecitare il fornitore"), usi=3)
+        CatalogoVoce.objects.create(tipo=CatalogoTipo.ATTIVITA, testo="Sollecitare il fornitore", chiave=chiave("Sollecitare il fornitore"), usi=2)
+        CatalogoVoce.objects.create(tipo=CatalogoTipo.ATTIVITA, testo="Collaudo primo pezzo", chiave=chiave("Collaudo primo pezzo"), usi=1)
+        tipo = TaskCategory.objects.filter(is_active=True).first()
+        for richiesto in (CatalogoTipo.ATTIVITA, CatalogoTipo.AZIONE):
+            testi = [v.testo for v in suggerimenti(richiesto)]
+            self.assertEqual(testi.count("Sollecitare il fornitore"), 1)
+            self.assertIn("Collaudo primo pezzo", testi)
+            self.assertEqual(testi[0], "Sollecitare il fornitore")  # usi sommati: 5
+            if tipo is not None:
+                self.assertIn(tipo.name, testi)
+
+    def test_il_form_piu_attivita_ha_i_suggerimenti(self):
+        from .models import CatalogoTipo, CatalogoVoce
+        from .services.catalogo import chiave
+
+        project = make_project(name="Commessa suggerimenti", created_by=self.user, project_manager=self.user)
+        CatalogoVoce.objects.create(tipo=CatalogoTipo.AZIONE, testo="Verificare il calibro", chiave=chiave("Verificare il calibro"), usi=1)
+        pagina = self.client.get(reverse("tasks:create"), {"project": project.pk})
+        self.assertEqual(pagina.status_code, 200)
+        self.assertContains(pagina, 'list="cat-attivita"')
+        self.assertContains(pagina, '<option value="Verificare il calibro">')
+
+    def test_attrezzatura_fuori_dalle_righe_rapide_d_incontro(self):
+        project = make_project(name="Commessa attrezzi", created_by=self.user, project_manager=self.user)
+        m = KickoffMeeting.objects.create(project=project, data=timezone.localdate(), created_by=self.user)
+        pagina = self.client.get(reverse("tasks:project_meeting_detail", args=[project.pk, m.pk]))
+        self.assertEqual(pagina.status_code, 200)
+        self.assertNotContains(pagina, "Nessuna azione attrezzatura")
+        self.assertNotContains(pagina, "ctm-tooling-mode")

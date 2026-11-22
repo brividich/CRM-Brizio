@@ -56,7 +56,7 @@
   <form method="post" action="{% url 'tasks:project_quick_task' project.id %}" class="ka-rapida">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <input class="input" type="text" name="title" maxlength="200" required placeholder="Aggiungi un'attività e premi Invio" aria-label="Nuova attività">
+    <input class="input" type="text" name="title" maxlength="200" required list="cat-attivita" autocomplete="off" placeholder="Aggiungi un'attività e premi Invio" aria-label="Nuova attività">{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}
     <select class="input" name="assigned_to" aria-label="Responsabile">
       <option value="">Da decidere</option>
       {% for p in persone %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}

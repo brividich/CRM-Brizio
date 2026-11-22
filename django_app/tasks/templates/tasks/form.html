@@ -61,7 +61,7 @@
         <section class="tf2-card">
           <div class="ts-field tf2-title-field">
             <label for="{{ form.title.id_for_label }}">Cosa va fatto</label>
-            {{ form.title }}
+            {{ form.title }}{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}
             {% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}
           </div>
 

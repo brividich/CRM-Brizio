@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: le attività già usate si trovano ovunque; attrezzatura via dalle righe rapide d'incontro
+
+- **Suggerimenti in un elenco solo**: scrivendo il titolo di un'attività il portale propone quelle già usate senza più distinguere fra attività del piano e attività d'incontro (prima erano due elenchi: quello che nasceva in riunione non veniva proposto nel piano e viceversa), più i nomi dei tipi di attività. Doppioni fusi, usi sommati.
+- I suggerimenti mancavano in tre punti di inserimento e ora ci sono: form «+ Attività», riga «Aggiungi un'attività e premi Invio» dell'Elenco, riga rapida del Gantt.
+- **Attrezzatura** tolta da «Più opzioni» della riga rapida d'incontro e dal mini-form attività dell'incontro (quattro scelte e quattro campi che lì non servivano): resta nella tappa «Attrezzatura» del Percorso e in «Altre opzioni» del form completo.
+- File: `tasks/services/catalogo.py` (`suggerimenti`), `tasks/forms.py`, `tasks/templates/tasks/form.html`, `project_actions.html`, `project_gantt.html`, `_quick_task_bar.html`, `_meeting_task_modal.html`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, test `tasks/tests_cosa_manca.py`, `tests_incontri_azioni.py`, `tests_incontro_prima.py`.
+- Nessuna migrazione.
+
 ### KICK-OFF: incontro, fase «Prima» con l'ordine del giorno modificabile sul posto
 
 - La scheda di un incontro **pianificato** è su due colonne (una su telefono): a sinistra l'**ordine del giorno**, a destra **«Convocazione»** (quando, sala con il suo stato, convocati, stato dell'invio, pulsanti di invio, «Modifica data, sala, convocati», partecipanti) e **«Dagli incontri precedenti»**. Data e sala non si ripetono nell'intestazione; la riga «Convocazione» e il pulsante «Modifica incontro» non ci sono più in questa fase.
