@@ -218,6 +218,33 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
 - [ ] Aperto: le 18 risposte della Qualità; la data di demarcazione e il ripescaggio dei corsi storici; il reparto pilota;
       la scelta dello stile (attuale o rinfrescato). Il ramo `feature/anagrafica-fattibilita-rmc` non è mergiato in `main`.
 
+- [x] Stima dei tempi richiesta dal proprietario (22/11), data solo in conversazione: tutto 120-221 giorni (24-44
+      settimane); tappa 1 36-53 giorni. Obiezione: «se carichiamo già un pregresso, i tempi sono così lunghi?» →
+      il pregresso accorcia l'avviamento, non lo sviluppo (caricamenti = 6-13 giorni); proposti tre tagli: minimo
+      4-11 giorni (skill matrix firmata nel modulo esistente + emissione firmata), con gli avvisi 25-41, tappa 1 36-53.
+      Non ancora riportato nei documenti: la tabella delle stime in `build/light_it.md` è quella precedente.
+- [x] **Arrivata la bozza della Qualità** (22/11): due file Excel lasciati dal proprietario nel checkout condiviso
+      (matrice delle competenze per reparto; elenco delle mansioni v9). Restano fuori dal repository; qui solo
+      `build/bozza_qualita.json` (struttura e valori, senza colonne di commento né storico delle versioni), prodotto
+      da `build/estrai_bozza_qualita.py`. Risultati:
+      - 253 mansioni, 39 reparti, 9 processi, 44 ruoli; 39 «Responsabilità del reparto» (una per reparto); 8 con
+        abilitazione; 115 fuori dal processo «Produzione»;
+      - matrice: 27 fogli, 252 righe, 208 competenze distinte, 4.482 celle di cui 1.428 compilate (664 sì, 763 no,
+        1 «?»); compilati solo uffici tecnici, qualità (2 fogli), acquisti, commerciale; 22 fogli vuoti = 177 mansioni
+        e 3.054 celle; livello richiesto proposto U per tutte; tipo/origine su 45 competenze;
+      - mansione dell'operatore = singola macchina (44); competenze per famiglia (20 piazzature);
+      - contro la skill matrix firmata: 68 colonne con lo stesso nome, 5 rinominate, 6 divise in 17 mansioni;
+        657 livelli su 691 si abbinano da soli, 34 da ripartire; 163 mansioni nuove senza livelli;
+      - contro il MOD.053: solo 18 competenze con lo stesso nome → la bozza sostituisce la tabella, non la completa;
+      - difetti da segnalare: elenco e matrice differiscono per 5 mansioni; 2 competenze «[controllo da definire]»;
+        foglio dei punti aperti citato e assente; colonne diretto/indiretto e valenza citate nelle regole e assenti.
+      Conseguenze sulla proposta (ipotesi mie, da far confermare): ricetta «sì o no» con livello richiesto unico U
+      e **nessun peso** (domanda 8/17 aggiornata); chi approva ricavato da «Responsabilità del reparto»; le 8 mansioni
+      con abilitazione come perimetro candidato per il blocco; `Catalogo_pilota_CN5G.xlsx` superato (non cancellato).
+      Aggiornati: `Catalogo_competenze_completo.xlsx` (fogli «Mansioni bozza», «Competenze bozza», «Stato bozza»,
+      colonna «Nella bozza della Qualità» in «Incrocio»), `05_approfondimenti.md` v1.1 §9, schede Qualità e IT,
+      `Domande_per_la_Qualita.md` (16, 17). NON aggiornati: `02_tobe` (il modello ha ancora i tre pesi) e prototipo.
+
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
 - **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la

@@ -28,7 +28,8 @@
 | Conferma del capo reparto (`services/skillmatrix_refresh.py`) | Dichiara anche il mancato esercizio |
 
 **Dati.** Ciò che oggi è nel portale per skill matrix e mansionario è un caricamento di prova: all'avvio si caricano
-la skill matrix firmata (MOD.187) e la tabella delle competenze (MOD.053 Rev.4).
+la skill matrix firmata (MOD.187) e la bozza della Qualità (253 mansioni, 208 competenze), che sostituisce la tabella
+del MOD.053. Il 95% dei livelli firmati si abbina per nome.
 
 ## Lo schema
 
@@ -70,7 +71,7 @@ test: l'implementazione deve dare gli stessi risultati sugli stessi dati.
 
 | Rischio | Come si gestisce |
 | --- | --- |
-| Il catalogo non viene completato | La base è nel MOD.053: si carica e si completa per un reparto alla volta |
+| Il catalogo non viene completato | La bozza della Qualità ha 5 fogli compilati su 27: si carica un reparto alla volta |
 | Troppa burocrazia per i capi reparto | Una SF vale per più persone e più competenze; i rinnovi non richiedono una SF |
 | Una segnalazione ignorata | Presa in carico con termine, poi sale a RDD; blocco dove la procedura lo impone |
 | Le risposte della Qualità cambiano un'ipotesi | Ipotesi isolate: le alternative non cambiano il modello dati |

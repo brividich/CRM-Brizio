@@ -1,6 +1,7 @@
 # Ruoli, mansioni e competenze: approfondimenti
 
-Versione 1.0 · 22/11/2026 · dopo le indicazioni del proprietario su dieci punti rimasti aperti.
+Versione 1.1 · 22/11/2026 · dopo le indicazioni del proprietario su dieci punti rimasti aperti. La 1.1 aggiunge la
+bozza della Qualità, nel capitolo sul catalogo.
 
 > Fonti: i documenti in vigore del sistema di gestione, letti in sola lettura dalla cartella di rete (256 documenti,
 > 2.888 pagine), e il codice del portale. Dalla skill matrix firmata e dal registro timbri sono riportati **solo
@@ -21,6 +22,8 @@ Versione 1.0 · 22/11/2026 · dopo le indicazioni del proprietario su dieci punt
    «sì o no» il carico resta quello di oggi.
 7. **Non conformità.** Il legame non può essere automatico né nominativo: si propone di passare dalla mansione e dal
    capo reparto.
+8. **Bozza della Qualità.** 253 mansioni e 208 competenze, con la ricetta «sì o no». Compilati 5 fogli su 27: manca
+   tutta la produzione. Il 95% dei livelli firmati si carica da solo nella nuova struttura.
 
 ---
 
@@ -220,8 +223,63 @@ con le 79 colonne della skill matrix:
 Delle 29, 18 sono controlli di qualità: nella skill matrix sono colonne, nel MOD.053 sono attività di un'unica
 mansione. Ci sono poi differenze di scrittura, come «DMC» e «DMG» per la stessa macchina.
 
-Il file `Catalogo_competenze_completo.xlsx` raccoglie tutti i ruoli e l'incrocio. **In attesa** del file con le altre
-competenze e mansioni che la Qualità sta scrivendo: si fonde lì.
+### La bozza della Qualità
+
+Ricevuta il 22/11/2026: un elenco di mansioni (versione 9) e una matrice delle competenze per reparto, ancora in
+scrittura. È la struttura a cui tendere, e sostituisce la tabella del MOD.053 più che completarla: solo 18 competenze
+su 208 hanno lo stesso nome.
+
+| Voce | Bozza | Documenti in vigore |
+| --- | --- | --- |
+| Mansioni | 253, in 39 reparti e 9 processi | 79 colonne nella skill matrix, 118 nel MOD.053 |
+| Mansioni fuori dal processo «Produzione» | 115 | Nessuna nella skill matrix |
+| Competenze distinte | 208 | 366 di mansione e 111 generiche nel MOD.053 |
+| Mansioni con abilitazione a scadenza | 8 | Non distinte |
+| Ricetta (competenze richieste) | «Sì o no», livello richiesto unico: U | Non prevista |
+
+**Che cosa risolve.**
+
+- **Una competenza vale su più macchine.** La mansione dell'operatore è la singola macchina (44 mansioni); le
+  competenze sono per famiglia: 20 «piazzature» coprono le 44 macchine. È la risposta di fatto alla domanda 1.
+- **Non serve un livello richiesto per ogni competenza.** La matrice dice «sì» o «no», con U come livello richiesto
+  per tutte. Cadono le 114 celle «livello richiesto» del catalogo ricavato dal MOD.053.
+- **Il personale non operativo c'è già.** Uffici e direzione sono trattati con la stessa struttura; 73 mansioni hanno
+  la ricetta compilata, in media 9 competenze ciascuna.
+- **Chi approva in ogni reparto.** «Responsabilità del reparto» è una mansione, una per reparto (39): il portale può
+  ricavare da lì chi valuta e chi approva.
+- **Dove fermare invece di segnalare.** Le 8 mansioni marcate «abilitazione» hanno validità e scadenza: sono il
+  perimetro candidato. Oggi la procedura lo impone solo per i liquidi penetranti.
+- **Tre tipi di competenza:** trasversale, tecnica, abilitazione.
+
+**Che cosa manca.**
+
+| Punto | Misura |
+| --- | --- |
+| Fogli della matrice ancora vuoti | 22 su 27: tutta la produzione, 177 mansioni, 3.054 celle |
+| Tipo e origine della competenza | Indicati su 45 competenze su 208 |
+| Competenze con il controllo numerico «da definire» | 2, in 5 fogli |
+| Mansioni diverse fra elenco e matrice | 5: tre solo nell'elenco, due solo nella matrice |
+| Foglio dei punti aperti, citato in legenda | Assente; un solo «?» nella matrice |
+| Colonne «diretto/indiretto» e «valenza», citate nelle regole | Assenti nella versione 9 |
+| Peso della competenza (bloccante, importante, utile) | Non previsto |
+
+Sul peso si propone di seguire la bozza: ogni «sì» è richiesto, senza gradi. Il modello si semplifica e la domanda 8
+si chiude.
+
+**Caricare la skill matrix firmata nella nuova struttura.**
+
+| Colonne della skill matrix | Colonne | Livelli firmati |
+| --- | --- | --- |
+| Stesso nome nella bozza, o rinominate una a una | 73 (68 e 5) | 657: si caricano da soli |
+| Divise in più mansioni | 6, che diventano 17 | 34: li ripartisce il capo reparto |
+
+Restano 163 mansioni senza livelli firmati: le 39 responsabilità di reparto e quelle degli uffici. Si assegnano
+all'avvio, con una richiesta di mansione o con un caricamento iniziale approvato da RDD. L'abbinamento delle 11
+colonne cambiate è una proposta dell'analisi; due voci («Sala taglio», «Magazzino 02») sono le più incerte.
+
+Il file `Catalogo_competenze_completo.xlsx` contiene ora anche la bozza: i fogli «Mansioni bozza», «Competenze bozza»
+e «Stato bozza», e nel foglio «Incrocio» dove finisce ogni colonna della skill matrix. Il catalogo del reparto pilota
+(`Catalogo_pilota_CN5G.xlsx`) è superato: i fogli veri sono quelli dei reparti CN5GS e CN5GL, 12 mansioni e 192 celle.
 
 ## 10. Indicatori per il riesame
 
@@ -255,6 +313,9 @@ I primi tre hanno già un valore di partenza, ricavato dalla skill matrix firmat
 | Non conformità: avviso al capo reparto | Collegamento alla mansione, decisione del capo reparto, verifica a sei mesi proposta dal portale |
 | Turno non considerato | Turno abituale in anagrafica HR e copertura per turno |
 | Requisiti formali generici | Anche prove rilasciate dal cliente e vista per cliente |
+| Catalogo caricato dal MOD.053 | Catalogo caricato dalla bozza della Qualità, quando è completa |
+| Livello richiesto e peso per ogni competenza | Ricetta «sì o no», livello richiesto unico U, nessun peso |
+| Chi approva deciso con permessi a mano | Ricavato dalla mansione «Responsabilità del reparto» |
 
 ## Limiti
 
@@ -262,3 +323,4 @@ I primi tre hanno già un valore di partenza, ricavato dalla skill matrix firmat
 - I conteggi per turno sono approssimati; quelli per mansione vengono dai totali stampati sulla skill matrix.
 - Il carico di valutazione è stimato su 452 livelli dei 691, quelli dei ruoli abbinabili per nome al MOD.053.
 - Il registro timbri della cartella di rete è alla revisione 1, quello del portale dichiara la revisione 2.
+- La bozza della Qualità è in scrittura: i conteggi valgono per i file ricevuti il 22/11/2026.

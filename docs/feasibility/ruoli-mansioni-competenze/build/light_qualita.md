@@ -34,14 +34,14 @@ Per ciascuna trovate la nostra ipotesi: è quella che useremo finché non ci dit
 
 | # | Domanda | Nostra ipotesi |
 | --- | --- | --- |
-| 1 | Una competenza ha lo stesso livello su tutte le macchine che la richiedono? | Sì, salvo quelle legate a una macchina o a un processo qualificato |
+| 1 | Una competenza ha lo stesso livello su tutte le macchine che la richiedono? | Sì: la vostra matrice è già fatta così, con le «piazzature» per famiglia di macchine |
 | 2 | Un livello può scendere? Con quale atto? | Non scende da solo: il portale segnala che non è più valido; lo abbassa solo il capo reparto |
 | 3 | Quali corsi fanno crescere una competenza? | Lo decidete voi quando create il corso |
 | 4 | Che cosa facciamo dei corsi svolti prima della data di partenza? | Si recupera solo la parte che scegliete, se ancora valida |
 | 5 | Chi è in formazione su una mansione compare nella skill matrix? | Sì, come mansione «avviata», distinta da «effettiva» |
 | 6 | L'assunzione è una richiesta di mansione come le altre? | Sì, con in più matricola e timbro |
 | 7 | Una mansione si può togliere o sospendere? | Sì, con una richiesta di revoca approvata |
-| 8 | Quanto pesa una competenza? | Tre gradi: bloccante, importante, utile |
+| 8 | Quanto pesa una competenza? | Come nella vostra matrice: «sì» o «no», senza gradi |
 | 9 | I campi con il punto di domanda nella bozza del MOD.053 restano? | Solo il titolo di studio, se richiesto dalla mansione |
 
 **Due conferme.** I moduli scrivono «principiante» e «insegna / programma BM», la procedura «in formazione» e
@@ -56,5 +56,11 @@ Per ciascuna trovate la nostra ipotesi: è quella che useremo finché non ci dit
   una sola persona autonoma.
 - Due mansioni hanno una sola persona autonoma, nove un solo formatore: la procedura ne chiede almeno due.
 
-**Per partire** il file `Catalogo_competenze_completo.xlsx` contiene tutti i ruoli del MOD.053 e l'incrocio con la
-skill matrix. Restano da indicare livello richiesto e peso; vi si aggiungono le mansioni che state ancora scrivendo.
+**Sulla vostra bozza** (elenco delle mansioni v9 e matrice per reparto): 253 mansioni e 208 competenze.
+
+- Sono compilati 5 fogli su 27: restano la produzione e alcuni uffici, 177 mansioni.
+- Elenco e matrice differiscono per 5 mansioni; due competenze hanno il controllo numerico «da definire».
+- Della skill matrix firmata, 73 colonne si ritrovano nella bozza e si caricano da sole; 6 sono state divise, e i
+  loro 34 livelli vanno ripartiti dal capo reparto.
+
+Il dettaglio è in `Catalogo_competenze_completo.xlsx`.

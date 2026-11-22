@@ -44,6 +44,29 @@ for c in ("Controllo configurazione finale", "Programmazione Offline", "ZEISS - 
           "Gestione documenti ingresso e uscita"):
     ALTRO_NOME[c] = (CQ, "nel MOD.053 è un'attività dell'unica mansione «Controllo qualità prodotto»")
 
+# Colonne della skill matrix firmata che nella bozza della Qualità hanno cambiato nome o sono state divise.
+# È una proposta di abbinamento dell'analisi: le voci in DA_CONFERMARE sono le più incerte.
+bozza = json.loads((QUI / "bozza_qualita.json").read_text(encoding="utf-8"))
+RINOMINATE = {
+    "Montaggio per aeronautica": "Montaggio 9100",
+    "Montaggio per automotive": "Montaggio 9001",
+    "Lavaggio": "Lavaggio standard",
+    "Manutenzione": "Manutenzione Impianti",
+    "Sala taglio": "Taglio Materiale",
+}
+DIVISE = {
+    "Ritocchi Galvanici": ["Ritocchi Galvanici DOW19", "Ritocchi Galvanici ALODINE"],
+    "Montaggio per accoppiamento termico": ["Montaggio per accoppiamento termico 9100",
+                                            "Montaggio per accoppiamento termico 9001"],
+    "Marcatura": ["Marcatura laser", "Marcatura manuale", "Marcatura a punti", "Marcatura elettrolitica"],
+    "Prova pressione": ["Prova pressione aria/acqua", "Prova pressione olio"],
+    "Controllo montaggi": ["Controllo montaggio 9100", "Controllo montaggio 9001",
+                           "Controllo Montaggio per accoppiamento termico 9100",
+                           "Controllo Montaggio per accoppiamento termico 9001"],
+    "Magazzino 02": ["Magazzino normaleria", "Magazzino prodotti chimici", "Magazzino materia prima"],
+}
+DA_CONFERMARE = {"Sala taglio", "Magazzino 02"}
+
 norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower().split(" - ")[0])  # noqa: E731
 per_codice = {}
 for r in ruoli:
@@ -94,7 +117,11 @@ note = [
     ("Livello richiesto", "I, L, U oppure O, secondo MT CN 06 Rev.21 §8.3. Per i ruoli non operativi non si usa: il requisito è posseduto sì o no."),
     ("Criticità", "Bloccante, Importante oppure Utile. È una proposta dell'analisi."),
     ("Competenze generiche", "Proposta: «sì o no», valutate una volta per persona. I livelli si usano solo sulle competenze di mansione. Così il carico di valutazione resta quello di oggi."),
-    ("Da fondere", "La Qualità sta scrivendo altre competenze e mansioni: quando il file arriva, si aggiunge qui. Le righe evidenziate in arancio nel foglio «Incrocio» sono i punti da allineare fra i due documenti."),
+    ("Bozza della Qualità", "Ricevuta il 22/11/2026: elenco delle mansioni v9 e matrice delle competenze per reparto. È la struttura a cui tendere; il foglio «Catalogo», ricavato dal MOD.053, resta come riferimento per le descrizioni."),
+    ("Foglio «Mansioni bozza»", "Le mansioni dell'elenco v9, con processo, reparto e centro di costo. Per ciascuna: se esiste già nella skill matrix firmata, quante persone autonome ha oggi, e se la sua ricetta (le competenze richieste) è compilata."),
+    ("Foglio «Competenze bozza»", "Le competenze distinte della matrice, con tipo e origine dove indicati. Le celle gialle mancano nella bozza."),
+    ("Foglio «Stato bozza»", "Quanto è compilato ogni foglio della matrice. In giallo i fogli ancora vuoti."),
+    ("Abbinamento con la skill matrix", "Nel foglio «Incrocio» la colonna «Nella bozza della Qualità» dice dove finisce ogni colonna della skill matrix firmata. Le colonne divise in più mansioni non si caricano da sole: il livello va ripartito dal capo reparto. È una proposta dell'analisi."),
 ]
 for i, (a, b) in enumerate(note, 4):
     cella(ws, f"A{i}", a, grassetto=True, colore=BLU)
@@ -163,6 +190,121 @@ for ruolo, mans in solo53:
         cella(wi, f"{col}{n}", v, riempi=ARANCIO, grassetto=col == "A")
 wi.freeze_panes = "B2"
 
+# ---- Bozza della Qualità (22/11/2026): elenco delle mansioni v9 e matrice delle competenze per reparto
+pieno = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())  # noqa: E731
+elenco, fogli = bozza["elenco"], bozza["fogli"]
+nomi_elenco = {pieno(m["mansione"]) for m in elenco}
+assert all(pieno(x) in nomi_elenco for x in RINOMINATE.values()), "rinominate: nome non trovato nella bozza"
+assert all(pieno(x) in nomi_elenco for v in DIVISE.values() for x in v), "divise: nome non trovato nella bozza"
+k_colonna = {pieno(c): k for k, c in enumerate(colonne)}
+provenienza = {pieno(v): ("Rinominata", f"nella skill matrix: «{c}»", k_colonna[pieno(c)]) for c, v in RINOMINATE.items()}
+provenienza.update({pieno(x): ("Divisa", f"dalla colonna «{c}»", None) for c, v in DIVISE.items() for x in v})
+riga_matrice = {(pieno(m["reparto"]), pieno(m["mansione"])): (f["foglio"], m) for f in fogli for m in f["mansioni"]}
+
+cella(wi, "K1", "Nella bozza della Qualità", grassetto=True, colore="FFFFFF", riempi=TESTA, centro=True)
+wi.column_dimensions["K"].width = 58
+for k, nome in enumerate(colonne):
+    dubbio = " (da confermare)" if nome in DA_CONFERMARE else ""
+    if pieno(nome) in nomi_elenco:
+        v, fondo = "Stesso nome", None
+    elif nome in RINOMINATE:
+        v, fondo = f"Rinominata: «{RINOMINATE[nome]}»{dubbio}", ARANCIO
+    elif nome in DIVISE:
+        v, fondo = f"Divisa in {len(DIVISE[nome])}: {'; '.join(DIVISE[nome])}{dubbio}", ARANCIO
+    else:
+        v, fondo = "Assente", ARANCIO
+    cella(wi, f"K{k + 2}", v, riempi=fondo)
+
+wm = wb.create_sheet("Mansioni bozza")
+for col, larg in zip("ABCDEFGHIJKLM", (22, 26, 24, 26, 58, 9, 9, 16, 40, 10, 10, 11, 15)):
+    wm.column_dimensions[col].width = larg
+intestazione(wm, 1, ["Processo", "Reparto", "Centro di costo", "Ruolo", "Mansione", "Resp. reparto", "Abilita-zione",
+                     "Nella skill matrix firmata", "Nota", "Autonomi oggi (U+O)", "Formatori oggi (O)",
+                     "Competenze richieste", "Ricetta"], alt=44)
+for n, m in enumerate(elenco, 2):
+    p = pieno(m["mansione"])
+    if p in k_colonna:
+        esito, nota, k = "Stesso nome", "", k_colonna[p]
+    elif p in provenienza:
+        esito, nota, k = provenienza[p]
+    else:
+        esito, nota, k = "Nuova", "", None
+    foglio, rm = riga_matrice.get((pieno(m["reparto"]), p), (None, None))
+    if rm is None:
+        ricetta, richieste = "Non in matrice", "—"
+    elif rm["celle"]:
+        ricetta, richieste = "Compilata", sum(1 for v in rm["celle"].values() if v == "Sì")
+    else:
+        ricetta, richieste = "Da compilare", "—"
+    fondo = None if esito == "Stesso nome" else (ARANCIO if esito in ("Rinominata", "Divisa") else GRIGIO)
+    for col, v in zip("ABCDE", (m["processo"], m["reparto"], m["centro_di_costo"], m["ruolo"], m["mansione"])):
+        cella(wm, f"{col}{n}", v, grassetto=col == "E")
+    cella(wm, f"F{n}", "Sì" if m["responsabile"] else "", centro=True)
+    cella(wm, f"G{n}", "Sì" if m["abilitazione"] else "", centro=True)
+    cella(wm, f"H{n}", esito, riempi=fondo, centro=True)
+    cella(wm, f"I{n}", nota, riempi=fondo)
+    cella(wm, f"J{n}", testa["U"][k] + testa["O"][k] if k is not None else "—", centro=True)
+    cella(wm, f"K{n}", testa["O"][k] if k is not None else "—", centro=True)
+    cella(wm, f"L{n}", richieste, centro=True)
+    cella(wm, f"M{n}", ricetta, centro=True, riempi=GIALLO if ricetta != "Compilata" else None)
+UM = len(elenco) + 1
+wm.freeze_panes = "F2"
+wm.auto_filter.ref = f"A1:M{UM}"
+
+gen53 = {pieno(g) for r in ruoli for g in r["generiche"]} | {pieno(s) for r in ruoli for m in r["mansioni"] for s in m["specifiche"]}
+competenze = {}
+for f in fogli:
+    for c in f["competenze"]:
+        d = competenze.setdefault(c["nome"], {"tipo": "", "origine": "", "fogli": 0, "si": 0, "vuote": 0})
+        d["tipo"], d["origine"] = d["tipo"] or c["tipo"], d["origine"] or c["origine"]
+        d["fogli"] += 1
+        for m in f["mansioni"]:
+            v = m["celle"].get(c["nome"], "")
+            d["si"] += v == "Sì"
+            d["vuote"] += v == ""
+wk = wb.create_sheet("Competenze bozza")
+for col, larg in zip("ABCDEFGH", (62, 10, 10, 9, 13, 13, 13, 36)):
+    wk.column_dimensions[col].width = larg
+intestazione(wk, 1, ["Competenza", "Tipo", "Origine", "Fogli", "Mansioni che la richiedono", "Celle ancora vuote",
+                     "Stesso nome nel MOD.053", "Nota"], alt=44)
+TIPI = {"TRASV": "Trasversale", "TEC": "Tecnica", "ABIL": "Abilitazione", "": ""}
+ORIGINI = {"CAT": "Dal catalogo", "NEW": "Nuova", "": ""}
+for n, (nome, d) in enumerate(sorted(competenze.items(), key=lambda x: (-x[1]["fogli"], x[0])), 2):
+    cella(wk, f"A{n}", nome, grassetto=True)
+    cella(wk, f"B{n}", TIPI[d["tipo"]], centro=True, riempi=None if d["tipo"] else GIALLO)
+    cella(wk, f"C{n}", ORIGINI[d["origine"]], centro=True, riempi=None if d["origine"] else GIALLO)
+    for col, v in zip("DEF", (d["fogli"], d["si"], d["vuote"])):
+        cella(wk, f"{col}{n}", v, centro=True)
+    cella(wk, f"G{n}", "Sì" if pieno(nome) in gen53 else "", centro=True)
+    cella(wk, f"H{n}", "Nome da completare: controllo numerico non indicato" if "[" in nome else "",
+          riempi=ARANCIO if "[" in nome else None)
+UK = len(competenze) + 1
+wk.freeze_panes = "B2"
+wk.auto_filter.ref = f"A1:H{UK}"
+
+wt = wb.create_sheet("Stato bozza")
+for col, larg in zip("ABCDEFGH", (26, 52, 11, 12, 10, 12, 10, 12)):
+    wt.column_dimensions[col].width = larg
+intestazione(wt, 1, ["Foglio", "Reparti", "Mansioni", "Competenze", "Celle", "Compilate", "Di cui «Sì»", "Compilato"])
+for n, f in enumerate(fogli, 2):
+    reparti = list(dict.fromkeys(m["reparto"] for m in f["mansioni"]))
+    piene = sum(len(m["celle"]) for m in f["mansioni"])
+    si = sum(1 for m in f["mansioni"] for v in m["celle"].values() if v == "Sì")
+    cella(wt, f"A{n}", f["foglio"], grassetto=True)
+    cella(wt, f"B{n}", ", ".join(reparti))
+    for col, v in zip("CDFG", (len(f["mansioni"]), len(f["competenze"]), piene, si)):
+        cella(wt, f"{col}{n}", v, centro=True)
+    cella(wt, f"E{n}", f"=C{n}*D{n}", centro=True, riempi=GRIGIO)
+    cella(wt, f"H{n}", f"=IF(E{n}=0,0,F{n}/E{n})", centro=True, riempi=GIALLO if not piene else GRIGIO).number_format = "0%"
+UT = len(fogli) + 1
+cella(wt, f"A{UT + 1}", "Totale", grassetto=True, colore=BLU)
+for col in "CEFG":
+    cella(wt, f"{col}{UT + 1}", f"=SUM({col}2:{col}{UT})", grassetto=True, centro=True, riempi=GRIGIO)
+cella(wt, f"H{UT + 1}", f"=IF(E{UT + 1}=0,0,F{UT + 1}/E{UT + 1})", grassetto=True, centro=True, riempi=GRIGIO).number_format = "0%"
+wt.freeze_panes = "A2"
+k_divise = [k_colonna[pieno(c)] for c in DIVISE]
+livelli_divise = sum(testa[liv][k] for k in k_divise for liv in "ILUO")
+
 wr = wb.create_sheet("Riepilogo")
 wr.column_dimensions["A"].width = 58
 wr.column_dimensions["B"].width = 14
@@ -184,6 +326,21 @@ voci = [
     ("Mansioni con un solo formatore", f"=COUNTIF(Incrocio!J2:J{UI},1)"),
     ("Mansioni senza formatori", f"=COUNTIF(Incrocio!J2:J{UI},0)"),
     ("Livelli in tutto", f"=SUM(Incrocio!E2:H{UI})"),
+    ("Bozza della Qualità: mansioni in elenco", f"=COUNTA('Mansioni bozza'!E2:E{UM})"),
+    ("Di cui «Responsabilità del reparto»", f"=COUNTIF('Mansioni bozza'!F2:F{UM},\"Sì\")"),
+    ("Di cui con abilitazione", f"=COUNTIF('Mansioni bozza'!G2:G{UM},\"Sì\")"),
+    ("Di cui fuori dal processo «Produzione»", f"=COUNTIF('Mansioni bozza'!A2:A{UM},\"<>PRODUZIONE\")"),
+    ("Mansioni già nella skill matrix con lo stesso nome", f"=COUNTIF('Mansioni bozza'!H2:H{UM},\"Stesso nome\")"),
+    ("Mansioni rinominate", f"=COUNTIF('Mansioni bozza'!H2:H{UM},\"Rinominata\")"),
+    ("Mansioni nate dalla divisione di una colonna", f"=COUNTIF('Mansioni bozza'!H2:H{UM},\"Divisa\")"),
+    ("Mansioni nuove", f"=COUNTIF('Mansioni bozza'!H2:H{UM},\"Nuova\")"),
+    ("Mansioni con la ricetta compilata", f"=COUNTIF('Mansioni bozza'!M2:M{UM},\"Compilata\")"),
+    ("Mansioni con la ricetta da compilare", f"=COUNTIF('Mansioni bozza'!M2:M{UM},\"Da compilare\")"),
+    ("Competenze distinte nella bozza", f"=COUNTA('Competenze bozza'!A2:A{UK})"),
+    ("Celle della matrice", f"='Stato bozza'!E{UT + 1}"),
+    ("Celle compilate", f"='Stato bozza'!F{UT + 1}"),
+    ("Colonne della skill matrix divise nella bozza", len(DIVISE)),
+    ("Livelli firmati su quelle colonne, da ripartire a mano", livelli_divise),
 ]
 for i, (a, f) in enumerate(voci, 3):
     cella(wr, f"A{i}", a)
@@ -194,3 +351,10 @@ for f in wb.worksheets:
 uscita = RADICE / "Catalogo_competenze_completo.xlsx"
 wb.save(uscita)
 print(uscita.name, "· righe", ULT - 1, "· ruoli operativi", len(operativi), "· solo nel MOD.053:", solo53)
+from collections import Counter  # noqa: E402
+
+print("bozza · mansioni", len(elenco), "· esiti", dict(Counter(wm[f"H{n}"].value for n in range(2, UM + 1))),
+      "· ricetta", dict(Counter(wm[f"M{n}"].value for n in range(2, UM + 1))), "· competenze", len(competenze),
+      "· livelli da ripartire", livelli_divise, "· senza tipo", sum(1 for d in competenze.values() if not d["tipo"]))
+print("livelli sulle colonne con lo stesso nome o rinominate:",
+      sum(testa[liv][k] for k, c in enumerate(colonne) if c not in DIVISE for liv in "ILUO"))

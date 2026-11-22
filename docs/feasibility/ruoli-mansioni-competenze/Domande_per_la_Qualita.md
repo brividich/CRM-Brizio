@@ -197,6 +197,10 @@ può confrontare niente: è il lavoro più importante, ed è vostro e dei respon
 Dai documenti in vigore: il MOD.053 Rev.4 e il MOD.039 Rev.2 contengono già la tabella ruolo, mansione, competenze.
 Si può caricare quella e aggiungere livello atteso e criticità.
 
+Dalla vostra bozza del 22/11/2026 (elenco delle mansioni v9 e matrice per reparto): 253 mansioni e 208 competenze, con
+«sì» o «no» per ogni incrocio. Sono compilati 5 fogli su 27; restano la produzione e alcuni uffici, 177 mansioni. Si
+carica quella al posto della tabella del MOD.053, un reparto alla volta.
+
 Nostra ipotesi: si parte dalle mansioni con più persone e dai processi qualificati, con un file Excel che il
 portale sa già importare.
 
@@ -205,7 +209,9 @@ Perché: oggi una competenza è solo «bloccante» o no.
 - [ ] Bastano due gradi: bloccante / non bloccante
 - [ ] Tre gradi: bloccante / importante / utile
 
-Nostra ipotesi: tre gradi.
+Dalla vostra bozza: la matrice dice solo «sì» o «no», con U come livello richiesto per tutte.
+
+Nostra ipotesi: come nella bozza. Ogni «sì» è richiesto, senza gradi. (Prima proponevamo tre gradi.)
 
 **18. I campi con il punto di domanda nel MOD.053 restano?**
 - Indirizzo: [ ] sì [ ] no
