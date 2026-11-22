@@ -16,6 +16,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - File: `tasks/templates/tasks/_project_viste.html` (nuovo, viste separate dalle tab), `_project_tabs.html`, `base_shell.html` (`.tk-riga`), `tasks/static/tasks/css/tasks.css`, test `tasks/tests_settings.py`.
 - Nessuna migrazione; serve `collectstatic` (`tasks.css?v=20261122g`).
 
+### Anomalie: link della mail più protetto, sempre senza login
+
+- Il link della mail continua ad aprirsi senza login. Nel database resta solo l'impronta del segreto del link (migrazione `anomalie 0032_mail_action_token_hash`): i link delle mail già inviate continuano a funzionare.
+- Il link vale **una settimana** (prima 48 ore, 72 per la mail di fine controllo). Nei flussi «Scadenza link (ore)» può solo allungare la durata: i valori sotto 168 valgono 168.
+- Una mail nuova sullo stesso OP, alla stessa persona e per la stessa azione rende non più valido il link non usato della mail precedente; la pagina dice di usare l'ultima mail.
+- La pagina di riepilogo («fatto») rispetta scadenza e revoca come la pagina e gli allegati.
+- Dopo 20 link inesistenti in 10 minuti dallo stesso indirizzo la pagina risponde «Troppi tentativi» (HTTP 429); i link veri non consumano tentativi.
+- File: `django_app/anomalie/mail_action_models.py`, `mail_action_views.py`, `mail_action_service.py`, `controllo_service.py`, `migrations/0032_mail_action_token_hash.py`, `templates/anomalie/pages/mail_action_error.html`, `guida.py`, `tests_mail_action_link.py`; `django_app/automazioni/services.py`, `forms.py`; `django_app/core/guide_moduli/contenuti/anomalie.py`; `docs/moduli/anomalie.md`, `docs/audit/AUDIT_PORTALE_2026-11-22.md`.
+
 ### KICK-OFF: l'incontro come una pagina sola in tre fasi (riordino UI, blocco 3)
 
 - Scheda, convocazione, conduzione ed esito hanno ora lo stesso telaio: testata di commessa, barra a **tre fasi** (Prima · Durante · Dopo, erano quattro) e la stessa intestazione dell'incontro (numero, titolo, data, sala, stato). Titoli e pulsanti diversi da pagina a pagina sono stati tolti.
