@@ -98,13 +98,106 @@ class PrendoIoTests(LavorazioneBase):
         self.assertEqual(ticket.stato, StatoTicket.APERTA)
 
 
+class ConfermaChiusuraTests(LavorazioneBase):
+    """Chiude davvero solo chi ha aperto il ticket; per gli altri resta «Risolto»."""
+
+    def test_chi_ha_aperto_chiude_subito(self):
+        ticket = self._ticket(richiedente_user=self.tecnico)
+        self._api(ticket, azione="risolvi", intervento_svolto="Fatto da me")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+
+    def test_cambio_stato_chiuso_diventa_risolto(self):
+        ticket = self._ticket(stato=StatoTicket.IN_CARICO)
+        response = self._api(ticket, stato="CHIUSO")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["stato"], "RISOLTO")
+        self.assertIn("avviso", response.json())
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+
+    def test_risolto_non_si_chiude_senza_conferma(self):
+        ticket = self._ticket(stato=StatoTicket.RISOLTO)
+        response = self._api(ticket, stato="CHIUSO")
+        self.assertEqual(response.status_code, 409)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+
+    def test_richiedente_gestore_chiude_dal_cambio_stato(self):
+        ticket = self._ticket(stato=StatoTicket.IN_CARICO, richiedente_email="tec@example.com")
+        self._api(ticket, stato="CHIUSO")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+
+    def test_bulk_chiuso_diventa_risolto(self):
+        aperto = self._ticket(stato=StatoTicket.IN_CARICO)
+        gia_risolto = self._ticket(stato=StatoTicket.RISOLTO)
+        response = self.client.post(
+            reverse("tickets:api_bulk"),
+            data=json.dumps({"ids": [aperto.pk, gia_risolto.pk], "azione": "stato", "stato": "CHIUSO"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["aggiornati"], 1)
+        aperto.refresh_from_db()
+        gia_risolto.refresh_from_db()
+        self.assertEqual((aperto.stato, gia_risolto.stato), (StatoTicket.RISOLTO, StatoTicket.RISOLTO))
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                   DEFAULT_FROM_EMAIL="noreply@example.com", SITE_URL="https://hub.example.com",
+                   LDAP_ENABLED=False)
+class MailConfermaTests(LavorazioneBase):
+    """Quando il ticket diventa «Risolto» chi l'ha aperto riceve una sola richiesta di conferma (services/avvisi)."""
+
+    def test_risolvi_manda_una_mail_al_richiedente(self):
+        from django.core import mail
+
+        ticket = self._ticket(richiedente_email="richiedente@example.com")
+        with self.captureOnCommitCallbacks(execute=True):
+            self._api(ticket, azione="risolvi", intervento_svolto="Sostituito fusibile sintetico")
+        conferme = [m for m in mail.outbox if "richiedente@example.com" in m.to]
+        self.assertEqual(len(conferme), 1)
+        self.assertIn("confermi", conferme[0].subject)
+
+    def test_cambio_stato_multiplo_avvisa_come_quello_singolo(self):
+        from django.core import mail
+
+        ticket = self._ticket(richiedente_email="richiedente@example.com", stato=StatoTicket.IN_CARICO)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                reverse("tickets:api_bulk"),
+                data=json.dumps({"ids": [ticket.pk], "azione": "stato", "stato": "CHIUSO"}),
+                content_type="application/json",
+            )
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+        self.assertEqual(len([m for m in mail.outbox if "richiedente@example.com" in m.to]), 1)
+
+    def test_chi_ha_aperto_e_chiude_non_riceve_mail(self):
+        from django.core import mail
+
+        ticket = self._ticket(richiedente_user=self.tecnico, richiedente_email="tec@example.com")
+        with self.captureOnCommitCallbacks(execute=True):
+            self._api(ticket, azione="risolvi", intervento_svolto="Fatto da me")
+        self.assertEqual([m for m in mail.outbox if "tec@example.com" in m.to], [])
+
+    def test_senza_indirizzo_nessuna_mail_e_nessun_errore(self):
+        ticket = self._ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._api(ticket, azione="risolvi", intervento_svolto="Fatto")
+        self.assertEqual(response.status_code, 200)
+
+
 class RisolviTests(LavorazioneBase):
     def test_chiude_con_il_solo_lavoro(self):
         ticket = self._ticket()
         response = self._api(ticket, azione="risolvi", intervento_svolto="Sostituito fusibile sintetico")
         self.assertEqual(response.status_code, 200)
         ticket.refresh_from_db()
-        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+        # Il tecnico non l'ha aperto: «Risolto», la chiusura la conferma il richiedente.
+        self.assertEqual(ticket.stato, StatoTicket.RISOLTO)
+        self.assertIsNotNone(ticket.closed_at)
         self.assertTrue(ticket.risolto_da_nome)
         self.assertTrue(ticket.assegnato_a)
         intervento = ticket.interventi.get()
@@ -245,6 +338,13 @@ class ElencoTests(LavorazioneBase):
         self.assertEqual(self._titoli(self._elenco("?tipo=MAN&vista=miei")), ["Mio sintetico"])
         self.assertCountEqual(self._titoli(self._elenco("?tipo=MAN&vista=liberi")), ["Libero sintetico", "Urgente sintetico"])
         self.assertCountEqual(self._titoli(self._elenco("?tipo=MAN&vista=chiusi")), ["Chiuso sintetico", "Risolto sintetico"])
+
+    def test_miei_mostra_in_fondo_i_risolti_da_confermare(self):
+        self._ticket(titolo="Mio risolto sintetico", assegnato_email="tec@example.com", assegnato_a="Tec Nico",
+                     stato=StatoTicket.RISOLTO, priorita=PrioritaTicket.URGENTE)
+        pagina = self._elenco("?tipo=MAN&vista=miei")
+        self.assertEqual(self._titoli(pagina), ["Mio sintetico", "Mio risolto sintetico"])
+        self.assertContains(pagina, "Risolto · da confermare")
 
     def test_i_conteggi_coincidono_con_le_righe(self):
         pagina = self._elenco()

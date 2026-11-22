@@ -16,7 +16,7 @@
 
   {% if appena_chiuso %}
   <div class="tkt-chiuso-ok" role="status">
-    <div><strong>Ticket chiuso, intervento registrato.</strong></div>
+    <div><strong>{% if ticket.stato == 'RISOLTO' %}Ticket risolto, intervento registrato.</strong> Lo chiude chi l'ha aperto confermando la risoluzione.{% else %}Ticket chiuso, intervento registrato.</strong>{% endif %}</div>
     {% if prossimo %}<a class="tkt-az-prim" href="{% url 'tickets:gestione_detail' prossimo.pk %}">Prossimo: {{ prossimo.titolo|truncatechars:40 }} &rarr;</a>{% else %}<a class="tkt-az-prim" href="{% url 'tickets:gestione_list' %}">Tutto fatto: torna all'elenco</a>{% endif %}
   </div>
   {% endif %}
@@ -27,7 +27,7 @@
         <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.78);"><span class="tkt-tipo tkt-tipo-{{ ticket.tipo }}">{{ ticket.label_tipo }}</span> <span style="margin:0 6px;color:rgba(255,255,255,.35);">|</span> {{ ticket.numero_ticket }}</div>
         <div style="margin-top:6px;font-size:28px;line-height:1.1;font-weight:900;letter-spacing:-.02em;">{{ ticket.titolo }}</div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <span class="tkt-badge tkt-badge-{{ ticket.stato }}">{{ ticket.label_stato }}</span>
+          <span class="tkt-badge tkt-badge-{{ ticket.stato }}">{% if ticket.stato == 'RISOLTO' %}Risolto · da confermare{% else %}{{ ticket.label_stato }}{% endif %}</span>
           <span class="tkt-prio tkt-prio-{{ ticket.priorita }}">{{ ticket.label_priorita }}</span>
           {% if ticket.incide_sicurezza %}<span class="tkt-badge" style="background:#fee2e2;color:#991b1b;">Sicurezza</span>{% endif %}
           {% if ticket.ricorrente %}<span class="tkt-badge" style="background:rgba(255,255,255,.14);color:#fff;">Ricorrente</span>{% endif %}
@@ -84,7 +84,8 @@
         </details>
         <input type="hidden" id="rv-tecnico"><input type="hidden" id="rv-dal"><input type="hidden" id="rv-al">
         <div class="tkt-barra-az">
-          <button type="button" class="tkt-az-prim" id="rv-chiudi">Chiudi ticket</button>
+          <button type="button" class="tkt-az-prim" id="rv-chiudi">{% if chiude_davvero %}Chiudi ticket{% else %}Segna risolto{% endif %}</button>
+          {% if not chiude_davvero %}<span class="tkt-risolvi-nota">La chiusura la conferma chi ha aperto il ticket.</span>{% endif %}
           <button type="button" class="tkt-az-sec" id="rv-annulla">Non ancora</button>
           <span id="rv-esito" class="tkt-risolvi-errore" role="alert"></span>
         </div>
@@ -322,7 +323,7 @@
           <div class="tkt-card-title" style="margin-bottom:10px;">Aggiorna stato</div>
           <div class="tkt-azioni">
             {% if puo_risolvere and ticket.stato != 'IN_ATTESA' %}<button class="tkt-azione-btn tkt-az-attesa" data-stato="IN_ATTESA">Metti in attesa</button>{% endif %}
-            {% if ticket.stato == 'RISOLTO' %}<button class="tkt-azione-btn tkt-az-chiudi" data-stato="CHIUSO">Chiudi ticket</button>{% endif %}
+            {% if ticket.stato == 'RISOLTO' %}{% if chiude_davvero %}<button class="tkt-azione-btn tkt-az-chiudi" data-stato="CHIUSO">Chiudi ticket</button>{% else %}<span class="tkt-risolvi-nota">In attesa della conferma di chi ha aperto il ticket.</span>{% endif %}{% endif %}
             <button class="tkt-azione-btn tkt-az-annulla" data-stato="ANNULLATO" id="btn-annulla">Annulla ticket</button>
           </div>
           <div id="nota-stato-wrap" style="display:none;margin-top:10px;"><div id="data-prevista-wrap" class="tkt-field" style="display:none;margin-bottom:8px;"><label>Data prevista risoluzione</label><input type="date" id="data-prevista-input" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box;"></div><div class="tkt-field"><label>Nota cambio stato</label><textarea id="nota-stato" rows="2" placeholder="Motivazione o nota operativa"></textarea></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="confirm-stato">Conferma</button><button class="tkt-btn-sm tkt-btn-gray" id="cancel-stato">Annulla</button></div></div>

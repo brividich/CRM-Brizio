@@ -56,9 +56,17 @@ from .registro_permessi import MODULO_PER_TIPO
 from .services import avvisi as avvisi_ticket
 from .services.accesso import utente_puo_gestire_ticket
 from .services.lavorazione import chiudi_con_intervento, prendi_in_carico
-from .services.stato import STATI_APERTI, cambia_stato_ticket
+from .services.stato import STATI_APERTI, cambia_stato_ticket, stato_di_chiusura
 
 logger = logging.getLogger(__name__)
+
+
+def _stato_chiusura(request, ticket: Ticket, richiesto: str = StatoTicket.CHIUSO) -> str:
+    """«Chiuso» chiesto da chi non ha aperto il ticket diventa «Risolto», da confermare."""
+    if richiesto != StatoTicket.CHIUSO:
+        return richiesto
+    _name, email, legacy_id = _legacy_identity(request)
+    return stato_di_chiusura(ticket, user_id=request.user.id, legacy_id=legacy_id, email=email)
 
 TICKET_ALLOWED_UPLOAD_EXTENSIONS = {
     ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp",
@@ -1408,7 +1416,11 @@ def ticket_nuovo(request):
                     chiudi_con_intervento(
                         ticket, nome=name, email=email, lavoro=al_volo["lavoro"], inizio=al_volo["inizio"],
                         fine=al_volo["fine"], ore=al_volo["ore"], nota="Registrato a intervento concluso.",
+                        stato_finale=_stato_chiusura(request, ticket),
                     )
+                # Chiuso da un tecnico per conto di qualcuno: resta «Risolto» e chi l'ha aperto conferma.
+                if ticket.stato == StatoTicket.RISOLTO:
+                    avvisi_ticket.stato(ticket, vecchio=StatoTicket.APERTA, nuovo_stato=StatoTicket.RISOLTO, autore_email=email)
                 # Niente da gestire: le regole «nuovo ticket» non devono chiamare il
                 # team. Se incide sulla sicurezza gli avvisi restano.
                 if not sicurezza:
@@ -1932,7 +1944,8 @@ def ticket_gestione_list(request):
         if codice == "tutti":
             return Q()
         if codice == "miei":
-            return Q(stato__in=STATI_APERTI) & miei_q
+            # Anche i risolti in attesa della conferma di chi ha aperto il ticket.
+            return Q(stato__in=(*STATI_APERTI, StatoTicket.RISOLTO)) & miei_q
         if codice == "liberi":
             return Q(stato__in=STATI_APERTI, assegnato_a="", delegato_fornitore__isnull=True)
         if codice == "chiusi":
@@ -2030,8 +2043,11 @@ def ticket_gestione_list(request):
             return qs.order_by("-created_at")
         elif vista_attiva == "chiusi":
             return qs.order_by("-closed_at", "-created_at")
-        # Lista di lavoro: prima gli urgenti, a pari priorità il più vecchio.
-        return qs.annotate(_po=_priority_order).order_by("_po", "created_at")
+        # Lista di lavoro: prima gli urgenti, a pari priorità il più vecchio; in fondo
+        # i risolti che aspettano la conferma (non c'è più niente da fare).
+        _da_confermare = Case(When(stato=StatoTicket.RISOLTO, then=Value(1)), default=Value(0),
+                              output_field=IntegerField())
+        return qs.annotate(_po=_priority_order, _dc=_da_confermare).order_by("_dc", "_po", "created_at")
 
     from core.legacy_models import AnagraficaDipendente
     from .allegati import subquery_conteggio_allegati
@@ -2219,7 +2235,9 @@ def ticket_gestione_detail(request, pk: int):
         "ore_proposte":     _ore_proposte(ticket),
         "risposte_rapide":  RISPOSTE_RAPIDE,
         "apri_risolvi":     request.GET.get("azione") == "risolvi",
-        "appena_chiuso":    request.GET.get("chiuso") == "1" and ticket.stato == StatoTicket.CHIUSO,
+        "appena_chiuso":    request.GET.get("chiuso") == "1" and ticket.stato in (StatoTicket.CHIUSO, StatoTicket.RISOLTO),
+        # Chiude davvero solo chi ha aperto il ticket; per gli altri «Risolto», da confermare.
+        "chiude_davvero":   _stato_chiusura(request, ticket) == StatoTicket.CHIUSO,
     }
     if ctx["appena_chiuso"]:
         ctx["prossimo"] = _prossimo_ticket(ticket, name, email)
@@ -2600,6 +2618,10 @@ def api_stato(request):
     if denied is not None:
         return denied
     name, email, _ = _legacy_identity(request)
+    richiesto = nuovo_stato
+    nuovo_stato = _stato_chiusura(request, ticket, nuovo_stato)
+    if nuovo_stato == ticket.stato and richiesto != nuovo_stato:
+        return _json_err("Il ticket è già «Risolto»: la chiusura la conferma chi l'ha aperto.", status=409)
     cambia_stato_ticket(
         ticket,
         nuovo_stato,
@@ -2609,8 +2631,10 @@ def api_stato(request):
         data_prevista=data_prevista,
     )
     label_stato = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
-
-    return JsonResponse({"ok": True, "stato": nuovo_stato, "label": label_stato})
+    risposta = {"ok": True, "stato": nuovo_stato, "label": label_stato}
+    if richiesto != nuovo_stato:
+        risposta["avviso"] = "Segnato «Risolto»: lo chiude chi ha aperto il ticket confermando la risoluzione."
+    return JsonResponse(risposta)
 
 
 def _decimale_o_none(valore, massimo: int) -> tuple[Decimal | None, bool]:
@@ -2674,6 +2698,7 @@ def _api_azione_tecnico(request, ticket_id: int, payload: dict) -> JsonResponse:
         ricorrente=bool(payload.get("ricorrente")),
         materiali=materiali,
         rapportino=(payload.get("rapportino") or "").strip(),
+        stato_finale=_stato_chiusura(request, ticket),
     )
     return JsonResponse({"ok": True, "stato": ticket.stato})
 
@@ -3441,8 +3466,12 @@ def api_bulk(request):
         if nuovo_stato not in dict(StatoTicket.choices):
             return _json_err("Stato non valido")
 
-        label_nuovo = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
+        richiesto = nuovo_stato
         for t in tickets:
+            nuovo_stato = _stato_chiusura(request, t, richiesto)
+            if nuovo_stato != richiesto and nuovo_stato == t.stato:
+                continue  # già «Risolto»: la chiusura la conferma chi l'ha aperto
+            label_nuovo = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
             vecchio = t.stato
             t.stato = nuovo_stato
             if nuovo_stato in (StatoTicket.CHIUSO, StatoTicket.ANNULLATO, StatoTicket.RISOLTO):
@@ -3451,6 +3480,8 @@ def api_bulk(request):
             else:
                 t.closed_at = None
             t.save(update_fields=["stato", "closed_at", "updated_at"])
+            # Stessi avvisi del cambio di stato singolo (Risolto: chi l'ha aperto conferma o riapre).
+            avvisi_ticket.stato(t, vecchio=vecchio, nuovo_stato=nuovo_stato, autore_email=email, nota=nota)
             testo_auto = f"Stato aggiornato (bulk): {dict(StatoTicket.choices).get(vecchio, vecchio)} → {label_nuovo}"
             if nota:
                 testo_auto += f"\n{nota}"
