@@ -12,6 +12,8 @@ RMC_Direzione_foglio.pdf: 2 pagine (OK: 2); elementi che sbordano: 0; termini vi
 RMC_Qualita_scheda.pdf: 2 pagine (OK: 2); elementi che sbordano: 0
 RMC_Approfondimenti.pdf: 8 pagine; elementi che sbordano: 0
 RMC_IT_scheda.pdf: 4 pagine (OK: 4); elementi che sbordano: 0
+RMC_Menu_foglio.pdf: 2 pagine (OK: 2); elementi che sbordano: 0; termini vietati: NESSUNO; dati di prova del portale: NESSUNO
+RMC_Menu_studio.pdf: 7 pagine; elementi che sbordano: 0
 Coerenza: motore di riferimento, Marco Rivalta su «DM6 – Fresatura 5 assi grande formato»: 5 requisiti su 6 (OK)
 Coerenza: Tecnico, 20 valori su 20 presenti
 Coerenza: Direzione, 8 valori su 8 presenti

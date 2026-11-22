@@ -245,6 +245,18 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       colonna «Nella bozza della Qualità» in «Incrocio»), `05_approfondimenti.md` v1.1 §9, schede Qualità e IT,
       `Domande_per_la_Qualita.md` (16, 17). NON aggiornati: `02_tobe` (il modello ha ancora i tre pesi) e prototipo.
 
+- [x] Richiesta (22/11): «studia anche un corposo restyling del menu anagrafica a questo punto. E poi ci siamo
+      [per proporlo]» → `06_menu_anagrafica.md` (studio; `RMC_Menu_studio.pdf`, 7 pagine) e `build/light_menu.html`
+      (`RMC_Menu_foglio.pdf`, 2 pagine: prima e dopo). Menu reale da `prototipo/src/guscio/hrnav.html`: 9 voci in
+      barra, 53 in tutto, 20 sotto «Competenze»; 3 scadenzari, 4 cruscotti, 3 matrici, 2 coperture. Proposta: 6
+      pilastri (Oggi, Persone, Organizzazione, Competenze, Formazione, Sicurezza) + 3 di servizio, 34 voci, al massimo
+      sei per pilastro; parole del sistema di gestione (skill matrix, mansioni, abilitazioni, emissione semestrale);
+      ingressi per ruolo («Il mio reparto» dalla mansione «Responsabilità del reparto»). Forma: resta la barra a due
+      righe (A) con le pagine d'ingresso (C); menu laterale scartato. Costo: 5-10 giorni il menu, 6-12 gli
+      accorpamenti di pagine. Sostituisce la tabella di `03_ux.md` §10.1 (nota aggiunta lì).
+      **Da fare solo dopo l'approvazione:** allineare il prototipo (PILASTRI in `prototipo/src/app.js`, controlli in
+      `build/verifica_prototipo.py`, schermate del PDF tecnico) e, se confermato, togliere i tre pesi da `02_tobe`.
+
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
 - **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la
