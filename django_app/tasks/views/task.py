@@ -981,10 +981,19 @@ def _contesto_spostamenti(request, task) -> dict:
     from ..access import puo_spostare_subito
     from ..models import SpostamentoStato
 
+    aperto = task.spostamenti.filter(stato=SpostamentoStato.IN_ATTESA).select_related("richiesto_da").first()
+    puo_decidere = bool(task.project_id and ha_pieni_poteri(request, task.project))
+    cascata = []
+    if aperto is not None and puo_decidere:
+        from ..services.spostamenti import anteprima
+
+        aperto.task = task
+        cascata = anteprima(aperto)
     return {
         "sposta_subito": puo_spostare_subito(request, task),
-        "spostamento_aperto": task.spostamenti.filter(stato=SpostamentoStato.IN_ATTESA).select_related("richiesto_da").first(),
-        "puo_decidere_spostamenti": bool(task.project_id and ha_pieni_poteri(request, task.project)),
+        "spostamento_aperto": aperto,
+        "spostamento_cascata": cascata,
+        "puo_decidere_spostamenti": puo_decidere,
     }
 
 

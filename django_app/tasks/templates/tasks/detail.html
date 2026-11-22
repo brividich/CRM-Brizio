@@ -279,6 +279,7 @@
           {% if sp.motivo %}<p class="td-sp-motivo">«{{ sp.motivo }}»</p>{% endif %}
           <p class="td-sp-quando">Inviata il {{ sp.created_at|date:"d/m/Y H:i" }}</p>
           {% if puo_decidere_spostamenti %}
+            {% include "tasks/_spostamento_cascata.html" with cascata=spostamento_cascata %}
             <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="td-sp-form">
               {% csrf_token %}
               <div class="td-sp-date">

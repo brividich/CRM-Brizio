@@ -44,7 +44,7 @@ body.tk-wide .content sta in tasks.css.
 
 {% block tasks_shell_kpis %}
 {% if project_summary.total_tasks %}
-<section class="ts-kpis">
+<section class="ts-kpis" data-g-region="numeri">
   {% url 'tasks:list' as u_tasks_list %}
   <a class="ts-kpi blue kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}" title="Apri l'elenco filtrato: attività del kickoff">
     <div class="ts-kpi-label">Attività</div>
@@ -59,12 +59,12 @@ body.tk-wide .content sta in tasks.css.
   </a>
   <a class="ts-kpi red kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;overdue=on" title="Apri l'elenco filtrato: attività scadute e ancora aperte">
     <div class="ts-kpi-label">Scadute</div>
-    <div class="ts-kpi-value">{{ project_summary.overdue_tasks }}</div>
+    <div class="ts-kpi-value" data-g-num="scadute">{{ project_summary.overdue_tasks }}</div>
     <div class="ts-kpi-note">Aperte con data fine superata.</div>
   </a>
   <a class="ts-kpi amber kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;open=on&amp;due_from={{ project_summary.due_window_from|date:'Y-m-d' }}&amp;due_to={{ project_summary.due_window_to|date:'Y-m-d' }}" title="Apri l'elenco filtrato: attività aperte che scadono nei prossimi 7 giorni">
     <div class="ts-kpi-label">In 7 giorni</div>
-    <div class="ts-kpi-value">{{ project_summary.due_next_7d_tasks }}</div>
+    <div class="ts-kpi-value" data-g-num="in_7_giorni">{{ project_summary.due_next_7d_tasks }}</div>
     <div class="ts-kpi-note">Attività che finiscono a breve.</div>
   </a>
   <a class="ts-kpi teal kpi-link" href="{{ u_tasks_list }}?mine=0&amp;project={{ project.id }}&amp;unassigned=on" title="Apri l'elenco filtrato: attività senza responsabile">
@@ -74,7 +74,7 @@ body.tk-wide .content sta in tasks.css.
   </a>
   <a class="ts-kpi slate kpi-link" href="#g-finestra" title="Vai al piano: le righe da controllare sono segnalate (assente, la fine è prima dell'inizio)">
     <div class="ts-kpi-label">Da controllare</div>
-    <div class="ts-kpi-value">{{ project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
+    <div class="ts-kpi-value" data-g-num="da_controllare">{{ project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
     <div class="ts-kpi-note">Conflitti con assenze, date non valide.</div>
   </a>
 </section>
@@ -172,7 +172,7 @@ body.tk-wide .content sta in tasks.css.
           Le attività possono sovrapporsi; in rosso quelle scadute.
         </p>
       </div>
-      <div class="ts-panel-meta">
+      <div class="ts-panel-meta" data-g-region="giorni">
         <span class="ts-chip soft">{{ gantt_days|length }}gg</span>
       </div>
     </div>
@@ -222,8 +222,10 @@ body.tk-wide .content sta in tasks.css.
 
     <div class="ts-panel-body no-pad">
       {% if gantt_rows or gantt_voci or gantt_incontri %}
-        <div class="ts-gantt-cm">
-          <div class="gscroll" data-oggi-idx="{{ gantt_today_index|default_if_none:'-1' }}" style="--cw:{{ gantt_day_cell_px|default:30 }}px;">
+        <div class="ts-gantt-cm" data-g-region="diagramma">
+          <div class="gscroll" data-oggi-idx="{{ gantt_today_index|default_if_none:'-1' }}"
+               data-inizio="{{ gantt_timeline_start|date:'Y-m-d' }}" data-giorni="{{ gantt_days|length }}"
+               data-deps="{{ gantt_deps_json }}" style="--cw:{{ gantt_day_cell_px|default:30 }}px;">
             <div class="grow gweeks">
               <div class="gmac">Settimana</div>
               <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
@@ -250,7 +252,8 @@ body.tk-wide .content sta in tasks.css.
             {% endif %}
             {% for row in gantt_rows %}
               <div class="grow gbody{% if row.can_edit %} can-edit{% endif %}" id="riga-{{ row.task.id }}" data-task-id="{{ row.task.id }}"
-                   {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
+                   data-ini="{{ row.task.next_step_due|date:'Y-m-d' }}" data-fin="{{ row.task.due_date|date:'Y-m-d' }}" data-stato="{{ row.task.status }}"
+                   {% if row.trascina %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
                 <div class="gmac">
                   {% if can_manage_plan %}
                     <form method="post" action="{% url 'tasks:project_gantt_move_task' project.id row.task.id %}" class="gord" aria-label="Posizione nel piano">
@@ -261,9 +264,7 @@ body.tk-wide .content sta in tasks.css.
                     </form>
                   {% endif %}
                   <a class="gmac-title" href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
-                  <small>{% if row.task.priority == "HIGH" %}<span class="gprio gprio--alta" title="Priorità alta">Alta</span> {% elif row.task.priority == "LOW" %}<span class="gprio gprio--bassa" title="Priorità bassa">Bassa</span> {% endif %}{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}<span class="g-noresp">da assegnare</span>{% endif %} · {{ row.start|date:"d/m" }} → {{ row.end|date:"d/m" }}{% if row.task.is_overdue %} · <span class="g-noresp">scaduta</span>{% endif %}{% if row.has_absence_conflicts %} · <span class="g-warn">assente {{ row.absence_days }}gg</span>{% endif %}{% if row.baseline_delta.end %} · <span class="g-bl{% if row.baseline_delta.end > 0 %} late{% endif %}" title="Scostamento della data fine dalla baseline">{% if row.baseline_delta.end > 0 %}+{% endif %}{{ row.baseline_delta.end }}gg</span>{% endif %}</small>
-                  {% if row.dopo or row.sovrapposte %}<small class="gmac-rel">{% if row.dopo %}<span class="gdopo" title="Parte dopo queste attività: spostandole, questa segue">dopo {{ row.dopo|join:", " }}</span>{% endif %}{% if row.dopo and row.sovrapposte %} · {% endif %}{% if row.sovrapposte %}<span class="g-warn" title="Stessa persona, stesso periodo: è ammesso, controlla che ce la faccia">insieme a {{ row.sovrapposte|join:", " }}</span>{% endif %}</small>{% endif %}
-                  {% if row.invalid_range %}<small style="color:var(--danger);font-weight:800;">La fine è prima dell'inizio</small>{% endif %}
+                  <div class="gmac-meta" data-g-meta>{% include "tasks/_gantt_riga_meta.html" %}</div>
                   {% if row.voci %}<span class="gvoci-chips">{% for v in row.voci %}<a class="gchip gchip--{{ v.chiave }}{% if v.scaduta %} scaduta{% endif %}" href="{{ v.url }}" title="{{ v.tipo }}: {{ v.titolo }}{% if v.chi %} · {{ v.chi }}{% endif %}{% if v.scadenza %} · entro il {{ v.scadenza|date:'d/m/Y' }}{% endif %}">{{ v.tipo }} {{ v.titolo|truncatechars:18 }}</a>{% endfor %}</span>{% endif %}
                   <div class="gmac-prog"><i style="width:{{ row.task.progress }}%"></i></div>
                 </div>
@@ -274,9 +275,9 @@ body.tk-wide .content sta in tasks.css.
                        data-start="{{ row.start_index }}" data-span="{{ row.span }}"
                        title="{{ row.task.title }} · {{ row.start|date:'d/m/Y' }} -> {{ row.end|date:'d/m/Y' }} · {{ row.task.progress }}%"
                        style="left:calc(var(--cw) * {{ row.start_index }}); width:calc(var(--cw) * {{ row.span }} - 4px);">
-                    {% if row.can_edit %}<span class="ghandle" data-edge="start"></span>{% endif %}
+                    {% if row.trascina %}<span class="ghandle" data-edge="start"></span>{% endif %}
                     <span class="gbar-label">{{ row.task.title }}</span>
-                    {% if row.can_edit %}<span class="ghandle" data-edge="end"></span>{% endif %}
+                    {% if row.trascina %}<span class="ghandle" data-edge="end"></span>{% endif %}
                   </div>
                 </div>
               </div>
@@ -313,6 +314,7 @@ body.tk-wide .content sta in tasks.css.
             {% if gantt_voci %}<span><i class="glg-mile"></i>Scadenza di attività d'incontro, problema, programma o FAI</span>{% endif %}
             <span style="color:var(--text-light);">· linea arancio = oggi · «dopo 2» = parte dopo l'attività 2 · «insieme a 3» = stessa persona nello stesso periodo{% if can_edit_schedule %} · trascina la barra per spostarla, i bordi per allungarla · clic sulla riga per date, stato, avanzamento e priorità{% endif %}{% if can_manage_plan %} · ▲▼ cambiano l'ordine delle righe{% endif %}</span>
           </div>
+        </div>
       {% else %}
         <div class="ts-empty" style="margin:16px;">
           <strong>Nessuna attività nel kickoff.</strong>
@@ -337,7 +339,7 @@ body.tk-wide .content sta in tasks.css.
         </div>
       </div>
       <div class="ts-panel-body">
-        <div class="quick-edit-grid">
+        <div class="quick-edit-grid" data-g-region="rapida">
           <div class="quick-edit-placeholder" id="quick-edit-placeholder">
             Clicca un'attività nel diagramma per aprire la modifica rapida.
           </div>
@@ -402,7 +404,7 @@ body.tk-wide .content sta in tasks.css.
                   {% if row.task.status == "TODO" or row.task.status == "IN_PROGRESS" %}<button type="submit" name="action" value="done" class="btn btn-sm">Fatta</button>{% endif %}
                   {% if row.task.status == "DONE" %}<button type="submit" name="action" value="reopen" class="btn btn-secondary btn-sm">Riapri</button>{% endif %}
                 </div>
-                <p class="quick-edit-note">Sei il responsabile di questa attività: ne aggiorni lo stato. Date e priorità le decide il responsabile del kickoff.</p>
+                <p class="quick-edit-note">Sei il responsabile di questa attività: ne aggiorni lo stato. Date e priorità le decide il responsabile del kickoff{% if row.trascina %}: trascinando la barra gli chiedi di spostarla{% endif %}.</p>
               </form>
             {% endif %}
           {% endfor %}
@@ -413,7 +415,7 @@ body.tk-wide .content sta in tasks.css.
 
   {# ── Dipendenze task ── #}
   {% if gantt_rows %}
-    <details class="ts-panel g-fold"{% if gantt_deps %} open{% endif %}>
+    <details class="ts-panel g-fold" data-g-region="dipendenze"{% if gantt_deps %} open{% endif %}>
       <summary class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Dipendenze tra attività</h2>
@@ -579,7 +581,7 @@ body.tk-wide .content sta in tasks.css.
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261109b"></script>
+<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261122a"></script>
 <script>
   // Dopo un'aggiunta si riparte dal titolo: il piano si scrive una riga dopo l'altra.
   if (location.hash === "#riga-rapida") {

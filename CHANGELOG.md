@@ -24,6 +24,17 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 - Nuovo `docs/audit/PIANO_RIMEDIO_2026-11-22.md`: sette ondate (sicurezza rapida, invii ripetuti, sicurezza sul lavoro, SOC, calendario unico da Assenze, robustezza, verifica delle piste) con le decisioni prese su eliminazione segnalazioni, TRIR, gravità SOC, presa visione SDS, festivi e termine RENTRI, mail automazioni. Solo documentazione. Rilevato in più: `core/calendario_it.py` non conta San Francesco (4 ottobre, festa dal 2026).
 
+### KICK-OFF: Gantt fluido e successive spostate anche all'approvazione
+
+- **Approvazione di uno spostamento**: quando il capocommessa approva, le attività collegate che vengono dopo si spostano in avanti con la stessa regola del trascinamento (solo in avanti, chiuse escluse), nella stessa transazione. Prima restavano ferme. Chi decide vede prima «Approvando si spostano in avanti anche:» con giorni e date nuove, nella scheda attività e in «Spostamenti da decidere»; i responsabili delle attività spostate ricevono l'avviso e la modifica entra nella Cronologia.
+- **Gantt senza ricarica**: al rilascio di una barra il server risponde in JSON (`attivita`, `righe`, `finestra`, `numeri`) e la pagina aggiorna sul posto barre, date nella riga, «Modifica rapida» e i riquadri «Scadute», «In 7 giorni», «Da controllare». Se cambia il periodo mostrato, la pagina viene riletta via fetch e si sostituiscono solo le parti segnate `data-g-region`; la ricarica completa resta solo se anche questo fallisce. Lo stesso per aggiunta e rimozione di una dipendenza.
+- **Anteprima mentre si trascina**: con «Sposta anche chi dipende» le barre collegate si muovono già durante il trascinamento (bordo tratteggiato); la barra si ferma sul vincolo «dopo …». Esc annulla.
+- **Dito e penna**: trascinamento con Pointer Events, senza far scorrere la pagina. Messaggi a comparsa del portale (`hubFlash`) al posto di `alert()`.
+- **Incaricato**: chi è responsabile dell'attività senza permesso di modifica può trascinare la propria barra (il server lo accettava già, la pagina no): nasce la richiesta, la barra torna al suo posto e il messaggio a comparsa lo dice.
+- **Telefono**: la pagina del Gantt non scorre più di lato; scorre solo il diagramma, con la colonna dei nomi ferma fino in fondo; riga rapida e banner vanno a capo.
+- Nessuna migrazione, nessun URL nuovo. Serve `collectstatic`.
+- File: `tasks/services/gantt_piano.py` (`anteprima_cascata`, `testo_spostate`, `propaga_dipendenze(prima=…)`), `tasks/services/spostamenti.py` (`decidi`, `anteprima`), `tasks/views/gantt.py` (`_stato_piano`, `_piano_json`), `tasks/views/spostamenti.py`, `tasks/views/task.py`, `tasks/static/tasks/js/project_gantt.js`, `tasks/static/tasks/css/tasks.css`, `tasks/templates/tasks/project_gantt.html`, `_gantt_riga_meta.html` e `_spostamento_cascata.html` (nuovi), `detail.html`, `mie_azioni.html`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, test `tasks/tests_spostamenti.py` e `tasks/tests_gantt_piano.py`.
+
 ### KICK-OFF: meno spazio fra testata e contenuto nelle pagine di commessa
 
 - Sotto le tab, le viste della sezione (Elenco/Gantt/Board, Incontri/Decisioni, VRF/Programmi e FAI) e le pillole di pagina stanno su **una riga sola**; tolti i margini doppi fra tab, viste e contenuto.

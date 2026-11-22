@@ -211,3 +211,80 @@ class GanttPianoTests(TasksBaseTestCase):
         self.client.force_login(self.owner)
         resp = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
         self.assertContains(resp, "dopo 1 SS")
+
+    # ── Spostamento senza ricarica: la risposta JSON porta lo stato del diagramma ──
+
+    def test_spostamento_risponde_con_le_attivita_cambiate(self):
+        TaskDependency.objects.create(predecessor=self.a, successor=self.b)
+        dati = self._shift(self.a, 3).json()
+        self.assertTrue(dati["ok"])
+        self.assertEqual(dati["cascade_count"], 1)
+        per_id = {r["id"]: r for r in dati["attivita"]}
+        self.assertEqual(set(per_id), {self.a.id, self.b.id})  # la C non dipende: non è fra le cambiate
+        self.assertFalse(per_id[self.a.id]["cascata"])
+        self.assertTrue(per_id[self.b.id]["cascata"])
+        self.assertEqual(
+            (per_id[self.b.id]["inizio"], per_id[self.b.id]["fine"]),
+            ((D0 + timedelta(days=8)).isoformat(), (D0 + timedelta(days=12)).isoformat()),
+        )
+        # Posizione nel diagramma: la B parte il giorno dopo la fine della A.
+        self.assertEqual(per_id[self.b.id]["start_index"], per_id[self.a.id]["start_index"] + per_id[self.a.id]["span"])
+        righe = {r["id"]: r for r in dati["righe"]}
+        self.assertEqual(set(righe), {self.a.id, self.b.id, self.c.id})
+        self.assertIn(f"{D0 + timedelta(days=8):%d/%m} → {D0 + timedelta(days=12):%d/%m}", righe[self.b.id]["meta_html"])
+        self.assertIn("dopo 1", righe[self.b.id]["meta_html"])
+        self.assertEqual(set(dati["numeri"]), {"scadute", "in_7_giorni", "da_controllare"})
+        self.assertEqual(set(dati["finestra"]), {"inizio", "giorni"})
+
+    def test_senza_cascata_cambia_solo_la_barra_mossa(self):
+        TaskDependency.objects.create(predecessor=self.a, successor=self.b)
+        dati = self._shift(self.a, 3, cascade="0").json()
+        self.assertEqual([r["id"] for r in dati["attivita"]], [self.a.id])
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.next_step_due, D0 + timedelta(days=5))
+
+    def test_finestra_della_risposta_uguale_a_quella_della_pagina(self):
+        self.client.force_login(self.owner)
+        url = reverse("tasks:project_gantt_shift_task", args=[self.project.id, self.b.id]) + "?window_days=62"
+        dati = self.client.post(url, {"shift_days": "1"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest").json()
+        pagina = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]) + "?window_days=62")
+        self.assertEqual(dati["finestra"]["giorni"], len(pagina.context["gantt_days"]))
+        self.assertEqual(dati["finestra"]["inizio"], pagina.context["gantt_timeline_start"].isoformat())
+        self.assertContains(pagina, f'data-inizio="{dati["finestra"]["inizio"]}" data-giorni="{dati["finestra"]["giorni"]}"')
+
+    def test_pagina_espone_dipendenze_e_parti_aggiornabili(self):
+        import html
+        import json
+        import re
+
+        TaskDependency.objects.create(predecessor=self.a, successor=self.b, dependency_type=DependencyType.SS, lag_days=2)
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
+        deps = json.loads(html.unescape(re.search(r'data-deps="([^"]*)"', resp.content.decode()).group(1)))
+        self.assertEqual(deps, [{"p": self.a.id, "s": self.b.id, "t": "SS", "lag": 2}])
+        for regione in ("diagramma", "numeri", "rapida", "dipendenze"):
+            self.assertContains(resp, f'data-g-region="{regione}"')
+        self.assertContains(resp, f'data-ini="{D0:%Y-%m-%d}"')
+
+    def test_messaggio_della_cascata_arriva_con_la_risposta(self):
+        TaskDependency.objects.create(predecessor=self.a, successor=self.b)
+        resp = self._shift(self.a, 3)
+        self.assertIn("Spostate in avanti per rispettare le dipendenze", resp.headers.get("X-Hub-Flash", ""))
+
+    def test_anteprima_cascata_uguale_alla_propagazione(self):
+        from .services.gantt_piano import anteprima_cascata, propaga_dipendenze
+
+        TaskDependency.objects.create(predecessor=self.a, successor=self.b)
+        TaskDependency.objects.create(predecessor=self.b, successor=self.c)
+        righe = anteprima_cascata(self.project, self.a, D0 + timedelta(days=6), D0 + timedelta(days=10))
+        self.assertEqual([(r["task"].id, r["giorni"]) for r in righe], [(self.b.id, 6), (self.c.id, 6)])
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.next_step_due, D0 + timedelta(days=5))  # l'anteprima non salva
+        self.a.next_step_due, self.a.due_date = D0 + timedelta(days=6), D0 + timedelta(days=10)
+        self.a.save()
+        prima = {}
+        spostate = propaga_dipendenze(self.project, self.a, prima=prima)
+        self.assertEqual(
+            [(t.id, t.next_step_due) for t in spostate], [(r["task"].id, r["inizio_nuovo"]) for r in righe]
+        )
+        self.assertEqual(prima[self.b.id], {"next_step_due": D0 + timedelta(days=5), "due_date": D0 + timedelta(days=9)})

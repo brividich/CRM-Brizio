@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from ..access import ha_pieni_poteri, puo_spostare_subito, utenti_pieni_poteri
 from ..models import SpostamentoStato, TaskEvent, TaskEventType, TaskSpostamento
+from .gantt_piano import anteprima_cascata, propaga_dipendenze
 from .notify import notify_user
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,7 @@ def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizi
     task = sp.task
     if not ha_pieni_poteri(request, task.project):
         raise SpostamentoNonValido("Decide chi ha pieni poteri sulla commessa (capocommessa).")
+    spostate, prima_cascata = [], {}
     with transaction.atomic():
         sp = TaskSpostamento.objects.select_for_update().select_related("deciso_da").get(pk=sp.pk)
         if not sp.in_attesa:
@@ -125,6 +127,9 @@ def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizi
             task.next_step_due, task.due_date = inizio, fine
             task.save(update_fields=["next_step_due", "due_date", "updated_at"])
             sp.inizio_nuovo, sp.fine_nuovo = inizio, fine
+            # Le successive collegate seguono come quando sposta il capocommessa:
+            # solo in avanti, nella stessa transazione dell'approvazione.
+            spostate = propaga_dipendenze(task.project, task, prima=prima_cascata)
         sp.stato = SpostamentoStato.APPROVATA if approva else SpostamentoStato.RIFIUTATA
         sp.deciso_da, sp.deciso_at, sp.nota_decisione = request.user, timezone.now(), (nota or "").strip()[:500]
         sp.save()
@@ -134,6 +139,9 @@ def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizi
     if approva:
         # Registra le date nuove e avvisa i coinvolti (incaricato compreso).
         _log_task_update_events(task, request.user, before)
+        # Anche chi ha un'attività spostata a cascata lo sa subito (storico + avviso).
+        for successiva in spostate:
+            _log_task_update_events(successiva, request.user, {**_task_snapshot(successiva), **prima_cascata[successiva.id]})
     if sp.richiesto_da_id and sp.richiesto_da_id != request.user.pk:
         esito = "approvata" if approva else "rifiutata"
         testo = f"Richiesta di spostamento di «{task.title}» {esito}" + (f": {sp.nota_decisione}" if sp.nota_decisione else ".")
@@ -144,7 +152,16 @@ def decidi(request, sp: TaskSpostamento, *, approva: bool, nota: str = "", inizi
             mail_cambiamento(task, sp.richiesto_da, testo)
         except Exception:
             logger.exception("Mail esito spostamento non inviata (sp=%s)", sp.pk)
+    sp.spostate_a_cascata = spostate
     return sp
+
+
+def anteprima(sp: TaskSpostamento) -> list[dict]:
+    """Le successive che si sposterebbero approvando la richiesta con le date chieste (non salva)."""
+    task = sp.task
+    if not sp.in_attesa or not task.project_id:
+        return []
+    return anteprima_cascata(task.project, task, sp.inizio_nuovo, sp.fine_nuovo)
 
 
 def richieste_da_decidere(request, progetti_qs):
@@ -154,4 +171,8 @@ def richieste_da_decidere(request, progetti_qs):
         .select_related("task__project", "richiesto_da")
         .order_by("created_at")
     )
-    return [sp for sp in aperte if ha_pieni_poteri(request, sp.task.project)]
+    da_decidere = [sp for sp in aperte if ha_pieni_poteri(request, sp.task.project)]
+    for sp in da_decidere:
+        # Chi decide vede prima quali successive si muoveranno.
+        sp.cascata = anteprima(sp)
+    return da_decidere

@@ -6,6 +6,7 @@ Ora le attività sono libere e i soli vincoli sono le dipendenze dichiarate.
 """
 from __future__ import annotations
 
+from copy import copy
 from datetime import date, timedelta
 
 from ..models import DependencyType, Task, TaskDependency, TaskStatus
@@ -109,17 +110,14 @@ def crea_ciclo(project, predecessore_id: int, successore_id: int) -> bool:
     return False
 
 
-def propaga_dipendenze(project, task_mosso: Task) -> list[Task]:
-    """Spinge in avanti le attività che dipendono da ``task_mosso`` e ora violerebbero il vincolo.
+def _calcola_cascata(per_id: dict[int, Task], dipendenze, id_mosso: int) -> dict[int, dict]:
+    """Calcola in memoria chi viene spinto in avanti da ``id_mosso`` (non salva niente).
 
-    Solo in avanti: se la precedente si accorcia, le successive non vengono
-    tirate indietro (la data l'ha decisa qualcuno). Attività chiuse escluse.
+    Cambia le date sugli oggetti di ``per_id`` e ritorna, per ogni attività
+    spostata, le date di prima e i giorni di slittamento.
     """
-    per_id = {t.id: t for t in Task.objects.filter(project=project)}
-    per_id[task_mosso.id] = task_mosso
-    dipendenze = list(TaskDependency.objects.filter(predecessor_id__in=per_id, successor_id__in=per_id))
-    spostate: dict[int, Task] = {}
-    coda = [task_mosso.id]
+    spostate: dict[int, dict] = {}
+    coda = [id_mosso]
     passi = 0
     limite = max(10, len(per_id) * len(per_id))
     while coda and passi < limite:
@@ -135,15 +133,76 @@ def propaga_dipendenze(project, task_mosso: Task) -> list[Task]:
             inizio, _fine = date_attivita(succ)
             if not minimo or not inizio or inizio >= minimo:
                 continue
-            delta = timedelta(days=(minimo - inizio).days)
+            giorni = (minimo - inizio).days
+            voce = spostate.setdefault(
+                succ.id,
+                {"task": succ, "next_step_due": succ.next_step_due, "due_date": succ.due_date, "giorni": 0},
+            )
+            voce["giorni"] += giorni
+            delta = timedelta(days=giorni)
             if succ.next_step_due:
                 succ.next_step_due += delta
             if succ.due_date:
                 succ.due_date += delta
-            succ.save(update_fields=["next_step_due", "due_date", "updated_at"])
-            spostate[succ.id] = succ
             coda.append(succ.id)
-    return list(spostate.values())
+    return spostate
+
+
+def _piano_in_memoria(project, task_mosso: Task):
+    per_id = {t.id: t for t in Task.objects.filter(project=project)}
+    per_id[task_mosso.id] = task_mosso
+    dipendenze = list(TaskDependency.objects.filter(predecessor_id__in=per_id, successor_id__in=per_id))
+    return per_id, dipendenze
+
+
+def propaga_dipendenze(project, task_mosso: Task, *, prima: dict | None = None) -> list[Task]:
+    """Spinge in avanti le attività che dipendono da ``task_mosso`` e ora violerebbero il vincolo.
+
+    Solo in avanti: se la precedente si accorcia, le successive non vengono
+    tirate indietro (la data l'ha decisa qualcuno). Attività chiuse escluse.
+    ``prima`` (facoltativo) viene riempito con le date di ogni attività prima
+    dello spostamento: serve a chi poi registra la modifica e avvisa.
+    """
+    per_id, dipendenze = _piano_in_memoria(project, task_mosso)
+    spostate = _calcola_cascata(per_id, dipendenze, task_mosso.id)
+    for voce in spostate.values():
+        voce["task"].save(update_fields=["next_step_due", "due_date", "updated_at"])
+        if prima is not None:
+            prima[voce["task"].id] = {"next_step_due": voce["next_step_due"], "due_date": voce["due_date"]}
+    return [voce["task"] for voce in spostate.values()]
+
+
+def anteprima_cascata(project, task: Task, inizio, fine) -> list[dict]:
+    """Chi si sposterebbe, e di quanti giorni, se ``task`` prendesse le date ``inizio``–``fine``.
+
+    Stessa regola di :func:`propaga_dipendenze`, ma non salva: serve a far
+    vedere l'effetto a chi decide prima che approvi.
+    """
+    if project is None:
+        return []
+    ipotesi = copy(task)
+    ipotesi.next_step_due, ipotesi.due_date = inizio, fine
+    per_id, dipendenze = _piano_in_memoria(project, ipotesi)
+    if not dipendenze:
+        return []
+    spostate = _calcola_cascata(per_id, dipendenze, ipotesi.id)
+    righe = []
+    for t in ordina_piano(voce["task"] for voce in spostate.values()):
+        voce = spostate[t.id]
+        inizio_prima, fine_prima = voce["next_step_due"] or voce["due_date"], voce["due_date"] or voce["next_step_due"]
+        inizio_nuovo, fine_nuovo = date_attivita(t)
+        righe.append({
+            "task": t, "giorni": voce["giorni"],
+            "inizio_prima": inizio_prima, "fine_prima": fine_prima,
+            "inizio_nuovo": inizio_nuovo, "fine_nuovo": fine_nuovo,
+        })
+    return righe
+
+
+def testo_spostate(spostate) -> str:
+    nomi = ", ".join(f"«{t.title}»" for t in spostate[:4])
+    altre = f" e altre {len(spostate) - 4}" if len(spostate) > 4 else ""
+    return f"Spostate in avanti per rispettare le dipendenze: {nomi}{altre}."
 
 
 def sovrapposizioni_per_persona(righe: list[dict]) -> dict[int, list[str]]:
