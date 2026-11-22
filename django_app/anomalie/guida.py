@@ -595,8 +595,9 @@ SEZIONI: list[dict] = [
             ]),
             ("ul", [
                 "Cambiano solo le anomalie che hai toccato: le altre restano com'erano.",
-                "Dopo la conferma il link non si può più usare per un'altra decisione; il link scade dopo il tempo "
-                "configurato.",
+                "Dopo la conferma il link non si può più usare per un'altra decisione.",
+                "Il link vale una settimana. Quando per lo stesso OP ti arriva una mail nuova, il link della mail "
+                "precedente non usato smette di valere: usa sempre l'ultima mail.",
                 "Foto e PDF si aprono nel browser; gli altri file si scaricano.",
             ]),
         ],
@@ -733,6 +734,8 @@ SEZIONI: list[dict] = [
                  "tuo team). Controlla anche il filtro: «Con aperte» nasconde gli OP con sole anomalie chiuse, «Tutti» "
                  "li mostra."),
                 ("Il link della mail dice che è scaduto o già usato.", "Apri l'OP dal portale in Gestione anomalie."),
+                ("Il link della mail dice «Link non più valido».", "È arrivata una mail più recente per lo stesso OP: "
+                 "usa il link di quella, oppure apri l'OP dal portale."),
                 ("Non riesco a chiudere un'anomalia in «Azione di recupero».", "Va registrata prima l'azione "
                  "effettuata in «Tempi ed esiti»: con «Chiudi l'anomalia» la chiude direttamente."),
             ]),

@@ -32,6 +32,7 @@ Le cinque cose da guardare per prime:
 - **Fatto:** la pagina è pubblica per scelta dichiarata (`:1-7`, `:120`). Il segreto del link è salvato in chiaro nella tabella (`token`, `:33`), mentre gli altri link del portale salvano solo l'impronta (`automazioni/approval_links.py`). La pagina di riepilogo (`:707`) non controlla né scadenza né revoca. La descrizione del modello (`mail_action_models.py:21`) dice «richiede login», che non è vero.
 - **Scenario:** una mail inoltrata, o una lettura della tabella (copia del database, export), consente per 48 ore di approvare, respingere o chiudere anomalie e di caricare file a nome del destinatario; dopo la scadenza il riepilogo resta leggibile.
 - **Nota positiva:** l'uso è monouso e atomico (`:228`), gli allegati sono limitati alle anomalie del link (`:759`).
+- **Aggiornamento 22/11/2026:** su scelta dell'utente il link resta senza login. Corretto: nel database solo l'impronta del segreto (`anomalie 0032`), scadenza e revoca anche sul riepilogo, revoca dei link superati da una mail nuova, limite ai link inesistenti per indirizzo IP, descrizione del modello. La durata è passata a una settimana per scelta dell'utente. Non fatti, per scelta: ricevuta al destinatario dopo la decisione, restrizioni sul caricamento dei file.
 
 ### S2 — Reindirizzamento non controllato · Media · Verificata
 - **Dove:** `tasks/views/spostamenti.py:35,38`; `core/views.py:1101-1116` (fine impersonazione).
