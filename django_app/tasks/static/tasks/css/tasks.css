@@ -5147,3 +5147,21 @@ form.is-modificata .tpl-summary-nome::after { content: " •"; color: var(--warn
   .mfasi-step { flex: 1 1 0; min-width: 0; padding: 8px 10px; gap: 6px; }
   .mfasi-step:not(.is-active) small { display: none; }
 }
+
+/* ── Pagine di commessa: meno spazio fra testata e contenuto ─────────────────
+   Tab, viste e pillole di pagina su due righe invece di quattro; numeri in una
+   riga bassa (valore a sinistra, etichetta e nota a destra). */
+.ts-shell > .tk-tabs { margin-bottom: 0; }
+.tk-riga { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.tk-riga:not(:has(*)) { display: none; }
+.tk-riga > .tk-viste, .tk-riga > .tk-pagebar { margin: 0; }
+.tk-riga > .tk-pagebar { flex: 1 1 auto; }
+.ts-hero--commessa ~ .ts-kpis .ts-kpi {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center;
+  padding: 6px 12px;
+}
+.ts-hero--commessa ~ .ts-kpis .ts-kpi-value { grid-column: 1; grid-row: 1 / span 2; margin: 0; font-size: 22px; }
+.ts-hero--commessa ~ .ts-kpis .ts-kpi-label { grid-column: 2; grid-row: 1; }
+.ts-hero--commessa ~ .ts-kpis .ts-kpi-note { grid-column: 2; grid-row: 2; margin: 0; line-height: 1.25; }
+.ts-hero--commessa ~ .ts-kpis .ts-kpi-bar { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; }
+.ts-hero--commessa ~ .g-vrf-banner, .ts-hero--commessa ~ * .g-vrf-banner { padding-top: 6px; padding-bottom: 6px; }

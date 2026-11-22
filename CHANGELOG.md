@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: meno spazio fra testata e contenuto nelle pagine di commessa
+
+- Sotto le tab, le viste della sezione (Elenco/Gantt/Board, Incontri/Decisioni, VRF/Programmi e FAI) e le pillole di pagina stanno su **una riga sola**; tolti i margini doppi fra tab, viste e contenuto.
+- I riquadri dei numeri nelle pagine di commessa (Gantt, Elenco, Board) sono bassi: valore a sinistra, etichetta e nota a destra. Nel Gantt il diagramma parte circa 140 px più in alto.
+- File: `tasks/templates/tasks/_project_viste.html` (nuovo, viste separate dalle tab), `_project_tabs.html`, `base_shell.html` (`.tk-riga`), `tasks/static/tasks/css/tasks.css`, test `tasks/tests_settings.py`.
+- Nessuna migrazione; serve `collectstatic` (`tasks.css?v=20261122g`).
+
 ### KICK-OFF: l'incontro come una pagina sola in tre fasi (riordino UI, blocco 3)
 
 - Scheda, convocazione, conduzione ed esito hanno ora lo stesso telaio: testata di commessa, barra a **tre fasi** (Prima · Durante · Dopo, erano quattro) e la stessa intestazione dell'incontro (numero, titolo, data, sala, stato). Titoli e pulsanti diversi da pagina a pagina sono stati tolti.
