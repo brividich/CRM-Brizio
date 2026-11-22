@@ -37,7 +37,6 @@ DEBOUNCE_MINUTI = 5
 MAX_BOZZA_BYTES = 200_000
 TIPO_NOTIFICA_PROMEMORIA = "anomalie_controllo_da_inviare"
 MAX_TENTATIVI_MAIL = 5
-SCADENZA_LINK_ORE = 72
 
 _SUP_RE = re.compile(r"^\s*Stato superficie:\s*([^\n]*)\n*", re.IGNORECASE)
 _STATI_LIBERI = {"", "in attesa"}
@@ -793,8 +792,7 @@ def invia_mail_controllo(controllo) -> dict:
             op_nominativo=controllo.op_id,
             anomalie_rows=rows,
             action="aggiorna_avanzamento",
-            expires_hours=SCADENZA_LINK_ORE,
-            source_automation=f"controllo:{controllo.pk}",
+                        source_automation=f"controllo:{controllo.pk}",
             created_by=controllo.operatore,
             cc=cc or None,
         )

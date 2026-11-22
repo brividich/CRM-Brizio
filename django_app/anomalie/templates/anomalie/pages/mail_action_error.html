@@ -92,7 +92,8 @@
 
   <h1>
     {% if codice == "expired" %}Link scaduto
-    {% elif codice == "revoked" %}Link revocato
+    {% elif codice == "revoked" %}Link non più valido
+    {% elif codice == "too_many" %}Troppi tentativi
     {% elif codice == "already_used" %}Link già utilizzato
     {% elif codice == "wrong_user" %}Accesso non consentito
     {% elif codice == "forbidden" %}Permessi insufficienti

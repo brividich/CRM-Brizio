@@ -258,8 +258,12 @@ GUIDA = {
         },
         {
             "sintomo": "Il collegamento nella mail dice che non è più valido",
-            "perche": "i collegamenti sono monouso e scadono.",
-            "fare": ["Il capocommessa può decidere dal portale, aprendo l'OP in Gestione anomalie."],
+            "perche": "i collegamenti sono monouso, valgono una settimana e vengono sostituiti dalla mail più "
+                      "recente sullo stesso OP.",
+            "fare": [
+                "Usa il link dell'ultima mail ricevuta per quell'OP.",
+                "Il capocommessa può decidere dal portale, aprendo l'OP in Gestione anomalie.",
+            ],
         },
         {
             "sintomo": "Salvando la pagina della mail compare «Token di sessione non valido» (HTTP 403, Origin null)",
