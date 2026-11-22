@@ -19,6 +19,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **Permessi in produzione (S7):** in `config/settings/prod.py` `ACL_STRICT_CANONICAL` è attivo se il `.env` non dice altro; per spegnerlo serve `ACL_STRICT_CANONICAL=0` esplicito.
 - Guide: Centro guide Schede di sicurezza e Automazioni; `docs/moduli/schede_sicurezza.md`, `automazioni.md`, `gestione_specifiche.md`; stato in `docs/audit/PIANO_RIMEDIO_2026-11-22.md`. Nessuna migrazione.
 
+### Assenze: «Le mie richieste» a blocchi richiudibili, con l'anno a colpo d'occhio
+
+- La pagina non ha più l'intestazione verde grande, le quattro tessere e le pillole di stato. Le richieste sono divise per momento in blocchi che si aprono e chiudono dall'intestazione: **«In attesa»**, **«In programma»** (approvate e non ancora finite), **«Passate»**, **«Rifiutate»**. Ogni intestazione mostra quante richieste contiene e una nota («la più vecchia da 4 giorni», «prossima: lun 7 dic»). La pagina ricorda quali blocchi sono aperti.
+- **«Anno …»**: una striscia con i dodici mesi e i periodi di assenza colorati per tipo (tratteggiati quelli in attesa, escluse le rifiutate). Clic su un mese per vedere solo le richieste di quel mese; «Tutto l'anno» toglie il filtro. La ricerca filtra tutti i blocchi insieme.
+- Ogni richiesta mostra periodo leggibile («23 dic → 5 gen 2027», «ven 27 nov, 14:00–17:00»), durata (la stessa scalata dal saldo), da quanto è in attesa, note del capo e certificato.
+- Per i capi: le due tabelle dei dipendenti diventano il blocco richiudibile **«Reparto: da decidere»** con dentro «Già decise» e il link ad «Assenze del reparto».
+- **«Modifica richiesta»** ridisegnata: tipo a pillole colorate, inizio e fine affiancati, durata calcolata mentre si scrive (rossa se la fine viene prima dell'inizio), «Certificato arrivato» solo per la malattia, «Elimina richiesta» in basso. Stessi campi e stesse regole di prima.
+- I link «In attesa» e «Approvate» della home aprono il blocco giusto. Nessuna migrazione; stile e script sono ora file statici: serve `collectstatic`.
+- File: `assenze/mie_richieste.py` (nuovo), `assenze/views/richieste.py`, `assenze/templates/assenze/pages/gestione_assenze.html`, `assenze/templates/assenze/partials/_mia_richiesta.html` (nuovo), `assenze/static/assenze/css/le_mie_richieste.css` (nuovo), `assenze/static/assenze/js/le_mie_richieste.js` (nuovo), `assenze/tests_kpi_link.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`.
+
 ### KICK-OFF: le attività già usate si trovano ovunque; attrezzatura via dalle righe rapide d'incontro
 
 - **Suggerimenti in un elenco solo**: scrivendo il titolo di un'attività il portale propone quelle già usate senza più distinguere fra attività del piano e attività d'incontro (prima erano due elenchi: quello che nasceva in riunione non veniva proposto nel piano e viceversa), più i nomi dei tipi di attività. Doppioni fusi, usi sommati.

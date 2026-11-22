@@ -29,6 +29,7 @@ from ..constants import (
 from core import naming
 
 from .. import hr as calcoli_hr
+from .. import mie_richieste
 from .. import serie
 from .. import solleciti as solleciti_assenze
 from . import _helpers  # noqa: E402
@@ -1254,6 +1255,7 @@ def gestione_assenze(request):
                 if e_capo else 0
             ),
             "limite_elenco": 40,
+            **mie_richieste.contesto(richieste_personali),
             "ruolo_corrente": "",
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),
