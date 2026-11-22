@@ -1,13 +1,16 @@
 """Viste del Gantt di commessa e della baseline."""
 from __future__ import annotations
 
+import json
 import logging
 from datetime import timedelta
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -31,7 +34,6 @@ from ..models import (
 )
 from ..access import (
     GANTT_LIVELLI,
-    _can_edit_project_schedule,
     can_set_task_priority,
     livello_gantt,
     permessi_riga_gantt,
@@ -56,6 +58,7 @@ from ..services.gantt_piano import (
     propaga_dipendenze,
     sovrapposizioni_per_persona,
     sposta_in_ordine,
+    testo_spostate,
 )
 from ..services.notify import (
     _project_notify_users_queryset,
@@ -137,34 +140,9 @@ def project_quick_task(request, project_id: int):
     return redirect(destinazione)
 
 
-@task_permissions_required("tasks_view")
-def project_gantt(request, project_id: int):
-    project_qs = scoped_projects_queryset(request).prefetch_related(
-        Prefetch(
-            "tasks",
-            # Nel Gantt le task sono ordinate per ordine di creazione (id asc)
-            # così WBS 1 = prima task creata, WBS 2 = seconda, ecc.
-            # Questo mantiene la sequenza logica definita dall'utente
-            # indipendentemente dalle date (che possono essere in disordine durante la pianificazione).
-            queryset=Task.objects.select_related(
-                "created_by",
-                "assigned_to",
-                "project",
-                "project__similar_project",
-            ).prefetch_related("subscribers", Project.team_prefetch("project__")).order_by("id"),
-        ),
-        Prefetch(
-            "comments",
-            queryset=ProjectComment.objects.select_related("author", "target_user").order_by("-created_at", "-id"),
-        ),
-    )
-    project = get_object_or_404(project_qs, pk=project_id)
-    # Ordine scelto nel Gantt (frecce su/giù), poi creazione. In Python: SQL Server
-    # può ignorare ORDER BY nei prefetch.
-    tasks = ordina_piano(project.tasks.all())
-    can_edit_schedule = _can_edit_project_schedule(request, project)
-    can_comment = has_task_permission(request, "tasks_comment")
-    gantt_options = _parse_gantt_options(request)
+def _stato_piano(request, project, tasks, gantt_options) -> dict:
+    """Righe, periodo, numeri e dipendenze del piano: lo stesso calcolo serve la pagina
+    e la risposta JSON dello spostamento (che aggiorna il diagramma senza ricaricare)."""
     from ..services.gantt_voci import gantt_voci, posiziona
 
     # Incontri, azioni, problemi e programmi/FAI sul piano: le loro date entrano nel periodo.
@@ -177,10 +155,6 @@ def project_gantt(request, project_id: int):
     posiziona(voci_gantt["voci"], "scadenza", gantt_meta["timeline_start"], _giorni)
     for row in gantt_meta["rows"]:
         row["voci"] = voci_gantt["per_attivita"].get(row["task"].id, [])
-    comment_form = ProjectCommentForm(
-        user=request.user,
-        notify_user_queryset=_project_notify_users_queryset(project),
-    )
     today = timezone.localdate()
     total_tasks = len(tasks)
     done_total = sum(1 for task in tasks if task.status == TaskStatus.DONE)
@@ -223,29 +197,17 @@ def project_gantt(request, project_id: int):
     }
 
     gestisce_progetto = can_manage_project(request, project)
-    task_update_forms = {}
     sovrapposte = sovrapposizioni_per_persona(gantt_meta["rows"])
     for row in gantt_meta["rows"]:
         permessi = permessi_riga_gantt(request, row["task"], gestisce_progetto=gestisce_progetto)
         row["permessi"] = permessi
         row["can_edit"] = permessi["date"]
+        # L'incaricato senza permesso di modifica trascina la sua barra per chiedere
+        # lo spostamento al capocommessa (il server lo accetta già: nasce la richiesta).
+        row["trascina"] = permessi["date"] or (
+            row["task"].status in OPEN_STATUSES and _incaricato_che_chiede(request, row["task"])
+        )
         row["sovrapposte"] = sovrapposte.get(row["task"].id, [])
-        if row["can_edit"]:
-            task_update_forms[row["task"].id] = ProjectTaskGanttUpdateForm(
-                instance=row["task"],
-                prefix=f"task_{row['task'].id}",
-                consenti_priorita=permessi["priorita"],
-            )
-        row["update_form"] = task_update_forms.get(row["task"].id)
-
-    can_edit_schedule = any(bool(row.get("can_edit")) for row in gantt_meta["rows"]) or gestisce_progetto
-    can_open_quick_edit = any(
-        row["can_edit"] or row["permessi"]["solo_stato"] for row in gantt_meta["rows"]
-    )
-    livello = livello_gantt(request, project, gantt_meta["rows"])
-
-    cfg = TaskImpostazioni.get_singleton()
-    vrf_detail = _vrf_status_detail(project, cfg)
 
     # ── Baseline Gantt ──
     baseline = GanttBaseline.objects.filter(project=project).first()
@@ -281,6 +243,76 @@ def project_gantt(request, project_id: int):
         }
         for d in deps
     ]
+    # Dipendenze in forma compatta: lo script le usa per l'anteprima mentre si trascina.
+    deps_js = [
+        {"p": d.predecessor_id, "s": d.successor_id, "t": d.dependency_type, "lag": d.lag_days or 0}
+        for d in deps
+    ]
+    return {
+        "gantt_meta": gantt_meta,
+        "voci_gantt": voci_gantt,
+        "project_summary": project_summary,
+        "gestisce_progetto": gestisce_progetto,
+        "baseline": baseline,
+        "deps_display": deps_display,
+        "deps_js": deps_js,
+    }
+
+
+@task_permissions_required("tasks_view")
+def project_gantt(request, project_id: int):
+    project_qs = scoped_projects_queryset(request).prefetch_related(
+        Prefetch(
+            "tasks",
+            # Nel Gantt le task sono ordinate per ordine di creazione (id asc)
+            # così WBS 1 = prima task creata, WBS 2 = seconda, ecc.
+            # Questo mantiene la sequenza logica definita dall'utente
+            # indipendentemente dalle date (che possono essere in disordine durante la pianificazione).
+            queryset=Task.objects.select_related(
+                "created_by",
+                "assigned_to",
+                "project",
+                "project__similar_project",
+            ).prefetch_related("subscribers", Project.team_prefetch("project__")).order_by("id"),
+        ),
+        Prefetch(
+            "comments",
+            queryset=ProjectComment.objects.select_related("author", "target_user").order_by("-created_at", "-id"),
+        ),
+    )
+    project = get_object_or_404(project_qs, pk=project_id)
+    # Ordine scelto nel Gantt (frecce su/giù), poi creazione. In Python: SQL Server
+    # può ignorare ORDER BY nei prefetch.
+    tasks = ordina_piano(project.tasks.all())
+    gantt_options = _parse_gantt_options(request)
+    piano = _stato_piano(request, project, tasks, gantt_options)
+    gantt_meta, voci_gantt, project_summary = piano["gantt_meta"], piano["voci_gantt"], piano["project_summary"]
+    gestisce_progetto = piano["gestisce_progetto"]
+    today = gantt_meta["today"]
+    can_comment = has_task_permission(request, "tasks_comment")
+    comment_form = ProjectCommentForm(
+        user=request.user,
+        notify_user_queryset=_project_notify_users_queryset(project),
+    )
+    task_update_forms = {}
+    for row in gantt_meta["rows"]:
+        if row["can_edit"]:
+            task_update_forms[row["task"].id] = ProjectTaskGanttUpdateForm(
+                instance=row["task"],
+                prefix=f"task_{row['task'].id}",
+                consenti_priorita=row["permessi"]["priorita"],
+            )
+        row["update_form"] = task_update_forms.get(row["task"].id)
+    can_edit_schedule = any(bool(row.get("can_edit")) for row in gantt_meta["rows"]) or gestisce_progetto
+    can_open_quick_edit = any(
+        row["can_edit"] or row["permessi"]["solo_stato"] for row in gantt_meta["rows"]
+    )
+    livello = livello_gantt(request, project, gantt_meta["rows"])
+
+    cfg = TaskImpostazioni.get_singleton()
+    vrf_detail = _vrf_status_detail(project, cfg)
+    baseline = piano["baseline"]
+    deps_display = piano["deps_display"]
 
     return render(
         request,
@@ -322,6 +354,7 @@ def project_gantt(request, project_id: int):
             "vrf_detail": vrf_detail,
             "gantt_baseline": baseline,
             "gantt_deps": deps_display,
+            "gantt_deps_json": json.dumps(piano["deps_js"], separators=(",", ":")),
             "gantt_incontri": voci_gantt["incontri"],
             "gantt_voci": voci_gantt["voci"],
             "dependency_type_choices": DependencyType.choices,
@@ -422,14 +455,10 @@ def project_gantt_add_dependency(request, project_id: int):
     # La successiva che ora violerebbe il vincolo viene spinta in avanti subito.
     spostate = propaga_dipendenze(project, pred)
     if spostate:
-        messages.info(request, _testo_spostate(spostate))
+        messages.info(request, testo_spostate(spostate))
     return JsonResponse({"ok": True, "dep_id": dep.pk, "created": created, "moved": len(spostate)})
 
 
-def _testo_spostate(spostate) -> str:
-    nomi = ", ".join(f"«{t.title}»" for t in spostate[:4])
-    altre = f" e altre {len(spostate) - 4}" if len(spostate) > 4 else ""
-    return f"Spostate in avanti per rispettare le dipendenze: {nomi}{altre}."
 
 
 @require_POST
@@ -527,7 +556,7 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
         if date_attivita(task) != date_prima:
             spostate = propaga_dipendenze(project, task)
             if spostate:
-                messages.info(request, _testo_spostate(spostate))
+                messages.info(request, testo_spostate(spostate))
     else:
         errors = "; ".join(
             f"{form.fields[f].label or f}: {', '.join(errs)}"
@@ -551,16 +580,18 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
     if not (can_manage_task(request, task) or _incaricato_che_chiede(request, task)):
-        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+        return JsonResponse(
+            {"ok": False, "error": "forbidden", "messaggio": "Non puoi spostare questa attività."}, status=403
+        )
 
     mode = str(request.POST.get("mode") or "shift").strip()
     if mode not in {"shift", "resize_start", "resize_end"}:
-        return JsonResponse({"ok": False, "error": "invalid_mode"}, status=400)
+        return JsonResponse({"ok": False, "error": "invalid_mode", "messaggio": "Spostamento non valido."}, status=400)
 
     try:
         shift_days = int(str(request.POST.get("shift_days", "0")).strip())
     except (TypeError, ValueError):
-        return JsonResponse({"ok": False, "error": "invalid_shift"}, status=400)
+        return JsonResponse({"ok": False, "error": "invalid_shift", "messaggio": "Spostamento non valido."}, status=400)
 
     if shift_days == 0:
         return JsonResponse(
@@ -619,10 +650,19 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
     from ..services.spostamenti import intercetta
 
     if intercetta(request, task, before) is not None:
-        # Niente spostamento a cascata: lo decide il capocommessa approvando.
-        messages.info(request, f"Spostamento di «{task.title}» inviato al capocommessa: le date cambiano quando lo approva.")
-        return JsonResponse({"ok": True, "task_id": task.id, "richiesta": True})
-    task.save(update_fields=["next_step_due", "due_date", "updated_at"])
+        # Le date restano quelle di prima: la barra torna al suo posto e il messaggio
+        # a comparsa lo dice. Le successive si muovono solo quando il capocommessa approva.
+        testo = f"Spostamento di «{task.title}» inviato al capocommessa: le date cambiano quando lo approva."
+        messages.info(request, testo)
+        return JsonResponse({"ok": True, "task_id": task.id, "richiesta": True, "messaggio": testo})
+    spostate: list[Task] = []
+    cascade = str(request.POST.get("cascade", "1")).strip() != "0"
+    with transaction.atomic():
+        task.save(update_fields=["next_step_due", "due_date", "updated_at"])
+        # Spostando una barra seguono solo le attività che DIPENDONO da lei:
+        # le altre restano dove sono, anche se si sovrappongono.
+        if cascade:
+            spostate = propaga_dipendenze(project, task)
     _log_task_update_events(task, request.user, before)
 
     if trattenuta:
@@ -631,15 +671,9 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             f"«{task.title}» non può partire prima: dipende da un'altra attività (vedi «dopo …» sulla riga).",
         )
 
-    # Spostando una barra seguono solo le attività che DIPENDONO da lei:
-    # le altre restano dove sono, anche se si sovrappongono.
-    cascade = str(request.POST.get("cascade", "1")).strip() != "0"
-    cascade_count = 0
-    if cascade and mode in {"shift", "resize_end", "resize_start"}:
-        spostate = propaga_dipendenze(project, task)
-        cascade_count = len(spostate)
-        if spostate:
-            messages.info(request, _testo_spostate(spostate))
+    cascade_count = len(spostate)
+    if spostate:
+        messages.info(request, testo_spostate(spostate))
 
     conflict_messages: list[str] = []
     conflicts = _task_date_absence_conflicts(task)
@@ -668,5 +702,61 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             "next_step_due_display": task.next_step_due.strftime("%d-%m-%Y") if task.next_step_due else "",
             "due_date_display": task.due_date.strftime("%d-%m-%Y") if task.due_date else "",
             "absence_conflicts": conflict_messages,
+            # Il diagramma si aggiorna sul posto: niente ricarica della pagina.
+            **_piano_json(request, project, [task.id, *[t.id for t in spostate]], cascata_ids={t.id for t in spostate}),
         }
     )
+
+
+def _tasks_del_piano(project) -> list[Task]:
+    return ordina_piano(
+        Task.objects.filter(project=project)
+        .select_related("created_by", "assigned_to", "project", "project__similar_project")
+        .prefetch_related("subscribers", Project.team_prefetch("project__"))
+    )
+
+
+def _piano_json(request, project, cambiate_ids, *, cascata_ids=()) -> dict:
+    """Stato del diagramma dopo uno spostamento, per aggiornarlo senza ricaricare.
+
+    ``attivita``: quelle cambiate (la mossa e le spostate a cascata) con date e posizione.
+    ``righe``: tutte le righe con la parte che dipende dalle date (anche «insieme a»,
+    assenze e scostamento dalla baseline, che cambiano su righe non toccate).
+    ``finestra``: periodo mostrato; se è diverso da quello in pagina lo script rilegge il diagramma.
+    """
+    piano = _stato_piano(request, project, _tasks_del_piano(project), _parse_gantt_options(request))
+    meta, riepilogo = piano["gantt_meta"], piano["project_summary"]
+    righe, attivita = [], []
+    for row in meta["rows"]:
+        t = row["task"]
+        righe.append({
+            "id": t.id,
+            "start_index": row["start_index"],
+            "span": row["span"],
+            "inizio": t.next_step_due.isoformat() if t.next_step_due else "",
+            "fine": t.due_date.isoformat() if t.due_date else "",
+            "scaduta": bool(t.is_overdue),
+            "date_invertite": bool(row["invalid_range"]),
+            "titolo": f"{t.title} · {row['start']:%d/%m/%Y} -> {row['end']:%d/%m/%Y} · {t.progress}%",
+            "meta_html": render_to_string("tasks/_gantt_riga_meta.html", {"row": row}),
+        })
+        if t.id in cambiate_ids:
+            attivita.append({
+                "id": t.id,
+                "titolo": t.title,
+                "inizio": righe[-1]["inizio"],
+                "fine": righe[-1]["fine"],
+                "start_index": row["start_index"],
+                "span": row["span"],
+                "cascata": t.id in cascata_ids,
+            })
+    return {
+        "attivita": attivita,
+        "righe": righe,
+        "finestra": {"inizio": meta["timeline_start"].isoformat(), "giorni": len(meta["days"])},
+        "numeri": {
+            "scadute": riepilogo["overdue_tasks"],
+            "in_7_giorni": riepilogo["due_next_7d_tasks"],
+            "da_controllare": riepilogo["absence_conflict_tasks"] + riepilogo["invalid_range_tasks"],
+        },
+    }

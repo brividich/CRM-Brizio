@@ -1,0 +1,11 @@
+{% comment %}Anteprima per chi decide uno spostamento: le successive collegate che si muoveranno approvando con le date chieste.{% endcomment %}
+{% if cascata %}
+<div class="sp-cascata">
+  <strong>Approvando si spostano in avanti anche:</strong>
+  <ul>
+    {% for r in cascata %}
+      <li><a href="{% url 'tasks:detail' r.task.id %}">{{ r.task.title }}</a> <span class="sp-cascata-gg">+{{ r.giorni }} g{{ r.giorni|pluralize:"iorno,iorni" }}</span> · {{ r.inizio_prima|date:"d/m" }}–{{ r.fine_prima|date:"d/m" }} → <strong>{{ r.inizio_nuovo|date:"d/m" }}–{{ r.fine_nuovo|date:"d/m" }}</strong></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}

@@ -210,3 +210,7 @@ Incontri «da gestire»: le tre categorie si leggono intere, il totale (badge) n
 ## Avvisi a chi chiede e a chi gestisce (18/11/2026)
 
 - Spostamento date: esito anche per mail al richiedente (`decidi`); ritiro → campanella e mail agli approvatori (`avvisa_ritiro`). Tipo `kickoff_spostamento`.
+
+## Gantt fluido e cascata all'approvazione (22/11/2026)
+
+- Approvare uno spostamento (`spostamenti.decidi`) sposta in avanti le successive collegate con `propaga_dipendenze`, nella stessa transazione; `anteprima_cascata` calcola senza salvare e si vede in «Richiesta di spostamento» (scheda attività) e «Spostamenti da decidere». Gantt: `project_gantt_shift_task` risponde in JSON con `attivita`, `righe`, `finestra`, `numeri` e lo script aggiorna sul posto (Pointer Events, anteprima delle barre collegate, toast `hubFlash`); l'incaricato senza permesso di modifica trascina la sua barra e nasce la richiesta. Nessun URL nuovo, nessuna migrazione.

@@ -5165,3 +5165,38 @@ form.is-modificata .tpl-summary-nome::after { content: " •"; color: var(--warn
 .ts-hero--commessa ~ .ts-kpis .ts-kpi-note { grid-column: 2; grid-row: 2; margin: 0; line-height: 1.25; }
 .ts-hero--commessa ~ .ts-kpis .ts-kpi-bar { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; }
 .ts-hero--commessa ~ .g-vrf-banner, .ts-hero--commessa ~ * .g-vrf-banner { padding-top: 6px; padding-bottom: 6px; }
+
+/* ── Gantt fluido (blocco 4) ── */
+/* Trascinamento con mouse, dito o penna: la barra tiene il gesto, la pagina non scorre. */
+.ts-gantt-cm .grow.gbody[data-shift-url] .gbar { touch-action: none; -webkit-user-select: none; user-select: none; }
+body.g-trascina { -webkit-user-select: none; user-select: none; cursor: grabbing; }
+.ts-gantt-cm .gbar.is-anteprima { outline: 2px dashed var(--accent); outline-offset: 1px; opacity: .85; }
+.ts-gantt-cm .gbar.is-salvando { opacity: .7; }
+.ts-gantt-cm .gbar.is-spostata { animation: g-spostata 1.4s ease-out; }
+@keyframes g-spostata {
+  0% { outline: 3px solid var(--accent); outline-offset: 2px; }
+  100% { outline: 3px solid transparent; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { .ts-gantt-cm .gbar.is-spostata { animation: none; } }
+/* Anteprima per chi decide uno spostamento: le successive che si muoveranno. */
+.sp-cascata { margin: 4px 0; padding: 6px 10px; border-left: 3px solid var(--accent); border-radius: 6px; background: var(--surface-alt, var(--surface)); font-size: 12px; color: var(--text); }
+.sp-cascata ul { margin: 2px 0 0; padding-left: 18px; }
+.sp-cascata li { margin: 1px 0; }
+.sp-cascata-gg { font-weight: 800; color: var(--accent); }
+/* Telefono: la pagina non scorre di lato; scorre solo il diagramma nel suo contenitore. */
+.gantt-page { grid-template-columns: minmax(0, 1fr); }
+.gantt-page > *, .gantt-page .ts-panel-body > * { min-width: 0; max-width: 100%; }
+.gantt-page .ts-gantt-cm .gscroll { max-width: 100%; overscroll-behavior-x: contain; }
+@media (max-width: 640px) {
+  .gantt-page .g-quick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .gantt-page .g-quick > .ts-field:nth-of-type(2), .gantt-page .g-quick > .btn { grid-column: 1 / -1; }
+  .gantt-page .g-quick .input { min-width: 0; width: 100%; }
+  .gantt-page .g-vrf-banner { flex-wrap: wrap; }
+  .gantt-page .g-vrf-banner .g-vrf-text { flex: 1 1 200px; min-width: 0; }
+  .gantt-page .g-bar-end { margin-left: 0; }
+  .gantt-page .ts-gantt-cm .gmac { min-width: 150px; max-width: 150px; padding: 6px 8px; }
+}
+/* Le righe sono larghe quanto il periodo: la colonna dei nomi resta ferma anche scorrendo fino in fondo. */
+.ts-gantt-cm .gscroll > .grow { width: max-content; min-width: 100%; }
+.ts-gantt-cm .grow.gbody[data-shift-url] .gbar { cursor: grab; }
+@media (pointer: coarse) { .ts-gantt-cm .ghandle { width: 14px; } }
