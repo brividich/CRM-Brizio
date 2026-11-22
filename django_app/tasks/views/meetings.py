@@ -689,7 +689,7 @@ def project_meeting_create(request, project_id: int):
         request,
         "tasks/project_meeting_form.html",
         {
-            **_tasks_shell_context(request, active="meetings", project=project, testata=False),
+            **_tasks_shell_context(request, active="meetings", project=project, pagina="nuovo"),
             "page_title": f"Nuovo incontro - {project.name}",
             "project": project,
             "form": form,
@@ -743,7 +743,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
         request,
         "tasks/project_meeting_detail.html",
         {
-            **_tasks_shell_context(request, active="meetings", project=project),
+            **_tasks_shell_context(request, active="meetings", project=project, incontro=meeting),
             "page_title": f"Incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,
@@ -848,7 +848,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
         request,
         "tasks/project_meeting_form.html",
         {
-            **_tasks_shell_context(request, active="meetings", project=project, testata=False),
+            **_tasks_shell_context(request, active="meetings", project=project, incontro=meeting, pagina="convocazione"),
             "page_title": f"Modifica incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,
@@ -972,7 +972,7 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
         request,
         "tasks/project_meeting_minutes.html",
         {
-            **_tasks_shell_context(request, active="meetings", project=project, testata=False),
+            **_tasks_shell_context(request, active="meetings", project=project, incontro=meeting, pagina="esito"),
             "page_title": f"Esito incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,
@@ -1557,7 +1557,7 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
         request,
         "tasks/project_meeting_run.html",
         {
-            **_tasks_shell_context(request, active="meetings", project=project, testata=False),
+            **_tasks_shell_context(request, active="meetings", project=project, incontro=meeting, pagina="conduzione"),
             "page_title": f"Conduci incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,

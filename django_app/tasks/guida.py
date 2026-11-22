@@ -51,7 +51,7 @@ SEZIONI: list[dict] = [
                 "Si apre la convocazione dell'incontro 1: data, luogo, partecipanti e ordine del giorno. Salva e premi «Invia convocazione».",
                 "Compila la scheda VRF dalla sezione «Documenti» della commessa (vista «VRF»), oppure carica il file Excel del modulo.",
                 "Scrivi il piano nella sezione «Piano», vista «Gantt», con la riga rapida sopra il diagramma.",
-                "Il giorno dell'incontro usa «Conduci incontro»; alla fine registra l'esito, invia la minuta e approvala.",
+                "Il giorno dell'incontro premi «Inizia l'incontro» (o la fase «Durante»); alla fine «Termina l'incontro», registra l'esito, approva la minuta e inviala.",
                 "Quando il semaforo di prontezza è verde («Pronto»), porta la commessa «In esecuzione».",
                 "Durante il lavoro aggiorna le attività e tieni i successivi incontri: problemi e attività d'incontro aperti tornano da soli nell'ordine del giorno.",
                 "A lavoro finito porta la commessa in «Completata».",
@@ -152,7 +152,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Dentro una commessa la parte alta della pagina è sempre la stessa: nome, cliente, P/N e revisione, la fase, la data di consegna (con «a rischio» se un'attività aperta finisce dopo) e i comandi."),
             ("def", [
-                ("Pulsante arancione", "una sola azione, quella che serve adesso: «Conduci incontro n. …» se c'è un incontro oggi, «Compila la VRF» se manca, altrimenti il prossimo incontro pianificato o «Nuovo incontro»."),
+                ("Pulsante arancione", "una sola azione, quella che serve adesso: «Conduci incontro n. …» se c'è un incontro oggi, «Compila la VRF» se manca, altrimenti il prossimo incontro pianificato o «Nuovo incontro». Dentro un incontro segue la sua fase: «Inizia l'incontro», «Termina l'incontro», «Approva la minuta», «Invia la minuta», «Pianifica il prossimo incontro»."),
                 ("+ Attività", "apre il form nel pannello laterale; al salvataggio resti nella pagina."),
                 ("Altro", "«Nuovo incontro», «Pianifica più attività», «Modifica kickoff», «Copia kickoff con la VRF», «Copia senza P/N», «Calendario incontri», «Tutti i kickoff». Ogni voce compare solo a chi può usarla."),
             ]),
@@ -483,14 +483,19 @@ SEZIONI: list[dict] = [
         "titolo": "Il dettaglio dell'incontro",
         "blocchi": [
             ("p", "È la pagina di riferimento di un incontro: da qui parte tutto il resto."),
-            ("p", "In testa a convocazione, conduzione, esito e dettaglio c'è la barra delle fasi: Convocazione, Conduzione, Esito, Minuta. "
-                  "La spunta verde dice che la fase è fatta, sotto c'è lo stato («Da inviare», «Oggi», «Registrato», «Da approvare»...); un clic porta alla fase."),
+            ("p", "L'incontro è una cosa sola che cambia stato. In testa a tutte le sue pagine ci sono la testata della commessa, la barra delle tre fasi e la stessa intestazione (numero, titolo, data, sala, stato)."),
+            ("def", [
+                ("Prima", "ordine del giorno, convocati e convocazione. Sotto dice «Convocazione da inviare» o «Convocazione inviata»."),
+                ("Durante", "la conduzione: un punto alla volta e il registro dell'incontro. Il giorno dell'incontro dice «Oggi»."),
+                ("Dopo", "esito e minuta: «Minuta da approvare», «Minuta approvata», «Minuta inviata». Finché l'incontro non è svolto apre la pagina dell'esito, poi la scheda con la minuta."),
+            ]),
+            ("p", "La spunta verde dice che la fase è fatta; un clic porta alla fase. Il pulsante arancione della testata fa il passo successivo."),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
             ("def", [
-                ("In alto", "«Conduci incontro», «Registra esito», «Modifica incontro» (data, ora, sala, partecipanti, ordine del giorno), «Annulla incontro», «Elimina»."),
+                ("Nell'intestazione", "«Modifica incontro» (data, ora, sala, partecipanti, ordine del giorno), «Annulla incontro», «Elimina»; a incontro svolto «Aggiorna esito» e «Pianifica prossimo incontro»."),
                 ("Percorso, attività e programmi della commessa", "riquadro chiuso: si apre con un clic e contiene il Percorso del kickoff, «Attività di questo incontro» e «Codici, cartelle e schede FAI»."),
                 ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
-                ("Documenti", "«Invia convocazione», «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta»."),
+                ("Convocazione / Minuta", "prima dell'incontro la riga «Convocazione» con l'invito Outlook e la mail con l'ordine del giorno; a incontro svolto la riga «Minuta» con «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta». Il comando che è già nel pulsante arancione non si ripete."),
                 ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
                 ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'attività d'incontro c'è il loro stato; sotto ogni punto, i problemi, le attività d'incontro e le decisioni nati lì."),
                 ("Problemi trovati, Decisioni, Attività d'incontro", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata."),
@@ -518,7 +523,7 @@ SEZIONI: list[dict] = [
         "id": "conduzione",
         "titolo": "Condurre l'incontro",
         "blocchi": [
-            ("p", "«Conduci incontro» apre la schermata da usare durante la riunione, un punto alla volta. In alto il tempo pianificato, il trascorso e i punti trattati."),
+            ("p", "«Inizia l'incontro» (o la fase «Durante») apre la schermata da usare durante la riunione, un punto alla volta. In alto i punti trattati."),
             ("passi", [
                 "Presenti: apri «Presenti 0 su N» e spunta chi c'è. Il dato si salva subito e vale anche per l'esito e la minuta.",
                 "Su ogni punto scrivi la nota: si salva da sola. Il punto su cui scrivi o clicchi diventa il punto in discussione (bordo azzurro).",
@@ -528,7 +533,7 @@ SEZIONI: list[dict] = [
                 "Quello che emerge mentre si parla va nel «Registro dell'incontro», a destra (sugli schermi stretti sopra i punti): scegli Problema, Attività d'incontro, Decisione o Attività del piano, controlla il punto (è quello in discussione, oppure «Nessun punto in particolare»), scrivi e premi Invio.",
                 "Più rapido dal punto: «+ Problema», «+ Attività d'incontro», «+ Decisione» in fondo alla scheda del punto preparano il registro per quel punto.",
                 "Ogni voce registrata compare sotto il suo punto e nel registro, divisa in «Problemi trovati», «Attività d'incontro», «Decisioni» e «Attività del piano create»; problemi e attività d'incontro si chiudono da lì con «Risolto» o «Fatta».",
-                "A fine riunione premi «Termina e registra l'esito».",
+                "A fine riunione premi «Termina l'incontro»: si apre l'esito.",
             ]),
             ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e il registro dell'incontro")),
             ("ul", [
@@ -544,7 +549,7 @@ SEZIONI: list[dict] = [
         "titolo": "Registrare l'esito e la minuta",
         "blocchi": [
             ("passi", [
-                "Dal dettaglio premi «Registra esito».",
+                "Apri la fase «Dopo» (o «Termina l'incontro» dalla conduzione).",
                 "Presenze: togli la spunta a chi non si è presentato; aggiungi chi c'era e non era convocato.",
                 "Ordine del giorno e verbale: spunta i punti trattati e scrivi cosa è emerso. Spunte e note si salvano subito.",
                 "Problemi trovati: spunta «risolto» su quelli chiusi e aggiungi i nuovi con «Aggiungi problema». Quelli registrati in conduzione sono già qui.",
@@ -552,7 +557,7 @@ SEZIONI: list[dict] = [
                 "Attività: spunta quelle completate e aggiungi le nuove con «Aggiungi attività»: chi fa cosa entro quando.",
                 "Problemi, decisioni e attività nuovi hanno il menu del punto («Nessun punto in particolare» o «Punto N. …»): così compaiono sotto quel punto nel dettaglio e nella minuta.",
                 "Premi «Registra esito» in fondo: l'incontro passa a «Svolto».",
-                "Nel dettaglio premi «Invia minuta», controlla e poi «Approva e chiudi minuta».",
+                "Nella scheda, ora in fase «Dopo», premi «Approva la minuta» e poi «Invia la minuta» (il pulsante arancione cambia da solo); nella riga «Minuta» ci sono anche il PDF e l'invio prima dell'approvazione.",
             ]),
             ("img", (_IMG + "esito.jpg", "La pagina esito")),
             ("ul", [

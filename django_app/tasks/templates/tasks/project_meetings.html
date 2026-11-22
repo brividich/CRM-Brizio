@@ -10,9 +10,9 @@ testo scuro su fondo scuro.
 
 {% block tasks_shell_pagebar %}
 <div class="tk-pagebar">
-  <span class="ts-chip">{{ meetings|length }} incontr{{ meetings|length|pluralize:"o,i" }}</span>
-  {% if first_meeting_date %}<span class="ts-chip">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
-  {% if next_meeting %}<span class="ts-chip">Prossimo {{ next_meeting.data|date:"d/m/Y" }}</span>{% endif %}
+  <span class="ts-chip info">{{ meetings|length }} incontr{{ meetings|length|pluralize:"o,i" }}</span>
+  {% if first_meeting_date %}<span class="ts-chip info">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
+  {% if next_meeting %}<span class="ts-chip info">Prossimo {{ next_meeting.data|date:"d/m/Y" }}</span>{% endif %}
   {% if open_issue_count %}<span class="ts-chip danger">{{ open_issue_count }} problem{{ open_issue_count|pluralize:"a,i" }} apert{{ open_issue_count|pluralize:"o,i" }}</span>{% endif %}
   {% if can_manage %}<a class="btn btn-sm tk-pagebar-fine" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>{% endif %}
 </div>

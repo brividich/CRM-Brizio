@@ -5,52 +5,13 @@
 {% block tasks_shell_content %}
 {% include "tasks/_meeting_fasi.html" %}
 <div style="padding: 0 4px;">
-  <div class="md-nav">
-    <a href="{% url 'tasks:project_meetings' project.id %}">&larr; Tutti gli incontri</a>
-    <span class="sep">|</span>
-    <a href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
-  </div>
-
   <div class="md-hero">
-    <div class="md-hero-num">{{ meeting.numero }}</div>
-    <div class="md-hero-body">
-      <h2>{% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}</h2>
-      <div class="md-meta">
-        <span class="md-meta-item">
-          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
-          {{ meeting.data|date:"d-m-Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}
-        </span>
-        {% if meeting.luogo %}
-          <span class="md-meta-item">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-            {{ meeting.luogo }}
-          </span>
-        {% endif %}
-        {% if meeting.sala and meeting.sala.email and not meeting.is_annullato %}
-          <span class="md-meta-item" data-sala-stato
-                data-url="{% url 'tasks:sala_verifica' project.id meeting.id %}">
-            <span class="ts-chip {{ sala_stato.1 }}" data-sala-chip>{{ sala_stato.0 }}</span>
-            {% if can_manage and meeting.outlook_event_id %}<button type="button" class="md-link-btn" data-sala-verifica>Verifica</button>{% endif %}
-          </span>
-        {% endif %}
-        <span class="md-meta-item">
-          <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
-        </span>
-        {% if meeting.created_by %}
-          <span class="md-meta-item">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
-            {{ meeting.created_by.get_full_name|default:meeting.created_by.username }}
-          </span>
-        {% endif %}
-      </div>
-    </div>
+    {% include "tasks/_meeting_testa.html" %}
     {% if can_manage or can_edit_after_end and meeting.minuta_chiusa %}
       <div class="md-actions">
         {% if not meeting.minuta_chiusa and not meeting.is_annullato %}
-          {% if not meeting.is_svolto %}
-            <a class="md-btn" href="{% url 'tasks:project_meeting_run' project.id meeting.id %}">Conduci incontro</a>
-          {% endif %}
-          <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
+          {# Condurre e registrare l'esito stanno nella barra delle fasi e nel pulsante della testata. #}
+          {% if meeting.is_svolto %}<a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Aggiorna esito</a>{% endif %}
         {% endif %}
         {% if meeting.is_svolto %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
@@ -130,7 +91,7 @@
   {% endif %}
 
   <div class="md-docbar" id="documenti">
-    <span class="md-docbar-label">Documenti</span>
+    <span class="md-docbar-label">{% if meeting.stato == "PIANIFICATO" %}Convocazione{% else %}Minuta{% endif %}</span>
     {% if can_manage %}
       {% if meeting.stato == "PIANIFICATO" %}
       {% if outlook_pronto %}
@@ -146,7 +107,8 @@
         <button type="submit" class="md-btn white">{% if meeting.outlook_event_id %}Mail con l'ordine del giorno{% elif meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione per mail{% endif %}</button>
       </form>
       {% endif %}
-      {% if not meeting.is_annullato %}
+      {# Quando è il pulsante della testata non si ripete qui. #}
+      {% if meeting.is_svolto and tasks_shell_testata.primaria.label != "Invia la minuta" %}
       <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
             data-hub-confirm="Inviare la minuta dell'incontro a tutti i partecipanti?">
         {% csrf_token %}
@@ -154,7 +116,7 @@
       </form>
       {% endif %}
     {% endif %}
-    <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
+    {% if meeting.stato != "PIANIFICATO" %}<a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>{% endif %}
     {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
     {% if can_manage or can_edit_after_end %}{% if meeting.is_svolto %}
       {% if meeting.minuta_chiusa %}{% if can_edit_after_end %}
@@ -170,11 +132,13 @@
           </span>
         </form>
       {% endif %}{% else %}
+        {% if tasks_shell_testata.primaria.label != "Approva la minuta" %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_close' project.id meeting.id %}"
               data-hub-confirm="Approvare e chiudere la minuta? L'esito non sarà più modificabile senza riaprirla.">
           {% csrf_token %}
           <button type="submit" class="md-btn white">Approva e chiudi minuta</button>
         </form>
+        {% endif %}
       {% endif %}
     {% endif %}{% endif %}
     {% if meeting.minuta_da_reinviare %}
@@ -186,9 +150,6 @@
       <span class="md-minute-locked">
         Minuta approvata il {{ meeting.minuta_chiusa_at|date:"d-m-Y H:i" }}{% if meeting.minuta_chiusa_da %} da {{ meeting.minuta_chiusa_da.get_full_name|default:meeting.minuta_chiusa_da.username }}{% endif %}{% if meeting.minuta_riaperture %} · {{ meeting.minuta_riaperture }} riapertur{{ meeting.minuta_riaperture|pluralize:"a,e" }}{% endif %}
       </span>
-    {% endif %}
-    {% if not meeting.is_svolto and not meeting.is_annullato %}
-      <p class="md-docbar-hint">L'incontro non è ancora registrato come svolto: la minuta conterrà solo la convocazione.</p>
     {% endif %}
   </div>
 
