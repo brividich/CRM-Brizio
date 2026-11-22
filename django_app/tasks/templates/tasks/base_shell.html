@@ -4,7 +4,7 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261122f">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261122g">
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
@@ -78,8 +78,13 @@
     {% include "tasks/_project_tabs.html" with project=tasks_shell_project active=tasks_shell_active sezione=tasks_shell_sezione %}
   {% endif %}
   {% block tasks_shell_tabs_extra %}{% endblock %}
-  {# Pillole e comandi propri della pagina, sotto le tab: la testata resta uguale ovunque. #}
-  {% if tasks_shell_testata %}{% block tasks_shell_pagebar %}{% endblock %}{% endif %}
+  {# Una riga sola sotto le tab: a sinistra le viste della sezione, a destra pillole e comandi della pagina. #}
+  {% if tasks_shell_project %}
+  <div class="tk-riga">
+    {% include "tasks/_project_viste.html" with project=tasks_shell_project active=tasks_shell_active sezione=tasks_shell_sezione %}
+    {% if tasks_shell_testata %}{% block tasks_shell_pagebar %}{% endblock %}{% endif %}
+  </div>
+  {% endif %}
 
 
   {% block tasks_shell_kpis %}{% endblock %}
