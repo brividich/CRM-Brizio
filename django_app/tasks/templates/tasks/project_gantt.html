@@ -127,7 +127,7 @@ body.tk-wide .content sta in tasks.css.
         {% csrf_token %}
         <div class="ts-field g-quick-title">
           <label for="quick_title">{% if project_summary.total_tasks %}Aggiungi attività{% else %}Prima attività del piano{% endif %}</label>
-          <input id="quick_title" class="input" type="text" name="title" maxlength="200" required placeholder="Titolo dell'attività">
+          <input id="quick_title" class="input" type="text" name="title" maxlength="200" required list="cat-attivita" autocomplete="off" placeholder="Titolo dell'attività">{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}
         </div>
         <div class="ts-field">
           <label for="quick_user">Responsabile</label>

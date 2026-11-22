@@ -313,7 +313,7 @@ SEZIONI: list[dict] = [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
                 ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto. «Apri» sull'attività collegata e «Form completo» aprono scheda e form nel pannello laterale: si resta in riunione, i salvataggi restano nel pannello e «Pagina intera» porta alla pagina normale. Su una tappa «da assegnare» che in questa riunione non si discute, «Elimina» (due clic) la toglie dall'ordine del giorno; la tappa resta nel percorso."),
-                ("Form completo", "«+ Attività» nella testata della commessa, da qualunque sezione: si apre nel pannello laterale, senza lasciare la pagina. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
+                ("Form completo", "«+ Attività» nella testata della commessa, da qualunque sezione: si apre nel pannello laterale, senza lasciare la pagina. Scrivendo in «Cosa va fatto» compaiono le attività già usate (del piano, nate negli incontri e i tipi di attività). A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
@@ -503,7 +503,7 @@ SEZIONI: list[dict] = [
                 ("Dagli incontri precedenti", "i problemi ancora aperti e le attività d'incontro ancora aperte della commessa nati in altri incontri, con l'incontro d'origine, il responsabile e la scadenza. «Aggiungi all'ordine del giorno» crea il punto con un clic («Problema aperto: …», «Attività aperta: …») e la voce esce dal riquadro: niente doppioni. Se togli il punto, la voce torna qui. Dal punto il problema o l'attività si chiudono con «Risolto» o «Fatta». Il riquadro non compare se non c'è niente da portare."),
                 ("Nell'intestazione", "prima dell'incontro «Annulla incontro» ed «Elimina»; a incontro svolto «Aggiorna esito», «Pianifica prossimo incontro» e «Modifica incontro» (o «Correggi ordine del giorno» a minuta approvata)."),
                 ("Percorso, attività e programmi della commessa", "riquadro chiuso: si apre con un clic e contiene il Percorso del kickoff, «Attività di questo incontro» e «Codici, cartelle e schede FAI»."),
-                ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
+                ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo e priorità, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
                 ("Minuta", "a incontro svolto la riga «Minuta» con «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta». Il comando che è già nel pulsante arancione non si ripete."),
                 ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti. Prima dell'incontro stanno nel riquadro «Convocazione»."),
                 ("Ordine del giorno e verbale", "a incontro svolto: i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'attività d'incontro c'è il loro stato; sotto ogni punto, i problemi, le attività d'incontro e le decisioni nati lì."),
@@ -511,7 +511,7 @@ SEZIONI: list[dict] = [
                 ("Modifiche", "in fondo, riquadro chiuso: convocazione ed esito modificati, minuta approvata o riaperta, annullamento, con chi, quando, «prima → dopo» e il motivo."),
                 ("Due persone sullo stesso incontro", "se mentre modifichi la convocazione o l'esito qualcun altro salva (anche una nota in «Conduci incontro»), il salvataggio si ferma e chiede se ricaricare o salvare comunque: le note prese in riunione non si perdono più."),
             ]),
-            ("img", (_IMG + "incontro_opzioni.jpg", "«Più opzioni» aperto sotto la riga: tipo, priorità, attrezzatura")),
+            ("img", (_IMG + "incontro_opzioni.jpg", "«Più opzioni» aperto sotto la riga: tipo e priorità")),
         ],
     },
     {

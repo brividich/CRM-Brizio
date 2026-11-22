@@ -378,7 +378,10 @@ class DagliIncontriPrecedentiTests(IncontroPrimaBase):
         self.assertEqual(r.status_code, 404)
 
     def test_la_scheda_prima_non_ripete_sotto_le_attivita_degli_altri_incontri(self):
-        html = self.scheda().content.decode()
+        import re
+
+        # I suggerimenti dei campi di testo (datalist) non sono righe della scheda.
+        html = re.sub(r"<datalist.*?</datalist>", "", self.scheda().content.decode(), flags=re.S)
         self.assertEqual(html.count("Chiedere il disegno aggiornato"), 1)
 
     def test_chi_non_gestisce_vede_il_riquadro_senza_pulsante(self):
