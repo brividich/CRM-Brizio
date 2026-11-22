@@ -49,8 +49,8 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Crea la commessa con «+ Nuovo kickoff»: cliente, P/N e team. Nasce da sola l'incontro 1.",
                 "Si apre la convocazione dell'incontro 1: data, luogo, partecipanti e ordine del giorno. Salva e premi «Invia convocazione».",
-                "Compila la scheda VRF dalla scheda «VRF» della commessa, oppure carica il file Excel del modulo.",
-                "Scrivi il piano nella scheda «Piano», con la riga rapida sopra il Gantt.",
+                "Compila la scheda VRF dalla sezione «Documenti» della commessa (vista «VRF»), oppure carica il file Excel del modulo.",
+                "Scrivi il piano nella sezione «Piano», vista «Gantt», con la riga rapida sopra il diagramma.",
                 "Il giorno dell'incontro usa «Conduci incontro»; alla fine registra l'esito, invia la minuta e approvala.",
                 "Quando il semaforo di prontezza è verde («Pronto»), porta la commessa «In esecuzione».",
                 "Durante il lavoro aggiorna le attività e tieni i successivi incontri: problemi e attività d'incontro aperti tornano da soli nell'ordine del giorno.",
@@ -142,7 +142,26 @@ SEZIONI: list[dict] = [
                 "«Aspetta la minuta» è disponibile solo con un incontro.",
                 "Un'attività senza responsabile non avvisa nessuno: si assegna in riunione o dalla scheda.",
                 "Persone in copia, partecipanti esterni e invito Outlook si completano da «Modifica incontro».",
-                "«Decido dopo» porta alla Panoramica senza salvare; la pagina si riapre all'indirizzo /tasks/projects/<id>/come-procedi/. Per aggiungere attività a un kickoff già avviato c'è anche «+ Pianifica attività» nella Panoramica.",
+                "«Decido dopo» porta alla Panoramica senza salvare; la pagina si riapre all'indirizzo /tasks/projects/<id>/come-procedi/. Per aggiungere attività a un kickoff già avviato c'è «Pianifica più attività» nel menu «Altro» della commessa.",
+            ]),
+        ],
+    },
+    {
+        "id": "testata-commessa",
+        "titolo": "La commessa: testata e sezioni",
+        "blocchi": [
+            ("p", "Dentro una commessa la parte alta della pagina è sempre la stessa: nome, cliente, P/N e revisione, la fase, la data di consegna (con «a rischio» se un'attività aperta finisce dopo) e i comandi."),
+            ("def", [
+                ("Pulsante arancione", "una sola azione, quella che serve adesso: «Conduci incontro n. …» se c'è un incontro oggi, «Compila la VRF» se manca, altrimenti il prossimo incontro pianificato o «Nuovo incontro»."),
+                ("+ Attività", "apre il form nel pannello laterale; al salvataggio resti nella pagina."),
+                ("Altro", "«Nuovo incontro», «Pianifica più attività», «Modifica kickoff», «Copia kickoff con la VRF», «Copia senza P/N», «Calendario incontri», «Tutti i kickoff». Ogni voce compare solo a chi può usarla."),
+            ]),
+            ("p", "Sotto la testata ci sono quattro sezioni, ognuna con le sue viste:"),
+            ("def", [
+                ("Panoramica", "team, prossimi passi, Percorso, prontezza e ultimi incontri."),
+                ("Piano", "«Elenco» (registro attività), «Gantt», «Board». Il numero accanto conta le voci aperte."),
+                ("Incontri", "«Incontri» e «Decisioni»."),
+                ("Documenti", "«VRF» e «Programmi e FAI»."),
             ]),
         ],
     },
@@ -166,7 +185,7 @@ SEZIONI: list[dict] = [
         "titolo": "Correggere dati e team",
         "blocchi": [
             ("passi", [
-                "Apri la commessa e premi «Modifica kickoff» (in Panoramica, nel Piano o nella scheda VRF). Il pulsante c'è se hai il permesso di modifica e gestisci la commessa.",
+                "Apri la commessa e premi «Altro» e poi «Modifica kickoff». La voce c'è se hai il permesso di modifica e gestisci la commessa.",
                 "Correggi i dati o il team.",
                 "Premi «Salva modifiche»: torni alla Panoramica.",
             ]),
@@ -206,11 +225,11 @@ SEZIONI: list[dict] = [
         "id": "vrf",
         "titolo": "La scheda VRF (MOD.073)",
         "blocchi": [
-            ("p", "La «Scheda valutazione rischi e fornitura» si apre dalla scheda «VRF» della commessa e si compila online; "
+            ("p", "La «Scheda valutazione rischi e fornitura» si apre dalla sezione «Documenti» della commessa (vista «VRF») e si compila online; "
                   "in alternativa «Carica file esistente» prende il file Excel del modulo, da cui il portale legge preventivo, "
                   "versione, P/N, descrizione, Esp. e cliente."),
             ("passi", [
-                "Apri la scheda «VRF» della commessa.",
+                "Apri la sezione «Documenti» della commessa: la vista «VRF» è la prima.",
                 "Per ognuno dei 9 rischi (R1-R9) apri «Checklist» se ti serve e scegli la Probabilità P: 1 Bassa, 2 Media, 3 Alta, oppure N/A se il rischio non riguarda la fornitura.",
                 "Guarda il Totale Rischio in fondo alla tabella: si aggiorna mentre scegli.",
                 "Scrivi le azioni correttive (fino a 4) e nome e data di IN1 e EM.",
@@ -247,7 +266,7 @@ SEZIONI: list[dict] = [
         "id": "piano",
         "titolo": "Il Piano e il Gantt",
         "blocchi": [
-            ("p", "La scheda «Piano» è il posto dove si scrive e si aggiorna il lavoro della commessa."),
+            ("p", "La sezione «Piano» è il posto dove si scrive e si aggiorna il lavoro della commessa. Ha tre viste: «Elenco» (il registro attività), «Gantt» e «Board»."),
             ("passi", [
                 "Nella riga sopra il Gantt scrivi il titolo dell'attività.",
                 "Scegli il responsabile (prima il team della commessa, poi gli altri), controlla «Inizio» e indica «Fine».",
@@ -290,7 +309,7 @@ SEZIONI: list[dict] = [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
                 ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto. «Apri» sull'attività collegata e «Form completo» aprono scheda e form nel pannello laterale: si resta in riunione, i salvataggi restano nel pannello e «Pagina intera» porta alla pagina normale. Su una tappa «da assegnare» che in questa riunione non si discute, «Elimina» (due clic) la toglie dall'ordine del giorno; la tappa resta nel percorso."),
-                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
+                ("Form completo", "«+ Attività» nella testata della commessa, da qualunque sezione: si apre nel pannello laterale, senza lasciare la pagina. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
@@ -341,7 +360,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Ogni programma CAM o CMM ha la sua fase: Da scrivere → In scrittura → Da provare in macchina → Validato. Un clic sul passo successivo («Inizia a scrivere», «Pronto da provare», «Validato in macchina»; «Da correggere» se la prova va male; «Nuova revisione» su un programma validato) dalla pagina «Programmi», dalla tabella della commessa o dalla scheda dell'attività. Scrivere il codice porta da solo a «In scrittura» con revisione A; «Nuova revisione» passa alla lettera successiva. La macchina viene presa dalla tappa Macchina del Percorso. «Validato» chiude l'attività collegata, una nuova revisione la riapre. Ogni passo resta nello storico del programma, visibile nella scheda dell'attività."),
             ("p", "La pagina «Programmi» ha i conteggi per fase (Da scrivere, In scrittura, Da provare, Validati, In ritardo) e i filtri per tipo (CAM, CMM) e macchina; l'esportazione CSV riporta anche revisione e macchina."),
-            ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
+            ("p", "La vista «Programmi e FAI» (sezione «Documenti» della commessa) raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
             ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
                   "Vale anche al contrario: una riga di «Programmi e FAI» con un responsabile, aggiunta dalla commessa o dentro l'incontro, crea da sola l'attività del tipo che la richiede (per esempio «Programmazione CAM»), con lo stesso responsabile e la stessa data. Chi la riceve ha la notifica e la mail, la trova in «Le mie attività KICK-OFF», nel Gantt e tra le «Attività di questo incontro»; la porta avanti con «Inizia» e «Fatta» dalla scheda dell'attività, dove scrive anche codice e cartella. Una riga senza responsabile resta una semplice riga finché non la assegni. "
@@ -595,7 +614,7 @@ SEZIONI: list[dict] = [
         "id": "registro-azioni",
         "titolo": "Registro attività della commessa",
         "blocchi": [
-            ("p", "Dalla scheda di commessa, «Attività» mostra in un solo elenco attività, sotto-attività e quanto deciso negli incontri (problemi e attività d'incontro)."),
+            ("p", "Nella commessa, la sezione «Piano» si apre sulla vista «Elenco»: mostra in un solo elenco attività, sotto-attività e quanto deciso negli incontri (problemi e attività d'incontro)."),
             ("ul", [
                 "«Linea del tempo»: una barra per attività con data, «oggi» e gli incontri; la barra apre l'attività, «Apri il Piano» porta al Piano completo.",
                 "Prima riga, «Aggiungi un'attività e premi Invio»: titolo, responsabile e scadenza facoltativi, «Aggiungi».",
@@ -613,7 +632,7 @@ SEZIONI: list[dict] = [
         "id": "decisioni",
         "titolo": "Registro decisioni",
         "blocchi": [
-            ("p", "Raccoglie tutte le decisioni della commessa, con motivazione, chi ha deciso e impatto (Basso, Medio, Alto). Si apre dal link «Registro di commessa» nel dettaglio di un incontro."),
+            ("p", "Raccoglie tutte le decisioni della commessa, con motivazione, chi ha deciso e impatto (Basso, Medio, Alto). Si apre dalla sezione «Incontri» della commessa, vista «Decisioni», o dal link «Registro di commessa» nel dettaglio di un incontro."),
             ("p", "Le decisioni si registrano nella pagina esito o nel Registro dell'incontro in conduzione, finiscono nella minuta e non si riscrivono: una decisione si supera con una nuova."),
         ],
     },

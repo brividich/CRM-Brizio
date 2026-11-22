@@ -8,36 +8,6 @@ body.tk-wide .content sta in tasks.css.
 {% endcomment %}
 {% block body_class %}{{ block.super }} tk-wide{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gantt</span>{% endblock %}
-{% block tasks_shell_title %}{{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}
-  Timeline {{ gantt_timeline_start|date:"d-m-Y" }} → {{ gantt_timeline_end|date:"d-m-Y" }} — {{ gantt_days|length }} giorni. Trascina le barre per spostare le date, clicca una riga per modificarla.
-{% endblock %}
-
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ tasks|length }} attività</span>
-  {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
-  {% if project.part_number %}<span class="ts-hero-pill">P/N {{ project.part_number }}{% if project.revisione %} Rev. {{ project.revisione }}{% endif %}</span>{% endif %}
-  {% if project.vrf_quote_number %}<span class="ts-hero-pill">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
-  {% if project.safety_impact %}<span class="ts-hero-pill" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.35);">Impatto sicurezza</span>{% endif %}
-  <span class="ts-hero-pill" style="{% if can_edit_schedule %}background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.35);{% endif %}">
-    {% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}
-  </span>
-{% endblock %}
-
-{% block tasks_shell_actions %}
-  {% if can_add_project_task %}
-    {% if vrf_detail.is_blocked %}
-      <span class="ts-hero-action" style="opacity:.4;cursor:not-allowed;pointer-events:none;">+ Attività completa</span>
-    {% else %}
-      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Attività completa</a>
-    {% endif %}
-  {% endif %}
-  {% if tasks_shell_can_edit_project %}<a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>{% endif %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}?project={{ project.id }}">Elenco attività</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio</a>
-{% endblock %}
-
 {% block tasks_shell_head %}
 {{ block.super }}
 <style>
@@ -109,6 +79,13 @@ body.tk-wide .content sta in tasks.css.
   </a>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block tasks_shell_pagebar %}
+<div class="tk-pagebar">
+  {% if project.vrf_quote_number %}<span class="ts-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
+  <span class="ts-chip{% if can_edit_schedule %} success{% endif %}">{% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}</span>
+</div>
 {% endblock %}
 
 {% block tasks_shell_content %}

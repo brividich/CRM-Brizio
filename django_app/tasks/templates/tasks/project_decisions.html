@@ -1,14 +1,6 @@
 {% extends "tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#decisioni{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Decisioni</span>{% endblock %}
-{% block tasks_shell_title %}Registro decisioni{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }} · cosa è stato deciso, da chi e in quale incontro.{% endblock %}
-
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
-{% endblock %}
-
 {% block tasks_shell_content %}
 <section class="ts-panel">
   <div class="ts-panel-body">

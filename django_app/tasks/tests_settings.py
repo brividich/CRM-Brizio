@@ -262,10 +262,13 @@ class TasksBaseTemplateTests(TestCase):
 
         html = render_to_string(
             "tasks/_project_tabs.html",
-            {"project": type("P", (), {"id": 7})(), "active": "gantt"},
+            {"project": type("P", (), {"id": 7})(), "active": "gantt", "sezione": "piano"},
         )
         assert "/tasks/projects/7/gantt/" in html
         assert "tk-tab--active" in html
+        # Il Gantt è una vista del Piano: tab «Piano» accesa, vista «Gantt» accesa.
+        assert html.count("tk-tab--active") == 1
+        assert 'class="tk-vista is-active" href="/tasks/projects/7/gantt/"' in html
 
 
 class TasksSubnavSeedTests(TestCase):

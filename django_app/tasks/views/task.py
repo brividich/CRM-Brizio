@@ -262,7 +262,11 @@ def task_list(request):
         request,
         "tasks/list.html",
         {
-            **_tasks_shell_context(request, active="dashboard"),
+            **_tasks_shell_context(
+                request,
+                active="board" if active_project else "dashboard",
+                project=active_project,
+            ),
             "page_title": "KICK-OFF",
             "meeting_alerts": meeting_alerts,
             "tasks": tasks,

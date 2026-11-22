@@ -4,41 +4,80 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261116">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261122">
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
 {% block content %}
 <div class="ts-shell{% block tasks_shell_shell_class %}{% endblock %}">
-  <section class="ts-hero">
+  {# Dentro una commessa la testata è unica (services/testata.py): dati del kickoff, una #}
+  {# azione primaria, «+ Attività» e «Altro». Titolo e pulsanti di pagina valgono solo fuori. #}
+  {% with t=tasks_shell_testata project=tasks_shell_project %}
+  <section class="ts-hero{% if t %} ts-hero--commessa{% endif %}">
     <div class="ts-hero-left">
       <div class="ts-hero-eyebrow-row">
-        {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF</span>{% endblock %}
+        {% if t %}<span class="ts-eyebrow">KICK-OFF</span>{% else %}{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF</span>{% endblock %}{% endif %}
         {% if tasks_shell_active != "guida" %}
           <a class="ts-guide-link" href="{% url 'tasks:guida' %}{% block tasks_shell_guide_anchor %}{% endblock %}" title="Come funziona il modulo KICK-OFF">? Guida</a>
         {% endif %}
       </div>
+      {% if t %}
+      <h1>{{ project.name }}</h1>
+      <div class="ts-hero-text">
+        {% if project.client_name %}{{ project.client_name }}{% endif %}
+        {% if project.part_number %}{% if project.client_name %} · {% endif %}P/N {{ project.part_number }}{% endif %}
+        {% if project.revisione %} · Rev. {{ project.revisione }}{% endif %}
+      </div>
+      <div class="ts-hero-meta">
+        <span class="ko-phase">{{ project.get_phase_display }}</span>
+        {% if t.consegna %}<span class="ts-hero-pill{% if t.consegna.a_rischio %} fl-rischio{% endif %}">Consegna {{ t.consegna.data|date:"d/m/Y" }}{% if t.consegna.giorni >= 0 %} · tra {{ t.consegna.giorni }} gg{% else %} · passata{% endif %}{% if t.consegna.a_rischio %} · a rischio{% endif %}</span>{% endif %}
+        {% if project.safety_impact %}<span class="ts-hero-pill fl-rischio">Impatto sicurezza</span>{% endif %}
+        {% if t.chiuso %}<span class="ts-hero-pill">Chiuso il {{ project.chiuso_il|date:"d/m/Y" }}</span>{% endif %}
+      </div>
+      {% else %}
       <h1>{% block tasks_shell_title %}{{ page_title|default:"KICK-OFF" }}{% endblock %}</h1>
       <div class="ts-hero-text">{% block tasks_shell_subtitle %}{% endblock %}</div>
       <div class="ts-hero-meta">{% block tasks_shell_meta %}{% endblock %}</div>
+      {% endif %}
     </div>
     <div class="ts-hero-right">
+      {% if t %}
+        {% if t.primaria %}<a class="ts-hero-action primary" href="{{ t.primaria.url }}">{{ t.primaria.label }}</a>{% endif %}
+        {% if t.nuova_attivita_url %}<a class="ts-hero-action" href="{{ t.nuova_attivita_url }}" data-preview="{{ t.nuova_attivita_url }}">+ Attività</a>{% endif %}
+        <details class="tk-altro">
+          <summary class="ts-hero-action">Altro</summary>
+          <div class="tk-altro-menu">
+            {% if t.nuovo_incontro_url %}<a href="{{ t.nuovo_incontro_url }}">Nuovo incontro</a>{% endif %}
+            {% if t.nuova_attivita_url %}<a href="{% url 'tasks:project_attivita_pianifica' project.id %}">Pianifica più attività</a>{% endif %}
+            {% if tasks_shell_can_edit_project %}<a href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>{% endif %}
+            {% if t.puo_copiare %}
+              <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}">{% csrf_token %}<button type="submit">Copia kickoff con la VRF</button></form>
+              <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}">{% csrf_token %}<button type="submit">Copia senza P/N</button></form>
+            {% endif %}
+            <a href="{% url 'tasks:incontri_calendario' %}">Calendario incontri</a>
+            <a href="{% url 'tasks:project_list' %}">Tutti i kickoff</a>
+          </div>
+        </details>
+      {% else %}
       {% block tasks_shell_actions %}
         {# Modulo solo-kickoff: le attivita' si creano DENTRO un kickoff, non da qui. #}
-        {# Dentro una commessa «+ Nuovo kickoff» portava fuori strada: lì valgono le azioni della pagina. #}
         {% if tasks_shell_can_create and not tasks_shell_project %}
           <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
         {% endif %}
       {% endblock %}
+      {% endif %}
     </div>
   </section>
+  {% endwith %}
 
   {# Nav di modulo (Dashboard/Kickoff/Impostazioni) ora dalla subnav condivisa. #}
   {# Qui restano solo le tab contestuali di commessa (record-level). #}
   {% if tasks_shell_project %}
-    {% include "tasks/_project_tabs.html" with project=tasks_shell_project active=tasks_shell_active %}
+    {% include "tasks/_project_tabs.html" with project=tasks_shell_project active=tasks_shell_active sezione=tasks_shell_sezione %}
   {% endif %}
   {% block tasks_shell_tabs_extra %}{% endblock %}
+  {# Pillole e comandi propri della pagina, sotto le tab: la testata resta uguale ovunque. #}
+  {% if tasks_shell_testata %}{% block tasks_shell_pagebar %}{% endblock %}{% endif %}
 
 
   {% block tasks_shell_kpis %}{% endblock %}

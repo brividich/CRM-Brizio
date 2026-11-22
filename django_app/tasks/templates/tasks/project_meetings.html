@@ -8,28 +8,14 @@ Panoramica): la vecchia hero blu duplicava titolo e sottotitolo e stampava il
 testo scuro su fondo scuro.
 {% endcomment %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Incontri</span>{% endblock %}
-{% block tasks_shell_title %}{{ project.name }}{% endblock %}
-
-{% block tasks_shell_subtitle %}
-  Stato di avanzamento, problemi aperti e prossimi passi, incontro per incontro.
-{% endblock %}
-
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ meetings|length }} incontr{{ meetings|length|pluralize:"o,i" }}</span>
-  {% if first_meeting_date %}<span class="ts-hero-pill">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
-  {% if next_meeting %}<span class="ts-hero-pill">Prossimo {{ next_meeting.data|date:"d/m/Y" }}</span>{% endif %}
-  {% if open_issue_count %}
-    <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ open_issue_count }} problem{{ open_issue_count|pluralize:"a,i" }} apert{{ open_issue_count|pluralize:"o,i" }}</span>
-  {% endif %}
-{% endblock %}
-
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
-  <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Calendario</a>
-  {% if can_manage %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>
-  {% endif %}
+{% block tasks_shell_pagebar %}
+<div class="tk-pagebar">
+  <span class="ts-chip">{{ meetings|length }} incontr{{ meetings|length|pluralize:"o,i" }}</span>
+  {% if first_meeting_date %}<span class="ts-chip">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
+  {% if next_meeting %}<span class="ts-chip">Prossimo {{ next_meeting.data|date:"d/m/Y" }}</span>{% endif %}
+  {% if open_issue_count %}<span class="ts-chip danger">{{ open_issue_count }} problem{{ open_issue_count|pluralize:"a,i" }} apert{{ open_issue_count|pluralize:"o,i" }}</span>{% endif %}
+  {% if can_manage %}<a class="btn btn-sm tk-pagebar-fine" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>{% endif %}
+</div>
 {% endblock %}
 
 {% block tasks_shell_content %}
