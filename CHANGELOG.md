@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Assenze: «Le mie richieste» a blocchi richiudibili, con l'anno a colpo d'occhio
+
+- La pagina non ha più l'intestazione verde grande, le quattro tessere e le pillole di stato. Le richieste sono divise per momento in blocchi che si aprono e chiudono dall'intestazione: **«In attesa»**, **«In programma»** (approvate e non ancora finite), **«Passate»**, **«Rifiutate»**. Ogni intestazione mostra quante richieste contiene e una nota («la più vecchia da 4 giorni», «prossima: lun 7 dic»). La pagina ricorda quali blocchi sono aperti.
+- **«Anno …»**: una striscia con i dodici mesi e i periodi di assenza colorati per tipo (tratteggiati quelli in attesa, escluse le rifiutate). Clic su un mese per vedere solo le richieste di quel mese; «Tutto l'anno» toglie il filtro. La ricerca filtra tutti i blocchi insieme.
+- Ogni richiesta mostra periodo leggibile («23 dic → 5 gen 2027», «ven 27 nov, 14:00–17:00»), durata (la stessa scalata dal saldo), da quanto è in attesa, note del capo e certificato.
+- Per i capi: le due tabelle dei dipendenti diventano il blocco richiudibile **«Reparto: da decidere»** con dentro «Già decise» e il link ad «Assenze del reparto».
+- **«Modifica richiesta»** ridisegnata: tipo a pillole colorate, inizio e fine affiancati, durata calcolata mentre si scrive (rossa se la fine viene prima dell'inizio), «Certificato arrivato» solo per la malattia, «Elimina richiesta» in basso. Stessi campi e stesse regole di prima.
+- I link «In attesa» e «Approvate» della home aprono il blocco giusto. Nessuna migrazione; stile e script sono ora file statici: serve `collectstatic`.
+- File: `assenze/mie_richieste.py` (nuovo), `assenze/views/richieste.py`, `assenze/templates/assenze/pages/gestione_assenze.html`, `assenze/templates/assenze/partials/_mia_richiesta.html` (nuovo), `assenze/static/assenze/css/le_mie_richieste.css` (nuovo), `assenze/static/assenze/js/le_mie_richieste.js` (nuovo), `assenze/tests_kpi_link.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`.
+
 ### KICK-OFF: incontro, fase «Prima» con l'ordine del giorno modificabile sul posto
 
 - La scheda di un incontro **pianificato** è su due colonne (una su telefono): a sinistra l'**ordine del giorno**, a destra **«Convocazione»** (quando, sala con il suo stato, convocati, stato dell'invio, pulsanti di invio, «Modifica data, sala, convocati», partecipanti) e **«Dagli incontri precedenti»**. Data e sala non si ripetono nell'intestazione; la riga «Convocazione» e il pulsante «Modifica incontro» non ci sono più in questa fase.
