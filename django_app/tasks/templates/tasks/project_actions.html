@@ -3,22 +3,6 @@
 {% block tasks_shell_guide_anchor %}#registro-azioni{% endblock %}
 {% block tasks_shell_head %}{% include "tasks/_percorso_assets.html" %}{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
-{% block tasks_shell_title %}Registro attività{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }} &middot; attività, sotto-attività e quanto deciso negli incontri (problemi e attività assegnate) in un solo punto operativo.{% endblock %}
-
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ open_count }} aperte, {{ overdue_count }} scadute</span>
-  {% if include_closed %}<span class="ts-hero-pill">Chiuse incluse</span>{% endif %}
-{% endblock %}
-
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_decisions' project.id %}">Decisioni</a>
-  {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Aggiungi attività</a>
-  {% endif %}
-{% endblock %}
-
 {% block tasks_shell_kpis %}
 <section class="ts-kpis" data-ka-live="kpi">
   {% url 'tasks:project_actions' project.id as u_actions %}

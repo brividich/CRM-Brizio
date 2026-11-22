@@ -235,7 +235,16 @@ def _tasks_shell_context(
     task: Task | None = None,
     project: Project | None = None,
     action_count: int | None = None,
+    testata: bool | None = None,
 ) -> dict:
+    """Contesto della cornice KICK-OFF.
+
+    ``testata``: la pagina mostra la testata unica di commessa (dati del kickoff,
+    azione primaria, «+ Attività», «Altro») al posto di titolo e pulsanti propri.
+    ``None`` = sì per le pagine di sezione (Panoramica, Piano, Incontri, Documenti).
+    """
+    from ..services.testata import sezione_di, testata_commessa
+
     current_project = project
     if current_project is None and task is not None and getattr(task, "project_id", None):
         current_project = task.project
@@ -243,12 +252,19 @@ def _tasks_shell_context(
         from ..action_register import count_project_open_actions
 
         action_count = count_project_open_actions(current_project)
+    puo_creare = has_task_permission(request, "tasks_create")
+    sezione = sezione_di(active) if current_project is not None else ""
+    if testata is None:
+        testata = bool(sezione)
+    usa_testata = bool(testata and current_project is not None and not _vuole_pannello(request))
     return {
         "tasks_shell_active": active,
+        "tasks_shell_sezione": sezione,
+        "tasks_shell_testata": testata_commessa(request, current_project, puo_creare=puo_creare) if usa_testata else None,
         "tasks_shell_task": task,
         "tasks_shell_project": current_project,
         "tasks_shell_open_action_count": action_count or 0,
-        "tasks_shell_can_create": has_task_permission(request, "tasks_create"),
+        "tasks_shell_can_create": puo_creare,
         "tasks_shell_can_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
         "tasks_shell_is_scope_admin": has_task_permission(request, "tasks_admin"),
         # Stessa condizione della vista project_edit: prima il pulsante seguiva
