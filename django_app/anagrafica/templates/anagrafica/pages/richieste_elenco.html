@@ -1,0 +1,35 @@
+{% extends "core/base.html" %}
+
+{% block title %}Richieste | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rq-testa">
+    <h1>Richieste</h1>
+    <div class="rq-azioni">
+      {% if puo_chiedere %}<a class="rq-btn rq-btn-p" href="{% url 'anagrafica:richiesta_nuova' %}">Nuova richiesta</a>{% endif %}
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#richieste-competenze">? Guida</a>
+    </div>
+  </div>
+
+  {% url 'anagrafica:richieste' as u_elenco %}
+  <nav class="rq-filtri" aria-label="Filtra per stato">
+    <a href="{{ u_elenco }}"{% if not stato %} class="is-scelto" aria-current="true"{% endif %}>Tutte</a>
+    {% for s in stati %}<a href="{{ u_elenco }}?stato={{ s.chiave }}"{% if stato == s.chiave %} class="is-scelto" aria-current="true"{% endif %}>{{ s.nome }}: {{ s.n }}</a>{% endfor %}
+  </nav>
+
+  <section class="es-s-card">
+    {% if righe %}{% include "anagrafica/partials/_richieste_righe.html" with righe=righe azione="Apri" stato=1 %}
+    {% else %}<p class="es-s-vuoto">Nessuna richiesta{% if stato %} in questo stato{% endif %}.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

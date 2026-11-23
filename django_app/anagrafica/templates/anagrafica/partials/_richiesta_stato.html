@@ -1,0 +1,1 @@
+<span class="es-s-stato {% if r.stato == 'in_approvazione' %}es-s-stato-warning{% elif r.stato == 'approvata' %}es-s-stato-info{% elif r.stato == 'respinta' %}es-s-stato-danger{% else %}es-s-stato-ok{% endif %}">{{ r.get_stato_display }}</span>

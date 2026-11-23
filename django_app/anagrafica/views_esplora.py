@@ -102,7 +102,10 @@ def esplora_struttura(request):
         altra["vista"] = nome
         ctx[f"url_vista_{nome}"] = f"{reverse('anagrafica:esplora_struttura')}?{altra.urlencode()}"
     if vista == semplice.SEMPLICE:
-        ctx["semplice"] = semplice.costruisci(ctx, puo_gestire=_puo_gestire(request))
+        from .services import richieste
+
+        ctx["semplice"] = semplice.costruisci(ctx, puo_gestire=_puo_gestire(request),
+                                              puo_chiedere=bool(richieste.tipi_ammessi(richieste.attore(request))))
     ctx.pop("dati")
     # Nella pagina già aperta si cambia solo la parte viva: niente menu da ricaricare.
     if request.GET.get("parziale") == "1":
