@@ -2598,8 +2598,14 @@ def api_allegato(request):
 @require_POST
 @_tickets_gestione_required
 def api_stato(request):
+    files = []
     try:
-        payload   = json.loads(request.body)
+        if (request.content_type or "").startswith("multipart/"):
+            # «Risolvi» con allegati: stessi campi del JSON più i file.
+            payload = request.POST.dict()
+            files = request.FILES.getlist("file")
+        else:
+            payload = json.loads(request.body)
         ticket_id = int(payload.get("ticket_id") or 0)
         nuovo_stato = (payload.get("stato") or "").strip().upper()
         nota        = (payload.get("nota") or "").strip()
@@ -2608,7 +2614,9 @@ def api_stato(request):
         return _json_err("Dati non validi")
 
     if payload.get("azione"):
-        return _api_azione_tecnico(request, ticket_id, payload)
+        return _api_azione_tecnico(request, ticket_id, payload, files=files)
+    if files:
+        return _json_err("Allegati accettati solo con «Risolvi».")
 
     if nuovo_stato not in dict(StatoTicket.choices):
         return _json_err("Stato non valido")
@@ -2649,8 +2657,29 @@ def _decimale_o_none(valore, massimo: int) -> tuple[Decimal | None, bool]:
     return numero, Decimal("0") <= numero <= Decimal(massimo)
 
 
-def _api_azione_tecnico(request, ticket_id: int, payload: dict) -> JsonResponse:
-    """«Prendo io» e «Risolvi»: stessa rotta e stesso permesso del cambio di stato."""
+def _valida_allegati_risoluzione(files) -> str:
+    """Controlla i file prima di toccare il ticket: messaggio d'errore o stringa vuota."""
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
+    if len(files) > 10:
+        return "Massimo 10 allegati per volta."
+    for f in files:
+        try:
+            validate_extension_and_mime(
+                f, allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS, allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
+                max_bytes=DOCUMENT_MAX_BYTES, allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            return f"Allegato non accettato, ticket non risolto. {exc}"
+    return ""
+
+
+def _api_azione_tecnico(request, ticket_id: int, payload: dict, files=()) -> JsonResponse:
+    """«Prendo io» e «Risolvi»: stessa rotta e stesso permesso del cambio di stato.
+
+    «Risolvi» accetta anche allegati (foto, screenshot, rapportino): salvati insieme
+    alla risoluzione, tutto o niente; già validati perché li carica chi gestisce.
+    """
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     denied = _api_require_ticket_access(request, ticket)
     if denied is not None:
@@ -2681,7 +2710,39 @@ def _api_azione_tecnico(request, ticket_id: int, payload: dict) -> JsonResponse:
         return _json_err("Le ore di fermo non sono valide.")
     if not materiali_ok:
         return _json_err("Il costo dei materiali non è valido.")
+    errore_file = _valida_allegati_risoluzione(files)
+    if errore_file:
+        return _json_err(errore_file)
 
+    from .allegati import (
+        DESCRIZIONE_RISOLUZIONE, AllegatoError, carica_allegato, registra_caricamento, tipo_documento_per_mime,
+    )
+
+    try:
+        with transaction.atomic():
+            caricati = [
+                carica_allegato(
+                    ticket, f, caricato_da_nome=name, caricato_da_email=email,
+                    tipo_documento=tipo_documento_per_mime(getattr(f, "content_type", "")),
+                    descrizione=DESCRIZIONE_RISOLUZIONE, da_validare=False,
+                    allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS, allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
+                    max_bytes=DOCUMENT_MAX_BYTES,
+                )
+                for f in files
+            ]
+            registra_caricamento(ticket, caricati)
+            _risolvi(request, ticket, payload, dati, name, email, ore_fermo, materiali)
+    except AllegatoError as exc:
+        return _json_err(f"Allegato non accettato, ticket non risolto. {exc}")
+    if caricati:
+        log_action(request, "ticket_allegato_caricato", "tickets",
+                   {"ticket_id": ticket.pk, "numero_ticket": ticket.numero_ticket,
+                    "allegati": [a.pk for a in caricati], "da_validare": False, "con_risoluzione": True},
+                   oggetto=ticket)
+    return JsonResponse({"ok": True, "stato": ticket.stato, "allegati": len(caricati)})
+
+
+def _risolvi(request, ticket: Ticket, payload: dict, dati: dict, name: str, email: str, ore_fermo, materiali) -> None:
     chiudi_con_intervento(
         ticket,
         nome=name,
@@ -2700,7 +2761,6 @@ def _api_azione_tecnico(request, ticket_id: int, payload: dict) -> JsonResponse:
         rapportino=(payload.get("rapportino") or "").strip(),
         stato_finale=_stato_chiusura(request, ticket),
     )
-    return JsonResponse({"ok": True, "stato": ticket.stato})
 
 
 # ---------------------------------------------------------------------------

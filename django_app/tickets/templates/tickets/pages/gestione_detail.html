@@ -12,7 +12,8 @@
 <div id="tkt-root">
   {% include "tickets/components/subnav.html" %}
   <a href="{% url 'tickets:gestione_list' %}" class="tkt-back">&larr; Torna alla lista</a>
-<link rel="stylesheet" href="{% static 'tickets/css/pagine/gestione_detail-2.css' %}?v=20261117">
+<link rel="stylesheet" href="{% static 'tickets/css/pagine/gestione_detail-2.css' %}?v=20261123">
+<link rel="stylesheet" href="{% static 'tickets/css/allegati_upload.css' %}">
 
   {% if appena_chiuso %}
   <div class="tkt-chiuso-ok" role="status">
@@ -63,9 +64,20 @@
   <div class="tkt-workspace">
     <div class="tkt-main">
       {% if puo_risolvere %}
-      <section class="tkt-risolvi" id="rv-pannello" aria-label="Risolvi il ticket"{% if not apri_risolvi %} hidden{% endif %}>
+      <section class="tkt-risolvi" id="rv-pannello" data-upload-scope aria-label="Risolvi il ticket"{% if not apri_risolvi %} hidden{% endif %}>
         <h2 class="tkt-risolvi-tit">Risolvi il ticket</h2>
         <div class="tkt-field"><label for="rv-fatto">Cosa è stato fatto <span style="color:#dc2626;">*</span></label><textarea id="rv-fatto" rows="3"></textarea></div>
+        <div class="upl-form tkt-risolvi-allegati" id="rv-allegati" data-upload-form data-max-files="10" data-max-mb="{{ upload_max_mb }}">
+          <span class="tkt-risolvi-allegati-tit">Allegati e screenshot <span class="tkt-risolvi-nota">Facoltativi</span></span>
+          <label class="upl-drop" data-upload-drop>
+            <input type="file" id="rv-file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.csv,.msg,.eml,.zip,.7z" aria-label="Scegli i file da allegare alla risoluzione">
+            <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3"/></svg></span>
+            <span class="upl-drop-title">Trascina qui foto, screenshot o il rapportino oppure <u>sfoglia</u></span>
+            <span class="upl-drop-hint">Ctrl+V incolla uno screenshot · fino a {{ upload_max_mb }} MB ciascuno · max 10 file</span>
+          </label>
+          <ul class="upl-chips" data-upload-chips hidden></ul>
+          <span class="upl-status" data-upload-status aria-live="polite"></span>
+        </div>
         <div class="tkt-risolvi-riga">
           <div class="tkt-field"><label for="rv-ore">Ore di lavoro</label><input type="number" id="rv-ore" min="0" step="0.25" value="{{ ore_proposte }}"><span class="tkt-risolvi-nota" id="rv-ore-nota">{% if ore_proposte %}Dalla presa in carico: puoi cambiarle.{% else %}Facoltativo{% endif %}</span></div>
           <div class="tkt-field"><label for="rv-tipo-fermo">Tipo di fermo</label><select id="rv-tipo-fermo">{% for val, lbl in tipo_fermo_choices %}<option value="{{ val }}"{% if ticket.tipo_fermo == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</select><span class="tkt-risolvi-nota">Facoltativo</span></div>
@@ -90,6 +102,7 @@
           <span id="rv-esito" class="tkt-risolvi-errore" role="alert"></span>
         </div>
       </section>
+      <script src="{% static 'tickets/js/allegati_upload.js' %}" defer></script>
       {% endif %}
       {% if ticket.incide_sicurezza %}<div class="tkt-sicurezza">Problema segnalato come sicurezza sul lavoro. Dare priorita alla presa in carico e alla chiusura del rischio.</div>{% endif %}
 
@@ -434,6 +447,18 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
       body: JSON.stringify(Object.assign({ticket_id: ID}, dati))}).then(function (r) { return r.json(); });
   }
   function valore(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  /* Risoluzione con allegati: una sola richiesta multipart, il server salva tutto o niente. */
+  function inviaConFile(dati, files) {
+    var fd = new FormData();
+    fd.append('ticket_id', ID);
+    Object.keys(dati).forEach(function (k) {
+      var v = dati[k];
+      fd.append(k, v === true ? '1' : (v === false || v == null ? '' : v));
+    });
+    Array.prototype.forEach.call(files, function (f) { fd.append('file', f, f.name); });
+    return fetch(URL_AZIONE, {method: 'POST', headers: {'X-CSRFToken': TOKEN}, body: fd})
+      .then(function (r) { return r.json(); });
+  }
   function schedaPresenze() { return document.querySelector('[id^="presenze-ticket-"]') || document.getElementById('pz-segnaposto'); }
   function apri() {
     if (!pannello) { return; }
@@ -500,9 +525,16 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
         document.getElementById('rv-fatto').focus();
         return;
       }
-      esito.textContent = '';
+      var fileInput = document.getElementById('rv-file');
+      var files = fileInput && fileInput.files ? fileInput.files : [];
+      var statoFile = document.querySelector('#rv-allegati [data-upload-status]');
+      if (statoFile && statoFile.classList.contains('is-error')) {
+        esito.textContent = 'Controlla gli allegati: ' + statoFile.textContent;
+        return;
+      }
+      esito.textContent = files.length ? 'Invio degli allegati in corso…' : '';
       chiudi.disabled = true;
-      invia({
+      (files.length ? function (d) { return inviaConFile(d, files); } : invia)({
         azione: 'risolvi', intervento_svolto: valore('rv-fatto'), intervento_ore: valore('rv-ore'),
         tipo_fermo: valore('rv-tipo-fermo'), ore_fermo: valore('rv-ore-fermo'), componente: valore('rv-componente'),
         causa: valore('rv-causa'), costo_materiali: valore('rv-materiali'), rapportino: valore('rv-rapportino'),

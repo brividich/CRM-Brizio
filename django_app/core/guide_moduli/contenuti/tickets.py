@@ -94,7 +94,7 @@ GUIDA = {
                     "«Prendo io», sulla riga o nella scheda, assegna il ticket a te e lo mette «In carico» con un clic.",
                     "Ogni volta che lavori sul ticket clicca «+ Aggiungi intervento», scrivi cosa hai fatto e il tempo, poi «Registra intervento».",
                     "Compila i dati tecnici (componente guasto, causa, ore di fermo macchina) e clicca «Salva dati tecnici».",
-                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Segna risolto»: registra l'intervento, porta il ticket a «Risolto» e propone il prossimo da fare. Il ticket si chiude solo quando chi l'ha aperto conferma «Sì, è risolto» (o lo riapre). Se il ticket l'hai aperto tu il pulsante è «Chiudi ticket» e lo chiude subito. In «I miei» i ticket «Risolto · da confermare» restano in fondo finché chi li ha aperti non conferma.",
+                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Sotto «Allegati e screenshot» puoi aggiungere foto, screenshot o il rapportino (facoltativi, max 10 file): trascinali nel riquadro, clicca «sfoglia» o premi Ctrl+V per incollare uno screenshot (Win+Maiusc+S). Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Segna risolto»: salva gli allegati (già validati) insieme all'intervento, porta il ticket a «Risolto» e propone il prossimo da fare; la mail a chi l'ha aperto dice quanti allegati trova nel ticket. Se un file non è accettato il ticket non viene risolto: toglilo con la × e riprova. Il ticket si chiude solo quando chi l'ha aperto conferma «Sì, è risolto» (o lo riapre). Se il ticket l'hai aperto tu il pulsante è «Chiudi ticket» e lo chiude subito. In «I miei» i ticket «Risolto · da confermare» restano in fondo finché chi li ha aperti non conferma.",
                     "«Tecnico interno» e «Fornitore esterno» si salvano appena scegli. Se serve, un ticket chiuso si riapre con «Riapri».",
                     "La scheda è una pagina sola: problema e allegati, aggiornamenti con le risposte rapide e la spunta «Nota interna», poi «Interventi» e «Dati tecnici e costi» da aprire quando servono. A destra gestione, «Asset collegato» e riepilogo.",
                     "Da smartphone «Prendo io» o «Risolvi» e «Foto» restano sempre in basso.",
@@ -280,6 +280,7 @@ GUIDA = {
             "fare": [
                 "Prova a salvarlo come PDF o JPG.",
                 "Controlla che sia sotto il limite di caricamento (100 MB).",
+                "Da «Risolvi»: se un file è rifiutato il ticket resta aperto; toglilo con la × e premi di nuovo «Segna risolto».",
             ],
         },
     ],

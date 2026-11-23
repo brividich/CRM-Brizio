@@ -58,6 +58,20 @@ QR_RATE_LIMIT_ASSET = 30
 QR_RATE_WINDOW = 600
 
 
+# Nota degli allegati caricati dal pannello «Risolvi»: la mail «Risolto: confermi?» li conta.
+DESCRIZIONE_RISOLUZIONE = "Allegato alla risoluzione"
+
+
+def tipo_documento_per_mime(mime: str) -> str:
+    """Tipo proposto per un file caricato senza scelta: foto, PDF = rapportino, il resto «Altro»."""
+    mime = (mime or "").lower()
+    if mime.startswith("image/"):
+        return TipoDocumentoAllegato.FOTO
+    if mime == "application/pdf":
+        return TipoDocumentoAllegato.RAPPORTINO
+    return TipoDocumentoAllegato.ALTRO
+
+
 class AllegatoError(ValueError):
     """Caricamento rifiutato: messaggio mostrabile all'utente."""
 
