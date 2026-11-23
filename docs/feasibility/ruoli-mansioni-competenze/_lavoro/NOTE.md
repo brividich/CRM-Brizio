@@ -269,6 +269,20 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       della sessione (`menu_crawl.py`, `menu_shots.py`, `menu_proposta.py`, `menu_componi.py`): da riscrivere se servono
       altre immagini. Resta da fare, dopo l'approvazione: allineare il prototipo al nuovo menu.
 
+- [x] 23/11: ramo mergiato in `main` e `release/prod` su richiesta («mergia»). Poi: «aggiorna i documenti rimasti
+      indietro; non posso presentare un documento di 94 pagine alla Qualità». Fatto:
+      - **Prototipo** allineato al menu a due livelli (`PILASTRI` in `prototipo/src/app.js`: 6 pilastri, 28 voci, niente
+        sezioni; «figlie» = pagine costruite che restano accese sotto una voce); 53 controlli ok; schermate rigenerate;
+        ripubblicato allo stesso indirizzo (versione 4).
+      - **Tempi** aggiornati ovunque: 130-239 giorni (26-48 settimane, 6-11 mesi); avvio minimo 1-2 settimane; tappa 1
+        7-11 settimane. In `02_tobe` §7.6 (nota), scheda IT, foglio Direzione, presentazione.
+      - **Peso delle competenze**: nota in `02_tobe` §7.6 (ipotesi «sì/no» come nella bozza, in attesa di conferma); il
+        modello e il prototipo NON sono stati cambiati.
+      - **Presentazione**: 9 diapositive (nuove: menu, tempi).
+      - **Qualità**: `RMC_Qualita.pdf`, 6 pagine con le schermate, al posto della scheda di 2 pagine (eliminata).
+      - **Cartella riordinata**: in radice solo i documenti da presentare; `archivio/` con i PDF lunghi (tecnico 93
+        pagine, sintesi 10, approfondimenti 8, studio del menu 12) e il catalogo pilota superato; `LEGGIMI.md` come indice.
+
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
 - **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la

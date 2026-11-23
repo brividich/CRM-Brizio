@@ -984,6 +984,27 @@ Complessivamente tre blocchi L sul percorso critico più il lavoro di contenuto,
 È un ordine di grandezza: non comprende il lavoro di contenuto della Qualità, i collaudi con i reparti e le attese
 fra una tappa e l'altra.
 
+> **Stima aggiornata (23/11/2026).** Dopo gli approfondimenti (`05_approfondimenti.md`) e lo studio della navigazione
+> (`06_menu_anagrafica.md`) le voci sono aumentate. La tabella qui sopra resta per i blocchi B0-B13; vale questa:
+>
+> | Tappa | Contenuto | Giorni |
+> | --- | --- | --- |
+> | 1. Base | Catalogo dalla bozza della Qualità, calcolo di validità e conformità, sessione formativa, caricamento della skill matrix firmata | 36-53 |
+> | 2. Mansioni e firme | Richiesta di mansione, permessi per reparto e sostituti, firma e timbri, emissione semestrale firmata, conferma con mancato esercizio | 27-49 |
+> | 3. Estensioni | Personale non operativo, prove e viste per cliente, turno e copertura, ricetta con versioni, selezione candidati, corso collegato alla sessione, inserimento e cambio mansione | 33-68 |
+> | 4. Sintesi | Scheda personale generata, cruscotti, indicatori, non conformità e competenze | 18-38 |
+> | Navigazione | Menu a due livelli, «Da fare», «Il mio reparto», pagine uniche. Indipendente dalle tappe | 16-31 |
+> | **Totale** | | **130-239** |
+>
+> Cioè 26-48 settimane, da 6 a 11 mesi di una persona. Con il pregresso si può partire prima: caricare la skill matrix
+> firmata nel modulo che esiste già e farla firmare a RDD nel portale vale 4-11 giorni, già compresi nelle tappe 1 e 2.
+> Guide e collaudo con i reparti: circa il 15% in più.
+
+> **Peso delle competenze (23/11/2026).** Questo documento descrive tre gradi di criticità (bloccante, importante,
+> utile). La bozza della Qualità usa solo «sì» o «no», con U come livello richiesto per tutte: l'ipotesi di lavoro è ora
+> quella, in attesa di conferma. Se confermata, ogni «sì» vale come bloccante e i gradi «importante» e «utile» cadono;
+> il resto del modello non cambia.
+
 **Sulla rinomina (B12).** Pro: il codice dice «mansione» dove oggi dice «competenza», e sparisce l'equivoco che ha
 rallentato ogni analisi. Contro: tocca 73 file e tutti i rami paralleli aperti; nessun beneficio per gli utenti.
 Proposta: **non ora**. I nuovi oggetti nascono con nomi corretti nel nuovo pacchetto; i vecchi si rinominano, se mai,

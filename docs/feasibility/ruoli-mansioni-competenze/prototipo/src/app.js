@@ -163,7 +163,7 @@
   }
   function testata(briciola, titolo, sotto, azioni) {
     var dd = doveSta(rotta());
-    return '<div class="fmd-pagehead"><div><div class="fmd-crumb"><a href="#' + dd.p.sezioni[0].voci[0].id + '">' + esc(dd.p.nome) + '</a><span class="fmd-sep"> / </span><span class="fmd-cur">' + esc(briciola) + '</span> <span class="px-modello" title="Modello di pagina">' + MODELLI[dd.v.modello] + "</span></div><h1>" + titolo + '</h1><p class="fmd-ph-sub">' + sotto + '</p></div><div class="fmd-pagehead-actions">' + (azioni || "") + '<a class="fmd-btn fmd-btn-ghost" href="#' + location.hash.slice(1) + '" title="Guida della pagina">? Guida</a></div></div>';
+    return '<div class="fmd-pagehead"><div><div class="fmd-crumb"><a href="#' + ingresso(dd.p) + '">' + esc(dd.p.nome) + '</a><span class="fmd-sep"> / </span><span class="fmd-cur">' + esc(briciola) + '</span> <span class="px-modello" title="Modello di pagina">' + MODELLI[dd.v.modello] + "</span></div><h1>" + titolo + '</h1><p class="fmd-ph-sub">' + sotto + '</p></div><div class="fmd-pagehead-actions">' + (azioni || "") + '<a class="fmd-btn fmd-btn-ghost" href="#' + location.hash.slice(1) + '" title="Guida della pagina">? Guida</a></div></div>';
   }
   function interruttore() {
     return '<div class="px-barra"><span class="px-seg" role="group" aria-label="Confronto oggi e proposta"><button type="button" class="px-btn" data-vista="OGGI" aria-pressed="' + (stato.vista === "OGGI") + '">Oggi</button><button type="button" class="px-btn" data-vista="PROPOSTA" aria-pressed="' + (stato.vista === "PROPOSTA") + '">Proposta</button></span><span class="px-nota" style="margin:0">' + (stato.vista === "OGGI" ? "Com'è la pagina oggi nel portale." : "Come diventerebbe.") + "</span></div>";
@@ -212,11 +212,11 @@
   /* ── VISTE ───────────────────────────────────────────────────────────── */
   var TOUR = [
     ["persone", "Persone", "L'ingresso di una sezione: una fascia, tre azioni, al massimo sei numeri. Da qui parte il percorso della persona."],
-    ["elenco-dipendenti", "Elenco dipendenti", "Il modello «elenco»: una riga per persona, lo stato in parole e, accanto, l'azione per la cosa più urgente."],
+    ["elenco-dipendenti", "Dipendenti", "Il modello «elenco»: una riga per persona, lo stato in parole e, accanto, l'azione per la cosa più urgente."],
     ["inserimento", "Inserimento", "Un nuovo assunto: la pratica di inserimento che il portale ha già diventa anche la scheda MOD.053. La persona entra in skill matrix a livello I e arriva all'esito finale con matricola e timbro."],
     ["editor-mansione", "Profilo della mansione", "La Qualità cambia un requisito e vede subito quante persone cambierebbero stato, prima di pubblicare."],
-    ["cruscotto-qualita", "Cruscotto Qualità", "La Qualità vede in dieci secondi quante persone sono in regola, dove sono i problemi e che cosa scade."],
-    ["matrice", "Matrice competenze", "Persone e competenze in una sola tabella: la lettera è il livello, il segno accanto dice se manca o va confermato. Un clic spiega il perché."],
+    ["cruscotto-qualita", "Copertura", "La Qualità vede in dieci secondi quante persone sono in regola, dove sono i problemi e che cosa scade."],
+    ["matrice", "Skill matrix", "Persone e competenze in una sola tabella: la lettera è il livello, il segno accanto dice se manca o va confermato. Un clic spiega il perché."],
     ["dipendente-rivalta", "Scheda persona", "Per ogni persona: che cosa le è richiesto, che cosa possiede, che cosa manca e quali mansioni potrebbe già svolgere."],
     ["simulatore", "Simulatore cambio mansione", "Prima di chiedere una nuova mansione si vede che cosa è già coperto e che cosa resta da fare."],
     ["ram", "Richiesta di mansione", "Il modulo cartaceo diventa una pagina: il portale compila da solo ruolo, reparto, competenze richieste ed evidenze già presenti; le persone mettono giudizio e firme."],
@@ -224,39 +224,56 @@
     ["pianificatore", "Pianificatore della formazione", "Le mancanze diventano un piano: per ogni competenza chi va formato e con quale corso o tutor."],
     ["corso", "Scheda corso", "Il modello «scheda» applicato alla formazione: il corso dichiara quale competenza alimenta e a chi serve."],
     ["da-fare", "Da fare", "Scadenze, valutazioni, richieste e segnalazioni in un solo elenco, dalla più urgente, ognuna con la sua azione."],
-    ["coda-car", "Coda del responsabile", "Il responsabile trova in un elenco le valutazioni da fare, le richieste e le segnalazioni da prendere in carico."],
+    ["coda-car", "Il mio reparto", "Il responsabile trova in un elenco le valutazioni da fare, le richieste e le segnalazioni da prendere in carico."],
     ["cruscotto-rdd", "Cruscotto RDD", "Chi approva vede in una pagina le richieste, le deroghe, i profili da pubblicare e le segnalazioni rimaste senza risposta."],
     ["vista-dipendente", "La mia scheda", "Ogni persona vede le proprie mansioni, che cosa le manca e le prossime scadenze, anche da una postazione condivisa."]
   ];
 
 
   var VISTE = {};
-  /* Il filo conduttore dell'intera Anagrafica: sei pilastri, ognuno una domanda, nell'ordine del percorso della persona.
-     Le voci con id che comincia per «v-» non hanno una pagina nel prototipo: aprono la scheda «dove va questa pagina». */
+  /* Il menu dell'intera Anagrafica: sei pilastri, ognuno una domanda, e due soli livelli (pilastro › voce).
+     Le voci con id che comincia per «v-» non hanno una pagina nel prototipo: aprono la scheda «dove va questa pagina».
+     «figlie» = pagine costruite che non sono voci del menu: restano accese sotto la loro voce. */
   var MODELLI = { ingresso: "Ingresso di sezione", elenco: "Elenco", scheda: "Scheda", pratica: "Pratica a passi", matrice: "Matrice" };
   var ESEMPIO = { ingresso: "persone", elenco: "elenco-dipendenti", scheda: "corso", pratica: "inserimento", matrice: "matrice" };
-  function V(id, nome, modello, oggi, nota) { return { id: id, nome: nome, modello: modello, oggi: oggi || "", nota: nota || "" }; }
+  function V(id, nome, modello, oggi, nota, figlie) { return { id: id, nome: nome, modello: modello, oggi: oggi || "", nota: nota || "", figlie: figlie || [] }; }
   var PILASTRI = [
-    { id: "persone", nome: "Persone", ico: "i-users", domanda: "Chi c'è?", sezioni: [
-      { nome: "Dipendenti", voci: [V("persone", "Quadro persone", "ingresso", "Dashboard"), V("elenco-dipendenti", "Elenco dipendenti", "elenco", "Persone › Dipendenti"), V("v-team", "Il mio team", "elenco", "Persone › Dipendenti"), V("v-ex", "Ex dipendenti", "elenco", "Persone › Dipendenti"), V("v-documenti", "Documenti", "elenco", "Persone › Dipendenti")] },
-      { nome: "Ingressi e uscite", voci: [V("v-selezione", "Selezione", "elenco", "Persone › Ingressi › Recruiting e Posizioni aperte", "Due voci diventano una: le posizioni aperte sono un filtro dell'elenco."), V("inserimento", "Inserimento", "pratica", "Persone › Ingressi › Onboarding"), V("v-uscita", "Uscita", "pratica", "Dalla scheda del dipendente", "Oggi si apre solo dalla scheda: diventa una voce del menu, speculare all'inserimento.")] }] },
-    { id: "struttura", nome: "Struttura", ico: "i-building", domanda: "Che cosa serve?", sezioni: [
-      { nome: "Organizzazione", voci: [V("v-struttura", "Struttura organizzativa", "ingresso", "Organizzazione › Struttura"), V("v-organigramma", "Organigramma", "scheda", "Organizzazione › Struttura", "«Esplora la struttura» e «Organigramma» diventano due viste della stessa pagina."), V("v-reparti", "Reparti e centri di costo", "elenco", "Organizzazione › Reparti e costi"), V("v-prospetto", "Cambiamenti programmati", "elenco", "Organizzazione › Struttura › Prospetto dei cambiamenti")] },
-      { nome: "Mansioni e requisiti", voci: [V("editor-mansione", "Profilo della mansione", "scheda", "Organizzazione › Struttura › Mansionario"), V("v-catalogo", "Catalogo competenze", "elenco", "Mansionario › Catalogo competenze"), V("v-rischio", "Mansioni di rischio", "elenco", "Salute e sicurezza › Rischi e mansioni"), V("v-processi", "Processi qualificati", "elenco", "Competenze › Qualifiche › Processi qualificati")] }] },
-    { id: "competenze", nome: "Competenze", ico: "i-award", domanda: "Chi lo fa, e lo sa fare?", sezioni: [
-      { nome: "Quadro", voci: [V("cruscotto-qualita", "Cruscotto Qualità", "ingresso", "Mansionario, Lacune, Copertura abilitazioni"), V("matrice", "Matrice", "matrice", "Matrice competenze, Abilitazioni macchina, Matrice processi qualificati", "Tre matrici diventano una, con due viste."), V("dipendente-rivalta", "Scheda persona", "scheda", "Mansionario › Mansioni di una persona"), V("vista-dipendente", "La mia scheda", "scheda", "La mia scheda")] },
-      { nome: "Mansioni", voci: [V("simulatore", "Simulatore", "pratica", "—"), V("ram", "Richiesta di mansione", "pratica", "«Aggiungi mansioni» nella scheda persona"), V("v-cambi", "Cambi di mansione", "elenco", "Salute e sicurezza › Conformità › Cambi mansione", "Il piano di adeguamento per la sicurezza resta, e si apre dalla richiesta di mansione.")] },
-      { nome: "Sessioni", voci: [V("sessione-formativa", "Sessione formativa", "pratica", "Valutazione per competenza"), V("pianificatore", "Pianificatore", "elenco", "Formazione › Copertura / gap"), V("v-conferma", "Conferma periodica", "pratica", "Abilitazioni › Refresh semestrale e Scadenzario abilitazioni", "La conferma del responsabile diventa una sessione formativa di conferma.")] }] },
-    { id: "formazione", nome: "Formazione", ico: "i-cap", domanda: "Come si impara?", sezioni: [
-      { nome: "Catalogo", voci: [V("corso", "Scheda corso", "scheda", "Formazione › Corsi"), V("v-corsi", "Corsi e piani", "elenco", "Formazione › Piani formativi e Corsi", "I piani diventano un raggruppamento dell'elenco dei corsi."), V("v-docenti", "Docenti ed enti", "elenco", "Formazione › Istruttori")] },
-      { nome: "Erogazione", voci: [V("v-edizioni", "Edizioni", "elenco", "Formazione › Sessioni", "«Sessione» resta il nome della sessione formativa: le erogazioni di un corso si chiamano edizioni, come nel resto del portale."), V("v-online", "Corsi online", "elenco", "Formazione › E-learning e Corsi online"), V("v-qualifiche", "Qualifiche e rinnovi", "elenco", "Competenze › Qualifiche")] }] },
-    { id: "sicurezza", nome: "Sicurezza", ico: "i-shield", domanda: "È idonea?", sezioni: [
-      { nome: "Sorveglianza sanitaria", voci: [V("v-sicurezza", "Quadro sicurezza", "ingresso", "Salute e sicurezza › Panoramica"), V("v-visite", "Visite", "elenco", "Visite mediche e Sessioni di visita"), V("v-referti", "Referti", "elenco", "Referti da rivedere e Registro referti"), V("v-libretto", "Libretto sanitario", "scheda", "Sorveglianza sanitaria › Libretto sanitario")] },
-      { nome: "Rischi e dotazioni", voci: [V("v-conformita", "Conformità alla mansione", "matrice", "Salute e sicurezza › Conformità"), V("v-dpi", "DPI", "elenco", "Modulo DPI")] }] },
-    { id: "dafare", nome: "Da fare", ico: "i-alarm", domanda: "Che cosa aspetta me?", sezioni: [
-      { nome: "Le mie code", voci: [V("da-fare", "Da fare", "ingresso", "Scadenzario, Dashboard"), V("coda-car", "Coda del responsabile", "elenco", "Abilitazioni › Refresh semestrale"), V("cruscotto-rdd", "Cruscotto RDD", "elenco", "—")] },
-      { nome: "Scadenze", voci: [V("v-scadenzario", "Scadenzario unico", "elenco", "Scadenzario, Scadenzario qualifiche, Scadenzario abilitazioni", "Tre scadenzari diventano uno, con il filtro per tipo.")] }] }
+    { id: "oggi", nome: "Oggi", ico: "i-check", domanda: "Che cosa aspetta me?", sezioni: [{ nome: "", voci: [
+      V("da-fare", "Da fare", "ingresso", "Dashboard e Scadenzario", "Un elenco solo, dal più urgente: prende il posto di Dashboard e Scadenzario come ingresso.", ["cruscotto-rdd"]),
+      V("v-scadenzario", "Scadenze", "elenco", "Scadenzario, Scadenzario qualifiche, Scadenzario abilitazioni", "Tre scadenzari diventano uno, con il filtro per tipo."),
+      V("coda-car", "Il mio reparto", "elenco", "Persone › Il mio team; Abilitazioni › Refresh semestrale", "Il responsabile si ricava dalla mansione «Responsabilità del reparto»."),
+      V("vista-dipendente", "La mia scheda", "scheda", "—")] }] },
+    { id: "persone", nome: "Persone", ico: "i-users", domanda: "Chi c'è?", ingresso: "persone", sezioni: [{ nome: "", voci: [
+      V("elenco-dipendenti", "Dipendenti", "elenco", "Persone › Elenco dipendenti, Ex dipendenti, Nuovo dipendente", "«Ex dipendenti» diventa un filtro, «Nuovo dipendente» un pulsante.", ["persone"]),
+      V("v-selezione", "Selezione", "elenco", "Persone › Recruiting e Posizioni aperte", "Due voci diventano una: le posizioni aperte sono un filtro dell'elenco."),
+      V("inserimento", "Inserimenti", "pratica", "Persone › Onboarding"),
+      V("v-uscita", "Uscite", "pratica", "Dalla scheda del dipendente", "Oggi si apre solo dalla scheda: diventa una voce del menu, speculare all'inserimento."),
+      V("v-documenti", "Documenti", "elenco", "Persone › Documenti")] }] },
+    { id: "organizzazione", nome: "Organizzazione", ico: "i-building", domanda: "Che cosa serve?", sezioni: [{ nome: "", voci: [
+      V("v-organigramma", "Organigramma", "scheda", "Struttura organizzativa, Esplora la struttura, Organigramma", "Tre voci diventano tre viste della stessa pagina."),
+      V("v-reparti", "Reparti", "elenco", "Organizzazione › Reparti e Centri di costo", "Nella bozza della Qualità ogni reparto ha un solo centro di costo: diventa una colonna."),
+      V("editor-mansione", "Mansioni", "scheda", "Organizzazione › Mansionario; Sicurezza › Mansioni di rischio"),
+      V("v-catalogo", "Competenze", "elenco", "Mansionario › Catalogo competenze; Qualifiche › Catalogo e Processi qualificati", "Le abilitazioni sono competenze con una scadenza: stanno nello stesso catalogo."),
+      V("v-prospetto", "Cambiamenti", "elenco", "Organizzazione › Prospetto dei cambiamenti")] }] },
+    { id: "competenze", nome: "Competenze", ico: "i-award", domanda: "Chi sa fare che cosa?", sezioni: [{ nome: "", voci: [
+      V("matrice", "Skill matrix", "matrice", "Matrice competenze, Abilitazioni macchina, Matrice processi qualificati", "Tre matrici diventano una, con più viste.", ["dipendente-rivalta"]),
+      V("ram", "Richieste di mansione", "pratica", "«Aggiungi mansioni» nella scheda persona; Sicurezza › Cambi mansione", "", ["simulatore"]),
+      V("sessione-formativa", "Sessioni formative", "pratica", "Valutazione per competenza; Qualifiche › Sessioni di rinnovo"),
+      V("v-conferma", "Emissione semestrale", "pratica", "Abilitazioni › Refresh semestrale", "La conferma dei capi reparto e la firma di RDD, ogni sei mesi."),
+      V("cruscotto-qualita", "Copertura", "ingresso", "Copertura abilitazioni, Lacune, Formazione › Copertura / gap")] }] },
+    { id: "formazione", nome: "Formazione", ico: "i-cap", domanda: "Come si impara?", sezioni: [{ nome: "", voci: [
+      V("corso", "Corsi", "scheda", "Formazione › Piani formativi e Corsi"),
+      V("v-edizioni", "Edizioni", "elenco", "Formazione › Sessioni", "«Sessione» resta il nome della sessione formativa: le erogazioni di un corso si chiamano edizioni."),
+      V("pianificatore", "Pianificazione", "elenco", "Formazione › Copertura / gap"),
+      V("v-online", "Corsi online", "elenco", "Formazione › E-learning e Corsi online"),
+      V("v-docenti", "Istruttori", "elenco", "Formazione › Istruttori")] }] },
+    { id: "sicurezza", nome: "Sicurezza", ico: "i-shield", domanda: "È idonea?", sezioni: [{ nome: "", voci: [
+      V("v-visite", "Visite mediche", "elenco", "Visite mediche, Sessioni di visita, Libretto sanitario", "Calendario e libretto diventano viste della stessa pagina."),
+      V("v-referti", "Referti", "elenco", "Referti da rivedere e Registro referti"),
+      V("v-conformita", "Idoneità alla mansione", "matrice", "Sicurezza › Conformità mansione"),
+      V("v-rischio", "Rischi per mansione", "elenco", "Mansioni di rischio, Fattori di rischio, Esposizioni, Categorie di rischio")] }] }
   ];
+  function ingresso(p) { return p.ingresso || p.sezioni[0].voci[0].id; }
   var PROSSIMO = {
     "persone": ["Apri l'elenco delle persone", "elenco-dipendenti"],
     "elenco-dipendenti": ["Inserisci una nuova persona", "inserimento"],
@@ -277,13 +294,13 @@
   function chiaveRotta(r) { return r.indexOf("dipendente-") === 0 ? "dipendente-rivalta" : r; }
   function doveSta(r) {
     var k = chiaveRotta(r), out = null;
-    PILASTRI.forEach(function (p) { p.sezioni.forEach(function (s) { s.voci.forEach(function (v) { if (v.id === k) out = { p: p, s: s, v: v }; }); }); });
+    PILASTRI.forEach(function (p) { p.sezioni.forEach(function (s) { s.voci.forEach(function (v) { if (v.id === k || v.figlie.indexOf(k) >= 0) out = { p: p, s: s, v: v }; }); }); });
     return out || { p: PILASTRI[0], s: PILASTRI[0].sezioni[0], v: PILASTRI[0].sezioni[0].voci[0] };
   }
   function filo(r) {
     var qui = doveSta(r).p.id, h = '<nav class="mns-filo px-filo" aria-label="Il filo: il percorso della persona">';
     PILASTRI.forEach(function (p, i) {
-      h += (i ? '<span class="mns-filo-arr" aria-hidden="true">→</span>' : "") + '<a class="mns-filo-step' + (qui === p.id ? " mns-filo-qui" : "") + '" href="#' + p.sezioni[0].voci[0].id + '"' + (qui === p.id ? ' aria-current="step"' : "") + '><span class="mns-filo-l">' + p.domanda + '</span><span class="mns-filo-v"><b>' + p.nome + "</b></span></a>";
+      h += (i ? '<span class="mns-filo-arr" aria-hidden="true">→</span>' : "") + '<a class="mns-filo-step' + (qui === p.id ? " mns-filo-qui" : "") + '" href="#' + ingresso(p) + '"' + (qui === p.id ? ' aria-current="step"' : "") + '><span class="mns-filo-l">' + p.domanda + '</span><span class="mns-filo-v"><b>' + p.nome + "</b></span></a>";
     });
     return h + "</nav>";
   }
@@ -294,21 +311,21 @@
   function disegnaMenu(r) {
     var d = doveSta(r), k = chiaveRotta(r);
     document.querySelector(".hrnav-tabs").innerHTML = PILASTRI.map(function (p) {
-      return '<a class="hrnav-tab hrnav-pill' + (p === d.p ? " active" : "") + '" href="#' + p.sezioni[0].voci[0].id + '" title="' + esc(p.domanda) + '"' + (p === d.p ? ' aria-current="page"' : "") + '><svg class="hrnav-ico"><use href="#' + p.ico + '"/></svg>' + p.nome + "</a>";
-    }).join("") + '<span class="hrnav-tab hrnav-fine"><svg class="hrnav-ico"><use href="#i-doc"/></svg>Report</span><span class="hrnav-tab"><svg class="hrnav-ico"><use href="#i-coins"/></svg>Amministrazione</span><span class="hrnav-tab"><svg class="hrnav-ico"><use href="#i-gear"/></svg>Impostazioni</span>';
-    document.getElementById("px-sez").innerHTML = d.p.sezioni.map(function (s) { return '<a href="#' + s.voci[0].id + '" class="' + (s === d.s ? "active" : "") + '"' + (s === d.s ? ' aria-current="true"' : "") + ">" + s.nome + "</a>"; }).join("");
-    document.getElementById("px-voci").innerHTML = d.s.voci.map(function (v) { return '<a href="#' + v.id + '" class="' + (v.id === k ? "active" : "") + '"' + (v.id === k ? ' aria-current="page"' : "") + ">" + v.nome + "</a>"; }).join("");
+      return '<a class="hrnav-tab hrnav-pill' + (p === d.p ? " active" : "") + '" href="#' + ingresso(p) + '" title="' + esc(p.domanda) + '"' + (p === d.p ? ' aria-current="page"' : "") + '><svg class="hrnav-ico"><use href="#' + p.ico + '"/></svg>' + p.nome + "</a>";
+    }).join("") + '<span class="hrnav-tab hrnav-fine"><svg class="hrnav-ico"><use href="#i-coins"/></svg>Amministrazione</span><span class="hrnav-tab"><svg class="hrnav-ico"><use href="#i-clipboard"/></svg>Report</span><span class="hrnav-tab"><svg class="hrnav-ico"><use href="#i-gear"/></svg>Impostazioni</span>';
+    var sez = document.getElementById("px-sez"); sez.innerHTML = ""; sez.style.display = "none";
+    document.getElementById("px-voci").innerHTML = d.s.voci.map(function (v) { return '<a href="#' + v.id + '" class="' + (v === d.v ? "active" : "") + '"' + (v === d.v ? ' aria-current="page"' : "") + ">" + v.nome + "</a>"; }).join("");
   }
   function vistaVoce(r) {
     var d = doveSta(r), v = d.v;
     var h = testata(v.nome, ico("i-arrow-right") + esc(v.nome), "Questa pagina non è costruita nel prototipo: qui si vede dove va e che forma prende.");
     h += '<div class="px-due"><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-grid") + "Dove va</div></div>";
     h += '<div class="px-firma"><b>Oggi</b><span class="px-auto">' + esc(v.oggi || "—") + "</span><span></span></div>";
-    h += '<div class="px-firma"><b>Nella proposta</b><span class="px-auto">' + esc(d.p.nome + " › " + d.s.nome + " › " + v.nome) + "</span><span></span></div>";
+    h += '<div class="px-firma"><b>Nella proposta</b><span class="px-auto">' + esc(d.p.nome + " › " + v.nome) + "</span><span></span></div>";
     h += '<div class="px-firma"><b>Modello di pagina</b><span class="px-auto">' + MODELLI[v.modello] + '</span><span><a class="px-link" href="#' + ESEMPIO[v.modello] + '">Vedi un esempio →</a></span></div>';
     if (v.nota) h += '<p class="px-prop" style="margin-top:12px">' + esc(v.nota) + "</p>";
     h += '</section><section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico(d.p.ico) + esc(d.p.nome) + ' · tutte le voci</div><div class="fmd-block-aside">' + esc(d.p.domanda) + '</div></div><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Voce</th><th>Oggi sta in</th><th>Modello</th></tr></thead><tbody>';
-    d.p.sezioni.forEach(function (s) { s.voci.forEach(function (x) { h += '<tr><td><a class="fmd-data-link" href="#' + x.id + '">' + esc(x.nome) + '</a><div class="px-fonte">' + esc(s.nome) + '</div></td><td class="fmd-muted" style="font-size:12.5px">' + esc(x.oggi || "—") + '</td><td><span class="fmd-badge fmd-b-grey">' + MODELLI[x.modello] + "</span></td></tr>"; }); });
+    d.p.sezioni.forEach(function (s) { s.voci.forEach(function (x) { h += '<tr><td><a class="fmd-data-link" href="#' + x.id + '">' + esc(x.nome) + '</a></td><td class="fmd-muted" style="font-size:12.5px">' + esc(x.oggi || "—") + '</td><td><span class="fmd-badge fmd-b-grey">' + MODELLI[x.modello] + "</span></td></tr>"; }); });
     return h + "</tbody></table></div></section></div>";
   }
   var CATTURE = JSON.parse(document.getElementById("px-oggi").textContent || "{}");
@@ -319,7 +336,7 @@
 
   VISTE["cruscotto-qualita"] = function () {
     var q = quadro(), h = messaggio();
-    h += testata("Cruscotto Qualità", ico("i-shield") + "Competenze: stato al " + dataIt(D.oggi), D.persone.length + " persone · " + D.mansioni.length + " mansioni · " + D.competenze.length + " competenze · " + q.assegnazioni + " mansioni assegnate");
+    h += testata("Copertura", ico("i-shield") + "Competenze: stato al " + dataIt(D.oggi), D.persone.length + " persone · " + D.mansioni.length + " mansioni · " + D.competenze.length + " competenze · " + q.assegnazioni + " mansioni assegnate");
     h += '<section class="fmd fmd-kpi fmd-kpi-auto" style="margin-bottom:16px">';
     h += kpi(q.stati.CONFORME, "Conformi", "su " + q.assegnazioni + " mansioni assegnate", "green", "i-check");
     h += kpi(q.stati.CON_RISERVA, "Conformi con riserva", "qualcosa da confermare", "yellow", "i-clock");
@@ -347,7 +364,7 @@
   };
 
   VISTE["matrice"] = function () {
-    var f = stato.filtri, h = messaggio() + testata("Matrice competenze", ico("i-grid") + "Matrice competenze", stato.vista === "OGGI" ? "Persone e mansioni: un livello per mansione, inserito a mano." : "Persone e competenze: livello valutato, validità e mancanze.") + interruttore();
+    var f = stato.filtri, h = messaggio() + testata("Skill matrix", ico("i-grid") + "Skill matrix", stato.vista === "OGGI" ? "Persone e mansioni: un livello per mansione, inserito a mano." : "Persone e competenze: livello valutato, validità e mancanze.") + interruttore();
     var persone = D.persone.filter(function (p) { return !f.reparto || p.reparto === f.reparto; }).filter(function (p) { return !f.testo || nome(p).toLowerCase().indexOf(f.testo.toLowerCase()) >= 0; });
     var mansioni = D.mansioni.filter(function (m) { return !f.reparto || m.reparto === f.reparto; });
     h += '<div class="px-barra">' + selReparto() + '<label>Mansione<select data-filtro="mansione"><option value="">Tutte</option>' + mansioni.map(function (m) { return '<option value="' + m.id + '"' + (f.mansione === m.id ? " selected" : "") + ">" + esc(m.nome) + "</option>"; }).join("") + '</select></label><label>Persona<input type="search" data-filtro="testo" value="' + esc(f.testo) + '" placeholder="Cerca per nome"></label>' + (stato.vista === "PROPOSTA" ? '<label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-filtro="soloGap"' + (f.soloGap ? " checked" : "") + "> Solo chi ha mancanze</label>" : "") + "</div>";
@@ -498,7 +515,7 @@
   VISTE["coda-car"] = function () {
     if (!stato.coda) stato.coda = codaIniziale();
     var q = quadro(), segn = q.righeNC.filter(function (x) { return x.v.segnalazioni; });
-    var h = messaggio() + testata("Coda del responsabile", ico("i-clipboard") + "Da fare", "Reparto Fresatura 5 assi · responsabile: BIANCHETTI ALDO");
+    var h = messaggio() + testata("Il mio reparto", ico("i-clipboard") + "Il mio reparto", "Reparto Fresatura 5 assi · responsabile: BIANCHETTI ALDO");
     h += '<section class="fmd fmd-kpi fmd-kpi-auto" style="margin-bottom:16px">' + kpi('<span id="px-coda-n">' + stato.coda.length + "</span>", "Da valutare o approvare", "sessioni e richieste", "cyan", "i-clipboard", "#coda-car") + kpi(segn.length, "Segnalazioni gravi", "da prendere in carico", "amber", "i-alert-cir", "#coda-car") + kpi(q.daConf, "Competenze da confermare", "conferma periodica o grazia", "yellow", "i-clock", "#coda-car") + "</section>";
     h += '<section class="fmd-panel fmd-block"><div class="fmd-block-head"><div class="fmd-block-title">' + ico("i-check") + 'Valutazioni e richieste <span class="fmd-count">' + stato.coda.length + "</span></div></div>";
     if (!stato.coda.length) h += '<div class="fmd-muted">Niente in coda.</div>';
@@ -762,7 +779,7 @@
     return h + "</div></section>";
   };
   VISTE["elenco-dipendenti"] = function () {
-    var f = stato.filtri, h = messaggio() + testata("Elenco dipendenti", ico("i-users") + "Elenco dipendenti", "Una riga per persona: ruolo, reparto, mansioni e la cosa più urgente.", '<a class="fmd-btn fmd-btn-primary" href="#inserimento">Nuovo inserimento</a>');
+    var f = stato.filtri, h = messaggio() + testata("Dipendenti", ico("i-users") + "Dipendenti", "Una riga per persona: ruolo, reparto, mansioni e la cosa più urgente.", '<a class="fmd-btn fmd-btn-primary" href="#inserimento">Nuovo inserimento</a>');
     var pp = D.persone.filter(function (p) { return (!f.reparto || p.reparto === f.reparto) && (!f.testo || nome(p).toLowerCase().indexOf(f.testo.toLowerCase()) >= 0); });
     h += '<div class="px-barra">' + selReparto() + '<label>Persona<input type="search" data-filtro="testo" value="' + esc(f.testo) + '" placeholder="Cerca per nome"></label><span class="px-fatto" id="px-elenco-n">' + pp.length + " persone</span></div>";
     h += '<section class="fmd-panel fmd-block"><div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Persona</th><th>Ruolo</th><th>Reparto</th><th>Mansioni</th><th>Stato</th><th>Prossima scadenza</th><th></th></tr></thead><tbody>';
@@ -910,6 +927,7 @@
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") chiudiPerche(); });
   window.addEventListener("hashchange", function () { chiudiPerche(); disegna(); window.scrollTo(0, 0); });
   window.PX = { quadro: quadro, dati: function () { return D; }, simulaCambio: simulaCambio, potenziali: potenziali, pers: pers };
+  window.PX_MENU = PILASTRI.map(function (p) { return { nome: p.nome, voci: p.sezioni[0].voci.length }; });
   if (!location.hash) { var ultima = null; try { ultima = localStorage.getItem("px-rmc-ultima"); } catch (e) { /* ignora */ } if (ultima) { location.hash = ultima; return; } }
   try { if (localStorage.getItem("px-rmc-stile") === "FRESCO") document.body.classList.add("px-fresco"); } catch (e) { /* ignora */ }
   disegna();

@@ -1,4 +1,4 @@
-/* Presentazione per l'incontro con Direzione e Qualità (7 diapositive, 16:9).
+/* Presentazione per l'incontro con Direzione e Qualità (9 diapositive, 16:9).
 
    Uso:  NODE_PATH=<cartella con pptxgenjs>/node_modules  PPTX_SKILL=<cartella della skill pptx>
          node build/costruisci_presentazione.js      →  Fattibilita_RMC_Presentazione.pptx
@@ -115,7 +115,7 @@ pres.addSection({ title: "La proposta" });
 // ====================================================================== 3. La ricetta
 {
   const s = diapositiva("CONTENUTO", "La proposta", "Ogni mansione ha la sua ricetta: il portale controlla chi ha gli ingredienti",
-    "Esempio con nome e dati inventati. La ricetta dice che cosa bisogna saper fare. La dispensa è ciò che la persona sa fare davvero. Il portale confronta e propone: non assegna nulla da solo.");
+    "Esempio con nome e dati inventati. La ricetta dice che cosa bisogna saper fare. La dispensa è ciò che la persona sa fare davvero. Il portale confronta e propone: non assegna nulla da solo. La Qualità sta già scrivendo le ricette: 253 mansioni e 208 competenze, con «sì» o «no» per ogni incrocio. Sono compilati gli uffici; manca la produzione.");
   const voci = [
     ["Lettura del disegno tecnico", true], ["Set-up macchina 5 assi", true], ["Programmazione a bordo macchina", false],
     ["Controllo dimensionale in macchina", true], ["Gestione utensili e presetting", true], ["Prevenzione FOD", true],
@@ -183,10 +183,10 @@ pres.addSection({ title: "La proposta" });
 // ====================================================================== 6. Demo
 {
   const s = diapositiva("CONTENUTO", "La proposta", "Che cosa vedranno le persone: cinque minuti dal vivo",
-    "Aprire il prototipo. I dati sono inventati e niente tocca il portale vero. Mostrare: il cruscotto, un clic su una cella della matrice, la richiesta di mansione, la scheda personale.");
+    "Aprire il prototipo. I dati sono inventati e niente tocca il portale vero. Mostrare: la copertura, un clic su una lettera della skill matrix, la richiesta di mansione, la scheda personale.");
   const wi = 8.2, hi = wi * 900 / 1440;
   s.addImage({ path: PNG("01_cruscotto_qualita.png"), x: M, y: 1.75, w: wi, h: hi, objectName: "schermata-cruscotto", altText: "Prototipo: cruscotto della Qualità" });
-  const passi = ["Il cruscotto", "La matrice", "La richiesta di mansione", "La mia scheda"];
+  const passi = ["La copertura", "La skill matrix", "La richiesta di mansione", "La mia scheda"];
   const x = M + wi + 0.5, w = W - M - x;
   passi.forEach((t, i) => {
     const y = 1.95 + i * 1.05;
@@ -196,7 +196,44 @@ pres.addSection({ title: "La proposta" });
   testo(s, "Prototipo con dati inventati", x, 6.2, w, 0.35, { fontSize: 13, color: C.accent3 });
 }
 
-// ====================================================================== 7. Le scelte
+// ====================================================================== 7. Il menu
+{
+  const s = diapositiva("CONTENUTO", "La proposta", "Dove si trova: il menu passa da tre livelli a due",
+    "Oggi il menu di Anagrafica ha tre livelli e 60 voci, e le voci si vedono una sezione alla volta. La proposta: sei pilastri, al massimo sei voci ciascuno, tutte visibili. Le parole sono quelle dei documenti della Qualità. Gli indirizzi delle pagine e i permessi non cambiano.");
+  const wi = 8.2, hi = wi * 818 / 1800;
+  s.addImage({ path: path.join(RADICE, "menu", "07_proposta_barre.png"), x: M, y: 1.9, w: wi, h: hi, objectName: "schermata-menu", altText: "Il menu proposto, pilastro per pilastro" });
+  const punti = [["Sei pilastri", "Al massimo sei voci ciascuno."], ["Si entra da «Oggi»", "Ognuno vede ciò che lo aspetta."], ["Una pagina per tipo", "Una skill matrix, uno scadenzario."]];
+  const x = M + wi + 0.5, w = W - M - x;
+  punti.forEach(([t, d], i) => {
+    const y = 1.95 + i * 1.25;
+    bollo(s, x, y, 0.65, i + 1, C.accent1, 22);
+    testo(s, t, x + 0.85, y - 0.05, w - 0.85, 0.4, { fontSize: 19, bold: true });
+    testo(s, d, x + 0.85, y + 0.38, w - 0.85, 0.6, { fontSize: 15, color: C.text2 });
+  });
+  testo(s, "Da 60 voci a 34, con dentro le funzioni nuove.", M, 6.1, W - 2 * M, 0.6, { fontSize: 20, bold: true });
+}
+
+// ====================================================================== 8. I tempi
+{
+  const s = diapositiva("CONTENUTO", "La proposta", "Quanto ci vuole: si parte in due settimane",
+    "Sono giorni di sviluppo di una persona. Il primo passo usa il modulo che esiste già: si carica la skill matrix firmata e RDD la firma nel portale. Il calendario vero lo detta il lavoro sui contenuti: le ricette della produzione sono ancora da scrivere.");
+  const tappe = [
+    ["1-2 settimane", "Si parte", "La skill matrix firmata entra nel portale, e RDD la firma lì."],
+    ["7-11 settimane", "Prima tappa", "Livelli con la prova accanto e avvisi sulle scadenze, su un reparto."],
+    ["6-11 mesi", "Tutto", "Richieste di mansione, firme, uffici, clienti, indicatori, menu."],
+  ];
+  const w = 3.85, g = 0.29;
+  tappe.forEach(([quanto, t, d], i) => {
+    const x = M + i * (w + g);
+    riquadro(s, x, 2.0, w, 3.3, i === 0 ? C.accent5 : C.background2);
+    testo(s, quanto, x + 0.35, 2.3, w - 0.7, 0.7, { fontSize: 30, bold: true, color: i === 0 ? C.accent2 : C.accent1 });
+    testo(s, t, x + 0.35, 3.2, w - 0.7, 0.5, { fontSize: 22, bold: true });
+    testo(s, d, x + 0.35, 3.8, w - 0.7, 1.3, { fontSize: 16, color: C.text2 });
+  });
+  testo(s, "Il calendario vero lo detta il lavoro sulle ricette della produzione.", M, 5.75, W - 2 * M, 0.6, { fontSize: 20, bold: true });
+}
+
+// ====================================================================== 9. Le scelte
 {
   const s = diapositiva("CHIUSURA", "La proposta", "Tre scelte di fondo",
     "Sono le tre scelte del foglio per la Direzione. Proposta: sì alla prima, sì alla seconda, segnalare alla terza, con il blocco solo dove la procedura lo impone già. Tutto il resto, dal reparto di partenza alle date, lo definiscono la Qualità e il responsabile del progetto.");

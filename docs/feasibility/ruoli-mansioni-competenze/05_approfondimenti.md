@@ -279,7 +279,7 @@ colonne cambiate è una proposta dell'analisi; due voci («Sala taglio», «Maga
 
 Il file `Catalogo_competenze_completo.xlsx` contiene ora anche la bozza: i fogli «Mansioni bozza», «Competenze bozza»
 e «Stato bozza», e nel foglio «Incrocio» dove finisce ogni colonna della skill matrix. Il catalogo del reparto pilota
-(`Catalogo_pilota_CN5G.xlsx`) è superato: i fogli veri sono quelli dei reparti CN5GS e CN5GL, 12 mansioni e 192 celle.
+(`archivio/Catalogo_pilota_CN5G.xlsx`) è superato: i fogli veri sono quelli dei reparti CN5GS e CN5GL, 12 mansioni e 192 celle.
 
 ## 10. Indicatori per il riesame
 

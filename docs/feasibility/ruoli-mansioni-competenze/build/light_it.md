@@ -40,31 +40,26 @@ esercizio, conferma semestrale mancata) → sospesa. Il rientro è automatico qu
 
 <h2 class="np">Tappe e stime</h2>
 
-S fino a 3 giorni · M 1-2 settimane · L 3-4 settimane. Sviluppo di una persona, senza il lavoro di contenuto.
+Giorni lavorativi di sviluppo di una persona, prove comprese. Non comprendono il lavoro di contenuto.
 
-| Blocco | Contenuto | Stima | Dipende da |
-| --- | --- | --- | --- |
-| B0 | Catalogo: codice stabile, criticità, requisito formale, corso → competenze | M | — |
-| B1 | Motore competenze: validità, conformità, potenziali | L | B0 |
-| B2 | Sessione Formativa: modello, flusso, pagine | L | B0 |
-| B3 | SF di impianto e caricamento dei livelli | S | B2 |
-| B4 | RAM: modello, flusso, firme, modulo a video | L | B1, B2 |
-| B5 | Profilo versionato con anteprima d'impatto | M | B1 |
-| B6 | Selezione candidati e semaforo sul motore unico | M | B1 |
-| B7 | Permessi per reparto, sostituti e deleghe | M | — |
-| B8 | MOD.053 generato e stampa | M | B2, B4 |
-| B9 | Cruscotti e vista personale | M | B1, B2, B4 |
-| B10 | Collegamento edizione → SF | M | B2 |
-| B11 | Inserimento e cambio mansione agganciati alla RAM | M | B4 |
-| B13 | Riordino del menu a filo conduttore | S + M | — |
+| Tappa | Contenuto | Giorni |
+| --- | --- | --- |
+| 1. Base | Catalogo dalla bozza della Qualità; calcolo di validità e conformità; sessione formativa; caricamento della skill matrix firmata | 36-53 |
+| 2. Mansioni e firme | Richiesta di mansione; permessi per reparto e sostituti; firma e timbri; emissione semestrale firmata; conferma con mancato esercizio | 27-49 |
+| 3. Estensioni | Personale non operativo; prove e viste per cliente; turno e copertura; ricetta con versioni; selezione candidati; corso collegato alla sessione; inserimento e cambio mansione | 33-68 |
+| 4. Sintesi | Scheda personale generata; cruscotti; indicatori; non conformità e competenze | 18-38 |
+| Navigazione | Menu a due livelli, «Da fare», «Il mio reparto», pagine uniche. Indipendente: si può fare per prima | 16-31 |
+| **Totale** | | **130-239** |
 
-| Perimetro | Settimane |
+| Traguardo | Settimane dall'inizio |
 | --- | --- |
-| Percorso minimo: B0, B1, B2, B3 | da 7 a 11 |
-| Più la RAM: B0-B4 | da 10 a 15 |
-| Tutto | da 18 a 31, cioè 4-7 mesi |
+| Avvio minimo: skill matrix firmata nel modulo che c'è già, firmata da RDD nel portale | 1-2 |
+| Tappa 1: livelli con la prova e avvisi, su un reparto | 7-11 |
+| Tappe 1 e 2: anche la richiesta di mansione con le firme | 13-20 |
+| Tutto | 26-48, cioè 6-11 mesi |
 
-Ogni tappa ha un interruttore per tornare indietro. Il motore di riferimento `build/motore_rif.py` fa da oracolo per i
+Guide e collaudo con i reparti valgono circa il 15% in più. La voce più incerta è il calcolo di validità e
+conformità: tutto il resto ci si appoggia. Ogni tappa ha un interruttore per tornare indietro. Il motore di riferimento `build/motore_rif.py` fa da oracolo per i
 test: l'implementazione deve dare gli stessi risultati sugli stessi dati.
 
 <h2 class="np">Rischi e punti aperti</h2>
@@ -83,8 +78,7 @@ di firma, che la procedura fissa a L e il portale oggi a U; se RDD firma nel por
 **Non verificato.** Il MOD.130 (registro timbri) è un'immagine; il MOD.192 non è nella cartella del sistema di
 gestione; il legame fra timbro e skill matrix nel portale non è stato controllato nel dettaglio.
 
-**Approfondimenti** (`05_approfondimenti.md`): firma e timbri, personale non operativo, requisiti dei clienti,
-carico di valutazione, copertura per turno, non conformità, indicatori.
+**Navigazione.** Il menu di Anagrafica passa da tre livelli a due, da 60 voci a 34: `RMC_Menu_foglio.pdf`.
 
-**Dove sta il dettaglio.** `Fattibilita_RMC_Tecnico.pdf` (92 pagine) e i documenti `01`-`04` nella stessa cartella;
-prototipo in `prototipo/prototipo_rmc.html`.
+**Dove sta il dettaglio.** I documenti `01`-`06` nella stessa cartella; i PDF lunghi in `archivio/`; il prototipo in
+`prototipo/prototipo_rmc.html`.
