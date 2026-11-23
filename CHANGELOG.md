@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: home più leggera
+
+- **Contatori dei riquadri della home in cache per 90 secondi, per persona:** in produzione la home faceva circa 200 query e oltre un secondo di CPU Python a ogni apertura, e con un solo processo Waitress le altre pagine aspettavano in coda. Ora i numeri dei riquadri si ricalcolano al massimo ogni 90 s per persona (chiave con utente impersonato e giorno); `HOME_KPI_CACHE_SECONDS=0` spegne la cache. File: `dashboard/views_home_portale.py`, `config/settings/base.py`, `config/settings/test.py`, `dashboard/tests_kpi_cache.py` (nuovo).
+
 ### Audit 22/11, ondata 5: calendario unico da Assenze
 
 - **Un solo calendario lavorativo (K1):** festività nazionali, patrono, sabato lavorativo e chiusure aziendali si impostano in Assenze (Impostazioni HR) e valgono per tempi delle anomalie, Gantt delle attività, date del MOD.133, scadenzario e capacità dei carichi macchina. Prima anomalie, attività e specifiche ignoravano patrono e chiusure, carichi macchina e RENTRI anche le feste. File: `core/calendario_it.py` (nuovo calcolo unico, cache di un minuto svuotata al salvataggio), `assenze/hr.py`, `assenze/apps.py`, `scadenzario/calendario.py`, `gestione_specifiche/date_utils.py`, `anomalie/tempi_service.py`, `config/settings/test.py`.
