@@ -10,6 +10,13 @@ useremo nel progetto finché non ci dite diversamente. Basta segnare una rispost
 
 ---
 
+> **Aggiornamento del 23/11/2026.** La specifica v1.0 della Qualità risponde a gran parte di queste domande: chi è in
+> formazione compare a livello I; l'assunzione ha un flusso suo con cartella e matricola; una mansione si sospende o si
+> rimuove con una richiesta approvata da RDD; un livello non scende da solo; i corsi dichiarano le competenze che
+> alimentano; l'esperienza pregressa è la modalità P; il peso è sostituito dalla matrice C→M. Restano aperti il
+> vocabolario dei livelli, la competenza valutata da più reparti e i campi della bozza del MOD.053. Il confronto
+> completo è in `07_specifica_v1_confronto.md`; il documento da portare alla Qualità è `RMC_Qualita.pdf`.
+
 ## A. I livelli
 
 **1. Che cosa vuol dire ogni livello?**

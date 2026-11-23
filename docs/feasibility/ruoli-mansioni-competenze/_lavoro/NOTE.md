@@ -283,6 +283,19 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       - **Cartella riordinata**: in radice solo i documenti da presentare; `archivio/` con i PDF lunghi (tecnico 93
         pagine, sintesi 10, approfondimenti 8, studio del menu 12) e il catalogo pilota superato; `LEGGIMI.md` come indice.
 
+- [x] 23/11: «aggiorna il prototipo con il nuovo menu e rendilo fruibile» + nuova **specifica v1.0 della Qualità**
+      (Word, 23/11; trascritta senza nomi in `input/Specifica_funzionale_IT_v1.0_20261123.md`; sostituisce la v2).
+      - Confronto in `07_specifica_v1_confronto.md`: impianto confermato; 7 domande su 9 chiuse; 12 cambi (sessione
+        sempre da richiesta approvata, nuova RAC approvata da MSO, firme RDD/MSO/persona, Qualità o HR aprono la
+        sessione, matrice C→M, sospensione e rimozione senza sessione, rivalutazione annuale, cartella e matricola
+        con prefisso CNO/T/A, scadenze fuori dal flusso, capo reparto con poche cose); 5 punti in contrasto con MT CN 06
+        e MT CN 65 (cadenza semestrale, livelli I-L-U-O, timbro, sospensione sui liquidi penetranti, mancato esercizio).
+      - Prototipo reso usabile: si entra da «Da fare»; «Vedi come» (Tutti, capo reparto, Qualità, HR, RDD, MSO) filtra
+        la lista; capo reparto con i nomi in formazione e «Nuova richiesta»; numeri sui pilastri; voci non costruite
+        segnate in grigio; tolta la striscia «sei qui»; firme e tipi di richiesta come da specifica. 58 controlli ok.
+        NON fatto: RAC navigabile, sospensione/rimozione operative, matrice C→M, righe per reparto (dopo le decisioni).
+      - `RMC_Qualita.pdf` riscritto come riscontro alla specifica (5 pagine). `02_tobe` NON riscritto: vale il 07.
+
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 
 - **T1 SF**: oggetto **nuovo**. Ci saranno corsi «formativi» e altri no: formativo = **alimenta competenze**. È la

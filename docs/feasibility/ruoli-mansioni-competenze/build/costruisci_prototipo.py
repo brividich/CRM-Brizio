@@ -70,7 +70,7 @@ GUSCIO = """<!doctype html>
     #persone             Ingresso della sezione Persone (modello «ingresso di sezione»)
     #elenco-dipendenti   Elenco dipendenti (modello «elenco»)
     #corso               Scheda corso (modello «scheda», pilastro Formazione)
-    #da-fare             Da fare: scadenze, valutazioni, richieste e segnalazioni in un elenco
+    #da-fare             Da fare: pagina d'ingresso; «Vedi come» la mostra per ruolo (capo reparto, Qualità, HR, RDD, MSO)
     #v-<voce>            Voci del menu non costruite: mostrano dove va la pagina e quale modello prende
     #cruscotto-qualita   Cruscotto Qualità: copertura per reparto, casi da sistemare, scadenze
     #matrice             Matrice persone × competenze (interruttore Oggi / Proposta, filtri, «Perché?»)
@@ -113,6 +113,12 @@ __SPRITE__
       <button type="button" class="px-btn" id="px-tour-succ" data-vai="" aria-label="Schermata successiva">›</button>
     </span>
     <span class="px-tour-txt" id="px-tour-t"></span>
+    <label class="px-ruolo" title="Ogni ruolo vede in «Da fare» solo ciò che lo aspetta">Vedi come
+      <select data-ruolo aria-label="Vedi come">
+        <option value="TUTTI">Tutti i ruoli</option><option value="CAR">Capo reparto</option><option value="QUA">Qualità</option>
+        <option value="HR">Risorse umane</option><option value="RDD">RDD</option><option value="MSO">MSO</option>
+      </select>
+    </label>
     <span class="px-seg" role="group" aria-label="Che cosa succede quando una competenza non è più valida">
       <button type="button" class="px-btn" data-modalita="SEGNALAZIONE" aria-pressed="true" title="Scelta del progetto: il portale segnala, non ferma">Solo segnalazione</button>
       <button type="button" class="px-btn" data-modalita="BLOCCO" aria-pressed="false" title="Alternativa: la competenza non valida toglie l'operatività">Blocco</button>

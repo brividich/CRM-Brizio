@@ -67,6 +67,23 @@ def main() -> int:
         apri("da-fare")
         controlla(int(pg.inner_text("#px-dafare-n")) > 5, "«Da fare» riunisce scadenze, valutazioni, richieste e segnalazioni")
         foto("24_da_fare", True)
+        # «Vedi come»: ogni ruolo vede solo ciò che lo aspetta (specifica della Qualità v1.0)
+        n_tutti_ruoli = int(pg.inner_text("#px-dafare-n"))
+        conteggi = {}
+        for ruolo in ("CAR", "QUA", "HR", "RDD", "MSO"):
+            pg.select_option("[data-ruolo]", ruolo)
+            pg.wait_for_selector("#px-dafare-n")
+            conteggi[ruolo] = int(pg.inner_text("#px-dafare-n"))
+            if ruolo == "CAR":
+                controlla(pg.locator("#px-informazione-n").count() == 1 and pg.locator('a.fmd-btn-template[href="#ram"]').count() == 1, "capo reparto: chi è in formazione e il tasto «Nuova richiesta»")
+                foto("27_da_fare_capo_reparto", True)
+            if ruolo == "RDD":
+                foto("28_da_fare_rdd")
+        controlla(all(0 < n < n_tutti_ruoli for n in conteggi.values()), f"«Vedi come»: ogni ruolo ha la sua lista, più corta di quella completa {conteggi} su {n_tutti_ruoli}")
+        controlla("RAC-2027-0012" in pg.inner_text("#vista"), "MSO vede la richiesta di competenza (RAC) da approvare")
+        pg.select_option("[data-ruolo]", "TUTTI")
+        controlla(pg.locator(".hrnav-tabs a.hrnav-tab .hrnav-sub-n").count() >= 1, "numeri sui pilastri: «Oggi» mostra le cose da fare")
+        controlla(pg.locator("#px-voci a.px-fuori").count() == 1, "le voci fuori dal prototipo sono segnate nel menu")
         apri("v-scadenzario")
         controlla("Scadenze" in pg.inner_text("#vista") and "Oggi › Scadenze" in pg.inner_text("#vista") and pg.locator("#vista .fmd-table tbody tr").count() >= 3, "una voce non costruita mostra dove va e il suo modello")
         foto("25_voce_del_menu")
@@ -112,7 +129,7 @@ def main() -> int:
         # 3. Scheda persona
         apri("dipendente-rivalta")
         controlla("RIVALTA MARCO" in pg.inner_text("#vista"), "scheda di Marco Rivalta")
-        controlla(pg.locator(".px-filo .mns-filo-qui").inner_text().endswith("Competenze"), "il filo conduttore segna «sei qui» sul pilastro Competenze")
+        controlla(pg.locator(".hrnav-tabs a.active").inner_text().strip().startswith("Competenze"), "la scheda persona tiene acceso il pilastro Competenze")
         controlla(pg.locator("#px-voci a.active").inner_text() == "Skill matrix", "la scheda persona resta accesa sotto la voce «Skill matrix»")
         controlla(pg.locator("text=DM6 – Fresatura 5 assi grande formato").count() >= 1, "DM6 compare fra le mansioni potenziali")
         foto("05_scheda_persona", True)
