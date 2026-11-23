@@ -103,6 +103,28 @@ Guide: Impostazioni Assenze («questi giorni valgono per tutto il portale»), RE
 
 ### Ondata 7 — Verifica delle piste · solo analisi
 
+**Stato 23/11: fatta (analisi).** Riletto sul codice di `main`. S8 era già nell'ondata 4. Le proposte P1-P16 aspettano la scelta.
+
+| Pista | Esito | Cosa c'è davvero | Proposta | Peso |
+|---|---|---|---|---|
+| Cartella di rete in specifiche | Scartata come rischio | Si salva un'etichetta, risolta solo fra le cartelle reali della share (`cartelle_cliente.risolvi` + `valida_cartella_destinazione`): un percorso inventato non porta da nessuna parte. Un'etichetta scritta male viene accettata e poi dà «cartella mancante» | P1: accettare solo le etichette dell'elenco quando la share risponde | XS |
+| `AdaptiveSecureCookieMiddleware` | Confermata, per scelta | Toglie Secure ai cookie su HTTP; in prod l'HTTP viene già rediretto, quindi conta solo se IIS non inoltra `X-Forwarded-Proto` | P2: il middleware non agisce quando `SESSION_COOKIE_SECURE` è acceso (prod) | XS |
+| QR asset senza scadenza | Confermata | Link per asset, acceso a scelta e revocabile, senza scadenza. Mostra fino a 15 documenti di tutte le cartelle dell'asset (anche quelle aggiunte), titoli dei ticket aperti, e permette di caricare file anonimi sui ticket («da validare») | P3: scegliere le cartelle pubbliche (di base Manuali), pulsante «Rigenera link», caricamento anonimo spento di base | M, forse migrazione |
+| `docs/ai/02_ARCHITECTURE.md` (S11) | Confermata, solo documentazione | 8 percorsi esenti contro i circa 25 reali; identità da `X-MS-CLIENT-PRINCIPAL-NAME` che il codice non usa più e `05_SECURITY_BOUNDARIES.md` vieta | P4: riallineare, rimandando a `MIDDLEWARE_EXEMPT_PREFIXES` | XS |
+| SOC: soppressioni e giro di valutazione | Confermata | `_matching_suppression` rilegge tutte le regole attive per ogni evento; `evaluate_security_rules` scorre tutti gli eventi in attesa senza tetto | P5: regole lette una volta per giro, giro a lotti | S |
+| Diario `ripristina` / `rimanda_scheda` | Scartata come scritta | Il ripristino è solo per chi gestisce il modulo, che vede anche le eliminate; `rimanda_scheda` controlla login e permesso. Trovato altro: eliminazione e ripristino non scrivono nel registro, e il ripristino cancella chi e perché aveva eliminato | P6: registro su elimina/ripristina con il motivo | XS |
+| Segnalazioni: elenco locale | Confermata | `as_sp_fields` legge area e punto della planimetria riga per riga (fino a 2 query per riga) | P7: `select_related` | XS |
+| SDS: estrazione PDF e report | Estrazione scartata, report confermato lieve | L'estrazione è testo locale, a errore non blocca. Il report di presa visione fa 3-4 query per mansione | P8: letture comuni a tutte le mansioni | S |
+| Anomalie: ricerca ricorrenze | Scartata | Limitata alla finestra in giorni configurata | — | — |
+| Scadenzario: avvisi | Confermata lieve | Una query per scadenza (ultimo avviso) nel giro giornaliero e nell'anteprima | P9: ultimo avviso in una sola query | S |
+| Ticket SLA | Confermata | Ogni mattina alle 08:30 lo stesso promemoria per ogni ticket scaduto, senza memoria; scadenza a orologio continuo (notti, fine settimana e festivi contano); categoria riletta a ogni proprietà (fino a 4 query per ticket) | P10: categoria letta una volta. P11 (da decidere): ore lavorative con il calendario comune e/o promemoria una volta più richiamo ogni N giorni | S + M |
+| Assenze per nome | Confermata | Le presenze certificate hanno solo il nome: omonimi danno falsi conflitti o li nascondono. «Elenco vuoto su errore» vale per «Il mio team» (errore = team vuoto, solo log) | P12: omonimi segnati «da verificare» e avviso a video sul team non calcolabile; la chiave vera vuole una colonna sulle presenze (migrazione) | S |
+| DPI: approvatori | Confermata | Un solo `try` per tutte le fonti: un errore a metà lascia l'elenco parziale con un warning; vale per la tendina «Chi approva», la mail e i promemoria | P13: un `try` per fonte e `logger.exception` | XS |
+| KICK-OFF: soglie | Confermata, solo documentazione | `03_BACKEND_MODULES.md` dice «DIG >= 46»; il codice usa TR ≤ 35 basso, ≥ 50 alto | P14: correggere la documentazione | XS |
+| Assistente AI | Prima confermata, seconda scartata | Il limite di 3 richieste è per processo: con 4 processi in produzione (dal 23/11) Ollama può riceverne 12 insieme. I default diversi di `OLLAMA_RAG_CHUNK_CHARS` non si usano mai (settings lo definisce sempre: 900) | P15: limite condiviso fra processi, oppure `OLLAMA_MAX_CONCURRENT_REQUESTS=1` nel `.env` di prod | XS-S |
+| Automazioni: pausa | Confermata | `cooldown_group` con valore scritto male (es. «5m») lascia passare sempre la regola (scelta voluta), ma niente lo segnala al salvataggio | P16: controllo al salvataggio della condizione e avviso sulla regola | S |
+| Contatori: eccezioni | Scartata | Tre sono «SOC non installato» commentate, le altre saltano un valore SNMP illeggibile | — | — |
+
 Rilettura riga per riga delle voci «Pista» non coperte sopra: cartella di rete libera in specifiche, `AdaptiveSecureCookieMiddleware`, QR asset senza scadenza, `docs/ai/02_ARCHITECTURE.md` (S11), Diario `ripristina`/`rimanda_scheda`, ticket SLA, assenze per nome, approvatori DPI, soglie KICK-OFF, assistente AI, pausa automazioni, query per riga (segnalazioni, SDS, scadenzario, regole di soppressione SOC). Esito: tabella confermata/scartata, con la proposta di intervento per le confermate, da scegliere.
 
 ## Ordine e stima
