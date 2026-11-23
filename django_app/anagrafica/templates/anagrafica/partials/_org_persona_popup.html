@@ -5,7 +5,7 @@
 {% endcomment %}
 <div class="ogp-head">
   {% if ha_foto %}
-    <img class="ogp-foto" src="{% url 'anagrafica:foto_dipendente' legacy_id %}" alt="">
+    <img class="ogp-foto" src="{{ foto_url }}" alt="">
   {% else %}
     <span class="ogp-foto ogp-foto--ph" aria-hidden="true">{{ nome|slice:":1"|upper|default:"?" }}</span>
   {% endif %}
