@@ -2376,6 +2376,18 @@ def ticket_impostazioni(request):
                 messages.error(request, "Salvataggio escalation parzialmente fallito.")
             return redirect_target
 
+        if action == "save_sla_orario":
+            # Orario di lavoro in cui contano le ore SLA (audit P11).
+            from tickets.sla import salva_orario_sla
+            inizio = _int_or_none(request.POST.get("sla_ora_inizio"))
+            fine = _int_or_none(request.POST.get("sla_ora_fine"))
+            if inizio is None or fine is None or not salva_orario_sla(inizio, fine):
+                messages.error(request, "Orario SLA non valido: l'ora di fine deve venire dopo quella di inizio (ore 0-24).")
+                return redirect_target
+            log_action(request, "save_ticket_sla_orario", "tickets", {"ora_inizio": inizio, "ora_fine": fine})
+            messages.success(request, f"Orario SLA salvato: dalle {inizio} alle {fine}, da lunedì a venerdì.")
+            return redirect_target
+
     cfg_it  = TicketImpostazioni.get_or_create_for(TipoTicket.IT)
     cfg_man = TicketImpostazioni.get_or_create_for(TipoTicket.MAN)
 
@@ -2395,6 +2407,7 @@ def ticket_impostazioni(request):
         "cfg_man": cfg_man,
         "sp_man_stato": _sp_man_stato(),
         "escalation_cfg": get_escalation_config(),
+        "sla_orario": _sla_orario_context(),
         "tipi":    TipoTicket.choices,
         "categorie_it":  get_categorie(TipoTicket.IT),
         "categorie_man": get_categorie(TipoTicket.MAN),
@@ -3964,3 +3977,10 @@ def api_crea_workorder_da_ticket(request):
         "asset_name": ticket.asset.name,
         "asset_tag": ticket.asset.asset_tag,
     })
+
+
+def _sla_orario_context() -> dict:
+    from tickets.sla import RICHIAMO_GIORNI, orario_sla
+
+    inizio, fine = orario_sla()
+    return {"inizio": inizio, "fine": fine, "richiamo_giorni": RICHIAMO_GIORNI}

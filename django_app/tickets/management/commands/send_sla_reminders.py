@@ -43,9 +43,21 @@ class Command(BaseCommand):
         inviati = 0
         errori = 0
 
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tickets.sla import RICHIAMO_GIORNI
+
+        adesso = timezone.now()
         for ticket in tickets_aperti:
             tipo_scadenza = self._tipo_scadenza(ticket)
             if tipo_scadenza is None:
+                continue
+            # Memoria dei promemoria (audit P10): il primo alla scadenza, poi un richiamo
+            # ogni RICHIAMO_GIORNI giorni, non lo stesso avviso ogni mattina.
+            if (ticket.sla_promemoria_tipo == tipo_scadenza and ticket.sla_promemoria_il
+                    and adesso - ticket.sla_promemoria_il < timedelta(days=RICHIAMO_GIORNI) - timedelta(hours=1)):
                 continue
 
             dest = ticket.assegnato_email.strip() if ticket.assegnato_email else ""
@@ -82,6 +94,8 @@ class Command(BaseCommand):
                         fail_silently=False,
                     )
                 invia_notifica_email(dest, "ticket_sla", notification_message, notification_url)
+                Ticket.objects.filter(pk=ticket.pk).update(
+                    sla_promemoria_tipo=tipo_scadenza, sla_promemoria_il=adesso)
                 self.stdout.write(
                     self.style.SUCCESS(f"[OK] Reminder inviato → {dest} | {ticket.numero_ticket}")
                 )

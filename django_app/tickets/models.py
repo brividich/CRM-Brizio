@@ -126,6 +126,7 @@ def _get_categoria_label_map() -> dict[str, str]:
 def _invalidate_categoria_label_cache() -> None:
     from django.core.cache import cache
     cache.delete(_CATEGORIA_LABEL_CACHE_KEY)
+    cache.delete("tickets_sla_categorie")  # ore SLA in cache (tickets/sla.py)
 
 
 def get_categorie(tipo: str) -> list[tuple[str, str]]:
@@ -270,6 +271,11 @@ class Ticket(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at  = models.DateTimeField(null=True, blank=True)
+    # Ultimo promemoria «SLA scaduto» (audit P10): quale SLA e quando. Il primo parte alla
+    # scadenza, poi un richiamo ogni tickets.sla.RICHIAMO_GIORNI giorni.
+    # Nullable senza default: su SQLite basta ADD COLUMN (la vista bi_ticket blocca il rifacimento).
+    sla_promemoria_tipo = models.CharField(max_length=20, null=True, blank=True)
+    sla_promemoria_il   = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -331,29 +337,30 @@ class Ticket(models.Model):
     # ── SLA (calcolati, nessun campo DB su Ticket) ───────────────────────────
 
     def _get_categoria_sla(self):
+        # Ore SLA di tutte le categorie in cache: niente query per ticket (audit P10).
         if not self.categoria:
             return None
-        return CategoriaTicket.objects.filter(codice=self.categoria).first()
+        from tickets.sla import categorie_sla
+
+        return categorie_sla().get(self.categoria)
+
+    def _scadenza_sla(self, ore):
+        # Ore di lavoro (orario di Impostazioni ticket, lun-ven, festivi esclusi): audit P11.
+        if ore is None or self.created_at is None:
+            return None
+        from tickets.sla import scadenza_lavorativa
+
+        return scadenza_lavorativa(self.created_at, ore)
 
     @property
     def sla_scadenza_risposta(self):
-        from datetime import timedelta
         cat = self._get_categoria_sla()
-        if cat is None or cat.sla_ore_risposta is None:
-            return None
-        if self.created_at is None:
-            return None
-        return self.created_at + timedelta(hours=cat.sla_ore_risposta)
+        return self._scadenza_sla(cat.sla_ore_risposta if cat else None)
 
     @property
     def sla_scadenza_risoluzione(self):
-        from datetime import timedelta
         cat = self._get_categoria_sla()
-        if cat is None or cat.sla_ore_risoluzione is None:
-            return None
-        if self.created_at is None:
-            return None
-        return self.created_at + timedelta(hours=cat.sla_ore_risoluzione)
+        return self._scadenza_sla(cat.sla_ore_risoluzione if cat else None)
 
     @property
     def sla_risposta_scaduto(self) -> bool:
