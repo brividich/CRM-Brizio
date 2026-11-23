@@ -12,6 +12,7 @@ urlpatterns = [
     path("da-leggere/", views.sds_da_leggere, name="sds_da_leggere"),
     path("da-leggere/conferma-tutte/", views.sds_conferma_tutte, name="sds_conferma_tutte"),
     path("report/", views.report_compliance, name="report_compliance"),
+    path("allinea-inventario/", views.allinea_inventario, name="allinea_inventario"),
     path("etichetta/impostazioni/", views.etichetta_impostazioni, name="etichetta_impostazioni"),
     path("etichetta/anteprima/", views.etichetta_anteprima, name="etichetta_anteprima"),
     path("<int:pk>/", views.prodotto_detail, name="prodotto_detail"),
