@@ -73,32 +73,27 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
             project=self.project,
         )
 
-    def test_detail_embeds_attrezzatura_panel_for_project_part_number(self):
-        Attrezzatura.objects.create(
+    def test_detail_mostra_l_attrezzatura_collegata_nel_riquadro_collegamenti(self):
+        from .services import collegamenti
+
+        tool = Attrezzatura.objects.create(
             codice="AT-77",
             part_number="PN-77",
             descrizione="Staffa prova",
             stato=AttrezzaturaStato.IN_CORSO,
             created_by=self.user,
         )
-        GestioneAttrezzaturaTask.objects.create(
-            part_number="PN-77",
-            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
-            titolo="Verificare disponibilita PN-77",
-            origine=GestioneAttrezzaturaTaskOrigine.KICKOFF,
-            external_kickoff_id=str(self.project.id),
-            external_kickoff_activity_id=str(self.task.id),
-            created_by=self.user,
-        )
+        collegamenti.collega(self.task, "attrezzatura", tool.pk, self.user)
 
         self.client.force_login(self.user)
         response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Attrezzatura collegata - P/N PN-77")
         self.assertContains(response, "AT-77")
-        self.assertContains(response, "Verificare disponibilita PN-77")
-        self.assertContains(response, reverse("tasks:attrezzature_action", args=[self.task.id]))
+        self.assertContains(response, "Staffa prova")
+        # Il pannello di gestione attrezzatura non sta più nella scheda: è solo un codice collegato.
+        self.assertNotContains(response, "Attrezzatura collegata - P/N PN-77")
+        self.assertNotContains(response, reverse("tasks:attrezzature_action", args=[self.task.id]))
 
     def test_attrezzatura_action_creates_kickoff_availability_task(self):
         self.client.force_login(self.user)
@@ -117,7 +112,9 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
         self.assertEqual(linked.external_kickoff_id, str(self.project.id))
         self.assertEqual(linked.origine, GestioneAttrezzaturaTaskOrigine.KICKOFF)
 
-    def test_create_task_can_request_new_tooling_workflow(self):
+    def test_create_task_con_attrezzatura_nuova_dal_riquadro(self):
+        import json
+
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:create"),
@@ -129,19 +126,24 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
                 "description": "Serve attrezzo dedicato",
                 "status": TaskStatus.TODO,
                 "priority": TaskPriority.MEDIUM,
+                # I vecchi modi «Richiedi nuovo attrezzo» non esistono più: ignorati se arrivano.
                 "tooling_mode": "request_new",
-                "tooling_code": "AT-REQ",
-                "tooling_description": "Da creare per produzione",
+                "tooling_code": "AT-VECCHIO",
+                "collegamenti_json": json.dumps([{"tipo": "attrezzatura", "testo": "AT-REQ Da creare per produzione"}]),
                 "reminder_portal_enabled_field": "on",
             },
         )
         task = Task.objects.get(title="Creare attrezzo P/N 77")
         self.assertRedirects(response, reverse("tasks:detail", args=[task.id]))
         tool = Attrezzatura.objects.get(codice="AT-REQ")
-        self.assertEqual(tool.part_number, "PN-77")
+        self.assertEqual((tool.part_number, tool.descrizione), ("PN-77", "Da creare per produzione"))
         self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task=task).exists())
+        self.assertFalse(Attrezzatura.objects.filter(codice="AT-VECCHIO").exists())
+        self.assertFalse(GestioneAttrezzaturaTask.objects.exists())
 
-    def test_create_task_can_link_existing_tooling(self):
+    def test_create_task_collega_attrezzatura_esistente_dal_riquadro(self):
+        import json
+
         tool = Attrezzatura.objects.create(codice="AT-LINK", part_number="PN-77")
         self.client.force_login(self.user)
         response = self.client.post(
@@ -153,14 +155,14 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
                 "title": "Verificare attrezzo esistente",
                 "status": TaskStatus.TODO,
                 "priority": TaskPriority.MEDIUM,
-                "tooling_mode": "link_existing",
-                "tooling_existing_attrezzatura": str(tool.id),
+                "collegamenti_json": json.dumps([{"tipo": "attrezzatura", "id": tool.id}]),
                 "reminder_portal_enabled_field": "on",
             },
         )
         task = Task.objects.get(title="Verificare attrezzo esistente")
         self.assertRedirects(response, reverse("tasks:detail", args=[task.id]))
         self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task=task).exists())
+        self.assertEqual(Attrezzatura.objects.count(), 1)
 
     def test_attrezzatura_action_creates_draft_tool_from_kickoff_context(self):
         self.client.force_login(self.user)

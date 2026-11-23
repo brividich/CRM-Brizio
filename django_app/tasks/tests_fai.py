@@ -194,8 +194,10 @@ class VisteTests(TasksBaseTestCase):
         ProjectTechRef.objects.create(project=self.project, kind=TechRefKind.CAM, code="O1001")
         self.client.post(reverse("tasks:fai_nuovo"), self._dati())
         testo = self.client.get(reverse("tasks:project_tech_refs", args=[self.project.pk])).content.decode()
-        self.assertLess(testo.index("O1001"), testo.index('<h3 class="tr-sezione">FAI</h3>'))
-        self.assertGreater(testo.index("PFCN_PN-9_001_A"), testo.index('<h3 class="tr-sezione">FAI</h3>'))
+        # Un registro solo, ordinato per tipo: i programmi vengono prima dei FAI, e ogni riga dice cos'è.
+        self.assertLess(testo.index("O1001"), testo.index("PFCN_PN-9_001_A"))
+        self.assertIn('data-rc-tipo="cam"', testo)
+        self.assertIn('data-rc-tipo="fai"', testo)
 
     def test_elimina_toglie_anche_la_riga(self):
         self.client.post(reverse("tasks:fai_nuovo"), self._dati())

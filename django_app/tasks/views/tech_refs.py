@@ -28,6 +28,7 @@ from ..services.notify import notify_user
 from ..services.programmi import allinea_stato_riga, attivita_per_riga
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
+from .collegamenti import registro_context
 
 
 def _puo_aggiungere(request, project) -> bool:
@@ -227,7 +228,8 @@ def project_tech_refs(request, project_id: int):
         "tasks/project_tech_refs.html",
         {
             **_tasks_shell_context(request, active="tech_refs", project=project),
-            **tech_refs_context(request, project),
+            # La pagina della commessa è il registro costruito dalle attività (views/collegamenti.py).
+            **registro_context(request, project),
             "page_title": f"Programmi e FAI - {project.name}",
         },
     )

@@ -1,0 +1,17 @@
+{% comment %}
+Riquadro «Collegamenti» dell'attività: macchina, attrezzatura, utensili, programma CAM e CMM, FAI, incontro.
+Niente <form> e campi senza name (tranne collegamenti_json nel form «+ Attività»): può stare dentro altri form.
+Script collegamenti.js. Contesto: col (tasks/views/collegamenti.py: collegamenti_context o collegamenti_context_nuova).
+{% endcomment %}
+{% if col %}
+<div class="kc" data-kc data-url="{{ col.url_azione }}" data-cerca="{{ col.url_cerca }}" data-task="{{ col.task.pk|default:'' }}" data-csrf="{{ csrf_token }}"{% if col.apri %} data-kc-apri="{{ col.apri }}"{% endif %}{% if col.in_attesa %} data-kc-attesa{% endif %}>
+  <div data-kc-corpo>{% include "tasks/_collegamenti_body.html" %}</div>
+  {% if col.puo and col.tipi %}
+  <div class="kc-cerca" data-kc-cerca hidden>
+    <input class="input" type="search" data-kc-q maxlength="200" autocomplete="off" aria-label="Cerca">
+    <ul class="kc-ris" data-kc-ris aria-live="polite"></ul>
+  </div>
+  {% endif %}
+  {% if col.in_attesa %}<input type="hidden" name="collegamenti_json" value="[]" data-kc-json>{% endif %}
+</div>
+{% endif %}

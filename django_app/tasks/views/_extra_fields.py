@@ -15,6 +15,15 @@ from ..models import (
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+# Stesso codice di services/tappe.CAMPO_MACCHINA: la macchina collegata all'attività.
+CAMPO_MACCHINA = "macchina"
+
+
+def _macchina_collegata(task, post_data):
+    """La macchina messa dal riquadro «Collegamenti» non arriva dal form: va conservata."""
+    if f"extra__{CAMPO_MACCHINA}" in post_data:
+        return None
+    return (task.extra_data or {}).get(CAMPO_MACCHINA) or None
 
 
 def _render_task_extra_data(task) -> list[dict]:
@@ -51,6 +60,9 @@ def _render_task_extra_data(task) -> list[dict]:
             pass
 
     for f in fields:
+        if f.code == CAMPO_MACCHINA and f.field_type == TaskCategoryFieldType.ASSET:
+            # La macchina sta nel riquadro «Collegamenti».
+            continue
         raw = data.get(f.code)
         value: str = ""
         href: str = ""
@@ -128,12 +140,13 @@ def _persist_task_extra_data(task: "Task", post_data) -> None:
       - TaskExtraRef (righe normalizzate per FK user/asset)
     """
     task.extra_data = task.extra_data or {}
+    macchina = _macchina_collegata(task, post_data)
 
     if not task.category_id:
         if task.extra_data:
-            task.extra_data = {}
+            task.extra_data = {CAMPO_MACCHINA: macchina} if macchina else {}
             task.save(update_fields=["extra_data"])
-        TaskExtraRef.objects.filter(task=task).delete()
+        TaskExtraRef.objects.filter(task=task).exclude(field_code=CAMPO_MACCHINA if macchina else "").delete()
         return
 
     fields = list(task.category.fields.all().order_by("order_index", "id"))
@@ -142,6 +155,8 @@ def _persist_task_extra_data(task: "Task", post_data) -> None:
 
     for f in fields:
         name = f"extra__{f.code}"
+        if macchina and f.code == CAMPO_MACCHINA:
+            continue
         if f.field_type == TaskCategoryFieldType.CHECKBOX:
             parsed[f.code] = bool(post_data.get(name))
             continue
@@ -188,8 +203,10 @@ def _persist_task_extra_data(task: "Task", post_data) -> None:
         else:
             parsed[f.code] = raw_value
 
+    if macchina:
+        parsed[CAMPO_MACCHINA] = macchina
     task.extra_data = parsed
     task.save(update_fields=["extra_data"])
-    TaskExtraRef.objects.filter(task=task).delete()
+    TaskExtraRef.objects.filter(task=task).exclude(field_code=CAMPO_MACCHINA if macchina else "").delete()
     if refs_to_create:
         TaskExtraRef.objects.bulk_create(refs_to_create)
