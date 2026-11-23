@@ -1,0 +1,27 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block sottotitolo %}<p>Quiz finale</p>{% endblock %}
+{% block corpo %}
+{% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="pb-trappola" aria-hidden="true"><label for="q-sito">Lascia vuoto</label><input id="q-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
+  {% for d in domande %}
+  <fieldset class="pb-domanda">
+    <legend>{{ forloop.counter }}. {{ d.testo }}</legend>
+    {% if d.multipla %}<p class="pb-help">Più risposte giuste: segnale tutte.</p>{% endif %}
+    {% for oid, testo in d.opzioni %}
+    <label class="pb-opz"><input type="{% if d.multipla %}checkbox{% else %}radio{% endif %}" name="q_{{ d.id }}" value="{{ oid }}"{% if oid in d.scelte %} checked{% endif %}> <span>{{ testo }}</span></label>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <div class="pb-chi">
+    <h3>Chi sei?</h3>
+    <p class="pb-help">Scrivi nome e cognome come sul badge: servono a registrare il corso sulla tua scheda.</p>
+    <div class="pb-grid">
+      <div class="pb-field"><label for="q-nome">Nome</label><input id="q-nome" name="nome" maxlength="100" autocomplete="given-name" value="{{ dati.nome|default:'' }}" required></div>
+      <div class="pb-field"><label for="q-cognome">Cognome</label><input id="q-cognome" name="cognome" maxlength="100" autocomplete="family-name" value="{{ dati.cognome|default:'' }}" required></div>
+    </div>
+  </div>
+  <button class="pb-btn pb-btn-full" type="submit">Consegna il quiz</button>
+</form>
+{% endblock %}

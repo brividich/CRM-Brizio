@@ -76,6 +76,7 @@ urlpatterns = [
     path("reception/", include(("reception.urls", "reception"), namespace="reception")),
     # Richiesta di appuntamento degli esterni: pubblica, spenta di default (RECEPTION_RICHIESTE_PUBBLICHE).
     path("richiesta-visita/", include(("reception.urls_pubbliche", "reception_pubblica"), namespace="reception_pubblica")),
+    path("corso-aperto/", include(("anagrafica.urls_corso_aperto", "corso_aperto"), namespace="corso_aperto")),
     path("scadenze/", include(("scadenzario.urls", "scadenzario"), namespace="scadenzario")),
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),
     path("tickets/",    include(("tickets.urls",    "tickets"),    namespace="tickets")),

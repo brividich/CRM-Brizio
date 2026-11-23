@@ -1,0 +1,42 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block corpo %}
+<div class="pb-bar"><span style="width:{{ progress_pct }}%"></span></div>
+<div class="pb-meta">Slide {{ indice }} di {{ n_slide }}</div>
+{% if not slide.is_immagine %}<h2>{{ slide.titolo }}</h2>{% endif %}
+<div class="pb-corpo">
+  {% if slide.tipo == "VIDEO" and slide.video %}
+    <video class="pb-video" controls preload="metadata" playsinline controlslist="nodownload" src="{% url 'corso_aperto:video' link.token slide.pk %}"></video>
+  {% elif slide.is_immagine %}
+    <img class="pb-media" src="{% url 'corso_aperto:immagine' link.token slide.pk %}" alt="{{ slide.titolo }}">
+  {% else %}
+    {{ contenuto_html }}
+  {% endif %}
+</div>
+<div class="pb-nav">
+  {% if prec %}<a class="pb-btn pb-btn-ghost" href="?s={{ prec }}">Indietro</a>{% else %}<span></span>{% endif %}
+  {% if secondi_mancanti %}<span class="pb-attesa" role="status" aria-live="polite">Puoi andare avanti tra <strong id="pb-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
+  {% if succ %}
+    <a class="pb-btn js-avanti" href="?s={{ succ }}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Avanti</a>
+  {% elif ha_quiz %}
+    <a class="pb-btn js-avanti" href="{% url 'corso_aperto:quiz' link.token %}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Vai al quiz finale</a>
+  {% else %}
+    <span class="pb-attesa">Fine del corso.</span>
+  {% endif %}
+</div>
+{% endblock %}
+{% block script %}{% if secondi_mancanti %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var n = {{ secondi_mancanti }}, el = document.getElementById("pb-secondi"), btn = document.querySelector(".js-avanti");
+  var t = setInterval(function () {
+    n -= 1;
+    if (el) el.textContent = Math.max(n, 0);
+    if (n <= 0) {
+      clearInterval(t);
+      if (btn) btn.removeAttribute("aria-disabled");
+      if (el) el.parentNode.style.visibility = "hidden";
+    }
+  }, 1000);
+})();
+</script>
+{% endif %}{% endblock %}
