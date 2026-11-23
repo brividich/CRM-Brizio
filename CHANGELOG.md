@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Fix: Mansionario → Struttura → Importa andava in errore 500
+
+- `anagrafica/services/struttura_excel.py`: il catalogo dei processi MOD.128 leggeva un campo `codice` che `ProcessoQualificato` non ha; con almeno un processo in archivio (produzione) ogni anteprima/import del file Struttura dava 500. Il processo si abbina per nome esatto, come dicono le istruzioni del file.
+- `anagrafica/tests_struttura.py`: test di regressione con un processo MOD.128 in archivio.
+
 ### Anagrafica: «Organizzazione» si apre su una pagina d'ingresso con i collegamenti diretti
 
 - **Pagina «Panoramica»**, prima voce del pilastro Organizzazione (`/anagrafica/organizzazione/`): in alto i numeri della struttura, ognuno porta al suo elenco; a sinistra «Collegamenti diretti», una tessera per pagina della sezione con una riga che spiega a che cosa serve («Esplora la struttura», «Mansioni», «Richieste», «Reparti e capi», «Centri di costo», «Organigramma», «Prova un cambiamento», «Struttura e revisioni»); a destra «Da fare», solo ciò che aspetta in questa sezione, con numero e pulsante. Sotto, lo stato della revisione della struttura.
