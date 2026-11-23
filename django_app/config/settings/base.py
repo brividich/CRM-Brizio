@@ -353,6 +353,10 @@ OLLAMA_EMBED_INLINE_MAX = int(env("OLLAMA_EMBED_INLINE_MAX", "200") or "200")
 # All'apertura di /assistente-ai/ prepara in background indice RAG, vettori del
 # routing e modello chat (warmup al piu' ogni 10 minuti).
 AI_PREWARM_ON_PAGE_OPEN = env_bool("AI_PREWARM_ON_PAGE_OPEN", True)
+
+# Home: secondi di cache per persona dei contatori dei riquadri (0 = spenta).
+HOME_KPI_CACHE_SECONDS = int(env("HOME_KPI_CACHE_SECONDS", "90") or "90")
+
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")
 OLLAMA_RAG_MAX_FILE_CHARS = int(env("OLLAMA_RAG_MAX_FILE_CHARS", "300000") or "300000")

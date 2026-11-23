@@ -299,6 +299,35 @@ def _user_ids_da_legacy(legacy_ids) -> list[int]:
     return list(Profile.objects.filter(legacy_user_id__in=list(legacy_ids)).values_list("user_id", flat=True))
 
 
+def _tile_kpi_counts_cached(legacy_user, is_admin: bool, request) -> dict:
+    """``_tile_kpi_counts`` tenuto ``HOME_KPI_CACHE_SECONDS`` secondi per persona.
+
+    I numeri dei riquadri costano decine di query a ogni apertura della home (in prod
+    la pagina più aperta): un minuto e mezzo di ritardo sui contatori è accettabile,
+    come la cache dei permessi. 0 = spenta. La chiave include l'utente legacy effettivo
+    (impersonazione) e il giorno, così un cambio di data o di persona non riusa i numeri.
+    """
+    from django.core.cache import cache
+
+    durata = int(getattr(settings, "HOME_KPI_CACHE_SECONDS", 90) or 0)
+    if durata <= 0:
+        return _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
+    legacy_id = getattr(legacy_user, "id", None) or 0
+    chiave = f"home:kpi:v1:{request.user.pk}:{legacy_id}:{int(bool(is_admin))}:{timezone.localdate().isoformat()}"
+    try:
+        trovato = cache.get(chiave)
+    except Exception:
+        trovato = None
+    if isinstance(trovato, dict):
+        return trovato
+    valori = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
+    try:
+        cache.set(chiave, valori, durata)
+    except Exception:
+        logger.warning("Home: contatori dei riquadri non salvati in cache", exc_info=True)
+    return valori
+
+
 def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=None) -> dict:
     """Multi-KPI per tile. Returns dict[module_id, list[{value, unit, tone}]].
     Tutte le query sono lightweight e avvolte in try/except — un errore non blocca la home."""
@@ -1283,8 +1312,8 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         parts.append(f"{len(pending)} richieste in approvazione")
     greeting_summary = " e ".join(parts) + "." if parts else "Benvenuto nel portale."
 
-    tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
-    groups = _module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
+    tile_kpis = _tile_kpi_counts_cached(legacy_user, is_admin, request)
+    groups =_module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
 
     # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.
     from dashboard.views_mie_attivita import build_cose_da_gestire, contesto_mie_attivita

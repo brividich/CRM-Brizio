@@ -46,6 +46,7 @@ SECURITY_SETTINGS_CACHE_SECONDS = 0
 # sincrono, nessun preriscaldamento verso Ollama all'apertura della pagina).
 OLLAMA_RAG_BACKGROUND_REBUILD = False
 AI_PREWARM_ON_PAGE_OPEN = False
+HOME_KPI_CACHE_SECONDS = 0
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
