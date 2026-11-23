@@ -1,0 +1,137 @@
+{% extends "core/base.html" %}
+
+{% block title %}Organizzazione | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.op-pagina { max-width:1600px; margin:0 auto; padding:0 0 28px; }
+.op-testa { display:flex; flex-wrap:wrap; align-items:flex-start; gap:12px; margin:4px 0 16px; }
+.op-testa h1 { margin:0; font-size:24px; font-weight:800; color:#0f172a; }
+.op-testa p { margin:3px 0 0; font-size:13.5px; color:#475569; }
+.op-azioni { margin-left:auto; display:flex; gap:8px; }
+.op-btn { display:inline-flex; align-items:center; gap:7px; height:38px; padding:0 14px; border-radius:10px; border:1px solid #d7e0ea; background:#fff; font-size:13.5px; font-weight:600; color:#0c2545; text-decoration:none; white-space:nowrap; }
+.op-btn:hover { background:#f4f8fc; }
+.op-btn-p { background:#ff6b00; border-color:#ff6b00; color:#fff; }
+.op-btn-p:hover { background:#e85f00; }
+.op-btn-s { height:32px; padding:0 12px; font-size:12.5px; }
+.op-ico { width:1em; height:1em; flex:none; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.op-numeri { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; background:#fff; border:1px solid #d7e0ea; border-radius:14px; margin:0 0 18px; overflow:hidden; }
+.op-numero { display:flex; align-items:center; gap:10px; padding:12px 16px; border-right:1px solid #eef2f7; text-decoration:none; color:#0f172a; min-width:0; }
+.op-numero:last-child { border-right:0; }
+.op-numero:hover { background:#f4f8fc; }
+.op-numero b { display:block; font-size:22px; line-height:1.15; }
+.op-numero span { display:block; font-size:12.5px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.op-numero .op-ico { margin-left:auto; color:#94a3b8; font-size:15px; }
+.op-due { display:grid; grid-template-columns:minmax(0, 2fr) minmax(300px, 1fr); gap:20px; align-items:start; }
+.op-h { display:flex; align-items:baseline; gap:10px; margin:0 0 10px; padding-left:9px; border-left:3px solid #0c2545; }
+.op-h h2 { margin:0; font-size:12.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#0c2545; }
+.op-h span { margin-left:auto; font-size:12px; color:#64748b; }
+.op-tessere { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+.op-tessera { display:flex; flex-direction:column; padding:14px 16px 10px; border:1px solid #d7e0ea; border-radius:14px; background:#fff; text-decoration:none; color:#0f172a; min-width:0; }
+.op-tessera:hover { border-color:#9cc6e6; box-shadow:0 2px 10px rgba(12,37,69,.08); }
+.op-tessera:focus-visible, .op-numero:focus-visible, .op-btn:focus-visible { outline:2px solid #1f87cd; outline-offset:2px; }
+.op-t-testa { display:flex; align-items:center; gap:10px; }
+.op-t-ico { display:inline-flex; width:34px; height:34px; flex:none; border-radius:9px; background:#e8f3fb; color:#1f6fb0; align-items:center; justify-content:center; font-size:17px; }
+.op-t-testa b { font-size:15px; }
+.op-tessera p { margin:7px 0 10px; font-size:12.5px; line-height:1.4; color:#64748b; flex:1; }
+.op-t-piede { display:flex; align-items:center; gap:8px; min-height:26px; padding-top:8px; border-top:1px solid #eef2f7; font-size:12px; }
+.op-t-piede .op-ico { margin-left:auto; color:#94a3b8; font-size:15px; }
+.op-chip { padding:2px 8px; border-radius:6px; background:#eef2f7; color:#334155; font-weight:700; }
+.op-conta { display:inline-flex; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:#ea580c; color:#fff; font-size:11px; font-weight:700; align-items:center; justify-content:center; }
+.op-fare { background:#fff; border:1px solid #d7e0ea; border-radius:14px; overflow:hidden; }
+.op-riga { display:flex; align-items:center; gap:12px; padding:11px 14px; border-bottom:1px solid #eef2f7; }
+.op-riga:last-child { border-bottom:0; }
+.op-riga.is-urgente { background:#fff7f0; box-shadow:inset 3px 0 0 #ea580c; }
+.op-riga > b { flex:0 0 46px; font-size:20px; text-align:center; color:#0c2545; }
+.op-riga.is-urgente > b { color:#c2410c; }
+.op-riga div { flex:1; min-width:0; }
+.op-riga strong { display:block; font-size:13.5px; color:#0f172a; }
+.op-riga small { display:block; font-size:12px; color:#64748b; }
+.op-vuoto { margin:0; padding:14px 16px; font-size:13px; color:#64748b; }
+.op-nota { display:flex; gap:8px; margin:12px 0 0; padding:10px 12px; border-radius:10px; background:#eef4fb; border:1px solid #d7e0ea; font-size:12.5px; color:#334155; }
+.op-nota .op-ico { margin-top:2px; color:#1f6fb0; font-size:15px; }
+body.theme-dark .op-testa h1, body.theme-dark .op-numero, body.theme-dark .op-tessera, body.theme-dark .op-riga strong { color:var(--text); }
+body.theme-dark .op-testa p, body.theme-dark .op-numero span, body.theme-dark .op-tessera p, body.theme-dark .op-h span, body.theme-dark .op-riga small, body.theme-dark .op-vuoto { color:var(--text-light); }
+body.theme-dark .op-numeri, body.theme-dark .op-tessera, body.theme-dark .op-fare, body.theme-dark .op-btn { background:var(--surface); border-color:var(--border); }
+body.theme-dark .op-btn { color:var(--text); }
+body.theme-dark .op-btn-p { background:#ff6b00; border-color:#ff6b00; color:#fff; }
+body.theme-dark .op-numero, body.theme-dark .op-riga, body.theme-dark .op-t-piede { border-color:var(--border); }
+body.theme-dark .op-numero:hover, body.theme-dark .op-btn:hover { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .op-h { border-color:#7cc0f0; }
+body.theme-dark .op-h h2, body.theme-dark .op-riga > b { color:#7cc0f0; }
+body.theme-dark .op-t-ico { background:#1e3a5f; color:#7cc0f0; }
+body.theme-dark .op-chip { background:var(--surface-alt,#0f1b2d); color:var(--text-mid); }
+body.theme-dark .op-riga.is-urgente { background:rgba(245,158,11,.12); }
+body.theme-dark .op-riga.is-urgente > b { color:#fdba74; }
+body.theme-dark .op-nota { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text-mid); }
+@media (max-width:1100px) {
+  .op-due { grid-template-columns:minmax(0, 1fr); }
+  .op-numeri { grid-auto-flow:row; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  .op-numero { border-bottom:1px solid #eef2f7; }
+}
+@media (max-width:640px) {
+  .op-tessere { grid-template-columns:minmax(0, 1fr); }
+  .op-numeri { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .op-azioni { margin-left:0; width:100%; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="op-pagina">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="op-testa">
+    <div>
+      <h1>Organizzazione</h1>
+      <p>Chi fa che cosa: centri di costo, reparti, ruoli, mansioni e competenze.</p>
+    </div>
+    <div class="op-azioni">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}
+      <a class="op-btn" href="{{ guida_url }}#organizzazione-panoramica">? Guida</a>
+      {% if puo_chiedere %}<a class="op-btn op-btn-p" href="{% url 'anagrafica:richiesta_nuova' %}"><svg class="op-ico"><use href="#i-plus"/></svg>Nuova richiesta</a>{% endif %}
+    </div>
+  </div>
+
+  {% if numeri %}
+  <nav class="op-numeri" aria-label="La struttura in numeri">
+    {% for x in numeri %}<a class="op-numero" href="{{ x.url }}" title="Apri l'elenco: {{ x.nome|lower }}"><div><b>{{ x.n }}</b><span>{{ x.nome }}</span></div><svg class="op-ico"><use href="#i-arrow-right"/></svg></a>{% endfor %}
+  </nav>
+  {% endif %}
+
+  <div class="op-due">
+    <section aria-label="Collegamenti diretti">
+      <div class="op-h"><h2>Collegamenti diretti</h2><span>Le pagine della sezione</span></div>
+      <div class="op-tessere">
+        {% for t in collegamenti %}
+        <a class="op-tessera" href="{{ t.url }}">
+          <span class="op-t-testa"><span class="op-t-ico"><svg class="op-ico"><use href="#i-{{ t.icona }}"/></svg></span><b>{{ t.nome }}</b></span>
+          <p>{{ t.spiega }}</p>
+          <span class="op-t-piede">{% if t.attesa %}<span class="op-conta" title="In attesa di te">{{ t.attesa }}</span>{% endif %}{% if t.etichetta %}<span class="op-chip">{{ t.etichetta }}</span>{% endif %}<svg class="op-ico"><use href="#i-arrow-right"/></svg></span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section aria-label="Da fare">
+      <div class="op-h"><h2>Da fare</h2><span>Ciò che aspetta in questa sezione</span></div>
+      <div class="op-fare">
+        {% for r in da_fare %}
+        <div class="op-riga{% if r.urgente %} is-urgente{% endif %}">
+          <b>{{ r.n }}</b>
+          <div><strong>{{ r.titolo }}</strong><small>{{ r.sotto }}</small></div>
+          <a class="op-btn op-btn-s" href="{{ r.url }}">{{ r.azione }}</a>
+        </div>
+        {% empty %}
+        <p class="op-vuoto">Niente da fare in questa sezione.</p>
+        {% endfor %}
+      </div>
+      {% if nota %}<p class="op-nota"><svg class="op-ico"><use href="#i-alert-cir"/></svg><span>{{ nota }}</span></p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

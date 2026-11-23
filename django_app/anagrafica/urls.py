@@ -19,6 +19,7 @@ from . import views_centri_costo
 from . import views_esplora
 from . import views_prospetto
 from . import views_mio_team
+from . import views_organizzazione
 from . import views_richieste
 from . import views_mia_scheda
 from . import views_retention
@@ -424,6 +425,8 @@ urlpatterns = [
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
+    # Pagina di ingresso della sezione Organizzazione: numeri, collegamenti diretti, cose da fare.
+    path("organizzazione/", views_organizzazione.panoramica, name="organizzazione"),
     # Richieste su mansioni e competenze (RAM, RAC): da fare, elenco, nuova, dettaglio, decisione.
     path("competenze/da-fare/", views_richieste.da_fare, name="richieste_da_fare"),
     path("competenze/richieste/", views_richieste.elenco, name="richieste"),
