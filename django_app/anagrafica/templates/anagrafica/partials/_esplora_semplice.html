@@ -44,7 +44,7 @@
     <section class="es-s-card">
       <h2 class="es-s-h">Competenze richieste dalla mansione <span>{{ semplice.competenze|length }}</span></h2>
       {% if semplice.competenze %}
-      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Competenza</th><th>Livello richiesto</th></tr></thead>
         <tbody>{% for c in semplice.competenze %}<tr{% if c.scelta %} class="is-scelta"{% endif %}>
           <td><b>{{ c.nome }}</b>{% if c.bloccante %}<small>Bloccante: sotto il livello richiesto la persona non è abilitata</small>{% endif %}{% if c.requisito %}<small>Richiede: {{ c.requisito }}</small>{% endif %}</td>
@@ -56,12 +56,12 @@
     <section class="es-s-card">
       <h2 class="es-s-h">Persone con questa mansione <span>{{ semplice.persone_mansione|length }}</span></h2>
       {% if semplice.persone_mansione %}
-      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th></tr></thead>
         <tbody>{% for p in semplice.persone_mansione %}<tr>
           <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
           <td>{% include "anagrafica/partials/_esplora_livello.html" with l=p.livello %}</td>
-          <td><span class="es-esito es-esito-{{ p.tono }}">{{ p.stato }}</span></td>
+          <td><span class="es-s-stato es-s-stato-{{ p.tono }}">{{ p.stato }}</span></td>
         </tr>{% endfor %}</tbody>
       </table></div>
       {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
@@ -72,7 +72,7 @@
   <section class="es-s-card">
     <h2 class="es-s-h">{{ semplice.persone.titolo }} <span>{{ semplice.persone.righe|length }}</span></h2>
     {% if semplice.persone.righe %}
-    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
       <thead><tr><th>Persona</th>{% if semplice.persone.ruolo %}<th>Ruolo</th>{% endif %}<th>Mansioni</th></tr></thead>
       <tbody>{% for p in semplice.persone.righe %}<tr>
         <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
@@ -85,7 +85,7 @@
   {% elif semplice.reparti %}
   <section class="es-s-card">
     <h2 class="es-s-h">Reparti del centro di costo <span>{{ semplice.reparti|length }}</span></h2>
-    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
       <thead><tr><th>Reparto</th><th>Responsabile del reparto</th><th>Persone</th></tr></thead>
       <tbody>{% for r in semplice.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"Nessuno" }}</td><td>{{ r.persone }}</td></tr>{% endfor %}</tbody>
     </table></div>

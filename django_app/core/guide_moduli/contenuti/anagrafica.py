@@ -136,8 +136,12 @@ GUIDA = {
                 ("p", "Per ognuno vedi anche il centro di costo e i segnali di carico: unico operativo su una mansione, "
                       "troppe mansioni, carico concentrato."),
                 ("p", "Per ognuno vedi area, mansione e il semaforo di conformità alla mansione; prima chi non è conforme, "
-                      "poi chi ha adempimenti in scadenza. Nessun dato sanitario. Il nome apre la scheda solo se hai il "
-                      "permesso di vederla."),
+                      "poi chi ha adempimenti in scadenza. Nessun dato sanitario."),
+                ("p", "L'elenco sta a sinistra: cliccando un nome, a destra compare «Persona scelta» con ogni dato "
+                      "etichettato (persona, reparto, ruolo, centro di costo, obblighi della mansione), le sue «Mansioni» "
+                      "con livello e stato e le sue «Competenze» con il livello raggiunto accanto al livello richiesto; "
+                      "«Sotto il livello richiesto» segnala dove serve formazione. Livelli: I in formazione, L intermedio, "
+                      "U autonomo, O formatore/esperto. «Apri la scheda» compare solo se hai il permesso di vederla."),
                 ("nota", "Se l'elenco è vuoto ma sei capo, chiedi all'HR di indicarti come responsabile dell'area o "
                          "caporeparto nel catalogo Reparti; se dice «Account non collegato», il tuo utente va collegato "
                          "alla tua scheda."),
