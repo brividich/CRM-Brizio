@@ -67,6 +67,19 @@ class PosizioniAlberoTests(TestCase):
         albero = build_posizioni_albero()
         nodo = next(n for n in albero if n["ruolo"].nome == "ConFlag")
         self.assertIs(nodo["titolari"][0]["ha_foto"], False)
+        self.assertEqual(nodo["titolari"][0]["foto_v"], "")
+
+    def test_titolare_con_foto_porta_la_versione_della_miniatura(self):
+        from anagrafica.models import DipendenteAnagraficaCivile
+        from anagrafica.views.dipendenti import _foto_versione
+
+        ruolo = RuoloOperativo.objects.create(nome="ConFoto")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=8, ruolo=ruolo)
+        DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=8, foto="anagrafica/dipendenti/8/foto/p_20261123.jpg")
+        albero = build_posizioni_albero()
+        titolare = next(n for n in albero if n["ruolo"].nome == "ConFoto")["titolari"][0]
+        self.assertIs(titolare["ha_foto"], True)
+        self.assertEqual(titolare["foto_v"], _foto_versione("anagrafica/dipendenti/8/foto/p_20261123.jpg"))
 
 
     def test_molti_riporti_foglia_restano_fratelli_dello_stesso_livello(self):

@@ -8,6 +8,8 @@ from __future__ import annotations
 import io
 import json
 import logging
+import threading
+from collections import OrderedDict
 from datetime import timedelta as _timedelta
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
@@ -5409,14 +5411,26 @@ def foto_dipendente(request, legacy_id: int):
 
     from django.http import FileResponse
     richiesta = str(request.GET.get("m") or "")
+    versione = _foto_versione(civile.foto.name)
+    # ETag = impronta del file + formato: se il browser ha già questa foto risponde 304
+    # senza aprire né decifrare niente (prima ogni revalidazione rileggeva il file).
+    etag = f'"{versione}-{"m" if richiesta else "f"}"'
+    cache_control = (
+        "private, max-age=2592000" if richiesta == versione else "private, max-age=3600"
+    )
+    if etag in [t.strip() for t in str(request.headers.get("If-None-Match") or "").split(",")]:
+        response = HttpResponse(status=304)
+        response["ETag"] = etag
+        response["Cache-Control"] = cache_control
+        return response
     if richiesta:
         # Elenchi e organigramma: icona piccola invece della foto intera (anche 6 MB).
-        dati = _miniatura_foto(civile.foto)
+        dati = _miniatura_foto_in_memoria(civile.foto)
         if dati is not None:
             response = HttpResponse(dati, content_type="image/jpeg")
-            versionata = richiesta == _foto_versione(civile.foto.name)
             # Con la versione giusta nell'URL la si tiene a lungo: una foto nuova cambia l'URL.
-            response["Cache-Control"] = "private, max-age=2592000" if versionata else "private, max-age=3600"
+            response["Cache-Control"] = cache_control
+            response["ETag"] = etag
             return response
     try:
         fh = civile.foto.open("rb")
@@ -5428,10 +5442,36 @@ def foto_dipendente(request, legacy_id: int):
     response = FileResponse(fh, content_type=content_type)
     # Cache breve lato browser: la foto cambia di rado, ma resta dietro auth.
     response["Cache-Control"] = "private, max-age=3600"
+    response["ETag"] = etag
     return response
 
 
 MINIATURA_LATO = 160  # px: avatar mostrati a 40-48 px, nitidi anche su schermi 4K
+
+# Miniature già decifrate, per processo: un elenco o l'organigramma ne chiede decine
+# insieme e ognuna, da disco, va aperta e decifrata. Chiave = nome del file (cambia a
+# ogni foto nuova), quindi una foto sostituita non viene mai servita vecchia.
+# ~10 KB l'una: 500 voci restano sotto i 10 MB.
+_MINIATURE_MAX = 500
+_MINIATURE: "OrderedDict[str, bytes]" = OrderedDict()
+_MINIATURE_LOCK = threading.Lock()
+
+
+def _miniatura_foto_in_memoria(foto):
+    nome = str(foto.name or "")
+    with _MINIATURE_LOCK:
+        dati = _MINIATURE.get(nome)
+        if dati is not None:
+            _MINIATURE.move_to_end(nome)
+            return dati
+    dati = _miniatura_foto(foto)
+    if dati is not None:
+        with _MINIATURE_LOCK:
+            _MINIATURE[nome] = dati
+            _MINIATURE.move_to_end(nome)
+            while len(_MINIATURE) > _MINIATURE_MAX:
+                _MINIATURE.popitem(last=False)
+    return dati
 
 
 def _miniatura_foto(foto):
@@ -5832,6 +5872,8 @@ def organigramma_persona_popup(request, legacy_id: int):
         "legacy_id": legacy_id,
         "nome": nome,
         "ha_foto": bool(civile and civile.foto),
+        # Riquadro da 60 px: la miniatura versionata, non la foto intera (fino a 6 MB da decifrare).
+        "foto_url": _foto_dipendente_url(civile, legacy_id, miniatura=True),
         "matricola": dip.get("matricola") or "",
         "badge": aziendale.badge if aziendale else "",
         "mansione": dip.get("mansione") or "",

@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: foto dei dipendenti più rapide
+
+- **Il browser che ha già la foto riceve un «304 non modificata»:** la foto ha un ETag con la versione del file, e la richiesta di rinnovo non apre né decifra più niente. In prod le foto erano circa 200 richieste l'ora, da 0,76 s l'una.
+- **Miniature decifrate tenute in memoria:** fino a 500 per processo (circa 10 KB l'una). La chiave è il nome del file, quindi una foto sostituita non viene mai servita vecchia.
+- **Organigramma:** gli avatar usano la miniatura con la versione nell'URL (cache di 30 giorni, prima di un'ora con `?m=1`). Il popup della persona mostra la miniatura invece della foto intera, che poteva arrivare a 6 MB da decifrare per un riquadro da 60 px.
+- File: `anagrafica/views/dipendenti.py`, `anagrafica/services/organigramma_albero.py`, `anagrafica/templates/anagrafica/partials/_org_posizione.html`, `anagrafica/templates/anagrafica/partials/_org_persona_popup.html`, `anagrafica/tests.py`, `anagrafica/tests_organigramma_diagramma.py`.
+
 ### Audit 22/11, ondata 6: robustezza
 
 - **Caricamenti dal validatore unico ([56]):** nuovo `core.upload_mime.valida_per_estensione` (nome, estensione, dimensione, tipo reale, firma) con la tabella dei tipi spostata da anagrafica in core. Ora controllano il contenuto anche: allegato delle prove di ripristino SOC (prima solo dimensione), bozza CN-SGI (prima solo estensione), documento firmato del Technical Plan MOD.128 (prima nessun controllo), file dei collegamenti della Bacheca (tipo registrato dal contenuto, non dal browser), allegati delle visite in Reception. Allegati delle anomalie: si aprono nel browser solo PDF e immagini il cui contenuto coincide con l'estensione, il resto si scarica in sandbox. Test di censimento `core/test_upload_census.py` con linea di base `core/upload_censimento_baseline.json`. File: `core/upload_mime.py`, `core/download_security.py`, `anagrafica/services/upload_documenti.py`, `anagrafica/views_mpq_utensili.py`, `anagrafica/services/mpq_utensili.py`, `anagrafica/templates/anagrafica/pages/mpq_tp.html`, `security/forms.py`, `procedure_refresh/modifiche.py`, `admin_portale/views_bacheca.py`, `reception/importa.py`, `anomalie/views.py`.
