@@ -200,7 +200,8 @@ GUIDA = {
                     "impaginata come il Dossier PART 145, con solo le parti che il processo usa: da sistemare, "
                     "scadenze, macchine qualificate con ultima verifica MOD.161, utensili critici, Technical Plan, "
                     "utensili in uso (MOD.176) e, con il permesso MOD.128, persone e formazione. «↓ Scarica» la dà "
-                    "in PDF o in Excel.",
+                    "in PDF o in Excel; con una ricerca in corso anche solo le righe trovate. Nelle scadenze, rosso "
+                    "= già scaduta, giallo = entro 30 giorni.",
                     "In testata della scheda asset ogni processo qualificato MOD.128 mostra lo stato della qualifica "
                     "della macchina (verde qualificata, ambra in scadenza, rosso sospesa, da valutare o scaduta) e "
                     "porta alla sua scheda nel processo. Chiudendo un intervento correttivo o da ticket su una macchina "

@@ -44,6 +44,11 @@
 .p145-menu-list a small { color:#64748b; font-weight:500; font-size:var(--fs-xs); }
 .p145-menu-list a:hover { background:#f1f5f9; }
 .p145-menu-list hr { border:0; border-top:1px solid #eef2f7; margin:4px 6px; }
+.p145-menu-list a[hidden] { display:none; }
+.p145-r-ko td { background:#fef2f2; }
+.p145-r-warn td { background:#fffbeb; }
+body.theme-dark .p145-r-ko td { background:rgba(239,68,68,.10); }
+body.theme-dark .p145-r-warn td { background:rgba(245,158,11,.10); }
 
 /* Sezioni */
 .p145-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 6px 18px rgba(15,23,42,.04); scroll-margin-top:70px; }
@@ -173,7 +178,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
       <table class="p145-table" data-fm-hide-search="1">
         <thead><tr>{% for h in s.intestazioni %}<th scope="col">{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th scope="col">Cosa fare</th>{% endif %}</tr></thead>
         <tbody>
-          {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls %}<span class="p145-badge {{ cls }}">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
+          {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}{% if s.codice == 'scadenze' %}{% with st=riga|last %}{% if st == 'Scaduta' %} class="p145-r-ko"{% elif st == 'Entro 30 giorni' %} class="p145-r-warn"{% endif %}{% endwith %}{% endif %}>{% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls %}<span class="p145-badge {{ cls }}">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
         </tbody>
       </table>
       <div class="p145-nomatch">Nessuna riga corrisponde alla ricerca.</div>
@@ -236,6 +241,12 @@ body.theme-dark .p145-azione { color:#fca5a5; }
       if (q && visibili) card.open = true;
     });
     esito.textContent = q ? trovate + ' righe' : '';
+    // «Scarica» con la ricerca attiva: voci per le sole righe trovate (dove la pagina le prevede).
+    var testo = input.value.trim();
+    document.querySelectorAll('[data-solo-trovate]').forEach(function (a) {
+      a.hidden = !testo;
+      a.href = a.href.split('?')[0] + (testo ? '?q=' + encodeURIComponent(testo) : '');
+    });
   }
   if (input) input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(filtra, 120); });
 })();

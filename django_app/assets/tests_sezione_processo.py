@@ -228,3 +228,68 @@ class SezioneProcessoTests(TestCase):
         pagina = self.client.get(reverse("anagrafica:mpq_sezione", args=["P11TF12"]))
         self.assertContains(pagina, 'id="p11-cerca"')
         self.assertContains(pagina, 'data-fm-hide-search="1"')
+
+    def test_cambio_titolo_rinomina_la_voce_ma_non_quella_rinominata_a_mano(self):
+        from anagrafica.services.mpq_sezioni import sincronizza_menu
+
+        sincronizza_menu()
+        url_menu = reverse("anagrafica:mpq_sezione", args=["P11TF12"])
+        ProcessoQualificato.objects.filter(pk=self.processo.pk).update(sezione_titolo="Foratura nuova")
+        sincronizza_menu()
+        self.assertEqual(SubnavLinkAnagrafica.objects.get(url_value=url_menu).etichetta, "P11TF12 – Foratura nuova")
+        SubnavLinkAnagrafica.objects.filter(url_value=url_menu).update(etichetta="Fori critici")
+        ProcessoQualificato.objects.filter(pk=self.processo.pk).update(sezione_titolo="Altro titolo")
+        sincronizza_menu()
+        self.assertEqual(SubnavLinkAnagrafica.objects.get(url_value=url_menu).etichetta, "Fori critici")
+
+    def test_scarica_solo_le_righe_trovate(self):
+        dati = sezione_processo.costruisci("P11TF12")
+        estratto = sezione_processo.filtra(dati, "pn-syn-2")
+        self.assertEqual([s.codice for s in estratto["sezioni"]], ["aperte", "technical_plan"])
+        tp = next(s for s in estratto["sezioni"] if s.codice == "technical_plan")
+        self.assertEqual([r[0] for r in tp.righe], ["PN-SYN-2"])
+        self.assertEqual(len(tp.azioni), 1)
+        self.assertIn("«pn-syn-2»", estratto["titolo_export"])
+        self.assertTrue(estratto["nome_file"].endswith("-estratto"))
+        self.assertIs(sezione_processo.filtra(dati, "  "), dati)
+        # Le sezioni originali non cambiano.
+        self.assertEqual(len(next(s for s in dati["sezioni"] if s.codice == "technical_plan").righe), 2)
+        macc = sezione_processo.filtra(dati, "foratrice")
+        m = next(s for s in macc["sezioni"] if s.codice == "macchine")
+        self.assertEqual(m.asset_ids, [self.macchina.pk])
+        for url in (reverse("assets:processo_sezione_export", args=["P11TF12", "xlsx"]),
+                    reverse("anagrafica:mpq_sezione_export", args=["P11TF12", "xlsx"])):
+            r = self.client.get(url, {"q": "PN-SYN-2"})
+            self.assertEqual(r.status_code, 200)
+            self.assertIn("-estratto.xlsx", r["Content-Disposition"])
+        pagina = self.client.get(reverse("anagrafica:mpq_sezione", args=["P11TF12"]))
+        self.assertContains(pagina, "hidden data-solo-trovate", count=2)
+        asset = self.client.get(reverse("assets:processo_sezione", args=["P11TF12"]))
+        self.assertContains(asset, "hidden data-solo-trovate", count=2)
+
+    def test_scadenze_vicine_evidenziate(self):
+        oggi = timezone.localdate()
+        ProcessoQualificato.objects.filter(pk=self.processo.pk).update(
+            tipo_validita=ProcessoQualificato.VALIDITA_DATA, data_scadenza=oggi + timedelta(days=10))
+        dati = sezione_processo.costruisci("P11TF12")
+        kpi = next(k for k in dati["kpi"] if k["sezione"] == "scadenze")
+        self.assertIn("entro 30 giorni", kpi["nota"])
+        pagina = self.client.get(reverse("anagrafica:mpq_sezione", args=["P11TF12"]))
+        self.assertContains(pagina, 'class="p11-r-warn"')
+        asset = self.client.get(reverse("assets:processo_sezione", args=["P11TF12"]))
+        self.assertContains(asset, 'class="p145-r-warn"')
+
+    def test_cruscotto_mostra_la_sigla_e_avviso_riferimenti_mancanti(self):
+        cruscotto = self.client.get(reverse("anagrafica:mpq_cruscotto"))
+        self.assertContains(cruscotto, 'title="Apri la sezione dedicata">P11TF12</a>')
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertContains(dettaglio, "mpq-avviso-rif")
+        self.processo.riferimenti.create(codice="MOD.161")
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertNotContains(dettaglio, "mpq-avviso-rif")
+
+    def test_mail_scadenze_porta_alla_sezione(self):
+        from anagrafica.services.mpq_scadenze import _processo_html
+
+        self.assertIn(reverse("anagrafica:mpq_sezione", args=["P11TF12"]), _processo_html(self.processo))
+        self.assertEqual(_processo_html(self.altro), "Trattamento sintetico")
