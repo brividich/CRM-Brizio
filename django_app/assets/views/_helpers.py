@@ -46,6 +46,8 @@ from ..forms import (
 from ..models import (
     Asset,
     AssetAdministrativeDeadline,
+    AssetCategoryDocumentFolder,
+    AssetDocumentFolder,
     AssetCustomField,
     AssetDocument,
     AssetLabelTemplate,
@@ -1155,6 +1157,34 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                     "scope": "asset",
                 }
             )
+        # Cartelle «rimaste»: documenti caricati in una cartella che l'asset non ha
+        # più (tipicamente dopo un cambio di categoria). Restano visibili con il
+        # loro nome originale invece di sparire dalla scheda.
+        codes = {spec["code"] for spec in specs}
+        orphan_codes = sorted(
+            {code for code in asset.documents.values_list("category", flat=True) if code and code not in codes}
+        )
+        if orphan_codes:
+            names: dict[str, str] = {}
+            for slug, name in AssetCategoryDocumentFolder.objects.filter(slug__in=orphan_codes).order_by(
+                "-is_active", "id"
+            ).values_list("slug", "name"):
+                names.setdefault(slug, name)
+            for slug, name in AssetDocumentFolder.objects.filter(asset=asset, slug__in=orphan_codes).values_list(
+                "slug", "name"
+            ):
+                names[slug] = name
+            for code in orphan_codes:
+                specs.append(
+                    {
+                        "code": code,
+                        "label": names.get(code) or code.replace("-", " ").capitalize(),
+                        "field": _asset_document_custom_field_name(code),
+                        "removable": False,
+                        "folder_id": None,
+                        "scope": "orphan",
+                    }
+                )
     return specs
 
 

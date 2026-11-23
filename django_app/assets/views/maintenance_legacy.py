@@ -1418,7 +1418,6 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_total": sum(source_counts.values()),
             "history_workorder_count": source_counts["workorder"],
             "history_ticket_count": source_counts["ticket"],
-            "history_occurrence_count": source_counts["occurrence"],
             "history_deadline_count": source_counts["deadline"],
             # Durata, costo e copertura si calcolano sulle righe caricate (max 500 per
             # origine): con piu' righe la pagina lo dichiara.

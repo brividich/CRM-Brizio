@@ -1116,9 +1116,9 @@
                 type="button"
                 class="af-doc-tab {% if forloop.first %}is-active{% endif %}"
                 data-doc-tab="{{ spec.code }}"
-                {% if spec.scope == "asset" %}title="Cartella di questo asset"{% elif spec.scope == "category" %}title="Cartella di tutta la categoria"{% endif %}
+                {% if spec.scope == "asset" %}title="Cartella di questo asset"{% elif spec.scope == "category" %}title="Cartella di tutta la categoria"{% elif spec.scope == "orphan" %}title="Cartella della categoria precedente: i file restano qui"{% endif %}
               >
-                {{ spec.label }}{% if spec.scope == "asset" %} <span class="af-doc-tab-scope">solo qui</span>{% endif %}
+                {{ spec.label }}{% if spec.scope == "asset" %} <span class="af-doc-tab-scope">solo qui</span>{% elif spec.scope == "orphan" %} <span class="af-doc-tab-scope">categoria precedente</span>{% endif %}
               </button>
             {% endfor %}
           </div>

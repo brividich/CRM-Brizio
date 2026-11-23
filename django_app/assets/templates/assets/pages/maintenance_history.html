@@ -25,7 +25,6 @@ body.theme-dark .mhs-empty{color:var(--text-light)}
   <div class="mhs-summary">
     <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.all }}" title="Apri lo storico: tutte le attività concluse con ricerca e periodo correnti"><strong>{{ history_total }}</strong><span>attivita concluse</span></a>
     <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.workorders }}" title="Apri lo storico filtrato: solo ordini di lavoro"><strong>{{ history_workorder_count }}</strong><span>ordini di lavoro</span></a>
-    <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.maintenance }}" title="Apri lo storico filtrato: manutenzioni registrate senza OdL"><strong>{{ history_occurrence_count }}</strong><span>manutenzioni senza OdL</span></a>
     <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.deadlines }}" title="Apri lo storico filtrato: scadenze amministrative svolte"><strong>{{ history_deadline_count }}</strong><span>scadenze amministrative svolte</span></a>
     <a class="mhs-kpi kpi-link" href="{{ history_kpi_links.tickets }}" title="Apri lo storico filtrato: ticket di manutenzione"><strong>{{ history_ticket_count }}</strong><span>ticket manutenzione</span></a>
     {% comment %}
