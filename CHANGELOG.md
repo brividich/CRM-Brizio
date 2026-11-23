@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: utente legacy letto una volta per richiesta
+
+- **`get_legacy_user` memorizzato sull'oggetto utente:** la stessa riga di `utenti` veniva riletta a ogni chiamata. Una pagina di anagrafica, che ha 69 punti di chiamata nei gate, arrivava a circa 60 letture. Ora la riga si legge una volta per richiesta e si rilegge se cambia il collegamento del profilo; un errore del database non viene memorizzato. Anagrafica scende da 203 a 146 query, il polling delle notifiche da 8 a 7, a ogni richiesta. File: `core/legacy_utils.py`.
+
 ### Prestazioni: controlli dei permessi senza rifare il giro delle rotte
 
 - **Rotte risolte una volta per processo:** a ogni controllo dei permessi `_route_names_to_paths` rifaceva decine di `reverse()` e `resolve_route_name` passava tutte le rotte del portale con `resolve()`. Le barre dei sottomenu, che controllano 50-60 link, arrivavano così a circa 3.700 reverse e 184.000 confronti per pagina. Ora i due risultati sono memorizzati per processo, con chiave per URLconf. Anagrafica scende da circa 1.000 a 580 ms sul DB di sviluppo. File: `core/middleware.py`, `core/acl_v2.py`.
