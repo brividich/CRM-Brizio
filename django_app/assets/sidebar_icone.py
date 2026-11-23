@@ -69,7 +69,6 @@ ICONE: dict[str, str] = {
     "mappa_officina": _MAPPA,
     "plant_layout_map": _MAPPA,
     "part_145_list": _SCUDO,
-    "p11tf12": _SCUDO,
     "licenze": _CHIAVE,
     "software_licenses": _CHIAVE,
     "catalogo_software": _PACCO,
@@ -83,4 +82,6 @@ def icona(code: str) -> str:
     code = (code or "").strip()
     if code.startswith("catnav-"):
         return _ETICHETTA
+    if code.startswith("sezione-"):  # sezioni dedicate dei processi qualificati (MOD.128)
+        return _SCUDO
     return ICONE.get(code, PUNTO)

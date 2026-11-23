@@ -26,6 +26,10 @@ urlpatterns = [
     path("assets/lista/", views.asset_list, name="asset_list"),
     path("assets/part-145/", views.asset_part_145_list, name="part_145_list"),
     path("assets/p11tf12/", views.asset_p11tf12, name="p11tf12"),
+    # Sezioni dedicate dei processi qualificati (MOD.128): un indirizzo per tutte le sigle.
+    path("assets/processi/<str:sigla>/", views.asset_processo_sezione, name="processo_sezione"),
+    path("assets/processi/<str:sigla>/export.<str:formato>", views.asset_processo_sezione_export,
+         name="processo_sezione_export"),
     path("assets/part-145/export.xlsx", views.asset_part_145_export_excel, name="part_145_export_excel"),
     path("assets/part-145/export.pdf", views.asset_part_145_export_pdf, name="part_145_export_pdf"),
     path("assets/part-145/strumenti-tarati.xlsx", views.asset_part_145_export_tarature, name="part_145_export_tarature"),

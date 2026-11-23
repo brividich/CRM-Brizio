@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 # Bump alla v15: permessi e binding della Reportistica componibile.
 # Bump alla v16: binding Recruiting di pipeline, offerta e posizioni aperte.
 # Bump alla v19: binding della pagina P11TF12 in Qualifiche (anagrafica:mpq_p11tf12 → view).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v19"
+# Bump alla v20: sezioni dedicate dei processi qualificati (anagrafica:mpq_sezione, mpq_sezione_export).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v20"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -101,6 +102,8 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_cruscotto": PERM_MPQ_VIEW,
     "anagrafica:mpq_vista": PERM_MPQ_VIEW,
     "anagrafica:mpq_p11tf12": PERM_MPQ_VIEW,
+    "anagrafica:mpq_sezione": PERM_MPQ_VIEW,
+    "anagrafica:mpq_sezione_export": PERM_MPQ_VIEW,
     "anagrafica:mpq_processo_detail": PERM_MPQ_VIEW,
     # Gestione (CRUD) → manage
     "anagrafica:mpq_processo_create": PERM_MPQ_MANAGE,

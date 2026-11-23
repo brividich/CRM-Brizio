@@ -212,10 +212,6 @@ GLOSSARIO_MENU = {
     "scadenzario abilitazioni": GLOSSARIO_INFO["skm"],
     "copertura abilitazioni": GLOSSARIO_INFO["skm"],
     "refresh semestrale": GLOSSARIO_INFO["skm"],
-    "p11tf12 foratura critica": (
-        "P11TF12 — Foratura su particolari critici (MT CN 69): processo qualificato MOD.128 con persone "
-        "abilitate, macchine qualificate (MOD.161), utensili critici, Technical Plan e registro MOD.176."
-    ),
 }
 
 
