@@ -930,6 +930,13 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Ho cambiato categoria all'asset e non trovo più alcuni documenti",
+            "fare": [
+                "Nei Documenti della scheda cerca le cartelle segnate «categoria precedente»: i file sono lì, con il nome della vecchia cartella.",
+                "Puoi continuare a caricarci file; le cartelle della nuova categoria compaiono accanto.",
+            ],
+        },
+        {
             "sintomo": "Caricando una cartella alcuni file non entrano",
             "fare": [
                 "Leggi l'elenco sotto il riquadro: formato non ammesso, file oltre il limite o vuoto.",

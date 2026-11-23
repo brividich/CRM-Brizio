@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset e ticket: file dopo il cambio categoria, riquadro Storico, ticket IT propri (23/11)
+
+- **Asset, cambio categoria:** i documenti caricati nelle cartelle della vecchia categoria non comparivano più nella scheda: erano in archivio, ma la scheda mostrava solo le cartelle della nuova categoria. Ora quelle cartelle restano visibili con il nome originale e l'etichetta «categoria precedente», e ci si può ancora caricare. File: `assets/views/_helpers.py`, `assets/templates/assets/pages/asset_detail.html`, guida in-app `assets/templates/assets/pages/guida.html`, Centro guide `core/guide_moduli/contenuti/assets.py`, test `assets/tests_cartelle_cambio_categoria.py`.
+- **Manutenzione → Storico:** tolto il riquadro «manutenzioni senza OdL», superfluo perché quasi tutte le manutenzioni vanno di scadenza in scadenza senza OdL. Le righe restano nell'elenco e nel filtro «Origine». File: `assets/templates/assets/pages/maintenance_history.html`, `assets/views/maintenance_legacy.py`.
+- **Ticket, elenco:** con un ruolo che dà «vedere» solo sui ticket manutenzione, il ticket IT aperto da sé non compariva. Ora i propri ticket sono sempre visibili, di ogni tipo. File: `tickets/views.py`, test `tickets/tests_propri_sempre_visibili.py`.
+
 ### Prestazioni: controlli dei permessi senza rifare il giro delle rotte
 
 - **Rotte risolte una volta per processo:** a ogni controllo dei permessi `_route_names_to_paths` rifaceva decine di `reverse()` e `resolve_route_name` passava tutte le rotte del portale con `resolve()`. Le barre dei sottomenu, che controllano 50-60 link, arrivavano così a circa 3.700 reverse e 184.000 confronti per pagina. Ora i due risultati sono memorizzati per processo, con chiave per URLconf. Anagrafica scende da circa 1.000 a 580 ms sul DB di sviluppo. File: `core/middleware.py`, `core/acl_v2.py`.

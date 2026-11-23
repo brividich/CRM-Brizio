@@ -728,7 +728,9 @@ def filtro_ticket_visibili(request) -> Q:
                 | Q(richiedente_legacy_user_id__in=ids)
                 | Q(richiedente_user__profile__legacy_user_id__in=ids)
             )
-    return risultato
+    # I propri sempre, di ogni tipo: anche quando il ruolo non da' «vedere» su
+    # quel tipo (es. ruolo con soli ticket manutenzione che apre un ticket IT).
+    return risultato | propri
 
 
 def ticket_visibili_queryset(request, qs):
