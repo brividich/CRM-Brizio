@@ -3367,3 +3367,5 @@ from .models_elenco import *  # noqa: E402, F401, F403
 from .models_gdpr import *  # noqa: E402, F401, F403
 # Revisioni emesse della struttura organizzativa (documento controllato).
 from .models_struttura import *  # noqa: E402, F401, F403
+# Richieste su mansioni e competenze (RAM, RAC): chi chiede, chi approva.
+from .models_richieste import *  # noqa: E402, F401, F403

@@ -127,6 +127,38 @@ GUIDA = {
             ],
         },
         {
+            "id": "richieste-competenze",
+            "titolo": "Richieste su mansioni e competenze",
+            "blocchi": [
+                ("p", "Anagrafica → Organizzazione → «Da fare» e «Richieste». Ogni cambio su una mansione o su una "
+                      "competenza parte da una richiesta approvata: resta scritto chi ha chiesto, perché e chi ha "
+                      "approvato."),
+                ("ul", [
+                    "«Nuova richiesta» (anche da «Il mio team» e dalla mansione in «Esplora la struttura»): scegli il "
+                    "tipo, la persona, la mansione o la competenza, il livello da raggiungere e il motivo.",
+                    "Tipi: «Assegnazione di mansione», «Sospensione di mansione», «Rimozione di mansione», "
+                    "«Acquisizione di competenza». Per sospendere o rimuovere il motivo è obbligatorio.",
+                    "Chi può chiedere: il responsabile per le persone del suo team; HR e Direzione per assegnazioni e "
+                    "competenze; chi ha il ruolo MSO per sospensioni, rimozioni e competenze.",
+                    "Chi approva: chi ha il ruolo RDD le richieste su mansioni, chi ha il ruolo MSO quelle su "
+                    "competenze. Nessuno approva la propria richiesta. Per respingere serve una nota.",
+                    "«Da fare» mostra «Da approvare» (ciò che aspetta te) e «Le mie richieste in attesa di altri», "
+                    "con la colonna «Tocca a».",
+                    "Nella richiesta: i passi in fila, «Che cosa si chiede» con ogni dato etichettato, «Che cosa "
+                    "serve per la mansione» (competenza, livello richiesto, livello di oggi, «Già presente» o «Da "
+                    "formare») e la «Storia» con chi ha fatto cosa.",
+                    "Stati: «In approvazione», «Approvata», «Respinta», «Evasa».",
+                ]),
+                ("p", "Che cosa cambia all'approvazione. Assegnazione: se la persona non ha ancora la mansione, entra "
+                      "nella skill matrix a livello I (in formazione); il livello chiesto arriva solo alla chiusura "
+                      "della sessione formativa. Sospensione e rimozione: la skill matrix si aggiorna subito e la "
+                      "richiesta è «Evasa». Competenza: resta «Approvata» in attesa della sessione formativa."),
+                ("nota", "Le sessioni formative non sono ancora nel portale: una richiesta approvata di assegnazione o "
+                         "di competenza resta in attesa. Se non compare «Approva», controlla di avere il ruolo RDD o "
+                         "MSO nel catalogo dei ruoli e di non essere tu il richiedente."),
+            ],
+        },
+        {
             "id": "il-mio-team",
             "titolo": "Il mio team (capo reparto)",
             "blocchi": [

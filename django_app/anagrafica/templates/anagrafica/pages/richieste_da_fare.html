@@ -1,0 +1,34 @@
+{% extends "core/base.html" %}
+
+{% block title %}Da fare | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rq-testa">
+    <h1>Da fare</h1>
+    <div class="rq-azioni">
+      {% if puo_chiedere %}<a class="rq-btn rq-btn-p" href="{% url 'anagrafica:richiesta_nuova' %}">Nuova richiesta</a>{% endif %}
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#richieste-competenze">? Guida</a>
+    </div>
+  </div>
+
+  <section class="es-s-card">
+    <div class="rq-gruppo">Da approvare · {{ da_approvare|length }}</div>
+    {% if da_approvare %}{% include "anagrafica/partials/_richieste_righe.html" with righe=da_approvare azione="Decidi" %}
+    {% else %}<p class="es-s-vuoto">Nessuna richiesta aspetta la tua approvazione.</p>{% endif %}
+    <div class="rq-gruppo">Le mie richieste in attesa di altri · {{ in_attesa|length }}</div>
+    {% if in_attesa %}{% include "anagrafica/partials/_richieste_righe.html" with righe=in_attesa azione="Apri" %}
+    {% else %}<p class="es-s-vuoto">Nessuna tua richiesta è in attesa.</p>{% endif %}
+  </section>
+  <p class="es-s-cambia"><a href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a></p>
+</div>
+{% endblock %}

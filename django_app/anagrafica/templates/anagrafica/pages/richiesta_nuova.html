@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuova richiesta | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  <div class="rq-testa">
+    <h1>Nuova richiesta</h1>
+    <div class="rq-azioni"><a class="rq-btn" href="{% url 'anagrafica:richieste_da_fare' %}">Annulla</a></div>
+  </div>
+
+  {% if errore %}<p class="rq-errore" role="alert">{{ errore }}</p>{% endif %}
+
+  <section class="es-s-card">
+    <h2 class="es-s-h">Che cosa chiedi</h2>
+    <form method="post" class="rq-form" id="rq-form">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Tipo di richiesta:</legend>
+        <div class="rq-scelte">
+          {% for t in tipi %}<label><input type="radio" name="tipo" value="{{ t.chiave }}" required{% if dati.tipo == t.chiave or tipi|length == 1 %} checked{% endif %}> {{ t.nome }}</label>{% endfor %}
+        </div>
+      </fieldset>
+      <div>
+        <label for="rq-persona">Persona:</label>
+        <select name="persona" id="rq-persona" required>
+          <option value="">Scegli la persona</option>
+          {% for p in persone %}<option value="{{ p.id }}"{% if dati.persona == p.id %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <div data-rq-per="mansione">
+        <label for="rq-mansione">Mansione:</label>
+        <select name="mansione" id="rq-mansione">
+          <option value="">Scegli la mansione</option>
+          {% for m in mansioni %}<option value="{{ m.id }}"{% if dati.mansione == m.id %} selected{% endif %}>{{ m.nome }}{% if m.reparto %} · {{ m.reparto }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div data-rq-per="competenza">
+        <label for="rq-competenza">Competenza:</label>
+        <select name="competenza" id="rq-competenza">
+          <option value="">Scegli la competenza</option>
+          {% for c in competenze %}<option value="{{ c.id }}"{% if dati.competenza == c.id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <fieldset data-rq-per="livello">
+        <legend>Livello da raggiungere:</legend>
+        <div class="rq-scelte">
+          {% for l in livelli %}<label><input type="radio" name="livello" value="{{ l.codice }}"{% if dati.livello == l.codice %} checked{% endif %}> {{ l.codice }} · {{ l.parola }}</label>{% endfor %}
+        </div>
+      </fieldset>
+      <div>
+        <label for="rq-motivo">Motivo: <span data-rq-per="motivo-obbligatorio">(obbligatorio per sospendere o rimuovere)</span></label>
+        <textarea name="motivazione" id="rq-motivo" rows="3" maxlength="2000">{{ dati.motivazione }}</textarea>
+      </div>
+      <p class="rq-nota">Le richieste su mansioni le approva RDD, quelle su competenze MSO. Nessuno approva la propria richiesta.</p>
+      <div><button type="submit" class="rq-btn rq-btn-p">Invia la richiesta</button></div>
+    </form>
+  </section>
+</div>
+{{ tipi_mansione|json_script:"rq-tipi-mansione" }}
+{{ tipi_senza_livello|json_script:"rq-tipi-senza-livello" }}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var form = document.getElementById('rq-form');
+  if (!form) return;
+  var suMansione = JSON.parse(document.getElementById('rq-tipi-mansione').textContent);
+  var senzaLivello = JSON.parse(document.getElementById('rq-tipi-senza-livello').textContent);
+  function mostra(nome, si) {
+    form.querySelectorAll('[data-rq-per="' + nome + '"]').forEach(function (el) { el.hidden = !si; });
+  }
+  function aggiorna() {
+    var scelto = form.querySelector('input[name="tipo"]:checked');
+    var tipo = scelto ? scelto.value : '';
+    var mansione = !tipo || suMansione.indexOf(tipo) !== -1;
+    mostra('mansione', mansione);
+    mostra('competenza', !!tipo && !mansione);
+    mostra('livello', senzaLivello.indexOf(tipo) === -1);
+    mostra('motivo-obbligatorio', senzaLivello.indexOf(tipo) !== -1);
+  }
+  form.addEventListener('change', aggiorna);
+  aggiorna();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+{# Righe di un elenco di richieste. Parametri: righe, azione (testo del pulsante), stato (1 = mostra la colonna Stato). #}
+<div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+  <thead><tr><th>Persona</th><th>Tipo di richiesta</th><th>Mansione o competenza</th><th>Richiesta</th>{% if stato %}<th>Stato</th>{% endif %}<th>Tocca a</th><th>Aperta da</th><th></th></tr></thead>
+  <tbody>{% for x in righe %}<tr>
+    <td><b>{{ x.persona }}</b></td>
+    <td>{{ x.richiesta.get_tipo_display }}</td>
+    <td>{{ x.richiesta.oggetto }}</td>
+    <td><a href="{% url 'anagrafica:richiesta' x.richiesta.pk %}">{{ x.richiesta.codice }}</a></td>
+    {% if stato %}<td>{% include "anagrafica/partials/_richiesta_stato.html" with r=x.richiesta %}</td>{% endif %}
+    <td>{{ x.tocca_a|default:"Nessuno" }}</td>
+    <td>{% if x.giorni == 0 %}oggi{% else %}{{ x.giorni }} giorn{{ x.giorni|pluralize:"o,i" }}{% endif %}</td>
+    <td><a class="rq-btn rq-btn-s{% if azione != 'Apri' %} rq-btn-p{% endif %}" href="{% url 'anagrafica:richiesta' x.richiesta.pk %}">{{ azione|default:"Apri" }}</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div>

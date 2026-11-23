@@ -37,7 +37,7 @@ def togli(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0232_subnav_p11tf12"),
+        ("anagrafica", "0235_richieste_in_organizzazione"),
         ("assets", "0172_voce_p11tf12"),
     ]
 
