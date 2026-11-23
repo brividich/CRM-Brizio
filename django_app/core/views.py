@@ -1763,11 +1763,50 @@ def _global_search_module_allowed(request, path: str) -> bool:
     return allowed
 
 
+def _cerca_processi_qualificati(request, q: str, limite: int = 5) -> list[dict]:
+    """Processi MOD.128 per nome, sigla o titolo della sezione, riferimento o cliente.
+
+    Un processo con la sezione dedicata porta alla sezione (una riga per sigla, anche se
+    la sigla raccoglie più processi); gli altri alla scheda del processo.
+    """
+    from anagrafica.models_mpq import ProcessoQualificato
+    from anagrafica.services.mpq_sezioni import normalizza_sigla, url_asset, url_qualifiche
+
+    trovati = (ProcessoQualificato.objects
+               .filter(Q(nome__icontains=q) | Q(sezione_sigla__icontains=q) | Q(sezione_titolo__icontains=q)
+                       | Q(riferimenti__codice__icontains=q) | Q(cliente__nome__icontains=q))
+               .select_related("cliente").distinct().order_by("-sezione_dedicata", "nome")[:limite * 3])
+    righe, sigle = [], set()
+    for p in trovati:
+        sigla = normalizza_sigla(p.sezione_sigla)
+        if p.sezione_in_qualifiche or (p.sezione_in_asset and _global_search_module_allowed(request, "/assets/lista/")):
+            if sigla in sigle:
+                continue
+            sigle.add(sigla)
+            titolo = (p.sezione_titolo or "").strip()
+            righe.append({
+                "tipo": "processo",
+                "label": f"{sigla} – {titolo}" if titolo else sigla,
+                "sub": f"Sezione dedicata · {p.nome}",
+                "url": url_qualifiche(sigla) if p.sezione_in_qualifiche else url_asset(sigla),
+            })
+        else:
+            righe.append({
+                "tipo": "processo",
+                "label": p.nome,
+                "sub": " · ".join(x for x in (str(p.cliente.nome) if p.cliente_id else "", p.get_stato_display()) if x),
+                "url": reverse("anagrafica:mpq_processo_detail", args=[p.pk]),
+            })
+        if len(righe) >= limite:
+            break
+    return righe
+
+
 @login_required
 def api_global_search(request):
     """
     GET /api/search/?q=<query>
-    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, FAI, Procedure, DPI.
+    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, FAI, Procedure, Processi qualificati, DPI.
     Restituisce risultati raggruppati per tipo, max 5 per gruppo.
     Ogni blocco è eseguito solo se l'utente ha accesso ACL al modulo relativo.
     """
@@ -1944,6 +1983,18 @@ def api_global_search(request):
     except Exception:
         pass
 
+    # ── Processi qualificati (MOD.128) e loro sezioni dedicate ───────────────
+    try:
+        if not _global_search_module_allowed(request, "/anagrafica/mod128/"):
+            raise _ModuleHidden
+        from anagrafica.views_mpq import _check_mpq_permission
+
+        if not _check_mpq_permission(request):
+            raise _ModuleHidden
+        results.extend(_cerca_processi_qualificati(request, q))
+    except Exception:
+        pass
+
     # DPI / Richieste
     try:
         if not _global_search_module_allowed(request, "/dpi/gestione/"):
@@ -2023,6 +2074,7 @@ def api_global_search(request):
         "fai": "Registro FAI",
         "procedura": "CN-SGI · Procedure",
         "dpi": "DPI",
+        "processo": "Processi qualificati",
     }
     module_filter = (request.GET.get("module") or "").strip().lower()
     enriched = []

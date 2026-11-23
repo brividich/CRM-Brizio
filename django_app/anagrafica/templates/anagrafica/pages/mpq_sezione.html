@@ -17,6 +17,11 @@
 .p11-avviso { border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:12px; padding:10px 14px; font-size:13px; }
 body.theme-dark .p11-avviso { background:rgba(220,38,38,.10); border-color:rgba(220,38,38,.45); color:#fecaca; }
 body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
+.p11-cerca { display:flex; align-items:center; gap:8px; border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:0 12px; margin:0 0 16px; }
+.p11-cerca input { flex:1; min-width:0; border:0; outline:0; background:transparent; padding:11px 0; font:inherit; color:inherit; }
+.p11-cerca small { color:#64748b; white-space:nowrap; font-size:12px; }
+body.theme-dark .p11-cerca { background:var(--surface,#0f172a); border-color:rgba(148,163,184,.25); }
+body.theme-dark .p11-cerca small { color:var(--text-light,#94a3b8); }
 </style>
 {% endblock %}
 
@@ -64,15 +69,21 @@ body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
       {% endfor %}
     </section>
 
+    <label class="p11-cerca">
+      <span aria-hidden="true">&#128269;</span>
+      <input type="search" id="p11-cerca" placeholder="Cerca in tutta la pagina: persona, macchina, utensile, P/N, documento…" autocomplete="off" aria-label="Cerca nella pagina">
+      <small id="p11-esito" aria-live="polite"></small>
+    </label>
+
     {% for s in dossier.sezioni %}
     <details class="fmd-panel fmd-block p11-sez" id="sez-{{ s.codice }}" {% if not s.chiusa %}open{% endif %}>
       <summary class="fmd-block-head">
-        <div class="fmd-block-title">{{ s.titolo }} <span class="fmd-count">{{ s.righe|length }}</span><span class="p11-chev" aria-hidden="true">&#9656;</span></div>
+        <div class="fmd-block-title">{{ s.titolo }} <span class="fmd-count" data-totale="{{ s.righe|length }}">{{ s.righe|length }}</span><span class="p11-chev" aria-hidden="true">&#9656;</span></div>
       </summary>
       {% if s.nota %}<p class="p11-nota">{{ s.nota }}</p>{% endif %}
       {% if s.righe %}
       <div class="fmd-tablewrap" style="margin:0 -22px;">
-        <table class="fmd-table">
+        <table class="fmd-table" data-fm-hide-search="1">
           <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th>Cosa fare</th>{% endif %}</tr></thead>
           <tbody>
             {% for riga, asset_id, azione in s.righe_link %}
@@ -84,6 +95,7 @@ body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
           </tbody>
         </table>
       </div>
+      <div class="fmd-empty p11-nomatch" hidden>Nessuna riga corrisponde alla ricerca.</div>
       {% else %}
       <div class="fmd-empty">{{ s.vuoto }}</div>
       {% endif %}
@@ -97,6 +109,33 @@ body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
   function apri(id) { var el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
   document.querySelectorAll('[data-apri]').forEach(function (a) { a.addEventListener('click', function () { apri(a.getAttribute('data-apri')); }); });
   if (window.location.hash) apri(window.location.hash.slice(1));
+
+  // Una ricerca su tutte le sezioni (come nella pagina Asset).
+  var input = document.getElementById('p11-cerca');
+  var esito = document.getElementById('p11-esito');
+  var timer = null;
+  function norm(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function filtra() {
+    var q = norm(input.value.trim());
+    var trovate = 0;
+    document.querySelectorAll('.p11-sez').forEach(function (sez) {
+      var righe = sez.querySelectorAll('tbody tr');
+      var visibili = 0;
+      righe.forEach(function (tr) {
+        var ok = !q || norm(tr.textContent).indexOf(q) !== -1;
+        tr.hidden = !ok;
+        if (ok) visibili++;
+      });
+      trovate += visibili;
+      var conta = sez.querySelector('.fmd-count');
+      if (conta) conta.textContent = q ? visibili + '/' + conta.getAttribute('data-totale') : conta.getAttribute('data-totale');
+      var vuoto = sez.querySelector('.p11-nomatch');
+      if (vuoto) vuoto.hidden = !(q && righe.length && !visibili);
+      if (q && visibili) sez.open = true;
+    });
+    esito.textContent = q ? trovate + ' righe' : '';
+  }
+  if (input) input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(filtra, 120); });
 })();
 </script>
 {% endblock %}

@@ -580,6 +580,7 @@ GUIDA = {
                     ("Riquadri", "Da sistemare, Scadenze 90 giorni, Persone abilitate e, se il processo li usa, "
                                  "Macchine, Utensili critici e Technical Plan. Rosso o arancio = qualcosa ferma il "
                                  "processo, giallo o ambra = da guardare, verde = in regola. Un clic porta alla sezione."),
+                    ("Cerca", "la barra sotto i riquadri filtra tutte le parti insieme (persona, macchina, utensile, P/N, documento); la ricerca in alto (Ctrl+K) trova la sezione scrivendo la sigla o il titolo."),
                     ("Solo le parti usate", "Utensili critici, Technical Plan e Utensili in uso (MOD.176) compaiono "
                                             "solo se ce ne sono; le macchine se ce ne sono o se il processo ha "
                                             "«Ripeti la qualifica macchine ogni (mesi)»."),
