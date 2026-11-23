@@ -534,3 +534,152 @@ class PercorsoIndiceTests(CollegamentiBase):
         risposta = self.assegna("CMM")
         self.assertIn(risposta.status_code, (403, 404))
         self.assertEqual(Task.objects.filter(project=self.project).count(), 1)
+
+
+class RegistroTests(CollegamentiBase):
+    """Passo 3: «Programmi e FAI» è il registro della commessa costruito dalle attività."""
+
+    def setUp(self):
+        super().setUp()
+        self.url_registro = reverse("tasks:collegamenti_registro", args=[self.project.pk])
+        self.pagina = reverse("tasks:project_tech_refs", args=[self.project.pk])
+        self.cam_task = self.attivita()
+        self.post(self.cam_task, action="aggiungi", tipo="cam", testo="O1234 Fresatura lato A")
+        self.ref = ProjectTechRef.objects.get(task=self.cam_task)
+        self.post(action="aggiungi", tipo="utensile", testo="FR-12 Fresa")
+        self.orfano = ProjectTechRef.objects.create(project=self.project, kind="FAI", code="FAI-2026-041")
+
+    def reg(self, **dati):
+        return self.client.post(self.url_registro, dati, HTTP_ACCEPT="application/json")
+
+    def righe(self):
+        return {(r["tipo"], r["codice"]): r for r in svc.registro(self.project)["righe"]}
+
+    def test_una_riga_per_collegamento_e_i_senza_attivita(self):
+        righe = self.righe()
+        self.assertEqual(set(righe), {("utensile", "FR-12"), ("cam", "O1234 rev. A"), ("fai", "FAI-2026-041")})
+        self.assertEqual(righe[("cam", "O1234 rev. A")]["task"], self.cam_task)
+        self.assertEqual(righe[("utensile", "FR-12")]["task"], self.generica)
+        self.assertIsNone(righe[("fai", "FAI-2026-041")]["task"])
+        conta = {f["codice"]: f["conta"] for f in svc.registro(self.project)["filtri"]}
+        self.assertEqual(conta, {"tutti": 3, "programmi": 1, "fai": 1, "macchina": 0, "attrezzatura": 0, "utensile": 1})
+        # L'incontro non è una riga del registro: è l'ordine del giorno.
+        self.post(action="collega", tipo="incontro", id=self.incontro().pk)
+        self.assertEqual(len(self.righe()), 3)
+
+    def test_pagina_con_filtri_e_comandi_per_chi_gestisce(self):
+        html = self.client.get(self.pagina).content.decode()
+        for filtro in ("Tutti 3", "Programmi 1", "FAI 1", "Macchine 0", "Attrezzature 0", "Utensili 1"):
+            self.assertIn(filtro, html)
+        self.assertIn("+ Collegamento", html)
+        self.assertEqual(html.count("data-rc-fase"), 1)
+        self.assertEqual(html.count("data-rc-orfano"), 1)
+        self.assertEqual(html.count("data-rc-togli"), 2)
+        self.assertEqual(html.count("data-rc-elimina"), 1)
+        # Un clic sull'attività la apre (nel pannello laterale).
+        self.assertIn(f'data-preview="{reverse("tasks:detail", args=[self.cam_task.pk])}"', html)
+        self.assertNotIn("Da ordinare", html)
+
+    def test_fase_dal_registro(self):
+        risposta = self.reg(action="fase", chiave=f"ref:{self.ref.pk}", valore="da_provare")
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        self.ref.refresh_from_db()
+        self.assertEqual(self.ref.fase, "DA_PROVARE")
+        self.assertIn("Da provare in macchina", risposta.json()["html"])
+        # Un passaggio che da qui non si fa: errore, e la tabella torna com'è.
+        risposta = self.reg(action="fase", chiave=f"ref:{self.ref.pk}", valore="inizia")
+        self.assertEqual(risposta.status_code, 400)
+        self.assertIn("html", risposta.json())
+
+    def test_togli_dal_registro(self):
+        risposta = self.reg(action="togli", task=self.cam_task.pk, chiave=f"ref:{self.ref.pk}")
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        self.ref.refresh_from_db()
+        self.assertIsNone(self.ref.task, "il programma resta nella commessa, senza attività")
+        riga = ProjectUtensile.objects.get(task=self.generica)
+        self.reg(action="togli", task=self.generica.pk, chiave=f"ut:{riga.pk}")
+        self.assertFalse(ProjectUtensile.objects.exists())
+        self.assertTrue(Utensile.objects.filter(codice="FR-12").exists())
+
+    def test_fai_senza_attivita_si_collega_dal_registro(self):
+        risposta = self.reg(action="orfano", task=self.generica.pk, chiave=f"ref:{self.orfano.pk}")
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        self.orfano.refresh_from_db()
+        self.assertEqual(self.orfano.task, self.generica)
+        self.assertIn("collegato a «Preparare il lotto»", risposta.json()["messaggio"])
+        self.assertNotIn("data-rc-orfano", risposta.json()["html"])
+        # Già collegato: non è più fra i senza attività.
+        self.assertEqual(self.reg(action="orfano", task=self.cam_task.pk, chiave=f"ref:{self.orfano.pk}").status_code, 400)
+
+    def test_utensile_del_vecchio_percorso_senza_attivita(self):
+        utensile = Utensile.objects.create(codice="MF-M6")
+        vecchia = ProjectUtensile.objects.create(project=self.project, utensile=utensile, quantita=3)
+        self.assertIsNone(self.righe()[("utensile", "MF-M6")]["task"])
+        self.reg(action="orfano", task=self.generica.pk, chiave=f"ut:{vecchia.pk}")
+        vecchia.refresh_from_db()
+        self.assertEqual((vecchia.task, vecchia.quantita), (self.generica, 3))
+
+    def test_elimina_solo_voci_senza_attivita(self):
+        self.assertEqual(self.reg(action="elimina", chiave=f"ref:{self.ref.pk}").status_code, 400)
+        self.assertTrue(ProjectTechRef.objects.filter(pk=self.ref.pk).exists())
+        self.assertEqual(self.reg(action="elimina", chiave=f"ref:{self.orfano.pk}").status_code, 200)
+        self.assertFalse(ProjectTechRef.objects.filter(pk=self.orfano.pk).exists())
+
+    def test_attivita_di_un_altra_commessa_rifiutata(self):
+        altra = make_project(name="Altra", created_by=self.user, part_number="PN-2")
+        fuori = self.attivita(category=None, project=altra, title="Fuori")
+        self.assertEqual(self.reg(action="orfano", task=fuori.pk, chiave=f"ref:{self.orfano.pk}").status_code, 404)
+        self.orfano.refresh_from_db()
+        self.assertIsNone(self.orfano.task)
+
+    def test_chi_non_gestisce_vede_senza_comandi(self):
+        lettore = _create_user_with_legacy(username="col-reg-lettore", legacy_user_id=694, role_id=2, role_name="tasks")
+        from .models import TaskAccessLevel, TaskUserAccessRule
+
+        TaskUserAccessRule.objects.create(user=lettore, access_level=TaskAccessLevel.READ_ALL)
+        self.client.force_login(lettore)
+        pagina = self.client.get(self.pagina)
+        self.assertEqual(pagina.status_code, 200)
+        html = pagina.content.decode()
+        self.assertIn("O1234", html)
+        self.assertIn("senza attività", html)
+        for comando in ("data-rc-fase", "data-rc-orfano", "data-rc-togli", "data-rc-elimina", "data-rc-nuovo", "+ Collegamento"):
+            self.assertNotIn(comando, html)
+        for dati in (
+            {"action": "fase", "chiave": f"ref:{self.ref.pk}", "valore": "da_provare"},
+            {"action": "togli", "task": self.cam_task.pk, "chiave": f"ref:{self.ref.pk}"},
+            {"action": "orfano", "task": self.generica.pk, "chiave": f"ref:{self.orfano.pk}"},
+            {"action": "elimina", "chiave": f"ref:{self.orfano.pk}"},
+            {"action": "fai_non_richiesto", "valore": "1"},
+        ):
+            risposta = self.reg(**dati)
+            self.assertEqual(risposta.status_code, 403, dati)
+            self.assertEqual(risposta["Content-Type"], "application/json")
+        self.ref.refresh_from_db()
+        self.orfano.refresh_from_db()
+        self.assertEqual((self.ref.fase, self.ref.task, self.orfano.task), ("IN_SCRITTURA", self.cam_task, None))
+
+    def test_il_responsabile_del_programma_cambia_la_fase_ma_non_toglie(self):
+        resp = _create_user_with_legacy(username="col-reg-resp", legacy_user_id=695, role_id=2, role_name="tasks")
+        self.cam_task.assigned_to = resp
+        self.cam_task.save()
+        self.client.force_login(resp)
+        html = self.client.get(self.pagina).content.decode()
+        self.assertEqual(html.count("data-rc-fase"), 1)
+        self.assertNotIn("data-rc-togli", html)
+        self.assertEqual(self.reg(action="fase", chiave=f"ref:{self.ref.pk}", valore="da_provare").status_code, 200)
+        self.assertEqual(self.reg(action="togli", task=self.cam_task.pk, chiave=f"ref:{self.ref.pk}").status_code, 403)
+
+    def test_json_401_e_acl(self):
+        bootstrap_tasks_acl_endpoints(force=True)
+        self.assertTrue(RoutePermissionBinding.objects.filter(route_name="tasks:collegamenti_registro").exists())
+        self.assertEqual(self.client.get(self.url_registro, HTTP_ACCEPT="application/json").status_code, 200)
+        self.client.logout()
+        for risposta in (self.reg(action="elimina", chiave="ref:1"), self.client.get(self.url_registro, HTTP_ACCEPT="application/json")):
+            self.assertEqual(risposta.status_code, 401)
+            self.assertEqual(risposta["Content-Type"], "application/json")
+
+    def test_registri_di_modulo_non_toccati(self):
+        for nome in ("tasks:programmi_registro", "tasks:fai_registro"):
+            self.assertEqual(self.client.get(reverse(nome)).status_code, 200, nome)
+        self.assertContains(self.client.get(reverse("tasks:programmi_registro")), "O1234")

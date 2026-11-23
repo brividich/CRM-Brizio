@@ -118,12 +118,7 @@ def _voce_utensile(riga: ProjectUtensile) -> dict:
 
 
 def _voce_attrezzatura(attrezzatura) -> dict:
-    voce = _voce(ATTREZZATURA, f"att:{attrezzatura.pk}", attrezzatura.codice or "senza codice", attrezzatura.descrizione)
-    try:
-        voce["url"] = reverse("attrezzature:detail", args=[attrezzatura.pk])
-    except Exception:
-        voce["url"] = ""
-    return voce
+    return _voce(ATTREZZATURA, f"att:{attrezzatura.pk}", attrezzatura.codice or "senza codice", attrezzatura.descrizione)
 
 
 def _voce_macchina(asset) -> dict:
@@ -175,7 +170,7 @@ def collegamenti_per_attivita(tasks, *, incontri: bool = True, vuoti: bool = Fal
         metti(riga.task_id, _voce_utensile(riga))
     for ref in (
         ProjectTechRef.objects.filter(task_id__in=ids)
-        .select_related("macchina", "fai_record__stato", "assigned_to")
+        .select_related("macchina", "fai_record__stato", "assigned_to", "source_meeting")
     ):
         if ref.ha_contenuto or vuoti:
             voce = _voce_ref(ref)
@@ -593,7 +588,7 @@ def collega(task: Task, tipo: str, ident, user, *, progetti_visibili=None) -> di
     try:
         ident = int(ident)
     except (TypeError, ValueError):
-        raise CollegamentoNonValido("Voce non valida.")
+        raise CollegamentoNonValido("Voce non valida.") from None
     if tipo == MACCHINA:
         asset = macchine_disponibili().filter(pk=ident).first()
         if asset is None:
@@ -721,7 +716,7 @@ def aggiorna_programma(ref: ProjectTechRef, user, *, codice: str, percorso: str)
     try:
         path = normalizza_percorso(percorso)
     except ValueError as exc:
-        raise CollegamentoNonValido(str(exc))
+        raise CollegamentoNonValido(str(exc)) from None
     if len(path) > 500:
         raise CollegamentoNonValido("Il percorso è troppo lungo: massimo 500 caratteri.")
     codice = (codice or "").strip()[:120]
@@ -764,7 +759,7 @@ def collega_orfano(task: Task, chiave: str, user) -> dict:
     project = _richiede_progetto(task)
     prefisso, _, valore = (chiave or "").partition(":")
     if not valore.isdigit():
-        raise CollegamentoNonValido("Voce non valida.")
+        raise CollegamentoNonValido("Voce non valida.") from None
     ident = int(valore)
     if prefisso == "ref":
         ref = ProjectTechRef.objects.filter(pk=ident, project=project, task__isnull=True).first()
@@ -782,6 +777,41 @@ def collega_orfano(task: Task, chiave: str, user) -> dict:
         if not AttrezzaturaKickoffLink.objects.filter(project=project, attrezzatura_id=ident, task__isnull=True).exists():
             raise CollegamentoNonValido("Voce non trovata fra quelle senza attività.")
         return collega(task, ATTREZZATURA, ident, user)
+    raise CollegamentoNonValido("Voce non valida.")
+
+
+def elimina_orfano(project, chiave: str) -> dict:
+    """Toglie dalla commessa una voce senza attività. Il codice resta a catalogo; un FAI con la scheda non si tocca."""
+    prefisso, _, valore = (chiave or "").partition(":")
+    if not valore.isdigit():
+        raise CollegamentoNonValido("Voce non valida.") from None
+    ident = int(valore)
+    if prefisso == "ref":
+        ref = ProjectTechRef.objects.filter(pk=ident, project=project, task__isnull=True).first()
+        if ref is None:
+            raise CollegamentoNonValido("Voce non trovata fra quelle senza attività.")
+        if getattr(ref, "fai_record", None) is not None:
+            raise CollegamentoNonValido("Questo FAI ha la sua scheda: si gestisce dal Registro FAI.")
+        esito = {"tipo": TIPO_DI_KIND[ref.kind], "codice": ref.code}
+        ref.delete()
+        return esito
+    if prefisso == "ut":
+        riga = ProjectUtensile.objects.filter(pk=ident, project=project, task__isnull=True).select_related("utensile").first()
+        if riga is None:
+            raise CollegamentoNonValido("Voce non trovata fra quelle senza attività.")
+        esito = {"tipo": UTENSILE, "codice": riga.utensile.codice}
+        riga.delete()
+        return esito
+    if prefisso == "att":
+        from attrezzature.models import AttrezzaturaKickoffLink
+
+        link = AttrezzaturaKickoffLink.objects.filter(project=project, attrezzatura_id=ident, task__isnull=True).select_related("attrezzatura")
+        primo = link.first()
+        if primo is None:
+            raise CollegamentoNonValido("Voce non trovata fra quelle senza attività.")
+        esito = {"tipo": ATTREZZATURA, "codice": primo.attrezzatura.codice}
+        link.delete()
+        return esito
     raise CollegamentoNonValido("Voce non valida.")
 
 
@@ -809,7 +839,7 @@ def registro(project) -> dict:
     # Senza attività: FAI e programmi della commessa, utensili e attrezzature del vecchio Percorso.
     for ref in (
         ProjectTechRef.objects.filter(project=project, task__isnull=True)
-        .select_related("macchina", "fai_record__stato", "assigned_to").order_by("kind", "id")
+        .select_related("macchina", "fai_record__stato", "assigned_to", "source_meeting").order_by("kind", "id")
     ):
         voce = _voce_ref(ref)
         voce["vuoto"] = not ref.ha_contenuto

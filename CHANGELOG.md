@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: «Programmi e FAI» è il registro costruito dalle attività (passo 3 di 3)
+
+- **Documenti → Programmi e FAI:** una riga per ogni collegamento delle attività della commessa (programmi, FAI, macchine, attrezzature, utensili), con filtri per tipo e conteggio; un clic sull'attività la apre nel pannello laterale.
+- **Chi gestisce la commessa agisce anche da lì:** cambia la fase del programma (anche il suo responsabile), toglie un collegamento, con «+ Collegamento» sceglie l'attività e ne apre il riquadro, lega a un'attività una voce rimasta senza («Collega a un'attività…») o la elimina. Chi non ha il diritto vede le stesse righe senza comandi.
+- URL nuovo `tasks:collegamenti_registro` (ACL `tasks.kickoff.projects`, JSON 401/403). Negli incontri resta la tabella di prima; «Programmi», «Registro FAI» e «Report FAI» non cambiano.
+- File: `tasks/services/collegamenti.py`, `tasks/views/collegamenti.py`, `tasks/views/tech_refs.py`, `tasks/urls.py`, `tasks/acl_bootstrap.py`, `tasks/templates/tasks/project_tech_refs.html`, `_registro_collegamenti_body.html`, `_collegamenti_body.html`, `base_shell.html`, `base_shell_pannello.html`, `tasks/static/tasks/js/registro_collegamenti.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`; test `tasks/tests_collegamenti.py`, `tests_fai.py`.
+
 ### KICK-OFF: il Percorso è l'indice delle tappe (passo 2 di 3)
 
 - **Percorso del kickoff senza campi propri:** «Assegna» (e «+ Altra») crea l'attività del tipo giusto e la apre nel pannello laterale, con il riquadro «Collegamenti» già sul collegamento che la tappa si aspetta. Via i campi di assegnazione (responsabile, date, macchina, attrezzatura, fornitore, processo) e la riga sempre aperta degli utensili con stati e quantità. Vale anche nella scheda dell'incontro.
