@@ -194,6 +194,6 @@ for foglio in wb.worksheets:
     foglio.page_setup.fitToWidth = 1
     foglio.sheet_properties.pageSetUpPr.fitToPage = True
     foglio.page_setup.fitToHeight = 0
-uscita = RADICE / "Catalogo_pilota_CN5G.xlsx"
+uscita = RADICE / "archivio" / "Catalogo_pilota_CN5G.xlsx"  # superato dai fogli CN5GS e CN5GL della bozza della Qualità
 wb.save(uscita)
 print(uscita, "·", len(COMPETENZE), "competenze,", len(MACCHINE), "macchine")
