@@ -1001,6 +1001,11 @@ def dev_git_badge(_request):
     return {"dev_git": state} if state else {}
 
 
+def ambiente_test(_request):
+    """Etichetta «Ambiente di test» su ogni pagina quando ``HUB_AMBIENTE_TEST=1`` (config/ambiente_test.py)."""
+    return {"ambiente_test": True} if getattr(settings, "AMBIENTE_TEST", False) else {}
+
+
 def csp(request):
     """``csp_nonce`` per gli script inline: ``<script nonce="{{ csp_nonce }}">``.
 

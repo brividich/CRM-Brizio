@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ambiente di test con i dati reali
+
+- **Blocco per l'ambiente di test sul server:** con `HUB_AMBIENTE_TEST=1` nel `.env` il portale gira con le impostazioni di produzione ma chiuso verso l'esterno. Ogni database deve avere `TEST` nel nome, la posta finisce in file sotto `logs\mail_test`, le connessioni Python verso l'esterno sono bloccate tranne il login di dominio, `qcluster` e il poller della coda automazioni non partono, ogni pagina mostra l'etichetta «AMBIENTE DI TEST». Senza la variabile non cambia nulla. `HUB_TEST_HOST_CONSENTITI` apre altri host. File: `config/ambiente_test.py`, `config/rete_guard.py` (elenco degli host ammessi), `config/settings/prod.py`, `config/settings/base.py`, `core/context_processors.py`, `core/templates/core/base.html`, `core/templates/core/components/_ambiente_test.html`, `core/test_ambiente_test.py`. Procedura per rifare l'ambiente da zero: `docs/deploy/AMBIENTE_TEST.md`.
+
 ### Prestazioni: utente legacy letto una volta per richiesta
 
 - **`get_legacy_user` memorizzato sull'oggetto utente:** la stessa riga di `utenti` veniva riletta a ogni chiamata. Una pagina di anagrafica, che ha 69 punti di chiamata nei gate, arrivava a circa 60 letture. Ora la riga si legge una volta per richiesta e si rilegge se cambia il collegamento del profilo; un errore del database non viene memorizzato. Anagrafica scende da 203 a 146 query, il polling delle notifiche da 8 a 7, a ogni richiesta. File: `core/legacy_utils.py`.
