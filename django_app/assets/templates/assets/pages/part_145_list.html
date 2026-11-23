@@ -131,7 +131,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
     {% for k in dossier.kpi %}<a class="p145-kpi {{ k.stato }}" href="#sez-{{ k.sezione }}"><span>{{ k.etichetta }}</span><b>{{ k.valore }}</b><small>{{ k.nota }}</small></a>{% endfor %}
   </div>
 
-  {% if not dossier.con_personale %}<div class="p145-info">Personale e formazione non sono mostrati: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}
+  {% block p145_info %}{% if not dossier.con_personale %}<div class="p145-info">Personale e formazione non sono mostrati: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}{% endblock %}
 
   <div class="p145-bar">
     <label class="p145-search">
@@ -139,6 +139,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
       <input type="search" id="p145-cerca" placeholder="Cerca in tutto il dossier: asset, persona, processo, documento…" autocomplete="off" aria-label="Cerca nel dossier">
       <small id="p145-esito" aria-live="polite"></small>
     </label>
+    {% block p145_scarica %}
     <details class="p145-menu">
       <summary class="btn">&#8595; Scarica</summary>
       <div class="p145-menu-list" role="menu">
@@ -149,6 +150,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
         <a href="{% url 'assets:part_145_export_controllo' %}" role="menuitem">Controllo semestrale (PDF)<small>Una pagina per reparto da firmare · MT CN 17</small></a>
       </div>
     </details>
+    {% endblock %}
   </div>
   <div class="p145-bar p145-bar-nav">
     <nav class="p145-nav" aria-label="Sezioni del dossier">
@@ -182,7 +184,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
   </details>
   {% endfor %}
 
-  <p class="p145-foot">Le attrezzature si marcano con «Rientra in PART 145» nel form dell'asset, oppure si collegano al processo dal dettaglio MOD.128 (sezione «Attrezzature»).{% if dossier.dismesse %} {{ dossier.dismesse }} attrezzatur{{ dossier.dismesse|pluralize:"a dismessa non è mostrata,e dismesse non sono mostrate" }}.{% endif %}</p>
+  {% block p145_foot %}<p class="p145-foot">Le attrezzature si marcano con «Rientra in PART 145» nel form dell'asset, oppure si collegano al processo dal dettaglio MOD.128 (sezione «Attrezzature»).{% if dossier.dismesse %} {{ dossier.dismesse }} attrezzatur{{ dossier.dismesse|pluralize:"a dismessa non è mostrata,e dismesse non sono mostrate" }}.{% endif %}</p>{% endblock %}
 </section>
 {% endblock %}
 

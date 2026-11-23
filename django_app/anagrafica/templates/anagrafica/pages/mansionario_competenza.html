@@ -49,7 +49,7 @@
       <span class="mns-filo-arr" aria-hidden="true">→</span>
       <div class="mns-filo-step">
         <span class="mns-filo-l">Requisito formale</span>
-        <span class="mns-filo-v">{% for c in req_corsi %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:formazione_corso_detail' c.corso.pk %}">Corso «{{ c.corso.titolo }}»</a>{% endfor %}{% for q in req_altri %}<span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}MOD.128{% endif %} «{{ q.oggetto.nome }}»</span>{% endfor %}{% if not req_corsi and not req_altri %}<span class="fmd-muted">solo esperienza</span>{% endif %}</span>
+        <span class="mns-filo-v">{% for c in req_corsi %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:formazione_corso_detail' c.corso.pk %}">Corso «{{ c.corso.titolo }}»</a>{% endfor %}{% for q in req_altri %}<span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}Processo qualificato{% endif %} «{{ q.oggetto.nome }}»</span>{% endfor %}{% if not req_corsi and not req_altri %}<span class="fmd-muted">solo esperienza</span>{% endif %}</span>
       </div>
     </nav>
 
@@ -131,7 +131,7 @@
                 <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#competenze"><b>{{ m.mansione.nome }}</b></a><div class="fmd-muted" style="font-size:11.5px;">{{ m.mansione.get_tipo_display }}{% if m.mansione.reparto_effettivo %} · {{ m.mansione.reparto_effettivo }}{% endif %}</div></td>
                 <td>{% for r in m.mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.pk }}">{{ r.nome }}</a> {% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</td>
                 <td><span class="mns-lv mns-lv-{{ m.voce.livello_minimo }}"><b>{{ m.voce.livello_minimo }}</b></span>{% if m.voce.bloccante %} <span class="fmd-badge fmd-b-red">bloccante</span>{% endif %}</td>
-                <td>{% if m.voce.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' m.voce.corso.pk %}">Corso «{{ m.voce.corso.titolo }}»</a>{% endif %}{% if m.voce.qualifica %}{% if m.voce.corso %} · {% endif %}Qualifica «{{ m.voce.qualifica.nome }}»{% endif %}{% if m.voce.processo_mpq %}{% if m.voce.corso or m.voce.qualifica %} · {% endif %}MOD.128 «{{ m.voce.processo_mpq.nome }}»{% endif %}{% if not m.voce.corso and not m.voce.qualifica and not m.voce.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
+                <td>{% if m.voce.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' m.voce.corso.pk %}">Corso «{{ m.voce.corso.titolo }}»</a>{% endif %}{% if m.voce.qualifica %}{% if m.voce.corso %} · {% endif %}Qualifica «{{ m.voce.qualifica.nome }}»{% endif %}{% if m.voce.processo_mpq %}{% if m.voce.corso or m.voce.qualifica %} · {% endif %}Processo qualificato «{{ m.voce.processo_mpq.nome }}»{% endif %}{% if not m.voce.corso and not m.voce.qualifica and not m.voce.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
                 <td><b>{{ m.ok }}</b> <span class="fmd-muted">su {{ m.in_lista }}</span></td>
               </tr>
               {% endfor %}
@@ -168,7 +168,7 @@
         {% for q in req_altri %}
         <div class="mns-req">
           <div class="mns-req-h">
-            <div><span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}MOD.128{% endif %}</span> <b>{{ q.oggetto.nome }}</b>
+            <div><span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}Processo qualificato{% endif %}</span> <b>{{ q.oggetto.nome }}</b>
               <span class="fmd-muted" style="font-size:12px;">· per {% for m in q.mansioni %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
           </div>
           {% if q.mancanti %}
@@ -177,7 +177,7 @@
         </div>
         {% endfor %}
         {% if not req_corsi and not req_altri %}
-        <div class="fmd-empty"><span class="fmd-et">Nessun requisito formale</span><span class="fmd-em">Su nessuna mansione la competenza chiede un corso, una qualifica o un'abilitazione MOD.128: conta solo l'esperienza.{% if is_admin and mansioni %} Si imposta dalla scheda «Competenze richieste» della mansione.{% endif %}</span></div>
+        <div class="fmd-empty"><span class="fmd-et">Nessun requisito formale</span><span class="fmd-em">Su nessuna mansione la competenza chiede un corso, una qualifica o un processo qualificato (MOD.128): conta solo l'esperienza.{% if is_admin and mansioni %} Si imposta dalla scheda «Competenze richieste» della mansione.{% endif %}</span></div>
         {% endif %}
       </div>
 

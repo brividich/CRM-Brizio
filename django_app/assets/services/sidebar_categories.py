@@ -247,5 +247,19 @@ def rebuild_category_sidebar(AssetCategory, AssetSidebarButton) -> tuple[int, in
             "is_visible": True,
         },
     )
+    # Pagina del processo di foratura critica P11TF12 (MT CN 69), accanto a PART 145.
+    AssetSidebarButton.objects.get_or_create(
+        code="p11tf12",
+        defaults={
+            "section": "OPERATIONS",
+            "parent": None,
+            "label": "P11TF12",
+            "target_url": "django:assets:p11tf12",
+            "active_match": "/assets/p11tf12/",
+            "is_subitem": False,
+            "sort_order": 71,
+            "is_visible": True,
+        },
+    )
 
     return groups, items

@@ -528,6 +528,31 @@ GUIDA = {
             ],
         },
         {
+            "id": "p11tf12",
+            "titolo": "P11TF12: foratura su particolari critici (MT CN 69)",
+            "blocchi": [
+                ("p", "P11TF12 è uno dei processi qualificati (MOD.128) e ha due pagine sue, con gli stessi dati: "
+                      "Competenze › Qualifiche › «P11TF12 – Foratura critica» (persone prima) e Asset › «P11TF12» "
+                      "(macchine e utensili prima). Il processo si riconosce da «P11TF12» nel nome o fra i riferimenti "
+                      "del processo: chiamalo per esempio «P11TF12 – Foratura su particolari critici»."),
+                ("def", [
+                    ("Riquadri", "Da sistemare, Scadenze 90 giorni, Persone abilitate, Macchine, Utensili critici, "
+                                 "Technical Plan. Rosso o arancio = qualcosa ferma la foratura critica, giallo o ambra = "
+                                 "da guardare, verde = in regola. Un clic porta alla sezione."),
+                    ("Da sistemare", "a priorità alta: processo scaduto o non attivo, macchina scaduta, da valutare "
+                                     "o sospesa, requisito macchina bloccante scaduto, utensile al TCP, Technical Plan "
+                                     "senza revisione approvata, persona non qualificata, formazione scaduta."),
+                    ("Macchine qualificate", "stato della qualifica con la sua scadenza, ultima verifica (MOD.161) e "
+                                             "requisiti macchina dai piani di manutenzione."),
+                    ("Utensili in uso (MOD.176)", "registri ancora aperti con utilizzo, TCP e residuo."),
+                ]),
+                ("p", "Le pagine sono in sola lettura: macchine, utensili, Technical Plan e persone si gestiscono dalla "
+                      "pagina del processo («Apri il processo»). Persone e formazione si vedono con il permesso "
+                      "«Processi qualificati MOD.128 - Visualizza»; senza, la pagina Asset mostra solo macchine, utensili "
+                      "e Technical Plan."),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [

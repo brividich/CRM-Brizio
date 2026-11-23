@@ -21,7 +21,7 @@
       <div class="fmd-hero-bg" aria-hidden="true"></div>
       <div class="fmd-hero-inner">
         <div>
-          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · MOD.128</div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · Processi qualificati (MOD.128)</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Processi qualificati</h1>
           <p class="fmd-sub">Mansionario dei processi qualificati/speciali (MOD.128 MPQ): clienti/enti, personale abilitato per ruolo, doppia scadenza aziendale e individuale, distribuzione a reparto. Vista di controllo, aggiornata al {{ oggi|date:"d-m-Y" }}.</p>
           <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
@@ -34,7 +34,10 @@
             </a>
             {% endif %}
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_vista' %}">
-              <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Vista MOD.128 · export
+              <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Vista per cliente (MOD.128) · export
+            </a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_p11tf12' %}" title="Foratura su particolari critici (MT CN 69)">
+              <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>P11TF12 – Foratura critica
             </a>
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_matrice' %}">
               <svg class="fmd-ico"><use href="#i-grid"/></svg>Matrice persone × processi

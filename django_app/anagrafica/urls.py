@@ -312,6 +312,7 @@ urlpatterns = [
     # Agganciato al gruppo esistente Competenze → Qualifiche (subnav 0077).
     path("mod128/", views_mpq.mpq_cruscotto, name="mpq_cruscotto"),
     path("mod128/vista/", views_mpq.mpq_vista, name="mpq_vista"),
+    path("mod128/p11tf12/", views_mpq.mpq_p11tf12, name="mpq_p11tf12"),
     # Gestione (CRUD) — gated anagrafica.mpq.manage
     path("mod128/nuovo/", views_mpq.mpq_processo_create, name="mpq_processo_create"),
     path("mod128/clienti/", views_mpq.mpq_cliente_list, name="mpq_cliente_list"),

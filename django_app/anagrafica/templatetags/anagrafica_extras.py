@@ -212,6 +212,10 @@ GLOSSARIO_MENU = {
     "scadenzario abilitazioni": GLOSSARIO_INFO["skm"],
     "copertura abilitazioni": GLOSSARIO_INFO["skm"],
     "refresh semestrale": GLOSSARIO_INFO["skm"],
+    "p11tf12 foratura critica": (
+        "P11TF12 — Foratura su particolari critici (MT CN 69): processo qualificato MOD.128 con persone "
+        "abilitate, macchine qualificate (MOD.161), utensili critici, Technical Plan e registro MOD.176."
+    ),
 }
 
 
@@ -219,6 +223,7 @@ GLOSSARIO_MENU = {
 def menu_hint(label) -> str:
     """Tooltip di una voce di menu (codici MOD.xxx e sigle), vuoto se non serve."""
     testo = "".join(ch for ch in str(label or "") if ch.isalnum() or ch in " ()./-").strip().lower()
+    testo = " ".join(testo.split())
     return GLOSSARIO_MENU.get(testo, "")
 
 

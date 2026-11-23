@@ -9,7 +9,7 @@
     <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
       {{ r.nome }}
       {% if r.origine == "ruolo" %}<span style="margin-left:6px;padding:1px 7px;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-size:10px;font-weight:700;">Ruolo</span>
-      {% elif r.origine == "processo" %}<span style="margin-left:6px;padding:1px 7px;background:#ede9fe;color:#5b21b6;border-radius:999px;font-size:10px;font-weight:700;">MOD.128</span>
+      {% elif r.origine == "processo" %}<span style="margin-left:6px;padding:1px 7px;background:#ede9fe;color:#5b21b6;border-radius:999px;font-size:10px;font-weight:700;">Processo qualificato</span>
       {% else %}<span style="margin-left:6px;padding:1px 7px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:10px;font-weight:700;">Storico</span>{% endif %}
     </td>
     <td style="padding:8px 10px;font-weight:600;color:#0f172a;">{{ r.tipo.nome }}</td>

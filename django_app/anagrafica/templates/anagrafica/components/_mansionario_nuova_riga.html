@@ -9,7 +9,7 @@
     <option value="">solo esperienza</option>
     {% if corsi_opts %}<optgroup label="Corso valido">{% for c in corsi_opts %}<option value="corso:{{ c.id }}"{% if riga.corso_id == c.id %} selected{% endif %}>{{ c.titolo|truncatechars:60 }}</option>{% endfor %}</optgroup>{% endif %}
     {% if qualifiche_opts %}<optgroup label="Qualifica / patentino">{% for q in qualifiche_opts %}<option value="qualifica:{{ q.pk }}"{% if riga.qualifica_id == q.pk %} selected{% endif %}>{{ q.nome }}</option>{% endfor %}</optgroup>{% endif %}
-    {% if processi_opts %}<optgroup label="Abilitazione MOD.128">{% for p in processi_opts %}<option value="mpq:{{ p.id }}"{% if riga.processo_id == p.id %} selected{% endif %}>{{ p.nome|truncatechars:50 }}</option>{% endfor %}</optgroup>{% endif %}
+    {% if processi_opts %}<optgroup label="Processo qualificato (MOD.128)">{% for p in processi_opts %}<option value="mpq:{{ p.id }}"{% if riga.processo_id == p.id %} selected{% endif %}>{{ p.nome|truncatechars:50 }}</option>{% endfor %}</optgroup>{% endif %}
   </select></td>
   <td class="mst-c"><button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mnw-togli aria-label="Togli la riga">×</button></td>
 </tr>
