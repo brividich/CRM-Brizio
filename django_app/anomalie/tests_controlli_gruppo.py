@@ -1,4 +1,4 @@
-"""Controlli condivisi nel gruppo qualità: in sospeso visibili ai colleghi, «Prendi in carico» (03/11/2026)."""
+"""Controlli condivisi: elenco «da riprendere» su tutti gli OP e «Partecipa» (stesso controllo insieme, 22/11/2026)."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from anomalie import controllo_service as cs
-from anomalie.quality_models import AnomaliaControllo
+from anomalie.quality_models import AnomaliaControllo, AnomaliaControlloPartecipante
 from core.models import AccessGroup, AccessGroupMembership, Notifica, Profile
 
 User = get_user_model()
@@ -55,64 +55,88 @@ class ControlliGruppoQualitaTests(_GruppoBase):
         self.assertTrue(cs.nel_gruppo_qualita(self.anna))
         self.assertFalse(cs.nel_gruppo_qualita(self.esterno))
 
-    def test_il_collega_vede_i_controlli_in_sospeso_del_gruppo(self):
+    def test_elenco_da_riprendere_su_tutti_gli_op(self):
         self.client.force_login(self.luca)
-        j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
-        self.assertTrue(j["gruppo"])
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
         self.assertEqual([r["id"] for r in j["controlli"]], [self.controllo.pk])
         riga = j["controlli"][0]
-        self.assertFalse(riga["mio"])
-        self.assertEqual((riga["operatore"], riga["anomalie_in_bozza"]), ("Anna Bianchi", 2))
+        self.assertEqual((riga["mio"], riga["partecipo"], riga["terminato"]), (False, False, False))
+        self.assertEqual((riga["persone"], riga["anomalie_in_bozza"]), (["Anna Bianchi"], 2))
 
-    def test_chi_non_e_nel_gruppo_vede_solo_i_suoi(self):
+    def test_senza_permesso_sull_op_non_vede_e_non_partecipa(self):
         self.client.force_login(self.esterno)
-        j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
-        self.assertEqual((j["gruppo"], j["controlli"]), (False, []))
-        r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[self.controllo.pk]))
-        self.assertEqual(r.status_code, 403)
-        r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
-        self.assertEqual(r.status_code, 403)
-        self.controllo.refresh_from_db()
-        self.assertEqual(self.controllo.operatore_id, self.anna.pk)
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=False):
+            j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
+            self.assertEqual(j["controlli"], [])
+            r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[self.controllo.pk]))
+            self.assertEqual(r.status_code, 403)
+            r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
+            self.assertEqual(r.status_code, 403)
+        self.assertFalse(AnomaliaControlloPartecipante.objects.exists())
 
-    def test_terminati_o_senza_niente_in_sospeso_non_compaiono(self):
-        AnomaliaControllo.objects.create(op_id="OP/1", fase="F", operatore=self.anna, bozza={},
-                                         operatore_display="Anna Bianchi")
+    def test_aperti_anche_salvati_si_terminati_vecchi_o_tutti_chiusi_no(self):
+        salvato = AnomaliaControllo.objects.create(op_id="OP/1", fase="F", operatore=self.anna, bozza={},
+                                                   operatore_display="Anna Bianchi")
         AnomaliaControllo.objects.create(op_id="OP/2", fase="F", operatore=self.anna, bozza=BOZZA,
                                          terminato_at=timezone.now(), operatore_display="Anna Bianchi")
+        AnomaliaControllo.objects.create(op_id="OP/3", fase="F", operatore=self.anna, bozza=BOZZA,
+                                         terminato_at=timezone.now() - timedelta(days=10), operatore_display="Anna Bianchi")
         self.client.force_login(self.luca)
-        j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
-        self.assertEqual([r["id"] for r in j["controlli"]], [self.controllo.pk])
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
+        # OP/2 è terminato senza anomalie aperte, OP/3 da più di 7 giorni: non compaiono.
+        self.assertEqual([r["id"] for r in j["controlli"]], [salvato.pk, self.controllo.pk])
 
-    def test_il_collega_legge_ma_non_scrive_prima_di_prenderlo(self):
+    def test_il_collega_legge_ma_non_scrive_prima_di_partecipare(self):
         self.client.force_login(self.luca)
         r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[self.controllo.pk]))
         self.assertEqual(r.status_code, 200)
         self.assertFalse(r.json()["mio"])
         r = self._post(reverse("api_anomalie_controllo_bozza", args=[self.controllo.pk]), {"bozza": {}})
         self.assertEqual(r.status_code, 403)
-        self.assertIn("in carico a Anna Bianchi", r.json()["error"])
+        self.assertIn("«Partecipa»", r.json()["error"])
         self.controllo.refresh_from_db()
         self.assertEqual(self.controllo.bozza, BOZZA)
 
-    def test_prendi_in_carico_passa_il_controllo_e_lo_traccia(self):
+    def test_partecipa_lavorano_insieme_ognuno_con_la_sua_bozza(self):
         self.client.force_login(self.luca)
         with patch("anomalie.views._current_user_identity", return_value={"name": "Luca Verdi"}):
             r = self._post(reverse("api_anomalie_controllo_prendi", args=[self.controllo.pk]))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["controllo"]["bozza"], BOZZA)  # la bozza passa con il controllo
+        self.assertEqual(r.json()["controllo"]["bozza"], {})  # la bozza di Anna resta sua
         self.controllo.refresh_from_db()
-        self.assertEqual((self.controllo.operatore_id, self.controllo.operatore_display), (self.luca.pk, "Luca Verdi"))
-        self.assertEqual([(p["da"], p["a"]) for p in self.controllo.passaggi], [("Anna Bianchi", "Luca Verdi")])
-        avviso = Notifica.objects.get(legacy_user_id=9101)
-        self.assertIn("Luca Verdi ha preso in carico", avviso.messaggio)
-        # Ora scrive il collega; chi lo aveva non può più sovrascrivere la bozza.
-        r = self._post(reverse("api_anomalie_controllo_bozza", args=[self.controllo.pk]), {"bozza": BOZZA})
+        self.assertEqual(self.controllo.operatore_id, self.anna.pk)  # nessuno perde il controllo
+        self.assertTrue(AnomaliaControlloPartecipante.objects.filter(controllo=self.controllo, user=self.luca).exists())
+        self.assertTrue(self.controllo.passaggi[-1]["partecipa"])
+        self.assertIn("Luca Verdi si è unito al tuo controllo", Notifica.objects.get(legacy_user_id=9101).messaggio)
+        # Luca scrive il suo blocco; Anna continua con il suo.
+        mio = {"voci": ["LCN00060"], "anomalie": [{"testo": "Graffio"}]}
+        r = self._post(reverse("api_anomalie_controllo_bozza", args=[self.controllo.pk]), {"bozza": mio})
         self.assertEqual(r.status_code, 200)
         self.client.force_login(self.anna)
-        r = self._post(reverse("api_anomalie_controllo_bozza", args=[self.controllo.pk]), {"bozza": {}})
-        self.assertEqual(r.status_code, 403)
-        self.assertIn("in carico a Luca Verdi", r.json()["error"])
+        r = self._post(reverse("api_anomalie_controllo_bozza", args=[self.controllo.pk]), {"bozza": BOZZA})
+        self.assertEqual(r.status_code, 200)
+        self.controllo.refresh_from_db()
+        self.assertEqual(self.controllo.bozza, BOZZA)
+        self.assertEqual(AnomaliaControlloPartecipante.objects.get(user=self.luca).bozza, mio)
+        # Ognuno vede chi sta scrivendo e su quali S/N.
+        d = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[self.controllo.pk])).json()
+        luca = next(p for p in d["controllo"]["partecipanti"] if p["nome"] == "Luca Verdi")
+        self.assertEqual((luca["scrive"], luca["seriali"], luca["mio"]), (True, ["LCN00060"], False))
+        self.assertTrue(next(p for p in d["controllo"]["partecipanti"] if p["mio"])["presente"])
+
+    def test_lo_termina_chiunque_e_gli_altri_ricevono_l_avviso(self):
+        AnomaliaControlloPartecipante.objects.create(controllo=self.controllo, user=self.luca, nome="Luca Verdi")
+        self.client.force_login(self.luca)
+        with patch("anomalie.views._current_user_identity", return_value={"name": "Luca Verdi"}):
+            r = self._post(reverse("api_anomalie_controllo_termina", args=[self.controllo.pk]))
+        self.assertEqual(r.status_code, 200, r.content)
+        self.controllo.refresh_from_db()
+        self.assertIsNotNone(self.controllo.terminato_at)
+        self.assertEqual(self.controllo.bozza, BOZZA)  # il blocco non salvato di Anna resta in bozza
+        self.assertIn("Luca Verdi ha terminato il controllo", Notifica.objects.get(legacy_user_id=9101).messaggio)
+        self.assertFalse(Notifica.objects.filter(legacy_user_id=9102).exists())
 
     def test_prendere_un_terminato_non_si_puo(self):
         AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(terminato_at=timezone.now())
@@ -148,10 +172,11 @@ class RiapriControlloTests(_GruppoBase):
         self.assertEqual(cs.anomalie_aperte_per_controllo([self.controllo]), {self.controllo.pk: 1})
         self.assertTrue(cs.riapribile(self.controllo))
 
-    def test_controllo_vecchio_resta_in_sospeso(self):
+    def test_controllo_vecchio_resta_da_riprendere(self):
         AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(created_at=timezone.now() - timedelta(days=60))
         self.client.force_login(self.luca)
-        j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
+        with patch("anomalie.views._can_create_anomalie_for_op", return_value=True):
+            j = self.client.get(reverse("api_anomalie_controlli_sospesi")).json()
         self.assertEqual([r["id"] for r in j["controlli"]], [self.controllo.pk])
 
     def test_il_collega_riapre_un_terminato_con_anomalie_aperte(self):
@@ -163,9 +188,10 @@ class RiapriControlloTests(_GruppoBase):
         self.assertFalse(r.json()["controllo"]["terminato"])
         self.controllo.refresh_from_db()
         self.assertIsNone(self.controllo.terminato_at)
-        self.assertEqual(self.controllo.operatore_id, self.luca.pk)
+        self.assertEqual(self.controllo.operatore_id, self.anna.pk)
+        self.assertTrue(AnomaliaControlloPartecipante.objects.filter(controllo=self.controllo, user=self.luca).exists())
         self.assertTrue(self.controllo.passaggi[-1]["riaperto"])
-        self.assertIn("Luca Verdi ha riaperto il tuo controllo", Notifica.objects.get(legacy_user_id=9101).messaggio)
+        self.assertIn("Luca Verdi ha riaperto e si è unito al tuo controllo", Notifica.objects.get(legacy_user_id=9101).messaggio)
 
     def test_chi_lo_aveva_lo_riapre_senza_avvisi(self):
         self._termina(aperte=True)

@@ -190,6 +190,12 @@
     .sospesi-card .resume-box { border-radius: 0; border: 0; border-bottom: 1px solid var(--border); }
     .sospesi-meta { font-size: var(--fs-sm); color: var(--text-mid); margin-top: 2px; }
     .sospesi-chi { font-weight: 700; color: var(--text); }
+    /* Controllo condiviso: chi lavora insieme (pallino verde = pagina aperta adesso). */
+    .ctl-persone { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+    .ctl-persona { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: var(--fs-sm); color: var(--text-mid); background: var(--surface); }
+    .ctl-persona i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-light); display: inline-block; }
+    .ctl-persona.is-on { color: var(--text); }
+    .ctl-persona.is-on i { background: var(--success, #16a34a); }
     .prendi-box { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-light); }
     .mail-mode { border: 0; display: grid; gap: 8px; }
     .dest-mail { display: grid; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); border-radius: 10px; background: var(--surface); font-size: var(--fs-sm); color: var(--text); }
