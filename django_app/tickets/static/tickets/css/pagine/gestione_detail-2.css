@@ -37,6 +37,11 @@
 .tkt-risolvi-altri[open] summary{margin-bottom:12px}
 .tkt-risolvi-check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;color:var(--text,#0f172a)}
 .tkt-risolvi-errore{font-size:13px;font-weight:600;color:#b91c1c}
+.tkt-risolvi-allegati{gap:8px}
+.tkt-risolvi-allegati-tit{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+.tkt-risolvi-allegati-tit .tkt-risolvi-nota{text-transform:none;letter-spacing:0;font-weight:500}
+body.theme-dark .tkt-risolvi-allegati-tit{color:var(--text-mid)}
+.tkt-risolvi-allegati .upl-drop{padding:14px 12px}
 body.theme-dark .tkt-chiuso-ok{background:rgba(6,95,70,.25);color:#6ee7b7}
 body.theme-dark .tkt-risolvi-altri summary{color:#7dd3fc}
 body.theme-dark .tkt-risolvi-errore{color:#fca5a5}

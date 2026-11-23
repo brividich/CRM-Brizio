@@ -232,6 +232,7 @@ def _stato(ticket_id: int, vecchio: str, nuovo_stato: str, autore_email: str, no
         return
     extra = f"\nNota: {nota}" if nota else ""
     if nuovo_stato == StatoTicket.RISOLTO:
+        extra += _riga_allegati_risoluzione(t)
         _al_richiedente(
             t, autore_email=autore_email, tipo="ticket_risolto",
             messaggio=f"Ticket {t.numero_ticket} risolto: confermi o riapri?",
@@ -260,6 +261,19 @@ def _stato(ticket_id: int, vecchio: str, nuovo_stato: str, autore_email: str, no
             oggetto=f"Ticket {t.numero_ticket} annullato",
             testo=f"Il tuo ticket {t.numero_ticket} («{t.titolo}») è stato annullato.{extra}",
         )
+
+
+def _riga_allegati_risoluzione(t: Ticket) -> str:
+    """«Nel ticket trovi N allegati della risoluzione»: i file restano nel ticket, non nella mail."""
+    from ..allegati import DESCRIZIONE_RISOLUZIONE
+    from ..models import StatoValidazioneAllegato, TicketAllegato
+
+    n = TicketAllegato.objects.filter(ticket=t, descrizione=DESCRIZIONE_RISOLUZIONE,
+                                      stato_validazione=StatoValidazioneAllegato.VALIDATO).count()
+    if not n:
+        return ""
+    quanti = "1 allegato" if n == 1 else f"{n} allegati"
+    return f"\nNel ticket trovi {quanti} della risoluzione (foto, screenshot o rapportino)."
 
 
 def commento(ticket: Ticket, *, autore_email: str, testo: str, da_richiedente: bool, interno: bool) -> None:
