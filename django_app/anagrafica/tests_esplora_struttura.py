@@ -388,3 +388,85 @@ class VistaSempliceTests(_Base):
         self.assertContains(self.get(area=self.in1.pk, parziale=1), "Altre strade")
         self.assertEqual(self._mansione(vista="semplice").context["vista"], "semplice")
         self.assertNotContains(self.get(area=self.in1.pk), "Altre strade")
+
+
+class EsploraDinamicaTests(_Base):
+    """Colonna «Mansioni» spostabile, altre informazioni, pagine collegate, tante competenze."""
+
+    def _mansione(self, **extra):
+        return self.get(centro=self.centro.pk, area=self.in1.pk, ruolo=self.op.pk, mansione=self.fresa.pk, **extra)
+
+    def test_la_colonna_mansioni_passa_per_prima_e_la_scelta_resta(self):
+        self.assertEqual([c["livello"] for c in self._mansione().context["semplice"]["colonne"]],
+                         ["centro", "area", "ruolo", "mansione"])
+        r = self._mansione(mansioni="prima")
+        s = r.context["semplice"]
+        self.assertTrue(s["mansioni_prima"])
+        self.assertTrue(s["appena_spostata"])
+        self.assertEqual([c["livello"] for c in s["colonne"]], ["mansione", "centro", "area", "ruolo"])
+        # Per prima elenca tutte le mansioni, non solo quelle del ruolo scelto.
+        nomi = {v["nome"] for v in s["colonne"][0]["voci"]}
+        self.assertTrue({"Fresa F1", "Taglio T1", "Orfana"} <= nomi)
+        self.assertEqual([v["nome"] for v in s["colonne"][0]["voci"] if v["scelta"]], ["Fresa F1"])
+        self.assertContains(r, "Metti per ultima")
+        self.assertIn("mansioni=ultima", r.context["url_sposta_mansioni"])
+        # Ogni link porta con sé la posizione; il percorso comincia dalla mansione.
+        self.assertTrue(all("mansioni=prima" in v["url"] for c in s["colonne"] for v in c["voci"] or []))
+        self.assertEqual(s["briciole"][1]["livello"], "Mansione")
+        # Resta per le pagine dopo, senza ripeterlo nell'indirizzo.
+        dopo = self.get(area=self.in1.pk).context["semplice"]
+        self.assertTrue(dopo["mansioni_prima"])
+        self.assertFalse(dopo["appena_spostata"])
+        torna = self._mansione(mansioni="ultima").context["semplice"]
+        self.assertEqual([c["livello"] for c in torna["colonne"]], ["centro", "area", "ruolo", "mansione"])
+        self.assertContains(self._mansione(), "Metti per prima")
+
+    def test_partendo_dalla_mansione_le_altre_colonne_dicono_dove_sta(self):
+        s = self.get(mansione=self.fresa.pk, mansioni="prima").context["semplice"]
+        scelte = {c["livello"]: [v["nome"] for v in c["voci"] or [] if v["scelta"]] for c in s["colonne"]}
+        self.assertEqual(scelte["mansione"], ["Fresa F1"])
+        self.assertEqual(scelte["centro"], ["LAVORAZIONI"])
+        self.assertEqual(scelte["area"], ["IN1"])
+        self.assertEqual(s["scheda"]["titolo"], "Mansione scelta")
+        vuota = self.get(mansioni="prima").context["semplice"]
+        self.assertIsNone(vuota["scheda"])
+        self.assertTrue(vuota["colonne"][0]["corrente"])
+
+    def test_altre_informazioni_e_pagine_collegate(self):
+        r = self._mansione()
+        s = r.context["semplice"]
+        altre = {c["etichetta"]: c["valore"] for c in s["altre"]}
+        self.assertEqual(list(altre), ["Persone abilitate", "Abilitazione con scadenza", "Richieste aperte"])
+        self.assertEqual((altre["Abilitazione con scadenza"], altre["Richieste aperte"]), ("No", "0"))
+        self.assertRegex(altre["Persone abilitate"], r"^\d+ su 1$")
+        nomi = [x["nome"] for x in s["collegate"]]
+        self.assertEqual(nomi[0], "Richieste su questa mansione")
+        self.assertIn(f"mansione={self.fresa.pk}", s["collegate"][0]["url"])
+        self.assertIn("Mansionario della mansione", nomi)
+        self.assertContains(r, "Pagine collegate")
+        self.assertContains(r, "Altre informazioni")
+        for x in s["collegate"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+        # Anche reparto e centro di costo hanno le loro pagine collegate.
+        self.assertTrue(self.get(centro=self.centro.pk, area=self.in1.pk).context["semplice"]["collegate"])
+        self.assertTrue(self.get(centro=self.centro.pk).context["semplice"]["collegate"])
+
+    def test_sessanta_competenze_stanno_nel_riquadro_che_scorre(self):
+        for i in range(60):
+            VoceMacchinaCatalogo.objects.create(codice=f"TANTE-{i}", nome=f"Competenza numero {i:02d} dal nome piuttosto lungo",
+                                                mansione=self.fresa, ordine=10 + i)
+        r = self._mansione()
+        self.assertEqual(len(r.context["semplice"]["competenze"]), 61)
+        self.assertContains(r, 'class="es-tab-wrap es-s-scorre"', count=2)
+        self.assertContains(r, "Competenza numero 59 dal nome piuttosto lungo")
+        self.assertContains(r, 'class="fx-flusso"')
+
+    def test_i_riquadri_stanno_nel_flusso_dinamico(self):
+        r = self._mansione()
+        self.assertContains(r, "fx-blocco fx-largo", count=3)   # mansione scelta, competenze richieste, pagine collegate
+        self.assertContains(r, 'class="fx-blocco"', count=2)    # persone, altre informazioni
+        self.assertContains(r, "window.fxDisponi")
+        parziale = self._mansione(parziale=1)
+        self.assertContains(parziale, 'class="fx-flusso"')
+        self.assertNotContains(parziale, "window.fxDisponi")
+        self.assertNotContains(r, "{#")

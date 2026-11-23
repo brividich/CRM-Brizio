@@ -1,4 +1,4 @@
-{# Vista semplice di «Struttura»: ogni dato con la sua etichetta (services/esplora_semplice.py). #}
+{# Vista semplice di «Esplora la struttura»: ogni dato con la sua etichetta (services/esplora_semplice.py). I riquadri sotto le colonne si dispongono da soli (components/_flusso_dinamico.html). #}
   <nav class="es-briciole" aria-label="Percorso">
     {% for b in semplice.briciole %}
       {% if not forloop.first %}<span class="es-sep" aria-hidden="true">›</span>{% endif %}
@@ -11,8 +11,8 @@
 
   <div class="es-colonne es-colonne-4">
     {% for c in semplice.colonne %}
-    <section class="es-col {% if c.corrente %}is-corrente{% endif %}" aria-label="{{ c.titolo }}" data-es-liv="{{ c.livello }}">
-      <div class="es-col-h"><span>{{ c.titolo }}</span></div>
+    <section class="es-col {% if c.corrente %}is-corrente{% endif %}{% if c.livello == 'mansione' and semplice.appena_spostata %} is-spostata{% endif %}" aria-label="{{ c.titolo }}" data-es-liv="{{ c.livello }}">
+      <div class="es-col-h"><span>{{ c.titolo }}</span>{% if c.livello == "mansione" %}<a class="es-s-sposta" href="{{ url_sposta_mansioni }}" title="{% if semplice.mansioni_prima %}Riporta la colonna in fondo: si scende dal centro di costo alla mansione{% else %}Porta la colonna all'inizio: si parte dalla mansione{% endif %}">{% if semplice.mansioni_prima %}Metti per ultima ›{% else %}‹ Metti per prima{% endif %}</a>{% endif %}</div>
       {% if c.voci is None %}
         <div class="es-attesa">{{ c.attesa }}</div>
       {% elif c.voci %}
@@ -27,24 +27,25 @@
     {% endfor %}
   </div>
 
-  {% if semplice.scheda %}
-  <section class="es-s-card">
-    <h2 class="es-s-h">{{ semplice.scheda.titolo }}</h2>
-    <div class="es-s-testa">
-      <dl class="es-s-campi">
-        {% for c in semplice.scheda.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{% if c.url %}<a href="{{ c.url }}">{{ c.valore }}</a>{% else %}{{ c.valore }}{% endif %}</dd></div>{% endfor %}
-      </dl>
-      {% if semplice.scheda.azioni %}<div class="es-s-azioni">{% for a in semplice.scheda.azioni %}<a class="rc-btn {% if a.principale %}rc-btn-primary{% else %}rc-btn-ghost{% endif %}" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
-    </div>
-  </section>
-  {% endif %}
+  <div class="fx-flusso">
+    {% if semplice.scheda %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">{{ semplice.scheda.titolo }}</h2>
+      <div class="es-s-testa">
+        <dl class="es-s-campi">
+          {% for c in semplice.scheda.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{% if c.url %}<a href="{{ c.url }}">{{ c.valore }}</a>{% else %}{{ c.valore }}{% endif %}</dd></div>{% endfor %}
+        </dl>
+        {% if semplice.scheda.azioni %}<div class="es-s-azioni">{% for a in semplice.scheda.azioni %}<a class="rc-btn {% if a.principale %}rc-btn-primary{% else %}rc-btn-ghost{% endif %}" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
+      </div>
+    </section></div>
+    {% endif %}
 
-  {% if mansione_obj %}
-  <div class="es-s-due">
-    <section class="es-s-card">
+    {% if mansione_obj %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
       <h2 class="es-s-h">Competenze richieste dalla mansione <span>{{ semplice.competenze|length }}</span></h2>
       {% if semplice.competenze %}
-      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+      {# Altezza fissa: con molte competenze l'elenco scorre nel riquadro e la pagina non si allunga. #}
+      <div class="es-tab-wrap es-s-scorre" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Competenza</th><th>Livello richiesto</th></tr></thead>
         <tbody>{% for c in semplice.competenze %}<tr{% if c.scelta %} class="is-scelta"{% endif %}>
           <td><b>{{ c.nome }}</b>{% if c.bloccante %}<small>Bloccante: sotto il livello richiesto la persona non è abilitata</small>{% endif %}{% if c.requisito %}<small>Richiede: {{ c.requisito }}</small>{% endif %}</td>
@@ -52,11 +53,11 @@
         </tr>{% endfor %}</tbody>
       </table></div>
       {% else %}<p class="es-s-vuoto">Nessuna competenza caricata per questa mansione.</p>{% endif %}
-    </section>
-    <section class="es-s-card">
+    </section></div>
+    <div class="fx-blocco"><section class="es-s-card">
       <h2 class="es-s-h">Persone con questa mansione <span>{{ semplice.persone_mansione|length }}</span></h2>
       {% if semplice.persone_mansione %}
-      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+      <div class="es-tab-wrap es-s-scorre" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th></tr></thead>
         <tbody>{% for p in semplice.persone_mansione %}<tr>
           <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
@@ -66,30 +67,46 @@
       </table></div>
       {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
       <div class="es-s-legenda">{% for l in semplice.legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
-    </section>
-  </div>
-  {% elif semplice.persone %}
-  <section class="es-s-card">
-    <h2 class="es-s-h">{{ semplice.persone.titolo }} <span>{{ semplice.persone.righe|length }}</span></h2>
-    {% if semplice.persone.righe %}
-    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
-      <thead><tr><th>Persona</th>{% if semplice.persone.ruolo %}<th>Ruolo</th>{% endif %}<th>Mansioni</th></tr></thead>
-      <tbody>{% for p in semplice.persone.righe %}<tr>
-        <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
-        {% if semplice.persone.ruolo %}<td>{% for r in p.ruoli %}{{ r }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuno{% endfor %}</td>{% endif %}
-        <td>{% for m in p.mansioni %}<a href="{{ m.url }}">{{ m.nome }}</a>{% if not forloop.last %}, {% endif %}{% empty %}Nessuna{% endfor %}</td>
-      </tr>{% endfor %}</tbody>
-    </table></div>
-    {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
-  </section>
-  {% elif semplice.reparti %}
-  <section class="es-s-card">
-    <h2 class="es-s-h">Reparti del centro di costo <span>{{ semplice.reparti|length }}</span></h2>
-    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
-      <thead><tr><th>Reparto</th><th>Responsabile del reparto</th><th>Persone</th></tr></thead>
-      <tbody>{% for r in semplice.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"Nessuno" }}</td><td>{{ r.persone }}</td></tr>{% endfor %}</tbody>
-    </table></div>
-  </section>
-  {% endif %}
+    </section></div>
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Altre informazioni</h2>
+      <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+        {% for c in semplice.altre %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{% if c.url %}<a href="{{ c.url }}">{{ c.valore }}</a>{% else %}{{ c.valore }}{% endif %}</dd></div>{% endfor %}
+      </dl></div>
+    </section></div>
+    {% elif semplice.persone %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">{{ semplice.persone.titolo }} <span>{{ semplice.persone.righe|length }}</span></h2>
+      {% if semplice.persone.righe %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+        <thead><tr><th>Persona</th>{% if semplice.persone.ruolo %}<th>Ruolo</th>{% endif %}<th>Mansioni</th></tr></thead>
+        <tbody>{% for p in semplice.persone.righe %}<tr>
+          <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
+          {% if semplice.persone.ruolo %}<td>{% for r in p.ruoli %}{{ r }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuno{% endfor %}</td>{% endif %}
+          <td>{% for m in p.mansioni %}<a href="{{ m.url }}">{{ m.nome }}</a>{% if not forloop.last %}, {% endif %}{% empty %}Nessuna{% endfor %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
+    </section></div>
+    {% elif semplice.reparti %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Reparti del centro di costo <span>{{ semplice.reparti|length }}</span></h2>
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+        <thead><tr><th>Reparto</th><th>Responsabile del reparto</th><th>Persone</th></tr></thead>
+        <tbody>{% for r in semplice.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"Nessuno" }}</td><td>{{ r.persone }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section></div>
+    {% endif %}
 
-  <p class="es-s-cambia"><a href="{{ url_vista_completa }}">Vista completa</a>: numeri, costi, carichi e collegamenti alle altre pagine.</p>
+    {% if semplice.collegate %}
+    {# Sulla mansione sta sotto le competenze, largo, con le voci affiancate: a destra restano persone e altre informazioni. Sugli altri punti va a destra. #}
+    <div class="fx-blocco{% if mansione_obj %} fx-largo{% endif %}"><section class="es-s-card">
+      <h2 class="es-s-h">Pagine collegate <span>{{ semplice.collegate|length }}</span></h2>
+      <div class="es-s-collegate">
+        {% for x in semplice.collegate %}<a href="{{ x.url }}" target="_self"><span><b>{{ x.nome }}</b>{% if x.spiega %}<small>{{ x.spiega }}</small>{% endif %}</span>{% if x.attesa %}<span class="es-s-conta" title="Richieste aperte">{{ x.attesa }}</span>{% endif %}<span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+      </div>
+    </section></div>
+    {% endif %}
+  </div>
+
+  <p class="es-s-cambia"><a href="{{ url_vista_completa }}" target="_self">Vista completa</a>: numeri, costi, carichi e collegamenti alle altre pagine.</p>

@@ -173,6 +173,8 @@ GUIDA = {
                     "serve per la mansione» (competenza, livello richiesto, livello di oggi, «Già presente» o «Da "
                     "formare») e la «Storia» con chi ha fatto cosa.",
                     "Stati: «In approvazione», «Approvata», «Respinta», «Evasa».",
+                    "Da «Esplora la struttura» → «Richieste su questa mansione» l'elenco si apre già ristretto a quella "
+                    "mansione; «mostra tutte le richieste» toglie il filtro.",
                 ]),
                 ("p", "Che cosa cambia all'approvazione. Assegnazione: se la persona non ha ancora la mansione, entra "
                       "nella skill matrix a livello I (in formazione); il livello chiesto arriva solo alla chiusura "
@@ -777,6 +779,13 @@ GUIDA = {
                     "Si apre la vista semplice: quattro colonne (centro di costo, reparto, ruolo, mansione) e, sotto, "
                     "la scheda del punto scelto con ogni dato etichettato. Sulla mansione: «Competenze richieste dalla "
                     "mansione» con il livello richiesto e «Persone con questa mansione» con livello e stato.",
+                    "La colonna «Mansioni» si sposta: «‹ Metti per prima» sulla sua intestazione la porta davanti e la "
+                    "riempie con tutte le mansioni; scelta una mansione, le altre colonne mostrano dove sta. «Metti per "
+                    "ultima ›» la riporta in fondo. La scelta resta finché non la cambi.",
+                    "Sulla mansione, sotto le colonne: «Altre informazioni» («Persone abilitate», «Abilitazione con "
+                    "scadenza», «Richieste aperte») e «Pagine collegate», con i collegamenti alle pagine già aperte su "
+                    "ciò che hai scelto; la prima è «Richieste su questa mansione». Con molte competenze l'elenco "
+                    "scorre nel suo riquadro e la pagina non si allunga.",
                     "«Vista completa», in fondo alla pagina, aggiunge la colonna delle competenze, numeri, costi, "
                     "carichi e «Altre strade»; la scelta resta finché non clicchi «Torna alla vista semplice». I punti "
                     "che seguono su altre strade, persone e centro di costo valgono per la vista completa.",
