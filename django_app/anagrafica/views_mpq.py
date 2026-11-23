@@ -116,6 +116,24 @@ def _classifica_scadenza(data_scadenza, oggi, s30, s60):
 
 
 @login_required
+def mpq_p11tf12(request):
+    """P11TF12 (MT CN 69) in Qualifiche: persone e formazione prima, poi macchine e utensili.
+
+    Stessi dati della pagina Asset (``assets.services.p11tf12_dossier``), sola lettura.
+    """
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from assets.services import p11tf12_dossier
+
+    from .acl_bootstrap import PERM_MPQ_MANAGE
+
+    return render(request, "anagrafica/pages/mpq_p11tf12.html", {
+        "dossier": p11tf12_dossier.costruisci(con_personale=True, ordine=p11tf12_dossier.ORDINE_QUALIFICHE),
+        "can_manage": _check_mpq_permission(request, PERM_MPQ_MANAGE),
+    })
+
+
+@login_required
 def mpq_cruscotto(request):
     """Cruscotto MOD.128 — vista trasversale sui processi qualificati.
 
@@ -358,7 +376,10 @@ def mpq_processo_detail(request, processo_id: int):
     for r in requisiti_persona:
         r.da_iscrivere = sorted(set(da_iscrivere.get(r.pk, [])))
 
+    from assets.services.p11tf12_dossier import e_p11tf12
+
     return render(request, "anagrafica/pages/mpq_processo_detail.html", {
+        "is_p11tf12": e_p11tf12(processo),
         "oggi": oggi,
         "can_manage": _check_manage(request),
         "processo": processo,

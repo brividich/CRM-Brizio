@@ -1,0 +1,102 @@
+{% extends "core/base.html" %}
+{% load static assets_extras %}
+{# Pagina P11TF12 in Qualifiche: stessi dati della pagina Asset (assets/services/p11tf12_dossier.py), persone prima. #}
+
+{% block title %}{{ dossier.titolo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.p11-sez > summary { list-style:none; cursor:pointer; }
+.p11-sez > summary::-webkit-details-marker { display:none; }
+.p11-sez > summary .p11-chev { transition:transform .15s; color:#94a3b8; margin-left:6px; }
+.p11-sez[open] > summary .p11-chev { transform:rotate(90deg); }
+.p11-sez { scroll-margin-top:90px; }
+.p11-nota { color:#64748b; font-size:12.5px; margin:0 0 10px; }
+.p11-avviso { border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:12px; padding:10px 14px; font-size:13px; }
+body.theme-dark .p11-avviso { background:rgba(220,38,38,.10); border-color:rgba(220,38,38,.45); color:#fecaca; }
+body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · Processi qualificati (MOD.128)</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>{{ dossier.titolo }}</h1>
+          <p class="fmd-sub">MT CN 69 · persone abilitate e formazione, macchine qualificate (MOD.161), utensili critici, Technical Plan e registro MOD.176 · aggiornato al {{ dossier.oggi|date:"d-m-Y" }}</p>
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
+            {% if dossier.processi|length == 1 %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_detail' dossier.processi.0.pk %}"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Apri il processo</a>
+            {% elif not dossier.processi and can_manage %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Crea il processo P11TF12</a>
+            {% endif %}
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'assets:p11tf12' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Vista macchine e utensili (Asset)</a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_cruscotto' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Tutti i processi qualificati</a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#p11tf12">? Guida</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if dossier.avvisi %}
+    <div class="p11-avviso" role="alert"><strong>Alcune parti non sono disponibili.</strong> Il resto della pagina è aggiornato.<ul style="margin:4px 0 0;padding-left:18px;">{% for a in dossier.avvisi %}<li>{{ a }}</li>{% endfor %}</ul></div>
+    {% endif %}
+
+    <section class="fmd-kpi">
+      {% for k in dossier.kpi %}
+      <a class="fmd-mtr {% if k.stato == 'ko' %}fmd-t-amber{% elif k.stato == 'warn' %}fmd-t-yellow{% elif k.stato == 'ok' %}fmd-t-green{% else %}fmd-t-cyan{% endif %} kpi-link" href="#sez-{{ k.sezione }}" data-apri="sez-{{ k.sezione }}">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-val">{{ k.valore }}</span></div>
+        <div class="fmd-mtr-lbl">{{ k.etichetta }}</div>
+        <div class="fmd-mtr-sub">{{ k.nota }}</div>
+      </a>
+      {% endfor %}
+    </section>
+
+    {% for s in dossier.sezioni %}
+    <details class="fmd-panel fmd-block p11-sez" id="sez-{{ s.codice }}" {% if not s.chiusa %}open{% endif %}>
+      <summary class="fmd-block-head">
+        <div class="fmd-block-title">{{ s.titolo }} <span class="fmd-count">{{ s.righe|length }}</span><span class="p11-chev" aria-hidden="true">&#9656;</span></div>
+      </summary>
+      {% if s.nota %}<p class="p11-nota">{{ s.nota }}</p>{% endif %}
+      {% if s.righe %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th>Cosa fare</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for riga, asset_id, azione in s.righe_link %}
+            <tr>
+              {% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="fmd-data-link" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls == 'ko' %}<span class="fmd-badge fmd-b-red">{{ v }}</span>{% elif cls == 'warn' %}<span class="fmd-badge fmd-b-amber">{{ v }}</span>{% elif cls == 'ok' %}<span class="fmd-badge fmd-b-green">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="fmd-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}
+              {% if s.ha_azioni %}<td class="fmd-nowrap">{% if azione %}<a class="fmd-data-link" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">{{ s.vuoto }}</div>
+      {% endif %}
+    </details>
+    {% endfor %}
+
+  </div>
+</div>
+<script>
+(function () {
+  function apri(id) { var el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
+  document.querySelectorAll('[data-apri]').forEach(function (a) { a.addEventListener('click', function () { apri(a.getAttribute('data-apri')); }); });
+  if (window.location.hash) apri(window.location.hash.slice(1));
+})();
+</script>
+{% endblock %}

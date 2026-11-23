@@ -71,6 +71,7 @@ from .asset_crud import (  # noqa: F401
     asset_image_upload,
     asset_internal_number_next,
     asset_list,
+    asset_p11tf12,
     asset_part_145_list,
     assignment_set,
     chemical_asset_create,

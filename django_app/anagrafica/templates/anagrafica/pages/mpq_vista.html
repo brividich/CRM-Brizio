@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Vista MOD.128 · Processi qualificati | Anagrafica HR{% endblock %}
+{% block title %}Vista per cliente · Processi qualificati (MOD.128) | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -39,8 +39,8 @@ body.theme-dark .mpq-org{color:var(--text-light)}
       <div class="fmd-hero-bg" aria-hidden="true"></div>
       <div class="fmd-hero-inner">
         <div>
-          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · MOD.128</div>
-          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Vista MOD.128</h1>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · Processi qualificati (MOD.128)</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Vista per cliente (MOD.128)</h1>
           <p class="fmd-sub">Replica del Mansionario Processi Qualificati: tabella per cliente/ente, personale abilitato per ruolo, scadenze e distribuzione a reparto. {{ n_processi }} process{{ n_processi|pluralize:"o,i" }} · estratto del {{ oggi|date:"d-m-Y" }}.</p>
           <div class="fmd-hero-actions">
             <a class="fmd-btn-template" href="?{% if cliente_sel %}cliente={{ cliente_sel }}&{% endif %}{% if not solo_attivi %}tutti=1&{% endif %}format=docx">

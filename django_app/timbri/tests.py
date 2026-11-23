@@ -917,4 +917,4 @@ class TimbriElencoRicercaFiltriExportTests(TestCase):
         )
         response = self.client.get(reverse("timbri:operatore_detail_by_legacy", args=[self.id_attivo]))
         self.assertContains(response, "Abilitazione revocata")
-        self.assertContains(response, "automatica da MOD.128")
+        self.assertContains(response, "automatica da processo qualificato (MOD.128)")

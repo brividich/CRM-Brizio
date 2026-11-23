@@ -25,6 +25,7 @@ urlpatterns = [
     path("assets/", views.asset_dashboard, name="asset_dashboard"),
     path("assets/lista/", views.asset_list, name="asset_list"),
     path("assets/part-145/", views.asset_part_145_list, name="part_145_list"),
+    path("assets/p11tf12/", views.asset_p11tf12, name="p11tf12"),
     path("assets/part-145/export.xlsx", views.asset_part_145_export_excel, name="part_145_export_excel"),
     path("assets/part-145/export.pdf", views.asset_part_145_export_pdf, name="part_145_export_pdf"),
     path("assets/part-145/strumenti-tarati.xlsx", views.asset_part_145_export_tarature, name="part_145_export_tarature"),

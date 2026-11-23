@@ -23,7 +23,7 @@
         <div>
           <div class="fmd-hero-eyebrow">
             <span class="fmd-dot"></span>
-            <a href="{% url 'anagrafica:mpq_cruscotto' %}" style="color:inherit;text-decoration:none;">MOD.128 · Processi qualificati</a>
+            <a href="{% url 'anagrafica:mpq_cruscotto' %}" style="color:inherit;text-decoration:none;">Processi qualificati (MOD.128)</a>
           </div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>{{ processo.nome }}</h1>
           <p class="fmd-sub">
@@ -32,6 +32,7 @@
             {% if processo.perimetro_part145 and processo.regime != "PART145" %}· nel perimetro Part 145 (<a href="{% url 'assets:part_145_list' %}" style="color:inherit;">Dossier</a>){% endif %}
             {% if processo.livello %}· Livello: {{ processo.livello }}{% endif %}
             {% if processo.ente_certificatore %}· Certificatore: {{ processo.ente_certificatore.nome }}{% endif %}
+            {% if is_p11tf12 %}· Foratura su particolari critici (MT CN 69): pagine <a href="{% url 'anagrafica:mpq_p11tf12' %}" style="color:inherit;">P11TF12 persone</a> e <a href="{% url 'assets:p11tf12' %}" style="color:inherit;">P11TF12 macchine e utensili</a>{% endif %}
           </p>
           <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
             {% if processo.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">{{ processo.get_stato_display }}</span>

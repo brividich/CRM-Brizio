@@ -51,7 +51,7 @@
     {% include "anagrafica/components/_fmd_ricerca.html" with ambito="qualifiche" placeholder="Cerca un tipo di qualifica o le qualifiche di una persona…" %}
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
-    {% include "anagrafica/partials/_filtro_centro.html" with nota="Tipi a catalogo, processi MOD.128 e sessioni restano di tutta l'azienda." %}
+    {% include "anagrafica/partials/_filtro_centro.html" with nota="Tipi a catalogo, processi qualificati e sessioni restano di tutta l'azienda." %}
     <section class="fmd-kpi">
       <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
@@ -87,7 +87,7 @@
       <a class="fmd-mtr fmd-t-{% if mpq.scaduti %}amber{% else %}navy{% endif %} kpi-link" href="{% url 'anagrafica:mpq_cruscotto' %}" style="text-decoration:none;" title="Apri i processi qualificati (MOD.128)">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ mpq.n }}</span></div>
-        <div class="fmd-mtr-lbl">Processi MOD.128</div>
+        <div class="fmd-mtr-lbl">Processi qualificati</div>
         <div class="fmd-mtr-sub">{{ mpq.attivi }} attivi · {{ mpq.scaduti }} scaduti · {{ mpq.in_scadenza }} ≤60gg</div>
       </a>
       {% endif %}
