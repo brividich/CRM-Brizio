@@ -174,6 +174,39 @@ class TeamEHomeTests(_Base):
         self.assertEqual(any("Unico operativo" in s for s in riga["carico"]), bool(attesi["chiave"]))
         self.assertContains(r, "SALDATURE")
 
+    def _team(self, membri, **parametri):
+        with mock.patch("anagrafica.views_mio_team.membri_team", return_value=membri), \
+                mock.patch("anagrafica.views._current_legacy_anagrafica_id", return_value=self.rossi):
+            return self.client.get(reverse("anagrafica:mio_team"), parametri)
+
+    def test_la_persona_scelta_ha_dati_etichettati_mansioni_e_competenze(self):
+        from .models import AbilitazioneMacchina, VoceMacchinaCatalogo
+
+        VoceMacchinaCatalogo.objects.create(codice="MT-V1", nome="Lettura disegno", mansione=self.m1, livello_minimo="U")
+        AbilitazioneMacchina.objects.update_or_create(legacy_anagrafica_id=self.verdi, competenza=self.m1,
+                                                      defaults={"livello": "L", "in_lista": True})
+        r = self._team([self.verdi])
+        self.assertEqual(r.context["scelta"]["id"], self.verdi)
+        persona = r.context["persona"]
+        etichette = [c["etichetta"] for c in persona["campi"]]
+        self.assertEqual(etichette[0], "Persona")
+        self.assertIn("Reparto", etichette)
+        self.assertIn("Centro di costo", etichette)
+        mansione = next(m for m in persona["mansioni"] if m["nome"] == self.m1.nome)
+        self.assertEqual(mansione["livello"]["codice"], "L")
+        competenza = next(c for c in persona["competenze"] if c["nome"] == "Lettura disegno")
+        self.assertEqual((competenza["richiesto"]["codice"], competenza["livello"], competenza["sotto"]), ("U", None, True))
+        self.assertContains(r, "<dt>Persona:</dt>")
+        self.assertContains(r, "Livello richiesto")
+        self.assertNotContains(r, "{#")
+
+    def test_fuori_dal_team_non_si_apre_nessuno(self):
+        self.assertEqual(self._team([self.verdi], persona=self.rossi).context["scelta"]["id"], self.verdi)
+        self.assertEqual(self._team([self.verdi], persona="abc").context["scelta"]["id"], self.verdi)
+        vuoto = self._team([])
+        self.assertIsNone(vuoto.context["scelta"])
+        self.assertIsNone(vuoto.context["persona"])
+
     def test_home_con_le_mansioni_da_guardare(self):
         r = self.client.get(reverse("anagrafica:index"))
         self.assertEqual(r.context["carico_home"]["da_guardare"], carico_mansioni.calcola().conteggi()["da_guardare"])

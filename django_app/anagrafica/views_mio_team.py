@@ -98,6 +98,7 @@ def mio_team(request):
                 "mansione": str(r.get("mansione") or ""),
                 "esito": esito, "tono": tono, "esito_label": etichetta,
                 "scheda": _puo_aprire_scheda(request, lid),
+                "matricola": str(r.get("matricola") or ""),
             })
         righe.sort(key=lambda x: (_ORDINE.get(x["esito"], 9), x["nome"]))
     conteggi = {k: sum(1 for r in righe if r["esito"] == k) for k in ESITI}
@@ -111,10 +112,28 @@ def mio_team(request):
         righe = [r for r in righe if r["esito"] == filtro]
     else:
         filtro = ""
+    # La persona scelta (``?persona=``) deve essere una riga dell'elenco: fuori dal team non si apre niente.
+    scelta = None
+    if righe:
+        try:
+            chiesta = int(request.GET.get("persona") or 0)
+        except ValueError:
+            chiesta = 0
+        scelta = next((r for r in righe if r["id"] == chiesta), righe[0])
+    persona = None
+    if scelta is not None:
+        from anagrafica.services import persona_semplice
+
+        try:
+            persona = persona_semplice.costruisci(scelta, matricola=scelta["matricola"])
+        except Exception:
+            logger.exception("Il mio team: scheda della persona non calcolabile")
     return render(request, "anagrafica/pages/mio_team.html", {
         "righe": righe,
         "n_team": n_team,
         "filtro": filtro,
         "collegato": io is not None,
         "conteggi": conteggi,
+        "scelta": scelta,
+        "persona": persona,
     })
