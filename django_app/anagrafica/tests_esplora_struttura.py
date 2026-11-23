@@ -319,3 +319,72 @@ class EsploraRiccaTests(_Base):
         v = svc._vicini(colonne)
         self.assertEqual((v["prec"]["nome"], v["succ"]["nome"], v["posto"], v["totale"]), ("A", "C", 2, 3))
         self.assertIsNone(svc._vicini([{"titolo": "Centri", "voci": [{"scelta": False, "nome": "A"}]}]))
+
+
+class VistaSempliceTests(_Base):
+    """La vista di default: quattro colonne e la scheda con ogni dato etichettato."""
+
+    def _mansione(self, **extra):
+        return self.get(centro=self.centro.pk, area=self.in1.pk, ruolo=self.op.pk, mansione=self.fresa.pk, **extra)
+
+    def test_di_default_e_semplice_con_quattro_colonne(self):
+        r = self._mansione()
+        self.assertEqual(r.context["vista"], "semplice")
+        self.assertEqual([c["livello"] for c in r.context["semplice"]["colonne"]], ["centro", "area", "ruolo", "mansione"])
+        self.assertNotContains(r, "Altre strade")
+        self.assertNotContains(r, "{#")
+        # Il motore resta quello di prima: la colonna delle competenze c'è ancora nel contesto.
+        self.assertEqual([v["nome"] for v in self.colonna(r, "competenza")], ["Set-up F1"])
+
+    def test_la_mansione_ha_ogni_dato_con_la_sua_etichetta(self):
+        r = self._mansione()
+        scheda = r.context["semplice"]["scheda"]
+        campi = {c["etichetta"]: c["valore"] for c in scheda["campi"]}
+        self.assertEqual(scheda["titolo"], "Mansione scelta")
+        self.assertEqual(campi["Mansione"], "Fresa F1")
+        self.assertEqual(campi["Reparto"], "IN1")
+        self.assertEqual(campi["Centro di costo"], "LAVORAZIONI")
+        self.assertIn("Ruolo", campi)
+        self.assertIn("Responsabile del reparto", campi)
+        self.assertContains(r, "<dt>Mansione:</dt>")
+        self.assertContains(r, "Competenze richieste dalla mansione")
+
+    def test_competenze_e_persone_della_mansione(self):
+        s = self._mansione().context["semplice"]
+        self.assertEqual([(c["nome"], c["livello"]["codice"], c["livello"]["parola"], c["bloccante"]) for c in s["competenze"]],
+                         [("Set-up F1", "U", "autonomo", True)])
+        riga = s["persone_mansione"][0]
+        self.assertEqual(riga["livello"]["codice"], "U")
+        self.assertIn(riga["stato"], {"Abilitato", "In addestramento", "Non abilitato"})
+        self.assertIn(str(self.rossi), riga["url"])
+        self.assertEqual([x["codice"] for x in s["legenda"]], ["I", "L", "U", "O"])
+
+    def test_la_competenza_nell_indirizzo_evidenzia_la_riga(self):
+        r = self._mansione(competenza=self.voce.pk)
+        s = r.context["semplice"]
+        self.assertTrue(s["competenze"][0]["scelta"])
+        self.assertEqual(s["scheda"]["titolo"], "Mansione scelta")
+        self.assertEqual(s["briciole"][-1]["livello"], "Mansione")
+
+    def test_reparto_e_centro_hanno_la_loro_scheda(self):
+        reparto = self.get(centro=self.centro.pk, area=self.in1.pk).context["semplice"]
+        self.assertEqual(reparto["scheda"]["titolo"], "Reparto scelto")
+        self.assertTrue(reparto["persone"]["ruolo"])
+        self.assertTrue(reparto["persone"]["righe"])
+        centro = self.get(centro=self.centro.pk).context["semplice"]
+        self.assertEqual(centro["scheda"]["titolo"], "Centro di costo scelto")
+        self.assertEqual({x["nome"] for x in centro["reparti"]}, {"IN1", "IN2"})
+        self.assertIsNone(self.get().context["semplice"]["scheda"])
+
+    def test_la_vista_completa_resta_scelta_e_conserva_il_punto(self):
+        r = self._mansione()
+        self.assertIn(f"mansione={self.fresa.pk}", r.context["url_vista_completa"])
+        self.assertIn("vista=completa", r.context["url_vista_completa"])
+        completa = self._mansione(vista="completa")
+        self.assertEqual(completa.context["vista"], "completa")
+        self.assertContains(completa, "Altre strade")
+        self.assertNotIn("semplice", completa.context)
+        # La scelta vale per le pagine dopo, anche parziali, finché non si torna indietro.
+        self.assertContains(self.get(area=self.in1.pk, parziale=1), "Altre strade")
+        self.assertEqual(self._mansione(vista="semplice").context["vista"], "semplice")
+        self.assertNotContains(self.get(area=self.in1.pk), "Altre strade")

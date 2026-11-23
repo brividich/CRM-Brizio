@@ -3,6 +3,10 @@
 Sola lettura. Vede chi vede la Struttura organizzativa (amministrazione anagrafica o
 dati HR): la pagina elenca le persone. Le strade verso costo orario e report compaiono
 solo a chi ha quei permessi; decidono comunque le pagine di destinazione.
+
+Due viste sugli stessi dati (23/11/2026): la semplice, di default, mostra quattro colonne e
+la scheda del punto scelto con ogni dato etichettato (``services/esplora_semplice.py``); la
+completa è quella di prima, con numeri, costi, carichi e altre strade.
 """
 from __future__ import annotations
 
@@ -80,10 +84,25 @@ def esplora_struttura(request):
         return _nega(request, "Non hai accesso alla struttura organizzativa.")
     from .views import _check_hr_permission
 
+    from .services import esplora_semplice as semplice
+    from .views_mansionario import _puo_gestire
+
+    vista = semplice.vista_scelta(request)
     ctx = svc.costruisci(request.GET, riservati=_check_hr_permission(request))
     testo = " ".join((request.GET.get("q") or "").split())
     risultati = svc.cerca(ctx["dati"], testo) if len(testo) >= 2 else None
-    ctx.update({"page_title": "Esplora la struttura", "q": testo, "risultati": risultati, "strade": _strade(request, ctx)})
+    ctx.update({"page_title": "Esplora la struttura", "q": testo, "risultati": risultati, "strade": _strade(request, ctx),
+                "vista": vista})
+    # Il punto scelto resta quando si cambia vista: stesso indirizzo, altra vista.
+    punto = request.GET.copy()
+    for chiave in ("parziale", "vista"):
+        punto.pop(chiave, None)
+    for nome in (semplice.SEMPLICE, semplice.COMPLETA):
+        altra = punto.copy()
+        altra["vista"] = nome
+        ctx[f"url_vista_{nome}"] = f"{reverse('anagrafica:esplora_struttura')}?{altra.urlencode()}"
+    if vista == semplice.SEMPLICE:
+        ctx["semplice"] = semplice.costruisci(ctx, puo_gestire=_puo_gestire(request))
     ctx.pop("dati")
     # Nella pagina già aperta si cambia solo la parte viva: niente menu da ricaricare.
     if request.GET.get("parziale") == "1":
