@@ -532,28 +532,37 @@ GUIDA = {
             ],
         },
         {
-            "id": "p11tf12",
-            "titolo": "P11TF12: foratura su particolari critici (MT CN 69)",
+            "id": "sezione-dedicata",
+            "titolo": "Sezione dedicata di un processo (es. P11TF12)",
             "blocchi": [
-                ("p", "P11TF12 è uno dei processi qualificati (MOD.128) e ha due pagine sue, con gli stessi dati: "
-                      "Competenze › Qualifiche › «P11TF12 – Foratura critica» (persone prima) e Asset › «P11TF12» "
-                      "(macchine e utensili prima). Il processo si riconosce da «P11TF12» nel nome o fra i riferimenti "
-                      "del processo: chiamalo per esempio «P11TF12 – Foratura su particolari critici»."),
+                ("p", "Un processo qualificato può avere una pagina sua con la voce di menu. Nella modifica del "
+                      "processo, riquadro «Sezione dedicata», spunta «Crea sezione dedicata» e scrivi la sigla (es. "
+                      "P11TF12: è il nome della voce di menu), il titolo della pagina (es. «Foratura su particolari "
+                      "critici») e dove compare: Qualifiche e Asset, solo Qualifiche o solo Asset. Al salvataggio "
+                      "nascono le voci in Competenze › Qualifiche (accanto a «Processi qualificati») e/o nel menu "
+                      "Asset (accanto a «PART 145»). Togliendo la spunta le voci spariscono, i dati restano."),
                 ("def", [
-                    ("Riquadri", "Da sistemare, Scadenze 90 giorni, Persone abilitate, Macchine, Utensili critici, "
-                                 "Technical Plan. Rosso o arancio = qualcosa ferma la foratura critica, giallo o ambra = "
-                                 "da guardare, verde = in regola. Un clic porta alla sezione."),
+                    ("Stessa sigla", "più processi con la stessa sigla (es. uno per cliente) finiscono nella stessa "
+                                     "pagina; il titolo è quello del primo processo che lo ha."),
+                    ("Riquadri", "Da sistemare, Scadenze 90 giorni, Persone abilitate e, se il processo li usa, "
+                                 "Macchine, Utensili critici e Technical Plan. Rosso o arancio = qualcosa ferma il "
+                                 "processo, giallo o ambra = da guardare, verde = in regola. Un clic porta alla sezione."),
+                    ("Solo le parti usate", "Utensili critici, Technical Plan e Utensili in uso (MOD.176) compaiono "
+                                            "solo se ce ne sono; le macchine se ce ne sono o se il processo ha "
+                                            "«Ripeti la qualifica macchine ogni (mesi)»."),
                     ("Da sistemare", "a priorità alta: processo scaduto o non attivo, macchina scaduta, da valutare "
                                      "o sospesa, requisito macchina bloccante scaduto, utensile al TCP, Technical Plan "
                                      "senza revisione approvata, persona non qualificata, formazione scaduta."),
-                    ("Macchine qualificate", "stato della qualifica con la sua scadenza, ultima verifica (MOD.161) e "
-                                             "requisiti macchina dai piani di manutenzione."),
-                    ("Utensili in uso (MOD.176)", "registri ancora aperti con utilizzo, TCP e residuo."),
+                    ("Documenti di riferimento", "il MOD.128 e i «Riferimenti» del processo, con la revisione "
+                                                 "corrente del registro SGI quando il codice c'è: per P11TF12 aggiungi "
+                                                 "fra i riferimenti MT CN 69, MOD.161, MOD.176."),
+                    ("Scarica PDF / Scarica Excel", "la pagina in PDF (pronta per l'audit) o in Excel (riepilogo e un "
+                                                    "foglio per parte); in Asset sono nel menu «↓ Scarica»."),
                 ]),
                 ("p", "Le pagine sono in sola lettura: macchine, utensili, Technical Plan e persone si gestiscono dalla "
                       "pagina del processo («Apri il processo»). Persone e formazione si vedono con il permesso "
                       "«Processi qualificati MOD.128 - Visualizza»; senza, la pagina Asset mostra solo macchine, utensili "
-                      "e Technical Plan."),
+                      "e Technical Plan. I vecchi indirizzi della pagina P11TF12 portano alla sua sezione."),
             ],
         },
         {

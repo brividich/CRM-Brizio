@@ -54,7 +54,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#mtconnect">Macchine collegate (MTConnect)</a>
     <a href="#planimetrie">Planimetria dell'officina</a>
     <a href="#part145">PART 145</a>
-    <a href="#p11tf12">P11TF12 – Foratura critica</a>
+    <a href="#sezione-dedicata">Sezioni dedicate (es. P11TF12)</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
     <a href="#permessi">Permessi</a>
@@ -659,16 +659,17 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Quando un'attrezzatura PART 145 o collegata a un processo cambia stato (in riparazione, dismessa, di nuovo in uso…) arriva una mail agli stessi destinatari MOD.128 dei timbri sospesi: una sola mail per salvataggio o import. L'avviso si accende o si spegne da Automazioni › Notifiche («Attrezzature PART 145 che cambiano stato»).</p>
     </section>
 
-    <section class="ag-sec" id="p11tf12">
-      <h2>P11TF12 – Foratura su particolari critici</h2>
-      <p>La voce <strong>P11TF12</strong> del menu apre la <a href="{% url 'assets:p11tf12' %}"><strong>pagina del processo di foratura critica</strong></a> (MT CN 69), con la stessa impaginazione del Dossier PART 145: riquadri in testa (rosso = qualcosa ferma la foratura critica, ambra = da guardare, verde = in regola), ricerca su tutte le sezioni e la colonna <strong>«Cosa fare»</strong> che porta dove si risolve.</p>
+    <section class="ag-sec" id="sezione-dedicata">
+      <h2>Sezioni dedicate dei processi (es. P11TF12)</h2>
+      <p>Le voci accanto a <strong>PART 145</strong> (per esempio <strong>P11TF12</strong>) sono le pagine dedicate dei processi qualificati. Nascono dalla spunta <strong>«Crea sezione dedicata»</strong> nella modifica del processo (Anagrafica › Processi qualificati, MOD.128), con la sigla che diventa il nome della voce; togliendo la spunta la voce sparisce. Stessa impaginazione del Dossier PART 145: riquadri in testa (rosso = qualcosa ferma il processo, ambra = da guardare, verde = in regola), ricerca su tutte le sezioni e la colonna <strong>«Cosa fare»</strong> che porta dove si risolve.</p>
       <ul>
         <li><strong>Da sistemare</strong>: a priorità alta macchina scaduta, «Da valutare» o sospesa, requisito macchina bloccante scaduto, utensile arrivato al TCP, Technical Plan senza revisione approvata, persona non qualificata, formazione scaduta.</li>
         <li><strong>Macchine qualificate</strong>: stato della qualifica e scadenza, ultima verifica (MOD.161) con esito, requisiti macchina dai piani di manutenzione. Dopo un OdL correttivo la macchina torna «Da valutare».</li>
-        <li><strong>Utensili critici</strong>, <strong>Technical Plan</strong> (revisione valida, chi l'ha approvata, revisioni in attesa) e <strong>Utensili in uso (MOD.176)</strong> con utilizzo, TCP e residuo.</li>
+        <li><strong>Utensili critici</strong>, <strong>Technical Plan</strong> e <strong>Utensili in uso (MOD.176)</strong>: compaiono solo se il processo li usa.</li>
         <li><strong>Personale abilitato</strong> e <strong>Formazione richiesta</strong>: solo con il permesso sui processi qualificati (MOD.128).</li>
+        <li><strong>↓ Scarica</strong>: la pagina in PDF (pronta per l'audit) o in Excel.</li>
       </ul>
-      <p>I dati vengono dal processo in Processi qualificati (MOD.128): la pagina lo trova da «P11TF12» nel nome o fra i riferimenti del processo. Macchine, utensili e Technical Plan si gestiscono dalla pagina del processo. La stessa vista con le persone in testa è in Anagrafica › Competenze › Qualifiche › «P11TF12 – Foratura critica».</p>
+      <p>Macchine, utensili e Technical Plan si gestiscono dalla pagina del processo. La stessa vista con le persone in testa è nella voce con la stessa sigla in Anagrafica › Competenze › Qualifiche.</p>
     </section>
 
     <section class="ag-sec" id="report">

@@ -1,38 +1,26 @@
-"""Pagina P11TF12: foratura su particolari critici (MT CN 69), dai dati MOD.128.
+"""Sezione dedicata di un processo qualificato (MOD.128), es. P11TF12.
 
-P11TF12 è un processo del registro MOD.128 (processi qualificati): questa pagina lo
-mostra da solo, con macchine qualificate (verifica MOD.161), utensili critici, Technical
-Plan, registro MOD.176, persone abilitate e formazione. Una sola costruzione per le due
-pagine (Asset e Qualifiche): cambia solo l'ordine delle sezioni.
-
-Il processo si riconosce dal codice «P11TF12» nel nome o fra i riferimenti del processo
-in MOD.128: nessun campo nuovo, basta chiamarlo così.
+Un processo con la spunta «Crea sezione dedicata» ha una pagina sua: cose da sistemare,
+scadenze, macchine qualificate, utensili critici, Technical Plan, registro utensili
+(MOD.176), persone abilitate e formazione. Più processi con la stessa sigla finiscono
+nella stessa pagina. Una sola costruzione per le due pagine (Asset e Qualifiche): cambia
+solo l'ordine delle sezioni. Si mostrano solo le parti che il processo usa davvero.
 """
 from __future__ import annotations
 
 import logging
 from datetime import timedelta
 
-from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 from .part145_dossier import BADGE as BADGE_PART145
 from .part145_dossier import Sezione, _d, _documenti_sgi, _formazione_richiesta, _stato_scadenza
 
 logger = logging.getLogger(__name__)
 
-CODICE = "P11TF12"
-TITOLO = "P11TF12 – Foratura su particolari critici"
 GIORNI_SCADENZE = 90
-
-DOCUMENTI_SGI = [
-    ("MT CN 69", "Procedura di foratura su particolari critici (P11TF12)"),
-    ("MOD.161", "Rapporto controllo macchine foratura (verifica della macchina)"),
-    ("MOD.176", "Registro utensili critici (RUC) fino al TCP"),
-    ("MOD.128", "Mansionario dei processi qualificati: personale abilitato"),
-    ("MOD.007", "Anagrafica utensili (utensili «CRITICO»)"),
-]
 
 # Esito sintetico della qualifica macchina (colonna con badge).
 ESITI_MACCHINA = {"qualificata": "Qualificata", "in_scadenza": "In scadenza", "scaduta": "Scaduta",
@@ -59,22 +47,16 @@ ORDINE_QUALIFICHE = ["aperte", "scadenze", "personale", "formazione", "processo"
                      "technical_plan", "registro", "documenti"]
 
 
-def processi():
-    """I processi MOD.128 P11TF12: codice nel nome o fra i riferimenti del processo."""
-    from anagrafica.models_mpq import ProcessoQualificato
+def processi(sigla: str):
+    """I processi con la sezione dedicata di questa sigla."""
+    from anagrafica.services.mpq_sezioni import processi_della_sigla
 
-    return (ProcessoQualificato.objects
-            .filter(Q(nome__icontains=CODICE) | Q(riferimenti__codice__icontains=CODICE))
-            .distinct().order_by("nome"))
+    return processi_della_sigla(sigla).order_by("nome", "id")
 
 
-def e_p11tf12(processo) -> bool:
-    """Il processo è un P11TF12 (per il collegamento dalla scheda del processo)."""
-    if processo is None:
-        return False
-    if CODICE.lower() in (processo.nome or "").lower():
-        return True
-    return processo.riferimenti.filter(codice__icontains=CODICE).exists()
+def titolo_sezione(sigla: str, elenco) -> str:
+    titolo = next((p.sezione_titolo.strip() for p in elenco if (p.sezione_titolo or "").strip()), "")
+    return f"{sigla} – {titolo}" if titolo else sigla
 
 
 def _sicuro(avvisi: list, cosa: str, funzione, predefinito):
@@ -82,19 +64,19 @@ def _sicuro(avvisi: list, cosa: str, funzione, predefinito):
     try:
         return funzione()
     except Exception:
-        logger.exception("Pagina P11TF12: %s non disponibile", cosa)
+        logger.exception("Sezione dedicata MOD.128: %s non disponibile", cosa)
         avvisi.append(f"{cosa}: dati non disponibili in questo momento (errore registrato nei log).")
         return predefinito
 
 
-def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: int = GIORNI_SCADENZE) -> dict:
+def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None, giorni: int = GIORNI_SCADENZE) -> dict:
     """Tutta la pagina. Il personale (dati MOD.128) solo con il permesso sui processi qualificati."""
     from anagrafica.models_mpq import AbilitazioneProcesso, RegistroUtensile, TechnicalPlanRevisione
 
     oggi = oggi or timezone.localdate()
     limite = oggi + timedelta(days=giorni)
     avvisi: list[str] = []
-    elenco = list(processi().select_related("cliente", "ente_certificatore").prefetch_related("riferimenti"))
+    elenco = list(processi(sigla).select_related("cliente", "ente_certificatore").prefetch_related("riferimenti"))
 
     def apri(processo, ancora=""):
         if not con_personale:
@@ -105,8 +87,7 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
     s_proc = Sezione("processo", "Processo", ["Processo", "Cliente / ente", "Stato", "Scadenza", "Esito scadenza",
                                               "Frequenza macchine", "Riesame persona dopo"],
                      nota="Il processo nel registro dei processi qualificati (MOD.128).",
-                     vuoto=f"Nessun processo {CODICE}: in «Processi qualificati» crea il processo con «{CODICE}» "
-                           "nel nome (es. «P11TF12 – Foratura su particolari critici»).", chiusa=True)
+                     vuoto="Nessun processo con questa sezione dedicata.", chiusa=True)
     for p in elenco:
         scad = p.scadenza_effettiva
         s_proc.aggiungi([p.nome, str(p.cliente) if p.cliente_id else "", p.get_stato_display(), _d(scad),
@@ -119,8 +100,8 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
                      ["Asset", "Nome", "Reparto", "Esito", "Qualifica", "Ultima verifica", "Esito verifica",
                       "Requisiti macchina"],
                      nota="Macchine collegate al processo, con qualifica e scadenza proprie. La verifica (MOD.161) "
-                          "confronta giri e avanzamento con le tolleranze del processo; dopo un intervento "
-                          "correttivo la macchina torna «Da valutare» (MT CN 69 §9).",
+                          "confronta i parametri della macchina con le tolleranze del processo; dopo un "
+                          "intervento correttivo la macchina torna «Da valutare».",
                      vuoto="Nessuna macchina: dal processo, sezione «Macchine qualificate», collega le macchine.")
     righe_macchine: list = []
 
@@ -153,8 +134,7 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
     # ── Utensili critici ─────────────────────────────────────────────────────
     s_ut = Sezione("utensili", "Utensili critici",
                    ["Codice", "Descrizione", "Tipo", "Diametro (mm)", "Fornitore certificato", "Riaffilatura"],
-                   nota="Utensili identificati come critici (MT CN 69 §8.2, MOD.007 «CRITICO»), con il fornitore "
-                        "certificato dal cliente.",
+                   nota="Utensili identificati come critici per il processo, con il fornitore certificato dal cliente.",
                    vuoto="Nessun utensile critico: dal processo, «Utensili e Technical Plan», aggiungili.")
     for p in elenco:
         for u in p.utensili_critici.filter(attivo=True).order_by("codice"):
@@ -170,7 +150,7 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
     s_tp = Sezione("technical_plan", "Technical Plan",
                    ["P/N", "Tipologia di foro", "Revisione valida", "Approvata il", "Approvata da", "In approvazione"],
                    nota="Un Technical Plan per tipologia di foro critico di un P/N: in produzione vale solo "
-                        "l'ultima revisione approvata dal cliente (MT CN 69 §8.1).",
+                        "l'ultima revisione approvata dal cliente.",
                    vuoto="Nessun Technical Plan: dal processo, «Utensili e Technical Plan», crealo per ogni P/N.")
     tp_senza_rev: list = []
     tp_in_approvazione: list = []
@@ -193,8 +173,8 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
     # ── Registro utensili MOD.176 ────────────────────────────────────────────
     s_reg = Sezione("registro", "Utensili in uso (MOD.176)",
                     ["Utensile / kit", "P/N", "Utensile critico", "Stato", "Utilizzo", "TCP", "Residuo", "Aperto il"],
-                    nota="Ogni utensile o kit montato si segue fino al punto di cambio (TCP) del Technical Plan "
-                         "(MT CN 69 §8.2.2). Qui quelli ancora in uso o arrivati al TCP.",
+                    nota="Ogni utensile o kit montato si segue fino al punto di cambio (TCP) "
+                         "del Technical Plan. Qui quelli ancora in uso o arrivati al TCP.",
                     vuoto="Nessun utensile in uso registrato nel MOD.176.")
     registri = _sicuro(avvisi, "Registro MOD.176", lambda: list(
         RegistroUtensile.objects.filter(passo__revisione__plan__processo__in=elenco)
@@ -233,7 +213,7 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
                     try:
                         stati[a.pk] = stato_persona(a, oggi=oggi, contesto=ctx)
                     except Exception:
-                        logger.exception("Pagina P11TF12: qualifica non calcolabile per abilitazione %s", a.pk)
+                        logger.exception("Sezione dedicata MOD.128: qualifica non calcolabile per abilitazione %s", a.pk)
             return elenco_ab, _nomi_map([a.legacy_anagrafica_id for a in elenco_ab]), stati
 
         abilitazioni, nomi, stati_persona = _sicuro(avvisi, "Personale abilitato", _carica_personale, ([], {}, {}))
@@ -314,23 +294,20 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
 
     # ── Da sistemare ─────────────────────────────────────────────────────────
     s_aperte = Sezione("aperte", "Da sistemare", ["Priorità", "Tipo", "Riferimento", "Dettaglio"],
-                       nota="Situazioni aperte, prima quelle a priorità alta (fermano la foratura critica o l'audit).",
+                       nota="Situazioni aperte, prima quelle a priorità alta (fermano il processo o l'audit).",
                        vuoto="Nessuna situazione aperta.")
 
     def aperta(tipo, riferimento, dettaglio, azione):
         s_aperte.aggiungi([PRIORITA_ALTA if tipo in TIPI_PRIORITA_ALTA else PRIORITA_MEDIA, tipo, riferimento, dettaglio],
                           azione)
 
-    if not elenco:
-        aperta("Processo da creare", CODICE, f"nessun processo con «{CODICE}» nel nome in Processi qualificati",
-               ("Apri i processi qualificati", reverse("anagrafica:mpq_cruscotto")) if con_personale else None)
     for p in elenco:
         if p.stato != p.STATO_ATTIVO:
             aperta("Processo non attivo", p.nome, p.get_stato_display(), apri(p))
         scad = p.scadenza_effettiva
         if scad and scad < oggi:
             aperta("Processo scaduto", p.nome, f"scaduto il {_d(scad)}", apri(p))
-        if not any(pp.pk == p.pk for pp, _ in righe_macchine):
+        if p.frequenza_macchine_mesi and not any(pp.pk == p.pk for pp, _ in righe_macchine):
             aperta("Processo senza macchine", p.nome, "nessuna macchina collegata", apri(p, "#attrezzature"))
         if con_personale and not any(ab.processo_id == p.pk and ab.stato == ab.STATO_ATTIVA for ab in abilitazioni):
             aperta("Processo senza persone abilitate", p.nome, "nessuna abilitazione attiva", apri(p))
@@ -378,25 +355,40 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
     s_aperte.ordina(lambda riga: 0 if riga[0] == PRIORITA_ALTA else 1)
 
     # ── Documenti ────────────────────────────────────────────────────────────
+    # I riferimenti del processo (procedure, moduli, approvazioni del cliente) con la
+    # revisione corrente nel registro SGI quando il codice c'è; sempre il MOD.128.
     s_doc = Sezione("documenti", "Documenti di riferimento",
                     ["Documento", "A cosa serve", "Titolo nel registro SGI", "Revisione", "Data revisione"],
-                    nota="Revisione corrente nel registro SGI (Procedure) e riferimenti registrati sul processo.",
-                    chiusa=True)
-    for doc in _sicuro(avvisi, "Documenti SGI", lambda: _documenti_sgi(DOCUMENTI_SGI), []):
-        rev = doc["rev"]
-        if rev is None:
-            s_doc.aggiungi([doc["codice"], doc["perche"], "Non trovato nel registro SGI", "", ""])
-            continue
-        s_doc.aggiungi([rev.document.code, doc["perche"], rev.document.title, rev.revision_code or "—",
-                        _d(rev.revision_date)], ("Apri il documento", reverse("procedure_refresh:document_open", args=[rev.pk])))
+                    nota="I riferimenti registrati sul processo, con la revisione corrente nel registro SGI "
+                         "(Procedure) quando il codice c'è.", chiusa=True)
+    voci_doc = [("MOD.128", "Registro dei processi qualificati: personale abilitato", None)]
     for p in elenco:
         for rif in p.riferimenti.all():
-            s_doc.aggiungi([rif.codice, f"{rif.get_tipo_display()} · {p.nome}", rif.note, "", ""], apri(p))
+            perche = " · ".join(x for x in (rif.get_tipo_display(), rif.note, p.nome if len(elenco) > 1 else "") if x)
+            voci_doc.append((rif.codice, perche, p))
+    revisioni = _sicuro(avvisi, "Documenti SGI",
+                        lambda: _documenti_sgi([(c, perche) for c, perche, _ in voci_doc]), [])
+    revisioni = revisioni or [{"rev": None}] * len(voci_doc)  # registro SGI non leggibile: righe senza revisione
+    for (codice, perche, p), doc in zip(voci_doc, revisioni, strict=True):
+        rev = doc["rev"]
+        if rev is None:
+            s_doc.aggiungi([codice, perche, "", "", ""], apri(p) if p is not None else None)
+            continue
+        s_doc.aggiungi([rev.document.code, perche, rev.document.title, rev.revision_code or "—",
+                        _d(rev.revision_date)],
+                       ("Apri il documento", reverse("procedure_refresh:document_open", args=[rev.pk])))
 
     per_codice = {s.codice: s for s in (s_aperte, s_scad, s_proc, s_macc, s_ut, s_tp, s_reg, s_pers, s_form, s_doc)}
     if not con_personale:
         per_codice.pop("personale")
         per_codice.pop("formazione")
+    # Solo le parti che il processo usa: niente utensili, Technical Plan o MOD.176 vuoti;
+    # le macchine si mostrano se ce ne sono o se il processo le richiede (frequenza).
+    for codice, sez in (("utensili", s_ut), ("technical_plan", s_tp), ("registro", s_reg)):
+        if not sez.righe:
+            per_codice.pop(codice)
+    if not s_macc.righe and not any(p.frequenza_macchine_mesi for p in elenco):
+        per_codice.pop("macchine")
     sezioni = [per_codice[c] for c in (ordine or ORDINE_ASSET) if c in per_codice]
 
     # ── Riquadri ─────────────────────────────────────────────────────────────
@@ -427,5 +419,10 @@ def costruisci(*, oggi=None, con_personale: bool = True, ordine=None, giorni: in
                 "nota": f"{non_ok} non qualificate" if non_ok else "tutte qualificate",
                 "stato": "warn" if not persone or non_ok else ""}
         kpi.insert(2 if ordine == ORDINE_QUALIFICHE else len(kpi), voce)
-    return {"oggi": oggi, "codice": CODICE, "titolo": TITOLO, "processi": elenco, "kpi": kpi, "sezioni": sezioni,
-            "con_personale": con_personale, "avvisi": avvisi, "badge": BADGE}
+    kpi = [k for k in kpi if k["sezione"] in per_codice]
+    titolo = titolo_sezione(sigla, elenco)
+    return {"oggi": oggi, "sigla": sigla, "titolo": titolo, "processi": elenco, "kpi": kpi, "sezioni": sezioni,
+            "con_personale": con_personale, "avvisi": avvisi, "badge": BADGE,
+            # Per gli export (stesse funzioni del Dossier PART 145).
+            "titolo_export": titolo, "nome_file": f"sezione-{slugify(sigla)}-{oggi:%Y%m%d}",
+            "riepilogo": [(k["etichetta"], k["valore"]) for k in kpi]}
