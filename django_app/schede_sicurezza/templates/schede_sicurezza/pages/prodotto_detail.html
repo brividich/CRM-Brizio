@@ -46,7 +46,8 @@
         <div style="font-size:13px;line-height:1.7;">
           Versione: <strong>{{ scheda_corrente.versione|default:"—" }}</strong><br>
           Stato estrazione: <strong>{{ scheda_corrente.get_estrazione_stato_display }}</strong><br>
-          Caricata il {{ scheda_corrente.data_caricamento|date:"d/m/Y H:i" }}
+          Caricata il {{ scheda_corrente.data_caricamento|date:"d/m/Y H:i" }}<br>
+          Revisione del fornitore: <strong>{{ scheda_corrente.data_revisione_fornitore|date:"d/m/Y"|default:"non indicata (conta la data di caricamento)" }}</strong>{% if scheda_corrente.scaduta %} · <strong style="color:#b45309;">da rivedere</strong>{% endif %}
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <a href="{% url 'schede_sicurezza:scheda_download' pk=scheda_corrente.pk %}"
@@ -83,6 +84,9 @@
       <form method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         {% csrf_token %}
         <input type="text" name="versione" placeholder="Versione (es. Rev. 3)" style="padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;" title="Data di revisione scritta sulla SDS dal fornitore: i 36 mesi per «da rivedere» partono da qui">Revisione del fornitore
+          <input type="date" name="data_revisione_fornitore" style="padding:7px;border:1px solid #cbd5e1;border-radius:8px;">
+        </label>
         <input type="file" name="pdf" accept="application/pdf" required>
         <button type="submit" style="padding:9px 18px;background:#15803d;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Carica</button>
       </form>
@@ -95,6 +99,11 @@
       <form method="post" style="display:flex;flex-direction:column;gap:10px;">
         {% csrf_token %}
         <input type="hidden" name="form_type" value="modifica_campi_estratti">
+        <label style="font-size:13px;">Revisione del fornitore
+          <input type="date" name="data_revisione_fornitore" value="{{ scheda_corrente.data_revisione_fornitore|date:'Y-m-d' }}"
+                 style="padding:7px;border:1px solid #cbd5e1;border-radius:8px;margin-left:6px;">
+          <span style="font-size:12px;color:#64748b;">i 36 mesi per «da rivedere» partono da qui; vuota = dalla data di caricamento</span>
+        </label>
 
         <fieldset style="border:none;padding:0;margin:0;">
           <legend style="padding:0;font-size:13px;">Pittogrammi di pericolo</legend>

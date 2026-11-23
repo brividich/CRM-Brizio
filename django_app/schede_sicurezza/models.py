@@ -4,7 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from .storage import PrivateSchedaSicurezzaStorage, upload_to_scheda_pdf
@@ -178,24 +178,55 @@ class SchedaSicurezza(models.Model):
         indexes = [
             models.Index(fields=["prodotto", "is_corrente"], name="ss_scheda_prodotto_corrente"),
         ]
+        constraints = [
+            # Mai due versioni correnti dello stesso prodotto (audit H2). Condizione positiva:
+            # SQL Server non accetta NOT negli indici filtrati.
+            models.UniqueConstraint(
+                fields=["prodotto"], condition=models.Q(is_corrente=True), name="ss_una_scheda_corrente",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.prodotto.nome} — v.{self.versione or '?'}"
 
     def save(self, *args, **kwargs):
-        if self.is_corrente:
+        if not self.is_corrente:
+            return super().save(*args, **kwargs)
+        # Togliere il segno alle altre versioni e salvare questa sono un'operazione sola:
+        # due caricamenti insieme non lasciano due versioni correnti (audit H2).
+        with transaction.atomic():
+            list(SchedaSicurezza.objects.select_for_update().filter(prodotto_id=self.prodotto_id, is_corrente=True))
             SchedaSicurezza.objects.filter(
-                prodotto=self.prodotto, is_corrente=True
+                prodotto_id=self.prodotto_id, is_corrente=True
             ).exclude(pk=self.pk).update(is_corrente=False)
-        super().save(*args, **kwargs)
+            return super().save(*args, **kwargs)
+
+    @staticmethod
+    def q_da_rivedere(adesso=None) -> models.Q:
+        """Schede da rivedere: revisione del fornitore piu' vecchia di SCADENZA_SDS_GIORNI.
+
+        Senza data di revisione si usa la data di caricamento (audit H1): una scheda vecchia
+        caricata oggi deve emergere subito, non fra tre anni. Unica regola per elenco, card e AI.
+        """
+        soglia = (adesso or timezone.now()) - timedelta(days=SCADENZA_SDS_GIORNI)
+        return models.Q(data_revisione_fornitore__lt=timezone.localdate(soglia)) | models.Q(
+            data_revisione_fornitore__isnull=True, data_caricamento__lt=soglia,
+        )
+
+    @property
+    def data_riferimento(self):
+        """Data da cui contano i 36 mesi: revisione del fornitore, altrimenti caricamento."""
+        if self.data_revisione_fornitore:
+            return self.data_revisione_fornitore
+        return timezone.localdate(self.data_caricamento) if self.data_caricamento else None
 
     @property
     def scaduta(self) -> bool:
-        """True se la scheda non viene aggiornata da più di SCADENZA_SDS_GIORNI giorni."""
-        if not self.data_caricamento:
+        """True se la revisione del fornitore (o, senza, il caricamento) supera SCADENZA_SDS_GIORNI giorni."""
+        riferimento = self.data_riferimento
+        if not riferimento:
             return False
-        soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
-        return self.data_caricamento < soglia
+        return riferimento < timezone.localdate() - timedelta(days=SCADENZA_SDS_GIORNI)
 
 
 # ---------------------------------------------------------------------------

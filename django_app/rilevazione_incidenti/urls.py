@@ -14,5 +14,6 @@ urlpatterns = [
     path("<str:sp_id>/", views.dettaglio, name="dettaglio"),
     path("<str:sp_id>/modifica/", views.modifica, name="modifica"),
     path("<str:sp_id>/elimina/", views.elimina, name="elimina"),
+    path("<str:sp_id>/ripristina/", views.ripristina, name="ripristina"),
     path("<str:sp_id>/rimanda-scheda/", views.rimanda_scheda, name="rimanda_scheda"),
 ]

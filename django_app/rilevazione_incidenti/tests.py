@@ -114,9 +114,68 @@ class SafetyKpiTests(TestCase):
         self.assertEqual(kpis["incidenti"], 1)
         self.assertEqual(kpis["near_miss"], 1)
         self.assertEqual(kpis["headcount"], 50)
-        self.assertEqual(kpis["trir"], 2.0)
+        # Audit G1: 8 maggio = giorno 128 di 365 -> ore stimate 50 x 2000 x 128/365 = 35.068.
+        self.assertEqual(kpis["ore_stimate"], 35068)
+        self.assertEqual(kpis["trir"], round(200000 / 35068, 2))
+        self.assertIn("128/365", kpis["trir_base"])
         self.assertEqual(kpis["giorni_senza_infortuni"], 7)
         self.assertEqual(len(kpis["trend"]), 12)
+
+
+    @patch("rilevazione_incidenti.services.active_headcount", return_value=None)
+    def test_organico_non_disponibile_detto_chiaro(self, _mock):
+        # Audit G2: anagrafica che non risponde -> indice vuoto con il motivo, non uno zero muto.
+        kpis = get_safety_kpis(today=date(2026, 5, 8))
+        self.assertIsNone(kpis["trir"])
+        self.assertTrue(kpis["organico_non_disponibile"])
+        self.assertIn("Organico non disponibile", kpis["trir_base"])
+
+    @patch("rilevazione_incidenti.services.active_headcount", return_value=50)
+    def test_archiviate_fuori_dagli_indici(self, _mock):
+        evento = RilevazioneIncidente.objects.create(
+            nominativo="Mario Rossi", tipologia_scheda="Accident", tipo_evento=TipoEventoSicurezza.INCIDENTE,
+            reparto="CNC", data_segnalazione=_aware_datetime(2026, 5, 1),
+        )
+        RilevazioneIncidente.objects.filter(pk=evento.pk).update(archiviata_il=timezone.now(), motivo_archiviazione="prova")
+        kpis = get_safety_kpis(today=date(2026, 5, 8))
+        self.assertEqual(kpis["incidenti"], 0)
+        self.assertTrue(RilevazioneIncidente.tutte.filter(pk=evento.pk).exists())
+
+
+class ArchiviazioneSegnalazioniTests(TestCase):
+    """Audit G3: «Elimina» archivia con motivo e si ripristina, come nel Diario del preposto."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser("rspp_arch", "r@example.com", "pwd12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        cfg = SicurezzaImpostazioni.get_singleton()
+        cfg.acl_rspp = ["r@example.com"]
+        cfg.save()
+        self.client.force_login(self.user)
+        self.evento = RilevazioneIncidente.objects.create(
+            nominativo="Mario Rossi", tipologia_scheda="Near Miss", reparto="CNC",
+            data_segnalazione=_aware_datetime(2026, 5, 1),
+        )
+
+    def test_elimina_senza_motivo_rifiutata(self):
+        self.client.post(reverse("rilevazione_incidenti:elimina", args=[self.evento.pk]), {"motivo": ""})
+        self.assertTrue(RilevazioneIncidente.objects.filter(pk=self.evento.pk).exists())
+
+    def test_elimina_archivia_e_ripristina(self):
+        r = self.client.post(reverse("rilevazione_incidenti:elimina", args=[self.evento.pk]), {"motivo": "Inserita due volte"})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(RilevazioneIncidente.objects.filter(pk=self.evento.pk).exists())
+        arch = RilevazioneIncidente.tutte.get(pk=self.evento.pk)
+        self.assertEqual((arch.motivo_archiviazione, arch.archiviata_da), ("Inserita due volte", self.user))
+
+        dettaglio = self.client.get(reverse("rilevazione_incidenti:dettaglio", args=[self.evento.pk]))
+        self.assertContains(dettaglio, "Rilevazione eliminata")
+        self.assertContains(dettaglio, reverse("rilevazione_incidenti:ripristina", args=[self.evento.pk]))
+        elenco = self.client.get(reverse("rilevazione_incidenti:lista"), {"archiviate": "1"})
+        self.assertContains(elenco, "Rilevazioni eliminate")
+
+        self.client.post(reverse("rilevazione_incidenti:ripristina", args=[self.evento.pk]))
+        self.assertTrue(RilevazioneIncidente.objects.filter(pk=self.evento.pk, motivo_archiviazione="").exists())
 
 
 class HeatmapIncidentiTests(TestCase):

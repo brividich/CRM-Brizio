@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 3: segnalazioni di sicurezza, schede di sicurezza, diario
+
+- **Indice infortuni TRIR (G1-G2):** le ore lavorate sono stimate sulla parte d'anno trascorsa (organico × 2.000 × giorni trascorsi/365), non sull'anno intero: a giugno l'indice non vale più la metà del reale. Sotto il numero è scritto il calcolo; se l'anagrafica non risponde compare «Organico non disponibile» (prima un trattino muto). File: `rilevazione_incidenti/services.py`, `pages/statistiche.html`, `dashboard_hub_preview.html`, `ai_assistant/tools.py`.
+- **Eliminazione delle segnalazioni (G3):** «Elimina» chiede il motivo e archivia invece di cancellare; le eliminate escono da elenco, indici ed export, si vedono in «Eliminate (N)» e si ripristinano dal dettaglio (RSPP/ASPP). Migrazione `rilevazione_incidenti 0009`. File: `models.py` (gestori `objects`/`tutte`), `views.py` (`elimina`, `ripristina`), `urls.py`, template `dettaglio.html`, `lista.html`, `importa_rilevazioni_csv`, `automazioni/services.py`.
+- **Schede di sicurezza «Da rivedere» (H1):** i 36 mesi partono dalla data di revisione del fornitore, ora chiesta al caricamento e modificabile; senza data resta la data di caricamento. File: `schede_sicurezza/models.py`, `views.py`, `prodotto_detail.html`, `ai_assistant/tools.py`.
+- **Una sola versione corrente (H2):** cambio di versione in transazione con blocco e vincolo unico sul database. Migrazione `schede_sicurezza 0007`: prima del vincolo lascia corrente solo la versione più recente di ogni prodotto.
+- **Diario del preposto (D1):** «In ritardo» calcolato sul giorno italiano dell'inserimento. File: `diario_preposto/cruscotto.py`.
+- Guide: Centro guide Rilevazione incidenti e Schede di sicurezza; `docs/moduli/rilevazione_incidenti.md`, `schede_sicurezza.md`, `diario_preposto.md`. Test: `rilevazione_incidenti/tests.py`, `schede_sicurezza/tests_mansioni.py`, `diario_preposto/tests_vista.py`.
+
 ### Audit 22/11, ondata 2: invii ripetuti o persi
 
 - **Anomalie, riepilogo delle decisioni (A1-A3):** l'invio prende in carico la coda sotto blocco e la svuota; «Invia ora» e il controllo automatico non mandano più due volte lo stesso riepilogo, le decisioni già inviate non tornano nel riepilogo successivo e una decisione salvata durante l'invio parte al giro dopo. Con errore SMTP le decisioni tornano in coda; i tentativi si azzerano dopo un invio riuscito. File: `anomalie/mail_action_service.py`, test `anomalie/tests_invia_ora.py`.

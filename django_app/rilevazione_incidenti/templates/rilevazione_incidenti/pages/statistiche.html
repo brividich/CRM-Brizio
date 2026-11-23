@@ -117,6 +117,10 @@ body.theme-dark .sic-kpi-bar-bg{background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .sic-stato-card{background:var(--surface);border-color:var(--border)}
 body.theme-dark .sic-stato-num{color:var(--text)}
 body.theme-dark .sic-stato-lbl{color:var(--text-light)}
+.sic-kpi-base { font-size:11px; line-height:1.35; color:#64748b; margin:2px 0 6px; }
+.sic-kpi-base--warn { color:#b45309; font-weight:700; }
+body.theme-dark .sic-kpi-base { color:var(--text-light); }
+body.theme-dark .sic-kpi-base--warn { color:#fbbf24; }
 </style>
 {% endblock %}
 
@@ -165,6 +169,7 @@ body.theme-dark .sic-stato-lbl{color:var(--text-light)}
       <div class="sic-kpi-top"><span class="sic-kpi-icon">TRIR</span><span class="sic-kpi-pct">{{ safety_kpis.year }}</span></div>
       <div class="sic-kpi-num">{% if safety_kpis.trir != None %}{{ safety_kpis.trir }}{% else %}-{% endif %}</div>
       <div class="sic-kpi-lbl">Tasso registrabile</div>
+      <div class="sic-kpi-base{% if safety_kpis.organico_non_disponibile %} sic-kpi-base--warn{% endif %}">{{ safety_kpis.trir_base }}</div>
       <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% if safety_kpis.trir %}{{ safety_kpis.trir|floatformat:0 }}{% else %}0{% endif %}%"></div></div>
     </div>
     <div class="sic-kpi-card sic-kpi-uc">

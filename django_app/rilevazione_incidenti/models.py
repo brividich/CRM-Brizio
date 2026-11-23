@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models
 
 
@@ -18,8 +19,20 @@ def normalize_tipo_evento(value: str) -> str:
     return TipoEventoSicurezza.UNSAFE_CONDITION
 
 
+class RilevazioniAttiveManager(models.Manager):
+    """Gestore predefinito: le segnalazioni archiviate non entrano in elenchi, KPI ed export."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(archiviata_il__isnull=True)
+
+
 class RilevazioneIncidente(models.Model):
-    """Archivio locale rilevazioni sicurezza (fallback quando SharePoint non è configurato)."""
+    """Archivio locale rilevazioni sicurezza (fallback quando SharePoint non è configurato).
+
+    «Elimina» archivia con motivo (``archiviata_il``/``archiviata_da``/``motivo_archiviazione``):
+    il record resta, sparisce da elenchi e indici e chi gestisce il modulo lo ripristina
+    (audit G3, come il Diario del preposto). ``objects`` esclude le archiviate, ``tutte`` no.
+    """
 
     nominativo = models.CharField(max_length=255)
     tipologia_scheda = models.CharField(max_length=50)  # Unsafe Condition / Unsafe Act / Near Miss / Accident
@@ -94,6 +107,15 @@ class RilevazioneIncidente(models.Model):
     # Chi ha inserito la segnalazione (utenti.id): serve alla visibilita'
     # «propri / team» dei ruoli. Vuoto sullo storico: lo vede solo chi ha «tutti».
     segnalato_da_legacy_id = models.IntegerField(null=True, blank=True, db_index=True)
+    archiviata_il = models.DateTimeField("Archiviata il", null=True, blank=True, db_index=True)
+    archiviata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="rilevazioni_archiviate", verbose_name="Archiviata da",
+    )
+    motivo_archiviazione = models.CharField("Motivo archiviazione", max_length=500, blank=True, default="")
+
+    objects = RilevazioniAttiveManager()
+    tutte = models.Manager()  # noqa: DJ012 - objects (filtrato) deve restare il gestore predefinito
 
     class Meta:
         verbose_name = "Rilevazione Incidente"
@@ -111,6 +133,10 @@ class RilevazioneIncidente(models.Model):
         ):
             self.tipo_evento = inferred
         return super().save(*args, **kwargs)
+
+    @property
+    def is_archiviata(self) -> bool:
+        return self.archiviata_il is not None
 
     @property
     def planimetria_punto(self) -> str:
