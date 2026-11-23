@@ -154,6 +154,21 @@ class ExcelTests(_Base):
         self.assertEqual(mola.qualifica_id, self.qualifica.pk)
         self.assertEqual(VoceMacchinaCatalogo.objects.get(mansione=self.fresa).livello_minimo, "L")
 
+    def test_processo_mod128_per_nome_con_processi_in_catalogo(self):
+        """Regressione 23/11: con un ProcessoQualificato in archivio l'import andava in 500 (campo codice)."""
+        from .models_mpq import ClienteQualificante, ProcessoQualificato
+
+        cliente = ClienteQualificante.objects.create(nome="Cliente sintetico")
+        proc = ProcessoQualificato.objects.create(nome="Processo sintetico X", cliente=cliente)
+        file = _xlsx({"Competenze": [
+            ["Mansione", "Competenza", "Processo MOD.128"],
+            ["Sbavatura", "Uso mola", "processo sintetico x"],
+        ]})
+        self.assertEqual(xl.importa(file, applica=False).cambi, 1)
+        xl.importa(file, applica=True)
+        voce = VoceMacchinaCatalogo.objects.get(mansione=self.processo, nome="Uso mola")
+        self.assertEqual(voce.processo_mpq_id, proc.pk)
+
     def test_cella_vuota_non_cambia_e_no_spegne(self):
         voce = comp.salva_competenza(self.processo, nome="Uso mola", livello_minimo="O", bloccante=True)
         xl.importa(_xlsx({"Competenze": [["Mansione", "Competenza", "Livello minimo", "Bloccante"],

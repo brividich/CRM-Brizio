@@ -295,8 +295,6 @@ class _Cataloghi:
         self.processi: dict[str, list] = {}
         for p in ProcessoQualificato.objects.all():
             self.processi.setdefault(p.nome.strip().casefold(), []).append(p)
-            if p.codice:
-                self.processi.setdefault(p.codice.strip().casefold(), []).append(p)
         self.ruoli = {r.nome.casefold(): r for r in RuoloOperativo.objects.all()}
 
     def uno(self, mappa, nome, cosa):
