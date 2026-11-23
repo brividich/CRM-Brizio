@@ -19,6 +19,7 @@ from . import views_centri_costo
 from . import views_esplora
 from . import views_prospetto
 from . import views_mio_team
+from . import views_richieste
 from . import views_mia_scheda
 from . import views_retention
 from . import views_elearning
@@ -419,6 +420,12 @@ urlpatterns = [
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
+    # Richieste su mansioni e competenze (RAM, RAC): da fare, elenco, nuova, dettaglio, decisione.
+    path("competenze/da-fare/", views_richieste.da_fare, name="richieste_da_fare"),
+    path("competenze/richieste/", views_richieste.elenco, name="richieste"),
+    path("competenze/richieste/nuova/", views_richieste.nuova, name="richiesta_nuova"),
+    path("competenze/richieste/<int:pk>/", views_richieste.dettaglio, name="richiesta"),
+    path("competenze/richieste/<int:pk>/decidi/", views_richieste.decidi, name="richiesta_decidi"),
     path("la-mia-scheda/", views_mia_scheda.mia_scheda, name="mia_scheda"),
     path("la-mia-scheda/attestato/<int:record_id>/", views_mia_scheda.mio_attestato, name="mio_attestato"),
     path("la-mia-scheda/miei-dati.zip", views_mia_scheda.miei_dati_zip, name="miei_dati_zip"),

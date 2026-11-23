@@ -115,7 +115,7 @@ def _persone_punto(det: dict) -> list[dict]:
             for p in det.get("persone") or []]
 
 
-def costruisci(ctx: dict, *, puo_gestire: bool = False) -> dict:
+def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = False) -> dict:
     """Che cosa mostra la vista semplice per il punto scelto (``ctx`` = contesto della pagina, con ``dati``)."""
     d, s, det = ctx["dati"], ctx["scelti"], ctx["dettaglio"]
     m, voce = ctx["mansione_obj"], ctx["voce_obj"]
@@ -141,7 +141,11 @@ def costruisci(ctx: dict, *, puo_gestire: bool = False) -> dict:
         rischi = [x.nome for x in m.mansioni_rischio.all()]
         if rischi:
             campi.append(_campo("Mansioni di rischio", ", ".join(rischi)))
-        azioni = [{"nome": "Persone e valutazioni", "url": reverse("anagrafica:mansionario_mansione", args=[m.pk])}]
+        azioni = []
+        if puo_chiedere:
+            azioni.append({"nome": "Nuova richiesta per questa mansione", "principale": True,
+                           "url": f"{reverse('anagrafica:richiesta_nuova')}?mansione={m.pk}"})
+        azioni.append({"nome": "Persone e valutazioni", "url": reverse("anagrafica:mansionario_mansione", args=[m.pk])})
         if puo_gestire:
             azioni.append({"nome": "Modifica la mansione",
                            "url": reverse("anagrafica:mansionario_struttura_mansione", args=[m.pk])})

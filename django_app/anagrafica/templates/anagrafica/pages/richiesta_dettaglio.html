@@ -1,0 +1,97 @@
+{% extends "core/base.html" %}
+
+{% block title %}Richiesta {{ r.codice }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rq-testa">
+    <h1>Richiesta {{ r.codice }}</h1>
+    {% include "anagrafica/partials/_richiesta_stato.html" %}
+    <div class="rq-azioni"><a class="rq-btn" href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a></div>
+  </div>
+
+  <div class="rq-passi">
+    {% for p in passi %}<div class="rq-passo{% if p.stato %} is-{{ p.stato }}{% endif %}"><b>{{ p.nome }}</b>{{ p.sotto }}</div>{% endfor %}
+  </div>
+
+  {% if r.stato == "in_approvazione" %}
+  <div class="rq-tocca">
+    {% if not motivo_non_decide %}
+    <div><b>Tocca a te: approvare o respingere la richiesta.</b>
+      <p>{% if r.senza_sessione %}Se approvi, la skill matrix si aggiorna subito.{% elif r.tipo == "aggiunta" %}Se approvi, la persona entra nella mansione in formazione e la Qualità o HR aprono la sessione formativa{% if da_formare %} sulle {{ da_formare }} competenze da formare{% endif %}.{% else %}Se approvi, la Qualità o HR aprono la sessione formativa.{% endif %}</p></div>
+    <form method="post" action="{% url 'anagrafica:richiesta_decidi' r.pk %}">
+      {% csrf_token %}
+      <input type="text" name="nota" maxlength="500" placeholder="Nota (obbligatoria per respingere)" aria-label="Nota della decisione">
+      <button type="submit" class="rq-btn" name="azione" value="respingi">Respingi</button>
+      <button type="submit" class="rq-btn rq-btn-p" name="azione" value="approva">Approva</button>
+    </form>
+    {% else %}
+    <div><b>Tocca a {{ sigla }}: approvare o respingere la richiesta.</b><p>{{ motivo_non_decide }}</p></div>
+    {% endif %}
+  </div>
+  {% elif r.stato == "approvata" %}
+  <div class="rq-tocca"><div><b>Tocca alla Qualità o a HR: aprire la sessione formativa.</b><p>Il livello cambia nella skill matrix solo alla chiusura della sessione, con le firme.</p></div></div>
+  {% endif %}
+
+  <div class="es-s-due">
+    <section class="es-s-card">
+      <h2 class="es-s-h">Che cosa si chiede</h2>
+      <div class="es-s-testa">
+        <dl class="es-s-campi" style="grid-template-columns:minmax(0, 1fr)">
+          <div class="es-s-campo"><dt>Tipo di richiesta:</dt><dd>{{ r.get_tipo_display }}</dd></div>
+          <div class="es-s-campo"><dt>Persona:</dt><dd>{{ persona }}</dd></div>
+          {% if r.mansione_id %}<div class="es-s-campo"><dt>Mansione:</dt><dd>{{ r.mansione.nome }}</dd></div>
+          <div class="es-s-campo"><dt>Reparto della mansione:</dt><dd>{{ r.mansione.reparto_effettivo|default:"Nessuno" }}</dd></div>{% endif %}
+          {% if r.competenza_id %}<div class="es-s-campo"><dt>Competenza:</dt><dd>{{ r.competenza.nome }}</dd></div>{% endif %}
+          {% if livello %}<div class="es-s-campo"><dt>Livello da raggiungere:</dt><dd>{% include "anagrafica/partials/_esplora_livello.html" with l=livello %}</dd></div>{% endif %}
+          <div class="es-s-campo"><dt>Richiesta da:</dt><dd>{{ r.richiedente_nome }} · {{ r.creata_il|date:"d/m/Y" }}</dd></div>
+          <div class="es-s-campo"><dt>Motivo:</dt><dd>{{ r.motivazione|default:"Non indicato" }}</dd></div>
+          <div class="es-s-campo"><dt>Chi approva:</dt><dd>{{ sigla }}</dd></div>
+          {% if r.decisa_il %}<div class="es-s-campo"><dt>{% if r.stato == "respinta" %}Respinta da:{% else %}Approvata da:{% endif %}</dt><dd>{{ r.deciso_da_nome }} · {{ r.decisa_il|date:"d/m/Y" }}</dd></div>{% endif %}
+          {% if r.nota_decisione %}<div class="es-s-campo"><dt>Nota della decisione:</dt><dd>{{ r.nota_decisione }}</dd></div>{% endif %}
+        </dl>
+      </div>
+    </section>
+
+    <div>
+      {% if r.tipo == "aggiunta" %}
+      <section class="es-s-card">
+        <h2 class="es-s-h">Che cosa serve per la mansione <span>{{ fabbisogno|length }} competenz{{ fabbisogno|length|pluralize:"a,e" }}</span></h2>
+        {% if fabbisogno %}
+        <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+          <thead><tr><th>Competenza</th><th>Richiesto</th><th>Oggi</th><th>Da fare</th></tr></thead>
+          <tbody>{% for f in fabbisogno %}<tr>
+            <td><b>{{ f.nome }}</b></td>
+            <td>{% include "anagrafica/partials/_esplora_livello.html" with l=f.richiesto %}</td>
+            <td>{% include "anagrafica/partials/_esplora_livello.html" with l=f.oggi %}</td>
+            <td>{% if f.presente %}<span class="es-s-stato es-s-stato-ok">Già presente</span>{% else %}<span class="es-s-stato es-s-stato-warning">Da formare</span>{% endif %}</td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+        <div class="es-s-legenda">{% for l in legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
+        {% else %}<p class="es-s-vuoto">Nessuna competenza caricata per questa mansione.</p>{% endif %}
+      </section>
+      {% endif %}
+      <section class="es-s-card">
+        <h2 class="es-s-h">Storia <span>{{ eventi|length }}</span></h2>
+        <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+          <thead><tr><th>Quando</th><th>Chi</th><th>Che cosa</th></tr></thead>
+          <tbody>{% for e in eventi %}<tr>
+            <td>{{ e.quando|date:"d/m/Y H:i" }}</td>
+            <td>{{ e.utente_nome|default:"Portale" }}</td>
+            <td><b>{{ e.azione }}</b>{% if e.prima or e.dopo %}<small>Prima: {{ e.prima|default:"niente" }} · Dopo: {{ e.dopo|default:"niente" }}</small>{% endif %}{% if e.nota %}<small>Nota: {{ e.nota }}</small>{% endif %}</td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

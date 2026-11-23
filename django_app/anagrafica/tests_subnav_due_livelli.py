@@ -55,7 +55,7 @@ class DueLivelliTests(TestCase):
     def test_seconda_riga_con_sezioni_e_voci_del_pilastro_acceso(self):
         barra = self._barra(reverse("anagrafica:qualifiche_list"))
         self.assertTrue(self._pilastro(barra, "Competenze")["active"])
-        self.assertEqual([s["titolo"] for s in barra["seconda"]["sezioni"]], ["Formazione", "Qualifiche", "Abilitazioni"])
+        self.assertEqual([s["titolo"] for s in barra["seconda"]["sezioni"]], ["Formazione", "Richieste", "Qualifiche", "Abilitazioni"])
         self.assertEqual([s["titolo"] for s in barra["seconda"]["sezioni"] if s["active"]], ["Qualifiche"])
         self.assertIn("Catalogo qualifiche", [v["label"] for v in barra["seconda"]["voci"]])
         self.assertNotIn("Corsi", [v["label"] for v in barra["seconda"]["voci"]])

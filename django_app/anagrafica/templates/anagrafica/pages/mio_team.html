@@ -76,7 +76,7 @@ body.theme-dark .mt-sotto, body.theme-dark .es-s-tab td small.mt-sotto { color:#
             {% for c in persona.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{{ c.valore }}</dd></div>{% endfor %}
             <div class="es-s-campo"><dt>Obblighi della mansione:</dt><dd>{% include "anagrafica/components/hr_pill.html" with tone=scelta.tono dot=1 label=scelta.esito_label %} {% info_hint "conformita" %}</dd></div>
           </dl>
-          {% if scelta.scheda %}<div class="es-s-azioni"><a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' scelta.id %}">Apri la scheda</a></div>{% endif %}
+          <div class="es-s-azioni"><a class="hr-btn hr-btn-primary hr-btn-sm" href="{% url 'anagrafica:richiesta_nuova' %}?persona={{ scelta.id }}">Nuova richiesta</a>{% if scelta.scheda %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' scelta.id %}">Apri la scheda</a>{% endif %}</div>
         </div>
       </section>
       <div class="es-s-due">

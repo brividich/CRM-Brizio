@@ -34,7 +34,7 @@
       <dl class="es-s-campi">
         {% for c in semplice.scheda.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{% if c.url %}<a href="{{ c.url }}">{{ c.valore }}</a>{% else %}{{ c.valore }}{% endif %}</dd></div>{% endfor %}
       </dl>
-      {% if semplice.scheda.azioni %}<div class="es-s-azioni">{% for a in semplice.scheda.azioni %}<a class="rc-btn rc-btn-ghost" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
+      {% if semplice.scheda.azioni %}<div class="es-s-azioni">{% for a in semplice.scheda.azioni %}<a class="rc-btn {% if a.principale %}rc-btn-primary{% else %}rc-btn-ghost{% endif %}" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
     </div>
   </section>
   {% endif %}
