@@ -657,6 +657,7 @@ TEMPLATES = [
                 "core.context_processors.csp",
                 "core.context_processors.ui_prefs_context",
                 "core.context_processors.dev_git_badge",
+                "core.context_processors.ambiente_test",
                 "monitoring.context_processors.monitoring_ui",
             ],
         },

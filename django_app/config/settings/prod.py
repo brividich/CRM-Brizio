@@ -142,3 +142,27 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # - referrer-policy: evita di esporre URL interni a destinazioni esterne
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
+
+# ── Ambiente di test ───────────────────────────────────────────────────────────
+# HUB_AMBIENTE_TEST=1 nel .env dell'ambiente di test: stesso codice e stesse
+# impostazioni della produzione, ma niente posta, niente automazioni e niente
+# connessioni verso l'esterno tranne il login di dominio. Serve quando il database
+# di test è una copia di quello di produzione (config/ambiente_test.py,
+# docs/deploy/AMBIENTE_TEST.md). Senza la variabile non cambia nulla.
+AMBIENTE_TEST = env_bool("HUB_AMBIENTE_TEST", False)
+if AMBIENTE_TEST:
+    import sys as _sys
+
+    from config import ambiente_test as _ambiente_test
+    from config import rete_guard as _rete_guard
+
+    for _alias, _db in DATABASES.items():
+        _ambiente_test.controlla_nome_db(_alias, _db.get("NAME"))
+    _fermo = _ambiente_test.comando_fermo(_sys.argv)
+    if _fermo:
+        raise RuntimeError(f"Ambiente di test: «{_fermo}» non parte, le automazioni restano ferme.")
+    EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
+    EMAIL_FILE_PATH = str(LOG_DIR / "mail_test")  # noqa: F405 - da base
+    _rete_guard.install(consentiti=_ambiente_test.host_consentiti(
+        LDAP_SERVER, LDAP_DOMAIN, env_list("HUB_TEST_HOST_CONSENTITI", []),  # noqa: F405 - da base
+    ))
