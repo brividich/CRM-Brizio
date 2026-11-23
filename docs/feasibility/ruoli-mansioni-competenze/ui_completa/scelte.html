@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Scelte per menu e Dashboard: opzioni a confronto</title>
+<link rel="stylesheet" href="file:///C:/Dev/pn-ambiente-test/django_app/core/static/core/vendor/outfit/outfit.css">
+<style>
+/* Tavole di confronto con dati inventati: colori, carattere e misure sono quelli del portale. */
+:root{--bg:#f2f5f8;--border:#d7e0ea;--primary:#002b5c;--accent:#ff6b00;--text:#1a202c;--light:#94a3b8;--sel:#e8f3fb;--ink:#0c2545}
+*{box-sizing:border-box}
+body{margin:0;background:#cfd8e3;font-family:"Outfit",sans-serif;font-size:13px;line-height:1.4;color:var(--text)}
+.tavola{width:1440px;margin:0 auto 40px;background:#e9eef4;padding:22px 24px 26px}
+.tavola>h1{margin:0 0 4px;font-size:22px}
+.tavola>p{margin:0 0 16px;font-size:14px;color:#475569}
+.coppia{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.opz{background:#fff;border:2px solid #cbd5e1;border-radius:14px;overflow:hidden}
+.opz.larga{margin:0 0 16px}
+.et{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+.et b{display:inline-flex;width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;align-items:center;justify-content:center;font-size:16px}
+.et span{font-size:15px;font-weight:700}
+.et em{margin-left:auto;font-style:normal;font-size:12px;font-weight:600;color:#64748b}
+.schermo{background:var(--bg)}
+.top{height:34px;background:var(--primary);display:flex;align-items:center;padding:0 12px;color:#fff;font-weight:700;font-size:12px;letter-spacing:.04em}
+.nav{background:#fff;border-bottom:1px solid var(--border);padding:5px 10px 0}
+.tabs{display:flex;gap:2px;padding-bottom:5px;align-items:center;flex-wrap:nowrap}
+.tabs a{padding:6px 8px;border-radius:8px;font-size:11.5px;font-weight:600;color:#5a6580;white-space:nowrap}
+.tabs a.on{background:var(--ink);color:#fff}
+.sub{display:flex;gap:2px;align-items:center;min-height:34px;border-top:1px solid #eef2f7;margin:0 -10px;padding:0 10px;flex-wrap:nowrap}
+.sub a{padding:5px 8px;border-radius:7px;font-size:11.5px;font-weight:600;color:#475569;white-space:nowrap}
+.sub a.on{background:var(--sel);color:var(--ink)}
+.sub a.sez{color:#64748b;font-weight:700}
+.sub a.sez.on{background:none;color:var(--ink);box-shadow:inset 0 -2.5px 0 #1f87cd;border-radius:0}
+.sub .sep{width:1px;align-self:stretch;margin:6px 6px;background:#e6ebf3}
+.sub a.segna{outline:2px solid var(--accent);outline-offset:1px}
+.corpo{padding:12px;min-height:86px}
+.finta{height:9px;border-radius:5px;background:#dfe6ee;margin:0 0 7px}
+.finta.t{height:14px;width:34%;background:#c3cedb;margin-bottom:11px}
+.finta.m{width:78%}.finta.c{width:52%}
+.nota{padding:11px 14px;border-top:1px solid #e2e8f0;font-size:13px;color:#334155}
+.nota ul{margin:0;padding-left:18px}
+.nota li{margin:2px 0}
+.pro{color:#166534;font-weight:600}.contro{color:#9a3412;font-weight:600}
+/* collegamenti */
+.vai{display:grid;gap:0}
+.vai5{grid-template-columns:repeat(5,1fr)}
+.col{padding:12px 14px;border-right:1px solid #eef2f7}
+.col:last-child{border-right:0}
+.col h3{margin:0 0 8px;font-size:12.5px;color:var(--ink)}
+.lk{display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;margin:0 0 6px;border:1px solid var(--border);border-radius:9px;background:#fff;font-weight:600;font-size:12.5px;color:var(--ink)}
+.lk i{flex:0 0 22px;height:22px;border-radius:6px;background:var(--sel);display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:12px}
+.lk.pr{border-color:#f3c9a6;background:#fff7f0}
+.grandi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px}
+.gr{border:1px solid var(--border);border-radius:12px;padding:14px;background:#fff}
+.gr i{display:inline-flex;width:34px;height:34px;border-radius:9px;background:var(--sel);align-items:center;justify-content:center;font-style:normal;font-size:17px;margin-bottom:8px}
+.gr b{display:block;font-size:14.5px;color:var(--ink)}
+.gr span{font-size:12px;color:#64748b}
+.gr.pr{border-color:#f3c9a6;background:#fff7f0}
+.ruoli{display:flex;gap:8px;padding:12px 14px 0;align-items:center;font-size:12.5px;color:#64748b}
+.ruoli a{padding:5px 11px;border-radius:999px;border:1px solid var(--border);font-weight:600;color:#475569}
+.ruoli a.on{background:var(--sel);border-color:#9cc6e6;color:var(--ink)}
+.sei{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:12px 14px 14px}
+.sei .lk{margin:0;height:46px}
+</style>
+</head>
+<body>
+
+<!-- ═════════ Scelta 1 ═════════ -->
+<section class="tavola" id="t1">
+  <h1>Scelta 1 · Un pilastro «Competenze» o due pilastri?</h1>
+  <p>Dove si trovano i corsi e dove le qualifiche. Stessa pagina aperta nei due casi: l'elenco dei corsi.</p>
+  <div class="coppia">
+    <div class="opz">
+      <div class="et"><b>A</b><span>Resta «Competenze», come oggi</span><em>3 livelli · 21 voci</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Scadenzario</a><a>Persone</a><a>Organizzazione</a><a class="on">Competenze</a><a>Sicurezza</a><a>…</a></div>
+          <div class="sub"><a class="sez on">Formazione</a><a class="sez">Qualifiche</a><a class="sez">Abilitazioni</a><span class="sep"></span><a>Dashboard</a><a>Piani</a><a class="on">Corsi</a><a>Sessioni</a><a>Istruttori</a><a>+ altre 3</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div><div class="finta c"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Nessuno deve reimparare</span> dove stanno le cose.</li>
+        <li><span class="contro">Tre livelli:</span> prima la sezione, poi la voce. Le voci delle altre sezioni non si vedono.</li>
+        <li><span class="contro">«Competenze» contiene la formazione:</span> ciò che hai trovato fuorviante.</li>
+      </ul></div>
+    </div>
+    <div class="opz">
+      <div class="et"><b>B</b><span>Due pilastri: «Formazione» e «Qualifiche»</span><em>2 livelli · 6 + 6 voci</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Persone</a><a>Organizzazione</a><a class="on">Formazione</a><a>Qualifiche</a><a>Sicurezza</a><a style="margin-left:auto">Amministrazione</a><a>Report</a></div>
+          <div class="sub"><a class="on">Corsi</a><a>Edizioni</a><a>Sessioni formative</a><a>Piani</a><a>Corsi online</a><a>Copertura</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div><div class="finta c"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Due livelli:</span> tutte le voci del pilastro sono visibili.</li>
+        <li><span class="pro">Ogni pilastro dice una cosa sola:</span> i corsi da una parte, qualifiche e abilitazioni dall'altra.</li>
+        <li><span class="contro">Cambia il menu di tutti:</span> serve un avviso e la guida aggiornata.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ Scelta 2 ═════════ -->
+<section class="tavola" id="t2">
+  <h1>Scelta 2 · Dove sta la «Skill matrix»?</h1>
+  <p>La skill matrix dice chi ha quale mansione e a che livello. La voce cerchiata in arancione è la stessa pagina nei due casi.</p>
+  <div class="coppia">
+    <div class="opz">
+      <div class="et"><b>A</b><span>In «Organizzazione»</span><em>accanto a mansioni e richieste</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Persone</a><a class="on">Organizzazione</a><a>Formazione</a><a>Qualifiche</a><a>Sicurezza</a><a style="margin-left:auto">Amministrazione</a><a>Report</a></div>
+          <div class="sub"><a>Struttura</a><a>Mansioni</a><a class="on segna">Skill matrix</a><a>Richieste</a><a>Sessioni formative</a><a>Reparti e costi</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div><div class="finta c"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Un percorso solo:</span> mansione → richiesta → sessione → skill matrix, tutto nello stesso pilastro.</li>
+        <li><span class="pro">Coerente con la tua scelta</span> di mettere le richieste in Organizzazione.</li>
+        <li><span class="contro">Chi oggi la cerca in «Competenze»</span> deve cambiare abitudine.</li>
+      </ul></div>
+    </div>
+    <div class="opz">
+      <div class="et"><b>B</b><span>In «Qualifiche»</span><em>accanto ad abilitazioni e processi qualificati</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Persone</a><a>Organizzazione</a><a>Formazione</a><a class="on">Qualifiche</a><a>Sicurezza</a><a style="margin-left:auto">Amministrazione</a><a>Report</a></div>
+          <div class="sub"><a>Qualifiche</a><a>Processi qualificati</a><a>P11TF12</a><a class="on segna">Skill matrix</a><a>Abilitazioni macchina</a><a>Scadenze</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div><div class="finta c"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Vicina a com'è oggi:</span> resta con abilitazioni e qualifiche.</li>
+        <li><span class="contro">Il percorso si spezza:</span> la richiesta si apre in Organizzazione, il risultato si guarda in Qualifiche.</li>
+        <li><span class="contro">«Qualifiche» arriva a 7 voci</span> se resta anche «Rinnovi».</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ Scelta 3 ═════════ -->
+<section class="tavola" id="t3">
+  <h1>Scelta 3 · Come chiamare le date in cui si tiene un corso?</h1>
+  <p>Oggi si chiamano «Sessioni». La Qualità chiama «Sessione formativa» un'altra cosa: il percorso di una persona su una mansione. Due cose diverse non possono avere lo stesso nome.</p>
+  <div class="coppia">
+    <div class="opz">
+      <div class="et"><b>A</b><span>«Edizioni»</span><em>il corso «Carrelli» ha 3 edizioni</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Persone</a><a>Organizzazione</a><a class="on">Formazione</a><a>Qualifiche</a><a>Sicurezza</a></div>
+          <div class="sub"><a>Corsi</a><a class="on segna">Edizioni</a><a>Sessioni formative</a><a>Piani</a><a>Corsi online</a><a>Copertura</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Due nomi che non si confondono.</span></li>
+        <li><span class="contro">Parola nuova</span> per chi oggi dice «sessione del corso».</li>
+      </ul></div>
+    </div>
+    <div class="opz">
+      <div class="et"><b>B</b><span>«Sessioni dei corsi»</span><em>resta la parola di oggi, con la precisazione</em></div>
+      <div class="schermo">
+        <div class="top">NOVICROM HUB</div>
+        <div class="nav">
+          <div class="tabs"><a>Dashboard</a><a>Persone</a><a>Organizzazione</a><a class="on">Formazione</a><a>Qualifiche</a><a>Sicurezza</a></div>
+          <div class="sub"><a>Corsi</a><a class="on segna">Sessioni dei corsi</a><a>Sessioni formative</a><a>Piani</a><a>Corsi online</a><a>Copertura</a></div>
+        </div>
+        <div class="corpo"><div class="finta t"></div><div class="finta"></div><div class="finta m"></div></div>
+      </div>
+      <div class="nota"><ul>
+        <li><span class="pro">Nessuna parola nuova.</span></li>
+        <li><span class="contro">Due voci vicine che cominciano con «Sessioni»:</span> facile cliccare quella sbagliata.</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ Scelta 4 ═════════ -->
+<section class="tavola" id="t4">
+  <h1>Scelta 4 · Come sono fatti i collegamenti diretti della Dashboard?</h1>
+  <p>È il blocco «Vai a», subito sotto «Da fare». Tre forme possibili.</p>
+  <div class="opz larga">
+    <div class="et"><b>A</b><span>Venti pulsanti, cinque colonne: una per pilastro</span><em>completo, sempre uguale per tutti</em></div>
+    <div class="vai vai5">
+      <div class="col"><h3>Persone</h3><div class="lk"><i>👥</i>Elenco dipendenti</div><div class="lk pr"><i>＋</i>Nuovo dipendente</div><div class="lk"><i>🧑‍🤝‍🧑</i>Il mio team</div><div class="lk"><i>📁</i>Documenti</div></div>
+      <div class="col"><h3>Organizzazione</h3><div class="lk"><i>🧭</i>Esplora la struttura</div><div class="lk pr"><i>＋</i>Nuova richiesta</div><div class="lk"><i>🛠️</i>Mansioni</div><div class="lk"><i>▦</i>Skill matrix</div></div>
+      <div class="col"><h3>Formazione</h3><div class="lk"><i>📘</i>Corsi</div><div class="lk pr"><i>＋</i>Pianifica un corso</div><div class="lk"><i>📝</i>Sessioni formative</div><div class="lk"><i>📊</i>Copertura</div></div>
+      <div class="col"><h3>Qualifiche</h3><div class="lk"><i>✅</i>Qualifiche</div><div class="lk"><i>⚙️</i>Processi qualificati</div><div class="lk"><i>🏭</i>Abilitazioni macchina</div><div class="lk"><i>📅</i>Scadenze</div></div>
+      <div class="col"><h3>Sicurezza</h3><div class="lk"><i>🩺</i>Visite mediche</div><div class="lk"><i>📄</i>Referti da rivedere</div><div class="lk"><i>🛡️</i>Conformità mansione</div><div class="lk"><i>⚠️</i>Mansioni di rischio</div></div>
+    </div>
+    <div class="nota"><span class="pro">Si trova tutto, raggruppato come il menu.</span> <span class="contro">Venti pulsanti sono tanti:</span> chi usa tre pagine le deve cercare ogni volta.</div>
+  </div>
+  <div class="opz larga">
+    <div class="et"><b>B</b><span>Otto riquadri grandi: le azioni più usate</span><em>pochi, grandi, con una riga di spiegazione</em></div>
+    <div class="grandi">
+      <div class="gr"><i>👥</i><b>Elenco dipendenti</b><span>Cerca una persona e apri la scheda</span></div>
+      <div class="gr pr"><i>＋</i><b>Nuova richiesta</b><span>Mansione o competenza per una persona</span></div>
+      <div class="gr"><i>🧭</i><b>Esplora la struttura</b><span>Reparti, ruoli, mansioni, competenze</span></div>
+      <div class="gr"><i>📘</i><b>Corsi</b><span>Catalogo e date dei corsi</span></div>
+      <div class="gr"><i>🧑‍🤝‍🧑</i><b>Il mio team</b><span>Le persone di cui sei responsabile</span></div>
+      <div class="gr"><i>▦</i><b>Skill matrix</b><span>Chi ha quale mansione, a che livello</span></div>
+      <div class="gr"><i>🩺</i><b>Visite mediche</b><span>Visite, referti e idoneità</span></div>
+      <div class="gr"><i>📅</i><b>Scadenze</b><span>Tutto ciò che scade nei prossimi 60 giorni</span></div>
+    </div>
+    <div class="nota"><span class="pro">Si capisce a colpo d'occhio, anche per chi entra di rado.</span> <span class="contro">Otto non bastano a tutti:</span> il resto si raggiunge dal menu.</div>
+  </div>
+  <div class="opz">
+    <div class="et"><b>C</b><span>Sei pulsanti che cambiano con il ruolo di chi guarda</span><em>ognuno vede i suoi</em></div>
+    <div class="ruoli">Esempio: <a class="on">Capo reparto</a><a>Qualità</a><a>Risorse umane</a><a>RDD</a></div>
+    <div class="sei">
+      <div class="lk"><i>🧑‍🤝‍🧑</i>Il mio team</div><div class="lk pr"><i>＋</i>Nuova richiesta</div><div class="lk"><i>🧭</i>Esplora la struttura</div><div class="lk"><i>▦</i>Skill matrix</div><div class="lk"><i>📝</i>Sessioni formative</div><div class="lk"><i>📅</i>Scadenze</div>
+    </div>
+    <div class="nota"><span class="pro">Il più semplice per chi lo usa:</span> sei pulsanti, quelli giusti. <span class="contro">Va deciso un elenco per ogni ruolo</span> e va tenuto aggiornato; costa qualche giorno in più.</div>
+  </div>
+</section>
+</body>
+</html>
