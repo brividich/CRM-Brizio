@@ -1,0 +1,19 @@
+{% extends "assets/pages/part_145_list.html" %}
+{# Stessa impaginazione del Dossier PART 145; i dati vengono da assets/services/p11tf12_dossier.py. #}
+
+{% block title %}{{ dossier.titolo }}{% endblock %}
+
+{% block assets_shell_title %}{{ dossier.titolo }}{% endblock %}
+{% block assets_shell_subtitle %}<p>MT CN 69 · macchine qualificate (MOD.161), utensili critici, Technical Plan, registro MOD.176{% if dossier.con_personale %}, persone abilitate e formazione{% endif %} · aggiornato al {{ dossier.oggi|date:"d/m/Y" }}</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+{% if dossier.con_personale %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_p11tf12' %}">Vista persone (Qualifiche)</a>{% endif %}
+{% if dossier.con_personale and dossier.processi|length == 1 %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_processo_detail' dossier.processi.0.pk %}">Apri il processo</a>{% endif %}
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#p11tf12">? Guida</a>
+{% endblock %}
+
+{% block p145_info %}{% if not dossier.con_personale %}<div class="p145-info">Persone e formazione non sono mostrate: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}{% endblock %}
+
+{% block p145_scarica %}{% endblock %}
+
+{% block p145_foot %}<p class="p145-foot">Il processo si riconosce da «{{ dossier.codice }}» nel nome o fra i riferimenti del processo in Processi qualificati (MOD.128). Macchine, utensili e Technical Plan si gestiscono dalla pagina del processo.</p>{% endblock %}

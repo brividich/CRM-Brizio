@@ -855,6 +855,21 @@ def asset_part_145_list(request: HttpRequest) -> HttpResponse:
     return render(request, "assets/pages/part_145_list.html", context)
 
 
+@login_required
+def asset_p11tf12(request: HttpRequest) -> HttpResponse:
+    """P11TF12 (MT CN 69): macchine qualificate, utensili critici e Technical Plan del processo MOD.128."""
+    from ..services import p11tf12_dossier
+    from ..services.part145_dossier import puo_vedere_personale
+
+    context = {
+        "page_title": p11tf12_dossier.TITOLO,
+        "dossier": p11tf12_dossier.costruisci(con_personale=puo_vedere_personale(request),
+                                              ordine=p11tf12_dossier.ORDINE_ASSET),
+        **_assets_shell_context(request, search_action=reverse("assets:asset_list")),
+    }
+    return render(request, "assets/pages/p11tf12.html", context)
+
+
 def _studio_redirect(request: HttpRequest) -> HttpResponse:
     """Dopo un'azione dello «Studio inventario» si torna da dove si e' partiti.
 

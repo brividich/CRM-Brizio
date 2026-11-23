@@ -16,7 +16,7 @@ della voce, così più form nella stessa pagina non collidono.
       <select id="mc-corso-{{ sfx }}" name="corso" class="fm-input fm-select"><option value="">— nessuno —</option>{% for c in corsi_opts %}<option value="{{ c.pk }}"{% if voce and voce.corso_id == c.pk %} selected{% endif %}>{{ c.titolo }}</option>{% endfor %}</select></div>
     <div class="fm-form-field"><label for="mc-qual-{{ sfx }}">Qualifica o patentino</label>
       <select id="mc-qual-{{ sfx }}" name="qualifica" class="fm-input fm-select"><option value="">— nessuna —</option>{% for q in qualifiche_opts %}<option value="{{ q.pk }}"{% if voce and voce.qualifica_id == q.pk %} selected{% endif %}>{{ q.nome }}</option>{% endfor %}</select></div>
-    <div class="fm-form-field"><label for="mc-mpq-{{ sfx }}">Abilitazione MOD.128</label>
+    <div class="fm-form-field"><label for="mc-mpq-{{ sfx }}">Processo qualificato (MOD.128)</label>
       <select id="mc-mpq-{{ sfx }}" name="processo_mpq" class="fm-input fm-select"><option value="">— nessuna —</option>{% for p in processi_opts %}<option value="{{ p.pk }}"{% if voce and voce.processo_mpq_id == p.pk %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}</select></div>
   </div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">

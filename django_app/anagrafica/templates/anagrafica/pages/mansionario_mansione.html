@@ -125,7 +125,7 @@
             </tbody>
           </table>
         </div>
-        <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto.{% if competenze %} Con le competenze definite il livello sulla mansione si calcola da solo: dalla matrice qui sotto o da «Valuta», e di nuovo quando cambiano corsi, qualifiche, MOD.128 o le competenze richieste.{% endif %}</span></div>
+        <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto.{% if competenze %} Con le competenze definite il livello sulla mansione si calcola da solo: dalla matrice qui sotto o da «Valuta», e di nuovo quando cambiano corsi, qualifiche, processi qualificati o le competenze richieste.{% endif %}</span></div>
 
         {% if competenze %}
         <div class="mns-matrice" id="matrice">
@@ -156,7 +156,7 @@
               </tbody>
             </table>
           </div>
-          <div class="fmd-legend"><span class="fmd-muted"><span class="mns-mtx-key mns-mtx-sotto"></span>sotto il minimo · <span class="mns-mtx-key mns-mtx-req"></span>manca il requisito formale (corso, qualifica, MOD.128): la competenza conta al massimo I. Regola: {{ regole.regola_label|lower }}, operativo da {{ regole.soglia }}.</span></div>
+          <div class="fmd-legend"><span class="fmd-muted"><span class="mns-mtx-key mns-mtx-sotto"></span>sotto il minimo · <span class="mns-mtx-key mns-mtx-req"></span>manca il requisito formale (corso, qualifica, processo qualificato): la competenza conta al massimo I. Regola: {{ regole.regola_label|lower }}, operativo da {{ regole.soglia }}.</span></div>
         </div>
         {% endif %}
         {% else %}
@@ -166,7 +166,7 @@
 
       {# ── Competenze ───────────────────────────────────────────────────── #}
       <div class="mns-pane" id="competenze" role="tabpanel" aria-labelledby="tab-competenze">
-        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Livello sulla mansione: {{ regole.regola_label|lower }}; operativo da {{ regole.soglia }}{% if is_admin %} (<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_regole' %}">regole</a>){% endif %}. Senza il requisito formale (corso, qualifica, MOD.128) la persona non supera «I – in formazione» su quella competenza.</p>
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Livello sulla mansione: {{ regole.regola_label|lower }}; operativo da {{ regole.soglia }}{% if is_admin %} (<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_regole' %}">regole</a>){% endif %}. Senza il requisito formale (corso, qualifica, processo qualificato) la persona non supera «I – in formazione» su quella competenza.</p>
         {% if competenze %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
@@ -177,7 +177,7 @@
                 <td>{% if v.catalogo_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_competenza' v.catalogo_id %}" title="Scheda della competenza: chi la sa fare su tutte le mansioni"><b>{{ v.nome }}</b></a>{% else %}<b>{{ v.nome }}</b>{% endif %}</td>
                 <td><span class="mns-lv mns-lv-{{ v.livello_minimo }}"><b>{{ v.livello_minimo }}</b></span></td>
                 <td>{% if v.bloccante %}<span class="fmd-badge fmd-b-red">bloccante</span>{% else %}<span class="fmd-muted">no</span>{% endif %}</td>
-                <td>{% if v.corso %}Corso «{{ v.corso.titolo }}»{% endif %}{% if v.qualifica %}{% if v.corso %} · {% endif %}Qualifica «{{ v.qualifica.nome }}»{% endif %}{% if v.processo_mpq %}{% if v.corso or v.qualifica %} · {% endif %}MOD.128 «{{ v.processo_mpq.nome }}»{% endif %}{% if not v.corso and not v.qualifica and not v.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
+                <td>{% if v.corso %}Corso «{{ v.corso.titolo }}»{% endif %}{% if v.qualifica %}{% if v.corso %} · {% endif %}Qualifica «{{ v.qualifica.nome }}»{% endif %}{% if v.processo_mpq %}{% if v.corso or v.qualifica %} · {% endif %}Processo qualificato «{{ v.processo_mpq.nome }}»{% endif %}{% if not v.corso and not v.qualifica and not v.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
                 {% if is_admin %}
                 <td class="fmd-r fmd-nowrap">
                   <span class="mns-actions">

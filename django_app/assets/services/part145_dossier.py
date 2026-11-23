@@ -190,19 +190,20 @@ def _controlli_attrezzi(ids, oggi=None) -> dict:
     return esito
 
 
-def _documenti_sgi() -> list[dict]:
+def _documenti_sgi(documenti=None) -> list[dict]:
     """Revisione corrente dei documenti SGI di riferimento (registro procedure), in una query."""
     from django.db.models.functions import Upper
 
     from procedure_refresh.models import ProcedureRevision
 
+    documenti = DOCUMENTI_SGI if documenti is None else documenti
     filtro = Q()
-    for codice, _ in DOCUMENTI_SGI:
+    for codice, _ in documenti:
         filtro |= Q(document__code__istartswith=codice)
     correnti = list(ProcedureRevision.objects.filter(filtro, is_current=True).select_related("document")
                     .order_by(Upper("document__code"), "-revision_date"))
     righe = []
-    for codice, perche in DOCUMENTI_SGI:
+    for codice, perche in documenti:
         chiave = codice.upper()
         esatte = [r for r in correnti if r.document.code.upper() == chiave]
         rev = (esatte or [r for r in correnti if r.document.code.upper().startswith(chiave)] or [None])[0]
