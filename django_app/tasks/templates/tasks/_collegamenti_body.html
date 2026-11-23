@@ -13,6 +13,15 @@
     {% elif v.stato and not v.vuoto %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}
     {% if v.modificabile %}<button type="button" class="kc-mod" data-kc-modifica aria-expanded="false">Modifica</button>{% endif %}
     {% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli {{ v.nome }} {{ v.codice }}">&times;</button>{% endif %}
+    {% if v.avviso %}<p class="kc-avviso" role="note"><b>Avviso:</b> {{ v.avviso }}</p>{% endif %}
+    {% if v.operatori %}{% with m=v.operatori %}
+    <p class="kc-operatori">
+      {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
+      {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
+      {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
+      {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
+    </p>
+    {% endwith %}{% endif %}
     {% if v.modificabile %}
     <div class="kc-form" data-kc-form hidden>
       <input class="input" type="text" data-kc-code maxlength="120" value="{{ v.ref.code }}" placeholder="Codice" aria-label="Codice">
@@ -25,7 +34,6 @@
   <li class="kc-vuoto" data-kc-vuoto>Nessun collegamento.</li>
   {% endfor %}
 </ul>
-{% if col.macchina %}{% with m=col.macchina %}{% include "tasks/_tappe_macchina.html" %}{% endwith %}{% endif %}
 {% if col.puo and col.tipi %}
 <div class="kc-chips" role="group" aria-label="Aggiungi un collegamento">
   {% for t in col.tipi %}<button type="button" class="kc-chip{% if t.serve %} is-serve{% endif %}" data-kc-tipo="{{ t.codice }}" data-kc-nome="{{ t.nome }}" aria-pressed="false">+ {{ t.nome }}</button>{% endfor %}

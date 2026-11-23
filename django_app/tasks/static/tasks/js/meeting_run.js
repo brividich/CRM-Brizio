@@ -47,6 +47,22 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
     }).then(r => r.json());
   }
 
+  /* Note con un salvataggio in sospeso: si mandano comunque se la pagina viene lasciata o ricaricata. */
+  const notePendenti = new Set();
+  function postUscita(url, data) {
+    const body = new URLSearchParams();
+    Object.keys(data).forEach(function (k) { body.append(k, data[k] == null ? '' : data[k]); });
+    try {
+      fetch(url, {
+        method: 'POST', body: body.toString(), credentials: 'same-origin', keepalive: true,
+        headers: { 'X-CSRFToken': csrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+      }).catch(function () {});
+    } catch (e) { /* la pagina sta chiudendo: niente da mostrare */ }
+  }
+  window.addEventListener('pagehide', function () {
+    Array.from(notePendenti).forEach(function (salva) { salva(true); });
+  });
+
   function refreshDoneCount() {
     const el = document.getElementById('run-done-count');
     if (el) el.textContent = String(document.querySelectorAll('.run-item.done').length);
@@ -66,13 +82,23 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       setTimeout(function () { saved.hidden = true; }, 1500);
     }
 
+    /* La nota si salva da sola poco dopo l'ultima battuta, e subito quando si esce dal campo
+       (per esempio aprendo il pannello dell'attività) o si lascia la pagina: non si perde. */
     let notaTimer = null;
+    function salvaNota(uscita) {
+      if (!notaTimer) return;
+      clearTimeout(notaTimer);
+      notaTimer = null;
+      notePendenti.delete(salvaNota);
+      if (uscita) { postUscita(ITEM_URL, { item_id: itemId, nota: nota.value }); return; }
+      post(ITEM_URL, { item_id: itemId, nota: nota.value }).then(flashSaved).catch(function () {});
+    }
     nota?.addEventListener('input', function () {
       clearTimeout(notaTimer);
-      notaTimer = setTimeout(function () {
-        post(ITEM_URL, { item_id: itemId, nota: nota.value }).then(flashSaved).catch(function () {});
-      }, 800);
+      notaTimer = setTimeout(salvaNota, 800);
+      notePendenti.add(salvaNota);
     });
+    nota?.addEventListener('blur', function () { salvaNota(false); });
 
     toggle?.addEventListener('click', function () {
       const next = !card.classList.contains('done');
@@ -134,9 +160,11 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       if (!newBox) return;
       newBox.hidden = !newBox.hidden;
       if (!newBox.hidden && newTitle) {
-        /* Il titolo del punto è quasi sempre il titolo dell'attività: si parte da lì. */
+        /* Il titolo del punto è quasi sempre il titolo dell'attività: si parte da lì.
+           Per una tappa («Macchina: da assegnare») vale la parte prima dei due punti. */
         if (!newTitle.value.trim()) {
-          newTitle.value = (card.querySelector('.run-item-title')?.textContent || '').trim();
+          const titoloPunto = (card.querySelector('.run-item-title')?.textContent || '').trim();
+          newTitle.value = card.hasAttribute('data-tappa') ? titoloPunto.split(':')[0].trim() : titoloPunto;
         }
         newTitle.focus();
       }
@@ -181,8 +209,6 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         assigned_to: card.querySelector('[data-role=task-new-owner]')?.value || '',
         next_step_due: card.querySelector('[data-role=task-new-start]')?.value || '',
         due_date: card.querySelector('[data-role=task-new-due]')?.value || '',
-        asset: card.querySelector('[data-role=task-new-asset]')?.value || '',
-        testo: card.querySelector('[data-role=task-new-testo]')?.value || '',
       }).then(function (data) {
         const err = card.querySelector('[data-role=task-new-err]');
         if (!data || !data.ok) {
@@ -204,6 +230,14 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         if (newBox) newBox.hidden = true;
         if (newTitle) newTitle.value = '';
         flashSaved();
+        /* Tappa del Percorso: l'attività si apre nel pannello laterale, già sul collegamento
+           atteso (macchina, attrezzatura, programma…). Si resta in riunione. */
+        if (data.apri && taskLink && window.HubBulkPannello && window.HubBulkPannello.open) {
+          const normale = taskLink.getAttribute('data-preview');
+          taskLink.setAttribute('data-preview', data.apri);
+          window.HubBulkPannello.open(taskLink);
+          taskLink.setAttribute('data-preview', normale);
+        }
       }).catch(function () {}).finally(function () { btn.disabled = false; });
     });
   };

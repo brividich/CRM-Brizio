@@ -6,7 +6,7 @@ from datetime import date
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from django.views.decorators.http import require_http_methods
 
 from core.audit import log_action
 
@@ -14,27 +14,6 @@ from ..access import can_manage_project, scoped_projects_queryset, task_permissi
 from ..models import KickoffMeeting, TappaKickoff
 from ..services import tappe as svc
 from ..services.meeting_tasks import KickoffBloccatoVRF
-
-
-def _fornitori():
-    try:
-        from anagrafica.models import Fornitore
-
-        return list(Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("ragione_sociale", flat=True))
-    except Exception:
-        return []
-
-
-def _processi():
-    try:
-        from anagrafica.models_mpq import ProcessoQualificato
-
-        return list(
-            ProcessoQualificato.objects.filter(stato=ProcessoQualificato.STATO_ATTIVO)
-            .order_by("nome").values_list("nome", flat=True).distinct()
-        )
-    except Exception:
-        return []
 
 
 def _con_nomi(request) -> bool:
@@ -146,75 +125,3 @@ def tappa_azione(request, project_id: int):
             messaggio=f"Attività «{nuova.title}» creata: scegli responsabile e collegamenti",
         )
     return JsonResponse(risposta)
-
-
-@require_GET
-@task_permissions_required("tasks_view", api=True)
-def tappa_anteprima(request, project_id: int):
-    """Mentre si compila la tappa: assenze del responsabile e disponibilità della macchina nel periodo."""
-    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
-    if not (can_manage_project(request, project) or request.user.pk in project.team_user_ids):
-        return _errore("Solo chi fa parte del team può assegnare le tappe.", 403)
-    try:
-        inizio, fine = svc.periodo(_data(request.GET.get("start_date")), _data(request.GET.get("due_date")))
-    except ValueError:
-        return JsonResponse({"ok": True, "html": ""})
-    persona = assenze = None
-    raw = (request.GET.get("assigned_to") or "").strip()
-    if raw.isdigit():
-        from ..forms import task_active_users_queryset
-
-        persona = task_active_users_queryset().filter(pk=int(raw)).first()
-        assenze = svc.assenze_persona(persona, inizio, fine) if persona else None
-        impegni_persona = svc.carico([persona.pk], inizio, fine).get(persona.pk, 0) if persona else 0
-    macchina = None
-    if request.GET.get("tappa") == TappaKickoff.MACCHINA and (request.GET.get("asset") or "").isdigit():
-        asset = svc.macchine_disponibili().filter(pk=int(request.GET["asset"])).first()
-        if asset is not None:
-            macchina = svc.disponibilita_macchina(asset, inizio, fine, con_nomi=_con_nomi(request))
-    html = render_to_string("tasks/_tappe_anteprima.html", {
-        "inizio": inizio, "fine": fine, "persona": persona, "assenze": assenze, "m": macchina,
-        "impegni_persona": impegni_persona if raw.isdigit() else 0,
-    }, request=request)
-    return JsonResponse({"ok": True, "html": html})
-
-
-@require_POST
-@task_permissions_required("tasks_view", api=True)
-def utensili_azione(request, project_id: int):
-    """Utensili della commessa: aggiungi, cambia stato, togli. Risponde con il Percorso aggiornato."""
-    from ..models import ProjectUtensile, UtensileStato
-
-    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
-    if not (can_manage_project(request, project) or request.user.pk in project.team_user_ids):
-        return _errore("Solo chi fa parte del team aggiorna gli utensili.", 403)
-    azione = (request.POST.get("action") or "").strip()
-    meeting = None
-    if (request.POST.get("meeting_id") or "").isdigit():
-        meeting = KickoffMeeting.objects.filter(pk=int(request.POST["meeting_id"]), project=project).first()
-    try:
-        if azione == "aggiungi":
-            raw_q = (request.POST.get("quantita") or "1").strip()
-            svc.aggiungi_utensile(
-                project, request.user, request.POST.get("utensile", ""),
-                quantita=int(raw_q) if raw_q.isdigit() else 1, entro=_data(request.POST.get("entro")),
-            )
-        elif azione in ("stato", "togli"):
-            riga = ProjectUtensile.objects.filter(pk=int(request.POST.get("riga") or 0), project=project).first()
-            if riga is None:
-                return _errore("Utensile non trovato.", 404)
-            if azione == "togli":
-                riga.delete()
-            else:
-                stato = (request.POST.get("stato") or "").strip()
-                if stato not in UtensileStato.values:
-                    return _errore("Stato non valido.")
-                riga.stato = stato
-                riga.save(update_fields=["stato", "updated_at"])
-        else:
-            return _errore("Azione non valida.")
-    except (svc.TappaNonValida, ValueError) as exc:
-        return _errore(str(exc) or "Dati non validi.")
-    log_action(request, f"kickoff_utensili_{azione}", "tasks", {"project_id": project.pk})
-    html = render_to_string("tasks/_tappe_body.html", tappe_context(request, project, meeting), request=request)
-    return JsonResponse({"ok": True, "html": html})

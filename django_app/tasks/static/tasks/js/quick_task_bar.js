@@ -48,22 +48,12 @@
       err.classList.add('qt-ok');
     }
 
-    /* I campi dell'attrezzatura compaiono solo per la scelta che li chiede. */
-    function sincronizzaAttrezzatura() {
-      var modo = valore('tooling');
-      bar.querySelectorAll('[data-qt-show]').forEach(function (campo) {
-        campo.hidden = campo.dataset.qtShow.split(' ').indexOf(modo) < 0;
-      });
-    }
-
     function azzeraOpzioni() {
-      ['existing', 'category', 'tool-existing', 'tool-pn', 'tool-code', 'tool-note'].forEach(function (nome) {
+      ['existing', 'category'].forEach(function (nome) {
         var campo = f(nome);
         if (campo) { campo.value = ''; }
       });
       if (f('priority')) { f('priority').value = 'MEDIUM'; }
-      if (f('tooling')) { f('tooling').value = 'none'; }
-      sincronizzaAttrezzatura();
       sincronizzaBottone();
     }
 
@@ -100,12 +90,7 @@
           next_step_due: start.value,
           due_date: due.value,
           category: valore('category'),
-          priority: valore('priority') || 'MEDIUM',
-          tooling_mode: valore('tooling') || 'none',
-          tooling_existing_attrezzatura: valore('tool-existing'),
-          tooling_part_number: valore('tool-pn'),
-          tooling_code: valore('tool-code'),
-          tooling_description: valore('tool-note')
+          priority: valore('priority') || 'MEDIUM'
         })
       }).then(function (r) {
         return r.json().catch(function () { return { ok: false }; });
@@ -175,7 +160,6 @@
         piu.setAttribute('aria-expanded', String(!box.hidden));
       });
     }
-    if (f('tooling')) { f('tooling').addEventListener('change', sincronizzaAttrezzatura); }
     if (f('existing')) {
       /* Aggiornando un'attività le date proposte non devono sovrascrivere le sue. */
       f('existing').addEventListener('change', function () {

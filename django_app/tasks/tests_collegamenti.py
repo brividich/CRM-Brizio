@@ -144,14 +144,58 @@ class MacchinaTests(CollegamentiBase):
         self.generica.refresh_from_db()
         self.assertEqual(self.generica.extra_data.get("macchina"), asset.pk)
         self.assertTrue(TaskExtraRef.objects.filter(task=self.generica, field_code="macchina", asset=asset).exists())
-        # Una sola per attività: un'altra prende il posto della prima.
+        # Più macchine sulla stessa attività: la seconda si aggiunge, la prima resta quella «principale».
         seconda = self.macchina("CNC-K2")
         self.post(action="collega", tipo="macchina", id=seconda.pk)
-        self.assertEqual(list(TaskExtraRef.objects.filter(task=self.generica).values_list("asset_id", flat=True)), [seconda.pk])
+        self.post(action="collega", tipo="macchina", id=seconda.pk)
+        self.assertEqual(
+            list(TaskExtraRef.objects.filter(task=self.generica).order_by("id").values_list("asset_id", flat=True)),
+            [asset.pk, seconda.pk], "senza doppioni",
+        )
+        self.assertEqual([v["codice"] for v in svc.collegamenti(self.generica)], ["CNC-K1", "CNC-K2"])
+        self.post(action="scollega", chiave=f"mac:{asset.pk}")
+        self.generica.refresh_from_db()
+        self.assertEqual(self.generica.extra_data.get("macchina"), seconda.pk, "tolta la prima, resta l'altra")
         self.post(action="scollega", chiave=f"mac:{seconda.pk}")
         self.generica.refresh_from_db()
         self.assertNotIn("macchina", self.generica.extra_data)
         self.assertFalse(TaskExtraRef.objects.filter(task=self.generica).exists())
+
+    def _impegna(self, asset, titolo="Fresatura staffa"):
+        """Un'altra attività aperta sulla stessa macchina nello stesso periodo."""
+        altra = self.attivita(category=None, title=titolo, next_step_due=date(2026, 11, 25), due_date=date(2026, 12, 4))
+        TaskExtraRef.objects.create(task=altra, field_code="macchina", asset=asset)
+        return altra
+
+    def test_macchina_gia_impegnata_solo_avviso_e_collegamento_salvato(self):
+        asset = self.macchina()
+        altra = self._impegna(asset)
+        Task.objects.filter(pk=self.generica.pk).update(next_step_due=date(2026, 11, 24), due_date=date(2026, 12, 1))
+        self.assertEqual(self.cerca("macchina", "cnc-k")["risultati"][0]["stato"], "Già impegnata nel periodo")
+        risposta = self.post(action="collega", tipo="macchina", id=asset.pk)
+        self.assertEqual(risposta.status_code, 200, "il conflitto non blocca")
+        dati = risposta.json()
+        self.assertIn("collegata, ma nel periodo è già impegnata", dati["avviso"])
+        self.assertIn("Fresatura staffa (25/11–04/12)", dati["avviso"])
+        self.assertTrue(TaskExtraRef.objects.filter(task=self.generica, field_code="macchina", asset=asset).exists())
+        # L'avviso resta sulla riga del collegamento e nel registro finché il conflitto c'è.
+        self.assertIn('class="kc-avviso"', dati["html"])
+        self.assertIn("Dal 24/11 al 01/12: Attività già assegnata: Fresatura staffa", dati["html"])
+        registro = self.client.get(reverse("tasks:collegamenti_registro", args=[self.project.pk])).json()["html"]
+        self.assertEqual(registro.count('class="kc-avviso"'), 2, "le due attività si impegnano a vicenda")
+        altra.status = TaskStatus.DONE
+        altra.save()
+        pagina = self.client.get(reverse("tasks:detail", args=[self.generica.pk])).content.decode()
+        self.assertNotIn('class="kc-avviso"', pagina)
+        self.assertIn("Libera", pagina)
+
+    def test_avviso_senza_titolo_delle_attivita_che_non_si_vedono(self):
+        asset = self.macchina()
+        self._impegna(asset, titolo="Titolo riservato")
+        conflitti = svc.conflitti_macchina(asset, date(2026, 11, 24), date(2026, 12, 1), visibili=set())
+        self.assertEqual(len(conflitti), 1)
+        self.assertNotIn("riservato", conflitti[0]["titolo"])
+        self.assertTrue(conflitti[0]["grave"])
 
     def test_aggiungi_non_vale_per_le_macchine(self):
         self.assertEqual(self.post(action="aggiungi", tipo="macchina", testo="CNC-999 nuova").status_code, 400)
@@ -235,14 +279,67 @@ class ProgrammiFaiTests(CollegamentiBase):
         self.assertTrue(nuovo)
         self.assertEqual(ProjectTechRef.objects.get(task=self.generica).path, "")
 
-    def test_un_solo_programma_o_fai_per_attivita(self):
-        self.post(action="aggiungi", tipo="cam", testo="O1")
-        risposta = self.post(action="aggiungi", tipo="cmm", testo="M1")
-        self.assertEqual(risposta.status_code, 400)
-        self.assertIn("ha già", risposta.json()["reason"])
-        # Un'attività che «richiede» il CAM non prende un CMM.
+    def test_piu_programmi_e_un_solo_fai_per_attivita(self):
+        self.assertEqual(self.post(action="aggiungi", tipo="cam", testo="O1").status_code, 200)
+        self.assertEqual(self.post(action="aggiungi", tipo="cam", testo="O2").status_code, 200)
+        self.assertEqual(self.post(action="aggiungi", tipo="cmm", testo="M1").status_code, 200)
+        self.assertEqual(self.tipi(), ["cam", "cam", "cmm"])
+        self.post(action="aggiungi", tipo="cam", testo="o1")
+        self.assertEqual(self.tipi(), ["cam", "cam", "cmm"], "lo stesso codice non si collega due volte")
+        self.assertEqual(self.post(action="aggiungi", tipo="fai", testo="FAI-1").status_code, 200)
+        secondo = self.post(action="aggiungi", tipo="fai", testo="FAI-2")
+        self.assertEqual(secondo.status_code, 400)
+        self.assertIn("uno solo per attività", secondo.json()["reason"])
+        # Un'attività che «richiede» il CAM non prende un CMM, ma di CAM ne prende più d'uno.
         task = self.attivita()
         self.assertEqual(self.post(task, action="aggiungi", tipo="cmm", testo="M2").status_code, 400)
+        self.post(task, action="aggiungi", tipo="cam", testo="O10")
+        self.post(task, action="aggiungi", tipo="cam", testo="O11")
+        self.assertEqual(
+            sorted(ProjectTechRef.objects.filter(task=task).values_list("code", flat=True)), ["O10", "O11"],
+            "il primo riempie la riga «da inserire», il secondo si aggiunge",
+        )
+
+    def test_attivita_chiusa_solo_quando_tutti_i_programmi_sono_validati(self):
+        task = self.attivita()
+        self.post(task, action="aggiungi", tipo="cam", testo="O10")
+        self.post(task, action="aggiungi", tipo="cam", testo="O11")
+        primo, secondo = ProjectTechRef.objects.filter(task=task).order_by("id")
+        self.post(task, action="fase", chiave=f"ref:{primo.pk}", valore="valida")
+        task.refresh_from_db()
+        self.assertNotEqual(task.status, TaskStatus.DONE, "manca ancora il secondo")
+        # Un salvataggio qualsiasi dell'attività non riapre il programma già validato.
+        task.title = "Programmare fasi 10 e 20"
+        task.save()
+        primo.refresh_from_db()
+        self.assertEqual((primo.fase, primo.status), ("VALIDATO", "DONE"))
+        self.post(task, action="fase", chiave=f"ref:{secondo.pk}", valore="valida")
+        task.refresh_from_db()
+        self.assertEqual(task.status, TaskStatus.DONE)
+        # Nuova revisione di uno: l'attività si riapre, l'altro resta validato.
+        self.post(task, action="fase", chiave=f"ref:{primo.pk}", valore="revisione")
+        task.refresh_from_db()
+        secondo.refresh_from_db()
+        self.assertEqual(task.status, TaskStatus.IN_PROGRESS)
+        self.assertEqual(secondo.fase, "VALIDATO")
+        # Tolto quello in lavorazione, restano solo programmi validati: l'attività è fatta.
+        self.post(task, action="scollega", chiave=f"ref:{primo.pk}")
+        task.refresh_from_db()
+        self.assertEqual(task.status, TaskStatus.DONE)
+
+    def test_chiudere_e_riaprire_l_attivita_vale_per_tutti_i_programmi(self):
+        task = self.attivita()
+        self.post(task, action="aggiungi", tipo="cam", testo="O10")
+        self.post(task, action="aggiungi", tipo="cam", testo="O11")
+        task.refresh_from_db()
+        task.status = TaskStatus.DONE
+        task.save()
+        self.assertEqual(set(ProjectTechRef.objects.filter(task=task).values_list("fase", flat=True)), {"VALIDATO"})
+        task.status = TaskStatus.IN_PROGRESS
+        task.save()
+        self.assertEqual(set(ProjectTechRef.objects.filter(task=task).values_list("fase", flat=True)), {"IN_SCRITTURA"})
+        task.delete()
+        self.assertEqual(ProjectTechRef.objects.filter(project=self.project, task__isnull=True, code__in=["O10", "O11"]).count(), 2)
 
     def test_programma_gia_di_un_altra_attivita_non_si_ruba(self):
         prima = self.attivita()
@@ -678,6 +775,19 @@ class RegistroTests(CollegamentiBase):
         for risposta in (self.reg(action="elimina", chiave="ref:1"), self.client.get(self.url_registro, HTTP_ACCEPT="application/json")):
             self.assertEqual(risposta.status_code, 401)
             self.assertEqual(risposta["Content-Type"], "application/json")
+
+    def test_registro_nella_scheda_dell_incontro_e_nell_esito(self):
+        incontro = self.incontro()
+        scheda = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, incontro.pk]))
+        esito = self.client.get(reverse("tasks:project_meeting_minutes", args=[self.project.pk, incontro.pk]))
+        for pagina in (scheda, esito):
+            self.assertEqual(pagina.status_code, 200)
+            self.assertContains(pagina, f'data-url="{reverse("tasks:collegamenti_registro", args=[self.project.pk])}"')
+            self.assertContains(pagina, "data-rc-riga=", msg_prefix="le righe del registro")
+            self.assertContains(pagina, "registro_collegamenti.js")
+            # La vecchia tabella con la riga rapida non c'è più.
+            self.assertNotContains(pagina, "data-tr-block")
+            self.assertNotContains(pagina, "data-tr-form")
 
     def test_registri_di_modulo_non_toccati(self):
         for nome in ("tasks:programmi_registro", "tasks:fai_registro"):

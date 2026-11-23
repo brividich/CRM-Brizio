@@ -1792,7 +1792,8 @@ class MeetingTaskFromStepTests(TasksBaseTestCase):
         task.refresh_from_db()
         self.assertIsNone(task.next_step_due)
 
-    def test_collega_l_attrezzatura_nello_stesso_gesto(self):
+    def test_i_vecchi_campi_attrezzatura_sono_ignorati(self):
+        """L'attrezzatura si collega dal riquadro «Collegamenti»: i campi tooling_* non esistono più."""
         from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
 
         tool = Attrezzatura.objects.create(codice="ATT-01", part_number="PN-77")
@@ -1803,21 +1804,8 @@ class MeetingTaskFromStepTests(TasksBaseTestCase):
         })
         self.assertEqual(response.status_code, 200)
         task = Task.objects.get(pk=response.json()["task_id"])
-        self.assertTrue(
-            AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task_id=task.id).exists()
-        )
-
-    def test_l_attivita_resta_creata_anche_se_l_attrezzatura_inciampa(self):
-        with patch(
-            "tasks.views.meetings._apply_task_tooling_action", side_effect=RuntimeError("boom")
-        ):
-            response = self.client.post(self.step_url, {
-                "title": "Attivita' con attrezzo storto",
-                "tooling_mode": "request_new",
-                "tooling_part_number": "PN-99",
-            })
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(Task.objects.filter(title="Attivita' con attrezzo storto").exists())
+        self.assertFalse(AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task_id=task.id).exists())
+        self.assertEqual(Attrezzatura.objects.count(), 1)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
