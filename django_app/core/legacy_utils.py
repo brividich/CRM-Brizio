@@ -557,10 +557,23 @@ def get_legacy_user(django_user):
         profile = django_user.profile
     except Profile.DoesNotExist:
         return None
+    # Memo sull'oggetto utente, quindi per una sola richiesta: prima la stessa riga di
+    # ``utenti`` veniva riletta a ogni chiamata (una pagina di anagrafica arrivava a ~60
+    # letture). Chiave = utente legacy collegato al profilo: se il collegamento cambia,
+    # si rilegge. Un errore del database non va in memo.
+    legacy_id = profile.legacy_user_id
+    memo = getattr(django_user, "_hub_legacy_user_memo", None)
+    if memo is not None and memo[0] == legacy_id:
+        return memo[1]
     try:
-        return UtenteLegacy.objects.filter(id=profile.legacy_user_id).first()
+        legacy_user = UtenteLegacy.objects.filter(id=legacy_id).first()
     except DatabaseError:
         return None
+    try:
+        django_user._hub_legacy_user_memo = (legacy_id, legacy_user)
+    except Exception:
+        pass
+    return legacy_user
 
 
 _LEGACY_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
