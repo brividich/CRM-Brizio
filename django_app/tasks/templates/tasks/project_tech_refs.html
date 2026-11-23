@@ -4,6 +4,11 @@
 {% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
 
 {% block tasks_shell_content %}
-{% include "tasks/_tech_refs.html" %}
+{% comment %}Registro costruito dalle attività; negli incontri resta la tabella di _tech_refs.html.{% endcomment %}
+<section class="tr-block rc" data-rc data-url="{{ reg_url }}" data-csrf="{{ csrf_token }}" aria-label="Programmi, FAI e risorse della commessa">
+  {% include "tasks/_registro_collegamenti_body.html" %}
+</section>
 <script src="{% static 'tasks/js/tech_refs.js' %}?v=20261111" defer></script>
+<script src="{% static 'tasks/js/collegamenti.js' %}?v=20261123a" defer></script>
+<script src="{% static 'tasks/js/registro_collegamenti.js' %}?v=20261123a" defer></script>
 {% endblock %}

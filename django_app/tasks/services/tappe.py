@@ -1,13 +1,14 @@
-"""Percorso del kickoff: le attività base che ogni commessa deve avere a posto.
+"""Percorso del kickoff: l'indice delle attività base che ogni commessa deve avere a posto.
 
-Arrivo materiali, programma CAM, programma CMM, macchina, terzista, processi
-speciali e FAI. Ogni tappa è un tipo attività (``TaskCategory.tappa``): assegnarla
-crea un'attività normale (Gantt, «Le mie attività KICK-OFF», mail), quindi non c'è un secondo
-registro da tenere allineato. Una tappa che non serve si segna in
-``Project.tappe_escluse``.
+Arrivo materiali, programma CAM, programma CMM, macchina, attrezzatura, utensili,
+terzista, processi speciali e FAI. Ogni tappa è un tipo attività
+(``TaskCategory.tappa``): assegnarla crea un'attività normale (Gantt, «Le mie
+attività KICK-OFF», mail), quindi non c'è un secondo registro da tenere allineato.
+Una tappa che non serve si segna in ``Project.tappe_escluse``.
 
-Per la macchina il percorso legge quello che il portale sa già: abilitati dalla
-skill matrix, loro assenze nel periodo, manutenzioni e verifiche dell'asset.
+Il Percorso non ha campi propri: macchina, attrezzatura, utensili, programmi e
+FAI sono collegamenti dell'attività (``services/collegamenti.py``). Qui si
+leggono soltanto, e lo stato della tappa dice quali mancano.
 """
 from __future__ import annotations
 
@@ -29,8 +30,8 @@ AIUTO = {
     TappaKickoff.CAM: "Chi scrive il programma CAM e per quando.",
     TappaKickoff.CMM: "Chi scrive il programma di misura e per quando.",
     TappaKickoff.MACCHINA: "Su quale macchina gira: il portale controlla abilitati, assenze e manutenzione.",
-    TappaKickoff.ATTREZZATURA: "Attrezzature del P/N: collega quelle che ci sono o chiedine una nuova.",
-    TappaKickoff.UTENSILI: "Utensili che servono: disponibili a magazzino o da ordinare, entro quando.",
+    TappaKickoff.ATTREZZATURA: "I codici delle attrezzature che servono.",
+    TappaKickoff.UTENSILI: "I codici degli utensili che servono.",
     TappaKickoff.TERZISTA: "Lavorazione esterna: fornitore e data di rientro.",
     TappaKickoff.PROCESSI: "Processo speciale qualificato: quale e per quando.",
     TappaKickoff.FAI: "Chi esegue il FAI e per quando.",
@@ -146,8 +147,8 @@ def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, e
 
 # --- Lettura ----------------------------------------------------------------
 
-def _stato_tappa(attivita: list, esclusa: bool) -> tuple[str, str, str]:
-    """(codice, etichetta, classe chip)."""
+def _stato_tappa(attivita: list, esclusa: bool, mancanti: list[str] | None = None) -> tuple[str, str, str]:
+    """(codice, etichetta, classe chip). ``mancanti``: collegamenti attesi dalle attività aperte e non ancora fatti."""
     if esclusa:
         return "esclusa", "Non serve", ""
     if not attivita:
@@ -158,6 +159,10 @@ def _stato_tappa(attivita: list, esclusa: bool) -> tuple[str, str, str]:
         return "fatta", "Fatto", ""
     if any(t.due_date and t.due_date < oggi for t in aperte):
         return "ritardo", "In ritardo", "danger"
+    if mancanti:
+        from .collegamenti import manca_testo
+
+        return "manca", manca_testo(mancanti), "warn"
     if any(t.status == TaskStatus.IN_PROGRESS for t in aperte):
         return "corso", "In corso", "info"
     return "fare", "Da fare", "ok"
@@ -183,25 +188,23 @@ def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
         baseline = project.gantt_baseline
     except Exception:
         baseline = None
+    # I collegamenti di tutte le attività del Percorso, letti una volta sola.
+    from . import collegamenti as col
+
+    tutte = [t for elenco in attivita.values() for t in elenco]
+    per_attivita = col.collegamenti_per_attivita(tutte, incontri=False)
     righe = []
     for key, label in TappaKickoff.choices:
         tipo = tipi.get(key)
         if tipo is None:
             continue
         elenco = attivita.get(key, [])
-        stato, stato_label, chip = _stato_tappa(elenco, key in escluse)
-        extra = {}
-        if key == TappaKickoff.ATTREZZATURA:
-            extra["attrezzature"] = attrezzature_commessa(project)
-        elif key == TappaKickoff.UTENSILI:
-            utensili = list(project.utensili.select_related("utensile"))
-            mancano = sum(1 for u in utensili if not u.pronto)
-            extra.update(utensili=utensili, utensili_mancano=mancano)
-            # Utensili tutti pronti e nessuna attività aperta: la tappa è a posto.
-            if utensili and not mancano and stato in ("vuota", "fatta"):
-                stato, stato_label, chip = "fatta", "Fatto", ""
-            elif mancano and stato == "vuota":
-                stato_label = f"{mancano} da ordinare"
+        mancanti: list[str] = []
+        for t in elenco:
+            for m in col.manca(t, per_attivita[t.pk]):
+                if m not in mancanti:
+                    mancanti.append(m)
+        stato, stato_label, chip = _stato_tappa(elenco, key in escluse, mancanti)
         voci = []
         for t in elenco:
             # Il nome del tipo è già il titolo della riga: si mostra solo quello che aggiunge.
@@ -211,16 +214,8 @@ def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
             voce["delta_piano"] = baseline.get_task_delta_days(t)["end"] if baseline is not None else None
             if key in CAMPO_TESTO:
                 voce["dettaglio"] = str((t.extra_data or {}).get(CAMPO_TESTO[key]) or "")
-            elif key in (TappaKickoff.CAM, TappaKickoff.CMM, TappaKickoff.FAI):
-                ref = getattr(t, "tech_ref", None)
-                if ref is not None and ref.is_programma:
-                    # «O1234 rev. B · Validato · CNC-901»: il programma si legge nella riga della tappa.
-                    pezzi = [ref.etichetta_breve if ref.code else "", ref.get_fase_display(), ref.macchina.asset_tag if ref.macchina_id else ""]
-                    voce["dettaglio"] = " · ".join(p for p in pezzi if p)
-                else:
-                    voce["dettaglio"] = ref.code if ref is not None else ""
-            elif key == TappaKickoff.MACCHINA:
-                voce["macchina"] = dettaglio_macchina(t, con_nomi=con_nomi)
+            voce["collegamenti"] = per_attivita[t.pk]
+            voce["manca"] = col.manca(t, per_attivita[t.pk])
             voci.append(voce)
         entro_proposto = None
         if project.data_consegna and project.modello_id:
@@ -235,7 +230,9 @@ def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
             "stato": stato, "stato_label": stato_label, "chip": chip,
             "puo_aggiungere": key not in escluse and (not elenco or key in MULTIPLE),
             "puo_escludere": not elenco and key not in escluse,
-            **extra,
+            # Sotto la tappa si leggono i collegamenti delle sue attività.
+            "collegamenti": [c for v in voci for c in v["collegamenti"]],
+            "manca": mancanti,
         })
     a_posto = sum(1 for r in righe if r["stato"] in ("fatta", "esclusa"))
     assegnate = sum(1 for r in righe if r["stato"] != "vuota")
@@ -281,12 +278,6 @@ def assegna(
     tipo = tipi_per_tappa().get(key)
     if tipo is None:
         raise TappaNonValida("Tappa non configurata: controlla i tipi attività in Impostazioni.")
-    if key == TappaKickoff.MACCHINA and asset is None:
-        raise TappaNonValida("Scegli la macchina.")
-    if key == TappaKickoff.ATTREZZATURA and not attrezzatura:
-        raise TappaNonValida("Scegli l'attrezzatura o «Nuova da chiedere».")
-    if key in CAMPO_TESTO and not testo:
-        raise TappaNonValida("Scegli il fornitore." if key == TappaKickoff.TERZISTA else "Scegli il processo.")
     if key not in MULTIPLE and Task.objects.filter(project=project, category=tipo).exclude(status=TaskStatus.CANCELED).exists():
         raise TappaNonValida("Questa tappa ha già la sua attività.")
     if start_date and due_date and due_date < start_date:
@@ -303,7 +294,7 @@ def assegna(
     extra = {}
     if asset is not None:
         extra[CAMPO_MACCHINA] = asset.pk
-    if key in CAMPO_TESTO:
+    if key in CAMPO_TESTO and testo:
         extra[CAMPO_TESTO[key]] = testo[:200]
     task = Task.objects.create(
         title=titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
@@ -323,7 +314,7 @@ def assegna(
     if key in _escluse(project):
         project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
         project.save(update_fields=["tappe_escluse"])
-    if key == TappaKickoff.ATTREZZATURA:
+    if key == TappaKickoff.ATTREZZATURA and attrezzatura:
         collega_attrezzatura(task, attrezzatura, user, descrizione=testo)
     notify_task_assignment(task, actor=user)
     dopo_assegnazione(task, outlook=outlook, request=request)
@@ -414,7 +405,12 @@ def agenda_items(project) -> list[dict]:
                 campi.append({"label": "Responsabile", "value": primo.assigned_to.get_full_name() or primo.assigned_to.username})
             if primo.due_date:
                 campi.append({"label": "Entro il", "value": primo.due_date.strftime("%d-%m-%Y")})
-        titolo = f"{r['label']}: da assegnare" if r["stato"] == "vuota" else f"{r['label']}: {r['stato_label'].lower()}"
+        if r["stato"] == "vuota":
+            titolo = f"{r['label']}: da assegnare"
+        elif r["stato"] == "manca":
+            titolo = f"{r['label']}: m{r['stato_label'][1:]}"
+        else:
+            titolo = f"{r['label']}: {r['stato_label'].lower()}"
         voci.append({
             "id": f"tappa-{r['key'].lower()}",
             "titolo": titolo,
