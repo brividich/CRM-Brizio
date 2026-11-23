@@ -112,7 +112,10 @@ _SGI_TEXT_MEMO_MAX = 2000
 
 
 def clear_knowledge_cache() -> None:
-    _KNOWLEDGE_CACHE.update({"loaded_at": 0.0, "signature": (), "index": None, "complete": True})
+    _KNOWLEDGE_CACHE.update({
+        "loaded_at": 0.0, "signature": (), "index": None, "complete": True,
+        "file_mtime": None, "file_firma": "",
+    })
     _SGI_TEXT_MEMO.clear()
 
 
@@ -1689,6 +1692,14 @@ def _load_knowledge_index() -> KnowledgeIndex:
 
     files = _iter_knowledge_files()
     signature = _knowledge_signature(files)
+    from . import indice_file
+
+    if indice_file.attivo():
+        dal_file = _index_from_file(signature)
+        if dal_file is not None:
+            return dal_file
+        # Nessun file ancora (primo avvio): ricostruzione chiesta al cluster, intanto
+        # vale il comportamento precedente.
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
     cached = _KNOWLEDGE_CACHE.get("index")
@@ -1724,6 +1735,73 @@ def _load_knowledge_index() -> KnowledgeIndex:
     return index
 
 
+def _index_from_file(signature: tuple) -> KnowledgeIndex | None:
+    """Indice costruito dal cluster e salvato su file (vedi :mod:`ai_assistant.indice_file`).
+
+    Si rilegge solo quando il file cambia. Con documenti cambiati (firma diversa) si
+    risponde con l'indice del file e si chiede una ricostruzione alla coda: il
+    processo web non costruisce più l'indice. None se il file manca o non è valido.
+    """
+    from . import indice_file
+
+    impronta = indice_file.impronta_firma(signature)
+    mtime = indice_file.mtime()
+    if mtime is None:
+        indice_file.richiedi_ricostruzione()
+        return None
+    cached = _KNOWLEDGE_CACHE.get("index")
+    if isinstance(cached, KnowledgeIndex) and _KNOWLEDGE_CACHE.get("file_mtime") == mtime:
+        if _KNOWLEDGE_CACHE.get("file_firma") != impronta:
+            indice_file.richiedi_ricostruzione()
+        return cached
+    with _KNOWLEDGE_BUILD_LOCK:
+        cached = _KNOWLEDGE_CACHE.get("index")
+        if isinstance(cached, KnowledgeIndex) and _KNOWLEDGE_CACHE.get("file_mtime") == mtime:
+            return cached  # caricato da un'altra richiesta mentre aspettavamo
+        letto = indice_file.carica()
+        if letto is None or not isinstance(letto[1], KnowledgeIndex):
+            indice_file.richiedi_ricostruzione()
+            return None
+        firma, index = letto
+        _KNOWLEDGE_CACHE.update({
+            "loaded_at": time.monotonic(),
+            "signature": signature if firma == impronta else (),
+            "index": index,
+            "complete": True,
+            "file_mtime": mtime,
+            "file_firma": firma,
+        })
+    if firma != impronta:
+        indice_file.richiedi_ricostruzione()
+    return index
+
+
+def build_and_save_knowledge_index(*, force: bool = False) -> dict[str, Any]:
+    """Costruisce l'indice completo e lo salva su file. Da chiamare dal cluster django-q.
+
+    Senza ``force`` non fa niente se il file corrisponde già ai documenti attuali.
+    """
+    from . import indice_file
+
+    started = time.monotonic()
+    files = _iter_knowledge_files()
+    signature = _knowledge_signature(files)
+    impronta = indice_file.impronta_firma(signature)
+    if not force and indice_file.mtime() is not None and indice_file.firma_su_file() == impronta:
+        return {"ok": True, "skipped": True, "message": "Indice su file già aggiornato."}
+    with _KNOWLEDGE_BUILD_LOCK:
+        index = _build_knowledge_index(files, signature, max_compute=None)
+    destinazione = indice_file.salva(index, signature)
+    return {
+        "ok": True,
+        "skipped": False,
+        "chunks": len(index.chunks),
+        "embeddings": index.embeddings is not None,
+        "bytes": destinazione.stat().st_size,
+        "elapsed_ms": int((time.monotonic() - started) * 1000),
+    }
+
+
 def _knowledge_signature(files: list[Path]) -> tuple:
     return (
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
@@ -1739,7 +1817,15 @@ def _background_rebuild_enabled() -> bool:
 
 
 def _start_background_rebuild() -> bool:
-    """Avvia (una sola alla volta) la ricostruzione dell'indice in un thread, senza aspettare la build."""
+    """Avvia (una sola alla volta) la ricostruzione dell'indice in un thread, senza aspettare la build.
+
+    Con l'indice su file la ricostruzione va al cluster django-q, mai in un thread del
+    processo web (col GIL rallenterebbe ogni altra pagina del processo).
+    """
+    from . import indice_file
+
+    if indice_file.attivo():
+        return indice_file.richiedi_ricostruzione()
     with _KNOWLEDGE_REBUILD_FLAG_LOCK:
         if _KNOWLEDGE_CACHE.get("rebuilding"):
             return False
@@ -2848,8 +2934,17 @@ def index_sgi_documents() -> dict[str, Any]:
         # Build completa e sincrona (embeddings mancanti calcolati qui, senza il tetto
         # della chat): il comando/task deve finire con l'indice pronto.
         files = _iter_knowledge_files()
+        signature = _knowledge_signature(files)
         with _KNOWLEDGE_BUILD_LOCK:
-            index = _build_knowledge_index(files, _knowledge_signature(files), max_compute=None)
+            index = _build_knowledge_index(files, signature, max_compute=None)
+        from . import indice_file
+
+        if indice_file.attivo():
+            # Il portale legge questo file invece di ricostruire l'indice da sé.
+            try:
+                indice_file.salva(index, signature)
+            except OSError:
+                logger.exception("index_sgi_documents: indice RAG non salvato su file")
         total = len(index.chunks)
         spec = sum(1 for c in index.chunks if c.source.startswith("spec:"))
         proc = sum(1 for c in index.chunks if c.source.startswith("proc:"))

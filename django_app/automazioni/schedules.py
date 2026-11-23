@@ -410,6 +410,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 900}},
     },
     {
+        # Indice RAG costruito qui e salvato su file: il portale lo legge pronto invece
+        # di costruirlo in ogni processo web. Esce subito se i documenti non sono
+        # cambiati; il portale lo accoda anche da sé quando li vede cambiati.
+        "name": "ai_indice_rag_file",
+        "func": "ai_assistant.tasks.run_ricostruisci_indice_rag",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 900}},
+    },
+    {
         # Storico chat dell'assistente AI: cancella le conversazioni ferme da più di
         # AI_CHAT_HISTORY_RETENTION_DAYS (default 90). Fail-safe.
         "name": "ai_pulisci_conversazioni",

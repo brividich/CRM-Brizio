@@ -45,6 +45,7 @@ SECURITY_SETTINGS_CACHE_SECONDS = 0
 # Assistente AI: niente thread in background nei test (indice ricostruito in modo
 # sincrono, nessun preriscaldamento verso Ollama all'apertura della pagina).
 OLLAMA_RAG_BACKGROUND_REBUILD = False
+OLLAMA_RAG_INDEX_FILE_ENABLED = False
 AI_PREWARM_ON_PAGE_OPEN = False
 HOME_KPI_CACHE_SECONDS = 0
 PASSWORD_HASHERS = [
