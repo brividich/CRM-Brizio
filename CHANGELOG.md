@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 5: calendario unico da Assenze
+
+- **Un solo calendario lavorativo (K1):** festività nazionali, patrono, sabato lavorativo e chiusure aziendali si impostano in Assenze (Impostazioni HR) e valgono per tempi delle anomalie, Gantt delle attività, date del MOD.133, scadenzario e capacità dei carichi macchina. Prima anomalie, attività e specifiche ignoravano patrono e chiusure, carichi macchina e RENTRI anche le feste. File: `core/calendario_it.py` (nuovo calcolo unico, cache di un minuto svuotata al salvataggio), `assenze/hr.py`, `assenze/apps.py`, `scadenzario/calendario.py`, `gestione_specifiche/date_utils.py`, `anomalie/tempi_service.py`, `config/settings/test.py`.
+- **San Francesco (4 ottobre, festa nazionale dal 2026):** ora conta in tutti i moduli, non solo in Assenze.
+- **Termine RENTRI (K2):** i 10 giorni lavorativi per l'annotazione escludono festività nazionali e patrono; le chiusure aziendali non spostano il termine di legge. File: `rentri/verifica.py`.
+- **Carichi macchina (K3):** capacità e stime di fine lavoro senza festività e chiusure; colonne del Gantt invariate (lun-ven). File: `gestione_carichi_macchina/saturazione.py`, `previsioni.py`.
+- **Scadenzario:** il patrono in `scadenzario_patrono` resta valido solo se in Assenze è vuoto; le chiusure compaiono nel calendario come «Chiusura: …».
+- Guide: Centro guide Assenze, Scadenzario, RENTRI, Carichi macchina; `docs/moduli/assenze.md`, `rentri.md`, `scadenzario.md`, `gestione_carichi_macchina.md`. Test `core/tests_calendario_unico.py`. Nessuna migrazione.
+
 ### Audit 22/11, ondata 4: SOC
 
 - **Passaggi di stato degli alert (C1):** ogni azione rilegge l'alert sotto blocco e si applica solo dagli stati ammessi; un alert chiuso torna in lavorazione solo con «Riapri». Due operatori insieme: il secondo vede «L'alert è già chiuso: azione non applicata» e il registro non si sdoppia; nelle azioni massive, nei gruppi e nelle proposte AI l'alert già cambiato viene saltato. File: `security/services/alert_lifecycle.py`, `security/views.py`, `views_cases.py`, `services/alert_gruppi.py`, `services/ai_proposte.py`.

@@ -329,10 +329,12 @@ def costruisci_indice_stato() -> dict[int, str]:
 # --- Fase 3: rischio ritardo commessa --------------------------------------
 def _fine_lavorativa(inizio: date, durata_gg: int) -> date:
     """Data di fine contando `durata_gg` giorni lavorativi a partire da inizio (inclusivo)."""
+    from core.calendario_it import is_lavorativo
+
     giorni: list[date] = []
     d = inizio
     while len(giorni) < max(1, durata_gg):
-        if d.weekday() < 5:
+        if is_lavorativo(d):
             giorni.append(d)
         d += timedelta(days=1)
     return giorni[-1]
@@ -342,12 +344,15 @@ def _gg_lavorativi_tra(a: date, b: date) -> int:
     """Giorni lavorativi tra a e b (esclusa a, inclusa b), con segno (negativo se b<a)."""
     if a == b:
         return 0
+    from core.calendario_it import festivi_tra, is_lavorativo
+
     lo, hi = (a, b) if a < b else (b, a)
+    festivi = festivi_tra(lo, hi)
     cnt = 0
     d = lo
     while d < hi:
         d += timedelta(days=1)
-        if d.weekday() < 5:
+        if is_lavorativo(d, festivi):
             cnt += 1
     return cnt if a < b else -cnt
 

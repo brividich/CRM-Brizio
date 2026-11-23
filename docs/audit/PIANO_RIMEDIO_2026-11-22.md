@@ -82,6 +82,8 @@ C2 cambia il voto di postura (sale un poco dove ci sono avvisi «attenzione»): 
 
 ### Ondata 5 — Calendario unico da Assenze · `feature/calendario-unico` · nessuna migrazione prevista
 
+**Stato 23/11: fatta.** Patrono dello Scadenzario non tolto: resta come ripiego se in Assenze è vuoto, così non serve scegliere. Carichi macchina: solo capacità e stime; le colonne del Gantt restano lun-ven.
+
 1. **Fonte unica:** il calcolo canonico resta in `core/calendario_it.py` (core non deve dipendere da un'app), ma legge da Assenze, con import ritardato e ripiego sui soli festivi nazionali se la lettura fallisce: festivi nazionali (compreso **San Francesco, 4 ottobre, dal 2026**, oggi assente in `core/calendario_it`), patrono e sabato lavorativo dalle impostazioni Assenze, `ChiusuraAziendale`. Due funzioni: `giorni_lavorativi(..., chiusure=True)` per l'operatività e `chiusure=False` per i termini di legge. `assenze/hr.festivita` diventa un adattatore sullo stesso calcolo.
 2. **Moduli da portare sul calcolo unico:** anomalie (`tempi_service.py:82`), attività (`tasks/services/calendar_it.py`), specifiche (`gestione_specifiche/date_utils.py`), scadenzario (`scadenzario/calendario.py`: il patrono in `SiteConfig «scadenzario_patrono»` va confrontato con quello di Assenze; se diversi ti chiedo quale tenere prima di togliere la chiave), carichi macchina (`saturazione.py:15` e gli altri otto punti, K3), RENTRI (`rentri/verifica.py:52-62`, K2, senza chiusure).
 3. **Test:** stesso giorno lavorativo in tutti i moduli per Pasqua, 4 ottobre 2027 (lunedì), patrono, una chiusura aziendale; RENTRI con un festivo nel mezzo non segnala ritardo e con una chiusura sì.

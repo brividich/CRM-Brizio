@@ -11,3 +11,5 @@ Area **Operations** · URL `/carichi-macchina/` · codice [`django_app/gestione_
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 La saturazione del Gantt si calcola dal vivo (`saturazione_finestra(..., usa_cache=False)`): gli spostamenti usano `update()` senza segnali e la cache di 10 minuti restava vecchia.
+
+**Capacità con il calendario unico (audit K3, 23/11/2026):** `saturazione.working_days` e le stime di `previsioni.py` contano i giorni lavorativi di `core.calendario_it` (festività, patrono, chiusure). Le colonne del Gantt e gli spostamenti restano lun-ven, così una pianificazione già messa su un festivo resta visibile.

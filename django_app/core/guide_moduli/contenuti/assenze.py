@@ -288,7 +288,9 @@ GUIDA = {
                                                "Anagrafica («Carica i cedolini»): qui non si inseriscono a mano."),
                     ("Calendario aziendale", "festività nazionali calcolate dal portale (Pasqua compresa, San Francesco il 4 ottobre "
                                              "dal 2026), il patrono e le chiusure aziendali. Una chiusura vale per tutta l'azienda; "
-                                             "con «Scala dalle ferie» i suoi giorni lavorativi si tolgono dal saldo ferie di ognuno."),
+                                             "con «Scala dalle ferie» i suoi giorni lavorativi si tolgono dal saldo ferie di ognuno. "
+                                             "Questo calendario vale per tutto il portale: tempi delle anomalie, attività, specifiche, "
+                                             "scadenzario, capacità dei carichi macchina; i termini RENTRI usano festività e patrono ma non le chiusure."),
                     ("Contatori", "un limite su una «Motivazione richiesta» (ore o giorni, al mese o all'anno). "
                                   "«Aggiungi i contatori consigliati» crea Assemblea sindacale (10 ore all'anno) e Permessi "
                                   "Legge 104 (3 giorni al mese): controlla che la motivazione sia scritta come nelle richieste."),

@@ -9,72 +9,36 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 from urllib.parse import parse_qsl, urlencode
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Festività italiane (+ patrono da SiteConfig «scadenzario_patrono» = "MM-GG Nome")
+# Festività e chiusure: dal calendario unico del portale (impostazioni di Assenze).
+# «scadenzario_patrono» resta letto solo se in Assenze il patrono non c'e'.
 # ---------------------------------------------------------------------------
 
-_FESTE_FISSE = (
-    (1, 1, "Capodanno"), (1, 6, "Epifania"), (4, 25, "Liberazione"), (5, 1, "Festa del lavoro"),
-    (6, 2, "Festa della Repubblica"), (8, 15, "Ferragosto"), (11, 1, "Ognissanti"),
-    (12, 8, "Immacolata"), (12, 25, "Natale"), (12, 26, "Santo Stefano"),
-)
 CHIAVE_PATRONO = "scadenzario_patrono"
 
 
 def pasqua(anno: int) -> date:
-    """Domenica di Pasqua (calendario gregoriano, algoritmo di Meeus/Butcher)."""
-    a, b, c = anno % 19, anno // 100, anno % 100
-    d, e = b // 4, b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i, k = c // 4, c % 4
-    m = (32 + 2 * e + 2 * i - h - k) % 7
-    n = (a + 11 * h + 22 * m) // 451
-    mese = (h + m - 7 * n + 114) // 31
-    giorno = (h + m - 7 * n + 114) % 31 + 1
-    return date(anno, mese, giorno)
+    from core.calendario_it import pasqua as _pasqua
 
-
-def _patrono() -> tuple[int, int, str] | None:
-    try:
-        from core.models import SiteConfig
-
-        valore = (SiteConfig.get(CHIAVE_PATRONO, "") or "").strip()
-    except Exception:
-        return None
-    if not valore:
-        return None
-    data, _, nome = valore.partition(" ")
-    try:
-        mese, giorno = (int(x) for x in data.split("-", 1))
-        date(2024, mese, giorno)  # anno bisestile: valida anche il 29 febbraio
-    except (ValueError, TypeError):
-        logger.warning("scadenzario: %s non valido (atteso «MM-GG Nome»)", CHIAVE_PATRONO)
-        return None
-    return mese, giorno, nome.strip() or "Santo patrono"
+    return _pasqua(anno)
 
 
 def festivi(anni) -> dict[date, str]:
-    """Giorni festivi degli anni indicati: data → nome."""
-    patrono = _patrono()
+    """Giorni non lavorativi degli anni indicati: data → nome (festivi, patrono, chiusure aziendali)."""
+    from core.calendario_it import chiusure_tra, festivita_aziendali
+
     esito: dict[date, str] = {}
-    for anno in sorted(set(anni)):
-        for mese, giorno, nome in _FESTE_FISSE:
-            esito[date(anno, mese, giorno)] = nome
-        p = pasqua(anno)
-        esito.setdefault(p, "Pasqua")
-        esito.setdefault(p + timedelta(days=1), "Lunedì dell'Angelo")
-        if patrono:
-            try:
-                esito.setdefault(date(anno, patrono[0], patrono[1]), patrono[2])
-            except ValueError:  # 29 febbraio negli anni non bisestili
-                pass
+    anni = sorted(set(anni))
+    for anno in anni:
+        esito.update(festivita_aziendali(anno))
+    if anni:
+        for giorno, nome in chiusure_tra(date(anni[0], 1, 1), date(anni[-1], 12, 31)).items():
+            esito.setdefault(giorno, f"Chiusura: {nome}")
     return esito
 
 

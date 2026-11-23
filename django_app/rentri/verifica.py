@@ -50,14 +50,20 @@ def _riga(r, dettaglio: str) -> dict:
 
 
 def _giorni_lavorativi(da: date, a: date) -> int:
-    """Giorni lavorativi (lun-ven) dopo `da` fino ad `a` compreso."""
+    """Giorni lavorativi dopo `da` fino ad `a` compreso: lun-ven senza festivi nazionali e patrono.
+
+    Termine di legge (audit K2): le chiusure aziendali e il sabato lavorativo non lo spostano.
+    """
+    from core.calendario_it import festivi_tra
+
     if a <= da:
         return 0
+    festivi = festivi_tra(da, a, chiusure=False)
     giorni = 0
     giorno = da
     while giorno < a:
         giorno += timedelta(days=1)
-        if giorno.weekday() < 5:
+        if giorno.weekday() < 5 and giorno not in festivi:
             giorni += 1
     return giorni
 

@@ -13,7 +13,13 @@ from datetime import date
 
 
 def working_days(giorni: list[date]) -> int:
-    return sum(1 for g in giorni if g.weekday() < 5)
+    """Giorni di capacita' della macchina: calendario unico (festivi, patrono, chiusure; audit K3)."""
+    if not giorni:
+        return 0
+    from core.calendario_it import festivi_tra, is_lavorativo
+
+    festivi = festivi_tra(min(giorni), max(giorni))
+    return sum(1 for g in giorni if is_lavorativo(g, festivi))
 
 
 def calcola_saturazione(macchine, pians, giorni: list[date]) -> dict:

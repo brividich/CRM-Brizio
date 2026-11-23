@@ -56,25 +56,14 @@ def pasqua(anno: int) -> date:
 
 
 def festivita(anno: int, imp=None) -> dict[date, str]:
-    """Festività nazionali italiane dell'anno, più il patrono se impostato."""
-    out = {
-        date(anno, 1, 1): "Capodanno",
-        date(anno, 1, 6): "Epifania",
-        date(anno, 4, 25): "Festa della Liberazione",
-        date(anno, 5, 1): "Festa del Lavoro",
-        date(anno, 6, 2): "Festa della Repubblica",
-        date(anno, 8, 15): "Ferragosto",
-        date(anno, 11, 1): "Ognissanti",
-        date(anno, 12, 8): "Immacolata Concezione",
-        date(anno, 12, 25): "Natale",
-        date(anno, 12, 26): "Santo Stefano",
-    }
-    p = pasqua(anno)
-    out[p] = "Pasqua"
-    out[p + timedelta(days=1)] = "Lunedì dell'Angelo"
-    if anno >= 2026:
-        # Legge 151/2025: San Francesco d'Assisi torna festa nazionale dal 2026.
-        out[date(anno, 10, 4)] = "San Francesco d'Assisi"
+    """Festività nazionali italiane dell'anno, più il patrono se impostato.
+
+    I festivi nazionali vengono dal calendario unico del portale (``core.calendario_it``),
+    lo stesso che usano gli altri moduli.
+    """
+    from core.calendario_it import festivita_nazionali
+
+    out = festivita_nazionali(anno)
     if imp is not None and imp.patrono_giorno and imp.patrono_mese:
         try:
             out.setdefault(
