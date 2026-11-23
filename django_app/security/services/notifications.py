@@ -38,14 +38,7 @@ from core.email_utils import invia_con_regole_flusso
 
 logger = logging.getLogger(__name__)
 
-SEVERITY_ORDER = {
-    Severity.INFO: 0,
-    Severity.LOW: 1,
-    Severity.MEDIUM: 2,
-    Severity.WARNING: 3,
-    Severity.HIGH: 4,
-    Severity.CRITICAL: 5,
-}
+from security.services.gravita import RANGO_GRAVITA as SEVERITY_ORDER  # noqa: E402 - scala unica (audit C2)
 
 EVENT_ALERT_CREATED = "alert_created"
 EVENT_TICKET_CREATED = "ticket_created"

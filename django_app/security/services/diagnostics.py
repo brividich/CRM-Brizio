@@ -34,14 +34,7 @@ from security.services.configuration import get_bool_setting
 
 
 VALID_OPERATORS = {choice[0] for choice in SecurityAlertRuleConfig.OPERATOR_CHOICES}
-SEVERITY_ORDER = {
-    Severity.INFO: 0,
-    Severity.LOW: 1,
-    Severity.MEDIUM: 2,
-    Severity.WARNING: 3,
-    Severity.HIGH: 4,
-    Severity.CRITICAL: 5,
-}
+from security.services.gravita import RANGO_GRAVITA as SEVERITY_ORDER  # noqa: E402 - scala unica (audit C2)
 
 
 def run_security_center_diagnostics():

@@ -34,8 +34,9 @@ def overview_for_hub_asset(asset):
     ordered_alerts = alerts.annotate(priority=Case(
         When(severity=Severity.CRITICAL, then=Value(0)),
         When(severity=Severity.HIGH, then=Value(1)),
-        When(severity=Severity.MEDIUM, then=Value(2)),
-        When(severity=Severity.WARNING, then=Value(3)),
+        # Scala unica (security.services.gravita): «attenzione» sopra «media».
+        When(severity=Severity.WARNING, then=Value(2)),
+        When(severity=Severity.MEDIUM, then=Value(3)),
         default=Value(4), output_field=IntegerField(),
     )).select_related("source").order_by("priority", "-created_at", "-id")
     # Vulnerabilita' ancora aperte sui dispositivi collegati: le piu' gravi in alto.

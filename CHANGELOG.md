@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 4: SOC
+
+- **Passaggi di stato degli alert (C1):** ogni azione rilegge l'alert sotto blocco e si applica solo dagli stati ammessi; un alert chiuso torna in lavorazione solo con «Riapri». Due operatori insieme: il secondo vede «L'alert è già chiuso: azione non applicata» e il registro non si sdoppia; nelle azioni massive, nei gruppi e nelle proposte AI l'alert già cambiato viene saltato. File: `security/services/alert_lifecycle.py`, `security/views.py`, `views_cases.py`, `services/alert_gruppi.py`, `services/ai_proposte.py`.
+- **Una sola scala di gravità (C2):** critica > alta > attenzione > media > bassa > info in tutto il SOC (`security/services/gravita.py`). Cambiano solo l'ordinamento degli avvisi, i gruppi e la scheda asset, che mettevano «attenzione» sotto «media»; notifiche, postura, ticket e report erano già così. File: `rule_engine.py`, `alert_gruppi.py`, `asset_overview.py`, `notifications.py`, `diagnostics.py`.
+- **Permessi delle pagine SOC (S8):** nuovo test che apre tutte le rotte del SOC con un utente senza permesso e pretende il rifiuto (oggi nessuna pagina scoperta), con un controllo che l'amministratore le apra. File: `security/tests/test_rotte_negate.py`.
+- Guida SOC `security/guide/07_ALERT_LIFECYCLE.md` («Passaggi ammessi», «Gravità»); `docs/moduli/security.md`. Test `security/tests/test_stati_e_gravita.py`, adeguato `test_learned_suppression.py`. Nessuna migrazione.
+
 ### Ticket: allegati e screenshot nella risoluzione
 
 - **«Risolvi» con allegati:** nel pannello, sotto «Cosa è stato fatto», l'area «Allegati e screenshot» della card allegati (trascina, sfoglia, miniature, ×), max 10 file, facoltativi. Ctrl+V incolla uno screenshot (nome `screenshot-AAAAMMGG-hhmmss.png`). «Segna risolto» manda file e risoluzione in un'unica richiesta: file controllati prima e salvati nella stessa transazione dell'intervento; se uno è rifiutato il ticket resta aperto. Allegati già validati, tipo dal MIME (immagine = Foto, PDF = Rapportino), nota «Allegato alla risoluzione». La mail «Risolto: confermi?» aggiunge «Nel ticket trovi N allegati della risoluzione». Nessuna migrazione, serve collectstatic.

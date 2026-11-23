@@ -1130,7 +1130,9 @@ def _active_alert(source, dedup_hash):
 
 
 def _rango(severity):
-    return {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.WARNING: 1, Severity.LOW: 0}.get(severity, 1)
+    from security.services.gravita import rango
+
+    return rango(severity, default=1)
 
 
 def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace, aggiorna_titolo=False):

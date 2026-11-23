@@ -364,11 +364,14 @@ def blocco_auto(alert, proposta):
 
 
 def _chiudi(alert, esito, actor, reason, user=None):
-    from security.services.alert_lifecycle import close_alert, mark_false_positive
+    from security.services.alert_lifecycle import TransizioneNonAmmessa, close_alert, mark_false_positive
 
-    if esito == "false_positive":
-        return mark_false_positive(alert, actor=actor, reason=reason, user=user)
-    return close_alert(alert, actor=actor, reason=reason, outcome=esito, user=user)
+    try:
+        if esito == "false_positive":
+            return mark_false_positive(alert, actor=actor, reason=reason, user=user)
+        return close_alert(alert, actor=actor, reason=reason, outcome=esito, user=user)
+    except TransizioneNonAmmessa:
+        return alert  # gia' chiuso nel frattempo: niente doppia chiusura
 
 
 def chiudi_da_sola(proposta_obj, alert):
@@ -584,10 +587,13 @@ def scarta(proposta, user, nota=""):
 
 def riapri(proposta, user, nota=""):
     """«Riapri» una chiusura automatica sbagliata: l'alert torna aperto e quel tipo perde la fiducia."""
-    from security.services.alert_lifecycle import reopen_alert
+    from security.services.alert_lifecycle import TransizioneNonAmmessa, reopen_alert
 
     actor = getattr(user, "username", "") or "ui"
-    reopen_alert(proposta.alert, actor=actor, reason=(nota or "Chiusura dell'AI sbagliata").strip()[:2000], user=user)
+    try:
+        reopen_alert(proposta.alert, actor=actor, reason=(nota or "Chiusura dell'AI sbagliata").strip()[:2000], user=user)
+    except TransizioneNonAmmessa:
+        pass  # gia' riaperto da qualcun altro
     proposta.refresh_from_db()
     return proposta
 
