@@ -232,6 +232,8 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             # S/N del blocco senza nessuna anomalia (salvati con conferma dell'operatore).
             "seriali_scoperti": scoperti,
             "bloccato": any(a["gestita"] for a in anomalie),
+            # Controllo condiviso: chi ha salvato il blocco (vuoto per i blocchi di prima).
+            "creato_da": blocco.creato_da_display or "",
         })
     return {
         "id": controllo.pk,
@@ -1232,3 +1234,202 @@ def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = N
         except Exception:
             logger.warning("controllo %s: mail promemoria non inviata", controllo.pk, exc_info=True)
     return fatto
+
+
+# ─── Controllo condiviso: più persone sullo stesso controllo ─────────────────
+# Chi può aprire segnalazioni sull'OP si unisce al controllo aperto con «Partecipa»
+# senza toglierlo a chi c'è già: ognuno scrive il suo blocco (bozza propria), i blocchi
+# salvati sono di tutti e compaiono agli altri in pochi secondi. Lo termina chiunque.
+PRESENTE_SECONDI = 45
+SCRIVE_MINUTI = 3
+
+
+def partecipante_di(controllo, user):
+    """Riga del partecipante (None per chi ha aperto il controllo o per chi non c'è)."""
+    if user is None or not getattr(user, "pk", None):
+        return None
+    return controllo.partecipanti.filter(user=user).first()
+
+
+def e_partecipante(controllo, user) -> bool:
+    """Chi ha aperto il controllo o chi ci partecipa."""
+    if user is None or not getattr(user, "pk", None):
+        return False
+    return controllo.operatore_id == user.pk or controllo.partecipanti.filter(user=user).exists()
+
+
+def bozza_di(controllo, user) -> tuple[dict, object]:
+    """Blocco in scrittura della persona: quello del controllo per chi l'ha aperto."""
+    if controllo.operatore_id == getattr(user, "pk", None):
+        return (controllo.bozza if isinstance(controllo.bozza, dict) else {}), controllo.bozza_at
+    riga = partecipante_di(controllo, user)
+    if riga is not None:
+        return (riga.bozza if isinstance(riga.bozza, dict) else {}), riga.bozza_at
+    return {}, None
+
+
+def salva_bozza_di(controllo, user, bozza) -> tuple[bool, object]:
+    """Salva (o svuota) la bozza della persona; ritorna (ok, bozza_at)."""
+    import json
+
+    if controllo.operatore_id == getattr(user, "pk", None):
+        ok = salva_bozza(controllo, bozza)
+        return ok, controllo.bozza_at
+    riga = partecipante_di(controllo, user)
+    if riga is None:
+        return False, None
+    if not isinstance(bozza, dict):
+        bozza = {}
+    if len(json.dumps(bozza, ensure_ascii=False)) > MAX_BOZZA_BYTES:
+        return False, None
+    riga.bozza = bozza
+    riga.bozza_at = timezone.now() if bozza else None
+    riga.save(update_fields=["bozza", "bozza_at"])
+    return True, riga.bozza_at
+
+
+def partecipa(controllo, user, nome: str) -> dict:
+    """Unisce la persona al controllo (lo riapre se terminato con anomalie aperte).
+
+    Non toglie il controllo a nessuno: chi c'era continua a scrivere. Il passaggio resta
+    in ``passaggi`` e chi ha aperto il controllo riceve un avviso nel portale.
+    """
+    from .quality_models import AnomaliaControlloPartecipante
+
+    riapre = controllo.terminato_at is not None
+    passaggio = {"da": controllo.operatore_display or "", "a": nome, "at": timezone.now().isoformat(), "partecipa": True}
+    if riapre:
+        passaggio["riaperto"] = True
+    if controllo.operatore_id != user.pk:
+        AnomaliaControlloPartecipante.objects.get_or_create(
+            controllo=controllo, user=user, defaults={"nome": nome[:200]},
+        )
+    controllo.passaggi = [*(controllo.passaggi if isinstance(controllo.passaggi, list) else []), passaggio]
+    campi = ["passaggi", "updated_at"]
+    if riapre:
+        controllo.terminato_at = None
+        campi.append("terminato_at")
+    controllo.save(update_fields=campi)
+    if controllo.operatore is not None and controllo.operatore_id != user.pk:
+        legacy = _legacy_id_utente(controllo.operatore)
+        if legacy:
+            try:
+                azione = "ha riaperto e si è unito al tuo controllo" if riapre else "si è unito al tuo controllo"
+                _invia_notifica(
+                    legacy_user_id=legacy, tipo=TIPO_NOTIFICA_PROMEMORIA,
+                    messaggio=f"{nome} {azione} su OP {controllo.op_id} (fase {controllo.fase})."[:500],
+                    url_azione=url_controllo(controllo),
+                )
+            except Exception:
+                logger.warning("controllo %s: notifica partecipazione non creata", controllo.pk, exc_info=True)
+    return passaggio
+
+
+def segna_visto(controllo, user) -> None:
+    """La pagina del controllo è aperta: serve a mostrare agli altri chi c'è adesso."""
+    adesso = timezone.now()
+    if controllo.operatore_id == getattr(user, "pk", None):
+        type(controllo).objects.filter(pk=controllo.pk).update(operatore_visto_at=adesso)
+        controllo.operatore_visto_at = adesso
+    else:
+        controllo.partecipanti.filter(user=user).update(visto_at=adesso)
+
+
+def presenze(controllo, user) -> list[dict]:
+    """Chi lavora sul controllo: presente adesso, sta scrivendo un blocco e su quali S/N."""
+    adesso = timezone.now()
+
+    def _riga(nome, user_id, visto, bozza, bozza_at, titolare):
+        bozza = bozza if isinstance(bozza, dict) else {}
+        scrive = bool(bozza_piena(bozza) and bozza_at and adesso - bozza_at <= timedelta(minutes=SCRIVE_MINUTI))
+        return {
+            "nome": nome or "",
+            "mio": user_id == getattr(user, "pk", None),
+            "titolare": titolare,
+            "presente": bool(visto and adesso - visto <= timedelta(seconds=PRESENTE_SECONDI)),
+            "scrive": scrive,
+            "seriali": [str(v) for v in (bozza.get("voci") or []) if str(v).strip()][:20] if scrive else [],
+        }
+
+    out = [_riga(controllo.operatore_display, controllo.operatore_id, controllo.operatore_visto_at,
+                 controllo.bozza, controllo.bozza_at, True)]
+    for p in controllo.partecipanti.all():
+        out.append(_riga(p.nome, p.user_id, p.visto_at, p.bozza, p.bozza_at, False))
+    return out
+
+
+def serializza_per(controllo, user, *, con_allegati: bool = True) -> dict:
+    """Il controllo visto da una persona: la sua bozza e chi altro ci lavora."""
+    dati = serializza_controllo(controllo, con_allegati=con_allegati)
+    bozza, bozza_at = bozza_di(controllo, user)
+    dati["bozza"] = bozza
+    dati["bozza_at"] = bozza_at.isoformat() if bozza_at else ""
+    dati["partecipanti"] = presenze(controllo, user)
+    dati["partecipo"] = e_partecipante(controllo, user)
+    return dati
+
+
+def avvisa_terminato(controllo, user, nome: str) -> None:
+    """Il controllo l'ha terminato uno dei partecipanti: gli altri ricevono l'avviso."""
+    persone = []
+    if controllo.operatore is not None and controllo.operatore_id != user.pk:
+        persone.append(controllo.operatore)
+    persone += [p.user for p in controllo.partecipanti.select_related("user") if p.user_id != user.pk]
+    for persona in persone:
+        legacy = _legacy_id_utente(persona)
+        if not legacy:
+            continue
+        try:
+            _invia_notifica(
+                legacy_user_id=legacy, tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"{nome} ha terminato il controllo su OP {controllo.op_id} (fase {controllo.fase}). "
+                           "Se avevi un blocco non salvato resta in bozza: riapri il controllo per salvarlo.")[:500],
+                url_azione=url_controllo(controllo),
+            )
+        except Exception:
+            logger.warning("controllo %s: avviso di termine non creato", controllo.pk, exc_info=True)
+
+
+def controlli_da_riprendere(request, *, giorni_terminati: int = 7, limite: int = 30) -> list[dict]:
+    """Elenco della pagina «Nuova segnalazione», su tutti gli OP.
+
+    Tutti i controlli non terminati e quelli terminati negli ultimi ``giorni_terminati``
+    giorni con anomalie ancora aperte, di chiunque, purché la persona possa aprire
+    segnalazioni su quell'OP (stessa regola di «Controlli da riprendere su questo OP»).
+    """
+    from django.db.models import Q
+
+    from .quality_models import AnomaliaControllo
+    from .views import _can_create_anomalie_for_op
+
+    soglia = timezone.now() - timedelta(days=giorni_terminati)
+    candidati = list(
+        AnomaliaControllo.objects
+        .filter(Q(terminato_at__isnull=True) | Q(terminato_at__gte=soglia))
+        .select_related("operatore").prefetch_related("partecipanti").order_by("-id")[:200]
+    )
+    aperte = anomalie_aperte_per_controllo([c for c in candidati if c.terminato_at is not None])
+    permesso: dict[str, bool] = {}
+    out = []
+    for c in candidati:
+        if c.terminato_at is not None and not aperte.get(c.pk):
+            continue
+        chiave = str(c.op_id or "").lower()
+        if chiave not in permesso:
+            permesso[chiave] = bool(c.op_nuovo) or _can_create_anomalie_for_op(request, c.op_id)
+        if not permesso[chiave] and not e_partecipante(c, request.user):
+            continue
+        riga = riassunto_sospeso(c, request.user)
+        bozza, _at = bozza_di(c, request.user)
+        riga.update({
+            "terminato": c.terminato_at is not None,
+            "anomalie_aperte": aperte.get(c.pk, 0),
+            "blocchi": c.blocchi.count(),
+            "partecipo": e_partecipante(c, request.user),
+            "persone": [c.operatore_display or ""] + [p.nome for p in c.partecipanti.all()],
+            "mia_bozza": bozza_piena(bozza),
+        })
+        out.append(riga)
+        if len(out) >= limite:
+            break
+    return out

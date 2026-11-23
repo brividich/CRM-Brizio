@@ -278,6 +278,8 @@ class AnomaliaControllo(models.Model):
     # Passaggi di mano fra colleghi del gruppo qualità («Prendi in carico»):
     # [{"da": nome, "a": nome, "at": iso}] — chi ha iniziato resta tracciato.
     passaggi = models.JSONField(default=list, blank=True)
+    # Ultima volta che chi ha aperto il controllo aveva la pagina aperta (controllo condiviso).
+    operatore_visto_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -300,6 +302,8 @@ class AnomaliaBlocco(models.Model):
     seriali = models.JSONField(default=list, blank=True)
     seriale_label = models.CharField(max_length=200, blank=True, default="")
     stato_superficie = models.JSONField(default=list, blank=True)
+    # Chi ha salvato il blocco: nel controllo condiviso i blocchi sono di persone diverse.
+    creato_da_display = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -310,6 +314,36 @@ class AnomaliaBlocco(models.Model):
 
     def __str__(self) -> str:
         return f"Blocco {self.ordine} · {self.seriale_label}"
+
+
+class AnomaliaControlloPartecipante(models.Model):
+    """Persona che lavora su un controllo insieme a chi l'ha aperto («Partecipa»).
+
+    Più persone sullo stesso OP scrivono nello stesso controllo senza toglierlo agli
+    altri: ognuno ha il suo blocco in scrittura (``bozza``), i blocchi salvati sono di
+    tutti. Chi ha aperto il controllo resta ``AnomaliaControllo.operatore`` e usa la
+    bozza del controllo; qui ci sono solo gli altri.
+    """
+
+    controllo = models.ForeignKey(AnomaliaControllo, on_delete=models.CASCADE, related_name="partecipanti")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    nome = models.CharField(max_length=200, blank=True, default="")
+    bozza = models.JSONField(default=dict, blank=True)
+    bozza_at = models.DateTimeField(null=True, blank=True)
+    # Ultima volta che la pagina del controllo era aperta (aggiornamento dal vivo).
+    visto_at = models.DateTimeField(null=True, blank=True)
+    entrato_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["entrato_at", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["controllo", "user"], name="anomalie_controllo_partecipante_unico"),
+        ]
+        verbose_name = "Partecipante al controllo OP"
+        verbose_name_plural = "Partecipanti ai controlli OP"
+
+    def __str__(self) -> str:
+        return f"{self.nome} · controllo {self.controllo_id}"
 
 
 class AnomaliaSegnalazioneMeta(models.Model):

@@ -172,14 +172,17 @@ GUIDA = {
                     "Configurazione → Notifiche → «Orari e soglie».",
                     "Il blocco che il controllore sta scrivendo si salva da solo come bozza e torna con «Riprendi» "
                     "(senza gli allegati).",
-                    "Gruppo qualità: chi ha il ruolo «Controllo qualità» o «Qualità» vede i controlli in sospeso dei "
-                    "colleghi dello stesso gruppo (riquadro in cima ad «Apertura segnalazione», senza limite di giorni) e li "
-                    "prosegue con «Prendi in carico»: il controllo, bozza compresa, passa a lui, il collega riceve un "
-                    "avviso e il passaggio resta nel controllo e nel log. Il gruppo segue i ruoli assegnati in "
-                    "«Ruoli e permessi» (anche da organigramma).",
+                    "Controllo condiviso: in cima ad «Apertura segnalazione» il riquadro «Controlli da riprendere» elenca, "
+                    "su tutti gli OP dove la persona può aprire segnalazioni, i controlli aperti (anche già salvati) e i "
+                    "terminati da meno di 7 giorni con anomalie aperte. Con «Partecipa» più persone lavorano sullo stesso "
+                    "controllo (anche su un OP ancora in creazione): ognuno scrive il suo blocco, i blocchi salvati "
+                    "compaiono a tutti entro pochi secondi, «Insieme a te» mostra chi c'è e chi sta scrivendo. Chi l'ha "
+                    "aperto non lo perde e riceve un avviso; il passaggio resta nel controllo e nel log "
+                    "(anomalie_controllo_partecipa). «Termina controllo» lo preme chiunque: chiude per tutti, gli altri "
+                    "ricevono un avviso, i blocchi non salvati restano in bozza.",
                     "Controllo terminato con anomalie ancora aperte: chi può aprire segnalazioni sull'OP lo ritrova in "
                     "«Controlli da riprendere su questo OP» e con «Riapri» aggiunge i seriali rimasti (es. turno dopo). "
-                    "Il controllo torna in corso e passa a chi lo riapre; chi lo aveva riceve un avviso, la riapertura "
+                    "Il controllo torna in corso e chi lo riapre partecipa; chi l'aveva aperto riceve un avviso, la riapertura "
                     "resta nei passaggi e nel log (anomalie_controllo_riaperto). A «Termina controllo» la mail riporta "
                     "solo le anomalie nuove. Con tutte le anomalie chiuse non si riapre più.",
                     "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia "

@@ -2312,7 +2312,7 @@ const BloccoCongelato = ({
     className: "blk-sn"
   }, b.seriale_label), /*#__PURE__*/React.createElement("div", {
     className: "blk-meta"
-  }, "Fase ", b.fase, " \xB7 ", tokensOf(b.seriali).length, " pezz", tokensOf(b.seriali).length === 1 ? 'o' : 'i', " \xB7 ", b.anomalie.length, " anomali", b.anomalie.length === 1 ? 'a' : 'e', b.stato_superficie.map(s => /*#__PURE__*/React.createElement("span", {
+  }, "Fase ", b.fase, " \xB7 ", tokensOf(b.seriali).length, " pezz", tokensOf(b.seriali).length === 1 ? 'o' : 'i', " \xB7 ", b.anomalie.length, " anomali", b.anomalie.length === 1 ? 'a' : 'e', b.creato_da ? ` · di ${b.creato_da}` : '', b.stato_superficie.map(s => /*#__PURE__*/React.createElement("span", {
     key: s,
     className: "pill pill-sup",
     style: {
@@ -2665,17 +2665,13 @@ const editorCorrenteBlocco = ed => ({
   }))
 });
 
-/* Controlli aperti con qualcosa in sospeso: i propri e, per il gruppo qualità
-   (Controllo qualità / Qualità), quelli dei colleghi. Un controllo lungo iniziato a
-   fine turno lo prosegue il collega dopo con «Prendi in carico». */
+/* «Controlli da riprendere» su tutti gli OP, prima di scegliere l'OP: aperti (anche già
+   salvati) e terminati da meno di 7 giorni con anomalie aperte, di chiunque, sugli OP
+   dove puoi aprire segnalazioni. Controllo condiviso: con «Partecipa» lavorate insieme. */
 const ControlliSospesi = () => {
   const [righe, setRighe] = useState([]);
-  const [gruppo, setGruppo] = useState(false);
   useEffect(() => {
-    getJson(API.controlli_sospesi, 'Controlli in sospeso').then(j => {
-      setRighe(j.controlli || []);
-      setGruppo(!!j.gruppo);
-    }).catch(() => {});
+    getJson(API.controlli_sospesi, 'Controlli da riprendere').then(j => setRighe(j.controlli || [])).catch(() => {});
   }, []);
   if (!righe.length) return null;
   const quando = iso => iso ? new Date(iso).toLocaleString('it-IT', {
@@ -2684,26 +2680,48 @@ const ControlliSospesi = () => {
     hour: '2-digit',
     minute: '2-digit'
   }) : '';
-  const cosa = r => [r.anomalie_in_bozza ? `${r.anomalie_in_bozza} anomali${r.anomalie_in_bozza === 1 ? 'a' : 'e'} scritt${r.anomalie_in_bozza === 1 ? 'a' : 'e'} da salvare` : '', r.blocchi_da_copiare ? `${r.blocchi_da_copiare} blocch${r.blocchi_da_copiare === 1 ? 'o' : 'i'} da copiare` : '', r.da_notificare ? `${r.da_notificare} anomali${r.da_notificare === 1 ? 'a' : 'e'} non ancora comunicat${r.da_notificare === 1 ? 'a' : 'e'}` : ''].filter(Boolean).join(' · ') || 'blocco in scrittura';
+  const plur = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+  const cosa = r => [r.terminato ? `terminato · ${plur(r.anomalie_aperte, 'anomalia aperta', 'anomalie aperte')}` : '', r.blocchi ? plur(r.blocchi, 'blocco salvato', 'blocchi salvati') : 'nessun blocco salvato', r.anomalie_in_bozza ? `${plur(r.anomalie_in_bozza, 'anomalia scritta', 'anomalie scritte')} da salvare` : '', r.blocchi_da_copiare ? plur(r.blocchi_da_copiare, 'blocco da copiare', 'blocchi da copiare') : '', r.da_notificare ? `${plur(r.da_notificare, 'anomalia', 'anomalie')} non ancora comunicat${r.da_notificare === 1 ? 'a' : 'e'}` : ''].filter(Boolean).join(' · ');
+  const etichetta = r => r.terminato ? 'Riapri' : r.partecipo ? 'Riprendi' : 'Partecipa';
   return /*#__PURE__*/React.createElement("div", {
     className: "step-card sospesi-card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "resume-box"
   }, /*#__PURE__*/React.createElement("div", {
     className: "field-label"
-  }, gruppo ? 'Controlli in sospeso del gruppo qualità' : 'I tuoi controlli in sospeso'), gruppo && /*#__PURE__*/React.createElement("div", {
+  }, "Controlli da riprendere"), /*#__PURE__*/React.createElement("div", {
     className: "field-hint"
-  }, "Li vedono tutti i colleghi con ruolo Controllo qualit\xE0 o Qualit\xE0: chi riprende il controllo di un altro lo prende in carico e lo porta a termine."), righe.map(r => /*#__PURE__*/React.createElement("div", {
+  }, "Su tutti gli OP dove puoi aprire segnalazioni. Con \xABPartecipa\xBB lavori insieme a chi c\u2019\xE8 gi\xE0: ognuno scrive il suo blocco di S/N e i blocchi salvati compaiono a tutti."), righe.map(r => /*#__PURE__*/React.createElement("div", {
     key: r.id,
     className: "resume-row"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "OP ", r.op_id), r.op_nuovo ? ' (nuovo, non ancora creato)' : '', " \xB7 fase ", r.fase, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "OP ", r.op_id), r.op_nuovo ? ' (nuovo, in creazione)' : '', " \xB7 fase ", r.fase, /*#__PURE__*/React.createElement("div", {
     className: "sospesi-meta"
   }, /*#__PURE__*/React.createElement("span", {
     className: "sospesi-chi"
-  }, r.mio ? 'Tuo' : r.operatore), " \xB7 ", cosa(r), " \xB7 ultimo aggiornamento ", quando(r.ultimo_at), r.passaggi && r.passaggi.length > 0 && ` · iniziato da ${r.passaggi[0].da}`)), /*#__PURE__*/React.createElement("a", {
+  }, (r.persone || []).filter(Boolean).join(', ') || r.operatore), " \xB7 ", cosa(r), " \xB7 ultimo aggiornamento ", quando(r.ultimo_at), r.mia_bozza ? ' · hai un blocco in scrittura' : '')), /*#__PURE__*/React.createElement("a", {
     className: "btn-outline",
     href: `${window.location.pathname}?controllo=${r.id}`
-  }, r.mio ? 'Riprendi' : 'Apri')))));
+  }, etichetta(r))))));
+};
+
+/* Chi lavora sul controllo condiviso: presente adesso, sta scrivendo un blocco. */
+const Partecipanti = ({
+  lista
+}) => {
+  const persone = (lista || []).filter(p => p.nome || p.mio);
+  if (persone.length < 2) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "ctl-persone",
+    "aria-label": "Chi lavora su questo controllo"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "field-label"
+  }, "Insieme a te"), persone.filter(p => !p.mio).map((p, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    className: `ctl-persona${p.presente ? ' is-on' : ''}`,
+    title: p.scrive && p.seriali.length ? `Sta scrivendo un blocco con: ${p.seriali.join(', ')}` : p.presente ? 'Ha la pagina aperta' : 'Non collegato adesso'
+  }, /*#__PURE__*/React.createElement("i", {
+    "aria-hidden": "true"
+  }), p.nome, p.scrive ? ' · scrive' : '')));
 };
 const Step2Controllo = ({
   op,
@@ -2976,7 +2994,7 @@ const Step2Controllo = ({
       const j = await postJson(urlFor(API.controllo_prendi, daPrendere.id), {}, 'Presa in carico');
       setDaPrendere(null);
       applicaRipresa(j);
-      const msg = daPrendere.terminato ? 'Controllo riaperto: aggiungi i seriali rimasti con un blocco nuovo, poi «Termina controllo».' : `Hai preso in carico il controllo di ${daPrendere.operatore}: da qui in avanti è tuo.`;
+      const msg = daPrendere.terminato ? 'Controllo riaperto: aggiungi i seriali rimasti con un blocco nuovo, poi «Termina controllo».' : `Partecipi al controllo di ${daPrendere.operatore}: scrivi il tuo blocco di S/N, i blocchi salvati compaiono a tutti.`;
       setNotice(prev => `${msg} ${prev || ''}`.trim());
     } catch (e) {
       setError(e.message);
@@ -3057,6 +3075,38 @@ const Step2Controllo = ({
     window.addEventListener('pagehide', flush);
     return () => window.removeEventListener('pagehide', flush);
   }, [controllo && controllo.id]);
+
+  // Controllo condiviso: ogni 8 s si rileggono i blocchi salvati dagli altri e chi sta
+  // scrivendo. Il blocco in scrittura non si tocca mai.
+  const terminatoVisto = useRef(false);
+  useEffect(() => {
+    if (!controllo || !controllo.id || controllo.terminato || riepilogo) return undefined;
+    let vivo = true;
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      getJson(`${urlFor(API.controllo_dettaglio, controllo.id)}?vivo=1`, 'Aggiornamento controllo').then(j => {
+        if (!vivo || !j || !j.controllo) return;
+        const c = j.controllo;
+        setControllo(prev => prev && prev.id === c.id ? {
+          ...prev,
+          blocchi: c.blocchi,
+          partecipanti: c.partecipanti,
+          terminato: c.terminato,
+          da_notificare: c.da_notificare,
+          fase: c.fase,
+          ultima_mail_at: c.ultima_mail_at
+        } : prev);
+        if (c.terminato && !terminatoVisto.current) {
+          terminatoVisto.current = true;
+          setNotice('Un altro partecipante ha terminato il controllo e la mail al capocommessa è partita. Se avevi un blocco non salvato resta in bozza: riapri il controllo dall’OP per salvarlo.');
+        }
+      }).catch(() => {});
+    }, 8000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [controllo && controllo.id, controllo && controllo.terminato, riepilogo]);
   const salvaImpostazioni = async patch => {
     setError('');
     try {
@@ -3686,6 +3736,17 @@ const Step2Controllo = ({
     token: t,
     blocco: controlloTokens.get(t.toLowerCase())
   }));
+  // Controllo condiviso: S/N che un collega sta scrivendo adesso in un suo blocco.
+  const inScritturaAltrui = new Map();
+  (controllo && controllo.partecipanti || []).filter(p => !p.mio && p.scrive).forEach(p => {
+    tokensOf(p.seriali || []).forEach(t => {
+      if (!inScritturaAltrui.has(t.toLowerCase())) inScritturaAltrui.set(t.toLowerCase(), p.nome);
+    });
+  });
+  const giaDaAltri = tokens.filter(t => inScritturaAltrui.has(t.toLowerCase())).map(t => ({
+    token: t,
+    chi: inScritturaAltrui.get(t.toLowerCase())
+  }));
   const scopertiEditor = serialiScoperti(tokens, editor.anomalie);
   const duplicati = (() => {
     const exist = new Set((serialiAperti.seriali || []).map(x => x.toLowerCase()));
@@ -3886,9 +3947,9 @@ const Step2Controllo = ({
       role: "alert"
     }, /*#__PURE__*/React.createElement("div", {
       className: "field-label"
-    }, daPrendere.terminato ? `Controllo terminato${daPrendere.mio ? '' : ` di ${daPrendere.operatore}`}` : `Controllo in carico a ${daPrendere.operatore}`), /*#__PURE__*/React.createElement("div", null, "Fase ", daPrendere.fase, " \xB7 ", daPrendere.blocchi.length, " blocch", daPrendere.blocchi.length === 1 ? 'o' : 'i', " salvat", daPrendere.blocchi.length === 1 ? 'o' : 'i', daPrendere.terminato ? ` · ${anomalieAperte(daPrendere)} anomalie ancora aperte` : '', bozzaPiena(daPrendere.bozza) ? ` · ${(daPrendere.bozza.anomalie || []).length} anomalie scritte da salvare` : '', daPrendere.da_notificare ? ` · ${daPrendere.da_notificare} non ancora comunicate` : ''), /*#__PURE__*/React.createElement("div", {
+    }, daPrendere.terminato ? `Controllo terminato${daPrendere.mio ? '' : ` di ${daPrendere.operatore}`}` : `Controllo di ${daPrendere.operatore}`), /*#__PURE__*/React.createElement("div", null, "Fase ", daPrendere.fase, " \xB7 ", daPrendere.blocchi.length, " blocch", daPrendere.blocchi.length === 1 ? 'o' : 'i', " salvat", daPrendere.blocchi.length === 1 ? 'o' : 'i', daPrendere.terminato ? ` · ${anomalieAperte(daPrendere)} anomalie ancora aperte` : '', bozzaPiena(daPrendere.bozza) ? ` · ${(daPrendere.bozza.anomalie || []).length} anomalie scritte da salvare` : '', daPrendere.da_notificare ? ` · ${daPrendere.da_notificare} non ancora comunicate` : ''), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, daPrendere.terminato ? /*#__PURE__*/React.createElement(React.Fragment, null, "Riaprendolo aggiungi i seriali rimasti allo stesso controllo: i blocchi gi\xE0 salvati restano com\u2019erano e a \xABTermina controllo\xBB la mail riporta solo le anomalie nuove.", daPrendere.mio ? '' : ` Il controllo passa a te; ${daPrendere.operatore} riceve un avviso nel portale.`, " La riapertura resta registrata.") : /*#__PURE__*/React.createElement(React.Fragment, null, "Prendendolo in carico prosegui tu da dove \xE8 rimasto: blocco in scrittura, salvataggi, mail e \xABTermina controllo\xBB diventano tuoi. ", daPrendere.operatore, " riceve un avviso nel portale e il passaggio resta registrato.")), /*#__PURE__*/React.createElement("div", {
+    }, daPrendere.terminato ? /*#__PURE__*/React.createElement(React.Fragment, null, "Riaprendolo aggiungi i seriali rimasti allo stesso controllo: i blocchi gi\xE0 salvati restano com\u2019erano e a \xABTermina controllo\xBB la mail riporta solo le anomalie nuove.", daPrendere.mio ? '' : ` Partecipi al controllo insieme a ${daPrendere.operatore}, che riceve un avviso nel portale.`, " La riapertura resta registrata.") : /*#__PURE__*/React.createElement(React.Fragment, null, "Partecipando lavori sullo stesso controllo insieme a ", daPrendere.operatore, ": ognuno scrive il suo blocco di S/N, i blocchi salvati compaiono a tutti in pochi secondi e la mail al capocommessa resta una sola. \xABTermina controllo\xBB lo pu\xF2 premere chiunque: lo chiude per tutti.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         gap: 8,
@@ -3898,7 +3959,7 @@ const Step2Controllo = ({
       className: "btn-primary",
       onClick: prendiInCarico,
       disabled: saving
-    }, saving ? daPrendere.terminato ? 'Riapertura…' : 'Presa in carico…' : daPrendere.terminato ? 'Riapri e prosegui' : 'Prendi in carico e prosegui'), /*#__PURE__*/React.createElement("button", {
+    }, saving ? daPrendere.terminato ? 'Riapertura…' : 'Un momento…' : daPrendere.terminato ? 'Riapri e prosegui' : 'Partecipa e prosegui'), /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary",
       onClick: () => setDaPrendere(null),
       disabled: saving
@@ -3920,9 +3981,9 @@ const Step2Controllo = ({
       className: "btn-outline",
       onClick: () => riprendi(c),
       disabled: saving
-    }, c.terminato ? 'Riapri' : c.mio === false ? 'Prendi in carico' : 'Riprendi'))), /*#__PURE__*/React.createElement("div", {
+    }, c.terminato ? 'Riapri' : c.mio === false ? 'Partecipa' : 'Riprendi'))), /*#__PURE__*/React.createElement("div", {
       className: "field-hint"
-    }, "Riprendi quello aperto (o riapri quello terminato per aggiungere i seriali rimasti) invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.")), /*#__PURE__*/React.createElement("div", {
+    }, "Riprendi il tuo, partecipa a quello di un collega (lavorate insieme, ognuno col suo blocco) o riapri quello terminato per aggiungere i seriali rimasti, invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.")), /*#__PURE__*/React.createElement("div", {
       className: "field-group"
     }, /*#__PURE__*/React.createElement("label", {
       className: "field-label",
@@ -4008,9 +4069,9 @@ const Step2Controllo = ({
     className: "field-hint"
   }, "Il capocommessa ha gi\xE0 deciso su almeno un\u2019anomalia: i seriali non si possono pi\xF9 cambiare. Puoi aggiungere nuove anomalie.") : /*#__PURE__*/React.createElement("div", {
     className: "field-hint"
-  }, "Un seriale, un range (", /*#__PURE__*/React.createElement("code", null, "LCN00005-LCN00010"), ") o pi\xF9 seriali separati da virgola; Invio per confermare.", tokens.length > 1 && /*#__PURE__*/React.createElement(React.Fragment, null, " Totale: ", /*#__PURE__*/React.createElement("strong", null, tokens.length, " pezzi"), ".")), (fuoriFormato.length > 0 || prefissoDiverso.length > 0 || ripetutiEditor.length > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "Un seriale, un range (", /*#__PURE__*/React.createElement("code", null, "LCN00005-LCN00010"), ") o pi\xF9 seriali separati da virgola; Invio per confermare.", tokens.length > 1 && /*#__PURE__*/React.createElement(React.Fragment, null, " Totale: ", /*#__PURE__*/React.createElement("strong", null, tokens.length, " pezzi"), ".")), (fuoriFormato.length > 0 || prefissoDiverso.length > 0 || ripetutiEditor.length > 0 || giaDaAltri.length > 0) && /*#__PURE__*/React.createElement("div", {
     className: "sn-warn"
-  }, fuoriFormato.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Formato atteso \xABAAA00000\xBB: ", fuoriFormato.slice(0, 8).join(', '), fuoriFormato.length > 8 ? '…' : ''), prefissoDiverso.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Prefisso diverso da \xAB", primo.slice(0, 3).toUpperCase(), "\xBB: ", prefissoDiverso.slice(0, 8).join(', ')), ripetutiEditor.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Gi\xE0 in un altro blocco di questo controllo: ", ripetutiEditor.slice(0, 8).map(r => `${r.token} (blocco ${r.blocco})`).join(', '), ripetutiEditor.length > 8 ? '…' : '', ".", editor.confermaRipetuti ? ' Confermato: è voluto.' : ' Se è voluto (altra fase o altro stato superficie) puoi salvare: ti chiederò conferma. Altrimenti usa «Modifica» sul blocco esistente.')), duplicati.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, giaDaAltri.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Li sta scrivendo adesso un collega: ", giaDaAltri.slice(0, 8).map(r => `${r.token} (${r.chi})`).join(', '), giaDaAltri.length > 8 ? '…' : '', ". Mettetevi d\u2019accordo prima di salvare."), fuoriFormato.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Formato atteso \xABAAA00000\xBB: ", fuoriFormato.slice(0, 8).join(', '), fuoriFormato.length > 8 ? '…' : ''), prefissoDiverso.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Prefisso diverso da \xAB", primo.slice(0, 3).toUpperCase(), "\xBB: ", prefissoDiverso.slice(0, 8).join(', ')), ripetutiEditor.length > 0 && /*#__PURE__*/React.createElement("div", null, "\u26A0 Gi\xE0 in un altro blocco di questo controllo: ", ripetutiEditor.slice(0, 8).map(r => `${r.token} (blocco ${r.blocco})`).join(', '), ripetutiEditor.length > 8 ? '…' : '', ".", editor.confermaRipetuti ? ' Confermato: è voluto.' : ' Se è voluto (altra fase o altro stato superficie) puoi salvare: ti chiederò conferma. Altrimenti usa «Modifica» sul blocco esistente.')), duplicati.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "sn-dup-pop",
     role: "status",
     "aria-live": "polite"
@@ -4518,7 +4579,9 @@ const Step2Controllo = ({
     onChange: lista => salvaImpostazioni({
       destinatari_extra: lista
     })
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement(Partecipanti, {
+    lista: controllo.partecipanti
+  }), /*#__PURE__*/React.createElement("div", {
     className: "form-body"
   }, blocchi.map((b, i) => editor.bloccoId === b.id ? /*#__PURE__*/React.createElement(React.Fragment, {
     key: b.id

@@ -51,15 +51,15 @@ def _mail_mode(value) -> str:
 
 
 def _get_controllo(request, pk: int, *, lettura: bool = False):
-    """Il controllo si modifica solo da chi lo ha in carico (o da un superuser).
+    """Il controllo lo modificano chi l'ha aperto e chi ci partecipa (o un superuser).
 
-    In lettura (``lettura=True``) lo vedono anche i colleghi del gruppo qualità, che
-    possono poi prenderlo in carico con ``api_controllo_prendi``.
+    In lettura (``lettura=True``) lo vede anche chi può aprire segnalazioni sull'OP, che
+    poi si unisce con «Partecipa» (``api_controllo_prendi``): controllo condiviso.
     """
     controllo = AnomaliaControllo.objects.select_related("operatore").filter(pk=pk).first()
     if controllo is None:
         return None, _err("Controllo non trovato", 404)
-    if controllo.operatore_id == request.user.pk or request.user.is_superuser:
+    if request.user.is_superuser or cs.e_partecipante(controllo, request.user):
         return controllo, None
     if lettura and cs.colleghi_del_gruppo(request.user, controllo):
         return controllo, None
@@ -75,7 +75,7 @@ def _get_controllo(request, pk: int, *, lettura: bool = False):
         ):
             return controllo, None
     chi = controllo.operatore_display or "un altro operatore"
-    return None, _err(f"Il controllo è in carico a {chi}: per proseguirlo usa «Prendi in carico».", 403)
+    return None, _err(f"Il controllo è di {chi}: per scriverci premi «Partecipa».", 403)
 
 
 def _op_esiste(op_id: str) -> bool:
@@ -193,14 +193,13 @@ def api_controlli(request):
     if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     # Nessun limite di giorni: un controllo a metà si riprende anche settimane dopo.
-    propri = list(AnomaliaControllo.objects.filter(
-        op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True,
-    ).order_by("-id")[:5])
-    # Controlli non terminati di altri su questo OP (chiunque): si propone di
-    # prenderli in carico invece di aprirne uno doppio.
-    colleghi = list(AnomaliaControllo.objects.filter(
+    aperti = list(AnomaliaControllo.objects.filter(
         op_id__iexact=op_id, terminato_at__isnull=True,
-    ).exclude(operatore=request.user).order_by("-id")[:5])
+    ).select_related("operatore").order_by("-id")[:10])
+    # Aperti da me o a cui partecipo: «Riprendi». Degli altri: «Partecipa» (stesso
+    # controllo, insieme) invece di aprirne uno doppio.
+    propri = [c for c in aperti if cs.e_partecipante(c, request.user)][:5]
+    colleghi = [c for c in aperti if c not in propri][:5]
     # Terminati con anomalie ancora aperte (di chiunque, anche propri): si riaprono per
     # aggiungere i seriali rimasti invece di aprire una segnalazione nuova.
     terminati = list(AnomaliaControllo.objects.filter(
@@ -211,8 +210,8 @@ def api_controlli(request):
     fasi = fasi_suggerite(op_id)
     controlli = []
     for c in propri + colleghi + riaprire:
-        dati = cs.serializza_controllo(c, con_allegati=False)
-        dati["mio"] = c.operatore_id == request.user.pk
+        dati = cs.serializza_per(c, request.user, con_allegati=False)
+        dati["mio"] = cs.e_partecipante(c, request.user)
         dati["anomalie_aperte"] = aperte.get(c.pk, 0)
         controlli.append(dati)
     return JsonResponse({"success": True, "controlli": controlli, "fasi": fasi})
@@ -221,18 +220,18 @@ def api_controlli(request):
 @login_required
 @require_GET
 def api_controlli_sospesi(request):
-    """Controlli aperti con qualcosa in sospeso: i propri e quelli dei colleghi del
-    gruppo qualità (Controllo qualità / Qualità), su tutti gli OP."""
-    righe = [cs.riassunto_sospeso(c, request.user) for c in cs.controlli_sospesi(request.user) if cs.in_sospeso(c)]
-    return JsonResponse({"success": True, "controlli": righe, "gruppo": cs.nel_gruppo_qualita(request.user)})
+    """«Controlli da riprendere» su tutti gli OP, in «Nuova segnalazione» prima di
+    scegliere l'OP: aperti (anche già salvati) e terminati da meno di 7 giorni con
+    anomalie aperte, di chiunque, sugli OP dove la persona può aprire segnalazioni."""
+    return JsonResponse({"success": True, "controlli": cs.controlli_da_riprendere(request)})
 
 
 @login_required
 @require_POST
 def api_controllo_prendi(request, pk: int):
-    """«Prendi in carico»: il controllo di un collega del gruppo qualità passa a chi lo
-    riprende (bozza compresa). «Riapri»: un controllo terminato con anomalie ancora
-    aperte torna in corso (anche per chi lo aveva). Tracciato nel controllo e nell'audit."""
+    """«Partecipa»: la persona si unisce al controllo senza toglierlo a chi c'è già
+    (ognuno scrive il suo blocco). «Riapri»: un controllo terminato con anomalie ancora
+    aperte torna in corso e chi lo riapre partecipa. Tracciato nel controllo e nell'audit."""
     from .views import _current_user_identity
 
     controllo, error = _get_controllo(request, pk, lettura=True)
@@ -241,18 +240,20 @@ def api_controllo_prendi(request, pk: int):
     riapre = controllo.terminato_at is not None
     if riapre and not cs.riapribile(controllo):
         return _err("Il controllo è terminato e tutte le sue anomalie sono chiuse: apri un controllo nuovo", 409)
-    if controllo.operatore_id == request.user.pk and not riapre:
-        return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
+    if not riapre and cs.e_partecipante(controllo, request.user):
+        cs.segna_visto(controllo, request.user)
+        return JsonResponse({"success": True, "controllo": cs.serializza_per(controllo, request.user)})
     identity = _current_user_identity(request)
     nome = _txt(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
-    da = controllo.operatore_display
-    passaggio = cs.prendi_in_carico(controllo, request.user, nome)
-    log_action(request, "anomalie_controllo_riaperto" if riapre else "anomalie_controllo_preso_in_carico", "anomalie", {
-        "controllo_id": controllo.pk, "op_id": controllo.op_id, "da": da, "a": nome, "at": passaggio["at"],
+    passaggio = cs.partecipa(controllo, request.user, nome)
+    cs.segna_visto(controllo, request.user)
+    log_action(request, "anomalie_controllo_riaperto" if riapre else "anomalie_controllo_partecipa", "anomalie", {
+        "controllo_id": controllo.pk, "op_id": controllo.op_id, "aperto_da": controllo.operatore_display,
+        "partecipa": nome, "at": passaggio["at"],
     })
     return JsonResponse({
         "success": True,
-        "controllo": cs.serializza_controllo(controllo),
+        "controllo": cs.serializza_per(controllo, request.user),
         "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
 
@@ -260,13 +261,18 @@ def api_controllo_prendi(request, pk: int):
 @login_required
 @require_GET
 def api_controllo_dettaglio(request, pk: int):
+    """Dettaglio del controllo; la pagina lo rilegge ogni pochi secondi (``?vivo=1``) per
+    mostrare i blocchi salvati dagli altri partecipanti e chi sta scrivendo."""
     controllo, error = _get_controllo(request, pk, lettura=True)
     if error:
         return error
+    partecipo = cs.e_partecipante(controllo, request.user)
+    if partecipo:
+        cs.segna_visto(controllo, request.user)
     return JsonResponse({
         "success": True,
-        "mio": controllo.operatore_id == request.user.pk or request.user.is_superuser,
-        "controllo": cs.serializza_controllo(controllo),
+        "mio": partecipo or request.user.is_superuser,
+        "controllo": cs.serializza_per(controllo, request.user),
         "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
 
@@ -335,7 +341,8 @@ def api_controllo_apri(request):
         "controllo_id": controllo.pk, "op_id": op_id, "fase": fase, "mail_mode": controllo.mail_mode,
         "destinatari_extra": [d["email"] for d in extra],
     })
-    return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
+    cs.segna_visto(controllo, request.user)
+    return JsonResponse({"success": True, "controllo": cs.serializza_per(controllo, request.user)})
 
 
 @login_required
@@ -498,6 +505,9 @@ def api_controllo_blocco(request, pk: int):
     with transaction.atomic():
         if blocco is None:
             ultimo = controllo.blocchi.order_by("-ordine").values_list("ordine", flat=True).first()
+            from .views import _current_user_identity
+
+            identita = _current_user_identity(request)
             blocco = AnomaliaBlocco.objects.create(
                 controllo=controllo,
                 ordine=(ultimo or 0) + 1,
@@ -505,6 +515,7 @@ def api_controllo_blocco(request, pk: int):
                 seriali=voci,
                 seriale_label=label,
                 stato_superficie=stati,
+                creato_da_display=_txt(identita.get("name") or request.user.get_full_name() or request.user.username, 200),
             )
         else:
             blocco.seriali = voci
@@ -566,8 +577,11 @@ def api_controllo_blocco(request, pk: int):
     if da_notificare:
         cs.accoda_notifica(controllo, da_notificare)
     errori = [r["error"] for r in risultati if not r["ok"]]
-    if not errori and controllo.bozza:
-        cs.salva_bozza(controllo, {})
+    if not errori:
+        # Si svuota il blocco in scrittura di chi ha salvato (gli altri tengono il loro).
+        bozza_mia, _at = cs.bozza_di(controllo, request.user)
+        if bozza_mia:
+            cs.salva_bozza_di(controllo, request.user, {})
     log_action(request, "anomalie_controllo_blocco", "anomalie", {
         "controllo_id": controllo.pk, "blocco_id": blocco.pk, "op_id": controllo.op_id,
         "seriali": label, "anomalie": [r.get("local_id") for r in risultati], "errori": len(errori),
@@ -580,7 +594,7 @@ def api_controllo_blocco(request, pk: int):
         "error": "; ".join(errori),
         "blocco_id": blocco.pk,
         "risultati": risultati,
-        "controllo": cs.serializza_controllo(controllo),
+        "controllo": cs.serializza_per(controllo, request.user),
         "op_creato": op_creato,
     }, status=200 if not errori else 207)
 
@@ -594,9 +608,10 @@ def api_controllo_bozza(request, pk: int):
         return error
     if controllo.terminato_at:
         return _err("Il controllo è già terminato", 409)
-    if not cs.salva_bozza(controllo, _body(request).get("bozza")):
+    ok, bozza_at = cs.salva_bozza_di(controllo, request.user, _body(request).get("bozza"))
+    if not ok:
         return _err("Bozza troppo grande", 413)
-    return JsonResponse({"success": True, "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else ""})
+    return JsonResponse({"success": True, "bozza_at": bozza_at.isoformat() if bozza_at else ""})
 
 
 @login_required
@@ -716,19 +731,24 @@ def api_controllo_cambia_op(request, pk: int):
         "controllo_id": controllo.pk, "da": esito["op_da"], "a": op_dest, "anomalie": esito["ids"],
     })
     controllo.refresh_from_db()
-    return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo), "spostate": len(esito["ids"]),
+    return JsonResponse({"success": True, "controllo": cs.serializza_per(controllo, request.user), "spostate": len(esito["ids"]),
                          "nota": nota})
 
 
 @login_required
 @require_POST
 def api_controllo_termina(request, pk: int):
+    from .views import _current_user_identity
+
     controllo, error = _get_controllo(request, pk)
     if error:
         return error
     if controllo.terminato_at is None:
         controllo.terminato_at = timezone.now()
         controllo.save(update_fields=["terminato_at", "updated_at"])
+        # Lo termina chiunque partecipi: gli altri ricevono l'avviso (bozze non salvate restano).
+        nome = _txt(_current_user_identity(request).get("name") or request.user.get_full_name() or request.user.username, 200)
+        cs.avvisa_terminato(controllo, request.user, nome)
     esito = {"sent": False, "reason": "nessuna_anomalia"}
     if controllo.da_notificare:
         esito = cs.invia_mail_controllo(controllo)
@@ -739,7 +759,7 @@ def api_controllo_termina(request, pk: int):
     return JsonResponse({
         "success": True,
         "mail": esito,
-        "controllo": cs.serializza_controllo(controllo, con_allegati=False),
+        "controllo": cs.serializza_per(controllo, request.user, con_allegati=False),
     })
 
 

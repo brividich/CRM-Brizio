@@ -1606,7 +1606,7 @@
           <div className="blk-head__main">
             <div className="blk-sn">{b.seriale_label}</div>
             <div className="blk-meta">
-              Fase {b.fase} · {tokensOf(b.seriali).length} pezz{tokensOf(b.seriali).length === 1 ? 'o' : 'i'} · {b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'}
+              Fase {b.fase} · {tokensOf(b.seriali).length} pezz{tokensOf(b.seriali).length === 1 ? 'o' : 'i'} · {b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'}{b.creato_da ? ` · di ${b.creato_da}` : ''}
               {b.stato_superficie.map(s => <span key={s} className="pill pill-sup" style={{ marginLeft: 6 }}>{s}</span>)}
             </div>
           </div>
@@ -1865,42 +1865,62 @@
     })),
   });
 
-  /* Controlli aperti con qualcosa in sospeso: i propri e, per il gruppo qualità
-     (Controllo qualità / Qualità), quelli dei colleghi. Un controllo lungo iniziato a
-     fine turno lo prosegue il collega dopo con «Prendi in carico». */
+  /* «Controlli da riprendere» su tutti gli OP, prima di scegliere l'OP: aperti (anche già
+     salvati) e terminati da meno di 7 giorni con anomalie aperte, di chiunque, sugli OP
+     dove puoi aprire segnalazioni. Controllo condiviso: con «Partecipa» lavorate insieme. */
   const ControlliSospesi = () => {
     const [righe, setRighe] = useState([]);
-    const [gruppo, setGruppo] = useState(false);
     useEffect(() => {
-      getJson(API.controlli_sospesi, 'Controlli in sospeso')
-        .then(j => { setRighe(j.controlli || []); setGruppo(!!j.gruppo); })
+      getJson(API.controlli_sospesi, 'Controlli da riprendere')
+        .then(j => setRighe(j.controlli || []))
         .catch(() => {});
     }, []);
     if (!righe.length) return null;
     const quando = (iso) => iso ? new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const plur = (n, s, p) => `${n} ${n === 1 ? s : p}`;
     const cosa = (r) => [
-      r.anomalie_in_bozza ? `${r.anomalie_in_bozza} anomali${r.anomalie_in_bozza === 1 ? 'a' : 'e'} scritt${r.anomalie_in_bozza === 1 ? 'a' : 'e'} da salvare` : '',
-      r.blocchi_da_copiare ? `${r.blocchi_da_copiare} blocch${r.blocchi_da_copiare === 1 ? 'o' : 'i'} da copiare` : '',
-      r.da_notificare ? `${r.da_notificare} anomali${r.da_notificare === 1 ? 'a' : 'e'} non ancora comunicat${r.da_notificare === 1 ? 'a' : 'e'}` : '',
-    ].filter(Boolean).join(' · ') || 'blocco in scrittura';
+      r.terminato ? `terminato · ${plur(r.anomalie_aperte, 'anomalia aperta', 'anomalie aperte')}` : '',
+      r.blocchi ? plur(r.blocchi, 'blocco salvato', 'blocchi salvati') : 'nessun blocco salvato',
+      r.anomalie_in_bozza ? `${plur(r.anomalie_in_bozza, 'anomalia scritta', 'anomalie scritte')} da salvare` : '',
+      r.blocchi_da_copiare ? plur(r.blocchi_da_copiare, 'blocco da copiare', 'blocchi da copiare') : '',
+      r.da_notificare ? `${plur(r.da_notificare, 'anomalia', 'anomalie')} non ancora comunicat${r.da_notificare === 1 ? 'a' : 'e'}` : '',
+    ].filter(Boolean).join(' · ');
+    const etichetta = (r) => (r.terminato ? 'Riapri' : (r.partecipo ? 'Riprendi' : 'Partecipa'));
     return (
       <div className="step-card sospesi-card">
         <div className="resume-box">
-          <div className="field-label">{gruppo ? 'Controlli in sospeso del gruppo qualità' : 'I tuoi controlli in sospeso'}</div>
-          {gruppo && <div className="field-hint">Li vedono tutti i colleghi con ruolo Controllo qualità o Qualità: chi riprende il controllo di un altro lo prende in carico e lo porta a termine.</div>}
+          <div className="field-label">Controlli da riprendere</div>
+          <div className="field-hint">Su tutti gli OP dove puoi aprire segnalazioni. Con «Partecipa» lavori insieme a chi c’è già: ognuno scrive il suo blocco di S/N e i blocchi salvati compaiono a tutti.</div>
           {righe.map(r => (
             <div key={r.id} className="resume-row">
               <div>
-                <strong>OP {r.op_id}</strong>{r.op_nuovo ? ' (nuovo, non ancora creato)' : ''} · fase {r.fase}
+                <strong>OP {r.op_id}</strong>{r.op_nuovo ? ' (nuovo, in creazione)' : ''} · fase {r.fase}
                 <div className="sospesi-meta">
-                  <span className="sospesi-chi">{r.mio ? 'Tuo' : r.operatore}</span> · {cosa(r)} · ultimo aggiornamento {quando(r.ultimo_at)}
-                  {r.passaggi && r.passaggi.length > 0 && ` · iniziato da ${r.passaggi[0].da}`}
+                  <span className="sospesi-chi">{(r.persone || []).filter(Boolean).join(', ') || r.operatore}</span> · {cosa(r)} · ultimo aggiornamento {quando(r.ultimo_at)}
+                  {r.mia_bozza ? ' · hai un blocco in scrittura' : ''}
                 </div>
               </div>
-              <a className="btn-outline" href={`${window.location.pathname}?controllo=${r.id}`}>{r.mio ? 'Riprendi' : 'Apri'}</a>
+              <a className="btn-outline" href={`${window.location.pathname}?controllo=${r.id}`}>{etichetta(r)}</a>
             </div>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  /* Chi lavora sul controllo condiviso: presente adesso, sta scrivendo un blocco. */
+  const Partecipanti = ({ lista }) => {
+    const persone = (lista || []).filter(p => p.nome || p.mio);
+    if (persone.length < 2) return null;
+    return (
+      <div className="ctl-persone" aria-label="Chi lavora su questo controllo">
+        <span className="field-label">Insieme a te</span>
+        {persone.filter(p => !p.mio).map((p, i) => (
+          <span key={i} className={`ctl-persona${p.presente ? ' is-on' : ''}`}
+            title={p.scrive && p.seriali.length ? `Sta scrivendo un blocco con: ${p.seriali.join(', ')}` : (p.presente ? 'Ha la pagina aperta' : 'Non collegato adesso')}>
+            <i aria-hidden="true" />{p.nome}{p.scrive ? ' · scrive' : ''}
+          </span>
+        ))}
       </div>
     );
   };
@@ -2099,7 +2119,7 @@
         applicaRipresa(j);
         const msg = daPrendere.terminato
           ? 'Controllo riaperto: aggiungi i seriali rimasti con un blocco nuovo, poi «Termina controllo».'
-          : `Hai preso in carico il controllo di ${daPrendere.operatore}: da qui in avanti è tuo.`;
+          : `Partecipi al controllo di ${daPrendere.operatore}: scrivi il tuo blocco di S/N, i blocchi salvati compaiono a tutti.`;
         setNotice(prev => `${msg} ${prev || ''}`.trim());
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -2161,6 +2181,32 @@
       window.addEventListener('pagehide', flush);
       return () => window.removeEventListener('pagehide', flush);
     }, [controllo && controllo.id]);
+
+    // Controllo condiviso: ogni 8 s si rileggono i blocchi salvati dagli altri e chi sta
+    // scrivendo. Il blocco in scrittura non si tocca mai.
+    const terminatoVisto = useRef(false);
+    useEffect(() => {
+      if (!controllo || !controllo.id || controllo.terminato || riepilogo) return undefined;
+      let vivo = true;
+      const t = setInterval(() => {
+        if (document.hidden) return;
+        getJson(`${urlFor(API.controllo_dettaglio, controllo.id)}?vivo=1`, 'Aggiornamento controllo')
+          .then(j => {
+            if (!vivo || !j || !j.controllo) return;
+            const c = j.controllo;
+            setControllo(prev => (prev && prev.id === c.id
+              ? { ...prev, blocchi: c.blocchi, partecipanti: c.partecipanti, terminato: c.terminato,
+                  da_notificare: c.da_notificare, fase: c.fase, ultima_mail_at: c.ultima_mail_at }
+              : prev));
+            if (c.terminato && !terminatoVisto.current) {
+              terminatoVisto.current = true;
+              setNotice('Un altro partecipante ha terminato il controllo e la mail al capocommessa è partita. Se avevi un blocco non salvato resta in bozza: riapri il controllo dall’OP per salvarlo.');
+            }
+          })
+          .catch(() => {});
+      }, 8000);
+      return () => { vivo = false; clearInterval(t); };
+    }, [controllo && controllo.id, controllo && controllo.terminato, riepilogo]);
 
     const salvaImpostazioni = async (patch) => {
       setError('');
@@ -2536,6 +2582,12 @@
     const primo = tokens.find(t => SN_PATTERN.test(t));
     const prefissoDiverso = primo ? tokens.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== primo.slice(0, 3).toUpperCase()) : [];
     const ripetutiEditor = tokens.filter(t => controlloTokens.has(t.toLowerCase())).map(t => ({ token: t, blocco: controlloTokens.get(t.toLowerCase()) }));
+    // Controllo condiviso: S/N che un collega sta scrivendo adesso in un suo blocco.
+    const inScritturaAltrui = new Map();
+    ((controllo && controllo.partecipanti) || []).filter(p => !p.mio && p.scrive).forEach(p => {
+      tokensOf(p.seriali || []).forEach(t => { if (!inScritturaAltrui.has(t.toLowerCase())) inScritturaAltrui.set(t.toLowerCase(), p.nome); });
+    });
+    const giaDaAltri = tokens.filter(t => inScritturaAltrui.has(t.toLowerCase())).map(t => ({ token: t, chi: inScritturaAltrui.get(t.toLowerCase()) }));
     const scopertiEditor = serialiScoperti(tokens, editor.anomalie);
     const duplicati = (() => {
       const exist = new Set((serialiAperti.seriali || []).map(x => x.toLowerCase()));
@@ -2665,7 +2717,7 @@
             )}
             {daPrendere && (
               <div className="prendi-box" role="alert">
-                <div className="field-label">{daPrendere.terminato ? `Controllo terminato${daPrendere.mio ? '' : ` di ${daPrendere.operatore}`}` : `Controllo in carico a ${daPrendere.operatore}`}</div>
+                <div className="field-label">{daPrendere.terminato ? `Controllo terminato${daPrendere.mio ? '' : ` di ${daPrendere.operatore}`}` : `Controllo di ${daPrendere.operatore}`}</div>
                 <div>
                   Fase {daPrendere.fase} · {daPrendere.blocchi.length} blocch{daPrendere.blocchi.length === 1 ? 'o' : 'i'} salvat{daPrendere.blocchi.length === 1 ? 'o' : 'i'}
                   {daPrendere.terminato ? ` · ${anomalieAperte(daPrendere)} anomalie ancora aperte` : ''}
@@ -2674,11 +2726,11 @@
                 </div>
                 <div className="field-hint">
                   {daPrendere.terminato
-                    ? <>Riaprendolo aggiungi i seriali rimasti allo stesso controllo: i blocchi già salvati restano com’erano e a «Termina controllo» la mail riporta solo le anomalie nuove.{daPrendere.mio ? '' : ` Il controllo passa a te; ${daPrendere.operatore} riceve un avviso nel portale.`} La riapertura resta registrata.</>
-                    : <>Prendendolo in carico prosegui tu da dove è rimasto: blocco in scrittura, salvataggi, mail e «Termina controllo» diventano tuoi. {daPrendere.operatore} riceve un avviso nel portale e il passaggio resta registrato.</>}
+                    ? <>Riaprendolo aggiungi i seriali rimasti allo stesso controllo: i blocchi già salvati restano com’erano e a «Termina controllo» la mail riporta solo le anomalie nuove.{daPrendere.mio ? '' : ` Partecipi al controllo insieme a ${daPrendere.operatore}, che riceve un avviso nel portale.`} La riapertura resta registrata.</>
+                    : <>Partecipando lavori sullo stesso controllo insieme a {daPrendere.operatore}: ognuno scrive il suo blocco di S/N, i blocchi salvati compaiono a tutti in pochi secondi e la mail al capocommessa resta una sola. «Termina controllo» lo può premere chiunque: lo chiude per tutti.</>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button className="btn-primary" onClick={prendiInCarico} disabled={saving}>{saving ? (daPrendere.terminato ? 'Riapertura…' : 'Presa in carico…') : (daPrendere.terminato ? 'Riapri e prosegui' : 'Prendi in carico e prosegui')}</button>
+                  <button className="btn-primary" onClick={prendiInCarico} disabled={saving}>{saving ? (daPrendere.terminato ? 'Riapertura…' : 'Un momento…') : (daPrendere.terminato ? 'Riapri e prosegui' : 'Partecipa e prosegui')}</button>
                   <button className="btn-secondary" onClick={() => setDaPrendere(null)} disabled={saving}>Annulla</button>
                 </div>
               </div>
@@ -2692,10 +2744,10 @@
                       <strong>Fase {c.fase}</strong>{c.mio === false ? ` · di ${c.operatore}` : ''} · {new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       <div className="field-hint">{c.terminato ? 'Terminato · ' : ''}{c.blocchi.length} blocch{c.blocchi.length === 1 ? 'o' : 'i'} salvat{c.blocchi.length === 1 ? 'o' : 'i'}{c.terminato ? ` · ${c.anomalie_aperte} anomalie ancora aperte` : ''}{c.da_notificare ? ` · ${c.da_notificare} anomalie non ancora comunicate` : ''}</div>
                     </div>
-                    <button className="btn-outline" onClick={() => riprendi(c)} disabled={saving}>{c.terminato ? 'Riapri' : (c.mio === false ? 'Prendi in carico' : 'Riprendi')}</button>
+                    <button className="btn-outline" onClick={() => riprendi(c)} disabled={saving}>{c.terminato ? 'Riapri' : (c.mio === false ? 'Partecipa' : 'Riprendi')}</button>
                   </div>
                 ))}
-                <div className="field-hint">Riprendi quello aperto (o riapri quello terminato per aggiungere i seriali rimasti) invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.</div>
+                <div className="field-hint">Riprendi il tuo, partecipa a quello di un collega (lavorate insieme, ognuno col suo blocco) o riapri quello terminato per aggiungere i seriali rimasti, invece di aprirne un altro; per un controllo nuovo scrivi la fase qui sotto. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.</div>
               </div>
             )}
             <div className="field-group">
@@ -2739,8 +2791,9 @@
           {editor.bloccato
             ? <div className="field-hint">Il capocommessa ha già deciso su almeno un’anomalia: i seriali non si possono più cambiare. Puoi aggiungere nuove anomalie.</div>
             : <div className="field-hint">Un seriale, un range (<code>LCN00005-LCN00010</code>) o più seriali separati da virgola; Invio per confermare.{tokens.length > 1 && <> Totale: <strong>{tokens.length} pezzi</strong>.</>}</div>}
-          {(fuoriFormato.length > 0 || prefissoDiverso.length > 0 || ripetutiEditor.length > 0) && (
+          {(fuoriFormato.length > 0 || prefissoDiverso.length > 0 || ripetutiEditor.length > 0 || giaDaAltri.length > 0) && (
             <div className="sn-warn">
+              {giaDaAltri.length > 0 && <div>⚠ Li sta scrivendo adesso un collega: {giaDaAltri.slice(0, 8).map(r => `${r.token} (${r.chi})`).join(', ')}{giaDaAltri.length > 8 ? '…' : ''}. Mettetevi d’accordo prima di salvare.</div>}
               {fuoriFormato.length > 0 && <div>⚠ Formato atteso «AAA00000»: {fuoriFormato.slice(0, 8).join(', ')}{fuoriFormato.length > 8 ? '…' : ''}</div>}
               {prefissoDiverso.length > 0 && <div>⚠ Prefisso diverso da «{primo.slice(0, 3).toUpperCase()}»: {prefissoDiverso.slice(0, 8).join(', ')}</div>}
               {ripetutiEditor.length > 0 && (
@@ -3038,6 +3091,7 @@
           <DestinatariMail compact destinatari={destinatari} extra={controllo.destinatari_extra || []} disabled={saving}
             onChange={lista => salvaImpostazioni({ destinatari_extra: lista })} />
         </div>
+        <Partecipanti lista={controllo.partecipanti} />
 
         <div className="form-body">
           {blocchi.map((b, i) => (
