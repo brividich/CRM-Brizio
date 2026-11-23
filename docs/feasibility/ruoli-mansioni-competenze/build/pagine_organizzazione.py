@@ -569,6 +569,41 @@ _arricchisci("08_struttura_e_revisioni", [], [("Reparti e capi", "3 reparti senz
              dove="in_fondo")
 
 
+# ─ Disposizione dinamica ─────────────────────────────────────────────────────────────────────────
+# Tre colonne: la tabella ne occupa due, ogni riquadro una. I riquadri si mettono nel primo posto
+# libero: accanto alla tabella finché c'è spazio, poi sotto. Con una tabella corta si infilano sotto
+# di lei, così non resta un vuoto al centro; con una tabella lunga restano in colonna a destra.
+STILE += """
+.m-flusso{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:20px;grid-auto-rows:4px;grid-auto-flow:row dense;align-items:start}
+.m-blocco{min-width:0}
+.m-blocco.largo{grid-column:span 2}
+.m-blocco-in>.m-card:last-child,.m-blocco-in>.op-fare:last-child{margin-bottom:0}
+"""
+
+_REPARTI_TANTI = [("CN5GL", "CN5G", "Elio Vantaro"), ("CN5GS", "CN5G", "Sara Bellandi"), ("ALC", "CN5G", "Nora Castelvi"),
+                  ("CN4", "CN4", "Lea Zuffardi"), ("CN5", "CN5", "Dario Selvani"), ("CNC", "CNC", "Tullio Brevani"),
+                  ("PRESETTING", "CNC", "Tullio Brevani"), ("MARCATURA", "AGGIUSTAGGIO", ""), ("LAVAGGIO", "AGGIUSTAGGIO", "Nora Castelvi"),
+                  ("MONTAGGIO", "AGGIUSTAGGIO", "Mira Dossen"), ("RETTIFICA", "AGGIUSTAGGIO", "Ivo Marendi"),
+                  ("SALA TAGLIO", "AGGIUSTAGGIO", "Ivo Marendi"), ("VERNICIATURA", "AGGIUSTAGGIO", ""), ("CND", "CONTROLLO", "Tullio Brevani"),
+                  ("CONTROLLO CMM", "CONTROLLO", "Sara Bellandi"), ("TNF", "TNF", "Lea Zuffardi"), ("TORNI", "TORNI", "Dario Selvani"),
+                  ("LOGISTICA", "LOGISTICA", "Mira Dossen"), ("UFFICIO TECNICO (CAM)", "UT", ""), ("UFFICIO FAI", "UT", "Elio Vantaro")]
+
+
+def _reparti_lunghi():
+    attiva, html = PAGINE["04_reparti_e_capi"]
+    inizio = html.index("<tbody>") + len("<tbody>")
+    fine = html.index("</tbody>")
+    righe = ""
+    for i, (nome, centro, capo) in enumerate(_REPARTI_TANTI):
+        stato = st("Completo", "ok") if capo else st("Senza responsabile", "warn")
+        celle = [f"<b>{nome}</b>", centro, capo or "Nessuno", "Capo reparto" if capo else "Nessuno", str(2 + (i * 3) % 9), stato]
+        righe += f'<tr{" class=on" if i == 0 else ""}>' + "".join(f"<td>{c}</td>" for c in celle) + "</tr>"
+    return attiva, html[:inizio] + righe + html[fine:]
+
+
+PAGINE["04b_reparti_e_capi_tabella_lunga"] = _reparti_lunghi()
+
+
 SCRIPT = """
 ([contenuto, attiva, voci, stile]) => {
   const st = document.createElement('style'); st.textContent = stile; document.head.appendChild(st);
@@ -584,6 +619,23 @@ SCRIPT = """
     if (!e.children.length && e.textContent.trim() === 'Organizzazione') e.textContent = 'Organizzazione › ' + attiva;
   });
   document.querySelectorAll('.devgit').forEach(e => e.remove());
+  // Disposizione dinamica: ogni titolo con il suo riquadro diventa un blocco; quelli di sinistra sono larghi.
+  document.querySelectorAll('.op-due').forEach(due => {
+    const flusso = document.createElement('div'); flusso.className = 'm-flusso';
+    [...due.children].forEach((sezione, i) => {
+      let dentro = null;
+      [...sezione.children].forEach(n => {
+        if (n.classList.contains('op-h') || !dentro) {
+          const blocco = document.createElement('div'); blocco.className = 'm-blocco' + (i === 0 ? ' largo' : '');
+          dentro = document.createElement('div'); dentro.className = 'm-blocco-in';
+          blocco.appendChild(dentro); flusso.appendChild(blocco);
+        }
+        dentro.appendChild(n);
+      });
+    });
+    due.replaceWith(flusso);
+  });
+  document.querySelectorAll('.m-blocco').forEach(b => { b.style.gridRowEnd = 'span ' + Math.ceil((b.firstChild.offsetHeight + 18) / 4); });
   return document.documentElement.scrollWidth > window.innerWidth + 1;
 }
 """
