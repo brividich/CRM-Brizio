@@ -42,3 +42,5 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) o
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Lista: filtro `anno` e stato «In analisi (non chiuse)» (`STATO_IN_ANALISI`, `anno_rilevazione`). `_safe_json` ora neutralizza davvero `<`, `>`, `&`. TRIR, giorni senza infortuni e headcount restano senza link.
+
+**Audit 22/11/2026 (G1-G3):** TRIR su ore stimate in proporzione all'anno trascorso (`organico × 2000 × giorni trascorsi / giorni dell'anno`), con `trir_base` mostrata sotto l'indice; `active_headcount` restituisce `None` se l'anagrafica non risponde (avviso «Organico non disponibile»). «Elimina» archivia (`archiviata_il`/`archiviata_da`/`motivo_archiviazione`, migrazione 0009): il gestore `objects` esclude le archiviate, `tutte` le include; elenco «Eliminate» (`?archiviate=1`, solo RSPP/ASPP) e POST `<id>/ripristina/`. Con sorgente SharePoint la cancellazione resta, con il motivo nel registro azioni.

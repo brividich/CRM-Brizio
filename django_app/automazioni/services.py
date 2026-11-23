@@ -665,7 +665,7 @@ def _enrich_rilevazione_incidenti_payload(payload: Any) -> Any:
     try:
         from rilevazione_incidenti.models import RilevazioneIncidente
 
-        row = RilevazioneIncidente.objects.filter(pk=payload["id"]).values(*mancanti).first()
+        row = RilevazioneIncidente.tutte.filter(pk=payload["id"]).values(*mancanti).first()
         if row:
             for campo in mancanti:
                 enriched[campo] = row.get(campo) or ""

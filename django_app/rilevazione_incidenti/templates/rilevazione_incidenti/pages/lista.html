@@ -354,15 +354,21 @@ body.theme-dark .sic-tipo-early-warning{color:#c4b5fd}
       {% endfor %}
     </select>
     {% endif %}
+    {% if vedi_archiviate %}<input type="hidden" name="archiviate" value="1">{% endif %}
     <button type="submit" class="sic-filter-btn">Filtra</button>
     <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-filter-reset">Reset</a>
+    {% if vedi_archiviate %}
+    <a href="{% url 'rilevazione_incidenti:lista' %}#sic-elenco" class="sic-filter-reset" title="Torna alle rilevazioni attive">← Attive</a>
+    {% elif n_archiviate %}
+    <a href="{% url 'rilevazione_incidenti:lista' %}?archiviate=1#sic-elenco" class="sic-filter-reset" title="Rilevazioni eliminate: si aprono e si ripristinano dal dettaglio">Eliminate ({{ n_archiviate }})</a>
+    {% endif %}
   </form>
 
   <!-- Tabella -->
   <div class="sic-table-card">
     <div class="sic-table-header">
       <span>
-        Rilevazioni
+        {% if vedi_archiviate %}Rilevazioni eliminate{% else %}Rilevazioni{% endif %}
         <span class="sic-count-badge">{{ items|length }}</span>
         {% if search or tipo_filter or evento_filter or stato_filter or reparto_filter or anno_filter %}
         <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato{% if anno_filter %} · anno {{ anno_filter }}{% endif %}</span>

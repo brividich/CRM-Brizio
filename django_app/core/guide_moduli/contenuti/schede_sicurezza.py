@@ -41,7 +41,8 @@ GUIDA = {
                     "L'elenco «Prodotti chimici» è diviso per reparto. Filtra per reparto, famiglia o stato della scheda e clicca «Filtra».",
                     "Clicca un pittogramma di pericolo in alto per vedere solo i prodotti con quel pericolo.",
                     "Clicca un punto qualsiasi del riquadro di un prodotto per aprirne il dettaglio; «PDF» scarica la scheda.",
-                    "Barra verde = scheda aggiornata; ambra = scheda più vecchia di 36 mesi («Da rivedere»); rossa = scheda mancante.",
+                    "Barra verde = scheda aggiornata; ambra = revisione del fornitore più vecchia di 36 mesi («Da rivedere»); rossa = scheda mancante. "
+                    "Senza data di revisione i 36 mesi partono dal caricamento: indicala in «Carica nuova versione SDS» o in «Modifica campi estratti».",
                 ]),
             ],
         },

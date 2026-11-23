@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -22,7 +21,6 @@ from core.upload_mime import UploadMimeValidationError, validate_extension_and_m
 from . import pittogrammi as ghs
 from .forms import ImpostazioniEtichettaForm, ProdottoChimicoForm
 from .models import (
-    SCADENZA_SDS_GIORNI,
     EstrazioneStato,
     ImpostazioniEtichetta,
     PresaVisioneScheda,
@@ -85,6 +83,18 @@ def _can_gestire(request) -> bool:
 # ---------------------------------------------------------------------------
 # Risposte pubbliche (QR): nome file e header
 # ---------------------------------------------------------------------------
+
+
+def _data_revisione(grezzo):
+    """Data di revisione del fornitore dal campo del form (AAAA-MM-GG); None se vuota o non valida."""
+    from datetime import date
+
+    try:
+        valore = date.fromisoformat(str(grezzo or "").strip())
+    except ValueError:
+        return None
+    return valore if valore <= timezone.localdate() else None
+
 
 def _nome_file_sds(scheda) -> str:
     """Nome file dell'allegato per il ``Content-Disposition``, normalizzato.
@@ -207,9 +217,8 @@ def prodotto_list(request):
         qs = qs.filter(pk__in=SchedaSicurezza.objects.filter(
             is_corrente=True).values("prodotto_id"))
     elif stato == "da_rivedere":
-        soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
         qs = qs.filter(pk__in=SchedaSicurezza.objects.filter(
-            is_corrente=True, data_caricamento__lt=soglia).values("prodotto_id"))
+            SchedaSicurezza.q_da_rivedere(), is_corrente=True).values("prodotto_id"))
 
     cards = [_card_prodotto(prodotto) for prodotto in qs]
 
@@ -346,9 +355,10 @@ def prodotto_detail(request, pk: int):
             scheda_corrente.dpi_testo = request.POST.get("dpi_testo", "").strip()
             scheda_corrente.primo_soccorso = request.POST.get("primo_soccorso", "").strip()
             scheda_corrente.incompatibilita = request.POST.get("incompatibilita", "").strip()
+            scheda_corrente.data_revisione_fornitore = _data_revisione(request.POST.get("data_revisione_fornitore"))
             scheda_corrente.save(update_fields=[
                 "pittogrammi", "frasi_h", "frasi_p", "classificazione_clp",
-                "dpi_testo", "primo_soccorso", "incompatibilita",
+                "dpi_testo", "primo_soccorso", "incompatibilita", "data_revisione_fornitore",
             ])
             # Ricopia sul prodotto: e' il set che il form prodotto ripropone e
             # quello che resta visibile se in futuro la scheda viene sostituita.
@@ -360,6 +370,7 @@ def prodotto_detail(request, pk: int):
 
         pdf_file = request.FILES.get("pdf")
         versione = request.POST.get("versione", "").strip()
+        data_revisione = _data_revisione(request.POST.get("data_revisione_fornitore"))
         if not pdf_file:
             messages.error(request, "Seleziona un file PDF.")
             return redirect("schede_sicurezza:prodotto_detail", pk=pk)
@@ -380,6 +391,7 @@ def prodotto_detail(request, pk: int):
             prodotto=prodotto,
             pdf=pdf_file,
             versione=versione,
+            data_revisione_fornitore=data_revisione,
             caricata_da=request.user,
             is_corrente=True,
         )

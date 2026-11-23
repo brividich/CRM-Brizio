@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.acl_v2 import request_has_permission_code
@@ -592,16 +593,18 @@ def _sp_fields_to_kwargs(sp_fields: dict) -> dict:
     return result
 
 
-def _fetch_items_local() -> list[dict]:
+def _fetch_items_local(*, archiviate: bool = False) -> list[dict]:
+    qs = RilevazioneIncidente.tutte.filter(archiviata_il__isnull=False) if archiviate else RilevazioneIncidente.objects.all()
     items = []
-    for inst in RilevazioneIncidente.objects.all():
+    for inst in qs:
         items.append({"id": str(inst.pk), "fields": inst.as_sp_fields()})
     return items
 
 
 def _fetch_item_local(pk: str) -> dict:
-    inst = RilevazioneIncidente.objects.get(pk=int(pk))
-    return {"id": str(inst.pk), "fields": inst.as_sp_fields()}
+    # Anche le archiviate: il dettaglio le mostra con il motivo e «Ripristina».
+    inst = RilevazioneIncidente.tutte.select_related("archiviata_da").get(pk=int(pk))
+    return {"id": str(inst.pk), "fields": inst.as_sp_fields(), "archiviata": inst if inst.is_archiviata else None}
 
 
 def _create_item_local(sp_fields: dict) -> dict:
@@ -619,8 +622,11 @@ def _update_item_local(pk: str, sp_fields: dict) -> None:
         inst.save(update_fields=list(kwargs.keys()))
 
 
-def _delete_item_local(pk: str) -> None:
-    RilevazioneIncidente.objects.filter(pk=int(pk)).delete()
+def _archivia_item_local(pk: str, *, utente, motivo: str) -> bool:
+    """Archivia (non cancella) una segnalazione locale. False se era gia' archiviata."""
+    return bool(RilevazioneIncidente.objects.filter(pk=int(pk)).update(
+        archiviata_il=timezone.now(), archiviata_da=utente, motivo_archiviazione=motivo[:500],
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +639,8 @@ def lista(request):
     cfg = _get_impostazioni()
     items = []
     error = None
+    # «Eliminate»: le segnalazioni archiviate, solo per chi puo' ripristinarle.
+    vedi_archiviate = request.GET.get("archiviate") == "1" and _use_local(cfg) and _can_manage_rspp(request)
 
     if not _use_local(cfg):
         try:
@@ -648,7 +656,7 @@ def lista(request):
             error = str(exc)
     else:
         try:
-            raw = _fetch_items_local()
+            raw = _fetch_items_local(archiviate=vedi_archiviate)
             for item in raw:
                 f = item.get("fields", {})
                 f["sp_id"] = item["id"]
@@ -748,6 +756,9 @@ def lista(request):
         "can_manage_settings": _can_manage_settings(request),
         "error": error,
         "stats": stats,
+        "vedi_archiviate": vedi_archiviate,
+        "n_archiviate": (RilevazioneIncidente.tutte.filter(archiviata_il__isnull=False).count()
+                         if can_rspp and _use_local(cfg) else 0),
     })
 
 
@@ -859,6 +870,7 @@ def dettaglio(request, sp_id):
     cfg = _get_impostazioni()
     item_fields = None
     error = None
+    archiviata = None
 
     if not _use_local(cfg):
         try:
@@ -873,6 +885,10 @@ def dettaglio(request, sp_id):
     else:
         try:
             item = _fetch_item_local(sp_id)
+            archiviata = item.get("archiviata")
+            if archiviata is not None and not _can_manage_rspp(request):
+                # Eliminata: la vede solo chi puo' ripristinarla.
+                raise RilevazioneIncidente.DoesNotExist("Rilevazione eliminata.")
             item_fields = item.get("fields", {})
             item_fields["sp_id"] = sp_id
             item_fields["stato"] = _deriva_stato(item_fields)
@@ -891,6 +907,8 @@ def dettaglio(request, sp_id):
     if sistema_ruoli_attivo() and item_fields is not None:
         can_edit_preposto = can_edit_preposto and puo_fare(request, MODULO, "modificare", item_fields)
     can_edit_rspp = _can_manage_rspp(request)
+    if archiviata is not None:
+        can_edit_preposto = False
 
     # CAPA — Azioni correttive/preventive collegate a questo incidente.
     capa_items, capa_new_url = _capa_panel_context(request, sp_id, item_fields)
@@ -928,7 +946,8 @@ def dettaglio(request, sp_id):
         "can_edit_preposto": can_edit_preposto,
         "can_edit_rspp": can_edit_rspp,
         # «Rimanda la scheda» dal flusso: solo con i dati nel database del portale.
-        "puo_rimandare_scheda": can_edit_rspp and _use_local(cfg) and item_fields is not None,
+        "puo_rimandare_scheda": can_edit_rspp and _use_local(cfg) and item_fields is not None and archiviata is None,
+        "archiviata": archiviata,
         "b": _bool_field,
         "capa_items": capa_items,
         "capa_new_url": capa_new_url,
@@ -1080,6 +1099,11 @@ def modifica(request, sp_id):
 @login_required
 @require_POST
 def elimina(request, sp_id):
+    """Elimina = archivia con motivo obbligatorio: la segnalazione resta, fuori da elenchi e indici.
+
+    Prima la riga veniva cancellata e restava solo l'identificativo nel registro azioni (audit G3).
+    Con la sorgente SharePoint l'elemento si cancella ancora dalla lista, ma il motivo resta nel registro.
+    """
     if sistema_ruoli_attivo():
         try:
             fields = _fetch_item_local(sp_id)["fields"] if _use_local(_get_impostazioni()) else {}
@@ -1089,18 +1113,44 @@ def elimina(request, sp_id):
             return risposta_negata(request, pagina="Segnalazione incidenti")
     elif not _can_manage_rspp(request):
         return render(request, "core/pages/forbidden.html", status=403)
+    motivo = (request.POST.get("motivo") or "").strip()
+    if len(motivo) < 5:
+        messages.error(request, "Per eliminare la rilevazione scrivi il motivo (almeno 5 caratteri).")
+        return redirect("rilevazione_incidenti:dettaglio", sp_id=sp_id)
     cfg = _get_impostazioni()
     try:
         if _use_local(cfg):
-            _delete_item_local(sp_id)
+            if _archivia_item_local(sp_id, utente=request.user, motivo=motivo):
+                log_action(request, "archivia", "rilevazione_incidenti", {"id": sp_id, "motivo": motivo[:500]})
+                messages.success(request, "Rilevazione eliminata: chi gestisce il modulo può ripristinarla da «Eliminate».")
+            else:
+                messages.info(request, "La rilevazione era già eliminata.")
         else:
             _delete_item(sp_id)
-        log_action(request, "elimina", "rilevazione_incidenti", f"Eliminata rilevazione id={sp_id}")
-        messages.success(request, "Rilevazione eliminata.")
+            log_action(request, "elimina", "rilevazione_incidenti", {"id": sp_id, "motivo": motivo[:500], "sorgente": "sharepoint"})
+            messages.success(request, "Rilevazione eliminata dalla lista SharePoint.")
     except Exception as exc:
         logger.error("rilevazione_incidenti elimina %s: %s", sp_id, exc)
         messages.error(request, f"Errore: {exc}")
     return redirect("rilevazione_incidenti:lista")
+
+
+@login_required
+@require_POST
+def ripristina(request, sp_id):
+    """Riporta nel registro una segnalazione eliminata (solo RSPP/ASPP o chi gestisce il modulo)."""
+    if not _can_manage_rspp(request):
+        return render(request, "core/pages/forbidden.html", status=403)
+    if not str(sp_id).isdigit():
+        messages.error(request, "Si ripristinano solo le segnalazioni salvate nel portale.")
+        return redirect("rilevazione_incidenti:lista")
+    n = RilevazioneIncidente.tutte.filter(pk=int(sp_id), archiviata_il__isnull=False).update(
+        archiviata_il=None, archiviata_da=None, motivo_archiviazione="",
+    )
+    if n:
+        log_action(request, "ripristina", "rilevazione_incidenti", {"id": sp_id})
+        messages.success(request, "Rilevazione ripristinata.")
+    return redirect("rilevazione_incidenti:dettaglio", sp_id=sp_id)
 
 
 @login_required

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import date
 
@@ -15,16 +16,27 @@ EVENT_TYPE_LABELS = {
     TipoEventoSicurezza.INCIDENTE: "Incidente",
 }
 
+logger = logging.getLogger(__name__)
+
 
 def event_type_label(value: str) -> str:
     return EVENT_TYPE_LABELS.get(normalize_tipo_evento(value), "Unsafe condition")
 
 
-def active_headcount() -> int:
+ORE_ANNUE_PER_PERSONA = 2000
+
+
+def active_headcount() -> int | None:
+    """Persone in organico per il calcolo degli indici; None se l'anagrafica non risponde.
+
+    «Zero» e «non disponibile» sono cose diverse: senza organico l'indice non si calcola
+    e la pagina lo dice, invece di mostrare un trattino senza spiegazione (audit G2).
+    """
     try:
         rows = fetch_anagrafica_rows(deduplicate=True)
     except Exception:
-        return 0
+        logger.exception("Indici sicurezza: organico non disponibile (anagrafica non raggiungibile)")
+        return None
     # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non entra
     # nelle ore lavorate su cui si calcolano gli indici.
     from anagrafica.services.conteggi_organico import righe_in_organico
@@ -67,9 +79,20 @@ def get_safety_kpis(today: date | None = None) -> dict:
         counts[normalize_tipo_evento(evento.tipo_evento or evento.tipologia_scheda)] += 1
 
     headcount = active_headcount()
-    annual_hours = headcount * 2000
+    # Ore in proporzione alla parte d'anno trascorsa (audit G1): gli incidenti da inizio anno
+    # si dividono per le ore lavorate finora, non per quelle dell'anno intero.
+    giorni_anno = (next_year - year_start).days
+    giorni_trascorsi = min((today - year_start).days + 1, giorni_anno)
+    ore_stimate = round((headcount or 0) * ORE_ANNUE_PER_PERSONA * giorni_trascorsi / giorni_anno)
     incidenti = counts[TipoEventoSicurezza.INCIDENTE]
-    trir = round((incidenti * 200000) / annual_hours, 2) if annual_hours else None
+    trir = round((incidenti * 200000) / ore_stimate, 2) if ore_stimate else None
+    if headcount is None:
+        trir_base = "Organico non disponibile: l'anagrafica non ha risposto, l'indice non si può calcolare."
+    else:
+        trir_base = (
+            f"Incidenti × 200.000 / ore lavorate stimate: organico {headcount} × {ORE_ANNUE_PER_PERSONA} ore "
+            f"× {giorni_trascorsi}/{giorni_anno} giorni = {ore_stimate:,} ore".replace(",", ".")
+        )
 
     last_incident = (
         RilevazioneIncidente.objects.filter(tipo_evento=TipoEventoSicurezza.INCIDENTE, data_segnalazione__isnull=False)
@@ -98,8 +121,12 @@ def get_safety_kpis(today: date | None = None) -> dict:
 
     return {
         "year": today.year,
-        "headcount": headcount,
+        "headcount": headcount or 0,
+        "organico_non_disponibile": headcount is None,
+        "giorni_trascorsi": giorni_trascorsi,
+        "ore_stimate": ore_stimate,
         "trir": trir,
+        "trir_base": trir_base,
         "giorni_senza_infortuni": giorni_senza_infortuni,
         "unsafe_condition": counts[TipoEventoSicurezza.UNSAFE_CONDITION],
         "near_miss": counts[TipoEventoSicurezza.NEAR_MISS],
