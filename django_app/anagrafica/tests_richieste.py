@@ -227,6 +227,20 @@ class PagineTests(_Scenario):
         richiesta.refresh_from_db()
         self.assertEqual(richiesta.stato, R.STATO_IN_APPROVAZIONE)
 
+    def test_la_dashboard_porta_a_da_fare(self):
+        self._ram()
+        with self._come(self.rdd):
+            righe = self.client.get(reverse("anagrafica:index")).context["cose_da_gestire"]
+        prima = righe[0]
+        self.assertEqual((prima["titolo"], prima["count"], prima["url"]),
+                         ("Richieste da approvare", 1, reverse("anagrafica:richieste_da_fare")))
+        with self._come(self.capo):
+            righe = self.client.get(reverse("anagrafica:index")).context["cose_da_gestire"]
+        self.assertEqual((righe[0]["titolo"], righe[0]["count"]), ("Le mie richieste in attesa di altri", 1))
+        with self._come(self.estraneo):
+            titoli = [r["titolo"] for r in self.client.get(reverse("anagrafica:index")).context["cose_da_gestire"]]
+        self.assertNotIn("Richieste da approvare", titoli)
+
     def test_voci_di_menu(self):
         voci = dict(SubnavLinkAnagrafica.objects.filter(gruppo="Richieste").values_list("url_value", "etichetta"))
         self.assertEqual(voci, {"anagrafica:richieste_da_fare": "Da fare", "anagrafica:richieste": "Richieste"})

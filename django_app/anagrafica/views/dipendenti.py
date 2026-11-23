@@ -390,7 +390,30 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
                 "urgente": False,
                 "url": f"{base}?tipo={kind}&stato=60",
             })
-    return scadute + in_scadenza
+    return _righe_richieste(request) + scadute + in_scadenza
+
+
+def _righe_richieste(request) -> list[dict]:
+    """In cima alle cose da gestire: le richieste su mansioni e competenze che aspettano questa persona.
+
+    Stesso conteggio della pagina «Da fare» (``services.richieste.da_fare``), a cui la riga porta.
+    """
+    try:
+        from ..services import richieste
+
+        dati = richieste.da_fare(richieste.attore(request))
+    except Exception:
+        logger.exception("Dashboard: richieste da fare non calcolabili")
+        return []
+    url = reverse("anagrafica:richieste_da_fare")
+    righe = []
+    if dati["da_approvare"]:
+        righe.append({"icona": "✍️", "titolo": "Richieste da approvare", "count": len(dati["da_approvare"]),
+                      "urgente": True, "url": url})
+    if dati["in_attesa"]:
+        righe.append({"icona": "⏳", "titolo": "Le mie richieste in attesa di altri", "count": len(dati["in_attesa"]),
+                      "urgente": False, "url": url})
+    return righe
 
 
 @login_required
