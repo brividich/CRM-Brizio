@@ -492,6 +492,34 @@
   </form>
 </div>
 
+<!-- Orario in cui contano le ore SLA (audit P11) -->
+<div class="tkt-card" id="sla-orario">
+  <div class="tkt-card-header">
+    <div>
+      <div class="tkt-card-title">Orario SLA</div>
+      <div class="tkt-card-sub">
+        Le ore SLA delle categorie contano solo in questo orario, da lunedì a venerdì, saltando festivi e chiusure del calendario aziendale.
+        Il promemoria «SLA scaduto» all'assegnatario parte alla scadenza e poi ogni {{ sla_orario.richiamo_giorni }} giorni.
+      </div>
+    </div>
+  </div>
+  <form method="post" style="padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save_sla_orario">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#64748b;">
+      Dalle ore
+      <input type="number" name="sla_ora_inizio" min="0" max="23" value="{{ sla_orario.inizio }}"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#64748b;">
+      Alle ore
+      <input type="number" name="sla_ora_fine" min="1" max="24" value="{{ sla_orario.fine }}"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </label>
+    <button type="submit" class="tkt-save-btn">Salva orario</button>
+  </form>
+</div>
+
 <!-- Analisi / KPI: Top 5 cause ricorrenti -->
 <div class="tkt-card tkt-top-cause-card">
   <div class="tkt-card-header">

@@ -130,6 +130,8 @@ GUIDA = {
                 ("p", "Ticket → «Impostazioni». Ci sono due schede separate, IT e MAN: ognuna si salva con il suo pulsante («Salva IT», «Salva MAN»)."),
                 ("ul", [
                     "Categorie: «Aggiungi», attiva/disattiva, «Elimina». Ogni categoria ha il suo tempo di risposta (SLA).",
+                    "«Orario SLA»: le ore SLA contano solo in questo orario (di base dalle 8 alle 17), da lunedì a venerdì, "
+                    "saltando festivi e chiusure del calendario aziendale. Un ticket aperto venerdì sera comincia a contare lunedì mattina.",
                     "Import dei ticket da file («Importa Ticket da CSV»): scegli IT o MAN, «Scarica template CSV», "
                     "poi «Scegli file CSV/Excel…» e «Importa». Il CSV va separato da virgole: dall'Excel italiano "
                     "conviene caricare direttamente il file .xlsx.",
@@ -193,7 +195,8 @@ GUIDA = {
             "blocchi": [
                 ("def", [
                     ("Escalation urgenti", "ogni ora: i ticket URGENTI aperti e senza assegnatario oltre la soglia generano un promemoria al team e al richiedente."),
-                    ("Promemoria SLA", "comando send_sla_reminders: avvisa l'assegnatario dei ticket con SLA scaduto."),
+                    ("Promemoria SLA", "ogni mattina alle 8:30 avvisa l'assegnatario dei ticket con SLA scaduto: il primo avviso alla scadenza, "
+                                       "poi un richiamo ogni 3 giorni finché il ticket resta aperto (non più ogni giorno)."),
                     ("Sincronizzazione SharePoint MAN", "ogni 5 minuti (lavoro «tickets_man_sharepoint_sync»): manda le modifiche del portale alla lista e porta sul portale quelle fatte sulla lista."),
                     ("Registro manutenzione", "i ticket MAN collegati a un asset compaiono nel registro manutenzione dell'asset."),
                 ]),

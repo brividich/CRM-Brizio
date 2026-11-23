@@ -20,6 +20,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **Deploy:** riavviare qcluster, perché il nuovo schedule si registra con i flussi gestiti. Il primo file nasce entro 15 minuti; nel frattempo vale il comportamento precedente.
 - File: `core/avvio.py` (nuovo), `config/wsgi.py`, `ai_assistant/indice_file.py` (nuovo), `ai_assistant/services.py`, `ai_assistant/tasks.py`, `automazioni/schedules.py`, `config/settings/base.py`, `config/settings/test.py`, `ai_assistant/tests_indice_file.py` (nuovo), `core/test_avvio.py` (nuovo).
 
+### Audit 22/11, proposte P10-P11: SLA dei ticket (blocco 8b)
+
+- **Orario di lavoro (P11):** le ore SLA contano solo nell'orario di Impostazioni ticket → «Orario SLA» (di base 8-17), da lunedì a venerdì, saltando festivi e chiusure del calendario aziendale. Prima contavano anche notti e fine settimana.
+- **Promemoria con memoria (P10):** «SLA scaduto» all'assegnatario alla scadenza e poi ogni 3 giorni, non più ogni mattina; ore SLA delle categorie lette dalla cache, non con una query per ticket.
+- File: `tickets/sla.py` (nuovo), `tickets/models.py`, `tickets/migrations/0017_sla_promemoria.py`, `tickets/management/commands/send_sla_reminders.py`, `tickets/views.py`, `tickets/templates/tickets/pages/impostazioni.html`, `tickets/tests_sla_orario.py`; Centro guide Ticket, `docs/moduli/tickets.md`. **Migrazione `tickets 0017`.**
+
 ### Fix: Mansionario → Struttura → Importa andava in errore 500
 
 - `anagrafica/services/struttura_excel.py`: il catalogo dei processi MOD.128 leggeva un campo `codice` che `ProcessoQualificato` non ha; con almeno un processo in archivio (produzione) ogni anteprima/import del file Struttura dava 500. Il processo si abbina per nome esatto, come dicono le istruzioni del file.
