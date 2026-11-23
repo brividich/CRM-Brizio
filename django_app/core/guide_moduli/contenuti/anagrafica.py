@@ -142,6 +142,7 @@ GUIDA = {
                     "competenze; chi ha il ruolo MSO per sospensioni, rimozioni e competenze.",
                     "Chi approva: chi ha il ruolo RDD le richieste su mansioni, chi ha il ruolo MSO quelle su "
                     "competenze. Nessuno approva la propria richiesta. Per respingere serve una nota.",
+                    "Le stesse due righe compaiono in cima a «Cose da gestire» nella Dashboard di Anagrafica. "
                     "«Da fare» mostra «Da approvare» (ciò che aspetta te) e «Le mie richieste in attesa di altri», "
                     "con la colonna «Tocca a».",
                     "Nella richiesta: i passi in fila, «Che cosa si chiede» con ogni dato etichettato, «Che cosa "
