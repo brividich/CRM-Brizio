@@ -65,3 +65,5 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) c
 - `q_stato_assegnazione` e `conteggi_assegnazioni` per tessere ed elenchi; matrice: «Da confermare».
 
 **Promemoria pre-scadenza (audit R2, 22/11/2026):** ogni assegnazione ricade nella soglia più stretta già raggiunta (`pr_reminder_pre_giorni`, es. 7,2: 6 giorni → soglia 7, 1 giorno → soglia 2) e il promemoria parte se l'evento `pre<soglia>` non c'è ancora. Se il controllo delle 06:45 salta un giorno il promemoria parte il giorno dopo; oggetto «in scadenza entro N giorni».
+
+**Bozze CN-SGI (audit [56], 23/11/2026):** `carica_bozza` verifica anche il contenuto reale (MIME e firma) con `core.upload_mime.valida_per_estensione`, non solo l'estensione.

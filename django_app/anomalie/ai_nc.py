@@ -162,7 +162,7 @@ def contesto_nc(nc, simili: list[dict]) -> str:
         if lezioni:
             righe.append(lezioni)
     except Exception:  # noqa: BLE001
-        pass
+        logger.exception("contesto_nc: errore ignorato")
     return "\n".join(righe)[:7000]
 
 

@@ -224,7 +224,7 @@ def puo_cambiare_su_op(request, capo, car, op_id=None) -> bool:
         if user_can_modulo_action(request, "anomalie", "admin_anomalie"):
             return True
     except Exception:
-        pass
+        logger.exception("puo_cambiare_su_op: errore ignorato")
     if op_id and _incaricato_op_io(request, op_id):
         return True
     return bool(set(_op_role_codes_da_persone(request, capo, car))
@@ -329,7 +329,7 @@ def op_incaricato(request, *, ruoli=None) -> set[str]:
     try:
         setattr(request, cache_key, out)
     except Exception:
-        pass
+        logger.exception("op_incaricato: errore ignorato")
     return out
 
 

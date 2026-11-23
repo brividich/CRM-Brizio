@@ -169,17 +169,9 @@ PREFISSI_NUMERO = {Audit.TIPO_SISTEMA: "RAIS", Audit.TIPO_MANDATORIO_CLIENTE: "R
 
 
 def prossimo_numero_audit(anno: int, tipo: str = Audit.TIPO_SISTEMA) -> str:
-    prefisso = f"{PREFISSI_NUMERO.get(tipo, 'RAIS')}-{anno}-"
-    ultimo = (
-        Audit.objects.filter(numero__startswith=prefisso)
-        .order_by("-numero").values_list("numero", flat=True).first()
-    )
-    progressivo = 1
-    if ultimo:
-        match = re.search(r"(\d+)$", ultimo)
-        if match:
-            progressivo = int(match.group(1)) + 1
-    return f"{prefisso}{progressivo:02d}"
+    from core.numeratori import prossimo_progressivo
+
+    return prossimo_progressivo(Audit.objects.all(), "numero", f"{PREFISSI_NUMERO.get(tipo, 'RAIS')}-{anno}-", cifre=2)
 
 
 def _datetime_locale(data, ora: time):

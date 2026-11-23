@@ -494,7 +494,7 @@ def _request_anomalie_list_scope(request) -> str:
                 if match:
                     scopes.extend(system_rule_map.values())
             except Exception:
-                pass
+                logger.exception("_request_anomalie_list_scope: errore ignorato")
 
     return _max_anomalie_list_scope(scopes) if scopes else AnomalieListScope.ALL
 
@@ -1653,7 +1653,7 @@ def _current_user_name_norms(request) -> set[str]:
                     names.add(_normalize_identity_text(full_name))
         except Exception:
             # Fail-open solo sul fallback legacy_user.nome già presente in names.
-            pass
+            logger.exception("_current_user_name_norms: errore ignorato")
 
     return {n for n in names if n}
 
@@ -2291,7 +2291,7 @@ def api_segnalato(request):
         log_action(request, "anomalia_segnalato", "anomalie",
                    {"local_id": local_id, "op_id": op_id, "chi": chi, "segnalato": acceso})
     except Exception:
-        pass
+        logger.exception("api_segnalato: registro attività non scritto")
     try:
         from anomalie.mail_action_service import log_anomalia_portal_action
 
@@ -2444,7 +2444,7 @@ def api_anomalie_sposta(request):
     try:
         log_action(request, "anomalia_spostata", "anomalie", {"local_id": local_id, **esito})
     except Exception:
-        pass
+        logger.exception("api_anomalie_sposta: registro attività non scritto")
     try:
         from anomalie.mail_action_service import log_anomalia_portal_action, register_pending_update
 
@@ -3019,7 +3019,7 @@ def _handle_anomalie_email_resend_post(request):
             },
         )
     except Exception:
-        pass
+        logger.exception("_handle_anomalie_email_resend_post: registro attività non scritto")
     return _anomalie_settings_redirect("log")
 
 
@@ -3138,7 +3138,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                     from anomalie.mail_action_service import find_legacy_user_by_name
                     capo_user = find_legacy_user_by_name(capo_val)
             except Exception:
-                pass
+                logger.exception("_notify_anomalia_event: errore ignorato")
             if capo_user and event == "info_richieste":
                 _invia_notifica(
                     legacy_user_id=capo_user.id,
@@ -3680,7 +3680,7 @@ def _crea_op_response(request, data: dict):
                 {"local_id": local_id, "item_id": sp_item_id, "title": op_row["id"]},
             )
         except Exception:
-            pass
+            logger.exception("_crea_op_response: registro attività non scritto")
 
         return JsonResponse(
             {
@@ -3947,7 +3947,7 @@ def api_anomalie_allegati_copia(request):
     try:
         log_action(request, "anomalia_allegati_copiati", "anomalie", {"da": da_id, "a": a_id, "copiati": copiati})
     except Exception:
-        pass
+        logger.exception("api_anomalie_allegati_copia: registro attività non scritto")
     if errori:
         logger.warning("[anomalie] copia allegati %s -> %s: %s", da_id, a_id, "; ".join(errori))
     return JsonResponse({"success": not errori, "copiati": copiati, "errors": errori})
@@ -4041,7 +4041,7 @@ def api_anomalie_allegati_upload(request):
                     },
                 )
             except Exception:
-                pass
+                logger.exception("api_anomalie_allegati_upload: registro attività non scritto")
 
         return JsonResponse(
             {
@@ -4155,7 +4155,7 @@ def api_anomalie_allegati_delete(request):
                 {"local_id": local_id, "op_id": op_id, "file_id": file_id, "file_name": deleted_name},
             )
         except Exception:
-            pass
+            logger.exception("api_anomalie_allegati_delete: registro attività non scritto")
         return JsonResponse({"success": True, "attachments": _list_attachments_for_local(local_id),
                              "removed": _list_removed_attachments(local_id), "local_id": local_id})
     except Exception as exc:
@@ -4212,7 +4212,7 @@ def api_anomalie_allegati_ripristina(request):
             log_action(request, "anomalia_allegato_ripristina", "anomalie",
                        {"local_id": local_id, "op_id": op_id, "file_id": nuovo_id, "file_name": nome})
         except Exception:
-            pass
+            logger.exception("api_anomalie_allegati_ripristina: registro attività non scritto")
         return JsonResponse({"success": True, "attachments": _list_attachments_for_local(local_id),
                              "removed": _list_removed_attachments(local_id), "local_id": local_id})
     except Exception as exc:
@@ -4337,9 +4337,14 @@ def api_anomalie_allegati_file(request):
                 {"local_id": local_id, "op_id": op_id, "file_id": file_id, "file_name": display_name},
             )
         except Exception:
-            pass
-        response = FileResponse(path.open("rb"), as_attachment=force_download, filename=display_name, content_type=mime)
-        return response
+            logger.exception("api_anomalie_allegati_file: registro attività non scritto")
+        from core.download_security import ALLEGATI_INLINE_MIME_TYPES, harden_sniffed_response, read_head
+
+        fh = path.open("rb")
+        response = FileResponse(fh, as_attachment=force_download, filename=display_name, content_type=mime)
+        # Inline solo se il contenuto coincide con l'estensione; il resto esce come allegato in sandbox (audit [56]).
+        return harden_sniffed_response(response, display_name, read_head(fh),
+                                       inline_types=frozenset() if force_download else ALLEGATI_INLINE_MIME_TYPES)
     except Exception as exc:
         logger.exception("[anomalie] errore api_anomalie_allegati_file")
         return _json_error(f"Errore apertura allegato: {exc}", status=500)
@@ -4473,7 +4478,7 @@ def api_riapri(request):
     try:
         log_action(request, "anomalia_riaperta", "anomalie", {"local_id": local_id, "op_id": op_id})
     except Exception:
-        pass
+        logger.exception("api_riapri: registro attività non scritto")
     try:
         identity = _current_user_identity(request)
         from anomalie.mail_action_service import log_anomalia_portal_action
@@ -4656,7 +4661,7 @@ def api_decisioni_coda(request):
         try:
             log_action(request, "anomalie_riepilogo_inviato_subito", "anomalie", {"op_id": op_id, "decisioni": coda["n"]})
         except Exception:
-            pass
+            logger.exception("api_decisioni_coda: registro attività non scritto")
         rimaste = decisioni_in_coda(op_id)
         if rimaste:
             return _json_error("Invio non riuscito: il sistema riprova da solo fra poco.", status=502)
@@ -4794,7 +4799,7 @@ def api_anomalie_esito(request):
                    {"local_id": local_id, "op_id": op_id, "tipo": tipo, "azione": azione, "chiusa": chiudi,
                     "allegati": len(salvati)})
     except Exception:
-        pass
+        logger.exception("api_anomalie_esito: registro attività non scritto")
     try:
         from anomalie.mail_action_service import log_anomalia_portal_action
         log_anomalia_portal_action(
@@ -5268,7 +5273,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
             "sn": payload_map.get("seriale"),
         })
     except Exception:
-        pass
+        logger.exception("_salva_riga_anomalia: registro attività non scritto")
 
     # Timeline azioni (fire-and-forget): registra il cambio stato dal portale
     # cosi' AnomaliaActionLog copre sia il canale mail sia quello web.
@@ -5671,7 +5676,7 @@ def api_notifica_op(request):
             "n_anomalie": len(anomalie_rows),
         })
     except Exception:
-        pass
+        logger.exception("api_notifica_op: registro attività non scritto")
 
     sent = run_log.status == "success"
     return JsonResponse({
@@ -5772,7 +5777,7 @@ def anomalie_configurazione_page(request):
                     log_action(request, "anomalie_nc_chiusura_config", "anomalie",
                                {"valore": nc_service.get_chiusura_mode()})
                 except Exception:
-                    pass
+                    logger.exception("anomalie_configurazione_page: registro attività non scritto")
             else:
                 messages.error(request, "Valore non valido per la chiusura delle NC.")
             return _anomalie_settings_redirect("qualita")
@@ -5794,7 +5799,7 @@ def anomalie_configurazione_page(request):
             try:
                 log_action(request, "anomalie_regole_carico", "anomalie", {"regole": regole})
             except Exception:
-                pass
+                logger.exception("anomalie_configurazione_page: registro attività non scritto")
             return _anomalie_settings_redirect("qualita")
         if action == "save_permessi_ruoli":
             saved = _save_anomalie_permessi_ruoli(request.POST.getlist("permessi_ruolo_id"))
@@ -5806,7 +5811,7 @@ def anomalie_configurazione_page(request):
             try:
                 log_action(request, "anomalie_permessi_ruoli_update", "anomalie", {"ruoli": saved})
             except Exception:
-                pass
+                logger.exception("anomalie_configurazione_page: registro attività non scritto")
             return _anomalie_settings_redirect(
                 "permessi", sub=request.POST.get("sub") or "accessi"
             )
@@ -6283,7 +6288,7 @@ def api_anomalie_config_liste(request):
             },
         )
     except Exception:
-        pass
+        logger.exception("api_anomalie_config_liste: registro attività non scritto")
 
     _apply_derived_anomalie_lists(updated)
     return JsonResponse({
@@ -6323,7 +6328,7 @@ def api_anomalie_notifiche(request):
             "parametri": payload.get("parametri") if isinstance(payload.get("parametri"), dict) else {},
         })
     except Exception:
-        pass
+        logger.exception("api_anomalie_notifiche: registro attività non scritto")
     return JsonResponse({"success": True, "message": message})
 
 
@@ -6564,7 +6569,7 @@ def api_anomalie_qualita(request):
                 "nc": scheda.nc.protocollo if scheda.nc_id else None,
             })
         except Exception:
-            pass
+            logger.exception("api_anomalie_qualita: registro attività non scritto")
         return JsonResponse({"success": True, "scheda": qs.serializza(scheda)})
 
     with transaction.atomic():

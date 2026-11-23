@@ -206,3 +206,77 @@ def validate_extension_and_mime(
             f"{display_name}: tipo MIME non consentito ({mime})."
         )
     return mime
+
+
+# ---------------------------------------------------------------------------
+# Validazione per estensione (tabella unica del portale, audit [56])
+# ---------------------------------------------------------------------------
+#
+# libmagic per i formati Office restituisce etichette generiche (``application/zip``
+# per un .xlsx, ``application/octet-stream`` per un .docx, ``application/CDFV2`` per
+# .doc/.xls/.msg): sono accettate solo per l'estensione giusta **e** se la firma
+# binaria coincide (un HTML rinominato .docx non ha la firma ZIP).
+
+_OFFICE_ZIP = {"application/zip", "application/octet-stream"}
+_OLE = {"application/cdfv2", "application/x-ole-storage"}
+_FIRMA_OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+_FIRMA_ZIP = b"PK\x03\x04"
+
+MIME_PER_ESTENSIONE: dict[str, set[str]] = {
+    ".pdf": {"application/pdf"},
+    ".jpg": {"image/jpeg"},
+    ".jpeg": {"image/jpeg"},
+    ".png": {"image/png"},
+    ".webp": {"image/webp"},
+    ".txt": {"text/plain"},
+    ".log": {"text/plain"},
+    ".csv": {"text/plain", "text/csv", "application/csv"},
+    ".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"} | _OFFICE_ZIP,
+    ".xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} | _OFFICE_ZIP,
+    ".doc": {"application/msword"} | _OLE,
+    ".xls": {"application/vnd.ms-excel"} | _OLE,
+    ".msg": {"application/vnd.ms-outlook", "application/x-msg"} | _OLE,
+    ".pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation"} | _OFFICE_ZIP,
+    ".odp": {"application/vnd.oasis.opendocument.presentation"} | _OFFICE_ZIP,
+    ".odt": {"application/vnd.oasis.opendocument.text"} | _OFFICE_ZIP,
+    ".ods": {"application/vnd.oasis.opendocument.spreadsheet"} | _OFFICE_ZIP,
+    ".ppt": {"application/vnd.ms-powerpoint"} | _OLE,
+}
+
+# Tipo da registrare quando libmagic dà un'etichetta generica.
+MIME_CANONICO = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".doc": "application/msword",
+    ".xls": "application/vnd.ms-excel",
+    ".msg": "application/vnd.ms-outlook",
+}
+
+
+def firma_coerente(uploaded_file, ext: str) -> bool:
+    """La firma binaria corrisponde all'estensione (anche per i contenitori fuori tabella)."""
+    if ext in (".pptx", ".odp", ".odt", ".ods", ".msg", ".ppt"):
+        attesa = _FIRMA_OLE if ext in (".msg", ".ppt") else _FIRMA_ZIP
+        try:
+            head = uploaded_file.read(len(attesa))
+        finally:
+            uploaded_file.seek(0)
+        return head == attesa
+    return check_magic_signature(uploaded_file, ext)
+
+
+def valida_per_estensione(uploaded_file, estensioni: set[str], *, max_bytes: int, label: str = "File") -> str:
+    """Nome, estensione, dimensione, MIME reale e firma; ritorna il MIME da registrare.
+
+    Solleva ``UploadMimeValidationError`` con un messaggio leggibile se il file non va.
+    """
+    raw_name = getattr(uploaded_file, "name", "") or ""
+    ext = Path(safe_filename(raw_name)).suffix.lower()
+    ammessi = MIME_PER_ESTENSIONE.get(ext, set()) if ext in estensioni else set()
+    mime = validate_extension_and_mime(
+        uploaded_file, allowed_extensions=estensioni, allowed_mimes=ammessi or {"-"},
+        max_bytes=max_bytes, label=label, allow_empty=False,
+    )
+    if not firma_coerente(uploaded_file, ext):
+        raise UploadMimeValidationError(f"{label}: il contenuto non corrisponde all'estensione {ext}.")
+    return MIME_CANONICO.get(ext, mime) if mime in (_OFFICE_ZIP | _OLE) else mime

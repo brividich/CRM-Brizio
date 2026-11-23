@@ -280,3 +280,5 @@ Scadenzario (pagina, «Cose da gestire», badge subnav) ristretto a `_schede_vis
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Scheda dipendente: «Ticket aperti»/«Ticket totali» contati per id utente e link a Gestione ticket (`richiedente=`), «Asset in carico» link all'inventario (`assegnatario=`), solo per chi può aprire quegli elenchi. Componente `_kpi_tile.html` con classe `kpi-link`.
+
+**Audit [50]/[56] (23/11/2026):** `mpq_utensili.nuova_revisione` blocca il Technical Plan mentre calcola il numero di revisione; il «Documento firmato» dell'approvazione è validato (PDF, JPG, PNG, DOC, DOCX). `valida_documento` delega al validatore unico di core.

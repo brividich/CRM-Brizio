@@ -281,6 +281,11 @@ class AccessoTests(_Base):
         self._carica(m, self.redattore, contenuto=b"MZ", nome="virus.exe")
         self.assertFalse(m.bozze.exists())
 
+    def test_pagina_html_rinominata_docx_rifiutata(self):
+        m = self._apri()
+        self._carica(m, self.redattore, contenuto=b"<html><script>alert(1)</script></html>", nome="bozza.docx")
+        self.assertFalse(m.bozze.exists())
+
     def test_registro_non_modificabile_dall_admin(self):
         from django.contrib.admin.sites import site
 

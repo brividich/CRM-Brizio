@@ -31,7 +31,8 @@ GUIDA = {
                 ("p", "Stesse anomalie su un altro OP? In Gestione anomalie premi «Clona» nella scheda dell'OP, spunta "
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
                       "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
-                      "allegati si copiano solo se lo scegli sull'anomalia."),
+                      "allegati si copiano solo se lo scegli sull'anomalia. Foto e PDF allegati si aprono nel browser solo se il "
+                      "contenuto è davvero un'immagine o un PDF; ogni altro file (o un file con l'estensione sbagliata) si scarica."),
                 ("p", "OP sbagliato? Nella pagina di inserimento clicca sul numero dell'OP o sul P/N nella barra in alto (hanno la matita ✎), cerca l'OP giusto per numero, P/N, capocommessa o CAR e premi «Passa a …». Il controllo continua sul nuovo OP: le anomalie già salvate passano con lui (solo se nessuna è stata ancora gestita dal capocommessa) e il blocco che stai scrivendo resta com'è. Quelle già comunicate arrivano al capocommessa del nuovo OP nel riepilogo delle modifiche. A controllo terminato si spostano le singole anomalie con «✂ Taglia»."),
                 ("p", "Un'anomalia inserita per sbaglio la elimina solo chi l'ha inserita («Elimina»); «✂ Taglia» "
                       "la sposta su un altro S/N dello stesso OP o di un altro OP (anche chi può modificare l'OP). "

@@ -313,6 +313,12 @@ def carica_bozza(m, file, user, ruoli: set[str], sintesi: str = "") -> SgiBozza:
         raise Rifiuto("Carica un file Word (.docx), Excel (.xlsx) o PDF.")
     if (getattr(file, "size", 0) or 0) > MAX_BYTE:
         raise Rifiuto("Il file supera i 25 MB.")
+    from core.upload_mime import UploadMimeValidationError, valida_per_estensione
+
+    try:  # contenuto reale, non solo il nome (audit [56])
+        valida_per_estensione(file, set(ESTENSIONI), max_bytes=MAX_BYTE, label="Bozza")
+    except UploadMimeValidationError as exc:
+        raise Rifiuto(str(exc)) from exc
     dati = file.read()
     if not dati:
         raise Rifiuto("Il file è vuoto.")

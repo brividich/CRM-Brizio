@@ -507,7 +507,8 @@ GUIDA = {
             "id": "mod128-utensili-technical-plan",
             "titolo": "MOD.128: utensili critici, Technical Plan e MOD.176",
             "blocchi": [
-                ("p", "Dal processo, «Utensili e Technical Plan» apre una pagina con tre parti (MT CN 69 §8)."),
+                ("p", "Dal processo, «Utensili e Technical Plan» apre una pagina con tre parti (MT CN 69 §8). Il «Documento firmato» "
+                      "dell'approvazione può essere PDF, JPG, PNG o Word."),
                 ("passi", [
                     "«+ Nuovo utensile critico»: codice costruttore o interno, descrizione, commerciale o speciale, "
                     "materiale, diametro, taglienti, fornitore certificato. «Riaffilabile» solo se il disegno indica "

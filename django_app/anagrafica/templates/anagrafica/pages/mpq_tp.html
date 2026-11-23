@@ -89,7 +89,7 @@
         <div class="tpf">
           <div><label>Approvato da (Certify Agent)</label><input type="text" name="approvato_da" class="fm-input" required maxlength="150"></div>
           <div><label>Data</label><input type="date" name="data" class="fm-input" value="{{ oggi|date:'Y-m-d' }}"></div>
-          <div><label>Documento firmato</label><input type="file" name="documento" class="fm-input"></div>
+          <div><label>Documento firmato</label><input type="file" name="documento" class="fm-input" accept=".pdf,.jpg,.jpeg,.png,.docx,.doc"></div>
           <div><button type="submit" class="fmd-btn fmd-btn-primary">Registra approvazione</button></div>
         </div>
       </form>

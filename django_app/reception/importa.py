@@ -211,6 +211,12 @@ def controlla_allegato(file) -> str:
         return f"Tipo di file non ammesso. Ammessi: {', '.join(sorted(e.lstrip('.') for e in ESTENSIONI_ALLEGATO))}."
     if file.size > MAX_ALLEGATO_MB * 1024 * 1024:
         return f"Il file supera {MAX_ALLEGATO_MB} MB."
+    from core.upload_mime import UploadMimeValidationError, valida_per_estensione
+
+    try:  # contenuto reale, non solo il nome (audit [56])
+        valida_per_estensione(file, ESTENSIONI_ALLEGATO, max_bytes=MAX_ALLEGATO_MB * 1024 * 1024, label="Allegato")
+    except UploadMimeValidationError as exc:
+        return str(exc)
     return ""
 
 
