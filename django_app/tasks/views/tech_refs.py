@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import date
 
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -16,9 +15,7 @@ from core.audit import log_action
 from core.csv_export import csv_download_response
 
 from ..access import (
-    _detail_queryset,
     can_manage_project,
-    can_manage_task,
     scoped_projects_queryset,
     task_permissions_required,
 )
@@ -191,33 +188,6 @@ def programmi_registro(request):
         "macchina": macchina,
         "macchine": sorted({r["ref"].macchina for r in tutte if r["ref"].macchina_id}, key=lambda a: a.asset_tag),
     })
-
-
-@require_POST
-@task_permissions_required("tasks_view")
-def task_programma(request, task_id: int):
-    """Codice e cartella scritti direttamente dall'attività che deve produrli."""
-    task = get_object_or_404(_detail_queryset(request), pk=task_id)
-    ref = get_object_or_404(ProjectTechRef, task=task)
-    if not (can_manage_task(request, task) or task.assigned_to_id == request.user.pk):
-        raise PermissionDenied
-    try:
-        path = normalizza_percorso(request.POST.get("path"))
-    except ValueError as exc:
-        messages.error(request, str(exc))
-        return redirect("tasks:detail", task_id=task.pk)
-    if len(path) > 500:
-        messages.error(request, "Il percorso è troppo lungo: massimo 500 caratteri.")
-        return redirect("tasks:detail", task_id=task.pk)
-    ref.code = (request.POST.get("code") or "").strip()[:120]
-    ref.path = path
-    ref.save(update_fields=["code", "path", "updated_at"])
-    _codice_scritto(ref, request.user)
-    allinea_da_riga(ref)
-    allinea_stato_riga(ref, request.user)
-    log_action(request, "kickoff_programma_da_attivita", "tasks", {"id": ref.pk, "task_id": task.pk})
-    messages.success(request, f"{ref.get_kind_display()} salvato.")
-    return redirect("tasks:detail", task_id=task.pk)
 
 
 @task_permissions_required("tasks_view")

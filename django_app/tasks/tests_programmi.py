@@ -24,6 +24,15 @@ class ProgrammiBase(TasksBaseTestCase):
         self.cam = TaskCategory.objects.get(richiede=TechRefKind.CAM)
         self.cmm = TaskCategory.objects.get(richiede=TechRefKind.CMM)
 
+    def _scrivi(self, task, codice, percorso=""):
+        """Codice e cartella del programma dal riquadro «Collegamenti» dell'attività."""
+        ref = ProjectTechRef.objects.filter(task=task).order_by("id").first()
+        return self.client.post(
+            reverse("tasks:collegamenti_azione", args=[task.pk]),
+            {"action": "aggiorna", "chiave": f"ref:{ref.pk}", "code": codice, "path": percorso},
+            HTTP_ACCEPT="application/json",
+        )
+
     def attivita(self, categoria=None, **altri):
         dati = {
             "title": "Programmare fasi", "project": self.project, "created_by": self.user,
@@ -38,9 +47,9 @@ class RegolaTests(ProgrammiBase):
 
     def test_attivita_crea_la_sua_riga(self):
         task = self.attivita()
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.assertEqual((ref.kind, ref.assigned_to, ref.due_date), ("CAM", self.user, date(2026, 12, 1)))
-        self.assertEqual(self.attivita(self.cmm, title="Misura").tech_ref.kind, "CMM")
+        self.assertEqual(self.attivita(self.cmm, title="Misura").tech_refs.get().kind, "CMM")
 
     def test_salvataggi_non_creano_doppioni(self):
         task = self.attivita()
@@ -56,12 +65,12 @@ class RegolaTests(ProgrammiBase):
     def test_adotta_la_riga_assegnata_in_riunione(self):
         libera = ProjectTechRef.objects.create(project=self.project, kind="CAM", code="O1", assigned_to=self.user)
         task = self.attivita()
-        self.assertEqual(task.tech_ref.pk, libera.pk)
+        self.assertEqual(task.tech_refs.get().pk, libera.pk)
 
     def test_non_adotta_la_riga_di_un_altro(self):
         altro = _create_user_with_legacy(username="prog-altro", legacy_user_id=632, role_id=2, role_name="tasks")
         libera = ProjectTechRef.objects.create(project=self.project, kind="CAM", assigned_to=altro)
-        self.assertNotEqual(self.attivita().tech_ref.pk, libera.pk)
+        self.assertNotEqual(self.attivita().tech_refs.get().pk, libera.pk)
 
     def test_responsabile_e_data_seguono_l_attivita(self):
         task = self.attivita()
@@ -77,7 +86,7 @@ class RegolaTests(ProgrammiBase):
         task.save()
         ref = ProjectTechRef.objects.get(task=task)
         self.assertEqual(ref.status, TechRefStatus.OPEN)
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O5", "path": ""})
+        self._scrivi(task, "O5")
         ref.refresh_from_db()
         self.assertEqual(ref.status, TechRefStatus.DONE)
 
@@ -131,7 +140,7 @@ class VisteTests(ProgrammiBase):
 
     def test_salva_dall_attivita(self):
         task = self.attivita()
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O9", "path": r"\\server\cam\pn1"})
+        self._scrivi(task, "O9", r"\\server\cam\pn1")
         ref = ProjectTechRef.objects.get(task=task)
         self.assertEqual((ref.code, ref.path), ("O9", r"\\server\cam\pn1"))
         # Con il codice scritto il programma passa da «Da scrivere» a «In scrittura».
@@ -139,7 +148,7 @@ class VisteTests(ProgrammiBase):
 
     def test_percorso_non_valido(self):
         task = self.attivita()
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O9", "path": "C:\\locale\\x"})
+        self.assertEqual(self._scrivi(task, "O9", "C:\\locale\\x").status_code, 400)
         self.assertEqual(ProjectTechRef.objects.get(task=task).code, "")
 
     def test_chiusura_avvisa_se_manca(self):
@@ -149,7 +158,7 @@ class VisteTests(ProgrammiBase):
 
     def test_riga_collegata_si_governa_dall_attivita(self):
         task = self.attivita()
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         url = reverse("tasks:tech_ref_action", args=[self.project.pk, ref.pk])
         self.assertEqual(self.client.post(url, {"action": "delete"}).status_code, 400)
         self.assertEqual(self.client.post(url, {"action": "done"}).status_code, 400)
@@ -164,7 +173,7 @@ class VisteTests(ProgrammiBase):
     def test_una_voce_sola_tra_le_mie_attivita(self):
         task = self.attivita()
         pagina = self.client.get(reverse("tasks:mie_azioni"))
-        self.assertNotContains(pagina, f'data-tr-ref="{task.tech_ref.pk}"')
+        self.assertNotContains(pagina, f'data-tr-ref="{task.tech_refs.get().pk}"')
         task.status = TaskStatus.DONE
         task.save()
         pagina = self.client.get(reverse("tasks:mie_azioni"))

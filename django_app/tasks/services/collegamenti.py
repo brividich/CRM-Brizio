@@ -2,20 +2,26 @@
 
 Un servizio solo sopra i modelli che c'erano già, senza un registro in più:
 
-- macchina      → ``TaskExtraRef`` (campo ``macchina``) e ``Task.extra_data``;
+- macchina      → ``TaskExtraRef`` (campo ``macchina``, una riga per macchina); in
+                  ``Task.extra_data`` resta la prima, per chi legge ancora quel campo;
 - attrezzatura  → ``attrezzature.AttrezzaturaKickoffLink`` (catalogo: ``Attrezzatura``);
 - utensile      → ``ProjectUtensile.task`` (catalogo: ``Utensile``);
-- CAM, CMM, FAI → ``ProjectTechRef.task`` (uno solo per attività, com'è sempre stato);
+- CAM, CMM      → ``ProjectTechRef.task`` (anche più di uno per attività);
+- FAI           → ``ProjectTechRef.task`` (uno solo per attività);
 - incontro      → il punto all'ordine del giorno con ``task_id`` (``KickoffMeeting.agenda_items``).
 
 Le tre viste leggono da qui: la scheda dell'attività (``collegamenti``), il
 Percorso (``collegamenti_per_attivita`` + ``manca``) e «Programmi e FAI»
 (``registro``). Utensili e attrezzature sono solo codici a catalogo: niente
 stati, niente quantità.
+
+Una macchina già impegnata o in manutenzione nel periodo si collega lo stesso:
+il conflitto è un avviso (``conflitti_macchina``), mai un blocco.
 """
 from __future__ import annotations
 
 import logging
+from datetime import date
 from uuid import uuid4
 
 from django.db import transaction
@@ -122,7 +128,7 @@ def _voce_attrezzatura(attrezzatura) -> dict:
 
 
 def _voce_macchina(asset) -> dict:
-    return _voce(MACCHINA, f"mac:{asset.pk}", asset.asset_tag or f"#{asset.pk}", asset.name)
+    return _voce(MACCHINA, f"mac:{asset.pk}", asset.asset_tag or f"#{asset.pk}", asset.name, asset=asset)
 
 
 def _voce_incontro(riga: MeetingAgendaItem, project_id: int) -> dict:
@@ -150,8 +156,13 @@ def collegamenti_per_attivita(tasks, *, incontri: bool = True, vuoti: bool = Fal
     def metti(task_id, voce):
         per_tipo[task_id].setdefault(voce["tipo"], []).append(voce)
 
-    for ref in TaskExtraRef.objects.filter(task_id__in=ids, field_code=CAMPO_MACCHINA, asset__isnull=False).select_related("asset"):
-        if not per_tipo[ref.task_id].get(MACCHINA):
+    viste = set()
+    for ref in (
+        TaskExtraRef.objects.filter(task_id__in=ids, field_code=CAMPO_MACCHINA, asset__isnull=False)
+        .select_related("asset").order_by("id")
+    ):
+        if (ref.task_id, ref.asset_id) not in viste:
+            viste.add((ref.task_id, ref.asset_id))
             metti(ref.task_id, _voce_macchina(ref.asset))
     try:
         from attrezzature.models import AttrezzaturaKickoffLink
@@ -222,36 +233,89 @@ def manca_testo(tipi: list[str]) -> str:
     return "Manca: " + ", ".join(INFO[t]["nome"][0].lower() + INFO[t]["nome"][1:] if t != FAI else "FAI" for t in tipi) if tipi else ""
 
 
-def stato_macchina(asset, inizio, fine, *, escludi_task_id=None) -> tuple[str, str]:
-    """Disponibilità in sola lettura, senza titoli di altre commesse: (etichetta, tono)."""
+def _quando(testo: str) -> str:
+    """«2026-11-24 -> 2026-11-28» del controllo asset, scritto «24/11–28/11»."""
+    giorni = []
+    for pezzo in (testo or "").split("->"):
+        try:
+            giorni.append(date.fromisoformat(pezzo.strip()))
+        except ValueError:
+            return (testo or "").strip()
+    return "–".join(f"{g:%d/%m}" for g in giorni)
+
+
+def conflitti_macchina(asset, inizio, fine, *, escludi_task_id=None, visibili=None) -> list[dict]:
+    """Cosa impegna la macchina nel periodo: altre attività, ordini di lavoro, verifiche, ticket, carichi.
+
+    Stesso controllo di sempre (``asset_conflicts._asset_availability_report``), letto come
+    avviso: non blocca niente. ``visibili`` = id delle attività che chi guarda può vedere;
+    delle altre si dice solo che ci sono, senza titolo (``None`` = nessun titolo altrui).
+    """
     try:
         from .asset_conflicts import _asset_availability_report
 
-        report = _asset_availability_report(asset, inizio, fine, exclude_task_id=escludi_task_id, scope_task_ids=set())
+        report = _asset_availability_report(
+            asset, inizio, fine, exclude_task_id=escludi_task_id,
+            scope_task_ids=set() if visibili is None else visibili,
+        )
     except Exception:
         logger.exception("Collegamenti: disponibilità macchina non letta (asset=%s)", asset.pk)
-        return "", ""
-    gravita = report.get("overall_severity")
-    if gravita == "block":
-        return "Non disponibile nel periodo", "danger"
-    if gravita == "warning":
-        return "Impegnata nel periodo", "warn"
+        return []
+    return [
+        {
+            "titolo": str(c.get("title") or "").replace("Attivita gia' assegnata", "Attività già assegnata"),
+            "quando": _quando(c.get("when", "")),
+            "grave": c.get("severity") == "block",
+            "url": c.get("url", ""),
+        }
+        for c in report.get("conflicts") or []
+    ]
+
+
+def stato_da_conflitti(conflitti: list[dict]) -> tuple[str, str]:
+    """(etichetta, tono) della macchina nel periodo."""
+    if any(c["grave"] for c in conflitti):
+        return "Già impegnata nel periodo", "danger"
+    if conflitti:
+        return "Da verificare nel periodo", "warn"
     return "Libera", "ok"
 
 
-def riquadro(task: Task, *, con_stato_macchina: bool = True) -> dict:
+def avviso_macchina(conflitti: list[dict], inizio=None, fine=None) -> str:
+    """Una riga che dice cosa la impegna e quando. Vuota se la macchina è libera."""
+    if not conflitti:
+        return ""
+    voci = [c["titolo"] + (f" ({c['quando']})" if c["quando"] else "") for c in conflitti[:3]]
+    if len(conflitti) > 3:
+        voci.append(f"+{len(conflitti) - 3}")
+    periodo_testo = f"Dal {inizio:%d/%m} al {fine:%d/%m}: " if inizio and fine else ""
+    return periodo_testo + " · ".join(voci)
+
+
+def stato_macchina(asset, inizio, fine, *, escludi_task_id=None) -> tuple[str, str]:
+    """Disponibilità in sola lettura, senza titoli di altre commesse: (etichetta, tono)."""
+    return stato_da_conflitti(conflitti_macchina(asset, inizio, fine, escludi_task_id=escludi_task_id))
+
+
+def _segna_conflitti(voce: dict, task: Task, visibili) -> None:
+    inizio, fine = _finestra(task)
+    conflitti = conflitti_macchina(voce["asset"], inizio, fine, escludi_task_id=task.pk, visibili=visibili)
+    voce["conflitti"] = conflitti
+    voce["stato"], voce["tono"] = stato_da_conflitti(conflitti)
+    voce["avviso"] = avviso_macchina(conflitti, inizio, fine)
+
+
+def riquadro(task: Task, *, con_stato_macchina: bool = True, visibili=None) -> dict:
     """Quello che serve al riquadro «Collegamenti» della scheda: voci, cosa manca, tipi attesi."""
     # Il FAI richiesto e non ancora compilato resta in elenco: da lì si apre la scheda FAI.
     voci = [
         v for v in collegamenti_per_attivita([task], vuoti=True)[task.pk]
         if not v.get("vuoto") or v["tipo"] == FAI
     ]
-    if con_stato_macchina:
+    if con_stato_macchina and task.status not in (TaskStatus.DONE, TaskStatus.CANCELED):
         for voce in voci:
             if voce["tipo"] == MACCHINA:
-                ref = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset__isnull=False).select_related("asset").first()
-                if ref is not None:
-                    voce["stato"], voce["tono"] = stato_macchina(ref.asset, *_finestra(task), escludi_task_id=task.pk)
+                _segna_conflitti(voce, task, visibili)
     mancanti = manca(task, voci)
     return {
         "voci": voci,
@@ -396,24 +460,43 @@ def _richiede_progetto(task: Task):
     return task.project
 
 
-def _collega_macchina(task: Task, asset) -> dict:
+def _macchine(task: Task) -> list[int]:
+    """Id delle macchine dell'attività, nell'ordine in cui sono state collegate."""
+    ids: list[int] = []
+    for asset_id in (
+        TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset__isnull=False)
+        .order_by("id").values_list("asset_id", flat=True)
+    ):
+        if asset_id not in ids:
+            ids.append(asset_id)
+    return ids
+
+
+def _ricorda_prima_macchina(task: Task) -> None:
+    """``extra_data["macchina"]`` resta la prima macchina: lo leggono ancora il form e i campi del tipo."""
+    ids = _macchine(task)
     dati = dict(task.extra_data or {})
-    dati[CAMPO_MACCHINA] = asset.pk
+    if ids:
+        dati[CAMPO_MACCHINA] = ids[0]
+    else:
+        dati.pop(CAMPO_MACCHINA, None)
     task.extra_data = dati
     Task.objects.filter(pk=task.pk).update(extra_data=dati)
-    TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA).delete()
-    TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset)
-    # Il programma dell'attività gira su quella macchina, se non ne aveva già una.
+
+
+def _collega_macchina(task: Task, asset) -> dict:
+    """Aggiunge la macchina alle altre. Un conflitto nel periodo non impedisce il collegamento: è un avviso."""
+    if not TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset=asset).exists():
+        TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset)
+    _ricorda_prima_macchina(task)
+    # I programmi dell'attività girano su quella macchina, se non ne avevano già una.
     ProjectTechRef.objects.filter(task=task, macchina__isnull=True, kind__in=[TechRefKind.CAM, TechRefKind.CMM]).update(macchina=asset)
     return _voce_macchina(asset)
 
 
-def _scollega_macchina(task: Task) -> None:
-    dati = dict(task.extra_data or {})
-    dati.pop(CAMPO_MACCHINA, None)
-    task.extra_data = dati
-    Task.objects.filter(pk=task.pk).update(extra_data=dati)
-    TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA).delete()
+def _scollega_macchina(task: Task, asset_id: int) -> None:
+    TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset_id=asset_id).delete()
+    _ricorda_prima_macchina(task)
 
 
 def _collega_utensile(task: Task, utensile: Utensile, user) -> dict:
@@ -468,15 +551,25 @@ def _nuova_attrezzatura(project, codice: str, descrizione: str, user):
 
 
 def _collega_ref(task: Task, tipo: str, user, *, sorgente: ProjectTechRef | None = None, codice: str = "", descrizione: str = "") -> dict:
-    """Programma o FAI sull'attività. Uno solo per attività: è il suo risultato."""
+    """Programma o FAI sull'attività. I programmi possono essere più d'uno, il FAI è uno solo."""
     kind = KIND[tipo]
     nome = INFO[tipo]["nome"]
     project = task.project
-    attuale = ProjectTechRef.objects.filter(task=task).first()
-    if attuale is not None and sorgente is not None and attuale.pk == sorgente.pk:
-        return _voce_ref(attuale)
-    if attuale is not None and attuale.ha_contenuto:
-        raise CollegamentoNonValido(f"Questa attività ha già «{attuale.label}»: toglilo, oppure usa un'altra attività.")
+    righe = list(ProjectTechRef.objects.filter(task=task).order_by("id"))
+    if sorgente is not None:
+        gia = next((r for r in righe if r.pk == sorgente.pk), None)
+        if gia is not None:
+            return _voce_ref(gia)
+    # La riga «da inserire» nata con l'attività è il posto del primo programma.
+    attuale = next((r for r in righe if r.kind == kind and not r.ha_contenuto), None)
+    if tipo == FAI:
+        fai = next((r for r in righe if r.kind == kind and r.ha_contenuto), None)
+        if fai is not None:
+            raise CollegamentoNonValido(f"Questa attività ha già «{fai.label}»: il FAI è uno solo per attività.")
+    else:
+        codice_nuovo = (sorgente.code if sorgente is not None else codice).strip().lower()
+        if codice_nuovo and any(r.kind == kind and r.code.lower() == codice_nuovo for r in righe):
+            raise CollegamentoNonValido(f"{nome} {codice_nuovo.upper()} è già collegato a questa attività.")
     richiesto = task.category.richiede if task.category_id else ""
     if richiesto and richiesto != kind:
         raise CollegamentoNonValido(
@@ -511,7 +604,7 @@ def _collega_ref(task: Task, tipo: str, user, *, sorgente: ProjectTechRef | None
     ref.assigned_to_id = task.assigned_to_id
     ref.due_date = task.due_date or ref.due_date
     if ref.is_programma and ref.macchina_id is None:
-        macchina = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset__isnull=False).first()
+        macchina = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset__isnull=False).order_by("id").first()
         if macchina is not None:
             ref.macchina_id = macchina.asset_id
     ref.save()
@@ -519,19 +612,28 @@ def _collega_ref(task: Task, tipo: str, user, *, sorgente: ProjectTechRef | None
         programmi_fasi.registra(ref, user, "Collegato all'attività")
     allinea_da_riga(ref)
     allinea_stato_riga(ref, user)
+    if ref.is_programma:
+        programmi_fasi.chiudi_se_tutti_validati(task, user)
     return _voce_ref(ref)
 
 
 def _scollega_ref(task: Task, ref: ProjectTechRef, user) -> None:
-    """Il programma resta nella commessa «senza attività»; se il tipo lo richiede torna la riga da inserire."""
+    """Il programma resta nella commessa «senza attività»; tolto l'ultimo, se il tipo lo richiede torna la riga da inserire."""
     kind = ref.kind
+    era_programma = ref.is_programma
     sgancia(ref)
     richiesto = task.category.richiede if task.category_id else ""
-    if richiesto == kind and task.status != TaskStatus.CANCELED:
+    if (
+        richiesto == kind and task.status != TaskStatus.CANCELED
+        and not ProjectTechRef.objects.filter(task=task, kind=kind).exists()
+    ):
         ProjectTechRef.objects.create(
             project_id=task.project_id, kind=kind, task=task, assigned_to_id=task.assigned_to_id, due_date=task.due_date,
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
+    elif era_programma:
+        # Tolto quello ancora in lavorazione, se gli altri sono tutti validati l'attività è fatta.
+        programmi_fasi.chiudi_se_tutti_validati(task, user)
 
 
 def porta_all_ordine_del_giorno(task: Task, meeting: KickoffMeeting) -> tuple[dict, bool]:
@@ -673,7 +775,7 @@ def scollega(task: Task, chiave: str, user) -> dict:
         if ref is None:
             raise CollegamentoNonValido("Collegamento non trovato.")
         codice = ref.asset.asset_tag
-        _scollega_macchina(task)
+        _scollega_macchina(task, ident)
         return {"tipo": MACCHINA, "codice": codice}
     if prefisso == "att":
         from attrezzature.models import AttrezzaturaKickoffLink
@@ -825,8 +927,11 @@ FILTRI = (
 )
 
 
-def registro(project) -> dict:
-    """Una riga per collegamento delle attività della commessa, più le voci rimaste senza attività."""
+def registro(project, *, visibili=None) -> dict:
+    """Una riga per collegamento delle attività della commessa, più le voci rimaste senza attività.
+
+    Sulla riga di una macchina resta l'avviso finché nel periodo dell'attività (aperta) c'è un conflitto.
+    """
     attivita = list(
         Task.objects.filter(project=project).exclude(status=TaskStatus.CANCELED)
         .select_related("assigned_to", "category").order_by("id")
@@ -835,6 +940,10 @@ def registro(project) -> dict:
     righe: list[dict] = []
     for task in attivita:
         for voce in per_attivita[task.pk]:
+            if voce["tipo"] == MACCHINA and task.status != TaskStatus.DONE:
+                _segna_conflitti(voce, task, visibili)
+                if not voce["conflitti"]:
+                    voce["stato"], voce["tono"] = "", ""
             righe.append({**voce, "task": task, "responsabile": _nome_utente(task.assigned_to) if task.assigned_to_id else ""})
     # Senza attività: FAI e programmi della commessa, utensili e attrezzature del vecchio Percorso.
     for ref in (

@@ -106,7 +106,32 @@ class OdgERiunioneTests(FiloBase):
         m.refresh_from_db()
         self.assertEqual(next(i for i in m.agenda_items if i["id"] == punto["id"])["task_id"], task.pk)
 
-    def test_conduzione_mostra_assegna_la_tappa(self):
+    def test_tappa_in_riunione_solo_titolo_responsabile_date_e_apre_i_collegamenti(self):
+        from assets.models import Asset
+
+        from .models import TaskExtraRef
+        from .services.tappe import agenda_items
+
+        m = KickoffMeeting.objects.create(
+            project=self.project, data=date(2026, 12, 3), created_by=self.user, agenda_items=agenda_items(self.project),
+        )
+        asset = Asset.objects.create(asset_tag="CNC-R1", name="Centro prova", asset_type="CNC")
+        punto = next(i for i in m.agenda_items if i["source"] == "tappa:MACCHINA")
+        risposta = self.client.post(
+            reverse("tasks:project_meeting_agenda_item_task_create", args=[self.project.pk, m.pk]),
+            {"item_id": punto["id"], "title": "Macchina per la staffa", "assigned_to": self.user.pk,
+             "due_date": "2026-12-20", "asset": asset.pk, "testo": "ignorato"},
+        )
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        dati = risposta.json()
+        task = Task.objects.get(pk=dati["task_id"])
+        self.assertEqual((task.title, task.category.tappa, task.assigned_to), ("Macchina per la staffa", "MACCHINA", self.user))
+        self.assertEqual(dati["apri"], reverse("tasks:detail", args=[task.pk]) + "?kc=macchina")
+        # La macchina non si sceglie più qui: si collega dal riquadro «Collegamenti».
+        self.assertFalse(TaskExtraRef.objects.filter(task=task).exists())
+        self.assertNotIn("macchina", task.extra_data or {})
+
+    def test_conduzione_mostra_assegna_la_tappa_senza_campi_propri(self):
         from .services.tappe import agenda_items
 
         m = KickoffMeeting.objects.create(
@@ -114,7 +139,13 @@ class OdgERiunioneTests(FiloBase):
         )
         pagina = self.client.get(reverse("tasks:project_meeting_run", args=[self.project.pk, m.pk]))
         self.assertContains(pagina, "Assegna la tappa")
-        self.assertContains(pagina, 'data-role="task-new-asset"')
+        self.assertContains(pagina, "Crea e apri i collegamenti")
+        self.assertContains(pagina, 'data-tappa="MACCHINA"')
+        self.assertContains(pagina, "collegamenti.js")
+        for vecchio in ('data-role="task-new-asset"', 'data-role="task-new-testo"', "run-fornitori", "run-processi"):
+            self.assertNotContains(pagina, vecchio)
+        # Nessun tempo per punto in conduzione.
+        self.assertNotContains(pagina, "durata_minuti")
 
 
 class ProssimiPassiTests(FiloBase):

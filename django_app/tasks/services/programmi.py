@@ -1,4 +1,8 @@
-"""L'attività di programmazione e il programma che deve produrre sono la stessa cosa."""
+"""L'attività di programmazione e i programmi che deve produrre vanno insieme.
+
+Un'attività può avere più programmi: si chiude quando sono tutti validati
+(``programmi_fasi``), e chiuderla a mano li dà tutti per validati.
+"""
 from __future__ import annotations
 
 from django.db.models import Q
@@ -35,45 +39,54 @@ def _riga_libera(task: Task, kind: str) -> ProjectTechRef | None:
 
 
 def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
-    ref = ProjectTechRef.objects.filter(task=task).first()
+    """Programmi e FAI dell'attività ne seguono responsabile, data e stato. Torna la riga del tipo richiesto."""
     categoria = task.category if task.category_id else None
-    kind = categoria.richiede if categoria and task.project_id and task.status != TaskStatus.CANCELED else ""
-    if ref is not None and ref.project_id != task.project_id and kind:
-        # Attività spostata: il programma la segue, la scheda FAI appartiene all'articolo di prima.
-        if getattr(ref, "fai_record", None):
-            sgancia(ref)
-            ref = None
-        else:
+    richiesto = categoria.richiede if categoria and task.project_id and task.status != TaskStatus.CANCELED else ""
+    tenute: list[ProjectTechRef] = []
+    for ref in ProjectTechRef.objects.filter(task=task).order_by("id"):
+        if ref.project_id != task.project_id and richiesto:
+            # Attività spostata: il programma la segue, la scheda FAI appartiene all'articolo di prima.
+            if getattr(ref, "fai_record", None):
+                sgancia(ref)
+                continue
             ref.source_meeting = None
-    if ref is not None and ref.kind != kind:
-        if not kind and ref.ha_contenuto and task.project_id == ref.project_id and task.status != TaskStatus.CANCELED:
+        if ref.kind != richiesto:
             # Collegato a mano dal riquadro «Collegamenti»: resta, anche se il tipo non lo richiede.
-            kind = ref.kind
-        else:
-            sgancia(ref)
-            ref = None
-    if not kind:
-        return None
-    if ref is None:
+            a_mano = (
+                not richiesto and ref.ha_contenuto and task.project_id == ref.project_id
+                and task.status != TaskStatus.CANCELED
+            )
+            if not a_mano:
+                sgancia(ref)
+                continue
+        tenute.append(ref)
+    if richiesto and not tenute:
         # La riga che ha chiesto l'attività (vedi ``attivita_per_riga``) viene prima di ogni altra libera.
-        ref = getattr(task, "_riga_programma", None) or _riga_libera(task, kind) or ProjectTechRef(
-            project_id=task.project_id, kind=kind, created_by=task.created_by
+        tenute.append(
+            getattr(task, "_riga_programma", None) or _riga_libera(task, richiesto) or ProjectTechRef(
+                project_id=task.project_id, kind=richiesto, created_by=task.created_by
+            )
         )
-    ref.task = task
-    ref.project_id = task.project_id
-    ref.assigned_to_id = task.assigned_to_id
-    # Senza data sull'attività resta quella data in riunione.
-    ref.due_date = task.due_date or ref.due_date
-    # Il FAI con la sua scheda ha un avanzamento proprio.
-    if not (kind == TechRefKind.FAI and getattr(ref, "fai_record", None)):
-        if task.status == TaskStatus.DONE:
-            if ref.is_open and ref.ha_contenuto:
-                ref.mark_done()
-        elif not ref.is_open:
-            ref.reopen()
-    ref.save()
-    allinea_da_riga(ref)
-    return ref
+    # Con più programmi, quello validato non si riapre finché gli altri sono in lavorazione:
+    # si riaprono tutti solo quando è l'attività a essere riaperta (erano tutti validati).
+    programmi = [r for r in tenute if r.is_programma and r.pk and r.ha_contenuto]
+    tutti_validati = bool(programmi) and all(not r.is_open for r in programmi)
+    for ref in tenute:
+        ref.task = task
+        ref.project_id = task.project_id
+        ref.assigned_to_id = task.assigned_to_id
+        # Senza data sull'attività resta quella data in riunione.
+        ref.due_date = task.due_date or ref.due_date
+        # Il FAI con la sua scheda ha un avanzamento proprio.
+        if not (ref.kind == TechRefKind.FAI and getattr(ref, "fai_record", None)):
+            if task.status == TaskStatus.DONE:
+                if ref.is_open and ref.ha_contenuto:
+                    ref.mark_done()
+            elif not ref.is_open and (not ref.is_programma or tutti_validati or not ref.ha_contenuto):
+                ref.reopen()
+        ref.save()
+        allinea_da_riga(ref)
+    return tenute[0] if tenute else None
 
 
 def allinea_stato_riga(ref: ProjectTechRef, user=None) -> None:

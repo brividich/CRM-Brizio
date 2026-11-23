@@ -48,6 +48,8 @@
         segnaTipo(root);
       }
       dici(j.messaggio);
+      // Macchina già impegnata nel periodo: il collegamento è salvato, questo è solo un avviso.
+      if (j.avviso && window.hubFlash) window.hubFlash.show([{ level: 'warning', text: j.avviso }]);
       document.dispatchEvent(new CustomEvent('kc:cambiato', { detail: { task: root.getAttribute('data-task'), risposta: j } }));
       return j;
     }).catch(function () {
@@ -132,11 +134,10 @@
   }
   function mettiInAttesa(root, voce) {
     var st = stato(root);
-    // Uno solo per attività: la scelta nuova prende il posto della vecchia.
-    if (voce.tipo === 'macchina') st.attesa = st.attesa.filter(function (v) { return v.tipo !== 'macchina'; });
-    if (voce.tipo === 'cam' || voce.tipo === 'cmm' || voce.tipo === 'fai') {
-      st.attesa = st.attesa.filter(function (v) { return ['cam', 'cmm', 'fai'].indexOf(v.tipo) < 0; });
-    }
+    // Macchine e programmi possono essere più d'uno; il FAI è uno solo: il nuovo prende il posto del vecchio.
+    if (voce.tipo === 'fai') st.attesa = st.attesa.filter(function (v) { return v.tipo !== 'fai'; });
+    // Lo stesso codice non entra due volte (doppio clic prima che la ricerca si aggiorni).
+    if (st.attesa.some(function (v) { return v.tipo === voce.tipo && (voce.id ? String(v.id) === String(voce.id) : v.testo === voce.testo); })) return;
     st.attesa.push(voce);
     disegnaAttesa(root);
   }

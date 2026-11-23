@@ -2,13 +2,14 @@
 
 Da scrivere → In scrittura → Da provare in macchina → Validato.
 «Nuova revisione» riporta un programma validato in scrittura con la lettera successiva.
-Validato chiude l'attività collegata; una nuova revisione la riapre.
+Un'attività può avere più programmi: si chiude quando sono tutti validati;
+una nuova revisione di uno qualsiasi la riapre.
 """
 from __future__ import annotations
 
 from django.db import transaction
 
-from ..models import ProgrammaFase, ProgrammaStorico, TaskExtraRef, TaskStatus, TappaKickoff, TechRefStatus
+from ..models import ProgrammaFase, ProgrammaStorico, TaskExtraRef, TaskStatus, TappaKickoff, TechRefKind, TechRefStatus
 
 # azione → (fase di partenza ammesse, fase di arrivo, etichetta del pulsante)
 AZIONI = {
@@ -90,8 +91,35 @@ def avanza(ref, user, azione: str, *, nota: str = "") -> None:
         _allinea_attivita(ref, user)
 
 
+def programmi_dell_attivita(task, *, escludi=None) -> list:
+    """I programmi CAM e CMM dell'attività che hanno codice o cartella."""
+    from ..models import ProjectTechRef
+
+    righe = ProjectTechRef.objects.filter(task=task, kind__in=[TechRefKind.CAM, TechRefKind.CMM])
+    if escludi is not None:
+        righe = righe.exclude(pk=escludi.pk)
+    return [r for r in righe.order_by("id") if r.ha_contenuto]
+
+
+def chiudi_se_tutti_validati(task, user) -> bool:
+    """Dopo un programma collegato o tolto: se quelli rimasti sono tutti validati l'attività è fatta."""
+    if task is None or task.status in (TaskStatus.DONE, TaskStatus.CANCELED):
+        return False
+    programmi = programmi_dell_attivita(task)
+    if not programmi or any(r.fase != ProgrammaFase.VALIDATO for r in programmi):
+        return False
+    from ..views._shared import _log_task_update_events, _task_snapshot
+
+    before = _task_snapshot(task)
+    task.status = TaskStatus.DONE
+    task.progress = 100
+    task.save()
+    _log_task_update_events(task, user, before)
+    return True
+
+
 def _allinea_attivita(ref, user) -> None:
-    """Validato chiude l'attività che lo chiedeva; una nuova revisione la riapre."""
+    """L'ultimo programma validato chiude l'attività; una nuova revisione la riapre."""
     task = ref.task
     if task is None:
         return
@@ -99,6 +127,8 @@ def _allinea_attivita(ref, user) -> None:
 
     before = _task_snapshot(task)
     if ref.fase == ProgrammaFase.VALIDATO and task.status not in (TaskStatus.DONE, TaskStatus.CANCELED):
+        if any(r.fase != ProgrammaFase.VALIDATO for r in programmi_dell_attivita(task, escludi=ref)):
+            return
         task.status = TaskStatus.DONE
         task.progress = 100
     elif ref.fase != ProgrammaFase.VALIDATO and task.status == TaskStatus.DONE:
