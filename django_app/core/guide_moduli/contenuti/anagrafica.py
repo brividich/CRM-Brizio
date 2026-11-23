@@ -678,6 +678,12 @@ GUIDA = {
                 ("p", "Persone → Esplora la struttura: in una pagina sola la catena centro di costo → reparto → ruolo → "
                       "mansione → competenza. Sola lettura, per chi vede la Struttura organizzativa."),
                 ("ul", [
+                    "Si apre la vista semplice: quattro colonne (centro di costo, reparto, ruolo, mansione) e, sotto, "
+                    "la scheda del punto scelto con ogni dato etichettato. Sulla mansione: «Competenze richieste dalla "
+                    "mansione» con il livello richiesto e «Persone con questa mansione» con livello e stato.",
+                    "«Vista completa», in fondo alla pagina, aggiunge la colonna delle competenze, numeri, costi, "
+                    "carichi e «Altre strade»; la scelta resta finché non clicchi «Torna alla vista semplice». I punti "
+                    "che seguono su altre strade, persone e centro di costo valgono per la vista completa.",
                     "Per scendere scegli una voce in una colonna; per risalire clicca un punto del percorso in alto.",
                     "«Altre strade»: stesso ruolo in altri reparti, «riporta a» e «gli riporta», stessa mansione sotto "
                     "un altro ruolo, stessa competenza su un'altra mansione, pagine già filtrate.",

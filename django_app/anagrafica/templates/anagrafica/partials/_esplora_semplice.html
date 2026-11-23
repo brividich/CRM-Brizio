@@ -1,0 +1,95 @@
+{# Vista semplice di «Struttura»: ogni dato con la sua etichetta (services/esplora_semplice.py). #}
+  <nav class="es-briciole" aria-label="Percorso">
+    {% for b in semplice.briciole %}
+      {% if not forloop.first %}<span class="es-sep" aria-hidden="true">›</span>{% endif %}
+      {% if b.url_corrente %}<span class="es-qui" aria-current="page">{% if b.livello %}<span class="es-s-et">{{ b.livello }}:</span> {% endif %}{{ b.nome }}</span>
+      {% else %}<a href="{{ b.url }}">{% if b.livello %}<span class="es-s-et">{{ b.livello }}:</span> {% endif %}{{ b.nome }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+
+  {% include "anagrafica/partials/_esplora_risultati.html" %}
+
+  <div class="es-colonne es-colonne-4">
+    {% for c in semplice.colonne %}
+    <section class="es-col {% if c.corrente %}is-corrente{% endif %}" aria-label="{{ c.titolo }}" data-es-liv="{{ c.livello }}">
+      <div class="es-col-h"><span>{{ c.titolo }}</span></div>
+      {% if c.voci is None %}
+        <div class="es-attesa">{{ c.attesa }}</div>
+      {% elif c.voci %}
+        {% if c.voci|length > 7 %}<input type="search" class="es-filtra" data-es-filtra placeholder="Filtra {{ c.titolo|lower }}…" aria-label="Filtra {{ c.titolo|lower }}" autocomplete="off">{% endif %}
+        <ul class="es-lista">
+          {% for v in c.voci %}<li><a class="es-voce {% if v.scelta %}is-scelta{% endif %}" href="{{ v.url }}"{% if v.scelta %} aria-current="true"{% endif %}><span>{{ v.nome }}</span></a></li>{% endfor %}
+        </ul>
+      {% else %}
+        <div class="es-attesa">{% if c.livello == "mansione" %}Nessuna mansione per questo ruolo in questo reparto.{% elif c.livello == "ruolo" %}Nessun ruolo in questo reparto.{% elif c.livello == "area" %}Nessun reparto in questo centro.{% else %}Nessun centro di costo.{% endif %}</div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  {% if semplice.scheda %}
+  <section class="es-s-card">
+    <h2 class="es-s-h">{{ semplice.scheda.titolo }}</h2>
+    <div class="es-s-testa">
+      <dl class="es-s-campi">
+        {% for c in semplice.scheda.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{% if c.url %}<a href="{{ c.url }}">{{ c.valore }}</a>{% else %}{{ c.valore }}{% endif %}</dd></div>{% endfor %}
+      </dl>
+      {% if semplice.scheda.azioni %}<div class="es-s-azioni">{% for a in semplice.scheda.azioni %}<a class="rc-btn rc-btn-ghost" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if mansione_obj %}
+  <div class="es-s-due">
+    <section class="es-s-card">
+      <h2 class="es-s-h">Competenze richieste dalla mansione <span>{{ semplice.competenze|length }}</span></h2>
+      {% if semplice.competenze %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+        <thead><tr><th>Competenza</th><th>Livello richiesto</th></tr></thead>
+        <tbody>{% for c in semplice.competenze %}<tr{% if c.scelta %} class="is-scelta"{% endif %}>
+          <td><b>{{ c.nome }}</b>{% if c.bloccante %}<small>Bloccante: sotto il livello richiesto la persona non è abilitata</small>{% endif %}{% if c.requisito %}<small>Richiede: {{ c.requisito }}</small>{% endif %}</td>
+          <td>{% include "anagrafica/partials/_esplora_livello.html" with l=c.livello %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna competenza caricata per questa mansione.</p>{% endif %}
+    </section>
+    <section class="es-s-card">
+      <h2 class="es-s-h">Persone con questa mansione <span>{{ semplice.persone_mansione|length }}</span></h2>
+      {% if semplice.persone_mansione %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+        <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th></tr></thead>
+        <tbody>{% for p in semplice.persone_mansione %}<tr>
+          <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
+          <td>{% include "anagrafica/partials/_esplora_livello.html" with l=p.livello %}</td>
+          <td><span class="es-esito es-esito-{{ p.tono }}">{{ p.stato }}</span></td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
+      <div class="es-s-legenda">{% for l in semplice.legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
+    </section>
+  </div>
+  {% elif semplice.persone %}
+  <section class="es-s-card">
+    <h2 class="es-s-h">{{ semplice.persone.titolo }} <span>{{ semplice.persone.righe|length }}</span></h2>
+    {% if semplice.persone.righe %}
+    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+      <thead><tr><th>Persona</th>{% if semplice.persone.ruolo %}<th>Ruolo</th>{% endif %}<th>Mansioni</th></tr></thead>
+      <tbody>{% for p in semplice.persone.righe %}<tr>
+        <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
+        {% if semplice.persone.ruolo %}<td>{% for r in p.ruoli %}{{ r }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuno{% endfor %}</td>{% endif %}
+        <td>{% for m in p.mansioni %}<a href="{{ m.url }}">{{ m.nome }}</a>{% if not forloop.last %}, {% endif %}{% empty %}Nessuna{% endfor %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="es-s-vuoto">Nessuna persona.</p>{% endif %}
+  </section>
+  {% elif semplice.reparti %}
+  <section class="es-s-card">
+    <h2 class="es-s-h">Reparti del centro di costo <span>{{ semplice.reparti|length }}</span></h2>
+    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab es-s-tab">
+      <thead><tr><th>Reparto</th><th>Responsabile del reparto</th><th>Persone</th></tr></thead>
+      <tbody>{% for r in semplice.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"Nessuno" }}</td><td>{{ r.persone }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+
+  <p class="es-s-cambia"><a href="{{ url_vista_completa }}">Vista completa</a>: numeri, costi, carichi e collegamenti alle altre pagine.</p>

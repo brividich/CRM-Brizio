@@ -1,0 +1,8 @@
+  {% if risultati is not None %}
+  <section class="rc-panel">
+    <h2>«{{ q }}»: {{ risultati|length }} risultat{{ risultati|length|pluralize:"o,i" }}</h2>
+    {% if risultati %}
+    <ul class="es-ris">{% for r in risultati %}<li><small>{{ r.livello }}</small><a href="{{ r.url }}">{{ r.nome }}</a></li>{% endfor %}</ul>
+    {% else %}<p>Nessun punto della struttura contiene questo testo.</p>{% endif %}
+  </section>
+  {% endif %}
