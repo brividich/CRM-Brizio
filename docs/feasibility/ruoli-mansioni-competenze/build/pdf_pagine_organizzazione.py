@@ -11,11 +11,13 @@ from playwright.sync_api import sync_playwright
 
 RADICE = Path(__file__).resolve().parent.parent
 PAGINE = RADICE / "ui_completa" / "pagine"
-USCITA = RADICE / "Organizzazione_pagine_proposte.pdf"
+USCITA = RADICE / "Organizzazione_pagine_proposte_v2.pdf"  # la prima versione resta com'era (23/11/2026)
 
 TITOLI = {
     "00_panoramica": ("Panoramica", "La pagina che si apre cliccando «Organizzazione»: numeri, collegamenti diretti, cose da fare."),
     "01_esplora_la_struttura": ("Esplora la struttura", "Dal centro di costo alla mansione: che cosa richiede e chi ce l'ha."),
+    "01b_esplora_mansioni_per_prime": ("Esplora la struttura, con «Mansioni» per prima",
+                                       "La stessa pagina dopo aver spostato la colonna: si parte dalla mansione."),
     "02_mansioni": ("Mansioni", "Tutte le mansioni, con le competenze richieste e le persone."),
     "03_richieste": ("Richieste", "Ogni cambio su una mansione o su una competenza parte da qui."),
     "04_reparti_e_capi": ("Reparti e capi", "Chi guida ogni reparto e quante persone ci lavorano."),

@@ -105,7 +105,8 @@ def tabella(intestazioni, righe, scelta=None):
     testa_ = "".join(f"<th>{x}</th>" for x in intestazioni)
     corpo = "".join(f'<tr{" class=on" if i == scelta else ""}>' + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
                     for i, r in enumerate(righe))
-    return f'<table class="m-tab"><thead><tr>{testa_}</tr></thead><tbody>{corpo}</tbody></table>'
+    return (f'<div data-fm-table-skip="1" data-mcards-off><table class="m-tab"><thead><tr>{testa_}</tr></thead>'
+            f'<tbody>{corpo}</tbody></table></div>')
 
 
 def campi(coppie, due=False, classe=""):
@@ -159,6 +160,63 @@ PAGINE["01_esplora_la_struttura"] = ("Esplora la struttura", testa(
   </section>
 </div>""")
 
+# 1 bis ─ Esplora la struttura con la ricerca e con la colonna «Mansioni» spostabile (richiesta del 23/11/2026):
+# la colonna può stare per ultima (si scende dal centro di costo) o per prima (si parte dalla mansione).
+STILE += """
+.m-sposta{display:flex;align-items:center}
+.m-sposta a{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid #9cc6e6;background:#e8f3fb;color:#0c2545;font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none;text-decoration:none}
+.m-col.spostata{border-color:#9cc6e6;box-shadow:0 0 0 3px #e8f3fb}
+"""
+_RICERCA = ('<div class="m-filtri"><span class="m-campo largo" style="min-width:520px">Cerca centro di costo, reparto, ruolo, '
+            'mansione o competenza…</span>' + btn("Cerca", "search") + "</div>")
+_COL_MANSIONI = ('<div class="m-card m-col"><h3>Mansioni</h3><ul><li>DM6 - DMC 125U Duoblock</li><li class="on">DM7 - DMC 160U Duoblock</li>'
+                 '<li>DM12 - DMC 160U Duoblock</li><li>Responsabilità del reparto</li></ul></div>')
+_DOVE_ULTIMA = ('<span>Centro di costo:</span> <b>CN5G</b><i>›</i><span>Reparto:</span> <b>CN5GL</b><i>›</i><span>Ruolo:</span> '
+                '<b>Operatore macchina utensile</b><i>›</i><span>Mansione:</span> <b>DM7 - DMC 160U Duoblock</b>')
+_DOVE_PRIMA = ('<span>Mansione:</span> <b>DM7 - DMC 160U Duoblock</b><i>›</i><span>Centro di costo:</span> <b>CN5G</b><i>›</i>'
+               '<span>Reparto:</span> <b>CN5GL</b><i>›</i><span>Ruolo:</span> <b>Operatore macchina utensile</b>')
+
+
+def _esplora(per_prima: bool) -> str:
+    base = PAGINE["01_esplora_la_struttura"][1]
+    assert _COL_MANSIONI in base and _DOVE_ULTIMA in base
+    comando = "Metti per ultima ›" if per_prima else "‹ Metti per prima"
+    colonna = _COL_MANSIONI.replace('<div class="m-card m-col"><h3>Mansioni</h3>',
+                                    f'<div class="m-card m-col{" spostata" if per_prima else ""}">'
+                                    f'<h3 class="m-sposta">Mansioni<a href="#">{comando}</a></h3>')
+    if per_prima:
+        colonna = colonna.replace("<ul>", '<ul><li style="font-weight:400;color:#94a3b8">Filtra mansioni…</li>')
+        out = base.replace(_COL_MANSIONI, "").replace('<div class="m-colonne">', '<div class="m-colonne">' + colonna)
+        out = out.replace(_DOVE_ULTIMA, _DOVE_PRIMA)
+    else:
+        out = base.replace(_COL_MANSIONI, colonna)
+    return out.replace('<div class="m-card m-dove">', _RICERCA + '<div class="m-card m-dove">')
+
+
+PAGINE["01b_esplora_mansioni_per_prime"] = ("Esplora la struttura", _esplora(True))
+PAGINE["01_esplora_la_struttura"] = ("Esplora la struttura", _esplora(False))
+
+# Caso con tante competenze (richiesta del 23/11/2026): l'interfaccia non deve sballare.
+# Il riquadro ha un'altezza fissa e scorre al suo interno; i nomi lunghi vanno a capo nella cella.
+STILE += """
+.m-scorre{max-height:300px;overflow-y:auto;scrollbar-gutter:stable}
+.m-scorre thead th{position:sticky;top:0;z-index:1}
+.m-scorre td:first-child{overflow-wrap:anywhere}
+.m-scorre td:last-child{white-space:nowrap;width:1%}
+"""
+TANTE_COMPETENZE = [
+    ("Lettura del disegno tecnico", "U"), ("Set-up macchina", "U"), ("Uso degli strumenti di misura", "U"),
+    ("Industrializzazione e definizione del processo produttivo per prodotti soggetti a EN 9100 e requisiti cliente speciali", "U"),
+    ("FOD", "U"), ("Procedure interne", "U"), ("Programmazione a bordo macchina", "L"), ("Cambio utensile e presetting", "U"),
+    ("Controllo dimensionale in processo", "U"), ("Compilazione dei fogli operativi", "U"), ("Gestione delle non conformità", "L"),
+    ("Sicurezza sulla macchina", "U"), ("Movimentazione dei pezzi", "U"), ("Manutenzione di primo livello", "L"),
+    ("Lettura del ciclo di lavoro", "U"), ("Uso del gestionale di produzione", "U"), ("Tracciabilità dei materiali", "U"),
+    ("Marcatura e identificazione", "U"), ("Pulizia e 5S", "U"), ("Rilievo e registrazione delle misure", "U"),
+    ("Segnalazione delle anomalie", "U"), ("Passaggio di consegne tra turni", "U"),
+]
+assert len(TANTE_COMPETENZE) == 22
+
+
 # 2 ─ Mansioni
 PAGINE["02_mansioni"] = ("Mansioni", testa(
     "Mansioni", "Tutte le mansioni: che cosa richiedono e chi le ha.",
@@ -169,7 +227,7 @@ PAGINE["02_mansioni"] = ("Mansioni", testa(
   <section>{h("Elenco", "253 mansioni")}
     <div class="m-card">{tabella(["Mansione", "Reparto", "Ruolo", "Competenze richieste", "Persone", "Stato"], [
         ["<b>DM6 - DMC 125U Duoblock</b>", "CN5GL", "Operatore macchina utensile", "5", "3", st("Completa", "ok")],
-        ["<b>DM7 - DMC 160U Duoblock</b>", "CN5GL", "Operatore macchina utensile", "5", "4", st("Completa", "ok")],
+        ["<b>DM7 - DMC 160U Duoblock</b>", "CN5GL", "Operatore macchina utensile", "22", "4", st("Completa", "ok")],
         ["<b>DM12 - DMC 160U Duoblock</b>", "CN5GL", "Operatore macchina utensile", "5", "2", st("Completa", "ok")],
         ["<b>Marcatura laser</b>", "MARCATURA", "Operatore manuale", "0", "2", st("Senza competenze", "warn")],
         ["<b>Liquidi penetranti</b>", "CND", "Operatore controlli", "0", "1", st("Senza competenze", "warn")],
@@ -178,10 +236,10 @@ PAGINE["02_mansioni"] = ("Mansioni", testa(
     ], scelta=1)}</div>
   </section>
   <section>{h("Mansione scelta", "")}
-    <div class="m-card m-pad">{campi([("Mansione", "DM7 - DMC 160U Duoblock"), ("Reparto", "CN5GL"), ("Ruolo", "Operatore macchina utensile"), ("Responsabile", "Elio Vantaro"), ("Competenze richieste", "5"), ("Persone", "4")])}
+    <div class="m-card m-pad">{campi([("Mansione", "DM7 - DMC 160U Duoblock"), ("Reparto", "CN5GL"), ("Ruolo", "Operatore macchina utensile"), ("Responsabile", "Elio Vantaro"), ("Competenze richieste", "22"), ("Persone", "4")])}
       <div style="display:flex;gap:8px;margin-top:14px">{btn("Apri la mansione", "arrow-right", piccolo=True)}{btn("Modifica", "edit", piccolo=True)}</div></div>
-    {h("Competenze richieste", "5")}
-    <div class="m-card">{tabella(["Competenza", "Livello richiesto"], [["<b>Lettura del disegno tecnico</b>", lv("U")], ["<b>Set-up macchina</b>", lv("U")], ["<b>Uso degli strumenti di misura</b>", lv("U")]])}</div>
+    {h("Competenze richieste", "22 · l'elenco scorre nel riquadro")}
+    <div class="m-card"><div class="m-scorre">{tabella(["Competenza", "Livello richiesto"], [[f"<b>{n}</b>", lv(l)] for n, l in TANTE_COMPETENZE])}</div><div class="m-legenda"><span>22 competenze. Il riquadro ha un'altezza fissa: la pagina non si allunga.</span></div></div>
   </section>
 </div>""")
 
@@ -342,6 +400,67 @@ PAGINE["08_struttura_e_revisioni"] = ("Struttura e revisioni", testa(
     <p class="op-nota">{ico("alert-cir")}<span>Una revisione emessa non si modifica: per cambiare si emette la successiva.</span></p>
   </section>
 </div>""")
+
+# 5 bis ─ Centri di costo con l'albero che si apre sotto il centro scelto: reparti, ruoli, mansioni.
+STILE += """
+.m-cc{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #eef2f7;font-size:13.5px}
+.m-cc b{color:#0f172a}
+.m-cc span{color:#64748b;font-size:12.5px}
+.m-cc .fr{flex:none;width:18px;color:#6b8db3;font-size:13px}
+.m-cc .dx{margin-left:auto;display:flex;gap:8px;align-items:center}
+.m-cc.on{background:#e8f3fb}
+.m-ramo{border-bottom:1px solid #eef2f7;background:#fbfdff;padding:6px 0 8px}
+.m-ramo div{display:flex;align-items:center;gap:8px;padding:6px 16px;font-size:13px}
+.m-ramo .l1{padding-left:44px}.m-ramo .l2{padding-left:72px}.m-ramo .l3{padding-left:100px}
+.m-ramo em{font-style:normal;color:#64748b}
+.m-ramo b{color:#0f172a}
+.m-ramo .fr{flex:none;width:16px;color:#6b8db3;font-size:12px}
+.m-ramo .q{margin-left:auto;color:#64748b;font-size:12.5px}
+"""
+
+
+def _cc(nome, dettaglio, aperto=False):
+    return (f'<div class="m-cc{" on" if aperto else ""}"><span class="fr">{"▾" if aperto else "▸"}</span><b>{nome}</b>'
+            f'<span>{dettaglio}</span><span class="dx">{btn("Chiudi" if aperto else "Apri l\'albero", piccolo=True)}</span></div>')
+
+
+def _ramo(livello, etichetta, nome, quanti, aperto=None):
+    freccia = "" if aperto is None else ("▾" if aperto else "▸")
+    return f'<div class="l{livello}"><span class="fr">{freccia}</span><em>{etichetta}:</em> <b>{nome}</b><span class="q">{quanti}</span></div>'
+
+
+_ALBERO_CN5G = '<div class="m-ramo">' + "".join([
+    _ramo(1, "Reparto", "CN5GL", "Responsabile: Elio Vantaro · 6 persone", True),
+    _ramo(2, "Ruolo", "Operatore macchina utensile", "5 persone", True),
+    _ramo(3, "Mansione", "DM6 - DMC 125U Duoblock", "3 persone"),
+    _ramo(3, "Mansione", "DM7 - DMC 160U Duoblock", "4 persone"),
+    _ramo(3, "Mansione", "DM12 - DMC 160U Duoblock", "2 persone"),
+    _ramo(2, "Ruolo", "Capo reparto", "1 persona", False),
+    _ramo(1, "Reparto", "CN5GS", "Responsabile: Nora Castelvi · 8 persone", False),
+]) + "</div>"
+
+PAGINE["05_centri_di_costo"] = ("Centri di costo", testa(
+    "Centri di costo", "Quali reparti stanno in quale centro di costo. Apri un centro per vedere il suo albero.",
+    [GUIDA, btn("Nuovo centro di costo", "plus", True)]) + f"""
+<div class="m-filtri"><span class="m-campo largo">Cerca un centro di costo o un reparto…</span><span class="m-chip on">Tutti · 26</span><span class="m-chip">Senza reparti · 5</span>
+  <span style="margin-left:auto;display:flex;gap:8px">{btn("Apri tutto", piccolo=True)}{btn("Chiudi tutto", piccolo=True)}</span></div>
+<div class="op-due">
+  <section>{h("Elenco", "26 centri di costo · 1 aperto")}
+    <div class="m-card">
+      {_cc("AGGIUSTAGGIO", "4 reparti · 6 persone")}{_cc("ALC", "1 reparto · 4 persone")}{_cc("CN4", "1 reparto · 12 persone")}{_cc("CN5", "1 reparto · 6 persone")}
+      {_cc("CN5G", "2 reparti · 14 persone", True)}{_ALBERO_CN5G}
+      {_cc("CND", "1 reparto · 3 persone")}{_cc("CONTROLLO", "3 reparti · 9 persone")}
+    </div>
+  </section>
+  <section>{h("Centro scelto", "")}
+    <div class="m-card m-pad">{campi([("Centro di costo", "CN5G"), ("Reparti", "CN5GL, CN5GS"), ("Persone", "14"), ("Ruoli previsti", "Operatore macchina utensile, Capo reparto")])}
+      <div style="display:flex;gap:8px;margin-top:14px">{btn("Collega un reparto", "plus", piccolo=True)}{btn("Vedi le persone", "users", piccolo=True)}</div></div>
+    {h("Da fare", "")}
+    {fare([(2, "Reparti senza centro di costo", "Non collegati a nessun centro", "Collega", False)])}
+    <p class="op-nota">{ico("alert-cir")}<span>L'albero si apre sotto il centro: reparto, ruolo, mansione. Ogni riga si apre e si chiude da sola.</span></p>
+  </section>
+</div>""")
+
 
 SCRIPT = """
 ([contenuto, attiva, voci, stile]) => {
