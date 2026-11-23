@@ -42,13 +42,13 @@ class CollegamentoTests(ProgrammiBase):
         self.assertTrue(ProjectTechRef.objects.get(task=task).is_open)
 
     def test_da_le_mie_azioni_non_si_chiude_con_attivita_aperta(self):
-        ref = self.attivita().tech_ref
+        ref = self.attivita().tech_refs.get()
         self.client.post(reverse("tasks:mia_voce_stato", args=["programma", ref.pk]), {"action": "done"})
         ref.refresh_from_db()
         self.assertTrue(ref.is_open)
 
     def test_riga_collegata_si_puo_svuotare_anche_senza_responsabile(self):
-        ref = self.attivita(assigned_to=None).tech_ref
+        ref = self.attivita(assigned_to=None).tech_refs.get()
         ProjectTechRef.objects.filter(pk=ref.pk).update(code="O1")
         risposta = self.client.post(reverse("tasks:tech_ref_save", args=[self.project.pk]), {
             "ref_id": ref.pk, "kind": "CAM", "code": "", "path": "", "assigned_to": "", "due_date": "",
@@ -121,7 +121,7 @@ class CollegamentoTests(ProgrammiBase):
 
     def test_attivita_fai_spostata_lascia_la_scheda_e_apre_una_richiesta_nuova(self):
         task = self.attivita(self.fai)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(ref, piano_numero="P1"))
         altra = make_project(name="Altra", created_by=self.user, client_name="Cliente Prova", part_number="PN-2")
         task.project = altra
@@ -135,13 +135,13 @@ class CollegamentoTests(ProgrammiBase):
     def test_fai_il_responsabile_dell_attivita_puo_compilare_la_scheda(self):
         task = self.attivita(self.fai, assigned_to=self.altro)
         self.client.force_login(self.altro)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         url = reverse("tasks:fai_nuovo") + f"?project={self.project.pk}&ref={ref.pk}"
         self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_fai_resta_una_persona_sola_responsabile(self):
         task = self.attivita(self.fai, assigned_to=self.user)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(ref, responsabile=self.altro.pk))
         record = FaiRecord.objects.get()
         ref.refresh_from_db()
@@ -156,7 +156,7 @@ class CollegamentoTests(ProgrammiBase):
 
     def test_fai_eliminato_lascia_la_richiesta_dell_attivita(self):
         task = self.attivita(self.fai)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(ref, piano_numero="P1"))
         record = FaiRecord.objects.get()
         self.client.post(reverse("tasks:fai_scheda", args=[record.pk]), {"azione": "elimina"})
@@ -167,7 +167,7 @@ class CollegamentoTests(ProgrammiBase):
 
     def test_fai_salvataggi_dell_attivita_non_toccano_lo_stato_scheda(self):
         task = self.attivita(self.fai)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         completo = FaiOpzione.objects.filter(gruppo=FaiGruppo.STATO).exclude(fase=FaiFase.DA_FARE).first()
         self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(ref, stato=completo.pk))
         record = FaiRecord.objects.get()
@@ -178,7 +178,7 @@ class CollegamentoTests(ProgrammiBase):
 
     def test_fai_in_corso_non_viene_chiuso_da_una_modifica_riga(self):
         task = self.attivita(self.fai)
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(ref, piano_numero="P1"))
         task.status = TaskStatus.DONE
         task.save()
@@ -190,7 +190,7 @@ class CollegamentoTests(ProgrammiBase):
 
     def test_fai_con_scheda_aperta_non_dice_che_manca(self):
         task = self.attivita(self.fai)
-        self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(task.tech_ref, piano_numero="P1"))
+        self.client.post(reverse("tasks:fai_nuovo"), self._dati_fai(task.tech_refs.get(), piano_numero="P1"))
         pagina = self.client.post(reverse("tasks:change_status", args=[task.pk]), {"status": TaskStatus.DONE}, follow=True)
         self.assertNotContains(pagina, "non ancora inserito")
 

@@ -53,7 +53,7 @@ class TappeTests(_TappeBase):
     def test_cam_dal_percorso_crea_anche_la_riga_programmi(self):
         self._post(tappa="CAM", action="assegna", assigned_to=self.altro.pk)
         task = Task.objects.get(project=self.project)
-        self.assertEqual(task.tech_ref.kind, "CAM")
+        self.assertEqual(task.tech_refs.get().kind, "CAM")
 
     def test_terzista_ammette_piu_righe_e_il_fornitore_e_facoltativo(self):
         for nome in ("Ditta Uno", "Ditta Due"):

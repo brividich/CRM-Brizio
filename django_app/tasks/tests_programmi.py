@@ -38,9 +38,9 @@ class RegolaTests(ProgrammiBase):
 
     def test_attivita_crea_la_sua_riga(self):
         task = self.attivita()
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         self.assertEqual((ref.kind, ref.assigned_to, ref.due_date), ("CAM", self.user, date(2026, 12, 1)))
-        self.assertEqual(self.attivita(self.cmm, title="Misura").tech_ref.kind, "CMM")
+        self.assertEqual(self.attivita(self.cmm, title="Misura").tech_refs.get().kind, "CMM")
 
     def test_salvataggi_non_creano_doppioni(self):
         task = self.attivita()
@@ -56,12 +56,12 @@ class RegolaTests(ProgrammiBase):
     def test_adotta_la_riga_assegnata_in_riunione(self):
         libera = ProjectTechRef.objects.create(project=self.project, kind="CAM", code="O1", assigned_to=self.user)
         task = self.attivita()
-        self.assertEqual(task.tech_ref.pk, libera.pk)
+        self.assertEqual(task.tech_refs.get().pk, libera.pk)
 
     def test_non_adotta_la_riga_di_un_altro(self):
         altro = _create_user_with_legacy(username="prog-altro", legacy_user_id=632, role_id=2, role_name="tasks")
         libera = ProjectTechRef.objects.create(project=self.project, kind="CAM", assigned_to=altro)
-        self.assertNotEqual(self.attivita().tech_ref.pk, libera.pk)
+        self.assertNotEqual(self.attivita().tech_refs.get().pk, libera.pk)
 
     def test_responsabile_e_data_seguono_l_attivita(self):
         task = self.attivita()
@@ -149,7 +149,7 @@ class VisteTests(ProgrammiBase):
 
     def test_riga_collegata_si_governa_dall_attivita(self):
         task = self.attivita()
-        ref = task.tech_ref
+        ref = task.tech_refs.get()
         url = reverse("tasks:tech_ref_action", args=[self.project.pk, ref.pk])
         self.assertEqual(self.client.post(url, {"action": "delete"}).status_code, 400)
         self.assertEqual(self.client.post(url, {"action": "done"}).status_code, 400)
@@ -164,7 +164,7 @@ class VisteTests(ProgrammiBase):
     def test_una_voce_sola_tra_le_mie_attivita(self):
         task = self.attivita()
         pagina = self.client.get(reverse("tasks:mie_azioni"))
-        self.assertNotContains(pagina, f'data-tr-ref="{task.tech_ref.pk}"')
+        self.assertNotContains(pagina, f'data-tr-ref="{task.tech_refs.get().pk}"')
         task.status = TaskStatus.DONE
         task.save()
         pagina = self.client.get(reverse("tasks:mie_azioni"))

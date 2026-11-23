@@ -2348,8 +2348,9 @@ class ProjectTechRef(models.Model):
     )
     due_date = models.DateField(null=True, blank=True, verbose_name="Entro il")
     # L'attività che deve produrre questo programma: responsabile, data e stato arrivano da lei.
-    task = models.OneToOneField(
-        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="tech_ref", verbose_name="Attività"
+    # Un'attività può avere più programmi (un solo FAI: lo garantisce services/collegamenti.py).
+    task = models.ForeignKey(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="tech_refs", verbose_name="Attività"
     )
     status = models.CharField(
         max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"

@@ -62,8 +62,7 @@ def programma_attivita_eliminata(sender, instance: Task, **kwargs):
     from .models import ProjectTechRef
     from .services.programmi import sgancia
 
-    ref = ProjectTechRef.objects.filter(task=instance).first()
-    if ref is not None:
+    for ref in ProjectTechRef.objects.filter(task=instance):
         sgancia(ref)
 
 

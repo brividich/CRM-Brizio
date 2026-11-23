@@ -42,7 +42,7 @@ Contesto: registro_context (tasks/views/collegamenti.py).
       <tr data-rc-riga="{{ r.chiave }}" data-rc-tipo="{{ r.tipo }}" data-rc-task="{{ r.task.pk|default:'' }}">
         <td>{{ r.nome }}</td>
         <td class="kc-codice">{% if r.vuoto %}<span class="tr-empty">da inserire</span>{% else %}{{ r.codice }}{% endif %}</td>
-        <td>{{ r.descrizione }}{% if r.ref.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=r.ref %}</div>{% endif %}{% if r.ref.source_meeting %}<div class="tl-task-desc">Incontro {{ r.ref.source_meeting.numero }}</div>{% endif %}</td>
+        <td>{{ r.descrizione }}{% if r.avviso %}<div class="kc-avviso"><b>Avviso:</b> {{ r.avviso }}</div>{% endif %}{% if r.ref.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=r.ref %}</div>{% endif %}{% if r.ref.source_meeting %}<div class="tl-task-desc">Incontro {{ r.ref.source_meeting.numero }}</div>{% endif %}</td>
         <td>
           {% if r.puo_fase %}
           <select class="input kc-fase" data-rc-fase data-no-search aria-label="Fase di {{ r.codice }}">

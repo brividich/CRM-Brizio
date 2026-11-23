@@ -17,12 +17,13 @@ from ..access import (
     can_manage_project,
     can_manage_task,
     scoped_projects_queryset,
+    scoped_tasks_queryset,
     task_permissions_required,
 )
 from ..models import ProjectTechRef, Task, TaskStatus, TechRefKind
 from ..services import collegamenti as svc
 from ..services import programmi_fasi
-from ..services.tappe import dettaglio_macchina
+from ..services.tappe import _finestra, disponibilita_macchina
 
 RISORSE = (svc.MACCHINA, svc.ATTREZZATURA, svc.UTENSILE)
 PROGRAMMI = (svc.CAM, svc.CMM, svc.FAI)
@@ -72,13 +73,26 @@ def _con_nomi(request) -> bool:
         return False
 
 
+def _visibili(request) -> set[int]:
+    """Attività che chi guarda può vedere: negli avvisi di conflitto le altre restano senza titolo."""
+    if not hasattr(request, "_kc_visibili"):
+        request._kc_visibili = set(scoped_tasks_queryset(request).values_list("id", flat=True))
+    return request._kc_visibili
+
+
 def collegamenti_context(request, task: Task, *, apri: str = "") -> dict:
     """Contesto del riquadro per un'attività che esiste già."""
     if not task.project_id:
         return {"col": None}
     perm = permessi(request, task)
-    dati = svc.riquadro(task)
+    dati = svc.riquadro(task, visibili=_visibili(request))
+    con_nomi = _con_nomi(request)
     for voce in dati["voci"]:
+        if voce["tipo"] == svc.MACCHINA and "conflitti" in voce:
+            # Abilitati e assenze nel periodo: gli impegni sono già l'avviso della riga.
+            voce["operatori"] = disponibilita_macchina(
+                voce["asset"], *_finestra(task), con_nomi=con_nomi, escludi_task_id=task.pk, con_impegni=False,
+            )
         voce["puo"] = (
             _puo(perm, voce["tipo"]) and not voce.get("vuoto")
             and (voce["tipo"] != svc.INCONTRO or voce.get("pianificato"))
@@ -101,7 +115,6 @@ def collegamenti_context(request, task: Task, *, apri: str = "") -> dict:
         url_azione=reverse("tasks:collegamenti_azione", args=[task.pk]),
         url_cerca=reverse("tasks:collegamenti_cerca", args=[task.project_id]),
         apri=apri if apri in svc.INFO else "",
-        macchina=dettaglio_macchina(task, con_nomi=_con_nomi(request)) if any(v["tipo"] == svc.MACCHINA for v in dati["voci"]) else None,
     )
     return {"col": dati}
 
@@ -117,7 +130,7 @@ def collegamenti_context_nuova(request, project) -> dict:
     ]
     return {"col": {
         "task": None, "voci": [], "manca": [], "manca_testo": "", "tipi": tipi, "puo": True, "in_attesa": True,
-        "url_azione": "", "url_cerca": reverse("tasks:collegamenti_cerca", args=[project.pk]), "apri": "", "macchina": None,
+        "url_azione": "", "url_cerca": reverse("tasks:collegamenti_cerca", args=[project.pk]), "apri": "",
     }}
 
 
@@ -172,7 +185,7 @@ def collegamenti_azione(request, task_id: int):
     chiave = (post.get("chiave") or "").strip()
     visibili = scoped_projects_queryset(request)
     nega = _errore("Non puoi cambiare questo collegamento.", 403)
-    messaggio = ""
+    messaggio = avviso = ""
 
     try:
         if azione in ("collega", "aggiungi"):
@@ -186,6 +199,16 @@ def collegamenti_azione(request, task_id: int):
                     f"Attività all'ordine del giorno dell'incontro {voce['codice']}" if tipo == svc.INCONTRO
                     else f"{voce['nome']} {voce['codice']} collegato"
                 )
+                if tipo == svc.MACCHINA:
+                    # Solo avviso: la macchina resta collegata anche se nel periodo è già impegnata.
+                    inizio, fine = _finestra(task)
+                    avviso = svc.avviso_macchina(
+                        svc.conflitti_macchina(voce["asset"], inizio, fine, escludi_task_id=task.pk, visibili=_visibili(request)),
+                        inizio, fine,
+                    )
+                    messaggio = f"Macchina {voce['codice']} collegata"
+                    if avviso:
+                        avviso = f"Macchina {voce['codice']} collegata, ma nel periodo è già impegnata. {avviso}"
             else:
                 voce, nuovo = svc.aggiungi(task, tipo, post.get("testo", "")[:400], request.user, progetti_visibili=visibili)
                 if not nuovo:
@@ -232,7 +255,7 @@ def collegamenti_azione(request, task_id: int):
         "task_id": task.pk, "project_id": task.project_id, "tipo": tipo, "chiave": chiave,
     })
     task = _detail_queryset(request).filter(pk=task.pk).first() or task
-    return JsonResponse({"ok": True, "html": _html(request, task), "messaggio": messaggio})
+    return JsonResponse({"ok": True, "html": _html(request, task), "messaggio": "" if avviso else messaggio, "avviso": avviso})
 
 
 # --- Registro della commessa («Programmi e FAI») ------------------------------
@@ -244,7 +267,7 @@ def registro_context(request, project) -> dict:
     gestisce = can_manage_project(request, project)
     puo_creare = gestisce or request.user.pk in project.team_user_ids
     esito = esito_progetto(project)
-    dati = svc.registro(project)
+    dati = svc.registro(project, visibili=_visibili(request))
     for riga in dati["righe"]:
         ref = riga.get("ref")
         task = riga["task"]

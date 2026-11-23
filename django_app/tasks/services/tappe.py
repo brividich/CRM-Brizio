@@ -100,7 +100,7 @@ def periodo(inizio: date | None, fine: date | None) -> tuple[date, date]:
     return (fine, inizio) if fine < inizio else (inizio, fine)
 
 
-def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, escludi_task_id=None) -> dict:
+def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, escludi_task_id=None, con_impegni: bool = True) -> dict:
     """Abilitati, assenze nel periodo e impegni dell'asset. Mai un errore a video."""
     task_pk = escludi_task_id
     esito = {"asset": asset, "inizio": inizio, "fine": fine, "abilitati": None, "assenti": [], "impegni": []}
@@ -131,6 +131,9 @@ def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, e
             esito["disponibili"] = len(ids) - len(esito["assenti"])
     except Exception:
         logger.exception("Percorso kickoff: abilitati/assenze non letti (asset=%s)", asset.pk)
+    if not con_impegni:
+        # Il riquadro «Collegamenti» li mostra già sulla riga della macchina, come avviso.
+        return esito
     try:
         from .asset_conflicts import _asset_availability_report
 

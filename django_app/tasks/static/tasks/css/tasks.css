@@ -5319,3 +5319,7 @@ body.theme-dark .kc-chip[aria-pressed="true"] { background: var(--primary-mid); 
 @media (max-width: 640px) {
   .rc-tabella .kc-fase { max-width: 160px; }
 }
+/* Avviso di conflitto sulla macchina collegata (solo avviso: il collegamento resta) e abilitati nel periodo. */
+.kc-avviso { flex: 1 1 100%; margin: 0; padding: 4px 8px; border-left: 3px solid var(--warning); background: var(--surface-alt, var(--surface)); color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
+.kc-operatori { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; font-size: 12px; }
+.rc-tabella .kc-avviso { margin-top: 3px; }

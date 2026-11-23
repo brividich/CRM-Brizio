@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: più programmi e più macchine per attività, conflitti macchina solo come avviso
+
+- **Più programmi e più macchine sulla stessa attività:** dal riquadro «Collegamenti» si collegano più programmi CAM o CMM e più macchine; il FAI resta uno. L'attività si chiude quando **tutti** i suoi programmi sono «Validato»; una nuova revisione di uno la riapre e lascia validati gli altri; chiuderla a mano li valida tutti. «Manca: …» si spegne con almeno un collegamento del tipo atteso. Lo stesso codice non si collega due volte; un tipo che «richiede» CAM (o CMM) accetta solo quel tipo.
+- **Macchina già impegnata: avviso, nessun blocco.** Collegando una macchina che nel periodo dell'attività ha altre attività, ordini di lavoro, riparazione, verifiche, ticket o carichi il collegamento si salva e compare l'avviso con cosa la impegna e quando; resta sulla riga del riquadro e nel registro «Programmi e FAI» finché il conflitto esiste. Le attività che chi guarda non può vedere compaiono senza titolo.
+- Migrazione `tasks 0072`: `ProjectTechRef.task` da uno-a-uno a chiave esterna (`related_name` `tech_refs`); reversibile (tornando indietro resta sull'attività il primo programma, gli altri passano «senza attività»). Serve collectstatic.
+- File: `tasks/models.py`, `tasks/migrations/0072_programmi_piu_per_attivita.py`, `tasks/services/collegamenti.py`, `programmi.py`, `programmi_fasi.py`, `tappe.py`, `tasks/signals.py`, `tasks/views/collegamenti.py`, `tasks/templates/tasks/_collegamenti_body.html`, `_registro_collegamenti_body.html`, `base_shell.html`, `base_shell_pannello.html`, `detail.html`, `form.html`, `_tappe.html`, `project_tech_refs.html`, `tasks/static/tasks/js/collegamenti.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`; test `tasks/tests_collegamenti.py`, `tests_programmi.py`, `tests_programmi_collegamento.py`, `tests_tappe.py`.
+
 ### Ticket: allegati e screenshot nella risoluzione
 
 - **«Risolvi» con allegati:** nel pannello, sotto «Cosa è stato fatto», l'area «Allegati e screenshot» della card allegati (trascina, sfoglia, miniature, ×), max 10 file, facoltativi. Ctrl+V incolla uno screenshot (nome `screenshot-AAAAMMGG-hhmmss.png`). «Segna risolto» manda file e risoluzione in un'unica richiesta: file controllati prima e salvati nella stessa transazione dell'intervento; se uno è rifiutato il ticket resta aperto. Allegati già validati, tipo dal MIME (immagine = Foto, PDF = Rapportino), nota «Allegato alla risoluzione». La mail «Risolto: confermi?» aggiunge «Nel ticket trovi N allegati della risoluzione». Nessuna migrazione, serve collectstatic.
