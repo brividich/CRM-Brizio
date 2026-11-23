@@ -1314,10 +1314,10 @@ def partecipa(controllo, user, nome: str) -> dict:
         legacy = _legacy_id_utente(controllo.operatore)
         if legacy:
             try:
-                azione = "riaperto e si è unito al tuo controllo" if riapre else "si è unito al tuo controllo"
+                azione = "ha riaperto e si è unito al tuo controllo" if riapre else "si è unito al tuo controllo"
                 _invia_notifica(
                     legacy_user_id=legacy, tipo=TIPO_NOTIFICA_PROMEMORIA,
-                    messaggio=f"{nome} ha {azione} su OP {controllo.op_id} (fase {controllo.fase})."[:500],
+                    messaggio=f"{nome} {azione} su OP {controllo.op_id} (fase {controllo.fase})."[:500],
                     url_azione=url_controllo(controllo),
                 )
             except Exception:
