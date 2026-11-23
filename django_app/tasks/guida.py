@@ -315,7 +315,7 @@ SEZIONI: list[dict] = [
                 ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto. «Apri» sull'attività collegata e «Form completo» aprono scheda e form nel pannello laterale: si resta in riunione, i salvataggi restano nel pannello e «Pagina intera» porta alla pagina normale. Su una tappa «da assegnare» che in questa riunione non si discute, «Elimina» (due clic) la toglie dall'ordine del giorno; la tappa resta nel percorso."),
                 ("Form completo", "«+ Attività» nella testata della commessa, da qualunque sezione: si apre nel pannello laterale, senza lasciare la pagina. Scrivendo in «Cosa va fatto» compaiono le attività già usate (del piano, nate negli incontri e i tipi di attività). A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Sotto, il riquadro «Collegamenti» (macchina, attrezzatura, utensili, programmi, FAI, incontro): su un'attività nuova le scelte si applicano quando premi «Crea attività». Etichette, prossimo passo, impegni sovrapposti, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
-            ("img", (_IMG + "attivita_form.jpg", "Il form completo: Outlook e promemoria stanno in «Altre opzioni»")),
+            ("img", (_IMG + "attivita_form.jpg", "Il form completo con il riquadro «Collegamenti»; Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
                 "Gli stati sono Da fare, In corso, Completata e Annullata; le priorità Bassa, Media e Alta.",
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "
@@ -379,7 +379,7 @@ SEZIONI: list[dict] = [
                 "Scegli il responsabile. Per CAM e CMM il portale propone il Programmatore, se la commessa ne ha uno solo.",
                 "Premi Invio. Tipo e responsabile restano, così scrivi subito il codice successivo.",
             ]),
-            ("img", (_IMG + "programmi_fai.jpg", "La scheda Programmi e FAI con la riga di inserimento")),
+            ("img", (_IMG + "programmi_fai.jpg", "Programmi e FAI: una riga per collegamento, con l'avviso sulla macchina già impegnata")),
             ("ul", [
                 "Basta uno tra codice, percorso e responsabile: in riunione puoi assegnare «Programma CAM» a una persona, e il codice lo scrive poi lei con «Modifica».",
                 "Il responsabile riceve la notifica e trova la voce in «Le mie attività KICK-OFF» e in «Le mie attività» del portale. Con «Fatto» la chiude.",
@@ -433,7 +433,7 @@ SEZIONI: list[dict] = [
         "titolo": "La scheda di un'attività",
         "blocchi": [
             ("p", "Cliccando un'attività si apre la sua scheda: in alto la «Linea del tempo» della commessa con questa attività evidenziata, a sinistra il lavoro da fare, a destra «Dettagli», kickoff e allegati."),
-            ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività")),
+            ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività: stato, nota e «Collegamenti» con due macchine e due programmi")),
             ("def", [
                 ("Stato", "una sola tendina («Da fare», «In corso», «Completata»; «Annullata» solo per il capocommessa) e il pulsante «Segna completata». Vale anche per il responsabile senza permesso di modifica, con le stesse regole di «Le mie attività KICK-OFF». Accanto: priorità, «In ritardo dal …» e la barra dell'avanzamento."),
                 ("Completamento", "quando l'attività passa a Completata, chi l'ha creata riceve una notifica nel portale (non se la chiude da sé)."),
@@ -498,7 +498,7 @@ SEZIONI: list[dict] = [
                 ("Dopo", "esito e minuta: «Minuta da approvare», «Minuta approvata», «Minuta inviata». Finché l'incontro non è svolto apre la pagina dell'esito, poi la scheda con la minuta."),
             ]),
             ("p", "La spunta verde dice che la fase è fatta; un clic porta alla fase. Il pulsante arancione della testata fa il passo successivo."),
-            ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
+            ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato, con «Percorso, attività e programmi della commessa» aperto")),
             ("p", "Prima dell'incontro (stato «Pianificato») il dettaglio è la fase «Prima», su due colonne (una sola su telefono): a sinistra l'ordine del giorno, a destra «Convocazione» e «Dagli incontri precedenti»."),
             ("def", [
                 ("Ordine del giorno (fase «Prima»)", "chi gestisce la commessa lo cambia sul posto, senza ricaricare la pagina: scrivi in «Nuovo punto» e premi Invio o «+ Punto»; le frecce «Sposta su» e «Sposta giù» cambiano l'ordine; «Togli» chiede conferma e toglie il punto. Un punto su cui in conduzione sono già nati problemi, attività d'incontro o decisioni non ha «Togli». I punti non hanno tempi. Tutti gli altri vedono la lista in sola lettura."),

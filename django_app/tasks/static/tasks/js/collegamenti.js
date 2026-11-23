@@ -136,6 +136,8 @@
     var st = stato(root);
     // Macchine e programmi possono essere più d'uno; il FAI è uno solo: il nuovo prende il posto del vecchio.
     if (voce.tipo === 'fai') st.attesa = st.attesa.filter(function (v) { return v.tipo !== 'fai'; });
+    // Lo stesso codice non entra due volte (doppio clic prima che la ricerca si aggiorni).
+    if (st.attesa.some(function (v) { return v.tipo === voce.tipo && (voce.id ? String(v.id) === String(voce.id) : v.testo === voce.testo); })) return;
     st.attesa.push(voce);
     disegnaAttesa(root);
   }

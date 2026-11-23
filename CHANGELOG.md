@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: immagini della guida in-app rifatte
+
+- Rifatte da schermate del server di prova con dati sintetici (tema chiaro, 1440 px, JPEG): `attivita_scheda.jpg`, `attivita_form.jpg`, `programmi_fai.jpg`, `conduci.jpg`, `incontro.jpg`, `esito.jpg`; didascalie aggiornate. `piano.jpg` e `panoramica.jpg` non cambiano (pagine non toccate).
+- Form «+ Attività»: lo stesso codice non entra due volte fra i collegamenti in attesa (doppio clic).
+- File: `tasks/static/tasks/guida/*.jpg`, `tasks/guida.py`, `tasks/static/tasks/js/collegamenti.js` e i template che lo caricano (versione).
+
 ### KICK-OFF: pulizia di ciò che era rimasto senza interfaccia
 
 - **Tolti** (nessun uso in `django_app/`): URL `tasks:tappa_anteprima`, `tasks:utensili_azione`, `tasks:task_programma` con i loro binding ACL (bootstrap v30); partial `_tappe_anteprima.html`, `_tappe_macchina.html`, `_task_programma.html`, `_tech_refs.html`; campi `tooling_*` di `TaskForm` e le azioni attrezzatura dal form (`views/_tooling.py`), il ramo `tooling_mode` della creazione attività dall'incontro, i residui in `quick_task_bar.js` e `meeting_task_modal.js`; funzioni del vecchio Percorso in `services/tappe.py`. I vecchi campi, se arrivano in una richiesta, sono ignorati.
