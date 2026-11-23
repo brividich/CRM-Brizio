@@ -129,3 +129,5 @@ Logica in `dpi/report.py`, viste in `dpi/views_report.py`, gate `_is_gestore`, p
 - `flusso.notifica_esito_richiedente` (approvata/rifiutata), `notifica_annullata` (agli approvatori), `notifica_commento` (commento non interno del gestore). `_notifica_richiedente` ha il parametro `tipo` (`dpi_pronta`, `dpi_ordinata`, `dpi_commento`).
 
 **Numero richiesta (audit [50], 23/11/2026):** `_next_numero_dpi` usa `core.numeratori.prossimo_progressivo` (ordine numerico anche oltre 9999).
+
+**Chi approva (audit P13, 23/11/2026):** `flusso.approvatori_di` legge ogni fonte (area e reparto, responsabile effettivo, responsabili di area e reparto, preposti dell'area) separatamente: un errore toglie solo quella fonte e finisce nel log con `logger.exception`. Anche `_capo_regola_unica` e `_co_capi_regola_unica` registrano l'errore prima di ripiegare sulla regola di prima.

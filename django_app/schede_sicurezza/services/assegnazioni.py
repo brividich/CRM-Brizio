@@ -77,6 +77,40 @@ def _mansioni_rischio_dipendente(legacy_anagrafica_id: int, mansione_nome: str) 
     return out
 
 
+def utenti_legacy_per_mansione_rischio(nomi_mansioni) -> dict[str, set[int]]:
+    """Per ogni mansione di rischio data (chiave in minuscolo) gli ``utenti.id`` dei dipendenti
+    in forza che la hanno. Stessa regola di :func:`dipendenti_per_mansioni_rischio`, ma con una
+    sola lettura dell'anagrafica per tutte le mansioni (audit P8)."""
+    voluti = {(nome or "").strip().casefold() for nome in nomi_mansioni if (nome or "").strip()}
+    out: dict[str, set[int]] = {v: set() for v in voluti}
+    if not voluti:
+        return out
+    from anagrafica.models import DipendenteAnagraficaAziendale
+    from anagrafica.services.mansionario import nomi_mansioni_rischio
+    from core.legacy_models import AnagraficaDipendente
+    from core.legacy_utils import legacy_table_has_column
+
+    if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
+        return out
+    cessati_ids = DipendenteAnagraficaAziendale.objects.filter(
+        data_cessazione__isnull=False
+    ).values_list("legacy_anagrafica_id", flat=True)
+    righe = list(
+        AnagraficaDipendente.objects.filter(utente_id__isnull=False)
+        .exclude(id__in=cessati_ids).values_list("id", "utente_id", "mansione")
+    )
+    nomi_per = nomi_mansioni_rischio(
+        [lid for lid, _uid, _m in righe], mansioni_per_legacy={lid: m or "" for lid, _uid, m in righe},
+    )
+    for lid, uid, _mansione in righe:
+        if not uid:
+            continue
+        for n in nomi_per.get(lid, []):
+            if n.casefold() in voluti:
+                out[n.casefold()].add(int(uid))
+    return out
+
+
 def dipendenti_per_mansioni_rischio(nomi_mansioni) -> dict[int, tuple[int, str]]:
     """Dipendenti in forza con account che hanno una delle mansioni di rischio date.
 

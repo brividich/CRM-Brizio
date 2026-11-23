@@ -551,7 +551,12 @@ def _utenti_mio_team(request) -> tuple[int, list[int]]:
             .values_list("utente_id", flat=True)
         })
     except Exception:
-        logger.warning("assenze: team di «Il mio team» non calcolabile", exc_info=True)
+        logger.exception("assenze: team di «Il mio team» non calcolabile")
+        if request is not None:
+            # Avviso a video: la dashboard ripiega sul capo assegnato alla richiesta (audit P12).
+            messages.warning(request, "«Il mio team» non si è potuto calcolare: l'elenco mostra le richieste "
+                                      "assegnate a te come capo. Se manca qualcuno, avvisa l'amministratore.",
+                             fail_silently=True)
         return 0, []
 
 

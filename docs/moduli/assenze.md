@@ -109,3 +109,5 @@ Dashboard segnalazioni: «In attesa» = `count_pending_for_manager` / `count_all
 - `aggiorna_consenso/<id>` con Approvato/Rifiutato passa da `_applica_moderazione` (audit, avvisi, link chiuso).
 
 **Calendario unico (audit K1-K3, 23/11/2026):** patrono, sabato lavorativo e `ChiusuraAziendale` delle Impostazioni HR sono la fonte per tutto il portale tramite `core.calendario_it` (`festivi_tra`, `is_lavorativo`, `chiusure=False` per i termini di legge); cache di 60 s svuotata al salvataggio di impostazioni e chiusure (segnali in `assenze/apps.py`). `hr.festivita` prende i festivi nazionali da lì.
+
+**Riconciliazione e «Il mio team» (audit P12, 23/11/2026):** `riconciliazione.nomi_omonimi()` trova i nomi condivisi da più dipendenti in anagrafica (nome-cognome in entrambi gli ordini); i conflitti su quei nomi portano «Omonimo, da verificare». Se `_utenti_mio_team` va in errore, la dashboard mostra un avviso (ripiega sul capo assegnato) e l'errore va nel log.

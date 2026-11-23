@@ -90,3 +90,5 @@ Parametri `--host` (10.0.0.7) `--port` `--database` (scadenziario) `--user` (hub
 `scadenzario/tests.py` (regole, catalogo, pannello, generiche, avvisi, import).
 
 **Calendario unico (audit K1, 23/11/2026):** `scadenzario.calendario.festivi` usa `core.calendario_it` (festività, patrono, chiusure come «Chiusura: …»); `scadenzario_patrono` resta solo come ripiego quando il patrono di Assenze è vuoto.
+
+**Avvisi (audit P9, 23/11/2026):** il giro giornaliero e l'anteprima leggono l'ultimo avviso riuscito di ogni attività nella stessa query (`_con_ultimo_avviso`, `Subquery`), non una query per attività.

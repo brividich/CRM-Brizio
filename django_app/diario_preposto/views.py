@@ -786,6 +786,18 @@ def ripristina(request, pk):
                                pagina="Diario preposto")
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
     if segnalazione.is_eliminata:
+        # Anche il ripristino chiede un motivo, che resta nella cronologia (audit P6).
+        form = EliminaSegnalazioneForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Per ripristinare la segnalazione scrivi il motivo (almeno 5 caratteri).")
+            return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
+        from core.audit import log_action
+
+        log_action(request, "segnalazione_ripristinata", MODULO,
+                   {"codice": segnalazione.codice_identificativo, "motivo": form.cleaned_data["motivo"],
+                    "eliminata_il": segnalazione.eliminata_il.isoformat(),
+                    "motivo_eliminazione": segnalazione.motivo_eliminazione},
+                   oggetto=segnalazione)
         segnalazione.eliminata_il = None
         segnalazione.eliminata_da = None
         segnalazione.motivo_eliminazione = ""

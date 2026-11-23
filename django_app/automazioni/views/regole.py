@@ -4715,6 +4715,10 @@ def rule_detail_page(request, rule_id: int):
         .first()
     )
     conditions = list(rule.conditions.order_by("order", "id"))
+    from automazioni.services import errore_cooldown
+
+    for c in conditions:  # pause scritte male salvate prima del controllo (audit P16)
+        c.errore_pausa = errore_cooldown(c.expected_value) if c.operator == "cooldown_group" else ""
     actions = list(rule.actions.order_by("order", "id"))
     # Per sparkbar durata: max sui run mostrati (0 = nessuna barra).
     max_execution_ms = max((rl.execution_ms or 0 for rl in recent_run_logs), default=0)

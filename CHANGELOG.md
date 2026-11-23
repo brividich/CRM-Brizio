@@ -9,6 +9,21 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, proposte P1-P16: correzioni piccole (blocco 8a)
+
+- **SOC (P5):** regole di soppressione lette una volta per giro e al massimo 2.000 eventi per giro. File: `security/services/rule_engine.py`.
+- **Diario del preposto (P6):** il ripristino chiede il motivo, che resta nel registro e nella storia della segnalazione. File: `diario_preposto/views.py`, `diario_preposto/storyline.py`, `diario_preposto/templates/diario_preposto/pages/dettaglio.html`, `diario_preposto/guida.py`.
+- **Segnalazioni (P7):** elenco locale senza una query per riga. File: `rilevazione_incidenti/views.py`.
+- **Schede di sicurezza (P8):** report di presa visione con una sola lettura dell'anagrafica. File: `schede_sicurezza/reports.py`, `schede_sicurezza/services/assegnazioni.py`.
+- **Scadenzario (P9):** ultimo avviso letto nella stessa query delle attività. File: `scadenzario/avvisi.py`.
+- **DPI (P13):** chi approva letto fonte per fonte, errori nel log. File: `dpi/flusso.py`.
+- **Automazioni (P16):** una pausa (`cooldown_group`) scritta male non si salva; avviso sulle regole già salvate. File: `automazioni/services.py`, `automazioni/forms.py`, `automazioni/views/regole.py`, `automazioni/templates/automazioni/pages/rule_detail.html`.
+- **Assenze (P12):** in riconciliazione «Omonimo, da verificare»; avviso a video se «Il mio team» non si calcola. File: `assenze/riconciliazione.py`, `assenze/views/richieste.py`, `assenze/templates/assenze/pages/riconciliazione.html`.
+- **Specifiche (P1):** si accettano solo cartelle cliente presenti sulla share. File: `gestione_specifiche/admin_views.py`.
+- **Cookie (P2):** il flag Secure non si toglie più quando la configurazione chiede cookie sicuri. File: `core/middleware.py`.
+- **Documentazione (P4, P14):** pagine esenti e identità in `docs/ai/02_ARCHITECTURE.md`; soglie KICK-OFF in `docs/ai/03_BACKEND_MODULES.md` e `docs/ai/08_ROADMAP.md`.
+- Test nuovi: `core/tests_cookie_adattivo.py`, `assenze/tests_riconciliazione_omonimi.py`, `automazioni/tests_pausa_scritta_male.py`; `diario_preposto/tests_integrita.py` aggiornato. Guide: Centro guide Diario, Assenze, Automazioni, Specifiche; schede `docs/moduli` dei moduli toccati. Nessuna migrazione.
+
 ### Anagrafica: «Organizzazione» si apre su una pagina d'ingresso con i collegamenti diretti
 
 - **Pagina «Panoramica»**, prima voce del pilastro Organizzazione (`/anagrafica/organizzazione/`): in alto i numeri della struttura, ognuno porta al suo elenco; a sinistra «Collegamenti diretti», una tessera per pagina della sezione con una riga che spiega a che cosa serve («Esplora la struttura», «Mansioni», «Richieste», «Reparti e capi», «Centri di costo», «Organigramma», «Prova un cambiamento», «Struttura e revisioni»); a destra «Da fare», solo ciò che aspetta in questa sezione, con numero e pulsante. Sotto, lo stato della revisione della struttura.

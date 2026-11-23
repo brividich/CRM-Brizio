@@ -102,10 +102,21 @@ class DiarioIntegritaTests(TestCase):
         det = self.client.get(reverse("diario_preposto:dettaglio", args=[self.segnalazione.pk]))
         self.assertContains(det, "Segnalazione eliminata")
         self.assertContains(det, "Ripristina")
+        # Senza motivo il ripristino non avviene (audit P6).
         self.client.post(reverse("diario_preposto:ripristina", args=[self.segnalazione.pk]))
+        self.segnalazione.refresh_from_db()
+        self.assertTrue(self.segnalazione.is_eliminata)
+        self.client.post(reverse("diario_preposto:ripristina", args=[self.segnalazione.pk]),
+                         {"motivo": "Eliminata per sbaglio"})
         self.segnalazione.refresh_from_db()
         self.assertFalse(self.segnalazione.is_eliminata)
         self.assertEqual(self.segnalazione.motivo_eliminazione, "")
+        from core.models import AuditLog
+
+        voce = AuditLog.objects.filter(azione="segnalazione_ripristinata").first()
+        self.assertIsNotNone(voce)
+        self.assertEqual(voce.dettaglio["motivo"], "Eliminata per sbaglio")
+        self.assertEqual(voce.dettaglio["motivo_eliminazione"], "Errore")
 
     def test_ripristina_negato_a_chi_non_gestisce(self):
         self.segnalazione.eliminata_il = timezone.now()

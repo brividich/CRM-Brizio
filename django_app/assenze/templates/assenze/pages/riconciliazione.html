@@ -60,7 +60,7 @@
         <tbody>
           {% for c in items %}
           <tr>
-            <td class="abs-cell-primary" data-label="Dipendente"><strong>{{ c.nome }}</strong></td>
+            <td class="abs-cell-primary" data-label="Dipendente"><strong>{{ c.nome }}</strong>{% if c.omonimo %} <span class="abs-chip soft" title="In anagrafica più dipendenti hanno questo nome: controlla che presenza e assenza siano della stessa persona">Omonimo, da verificare</span>{% endif %}</td>
             <td data-label="Data presenza">{{ c.data|date:"d/m/Y" }}</td>
             <td data-label="Ore presenza">{% if c.ore_presenza is not None %}{{ c.ore_presenza }} h{% else %}—{% endif %}</td>
             <td data-label="Assenza approvata"><span class="abs-status abs-status-rejected">{{ c.tipo_label }}</span></td>

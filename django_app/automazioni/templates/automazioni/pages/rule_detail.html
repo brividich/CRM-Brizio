@@ -246,6 +246,9 @@ body.theme-dark .auto-diff-mini{background:rgba(214,158,46,.16);color:#fcd34d}
                     {% if condition.value_type and condition.value_type != "string" %}
                       <span class="auto-list-meta">({{ condition.value_type }})</span>
                     {% endif %}
+                    {% if condition.errore_pausa %}
+                      <span class="auto-health auto-health--warn" title="{{ condition.errore_pausa }}"><span class="auto-health-dot"></span>Pausa scritta male: la regola parte sempre</span>
+                    {% endif %}
                   </div>
                   <div class="auto-list-side">
                     {% if condition.compare_with_old %}

@@ -569,8 +569,19 @@ class AutomationConditionForm(forms.ModelForm):
         effective_source_code = source_code or getattr(getattr(self.instance, "rule", None), "source_code", None)
         self.fields["field_name"].choices = _field_choices_from_registry(effective_source_code, mode="condition")
         self.fields["expected_value"].help_text = (
-            "Per `changed_from_to` usa il formato `vecchio|nuovo`. Per `in_csv` usa valori separati da virgola."
+            "Per `changed_from_to` usa il formato `vecchio|nuovo`. Per `in_csv` usa valori separati da virgola. "
+            "Per `cooldown_group` usa `nome:minuti` (es. `mail_anomalie_op:5`)."
         )
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("operator") == AutomationConditionOperator.COOLDOWN_GROUP:
+            from .services import errore_cooldown
+
+            errore = errore_cooldown(cleaned.get("expected_value"))
+            if errore:
+                self.add_error("expected_value", errore)
+        return cleaned
 
 
 class AutomationActionForm(forms.ModelForm):

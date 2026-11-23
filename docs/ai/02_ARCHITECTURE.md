@@ -98,18 +98,11 @@ Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo 
 
 ### Path esenti da ACL (MIDDLEWARE_EXEMPT_PREFIXES)
 
-Questi path bypassano completamente l'`ACLMiddleware`:
+Questi path bypassano login e `ACLMiddleware`. L'elenco vero è `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py` (con il motivo di ciascuno accanto) e il test `core/test_security_audit_fase3.py` (`PUBLIC_VIEWS`) lo tiene sotto controllo: qui non si ricopia, per non farlo invecchiare. Le superfici pubbliche a token e quelle pubblicate su Entra Application Proxy sono in `05_SECURITY_BOUNDARIES.md`.
 
-```text
-/health  /version  /login  /logout  /cambia-password
-/static/  /media/  /admin/  /favicon  /setup/  /admin-portale/hub/
-/automazioni/approvazione/   (token-based, no login required)
-/approval-actions/           (token-based, Entra Application Proxy frontend)
-```
+Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py` **e** a `PUBLIC_VIEWS` del test.
 
-Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
-
-**`/approval-actions/` — Entra Application Proxy**: endpoint pubblicati selettivamente su Entra Application Proxy. `GET /approval-actions/approve|reject/<token>/` mostra solo la conferma senza side effect; `POST` registra la decisione tramite `process_approval_decision()`. L'identità viene estratta da sessione Django → `X-MS-CLIENT-PRINCIPAL-NAME` → `X-Forwarded-Email`. Ogni decisione è tracciata in AuditLog. Pubblicare **solo** `/approval-actions/*` nell'Application Proxy, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
+**`/approval-actions/` — Entra Application Proxy**: endpoint pubblicati selettivamente su Entra Application Proxy. `GET /approval-actions/approve|reject/<token>/` mostra solo la conferma senza side effect; `POST` registra la decisione tramite `process_approval_decision()`. L'identità è solo quella del token e, se c'è, della sessione Django: mai dagli header `X-MS-CLIENT-PRINCIPAL-NAME` / `X-Forwarded-Email`, che IIS inoltra anche quando li scrive il client (`05_SECURITY_BOUNDARIES.md`). Ogni decisione è tracciata in AuditLog. Pubblicare **solo** `/approval-actions/*` nell'Application Proxy, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
 
 Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant ACL dedicati):
 - `/onboarding/` per tutti gli utenti autenticati non superuser interessati al primo accesso

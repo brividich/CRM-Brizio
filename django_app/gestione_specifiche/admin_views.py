@@ -213,6 +213,16 @@ def admin_timbro_delete(request, pk: int):
     return redirect("gestione_specifiche:admin_timbri")
 
 
+def _cartella_esistente(cartella: str) -> bool:
+    """Vera se la cartella è fra quelle reali della share (audit P1).
+
+    Con la share irraggiungibile l'elenco è vuoto e non si può verificare: si accetta,
+    e la risoluzione dirà «cartella mancante» finché non esiste davvero.
+    """
+    disponibili = cartelle_disponibili()
+    return not disponibili or cartella in disponibili
+
+
 @admin_specifiche_required
 def admin_cartelle(request):
     """Gestione mappatura Cliente → cartella share: lista + aggiungi (POST)."""
@@ -221,6 +231,8 @@ def admin_cartelle(request):
         cartella = (request.POST.get("cartella") or "").strip()
         if not cliente or not cartella:
             messages.error(request, "Cliente e cartella sono obbligatori.")
+        elif not _cartella_esistente(cartella):
+            messages.error(request, f"La cartella «{cartella}» non esiste sulla share: sceglila dall'elenco.")
         else:
             ClienteCartellaShare.objects.update_or_create(
                 cliente=cliente, defaults={"cartella": cartella, "attivo": True, "note": "admin"})
@@ -239,6 +251,9 @@ def admin_cartella_edit(request, pk: int):
     """Modifica cartella / attiva-disattiva una mappatura."""
     m = get_object_or_404(ClienteCartellaShare, pk=pk)
     cartella = (request.POST.get("cartella") or "").strip()
+    if cartella and not _cartella_esistente(cartella):
+        messages.error(request, f"La cartella «{cartella}» non esiste sulla share: sceglila dall'elenco.")
+        return redirect("gestione_specifiche:admin_cartelle")
     if cartella:
         m.cartella = cartella
     m.attivo = request.POST.get("attivo") == "1"
