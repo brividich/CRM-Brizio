@@ -7,7 +7,7 @@ controllo, link della mail, riapertura) tramite ``qualita_service.sync_da_anomal
 
 Si contano solo le **ore lavorate**: le ore dentro l'orario di lavoro (di serie 08:00-18:00,
 Configurazione → Notifiche → «Orari e soglie») dei giorni lavorativi (lunedi'-venerdi',
-festivi nazionali esclusi, ``core.calendario_it``). Sabati, domeniche, festivi, notti e
+festivi, patrono e chiusure aziendali esclusi, calendario unico ``core.calendario_it``). Sabati, domeniche, festivi, notti e
 ore fuori orario valgono 0. Un giorno lavorativo vale le ore dell'orario (10 di serie):
 gli obiettivi restano in giorni lavorativi.
 

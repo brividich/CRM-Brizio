@@ -107,3 +107,5 @@ Dashboard segnalazioni: «In attesa» = `count_pending_for_manager` / `count_all
 - `assenze/avvisi.py`: esito in campanella su ogni percorso (dashboard, massa, calendario: passa da `_notify_esito_dipendente`), modifica e cancellazione a capo e dipendente; link con `?richiesta=<id>`. La cancellazione chiude il link Approva/Rifiuta (`chiudi_approvazioni_pendenti`).
 - Richiesta da approvare: la campanella al capo arriva dalla richiesta «Chiedi approvazione» della regola (`automazioni/campanella.py`).
 - `aggiorna_consenso/<id>` con Approvato/Rifiutato passa da `_applica_moderazione` (audit, avvisi, link chiuso).
+
+**Calendario unico (audit K1-K3, 23/11/2026):** patrono, sabato lavorativo e `ChiusuraAziendale` delle Impostazioni HR sono la fonte per tutto il portale tramite `core.calendario_it` (`festivi_tra`, `is_lavorativo`, `chiusure=False` per i termini di legge); cache di 60 s svuotata al salvataggio di impostazioni e chiusure (segnali in `assenze/apps.py`). `hr.festivita` prende i festivi nazionali da lì.

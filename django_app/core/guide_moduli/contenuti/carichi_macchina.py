@@ -50,7 +50,8 @@ GUIDA = {
             "titolo": "Impostazioni macchine",
             "blocchi": [
                 ("p", "«Impostazioni» → Impostazioni macchine: per ogni macchina le ore al giorno e i turni ammessi (2° turno, notte). "
-                      "La capacità è ore al giorno × numero di turni abilitati. Gli stessi interruttori sono nel pannello macchina del Gantt."),
+                      "La capacità è ore al giorno × numero di turni abilitati × giorni lavorativi del periodo (festività, patrono e chiusure "
+                      "aziendali del calendario di Assenze esclusi). Gli stessi interruttori sono nel pannello macchina del Gantt."),
             ],
         },
         {

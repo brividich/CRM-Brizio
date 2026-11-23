@@ -99,7 +99,8 @@ GUIDA = {
                     "Import: python manage.py importa_scadenzario --apply --con-avvisi. Si può rilanciare: non duplica e lascia come sono le voci già importate, così non perdi le modifiche fatte nel portale. Solo --aggiorna le riscrive con i dati del vecchio scadenzario.",
                     "Ferma le mail del vecchio scadenzario sul NAS lo stesso giorno, altrimenti arrivano doppie.",
                 ]),
-                ("p", "Santo patrono nel calendario: SiteConfig scadenzario_patrono = «MM-GG Nome» (es. «06-29 San Pietro»). "
+                ("p", "Festività, patrono e chiusure aziendali vengono dal calendario di Assenze (Impostazioni HR). La vecchia chiave "
+                      "SiteConfig scadenzario_patrono = «MM-GG Nome» vale solo se in Assenze il patrono è vuoto. "
                       "Andamento: task «scadenzario_foto_giornaliera» ogni giorno alle 6:45; dopo il deploy python manage.py scadenzario_foto per il primo punto."),
                 ("p", "Anteprima da riga di comando: python manage.py scadenzario_avvisi (facoltativo --giorno AAAA-MM-GG). Non invia nulla."),
                 ("p", "Preavviso, ripetizione e finestra del riepilogo generali: SiteConfig scadenzario_preavviso_giorni (30), "

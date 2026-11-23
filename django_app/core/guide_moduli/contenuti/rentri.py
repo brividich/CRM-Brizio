@@ -223,7 +223,8 @@ GUIDA = {
                     ("Date incoerenti", "un movimento è datato prima di quello a cui si collega."),
                     ("Numeri di registrazione doppi", "lo stesso numero su più movimenti (le coppie R+M dello stesso giorno sono escluse)."),
                     ("Quarta copia FIR oltre 90 giorni", "scarico originale O senza lo scarico effettivo M dopo 90 giorni."),
-                    ("Annotazioni oltre 10 giorni lavorativi", "movimento scritto nel portale troppo tempo dopo la sua data."),
+                    ("Annotazioni oltre 10 giorni lavorativi", "movimento scritto nel portale troppo tempo dopo la sua data. "
+                     "Contano lun-ven senza festività nazionali e patrono (calendario di Assenze); le chiusure aziendali non spostano il termine."),
                     ("Deposito temporaneo oltre soglia", "codici fermi in deposito oltre la soglia in giorni."),
                     ("Unità di misura miste", "lo stesso codice registrato con unità diverse."),
                     ("Copia SharePoint non allineata", "movimento salvato nel portale ma non arrivato alla lista SharePoint."),
