@@ -95,3 +95,5 @@ Dai log di utilizzo del 11-20/11 (audit `rentri_movimento_*`).
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Filtro `oltre=1` usato dalle tessere.
+
+**Termine delle annotazioni (audit K2, 23/11/2026):** i 10 giorni lavorativi escludono anche festività nazionali e patrono (`core.calendario_it.festivi_tra(..., chiusure=False)`); le chiusure aziendali non spostano il termine.

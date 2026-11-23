@@ -55,3 +55,6 @@ PASSWORD_HASHERS = [
 # the repo root, so the release baseline is declared explicitly.
 TEST_RUNNER = "config.test_runner.NovicromDiscoverRunner"
 DEFAULT_TEST_LABELS = ("core", "tasks", "attrezzature")
+
+# Calendario unico (core.calendario_it): niente cache in memoria nei test, ogni test ha i suoi dati.
+CALENDARIO_CACHE_SECONDI = 0

@@ -80,7 +80,8 @@ class CalendarioTests(SimpleTestCase):
         festivi = _italian_holidays(2026)
         self.assertIn(date(2026, 4, 5), festivi)  # Pasqua
         self.assertIn(date(2026, 4, 6), festivi)  # Lunedi' dell'Angelo
-        self.assertEqual(len(festivi), 12)
+        self.assertIn(date(2026, 10, 4), festivi)  # San Francesco, festa nazionale dal 2026 (L. 151/2025)
+        self.assertEqual(len(festivi), 13)
 
     def test_giorni_lavorativi_saltano_weekend_e_festivi(self):
         festivi = _italian_holidays(2026)
