@@ -15,12 +15,12 @@ import re
 import uuid
 from collections import defaultdict
 
-from security.models import SecurityAlert, SecurityAlertProposta, Severity
+from security.models import SecurityAlert, SecurityAlertProposta
 from security.services.alert_lifecycle import DA_DECIDERE_ALERT_STATUSES
+from security.services.gravita import RANGO_GRAVITA as RANGO  # scala unica (audit C2)
 
 # Alert «da decidere» (non i rimandati né i silenziati): vedi alert_lifecycle.
 APERTI = tuple(DA_DECIDERE_ALERT_STATUSES)
-RANGO = {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.WARNING: 1, Severity.LOW: 0}
 ESITI = (
     ("resolved", "Risolto"),
     ("not_relevant", "Non rilevante"),
@@ -148,13 +148,16 @@ def per_pagina():
 
 
 def _chiudi_uno(alert, esito, actor, motivo, batch, user):
-    from security.services.alert_lifecycle import close_alert, mark_false_positive
+    from security.services.alert_lifecycle import TransizioneNonAmmessa, close_alert, mark_false_positive
     from security.services.auto_resolution import _cases_of, maybe_resolve_case
 
-    if esito == "false_positive":
-        mark_false_positive(alert, actor=actor, reason=motivo, batch=batch, user=user)
-    else:
-        close_alert(alert, actor=actor, reason=motivo, outcome=esito, batch=batch, user=user)
+    try:
+        if esito == "false_positive":
+            mark_false_positive(alert, actor=actor, reason=motivo, batch=batch, user=user)
+        else:
+            close_alert(alert, actor=actor, reason=motivo, outcome=esito, batch=batch, user=user)
+    except TransizioneNonAmmessa:
+        return  # gia' chiuso da un altro operatore nel frattempo
     for case in _cases_of(alert):
         maybe_resolve_case(case)
 

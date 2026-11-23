@@ -47,6 +47,7 @@ from .permissions import can_view_security_center
 from .services.alert_lifecycle import (
     ACTIVE_ALERT_STATUSES,
     CLOSE_OUTCOMES,
+    TransizioneNonAmmessa,
     acknowledge_alert,
     close_alert,
     mark_false_positive,
@@ -563,7 +564,16 @@ def alert_action(request, pk, action):
         messages.error(request, error)
         return redirect("security:alert_detail", pk=alert.pk)
 
-    alert = handlers[action]()
+    try:
+        alert = handlers[action]()
+    except TransizioneNonAmmessa as exc:
+        alert.refresh_from_db()
+        if request.headers.get("HX-Request"):
+            context = _alert_lifecycle_context(alert)
+            context.update({"alert": alert, "action_error": str(exc)})
+            return render(request, "security/partials/alert_lifecycle_panel.html", context)
+        messages.error(request, str(exc))
+        return redirect("security:alert_detail", pk=alert.pk)
     if request.headers.get("HX-Request"):
         context = _alert_lifecycle_context(alert)
         context.update(

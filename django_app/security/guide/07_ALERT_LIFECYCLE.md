@@ -17,6 +17,20 @@ Un alert nasce dal motore regole quando una metrica soddisfa una condizione. Da 
 | false_positive | Falso positivo | Non era un problema reale |
 | closed | Chiuso | Terminato (risolto o non più rilevante) |
 
+## Passaggi ammessi
+
+Un'azione si applica solo dallo stato giusto, letto al momento del clic (non quello che avevi in pagina):
+
+- **Prendi in carico**: da nuovo, aperto, rimandato o silenziato.
+- **Chiudi**, **Falso positivo**, **Rimanda**: da qualunque stato attivo; **Silenzia**: da attivo e non già silenziato.
+- **Riapri**: da chiuso, risolto, falso positivo, soppresso, rimandato o silenziato.
+
+Un alert chiuso torna in lavorazione solo con «Riapri». Se due persone agiscono insieme, la seconda vede «L'alert è già chiuso: azione non applicata» e il registro non si sdoppia; nelle azioni massive quell'alert conta fra i saltati.
+
+## Gravità
+
+Una sola scala in tutto il SOC: **critica > alta > attenzione > media > bassa > info**. La usano ordinamento degli avvisi, gruppi, scheda asset, soglie dei canali di notifica, voto di postura, ticket e report.
+
 ## Distinzioni che contano
 
 - **Soppressione vs silenziamento.** La *soppressione* è una regola preventiva (sezione Soppressioni) che agisce su intere classi di eventi prima che diventino alert. Il *silenziamento* (muted) agisce sul singolo alert già creato. Usa la soppressione per rumore sistematico, il muting per il caso singolo.
